@@ -1,0 +1,23 @@
+.rule-card {
+    border: 1px solid #ccc;
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    height: 100%;
+    margin-bottom: 100px;
+}
+.rule-card h3 {
+    margin-bottom: 8px;
+}
+.rule-card div {
+    margin-bottom: 8px;
+}
+
+.rule-card-access{
+    border: 2px solid green
+}
+
+.rule-card-block {
+    border: 1.5px solid red;
+}
