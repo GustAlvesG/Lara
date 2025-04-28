@@ -80,57 +80,12 @@ class PlaceGroupController extends Controller
     {
         $placeGroup->load('places.scheduleRules');
 
-        $ruleToPlaces = [];
-
-        // Itera sobre os lugares como objetos
-        foreach ($placeGroup->places as $place) {
-            $place->schedule_rules;
-            $placeName = $place->name;
-
-            foreach ($place->scheduleRules as $rule) {
-                $ruleId = $rule->id;
-                if (!isset($ruleToPlaces[$ruleId])) {
-                    // Clona o objeto para evitar modificar o original
-                    $ruleToPlaces[$ruleId] = [
-                        'rule' => clone $rule,
-                        'places' => []
-                    ];
-                    // Remove campo pivot se existir
-                    unset($ruleToPlaces[$ruleId]['rule']->pivot);
-                }
-                $ruleToPlaces[$ruleId]['places'][] = $placeName;
-            }
-        }
-
-
-        // Agrupa regras por conjunto de lugares
         $rules = [];
 
-        foreach ($ruleToPlaces as $ruleData) {
-            $places = $ruleData['places'];
-
-            // Adiciona o campo "places" no objeto da regra
-            $rule = $ruleData['rule'];
-            $rule->places = $places;
-
-            $rules[] = $rule;
-        }
-
-
-
-        //Delete schedule_rules from places
-        foreach ($placeGroup->places as $place) {
-            unset($place->scheduleRules);
-        }
-
-        #Order rules by length of places
-        usort($rules, function ($a, $b) {
-            return count($b->places) <=> count($a->places);
-        });
-
+        $rules = $this->filterRules($placeGroup);
 
         return view('location.placeGroup.show', [
-            'item' => $placeGroup,
+            'item' => $placeGroup,  
             'rules' => $rules,
         ]);
     }
@@ -210,11 +165,82 @@ class PlaceGroupController extends Controller
         return response()->json($rules);
     }
 
+    public function createPlace($group_id)
+    {
+        $group = PlaceGroup::find($group_id);
+
+        $group->load('places.scheduleRules');
+
+        $rules = [];
+
+        $rules = $this->filterRules($group);
+
+        return $rules;
+
+
+        return view('location.place.create', [
+            'place_group' => $group,
+        ]);
+    }
+    
+
     /**
      * Remove the specified resource from storage.
      */
     public function destroy(PlaceGroup $placeGroup)
     {
         //
+    }
+
+    private function filterRules($group){
+        $ruleToPlaces = [];
+
+        // Itera sobre os lugares como objetos
+        foreach ($group->places as $place) {
+            $place->schedule_rules;
+            $placeName = $place->name;
+
+            foreach ($place->scheduleRules as $rule) {
+                $ruleId = $rule->id;
+                if (!isset($ruleToPlaces[$ruleId])) {
+                    // Clona o objeto para evitar modificar o original
+                    $ruleToPlaces[$ruleId] = [
+                        'rule' => clone $rule,
+                        'places' => []
+                    ];
+                    // Remove campo pivot se existir
+                    unset($ruleToPlaces[$ruleId]['rule']->pivot);
+                }
+                $ruleToPlaces[$ruleId]['places'][] = $placeName;
+            }
+        }
+
+
+        // Agrupa regras por conjunto de lugares
+        $rules = [];
+
+        foreach ($ruleToPlaces as $ruleData) {
+            $places = $ruleData['places'];
+
+            // Adiciona o campo "places" no objeto da regra
+            $rule = $ruleData['rule'];
+            $rule->places = $places;
+
+            $rules[] = $rule;
+        }
+
+
+
+        //Delete schedule_rules from places
+        foreach ($group->places as $place) {
+            unset($place->scheduleRules);
+        }
+
+        #Order rules by length of places
+        usort($rules, function ($a, $b) {
+            return count($b->places) <=> count($a->places);
+        });
+
+        return $rules;
     }
 }

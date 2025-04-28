@@ -1,11 +1,12 @@
 <x-app-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Grupos de Espaços
+            Criação de Espaços - {{ $place_group->name }}
         </h2>
     </x-slot>
 
     <x-slot name="css">
+        <link rel="stylesheet" href="{{ asset('css/information/list.css') }}">
         <link rel="stylesheet" href="{{ asset('css/switch.css') }}">
     </x-slot>
     <div class="py-6">        
@@ -14,10 +15,10 @@
                 <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg row">
                     <x-crud.create>
                         <x-slot name="route">
-                            {{ route('place-group.storeSchedule') }}
+                            {{ route('place-group.storePlace') }}
                         </x-slot>
                         <x-slot name="formInputs">
-                            @include('location.schedule.partials.form')
+                            @include('location.place.partials.form')
                         </x-slot>  
                     </x-crud.create>
                 </div>
@@ -28,7 +29,7 @@
 
    
     <x-slot name="js">
-        <script src="{{ asset('js/schedule/form-rules.js') }}"></script>
+        <script src="{{ asset('js/image-preview/index.js') }}"></script>
     </x-slot>
 
     

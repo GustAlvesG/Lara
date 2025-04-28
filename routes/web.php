@@ -53,18 +53,22 @@ Route::middleware('auth')->group(function () {
     
     //Route::resource('outer', OuterController::class);
     
-
-    
     Route::get('/videowall', [VideoWallController::class, 'index'])->name('videowall.index');
     
 
     Route::resource('place-group', PlaceGroupController::class);
 
-    Route::resource('place', PlaceController::class);
+    // Route::resource('place', PlaceController::class);
 
-    Route::get('/place-group/{id}/schedule/create', [PlaceGroupController::class, 'createSchedule'])->name('place-group.createSchedule');
-    Route::post('/place-group/schedule', [PlaceGroupController::class, 'storeSchedule'])->name('place-group.storeSchedule');
+    Route::get('/place-group/{id}/schedule/rule/create', [PlaceGroupController::class, 'createSchedule'])->name('place-group.createSchedule');
     
+    
+    Route::post('/place-group/schedule/rule', [PlaceGroupController::class, 'storeSchedule'])->name('place-group.storeSchedule');
+    
+    Route::get('/place-group/{id}/place/create', [PlaceGroupController::class, 'createPlace'])->name('place-group.createPlace');
+    
+    Route::post('/place-group/place', [PlaceGroupController::class, 'storePlace'])->name('place-group.storePlace');
+
 });
 
 require __DIR__.'/auth.php';

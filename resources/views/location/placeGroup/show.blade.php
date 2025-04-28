@@ -26,12 +26,20 @@
 
     <x-block>
         <x-slot name="content">
+            @include('location.placeGroup.partials.places', ['places' => $item->places])
+        </x-slot>
+    </x-block>
+   
+    <x-block>
+        <x-slot name="content">
             @include('location.placeGroup.partials.place-group-rules')
         </x-slot>
     </x-block>
    
     <x-slot name="js">
         <script src="{{ asset('js/company/form-rules.js') }}"></script>
+        <script src="{{ asset('js/pagination.js') }}"></script>
+        
     </x-slot>
 
     
