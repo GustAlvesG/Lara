@@ -22,8 +22,7 @@
                     <div class="row">
                 @endif
                 <div class="col-3 element rule-card-pagination">
-                    {{-- @include('location.placeGroup.partials.rule-card', ['rule' => $rule]) --}}
-                    {{ $place->name }}
+                    @include('location.placeGroup.partials.place-card', ['place' => $place])
                 </div>
                 @if ($cont % 4 == 3)
                     </div>

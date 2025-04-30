@@ -10,20 +10,24 @@
         <link rel="stylesheet" href="{{ asset('css/switch.css') }}">
     </x-slot>
     <div class="py-6">        
-        <div class="mx-auto sm:px-6 lg:px-8 space-y-6 row items-center justify-content">
-            <div class="col-10">
-                <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg row">
-                    <x-crud.create>
-                        <x-slot name="route">
-                            {{ route('place-group.storePlace') }}
-                        </x-slot>
-                        <x-slot name="formInputs">
-                            @include('location.place.partials.form')
-                        </x-slot>  
-                    </x-crud.create>
+        <div class="mx-auto sm:px-6 lg:px-8 space-y-6 items-center justify-content">
+            <div class="row">
+                <div class="col-10">
+                    <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg row">
+                        <x-crud.create>
+                            <x-slot name="route">
+                                {{ route('place-group.storePlace') }}
+                            </x-slot>
+                            <x-slot name="formInputs">
+                                @include('location.place.partials.form')
+                                <hr class="my-3">
+                                @include('location.place.partials.form-rules')
+                            </x-slot>  
+                        </x-crud.create>
+                    </div>
                 </div>
             </div>
-           
+          
         </div>
     </div>
 

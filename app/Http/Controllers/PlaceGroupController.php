@@ -175,11 +175,10 @@ class PlaceGroupController extends Controller
 
         $rules = $this->filterRules($group);
 
-        return $rules;
-
 
         return view('location.place.create', [
             'place_group' => $group,
+            'rules' => $rules,
         ]);
     }
     

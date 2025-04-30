@@ -23,6 +23,13 @@
         @endforeach
     </div>
 
+    @isset($checkbox)
+        <div class="mb-2">
+            <input type="checkbox" name="rules[]" id="rules" value="{{ $rule->id }}" class="form-check-input">
+            <label for="rules" class="form-check-label">Selecionar</label>
+        </div>
+    @endisset
+
 
     {{-- 
     <div class="mb-2">
