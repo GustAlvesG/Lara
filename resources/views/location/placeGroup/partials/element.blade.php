@@ -6,7 +6,7 @@
 
 
     <x-slot name="bodyElement">
-        <a href="{{ route('place-group.edit', $item->id) }}" class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+        <a href="{{ route('place-group.show', $item->id) }}" class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
             {{ $item->name }}
         </a>
 

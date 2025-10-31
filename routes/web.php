@@ -13,6 +13,7 @@ use App\Http\Controllers\AccessRuleController;
 use App\Http\Controllers\VideoWallController;
 use App\Http\Controllers\PlaceGroupController;
 use App\Http\Controllers\PlaceController;
+use App\Http\Controllers\ScheduleController;
 
 
 Route::get('/', function () {
@@ -59,15 +60,25 @@ Route::middleware('auth')->group(function () {
     Route::resource('place-group', PlaceGroupController::class);
 
     // Route::resource('place', PlaceController::class);
+    Route::get('/schedule', [ScheduleController::class, 'index'])->name('schedule.index');
+    Route::group(['prefix' => 'place-group'], function () {
 
-    Route::get('/place-group/{id}/schedule/rule/create', [PlaceGroupController::class, 'createSchedule'])->name('place-group.createSchedule');
+        Route::get('/{id}/schedule/rule/create', [PlaceGroupController::class, 'createScheduleRule'])->name('place-group.createScheduleRule');
+        Route::post('/schedule/rule', [PlaceGroupController::class, 'storeScheduleRule'])->name('place-group.storeScheduleRule');
+        Route::get('/schedule/rule/{id}/edit', [PlaceGroupController::class, 'editScheduleRule'])->name('place-group.editScheduleRule');
+        Route::put('/schedule/rule/{id}', [PlaceGroupController::class, 'updateScheduleRule'])->name('place-group.updateScheduleRule');
+        Route::delete('/schedule/rule/{id}', [PlaceGroupController::class, 'destroyScheduleRule'])->name('place-group.destroyScheduleRule');
+
+        Route::get('/{id}/place/create', [PlaceGroupController::class, 'createPlace'])->name('place-group.createPlace');
+        Route::post('/place', [PlaceGroupController::class, 'storePlace'])->name('place-group.storePlace');
+        Route::get('/place/{place_id}/edit', [PlaceGroupController::class, 'editPlace'])->name('place-group.editPlace');
+        Route::put('/place/{place_id}', [PlaceGroupController::class, 'updatePlace'])->name('place-group.updatePlace');
+        Route::delete('/place/{place_id}', [PlaceGroupController::class, 'destroyPlace'])->name('place-group.destroyPlace');
+    });
+
     
-    
-    Route::post('/place-group/schedule/rule', [PlaceGroupController::class, 'storeSchedule'])->name('place-group.storeSchedule');
-    
-    Route::get('/place-group/{id}/place/create', [PlaceGroupController::class, 'createPlace'])->name('place-group.createPlace');
-    
-    Route::post('/place-group/place', [PlaceGroupController::class, 'storePlace'])->name('place-group.storePlace');
+
+
 
 });
 

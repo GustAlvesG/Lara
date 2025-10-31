@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\PlaceGroup;
+use App\Models\Place;
+use App\Models\Weekday;
 
 class ScheduleRules extends Model
 {
@@ -13,21 +15,35 @@ class ScheduleRules extends Model
     use SoftDeletes;
 
     protected $fillable = [
+        'name',
         'status',
         'type',
         'duration',
-        'weekdays',
-        'antecedence',
+        'minimium_antecedence',
+        'maximium_antecedence',
+        'interval',
         'start_time', 
         'end_time',
         'start_date',
         'end_date',
-        'group_id',
+        'quantity',
     ];
+
+    protected $with = [
+        'weekdays'
+    ];
+
 
     public function places()
     {
-        return $this->belongsToMany(Place::class, 'place_schedule_rules', 'schedule_rules_id', 'place_id')
+        return $this->belongsToMany(Place::class, 'place_schedule_rule', 'schedule_rule_id', 'place_id')
+            ->withPivot('id')
+            ->withTimestamps();
+    }
+
+    public function weekdays()
+    {
+        return $this->belongsToMany(Weekday::class, 'week_days_schedule_rule', 'schedule_rule_id', 'weekday_id')
             ->withPivot('id')
             ->withTimestamps();
     }

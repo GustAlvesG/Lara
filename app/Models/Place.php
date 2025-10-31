@@ -12,13 +12,23 @@ class Place extends Model
 {
     use HasFactory;
     use SoftDeletes;
+
     
     protected $fillable = [
         'name',
-        'description',
         'image',
         'place_group_id',
+        'price',
+        'status',
     ];
+
+    //Order by name
+    protected static function booted()
+    {
+        static::addGlobalScope('order', function ($query) {
+            $query->orderBy('name', 'asc');
+        });
+    }
 
     public function group()
     {

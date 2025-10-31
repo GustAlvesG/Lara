@@ -20,10 +20,21 @@ class PlaceController extends Controller
         
         $places->load('scheduleRules');
 
+        foreach ($places as $place) {
+            //If has not "imgur" in the image path, add it
+            if (!str_contains($place->image, 'http')) {
+                $place->image = asset('images/' . $place->image);
+            }
+        }
+
 
         $group = $places[0]->group;
 
         unset($places[0]->group);
+
+        if (!str_contains($group->image_horizontal, 'http')) {
+            $group->image_horizontal = asset('images/' . $group->image_horizontal);
+        }
 
         return response()->json([
             'group' => $group,
@@ -67,7 +78,10 @@ class PlaceController extends Controller
      */
     public function show($id)
     {
-        $place = Place::where('id', $id)->get();
+        
+        $place = Place::where('id', $id)->first();
+
+        $place->load('scheduleRules');
 
         return $place;
     }

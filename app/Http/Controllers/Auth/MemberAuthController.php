@@ -26,7 +26,12 @@ class MemberAuthController extends Controller
 
     public function register(StoreMemberRequest $request)
     {
-        $validated = $request->validated();
+        $validated = $request->validated([
+            'title' => 'required|string',
+            'cpf' => 'required|string',
+            'birthDate' => 'required|date',
+            'password' => 'required|string|min:6',
+        ]);
 
         $member = Member::where('cpf', $request->input('cpf'))->first();
 
@@ -39,6 +44,10 @@ class MemberAuthController extends Controller
         $birthdate = $request->input('birthDate');
 
         $associated = self::queryMember($title, $document, $birthdate);
+
+        if (!$associated) {
+            return response()->json(['error' => 'Member not found'], 404);
+        }
 
         if ($associated) {
             $member = $associated[0];
@@ -61,11 +70,13 @@ class MemberAuthController extends Controller
             return response()->json([
                 'user' => $member, 
                 'token' => $token
-            ], 200);
+            ], 201);
         }
 
         return response()->json(['error' => 'Member not found'], 404);
     }
+
+
 
     public function login(Request $request)
     {
@@ -83,18 +94,16 @@ class MemberAuthController extends Controller
             return response()->json([
                 'user' => $member,
                 'token' => $token
-            ]);
+            ], 200);
         }
-        
-        return response()->json(['error' => 'Invalid login credentials']);
+
+        return response()->json(['error' => 'Invalid login credentials'], 401);
     }
 
     public function changePassword(UpdateMemberRequest $request)
     {
         
         $validated = $request->validated();
-
-        return "AAAAAAAAAAAAAAAAAAAAAAAA";
 
         if (!$member = $this->validateCredentials($request->input('login'), $request->input('password'))) {
             return response()->json(['error' => 'Credenciais inválidas'], 401);
@@ -141,13 +150,5 @@ class MemberAuthController extends Controller
             unset($data[$field]);
         }
         return $data;
-    }
-
-    public function souburro()
-    {
-        //Delete user with email al.gustavo@Outlook.com
-        $member = Member::where('email', 'al.gustavo@outlook.com')->first();
-        $member->delete();
-        return response()->json(['message' => 'Eu sou um aninmal']);
     }
 }

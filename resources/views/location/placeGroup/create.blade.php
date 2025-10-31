@@ -25,12 +25,12 @@
                     </x-crud.create>
                 </div>
             </div>
-           
         </div>
     </div>
 
    
     <x-slot name="js">
+        <script src="{{ asset('js/image-preview/index.js') }}"></script>
         <script src="{{ asset('js/company/form-rules.js') }}"></script>
     </x-slot>
 

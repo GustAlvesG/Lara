@@ -25,7 +25,7 @@
         </div>
         <br>
         <div class="mx-auto sm:px-6 lg:px-8 space-y-6 page-group">
-            <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg page" data-limit="5" data-actual="">
+            <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg page"  data-actual="">
                 @foreach ($companies as $item)
                         @include('company.partials.element')
                 @endforeach
@@ -37,8 +37,6 @@
                 </div>
             </div>
         </div>
-
-       
     </div>
 
     <x-slot name="js">

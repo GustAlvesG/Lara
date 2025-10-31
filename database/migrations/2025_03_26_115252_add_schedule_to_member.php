@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('schedule', function (Blueprint $table) {
+        Schema::table('schedules', function (Blueprint $table) {
             //Drop columns associated_name
             $table->dropColumn('associated_name');
             $table->dropColumn('associated_telephone');
@@ -39,7 +39,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('schedule', function (Blueprint $table) {
+        Schema::table('schedules', function (Blueprint $table) {
             //Create columns associated_name
             $table->string('associated_name')->after('id')->nullable();
             $table->string('associated_telephone')->after('associated_name')->nullable();

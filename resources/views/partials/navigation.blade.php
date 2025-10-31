@@ -28,9 +28,13 @@
                         {{ __('Smart Panel') }}
                     </x-nav-link>
 
-                    <x-nav-link :href="route('company.index')" :active="request()->routeIs('company.index')">
-                        {{ __('Terceirizados') }}
+                    <x-nav-link :href="route('schedule.index')" :active="request()->routeIs('schedule.index')">
+                        {{ __('Projeto 2XKO') }}
                     </x-nav-link>
+
+                    {{-- <x-nav-link :href="route('company.index')" :active="request()->routeIs('company.index')">
+                        {{ __('Terceirizados') }}
+                    </x-nav-link> --}}
                 </div>
             </div>
 

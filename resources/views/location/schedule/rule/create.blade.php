@@ -14,7 +14,7 @@
                 <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg row">
                     <x-crud.create>
                         <x-slot name="route">
-                            {{ route('place-group.storeSchedule') }}
+                            {{ route('place-group.storeScheduleRule') }}
                         </x-slot>
                         <x-slot name="formInputs">
                             @include('location.schedule.partials.form')

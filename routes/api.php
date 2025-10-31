@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\MemberAuthController;
 use App\Http\Controllers\Auth\LoginTokenController;
 use App\Http\Controllers\PlaceController;
 use App\Http\Controllers\PlaceGroupController;
+use App\Http\Controllers\ScheduleController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -43,7 +44,17 @@ Route::middleware('api_token')->group(function () {
             Route::get('/{id}', [PlaceController::class, 'show']);
         });
 
+        Route::prefix('schedule')->group(function () {
+
+            Route::get('/', [ScheduleController::class, 'index'])->name('api.schedule.index');
+            Route::post('/', [ScheduleController::class, 'store']);
+            Route::get('/{id}', [ScheduleController::class, 'show']);
+            Route::put('/{id}/update', [ScheduleController::class, 'update']);
+            Route::get('/place/{place_id}/', [ScheduleController::class, 'indexByPlace']);
+            Route::get('/member/{member_id}/', [ScheduleController::class, 'indexByMember']);
+            Route::put('/update-status', [ScheduleController::class, 'updateStatus']);
+            Route::delete('/delete-pending', [ScheduleController::class, 'destroyPending']);
+        });
+
     });
 });
-
-

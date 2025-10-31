@@ -5,9 +5,9 @@
         <img src="{{ asset('images/'. $place->image) }} " alt="">
     </div>
 
-    <h2 class="font-semibold text-md text-gray-800 dark:text-gray-200 leading-tight text-center">
+    <a href="{{ route('place-group.editPlace', $place->id) }}" class=" font-semibold text-md text-gray-800 dark:text-gray-200 leading-tight text-center justify-content-center d-flex">
         {{ $place->name }}
-    </h2>
+    </a>
 
 
 
@@ -16,17 +16,26 @@
         <span>{{ $place->status  ? "Ativo" : "Inativo" }}</span>
     </div>
 
+    <div class="mb-2">
+        <strong>Valor:</strong>
+        <span>R$ {{ number_format($place->price, 2, ',', '.') }}</span>
+    </div>
 
-    {{-- <div class="mb-2">
+    <div class="mb-2">
+        <strong>Disponível:</strong>
+        <span>{{ $place->description }}</span>
+    </div>
+
+
+    <div class="mb-2">
         <div class="row">
-
-            <div class="col">
-                <x-secondary-button-a href="{{ route('accessrule.ruleByID', $rule->id) }}">
+            <div class="col-6">
+                <x-secondary-button-a href="{{ route('place-group.editPlace', $place->id) }}">
                     Editar
                 </x-secondary-button-a>
             </div>
-            <div class="col">
-                <form action="{{ route('accessrule.destroy', $rule->id) }}" method="POST" >
+            <div class="col-6">
+                <form action="{{ route('place-group.destroyPlace', $place->id) }}" method="POST">
                     @csrf
                     @method('DELETE')
                     <x-danger-button onclick="return confirm('{{ 'Tem certeza que deseja deletar?' }}')">
@@ -36,5 +45,5 @@
             </div>
         </div>
 
-    </div> --}}
+    </div>
 </div>

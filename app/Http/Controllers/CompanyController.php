@@ -117,48 +117,48 @@ class CompanyController extends Controller
         //Load data for the company and all access rules and outer
         $rules = AccessRule::where('company_id', $company->id)->where('outer_id', null)->get();
 
-        $company->applicable = false;
+        // $company->applicable = false;
 
-        foreach($rules as $rule) {
+        // foreach($rules as $rule) {
             
-            $rule->applicable = AccessRuleController::validAccessCompany($rule);
+        //     $rule->applicable = AccessRuleController::validAccessCompany($rule);
             
-            if ($rule->applicable) $company->applicable = true;
+        //     if ($rule->applicable) $company->applicable = true;
 
-            //Format time
-            if ($rule->start_time != $rule->end_time) {
-                $rule->start_time = date('H:i', strtotime($rule->start_time));
-                $rule->end_time = date('H:i', strtotime($rule->end_time));
-            }
+        //     //Format time
+        //     if ($rule->start_time != $rule->end_time) {
+        //         $rule->start_time = date('H:i', strtotime($rule->start_time));
+        //         $rule->end_time = date('H:i', strtotime($rule->end_time));
+        //     }
 
-            //Format date
-            if ($rule->start_date != $rule->end_date) {
-                $rule->start_date = date('d/m/Y', strtotime($rule->start_date));
-                $rule->end_date = date('d/m/Y', strtotime($rule->end_date));
-            }
+        //     //Format date
+        //     if ($rule->start_date != $rule->end_date) {
+        //         $rule->start_date = date('d/m/Y', strtotime($rule->start_date));
+        //         $rule->end_date = date('d/m/Y', strtotime($rule->end_date));
+        //     }
 
-            $rule->status = $rule->status == 1 ? 'Ativa' : 'Inativa';
-        }
-        //Order rules by applicable with true first and status with Ativa first
-        $rules = $rules->sortByDesc('applicable')->sortBy('status');
+        //     $rule->status = $rule->status == 1 ? 'Ativa' : 'Inativa';
+        // }
+        // //Order rules by applicable with true first and status with Ativa first
+        // $rules = $rules->sortByDesc('applicable')->sortBy('status');
         
 
-        $outers = Outer::where('company_id', $company->id)->get();
+        // $outers = Outer::where('company_id', $company->id)->get();
 
-        foreach ($outers as $outer) {
-            $outer->rules = AccessRule::where('outer_id', $outer->id)->get();
+        // foreach ($outers as $outer) {
+        //     $outer->rules = AccessRule::where('outer_id', $outer->id)->get();
 
-            if ($outer->rules->isEmpty()) {
-                $outer->applicable = $company->applicable;
-            }
-            else{
-                foreach ($outer->rules as $rule) {
-                    $rule->applicable = AccessRuleController::validAccessOuter($rule);
-                    if ($rule->applicable) $outer->applicable = true;
-                    // dd($rule);
-                }
-            }   
-        }
+        //     if ($outer->rules->isEmpty()) {
+        //         $outer->applicable = $company->applicable;
+        //     }
+        //     else{
+        //         foreach ($outer->rules as $rule) {
+        //             $rule->applicable = AccessRuleController::validAccessOuter($rule);
+        //             if ($rule->applicable) $outer->applicable = true;
+        //             // dd($rule);
+        //         }
+        //     }   
+        // }
 
 
 
