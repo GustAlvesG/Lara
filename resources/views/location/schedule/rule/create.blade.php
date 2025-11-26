@@ -17,7 +17,7 @@
                             {{ route('place-group.storeScheduleRule') }}
                         </x-slot>
                         <x-slot name="formInputs">
-                            @include('location.schedule.partials.form')
+                            @include('location.schedule.rule.partials.form')
                         </x-slot>  
                     </x-crud.create>
                 </div>

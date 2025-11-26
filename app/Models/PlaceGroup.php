@@ -18,7 +18,9 @@ class PlaceGroup extends Model
         'category', 
         'image_vertical', 
         'image_horizontal', 
-        'status'
+        'status',
+        'vertices',
+        'icon'
     ];
 
     public function places()

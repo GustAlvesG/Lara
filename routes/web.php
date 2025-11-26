@@ -60,7 +60,11 @@ Route::middleware('auth')->group(function () {
     Route::resource('place-group', PlaceGroupController::class);
 
     // Route::resource('place', PlaceController::class);
-    Route::get('/schedule', [ScheduleController::class, 'index'])->name('schedule.index');
+    Route::group(['prefix' => 'schedule'], function () {
+        Route::get('/', [ScheduleController::class, 'index'])->name('schedule.index');
+        Route::get('/{id}', [ScheduleController::class, 'show'])->name('schedule.show');
+        Route::put('/update', [ScheduleController::class, 'update'])->name('schedule.update');
+    });
     Route::group(['prefix' => 'place-group'], function () {
 
         Route::get('/{id}/schedule/rule/create', [PlaceGroupController::class, 'createScheduleRule'])->name('place-group.createScheduleRule');

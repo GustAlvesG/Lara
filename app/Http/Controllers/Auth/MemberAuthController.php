@@ -84,7 +84,9 @@ class MemberAuthController extends Controller
             // Validação das credenciais
 
             if (!$member = $this->validateCredentials($request->input('login'), $request->input('password'))) {
-                return response()->json(['error' => 'Credenciais inválidas'], 401);
+                return response()->json(['error' => 'Credenciais inválidas',
+                'data' => $request->all()
+            ], 401);
             }
 
             $token = LoginTokenController::generate($member);
@@ -97,22 +99,59 @@ class MemberAuthController extends Controller
             ], 200);
         }
 
-        return response()->json(['error' => 'Invalid login credentials'], 401);
+        return response()->json([
+            'error' => 'Invalid login credentials',
+            'data' => $request->all()
+        ], 401);
     }
 
-    public function changePassword(UpdateMemberRequest $request)
+    public function update(Request $request)
     {
-        
-        $validated = $request->validated();
 
-        if (!$member = $this->validateCredentials($request->input('login'), $request->input('password'))) {
-            return response()->json(['error' => 'Credenciais inválidas'], 401);
+        $member = Member::where('cpf', $request->input('cpf'))->first();
+
+        if (!$member) {
+            return response()->json(['error' => 'Member not found'], 404);
         }
+
+        //Update member data based on request input if not null
+        $member->email = $request->input('email', $member->email) ?? $member->email;
+        $member->telephone = $request->input('telephone', $member->telephone) ?? $member->telephone;
+        $member->save();
+
+        return response()->json(['user' => $member], 200);
+    }
+
+    public function changePassword(Request $request)
+    {
+        $member = Member::where('cpf', $request->input('cpf'))->first();
 
         $member->Password = $request->input('new_password');
         $member->save();
 
         return response()->json(['message' => 'Senha alterada com sucesso'], 200);
+    }
+
+    public function checkMember(Request $request)
+    {
+        $title = $request->input('title');
+        $document = $request->input('cpf');
+        $birthdate = $request->input('birth_date');
+
+
+        $associated = Member::where('title', $title)
+            ->where('cpf', $document)
+            ->where('birth_date', $birthdate)
+            ->first();
+
+
+
+        if ($associated) {
+            return response()->json(['exists' => true,
+            'id' => $associated->cpf], 200);
+        } else {
+            return response()->json(['exists' => false], 404);
+        }
     }
 
     private function generateToken($member)

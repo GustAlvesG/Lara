@@ -16,56 +16,51 @@ class ScheduleController extends Controller
     
     public function index()
     {
+        $rangeStart = Carbon::today()->startOfDay();
+        $rangeEnd   = Carbon::tomorrow()->endOfDay();
 
-        $schedules_today = Schedule::whereBetween('start_schedule', [
-            Carbon::today()->startOfDay(),
-            Carbon::tomorrow()->endOfDay()
-        ])->get();
-
-        $schedules_today = $schedules_today->load('place.group', 'member');
-
-        //Remove password from member
-        $schedules_today->each(function ($schedule) {
-            if ($schedule->member) {
-                unset($schedule->member->password);
-            }
-        });
-
-        //Group by place group
-        // $schedules_today = $schedules_today->groupBy(function($item) {
-        //     return $item->place->group->name;
-        // });
-
-        //Group by date
-        $schedules_today = $schedules_today->groupBy(function($item) {
-            return Carbon::parse($item->start_schedule)->format('Y-m-d');
-        });
-
-        //Inside each date group, group by place group
-        $schedules_today = $schedules_today->map(function($dateGroup) {
-            return $dateGroup->groupBy(function($item) {
-                return $item->place->group->name;
-            });
-        });
-
-        //Inside each place group, order by start_schedule
-        $schedules_today = $schedules_today->map(function($dateGroup) {
-            return $dateGroup->map(function($placeGroup) {
-                return $placeGroup->sortBy('start_schedule');
-            });
-        });
-
-        //Order by date
-        $schedules_today = $schedules_today->sortKeys();
-        
-        // return response()->json(['schedules' => $schedules_today], 200);
+        $schedules_today = $this->schedules_today();
 
         return view('location.index', compact('schedules_today'));
     }
 
-    public function indexByPlace($place_id)
+    public function index_api()
     {
-        $schedules = Schedule::where('place_id', $place_id)->get();
+        $schedules = $this->schedules_today();
+
+        return response()->json(['schedules' => $schedules], 200);
+    }
+
+    public function indexByPlace(Request $request)
+    {
+
+        #Validate place_id
+        $validator = Validator::make($request->all(), [
+            'place_id' => 'required|integer|exists:places,id',
+            'date' => 'nullable|date',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed.',
+                'errors' => $validator->errors(),
+            ], 418);
+        }
+
+        $place_id = $request->input('place_id');
+        if ($request->has('date')) {
+            $date = Carbon::parse($request->input('date'));
+        } else {
+            # Default to everydate
+            $date = null;
+        }
+
+
+        $schedules = Schedule::where('place_id', $place_id)
+            ->when($date, function ($query) use ($date) {
+                return $query->whereDate('start_schedule', $date->toDateString());
+            })
+            ->get();
 
         if ($schedules->isEmpty()) {
             return response()->json(['message' => 'No schedules found for this place.'], 404);
@@ -73,6 +68,8 @@ class ScheduleController extends Controller
 
         return response()->json(['schedules' => $schedules], 200);
     }
+
+
 
     /**
      * Display a listing of the resource.
@@ -109,7 +106,7 @@ class ScheduleController extends Controller
                 'place_id' => 'required|integer',
                 'start_schedule' => 'required|date',
                 'end_schedule' => 'required|date|after:start_schedule',
-                // 'status' => 'required|in:confirmed,cancelled,pending,expired',
+                'status_id' => 'required|in:0,1,3,4',
                 'price' => 'required|numeric|min:0',
             ]);
 
@@ -187,6 +184,67 @@ class ScheduleController extends Controller
         ], 201);
     }
 
+    public function show($id)
+    {
+        $schedule = Schedule::with(['status','place.group','member'])->find($id);
+
+        if (!$schedule) {
+            return response()->json(['message' => 'Schedule not founds.'], 404);
+        }
+
+        //Get other schedules of the same member in the same date
+        $other_schedules = Schedule::with(['status','place.group','member'])
+            ->where('member_id', $schedule->member_id)
+            ->whereDate('start_schedule', Carbon::parse($schedule->start_schedule)->toDateString())
+            ->where('id', '!=', $schedule->id)
+            ->get();
+
+        //Add current schedule to the other schedules in first position
+        $other_schedules->prepend($schedule);
+
+
+        return view('location.schedule.show', compact('schedule', 'other_schedules'));
+    }
+
+    public function update(Request $request)
+    {
+        $selectedReservations = $request->input('selected_reservations', []);
+        $actionStatus = $request->input('action_status');
+
+        if (empty($selectedReservations) || empty($actionStatus)) {
+            return redirect()->back()->with('error', 'Por favor, selecione ao menos uma reserva e uma ação para executar.');
+        }
+
+        $statusMap = [
+            'confirmar' => 1,
+            'cancelar' => 0,
+        ];
+
+        if (!array_key_exists($actionStatus, $statusMap)) {
+            return redirect()->back()->with('error', 'Ação inválida selecionada.');
+        }
+
+        $newStatusId = $statusMap[$actionStatus];
+        $updatedCount = 0;
+
+
+        foreach ($selectedReservations as $reservationId) {
+            $schedule = Schedule::find($reservationId);
+            if ($schedule) {
+                $schedule->status_id = $newStatusId;
+                $schedule->save();
+                $updatedCount++;
+            }
+        }
+
+        return redirect()->back()->with('success', "{$updatedCount} reservas atualizadas com sucesso.");
+    }
+
+    public function updateStatusWeb(Request $request)
+    {
+        
+    }
+
     public function updateStatus(Request $request)
     {
         // Verifica se é um array ou objeto único
@@ -207,7 +265,7 @@ class ScheduleController extends Controller
                 continue;
             }
     
-            $schedule->status = $updateData['status'];
+            $schedule->status_id = $updateData['status_id'];
             $schedule->save();
             $updatedSchedules[] = $schedule;
         }
@@ -239,7 +297,7 @@ class ScheduleController extends Controller
     {
 
         $schedule = Schedule::where('id', $request->id)
-            ->where('status', '3')
+            ->where('status_id', '3')
             ->first();
         if (empty($schedule)) {
             return response()->json(['message' => 'No pending schedules found with the provided ID.'], 404);
@@ -250,11 +308,17 @@ class ScheduleController extends Controller
         return response()->json(['message' => 'Pending schedule deleted successfully.'], 200);
     }
 
+
+
+
+
+
     
 
     private function checkColide($schedule){
-        // Check if the new schedule collides with existing schedules
+        // Check if the new schedule collides with existing schedules, excluding those with status 4, 0
         $existingSchedules = Schedule::where('place_id', $schedule->place_id)
+            ->whereNotIn('status_id', [0, 4])
             ->where(function ($query) use ($schedule) {
                 $query->where(function ($query) use ($schedule) {
                           // Verifica se o novo agendamento começa durante um agendamento existente
@@ -360,6 +424,8 @@ class ScheduleController extends Controller
                 else {
                     $valid_period = true; // If no period is set, consider it valid
                 }
+
+            
             
                 if (count($ruleDays) > 0) {
                     $valid_weekday = !$this->checkWeekday($scheduleWeekday, $ruleDays);
@@ -378,6 +444,7 @@ class ScheduleController extends Controller
 
                 $valid_duration = $this->checkDuration($scheduleStart, $scheduleEnd, $rule->duration);
 
+                
                 if ($valid_period && $valid_weekday && $valid_time && $valid_antecedence && $valid_duration) {
                     $response = true;
                     break; // If one include rule is satisfied, no need to check further
@@ -423,5 +490,25 @@ class ScheduleController extends Controller
         //Convert rule duration to decimal hours
         $ruleDuration = (float) $ruleDuration;
         return $differenceInHours <= $ruleDuration;
+    }
+
+    private function schedules_today()
+    {
+        $rangeStart = Carbon::today()->startOfDay();
+        $rangeEnd   = Carbon::tomorrow()->endOfDay();
+
+        $schedules_today = Schedule::with(['status','place.group','member'])
+            ->whereBetween('start_schedule', [$rangeStart, $rangeEnd])
+            ->orderBy('start_schedule')
+            ->get()
+            ->groupBy(fn($s) => Carbon::parse($s->start_schedule)->toDateString())
+            ->map(fn($dateGroup) =>
+                $dateGroup
+                    ->groupBy(fn($s) => optional($s->place->group)->name ?? 'Sem Grupo')
+                    ->map(fn($placeGroup) => $placeGroup->sortBy('start_schedule'))
+            )
+            ->sortKeys();
+
+        return $schedules_today;
     }
 };

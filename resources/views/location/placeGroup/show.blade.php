@@ -37,9 +37,9 @@
     </x-block>
    
     <x-slot name="js">
+        <script src="{{ asset('js/image-preview/index.js') }}"></script>
         <script src="{{ asset('js/company/form-rules.js') }}"></script>
         <script src="{{ asset('js/pagination.js') }}"></script>
-        
     </x-slot>
 
     

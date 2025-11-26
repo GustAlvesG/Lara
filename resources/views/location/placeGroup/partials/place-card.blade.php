@@ -13,7 +13,7 @@
 
     <div class="mb-2">
         <strong>Tipo:</strong>
-        <span>{{ $place->status  ? "Ativo" : "Inativo" }}</span>
+        <span>{{ $place->status == 1  ? "Ativo" : "Inativo" }}</span>
     </div>
 
     <div class="mb-2">

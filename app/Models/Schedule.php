@@ -5,6 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Place;
+use App\Models\Member;
+use App\Models\Status;
 
 class Schedule extends Model
 {
@@ -16,10 +19,18 @@ class Schedule extends Model
         'member_id',
         'start_schedule',
         'end_schedule',
-        'status',
+        'status_id',
         'price',
         'description',  
     ];
+
+    //By default, ignore status_id = 4, Expired
+    protected static function booted()
+    {
+        static::addGlobalScope('not_expired', function ($builder) {
+            $builder->where('status_id', '!=', 4);
+        });
+    }
     
 
     //Place Has ONE
@@ -32,6 +43,12 @@ class Schedule extends Model
     public function member()
     {
         return $this->belongsTo(Member::class);
+    }
+
+    //Status Has ONE
+    public function status()
+    {
+        return $this->belongsTo(Status::class, 'status_id', 'id');
     }
 
 }

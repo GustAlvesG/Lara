@@ -35,6 +35,26 @@ class PlaceGroupController extends Controller
         return response()->json($groups);
     }
 
+    public function index_api()
+    {
+        $groups = PlaceGroup::all();
+        //Order by name
+        $groups = $groups->sortBy('name');
+
+        //Get the images
+        foreach ($groups as $group) {
+            //If has not "imgur" in the image path, add it
+            if (!str_contains($group->image_vertical, 'http')) {
+                $group->image_vertical = asset('images/' . $group->image_vertical);
+            }
+            if (!str_contains($group->image_horizontal, 'http')) {
+                $group->image_horizontal = asset('images/' . $group->image_horizontal);
+            }
+        }
+
+        return response()->json($groups);
+    }
+
     public function index(){
         $groups = PlaceGroup::all();
 
@@ -216,6 +236,8 @@ class PlaceGroupController extends Controller
         
         $rule = ScheduleRules::find($id);
 
+
+
         $rule->update($validated);
         
         //Check if has weekdays
@@ -342,6 +364,8 @@ class PlaceGroupController extends Controller
             $imageName = time().'.'.$request->image->extension();
             $request->image->move(public_path('images'), $imageName);
             $validated['image'] = $imageName;
+        } else {
+            $validated['image'] = $place->image;
         }
 
         //Update the place

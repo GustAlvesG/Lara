@@ -24,7 +24,7 @@
         </x-slot>
     </x-block>
 
-    {{-- {{ $schedules_today }} --}}
+
 
     @php
         $cont = 0;
@@ -82,6 +82,10 @@
             </x-slot>
         </x-block>
     @endforeach
+
+        {{ $schedules_today }}
+
+    {{-- {{ $schedules_today }} --}}
     
 
    

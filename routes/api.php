@@ -24,15 +24,21 @@ Route::middleware('api_token')->group(function () {
 
     Route::post('/login', [MemberAuthController::class, 'login']);
     Route::post('/register', [MemberAuthController::class, 'register']);
+    Route::post('/check-member', [MemberAuthController::class, 'checkMember']);
+    Route::put('/change-password', [MemberAuthController::class, 'changePassword']);
 
     Route::middleware('login_token')->group(function () {
         Route::get('/verify-token', [LoginTokenController::class, 'validate']);
 
-        Route::post('/change-password', [MemberAuthController::class, 'changePassword']);
+        Route::prefix('/member')->group(function () {
+            Route::put('/update', [MemberAuthController::class, 'update']);
+        });
+
 
         //Routes Group places
         Route::prefix('places')->group(function () {
             Route::prefix('group')->group(function () {
+                Route::get('/', [PlaceGroupController::class, 'index_api']);
                 Route::get('/{category}', [PlaceGroupController::class, 'indexByCategory']);
                 Route::get('/rules/{id}', [PlaceGroupController::class, 'scheduleRules']);
             });
@@ -46,11 +52,11 @@ Route::middleware('api_token')->group(function () {
 
         Route::prefix('schedule')->group(function () {
 
-            Route::get('/', [ScheduleController::class, 'index'])->name('api.schedule.index');
+            Route::get('/', [ScheduleController::class, 'index_api'])->name('api.schedule.index');
             Route::post('/', [ScheduleController::class, 'store']);
-            Route::get('/{id}', [ScheduleController::class, 'show']);
+
             Route::put('/{id}/update', [ScheduleController::class, 'update']);
-            Route::get('/place/{place_id}/', [ScheduleController::class, 'indexByPlace']);
+            Route::get('/place', [ScheduleController::class, 'indexByPlace']);
             Route::get('/member/{member_id}/', [ScheduleController::class, 'indexByMember']);
             Route::put('/update-status', [ScheduleController::class, 'updateStatus']);
             Route::delete('/delete-pending', [ScheduleController::class, 'destroyPending']);
