@@ -26,4 +26,5 @@ class AdminAccessMiddleware
     {
         return $next($request);
     }
+    
 }

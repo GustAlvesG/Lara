@@ -26,6 +26,7 @@ class Member extends Model
         'Titular',
         'telephone',
         'Email',
+        'image',
         'Password',
     ];
 
@@ -35,7 +36,4 @@ class Member extends Model
         'updated_at',
         'deleted_at',
     ];
-
-    
-
 }

@@ -18,6 +18,22 @@ class PlaceGroupController extends Controller
     public function indexByCategory($category)
     {
         $groups = PlaceGroup::where('category', $category)->get();
+
+        //Load places relationship
+        foreach ($groups as $group) {
+            $group->places;
+        }
+        //For each place, keep only id and name
+        foreach ($groups as $group) {
+            foreach ($group->places as $place) {
+                $placeData = [
+                    'id' => $place->id,
+                    'name' => $place->name,
+                ];
+                $place->only = $placeData;
+                unset($place->pivot);
+            }
+        }
         //Order by name
         $groups = $groups->sortBy('name');
 
@@ -56,7 +72,8 @@ class PlaceGroupController extends Controller
     }
 
     public function index(){
-        $groups = PlaceGroup::all();
+        //Get all place groups and their places
+        $groups = PlaceGroup::with('places')->get();
 
         //Order by name
         $groups = $groups->sortBy('name');
@@ -372,7 +389,7 @@ class PlaceGroupController extends Controller
         $place->update([
             'name' => $validated['name'],
             'price' => $validated['price'],
-            'status' => $validated['status'],
+            'status_id' => $validated['status_id'],
             'image' => $validated['image'] ?? null,
         ]);
 

@@ -4,6 +4,7 @@
             {{ __('Grupo de Espaços') }}
 
         </h2>
+
     </x-slot>
 
     <x-slot name="css">
@@ -25,9 +26,16 @@
         <br>
         <div class="mx-auto sm:px-6 lg:px-8 space-y-6 page-group">
             <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg page" data-limit="5" data-actual="">
-                @foreach ($groups as $item)
-                    @include('location.placeGroup.partials.element')
-                @endforeach
+                
+                <!-- NOVA ESTRUTURA COM TAILWIND GRID (Solução) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    @foreach ($groups as $item)
+                        <!-- A classe 'col-span-1' é implícita no grid -->
+                        <div> 
+                            @include('location.placeGroup.partials.element', ['item' => $item])
+                        </div>
+                    @endforeach
+                </div>
             </div>
 
             <div class="flex justify-center sm:px-6 lg:px-8 space-y-6 my-3">

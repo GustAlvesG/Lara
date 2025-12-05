@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\LoginTokenController;
 use App\Http\Controllers\PlaceController;
 use App\Http\Controllers\PlaceGroupController;
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\ScheduleRulesController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -20,8 +21,11 @@ Route::get('/ping', function () {
 
 Route::get('/souburro', [MemberAuthController::class, 'souburro']);
 
-Route::middleware('api_token')->group(function () {
 
+Route::get('/schedule/generate-pdf', [ScheduleController::class, 'generateDailySchedulePDF'])->name('schedule.generatePDF');
+
+Route::middleware('api_token')->group(function () {
+    Route::get('/image/{member_id}', [MemberAuthController::class, 'getImage'])->name('member.getImage');
     Route::post('/login', [MemberAuthController::class, 'login']);
     Route::post('/register', [MemberAuthController::class, 'register']);
     Route::post('/check-member', [MemberAuthController::class, 'checkMember']);
@@ -33,7 +37,6 @@ Route::middleware('api_token')->group(function () {
         Route::prefix('/member')->group(function () {
             Route::put('/update', [MemberAuthController::class, 'update']);
         });
-
 
         //Routes Group places
         Route::prefix('places')->group(function () {
@@ -53,14 +56,15 @@ Route::middleware('api_token')->group(function () {
         Route::prefix('schedule')->group(function () {
 
             Route::get('/', [ScheduleController::class, 'index_api'])->name('api.schedule.index');
-            Route::post('/', [ScheduleController::class, 'store']);
+            Route::post('/', [ScheduleController::class, 'store'])->name('api.schedule.store')->withoutMiddleware(['login_token']);
 
             Route::put('/{id}/update', [ScheduleController::class, 'update']);
-            Route::get('/place', [ScheduleController::class, 'indexByPlace']);
+            Route::post('/place', [ScheduleController::class, 'indexByPlace']); // False POST, this is a GET REQUEST
             Route::get('/member/{member_id}/', [ScheduleController::class, 'indexByMember']);
             Route::put('/update-status', [ScheduleController::class, 'updateStatus']);
             Route::delete('/delete-pending', [ScheduleController::class, 'destroyPending']);
-        });
 
+            Route::post('/time-options', [ScheduleRulesController::class, 'getTimeOptions'])->name('api.schedule.getTimeOptions')->withoutMiddleware(['login_token']);
+        });
     });
 });

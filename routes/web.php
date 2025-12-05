@@ -14,11 +14,12 @@ use App\Http\Controllers\VideoWallController;
 use App\Http\Controllers\PlaceGroupController;
 use App\Http\Controllers\PlaceController;
 use App\Http\Controllers\ScheduleController;
-
+use App\Http\Controllers\ScheduleRulesController;
 
 Route::get('/', function () {
     return view('welcome');
 });
+
 
 Route::get('/dashboard', function () {
     return view('dashboard');
@@ -62,8 +63,12 @@ Route::middleware('auth')->group(function () {
     // Route::resource('place', PlaceController::class);
     Route::group(['prefix' => 'schedule'], function () {
         Route::get('/', [ScheduleController::class, 'index'])->name('schedule.index');
+        Route::get('/create', [ScheduleController::class, 'create'])->name('schedule.create');
+        Route::get('/group/{category}/', [PlaceGroupController::class, 'indexByCategory'])->name('api.placegroup.indexByCategory');
+        Route::get('/getDates/{place_id?}', [ScheduleRulesController::class, 'getScheduledDates'])->name('schedule.getScheduledDates');
         Route::get('/{id}', [ScheduleController::class, 'show'])->name('schedule.show');
         Route::put('/update', [ScheduleController::class, 'update'])->name('schedule.update');
+
     });
     Route::group(['prefix' => 'place-group'], function () {
 

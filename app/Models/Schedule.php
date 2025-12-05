@@ -31,7 +31,12 @@ class Schedule extends Model
             $builder->where('status_id', '!=', 4);
         });
     }
-    
+
+    protected $casts = [
+        'start_schedule' => 'datetime',
+        'end_schedule' => 'datetime',
+        'price' => 'decimal:2',
+    ];
 
     //Place Has ONE
     public function place()

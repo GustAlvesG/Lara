@@ -2,7 +2,7 @@
 <div class="rule-card border p-4 rounded shadow-sm text-gray-800 dark:text-gray-200 leading-tight font-bold text-lg mb-2 ">
 
     <div class="mb-2 align-items-center">
-        <img src="{{ asset('images/'. $place->image) }} " alt="">
+        <img src="{{ Str::startsWith($place->image, 'http') ? $place->image : ($place->image ? asset('images/'. $place->image) : asset('images/defaultImage.jpg')) }} " alt="">
     </div>
 
     <a href="{{ route('place-group.editPlace', $place->id) }}" class=" font-semibold text-md text-gray-800 dark:text-gray-200 leading-tight text-center justify-content-center d-flex">
@@ -13,7 +13,7 @@
 
     <div class="mb-2">
         <strong>Tipo:</strong>
-        <span>{{ $place->status == 1  ? "Ativo" : "Inativo" }}</span>
+        <span>{{ $place->status_id == 1  ? "Ativo" : "Inativo" }}</span>
     </div>
 
     <div class="mb-2">
@@ -21,10 +21,10 @@
         <span>R$ {{ number_format($place->price, 2, ',', '.') }}</span>
     </div>
 
-    <div class="mb-2">
+    {{-- <div class="mb-2">
         <strong>Disponível:</strong>
         <span>{{ $place->description }}</span>
-    </div>
+    </div> --}}
 
 
     <div class="mb-2">

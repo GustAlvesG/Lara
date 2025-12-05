@@ -1,28 +1,57 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Projeto 2XKO - Alocações
-        </h2>
+       <div class="flex justify-between items-center">
+        <div class="div">
+            <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+                Reservas
+            </h2>
+        </div>
+        
+        <div class="div">
+
+            <div class="flex items-center"> 
+            
+                <x-primary-button-a href="{{ route('schedule.create') }}">
+                    {{ __('Criar Reserva') }}
+                </x-primary-button-a>
+
+                <x-primary-button-a href="{{ route('schedule.generatePDF') }}"
+                    style="margin-left: 1rem !important;">
+                    {{ __('Exportar Reservas') }}
+                </x-primary-button-a>
+                
+                <x-primary-button-a 
+                    href="{{ route('place-group.index') }}" 
+                    style="margin-left: 1rem !important;">
+                    {{ __('Gerenciar') }}
+                </x-primary-button-a>
+                    
+            </div>
+            
+        </div>
     </x-slot>
 
     <x-slot name="css">
        
     </x-slot>
 
-    <x-block>
-        <x-slot name="content">
-            <div class="row">
-                 <div class="col-6">
-                    @include('partials.search')
-                </div>
-                <div class="col-6 flex justify-center items-center"> <!-- Adicionado classes do Flexbox -->
-                    <x-primary-button-a href="{{ route('place-group.index') }}">
-                        {{ __('Gerenciar') }}
-                    </x-primary-button-a>
-                </div>
-            </div>
-        </x-slot>
-    </x-block>
+    {{-- <x-block>
+        <x-slot name="content"> --}}
+            <x-accordion>
+                <x-slot name="title">
+                    <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                        <svg class="w-6 h-6 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        Pesquisa Avançada
+                    </h2>
+                </x-slot>
+
+                <x-slot name="body">
+                    @include('location.schedule.partials.search-option')
+                </x-slot>
+                   
+            </x-accordion>
+        {{-- </x-slot>
+    </x-block> --}}
 
 
 
@@ -82,16 +111,11 @@
             </x-slot>
         </x-block>
     @endforeach
-
-        {{ $schedules_today }}
-
-    {{-- {{ $schedules_today }} --}}
-    
-
    
     <x-slot name="js">
         <script src="{{ asset('js/company/form-rules.js') }}"></script>
         <script src="{{ asset('js/pagination.js') }}"></script>
+        <script src="{{ asset('js/accordion.js') }}"></script>
         
     </x-slot>
 

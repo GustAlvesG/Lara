@@ -55,6 +55,13 @@ class MemberAuthController extends Controller
             
             $member->cpf = $document;
             $member->birth_date = $birthdate;
+            $member->image = self::getPhotoBlob($member->Photo)[0]->Content ?? null;
+
+            //Convert the binary image to a image base324 string
+            if ($member->image) {
+                $member->image = base64_encode($member->image);
+
+            }
             
             $member->Password = $request->input('password');
 
@@ -65,7 +72,7 @@ class MemberAuthController extends Controller
 
             $token = LoginTokenController::generate($member);
 
-            $member = self::removeFields($member, ['Password', 'created_at', 'updated_at', 'deleted_at']);
+            $member = self::removeFields($member, ['image','Password', 'created_at', 'updated_at', 'deleted_at']);
 
             return response()->json([
                 'user' => $member, 
@@ -75,6 +82,42 @@ class MemberAuthController extends Controller
 
         return response()->json(['error' => 'Member not found'], 404);
     }
+
+    public function getImage($member_id)
+    {
+        $member = Member::where('id', $member_id)->first();
+
+        if (!$member || !$member->image) {
+            return response()->json(['error' => 'Member or image not found'], 404);
+        }
+
+        $base64Image = $member->image;
+        $mimeType = 'image/jpeg'; // Tipo padrão
+        
+        if (strpos($base64Image, ';base64,') !== false) {
+            // Separa o cabeçalho do conteúdo
+            list($header, $data) = explode(';', $base64Image);
+            list(, $data) = explode(',', $data);
+            
+            // Tenta pegar o tipo da imagem (ex: image/png) do cabeçalho
+            $mimeType = explode(':', $header)[1] ?? 'image/jpeg';
+            
+            $base64Image = $data; // Atualiza a variável apenas com os dados limpos
+        }
+
+        // 3. Decodifica para binário
+        $imageContent = base64_decode($base64Image);
+
+        if ($imageContent === false) {
+             return response()->json(['message' => 'Imagem inválida'], 500);
+        }
+
+        // 4. Retorna como arquivo de imagem com Cache
+        return response($imageContent, 200)
+            ->header('Content-Type', $mimeType)
+            ->header('Cache-Control', 'public, max-age=86400'); // Cache de 1 dia (importante!)
+    }
+
 
 
 
@@ -91,7 +134,7 @@ class MemberAuthController extends Controller
 
             $token = LoginTokenController::generate($member);
 
-            $member = self::removeFields($member, ['Password', 'created_at', 'updated_at', 'deleted_at']);
+            $member = self::removeFields($member, ['image','Password', 'created_at', 'updated_at', 'deleted_at']);
 
             return response()->json([
                 'user' => $member,
@@ -154,6 +197,14 @@ class MemberAuthController extends Controller
         }
     }
 
+    private function getPhotoBlob($photoID)
+    {
+        if ($photoID) {
+            return DB::connection('mc_sqlsrv_image')->select("SELECT Content FROM dbo.Files WHERE Id = " . $photoID);
+        }
+        return null;
+    }
+
     private function generateToken($member)
     {
         $endOfDay = now()->endOfDay()->timestamp;
@@ -171,14 +222,21 @@ class MemberAuthController extends Controller
         return $member;
     }
 
-
-
-    private function queryMember($title, $document, $birthdate)
+    public function queryMemberByCpf($document)
     {
         return DB::connection('mc_sqlsrv')->select("SELECT Name, Email, MobilePhone As telephone, Barcode From
         dbo.Members LEFT JOIN dbo.Titles ON dbo.Members.Title = dbo.Titles.Id
         WHERE
+        dbo.Members.DocumentUnmasked = '" . $document . "'");
+    }
+
+    public function queryMember($title, $document, $birthdate)
+    {
+        return DB::connection('mc_sqlsrv')->select("SELECT Name, Email, MobilePhone As telephone, Barcode, Photo From
+        dbo.Members LEFT JOIN dbo.Titles ON dbo.Members.Title = dbo.Titles.Id
+        WHERE
 		dbo.Titles.Code = '". $title . "' And 
+        dbo.Titles.Status = 0 And
 		dbo.Members.DocumentUnmasked = '" . $document . "' And
         dbo.Members.BirthDate = '" . $birthdate . "'");
     }
@@ -189,5 +247,10 @@ class MemberAuthController extends Controller
             unset($data[$field]);
         }
         return $data;
+    }
+
+    public function souburro()
+    {
+        return response()->json(['message' => 'e muito burro']);
     }
 }

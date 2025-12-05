@@ -14,7 +14,10 @@ class JwtMiddleware
     public function __construct(JwtService $jwtService)
     {
         $this->jwtService = $jwtService;
+
     }
+
+
 
     public function handle(Request $request, Closure $next)
     {

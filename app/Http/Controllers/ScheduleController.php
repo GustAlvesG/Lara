@@ -10,6 +10,9 @@ use Illuminate\Http\Request;
 use App\Models\ScheduleRules;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
+use PDF; // Facade do pacote barryvdh/laravel-dompdf
+use App\Models\Member;
+
 
 class ScheduleController extends Controller
 {
@@ -77,7 +80,7 @@ class ScheduleController extends Controller
     public function indexByMember($member_id)
     {
         $schedules = Schedule::where('member_id', $member_id)->get();
-
+        $schedules = $schedules->load(['place']);
         if ($schedules->isEmpty()) {
             return response()->json(['message' => 'No schedules found for this member.'], 404);
         }
@@ -92,14 +95,28 @@ class ScheduleController extends Controller
     {
         //Request can be an array with multiple schedule data or a single schedule
         $data = $request->all();
-        
-        //Drop user key if exists
+
+        // return response()->json(['received_data' => $data], 200);
 
 
         //Validate each schedule in the array
         $validatedSchedules = [];
         foreach ($data as $index => $scheduleData) {
             if ($index == "user") continue;
+
+            if (isset($scheduleData['cpf'])) {
+                //Clean cpf to have only numbers
+                $member_id = Member::where('cpf', preg_replace('/\D/', '', $scheduleData['cpf']))->value('id');
+                if ($member_id) {
+                    $scheduleData['member_id'] = $member_id;
+                    
+                } else {
+                    return response()->json([
+                        'message' => "Member with CPF {$scheduleData['cpf']} not found for schedule at index $index",
+                        'received_data' => $scheduleData,
+                    ], 404);
+                }
+            }
 
             $validator = \Validator::make($scheduleData, [
                 'member_id' => 'required|int',
@@ -108,8 +125,8 @@ class ScheduleController extends Controller
                 'end_schedule' => 'required|date|after:start_schedule',
                 'status_id' => 'required|in:0,1,3,4',
                 'price' => 'required|numeric|min:0',
+                'cpf' => 'nullable|string|max:14',
             ]);
-
 
 
             if ($validator->fails()) {
@@ -142,7 +159,11 @@ class ScheduleController extends Controller
             }
 
             //Check if the schedule meets the rules (if any)
-            $rulesCheck = $this->checkScheduleRules($newSchedule);
+            $rules = $this->checkScheduleRules($newSchedule);
+            $rulesCheck = $rules['result'];
+            $rule_report = $rules['report'];
+
+
 
             if (!$rulesCheck) {
                 $errors[] = [
@@ -153,8 +174,6 @@ class ScheduleController extends Controller
                 continue;
             }
 
-
-
             //Create a new schedule
             $schedule = Schedule::create($validatedData);
             $createdSchedules[] = $schedule;
@@ -162,9 +181,11 @@ class ScheduleController extends Controller
 
         // Return response based on results
         if (empty($createdSchedules) && !empty($errors)) {
+
             return response()->json([
                 'message' => 'No schedules were created due to validation errors.',
                 'errors' => $errors,
+                'data_received' => $data,
             ], 418);
         }
 
@@ -182,6 +203,11 @@ class ScheduleController extends Controller
             'schedules' => $createdSchedules,
             'count' => count($createdSchedules),
         ], 201);
+    }
+
+    public function create()
+    {
+        return view('location.schedule.create');
     }
 
     public function show($id)
@@ -308,13 +334,6 @@ class ScheduleController extends Controller
         return response()->json(['message' => 'Pending schedule deleted successfully.'], 200);
     }
 
-
-
-
-
-
-    
-
     private function checkColide($schedule){
         // Check if the new schedule collides with existing schedules, excluding those with status 4, 0
         $existingSchedules = Schedule::where('place_id', $schedule->place_id)
@@ -343,10 +362,11 @@ class ScheduleController extends Controller
 
     private function checkScheduleRules($schedule)
     {
-        
-
-        // Check if the place has any schedule rules
-        $place = Place::find($schedule->place_id)->load('scheduleRules');
+        $rule_report = [];
+        // Check if the place has any schedule rules except status_id 2 (disabled)
+        $place = Place::find($schedule->place_id)->load(['scheduleRules' => function ($query) {
+            $query->where('status_id', 1);
+        }]);
 
         #Order the rules by type
         $rules_exclude  = $place->scheduleRules->where('type', 'exclude');
@@ -363,48 +383,78 @@ class ScheduleController extends Controller
 
         $response = true; // Default response to false, meaning no collision detected
         foreach ($rules_exclude as $rule) {
+            $rule_report[$rule->id]['type'] = 'exclude';
 
-
-            $ruleStartDate = Carbon::parse($rule->start_date)->format('Y-m-d');
-            $ruleEndDate   = Carbon::parse($rule->end_date)->format('Y-m-d');
-            $ruleStartTime = Carbon::parse($rule->start_time)->format('H:i:s');
-            $ruleEndTime   = Carbon::parse($rule->end_time)->format('H:i:s');
+            $ruleStartDate = !empty($rule->start_date) ? Carbon::parse($rule->start_date)->format('Y-m-d') : null;
+            $ruleEndDate   = !empty($rule->end_date) ? Carbon::parse($rule->end_date)->format('Y-m-d') : null;
+            $ruleStartTime = !empty($rule->start_time) ? Carbon::parse($rule->start_time)->format('H:i:s') : null;
+            $ruleEndTime   = !empty($rule->end_time) ? Carbon::parse($rule->end_time)->format('H:i:s') : null;
             $ruleWeekday = $rule->weekdays; // Assuming weekday is stored as a string (e.g., 'Monday', 'Tuesday', etc.)
             //Turn weekday into array with the tag name
             $ruleDays = [];
             foreach($ruleWeekday as $day) {
                 $ruleDays[] = $day->name;
             }
-            $response = false; // Default response to false, meaning collision detected
+            
             //Check if has Start and End Time
             if ($ruleStartDate && $ruleEndDate) {
                 $valid_period = $this->checkPeriod($scheduleStartDate, $scheduleEndDate, $ruleStartDate, $ruleEndDate);
+                $rule_report[$rule->id]['period'] = $valid_period;
+            }
+            else {
+                $valid_period = true; // If no period is set, consider it valid
             }
         
-            if (isset($rule->weekdays)) {
+            if (count($ruleDays) > 0) {
                 $valid_weekday = $this->checkWeekday($scheduleWeekday, $ruleDays);
+                $rule_report[$rule->id]['weekday'] = $valid_weekday;
+                
             } 
+            else {
+                $valid_weekday = true; // If no weekdays are set, consider it valid
+            }   
             if ($ruleStartTime && $ruleEndTime) {
                 $valid_time = $this->checkTime($scheduleStartTime, $scheduleEndTime, $ruleStartTime, $ruleEndTime);
+                $rule_report[$rule->id]['time'] = $valid_time;
+            }
+            else {
+                $valid_time = true; // If no time is set, consider it valid
             }
 
-            // P - -
-            if ((($ruleStartDate && $ruleEndDate) &&  $valid_period) || 
-                (!($ruleStartDate && $ruleEndDate) && isset($rule->weekdays) && !($ruleStartTime && $ruleEndTime) && $valid_weekday) ||
-                (!($ruleStartDate && $ruleEndDate) && !isset($rule->weekdays) && ($ruleStartTime && $ruleEndTime) && $valid_time) ||
-                (($ruleStartDate && $ruleEndDate) && isset($rule->weekdays) && !($ruleStartTime && $ruleEndTime) && $valid_weekday) ||
-                (($ruleStartDate && $ruleEndDate) && !isset($rule->weekdays) && ($ruleStartTime && $ruleEndTime) && $valid_time) ||
-                (!($ruleStartDate && $ruleEndDate) && isset($rule->weekdays) && ($ruleStartTime && $ruleEndTime) && $valid_time) ||
-                ($valid_period || $valid_weekday || $valid_time)
-            ) {
-                continue; 
-            } else {
-                $response = false;
+            
+            //Tenho uma regra de periodo e estou no periodo bloqueado
+            if ($ruleStartDate && $ruleEndDate && !$valid_period) {
+                //Tenho uma regra de dias da semana e estou no dia bloqueado
+                $teste[] = "ha periodo bloqueado";
+                if(count($ruleDays) > 0  && !$valid_weekday){
+                    $teste[] = "ha dia bloqueado";
+                    //Tenho uma regra de horario e nao estou no horario bloqueado
+                    $response = ($ruleStartTime && $ruleEndTime && $valid_time);
+                    
+
+                //Nao tenho regra de dias da semana
+                } else if (!(count($ruleDays) > 0) ){
+                    $teste[] = "nao ha dia bloqueado";
+                    $response = ($ruleStartTime && $ruleEndTime && $valid_time);
+                }
+            //Nao tem um periodo definido
+            } else{
+                $teste[] = "nao ha periodo bloqueado";
+                if(count($ruleDays) > 0  && !$valid_weekday){
+                    $teste[] = "ha dia bloqueado";
+                    $response = ($ruleStartTime && $ruleEndTime && $valid_time);
+                //Nao tenho regra de dias da semana
+                } else if (!(count($ruleDays) > 0) ){
+                    $teste[] = "nao ha dia bloqueado";
+                    $response = ($ruleStartTime && $ruleEndTime && $valid_time);
+                }
             }
         }
+
         if ($response){
             $response = false; // Default response to false
             foreach ($rules_include as $rule) {
+                $rule_report[$rule->id]['type'] = 'include';
                 $ruleStartDate = Carbon::parse($rule->start_date)->format('Y-m-d');
                 $ruleEndDate   = Carbon::parse($rule->end_date)->format('Y-m-d');
                 $ruleStartTime = !empty($rule->start_time) ? Carbon::parse($rule->start_time)->format('H:i:s') : null;
@@ -420,10 +470,12 @@ class ScheduleController extends Controller
                 //Check if has Start and End Time
                 if ($ruleStartDate && $ruleEndDate) {
                     $valid_period = !$this->checkPeriod($scheduleStartDate, $scheduleEndDate, $ruleStartDate, $ruleEndDate);
+                    
                 }
                 else {
                     $valid_period = true; // If no period is set, consider it valid
                 }
+                $rule_report[$rule->id]['period'] = $valid_period;
 
             
             
@@ -433,16 +485,20 @@ class ScheduleController extends Controller
                 else {
                     $valid_weekday = true; // If no weekday is set, consider it valid
                 }
+                $rule_report[$rule->id]['weekday'] = $valid_weekday;
                 if ($ruleStartTime && $ruleEndTime) {
                     $valid_time = !$this->checkTime($scheduleStartTime, $scheduleEndTime, $ruleStartTime, $ruleEndTime);
                 }
                 else {
                     $valid_time = true; // If no time is set, consider it valid
                 }
+                $rule_report[$rule->id]['time'] = $valid_time;
 
                 $valid_antecedence = $this->checkAntecedence($scheduleStart, $rule->maximium_antecedence);
+                $rule_report[$rule->id]['antecedence'] = $valid_antecedence;
 
                 $valid_duration = $this->checkDuration($scheduleStart, $scheduleEnd, $rule->duration);
+                $rule_report[$rule->id]['duration'] = $valid_duration;
 
                 
                 if ($valid_period && $valid_weekday && $valid_time && $valid_antecedence && $valid_duration) {
@@ -451,7 +507,8 @@ class ScheduleController extends Controller
                 }
             }
         } 
-        return $response;
+        
+        return ['result' => $response, 'report' => $rule_report];
     }
 
     private function checkPeriod($startDate, $endDate, $ruleStartDate, $ruleEndDate)
@@ -472,8 +529,8 @@ class ScheduleController extends Controller
     private function checkTime($startTime, $endTime, $ruleStartTime, $ruleEndTime)
     {
         // Check if the schedule time is within the rule time
-        return (($startTime > $ruleEndTime && $startTime > $ruleEndTime) ||
-            ($endTime < $ruleStartTime && $endTime < $ruleStartTime)
+        return (($startTime > $ruleEndTime && $endTime > $ruleEndTime) ||
+            ($endTime < $ruleStartTime && $startTime < $ruleStartTime)
         );
     }
 
@@ -487,8 +544,9 @@ class ScheduleController extends Controller
     private function checkDuration($scheduleStart, $scheduleEnd, $ruleDuration)
     {
         $differenceInHours = $scheduleStart->diffInHours($scheduleEnd);
-        //Convert rule duration to decimal hours
-        $ruleDuration = (float) $ruleDuration;
+        //Convert rule duration string to decimal hours
+        $ruleDurationTime = Carbon::createFromFormat('H:i:s', $ruleDuration);
+        $ruleDuration = $ruleDurationTime->hour + ($ruleDurationTime->minute / 60);
         return $differenceInHours <= $ruleDuration;
     }
 
@@ -499,6 +557,7 @@ class ScheduleController extends Controller
 
         $schedules_today = Schedule::with(['status','place.group','member'])
             ->whereBetween('start_schedule', [$rangeStart, $rangeEnd])
+            ->whereIn('status_id', [1, 3])
             ->orderBy('start_schedule')
             ->get()
             ->groupBy(fn($s) => Carbon::parse($s->start_schedule)->toDateString())
@@ -511,4 +570,60 @@ class ScheduleController extends Controller
 
         return $schedules_today;
     }
-};
+
+    public function getScheduledDates($place_id)
+    {
+        $dates = Schedule::where('place_id', $place_id)
+            ->selectRaw('DATE(start_schedule) as date')
+            ->distinct()
+            ->pluck('date');
+
+        return response()->json(['scheduled_dates' => $dates], 200);
+    }
+
+    public function generateDailySchedulePDF(Request $request)
+    {
+        // 1. Define a data de hoje e os limites de tempo.
+        $today = Carbon::today();
+        $startOfDay = $today->startOfDay()->toDateTimeString();
+        $endOfDay = $today->endOfDay()->toDateTimeString();
+
+        // 2. Busca os agendamentos para o dia de hoje no banco de dados.
+        // Carrega os relacionamentos necessários.
+        $dailySchedules = Schedule::whereBetween('start_schedule', [$startOfDay, $endOfDay])
+            ->where('status_id', 1) // Considera apenas agendamentos confirmados
+            ->with(['member', 'place', 'status'])
+            ->orderBy('start_schedule', 'asc')
+            ->get();
+
+        // 3. Verifica se há agendamentos para evitar PDFs vazios.
+        if ($dailySchedules->isEmpty()) {
+             return response()->json([
+                'message' => 'Nenhum agendamento encontrado para a data de hoje.',
+                'date' => Carbon::now()->format('d/m/Y')
+             ], 404);
+        }
+
+        // 4. Agrupa por Place Group ID e depois sub-agrupa por Place Name.
+        // Isso garante a organização hierárquica solicitada.
+        $groupedSchedules = $dailySchedules
+            // Agrupamento principal: Place Group ID (ou 0 se for null)
+            ->groupBy(fn ($schedule) => $schedule->place->group->name ?? 'Sem Grupo') 
+            // Sub-agrupamento: Place Name
+            ->map(fn ($group) => $group->groupBy(fn ($schedule) => $schedule->place->name ?? 'Local Desconhecido'));
+
+
+        // 5. Dados a serem passados para a view do PDF
+        $data = [
+            'date' => Carbon::now()->format('d/m/Y'),
+            'groupedSchedules' => $groupedSchedules // Passando os dados AGRUPADOS
+        ];
+
+        // 6. Gera o PDF usando o Dompdf
+        $pdf = PDF::loadView('template_calendar', $data);
+
+        // 7. Retorna o PDF para o navegador.
+        $fileName = 'Calendario_Dia_' . Carbon::now()->format('Ymd') . '.pdf';
+        return $pdf->stream($fileName);
+    }
+}

@@ -9,7 +9,7 @@
                     @if ($cont % 2 == 0)
                         <div class="row">
                     @endif
-                    <div class="col-6 element rule-card-pagination">
+                    <div class="col-6 element rule-card-pagination" id="rules">
                         @include('location.placeGroup.partials.rule-card', ['rule' => $rule, 'checkbox' => true])
                     </div>
                     @if ($cont % 4 == 1)

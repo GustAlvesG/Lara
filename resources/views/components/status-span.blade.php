@@ -26,7 +26,7 @@ else {
 }
 
 // Concatena as classes base do Tailwind que não são de cor (para manter o formato)
-$base_classes = 'text-2xl font-bold bg-indigo-500 px-4 py-1 rounded-full shadow-md'
+$base_classes = 'font-bold bg-indigo-500 px-2 py-1 rounded-full shadow-md'
 @endphp
 
 <span class="{{ $base_classes }}" 

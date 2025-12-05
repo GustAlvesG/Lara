@@ -16,7 +16,7 @@ class ScheduleRules extends Model
 
     protected $fillable = [
         'name',
-        'status',
+        'status_id',
         'type',
         'duration',
         'minimum_antecedence',

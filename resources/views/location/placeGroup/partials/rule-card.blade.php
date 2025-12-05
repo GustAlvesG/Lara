@@ -30,7 +30,7 @@
             <div class="col-6">
                 <div class="mb-2">
                     <strong>Status:</strong>
-                    <span>{{ $rule->status ? 'Ativo' : 'Inativo' }}</span>
+                    <span>{{ $rule->status_id == 1 ? 'Ativo' : 'Inativo' }}</span>
                 </div>
 
                 <div class="mb-2">

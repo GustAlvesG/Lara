@@ -4,7 +4,7 @@ $(document).ready(function() {
     // Check if checkbox is checked
     $('.rule-checkbox').on('change', function() {
         var $this = $(this);
-
+            alert('aqui');
 
         if($this.attr('id') == 'status') $("#rules").toggle();
         else{
@@ -18,6 +18,9 @@ $(document).ready(function() {
             $("#rules").find('input[type="checkbox"]').prop('checked', false);
             $("#rules").find('input[type="date"]').val('');
             $("#rules").find('input[type="time"]').val('');
+            $("#rules").find('input[type="number"]').val('');
+            $("#rules").find('input[type="text"]').val('');
+
             $(".onCheck").hide();
         }
         // accessRulesText()
