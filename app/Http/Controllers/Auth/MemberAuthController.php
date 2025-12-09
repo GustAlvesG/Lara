@@ -197,7 +197,7 @@ class MemberAuthController extends Controller
         }
     }
 
-    private static function getPhotoBlob($photoID)
+    private function getPhotoBlob($photoID)
     {
         if ($photoID) {
             return DB::connection('mc_sqlsrv_image')->select("SELECT Content FROM dbo.Files WHERE Id = " . $photoID);
@@ -222,43 +222,11 @@ class MemberAuthController extends Controller
         return $member;
     }
 
-    public static function createMemberFromExternalData($document)
+    public function queryMemberByCpf($document)
     {
-
-        $associated = self::queryMemberByCpf($document);
-
-        
-
-        return $associated;
-
-        if ($associated) {
-            $member = $associated[0];
-            $member->cpf = $document;
-            $member->image = self::getPhotoBlob($member->Photo)[0]->Content ?? null;
-
-            //Convert the binary image to a image base324 string
-            if ($member->image) {
-                $member->image = base64_encode($member->image);
-
-            }
-            
-            //Convert the object to an array
-            $member = json_decode(json_encode($member), true);
-            
-            Member::create($member);
-
-            return $member;
-        }
-
-        return null;
-    }
-
-    public static function queryMemberByCpf($document)
-    {
-        return DB::connection('mc_sqlsrv')->select("SELECT Name, Email, MobilePhone As telephone, Barcode, Photo From
+        return DB::connection('mc_sqlsrv')->select("SELECT Name, Email, MobilePhone As telephone, Barcode From
         dbo.Members LEFT JOIN dbo.Titles ON dbo.Members.Title = dbo.Titles.Id
         WHERE
-        dbo.Titles.Status = 0 And
         dbo.Members.DocumentUnmasked = '" . $document . "'");
     }
 

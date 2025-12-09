@@ -15,7 +15,11 @@ class APIToken
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->header('Authorization') !== 'Bearer ' . env('API_TOKEN')) {
+	$apitoken = "Bearer " . config('services.api.token');
+	if ($request->getMethod() === 'OPTIONS') {
+        	return $next($request);
+	}
+        if ($request->header('Authorization') !== $apitoken) {
             return response()->json(['message' => 'Invalid API Token'], 401);
         }
         return $next($request);

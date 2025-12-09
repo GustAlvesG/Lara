@@ -21,6 +21,9 @@ class JwtMiddleware
 
     public function handle(Request $request, Closure $next)
     {
+	if ($request->getMethod() === 'OPTIONS') {
+	    return $next($request);
+	}
         // Obter o token no cabeçalho "login-token"
         $token = $request->header('Session');
 
