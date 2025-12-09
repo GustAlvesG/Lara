@@ -1,31 +1,35 @@
-<!-- Início do formulário. A ação do formulário é definida para a rota 'parking.show' -->
+<h2 class="text-2xl font-extrabold text-gray-800 mb-4 border-b pb-3">Buscar Veículo</h2>
+
 <form action="{{ route('parking.show') }}" method="POST">
-  <!-- Campo CSRF para proteção contra ataques de falsificação de solicitação entre sites -->
-  @csrf
-  <!-- Início do container flexível para os campos do formulário -->
-  <div class="flex gap-4 items-center">
-    <!-- Início do campo de entrada para a placa do veículo -->
-    <div class="w-1/4"> 
-      <!-- Rótulo para o campo de entrada -->
-      <x-input-label>
-        Placa do veículo
-      </x-input-label>
-      <!-- Campo de entrada para a placa do veículo. O atributo 'required' indica que este campo é obrigatório -->
-      <x-text-input label="Placa" name="plate" required/> 
+    @csrf 
+    
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+        
+        <!-- Campo Placa -->
+        <div class="md:col-span-2">
+            <label for="plate" class="block font-medium text-sm text-gray-700 mb-1">
+                Placa do veículo
+            </label>
+            <input id="plate" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500" 
+                label="Placa" name="plate" required>
+        </div>
+        
+        <!-- Campo Data -->
+        <div class="md:col-span-1">
+            <label for="datetime" class="block font-medium text-sm text-gray-700 mb-1">
+                Data
+            </label>
+            <input type="date" id="datetime" class="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500" 
+                label="Data e Hora" name="datetime">
+        </div>
+        
+        <!-- Botão Buscar -->
+        <div class="md:col-span-1">
+            <button type="submit" 
+                    class="w-full px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-bold text-base shadow-lg hover:bg-indigo-700 transition duration-150">
+                Buscar
+            </button>
+        </div>
+        
     </div>
-    <!-- Início do campo de entrada para a data -->
-    <div class="w-1/4">
-      <!-- Rótulo para o campo de entrada -->
-      <x-input-label>
-        Data
-      </x-input-label>
-      <!-- Campo de entrada para a data -->
-      <x-datetime-input label="Data e Hora" name="datetime" /> 
-    </div>
-  </div>
-  <!-- Espaçamento -->
-  <br>
-  <!-- Botão para submeter o formulário -->
-  <x-primary-button>Buscar</x-primary-button>
-<!-- Fim do formulário -->
 </form>

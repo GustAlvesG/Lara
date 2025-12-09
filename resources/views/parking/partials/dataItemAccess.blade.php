@@ -1,54 +1,46 @@
-<div class="my-4 border-t border-gray-200">
-    <div class="row">
-        <div class="col-4">
-            <div class="flex items-center justify-center data-car-container">
-                <div class="text-block">
-                    <p>{{ $item['entry_date'] }}</p>
-                </div>
-                <img src="{{ asset('storage/img_car/' . $item['file']) }}" style="width: 50%, height:50%" alt="">
-            </div>
-        </div>
-        <div class="col-8">
-            <table class="min-w-full divide-y divide-gray-200 table-fixed dark:divide-gray-700" style="width: 100%">
-                <thead class="bg-gray-100 dark:bg-gray-700">
-                    <th scope="col" class="py-2  text-xs font-medium tracking-wider text-left text-gray-700 uppercase dark:text-gray-400" style="width:10%">
-                        Mat.
-                    </th>
-                    <th scope="col" class="py-2 text-xs font-medium tracking-wider text-left text-gray-700 uppercase dark:text-gray-400">
-                        Nome
-                    </th>
-                    <th scope="col" class="py-2 text-xs font-medium tracking-wider text-left text-gray-700 uppercase dark:text-gray-400">
-                        Telefone
-		    </th>
-		   <th scope="col" class="py-2 text-xs font-medium tracking-wider text-left text-gray-700 uppercase dark:text-gray-400">
-                        Horário
-                    </th>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
-                    @foreach ($item['access'] as $access)
-                        <tr class="hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <td class="py-2 px-2 text-sm font-medium text-gray-900 whitespace-nowrap dark:text-white">
-                                {{ $access->TitleCode }}
+<div class="mb-8 p-4 border border-gray-100 rounded-lg shadow-sm">
+                                @php
+                                    $logDateTime = $log['entry_date'];
+                                    $logDate = \Carbon\Carbon::parse($logDateTime)->format('d/m/Y');
+                                    $logTime = \Carbon\Carbon::parse($logDateTime)->format('H:i:s');
+                                @endphp
+
+                                <p class="text-sm font-semibold text-gray-600 mb-3">Acesso em: {{ $logDate }} às {{ $logTime }}</p>
                                 
-                            </td>
-                            <td class="py-2 text-sm font-medium text-gray-500 whitespace-nowrap dark:text-white">
-                                {{ $access->Name }} 
-                                {{-- @if ($access->Titular == 1)
-                                    <t style="color:red">(TITULAR)</t>
-                                @endif --}}
-                            </td>
-                            <td class="py-2 text-sm font-medium text-gray-900 whitespace-nowrap dark:text-white">
-                                {{ $access->Telephone }}
-                            </td>
-			    <td class="py-2 text-sm font-medium text-gray-900 whitespace-nowrap dark:text-white">
-				 {{ $access->date }}
-			   </td>
-                        </tr>
-                    @endforeach
-                </tbody>           
-            </table>
-        </div>
-    </div>
-</div>
-
-
+                                <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                                    
+                                    <!-- Imagem (4/12 Colunas) -->
+                                    <div class="md:col-span-4 flex justify-center items-start">
+                                        
+                                        <img src="{{ asset('storage/img_car/' . $log['file']) }}" 
+                                            onerror="this.onerror=null;this.src='https://placehold.co/200x150/f0f0f0/808080?text=Sem+Foto';"
+                                            alt="Foto do carro" 
+                                            class="max-w-full h-auto rounded-lg shadow-md">
+                                    </div>
+                                    
+                                    <!-- Tabela de Condutores Associados (8/12 Colunas) -->
+                                    <div class="md:col-span-8 overflow-x-auto">
+                                        <table class="min-w-full divide-y divide-gray-200">
+                                            <thead class="bg-gray-50">
+                                                <tr>
+                                                    <th class="py-2 px-2 text-xs font-medium text-left text-gray-600 uppercase">Mat.</th>
+                                                    <th class="py-2 text-xs font-medium text-left text-gray-600 uppercase">Nome</th>
+                                                    <th class="py-2 text-xs font-medium text-left text-gray-600 uppercase">Telefone</th>
+                                                    <th class="py-2 text-xs font-medium text-left text-gray-600 uppercase">Horário</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="bg-white divide-y divide-gray-100">
+                                                @foreach($log['access'] as $driver)
+                                                    <tr class="hover:bg-indigo-50 transition duration-100">
+                                                        <td class="py-2 px-2 text-sm font-medium text-gray-900 whitespace-nowrap">{{ $driver->TitleCode }}</td>
+                                                        <td class="py-2 text-sm text-gray-600 whitespace-nowrap">{{ $driver->Name }}</td>
+                                                        <td class="py-2 text-sm text-gray-600 whitespace-nowrap">{{ $driver->Telephone }}</td>
+                                                        <td class="py-2 text-sm font-bold text-gray-900 whitespace-nowrap">{{ $driver->date }}</td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    
+                                </div>
+                            </div>

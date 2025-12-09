@@ -16,16 +16,20 @@
     </x-slot>
 
     <!-- Início do conteúdo principal da página -->
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 text-gray-900 dark:text-gray-100">
-                    <div class="p-6 text-gray-900 dark:text-gray-100">
-                        <!-- Inclusão do componente de totais do painel -->
-                        @include('parking.partials.dashTotals')
-                        <br>
-                    </div>
-                    <!-- Inclusão do componente de formulário -->
+    <div class="">
+        <div class="py-4">
+            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                <!-- Card Principal para Contadores e Pesquisa -->
+                <div class="bg-white overflow-hidden shadow-2xl sm:rounded-xl p-6">
+                    
+                    <!-- ----------------------------------- -->
+                    <!-- SEÇÃO DE CONTADORES (CARDS) -->
+                    <!-- ----------------------------------- -->
+                    @include('parking.partials.dashTotals')
+
+                    <!-- ----------------------------------- -->
+                    <!-- SEÇÃO DE FORMULÁRIO DE BUSCA -->
+                    <!-- ----------------------------------- -->
                     @include('parking.partials.form')
                 </div>
             </div>

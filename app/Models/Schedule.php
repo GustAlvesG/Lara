@@ -13,6 +13,10 @@ class Schedule extends Model
 {
     use HasFactory;
 
+    protected $connection = 'mysql';
+
+    //Table name    
+    protected $table = 'schedules';
 
     protected $fillable = [
         'place_id',
