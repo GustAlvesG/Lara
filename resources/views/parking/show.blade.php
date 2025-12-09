@@ -24,21 +24,20 @@
                         <!-- Dados do Carro em Grid -->
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             
-                            @php
-                                // Mock de dados para simular a injeção do Laravel
-                                $carData = [
-                                    'Placa' => 'RFC7C44',
-                                    'Cor do carro' => 'PRETO',
-                                    'Quantidade de acessos' => 3
-                                ];
-                            @endphp
 
-                            @foreach($carData as $label => $value)
-                                <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                    <div class="text-sm font-medium text-gray-500">{{ $label }}</div>
-                                    <div class="text-xl font-bold text-gray-800 mt-1">{{ $value }}</div>
+	                    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+        	                    <div class="text-sm font-medium text-gray-500">Placa</div>
+                	            <div class="text-xl font-bold text-gray-800 mt-1">{{ $car['plate'] }}</div>
+                            </div>
+			   <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                    <div class="text-sm font-medium text-gray-500">Cor</div>
+                                    <div class="text-xl font-bold text-gray-800 mt-1">{{ isset($car['color']) ? strtoupper($car['color']) : 'Não encontrado' }} </div>
                                 </div>
-                            @endforeach
+                                <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                    <div class="text-sm font-medium text-gray-500">Quantidade de Acessos</div>
+                                    <div class="text-xl font-bold text-gray-800 mt-1">{{ count($data) }}</div>
+                                </div>
+                            
                         </div>
                     </div>
 
