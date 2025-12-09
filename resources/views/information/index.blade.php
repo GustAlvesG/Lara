@@ -8,17 +8,27 @@
         </div>
         
         
-        
         <div class="div">
 
-      <div class="flex items-center"> 
-            <x-primary-button-a href="{{ route('information.create') }}">
-                {{ __('Nova Informação') }}
-            </x-primary-button-a>
+            <div class="flex items-center"> 
+            
+                 <input type="text" id="search-filter-text" placeholder="Pesquisar..." 
+                            class="w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-base"
+                            onkeyup="filterCards()">
+        
+
+                <x-primary-button-a 
+                  href="{{ route('information.create') }}"
+                  style="margin-left: 1rem !important;">
+                    {{ __('Nova Informação') }}
+                </x-primary-button-a>
+                    
+            </div>
             
         </div>
-            
-        </div>
+        
+
+
     </x-slot>
 
     <x-slot name="css">
@@ -27,15 +37,7 @@
 
 
     <div class="py-6">
-        {{-- <div class="mx-auto sm:px-6 lg:px-8 space-y-6">
-            <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg row">
-                <div class="col-6">
-                    @include('partials.search')
-                </div>
-                
-            </div>
-        </div>
-        <br> --}}
+       
         <div class="mx-auto sm:px-6 lg:px-8 space-y-6 page-group">
             <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg page" data-limit="5" data-actual="">
                 {{-- @foreach ($infos as $item)
@@ -43,7 +45,7 @@
                 @endforeach --}}
 
                 <!-- NOVA ESTRUTURA COM TAILWIND GRID (Solução) -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="information-cards-container">
                     @foreach ($infos as $item)
                         <!-- A classe 'col-span-1' é implícita no grid -->
                         <div> 
@@ -51,16 +53,19 @@
                         </div>
                     @endforeach
                 </div>
+
+                
             </div>
-            <div class="flex justify-center sm:px-6 lg:px-8 space-y-6 my-3">
+            {{-- <div class="flex justify-center sm:px-6 lg:px-8 space-y-6 my-3">
                 <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg pagination">
                     @include('partials.navPagination')
                 </div>
-            </div>
+            </div> --}}
         </div>
     </div>
 
     <x-slot name="js">
         {{-- <script src="{{ asset('js/pagination.js') }}"></script> --}}
+        <script src="{{ asset('js/information/filter.js') }}"></script>
     </x-slot>
 </x-app-layout>
