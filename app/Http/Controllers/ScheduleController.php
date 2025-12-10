@@ -12,6 +12,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
 use PDF; // Facade do pacote barryvdh/laravel-dompdf
 use App\Models\Member;
+use App\Http\Controllers\MemberController;
 
 
 class ScheduleController extends Controller
@@ -96,9 +97,6 @@ class ScheduleController extends Controller
         //Request can be an array with multiple schedule data or a single schedule
         $data = $request->all();
 
-        // return response()->json(['received_data' => $data], 200);
-
-
         //Validate each schedule in the array
         $validatedSchedules = [];
         foreach ($data as $index => $scheduleData) {
@@ -107,17 +105,18 @@ class ScheduleController extends Controller
             if (isset($scheduleData['cpf'])) {
                 //Clean cpf to have only numbers
                 $member_id = Member::where('cpf', preg_replace('/\D/', '', $scheduleData['cpf']))->value('id');
-                if ($member_id) {
-                    $scheduleData['member_id'] = $member_id;
-                    
-                } else {
-                    return response()->json([
-                        'message' => "Member with CPF {$scheduleData['cpf']} not found for schedule at index $index",
-                        'received_data' => $scheduleData,
-                    ], 404);
+                if (!$member_id) {
+                    $response = MemberController::store($scheduleData['cpf'], $scheduleData['title'], $scheduleData['birthDate']);       
+                    //Type response
+                    if ($response->getStatusCode() == 201) {
+                        $member_id = $response->getData()->user->id;
+                    } else {
+                        return $response;
+                    }
                 }
             }
 
+            $scheduleData['member_id'] = $member_id;
             $validator = \Validator::make($scheduleData, [
                 'member_id' => 'required|int',
                 'place_id' => 'required|integer',
@@ -126,6 +125,8 @@ class ScheduleController extends Controller
                 'status_id' => 'required|in:0,1,3,4',
                 'price' => 'required|numeric|min:0',
                 'cpf' => 'nullable|string|max:14',
+                'title' => 'nullable|string|max:8',
+                'birthDate' => 'nullable|date'
             ]);
 
 
@@ -137,7 +138,6 @@ class ScheduleController extends Controller
                     'expected_fields' => ['member_id', 'place_id', 'start_schedule', 'end_schedule', 'status', 'price']
                 ], 418);
             }
-
 
             $validatedSchedules[] = $validator->validated();
         }

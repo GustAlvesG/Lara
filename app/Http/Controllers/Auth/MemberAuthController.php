@@ -23,27 +23,17 @@ class MemberAuthController extends Controller
         $this->jwtService = $jwtService;
     }
 
-
-    public function register(StoreMemberRequest $request)
+    public static function store($cpf, $title, $birthDate, $password = null)
     {
-        $validated = $request->validated([
-            'title' => 'required|string',
-            'cpf' => 'required|string',
-            'birthDate' => 'required|date',
-            'password' => 'required|string|min:6',
-        ]);
 
-        $member = Member::where('cpf', $request->input('cpf'))->first();
+        $member = Member::where('cpf', $cpf )->first();
 
         if ($member) {
             return response()->json(['error' => 'Member already exists'], 409);
         }
 
-        $title = $request->input('title');
-        $document = $request->input('cpf');
-        $birthdate = $request->input('birthDate');
 
-        $associated = self::queryMember($title, $document, $birthdate);
+        $associated = self::queryMember($title, $cpf, $birthDate);
 
         if (!$associated) {
             return response()->json(['error' => 'Member not found'], 404);
@@ -53,26 +43,30 @@ class MemberAuthController extends Controller
             $member = $associated[0];
             $member->title = $title;
             
-            $member->cpf = $document;
-            $member->birth_date = $birthdate;
+            $member->cpf = $cpf;
+            $member->birth_date = $birthDate;
             $member->image = self::getPhotoBlob($member->Photo)[0]->Content ?? null;
 
             //Convert the binary image to a image base324 string
             if ($member->image) {
                 $member->image = base64_encode($member->image);
-
             }
-            
-            $member->Password = $request->input('password');
+            // SHA256 in cpf if not $password
+            $member->Password = $password ?? hash('SHA256', $cpf);
 
             //Convert the object to an array
             $member = json_decode(json_encode($member), true);
-            
-            Member::create($member);
-
-            $token = LoginTokenController::generate($member);
-
-            $member = self::removeFields($member, ['image','Password', 'created_at', 'updated_at', 'deleted_at']);
+            try {
+                $member = Member::create($member);
+    
+                $token = LoginTokenController::generate($member);
+    
+                $member = self::removeFields($member, ['image','Password', 'created_at', 'updated_at', 'deleted_at']);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'error' => $e->getMessage()
+                ]);
+            }
 
             return response()->json([
                 'user' => $member, 
@@ -81,6 +75,25 @@ class MemberAuthController extends Controller
         }
 
         return response()->json(['error' => 'Member not found'], 404);
+    }
+
+
+    public static function register(StoreMemberRequest $request)
+    {
+        $validated = $request->validated([
+            'title' => 'required|string',
+            'cpf' => 'required|string',
+            'birthDate' => 'required|date',
+            'password' => 'required|string|min:6',
+        ]);
+
+
+        return self::store(
+            $request->input('cpf'),
+            $request->input('title'),
+            $request->input('birthDate'),
+            $request->input('password')
+        );
     }
 
     public function getImage($member_id)
@@ -197,7 +210,7 @@ class MemberAuthController extends Controller
         }
     }
 
-    private function getPhotoBlob($photoID)
+    private static function getPhotoBlob($photoID)
     {
         if ($photoID) {
             return DB::connection('mc_sqlsrv_image')->select("SELECT Content FROM dbo.Files WHERE Id = " . $photoID);
@@ -222,18 +235,17 @@ class MemberAuthController extends Controller
         return $member;
     }
 
-    public function queryMemberByCpf($document)
-    {
-        return DB::connection('mc_sqlsrv')->select("SELECT Name, Email, MobilePhone As telephone, Barcode From
-        dbo.Members LEFT JOIN dbo.Titles ON dbo.Members.Title = dbo.Titles.Id
-        WHERE
-        dbo.Members.DocumentUnmasked = '" . $document . "'");
-    }
+    
 
-    public function queryMember($title, $document, $birthdate)
+    public static function queryMember($title, $document, $birthdate)
     {
-        return DB::connection('mc_sqlsrv')->select("SELECT Name, Email, MobilePhone As telephone, Barcode, Photo From
-        dbo.Members LEFT JOIN dbo.Titles ON dbo.Members.Title = dbo.Titles.Id
+        return DB::connection('mc_sqlsrv')->select("SELECT
+            Name, Email, MobilePhone As telephone, Barcode, Photo
+        FROM
+            dbo.Members
+        LEFT JOIN
+            dbo.Titles ON dbo.Members.Title = dbo.Titles.Id
+            AND dbo.Titles.TitleType NOT IN (374, 375, 693320, 1297904, 3804861, 4062070, 6736996, 6736997, 6736998, 6737000)
         WHERE
 		dbo.Titles.Code = '". $title . "' And 
         dbo.Titles.Status = 0 And

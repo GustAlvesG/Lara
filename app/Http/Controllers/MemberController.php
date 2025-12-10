@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateMemberRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response;
+use App\Http\Controllers\Auth\MemberAuthController;
 
 class MemberController extends Controller
 {
@@ -48,6 +49,29 @@ class MemberController extends Controller
         //Return the image
         return view('member.index', ['data' => $data]);
         
+    }
+
+    public static function store($cpf, $title, $birthDate){
+        $response = MemberAuthController::store($cpf, $title, $birthDate);
+
+        return $response;
+    
+    }
+
+    private static function queryMemberByCpf($document, $title, $birthDate)
+    {
+        return DB::connection('mc_sqlsrv')->select("SELECT
+            Name, Email, MobilePhone As telephone, Barcode
+        FROM
+            dbo.Members
+        LEFT JOIN
+            dbo.Titles ON dbo.Members.Title = dbo.Titles.Id
+            AND dbo.Titles.TitleType NOT IN (374, 375, 693320, 1297904, 3804861, 4062070, 6736996, 6736997, 6736998, 6737000)
+        WHERE
+            dbo.Titles.Code = '". $title . "' And 
+            dbo.Titles.Status = 0 And
+            dbo.Members.DocumentUnmasked = '" . $document . "' And
+            dbo.Members.BirthDate = '" . $birthDate . "'");
     }
 
     

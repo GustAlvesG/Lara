@@ -1,22 +1,6 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro - Projeto 2XKO</title>
-    <!-- Carregamento do Tailwind CSS via CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Estilo customizado para o fundo degradê sutil e a fonte Inter */
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f4f7f9; /* Fundo cinza claro */
-        }
-    </style>
-</head>
-<body class="flex items-center justify-center min-h-screen p-4">
-
-    <!-- Card de Registro Centralizado e Elegante -->
+<x-guest-layout>
+    <x-slot name="slot">
+        <!-- Card de Registro Centralizado e Elegante -->
     <!-- Card um pouco maior para acomodar mais campos -->
     <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden transform transition duration-500 hover:shadow-3xl">
         
@@ -77,6 +61,18 @@ background: linear-gradient(90deg,rgba(160, 0, 1, 1) 0%, rgba(126, 20, 23, 1) 10
                         style="background: #A00001;">
                     Registrar
                 </button>
+
+
+                @if ($errors->has('email') || $errors->has('password'))
+                     <!-- ÁREA DE MENSAGEM DE ERRO (Mock) -->
+                    <div id="login-error-message" 
+                        class="my-4 p-3 text-sm text-red-800 bg-red-100 border border-red-300 rounded-lg text-center" 
+                        role="alert">
+                        @foreach ($errors->all() as $error)
+                            {{ $error }}<br>
+                        @endforeach
+                    </div>
+                @endif
                 
                 <!-- Link para Login -->
                 <div class="mt-4 text-center">
@@ -90,5 +86,5 @@ background: linear-gradient(90deg,rgba(160, 0, 1, 1) 0%, rgba(126, 20, 23, 1) 10
         </div>
         
     </div>
-</body>
-</html>
+    </x-slot>
+</x-guest-layout>

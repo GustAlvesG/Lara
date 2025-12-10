@@ -119,8 +119,6 @@ class ScheduleRulesController extends Controller
         $rules_exclude = $rules->where('type', 'exclude');
 
         foreach ($rules_exclude as $rule) {
-
-
             if (($date >= $rule->start_date && $date <= $rule->end_date && count($rule->weekdays) == 0) ||
                 ($date >= $rule->start_date && $date <= $rule->end_date && $rule->weekdays->contains('id', $weekdayNumber)) ||
                 (count($rule->weekdays) > 0 && $rule->weekdays->contains('id', $weekdayNumber)) ||

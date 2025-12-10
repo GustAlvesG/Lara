@@ -8,7 +8,7 @@
                 <div class="shrink-0 flex items-center">
                     <a href="{{ route('dashboard') }}" class="flex items-center">
                         <!-- Use seu componente de logo existente, mas adicione estilo se necessário -->
-                        <x-application-logo class="block h-8 w-auto fill-current text-red-800" />
+                        <x-application-logo :width="'30px'" :height="'38px'" :color="'#A00001'" />
                         <!-- Opcional: Nome do projeto ao lado da logo -->
                         <span class="ml-2 text-xl font-extrabold text-red-800">LARA</span>
                     </a>
@@ -25,7 +25,7 @@
                             ['route' => 'parking.search', 'label' => 'SIV', 'icon' => 'M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.294 6.336a6.721 6.721 0 0 1-3.17.789 6.721 6.721 0 0 1-3.168-.789 3.376 3.376 0 0 1 6.338 0Z'],
                             ['route' => 'information.index', 'label' => 'InfoClube', 'icon' => 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
                             ['route' => 'videowall.index', 'label' => 'Smart Panel', 'icon' => 'M9.75 17L9 20l-1-1v-4h-2l-1 1 7-7 7 7-1 1h-2v-4l-1 1h-2v4z'],
-                            //['route' => 'schedule.index', 'label' => 'Projeto 2XKO', 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
+                            ['route' => 'schedule.index', 'label' => 'Projeto 2XKO', 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
                         ];
                     @endphp
 

@@ -110,10 +110,22 @@
                     <span class="mr-3 bg-gray-400 text-white w-8 h-8 flex items-center justify-center rounded-full text-lg">4</span>
                     Identificação do Sócio
                 </label>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <!-- Campo de pesquisa/seleção de usuário (Exemplo básico) -->
-                <input name="member_search" type="text" id="member_search" placeholder="Buscar Sócio por CPF..."
+                    <div>
+                    <input name="member_search_cpf" type="text" id="member_search_cpf" placeholder="CPF do Sócio"
+                        class="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-lg shadow-sm mb-4">
+                    </div>
+                    <div>
+                    <input name="member_search_title" type="text" id="member_search_title" placeholder="Matrícula do Sócio"
                     class="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-lg shadow-sm mb-4">
-                
+                    </div>
+                    <div>
+                    <input name="member_search_birthdate" type="date" id="member_search_birthdate" placeholder="Data de Nascimento do Sócio"
+                    class="w-full py-3 px-4 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-lg shadow-sm mb-4">
+                    </div>
+                </div>
                 <div id="member-selection-info" class="p-3 bg-yellow-50 text-yellow-700 rounded-lg hidden">
                     <!-- Informação do sócio selecionado será injetada aqui -->
                 </div>
@@ -125,7 +137,7 @@
         <!-- ----------------------------------- -->
         <!-- BOTÃO DE SUBMISSÃO FINAL (OCULTO) -->
         <!-- ----------------------------------- -->
-        <div id="submit-container" class="flex justify-center mt-8 hidden">
+        <div id="submit-container" class="flex justify-center mt-8">
             <button type="button" onclick="goToSubmit()"
                     class="px-8 py-3 bg-green-600 text-white rounded-lg shadow-xl 
                             hover:bg-green-700 transition duration-200 font-extrabold text-xl">
@@ -141,7 +153,7 @@
     let max_limit = 0;
     let selected_options = [];
     //Get API TOken by .env
-    const API_TOKEN = "{{ env('API_TOKEN') }}";
+    const API_TOKEN = "{{ config('services.api.token') }}";
     // URL da nova API para todas as modalidades (assumindo que você a criou)
     const API_ALL_MODALITIES = "{{ route('api.placegroup.indexByCategory', 'esportiva') }}";
     const API_AVAILABLE_DATES = "{{ route('schedule.getScheduledDates') }}"; // NOVA API NECESSÁRIA
@@ -169,51 +181,6 @@
     const step3Badge = document.querySelector('#step-3-container span:first-child');
     const step4Badge = document.querySelector('#step-4-container span:first-child'); 
     const limitInfoSpan = document.getElementById('limit-info');
-
-    //Input
-    const memberSearchInput = document.getElementById('member_search');
-    memberSearchInput.addEventListener('input', function() {
-        const query = this.value.trim();
-
-        if (query.length !== 11) {
-            submitContainer.classList.add('hidden');
-            return;
-        }else {
-            console.log('CPF válido inserido:', query);
-            submitContainer.classList.remove('hidden');
-        }
-        
-
-        // if (query.length < 3) {
-        //     memberSelectionInfo.classList.add('hidden');
-        //     memberIdInput.value = '';
-        //     return;
-        // }
-
-        // fetch(`/api/members/search?cpf=${query}`, {
-        //     headers: {
-        //         'Authorization': `Bearer ${API_TOKEN}`
-        //     }
-        // })
-        // .then(response => response.json())
-        // .then(data => {
-        //     if (data && data.id) {
-        //         memberSelectionInfo.innerHTML = `Sócio Selecionado: <strong>${data.name}</strong> (CPF: ${data.cpf})`;
-        //         memberSelectionInfo.classList.remove('hidden');
-        //         memberIdInput.value = data.id;
-        //     } else {
-        //         memberSelectionInfo.innerHTML = 'Nenhum sócio encontrado com este CPF.';
-        //         memberSelectionInfo.classList.remove('hidden');
-        //         memberIdInput.value = '';
-        //     }
-        // })
-        // .catch(error => {
-        //     console.error('Erro ao buscar sócio:', error);
-        //     memberSelectionInfo.innerHTML = 'Erro ao buscar sócio. Tente novamente.';
-        //     memberSelectionInfo.classList.remove('hidden');
-        //     memberIdInput.value = '';
-        // });
-    });
 
     const MAX_HEIGHT_PX = '1800px'; 
 
@@ -336,10 +303,6 @@
         const optgroup = selectedOption.parentElement;
         let optgroupLabel = optgroup.label;
 
-        console.log(optgroup);
-        console.log(optgroupLabel);
-        console.log(selectedOption.textContent);
-        console.log(`${optgroupLabel} - ${selectedOption.textContent}`);
         //Update selected quadra name with optgroup label
         selectedOption.textContent = `${optgroupLabel} - ${selectedOption.textContent}`;
     
@@ -426,10 +389,6 @@
     }
 
 
-    // ----------------------------------------------------
-    // Funções de Utilidade e Inicialização (Reajustadas)
-    // ----------------------------------------------------
-    
     // Formata a string de data (YYYY-MM-DD) para DD/MM para o botão
     function formatDateForButton(dateString) {
         const parts = dateString.split('-'); // ["YYYY", "MM", "DD"]
@@ -454,7 +413,7 @@
             toggleStep(step3Wrapper, false);
             document.getElementById('slots-container').innerHTML = '';
             document.getElementById('selected_slot').value = '';
-            document.getElementById('submit-container').classList.add('hidden');
+            // document.getElementById('submit-container').classList.add('hidden');
             updateDesign(3, false);
         }
         document.getElementById('messages').innerHTML = '';
@@ -469,7 +428,8 @@
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${API_TOKEN}`
+                'Authorization': `Bearer ${API_TOKEN}`,
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content // Para segurança do Laravel
             },
             body: JSON.stringify({ date: date, place_id: quadraId })
         })
@@ -590,21 +550,25 @@
     function goToSubmit() {
 
         console.log('Preparing to submit schedule...');
-        if (!document.getElementById('member_search').value) {
+        if (!document.getElementById('member_search_cpf').value) {
             showMessage('error', 'Selecione um sócio antes de finalizar.');
             return;
         }
-        $member = document.getElementById('member_search').value;
+        let member_search_cpf = document.getElementById('member_search_cpf').value;
+        let member_search_title = document.getElementById('member_search_title').value;
+        let member_search_birthdate = document.getElementById('member_search_birthdate').value;
+
         $times = selected_options;
         $date = document.getElementById('selected_date_value').value;
         $status_id = 1; // Presumindo que 1 é o status "Confirmado"
         $place_id = document.getElementById('quadra_id').value;
-        console.log('Submitting schedule for member:', $member);
 
         $body = [];
         for (let i = 0; i < $times.length; i++) {
             $body.push({
-                cpf: $member,
+                cpf: member_search_cpf,
+                title: member_search_title,
+                birthDate: member_search_birthdate,
                 start_schedule: $date + ' ' + $times[i][0],
                 end_schedule: $date + ' ' + $times[i][1],
                 status_id: $status_id,
@@ -650,7 +614,9 @@
         }
     }
 
-    function showMessage(type, message) { /* ... lógica permanece igual ... */ }
+    function showMessage(type, message) {
+        
+     }
 
     // Inicialização ao carregar a página
     document.addEventListener('DOMContentLoaded', function() {

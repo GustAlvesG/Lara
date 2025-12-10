@@ -25,7 +25,7 @@ class StoreMemberRequest extends FormRequest
             'title' => ['required', 'string', 'max:8'],
             'cpf' => ['required', 'string'],
             'birthDate' => ['required', 'date'],
-            'password' => ['required', 'string'],
+            'password' => ['nullable', 'string'],
         ];
     }
 }
