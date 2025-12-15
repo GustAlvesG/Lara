@@ -137,7 +137,9 @@ class SchedulePaymentController extends Controller
 
         // 1. Otimização: Busca apenas as colunas necessárias para a verificação.
         $schedules = Schedule::
-            whereIn('id', $scheduleIds)
+            withoutGlobalScopes()
+            ->whereIn('id', $scheduleIds)
+            ->where('status_id', '!=', 0) // Ignora cancelados
             ->get(['id', 'place_id', 'start_schedule']);
 
         // Se a lista de agendamentos buscados for vazia (ex: IDs inválidos), retorna vazio.
@@ -155,8 +157,10 @@ class SchedulePaymentController extends Controller
 
         // 3. PESQUISA POR OUTROS AGENDAMENTOS (Collision Check Query)
         $otherSchedulesQuery = Schedule::
-            // Exclui os agendamentos que estão sendo pagos agora.
-            whereNotIn('id', $originalScheduleIds)
+         withoutGlobalScopes()
+         // Exclui os agendamentos que estão sendo pagos agora.
+         ->whereNotIn('id', $originalScheduleIds)
+                        ->where('status_id', '!=', 0) // Ignora cancelados
             
             // Cria a cláusula WHERE principal combinando place_id E start_schedule
             ->where(function ($query) use ($schedulesByPlace) {
