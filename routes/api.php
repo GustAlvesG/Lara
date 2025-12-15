@@ -8,6 +8,7 @@ use App\Http\Controllers\PlaceController;
 use App\Http\Controllers\PlaceGroupController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ScheduleRulesController;
+use App\Http\Controllers\SchedulePaymentController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -62,6 +63,7 @@ Route::middleware('api_token')->group(function () {
             Route::post('/place', [ScheduleController::class, 'indexByPlace']); // False POST, this is a GET REQUEST
             Route::get('/member/{member_id}/', [ScheduleController::class, 'indexByMember']);
             Route::put('/update-status', [ScheduleController::class, 'updateStatus']);
+            Route::post('/payment', [SchedulePaymentController::class, 'store']);
             Route::delete('/delete-pending', [ScheduleController::class, 'destroyPending']);
 
             Route::post('/time-options', [ScheduleRulesController::class, 'getTimeOptions'])->name('api.schedule.getTimeOptions')->withoutMiddleware(['login_token']);

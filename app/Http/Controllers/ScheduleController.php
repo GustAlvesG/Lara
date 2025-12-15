@@ -114,9 +114,9 @@ class ScheduleController extends Controller
                         return $response;
                     }
                 }
+                $scheduleData['member_id'] = $member_id;
             }
 
-            $scheduleData['member_id'] = $member_id;
             $validator = \Validator::make($scheduleData, [
                 'member_id' => 'required|int',
                 'place_id' => 'required|integer',

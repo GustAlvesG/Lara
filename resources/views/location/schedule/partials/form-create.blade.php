@@ -2,14 +2,14 @@
 <script src="https://cdn.tailwindcss.com"></script>
 
 <div class="max-w-4xl mx-auto my-10 p-6 bg-white shadow-2xl rounded-2xl">
-    <h1 class="text-3xl font-bold text-indigo-700 mb-6 border-b pb-3">Novo Agendamento</h1>
+    <h1 class="text-3xl font-bold mb-6 border-b pb-3" style="color:#A00001">Novo Agendamento</h1>
 
     <!-- FORMULÁRIO PRINCIPAL -->
     <form class="max-h-full overflow-y-auto" id="schedule-form" method="POST" action="ROTA">
         @csrf
         
         <!-- Contêiner de Notificações -->
-        <div id="messages" class="mb-4"></div>
+        <div id="messages"></div>
         <div id="loading-indicator" class="hidden mb-4 p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded-lg flex items-center">
             <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -22,13 +22,13 @@
         <!-- PASSO 1: MODALIDADE/QUADRA -->
         <!-- ----------------------------------- -->
         <div id="step-1-wrapper">
-            <div id="step-1-container" class="mb-6 p-6 border-2 border-indigo-300 rounded-xl bg-indigo-50 shadow-md">
-                <label for="quadra_id" class="flex items-center text-xl font-extrabold text-indigo-800 mb-3">
-                    <span class="mr-3 bg-indigo-600 text-white w-8 h-8 flex items-center justify-center rounded-full text-lg">1</span>
-                    Selecione a Quadra/Modalidade
+            <div id="step-1-container" class="mb-6 p-6 border-2 border-[#A00001] rounded-xl bg-[#FFE0E0] shadow-md step-active">
+                <label for="quadra_id" class="flex items-center text-xl font-extrabold mb-3" style="color:#A00001">
+                    <span class="mr-3 bg-[#A00001] text-white w-8 h-8 flex items-center justify-center rounded-full text-lg">1</span>
+                    Selecione a Modalidade/Quadra
                 </label>
                 <select id="quadra_id" name="quadra_id" required
-                        class="w-full py-3 px-4 border border-indigo-400 rounded-lg focus:ring-indigo-600 focus:border-indigo-600 text-lg shadow-sm">
+                        class="w-full py-3 px-4 border border-[#A00001] rounded-lg focus:ring-[#A00001] focus:border-[#A00001] text-lg shadow-sm">
                     <option value="">Aguardando carregamento...</option>
                 </select>
                 <input type="hidden" id="selected_quadra_name" name="quadra_name">
@@ -39,11 +39,11 @@
         <!-- PASSO 2: DATA (CONJ. DE BOTÕES) -->
         <!-- ----------------------------------- -->
         <div id="step-2-wrapper" 
-             class="mb-6 max-h-0 opacity-0 overflow-hidden transition-all duration-500 ease-in-out">
+             class="max-h-0 opacity-0 overflow-hidden transition-all duration-500 ease-in-out">
             <div id="step-2-container" 
-                 class="p-6 border border-gray-200 rounded-xl bg-white shadow-lg">
-                <label class="flex items-center text-xl font-extrabold text-gray-800 mb-3">
-                    <span class="mr-3 bg-gray-400 text-white w-8 h-8 flex items-center justify-center rounded-full text-lg">2</span>
+                 class="mb-6 p-6 border border-gray-200 rounded-xl bg-white shadow-lg">
+                <label class="flex items-center text-xl font-extrabold mb-3" style="color:#A00001">
+                    <span class="mr-3 bg-[#A00001] text-white w-8 h-8 flex items-center justify-center rounded-full text-lg">2</span>
                     Selecione a Data
                 </label>
                 <!-- Container para os botões de Data -->
@@ -61,7 +61,7 @@
         <div id="step-3-wrapper" 
              class="max-h-0 opacity-0 overflow-hidden transition-all duration-500 ease-in-out">
             <div id="step-3-container" 
-                 class="p-6 border border-gray-200 rounded-xl bg-white shadow-lg">
+                 class="mb-6 p-6 border border-gray-200 rounded-xl bg-white shadow-lg">
                 <label class="flex items-center text-xl font-extrabold text-gray-800 mb-3">
                     <span class="mr-3 bg-gray-400 text-white w-8 h-8 flex items-center justify-center rounded-full text-lg">3</span>
                     Selecione o Horário (<span id="limit-info" class="">Máx: 1</span>)
@@ -75,8 +75,8 @@
                 <!-- Botão "Continuar" para ir para o Passo 4 -->
                 <div id="continue-to-step-4" class="flex justify-center mt-6">
                     <button type="button" onclick="goToStep(4)" 
-                            class="px-8 py-3 bg-indigo-600 text-white rounded-lg shadow-xl 
-                                    hover:bg-indigo-700 transition duration-200 font-extrabold text-lg">
+                            class="px-8 py-3 bg-[#A00001] text-white rounded-lg shadow-xl 
+                                    hover:bg-[#7A0000] transition duration-200 font-extrabold text-lg">
                         Continuar (Passo 4)
                     </button>
                 </div>
@@ -88,11 +88,12 @@
             <div id="resume-container" 
                  class="p-6 border border-gray-200 rounded-xl bg-white shadow-lg">
                 <label class="flex items-center text-xl font-extrabold text-gray-800 mb-3">
-                    <span class="mr-3 bg-gray-400 text-white w-8 h-8 flex items-center justify-center rounded-full text-lg"></span>
+                    <span class="mr-3 text-white w-8 h-8 flex items-center justify-center rounded-full text-lg bg-green-600"></span>
                     Resumo da Reserva
                 </label>
-                <div id="resume-container" class="">
-                    <!-- Horários serão injetados aqui via JavaScript -->
+                <!-- ID CORRIGIDO PARA resume-details -->
+                <div id="resume-details" class="space-y-3">
+                    <!-- Detalhes do Resumo serão injetados aqui via JavaScript -->
                 </div>
                 
             </div>
@@ -137,7 +138,7 @@
         <!-- ----------------------------------- -->
         <!-- BOTÃO DE SUBMISSÃO FINAL (OCULTO) -->
         <!-- ----------------------------------- -->
-        <div id="submit-container" class="flex justify-center mt-8">
+        <div id="submit-container" class="flex justify-center mt-8 hidden">
             <button type="button" onclick="goToSubmit()"
                     class="px-8 py-3 bg-green-600 text-white rounded-lg shadow-xl 
                             hover:bg-green-700 transition duration-200 font-extrabold text-xl">
@@ -172,9 +173,13 @@
 
     // Wrappers de Passos
     const step1Wrapper = document.getElementById('step-1-wrapper');
+    const step1Container = document.getElementById('step-1-container');
     const step2Wrapper = document.getElementById('step-2-wrapper');
+    const step2Container = document.getElementById('step-2-container');
     const step3Wrapper = document.getElementById('step-3-wrapper');
+    const step3Container = document.getElementById('step-3-container');
     const step4Wrapper = document.getElementById('step-4-wrapper');
+    const step4Container = document.getElementById('step-4-container');
     const resumeWrapper = document.getElementById('resume-wrapper');
     // Badges de Número do Passo
     const step2Badge = document.querySelector('#step-2-container span:first-child');
@@ -182,37 +187,64 @@
     const step4Badge = document.querySelector('#step-4-container span:first-child'); 
     const limitInfoSpan = document.getElementById('limit-info');
 
+    //INPUTS DE SÓCIO
+    const member_search_cpf = document.getElementById('member_search_cpf');
+    const member_search_title = document.getElementById('member_search_title');
+    const member_search_birthdate = document.getElementById('member_search_birthdate');
+
+    //On input in member_input
+    member_search_cpf.addEventListener('input', showSubmitButton);
+    member_search_title.addEventListener('input', showSubmitButton);
+    member_search_birthdate.addEventListener('input', showSubmitButton);
+
     const MAX_HEIGHT_PX = '1800px'; 
 
     
     // Funções de Design
     function updateDesign(step, isActive) {
         let badge, container;
-        
-        if (step === 2) {
+        console.log("Updating design for step " + step + " to " + (isActive ? "active" : "inactive"));
+
+        if (step !== 1){
+            document.querySelectorAll('.step-active').forEach(el => {
+                el.classList.remove('step-active', 'border-2', 'border-[#A00001]', 'bg-[#FFE0E0]');
+                el.classList.add('border-gray-200', 'bg-white');
+            });
+
+        }
+            
+
+        if (step == 1) {
+            badge = document.querySelector('#step-1-container span:first-child');
+            container = step1Container;
+        } 
+        else if (step === 2) {
             badge = step2Badge;
-            container = step2Wrapper;
+            container = step2Container;
         } else if (step === 3) {
             badge = step3Badge;
-            container = step3Wrapper;
+            container = step3Container;
         } else if (step === 4) {
             badge = step4Badge;
-            container = step4Wrapper;
+            container = step4Container;
         }
         else {
             return;
         }
-        
+
+        //Forach .step-active remove
+
         if (isActive) {
             container.classList.remove('border-gray-200', 'bg-white');
-            container.classList.add('border-indigo-300', 'bg-indigo-50');
+            container.classList.add('border-2', 'border-[#A00001]', 'bg-[#FFE0E0]', 'step-active');
+
             badge.classList.remove('bg-gray-400');
-            badge.classList.add('bg-indigo-600');
+            badge.classList.add('bg-[#A00001]');
             if (step === 2) dateInputHidden.disabled = false; // Habilita o hidden input
         } else {
-            container.classList.remove('border-indigo-300', 'bg-indigo-50');
+            container.classList.remove('border-2', 'border-[#A00001]', 'bg-[#FFE0E0]', 'step-active');
             container.classList.add('border-gray-200', 'bg-white');
-            badge.classList.remove('bg-indigo-600');
+            badge.classList.remove('bg-[#A00001]');
             badge.classList.add('bg-gray-400');
             if (step === 2) dateInputHidden.disabled = true; // Desabilita o hidden input
         }
@@ -221,7 +253,7 @@
     // Função para gerenciar a transição de abertura/fechamento
     function toggleStep(wrapper, open) {
         if (open) {
-            wrapper.style.maxHeight = wrapper.scrollHeight + 'px'; // Usa scrollHeight para abrir
+            wrapper.style.maxHeight = wrapper.scrollHeight + 6 + 'px'; // Usa scrollHeight para abrir
             wrapper.classList.remove('opacity-0');
             wrapper.classList.add('opacity-100');
         } else {
@@ -291,7 +323,7 @@
         
         if (!quadraId) {
             toggleStep(step2Wrapper, false); // Fecha Passo 2
-            updateDesign(2, false);
+            updateDesign(2, true);
             return;
         }
 
@@ -319,16 +351,15 @@
     function fetchAvailableDates(quadraId) {
         loadingIndicator.classList.remove('hidden');
         availableDatesContainer.innerHTML = '<span>Carregando Datas...</span>';
-        console.log(`${API_AVAILABLE_DATES}/${quadraId}`);
         fetch(`${API_AVAILABLE_DATES}/${quadraId}`) 
             .then(response => response.json())
             .then(data => {
                 availableDatesContainer.innerHTML = '';
-                console.log(data);
+
                 if (data.length > 0) {
-                    console.log('Datas disponíveis encontradas:', data.length);
+
                     data.forEach(dateStr => {
-                        console.log('Data disponível:', dateStr);
+
                         // Cria Botão para Data
                         const button = document.createElement('button');
                         button.type = 'button';
@@ -338,7 +369,7 @@
                         button.textContent = formatDateForButton(dateStr); 
                         
                         // Design do botão de data com hover elegante
-                        button.className = 'date-button p-2 text-center bg-gray-100 text-gray-800 rounded-lg font-bold shadow-sm transition transform hover:scale-105 hover:bg-indigo-300';
+                        button.className = 'date-button p-2 text-center bg-gray-100 text-gray-800 rounded-lg font-bold shadow-sm transition transform hover:scale-105 hover:bg-[#FF7F7F]';
                         
                         // Evento de click que substitui o change do select
                         button.onclick = () => selectDate(button);
@@ -374,11 +405,11 @@
         
         // 1. Aplicar estilo de seleção
         document.querySelectorAll('.date-button').forEach(btn => {
-            btn.classList.remove('bg-indigo-600', 'text-white');
+            btn.classList.remove('bg-[#A00001]', 'text-white');
             btn.classList.add('bg-gray-100', 'text-gray-800');
         });
         button.classList.remove('bg-gray-100', 'text-gray-800');
-        button.classList.add('bg-indigo-600', 'text-white');
+        button.classList.add('bg-[#A00001]', 'text-white');
 
         // 2. Atualizar valor escondido
         dateInputHidden.value = date;
@@ -429,7 +460,6 @@
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${API_TOKEN}`,
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content // Para segurança do Laravel
             },
             body: JSON.stringify({ date: date, place_id: quadraId })
         })
@@ -450,7 +480,7 @@
                     button.type = 'button';
                     button.value = slot[0] + "," + slot[1]; // HH:MM,HH:MM
                     button.textContent = slot[0] + " - " + slot[1]; 
-                    button.className = 'slot-button px-3 py-2 bg-indigo-100 text-indigo-700 rounded-lg font-bold hover:bg-indigo-300 transition shadow-sm';
+                    button.className = 'slot-button px-3 py-2 bg-gray-100 text-gray-800 rounded-lg font-bold shadow-sm transition transform hover:scale-105 hover:bg-[#FF7F7F]'
                     button.onclick = () => selectSlot(button);
                     slotsContainer.appendChild(button);
                 });
@@ -477,33 +507,33 @@
         const times = time.split(",");
         const index = selected_options.findIndex(o => o[0] === times[0] && o[1] === times[1]);
         
-        console.log('Selected Options Before:', selected_options);
+
         // 1. Lógica de Desmarcação (Duplo Clique)
         if (index !== -1) {
-            console.log('Desmarcando horário:', times);
+
             selected_options.splice(index, 1);
-            button.classList.remove('bg-indigo-600', 'text-white', 'shadow-lg');
-            button.classList.add('bg-indigo-100', 'text-indigo-700', 'shadow-sm');
+            button.classList.remove('bg-[#A00001]', 'text-white', 'shadow-lg');
+            button.classList.add('bg-[#FFE0E0]', 'text-[#A00001]', 'shadow-sm');
             showMessage("success", `Horário ${times[0]} - ${times[1]} desmarcado.`);
         } 
         // 2. Lógica de Seleção (Se houver limite e não exceder)
         else {
 
             if (selected_options.length >= max_limit) {
-                console.log('Limite atingido:', max_limit);
+
                 showMessage("error", `Você atingiu o limite de ${max_limit} seleções permitidas.`);
                 return;
             }
-            console.log('Adicionando horário:', times);
+
             
             selected_options.push([times[0], times[1]]);
-            button.classList.remove('bg-indigo-100', 'text-indigo-700', 'shadow-sm');
-            button.classList.add('bg-indigo-600', 'text-white', 'shadow-lg');
+            button.classList.remove('bg-[#FFE0E0]', 'text-[#A00001]', 'shadow-sm');
+            button.classList.add('bg-[#A00001]', 'text-white', 'shadow-lg');
             
             showMessage("success", `Horário ${times[0]} - ${times[1]} selecionado.`);
         }
 
-        console.log('Selected Options After:', selected_options);
+
         
         updateSlotsUI(); // Atualiza visibilidade do botão Continuar
         
@@ -522,14 +552,16 @@
             document.getElementById('selected_slot').value = slotValues.join(';');
 
             // 2. Transição: Fecha Todos os Passos Anteriores e Abre o Passo 4 e o Resumo
-            // toggleStep(step1Wrapper, false);
-            // updateDesign(1, false);
-            // toggleStep(step2Wrapper, false);
-            // updateDesign(3, false);
-            // toggleStep(step3Wrapper, false);
-            // updateDesign(3, false);
+            toggleStep(step1Wrapper, false);
+            updateDesign(1, false);
+            toggleStep(step2Wrapper, false);
+            updateDesign(3, false);
+            toggleStep(step3Wrapper, false);
+            updateDesign(3, false);
 
-            // toggleStep(resumeWrapper, true);
+            toggleStep(resumeWrapper, true);
+
+            makeResume();
 
             toggleStep(step4Wrapper, true);
             updateDesign(4, true);
@@ -547,9 +579,67 @@
         }
     }
 
+    function makeResume() {
+        const detailsContainer = document.getElementById('resume-details');
+        const quadraName = document.getElementById('selected_quadra_name').value;
+        const selectedDateDisplay = formatDateForDisplay(document.getElementById('selected_date_value').value);
+        
+        let html = '';
+
+         // 1. QUADRA E DATA (Versão mais compacta)
+        html += `
+            <div class="grid grid-cols-3 gap-4 mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div>
+                    <span class="text-sm font-medium text-gray-600">Local:</span>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        <span class="inline-block bg-[#FFE0E0] text-[#A00001] text-sm font-semibold px-3 py-1 rounded-full shadow-sm">${quadraName}</span>
+                    </div>
+                </div>
+                <div>
+                    <span class="text-sm font-medium text-gray-600">Data:</span>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        <span class="inline-block bg-[#FFE0E0] text-[#A00001] text-sm font-semibold px-3 py-1 rounded-full shadow-sm">${selectedDateDisplay}</span>
+                    </div>
+                </div>
+                <div>
+                <span class="text-sm font-medium text-gray-600">Horários:</span>
+                `;
+
+        // 2. HORÁRIOS SELECIONADOS
+        selected_options.sort((a, b) => a[0].localeCompare(b[0])); // Ordena por hora
+        
+        const slotBadges = selected_options.map(slot => 
+            `<span class="inline-block bg-[#FFE0E0] text-[#A00001] text-sm font-semibold px-3 py-1 rounded-full shadow-sm">
+                ${slot[0]} - ${slot[1]}
+            </span>`
+        ).join(' ');
+
+        html += `<div class="mt-2 flex flex-wrap gap-2">${slotBadges}</div></div>
+            </div>`;
+        
+        detailsContainer.innerHTML = html;
+        toggleStep(resumeWrapper, true); // Recalcula a altura do resumo após a injeção
+    }
+
+    function showSubmitButton() {
+
+
+        if (!member_search_cpf.value || !member_search_title.value || !member_search_birthdate.value) {
+            // showMessage('error', 'Preencha todos os campos do sócio para continuar.');
+            return;
+        }
+
+        submitContainer.classList.remove('hidden');
+    }
+
+    function checkCPF(cpf) {
+
+        return true; // Placeholder
+    }
+    
+
     function goToSubmit() {
 
-        console.log('Preparing to submit schedule...');
         if (!document.getElementById('member_search_cpf').value) {
             showMessage('error', 'Selecione um sócio antes de finalizar.');
             return;
@@ -587,7 +677,7 @@
         })
         .then(response => response.json())
         .then(data => {
-            console.log('Schedule submission response:', data);
+
             if (data.success) {
                 showMessage('success', 'Agendamento realizado com sucesso!');
                 // Redireciona ou reseta o formulário conforme necessário
@@ -607,8 +697,6 @@
         if (selected_options.length > 0) {
             continueButton.classList.remove('hidden');
             toggleStep(step3Wrapper, true); 
-            // Garante que o botão Finalizar esteja escondido até o Passo 4
-            submitContainer.classList.add('hidden'); 
         } else {
             continueButton.classList.add('hidden');
         }
@@ -627,6 +715,7 @@
         // Garante que os badges iniciais estejam cinzas
         updateDesign(2, false);
         updateDesign(3, false);
+        updateDesign(1, true);
 
         fetchAllModalities();
     });

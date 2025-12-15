@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Place;
 use App\Models\Member;
 use App\Models\Status;
+use App\Models\SchedulePayment;
 
 class Schedule extends Model
 {
@@ -54,6 +55,11 @@ class Schedule extends Model
     public function status()
     {
         return $this->belongsTo(Status::class, 'status_id', 'id');
+    }
+
+    public function schedulePayment()
+    {
+        return $this->belongsTo(SchedulePayment::class, 'schedule_payment_id', 'id');
     }
 
 }

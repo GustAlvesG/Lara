@@ -10,8 +10,9 @@ $(document).ready(function() {
         let parent = $this.closest('.row');
         let rowHidden = parent.find('.onCheck');
 
+        // if($this.is(':checked'))
+            rowHidden.toggle();
         
-        rowHidden.toggle();
 
         if(!$this.is(':checked')) {
 

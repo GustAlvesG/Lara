@@ -13,11 +13,11 @@
        
     </x-slot>
 
-    <x-block>
-        <x-slot name="content">
+    {{-- <x-block>
+        <x-slot name="content"> --}}
             @include('location.schedule.partials.form-create')
-        </x-slot>
-    </x-block>
+        {{-- </x-slot>
+    </x-block> --}}
 
    
 
