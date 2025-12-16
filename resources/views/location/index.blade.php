@@ -59,7 +59,7 @@
         $cont = 0;
     @endphp
     
-    @foreach ($schedules_today as $key_date=>$item_date)
+    @foreach ($schedules as $key_date=>$item_date)
         <x-block>
 
             <x-slot name="content">

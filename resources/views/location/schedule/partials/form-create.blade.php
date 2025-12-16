@@ -677,11 +677,14 @@
         })
         .then(response => response.json())
         .then(data => {
+            window.location.href = "{{ route('schedule.index') }}";
 
             if (data.success) {
+                console.log('Schedule submitted successfully:', data);
                 showMessage('success', 'Agendamento realizado com sucesso!');
                 // Redireciona ou reseta o formulário conforme necessário
-                window.location.href = "{{ route('schedule.index') }}";
+                return ;
+
             } else {
                 showMessage('error', data.message || 'Erro ao realizar agendamento.');
             }

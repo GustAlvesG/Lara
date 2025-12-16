@@ -1,8 +1,8 @@
 <div class="mb-8 p-4 border border-gray-100 rounded-lg shadow-sm">
                                 @php
-                                    $logDateTime = $log['entry_date'];
-                                    $logDate = \Carbon\Carbon::parse($logDateTime)->format('d/m/Y');
-                                    $logTime = \Carbon\Carbon::parse($logDateTime)->format('H:i:s');
+                                    $logDateTime = explode(" ", $log['entry_date']);
+                                    $logDate = $logDateTime[1];
+                                    $logTime = $logDateTime[0];
                                 @endphp
 
                                 <p class="text-sm font-semibold text-gray-600 mb-3">Acesso em: {{ $logDate }} às {{ $logTime }}</p>

@@ -23,9 +23,9 @@ class ScheduleController extends Controller
         $rangeStart = Carbon::today()->startOfDay();
         $rangeEnd   = Carbon::tomorrow()->endOfDay();
 
-        $schedules_today = $this->schedules_today();
+        $schedules = $this->schedules_today();
 
-        return view('location.index', compact('schedules_today'));
+        return view('location.index', compact('schedules'));
     }
 
     public function index_api()
@@ -266,9 +266,53 @@ class ScheduleController extends Controller
         return redirect()->back()->with('success', "{$updatedCount} reservas atualizadas com sucesso.");
     }
 
-    public function updateStatusWeb(Request $request)
+    public function indexFilter(Request $request)
     {
-        
+
+        //Check if any filter is applied
+        if (!$request->filled('place_group_id') && 
+            !$request->filled('status') && 
+            !$request->filled('start_schedule') && 
+            !$request->filled('member_cpf')) {
+            return redirect()->route('schedule.index');
+        }
+
+        if (!$request->filled('start_schedule') && 
+            !$request->filled('member_cpf') &&
+            $request->filled('place_group_id')) {
+            $request->merge(['start_schedule' => Carbon::today()->toDateString()]);
+        }
+
+        //place_group_id, status, start_schedule, member_cpf
+        $schedules = Schedule::with(['status','place.group','member'])
+            ->when($request->filled('place_group_id'), function ($q) use ($request) {
+                $q->whereHas('place.group', function ($q2) use ($request) {
+                    $q2->where('id', $request->input('place_group_id'));
+                });
+            })
+            ->when($request->filled('status'), function ($q) use ($request) {
+                $q->where('status_id', $request->input('status'));
+            })
+            ->when($request->filled('start_schedule'), function ($q) use ($request) {
+                $date = Carbon::parse($request->input('start_schedule'));
+                $q->whereDate('start_schedule', $date->toDateString());
+            })
+            ->when($request->filled('member_cpf'), function ($q) use ($request) {
+                $cpf = preg_replace('/\D/', '', $request->input('member_cpf'));
+                $q->whereHas('member', function ($q2) use ($cpf) {
+                    $q2->where('cpf', 'like', "%{$cpf}%");
+                });
+            })->get()
+            ->groupBy(fn($s) => Carbon::parse($s->start_schedule)->toDateString())
+            ->map(fn($dateGroup) =>
+                $dateGroup
+                    ->groupBy(fn($s) => optional($s->place->group)->name ?? 'Sem Grupo')
+                    ->map(fn($placeGroup) => $placeGroup->sortBy('start_schedule'))
+            )
+            ->sortKeys();
+
+
+        return view('location.index', compact('schedules'));
     }
 
     public function updateStatus(Request $request)

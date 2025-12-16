@@ -63,6 +63,7 @@ Route::middleware('auth')->group(function () {
     // Route::resource('place', PlaceController::class);
     Route::group(['prefix' => 'schedule'], function () {
         Route::get('/', [ScheduleController::class, 'index'])->name('schedule.index');
+        Route::post('/filter', [ScheduleController::class, 'indexFilter'])->name('schedule.index.filter');
         Route::get('/create', [ScheduleController::class, 'create'])->name('schedule.create');
         Route::get('/group/{category}/', [PlaceGroupController::class, 'indexByCategory'])->name('api.placegroup.indexByCategory');
         Route::get('/getDates/{place_id?}', [ScheduleRulesController::class, 'getScheduledDates'])->name('schedule.getScheduledDates');

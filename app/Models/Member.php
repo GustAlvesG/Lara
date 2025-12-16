@@ -29,8 +29,10 @@ class Member extends Model
         'image',
         'Password',
     ];
+    //By default, ignore status_id = 4, Expired
 
     protected $hidden = [
+        'image',
         'password',
         'created_at',
         'updated_at',
