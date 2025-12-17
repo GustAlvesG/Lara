@@ -26,17 +26,17 @@
                             
 
 	                    <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-        	                    <div class="text-sm font-medium text-gray-500">Placa</div>
-                	            <div class="text-xl font-bold text-gray-800 mt-1">{{ $car['plate'] }}</div>
-                            </div>
-			   <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                    <div class="text-sm font-medium text-gray-500">Cor</div>
-                                    <div class="text-xl font-bold text-gray-800 mt-1">{{ isset($car['color']) ? strtoupper($car['color']) : 'Não encontrado' }} </div>
-                                </div>
-                                <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                    <div class="text-sm font-medium text-gray-500">Quantidade de Acessos</div>
-                                    <div class="text-xl font-bold text-gray-800 mt-1">{{ count($data) }}</div>
-                                </div>
+                            <div class="text-sm font-medium text-gray-500">Placa</div>
+                            <div class="text-xl font-bold text-gray-800 mt-1">{{ $car['plate'] }}</div>
+                        </div>
+                        <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <div class="text-sm font-medium text-gray-500">Cor</div>
+                            <div class="text-xl font-bold text-gray-800 mt-1">{{ isset($car['color']) ? strtoupper($car['color']) : 'Não encontrado' }} </div>
+                        </div>
+                        <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                            <div class="text-sm font-medium text-gray-500">Quantidade de Acessos</div>
+                            <div class="text-xl font-bold text-gray-800 mt-1">{{ count($data) }}</div>
+                        </div>
                             
                         </div>
                     </div>

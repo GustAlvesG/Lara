@@ -10,6 +10,8 @@
             <input class="form-check" type="checkbox" name="status_id" id="status_id" value="1" 
             @if (isset($rule) && $rule->status_id == 1) 
                 checked
+            @elseif (!isset($rule))
+                checked
             @endif>
             <label class="form-check text-gray-900 dark:text-gray-100" for="status_id">
                 Habilitar Regra

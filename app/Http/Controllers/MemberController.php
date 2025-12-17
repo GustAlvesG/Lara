@@ -44,14 +44,15 @@ class MemberController extends Controller
             }
         }
 
-        dd($data);
-
         //Return the image
         return view('member.index', ['data' => $data]);
         
     }
 
     public static function store($cpf, $title, $birthDate){
+
+        //Remove special characters from CPF
+        $cpf = preg_replace('/[^0-9]/', '', $cpf);
         $response = MemberAuthController::store($cpf, $title, $birthDate);
 
         return $response;

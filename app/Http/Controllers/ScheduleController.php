@@ -279,7 +279,7 @@ class ScheduleController extends Controller
 
         if (!$request->filled('start_schedule') && 
             !$request->filled('member_cpf') &&
-            $request->filled('place_group_id')) {
+            ($request->filled('place_group_id') || $request->filled('status'))) {
             $request->merge(['start_schedule' => Carbon::today()->toDateString()]);
         }
 
