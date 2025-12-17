@@ -1,10 +1,10 @@
-<div class="bg-white p-6 shadow-md rounded-lg">
+<div class="bg-white dark:bg-gray-800 p-6 shadow-md rounded-lg">
     
     <div class="flex justify-between items-center cursor-pointer"
         onclick="toggleSearchAccordion()">
         
         <div>
-             <span class="text-xl font-bold text-gray-800 dark:text-gray-200">
+             <span class="text-xl font-bold text-gray-800 dark:white">
                 {{ $title }}
              </span>
         </div>
