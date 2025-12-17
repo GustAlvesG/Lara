@@ -30,7 +30,7 @@
         <div class="space-y-4">
             
             <div class="mb-4">
-                <label for="data-agenda" class="block text-sm font-medium text-gray-600 dark:text-gray-300">📅 Data do Agendamento</label>
+                <label for="data-agenda" class="block text-sm font-medium text-gray-600 dark:text-gray-300 pb-2">📅 Data do Agendamento</label>
     
                 <x-text-input type="date" name="id" id="id" 
                     class="form-control w-full dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:[color-scheme:dark]" 
