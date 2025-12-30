@@ -43,7 +43,15 @@ Route::middleware('auth')->group(function () {
     Route::get('/members', [MemberController::class, 'index'])->name('members.index');
     Route::get('/accesses/{time}', [AccessController::class, 'findAccessByTime'])->name('accesses.findAccessByTime');
     Route::get('/accesses', [AccessController::class, 'index'])->name('accesses.index');
-    Route::resource('information', InformationController::class);
+    
+    Route::get('/information', [InformationController::class, 'index'])->name('information.index');
+    Route::get('/information/create', [InformationController::class, 'create'])->name('information.create');
+    Route::post('/information', [InformationController::class, 'store'])->name('information.store');
+    Route::get('/information/{information}', [InformationController::class, 'show'])->name('information.show');
+    Route::get('/information/{information}/edit', [InformationController::class, 'edit'])->name('information.edit');
+    Route::put('/information/{information}', [InformationController::class, 'update'])->name('information.update');
+    Route::delete('/information/{information}', [InformationController::class, 'destroy'])->name('information.destroy');
+    
     Route::get('/information/{id}/history', [InformationController::class, 'history'])->name('information.history');
     Route::get('/members/{title}', [MemberController::class, 'findMemberByCode'])->name('information.findMemberByCode');
 

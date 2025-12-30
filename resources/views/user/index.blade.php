@@ -51,7 +51,7 @@
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex items-center">
                                         <div class="h-10 w-10 flex-shrink-0">
-                                            <a href="{{ route('users.edit', ['id' => $user['id']]) }}" class="h-10 w-10 rounded-full bg-[#ff6961] dark:bg-[#A00001] flex items-center justify-center text-indigo-700 dark:text-white font-bold border-2 border-white dark:border-gray-600 shadow-sm">
+                                            <a href="{{ route('users.edit', ['id' => $user['id']]) }}" class="h-10 w-10 rounded-full bg-[#ff6961] dark:bg-[#A00001] flex items-center justify-center text-black dark:text-white font-bold border-2 border-white dark:border-gray-600 shadow-sm">
                                                 {{ substr($user['name'], 0, 1) }}
                                             </a>
                                         </div>
