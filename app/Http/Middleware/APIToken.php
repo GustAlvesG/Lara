@@ -20,7 +20,7 @@ class APIToken
         	return $next($request);
 	}
         if ($request->header('Authorization') !== $apitoken) {
-            return response()->json(['message' => 'Invalid API Token'], 401);
+            return response()->json(['message' => 'Invalid API Tokenaaaa', 'token' => $request->header('Authorization')], 401);
         }
         return $next($request);
     }

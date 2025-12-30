@@ -8,6 +8,7 @@ use App\Http\Requests\UpdatePlaceGroupRequest;
 use Illuminate\Http\Request;
 use App\Models\Place;
 use App\Models\ScheduleRules;
+use Illuminate\Support\Facades\DB;
 
 class PlaceGroupController extends Controller
 {
@@ -77,6 +78,7 @@ class PlaceGroupController extends Controller
 
         //Order by name
         $groups = $groups->sortBy('name');
+
         
         return view('location.placeGroup.index', [
             'groups' => $groups,
@@ -257,31 +259,28 @@ class PlaceGroupController extends Controller
 
         $rule->update($validated);
         
-        //Check if has weekdays
-        if (isset($validated['weekdays']) && !empty($validated['weekdays'])) {
-            //Detach all weekdays
-            $rule->weekdays()->detach();
-            //Attach the weekdays to the rule
-            $rule->weekdays()->attach($validated['weekdays']);
+        DB::transaction(function () use ($rule, $validated) {
+    
+        // 1. Lógica dos Dias da Semana (Weekdays)
+        // O método sync já lida com arrays vazios (fazendo o detach de tudo se necessário).
+        // O operador '??' garante que se não existir, passa um array vazio.
+        $rule->weekdays()->sync($validated['weekdays'] ?? []);
+
+        // 2. Lógica dos Lugares (Places)
+        // Remove o valor 'all' do array, se existir
+        if (isset($validated['places'])) {
+            $placesIds = array_filter($validated['places'], function ($value) {
+                return $value !== 'all';
+            });
+
+            // O sync substitui o detach() e o loop foreach.
+            // Ele sincroniza os IDs passados com a regra atual.
+            $rule->places()->sync($placesIds);
         } else {
-            //Detach all weekdays
-            $rule->weekdays()->detach();
+            // Se não houver places no validated, remove todos os vínculos
+            $rule->places()->detach();
         }
-
-        //Check if "all" in places, and remove
-        $index = array_search('all', $validated['places']);
-        if ($index !== false) {
-            unset($validated['places'][$index]);
-        }
-
-        //Detach all places
-        $rule->places()->detach();
-        
-        foreach ($validated['places'] as $place_id) {
-            //Create the schedule rule with the relastionship to the place
-            $place = Place::find($place_id);
-            $place->scheduleRules()->attach($rule->id);
-        }
+    });
         return redirect()->route('place-group.show', ['place_group' => $rule->places->first()->place_group_id]);
     }
 
@@ -455,8 +454,12 @@ class PlaceGroupController extends Controller
                     // Remove campo pivot se existir
                     unset($ruleToPlaces[$ruleId]['rule']->pivot);
                 }
+                if (isset($rule->weekdays)) {
+                    $rule->weekdays = $rule->weekdays->sortBy('id')->values();
+                }   
                 $ruleToPlaces[$ruleId]['places'][] = $placeData;
             }
+
         }
 
 

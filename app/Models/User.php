@@ -8,11 +8,14 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use App\Models\DataInfo;
 use App\Models\Information;
+use Spatie\Permission\Traits\HasRoles; // Importe o trait
+use Illuminate\Database\Eloquent\SoftDeletes;
+
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
-
+    use HasFactory, Notifiable, HasRoles; // Use o trait HasRoles
+    use SoftDeletes;
     /**
      * The attributes that are mass assignable.
      *
@@ -25,7 +28,12 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'cpf',
+        'matricula',
+        'last_login_at',
+        'status_id',
     ];
+
 
     /**
      * The attributes that should be hidden for serialization.
@@ -47,6 +55,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'last_login_at' => 'datetime', // Isso permite usar Carbon no campo
         ];
     }
 
@@ -60,6 +69,12 @@ class User extends Authenticatable
     public function information()
     {
         return $this->hasMany(Information::class, 'created_by');
+    }
+
+    //Status Has ONE
+    public function status()
+    {
+        return $this->belongsTo(Status::class, 'status_id', 'id');
     }
 
 }

@@ -16,7 +16,7 @@
 </script>
 
 <div class="max-w-4xl mx-auto my-10 p-6 bg-white dark:bg-gray-800 shadow-2xl rounded-2xl">
-    <h1 class="text-3xl font-bold mb-6 border-b border-gray-200 dark:border-gray-700 pb-3 text-[#A00001] dark:text-whit">
+    <h1 class="text-3xl font-bold mb-6 border-b border-gray-200 dark:border-gray-700 pb-3 text-[#A00001] dark:text-white">
         Novo Agendamento
     </h1>
 
@@ -574,7 +574,48 @@
         if (!member_search_cpf.value || !member_search_title.value || !member_search_birthdate.value) {
             return;
         }
-        submitContainer.classList.remove('hidden');
+        else if (!TestaCPF(member_search_cpf.value.replace(/\D/g, ''))) {
+            showMessage('error', 'CPF inválido.');
+            return;
+        }
+        else if (!TestaData(member_search_birthdate.value)) {
+            showMessage('error', 'Data de nascimento inválida.');
+            return;
+        }
+        else 
+        {
+            submitContainer.classList.remove('hidden');
+        }
+    }
+
+    function TestaData(data) {
+        var dataAtual = new Date();
+        var partes = data.split("-");
+        var dataInformada = new Date(partes[0], partes[1] - 1, partes[2]);
+        if (dataInformada > dataAtual) {
+            return false;
+        }
+        return true;
+    }
+    function TestaCPF(strCPF) {
+        var Soma;
+        var Resto;
+        Soma = 0;
+        if (strCPF == "00000000000") return false;
+
+        for (i=1; i<=9; i++) Soma = Soma + parseInt(strCPF.substring(i-1, i)) * (11 - i);
+        Resto = (Soma * 10) % 11;
+
+            if ((Resto == 10) || (Resto == 11))  Resto = 0;
+            if (Resto != parseInt(strCPF.substring(9, 10)) ) return false;
+
+        Soma = 0;
+        for (i = 1; i <= 10; i++) Soma = Soma + parseInt(strCPF.substring(i-1, i)) * (12 - i);
+        Resto = (Soma * 10) % 11;
+
+        if ((Resto == 10) || (Resto == 11))  Resto = 0;
+        if (Resto != parseInt(strCPF.substring(10, 11) ) ) return false;
+        return true;
     }
 
     function goToSubmit() {
@@ -586,6 +627,7 @@
         // ... (Mesma lógica de fetch do seu código original) ...
         // Apenas reconstruindo o objeto para exemplo
         let member_cpf = document.getElementById('member_search_cpf').value;
+        member_cpf = member_cpf.replace(/\D/g, ''); // Remove formatação
         let member_title = document.getElementById('member_search_title').value;
         let member_birthdate = document.getElementById('member_search_birthdate').value;
         let date_val = document.getElementById('selected_date_value').value;
@@ -619,7 +661,7 @@
                 showMessage('success', 'Agendamento realizado!');
                 window.location.href = "{{ route('schedule.index') }}";
             } else {
-                showMessage('error', data.message || 'Erro ao realizar agendamento.');
+                showMessage('error', data.message || 'Erro ao realizar agendamento. Verifique os dados do sócio.');
             }
         })
         .catch(error => {

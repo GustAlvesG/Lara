@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission;
+use App\Models\User;
 
 class VideoWallController extends Controller
 {
@@ -20,6 +23,19 @@ class VideoWallController extends Controller
     public function store(Request $request)
     {
         //
+    }
+
+    public function test()
+    {
+        // Criar role e atribuir permissão existente
+        $user = User::find(1);
+
+        // Atribuir uma role
+        $user->assignRole('writer');
+
+        //Remover uma role
+        $user->removeRole('writer');
+        return 'Test route is working!';
     }
 
     /**

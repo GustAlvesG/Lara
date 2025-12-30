@@ -15,6 +15,8 @@ use App\Http\Controllers\PlaceGroupController;
 use App\Http\Controllers\PlaceController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ScheduleRulesController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\PermissionController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -31,8 +33,13 @@ Route::middleware('auth')->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    Route::get('/parking/search', [ParkingController::class, 'search'])->name('parking.search');
-    Route::post('/parking/find', [ParkingController::class, 'show'])->name('parking.show');
+    Route::group(['prefix' => 'parking', 
+                'middleware' => 'permission:search parking',
+            ], function () {
+        Route::get('/search', [ParkingController::class, 'search'])->name('parking.search');
+        Route::post('/find', [ParkingController::class, 'show'])->name('parking.show');
+    });
+
     Route::get('/members', [MemberController::class, 'index'])->name('members.index');
     Route::get('/accesses/{time}', [AccessController::class, 'findAccessByTime'])->name('accesses.findAccessByTime');
     Route::get('/accesses', [AccessController::class, 'index'])->name('accesses.index');
@@ -56,7 +63,7 @@ Route::middleware('auth')->group(function () {
     //Route::resource('outer', OuterController::class);
     
     Route::get('/videowall', [VideoWallController::class, 'index'])->name('videowall.index');
-    
+
 
     Route::resource('place-group', PlaceGroupController::class);
 
@@ -84,6 +91,20 @@ Route::middleware('auth')->group(function () {
         Route::get('/place/{place_id}/edit', [PlaceGroupController::class, 'editPlace'])->name('place-group.editPlace');
         Route::put('/place/{place_id}', [PlaceGroupController::class, 'updatePlace'])->name('place-group.updatePlace');
         Route::delete('/place/{place_id}', [PlaceGroupController::class, 'destroyPlace'])->name('place-group.destroyPlace');
+    });
+
+    
+    Route::group(['middleware' => 'permission:manage users',], function () {
+        Route::group(['prefix' => 'users'], function () {
+            Route::get('/', [UserController::class, 'index'])->name('users.index');
+            Route::get('/{id}/edit', [UserController::class, 'edit'])->name('users.edit');
+            Route::put('/{id}', [UserController::class, 'update'])->name('users.update');
+        });
+        
+        
+        Route::group(['prefix' => 'roles-permission'], function () {
+            Route::get('/', [PermissionController::class, 'index'])->name('roles-permission.index');
+        });
     });
 
     

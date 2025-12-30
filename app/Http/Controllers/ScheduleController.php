@@ -640,6 +640,8 @@ class ScheduleController extends Controller
             ->orderBy('start_schedule', 'asc')
             ->get();
 
+        
+
         // 3. Verifica se há agendamentos para evitar PDFs vazios.
         if ($dailySchedules->isEmpty()) {
              return response()->json([
@@ -655,7 +657,6 @@ class ScheduleController extends Controller
             ->groupBy(fn ($schedule) => $schedule->place->group->name ?? 'Sem Grupo') 
             // Sub-agrupamento: Place Name
             ->map(fn ($group) => $group->groupBy(fn ($schedule) => $schedule->place->name ?? 'Local Desconhecido'));
-
 
         // 5. Dados a serem passados para a view do PDF
         $data = [

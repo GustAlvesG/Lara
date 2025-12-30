@@ -22,4 +22,9 @@ class Status extends Model
     {
         return $this->hasMany(Schedule::class);
     }
+
+    public function users()
+    {
+        return $this->hasMany(User::class, 'status_id');
+    }
 }
