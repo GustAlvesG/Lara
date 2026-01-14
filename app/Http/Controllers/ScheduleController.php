@@ -80,7 +80,8 @@ class ScheduleController extends Controller
      */
     public function indexByMember($member_id)
     {
-        $schedules = Schedule::where('member_id', $member_id)->get();
+        $schedules = Schedule::withoutGlobalScopes()
+        ->where('member_id', $member_id)->get();
         $schedules = $schedules->load(['place']);
         if ($schedules->isEmpty()) {
             return response()->json(['message' => 'No schedules found for this member.'], 404);

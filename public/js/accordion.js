@@ -1,7 +1,8 @@
 
-function toggleSearchAccordion() {
-    const body = document.getElementById('search-accordion-body');
-    const icon = document.getElementById('accordion-icon');
+function toggleSearchAccordion(element) {
+    parent = element.parentElement;
+    const body = parent.querySelector('#search-accordion-body');
+    const icon = parent.querySelector('#accordion-icon');
     const duration = 500; // Tempo de espera, deve ser igual ao duration-500 do CSS
 
     // Se o body está atualmente fechado (maxHeight é 0 ou vazio)
@@ -44,4 +45,14 @@ document.addEventListener('DOMContentLoaded', function() {
     if (body) {
         body.style.maxHeight = '0';
     }
+
+    //Add event listener to all accordion headers
+    const headers = document.querySelectorAll('.search-accordion-header');
+    headers.forEach(header => {
+        header.addEventListener('click', function() {
+            toggleSearchAccordion(header);
+        });
+    });
 });
+
+

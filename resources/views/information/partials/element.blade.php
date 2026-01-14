@@ -16,7 +16,7 @@
     // URL fallback (Substitua por um asset real se a URL for local)
 @endphp
 
-<div class="element-card">
+<div class="elements">
     <a href="{{ route('information.show', $item['id']) }}" class="block transform hover:scale-[1.02] transition duration-300">
         <div class="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl border border-gray-100 dark:border-gray-700">
 

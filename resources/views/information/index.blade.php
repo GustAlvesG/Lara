@@ -1,31 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-       <div class="flex justify-between items-center">
-        <div class="div">
-            <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-                InfoClube
-            </h2>
-        </div>
-        
-        
-        <div class="div">
-
-            <div class="flex items-center"> 
-            
-                 <input type="text" id="search-filter-text" placeholder="Pesquisar..." 
-                            class="w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-base"
-                            onkeyup="filterCards()">
-        
-
-                <x-primary-button-a 
-                  href="{{ route('information.create') }}"
-                  style="margin-left: 1rem !important;">
-                    {{ __('Nova Informação') }}
-                </x-primary-button-a>
-                    
-            </div>
-            
-        </div>
+       
         
 
 
@@ -45,7 +20,7 @@
                 @endforeach --}}
 
                 <!-- NOVA ESTRUTURA COM TAILWIND GRID (Solução) -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="information-cards-container">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="elements-container">
                     @foreach ($infos as $item)
                         <!-- A classe 'col-span-1' é implícita no grid -->
                         <div> 

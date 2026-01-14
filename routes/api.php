@@ -9,6 +9,7 @@ use App\Http\Controllers\PlaceGroupController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ScheduleRulesController;
 use App\Http\Controllers\SchedulePaymentController;
+use App\Http\Controllers\WhatsAppController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -24,6 +25,12 @@ Route::get('/souburro', [MemberAuthController::class, 'souburro']);
 
 
 Route::get('/schedule/generate-pdf', [ScheduleController::class, 'generateDailySchedulePDF'])->name('schedule.generatePDF');
+
+Route::prefix('whatsapp')->group(function () {
+    Route::get('/webhook', [WhatsAppController::class, 'verifyWebhook']);
+    Route::post('/webhook', [WhatsAppController::class, 'handleWebhook']);
+    Route::post('/send-message', [WhatsAppController::class, 'sendMessage']);
+});
 
 Route::middleware('api_token')->group(function () {
     Route::get('/image/{member_id}', [MemberAuthController::class, 'getImage'])->name('member.getImage');

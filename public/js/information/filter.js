@@ -8,19 +8,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
 /**
  * Função que filtra os cards de serviço em tempo real.
- * Requer que o contêiner de cards tenha o ID #information-cards-container.
- * ASSUME que o item do Grid (o elemento a ser escondido) é o pai direto do card âncora (o 'a.element-card').
+ * Requer que o contêiner de cards tenha o ID #elements-container.
+ * ASSUME que o item do Grid (o elemento a ser escondido) é o pai direto do card âncora (o 'a.elements').
  */
 function filterCards() {
     const input = document.getElementById('search-filter-text');
     if (!input) return;
 
     const filter = input.value.toUpperCase();
-    const container = document.getElementById('information-cards-container');
+    const container = document.getElementById('elements-container');
     if (!container) return; 
 
+
     // Seleciona todos os elementos que representam o card content (a tag 'a' ou o wrapper do card)
-    const cardAnchors = container.querySelectorAll('.element-card'); 
+    const cardAnchors = container.querySelectorAll('.elements'); 
 
     cardAnchors.forEach(cardAnchor => {
         // O elemento que precisamos esconder/mostrar é o pai direto do card, que é o item do grid.

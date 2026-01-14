@@ -5,7 +5,7 @@
         <x-input-label>
             Pesquisar
         </x-input-label>
-        <x-text-input id="search">
+        <x-text-input id="search-filter-text" >
         </x-text-input>
     </div>
 </div>
