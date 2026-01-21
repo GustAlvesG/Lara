@@ -19,12 +19,13 @@
                     style="margin-left: 1rem !important;">
                     {{ __('Exportar Reservas') }}
                 </x-primary-button-a>
-                
-                <x-primary-button-a 
-                    href="{{ route('place-group.index') }}" 
-                    style="margin-left: 1rem !important;">
-                    {{ __('Gerenciar') }}
-                </x-primary-button-a>
+                @can('manage reservations-configs')
+                    <x-primary-button-a 
+                        href="{{ route('place-group.index') }}" 
+                        style="margin-left: 1rem !important;">
+                        {{ __('Gerenciar') }}
+                    </x-primary-button-a>
+                @endcan
                     
             </div>
             
