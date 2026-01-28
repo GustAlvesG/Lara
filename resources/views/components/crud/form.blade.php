@@ -5,7 +5,7 @@
 <div class="bg-white my-4 rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
     <form action="{{ $formRoute }}" method="{{ $formMethod }}" enctype="multipart/form-data" class="p-8">
         @csrf
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 gap-6">
             
             @if($hasImageSection)
             <!-- Secção de Imagem / Logo -->
@@ -30,7 +30,6 @@
 
             @endif
 
-            <div id="messages">{{ $message ?? '' }}</div>
 
             {{ $fields }}
 

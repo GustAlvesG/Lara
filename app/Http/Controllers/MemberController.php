@@ -59,6 +59,24 @@ class MemberController extends Controller
     
     }
 
+    public static function getByTitle(Request $request){
+        $title = $request->input('title');
+
+        $members = DB::connection('mc_sqlsrv')->select("SELECT
+            Name, DocumentUnmasked As document, BirthDate As birth_date, Code as title, Titular
+            
+        FROM
+            dbo.Members
+        LEFT JOIN
+            dbo.Titles ON dbo.Members.Title = dbo.Titles.Id
+            AND dbo.Titles.TitleType NOT IN (374, 375, 693320, 1297904, 3804861, 4062070, 6736996, 6736997, 6736998, 6737000)
+        WHERE
+            dbo.Titles.Code = '". $title . "'");
+
+        return Response::json($members);
+        
+    }
+
     private static function queryMemberByCpf($document, $title, $birthDate)
     {
         return DB::connection('mc_sqlsrv')->select("SELECT

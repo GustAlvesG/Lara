@@ -21,4 +21,9 @@ class Weekday extends Model
     {
         return $this->belongsToMany(ScheduleRules::class, 'week_days_schedule_rule');
     }
+
+    public function companyAccessRules()
+    {
+        return $this->belongsToMany(CompanyAccessRules::class, 'week_days_company_access_rule');
+    }
 }

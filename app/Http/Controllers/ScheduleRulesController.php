@@ -8,9 +8,15 @@ use App\Http\Requests\UpdateScheduleRulesRequest;
 use App\Http\Controllers\ScheduleController;
 use App\Models\Schedule;
 use Illuminate\Http\Request;
+use App\Services\ScheduleRulesService;
 
 class ScheduleRulesController extends Controller
 {
+
+    public function __construct(ScheduleRulesService $scheduleRuleService)
+    {
+        $this->scheduleRuleService = $scheduleRuleService;
+    }
     /**
      * Display a listing of the resource.
      */
@@ -32,7 +38,15 @@ class ScheduleRulesController extends Controller
      */
     public function store(StoreScheduleRulesRequest $request)
     {
-        //
+        try{
+
+            $response = $this->scheduleRuleService->store($request);
+            return $response;
+
+        } catch (\Exception $e) {
+            // Handle the exception or log it
+            return redirect()->back()->withErrors(['error' => 'Failed to create Schedule Rule: ' . $e->getMessage()]);
+        }
     }
 
     /**
@@ -104,81 +118,31 @@ class ScheduleRulesController extends Controller
 
     public function getTimeOptions(Request $request)
     {
-        $place_id = $request->input('place_id');
-        $date = $request->input('date');
-    
-        $rules = $this->getRules($place_id);
+        try {
+            $place_id = $request->input('place_id');
+            $date = $request->input('date') ?? date('Y-m-d');
 
-        $timeOptions = [];
-        $timeExclude = [];
+            $timeOptions = $this->scheduleRuleService->getTimeOptions($place_id, $date);
 
-        $weekdayNumber = date('w', strtotime($date)) + 1; // 0 (for Sunday) through 6 (for Saturday)
-
-        $rules_include = $rules->where('type', 'include');
-
-        $rules_exclude = $rules->where('type', 'exclude');
-
-        foreach ($rules_exclude as $rule) {
-            if (($date >= $rule->start_date && $date <= $rule->end_date && count($rule->weekdays) == 0) ||
-                ($date >= $rule->start_date && $date <= $rule->end_date && $rule->weekdays->contains('id', $weekdayNumber)) ||
-                (count($rule->weekdays) > 0 && $rule->weekdays->contains('id', $weekdayNumber)) ||
-                (count($rule->weekdays) == 0 && $rule->start_date == null && $rule->end_date == null)) {
-                    // Generate time slots based on start_time, end_time and interval
-                    $startTime = strtotime($rule->start_time);
-                    $endTime = strtotime($rule->end_time);
-
-                    $timeExclude[] = [
-                        $startTime,
-                        $endTime,
-                    ];
-            }
-        }
-
-        $limit = 0;
-
-        foreach ($rules_include as $rule) {
-            if (($date >= $rule->start_date && $date <= $rule->end_date && count($rule->weekdays) == 0) ||
-                ($date >= $rule->start_date && $date <= $rule->end_date && $rule->weekdays->contains('id', $weekdayNumber)) ||
-                ($rule->weekdays->contains('id', $weekdayNumber))
-                (count($rule->weekdays) == 0 && $rule->start_date == null && $rule->end_date == null)) 
-            {
-                // Generate time slots based on start_time, end_time and interval
-                $startTime = strtotime($rule->start_time);
-                $endTime = strtotime($rule->end_time);
-                $duration = strtotime($rule->duration) - strtotime('00:00');
-
-                if ($rule->quantity > $limit) {
-                    $limit = $rule->quantity;
+            foreach ($timeOptions as $key => $option) {
+                //Check if time option colides with existing schedules
+                list($member, $status_id) = $this->checkColide($option['start_time'], $option['end_time'], $place_id, $date);
+                if ($member) {
+                    $timeOptions[$key]['colides'] = true;
+                    $timeOptions[$key]['colided_member'] = $member;
+                    $timeOptions[$key]['colided_status_id'] = $status_id;
                 }
-
-                while ($startTime + $duration <= $endTime) {
-                    // Check if the time slot overlaps with any exclude rule
-                    $overlap = false;
-                    foreach ($timeExclude as $exclude) {
-                        if (!($startTime + $duration <= $exclude[0] || $startTime >= $exclude[1])) {
-                            $overlap = true;
-                            break;;
-                        }
-                    }   
-                    if (!$overlap) {
-                        $timeOptions[] = [date('H:i', $startTime), date('H:i', $startTime + $duration), 0];
-                        $startTime += $duration;
-                    } else {
-                        $startTime = $exclude[1];
-                    }
-                    
+                else {
+                    $timeOptions[$key]['colides'] = false;
                 }
             }
         }
-
-
-        foreach ($timeOptions as $key => $option) {
-            // Update the timeOptions array with the availability
-            $response = $this::checkColide($option[0], $option[1], $place_id, $date);
-            $timeOptions[$key][2] = $response[0]; // member_id that has colide or 0
-            $timeOptions[$key][3] = $response[1]; // status_id that has colide or null
+        catch (\Exception $e) {
+            return response()->json(['error' => 'Invalid input: ' . $e->getMessage()], 400);
         }
+        
 
+        dd($timeOptions);
 
         return response()->json(
             ['options' => $timeOptions, 'quantity' => $limit]
@@ -203,11 +167,11 @@ class ScheduleRulesController extends Controller
 
             // Check for overlap
             if (!($slotEnd <= $scheduleStart || $slotStart >= $scheduleEnd)) {
-                return [$schedule->member_id, $schedule->status_id]; // Collision detected
+                return [$schedule->member, $schedule->status_id]; // Collision detected
             }
         }
 
 
-        return [0, null]; // No collision
+        return [null, null]; // No collision
     }
 }

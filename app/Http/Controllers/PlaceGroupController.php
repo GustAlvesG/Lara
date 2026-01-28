@@ -9,10 +9,17 @@ use Illuminate\Http\Request;
 use App\Models\Place;
 use App\Models\ScheduleRules;
 use Illuminate\Support\Facades\DB;
+use App\Services\PlaceGroupService;
+use App\Services\ScheduleRulesService;
 
 class PlaceGroupController extends Controller
 {
 
+    public function __construct(PlaceGroupService $placeGroupService, ScheduleRulesService $scheduleRulesService)
+    {
+        $this->placeGroupService = $placeGroupService;
+        $this->scheduleRulesService = $scheduleRulesService;
+    }
     /**
      * Display a listing of the resource.
      */
@@ -98,18 +105,12 @@ class PlaceGroupController extends Controller
      */
     public function store(Request $request)
     {
-        $validated = $request->all();
-        
-        $imageNameV = time().'.'.$request->image_vertical->extension();
-        $imageNameH = time().'.'.$request->image_horizontal->extension();
-
-        $request->image_vertical->move(public_path('images'), $imageNameV);
-        $request->image_horizontal->move(public_path('images'), $imageNameH);
-
-        $validated['image_vertical'] = $imageNameV;
-        $validated['image_horizontal'] = $imageNameH;
-
-        PlaceGroup::create($validated);
+        try {
+            $this->placeGroupService->store($request);
+        } catch (\Exception $e) {
+            // Handle the exception or log it
+            return redirect()->back()->withErrors(['error' => 'Failed to create Place Group: ' . $e->getMessage()]);
+        }
 
         return redirect()->route('place-group.index');
     }
@@ -119,11 +120,14 @@ class PlaceGroupController extends Controller
      */
     public function show(PlaceGroup $placeGroup)
     {
-        $placeGroup->load('places.scheduleRules');
+        try {
+            $rules = $this->scheduleRulesService->getFilteredRulesByPlaceGroup($placeGroup);
+        } catch (\Exception $e) {
+            // Handle the exception or log it
+            return redirect()->back()->withErrors(['error' => 'Failed to show Place Group: ' . $e->getMessage()]);
+        }
+        
 
-        $rules = [];
-
-        $rules = $this->filterRules($placeGroup);
 
         return view('location.placeGroup.show', [
             'item' => $placeGroup,  
@@ -174,7 +178,7 @@ class PlaceGroupController extends Controller
     {
         $group = PlaceGroup::find($group_id);
         $group->places;
-        return view('location.schedule.rule.create', [
+        return view('location.rule.create', [
             'group' => $group,
         ]);
     }
@@ -182,33 +186,38 @@ class PlaceGroupController extends Controller
     
     public function storeScheduleRule(Request $request)
     {
+        try{
+            $validated = $request->all();
 
-        $validated = $request->all();
+            $response = $this->
+            
+            $rule = ScheduleRules::create($validated);
 
-        $rule = ScheduleRules::create($validated);
+            //Check if has weekdays
+            if (isset($validated['weekdays']) && !empty($validated['weekdays'])) {
+                //Attach the weekdays to the rule
+                $rule->weekdays()->attach($validated['weekdays']);
+            }
 
-        //Check if has weekdays
-        if (isset($validated['weekdays']) && !empty($validated['weekdays'])) {
-            //Attach the weekdays to the rule
-            $rule->weekdays()->attach($validated['weekdays']);
+
+
+            //Check if "all" in places, and remove
+            $index = array_search('all', $validated['places']);
+            if ($index !== false) {
+                unset($validated['places'][$index]);
+            }
+
+
+            foreach ($validated['places'] as $place_id) {
+                //Create the schedule rule with the relastionship to the place
+                $place = Place::find($place_id);
+                $place->scheduleRules()->attach($rule->id);
+            }
+
+        } catch (\Exception $e) {
+            // Handle the exception or log it
+            return redirect()->back()->withErrors(['error' => 'Failed to create Schedule Rule: ' . $e->getMessage()]);
         }
-
-
-
-        //Check if "all" in places, and remove
-        $index = array_search('all', $validated['places']);
-        if ($index !== false) {
-            unset($validated['places'][$index]);
-        }
-
-
-        foreach ($validated['places'] as $place_id) {
-            //Create the schedule rule with the relastionship to the place
-            $place = Place::find($place_id);
-            $place->scheduleRules()->attach($rule->id);
-        }
-
-  
 
         return redirect()->route('place-group.show', ['place_group' => $validated['place_group_id']]);
     }

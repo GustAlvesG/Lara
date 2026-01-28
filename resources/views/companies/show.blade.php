@@ -87,16 +87,38 @@
                     @endif
                     @foreach($companyDetails->workers as $worker)
                     <div class="flex items-center p-4 border border-gray-100 rounded-xl hover:bg-gray-50 transition shadow-sm">
+                        @if($worker->image)
+                            <img src="{{ asset('images/' . $worker->image) }}" alt="Foto de {{ $worker->name }}" class="h-12 w-12 rounded-full object-cover mr-4">
+                        @else
                         <div class="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold mr-4">
                             {{ strtoupper(substr($worker->name, 0, 1)) }}
                         </div>
+                        @endif
                         <div class="flex-grow">
                             <h4 class="font-bold text-gray-900">{{ $worker->name }}</h4>
-                            <p class="text-xs text-gray-500">{{ $worker->position }}</p>
+                            <p class="text-xs text-gray-500">{{ ucfirst($worker->position) }}</p>
                         </div>
-                        <button class="text-gray-400 hover:text-indigo-600">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"></path></svg>
-                        </button>
+                         <div class="flex gap-2 items-center">
+                            <!-- Botão Editar (Acionado pela seta) -->
+                            <a href="#" class="p-2 text-gray-400 hover:text-indigo-600 transition" title="Editar Funcionário">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                            </a>
+                            <form id="delete-worker-{{ $worker->id }}" action="{{ route('company.worker.destroy', [$companyDetails->id, $worker->id]) }}" method="POST" style="display: none;">
+                                    @csrf
+                                    @method('DELETE')
+                                <!-- Botão Excluir (Lixeira) -->
+                                <button type="button" 
+                                        onclick="confirm('Deseja realmente remover este funcionário?') ? document.getElementById('delete-worker-{{ $worker->id }}').submit() : null"
+                                        class="p-2 text-gray-400 hover:text-red-600 transition" 
+                                        title="Excluir Funcionário">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                    </svg>
+                                </button>
+                            </form>
+                        </div>
                     </div>
                     @endforeach
                 </div>
@@ -106,28 +128,67 @@
             <div id="content-rules" class="tab-content p-6 hidden">
                 <div class="flex justify-between items-center mb-6">
                     <h3 class="text-xl font-extrabold text-gray-800">Regras de Acesso</h3>
-                    <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-xs shadow-md hover:bg-indigo-700 transition">
+                    <a href="{{ route('company.rules.create', $companyDetails->id) }}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-xs shadow-md hover:bg-indigo-700 transition">
                         Nova Regra
-                    </button>
+                    </a>
                 </div>
 
-                <div class="space-y-4">
-                    <!-- Exemplo de Regra -->
-                    <div class="p-4 bg-indigo-50 border-l-4 border-indigo-600 rounded-r-xl flex justify-between items-center">
-                        @if($companyDetails->rules->isEmpty())
-                            <p class="text-gray-500 italic">Nenhuma regra de acesso definida para esta empresa.</p>
-                        @endif
-                        @foreach($companyDetails->rules as $rule)
-                            <div>
-                                <h4 class="font-bold text-indigo-900 text-lg">Acesso Total - Carga e Descarga</h4>
-                                <p class="text-sm text-indigo-700">Permite entrada 24h para veículos identificados.</p>
+                @foreach($companyDetails->rules as $rule)
+                    <div class="bg-white border rounded-2xl shadow-sm overflow-hidden border-gray-100">
+                        <div class="flex flex-col md:flex-row">
+                            <!-- Barra Lateral de Tipo -->
+                            <div class="w-full md:w-2 {{ $rule['type'] === 'include' ? 'bg-indigo-600' : 'bg-red-600' }}"></div>
+                            
+                            <div class="px-5 py-2 flex-grow">
+                                <div class="flex flex-wrap items-start justify-between gap-4">
+                                    <div class="flex-grow">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase {{ $rule['type'] === 'include' ? 'bg-indigo-100 text-indigo-700' : 'bg-red-100 text-red-700' }}">
+                                                {{ $rule['type'] === 'include' ? 'Inclusão' : 'Exclusão' }}
+                                            </span>
+                                            <h4 class="font-extrabold text-gray-900 text-lg">{{ $rule['description'] }}</h4>
+                                        </div>
+                                        
+                                        <!-- Vigência -->
+                                        <div class="flex items-center text-xs text-gray-500 mb-4">
+                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                            Vigência: <span class="ml-1 font-bold text-gray-700">{{ date('d/m/Y', strtotime($rule['start_date'])) }}</span>
+                                            @if($rule['end_date'])
+                                                <span class="mx-1">até</span> <span class="font-bold text-gray-700">{{ date('d/m/Y', strtotime($rule['end_date'])) }}</span>
+                                            @else
+                                                <span class="ml-1 text-indigo-600 font-bold">(Indeterminado)</span>
+                                            @endif
+                                        </div>
+
+                                        <!-- Dias da Semana -->
+                                        <div class="flex gap-1.5 mb-4">
+                                            @foreach(['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'] as $d)
+                                                <span class="w-8 h-8 flex items-center justify-center rounded-lg text-[10px] font-black uppercase transition-colors {{ in_array($d, $rule['weekdays']->pluck('short_name_pt')->toArray()) ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-100 text-gray-300' }}">
+                                                    {{ $d }}
+                                                </span>
+                                            @endforeach
+                                        </div>
+
+                                        @if($rule->start_time && $rule->end_time)
+                                            <!-- Horário -->
+                                            <div class="flex items-center text-xs text-gray-500">
+                                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                                Horário: <span class="mx-1 font-bold text-gray-700">{{ date('H:i', strtotime($rule['start_time']))}}</span> /<span class="ml-1 font-bold text-gray-700">{{ date('H:i', strtotime($rule['end_time'])) }}</span>
+                                            </div>
+                                        @endif
+                                    </div>
+
+                                    <!-- Horários e Ação -->
+                                    <div class="flex flex-col items-end gap-3 min-w-[120px]">
+                                        <a class="text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition">Configurar</a>
+                                    </div>
+
+                                    
+                                </div>
                             </div>
-                            <div class="flex gap-2">
-                                <button class="text-indigo-600 font-bold text-xs hover:underline">Configurar</button>
-                            </div>
-                        @endforeach
+                        </div>
                     </div>
-                </div>
+                    @endforeach
             </div>
         </div>
     </div>

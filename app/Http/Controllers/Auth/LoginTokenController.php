@@ -8,9 +8,6 @@ use App\Providers\Services\JwtService;
 
 class LoginTokenController extends Controller
 {
-
-
-    
     public function __construct(JwtService $jwtService)
     {
         $this->jwtService = $jwtService;
@@ -21,9 +18,10 @@ class LoginTokenController extends Controller
     {
         $jwtService = new JwtService();
         $endOfDay = now()->endOfDay()->timestamp;
+
         $payload = [
             'username' =>  $member['cpf'],
-            'exp' => $endOfDay
+            'exp' => $endOfDay,
         ];
         return $jwtService->generateToken($payload);
     }

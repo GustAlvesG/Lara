@@ -9,6 +9,8 @@ use App\Http\Controllers\InformationController;
 use App\Http\Controllers\DataInfoController;
 use App\Http\Controllers\Company\CompanyController;
 use App\Http\Controllers\Company\CompanyWorkerController as WorkerController;
+use App\Http\Controllers\Company\CompanyAccessRulesController as CompanyRulesController;
+
 use App\Http\Controllers\VideoWallController;
 use App\Http\Controllers\PlaceGroupController;
 use App\Http\Controllers\PlaceController;
@@ -64,6 +66,12 @@ Route::middleware('auth')->group(function () {
         Route::group(['prefix' => '{company}/worker'], function () {
             Route::get('/create', [WorkerController::class, 'create'])->name('company.worker.create');
             Route::post('/', [WorkerController::class, 'store'])->name('company.worker.store');
+            Route::delete('/{worker}', [WorkerController::class, 'destroy'])->name('company.worker.destroy');
+        });
+
+        Route::group(['prefix' => '{company}/rules'], function () {
+            Route::get('/create', [CompanyRulesController::class, 'create'])->name('company.rules.create');
+            Route::post('/', [CompanyRulesController::class, 'store'])->name('company.rules.store');
         });
     });
     
@@ -82,12 +90,12 @@ Route::middleware('auth')->group(function () {
         Route::get('/getDates/{place_id?}', [ScheduleRulesController::class, 'getScheduledDates'])->name('schedule.getScheduledDates');
         Route::get('/{id}', [ScheduleController::class, 'show'])->name('schedule.show');
         Route::put('/update', [ScheduleController::class, 'update'])->name('schedule.update');
-
+        Route::post('/store/web', [ScheduleController::class, 'storeWeb'])->name('schedule.store.web');
     });
     Route::group(['prefix' => 'place-group'], function () {
 
         Route::get('/{id}/schedule/rule/create', [PlaceGroupController::class, 'createScheduleRule'])->name('place-group.createScheduleRule');
-        Route::post('/schedule/rule', [PlaceGroupController::class, 'storeScheduleRule'])->name('place-group.storeScheduleRule');
+        Route::post('/schedule/rule', [ScheduleRulesController::class, 'store'])->name('schedule-rules.store');
         Route::get('/schedule/rule/{id}/edit', [PlaceGroupController::class, 'editScheduleRule'])->name('place-group.editScheduleRule');
         Route::put('/schedule/rule/{id}', [PlaceGroupController::class, 'updateScheduleRule'])->name('place-group.updateScheduleRule');
         Route::delete('/schedule/rule/{id}', [PlaceGroupController::class, 'destroyScheduleRule'])->name('place-group.destroyScheduleRule');

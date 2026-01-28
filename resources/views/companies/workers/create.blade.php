@@ -7,7 +7,7 @@
     <div>
         <!-- Header -->
            
-        <x-crud.form :formRoute="route('company.worker.store', $companyId)" :formMethod="'POST'" enctype="multipart/form-data" :hasImageSection="true">
+        <x-crud.form :formRoute="route('company.worker.store', $companyId)" :formMethod="'POST'" enctype="multipart/form-data" :hasImageSection="false">
 
             <x-slot name="header">
                 <div class="my-4 flex items-center gap-4">

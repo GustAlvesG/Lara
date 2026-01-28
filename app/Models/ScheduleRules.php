@@ -18,15 +18,10 @@ class ScheduleRules extends Model
         'name',
         'status_id',
         'type',
-        'duration',
-        'minimum_antecedence',
-        'maximum_antecedence',
-        'interval',
         'start_time', 
         'end_time',
         'start_date',
         'end_date',
-        'quantity',
     ];
 
     protected $with = [

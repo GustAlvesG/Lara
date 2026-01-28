@@ -10,6 +10,8 @@ use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ScheduleRulesController;
 use App\Http\Controllers\SchedulePaymentController;
 use App\Http\Controllers\WhatsAppController;
+use App\Http\Controllers\MemberController;
+use App\Http\Controllers\Company\CompanyAccessRulesController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -32,6 +34,10 @@ Route::prefix('whatsapp')->group(function () {
     Route::post('/send-message', [WhatsAppController::class, 'sendMessage']);
 });
 
+Route::prefix('company-access')->group(function () {
+    Route::post('/validate-access', [CompanyAccessRulesController::class, 'validateCompanyAccess'])->name('company_access.validate');
+});
+
 Route::middleware('api_token')->group(function () {
     Route::get('/image/{member_id}', [MemberAuthController::class, 'getImage'])->name('member.getImage');
     Route::post('/login', [MemberAuthController::class, 'login']);
@@ -43,6 +49,7 @@ Route::middleware('api_token')->group(function () {
         Route::get('/verify-token', [LoginTokenController::class, 'validate']);
 
         Route::prefix('/member')->group(function () {
+            Route::post('/by-title', [MemberController::class, 'getByTitle'])->name('member.getByTitle')->withoutMiddleware(['login_token']);
             Route::put('/update', [MemberAuthController::class, 'update']);
         });
 
@@ -72,6 +79,7 @@ Route::middleware('api_token')->group(function () {
             Route::put('/update-status', [ScheduleController::class, 'updateStatus']);
             Route::post('/payment', [SchedulePaymentController::class, 'store']);
             Route::delete('/delete-pending', [ScheduleController::class, 'destroyPending']);
+
 
             Route::post('/time-options', [ScheduleRulesController::class, 'getTimeOptions'])->name('api.schedule.getTimeOptions')->withoutMiddleware(['login_token']);
         });

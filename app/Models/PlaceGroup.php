@@ -20,7 +20,14 @@ class PlaceGroup extends Model
         'image_horizontal', 
         'status',
         'vertices',
-        'icon'
+        'icon',
+        'minimum_antecedence',
+        'maximum_antecedence',
+        'duration',
+        'interval',
+        'daily_limit',
+        'start_time',
+        'end_time'
     ];
 
     public function places()
