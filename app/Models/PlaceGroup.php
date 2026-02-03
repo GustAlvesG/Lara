@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Place;
 use App\Models\ScheduleRules;
+use App\Models\Weekday;
 
 class PlaceGroup extends Model
 {
@@ -27,11 +28,20 @@ class PlaceGroup extends Model
         'interval',
         'daily_limit',
         'start_time',
-        'end_time'
+        'end_time',
+        'start_time_sales',
+        'end_time_sales'
     ];
 
     public function places()
     {
         return $this->hasMany(Place::class );
+    }
+
+    public function weekdays()
+    {
+        return $this->belongsToMany(Weekday::class, 'week_days_place_group', 'place_group_id', 'weekday_id')
+            ->withPivot('id')
+            ->withTimestamps();
     }
 }

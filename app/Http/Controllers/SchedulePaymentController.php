@@ -12,21 +12,6 @@ use Illuminate\Support\Facades\DB;
 
 class SchedulePaymentController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
-    {
-        //
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
 
     /**
      * Store a newly created resource in storage.
@@ -41,7 +26,6 @@ class SchedulePaymentController extends Controller
         // Mantendo o if(2 == 2) como "feature flag" conforme o código original.
         if (2 == 2) {
             $collidingSchedules = $this->checkSchedulesForCollisions($scheduleIds);
-
             if ($collidingSchedules->isNotEmpty()) {
                 // Agrupa os resultados da colisão para retorno
                 $otherSchedulesGrouped = $collidingSchedules->groupBy('place_id');

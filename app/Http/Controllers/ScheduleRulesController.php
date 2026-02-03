@@ -9,13 +9,15 @@ use App\Http\Controllers\ScheduleController;
 use App\Models\Schedule;
 use Illuminate\Http\Request;
 use App\Services\ScheduleRulesService;
+use App\Services\SchedulesService;
 
 class ScheduleRulesController extends Controller
 {
 
-    public function __construct(ScheduleRulesService $scheduleRuleService)
+    public function __construct(ScheduleRulesService $scheduleRuleService, SchedulesService $schedulesService)
     {
         $this->scheduleRuleService = $scheduleRuleService;
+        $this->schedulesService = $schedulesService;
     }
     /**
      * Display a listing of the resource.
@@ -124,54 +126,18 @@ class ScheduleRulesController extends Controller
 
             $timeOptions = $this->scheduleRuleService->getTimeOptions($place_id, $date);
 
-            foreach ($timeOptions as $key => $option) {
-                //Check if time option colides with existing schedules
-                list($member, $status_id) = $this->checkColide($option['start_time'], $option['end_time'], $place_id, $date);
-                if ($member) {
-                    $timeOptions[$key]['colides'] = true;
-                    $timeOptions[$key]['colided_member'] = $member;
-                    $timeOptions[$key]['colided_status_id'] = $status_id;
-                }
-                else {
-                    $timeOptions[$key]['colides'] = false;
-                }
-            }
+            $limit = $this->scheduleRuleService->getLimit($place_id, $request->input('member_id'), $date);
+
         }
         catch (\Exception $e) {
             return response()->json(['error' => 'Invalid input: ' . $e->getMessage()], 400);
         }
         
-
-        dd($timeOptions);
-
         return response()->json(
-            ['options' => $timeOptions, 'quantity' => $limit]
+            ['options' => $timeOptions, 'limit' => $limit]
         , 200);
 
 
     }
 
-    private function checkColide($slotStartTime, $slotEndTime, $place_id, $date){
-        $slotStart = strtotime($slotStartTime);
-        $slotEnd = strtotime($slotEndTime);
-
-        // Fetch existing schedules for the given place
-        $existingSchedules = Schedule::where('place_id', $place_id)
-            ->whereNotIn('status_id', [0, 4]) // Exclude cancelled and pending schedules
-            ->whereDate('start_schedule', $date)
-            ->get();
-
-        foreach ($existingSchedules as $schedule) {
-            $scheduleStart = strtotime(date('H:i', strtotime($schedule->start_schedule)));
-            $scheduleEnd = strtotime(date('H:i', strtotime($schedule->end_schedule)));
-
-            // Check for overlap
-            if (!($slotEnd <= $scheduleStart || $slotStart >= $scheduleEnd)) {
-                return [$schedule->member, $schedule->status_id]; // Collision detected
-            }
-        }
-
-
-        return [null, null]; // No collision
-    }
 }

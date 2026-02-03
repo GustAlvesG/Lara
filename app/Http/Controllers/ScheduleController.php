@@ -29,6 +29,7 @@ class ScheduleController extends Controller
             $date = $request->input('date', Carbon::today()->toDateString());
     
             $modalities = $this->schedulesService->getSchedules($date);
+
         
             // return $modalities->toArray();
             return view('location.index', compact('modalities', 'date'));
@@ -37,11 +38,10 @@ class ScheduleController extends Controller
             return redirect()->back()->with('error', 'Ocorreu um erro ao carregar os agendamentos: ' . $e->getMessage());
         }
     }
-    public function storeWeb(Request $request)
+    public function store(Request $request)
     {
         try {
-            $this->schedulesService->createScheduleFromWeb(new Request($request->all()));
-    
+            $scheudles = $this->schedulesService->createSchedule(new Request($request->all()));
             return redirect()->back()->with('success', 'Agendamento criado com sucesso!');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Erro ao criar agendamento: ' . $e->getMessage());
@@ -61,6 +61,30 @@ class ScheduleController extends Controller
         }
     }
     
+
+    public function destroyPending(Request $request)
+    {
+        // try {
+        //     $a = 0;
+        // }
+        // catch (\Exception $e) {
+        //     return response()->json([
+        //         'message' => 'An error occurred while fetching schedules.',
+        //         'error' => $e->getMessage(),
+        //     ], 500);
+        // }
+        $schedule = Schedule::where('id', $request->id)
+            ->where('status_id', '3')
+            ->first();
+        if (empty($schedule)) {
+            return response()->json(['message' => 'No pending schedules found with the provided ID.'], 404);
+        }
+
+        $schedule->delete();
+
+        return response()->json(['message' => 'Pending schedule deleted successfully.'], 200);
+    }
+
     // public function index()
     // {
     //     $rangeStart = Carbon::today()->startOfDay();
@@ -254,27 +278,27 @@ class ScheduleController extends Controller
     //     return view('location.schedule.create');
     // }
 
-    // public function show($id)
-    // {
-    //     $schedule = Schedule::with(['status','place.group','member'])->find($id);
+    public function show($id)
+    {
+        $schedule = Schedule::with(['status','place.group','member'])->find($id);
 
-    //     if (!$schedule) {
-    //         return response()->json(['message' => 'Schedule not founds.'], 404);
-    //     }
+        if (!$schedule) {
+            return response()->json(['message' => 'Schedule not founds.'], 404);
+        }
 
-    //     //Get other schedules of the same member in the same date
-    //     $other_schedules = Schedule::with(['status','place.group','member'])
-    //         ->where('member_id', $schedule->member_id)
-    //         ->whereDate('start_schedule', Carbon::parse($schedule->start_schedule)->toDateString())
-    //         ->where('id', '!=', $schedule->id)
-    //         ->get();
+        //Get other schedules of the same member in the same date
+        $other_schedules = Schedule::with(['status','place.group','member'])
+            ->where('member_id', $schedule->member_id)
+            ->whereDate('start_schedule', Carbon::parse($schedule->start_schedule)->toDateString())
+            ->where('id', '!=', $schedule->id)
+            ->get();
 
-    //     //Add current schedule to the other schedules in first position
-    //     $other_schedules->prepend($schedule);
+        //Add current schedule to the other schedules in first position
+        $other_schedules->prepend($schedule);
 
 
-    //     return view('location.schedule.show', compact('schedule', 'other_schedules'));
-    // }
+        return view('location.schedule.show', compact('schedule', 'other_schedules'));
+    }
 
     // public function update(Request $request)
     // {
@@ -721,3 +745,4 @@ class ScheduleController extends Controller
 
 
 }
+

@@ -290,7 +290,9 @@ class CompTimeService
         
 
         if ($debitoMinutes > 0) {
-            $this->insertTimeEntry($employee, $entryDate, $referenceTime, $entryTimes, 'DEBIT', $debitoMinutes);
+            if (!Str::contains(trim($allTd->eq(8)->text()), "DSR")){
+                $this->insertTimeEntry($employee, $entryDate, $referenceTime, $entryTimes, 'DEBIT', $debitoMinutes);
+            }
         }
 
         if ($creditoMinutes > 0) {

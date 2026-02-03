@@ -90,8 +90,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/getDates/{place_id?}', [ScheduleRulesController::class, 'getScheduledDates'])->name('schedule.getScheduledDates');
         Route::get('/{id}', [ScheduleController::class, 'show'])->name('schedule.show');
         Route::put('/update', [ScheduleController::class, 'update'])->name('schedule.update');
-        Route::post('/store/web', [ScheduleController::class, 'storeWeb'])->name('schedule.store.web');
+        Route::post('/store/web', [ScheduleController::class, 'store'])->name('schedule.store.web');
     });
+    
     Route::group(['prefix' => 'place-group'], function () {
 
         Route::get('/{id}/schedule/rule/create', [PlaceGroupController::class, 'createScheduleRule'])->name('place-group.createScheduleRule');

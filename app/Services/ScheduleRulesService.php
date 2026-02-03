@@ -8,14 +8,15 @@ use Symfony\Component\DomCrawler\Crawler;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use App\Models\ScheduleRules;
+use App\Models\Place;
+use App\Models\PlaceGroup;
 use App\Services\RuleValidationService as RuleCheckService;
+use App\Services\SchedulesService;
 
 
 class ScheduleRulesService
 {
-
-    // Service methods would go here
-
+    
     public function store(Request $request){
 
         $validated = $request->all();
@@ -27,9 +28,6 @@ class ScheduleRulesService
         foreach($validated['days'] as $key => $day){
             $days[] = $day;
         }
-
-        
-        
         
         
         DB::beginTransaction();
@@ -77,14 +75,59 @@ class ScheduleRulesService
             return $rule->weekdays->contains('id', $weekday);
         });
 
-        $place_group = $rules->first()->places->first()->group;
-        $defaultTimes = $this->getTimes($place_group->start_time, $place_group->end_time, $place_group->duration);
+        $today = Carbon::now()->format('Y-m-d');
 
+        $place_group = $rules->first()->places->first()->group;
+
+        //Check if date is in the weekdays of place group
+        if ($place_group->weekdays && !$place_group->weekdays->contains('id', $weekday)) {
+            return [];
+        }
+
+        $now = Carbon::now();
+
+        if ($place_group->start_time_sales){
+            $start_time_sales = Carbon::createFromFormat('H:i:s', $place_group->start_time_sales);
+            if ($today == $date && $now->lt($start_time_sales)){
+                return [];
+            }
+        }
+        if ($place_group->end_time_sales){
+            $end_time_sales = Carbon::createFromFormat('H:i:s', $place_group->end_time_sales);
+            if ($today == $date && $now->gt($end_time_sales)){
+                return [];
+            }
+        }
+
+
+        if ($today < $date){
+            if ($place_group->maximum_antecedence != 0 && $place_group->minimum_antecedence == 0){
+                $diff_days = Carbon::parse($today)->diffInDays(Carbon::parse($date), false);
+                if ($diff_days > $place_group->maximum_antecedence){
+                    return [];
+                }
+            } else if ($place_group->maximum_antecedence == 0 && $place_group->minimum_antecedence != 0){
+                $diff_days = Carbon::parse($today)->diffInDays(Carbon::parse($date), false);
+                if ($diff_days < $place_group->minimum_antecedence){
+                    return [];
+                }
+            } else if ($place_group->maximum_antecedence != 0 && $place_group->minimum_antecedence != 0){
+                $minimum_days_before = Carbon::parse($date)->copy()->subDays($place_group->minimum_antecedence)->format('Y-m-d');
+                $maximum_days_before = Carbon::parse($minimum_days_before)->copy()->subDays($place_group->maximum_antecedence)->format('Y-m-d');
+                //Check if date is between maximum and minimum antecedence
+                if (!$this->isBetweenOrGreaterDates($today, $maximum_days_before, $minimum_days_before)){
+                    return [];
+                }
+            } else if ($date != $today){
+                    return [];
+            }
+        }
+
+        $defaultTimes = $this->getTimes($place_group->start_time, $place_group->end_time, $place_group->duration);
         
         $rules_include = $rules->where('type', 'include');
 
         $timesToInclude = [];
-
 
         foreach ($rules_include as $rule) {
             if ($rule->start_date || $rule->end_date) {
@@ -132,12 +175,48 @@ class ScheduleRulesService
             }
         }
 
+
+
         //Order timeOptions by start time
         usort($timeOptions, function($a, $b) {
             return strtotime($a['start_time']) - strtotime($b['start_time']);
         });
 
+
+        foreach ($timeOptions as $key => $option) {
+                //Check if time option colides with existing schedules
+            $schedulesService = app(SchedulesService::class);
+            list($member, $status_id, $description, $schedule) = $schedulesService->checkColide($option['start_time'], $option['end_time'], $place_id, $date);
+            if ($member) {
+                $timeOptions[$key]['colides'] = $schedule;
+                $timeOptions[$key]['colided_member'] = $member;
+                $timeOptions[$key]['colided_status_id'] = $status_id;
+                $timeOptions[$key]['colided_description'] = $description;
+            }
+            else {
+                $timeOptions[$key]['colides'] = null;
+            }
+        }
+
+        if ($today > $date){
+            foreach ($timeOptions as $key => $option) {
+                $timeOptions[$key]['past_date'] = true;
+            }
+        }
+
         return $timeOptions;
+
+    }
+
+    public function getLimit($place_id, $member_id, $date){
+        $group = Place::find($place_id)->group;
+        $limit = $group->daily_limit;
+        $schedulesService = app(SchedulesService::class);
+        $existingSchedulesCount = $schedulesService->countMemberSchedulesInPlaceGroupOnDate($group, $member_id, $date);
+        
+        $remaining = $limit - $existingSchedulesCount;
+
+        return ['limit' => $limit, 'remaining' => $remaining];
 
     }
 
@@ -191,8 +270,8 @@ class ScheduleRulesService
                 break;
             }
             $timeOptions[] = [
-                'start_time' => $current->format('H:i:s'),
-                'end_time' => $slotEnd->format('H:i:s'),
+                'start_time' => $current->format('H:i'),
+                'end_time' => $slotEnd->format('H:i'),
             ];
             $current->addMinutes($duration);
         }

@@ -26,4 +26,9 @@ class Weekday extends Model
     {
         return $this->belongsToMany(CompanyAccessRules::class, 'week_days_company_access_rule');
     }
+
+    public function placeGroups()
+    {
+        return $this->belongsToMany(PlaceGroup::class, 'week_days_place_group', 'weekday_id', 'place_group_id');
+    }
 }

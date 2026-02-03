@@ -122,12 +122,17 @@ class PlaceGroupController extends Controller
     {
         try {
             $rules = $this->scheduleRulesService->getFilteredRulesByPlaceGroup($placeGroup);
+
         } catch (\Exception $e) {
             // Handle the exception or log it
             return redirect()->back()->withErrors(['error' => 'Failed to show Place Group: ' . $e->getMessage()]);
         }
         
-
+        $ids = [];
+        foreach ($placeGroup->weekdays as $weekday) {
+            $ids[] = $weekday->id;
+        }
+        $placeGroup->weekdays = $ids;
 
         return view('location.placeGroup.show', [
             'item' => $placeGroup,  
@@ -150,25 +155,12 @@ class PlaceGroupController extends Controller
      */
     public function update(UpdatePlaceGroupRequest $request, PlaceGroup $placeGroup)
     {
-        $validated = $request->all();
-
-        //dd($validated);
-
-        if ($request->hasFile('image_vertical')) {
-            $imageNameV = time().'.'.$request->image_vertical->extension();
-            $request->image_vertical->move(public_path('images'), $imageNameV);
-            $validated['image_vertical'] = $imageNameV;
+        try {
+            $this->placeGroupService->update($request, $placeGroup);
+        } catch (\Exception $e) {
+            // Handle the exception or log it
+            return redirect()->back()->withErrors(['error' => 'Failed to update Place Group: ' . $e->getMessage()]);
         }
-
-        if ($request->hasFile('image_horizontal')) {
-            $imageNameH = time().'.'.$request->image_horizontal->extension();
-            $request->image_horizontal->move(public_path('images'), $imageNameH);
-            $validated['image_horizontal'] = $imageNameH;
-        }
-
-        //dd($validated);
-
-        PlaceGroup::find($placeGroup->id)->update($validated);
 
         return redirect()->route('place-group.index');
     }
