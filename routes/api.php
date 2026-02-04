@@ -12,6 +12,7 @@ use App\Http\Controllers\SchedulePaymentController;
 use App\Http\Controllers\WhatsAppController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\Company\CompanyAccessRulesController;
+use App\Http\Controllers\EmailController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -45,6 +46,8 @@ Route::middleware('api_token')->group(function () {
     Route::post('/check-member', [MemberAuthController::class, 'checkMember']);
     Route::put('/change-password', [MemberAuthController::class, 'changePassword']);
 
+    Route::post('send-email', [EmailController::class, 'submit']);
+
     Route::middleware('login_token')->group(function () {
         Route::get('/verify-token', [LoginTokenController::class, 'validate']);
 
@@ -60,7 +63,7 @@ Route::middleware('api_token')->group(function () {
                 Route::get('/{category}', [PlaceGroupController::class, 'indexByCategory']);
                 Route::get('/rules/{id}', [PlaceGroupController::class, 'scheduleRules']);
             });
-            Route::get('/{id}', [PlaceController::class, 'indexByGroup']);
+            Route::post('/', [PlaceController::class, 'indexByGroup']);
         });
 
         //Routes Group places

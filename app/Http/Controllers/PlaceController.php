@@ -6,40 +6,31 @@ use App\Models\Place;
 use App\Http\Requests\StoreplaceRequest;
 use App\Http\Requests\UpdateplaceRequest;
 use App\Models\PlaceGroup;
+use App\Services\PlaceService;
+use Illuminate\Http\Request;
 
 class PlaceController extends Controller
 {
+    public function __construct(protected PlaceService $placeService)
+    {
+
+    }
     /**
      * Display a listing of the resource.
      */
-    public function indexByGroup($group_id)
+    public function indexByGroup(Request $request)
     {
-        $places = Place::where('place_group_id', $group_id)->get();
-        //Order by name
-        $places = $places->sortBy('name');
-        
-        $places->load('scheduleRules');
+        $group_id = $request->input('group_id');
+        $member_id = $request->input('member_id');
+        $date = $request->input('date');
 
-        foreach ($places as $place) {
-            //If has not "imgur" in the image path, add it
-            if (!str_contains($place->image, 'http')) {
-                $place->image = asset('images/' . $place->image);
-            }
+        try{
+            return $this->placeService->getPlacesByGroup($group_id, $member_id, $date);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error fetching places: ' . $e->getMessage()
+            ], 500);
         }
-
-
-        $group = $places[0]->group;
-
-        unset($places[0]->group);
-
-        if (!str_contains($group->image_horizontal, 'http')) {
-            $group->image_horizontal = asset('images/' . $group->image_horizontal);
-        }
-
-        return response()->json([
-            'group' => $group,
-            'places' => $places
-        ]); 
     }
 
     public function scheduleRules($id)

@@ -4,33 +4,29 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Mail;
 use App\Mail\ContactMail;
-use Exception;
+// use App\Models\ContactMessage; // Caso queira salvar no banco
 
 class EmailService
 {
     /**
-     * Envia o e-mail de contato para o administrador.
-     *
-     * @param array $data
-     * @return bool
-     * @throws Exception
+     * Processa o formulário de contato: envia e-mail (e poderia salvar no banco).
      */
-    public function sendContactEmail(array $data): bool
+    public function processContactForm(array $data): void
     {
-        // Aqui você pode colocar lógicas adicionais antes de enviar.
-        // Ex: Salvar o contato no banco de dados antes de enviar o e-mail.
-        
-        // Destinatário fixo (ex: admin) ou dinâmico
-        $recipient = 'admin@seuapp.com';
+        // 1. (Opcional) Poderia salvar no banco aqui:
+        // ContactMessage::create($data);
 
+        // 2. Define o destinatário (Admin do sistema)
+        // $adminEmail = config('mail.from.address'); // Ou 'admin@empresa.com'
+        $to_email = $data['email'];
+        
         try {
-            // Dispara o Mailable criado anteriormente
-            Mail::to($recipient)->send(new ContactMail($data));
-            return true;
-        } catch (Exception $e) {
-            // Opcional: Logar o erro aqui
-            // Log::error("Erro ao enviar email: " . $e->getMessage());
-            throw $e; // Relança a exceção para o Controller tratar
+            // 3. Envia o e-mail
+            // Se usar filas, o envio será assíncrono automaticamente se o Mailable implementar ShouldQueue
+            Mail::to($to_email)->later(now(), new ContactMail($data));
+        } catch (\Exception $e) {
+            // Lida com erros de envio, se necessário
+            throw new \Exception('Erro ao enviar e-mail: ' . $e->getMessage());
         }
     }
 }

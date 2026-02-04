@@ -24,6 +24,8 @@
 
     <div class="max-w-7xl mx-auto pt-8">
 
+        @include('partials.alerts')
+
         <!-- BOTÕES SUPERIORES DE AÇÃO -->
         @include('location.partials.header', ['date' => $date])
 

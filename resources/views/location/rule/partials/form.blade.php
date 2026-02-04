@@ -14,6 +14,8 @@
         </div>
     </div>
 
+    {{ $item ?? "UE CADE" }}
+
     <!-- Secção 2: Definição do Tipo -->
     <div>
         <label class="block text-sm font-bold text-gray-700 mb-4 flex items-center">
@@ -85,6 +87,7 @@
         
         <div class="flex flex-wrap gap-3">
             @php
+                $item = $item ?? new \App\Models\ScheduleRules();
                 $days = [
                     'dom' => ['Dom', 1],
                     'seg' => ['Seg', 2],
@@ -94,6 +97,13 @@
                     'sex' => ['Sex', 6],
                     'sab' => ['Sab', 7],
                 ];
+
+                $ids = [];
+                foreach ($item->weekdays as $weekday) {
+                    $ids[] = $weekday->id;
+                }
+                $item->days = $ids;
+
                 $selectedDays = old('days', $item->days ?? [1,2,3,4,5,6,7]);
             @endphp
             @foreach($days as $key => $label)
@@ -148,10 +158,18 @@
         </label>
         
         <div class="flex flex-wrap gap-3">
+            @php
+                
+                $item->places_ids = $item->places->pluck('id')->toArray();
+                
+            @endphp
             @foreach($group->places as $key => $label)
+
             <label class="flex-1 min-w-[70px] cursor-pointer group">
                 <input type="checkbox" name="places[]" value="{{ $label['id'] }}" class="hidden peer" 
-            checked>
+                {{ in_array($label['id'], old('places', $item->places_ids)) ? 'checked' : '' }}
+            
+                >
                 <div class="px-2 py-4 border-2 border-gray-100 rounded-xl bg-white text-center transition-all peer-checked:border-indigo-600 peer-checked:bg-indigo-50 group-hover:bg-gray-50 shadow-sm">
                     <span class="text-xs font-black uppercase text-gray-400 peer-checked:text-indigo-700 transition-colors group-has-[:checked]:text-indigo-700">
                         {{ $label['name'] }}

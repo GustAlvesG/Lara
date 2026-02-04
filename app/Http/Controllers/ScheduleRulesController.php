@@ -123,8 +123,9 @@ class ScheduleRulesController extends Controller
         try {
             $place_id = $request->input('place_id');
             $date = $request->input('date') ?? date('Y-m-d');
+            $member_id = $request->input('member_id');
 
-            $timeOptions = $this->scheduleRuleService->getTimeOptions($place_id, $date);
+            $timeOptions = $this->scheduleRuleService->getTimeOptions($place_id, $date, $member_id);
 
             $limit = $this->scheduleRuleService->getLimit($place_id, $request->input('member_id'), $date);
 

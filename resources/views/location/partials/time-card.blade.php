@@ -5,16 +5,42 @@
 @endphp
 {{-- {{ Array to string }} --}}
 @if($isBooked)
-    <a type="button" 
-        href="{{ route('schedule.show', ['id' => $slot['colides']['id']]) }}" class="{{ $slot['colided_status_id'] == '1' ? 'bg-indigo-600' : 'bg-yellow-500' }} rounded-xl p-3 text-white shadow-md flex flex-col justify-between min-h-[80px] opacity-90">
-        <div class="flex justify-between items-start mb-1">
-            <span class="text-sm font-black">{{ $slot['start_time'] }} - {{ $slot['end_time'] }}</span>
-            <div class="h-5 w-5 rounded bg-white/20 flex items-center justify-center text-[8px] font-bold">
-                {{ strtoupper(substr($slot['colided_member']['name'], 0, 2)) }}
-            </div>
+<!-- SLOT AGENDADO (CONFIRMADO OU PENDENTE) -->
+<a type="button" 
+    href="{{ route('schedule.show', ['id' => $slot['colides']['id']]) }}" 
+    class="{{ $slot['colided_status_id'] == '1' ? 'bg-green-600' : 'bg-yellow-500' }} rounded-xl p-3 text-white shadow-md flex flex-col justify-between min-h-[85px] opacity-95 relative group overflow-hidden transition-all duration-300">
+    
+    <div class="flex justify-between items-start mb-1">
+        <span class="text-xs font-black leading-none">{{ $slot['start_time'] }} - {{ $slot['end_time'] }}</span>
+        <div class="h-6 w-6 rounded bg-white/20 flex items-center justify-center text-[9px] font-black">
+            {{ strtoupper(substr($slot['colided_member']['name'], 0, 2)) }}
         </div>
+    </div>
+    
+    <div>
         <p class="text-[10px] font-bold truncate">{{ $slot['colided_member']['name'] }}</p>
-    </a>
+        
+        <!-- CONTADOR DE MINUTOS (SOMENTE PARA PENDENTE) -->
+        @if($slot['colided_status_id'] == '3')
+            @php
+                $seconds = \Carbon\Carbon::parse($slot['colides']['created_at'])
+                    ->diffInSeconds(now());
+                $formatted = gmdate('i:s', $seconds);
+            @endphp
+            <div class="flex items-center gap-1 mt-1">
+                <span class="flex h-1.5 w-1.5 rounded-full bg-white animate-pulse"></span>
+                <span class="text-[12px] font-black uppercase tracking-tighter">{{ $formatted }}</span>
+            </div>
+        @else
+            <p class="text-[8px] uppercase font-black opacity-70 tracking-widest mt-1">Confirmado</p>
+        @endif
+    </div>
+
+    <!-- OVERLAY DE HOVER/DICA -->
+    <div class="absolute inset-0 bg-black/20 p-3 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
+        <span class="text-[10px] font-black uppercase bg-white text-gray-900 px-2 py-1 rounded shadow">Detalhes</span>
+    </div>
+</a>
 @elseif($isBlocked)
     <div class="bg-gray-800 rounded-xl p-3 text-white shadow-md border border-gray-700 flex flex-col justify-between min-h-[80px]">
         <div class="flex justify-between items-start mb-1">

@@ -77,4 +77,13 @@ class User extends Authenticatable
         return $this->belongsTo(Status::class, 'status_id', 'id');
     }
 
+    public function schedulesCreated()
+    {
+        return $this->hasMany(Schedule::class, 'created_by_user', 'id');
+    }
+
+    public function schedulesUpdated()
+    {
+        return $this->hasMany(Schedule::class, 'updated_by_user', 'id');
+    }
 }

@@ -26,18 +26,26 @@ class MemberService
     }
 
     public function memberByCpf(Request $request){
-        $member_id = Member::where('cpf', preg_replace('/\D/', '', $request['cpf']))->value('id');
-        if (!$member_id) {
-            $response = $this->store($request['cpf'], $request['title'], $request['birthDate']);       
-            // dd($response, 'here');
-            //Type response
-            if ($response->getStatusCode() == 201) {
-                $member_id = $response->getData()->user->id;
-            } else {
-                return $response;
-            }
+        try {
+            $member_id = Member::where('cpf', preg_replace('/\D/', '', $request['cpf']))->value('id');
+            if (!$member_id) {
+                $response = $this->store($request['cpf'], $request['title'], $request['birthDate']);       
+                // dd($response, 'here');
+                //Type response
+                if ($response->getStatusCode() == 201) {
+                    $member_id = $response->getData()->user->id;
+                    } else {
+                        return $response;
+                        }
+                        }
+        } catch(\Exception $e){
+           throw new \Exception('Error fetching or creating member: ' . $e->getMessage());
         }
         return $member_id;
+    }
+
+    public function getMemberById($member_id){
+        return Member::find($member_id);
     }
 
     public function store($cpf, $title, $birthDate){

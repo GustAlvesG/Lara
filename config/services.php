@@ -37,5 +37,12 @@ return [
 
     'api' => [
 	    'token' => env('API_TOKEN'),
-    ]
+    ],
+
+    'rede' => [
+        'auth_url'      => env('INTERNAL_EREDE_AUTH_URL'),
+        'base_url'      => env('INTERNAL_EREDE_API_URL'),
+        'client_id'     => env('INTERNAL_EREDE_CLIENT_ID'),
+        'client_secret' => env('INTERNAL_EREDE_SECRET_ID'),
+    ],
 ];

@@ -23,6 +23,9 @@ class Schedule extends Model
         'status_id',
         'price',
         'description',  
+        'schedule_payment_id',
+        'created_by_user',
+        'updated_by_user',
     ];
 
     //By default, ignore status_id = 4, Expired
@@ -60,6 +63,16 @@ class Schedule extends Model
     public function schedulePayment()
     {
         return $this->belongsTo(SchedulePayment::class, 'schedule_payment_id', 'id');
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by_user', 'id');
+    }
+
+    public function editor()
+    {
+        return $this->belongsTo(User::class, 'updated_by_user', 'id');
     }
 
 }

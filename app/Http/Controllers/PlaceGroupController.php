@@ -237,7 +237,7 @@ class PlaceGroupController extends Controller
         unset($group->pivot);
 
 
-        return view('location.schedule.rule.edit', [
+        return view('location.rule.edit', [
             'rule' => $rule,
             'group' => $group,
         ]);

@@ -38,13 +38,48 @@ class ScheduleController extends Controller
             return redirect()->back()->with('error', 'Ocorreu um erro ao carregar os agendamentos: ' . $e->getMessage());
         }
     }
-    public function store(Request $request)
+
+    public function update(Request $request)
     {
         try {
-            $scheudles = $this->schedulesService->createSchedule(new Request($request->all()));
-            return redirect()->back()->with('success', 'Agendamento criado com sucesso!');
+            $updates = $request->all();
+            $response = $this->schedulesService->updateSchedulesStatus($updates);
+            return $response;
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Erro ao criar agendamento: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'An error occurred while updating schedules status.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function store(Request $request)
+    {
+        $route_name = $request->route()->getName();
+        try {
+            $scheudles = $this->schedulesService->createSchedule(new Request($request->all()));
+            if ('api' == explode('.', $route_name)[0]) {
+                $response = response()->json([
+                    'message' => 'Schedule created successfully',
+                    'schedules' => $scheudles,
+                    'count' => count($scheudles),
+                ], 201);
+            } else {
+
+            $response = redirect()->back()->with('success', 'Agendamento criado com sucesso!');
+            }
+            return $response;
+        } catch (\Exception $e) {
+            if ('api' == explode('.', $route_name)[0]) {
+                return response()->json([
+                    'message' => 'An error occurred while creating schedule.',
+                    'error' => $e->getMessage(),
+                ], 500);
+            }
+            else {
+                return redirect()->back()->with('error', 'Erro ao criar agendamento: ' . $e->getMessage());
+
+            }
         }
     }
 
@@ -84,6 +119,8 @@ class ScheduleController extends Controller
 
         return response()->json(['message' => 'Pending schedule deleted successfully.'], 200);
     }
+
+
 
     // public function index()
     // {
@@ -280,7 +317,7 @@ class ScheduleController extends Controller
 
     public function show($id)
     {
-        $schedule = Schedule::with(['status','place.group','member'])->find($id);
+        $schedule = Schedule::with(['status','place.group','member', 'creator', 'editor'])->find($id);
 
         if (!$schedule) {
             return response()->json(['message' => 'Schedule not founds.'], 404);
@@ -296,8 +333,14 @@ class ScheduleController extends Controller
         //Add current schedule to the other schedules in first position
         $other_schedules->prepend($schedule);
 
+        $data = [
+            'schedule' => $schedule,
+            'other_schedules' => $other_schedules
+        ];
 
-        return view('location.schedule.show', compact('schedule', 'other_schedules'));
+
+     
+        return view('location.schedule.show')->with('data', $data);
     }
 
     // public function update(Request $request)
