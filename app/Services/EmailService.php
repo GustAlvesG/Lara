@@ -23,7 +23,7 @@ class EmailService
         try {
             // 3. Envia o e-mail
             // Se usar filas, o envio será assíncrono automaticamente se o Mailable implementar ShouldQueue
-            Mail::to($to_email)->later(now(), new ContactMail($data));
+            Mail::to($to_email)->send(new ContactMail($data));
         } catch (\Exception $e) {
             // Lida com erros de envio, se necessário
             throw new \Exception('Erro ao enviar e-mail: ' . $e->getMessage());

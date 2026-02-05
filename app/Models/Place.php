@@ -19,7 +19,7 @@ class Place extends Model
         'image',
         'place_group_id',
         'price',
-        'status',
+        'status_id',
     ];
 
     //Order by name

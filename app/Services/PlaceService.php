@@ -24,7 +24,7 @@ class PlaceService
 
     public function getPlacesByGroup($group_id, $member_id, $date)
     {
-        $places = Place::where('place_group_id', $group_id)->get();
+        $places = Place::where('place_group_id', $group_id)->where('status_id', 1)->get();
         //Order by name
         $places = $places->sortBy('name');
         

@@ -41,10 +41,13 @@ class ScheduleController extends Controller
 
     public function update(Request $request)
     {
+
+
         try {
             $updates = $request->all();
             $response = $this->schedulesService->updateSchedulesStatus($updates);
-            return $response;
+            $id = $request->id ?? $updates['selected_reservations'][0] ?? null;
+            return redirect()->route($id ? 'schedule.show' : 'schedule.index', $id ? ['id' => $id] : [])->with('success', 'Agendamentos atualizado com sucesso!');
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'An error occurred while updating schedules status.',

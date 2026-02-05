@@ -23,8 +23,8 @@ return new class extends Migration
         });
 
         Schema::table('place_groups', function (Blueprint $table) {
-            $table->time('start_time_sales')->nullable();
-            $table->time('end_time_sales')->nullable();
+            $table->time('start_time_sales')->nullable()->default(null);
+            $table->time('end_time_sales')->nullable()->default(null);
         });
     }
 
@@ -39,7 +39,5 @@ return new class extends Migration
             $table->dropColumn('start_time_sales');
             $table->dropColumn('end_time_sales');
         });
-
-
     }
 };

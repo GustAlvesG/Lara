@@ -75,7 +75,9 @@ class SchedulesService
                 $schedule->save();
 
                 if(isset($data['refund_payment'])){
-                    $payments_ids[] = $schedule->schedule_payment_id;
+                    if (!in_array($schedule->schedule_payment_id, $payments_ids)) {
+                        $payments_ids[] = $schedule->schedule_payment_id;
+                    }
                 }
             }
         }
@@ -83,10 +85,7 @@ class SchedulesService
         if (isset($data['refund_payment']) && count($payments_ids) > 0)
             $response = $this->redeItauService->beginRefund($payments_ids);
 
-
-        return response()->json(['message' => 'Schedules updated successfully.', 'refunds' => $response], 200);
-
-
+        return $response;
     }
 
     public function getSchedules($date = null)
@@ -95,7 +94,7 @@ class SchedulesService
             $date = Carbon::now()->toDateString();
         }
 
-        $allPlacesAndTimes = Place::with(['group'])->get();
+        $allPlacesAndTimes = Place::where('status_id', 1)->with(['group'])->get();
 
         foreach ($allPlacesAndTimes as $place) {
             $options = $this->scheduleRulesService->getTimeOptions($place->id, $date);

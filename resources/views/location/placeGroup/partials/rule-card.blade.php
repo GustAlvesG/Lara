@@ -54,7 +54,7 @@
             </div>
         </div>
 
-        <!-- Conteúdo Principal: Vigência e Dias -->
+        <!-- Conteúdo Principal -->
         <div class="space-y-4">
             <!-- Vigência (Data) -->
             <div class="flex items-center text-xs text-gray-500 dark:text-gray-400">
@@ -77,7 +77,8 @@
             <div class="flex gap-1.5 overflow-x-auto pb-1 hide-scrollbar">
                 @php
                     $allDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
-                    $activeDays = $rule->weekdays->pluck('short_name_pt')->map(fn($day) => ucfirst($day))->toArray();
+                    // Verifica se weekdays é uma relação ou array para extrair nomes
+                    $activeDays = $rule->weekdays ? $rule->weekdays->pluck('short_name_pt')->map(fn($day) => ucfirst($day))->toArray() : [];
                 @endphp
                 @foreach($allDays as $day)
                     @php $isActiveDay = in_array($day, $activeDays); @endphp
@@ -89,6 +90,21 @@
                     </div>
                 @endforeach
             </div>
+
+            <!-- LISTAGEM DE LOCAIS (NOVO) -->
+            @if($rule->places && count($rule->places) > 0)
+            <div class="pt-2">
+                <p class="text-[9px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Locais Vinculados</p>
+                <div class="flex flex-wrap gap-1.5">
+                    @foreach($rule->places as $placeItem)
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600 text-[10px] font-bold text-gray-600 dark:text-gray-300 transition hover:border-indigo-300 dark:hover:border-indigo-500">
+                            <svg class="w-2.5 h-2.5 mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
+                            {{ $placeItem->name }}
+                        </span>
+                    @endforeach
+                </div>
+            </div>
+            @endif
         </div>
 
 
@@ -99,7 +115,7 @@
                     <input type="checkbox" name="rules[]" value="{{ $rule->id }}" 
                         @if (isset($rule->places) && isset($place) && collect($rule->places)->contains('id', $place->id)) checked @endif
                         class="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 transition cursor-pointer">
-                    <span class="ml-2 text-sm font-bold text-gray-600 group-hover/check:text-indigo-600">Habilitar para este local</span>
+                    <span class="ml-2 text-sm font-bold text-gray-600 group-hover/check:text-indigo-600 dark:text-gray-400 dark:group-hover/check:text-indigo-400">Habilitar para este local</span>
                 </label>
             @else
                 <div class="flex gap-2 w-full">

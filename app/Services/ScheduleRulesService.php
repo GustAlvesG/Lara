@@ -24,10 +24,9 @@ class ScheduleRulesService
         foreach ($validated['places'] as $key => $place) {
             $places[] = $place;
         }
-        foreach($validated['days'] as $key => $day){
+        foreach($validated['weekdays'] as $key => $day){
             $days[] = $day;
         }
-        
         
         DB::beginTransaction();
         try {
@@ -48,7 +47,9 @@ class ScheduleRulesService
             throw $e;
         }
 
-        return redirect()->back()->with('success', 'Regra de Horário criada com sucesso!');
+        $group = Place::find($places[0])->group;
+
+        return ['rule' => $rule, 'place_group_id' => $group->id];
     }
 
     public function getFilteredRulesByPlaceGroup($placeGroup){
@@ -61,7 +62,7 @@ class ScheduleRulesService
 
         $rules = ScheduleRules::whereHas('places', function($query) use ($placeGroup) {
             $query->where('place_group_id', $placeGroup->id);
-        })->get();
+        })->with('places')->get();
        
 
         return $rules;

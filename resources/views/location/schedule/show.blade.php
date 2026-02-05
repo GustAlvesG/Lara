@@ -126,7 +126,7 @@
                                     </div>
                                 </div>
            
-                                
+                                @if($schedule->updated_at && $schedule->created_at != $schedule->updated_at)
                                 <!-- Atualização -->
                                 <div class="flex items-start gap-3">
                                     <div class="mt-1 w-2 h-2 rounded-full {{ $updatedByUser ? 'bg-indigo-500' : 'bg-gray-300' }}"></div>
@@ -136,14 +136,14 @@
                                             {{ $updatedByUser ?? 'Via Site' }}
                                         </p>
                                         <p class="text-[10px] text-gray-400 mt-0.5">
-                                            @if($schedule->updated_at && $schedule->created_at != $schedule->updated_at)
+                                            
                                                 Em: {{ \Carbon\Carbon::parse($schedule->updated_at)->format('d/m/Y H:i') }}
-                                            @else
-                                                Nenhuma alteração registrada
-                                            @endif
+                                            
+                                            
                                         </p>
                                     </div>
                                 </div>
+                                @endif
                               
                             </div>
                         </div>
@@ -262,7 +262,7 @@
                         </div>
                     </div>
                     
-                    @if ($isPending || $isCanceled)
+                    @if (($isPending || $isCanceled))
                         @if($isPending)
                         <div class="p-4 mb-6 rounded-2xl bg-amber-50 border border-amber-100 text-amber-700 text-sm font-medium leading-relaxed">
                             <svg class="w-4 h-4 inline-block mr-1 -mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -275,6 +275,7 @@
                         </div>
                         @endif
                     @else
+                    @can('edit.reservations')
                     <!-- Secção: Operação a Realizar -->
                     <div class="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
                         <div class="flex items-center gap-3 mb-6">
@@ -325,6 +326,7 @@
                         </div>
                         @endif
                     </div>
+                    @endcan
                     @endif
                 </form>
             </div>

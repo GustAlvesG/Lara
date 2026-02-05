@@ -54,7 +54,7 @@
                 </div>
 
                 <!-- Bloco de Vendas -->
-                <div class="p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
+                {{-- <div class="p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
                     <p class="text-xs font-black text-indigo-400 uppercase tracking-widest mb-4">Janela de Vendas (App)</p>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
@@ -66,7 +66,7 @@
                             <x-text-input name="end_time_sales" id="end_time_sales" type="time" class="block mt-1 w-full" :value="old('end_time_sales', $item->end_time_sales ?? null)"  />
                         </div>
                     </div>
-                </div>
+                </div> --}}
             </div>
         </div>
 

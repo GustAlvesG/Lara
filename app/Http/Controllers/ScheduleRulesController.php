@@ -41,9 +41,12 @@ class ScheduleRulesController extends Controller
     public function store(StoreScheduleRulesRequest $request)
     {
         try{
-
+            
             $response = $this->scheduleRuleService->store($request);
-            return $response;
+            
+            // Return to place-group show with success message
+            return redirect()->route('place-group.show', ['place_group' => $response['place_group_id']])
+                             ->with('success', 'Regra criada com sucesso!');
 
         } catch (\Exception $e) {
             // Handle the exception or log it

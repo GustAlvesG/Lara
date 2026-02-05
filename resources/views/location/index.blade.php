@@ -48,14 +48,22 @@
 
 
         <div class="space-y-12">
+            
             @foreach($modalities as $modalityName => $places)
             <section>
-                <div class="flex items-center gap-3 mb-6">
+                @php
+                    // Contagem de locais nesta modalidade
+                    $placeCount = count($places);
+                    if ($placeCount >= 1) {
+                        $group_id = $places[0]['group']['id'];
+                    }
+                @endphp
+                <a href="{{ route('place-group.show', $group_id ?? '') }}" class="flex items-center gap-3 mb-6">
                     <span class="px-4 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-black uppercase tracking-widest shadow-sm">
-                        {{ $modalityName }}
+                        {{ $modalityName }} 
                     </span>
                     <div class="h-[1px] flex-grow bg-gray-200"></div>
-                </div>
+                </a>
 
                 <div class="grid grid-cols-1 gap-8">
                     @foreach($places as $place)
@@ -75,6 +83,12 @@
                         <div class="bg-white rounded-2xl shadow-xl border border-gray-100 court-card" data-court-id="{{ $place['id'] }}">
                             <div class="flex flex-col md:flex-row min-h-full">
                                 <div class="md:w-64 h-48 md:h-auto overflow-hidden bg-gray-100 flex-shrink-0">
+                                    @php
+                                        //Check se a imagem contem http
+                                        if(isset($place['image']) && !str_starts_with($place['image'], 'http')) {
+                                            $place['image'] = asset('images/' . $place['image']);
+                                        }
+                                    @endphp
                                     <img src="{{ $place['image'] ?? 'https://placehold.co/400x300/e2e8f0/475569?text=Sem+Foto' }}" 
                                          alt="{{ $place['name'] }}" class="w-full h-full object-cover">
                                 </div>

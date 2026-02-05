@@ -81,7 +81,7 @@ class PlaceGroupController extends Controller
 
     public function index(){
         //Get all place groups and their places
-        $groups = PlaceGroup::with('places')->get();
+        $groups = PlaceGroup::all();
 
         //Order by name
         $groups = $groups->sortBy('name');
@@ -133,6 +133,9 @@ class PlaceGroupController extends Controller
             $ids[] = $weekday->id;
         }
         $placeGroup->weekdays = $ids;
+
+        //Order places by name and status_id
+        $placeGroup->places = $placeGroup->places->sortBy([['status_id', 'asc'], ['name', 'asc']]);
 
         return view('location.placeGroup.show', [
             'item' => $placeGroup,  
@@ -336,6 +339,7 @@ class PlaceGroupController extends Controller
             'place_group_id' => $validated['place_group_id'],
             'image' => $validated['image'] ?? null,
             'price' => $validated['price'],
+            'status_id' => $validated['status_id'],
         ]);
 
         //Check if has rules
