@@ -274,60 +274,60 @@
                             Este agendamento já está <span class="font-black">CANCELADO</span>. Não é possível realizar alterações.
                         </div>
                         @endif
-                    @else
-                    @can('edit.reservations')
-                    <!-- Secção: Operação a Realizar -->
-                    <div class="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
-                        <div class="flex items-center gap-3 mb-6">
-                            <div class="p-2 bg-amber-500 rounded-lg text-white">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                            </div>
-                            <h3 class="text-xl font-extrabold text-gray-800">Operação Desejada</h3>
-                        </div>
-                        @if($schedule->status_id == 0)
-                            <div class="p-4 mb-6 rounded-2xl bg-red-50 border border-red-100 text-red-700 text-sm font-medium leading-relaxed">
-                                <svg class="w-4 h-4 inline-block mr-1 -mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                Este agendamento já está <span class="font-black">CANCELADO</span>. Não é possível realizar alterações adicionais.
-                            </div>
-                        @else
-                        <div class="space-y-4">
-                            <div>
-                                <label for="action_status" class="block text-xs font-black text-gray-400 uppercase mb-2 tracking-widest ml-1">Selecione o Novo Estado</label>
-                                <select id="action_status" name="action_status" required onchange="handleActionChange(this)"
-                                        class="block w-full py-4 px-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition font-extrabold text-gray-700">
-                                    <option value="">O que deseja fazer?</option>
-                                    {{-- <option value="1">✅ Confirmar Agendamento(s)</option> --}}
-                                    <option value="0">❌ Cancelar Agendamento(s)</option>
-                                </select>
-                            </div>
-
-                            <!-- OPÇÕES DINÂMICAS DE CANCELAMENTO -->
-                            <div id="cancel-options" class="hidden animate-fadeIn space-y-3 bg-red-50 p-6 rounded-2xl border border-red-100">
-                                <p class="text-[10px] font-black text-red-400 uppercase tracking-widest mb-2">Configurações de Cancelamento</p>
-                                
-                                <label class="flex items-center gap-3 cursor-pointer group">
-                                    <input type="checkbox" name="confirm_cancel" required class="w-5 h-5 text-red-600 border-red-300 rounded focus:ring-red-500 transition">
-                                    <span class="text-sm font-bold text-red-700 group-hover:text-red-900 transition">Confirmo que desejo cancelar permanentemente</span>
-                                </label>
-
-                                @if($isViaSite && !$isPending)
-                                <label class="flex items-center gap-3 cursor-pointer group">
-                                    <input type="checkbox" name="refund_payment" value="1" class="w-5 h-5 text-red-600 border-red-300 rounded focus:ring-red-500 transition">
-                                    <span class="text-sm font-bold text-red-700 group-hover:text-red-900 transition">Solicitar estorno do valor pago (Agendamento via Site)</span>
-                                </label>
-                                @endif
-                            </div>
-
-                            <div class="pt-4 border-t border-gray-50">
-                                <button type="submit" class="w-full py-4 bg-gray-900 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-indigo-600 transition transform hover:scale-[1.01] active:scale-95">
-                                    Salvar Alterações
-                                </button>
-                            </div>
-                        </div>
-                        @endif
-                    </div>
-                    @endcan
                     @endif
+
+                    @can('edit reservations')
+                        <!-- Secção: Operação a Realizar -->
+                        <div class="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
+                            <div class="flex items-center gap-3 mb-6">
+                                <div class="p-2 bg-amber-500 rounded-lg text-white">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                </div>
+                                <h3 class="text-xl font-extrabold text-gray-800">Operação Desejada</h3>
+                            </div>
+                            @if($schedule->status_id == 0)
+                                <div class="p-4 mb-6 rounded-2xl bg-red-50 border border-red-100 text-red-700 text-sm font-medium leading-relaxed">
+                                    <svg class="w-4 h-4 inline-block mr-1 -mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    Este agendamento já está <span class="font-black">CANCELADO</span>. Não é possível realizar alterações adicionais.
+                                </div>
+                            @else
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="action_status" class="block text-xs font-black text-gray-400 uppercase mb-2 tracking-widest ml-1">Selecione o Novo Estado</label>
+                                    <select id="action_status" name="action_status" required onchange="handleActionChange(this)"
+                                            class="block w-full py-4 px-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition font-extrabold text-gray-700">
+                                        <option value="">O que deseja fazer?</option>
+                                        {{-- <option value="1">✅ Confirmar Agendamento(s)</option> --}}
+                                        <option value="0">❌ Cancelar Agendamento(s)</option>
+                                    </select>
+                                </div>
+
+                                <!-- OPÇÕES DINÂMICAS DE CANCELAMENTO -->
+                                <div id="cancel-options" class="hidden animate-fadeIn space-y-3 bg-red-50 p-6 rounded-2xl border border-red-100">
+                                    <p class="text-[10px] font-black text-red-400 uppercase tracking-widest mb-2">Configurações de Cancelamento</p>
+                                    
+                                    <label class="flex items-center gap-3 cursor-pointer group">
+                                        <input type="checkbox" name="confirm_cancel" required class="w-5 h-5 text-red-600 border-red-300 rounded focus:ring-red-500 transition">
+                                        <span class="text-sm font-bold text-red-700 group-hover:text-red-900 transition">Confirmo que desejo cancelar permanentemente</span>
+                                    </label>
+
+                                    @if($isViaSite && !$isPending)
+                                    <label class="flex items-center gap-3 cursor-pointer group">
+                                        <input type="checkbox" name="refund_payment" value="1" class="w-5 h-5 text-red-600 border-red-300 rounded focus:ring-red-500 transition">
+                                        <span class="text-sm font-bold text-red-700 group-hover:text-red-900 transition">Solicitar estorno do valor pago (Agendamento via Site)</span>
+                                    </label>
+                                    @endif
+                                </div>
+
+                                <div class="pt-4 border-t border-gray-50">
+                                    <button type="submit" class="w-full py-4 bg-gray-900 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-indigo-600 transition transform hover:scale-[1.01] active:scale-95">
+                                        Salvar Alterações
+                                    </button>
+                                </div>
+                            </div>
+                            @endif
+                        </div>
+                    @endcan
                 </form>
             </div>
 
