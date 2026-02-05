@@ -99,7 +99,7 @@
                     @foreach($rule->places as $placeItem)
                         <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600 text-[10px] font-bold text-gray-600 dark:text-gray-300 transition hover:border-indigo-300 dark:hover:border-indigo-500">
                             <svg class="w-2.5 h-2.5 mr-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
-                            {{ $placeItem->name }}
+                            {{ $placeItem->name ?? '' }}
                         </span>
                     @endforeach
                 </div>
