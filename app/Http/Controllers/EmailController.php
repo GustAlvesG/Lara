@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\EmailRequest;
 use App\Services\EmailService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class EmailController extends Controller
 {
@@ -16,11 +17,10 @@ class EmailController extends Controller
         $this->emailService = $emailService;
     }
 
-    public function submit(EmailRequest $request)
+    public function submit(Request $request)
     {
         // O $request->validated() retorna apenas os campos aprovados nas regras
-        $data = $request->validated();
-
+        $data = $request->all();
         try {
             // Chama a lógica de negócio
             $this->emailService->processContactForm($data);

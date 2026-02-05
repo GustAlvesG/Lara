@@ -19,7 +19,6 @@ class EmailService
         // 2. Define o destinatário (Admin do sistema)
         // $adminEmail = config('mail.from.address'); // Ou 'admin@empresa.com'
         $to_email = $data['email'];
-        
         try {
             // 3. Envia o e-mail
             // Se usar filas, o envio será assíncrono automaticamente se o Mailable implementar ShouldQueue
