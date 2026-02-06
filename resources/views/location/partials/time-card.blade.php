@@ -42,14 +42,27 @@
     </div>
 </a>
 @elseif($isBlocked)
-    <div class="bg-gray-800 rounded-xl p-3 text-white shadow-md border border-gray-700 flex flex-col justify-between min-h-[80px]">
-        <div class="flex justify-between items-start mb-1">
-            <span class="text-sm font-black text-gray-400">{{ $slot['start_time'] }} - {{ $slot['end_time'] }}</span>
-            <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
-        </div>
-        <p class="text-[10px] font-bold text-gray-300 truncate">{{ $slot['excluded_by_rule']['name'] ?? 'Indisponível' }}</p>
-        <p class="text-[9px] text-red-400 font-bold uppercase tracking-widest">Indisponível</p>
+    <div class="bg-gray-800 rounded-xl p-3 text-white shadow-md border border-gray-700 flex flex-col justify-between min-h-[85px] transition-all">
+    <div class="flex justify-between items-start mb-1">
+        <span class="text-xs font-black text-gray-400 leading-none">
+            {{ $slot['start_time'] }} - {{ $slot['end_time'] }}
+        </span>
+        
+        <!-- SVG de Cadeado Refatorado -->
+        <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"></path>
+        </svg>
     </div>
+    
+    <div>
+        <p class="text-[10px] font-bold text-gray-300 truncate leading-tight">
+            {{ $slot['excluded_by_rule']['name'] ?? 'Indisponível' }}
+        </p>
+        <p class="text-[9px] text-red-500 font-black uppercase tracking-widest mt-0.5">
+            Bloqueado
+        </p>
+    </div>
+</div>
 @elseif($isPast)
     <div class="bg-gray-300 rounded-xl p-3 text-gray-600 shadow-md border border-gray-400 flex flex-col justify-between min-h-[80px]">
         <div class="flex justify-between items-start mb-1">
