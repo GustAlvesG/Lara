@@ -357,144 +357,103 @@
             inputSearch.focus();
         }
 
-        function generatePDFTable() {
-            // Captura os dados do PHP para o JS
-            const modalities = @json($modalities);
-            const selectedDate = document.getElementById('report-date').value;
-            
-            // Cria uma nova janela para o conteúdo de impressão
-            const printWindow = window.open('', '_blank');
-            
-            let html = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Relatório de Agendamentos - ${selectedDate}</title>
-                    <style>
-                        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap');
-                        
-                        body { font-family: 'Inter', sans-serif; padding: 40px; color: #1e293b; background: white; }
-                        
-                        .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 4px solid #4f46e5; padding-bottom: 20px; margin-bottom: 30px; }
-                        .header-left h1 { margin: 0; font-size: 28px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: -0.025em; }
-                        .header-left p { margin: 5px 0 0; font-size: 14px; color: #64748b; font-weight: 600; }
-                        .header-right { text-align: right; }
-                        .header-right .date-box { background: #f1f5f9; padding: 10px 20px; border-radius: 12px; display: inline-block; }
-                        .header-right .date-label { font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px; }
-                        .header-right .date-value { font-size: 18px; font-weight: 800; color: #4f46e5; }
-
-                        .modality-container { margin-bottom: 40px; page-break-inside: avoid; }
-                        .modality-header { background: #4f46e5; color: white; padding: 10px 20px; border-radius: 8px 8px 0 0; font-weight: 800; text-transform: uppercase; font-size: 14px; display: flex; justify-content: space-between; align-items: center; }
-                        
-                        .court-container { border: 1px solid #e2e8f0; border-top: none; padding: 20px; margin-bottom: 15px; border-radius: 0 0 8px 8px; }
-                        .court-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 15px; display: flex; align-items: center; }
-                        .court-title::before { content: ""; display: inline-block; width: 4px; height: 18px; background: #4f46e5; margin-right: 10px; border-radius: 2px; }
-                        
-                        table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 10px; }
-                        th { background-color: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 12px 15px; text-align: left; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 800; }
-                        td { border-bottom: 1px solid #f1f5f9; padding: 12px 15px; font-size: 13px; color: #334155; }
-                        tr:last-child td { border-bottom: none; }
-                        tr:nth-child(even) { background-color: #fcfdfe; }
-
-                        .status-pill { padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 800; text-transform: uppercase; display: inline-block; border: 1px solid transparent; }
-                        .booked { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
-                        .blocked { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
-                        .available { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
-                        
-                        .member-info { display: flex; align-items: center; gap: 8px; }
-                        .member-name { font-weight: 700; color: #1e293b; }
-                        
-                        .footer { margin-top: 60px; border-top: 1px solid #e2e8f0; padding-top: 20px; display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; font-weight: 600; text-transform: uppercase; }
-
-                        @media print {
-                            body { padding: 0; }
-                            @page { margin: 1.5cm; }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <div class="header-left">
-                            <h1>Reservas</h1>
-                            <p>Relatório Consolidado de Ocupação</p>
-                        </div>
-                        <div class="header-right">
-                            <div class="date-box">
-                                <span class="date-label">Agenda do Dia</span>
-                                <span class="date-value">${new Date(selectedDate + 'T00:00:00').toLocaleDateString('pt-PT', {day:'2-digit', month:'long', year:'numeric'})}</span>
-                            </div>
-                        </div>
-                    </div>
-            `;
-
-            for (const [modality, courts] of Object.entries(modalities)) {
-                html += `<div class="modality-container">
-                            <div class="modality-header">
-                                <span>Modalidade: ${modality}</span>
-                                <span>${courts.length} Local(is)</span>
-                            </div>
-                            <div class="court-container">`;
-                
-                courts.forEach(court => {
-                    html += `<div class="court-name-wrapper">
-                                <div class="court-title">${court.name}</div>
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th width="20%">Horário</th>
-                                            <th width="20%">Estado</th>
-                                            <th width="60%">Responsável / Detalhes</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>`;
-                    
-                    if(court.time_options && court.time_options.length > 0) {
-                        court.time_options.forEach(slot => {
-                            let status = 'Livre';
-                            let statusClass = 'available';
-                            let details = '<span style="color: #94a3b8;">Disponível para agendamento</span>';
-
-                            if (slot.member) {
-                                status = 'Agendado';
-                                statusClass = 'booked';
-                                details = `<div class="member-info"><span class="member-name">${slot.member.name}</span></div>`;
-                            } else if (slot.blocked) {
-                                status = 'Bloqueado';
-                                statusClass = 'blocked';
-                                details = `<strong>Motivo:</strong> ${slot.rule_to_block || 'Bloqueio Administrativo'}`;
-                            }
-
-                            html += `<tr>
-                                        <td><strong>${slot.start_time}</strong> — ${slot.end_time || ''}</td>
-                                        <td><span class="status-pill ${statusClass}">${status}</span></td>
-                                        <td>${details}</td>
-                                    </tr>`;
-                        });
-                    } else {
-                        html += `<tr><td colspan="3" style="text-align:center; padding: 30px; color:#94a3b8; font-style: italic;">Nenhum horário configurado para este local.</td></tr>`;
-                    }
-                    
-                    html += `</tbody></table></div>`;
-                });
-                
-                html += `</div></div>`;
-            }
-
-            html += `
-                <div class="footer">
-                    <span>Gerado pelo LARA</span>
-                    <span>Emissão: ${new Date().toLocaleString('pt-PT')}</span>
-                    <span>Página 1 de 1</span>
-                </div>
-                </body></html>`;
-
-            printWindow.document.write(html);
-            printWindow.document.close();
-            
-            setTimeout(() => {
-                printWindow.print();
-            }, 600);
+        function generatePDFTable(modalities) {
+    // Verificação de segurança para evitar erro de variável indefinida
+    if (!modalities || typeof modalities !== 'object') {
+        console.error("Erro: O parâmetro 'modalities' não foi fornecido ou não é um objecto válido.");
+        // Opcional: Tentar procurar uma variável global se não for passada por parâmetro
+        if (window.modalitiesData) {
+            modalities = window.modalitiesData;
+        } else {
+            alert("Erro ao gerar PDF: Dados de agendamento não encontrados.");
+            return;
         }
+    }
+
+    const selectedDateInput = document.getElementById('report-date');
+    const selectedDate = selectedDateInput ? selectedDateInput.value : new Date().toLocaleDateString('pt-PT');
+    
+    const printWindow = window.open('', '_blank');
+    
+    let html = `
+        <!DOCTYPE html>
+        <html lang="pt-pt">
+        <head>
+            <meta charset="UTF-8">
+            <title>Relatório de Ocupação - ${selectedDate}</title>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap');
+                body { font-family: 'Inter', sans-serif; padding: 40px; color: #1e293b; background: white; }
+                .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 4px solid #4f46e5; padding-bottom: 20px; margin-bottom: 30px; }
+                .header-left h1 { margin: 0; font-size: 28px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: -0.025em; }
+                .header-left p { margin: 5px 0 0; font-size: 14px; color: #64748b; font-weight: 600; }
+                .header-right { text-align: right; }
+                .header-right .date-box { background: #f1f5f9; padding: 10px 20px; border-radius: 12px; display: inline-block; }
+                .header-right .date-label { font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px; }
+                .header-right .date-value { font-size: 18px; font-weight: 800; color: #4f46e5; }
+                .modality-container { margin-bottom: 40px; page-break-inside: avoid; }
+                .modality-header { background: #4f46e5; color: white; padding: 12px 20px; border-radius: 8px 8px 0 0; font-weight: 800; text-transform: uppercase; font-size: 14px; display: flex; justify-content: space-between; }
+                .court-wrapper { border: 1px solid #e2e8f0; border-top: none; padding: 20px; margin-bottom: 10px; border-radius: 0 0 8px 8px; }
+                .court-title { font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; }
+                .court-title::before { content: ""; display: inline-block; width: 4px; height: 16px; background: #4f46e5; margin-right: 10px; border-radius: 2px; }
+                table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 20px; }
+                th { background-color: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 10px 15px; text-align: left; font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 800; }
+                td { border-bottom: 1px solid #f1f5f9; padding: 10px 15px; font-size: 12px; color: #334155; }
+                .status-pill { padding: 3px 10px; border-radius: 20px; font-size: 9px; font-weight: 800; text-transform: uppercase; display: inline-block; border: 1px solid transparent; }
+                .booked { background: #dcfce7; color: #166534; border-color: #bbf7d0; } 
+                .pending { background: #fef9c3; color: #854d0e; border-color: #fef08a; } 
+                .available { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+                .blocked { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+                .member-name { font-weight: 700; color: #1e293b; }
+                .member-info { font-size: 10px; color: #64748b; }
+                .footer { margin-top: 50px; border-top: 1px solid #e2e8f0; padding-top: 20px; display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; text-transform: uppercase; }
+                @media print { body { padding: 0; } @page { margin: 1.5cm; } }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div class="header-left"><h1>Clube de Funcionários</h1><p>Relatório de Ocupação de Espaços</p></div>
+                <div class="header-right"><div class="date-box"><span class="date-label">Agenda do Dia</span><span class="date-value">${selectedDate}</span></div></div>
+            </div>
+    `;
+
+    for (const [modName, places] of Object.entries(modalities)) {
+        html += `<div class="modality-container"><div class="modality-header"><span>MODALIDADE: ${modName}</span><span>${places.length} LOCAL(IS)</span></div><div class="court-wrapper">`;
+
+        places.forEach(place => {
+            html += `<div class="court-title">${place.name}</div><table><thead><tr><th width="20%">Horário</th><th width="20%">Estado</th><th width="60%">Sócio / Observação</th></tr></thead><tbody>`;
+
+            const options = place.time_options || [];
+            if (options.length === 0) {
+                html += `<tr><td colspan="3" style="text-align:center; padding: 20px; color: #94a3b8; font-style: italic;">Nenhum horário disponível.</td></tr>`;
+            } else {
+                options.forEach(slot => {
+                    let status = 'Livre', statusClass = 'available', detail = '<span style="color: #cbd5e1;">—</span>';
+
+                    if (slot.excluded_by_rule) {
+                        status = 'Bloqueado'; statusClass = 'blocked';
+                        detail = `<strong>Regra:</strong> ${slot.excluded_by_rule.name || 'Manutenção'}`;
+                    } else if (slot.colides) {
+                        const isConfirmed = slot.colided_status_id == 1;
+                        status = isConfirmed ? 'Confirmado' : 'Pendente';
+                        statusClass = isConfirmed ? 'booked' : 'pending';
+                        detail = `<div class="member-name">${slot.colided_member?.name || 'N/D'}</div><div class="member-info">Matrícula: ${slot.colided_member?.title || 'N/D'}</div>`;
+                    }
+
+                    html += `<tr><td><strong>${slot.start_time}</strong> - ${slot.end_time}</td><td><span class="status-pill ${statusClass}">${status}</span></td><td>${detail}</td></tr>`;
+                });
+            }
+            html += `</tbody></table>`;
+        });
+        html += `</div></div>`;
+    }
+
+    html += `<div class="footer"><span>Gerado automaticamente pelo Sistema 2XKO</span><span>Emissão: ${new Date().toLocaleString('pt-BR')}</span></div></body></html>`;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    setTimeout(() => { printWindow.print(); }, 600);
+}
     </script>
 
     <style>
