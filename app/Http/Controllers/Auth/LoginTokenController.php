@@ -18,10 +18,11 @@ class LoginTokenController extends Controller
     {
         $jwtService = new JwtService();
         $endOfDay = now()->endOfDay()->timestamp;
+        $now_plus_1minute = now()->addMinute()->timestamp;
 
         $payload = [
             'username' =>  $member['cpf'],
-            'exp' => $endOfDay,
+            'exp' => $now_plus_1minute,
         ];
         return $jwtService->generateToken($payload);
     }

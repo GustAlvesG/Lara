@@ -29,6 +29,12 @@
             @include('location.placeGroup.partials.places', ['places' => $item->places])
         </x-slot>
     </x-block>
+
+    <x-block>
+        <x-slot name="content">
+            @include('location.placeGroup.partials.tournaments', ['tournaments' => $item->tournaments])
+        </x-slot>
+    </x-block>
    
     <x-block>
         <x-slot name="content">

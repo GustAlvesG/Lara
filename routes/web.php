@@ -10,6 +10,7 @@ use App\Http\Controllers\DataInfoController;
 use App\Http\Controllers\Company\CompanyController;
 use App\Http\Controllers\Company\CompanyWorkerController as WorkerController;
 use App\Http\Controllers\Company\CompanyAccessRulesController as CompanyRulesController;
+use App\Http\Controllers\Tournament\TournamentController;
 
 use App\Http\Controllers\VideoWallController;
 use App\Http\Controllers\PlaceGroupController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\ScheduleRulesController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\CompTimeController;
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -129,6 +131,18 @@ Route::middleware('auth')->group(function () {
         Route::post('/details', [CompTimeController::class, 'showDetails'])->name('comp-time.show.details');
         Route::post('/details/day', [CompTimeController::class, 'showDayDetails'])->name('comp-time.show.day.details');
         Route::get('/recalculate', [CompTimeController::class, 'recalculateBalances'])->name('comp-time.recalculate');
+    });
+
+
+    Route::resource('tournaments', TournamentController::class);
+
+    Route::prefix('categories')->name('categories.')->controller(TournamentController::class)->group(function () {
+        Route::get('/', 'indexCategories')->name('index');
+        Route::get('/create', 'createCategory')->name('create');
+        Route::post('/', 'storeCategory')->name('store');
+        Route::get('/{id}/edit', 'editCategory')->name('edit');
+        Route::put('/{id}', 'updateCategory')->name('update');
+        Route::delete('/{id}', 'destroyCategory')->name('destroy');
     });
 
 

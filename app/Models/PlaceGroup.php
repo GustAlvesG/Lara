@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Place;
 use App\Models\ScheduleRules;
 use App\Models\Weekday;
+use App\Models\Tournament\Tournament;
 
 class PlaceGroup extends Model
 {
@@ -35,7 +36,12 @@ class PlaceGroup extends Model
 
     public function places()
     {
-        return $this->hasMany(Place::class );
+        return $this->hasMany(Place::class);
+    }
+
+    public function tournaments()
+    {
+        return $this->hasMany(Tournament::class, 'group_id');
     }
 
     public function weekdays()

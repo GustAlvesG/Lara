@@ -13,6 +13,7 @@ use App\Http\Controllers\WhatsAppController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\Company\CompanyAccessRulesController;
 use App\Http\Controllers\EmailController;
+use App\Http\Controllers\TestController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -24,7 +25,7 @@ Route::get('/ping', function () {
     return response()->json(['message' => 'pong']);
 });
 
-Route::get('/souburro', [MemberAuthController::class, 'souburro']);
+Route::get('/test', [TestController::class, 'index'])->name('api.test');
 
 
 Route::get('/schedule/generate-pdf', [ScheduleController::class, 'generateDailySchedulePDF'])->name('schedule.generatePDF');
@@ -47,6 +48,16 @@ Route::middleware('api_token')->group(function () {
     Route::put('/change-password', [MemberAuthController::class, 'changePassword']);
 
     Route::post('send-email', [EmailController::class, 'submit']);
+
+    Route::get('/debug-mail', function () {
+        dd([
+            'host' => config('mail.mailers.smtp.host'),
+            'port' => config('mail.mailers.smtp.port'),
+            'username' => config('mail.mailers.smtp.username'),
+            'password' => config('mail.mailers.smtp.password'), // Vai mostrar a senha na tela
+            'encryption' => config('mail.mailers.smtp.encryption'),
+        ]);
+    });
 
     Route::middleware('login_token')->group(function () {
         Route::get('/verify-token', [LoginTokenController::class, 'validate']);

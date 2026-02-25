@@ -42,7 +42,7 @@ class RedeItauService
     /**
      * Realiza o reembolso
      */
-    public function refund(string $tid, float $amount): array
+    private function refund(string $tid, float $amount): array
     {
         $amount = (int) ($amount * 100); // Convert to cents
         $accessToken = $this->authenticate();
@@ -51,6 +51,20 @@ class RedeItauService
                 'amount' => $amount,
             ]);
         
+        if ($response->failed()) {
+            throw new RequestException($response);
+        }
+
+        return $response->json();
+    }
+
+    public function getTransaction(string $tid): array
+    {
+        $accessToken = $this->authenticate();
+//  dd('Token de acesso: ' . $accessToken, 'URL de consulta: ' . config('services.rede.base_url') . "/transactions/{$tid}");
+        $response = Http::withoutVerifying()->withToken($accessToken)
+            ->get(config('services.rede.base_url') . "/transactions/{$tid}");
+
         if ($response->failed()) {
             throw new RequestException($response);
         }

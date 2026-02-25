@@ -72,6 +72,7 @@ class CompTimeController extends Controller
             unset($details['employee']);
             $dashboard = $details['dashboard'] ?? null;
             unset($details['dashboard']);
+            
             return view('compTime.details', compact('details', 'employee', 'dashboard'));
         } catch (\Exception $e) {
             return response()->json(['error' => 'Erro ao obter detalhes: ' . $e->getMessage()], 500);

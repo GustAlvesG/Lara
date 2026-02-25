@@ -59,7 +59,7 @@
                     }
                 @endphp
                 <a href="{{ route('place-group.show', $group_id ?? '') }}" class="flex items-center gap-3 mb-6">
-                    <span class="px-4 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-black uppercase tracking-widest shadow-sm">
+                    <span class="px-4 py-1 bg-indigo-300 text-indigo-900 rounded-full text-lg font-black uppercase tracking-widest shadow-sm">
                         {{ $modalityName }} 
                     </span>
                     <div class="h-[1px] flex-grow bg-gray-200"></div>
