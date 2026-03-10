@@ -29,3 +29,7 @@ class Team extends Model
         return $this->hasMany(TournamentSubscription::class);
     }
 }
+
+
+
+

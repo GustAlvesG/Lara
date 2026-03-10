@@ -59,7 +59,7 @@ class PlaceGroupController extends Controller
         return response()->json($groups);
     }
 
-    public function index_api()
+    public function index_api($none = null)
     {
         $groups = PlaceGroup::all();
         //Order by name

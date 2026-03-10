@@ -37,7 +37,10 @@
                     @include('partials.navPagination')
                 </div>
             </div>
-        @endif
+            @endif
         @endif
     </div>
 </div>
+
+
+

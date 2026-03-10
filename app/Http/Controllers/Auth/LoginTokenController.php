@@ -22,7 +22,7 @@ class LoginTokenController extends Controller
 
         $payload = [
             'username' =>  $member['cpf'],
-            'exp' => $now_plus_1minute,
+            'exp' => $endOfDay,
         ];
         return $jwtService->generateToken($payload);
     }
