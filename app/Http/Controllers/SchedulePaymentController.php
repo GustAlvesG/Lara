@@ -23,20 +23,18 @@ class SchedulePaymentController extends Controller
         $scheduleIds = $validated['schedule_ids'] ?? [];
 
         // Verifica a colisão, usando o novo método auxiliar
-        // Mantendo o if(2 == 2) como "feature flag" conforme o código original.
-        if (2 == 2) {
-            $collidingSchedules = $this->checkSchedulesForCollisions($scheduleIds);
-            if ($collidingSchedules->isNotEmpty()) {
-                // Agrupa os resultados da colisão para retorno
-                $otherSchedulesGrouped = $collidingSchedules->groupBy('place_id');
-                
-                // Retorna os agendamentos duplicados/outros
-                return response()->json([
-                    'message' => 'Other schedules found with same place_id and start_schedule.',
-                    'data' => $otherSchedulesGrouped
-                ], 409); // 409 Conflict
-            }
+        $collidingSchedules = $this->checkSchedulesForCollisions($scheduleIds);
+        if ($collidingSchedules->isNotEmpty()) {
+            // Agrupa os resultados da colisão para retorno
+            $otherSchedulesGrouped = $collidingSchedules->groupBy('place_id');
+            
+            // Retorna os agendamentos duplicados/outros
+            return response()->json([
+                'message' => 'Other schedules found with same place_id and start_schedulesadfsdgfsdgfsdfsddfssdfdfssdffsdsdf.',
+                'data' => $otherSchedulesGrouped
+            ], 409); // 409 Conflict
         }
+        
 
         try {
             // 2. Garante que todas as operações de DB ocorram em uma transação.
@@ -123,7 +121,7 @@ class SchedulePaymentController extends Controller
         $schedules = Schedule::
             withoutGlobalScopes()
             ->whereIn('id', $scheduleIds)
-            ->where('status_id', '!=', 0) // Ignora cancelados
+            ->whereNotIn('status_id', [0, 4])
             ->get(['id', 'place_id', 'start_schedule']);
 
         // Se a lista de agendamentos buscados for vazia (ex: IDs inválidos), retorna vazio.
@@ -144,7 +142,7 @@ class SchedulePaymentController extends Controller
          withoutGlobalScopes()
          // Exclui os agendamentos que estão sendo pagos agora.
          ->whereNotIn('id', $originalScheduleIds)
-                        ->where('status_id', '!=', 0) // Ignora cancelados
+        ->whereNotIn('status_id', [0, 4])
             
             // Cria a cláusula WHERE principal combinando place_id E start_schedule
             ->where(function ($query) use ($schedulesByPlace) {
