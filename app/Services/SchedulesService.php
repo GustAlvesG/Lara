@@ -192,8 +192,8 @@ class SchedulesService
         // dd($data);
         $emailData = [
 
-            // 'email' => $data['email'],
-            'email' => 'al.gustavo@outlook.com',
+            'email' => $data['email'],
+            // 'email' => 'al.gustavo@outlook.com',
             'type' => $data['email_type'], // 'schedule.confirm' ou 'schedule.pending'
             'subject' => "Agendamento " . ($data['email_type'] == 'schedule.confirm' ? 'Confirmado' : 'Pendente'),
             'name' => $data['name'],
