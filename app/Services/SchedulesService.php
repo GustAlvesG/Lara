@@ -167,6 +167,7 @@ class SchedulesService
         return $schedules;
     }
 
+
     private function isValidScheduleTime($place_id, $time_start, $time_end, $date){
         $options = $this->scheduleRulesService->getTimeOptions($place_id, $date);
         foreach ($options as $option) {
@@ -203,8 +204,6 @@ class SchedulesService
             'price' => $data['price']
             
         ];
-
-        // dd($emailData);
 
         $this->emailService->processContactForm($emailData);
     }
