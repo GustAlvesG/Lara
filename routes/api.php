@@ -14,6 +14,7 @@ use App\Http\Controllers\MemberController;
 use App\Http\Controllers\Company\CompanyAccessRulesController;
 use App\Http\Controllers\EmailController;
 use App\Http\Controllers\TestController;
+use App\Http\Controllers\TelegramContactController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -41,6 +42,12 @@ Route::prefix('company-access')->group(function () {
 });
 
 Route::middleware('api_token')->group(function () {
+
+    Route::prefix('telegram')->group(function () {
+        Route::post('/get-contacts', [TelegramContactController::class, 'find'])->name('telegram.findContacts');
+        Route::post('/contacts', [TelegramContactController::class, 'store'])->name('telegram.createContact');
+        Route::put('/contacts/{id}', [TelegramContactController::class, 'update'])->name('telegram.updateContact');
+    });
     Route::get('/image/{member_id}', [MemberAuthController::class, 'getImage'])->name('member.getImage');
     Route::post('/login', [MemberAuthController::class, 'login']);
     Route::post('/register', [MemberAuthController::class, 'register']);
@@ -84,7 +91,7 @@ Route::middleware('api_token')->group(function () {
 
         Route::prefix('schedule')->group(function () {
 
-            Route::get('/', [ScheduleController::class, 'index_api'])->name('api.schedule.index');
+            Route::get('/', [PlaceGroupController::class, 'index_api'])->name('api.schedule.index');
             Route::post('/', [ScheduleController::class, 'store'])->name('api.schedule.store')->withoutMiddleware(['login_token']);
 
             Route::put('/{id}/update', [ScheduleController::class, 'update']);
