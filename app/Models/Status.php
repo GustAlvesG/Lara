@@ -27,4 +27,9 @@ class Status extends Model
     {
         return $this->hasMany(User::class, 'status_id');
     }
+
+    public function timeEntries()
+    {
+        return $this->hasMany(TimeEntry::class, 'status_id');
+    }
 }

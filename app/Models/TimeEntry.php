@@ -22,6 +22,7 @@ class TimeEntry extends Model
         'amount_minutes',
         'balance_minutes',
         'due_date',
+        'status_id',
     ];
 
     public function employee()
@@ -39,5 +40,8 @@ class TimeEntry extends Model
         return $this->hasMany(TimeAdjustment::class, 'entry_time_adjusted_id');
     }
 
-
+    public function status()
+    {
+        return $this->belongsTo(Status::class, 'status_id');
+    }
 }

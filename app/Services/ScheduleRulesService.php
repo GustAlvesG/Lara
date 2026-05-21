@@ -87,6 +87,8 @@ class ScheduleRulesService
 
         $now = Carbon::now();
 
+
+
         if($this->timeSales($place_group, $date, $now, $today) === []){
             return [];
         }
@@ -168,6 +170,8 @@ class ScheduleRulesService
             $timeOptions = array_values($timeOptions);
         }
 
+
+
         return $timeOptions;
     }
 
@@ -190,8 +194,10 @@ class ScheduleRulesService
     }
 
     private function timeSales($place_group, $date, $now, $today){
+        
         if ($place_group->start_time_sales){
             $start_time_sales = Carbon::createFromFormat('H:i:s', $place_group->start_time_sales);
+            // dd($today, $date, $now, $start_time_sales, $place_group->start_time_sales);
             if ($today == $date && $now->lt($start_time_sales)){
                 return [];
             }

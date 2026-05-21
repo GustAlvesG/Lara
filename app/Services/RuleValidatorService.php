@@ -16,35 +16,36 @@ class RuleValidatorService
         $valid_weekday = null;
         $valid_time = null;
 
-        if (isset($rule->start_date) && isset($rule->end_date)) {
-            $currentDate = date('Y-m-d');
-            if ($this->isBetweenDates($currentDate, $rule->start_date, $rule->end_date)) {
-                $valid_period = $rule->type !== 'exclude';
-            }
-        } else if (isset($rule->start_date)) {
-            $currentDate = date('Y-m-d');
-            if ($currentDate > $rule->start_date) {
-                $valid_period = $rule->type !== 'exclude';
-            }
-        }
+        $start_date = $rule->start_date ?? null;
+        $end_date = $rule->end_date ?? null;
+        $start_time = $rule->start_time ?? null;
+        $end_time = $rule->end_time ?? null;
 
-        if (isset($rule->weekdays) && is_array($rule->weekdays) && count($rule->weekdays) > 0) {
-            $currentDay = $data['date'] ?? date('Y-m-d');
-            if ($this->isOnWeekday($currentDay, $rule->weekdays)) {
-                $valid_weekday = $rule->type !== 'exclude';
-            }
-        }
-    
 
-        if (isset($rule->start_time) && isset($rule->end_time)) {
-            $currentTime = $data['time'] ?? date('H:i:s');
-            if ($this->isBetweenTimes($currentTime, $rule->start_time, $rule->end_time)) {
-                $valid_time = $rule->type !== 'exclude';
+        if ($start_date || $end_date) {
+            $valid_period = $this->isBetweenOrGreaterDates($data['current_date'], $start_date, $end_date);
+            if (!$valid_period) {
+                return false;
             }
         }
 
 
+        if ($rule->weekdays && count($rule->weekdays) > 0) {
+            $valid_weekday = $this->isOnWeekday($data['current_date'], $rule->weekdays->pluck('id')->toArray());
+            if (!$valid_weekday) {
 
+                return false;
+            }
+        }
+
+        if ($start_time && $end_time) {
+            $valid_time = $this->isBetweenTimes($data['current_time'], $start_time, $end_time);
+            if (!$valid_time) {
+                return false;
+            }
+        }
+
+        return $response;
     }
 
     private function isBetweenTimes($currentTime, $startTime, $endTime)
@@ -64,7 +65,7 @@ class RuleValidatorService
         return ($currentDate >= $startDate && $currentDate <= $endDate);
     }
 
-    public function isBetweenOrGreaterDates($currentDate, $startDate, $endDate = null)
+    public function isBetweenOrGreaterDates($currentDate, $startDate = null, $endDate = null)
     {
         if ($endDate) {
             return ($currentDate >= $startDate && $currentDate <= $endDate);

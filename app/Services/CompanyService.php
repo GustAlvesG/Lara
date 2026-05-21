@@ -101,89 +101,81 @@ class CompanyService
 
         $access_data = [
             'target' => $data['target'],
-            'identifier_type' => null,
         ];
+        $allWorkers = False;
 
-        $regex_cpf = '/^\d{11}\*?$/';
-        $regex_name = '/^[A-Za-z0-9\s]{2,100}$/';
-
-
-        if (preg_match($regex_cpf, $data['target'])) {
-            $cpf = preg_replace('/\D/', '', $data['target']);
-            // Validate CPF format
-            if (!$this->isValidCPF($cpf)) {
-                return false;
-                }
-            $access_data['identifier_type'] = 'cpf';
-            if ($data['target'] != $cpf) {
-                $access_data['identifier_type'] = 'cpf_company';
-            }
-            else
-            $data['target'] = $cpf;
-        } else if (preg_match($regex_name, $data['target'])) {
-            $access_data['identifier_type'] = 'name';
-        } else 
-            return false;
-
-        if (str_contains($access_data['identifier_type'], 'cpf')) {
-            // Logic to validate access by CPF
-            $worker = CompanyWorker::where('document', $data['target'])->first();
+        # $access_data['target'] can be a company name or worker cpf;
+        # If it's a cpf, we need to find the worker and get the company_id
+        # If it's a company name, we need to find the company_id directly using like for partial match
+        # CPF can has a * in initial or final, so we need to remove it before validate the cpf
+        # If CPF has a *, we need to validate only the numbers, and get all workers from the company and validate the rules for each worker, if any of them has a rule that allow the access, the access is allowed, if all of them has a rule that deny the access, the access is denied. If there is no rules, the access is allowed.
+        if (Str::startsWith($access_data['target'], '*') || Str::endsWith($access_data['target'], '*')) {
+            $allWorkers = True;
+            $access_data['target'] = str_replace('*', '', $access_data['target']);
+        }
+                 
+        if ($this->isValidCPF($access_data['target'])) {
+            $worker = CompanyWorker::where('document', $access_data['target'])->first();
             if (!$worker) {
-                return false;
+                return false; // Worker not found
             }
-            $company = Company::where('id', $worker->company_id)->first();
-            if (str_contains($access_data['identifier_type'], 'company')) {
-                $all_workers = CompanyWorker::where('company_id', $company->id)
-                    ->where('document', 'not', 'like', $data['target'] . '%')
-                    ->get();
-            } 
-
-        } else  {
-            // Logic to validate access by Name
-            $company = Company::where('name', 'like', '%' . $data['target'] . '%')->first();
+            $company = $worker->company;
+            
+        } else {
+            
+            $company = Company::where('name', 'like', '%' . $access_data['target'] . '%')->first();
             if (!$company) {
-                return false;
+                return false; // Company not found
             }
-            $worker = CompanyWorker::where('company_id', $company->id)
-                ->where('name', 'like', '%' . $data['target'] . '%')
-                ->get();
-                
-        } 
-        return $this->validateRulesForAccess($company);
+   
+        }
+
+        $response = [];
+        $valid = $this->validateRulesForAccess($company);
+        $company->workers = $company->workers()->get();
+
+        foreach ($company->workers as $worker) {
+            $response[] = [
+                'name' => $worker->name,
+                'response' => $valid,
+                'image' => $worker->image ? asset('images/' . $worker->image) : null,
+                'id' => $worker->id,
+            ];
+        }
+
+        return $response;
+      
     }
     
     
 
     private function validateRulesForAccess(Company $company)
     {
-        $response = true;
-        $rules = $company->rules;
-        if ($rules->isEmpty()) {
-            $response = false;
-        
-        
-        $debugg = [];   }
+        $response = false; // Default to false, access denied
+        $rules = $company->rules()->with('weekdays')->get();
 
-        //Order by type exclude rules first
-        $rules = $rules->sortBy(function ($rule) {
-            return $rule->type === 'exclude' ? 0 : 1;
-        });
-
-        foreach ($rules as $rule) {
-            $validator = new RuleValidatorService();
-            $response = $validator->validate($rule, []);
-            $debugg[] = [
-                'rule' => $rule->id,
-                'type' => $rule->type,
-                'response' => $response,
-            ];
-
-            if ($response === false && $rule->type === 'exclude') {
+        $rules_include = $rules->where('type', 'include');
+        $rules_exclude = $rules->where('type', 'exclude');
+        $ruleValidator = new RuleValidatorService();
+        // Verifica as regras de inclusão primeiro
+        foreach ($rules_include as $rule) {
+            if ($ruleValidator->validate($rule, ['current_date' => now()->toDateString(), 'current_time' => now()->toTimeString()])) {
+                $response = true; // Access allowed if any include rule is valid
                 break;
             }
-
         }
-        dd("retorno", $response, $debugg);
+        // Se alguma regra de inclusão for válida, verificar se há regras de exclusão que possam negar o acesso
+        if ($response) {
+            foreach ($rules_exclude as $rule) {
+                if ($ruleValidator->validate($rule, ['current_date' => now()->toDateString(), 'current_time' => now()->toTimeString()])) {
+                    $response = false; // Access denied if any exclude rule is valid
+                    break;
+                }
+            }
+        }
+
+        return $response;
+
     }
 
     private function isValidCPF($cpf)

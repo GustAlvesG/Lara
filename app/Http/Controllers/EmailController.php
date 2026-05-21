@@ -24,7 +24,7 @@ class EmailController extends Controller
         try {
             // Chama a lógica de negócio
             $this->emailService->processContactForm($data);
-
+        
             return response()->json([
                 'success' => true,
                 'message' => 'Mensagem enviada com sucesso!'

@@ -15,6 +15,10 @@ use App\Http\Controllers\Company\CompanyAccessRulesController;
 use App\Http\Controllers\EmailController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\TelegramContactController;
+use App\Http\Controllers\FreelancerController;
+use App\Http\Controllers\FunctionFreelancerController;
+use App\Http\Controllers\FreelancerServiceController;
+
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -47,6 +51,20 @@ Route::middleware('api_token')->group(function () {
         Route::post('/get-contacts', [TelegramContactController::class, 'find'])->name('telegram.findContacts');
         Route::post('/contacts', [TelegramContactController::class, 'store'])->name('telegram.createContact');
         Route::put('/contacts/{id}', [TelegramContactController::class, 'update'])->name('telegram.updateContact');
+
+        Route::prefix('freelancer')->group(function () {
+            //Get Freelancer By ID
+            Route::get('/freelancer/{cpf}', [FreelancerController::class, 'show']);
+            //POST Freelancer
+            Route::post('/freelancer', [FreelancerController::class, 'store']);
+            //Get function
+            Route::get('/functions', [FunctionFreelancerController::class, 'index']);
+            //POST Function
+            Route::post('/function', [FunctionFreelancerController::class, 'store']);
+            //POST Serviço
+            Route::post('/service', [FreelancerServiceController::class, 'store']);
+
+        });
     });
     Route::get('/image/{member_id}', [MemberAuthController::class, 'getImage'])->name('member.getImage');
     Route::post('/login', [MemberAuthController::class, 'login']);
@@ -65,6 +83,7 @@ Route::middleware('api_token')->group(function () {
             'encryption' => config('mail.mailers.smtp.encryption'),
         ]);
     });
+
 
     Route::middleware('login_token')->group(function () {
         Route::get('/verify-token', [LoginTokenController::class, 'validate']);
@@ -100,6 +119,9 @@ Route::middleware('api_token')->group(function () {
             Route::put('/update-status', [ScheduleController::class, 'updateStatus']);
             Route::post('/payment', [SchedulePaymentController::class, 'store']);
             Route::delete('/delete-pending', [ScheduleController::class, 'destroyPending']);
+
+            Route::get('/home-assistant/automation', [ScheduleController::class, 'homeAssistantAutomation'])->name('api.schedule.homeAssistantAutomation')->withoutMiddleware(['login_token', 'api_token']);
+
 
 
             Route::post('/time-options', [ScheduleRulesController::class, 'getTimeOptions'])->name('api.schedule.getTimeOptions')->withoutMiddleware(['login_token']);

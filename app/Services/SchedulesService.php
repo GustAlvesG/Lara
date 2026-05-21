@@ -124,7 +124,6 @@ class SchedulesService
             if (!$this->checkColide($time_start, $time_end, $request['place_id'], $request->input('date'), $request['member_id'])[0] == null) {
                 throw new \Exception("Horário colide com outro agendamento.");
             }
-            
             if (!$this->isValidScheduleTime($request['place_id'], $time_start, $time_end, $request->input('date'))) {
                 throw new \Exception("Horário inválido para o local selecionado.");
             }
@@ -170,6 +169,7 @@ class SchedulesService
 
     private function isValidScheduleTime($place_id, $time_start, $time_end, $date){
         $options = $this->scheduleRulesService->getTimeOptions($place_id, $date);
+        // dd($options);
         foreach ($options as $option) {
 
             if ($option['start_time'] == $time_start && $option['end_time'] == $time_end) {
@@ -271,6 +271,53 @@ class SchedulesService
 
         return $response;
     }
+
+    public function homeAssistantAutomation(){
+
+        $now = Carbon::now();
+
+
+        //Get schedules than start in 5 minutes or started in 5 minutes
+        $schedules = Schedule::where('status_id', 1)
+        ->whereDate('start_schedule', Carbon::now()->toDateString())->get();
+
+        
+        $places_schedules = [];
+
+        foreach ($schedules as $schedule) {
+            // Lights ON = start_schedule - 5 minutes
+            // Lights OFF = end_schedule + 5 minutes
+
+            $schedule->lights_on = $schedule->start_schedule->copy()->subMinutes(5);
+            $schedule->lights_off = $schedule->end_schedule->copy()->addMinutes(5);
+            // dd($schedule->lights_on, $schedule->lights_off, $now);
+            if ($now->between($schedule->lights_on, $schedule->lights_off)) {
+                $places_schedules[] = $schedule->place->id;
+            }
+        }
+
+        array_unique($places_schedules);
+
+        $places = Place::query()
+            // ->whereIn('id', array_unique($places))
+            ->whereNotNull('contactor')
+            ->where('contactor', '!=', '')
+            ->get();
+
+        $contactors = [];
+
+        // dd($places, $places_schedules);
+
+        foreach ($places as $place) {
+            $contactors[$place->contactor] = in_array($place->id, $places_schedules);
+        }
+
+        return response()->json(['contactors' => $contactors], 200);
+    }
+
+
+        
+
 
 
 
