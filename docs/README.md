@@ -9,6 +9,13 @@ componentes da aplicação.
 
 ## Sumário
 
+### 📖 Guias de Funcionalidades (uso)
+Documentação de cada funcionalidade do ponto de vista de uso (o que faz, passo a passo,
+campos e regras). Comece por aqui se quer entender **o que o sistema faz**:
+[**Índice dos guias funcionais**](funcionalidades/README.md) — Informações, Placas de
+carro/Estacionamento, Agendamento, Espaços, Sócios, Freelancers, Banco de Horas, Torneios,
+Empresas, WhatsApp, Telegram, Usuários/Permissões e Home Assistant.
+
 ### Guias gerais
 1. [Visão Geral](01-visao-geral.md) — o que é o sistema, módulos, integrações e fluxo principal.
 2. [Instalação e Configuração](02-instalacao.md) — requisitos, `.env`, migrações, filas e deploy.
