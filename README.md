@@ -7,6 +7,30 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## 📚 Documentação do Projeto (Lara)
+
+Este repositório é um **sistema de gestão de espaços/clube** construído em Laravel
+(agendamentos, sócios, freelancers, torneios, estacionamento, controle de acesso e
+comunicação via WhatsApp/Telegram).
+
+A documentação completa — arquitetura, integrações e **todas as funções** de controllers,
+services, models e rotas — está na pasta [`docs/`](docs/README.md):
+
+| Seção | Descrição |
+|-------|-----------|
+| [Visão Geral](docs/01-visao-geral.md) | Módulos, integrações e fluxo principal. |
+| [Instalação](docs/02-instalacao.md) | Requisitos, `.env`, migrações, filas e deploy. |
+| [Arquitetura](docs/03-arquitetura.md) | Camadas, conexões de banco e padrões. |
+| [Autenticação e Permissões](docs/04-autenticacao-e-permissoes.md) | Breeze, JWT, Spatie e Policies. |
+| [Controllers](docs/controllers.md) · [Services](docs/services.md) · [Models](docs/models.md) | Referência de código. |
+| [Rotas](docs/rotas.md) | Tabelas de rotas web/api/auth. |
+| [Requests/Middleware](docs/requests-resources-middleware.md) · [Jobs/Listeners](docs/jobs-listeners-notifications.md) | Componentes de suporte. |
+| [Integrações](docs/integracoes.md) · [Banco de Dados](docs/banco-de-dados.md) | WhatsApp, Telegram, RedeItau, SQL Server, esquema. |
+
+> Comece pelo [índice da documentação](docs/README.md).
+
+---
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
