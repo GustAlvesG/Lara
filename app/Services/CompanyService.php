@@ -8,12 +8,12 @@ use Illuminate\Support\Str;
 use App\Models\Company\Company;
 use App\Models\Company\CompanyWorker;
 use App\Models\Company\CompanyAccessRule;
+use App\Models\Company\CompanyAccessLog;
 use App\Services\RuleValidatorService;
 
 
 class CompanyService
 {
-    // Company related service methods would go here
     public function getAllCompanies()
     {
         return Company::all();
@@ -32,17 +32,28 @@ class CompanyService
         return $company;
     }
 
+    public function updateCompany($request, Company $company): Company
+    {
+        $data = $request->only(['name', 'telephone', 'email', 'address', 'description']);
+
+        if ($request->hasFile('image')) {
+            $data['image'] = $request->file('image')->store('company_images', 'public');
+        }
+
+        $company->update($data);
+        return $company;
+    }
+
     public function getCompanyDetails($company)
     {
         $company = $company->load('workers.rules', 'rules.weekdays');
-        // dd($company->toArray());
         return $company;
     }
 
     public function storeWorker($data)
     {
         $company = Company::findOrFail($data['company_id']);
-        
+
         $workerData = [
             'name' => $data['name'],
             'email' => $data['email'],
@@ -52,19 +63,24 @@ class CompanyService
             'image' => $data['image'] ?? null,
         ];
 
-        if (isset($data['image'])) {
-            //Convert base64 to image and store
-            $imageData = $data['image'];
-            list($type, $imageData) = explode(';', $imageData);
-            list(, $imageData) = explode(',', $imageData);
-            $imageData = base64_decode($imageData);
-            $imageName = 'worker_' . time() . '.jpg';
-            file_put_contents(public_path('images/' . $imageName), $imageData);
-            $workerData['image'] = $imageName;
+        if (isset($data['image']) && !empty($data['image'])) {
+            $workerData['image'] = $this->saveBase64Image($data['image']);
         }
-            
+
         $worker = $company->workers()->create($workerData);
 
+        return $worker;
+    }
+
+    public function updateWorker(array $data, CompanyWorker $worker): CompanyWorker
+    {
+        $fields = array_intersect_key($data, array_flip(['name', 'email', 'position', 'telephone', 'document']));
+
+        if (!empty($data['image'])) {
+            $fields['image'] = $this->saveBase64Image($data['image']);
+        }
+
+        $worker->update($fields);
         return $worker;
     }
 
@@ -84,10 +100,8 @@ class CompanyService
 
         $rule = $company->rules()->create($ruleData);
 
-        // Verifica se 'days' foi enviado e é um array, então sincroniza
         if (isset($data['days']) && is_array($data['days'])) {
             $rule->weekdays()->sync($data['days']);
-            // Carrega os dados para retornar na resposta
             $rule->load('weekdays');
         }
 
@@ -96,104 +110,187 @@ class CompanyService
 
     public function validateTryToAccess($data)
     {
-        # Implement the logic to validate access based on the provided data
+        $target = $data['target'];
+        $allWorkers = false;
 
-
-        $access_data = [
-            'target' => $data['target'],
-        ];
-        $allWorkers = False;
-
-        # $access_data['target'] can be a company name or worker cpf;
-        # If it's a cpf, we need to find the worker and get the company_id
-        # If it's a company name, we need to find the company_id directly using like for partial match
-        # CPF can has a * in initial or final, so we need to remove it before validate the cpf
-        # If CPF has a *, we need to validate only the numbers, and get all workers from the company and validate the rules for each worker, if any of them has a rule that allow the access, the access is allowed, if all of them has a rule that deny the access, the access is denied. If there is no rules, the access is allowed.
-        if (Str::startsWith($access_data['target'], '*') || Str::endsWith($access_data['target'], '*')) {
-            $allWorkers = True;
-            $access_data['target'] = str_replace('*', '', $access_data['target']);
+        if (Str::startsWith($target, '*') || Str::endsWith($target, '*')) {
+            $allWorkers = true;
+            $target = str_replace('*', '', $target);
         }
-                 
-        if ($this->isValidCPF($access_data['target'])) {
-            $worker = CompanyWorker::where('document', $access_data['target'])->first();
-            if (!$worker) {
-                return false; // Worker not found
+
+        $specificWorker = null;
+
+        if ($this->isValidCPF($target)) {
+            $normalized = preg_replace('/\D/', '', $target);
+            $specificWorker = CompanyWorker::where('document', $normalized)
+                ->orWhere('document', $target)
+                ->first();
+            if (!$specificWorker) {
+                return ['found' => false, 'reason' => 'worker_not_found', 'workers' => []];
             }
-            $company = $worker->company;
-            
+            $company = $specificWorker->company;
         } else {
-            
-            $company = Company::where('name', 'like', '%' . $access_data['target'] . '%')->first();
+            $company = Company::where('name', 'like', '%' . $target . '%')->first();
             if (!$company) {
-                return false; // Company not found
+                return ['found' => false, 'reason' => 'company_not_found', 'workers' => []];
             }
-   
         }
 
+        $workers = $company->workers()->get();
         $response = [];
-        $valid = $this->validateRulesForAccess($company);
-        $company->workers = $company->workers()->get();
 
-        foreach ($company->workers as $worker) {
+        foreach ($workers as $worker) {
+            if ($specificWorker && $worker->id !== $specificWorker->id) {
+                continue;
+            }
+
+            $allowed = $this->validateRulesForAccess($company, $worker);
+
             $response[] = [
-                'name' => $worker->name,
-                'response' => $valid,
-                'image' => $worker->image ? asset('images/' . $worker->image) : null,
-                'id' => $worker->id,
+                'id'      => $worker->id,
+                'name'    => $worker->name,
+                'allowed' => $allowed,
+                'image'   => $worker->image ? asset('images/' . $worker->image) : null,
             ];
         }
 
-        return $response;
-      
+        return [
+            'found'      => true,
+            'company_id' => $company->id,
+            'company'    => $company->name,
+            'workers'    => $response,
+        ];
     }
-    
-    
 
-    private function validateRulesForAccess(Company $company)
+    public function registerAccess($data): array
     {
-        $response = false; // Default to false, access denied
-        $rules = $company->rules()->with('weekdays')->get();
+        $result = $this->validateTryToAccess($data);
 
-        $rules_include = $rules->where('type', 'include');
-        $rules_exclude = $rules->where('type', 'exclude');
-        $ruleValidator = new RuleValidatorService();
-        // Verifica as regras de inclusão primeiro
-        foreach ($rules_include as $rule) {
-            if ($ruleValidator->validate($rule, ['current_date' => now()->toDateString(), 'current_time' => now()->toTimeString()])) {
-                $response = true; // Access allowed if any include rule is valid
+        if (!$result['found']) {
+            CompanyAccessLog::create([
+                'company_id'        => null,
+                'company_worker_id' => null,
+                'target'            => $data['target'],
+                'allowed'           => false,
+                'reason'            => $result['reason'],
+            ]);
+
+            return $result;
+        }
+
+        foreach ($result['workers'] as $worker) {
+            CompanyAccessLog::create([
+                'company_id'        => $result['company_id'],
+                'company_worker_id' => $worker['id'],
+                'target'            => $data['target'],
+                'allowed'           => $worker['allowed'],
+                'reason'            => $worker['allowed'] ? 'access_granted' : 'access_denied',
+            ]);
+        }
+
+        return $result;
+    }
+
+    public function registerWorkerAccess(int $workerId): array
+    {
+        $worker = CompanyWorker::with('company')->find($workerId);
+
+        if (!$worker) {
+            return ['found' => false, 'reason' => 'worker_not_found', 'workers' => []];
+        }
+
+        $company = $worker->company;
+        $allowed = $this->validateRulesForAccess($company, $worker);
+
+        CompanyAccessLog::create([
+            'company_id'        => $company->id,
+            'company_worker_id' => $worker->id,
+            'target'            => $worker->document ?? $worker->name,
+            'allowed'           => $allowed,
+            'reason'            => $allowed ? 'access_granted' : 'access_denied',
+        ]);
+
+        return [
+            'found'      => true,
+            'company_id' => $company->id,
+            'company'    => $company->name,
+            'workers'    => [[
+                'id'      => $worker->id,
+                'name'    => $worker->name,
+                'allowed' => $allowed,
+                'image'   => $worker->image ? asset('images/' . $worker->image) : null,
+            ]],
+        ];
+    }
+
+    private function validateRulesForAccess(Company $company, ?CompanyWorker $worker = null): bool
+    {
+        $ctx = [
+            'current_date' => now()->toDateString(),
+            'current_time' => now()->toTimeString(),
+        ];
+        $rv = new RuleValidatorService();
+
+        $companyRules = $company->rules()->with('weekdays')->whereNull('company_worker_id')->get();
+        $baseline = $this->applyRuleSet($companyRules, $rv, $ctx);
+
+        if (!$worker) {
+            return $baseline;
+        }
+
+        $workerRules = $company->rules()->with('weekdays')->where('company_worker_id', $worker->id)->get();
+
+        if ($workerRules->isEmpty()) {
+            return $baseline;
+        }
+
+        return $this->applyRuleSet($workerRules, $rv, $ctx);
+    }
+
+    private function applyRuleSet($rules, RuleValidatorService $rv, array $ctx): bool
+    {
+        $allowed = false;
+
+        foreach ($rules->where('type', 'include') as $rule) {
+            if ($rv->validate($rule, $ctx)) {
+                $allowed = true;
                 break;
             }
         }
-        // Se alguma regra de inclusão for válida, verificar se há regras de exclusão que possam negar o acesso
-        if ($response) {
-            foreach ($rules_exclude as $rule) {
-                if ($ruleValidator->validate($rule, ['current_date' => now()->toDateString(), 'current_time' => now()->toTimeString()])) {
-                    $response = false; // Access denied if any exclude rule is valid
+
+        if ($allowed) {
+            foreach ($rules->where('type', 'exclude') as $rule) {
+                if ($rv->validate($rule, $ctx)) {
+                    $allowed = false;
                     break;
                 }
             }
         }
 
-        return $response;
+        return $allowed;
+    }
 
+    private function saveBase64Image(string $base64): string
+    {
+        list($type, $imageData) = explode(';', $base64);
+        list(, $imageData) = explode(',', $imageData);
+        $imageName = 'worker_' . time() . '.jpg';
+        file_put_contents(public_path('images/' . $imageName), base64_decode($imageData));
+        return $imageName;
     }
 
     private function isValidCPF($cpf)
     {
-        // Remove non-numeric characters
         $cpf = preg_replace('/\D/', '', $cpf);
 
-        // Check if the CPF has 11 digits
         if (strlen($cpf) != 11) {
             return false;
         }
 
-        // Check for known invalid CPFs
         if (preg_match('/^(\\d)\\1{10}$/', $cpf)) {
             return false;
         }
 
-        // Validate first digit
         for ($t = 9; $t < 11; $t++) {
             $d = 0;
             for ($c = 0; $c < $t; $c++) {

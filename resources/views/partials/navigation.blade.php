@@ -25,7 +25,11 @@
                             'permission' => 'view information'
                         ],
                             ['route' => 'parking.search', 'label' => 'SIV', 'icon' => 'M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.294 6.336a6.721 6.721 0 0 1-3.17.789 6.721 6.721 0 0 1-3.168-.789 3.376 3.376 0 0 1 6.338 0Z',
-                            'permission' => 'search parking'
+                            'permission' => 'search parking',
+                            'children' => [
+                                ['route' => 'parking.search', 'label' => 'Busca'],
+                                ['route' => 'parking-authorizations.index', 'label' => 'Placas Diretoria'],
+                            ],
                         ],
 
                             ['route' => 'videowall.index', 'label' => 'Smart Panel', 'icon' => 'M9.75 17L9 20l-1-1v-4h-2l-1 1 7-7 7 7-1 1h-2v-4l-1 1h-2v4z',
@@ -34,9 +38,14 @@
 
                             ['route' => 'schedule.index', 'label' => 'Reservas', 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
                             'permission' => 'view reservations'
-                        ]
-                            // ['route' => 'company.index', 'label' => 'Parceiros', 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
-                            // ]
+                        ],
+                            ['route' => 'company.index', 'label' => 'Parceiros', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
+                            'children' => [
+                                ['route' => 'company.index', 'label' => 'Empresas'],
+                                ['route' => 'company.access.monitor', 'label' => 'Monitor de Acesso'],
+                                ['route' => 'company.access.logs', 'label' => 'Histórico'],
+                            ],
+                        ],
 
                         ];
 
@@ -45,23 +54,52 @@
                         @php
                             $permission = $link['permission'] ?? null;
 
-                            // Se o link exigir permissão E o usuário NÃO tiver essa permissão, pula para o próximo item
                             if ($permission && !auth()->user()->can($permission)) {
                                 continue;
                             }
 
-                            $isActive = request()->routeIs($link['route']);
+                            $children = $link['children'] ?? null;
+                            $isActive = $children
+                                ? collect($children)->contains(fn($c) => request()->routeIs($c['route']))
+                                : request()->routeIs($link['route']);
+
                             $baseClasses = 'inline-flex items-center px-3 py-2 border-b-2 text-sm font-medium leading-5 transition duration-150 ease-in-out rounded-t-md ';
-                            $activeClasses = 'border-red-800 dark:border-red-400 text-red-800 dark:text-red-400 bg-red-50/50 dark:bg-red-900/20'; 
+                            $activeClasses = 'border-red-800 dark:border-red-400 text-red-800 dark:text-red-400 bg-red-50/50 dark:bg-red-900/20';
                             $inactiveClasses = 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700';
                         @endphp
 
-                        <x-nav-link :href="route($link['route'])" :active="$isActive" class="{{ $baseClasses }} {{ $isActive ? $activeClasses : $inactiveClasses }}">
-                            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $link['icon'] }}"></path>
-                            </svg>
-                            {{ __($link['label']) }}
-                        </x-nav-link>
+                        @if ($children)
+                            <div x-data="{ dropOpen: false }" class="relative flex items-center">
+                                <button @click="dropOpen = !dropOpen" @click.outside="dropOpen = false"
+                                    class="{{ $baseClasses }} {{ $isActive ? $activeClasses : $inactiveClasses }}">
+                                    <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $link['icon'] }}"></path>
+                                    </svg>
+                                    {{ __($link['label']) }}
+                                    <svg class="ms-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+
+                                <div x-show="dropOpen" x-transition
+                                    class="absolute top-full left-0 mt-1 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
+                                    @foreach ($children as $child)
+                                        @php $childActive = request()->routeIs($child['route']); @endphp
+                                        <a href="{{ route($child['route']) }}"
+                                            class="block px-4 py-2 text-sm {{ $childActive ? 'text-red-800 dark:text-red-400 bg-red-50 dark:bg-red-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700' }}">
+                                            {{ __($child['label']) }}
+                                        </a>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @else
+                            <x-nav-link :href="route($link['route'])" :active="$isActive" class="{{ $baseClasses }} {{ $isActive ? $activeClasses : $inactiveClasses }}">
+                                <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $link['icon'] }}"></path>
+                                </svg>
+                                {{ __($link['label']) }}
+                            </x-nav-link>
+                        @endif
                     @endforeach
                     
                 </div>
@@ -122,10 +160,22 @@
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
             @foreach($navLinks as $link)
-                <!-- Nota: x-responsive-nav-link geralmente precisa de update no arquivo do componente para lidar com cores ativas/inativas no dark mode corretamente -->
-                <x-responsive-nav-link :href="route($link['route'])" :active="request()->routeIs($link['route'])">
-                    {{ __($link['label']) }}
-                </x-responsive-nav-link>
+                @php
+                    $permission = $link['permission'] ?? null;
+                    if ($permission && !auth()->user()->can($permission)) continue;
+                    $children = $link['children'] ?? null;
+                @endphp
+                @if ($children)
+                    @foreach ($children as $child)
+                        <x-responsive-nav-link :href="route($child['route'])" :active="request()->routeIs($child['route'])">
+                            {{ __($link['label']) }} — {{ __($child['label']) }}
+                        </x-responsive-nav-link>
+                    @endforeach
+                @else
+                    <x-responsive-nav-link :href="route($link['route'])" :active="request()->routeIs($link['route'])">
+                        {{ __($link['label']) }}
+                    </x-responsive-nav-link>
+                @endif
             @endforeach
         </div>
 

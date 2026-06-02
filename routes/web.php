@@ -20,6 +20,7 @@ use App\Http\Controllers\ScheduleRulesController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\CompTimeController;
+use App\Http\Controllers\ParkingAuthorizationController;
 
 
 Route::get('/', function () {
@@ -63,17 +64,31 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [CompanyController::class, 'index'])->name('company.index');
         Route::get('/create', [CompanyController::class, 'create'])->name('company.create');
         Route::post('/', [CompanyController::class, 'store'])->name('company.store');
+        Route::get('/access-monitor', [CompanyRulesController::class, 'monitor'])->name('company.access.monitor');
+        Route::get('/access-logs', [CompanyRulesController::class, 'accessLogs'])->name('company.access.logs');
         Route::get('/{company}', [CompanyController::class, 'show'])->name('company.show');
+        Route::get('/{company}/edit', [CompanyController::class, 'edit'])->name('company.edit');
+        Route::put('/{company}', [CompanyController::class, 'update'])->name('company.update');
+        Route::delete('/{company}', [CompanyController::class, 'destroy'])->name('company.destroy');
 
         Route::group(['prefix' => '{company}/worker'], function () {
             Route::get('/create', [WorkerController::class, 'create'])->name('company.worker.create');
             Route::post('/', [WorkerController::class, 'store'])->name('company.worker.store');
+            Route::get('/{worker}', [WorkerController::class, 'show'])->name('company.worker.show');
+            Route::get('/{worker}/edit', [WorkerController::class, 'edit'])->name('company.worker.edit');
+            Route::put('/{worker}', [WorkerController::class, 'update'])->name('company.worker.update');
             Route::delete('/{worker}', [WorkerController::class, 'destroy'])->name('company.worker.destroy');
         });
 
         Route::group(['prefix' => '{company}/rules'], function () {
             Route::get('/create', [CompanyRulesController::class, 'create'])->name('company.rules.create');
             Route::post('/', [CompanyRulesController::class, 'store'])->name('company.rules.store');
+            Route::delete('/{rule}', [CompanyRulesController::class, 'destroy'])->name('company.rules.destroy');
+        });
+
+        Route::group(['prefix' => '{company}/worker/{worker}/rules'], function () {
+            Route::get('/create', [CompanyRulesController::class, 'createForWorker'])->name('company.worker.rules.create');
+            Route::post('/', [CompanyRulesController::class, 'store'])->name('company.worker.rules.store');
         });
     });
     
@@ -133,6 +148,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/recalculate', [CompTimeController::class, 'recalculateBalances'])->name('comp-time.recalculate');
     });
 
+
+    Route::resource('parking-authorizations', ParkingAuthorizationController::class);
 
     Route::resource('tournaments', TournamentController::class);
 

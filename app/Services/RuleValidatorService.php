@@ -55,9 +55,11 @@ class RuleValidatorService
 
     private function isOnWeekday($currentDay, $weekdays)
     {
-        //Get current weekday by date
-        $current_weekday = date('N', strtotime($currentDay)); // 1 (for Sunday) through 7 (for Saturday)
-        return in_array($current_weekday, $weekdays);
+        // date('N') = 1 (Mon) … 7 (Sun). DB stores: 1=Sun, 2=Mon … 7=Sat.
+        // Formula: dbId = (phpN % 7) + 1  →  Mon(1)→2, Tue(2)→3 … Sun(7)→1
+        $phpN  = (int) date('N', strtotime($currentDay));
+        $dbId  = ($phpN % 7) + 1;
+        return in_array($dbId, $weekdays);
     }
 
     private function isBetweenDates($currentDate, $startDate, $endDate)

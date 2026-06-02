@@ -44,10 +44,10 @@
         </div>
 
         <!-- Ações do Card (Grid de 2 Colunas) -->
-        <div class="grid grid-cols-2 gap-3 border-t border-gray-100">
+        <div class="grid grid-cols-2 gap-3 border-t border-gray-100 dark:border-gray-700">
             <!-- Botão Editar -->
-            <a href="{{ route('place-group.editPlace', $place->id) }}" 
-               class="inline-flex justify-center items-center px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold uppercase tracking-widest rounded-lg transition duration-150">
+            <a href="{{ route('place-group.editPlace', $place->id) }}"
+               class="inline-flex justify-center items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 text-xs font-bold uppercase tracking-widest rounded-lg transition duration-150">
                 Editar
             </a>
 
@@ -55,9 +55,9 @@
             <form action="{{ route('place-group.destroyPlace', $place->id) }}" method="POST" class="w-full">
                 @csrf
                 @method('DELETE')
-                <button type="submit" 
+                <button type="submit"
                         onclick="return confirm('Tem certeza que deseja deletar?')"
-                        class="w-full inline-flex justify-center items-center px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold uppercase tracking-widest rounded-lg transition duration-150 border border-red-100">
+                        class="w-full inline-flex justify-center items-center px-3 py-2 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-bold uppercase tracking-widest rounded-lg transition duration-150 border border-red-100 dark:border-red-800">
                     Excluir
                 </button>
             </form>

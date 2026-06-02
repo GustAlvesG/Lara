@@ -1,8 +1,6 @@
 <x-app-layout>
 
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f4f7f9; }
-        
         /* Estilos para o estado selecionado */
         .slot-selected {
             background-color: #10b981 !important; /* green-500 */
@@ -30,7 +28,7 @@
         @include('location.partials.header', ['date' => $date])
 
         <!-- LEGENDA -->
-        <div class="mb-8 flex flex-wrap gap-6 text-[10px] font-black uppercase tracking-widest text-gray-500">
+        <div class="mb-8 flex flex-wrap gap-6 text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">
             <div class="flex items-center gap-2">
                 <span class="w-3 h-3 bg-green-600 rounded-full shadow-sm"></span> Confirmado
             </div>
@@ -62,12 +60,12 @@
                     <span class="px-4 py-1 bg-indigo-300 text-indigo-900 rounded-full text-lg font-black uppercase tracking-widest shadow-sm">
                         {{ $modalityName }} 
                     </span>
-                    <div class="h-[1px] flex-grow bg-gray-200"></div>
+                    <div class="h-[1px] flex-grow bg-gray-200 dark:bg-gray-700"></div>
                 </a>
 
                 <div class="grid grid-cols-1 gap-8">
                     @foreach($places as $place)
-                    <form id="form-{{ $place['id'] }}" action="{{ route('schedule.store.web') }}" method="POST" class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <form id="form-{{ $place['id'] }}" action="{{ route('schedule.store.web') }}" method="POST" class="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
                         @csrf
                         <div class="dados" style="display: none;">
                             <input type="hidden" name="cpf" value="">
@@ -80,7 +78,7 @@
                         </div>
 
 
-                        <div class="bg-white rounded-2xl shadow-xl border border-gray-100 court-card" data-court-id="{{ $place['id'] }}">
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 court-card" data-court-id="{{ $place['id'] }}">
                             <div class="flex flex-col md:flex-row min-h-full">
                                 <div class="md:w-64 h-48 md:h-auto overflow-hidden bg-gray-100 flex-shrink-0">
                                     @php
@@ -96,7 +94,7 @@
                                 <div class="flex-grow p-6 flex flex-col">
                                     <div class="flex justify-between items-start mb-6">
                                         <div>
-                                            <h3 class="text-xl font-extrabold text-gray-900">{{ $place['name'] }}</h3>
+                                            <h3 class="text-xl font-extrabold text-gray-900 dark:text-white">{{ $place['name'] }}</h3>
                                             @if(empty($place['time_options'] ?? []))
                                                 <p class="text-xs text-red-500 font-bold uppercase tracking-wider">Localidade indisponível</p>
                                             @else
@@ -104,14 +102,14 @@
                                             @endif
                                         </div>
                                         <div class="text-right">
-                                            <p class="text-[10px] font-black text-gray-400 uppercase">Preço p/ Hora</p>
+                                            <p class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase">Preço p/ Hora</p>
                                             <p class="text-lg font-black text-green-600">R$ {{ number_format($place['price'] ?? 0, 2, ',', '.') }}</p>
                                         </div>
                                     </div>
 
                                     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 mb-6">
                                         @if(empty($place['time_options'] ?? []))
-                                            <p class="text-sm text-gray-500 italic col-span-full">Nenhum horário disponível para esta data.</p>
+                                            <p class="text-sm text-gray-500 dark:text-gray-400 italic col-span-full">Nenhum horário disponível para esta data.</p>
                                         @endif
                                         @foreach(($place['time_options'] ?? []) as $slot)
                                             @include('location.partials.time-card', ['slot' => $slot, 'place' => $place])
@@ -119,20 +117,20 @@
                                     </div>
 
                                     <!-- FORMULÁRIO COM BUSCA DE SÓCIO -->
-                                    <div id="form-container-{{ $place['id'] }}" class="hidden animate-fadeIn mt-auto pt-4 border-t border-gray-100">
+                                    <div id="form-container-{{ $place['id'] }}" class="hidden animate-fadeIn mt-auto pt-4 border-t border-gray-100 dark:border-gray-700">
                                         <div class="flex flex-col md:flex-row items-start gap-4">
                                             <div class="flex-grow w-full relative">
                                                 <label class="block text-xs font-black uppercase text-indigo-600 mb-2 tracking-widest">Identificação do Sócio (Título ou Nome)</label>
                                                 <div class="relative">
-                                                    <input type="text" 
+                                                    <input type="text"
                                                            id="member-search-{{ $place['id'] }}"
-                                                           placeholder="Mínimo 5 caracteres para buscar..." 
+                                                           placeholder="Mínimo 5 caracteres para buscar..."
                                                            oninput="handleMemberSearch(this, '{{ $place['id'] }}')"
-                                                           class="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-sm font-medium">
-                                                    
+                                                           class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-sm font-medium text-gray-900 dark:text-white dark:placeholder-gray-400">
+
                                                     <!-- Resultados da busca: Podem aparecer vários por matrícula -->
-                                                    <div id="search-results-{{ $place['id'] }}" class="hidden absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden ring-1 ring-black ring-opacity-5">
-                                                        <div class="p-2 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-widest border-b">Pessoas Encontradas</div>
+                                                    <div id="search-results-{{ $place['id'] }}" class="hidden absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl overflow-hidden ring-1 ring-black ring-opacity-5">
+                                                        <div class="p-2 bg-gray-50 dark:bg-gray-700 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest border-b dark:border-gray-600">Pessoas Encontradas</div>
                                                         <ul class="search-results-list divide-y divide-gray-100">
                                                             <!-- Resultados injetados aqui -->
                                                         </ul>
@@ -140,14 +138,14 @@
                                                 </div>
 
                                                 <!-- Feedback do Membro Selecionado -->
-                                                <div id="selected-member-tag-{{ $place['id'] }}" class="hidden mt-2 p-3 bg-green-50 border-2 border-green-100 rounded-xl flex items-center justify-between">
+                                                <div id="selected-member-tag-{{ $place['id'] }}" class="hidden mt-2 p-3 bg-green-50 dark:bg-green-900/20 border-2 border-green-100 dark:border-green-800 rounded-xl flex items-center justify-between">
                                                     <div class="flex items-center gap-3">
                                                         <div class="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-xs">
                                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                                                         </div>
                                                         <div>
-                                                            <p class="text-sm font-black text-green-800 leading-none" id="selected-member-name-{{ $place['id'] }}"></p>
-                                                            <p class="text-[10px] text-green-600 font-bold uppercase mt-1">Sócio Selecionado</p>
+                                                            <p class="text-sm font-black text-green-800 dark:text-green-300 leading-none" id="selected-member-name-{{ $place['id'] }}"></p>
+                                                            <p class="text-[10px] text-green-600 dark:text-green-400 font-bold uppercase mt-1">Sócio Selecionado</p>
                                                         </div>
                                                     </div>
                                                     <button type="button" onclick="clearMemberSelection('{{ $place['id'] }}')" class="text-green-400 hover:text-red-500 transition">
@@ -165,7 +163,7 @@
                                                 </button>
                                             </div>
                                         </div>
-                                        <p class="mt-3 text-[10px] text-gray-400 font-medium italic">
+                                        <p class="mt-3 text-[10px] text-gray-400 dark:text-gray-500 font-medium italic">
                                             Reserva para: <span id="display-slots-{{ $place['id'] }}" class="font-bold text-green-600"></span>
                                         </p>
                                     </div>

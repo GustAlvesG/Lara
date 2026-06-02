@@ -70,7 +70,7 @@ class CompanyController extends Controller
      */
     public function edit(Company $company)
     {
-        //
+        return view('companies.edit', compact('company'));
     }
 
     /**
@@ -78,7 +78,12 @@ class CompanyController extends Controller
      */
     public function update(UpdateCompanyRequest $request, Company $company)
     {
-        //
+        try {
+            $this->companyService->updateCompany($request, $company);
+        } catch (\Exception $e) {
+            return redirect()->back()->withInput()->with('error', 'Erro ao atualizar empresa: ' . $e->getMessage());
+        }
+        return redirect()->route('company.show', $company->id)->with('success', 'Empresa atualizada com sucesso.');
     }
 
     /**
@@ -86,6 +91,7 @@ class CompanyController extends Controller
      */
     public function destroy(Company $company)
     {
-        //
+        $company->delete();
+        return redirect()->route('company.index')->with('success', 'Empresa removida com sucesso.');
     }
 }

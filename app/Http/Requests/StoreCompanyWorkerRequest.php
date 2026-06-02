@@ -22,7 +22,13 @@ class StoreCompanyWorkerRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'company_id' => 'required|integer|exists:companies,id',
+            'name'       => 'required|string|max:255',
+            'email'      => 'required|email|max:255',
+            'position'   => 'required|string|max:255',
+            'document'   => 'nullable|string|max:20',
+            'telephone'  => 'nullable|string|max:20',
+            'image'      => 'nullable|string',
         ];
     }
 }

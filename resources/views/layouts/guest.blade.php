@@ -8,14 +8,18 @@
     <!-- Carregamento do Tailwind CSS via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Estilo customizado para o fundo degradê sutil e a fonte Inter */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f4f7f9; /* Fundo cinza claro */
+            background-color: #f4f7f9;
+        }
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #111827;
+            }
         }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
         {{ $slot }}
-</body> 
+</body>
 </html>

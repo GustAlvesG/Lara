@@ -11,7 +11,7 @@ class UpdateCompanyRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -22,7 +22,12 @@ class UpdateCompanyRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'name'        => 'required|string|max:255',
+            'telephone'   => 'nullable|string|max:20',
+            'email'       => 'required|email|max:255',
+            'address'     => 'nullable|string|max:500',
+            'description' => 'nullable|string|max:1000',
+            'image'       => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
         ];
     }
 }

@@ -1,4 +1,4 @@
-<div class="element" style='margin-bottom: 1rem; border-bottom: 1px solid #ccc; padding-bottom: 2rem'>
+<div class="element mb-4 pb-8 border-b border-gray-200 dark:border-gray-700">
     <div class="row">
         <div class="col-2 flex justify-center items-center">
             <img class="img-responsive" src="{{ $image }}" alt="">

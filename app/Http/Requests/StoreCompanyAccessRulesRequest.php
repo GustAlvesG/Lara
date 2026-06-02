@@ -22,7 +22,16 @@ class StoreCompanyAccessRulesRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'company_id'        => 'required|integer|exists:companies,id',
+            'company_worker_id' => 'nullable|integer|exists:company_workers,id',
+            'type'              => 'required|in:include,exclude',
+            'start_date'        => 'required|date',
+            'end_date'          => 'nullable|date|after_or_equal:start_date',
+            'start_time'        => 'nullable|date_format:H:i',
+            'end_time'          => 'nullable|date_format:H:i',
+            'days'              => 'nullable|array',
+            'days.*'            => 'integer|exists:weekdays,id',
+            'description'       => 'nullable|string|max:500',
         ];
     }
 }

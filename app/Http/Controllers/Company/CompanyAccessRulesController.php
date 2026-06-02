@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers\Company;
 
-use App\Models\CompanyAccessRules;
+use App\Models\Company\Company;
+use App\Models\Company\CompanyWorker;
+use App\Models\Company\CompanyAccessRule;
+use App\Models\Company\CompanyAccessLog;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCompanyAccessRulesRequest;
 use App\Http\Requests\UpdateCompanyAccessRulesRequest;
@@ -15,29 +18,26 @@ class CompanyAccessRulesController extends Controller
     {
         $this->companyService = $companyService;
     }
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+
+    public function create(Company $company)
     {
-        //
+        return view('companies.rules.create', ['company' => $company->id]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create($company)
+    public function createForWorker(Company $company, CompanyWorker $worker)
     {
-        return view('companies.rules.create', compact('company'));
+        return view('companies.rules.create', ['company' => $company->id, 'worker' => $worker]);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(StoreCompanyAccessRulesRequest $request)
     {
         try {
             $this->companyService->storeAccessRule($request->all());
+
+            if ($request->company_worker_id) {
+                return redirect()->route('company.worker.show', [$request->company_id, $request->company_worker_id])
+                    ->with('success', 'Regra de acesso criada com sucesso.');
+            }
 
             return redirect()->route('company.show', $request->company_id)
                 ->with('success', 'Regra de acesso criada com sucesso.');
@@ -48,42 +48,78 @@ class CompanyAccessRulesController extends Controller
         }
     }
 
+    public function destroy(Company $company, CompanyAccessRule $rule)
+    {
+        $rule->delete();
+        return redirect()->route('company.show', $company->id)
+            ->with('success', 'Regra de acesso removida com sucesso.');
+    }
+
+    public function monitor()
+    {
+        return view('companies.access-monitor');
+    }
+
+    public function accessLogs(Request $request)
+    {
+        $query = CompanyAccessLog::with('company', 'worker')->latest();
+
+        if ($request->filled('company_id')) {
+            $query->where('company_id', $request->company_id);
+        }
+
+        if ($request->filled('status') && in_array($request->status, ['1', '0'])) {
+            $query->where('allowed', (bool) $request->status);
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        $logs = $query->paginate(25)->withQueryString();
+        $companies = Company::orderBy('name')->get();
+
+        $stats = [
+            'total'   => CompanyAccessLog::whereDate('created_at', today())->count(),
+            'allowed' => CompanyAccessLog::whereDate('created_at', today())->where('allowed', true)->count(),
+            'denied'  => CompanyAccessLog::whereDate('created_at', today())->where('allowed', false)->count(),
+        ];
+
+        return view('companies.access-logs', compact('logs', 'companies', 'stats'));
+    }
+
     public function validateCompanyAccess(Request $request)
     {
-        return $this->companyService->validateTryToAccess($request->all());
+        $request->validate(['target' => 'required|string']);
+
+        $result = $this->companyService->validateTryToAccess($request->all());
+
+        $status = $result['found'] ? 200 : 404;
+
+        return response()->json($result, $status);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(CompanyAccessRules $companyAccessRules)
+    public function registerAccess(Request $request)
     {
-        //
+        $request->validate(['target' => 'required|string']);
+
+        $result = $this->companyService->registerAccess($request->all());
+
+        $status = $result['found'] ? 200 : 404;
+
+        return response()->json($result, $status);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(CompanyAccessRules $companyAccessRules)
+    public function registerWorkerAccess(Request $request)
     {
-        //
+        $request->validate(['worker_id' => 'required|integer|exists:company_workers,id']);
+
+        $result = $this->companyService->registerWorkerAccess($request->integer('worker_id'));
+
+        return response()->json($result, $result['found'] ? 200 : 404);
     }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(UpdateCompanyAccessRulesRequest $request, CompanyAccessRules $companyAccessRules)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(CompanyAccessRules $companyAccessRules)
-    {
-        //
-    }
-
-
 }

@@ -18,6 +18,7 @@ use App\Http\Controllers\TelegramContactController;
 use App\Http\Controllers\FreelancerController;
 use App\Http\Controllers\FunctionFreelancerController;
 use App\Http\Controllers\FreelancerServiceController;
+use App\Http\Controllers\ParkingAuthorizationController;
 
 
 Route::get('/user', function (Request $request) {
@@ -43,9 +44,14 @@ Route::prefix('whatsapp')->group(function () {
 
 Route::prefix('company-access')->group(function () {
     Route::post('/validate-access', [CompanyAccessRulesController::class, 'validateCompanyAccess'])->name('company_access.validate');
+    Route::post('/register-access', [CompanyAccessRulesController::class, 'registerAccess'])->name('company_access.register');
+    Route::post('/register-worker-access', [CompanyAccessRulesController::class, 'registerWorkerAccess'])->name('company_access.register_worker');
 });
 
 Route::middleware('api_token')->group(function () {
+
+    Route::get('/parking/check/{plate}', [ParkingAuthorizationController::class, 'checkPlate'])
+        ->name('api.parking.check');
 
     Route::prefix('telegram')->group(function () {
         Route::post('/get-contacts', [TelegramContactController::class, 'find'])->name('telegram.findContacts');

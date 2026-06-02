@@ -3,12 +3,12 @@
     @isset($title)
     <div class="flex justify-between items-center cursor-pointer search-accordion-header">
         <div>
-             <span class="text-xl font-bold text-gray-800 dark:white">
+             <span class="text-xl font-bold text-gray-800 dark:text-white">
                 {{ $title }}
              </span>
              
         </div>
-         <span class="text-indigo-600"> 
+         <span class="text-indigo-600 dark:text-indigo-400">
                 <svg id="accordion-icon" 
                     class="w-6 h-6 inline-block transition-transform duration-300" 
                     fill="none" 

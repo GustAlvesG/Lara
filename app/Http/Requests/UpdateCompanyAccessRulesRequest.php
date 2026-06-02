@@ -11,7 +11,7 @@ class UpdateCompanyAccessRulesRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -22,7 +22,14 @@ class UpdateCompanyAccessRulesRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'type'        => 'sometimes|required|in:include,exclude',
+            'start_date'  => 'sometimes|required|date',
+            'end_date'    => 'nullable|date|after_or_equal:start_date',
+            'start_time'  => 'nullable|date_format:H:i',
+            'end_time'    => 'nullable|date_format:H:i',
+            'days'        => 'nullable|array',
+            'days.*'      => 'integer|exists:weekdays,id',
+            'description' => 'nullable|string|max:500',
         ];
     }
 }

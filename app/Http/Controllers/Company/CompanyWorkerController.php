@@ -2,7 +2,8 @@
 
 namespace App\Http\Controllers\Company;
 
-use App\Models\CompanyWorker;
+use App\Models\Company\Company;
+use App\Models\Company\CompanyWorker;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCompanyWorkerRequest;
 use App\Http\Requests\UpdateCompanyWorkerRequest;
@@ -16,25 +17,12 @@ class CompanyWorkerController extends Controller
     {
         $this->companyService = $companyService;
     }
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+
+    public function create(Company $company)
     {
-        //
+        return view('companies.workers.create', ['companyId' => $company->id]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create($id)
-    {
-        return view('companies.workers.create', ['companyId' => $id]);    
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(StoreCompanyWorkerRequest $request)
     {
         try {
@@ -48,35 +36,34 @@ class CompanyWorkerController extends Controller
         }
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(CompanyWorker $companyWorker)
+    public function show(Company $company, CompanyWorker $worker)
     {
-        //
+        $worker->load('rules.weekdays');
+        return view('companies.workers.show', compact('company', 'worker'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(CompanyWorker $companyWorker)
+    public function edit(Company $company, CompanyWorker $worker)
     {
-        //
+        return view('companies.workers.edit', compact('company', 'worker'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(UpdateCompanyWorkerRequest $request, CompanyWorker $companyWorker)
+    public function update(UpdateCompanyWorkerRequest $request, Company $company, CompanyWorker $worker)
     {
-        //
+        try {
+            $this->companyService->updateWorker($request->all(), $worker);
+            return redirect()->route('company.worker.show', [$company->id, $worker->id])
+                             ->with('success', 'Funcionário atualizado com sucesso.');
+        } catch (\Exception $e) {
+            return redirect()->back()
+                             ->withInput()
+                             ->with('error', 'Ocorreu um erro ao atualizar o funcionário: ' . $e->getMessage());
+        }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(CompanyWorker $companyWorker)
+    public function destroy(Company $company, CompanyWorker $worker)
     {
-        //
+        $worker->delete();
+        return redirect()->route('company.show', $company->id)
+                         ->with('success', 'Funcionário removido com sucesso.');
     }
 }
