@@ -26,6 +26,12 @@
                 </label>
                 <x-text-input type="number" step="0.01" min="0.00" name="price" id="price" class="form-control w-full" value="{{ $item->price ?? '' }}" required/>
             </div>
+            <div class="form-check py-2">
+                <label class="form-check text-gray-900 dark:text-gray-100" for="contactor">
+                    Acionador Home Assissant (USO EXCLUSIVO DA TI)
+                </label>
+                <x-text-input type="text"  name="contactor" id="contactor" class="form-control w-full" value="{{ $item->contactor ?? '' }}"/>
+            </div>
         </div>
         <div class="row">
             <x-input-label for="name">Imagem</x-input-label>

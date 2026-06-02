@@ -16,6 +16,7 @@ class Place extends Model
     
     protected $fillable = [
         'name',
+        'contactor',
         'image',
         'place_group_id',
         'price',

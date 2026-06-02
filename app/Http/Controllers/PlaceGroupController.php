@@ -339,6 +339,7 @@ class PlaceGroupController extends Controller
 
         $place = Place::create([
             'name' => $validated['name'],
+            'contactor' => $validated['contactor'],
             'place_group_id' => $validated['place_group_id'],
             'image' => $validated['image'] ?? null,
             'price' => $validated['price'],
@@ -395,6 +396,7 @@ class PlaceGroupController extends Controller
         //Update the place
         $place->update([
             'name' => $validated['name'],
+            'contactor' => $validated['contactor'],
             'price' => $validated['price'],
             'status_id' => $validated['status_id'],
             'image' => $validated['image'] ?? null,
