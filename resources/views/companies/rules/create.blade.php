@@ -18,8 +18,8 @@
             <x-slot name="header">
                 <div class="my-4 flex items-center gap-4">
                     <div>
-                        <h1 class="text-3xl font-extrabold text-gray-900 leading-tight">Nova Regra de Acesso</h1>
-                        <p class="text-gray-500 font-medium">Configure as condições de entrada e permanência no local.</p>
+                        <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Nova Regra de Acesso</h1>
+                        <p class="text-gray-500 dark:text-gray-400 font-medium">Configure as condições de entrada e permanência no local.</p>
                     </div>
                 </div>
             </x-slot>

@@ -48,6 +48,31 @@ class CompanyAccessRulesController extends Controller
         }
     }
 
+    public function edit(Company $company, CompanyAccessRule $rule)
+    {
+        $rule->load('weekdays');
+        return view('companies.rules.edit', compact('company', 'rule'));
+    }
+
+    public function update(UpdateCompanyAccessRulesRequest $request, Company $company, CompanyAccessRule $rule)
+    {
+        try {
+            $this->companyService->updateAccessRule($request->all(), $rule);
+
+            if ($rule->company_worker_id) {
+                return redirect()->route('company.worker.show', [$company->id, $rule->company_worker_id])
+                    ->with('success', 'Regra de acesso atualizada com sucesso.');
+            }
+
+            return redirect()->route('company.show', $company->id)
+                ->with('success', 'Regra de acesso atualizada com sucesso.');
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Ocorreu um erro ao atualizar a regra: ' . $e->getMessage())
+                ->withInput();
+        }
+    }
+
     public function destroy(Company $company, CompanyAccessRule $rule)
     {
         $rule->delete();

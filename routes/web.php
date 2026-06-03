@@ -83,6 +83,8 @@ Route::middleware('auth')->group(function () {
         Route::group(['prefix' => '{company}/rules'], function () {
             Route::get('/create', [CompanyRulesController::class, 'create'])->name('company.rules.create');
             Route::post('/', [CompanyRulesController::class, 'store'])->name('company.rules.store');
+            Route::get('/{rule}/edit', [CompanyRulesController::class, 'edit'])->name('company.rules.edit');
+            Route::put('/{rule}', [CompanyRulesController::class, 'update'])->name('company.rules.update');
             Route::delete('/{rule}', [CompanyRulesController::class, 'destroy'])->name('company.rules.destroy');
         });
 

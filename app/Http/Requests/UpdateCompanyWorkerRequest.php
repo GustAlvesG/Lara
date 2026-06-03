@@ -23,7 +23,7 @@ class UpdateCompanyWorkerRequest extends FormRequest
     {
         return [
             'name'      => 'sometimes|required|string|max:255',
-            'email'     => 'sometimes|required|email|max:255',
+            'email'     => 'nullable|email|max:255',
             'position'  => 'sometimes|required|string|max:255',
             'document'  => 'nullable|string|max:20',
             'telephone' => 'nullable|string|max:20',

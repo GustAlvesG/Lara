@@ -46,7 +46,7 @@ class CompanyService
 
     public function getCompanyDetails($company)
     {
-        $company = $company->load('workers.rules', 'rules.weekdays');
+        $company = $company->load('workers.rules', 'rules.weekdays', 'rules.worker');
         return $company;
     }
 
@@ -103,6 +103,20 @@ class CompanyService
         if (isset($data['days']) && is_array($data['days'])) {
             $rule->weekdays()->sync($data['days']);
             $rule->load('weekdays');
+        }
+
+        return $rule;
+    }
+
+    public function updateAccessRule($data, CompanyAccessRule $rule): CompanyAccessRule
+    {
+        $fields = array_intersect_key($data, array_flip(['type', 'start_date', 'end_date', 'start_time', 'end_time', 'description']));
+        $rule->update($fields);
+
+        if (isset($data['days']) && is_array($data['days'])) {
+            $rule->weekdays()->sync($data['days']);
+        } else {
+            $rule->weekdays()->sync([]);
         }
 
         return $rule;
