@@ -9,77 +9,80 @@ use Spatie\Permission\Models\Role;
 
 class PermissionController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
         $roles = Role::with('permissions')->get();
-        // $permissions = Permission::all();
         return view('permission.index', compact('roles'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
-        //
+        $allPermissions = Permission::orderBy('name')->get();
+        return view('permission.create', compact('allPermissions'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
+        $request->validate([
+            'name' => 'required|string|max:255|unique:roles,name',
+            'permissions' => 'nullable|array',
+            'permissions.*' => 'string|exists:permissions,name',
+        ]);
+
+        $role = Role::create(['name' => strtolower(trim($request->input('name')))]);
+        $role->syncPermissions($request->input('permissions', []));
+
+        return redirect()->route('roles-permission.index')
+            ->with('success', 'Grupo "' . $role->name . '" criado com sucesso.');
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(string $id)
     {
-        $role = Role::with('permissions')->find($id);
-        $allPermissions = Permission::all();
+        $role = Role::with('permissions')->findOrFail($id);
+        $allPermissions = Permission::orderBy('name')->get();
         $selectedPermissions = $role->permissions->pluck('id')->toArray();
-        // return [
-        //     'role' => $role,
-        //     'allPermissions' => $allPermissions,
-        //     'selectedPermissions' => $role->permissions->pluck('id')->toArray(),
-        // ];
+
         return view('permission.show', compact('role', 'allPermissions', 'selectedPermissions'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, string $id)
     {
-        $role = Role::find($id);
-        $role->name = $request->input('name');
+        $role = Role::findOrFail($id);
+
+        $request->validate([
+            'name' => 'required|string|max:255|unique:roles,name,' . $role->id,
+            'permissions' => 'nullable|array',
+            'permissions.*' => 'string|exists:permissions,name',
+        ]);
+
+        $role->name = strtolower(trim($request->input('name')));
         $role->save();
 
-        $permissions = $request->input('permissions', []);
-        // dd($permissions);
-        $role->syncPermissions($permissions);
+        $role->syncPermissions($request->input('permissions', []));
 
-        return redirect()->route('roles-permission.index')->with('success', 'Role updated successfully.');
+        return redirect()->route('roles-permission.index')
+            ->with('success', 'Grupo "' . $role->name . '" atualizado com sucesso.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(string $id)
     {
-        //
+        $role = Role::findOrFail($id);
+
+        if ($role->name === 'admin') {
+            return redirect()->route('roles-permission.index')
+                ->with('error', 'O grupo "admin" não pode ser excluído.');
+        }
+
+        $userCount = $role->users()->count();
+        if ($userCount > 0) {
+            return redirect()->route('roles-permission.index')
+                ->with('error', 'O grupo "' . $role->name . '" possui ' . $userCount . ' usuário(s) vinculado(s) e não pode ser excluído.');
+        }
+
+        $roleName = $role->name;
+        $role->delete();
+
+        return redirect()->route('roles-permission.index')
+            ->with('success', 'Grupo "' . $roleName . '" excluído com sucesso.');
     }
 }

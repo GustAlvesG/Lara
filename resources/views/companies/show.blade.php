@@ -137,7 +137,7 @@
                 </div>
 
                 @foreach($companyDetails->rules as $rule)
-                    <div class="bg-white dark:bg-gray-750 border rounded-2xl shadow-sm overflow-hidden border-gray-100 dark:border-gray-700 mb-4">
+                    <div class="bg-white dark:bg-gray-700 border rounded-2xl shadow-sm overflow-hidden border-gray-100 dark:border-gray-600 mb-4">
                         <div class="flex flex-col md:flex-row">
                             <!-- Barra Lateral de Tipo -->
                             <div class="w-full md:w-2 {{ $rule['type'] === 'include' ? 'bg-indigo-600' : 'bg-red-600' }}"></div>
@@ -149,6 +149,11 @@
                                             <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase {{ $rule['type'] === 'include' ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400' : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400' }}">
                                                 {{ $rule['type'] === 'include' ? 'Inclusão' : 'Exclusão' }}
                                             </span>
+                                            @if($rule->company_worker_id && $rule->worker)
+                                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400">
+                                                    Exclusiva: {{ $rule->worker->name }}
+                                                </span>
+                                            @endif
                                             <h4 class="font-extrabold text-gray-900 dark:text-white text-lg">{{ $rule['description'] }}</h4>
                                         </div>
 
@@ -182,7 +187,13 @@
                                     </div>
 
                                     <!-- Ações -->
-                                    <div class="flex flex-col items-end gap-3 min-w-[120px]">
+                                    <div class="flex items-center gap-1">
+                                        <a href="{{ route('company.rules.edit', [$companyDetails->id, $rule->id]) }}"
+                                           class="p-2 text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition" title="Editar Regra">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                            </svg>
+                                        </a>
                                         <form action="{{ route('company.rules.destroy', [$companyDetails->id, $rule->id]) }}" method="POST"
                                               onsubmit="return confirm('Remover esta regra?')">
                                             @csrf

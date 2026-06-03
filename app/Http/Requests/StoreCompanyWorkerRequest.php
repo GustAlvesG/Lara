@@ -24,7 +24,7 @@ class StoreCompanyWorkerRequest extends FormRequest
         return [
             'company_id' => 'required|integer|exists:companies,id',
             'name'       => 'required|string|max:255',
-            'email'      => 'required|email|max:255',
+            'email'      => 'nullable|email|max:255',
             'position'   => 'required|string|max:255',
             'document'   => 'nullable|string|max:20',
             'telephone'  => 'nullable|string|max:20',

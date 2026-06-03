@@ -10,9 +10,8 @@
 
     @include('partials.alerts')
 
-    <form action="{{ route('roles-permission.update', $role['id']) }}" method="POST">
+    <form action="{{ route('roles-permission.store') }}" method="POST">
         @csrf
-        @method('PUT')
 
         <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div class="flex items-center gap-4">
@@ -20,8 +19,8 @@
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                 </a>
                 <div>
-                    <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Configurar Grupo</h1>
-                    <p class="text-gray-500 dark:text-gray-400 font-medium">Defina o que o perfil <span class="text-[#A00001] dark:text-red-400 uppercase font-bold">{{ $role['name'] }}</span> pode acessar.</p>
+                    <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Novo Grupo</h1>
+                    <p class="text-gray-500 dark:text-gray-400 font-medium">Crie um novo perfil de acesso e defina suas permissões.</p>
                 </div>
             </div>
 
@@ -30,7 +29,7 @@
                     Cancelar
                 </a>
                 <button type="submit" class="px-6 py-3 bg-[#A00001] text-white rounded-xl font-bold shadow-lg hover:bg-[#800000] transition transform hover:scale-[1.02]">
-                    Salvar Alterações
+                    Criar Grupo
                 </button>
             </div>
         </div>
@@ -43,12 +42,13 @@
                     <div class="space-y-4">
                         <div>
                             <label class="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase mb-1">Nome do Perfil</label>
-                            <input type="text" name="name" value="{{ old('name', $role['name']) }}"
-                                   class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-gray-700 dark:text-gray-200 uppercase">
+                            <input type="text" name="name" value="{{ old('name') }}" placeholder="ex: supervisor"
+                                   class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-gray-700 dark:text-gray-200 uppercase placeholder-gray-300 dark:placeholder-gray-600">
                             @error('name')
                                 <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
                             @enderror
                         </div>
+                        <p class="text-xs text-gray-400 dark:text-gray-500">O nome do grupo é usado internamente para identificar o perfil. Use letras minúsculas, sem espaços.</p>
                     </div>
                 </div>
             </div>
@@ -73,7 +73,7 @@
                                 <div class="flex items-center h-5">
                                     <input type="checkbox" name="permissions[]" value="{{ $perm['name'] }}"
                                            class="permission-checkbox h-5 w-5 text-indigo-600 border-gray-300 dark:border-gray-600 rounded focus:ring-indigo-500 transition cursor-pointer"
-                                           {{ collect(old('permissions', $selectedPermissions))->contains($perm['id']) ? 'checked' : '' }}>
+                                           {{ collect(old('permissions', []))->contains($perm['name']) ? 'checked' : '' }}>
                                 </div>
                                 <div class="ml-3 text-sm">
                                     <p class="font-bold text-gray-800 dark:text-gray-200 group-has-[:checked]:text-indigo-900 dark:group-has-[:checked]:text-indigo-300">{{ $perm['description'] }}</p>
