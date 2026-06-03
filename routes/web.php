@@ -21,6 +21,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\CompTimeController;
 use App\Http\Controllers\ParkingAuthorizationController;
+use App\Http\Controllers\DocumentationController;
 
 
 Route::get('/', function () {
@@ -162,6 +163,10 @@ Route::middleware('auth')->group(function () {
         Route::delete('/{id}', 'destroyCategory')->name('destroy');
     });
 
+    // Leitor de documentação (.md) dentro do painel
+    Route::get('/docs', [DocumentationController::class, 'index'])->name('docs.index');
+    Route::get('/docs/{slug}', [DocumentationController::class, 'show'])
+        ->where('slug', '.*')->name('docs.show');
 
 });
 
