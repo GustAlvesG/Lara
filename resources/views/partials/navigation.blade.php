@@ -47,6 +47,8 @@
                             ],
                         ],
 
+                            ['route' => 'comp-time.index', 'label' => 'Banco de Horas', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
+
                         ];
 
                     @endphp
@@ -61,7 +63,7 @@
                             $children = $link['children'] ?? null;
                             $isActive = $children
                                 ? collect($children)->contains(fn($c) => request()->routeIs($c['route']))
-                                : request()->routeIs($link['route']);
+                                : request()->routeIs($link['active'] ?? $link['route']);
 
                             $baseClasses = 'inline-flex items-center px-3 py-2 border-b-2 text-sm font-medium leading-5 transition duration-150 ease-in-out rounded-t-md ';
                             $activeClasses = 'border-red-800 dark:border-red-400 text-red-800 dark:text-red-400 bg-red-50/50 dark:bg-red-900/20';
@@ -124,6 +126,10 @@
                         <!-- Nota: Verifique se seu componente x-dropdown-link suporta classes dark mode internamente ou passe classes extras se ele permitir merging -->
                         <x-dropdown-link :href="route('profile.edit')">
                             {{ __('Perfil') }}
+                        </x-dropdown-link>
+
+                        <x-dropdown-link :href="route('docs.index')">
+                            {{ __('Documentação') }}
                         </x-dropdown-link>
 
                         @role('admin')
@@ -189,6 +195,10 @@
             <div class="mt-3 space-y-1">
                 <x-responsive-nav-link :href="route('profile.edit')">
                     {{ __('Perfil') }}
+                </x-responsive-nav-link>
+
+                <x-responsive-nav-link :href="route('docs.index')">
+                    {{ __('Documentação') }}
                 </x-responsive-nav-link>
 
                 <!-- Authentication -->

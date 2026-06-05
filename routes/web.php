@@ -21,6 +21,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\CompTimeController;
 use App\Http\Controllers\ParkingAuthorizationController;
+use App\Http\Controllers\DocumentationController;
 
 
 Route::get('/', function () {
@@ -154,7 +155,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/filter', [CompTimeController::class, 'indexFilter'])->name('comp-time.index.filter');
         Route::post('/details', [CompTimeController::class, 'showDetails'])->name('comp-time.show.details');
         Route::post('/details/day', [CompTimeController::class, 'showDayDetails'])->name('comp-time.show.day.details');
-        Route::get('/recalculate', [CompTimeController::class, 'recalculateBalances'])->name('comp-time.recalculate');
+        Route::post('/recalculate', [CompTimeController::class, 'recalculateBalances'])->name('comp-time.recalculate');
     });
 
 
@@ -171,6 +172,10 @@ Route::middleware('auth')->group(function () {
         Route::delete('/{id}', 'destroyCategory')->name('destroy');
     });
 
+    // Leitor de documentação (.md) dentro do painel
+    Route::get('/docs', [DocumentationController::class, 'index'])->name('docs.index');
+    Route::get('/docs/{slug}', [DocumentationController::class, 'show'])
+        ->where('slug', '.*')->name('docs.show');
 
 });
 

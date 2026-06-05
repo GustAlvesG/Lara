@@ -20,11 +20,14 @@
 
                 <div class="flex items-center gap-3 w-full justify-center">
 
-                    <!-- Recalcular Horas Link -->
-                    <a href="{{ route('comp-time.recalculate') }}" 
-                        class="flex items-center justify-center py-2 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200">
+                    <!-- Recalcular Horas - abre modal de confirmação -->
+                    <button type="button" onclick="document.getElementById('modal-recalculate').classList.remove('hidden')"
+                        class="flex items-center justify-center py-2 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-all duration-200">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
                         Recalcular Horas
-                    </a>
+                    </button>
                     
                     <!-- Botão Principal -->
                     <button id="mainBtn" type="button" onclick="handleMainClick()" 
@@ -71,10 +74,33 @@
         <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-12 print:py-0 print:px-0 print:w-full print:max-w-none">
         
         @if(empty($reportData))
-            <div class="bg-white p-12 text-center rounded-lg shadow">
-                <p class="text-gray-500 text-lg">Nenhum dado disponível para visualização.</p>
+            <div class="bg-white dark:bg-gray-800 p-12 text-center rounded-lg shadow">
+                @if(!empty($filters) && array_filter($filters ?? []))
+                    <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <p class="text-gray-500 dark:text-gray-400 text-lg font-medium">Nenhum funcionário encontrado com os filtros aplicados.</p>
+                    <p class="text-sm text-gray-400 mt-1">Tente ajustar os filtros de pesquisa acima.</p>
+                @else
+                    <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <p class="text-gray-500 dark:text-gray-400 text-lg">Nenhum dado disponível. Importe um arquivo de espelho de ponto para começar.</p>
+                @endif
             </div>
         @else
+            @php $resultCount = count($reportData); @endphp
+            <div class="flex items-center justify-between mb-2 px-1">
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    <span class="font-semibold text-gray-800 dark:text-gray-200">{{ $resultCount }}</span>
+                    {{ $resultCount === 1 ? 'funcionário encontrado' : 'funcionários encontrados' }}
+                    @if(!empty($filters) && array_filter($filters ?? []))
+                        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
+                            Filtro ativo
+                        </span>
+                    @endif
+                </p>
+            </div>
             
 
             @foreach($reportData as $data)
@@ -288,5 +314,36 @@
     </script>
     </x-slot>
 
-    
+
+    <!-- Modal de Confirmação - Recalcular Horas -->
+    <div id="modal-recalculate" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">
+            <div class="flex items-center mb-4">
+                <div class="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mr-3">
+                    <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Recalcular todos os saldos?</h3>
+            </div>
+            <p class="text-sm text-gray-600 dark:text-gray-300 mb-6">
+                Esta operação apagará todos os ajustes existentes e recalculará os saldos do banco de horas do zero.
+                O processo pode demorar alguns minutos dependendo do volume de dados.
+            </p>
+            <div class="flex justify-end gap-3">
+                <button type="button" onclick="document.getElementById('modal-recalculate').classList.add('hidden')"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors">
+                    Cancelar
+                </button>
+                <form action="{{ route('comp-time.recalculate') }}" method="POST" class="inline">
+                    @csrf
+                    <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md transition-colors">
+                        Sim, recalcular
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
 </x-app-layout>
