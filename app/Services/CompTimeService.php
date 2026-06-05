@@ -49,11 +49,7 @@ class CompTimeService
 
     public function getStructures()
     {
-        $employees = Employee::all();
-
-        $structures = $employees->pluck('department')->unique()->values()->all();
-
-        return $structures;
+        return Employee::distinct()->orderBy('department')->pluck('department')->filter()->values()->all();
     }
 
     public function filterEmployees(array $filters)
@@ -153,16 +149,21 @@ class CompTimeService
             return $entry->balance_minutes > 0;
         })->values()->sortBy('due_date')->take(3);
 
-        foreach($timeEntries as $entry) {
-            $adjustments = TimeAdjustment::
-                 where('entry_time_to_adjust_id', $entry->id)
-                // ->orWhere('entry_time_adjusted_id', $entry->id)
-                ->orderBy('before_adjustment_minutes', 'desc')
-                ->get();
-            foreach($adjustments as $adj) {
-                $adj->adjustment_date = TimeEntry::where('id', $adj->entry_time_adjusted_id)->value('entry_date');
+        $entryIds = $timeEntries->pluck('id');
+        $adjustmentsByEntry = TimeAdjustment::whereIn('entry_time_to_adjust_id', $entryIds)
+            ->orderBy('before_adjustment_minutes', 'desc')
+            ->get()
+            ->groupBy('entry_time_to_adjust_id');
+
+        $adjustedEntryDates = TimeEntry::whereIn('id',
+            $adjustmentsByEntry->flatten()->pluck('entry_time_adjusted_id')->unique()
+        )->pluck('entry_date', 'id');
+
+        foreach ($timeEntries as $entry) {
+            $adjustments = $adjustmentsByEntry->get($entry->id, collect());
+            foreach ($adjustments as $adj) {
+                $adj->adjustment_date = $adjustedEntryDates->get($adj->entry_time_adjusted_id);
             }
-                                                
             $entry->adjustments = $adjustments;
         }
 

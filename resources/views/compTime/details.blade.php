@@ -38,8 +38,14 @@
                 </h2>
             </div>
             
-            <div class="print-hidden">    
-                <button onclick="window.print()" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            <div class="print-hidden flex items-center gap-3">
+                <a href="{{ route('comp-time.index') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                    <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    Voltar
+                </a>
+                <button onclick="window.print()" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
                     <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                     </svg>
@@ -109,22 +115,50 @@
         <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8 print-hidden">
             
             <!-- Dashboard Resumo -->
-            {{-- <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6 text-center">
-                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Créditos Totais</h3>
+            @php
+                $nextExpiring = collect($dashboard['next_expiring_entries'] ?? [])
+                    ->sortBy('due_date')
+                    ->first();
+                $expDue = $nextExpiring ? \Carbon\Carbon::parse(is_object($nextExpiring) ? $nextExpiring->due_date : ($nextExpiring['due_date'] ?? null)) : null;
+                $expBal = $nextExpiring ? (is_object($nextExpiring) ? $nextExpiring->balance_minutes : ($nextExpiring['balance_minutes'] ?? 0)) : 0;
+                $expDaysLeft = $expDue ? (int) now()->diffInDays($expDue, false) : null;
+            @endphp
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4 text-center border-t-4 border-green-400">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Créditos Totais</p>
                     <p class="text-2xl font-bold text-green-600">{{ $formatMinutes($totalCredit) }}</p>
+                    <p class="text-xs text-gray-400 mt-1">horas extras acumuladas</p>
                 </div>
-                <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6 text-center">
-                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Débitos Totais</h3>
+                <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4 text-center border-t-4 border-red-400">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Débitos Totais</p>
                     <p class="text-2xl font-bold text-red-600">{{ $formatMinutes($totalDebit) }}</p>
+                    <p class="text-xs text-gray-400 mt-1">horas faltantes acumuladas</p>
                 </div>
-                <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6 text-center">
-                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Saldo Atual</h3>
-                    <p class="text-2xl font-bold {{ !$checkPositive($netBalance) ? 'text-red-600' : 'text-gray-700 dark:text-gray-300' }}">
-                        {{ !$checkPositive($netBalance) ? '-' : '' }}{{ $formatMinutes(abs($netBalance)) }}
+                <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4 text-center border-t-4 {{ $checkPositive($netBalance) ? 'border-indigo-400' : 'border-orange-400' }}">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Saldo Líquido</p>
+                    <p class="text-2xl font-bold {{ $checkPositive($netBalance) ? 'text-indigo-600' : 'text-orange-600' }}">
+                        {{ $checkPositive($netBalance) ? '+' : '' }}{{ $formatMinutes($netBalance) }}
                     </p>
+                    <p class="text-xs text-gray-400 mt-1">{{ $checkPositive($netBalance) ? 'a favor do funcionário' : 'a favor da empresa' }}</p>
                 </div>
-            </div> --}}
+                <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4 text-center border-t-4 {{ $expDaysLeft !== null && $expDaysLeft <= 30 ? 'border-red-500' : 'border-gray-300' }}">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Próx. Vencimento</p>
+                    @if($expDue && $expBal > 0)
+                        <p class="text-2xl font-bold {{ $expDaysLeft <= 30 ? 'text-red-600' : 'text-gray-700 dark:text-gray-200' }}">
+                            {{ $formatMinutes($expBal) }}
+                        </p>
+                        <p class="text-xs {{ $expDaysLeft <= 30 ? 'text-red-500' : 'text-gray-400' }} mt-1">
+                            vence em {{ $expDue->format('d/m/Y') }}
+                            @if($expDaysLeft !== null)
+                                ({{ $expDaysLeft > 0 ? $expDaysLeft . 'd' : 'hoje' }})
+                            @endif
+                        </p>
+                    @else
+                        <p class="text-2xl font-bold text-gray-300 dark:text-gray-600">--:--</p>
+                        <p class="text-xs text-gray-400 mt-1">nenhum saldo a vencer</p>
+                    @endif
+                </div>
+            </div>
 
             <!-- Filtros de Relatório -->
             <div class="flex flex-col md:flex-row justify-between items-center bg-white dark:bg-gray-800 p-4 shadow rounded-lg gap-4">

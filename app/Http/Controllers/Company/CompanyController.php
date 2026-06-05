@@ -21,7 +21,10 @@ class CompanyController extends Controller
     public function index()
     {
         $companies = $this->companyService->getAllCompanies();
-        return view('companies.index', compact('companies'));
+        $accessStatuses = $companies->mapWithKeys(fn($c) => [
+            $c->id => $this->companyService->getCompanyAccessStatus($c)
+        ]);
+        return view('companies.index', compact('companies', 'accessStatuses'));
     }
 
     /**

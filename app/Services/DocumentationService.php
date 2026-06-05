@@ -125,19 +125,38 @@ class DocumentationService
         }
 
         $files = glob($directory.'/*.md') ?: [];
-        sort($files);
 
         $items = [];
 
         foreach ($files as $file) {
-            $name = pathinfo($file, PATHINFO_FILENAME);
+            $name  = pathinfo($file, PATHINFO_FILENAME);
+            $title = $this->title($file);
             $items[] = [
-                'slug' => $slugPrefix.$name,
-                'title' => $this->title($file),
+                'slug'  => $slugPrefix.$name,
+                'title' => $title,
+                '_order' => $this->extractOrder($title, $name),
             ];
         }
 
-        return $items;
+        usort($items, fn($a, $b) => $a['_order'] <=> $b['_order']);
+
+        return array_map(fn($item) => ['slug' => $item['slug'], 'title' => $item['title']], $items);
+    }
+
+    private function extractOrder(string $title, string $filename): string
+    {
+        // Título começa com número seguido de ponto: "5. Controllers" → "05"
+        if (preg_match('/^(\d+)[\.\s]/', $title, $m)) {
+            return str_pad($m[1], 4, '0', STR_PAD_LEFT);
+        }
+
+        // Nome de arquivo começa com dígitos: "01-visao-geral" → "0001"
+        if (preg_match('/^(\d+)/', $filename, $m)) {
+            return str_pad($m[1], 4, '0', STR_PAD_LEFT);
+        }
+
+        // Sem número: ordena depois dos numerados, em ordem alfabética
+        return 'zzzz_'.$title;
     }
 
     /**

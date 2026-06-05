@@ -16,7 +16,12 @@ class CompanyService
 {
     public function getAllCompanies()
     {
-        return Company::all();
+        return Company::with(['workers', 'rules.weekdays'])->get();
+    }
+
+    public function getCompanyAccessStatus(Company $company): bool
+    {
+        return $this->validateRulesForAccess($company);
     }
 
     public function createCompany($request)

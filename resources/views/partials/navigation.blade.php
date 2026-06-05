@@ -47,7 +47,7 @@
                             ],
                         ],
 
-                            ['route' => 'docs.index', 'label' => 'Documentação', 'active' => 'docs.*', 'icon' => 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.247m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.247'],
+                            ['route' => 'comp-time.index', 'label' => 'Banco de Horas', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
 
                         ];
 
@@ -128,6 +128,10 @@
                             {{ __('Perfil') }}
                         </x-dropdown-link>
 
+                        <x-dropdown-link :href="route('docs.index')">
+                            {{ __('Documentação') }}
+                        </x-dropdown-link>
+
                         @role('admin')
                         <x-dropdown-link :href="route('users.index')">
                             {{ __('Usuários') }}
@@ -191,6 +195,10 @@
             <div class="mt-3 space-y-1">
                 <x-responsive-nav-link :href="route('profile.edit')">
                     {{ __('Perfil') }}
+                </x-responsive-nav-link>
+
+                <x-responsive-nav-link :href="route('docs.index')">
+                    {{ __('Documentação') }}
                 </x-responsive-nav-link>
 
                 <!-- Authentication -->

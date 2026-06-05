@@ -146,7 +146,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/filter', [CompTimeController::class, 'indexFilter'])->name('comp-time.index.filter');
         Route::post('/details', [CompTimeController::class, 'showDetails'])->name('comp-time.show.details');
         Route::post('/details/day', [CompTimeController::class, 'showDayDetails'])->name('comp-time.show.day.details');
-        Route::get('/recalculate', [CompTimeController::class, 'recalculateBalances'])->name('comp-time.recalculate');
+        Route::post('/recalculate', [CompTimeController::class, 'recalculateBalances'])->name('comp-time.recalculate');
     });
 
 
