@@ -39,6 +39,15 @@ background: linear-gradient(90deg,rgba(160, 0, 1, 1) 0%, rgba(126, 20, 23, 1) 10
                            class="w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150 text-base">
                 </div>
 
+                <!-- Campo Matrícula -->
+                <div class="mb-5">
+                    <label for="matricula" class="block text-sm font-medium text-gray-700 mb-1">Matrícula</label>
+                    <input type="text" id="matricula" name="matricula" maxlength="5" autocomplete="off"
+                           placeholder="Ex: 00123"
+                           class="w-full px-4 py-3 border border-gray-300 rounded-xl shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150 text-base">
+                    {{-- <p class="mt-1 text-xs text-gray-500">Usada para vincular ao Banco de Horas.</p> --}}
+                </div>
+
                 <!-- Campo Senha -->
                 <div class="mb-5">
                     <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Senha</label>

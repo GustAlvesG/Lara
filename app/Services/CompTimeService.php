@@ -17,28 +17,21 @@ class CompTimeService
 
     public function importFile(string $filePath)
     {
-        $content = file_get_contents($filePath);
-        $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
-        
-        $crawler = new Crawler($content);
-        $tables = $crawler->filter('table');
-        $totalTables = $tables->count();
+        $rows = $this->parseFileRows($filePath);
 
         DB::beginTransaction();
-
         try {
-            for ($i = 0; $i < $totalTables; $i += 4) {
-                if ($i + 1 >= $totalTables) break;
-
-
-                $tabelaInfo = $tables->eq($i);
-                $tabelaHorario = $tables->eq($i + 1);
-
-                $tabelaInfo = $tabelaInfo->filter('[data-bind="with: InfoFuncionario"]');
-
-                // dd($tabelaInfo->html(), $tabelaHorario->html());
-
-                $this->processEmployeeData($tabelaInfo, $tabelaHorario);
+            $employeeCache = [];
+            foreach ($rows as $row) {
+                $employee = $this->upsertEmployee($row, $employeeCache);
+                $this->insertTimeEntry(
+                    $employee,
+                    $row['entry_date'],
+                    $row['reference_time'],
+                    $row['entry_times'],
+                    $row['type'],
+                    $row['amount_minutes']
+                );
             }
             DB::commit();
         } catch (\Exception $e) {
@@ -47,14 +40,177 @@ class CompTimeService
         }
     }
 
-    public function getStructures()
+    /**
+     * Versão otimizada: 2 queries totais ao banco (vs. N queries por linha na versão original).
+     * Batch de employees + batch de TimeEntries por range de datas.
+     */
+    public function detectDuplicatesFast(string $filePath): array
     {
-        return Employee::distinct()->orderBy('department')->pluck('department')->filter()->values()->all();
+        $rows = $this->parseFileRows($filePath);
+
+        if (empty($rows)) {
+            return ['new_entries' => [], 'duplicate_entries' => []];
+        }
+
+        // Query 1: busca todos os employees do arquivo de uma vez
+        $uniqueCodes = array_unique(array_column($rows, 'employee_code'));
+        $employees = Employee::whereIn('employee_code', $uniqueCodes)
+            ->get()
+            ->keyBy('employee_code');
+
+        $employeeIds = $employees->pluck('id')->filter()->values()->toArray();
+
+        // Query 2: busca todas as TimeEntries relevantes de uma vez (range de datas do arquivo)
+        $existingIndex = [];
+        if (!empty($employeeIds)) {
+            $dates   = array_map(fn($r) => $r['entry_date']->format('Y-m-d'), $rows);
+            $minDate = min($dates);
+            $maxDate = max($dates);
+
+            TimeEntry::whereIn('employee_id', $employeeIds)
+                ->whereBetween('entry_date', [$minDate, $maxDate])
+                ->get()
+                ->each(function ($entry) use (&$existingIndex) {
+                    $key = $entry->employee_id
+                        . '|' . Carbon::parse($entry->entry_date)->format('Y-m-d')
+                        . '|' . $entry->type;
+                    $existingIndex[$key] = $entry;
+                });
+        }
+
+        $newEntries       = [];
+        $duplicateEntries = [];
+
+        foreach ($rows as $row) {
+            $employee = $employees->get($row['employee_code']);
+
+            if (!$employee) {
+                // Funcionário ainda não existe no banco — é entrada nova
+                $newEntries[] = $row;
+                continue;
+            }
+
+            $key      = $employee->id . '|' . $row['entry_date']->format('Y-m-d') . '|' . $row['type'];
+            $existing = $existingIndex[$key] ?? null;
+
+            if ($existing) {
+                $duplicateEntries[] = array_merge($row, [
+                    'existing_entry_id'   => $existing->id,
+                    'old_amount_minutes'  => $existing->amount_minutes,
+                    'old_balance_minutes' => $existing->balance_minutes,
+                ]);
+            } else {
+                $newEntries[] = $row;
+            }
+        }
+
+        return ['new_entries' => $newEntries, 'duplicate_entries' => $duplicateEntries];
     }
 
-    public function filterEmployees(array $filters)
+    public function detectDuplicates(string $filePath): array
+    {
+        $rows = $this->parseFileRows($filePath);
+
+        $newEntries = [];
+        $duplicateEntries = [];
+
+        $employeeCache = [];
+        foreach ($rows as $row) {
+            $code = $row['employee_code'];
+            if (!isset($employeeCache[$code])) {
+                $employeeCache[$code] = Employee::where('employee_code', $code)->first();
+            }
+            $employee = $employeeCache[$code];
+
+            $existing = $employee
+                ? TimeEntry::where('employee_id', $employee->id)
+                    ->whereDate('entry_date', $row['entry_date'])
+                    ->where('type', $row['type'])
+                    ->first()
+                : null;
+
+            if ($existing) {
+                $duplicateEntries[] = array_merge($row, [
+                    'existing_entry_id'   => $existing->id,
+                    'old_amount_minutes'  => $existing->amount_minutes,
+                    'old_balance_minutes' => $existing->balance_minutes,
+                ]);
+            } else {
+                $newEntries[] = $row;
+            }
+        }
+
+        return ['new_entries' => $newEntries, 'duplicate_entries' => $duplicateEntries];
+    }
+
+    public function importWithDecisions(string $filePath, array $acceptedEntryIds): void
+    {
+        $rows = $this->parseFileRows($filePath);
+        $acceptedIdsSet = array_flip(array_map('intval', $acceptedEntryIds));
+
+        $employeesToRecalculate = [];
+
+        DB::beginTransaction();
+        try {
+            $employeeCache = [];
+            foreach ($rows as $row) {
+                $employee = $this->upsertEmployee($row, $employeeCache);
+
+                $existing = TimeEntry::where('employee_id', $employee->id)
+                    ->whereDate('entry_date', $row['entry_date'])
+                    ->where('type', $row['type'])
+                    ->first();
+
+                if (!$existing) {
+                    $this->insertTimeEntry(
+                        $employee,
+                        $row['entry_date'],
+                        $row['reference_time'],
+                        $row['entry_times'],
+                        $row['type'],
+                        $row['amount_minutes']
+                    );
+                } elseif (isset($acceptedIdsSet[$existing->id])) {
+                    $existing->amount_minutes = $row['amount_minutes'];
+                    $existing->balance_minutes = $row['amount_minutes'];
+                    $existing->save();
+                    $employeesToRecalculate[$employee->id] = $employee;
+                }
+                // rejected duplicate: skip
+            }
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+
+        foreach ($employeesToRecalculate as $employee) {
+            $this->recalculateAllBalances($employee->id);
+        }
+    }
+
+    public function getStructures(array $access = ['type' => 'all'])
+    {
+        $query = Employee::distinct()->orderBy('department');
+
+        if ($access['type'] === 'departments') {
+            $query->whereIn('department', $access['values']);
+        } elseif ($access['type'] === 'employee_code') {
+            $query->where('employee_code', $access['value']);
+        }
+
+        return $query->pluck('department')->filter()->values()->all();
+    }
+
+    public function filterEmployees(array $filters, array $access = ['type' => 'all'])
     {
         $query = Employee::query();
+
+        if ($access['type'] === 'departments') {
+            $query->whereIn('department', $access['values']);
+        } elseif ($access['type'] === 'employee_code') {
+            $query->where('employee_code', $access['value']);
+        }
 
         if (!empty($filters['structure'])) {
             $query->where('department', $filters['structure']);
@@ -67,8 +223,6 @@ class CompTimeService
         if (!empty($filters['employee_code'])) {
             $query->where('employee_code', $filters['employee_code']);
         }
-
-        // Additional filters for period can be implemented here if needed
 
         return $query->get();
     }
@@ -103,21 +257,18 @@ class CompTimeService
 
         $query->orderBy('employee_id', 'asc');
 
-
-        //Array with employee and their time entries
         $response = [];
         foreach ($employees as $employee) {
-            // Clone the query to avoid modifying the original instance for the next iteration
             $entries = (clone $query)->where('employee_id', $employee->id)->get();
             if ($entries->isEmpty()) {
                 continue;
             }
             $response[] = [
                 'employee' => $employee,
-                'entries' => $entries
+                'entries' => $entries,
+                'summary' => $this->buildEmployeeSummary($entries),
             ];
         }
-
 
         return $response;
     }
@@ -142,10 +293,11 @@ class CompTimeService
 
         $dashboard = [];
 
-        $dashboard['total_credit_minutes'] = $timeEntries->where('type', 'CREDIT')->sum('amount_minutes');
-        $dashboard['total_debit_minutes'] = $timeEntries->where('type', 'DEBIT')->sum('amount_minutes');
+        $active = $timeEntries->where('written_off', false);
+        $dashboard['total_credit_minutes'] = $active->where('type', 'CREDIT')->sum('amount_minutes');
+        $dashboard['total_debit_minutes'] = $active->where('type', 'DEBIT')->sum('amount_minutes');
         $dashboard['net_balance_minutes'] = $dashboard['total_credit_minutes'] - $dashboard['total_debit_minutes'];
-        $dashboard['next_expiring_entries'] = $timeEntries->filter(function ($entry) {
+        $dashboard['next_expiring_entries'] = $active->filter(function ($entry) {
             return $entry->balance_minutes > 0;
         })->values()->sortBy('due_date')->take(3);
 
@@ -166,7 +318,6 @@ class CompTimeService
             }
             $entry->adjustments = $adjustments;
         }
-
 
         return ['employee' => $employee, 'timeEntries' => $timeEntries, 'dashboard' => $dashboard];
     }
@@ -191,83 +342,120 @@ class CompTimeService
         return $timeEntries;
     }
 
-    public function recalculateAllBalances()
+    public function recalculateAllBalances(?int $employeeId = null): void
     {
-        $employees = Employee::all();
+        $employees = $employeeId
+            ? Employee::where('id', $employeeId)->get()
+            : Employee::all();
 
         foreach ($employees as $employee) {
-            $timeEntries = TimeEntry::where('employee_id', $employee->id)
+            $activeEntries = TimeEntry::where('employee_id', $employee->id)
+                ->where('written_off', false)
                 ->orderBy('entry_date', 'asc')
                 ->get();
 
-            //Reset Adjustments
-            TimeAdjustment::whereIn('entry_time_to_adjust_id', $timeEntries->pluck('id'))->delete();
-            TimeAdjustment::whereIn('entry_time_adjusted_id', $timeEntries->pluck('id'))->delete();
+            TimeAdjustment::whereIn('entry_time_to_adjust_id', $activeEntries->pluck('id'))->delete();
+            TimeAdjustment::whereIn('entry_time_adjusted_id', $activeEntries->pluck('id'))->delete();
 
-            // Reset all balances
-            foreach ($timeEntries as $entry) {
+            foreach ($activeEntries as $entry) {
                 $entry->balance_minutes = $entry->amount_minutes;
                 $entry->save();
             }
 
-            // Recalculate balances
-            foreach ($timeEntries as $entry) {
+            foreach ($activeEntries as $entry) {
                 $this->updateBalance($employee, $entry);
             }
         }
     }
 
-    private function processEmployeeData(Crawler $infoTable, Crawler $scheduleTable)
+    private function buildEmployeeSummary($entries): array
     {
+        $active = $entries->where('written_off', false);
+        $totalCredits = $active->where('type', 'CREDIT')->sum('balance_minutes');
+        $totalDebits  = $active->where('type', 'DEBIT')->sum('balance_minutes');
+        $netBalance   = $totalCredits - $totalDebits;
+        $today = now()->startOfDay();
 
-        // De-para dos campos extraídos do HTML para as novas colunas
-        $name = trim($infoTable->filter('[data-bind="text: Nome"]')->text());
-        $position = trim($infoTable->filter('[data-bind="text: Cargo"]')->text());
-        $employeeCode = trim($infoTable->filter('[data-bind="text: Matricula"]')->text());
-        $department = trim($infoTable->filter('[data-bind="text: Estrutura"]')->text());
-        $cpf = trim($infoTable->filter('[data-bind="text: CPF"]')->text());
-        $dummyAdmission = trim($infoTable->filter('[data-bind="text: DataAdmissao"]')->text());
-
-        //Convert dummyAdmission for DD/MM/YYYY to YYYY-MM-DD
-        $dummyAdmission = Carbon::createFromFormat('d/m/Y', $dummyAdmission)->format('Y-m-d');
-
-        // AVISO: A migration exige CPF e Admission Date, mas o HTML original não tinha isso.
-        // Estamos inserindo valores "dummy" para não quebrar a importação.
-        // O ideal é ajustar o crawler se essa informação existir no HTML ou mudar a migration para nullable.
-
-
-        $employee = Employee::updateOrCreate(
-            ['employee_code' => $employeeCode],
-            [
-                'name' => $name, 
-                'position' => $position, 
-                'department' => $department,
-                'cpf' => $cpf,
-                'admission_date' => $dummyAdmission
-            ]
+        $expiredWithBalance = $active->filter(fn($e) =>
+            $e->balance_minutes > 0 &&
+            $e->due_date &&
+            Carbon::parse($e->due_date)->lt($today)
         );
 
-        $rows = $scheduleTable->filter('.relatorioEspelhoPontoBodyRow');
+        $nextExpiry = $active->filter(fn($e) =>
+            $e->balance_minutes > 0 &&
+            $e->due_date &&
+            Carbon::parse($e->due_date)->gte($today)
+        )->sortBy('due_date')->first();
 
-        $rows->each(function (Crawler $row) use ($employee) {
-            $this->processSingleDay($row, $employee);
-        });
+        return [
+            'total_credits_minutes'   => $totalCredits,
+            'total_debits_minutes'    => $totalDebits,
+            'net_balance_minutes'     => $netBalance,
+            'expired_balance_minutes' => $expiredWithBalance->sum('balance_minutes'),
+            'expired_count'           => $expiredWithBalance->count(),
+            'written_off_count'       => $entries->where('written_off', true)->count(),
+            'next_expiry_entry'       => $nextExpiry,
+            'days_to_expiry'          => $nextExpiry
+                ? (int) now()->diffInDays(Carbon::parse($nextExpiry->due_date), false)
+                : null,
+        ];
     }
 
-    private function processSingleDay(Crawler $row, Employee $employee)
+    private function parseFileRows(string $filePath): array
     {
-        $dataTexto = trim(explode(' ', $row->filter('[data-bind="text: Data"]')->text())[0]);
-        $entryDate = Carbon::createFromFormat('d/m/Y', $dataTexto);
+        $content = file_get_contents($filePath);
+        $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
 
-        $referenceTime = trim($row->filter('[data-bind="text: Horario"]')->text());
-        
-        // $ignoreTerms = ["Compensado", "Descanso Semanal", "Folga", "Afastamento", "Férias", "Feriado"];
-        $ignoreTerms = ["Feriado"];
-        if (Str::contains($referenceTime, $ignoreTerms)) {
-            return;
+        $crawler = new Crawler($content);
+        $tables = $crawler->filter('table');
+        $totalTables = $tables->count();
+
+        $rows = [];
+        for ($i = 0; $i < $totalTables; $i += 4) {
+            if ($i + 1 >= $totalTables) break;
+
+            $tabelaInfo = $tables->eq($i)->filter('[data-bind="with: InfoFuncionario"]');
+            $tabelaHorario = $tables->eq($i + 1);
+
+            $employeeRows = $this->parseEmployeeRows($tabelaInfo, $tabelaHorario);
+            $rows = array_merge($rows, $employeeRows);
         }
 
+        return $rows;
+    }
 
+    private function parseEmployeeRows(Crawler $infoTable, Crawler $scheduleTable): array
+    {
+        $name           = trim($infoTable->filter('[data-bind="text: Nome"]')->text());
+        $position       = trim($infoTable->filter('[data-bind="text: Cargo"]')->text());
+        $employeeCode   = trim($infoTable->filter('[data-bind="text: Matricula"]')->text());
+        $department     = trim($infoTable->filter('[data-bind="text: Estrutura"]')->text());
+        $cpf            = trim($infoTable->filter('[data-bind="text: CPF"]')->text());
+        $admissionRaw   = trim($infoTable->filter('[data-bind="text: DataAdmissao"]')->text());
+        $admissionDate  = Carbon::createFromFormat('d/m/Y', $admissionRaw)->format('Y-m-d');
+
+        $employeeData = compact('name', 'position', 'employeeCode', 'department', 'cpf', 'admissionDate');
+
+        $rows = [];
+        $scheduleTable->filter('.relatorioEspelhoPontoBodyRow')->each(function (Crawler $row) use ($employeeData, &$rows) {
+            $parsed = $this->parseSingleDayRow($row, $employeeData);
+            $rows = array_merge($rows, $parsed);
+        });
+
+        return $rows;
+    }
+
+    private function parseSingleDayRow(Crawler $row, array $employeeData): array
+    {
+        $dataTexto    = trim(explode(' ', $row->filter('[data-bind="text: Data"]')->text())[0]);
+        $entryDate    = Carbon::createFromFormat('d/m/Y', $dataTexto);
+        $referenceTime = trim($row->filter('[data-bind="text: Horario"]')->text());
+
+        $ignoreTerms = ["Feriado"];
+        if (Str::contains($referenceTime, $ignoreTerms)) {
+            return [];
+        }
 
         try {
             $entryTimes = trim($row->filter('[data-bind="html: Apontamentos"]')->text());
@@ -276,69 +464,91 @@ class CompTimeService
         }
 
         $allTd = $row->filter('td');
-        
-        // Índices baseados na estrutura do HTML original
-        $debbuugg = '';
-        foreach($allTd as $index => $td) {
-            $debbuugg .= "Index $index: " . trim($td->textContent) . "\n";
-        }
 
-        $debitoStr = trim($allTd->eq(9)->text()) !== '' ? trim($allTd->eq(9)->text()) : explode(" ",trim($allTd->eq(8)->text()))[0];
+        $debitoStr  = trim($allTd->eq(9)->text()) !== '' ? trim($allTd->eq(9)->text()) : explode(" ", trim($allTd->eq(8)->text()))[0];
         $creditoStr = trim($allTd->eq(10)->text()) !== '' ? trim($allTd->eq(10)->text()) : trim($allTd->eq(4)->text());
 
-        $debitoMinutes = $this->timeToMinutes($debitoStr);
+        $debitoMinutes  = $this->timeToMinutes($debitoStr);
         $creditoMinutes = $this->timeToMinutes($creditoStr);
-        
+        $dueDate        = (clone $entryDate)->addDays(self::MAX_VALID_DAYS);
+
+        $baseRow = [
+            'employee_code'  => $employeeData['employeeCode'],
+            'employee_name'  => $employeeData['name'],
+            'position'       => $employeeData['position'],
+            'department'     => $employeeData['department'],
+            'cpf'            => $employeeData['cpf'],
+            'admission_date' => $employeeData['admissionDate'],
+            'entry_date'     => $entryDate,
+            'reference_time' => $referenceTime,
+            'entry_times'    => $entryTimes,
+            'due_date'       => $dueDate,
+        ];
+
+        $result = [];
 
         if ($debitoMinutes > 0) {
-            if (!Str::contains(trim($allTd->eq(8)->text()), "DSR")){
-                $this->insertTimeEntry($employee, $entryDate, $referenceTime, $entryTimes, 'DEBIT', $debitoMinutes);
+            if (!Str::contains(trim($allTd->eq(8)->text()), "DSR")) {
+                $result[] = array_merge($baseRow, ['type' => 'DEBIT', 'amount_minutes' => $debitoMinutes]);
             }
         }
 
         if ($creditoMinutes > 0) {
             if ($creditoMinutes > 120) {
-                if (!Str::contains(trim($allTd->eq(11)->text()), "reditar")) { //"Creditar"
-                    // Se o crédito for maior que 120 minutos e o campo específico estiver vazio,
-                    // assumimos que é um erro de extração e zeramos o crédito.
+                if (!Str::contains(trim($allTd->eq(11)->text()), "reditar")) {
                     $creditoMinutes = 0;
                 }
             }
-            $this->insertTimeEntry($employee, $entryDate, $referenceTime, $entryTimes, 'CREDIT', $creditoMinutes);
+            $result[] = array_merge($baseRow, ['type' => 'CREDIT', 'amount_minutes' => $creditoMinutes]);
         }
 
         if ($creditoMinutes === 0 && $debitoMinutes === 0) {
-            // Nenhum débito ou crédito, não faz nada
-            $this->insertTimeEntry($employee, $entryDate, $referenceTime, $entryTimes, 'Padrão', $creditoMinutes);
+            $result[] = array_merge($baseRow, ['type' => 'Padrão', 'amount_minutes' => 0]);
         }
+
+        return $result;
+    }
+
+    private function upsertEmployee(array $row, array &$cache): Employee
+    {
+        $code = $row['employee_code'];
+        if (!isset($cache[$code])) {
+            $cache[$code] = Employee::updateOrCreate(
+                ['employee_code' => $code],
+                [
+                    'name'           => $row['employee_name'],
+                    'position'       => $row['position'],
+                    'department'     => $row['department'],
+                    'cpf'            => $row['cpf'],
+                    'admission_date' => $row['admission_date'],
+                ]
+            );
+        }
+        return $cache[$code];
     }
 
     private function insertTimeEntry(Employee $employee, Carbon $date, $ref, $registros, $type, $minutes)
     {
         $dueDate = (clone $date)->addDays(self::MAX_VALID_DAYS);
 
-        //Check if entry already exists
         $existingEntry = TimeEntry::where('employee_id', $employee->id)
             ->whereDate('entry_date', $date)
             ->where('type', $type)
             ->first();
 
         if (!$existingEntry) {
-            // Update existing entry
             $timeEntry = TimeEntry::create([
-                'employee_id' => $employee->id,
-                'entry_date' => $date,
+                'employee_id'    => $employee->id,
+                'entry_date'     => $date,
                 'reference_time' => $ref,
-                'entry_times' => $registros,
-                'type' => $type,
+                'entry_times'    => $registros,
+                'type'           => $type,
                 'amount_minutes' => $minutes,
-                'balance_minutes' => $minutes, // Saldo inicial igual ao total
-                'due_date' => $dueDate
+                'balance_minutes' => $minutes,
+                'due_date'       => $dueDate
             ]);
         } else {
-            // Update existing entry
-            
-            $existingEntry->amount_minutes = $minutes;
+            $existingEntry->amount_minutes  = $minutes;
             $existingEntry->balance_minutes = $minutes;
             $existingEntry->save();
             $timeEntry = $existingEntry;
@@ -349,6 +559,8 @@ class CompTimeService
 
     private function updateBalance(Employee $employee, TimeEntry $currentEntry)
     {
+        if ($currentEntry->written_off) return;
+
         $balance = $currentEntry->balance_minutes;
         $referenceDate = Carbon::parse($currentEntry->entry_date);
         $minDate = (clone $referenceDate)->subDays(self::MAX_VALID_DAYS);
@@ -358,6 +570,7 @@ class CompTimeService
         $compensables = TimeEntry::where('employee_id', $employee->id)
             ->where('type', $targetType)
             ->where('balance_minutes', '>', 0)
+            ->where('written_off', false)
             ->where('entry_date', '>=', $minDate)
             ->orderBy('entry_date', 'asc')
             ->get();
@@ -366,67 +579,36 @@ class CompTimeService
             if ($balance <= 0) break;
 
             $auxRowBalance = $targetRow->balance_minutes;
-            $originalTargetBalance = $auxRowBalance; // Guarda o valor antes da operação
-            $originalCurrentBalance = $balance;      // Guarda o valor antes da operação
+            $originalTargetBalance  = $auxRowBalance;
+            $originalCurrentBalance = $balance;
 
             if ($balance >= $auxRowBalance) {
-                // Cenário 1: O registro ATUAL cobre TOTALMENTE o ANTIGO
-                // Ex: Atual (Débito 60m) vs Antigo (Crédito 20m)
-                // Deduz 20m do atual. Antigo zera.
-                
                 $deduction = $auxRowBalance;
                 $balance -= $auxRowBalance;
-                
+
                 $targetRow->update(['balance_minutes' => 0]);
 
-                // Ajuste 1: No registro ATUAL (Devedor) - Dizendo que usou saldo do Antigo
                 $this->createAdjustment(
-                    $currentEntry->id,      // Quem está sendo ajustado (Atual)
-                    $targetRow->id,         // A fonte do ajuste (Antigo)
-                    $deduction,
-                    $originalCurrentBalance, // Antes
-                    $balance,                // Depois (reduzido)
-                    ""
+                    $currentEntry->id, $targetRow->id,
+                    $deduction, $originalCurrentBalance, $balance, ""
                 );
-
-                // Ajuste 2: No registro ANTIGO (Pagador) - Dizendo que pagou o Atual
                 $this->createAdjustment(
-                    $targetRow->id,         // Quem está sendo ajustado (Antigo)
-                    $currentEntry->id,      // O destino do ajuste (Atual)
-                    $deduction,
-                    $originalTargetBalance,  // Antes
-                    0,                       // Depois (Zerou)
-                    ""
+                    $targetRow->id, $currentEntry->id,
+                    $deduction, $originalTargetBalance, 0, ""
                 );
-
             } else {
-                // Cenário 2: O registro ATUAL cobre PARCIALMENTE o ANTIGO
-                // Ex: Atual (Débito 10m) vs Antigo (Crédito 50m)
-                // Deduz 10m do antigo. Atual zera.
-
-                $deduction = $balance;
+                $deduction     = $balance;
                 $newRowBalance = $auxRowBalance - $balance;
-                
+
                 $targetRow->update(['balance_minutes' => $newRowBalance]);
 
-                // Ajuste 1: No registro ATUAL (Devedor) - Zerou usando parte do Antigo
                 $this->createAdjustment(
-                    $currentEntry->id,
-                    $targetRow->id,
-                    $deduction,
-                    $originalCurrentBalance,
-                    0, // Zerou
-                    ""
+                    $currentEntry->id, $targetRow->id,
+                    $deduction, $originalCurrentBalance, 0, ""
                 );
-
-                // Ajuste 2: No registro ANTIGO (Pagador) - Reduziu pagando o Atual
                 $this->createAdjustment(
-                    $targetRow->id,
-                    $currentEntry->id,
-                    $deduction,
-                    $originalTargetBalance,
-                    $newRowBalance, // Sobrou saldo
-                    ""
+                    $targetRow->id, $currentEntry->id,
+                    $deduction, $originalTargetBalance, $newRowBalance, ""
                 );
 
                 $balance = 0;
@@ -439,12 +621,12 @@ class CompTimeService
     private function createAdjustment($currentId, $targetId, $amount, $before, $after, $reason)
     {
         TimeAdjustment::create([
-            'entry_time_to_adjust_id' => $currentId,
-            'entry_time_adjusted_id' => $targetId,
-            'amount_minutes' => $amount,
+            'entry_time_to_adjust_id'  => $currentId,
+            'entry_time_adjusted_id'   => $targetId,
+            'amount_minutes'           => $amount,
             'before_adjustment_minutes' => $before,
-            'after_adjustment_minutes' => $after,
-            'reason' => $reason
+            'after_adjustment_minutes'  => $after,
+            'reason'                   => $reason
         ]);
     }
 

@@ -86,4 +86,29 @@ class User extends Authenticatable
     {
         return $this->hasMany(Schedule::class, 'updated_by_user', 'id');
     }
+
+    public function sectors()
+    {
+        return $this->belongsToMany(Sector::class, 'user_sector')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
+
+    public function isCoordinatorOf(Sector $sector): bool
+    {
+        return $this->sectors()
+            ->wherePivot('sector_id', $sector->id)
+            ->wherePivot('role', 'coordinator')
+            ->exists();
+    }
+
+    public function coordinatorSectors()
+    {
+        return $this->sectors()->wherePivot('role', 'coordinator');
+    }
+
+    public function collaboratorSectors()
+    {
+        return $this->sectors()->wherePivot('role', 'collaborator');
+    }
 }

@@ -95,6 +95,15 @@
                             </div>
 
                             <div>
+                                <label for="matricula" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Matrícula</label>
+                                <input type="text" name="matricula" id="matricula" value="{{ old('matricula', $user['matricula'] ?? '') }}" maxlength="5"
+                                    class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                    placeholder="Ex: 00123">
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Usada para vincular ao registro no Banco de Horas.</p>
+                                @error('matricula')<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+                            </div>
+
+                            <div>
                                 <label for="role_id" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Perfil de Acesso</label>
                                 <select name="role_id" id="role_id" required
                                         class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition uppercase text-xs font-bold tracking-wider bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
