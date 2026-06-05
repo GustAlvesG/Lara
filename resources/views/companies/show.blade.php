@@ -36,7 +36,9 @@
             <div class="h-32 bg-indigo-600"></div>
             <div class="px-8 pb-8">
                 <div class="relative flex justify-between items-end -mt-12 mb-6">
-                    <img src="{{ "https://placehold.co/128x128/ffffff/4f46e5?text=" . $companyDetails->name }}" alt="Logo" class="w-32 h-32 rounded-2xl border-4 border-white dark:border-gray-800 shadow-xl bg-white object-cover">
+                    <img src="{{ $companyDetails->image ? asset('images/' . $companyDetails->image) : 'https://placehold.co/128x128/ffffff/4f46e5?text=' . urlencode($companyDetails->name) }}"
+                         onerror="this.onerror=null;this.src='https://placehold.co/128x128/ffffff/4f46e5?text={{ urlencode($companyDetails->name) }}';"
+                         alt="Logo" class="w-32 h-32 rounded-2xl border-4 border-white dark:border-gray-800 shadow-xl bg-white object-cover">
                     <div class="flex gap-3 mb-2">
                         <span class="px-3 py-1 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 rounded-full text-xs font-bold uppercase">Ativa</span>
                     </div>
