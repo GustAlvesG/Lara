@@ -9,7 +9,7 @@
     </x-slot>
 
     <div>
-        <x-crud.form :formRoute="route('company.update', $company->id)" :formMethod="'POST'" enctype="multipart/form-data" :hasImageSection="true">
+        <x-crud.form :formRoute="route('company.update', $company->id)" :formMethod="'POST'" enctype="multipart/form-data" :hasImageSection="true" :existingImageUrl="$company->image ? asset('images/' . $company->image) : null">
 
             <x-slot name="header">
                 <div class="my-4 flex items-center gap-4">

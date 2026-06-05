@@ -29,8 +29,7 @@ class CompanyService
         $data = $request->only(['name', 'telephone', 'email', 'address', 'description']);
 
         if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('company_images', 'public');
-            $data['image'] = $imagePath;
+            $data['image'] = $this->saveCompanyImage($request->file('image'));
         }
 
         $company = Company::create($data);
@@ -42,11 +41,18 @@ class CompanyService
         $data = $request->only(['name', 'telephone', 'email', 'address', 'description']);
 
         if ($request->hasFile('image')) {
-            $data['image'] = $request->file('image')->store('company_images', 'public');
+            $data['image'] = $this->saveCompanyImage($request->file('image'));
         }
 
         $company->update($data);
         return $company;
+    }
+
+    private function saveCompanyImage($file): string
+    {
+        $imageName = 'company_' . time() . '.' . $file->getClientOriginalExtension();
+        $file->move(public_path('images'), $imageName);
+        return $imageName;
     }
 
     public function getCompanyDetails($company)

@@ -74,6 +74,11 @@
                 display: none !important;
             }
 
+            .filter-written-off .entry-row[data-is-written-off="false"],
+            .filter-written-off .detail-row[data-is-written-off="false"] {
+                display: none !important;
+            }
+
             /* Regras de CSS específicas para Impressão/PDF */
             @media print {
                 body, main { background-color: white !important; color: black !important; }
@@ -175,8 +180,11 @@
                     <button type="button" onclick="setFilter('balance')" id="btn-filter-balance" class="-ml-px px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700 focus:z-10 focus:ring-2 focus:ring-indigo-500 transition-colors">
                         Com Saldo
                     </button>
-                    <button type="button" onclick="setFilter('expired')" id="btn-filter-expired" class="-ml-px px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-r-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700 focus:z-10 focus:ring-2 focus:ring-indigo-500 transition-colors">
+                    <button type="button" onclick="setFilter('expired')" id="btn-filter-expired" class="-ml-px px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700 focus:z-10 focus:ring-2 focus:ring-indigo-500 transition-colors">
                         Com Saldo Vencido
+                    </button>
+                    <button type="button" onclick="setFilter('written_off')" id="btn-filter-written-off" class="-ml-px px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-r-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700 focus:z-10 focus:ring-2 focus:ring-indigo-500 transition-colors">
+                        Dadas Baixa
                     </button>
                 </div>
             </div>
@@ -194,6 +202,9 @@
                             <th scope="col" class="px-6 py-3 text-right">Ocorrência</th>
                             <th scope="col" class="px-6 py-3 text-right">Saldo Restante</th>
                             <th scope="col" class="px-6 py-3 text-center">Validade</th>
+                            @if($isCoordinator ?? false)
+                            <th scope="col" class="px-6 py-3 text-center">Ações</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700 text-sm">
@@ -225,21 +236,23 @@
                                 $balanceMinutes = $entry->balance_minutes ?? 0;
                                 
                                 // Variáveis de controle para os filtros
-                                $hasBalance = $balanceMinutes > 0 ? 'true' : 'false'; 
+                                $hasBalance = $balanceMinutes > 0 ? 'true' : 'false';
                                 $isOccurrence = ($isCredit || $isDebit) ? 'true' : 'false';
                                 $isExpired = ($balanceMinutes > 0 && $dueDate && $dueDate->endOfDay()->isPast()) ? 'true' : 'false';
+                                $isWrittenOff = !empty($entry->written_off) ? 'true' : 'false';
 
                                 $adjustments = $entry->adjustments ?? $entry->adjustments_as_target ?? $entry->adjustments_as_source ?? [];
                                 $hasAdjustments = count($adjustments) > 0;
-                                
+
                                 $rowId = 'row-' . ($entry->id ?? $index);
                             @endphp
-                            
+
                             <!-- Linha Principal -->
-                            <tr class="entry-row hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors {{ $rowClass }} {{ $hasAdjustments ? 'cursor-pointer' : '' }}" 
+                            <tr class="entry-row hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors {{ $rowClass }} {{ $hasAdjustments ? 'cursor-pointer' : '' }} {{ $isWrittenOff === 'true' ? 'opacity-50' : '' }}"
                                 data-has-balance="{{ $hasBalance }}"
                                 data-is-occurrence="{{ $isOccurrence }}"
                                 data-is-expired="{{ $isExpired }}"
+                                data-is-written-off="{{ $isWrittenOff }}"
                                 @if($hasAdjustments) onclick="toggleRow('{{ $rowId }}')" @endif>
                                 <td class="px-6 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400">
                                     @if($hasAdjustments)
@@ -251,6 +264,9 @@
                                 <td class="px-6 py-3 whitespace-nowrap text-gray-900 dark:text-gray-100">
                                     {{ $date->format('d/m/Y') }}
                                     <span class="text-xs text-gray-400 dark:text-gray-500 block">{{ ucfirst($date->locale('pt_BR')->dayName) }}</span>
+                                    @if($isWrittenOff === 'true')
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-300 mt-0.5">Baixa</span>
+                                    @endif
                                 </td>
                                 <td class="px-6 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap text-xs">
                                     {{ $entry->reference_time ?? '-' }}
@@ -276,7 +292,11 @@
                                 </td>
                                 <td class="px-6 py-3 text-right whitespace-nowrap font-bold text-gray-700 dark:text-gray-200">
                                     @if($balanceMinutes > 0)
-                                        {{ $formatMinutes($balanceMinutes) }}
+                                        @if($isWrittenOff === 'true')
+                                            <s class="text-gray-400 dark:text-gray-500">{{ $formatMinutes($balanceMinutes) }}</s>
+                                        @else
+                                            {{ $formatMinutes($balanceMinutes) }}
+                                        @endif
                                     @else
                                         <span class="text-gray-300 dark:text-gray-600">-</span>
                                     @endif
@@ -290,12 +310,35 @@
                                         -
                                     @endif
                                 </td>
+                                @if($isCoordinator ?? false)
+                                <td class="px-6 py-3 text-center whitespace-nowrap" onclick="event.stopPropagation()">
+                                    @if($isWrittenOff === 'true')
+                                        <form action="{{ route('comp-time.undo-write-off') }}" method="POST" class="inline">
+                                            @csrf
+                                            <input type="hidden" name="entry_id" value="{{ $entry->id }}">
+                                            <button type="submit" class="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 transition-colors">
+                                                Desfazer Baixa
+                                            </button>
+                                        </form>
+                                    @elseif($isOccurrence === 'true')
+                                        <form action="{{ route('comp-time.write-off') }}" method="POST" class="inline">
+                                            @csrf
+                                            <input type="hidden" name="entry_id" value="{{ $entry->id }}">
+                                            <button type="submit" class="text-xs px-2 py-1 rounded bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900 dark:text-amber-300 dark:hover:bg-amber-800 transition-colors">
+                                                Dar Baixa
+                                            </button>
+                                        </form>
+                                    @else
+                                        <span class="text-gray-300 dark:text-gray-600">—</span>
+                                    @endif
+                                </td>
+                                @endif
                             </tr>
 
                             <!-- Linha de Detalhes (Accordion) -->
                             @if($hasAdjustments)
-                                <tr id="{{ $rowId }}" class="detail-row hidden bg-gray-50 dark:bg-gray-800" data-has-balance="{{ $hasBalance }}" data-is-occurrence="{{ $isOccurrence }}" data-is-expired="{{ $isExpired }}">
-                                    <td colspan="8" class="px-6 py-4">
+                                <tr id="{{ $rowId }}" class="detail-row hidden bg-gray-50 dark:bg-gray-800" data-has-balance="{{ $hasBalance }}" data-is-occurrence="{{ $isOccurrence }}" data-is-expired="{{ $isExpired }}" data-is-written-off="{{ $isWrittenOff }}">
+                                    <td colspan="{{ ($isCoordinator ?? false) ? 9 : 8 }}" class="px-6 py-4">
                                         <div class="rounded-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-4 shadow-inner">
                                             <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Histórico de Compensações</h4>
                                             <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
@@ -374,15 +417,16 @@
                         all: document.getElementById('btn-filter-all'),
                         occurrences: document.getElementById('btn-filter-occurrences'),
                         balance: document.getElementById('btn-filter-balance'),
-                        expired: document.getElementById('btn-filter-expired')
+                        expired: document.getElementById('btn-filter-expired'),
+                        written_off: document.getElementById('btn-filter-written-off')
                     };
                     const printSubtitle = document.getElementById('print-report-type');
 
                     const activeClasses = ['bg-indigo-100', 'text-indigo-700', 'border-indigo-200', 'dark:bg-indigo-900', 'dark:text-indigo-300', 'dark:border-indigo-700'];
                     const inactiveClasses = ['bg-white', 'text-gray-700', 'border-gray-200', 'dark:bg-gray-800', 'dark:text-gray-300', 'dark:border-gray-700', 'hover:bg-gray-50', 'dark:hover:bg-gray-700'];
 
-                    container.classList.remove('filter-balance', 'filter-occurrences', 'filter-expired');
-                    
+                    container.classList.remove('filter-balance', 'filter-occurrences', 'filter-expired', 'filter-written-off');
+
                     Object.values(btns).forEach(btn => {
                         if(btn) {
                             btn.classList.remove(...activeClasses);
@@ -391,20 +435,27 @@
                     });
 
                     if (type === 'balance') {
-                        container.classList.add('filter-balance'); 
+                        container.classList.add('filter-balance');
                         btns.balance.classList.remove(...inactiveClasses);
                         btns.balance.classList.add(...activeClasses);
                         if(printSubtitle) printSubtitle.innerText = '(Apenas com Saldo)';
                     } else if (type === 'occurrences') {
-                        container.classList.add('filter-occurrences'); 
+                        container.classList.add('filter-occurrences');
                         btns.occurrences.classList.remove(...inactiveClasses);
                         btns.occurrences.classList.add(...activeClasses);
                         if(printSubtitle) printSubtitle.innerText = '(Apenas Ocorrências)';
                     } else if (type === 'expired') {
-                        container.classList.add('filter-expired'); 
+                        container.classList.add('filter-expired');
                         btns.expired.classList.remove(...inactiveClasses);
                         btns.expired.classList.add(...activeClasses);
                         if(printSubtitle) printSubtitle.innerText = '(Com Saldo Vencido)';
+                    } else if (type === 'written_off') {
+                        container.classList.add('filter-written-off');
+                        if(btns.written_off) {
+                            btns.written_off.classList.remove(...inactiveClasses);
+                            btns.written_off.classList.add(...activeClasses);
+                        }
+                        if(printSubtitle) printSubtitle.innerText = '(Dadas Baixa)';
                     } else {
                         btns.all.classList.remove(...inactiveClasses);
                         btns.all.classList.add(...activeClasses);

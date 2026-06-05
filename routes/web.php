@@ -19,6 +19,7 @@ use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ScheduleRulesController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\SectorController;
 use App\Http\Controllers\CompTimeController;
 use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\DocumentationController;
@@ -147,6 +148,17 @@ Route::middleware('auth')->group(function () {
             Route::put('/{id}', [PermissionController::class, 'update'])->name('roles-permission.update');
             Route::delete('/{id}', [PermissionController::class, 'destroy'])->name('roles-permission.destroy');
         });
+
+        Route::group(['prefix' => 'sectors'], function () {
+            Route::get('/', [SectorController::class, 'index'])->name('sectors.index');
+            Route::get('/create', [SectorController::class, 'create'])->name('sectors.create');
+            Route::post('/', [SectorController::class, 'store'])->name('sectors.store');
+            Route::get('/{id}', [SectorController::class, 'show'])->name('sectors.show');
+            Route::put('/{id}', [SectorController::class, 'update'])->name('sectors.update');
+            Route::delete('/{id}', [SectorController::class, 'destroy'])->name('sectors.destroy');
+            Route::post('/{id}/users', [SectorController::class, 'addUser'])->name('sectors.users.add');
+            Route::delete('/{id}/users/{userId}', [SectorController::class, 'removeUser'])->name('sectors.users.remove');
+        });
     });
 
     Route::group(['prefix' => 'comp-time'], function () {
@@ -156,6 +168,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/details', [CompTimeController::class, 'showDetails'])->name('comp-time.show.details');
         Route::post('/details/day', [CompTimeController::class, 'showDayDetails'])->name('comp-time.show.day.details');
         Route::post('/recalculate', [CompTimeController::class, 'recalculateBalances'])->name('comp-time.recalculate');
+        Route::post('/write-off', [CompTimeController::class, 'writeOff'])->name('comp-time.write-off');
+        Route::post('/undo-write-off', [CompTimeController::class, 'undoWriteOff'])->name('comp-time.undo-write-off');
+        Route::get('/import-status/{uuid}', [CompTimeController::class, 'importStatus'])->name('comp-time.import-status');
+        Route::get('/import-status/{uuid}/api', [CompTimeController::class, 'importStatusApi'])->name('comp-time.import-status.api');
+        Route::get('/import-status/{uuid}/complete', [CompTimeController::class, 'importComplete'])->name('comp-time.import-complete');
+        Route::get('/import-preview/{uuid}', [CompTimeController::class, 'showImportPreview'])->name('comp-time.import-preview');
+        Route::post('/confirm-import/{uuid}', [CompTimeController::class, 'confirmImport'])->name('comp-time.confirm-import');
     });
 
 
