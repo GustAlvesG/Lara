@@ -88,9 +88,10 @@
                 <!-- CPF / Documento -->
                 <div>
                     <label for="cpf-field" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">CPF / Documento</label>
-                    <input type="text" id="cpf-field" name="document" placeholder="000.000.000-00"
-                            value="{{ old('document', $worker->document) }}"
+                    <input type="text" id="cpf-field" inputmode="numeric" placeholder="000.000.000-00" maxlength="14" autocomplete="off"
                             class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500">
+                    <input type="hidden" id="document-raw" name="document" value="{{ old('document', $worker->document ?? '') }}">
+                    <p id="cpf-feedback" class="mt-1 text-xs hidden"></p>
                 </div>
 
                 <!-- Cargo -->
@@ -203,6 +204,69 @@
             document.addEventListener('DOMContentLoaded', function () {
                 const form = document.querySelector('form');
                 if (form) form.addEventListener('reset', clearCameraState);
+
+                if (form) form.addEventListener('submit', function (e) {
+                    const digits = document.getElementById('document-raw').value;
+                    if (digits.length > 0 && digits.length !== 11) {
+                        e.preventDefault();
+                        const fb = document.getElementById('cpf-feedback');
+                        fb.textContent = '✗ CPF incompleto — informe todos os 11 dígitos';
+                        fb.className   = 'mt-1 text-xs text-red-600 dark:text-red-400';
+                        document.getElementById('cpf-field').focus();
+                    }
+                });
+
+                const cpfField    = document.getElementById('cpf-field');
+                const cpfRaw      = document.getElementById('document-raw');
+                const cpfFeedback = document.getElementById('cpf-feedback');
+
+                function formatCPF(digits) {
+                    return digits
+                        .replace(/(\d{3})(\d)/, '$1.$2')
+                        .replace(/(\d{3})(\d)/, '$1.$2')
+                        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+                }
+
+                function validateCPF(cpf) {
+                    if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+                    for (let t = 9; t < 11; t++) {
+                        let d = 0;
+                        for (let c = 0; c < t; c++) d += parseInt(cpf[c]) * ((t + 1) - c);
+                        d = ((10 * d) % 11) % 10;
+                        if (parseInt(cpf[t]) !== d) return false;
+                    }
+                    return true;
+                }
+
+                function showFeedback(digits) {
+                    if (digits.length === 0) { cpfFeedback.classList.add('hidden'); return; }
+                    cpfFeedback.classList.remove('hidden');
+                    if (digits.length < 11) {
+                        cpfFeedback.textContent = '✗ CPF incompleto (' + digits.length + '/11 dígitos)';
+                        cpfFeedback.className   = 'mt-1 text-xs text-red-600 dark:text-red-400';
+                        return;
+                    }
+                    const valid = validateCPF(digits);
+                    cpfFeedback.textContent = valid ? '✓ CPF válido' : '✗ CPF inválido';
+                    cpfFeedback.className   = valid
+                        ? 'mt-1 text-xs text-green-600 dark:text-green-400'
+                        : 'mt-1 text-xs text-red-600 dark:text-red-400';
+                }
+
+                cpfField.addEventListener('input', function () {
+                    const digits = this.value.replace(/\D/g, '').slice(0, 11);
+                    this.value   = formatCPF(digits);
+                    cpfRaw.value = digits;
+                    showFeedback(digits);
+                });
+
+                // Initialize with existing value from DB
+                const initial = cpfRaw.value.replace(/\D/g, '').slice(0, 11);
+                if (initial) {
+                    cpfField.value = formatCPF(initial);
+                    cpfRaw.value   = initial;
+                    showFeedback(initial);
+                }
             });
         </script>
     </x-slot>

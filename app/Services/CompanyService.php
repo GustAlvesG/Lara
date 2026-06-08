@@ -70,7 +70,7 @@ class CompanyService
             'email' => $data['email'],
             'position' => $data['position'] ?? $data['role'] ?? 'Funcionário',
             'telephone' => $data['telephone'] ?? null,
-            'document' => $data['document'] ?? null,
+            'document' => isset($data['document']) ? (preg_replace('/\D/', '', $data['document']) ?: null) : null,
             'image' => $data['image'] ?? null,
         ];
 
@@ -86,6 +86,10 @@ class CompanyService
     public function updateWorker(array $data, CompanyWorker $worker): CompanyWorker
     {
         $fields = array_intersect_key($data, array_flip(['name', 'email', 'position', 'telephone', 'document']));
+
+        if (isset($fields['document'])) {
+            $fields['document'] = preg_replace('/\D/', '', $fields['document']) ?: null;
+        }
 
         if (!empty($data['image'])) {
             $fields['image'] = $this->saveBase64Image($data['image']);

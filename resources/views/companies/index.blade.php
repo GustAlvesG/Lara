@@ -21,6 +21,8 @@
         <br>
         <div class="mx-auto sm:px-6 lg:px-8 space-y-6 page-group">
             <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg page" data-limit="5" data-actual="">
+
+                <!-- Empresas -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="elements-container">
                     @foreach ($companies as $company)
                         @php
@@ -40,7 +42,7 @@
                             $rulesCount   = $company->rules->count();
                         @endphp
 
-                        <div class="elements">
+                        <div class="elements" data-company-id="{{ $company->id }}">
                             <a href="{{ route('company.show', $company->id) }}" class="block transform hover:scale-[1.02] transition duration-300">
                                 <div class="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl border border-gray-100 dark:border-gray-700 h-full">
 
@@ -114,6 +116,14 @@
                         </div>
                     @endforeach
                 </div>
+
+                <!-- Resultados de funcionários (aparece ao digitar no campo de busca) -->
+                <div id="worker-results-section" class="hidden mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
+                    <p id="worker-section-title" class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Funcionários encontrados</p>
+                    <p id="worker-search-empty" class="text-sm text-gray-500 dark:text-gray-400 hidden">Nenhum funcionário encontrado.</p>
+                    <div id="worker-search-results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" style="display:none;"></div>
+                </div>
+
             </div>
 
             <div class="flex justify-center sm:px-6 lg:px-8 space-y-6 my-3">
@@ -126,5 +136,106 @@
 
     <x-slot name="js">
         <script src="{{ asset('js/information/filter.js') }}"></script>
+        <script>
+        (function () {
+            const input      = document.getElementById('search-filter-text');
+            const section    = document.getElementById('worker-results-section');
+            const results    = document.getElementById('worker-search-results');
+            const empty      = document.getElementById('worker-search-empty');
+            const title      = document.getElementById('worker-section-title');
+            const searchUrl  = '{{ route('company.worker.search') }}';
+            const byCompUrl  = '{{ route('company.workers.by.companies') }}';
+            let timer;
+
+            function getVisibleCompanyIds() {
+                return [...document.querySelectorAll('#elements-container .elements')]
+                    .filter(el => el.style.display !== 'none')
+                    .map(el => el.dataset.companyId)
+                    .filter(Boolean);
+            }
+
+            function renderCard(w) {
+                const initials = w.name.split(' ').filter(Boolean).slice(0, 2).map(n => n[0]).join('').toUpperCase();
+                const avatar   = w.image
+                    ? `<img src="${w.image}" alt="${w.name}" class="w-full h-full object-cover">`
+                    : `<span class="text-xl font-bold text-indigo-600 dark:text-indigo-400">${initials}</span>`;
+
+                const cpfHtml      = w.document  ? `<p class="text-xs text-gray-400 dark:text-gray-500 font-mono">${w.document}</p>` : '';
+                const phoneHtml    = w.telephone ? `<p class="text-xs text-gray-400 dark:text-gray-500">${w.telephone}</p>` : '';
+                const positionHtml = w.position  ? `<p class="text-xs text-gray-500 dark:text-gray-400">${w.position}</p>` : '';
+
+                return `
+                <a href="${w.worker_url}" class="block hover:scale-[1.02] transition duration-200">
+                    <div class="bg-white dark:bg-gray-700 rounded-xl border border-gray-100 dark:border-gray-600 shadow p-4 flex items-center gap-4">
+                        <div class="w-14 h-14 rounded-full bg-indigo-50 dark:bg-gray-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+                            ${avatar}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="font-bold text-gray-900 dark:text-white truncate">${w.name}</p>
+                            ${positionHtml}
+                            ${cpfHtml}
+                            ${phoneHtml}
+                            <span role="link" tabindex="0"
+                               class="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                               onclick="event.preventDefault(); event.stopPropagation(); window.location.href='${w.company_url}';">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                                </svg>
+                                ${w.company_name}
+                            </span>
+                        </div>
+                    </div>
+                </a>`;
+            }
+
+            function showWorkers(workers, emptyMsg) {
+                results.innerHTML = '';
+                if (workers.length === 0) {
+                    empty.textContent = emptyMsg;
+                    empty.classList.remove('hidden');
+                    results.style.display = 'none';
+                } else {
+                    empty.classList.add('hidden');
+                    workers.forEach(w => results.insertAdjacentHTML('beforeend', renderCard(w).trim()));
+                    results.style.display = 'grid';
+                }
+                section.classList.remove('hidden');
+            }
+
+            async function doSearch(q) {
+                if (q.length < 2) {
+                    section.classList.add('hidden');
+                    return;
+                }
+
+                const visibleIds = getVisibleCompanyIds();
+
+                if (visibleIds.length > 0) {
+                    title.textContent = 'Funcionários das empresas encontradas';
+                    const res = await fetch(byCompUrl + '?ids=' + visibleIds.join(','));
+                    const workers = await res.json();
+                    showWorkers(workers, 'Nenhum funcionário cadastrado nesta empresa.');
+                } else {
+                    title.textContent = 'Funcionários encontrados';
+                    const res = await fetch(searchUrl + '?q=' + encodeURIComponent(q));
+                    const workers = await res.json();
+                    showWorkers(workers, 'Nenhum funcionário encontrado.');
+                }
+            }
+
+            if (input) {
+                input.addEventListener('input', function () {
+                    clearTimeout(timer);
+                    const q = this.value.trim();
+                    if (q.length < 2) {
+                        section.classList.add('hidden');
+                        return;
+                    }
+                    timer = setTimeout(() => doSearch(q), 300);
+                });
+            }
+        })();
+        </script>
     </x-slot>
 </x-app-layout>
