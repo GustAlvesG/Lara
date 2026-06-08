@@ -19,39 +19,6 @@ class CompanyWorkerController extends Controller
         $this->companyService = $companyService;
     }
 
-    public function workersByCompanies(Request $request)
-    {
-        $ids = array_filter(explode(',', $request->get('ids', '')));
-        if (empty($ids)) {
-            return response()->json([]);
-        }
-
-        $workers = CompanyWorker::with('company')
-            ->whereIn('company_id', $ids)
-            ->orderBy('name')
-            ->get()
-            ->map(function ($w) {
-                $doc = $w->document;
-                $formatted = $doc
-                    ? preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $doc)
-                    : null;
-                return [
-                    'id'           => $w->id,
-                    'name'         => $w->name,
-                    'position'     => $w->position,
-                    'document'     => $formatted,
-                    'telephone'    => $w->telephone,
-                    'image'        => $w->image ? asset('images/' . $w->image) : null,
-                    'company_id'   => $w->company_id,
-                    'company_name' => $w->company?->name,
-                    'worker_url'   => route('company.worker.show', [$w->company_id, $w->id]),
-                    'company_url'  => route('company.show', $w->company_id),
-                ];
-            });
-
-        return response()->json($workers);
-    }
-
     public function search(Request $request)
     {
         $q = trim($request->get('q', ''));
@@ -61,14 +28,21 @@ class CompanyWorkerController extends Controller
 
         $normalized = preg_replace('/\D/', '', $q);
 
-        $workers = \App\Models\Company\CompanyWorker::with('company')
+        $workers = CompanyWorker::with('company')
             ->where(function ($query) use ($q, $normalized) {
+                // Funcionário por nome
                 $query->where('name', 'like', "%{$q}%");
+                // Funcionário por CPF (somente dígitos)
                 if ($normalized) {
                     $query->orWhere('document', 'like', "%{$normalized}%");
                 }
+                // Funcionários de empresas cujo nome casa com a busca
+                $query->orWhereHas('company', function ($c) use ($q) {
+                    $c->where('name', 'like', "%{$q}%");
+                });
             })
-            ->limit(30)
+            ->orderBy('name')
+            ->limit(50)
             ->get()
             ->map(function ($w) {
                 $doc = $w->document;

@@ -142,17 +142,8 @@
             const section    = document.getElementById('worker-results-section');
             const results    = document.getElementById('worker-search-results');
             const empty      = document.getElementById('worker-search-empty');
-            const title      = document.getElementById('worker-section-title');
             const searchUrl  = '{{ route('company.worker.search') }}';
-            const byCompUrl  = '{{ route('company.workers.by.companies') }}';
             let timer;
-
-            function getVisibleCompanyIds() {
-                return [...document.querySelectorAll('#elements-container .elements')]
-                    .filter(el => el.style.display !== 'none')
-                    .map(el => el.dataset.companyId)
-                    .filter(Boolean);
-            }
 
             function renderCard(w) {
                 const initials = w.name.split(' ').filter(Boolean).slice(0, 2).map(n => n[0]).join('').toUpperCase();
@@ -208,20 +199,9 @@
                     section.classList.add('hidden');
                     return;
                 }
-
-                const visibleIds = getVisibleCompanyIds();
-
-                if (visibleIds.length > 0) {
-                    title.textContent = 'Funcionários das empresas encontradas';
-                    const res = await fetch(byCompUrl + '?ids=' + visibleIds.join(','));
-                    const workers = await res.json();
-                    showWorkers(workers, 'Nenhum funcionário cadastrado nesta empresa.');
-                } else {
-                    title.textContent = 'Funcionários encontrados';
-                    const res = await fetch(searchUrl + '?q=' + encodeURIComponent(q));
-                    const workers = await res.json();
-                    showWorkers(workers, 'Nenhum funcionário encontrado.');
-                }
+                const res = await fetch(searchUrl + '?q=' + encodeURIComponent(q));
+                const workers = await res.json();
+                showWorkers(workers, 'Nenhum funcionário encontrado.');
             }
 
             if (input) {
