@@ -1,4 +1,23 @@
-<input type="hidden" name="company_id" value="{{ $companyId }}">
+@isset($companies)
+    <!-- Seleção de Empresa (fluxo rápido) -->
+    <div class="md:col-span-2">
+        <label for="company_id" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Empresa</label>
+        <select id="company_id" name="company_id" required
+                class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+            <option value="">Selecione a empresa...</option>
+            @foreach($companies as $c)
+                <option value="{{ $c->id }}" {{ (string) old('company_id', $selectedCompanyId ?? '') === (string) $c->id ? 'selected' : '' }}>
+                    {{ $c->name }}
+                </option>
+            @endforeach
+        </select>
+        @error('company_id')
+            <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
+        @enderror
+    </div>
+@else
+    <input type="hidden" name="company_id" value="{{ $companyId }}">
+@endisset
 
 <!-- ÁREA DA WEBCAM / FOTO -->
 <div class="md:col-span-2 flex flex-col items-center">
@@ -47,6 +66,7 @@
 <div class="md:col-span-2">
     <label for="name" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Nome Completo</label>
     <input type="text" id="name" name="name" required placeholder="Ex: João Silva"
+            value="{{ old('name') }}"
             class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500">
 </div>
 
@@ -54,6 +74,7 @@
 <div>
     <label for="email" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">E-mail</label>
     <input type="email" id="email" name="email" placeholder="joao.silva@empresa.com"
+            value="{{ old('email') }}"
             class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500">
 </div>
 
@@ -70,6 +91,7 @@
 <div>
     <label for="position" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Cargo / Função</label>
     <input type="text" id="position" name="position" required placeholder="Ex: Motorista"
+            value="{{ old('position') }}"
             class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500">
 </div>
 
@@ -77,6 +99,7 @@
 <div>
     <label for="telephone" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Telefone</label>
     <input type="text" id="telephone" name="telephone" placeholder="(24) 99999-9999"
+            value="{{ old('telephone') }}"
             class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500">
 </div>
 
