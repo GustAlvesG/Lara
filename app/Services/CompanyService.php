@@ -16,7 +16,7 @@ class CompanyService
 {
     public function getAllCompanies()
     {
-        return Company::with(['workers', 'rules.weekdays'])->get();
+        return Company::with(['workers', 'rules.weekdays'])->orderBy('name')->get();
     }
 
     public function getCompanyAccessStatus(Company $company): bool
