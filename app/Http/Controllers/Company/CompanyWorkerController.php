@@ -71,6 +71,16 @@ class CompanyWorkerController extends Controller
         return view('companies.workers.create', ['companyId' => $company->id]);
     }
 
+    public function quickCreate(Request $request)
+    {
+        $companies = Company::orderBy('name')->get(['id', 'name']);
+
+        return view('companies.workers.quick-create', [
+            'companies'         => $companies,
+            'selectedCompanyId' => $request->get('company_id'),
+        ]);
+    }
+
     public function store(StoreCompanyWorkerRequest $request)
     {
         try {
