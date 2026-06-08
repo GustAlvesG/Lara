@@ -305,6 +305,9 @@
                     list.innerHTML = '<li class="text-xs italic text-gray-400 dark:text-gray-500 py-1">Nenhum funcionário cadastrado.</li>';
                     return;
                 }
+                // Orderna por nome e exibe um badge indicando se o acesso está permitido ou bloqueado
+                workers.sort((a, b) => a.name.localeCompare(b.name));
+
                 list.innerHTML = workers.map(w => {
                     const badge = w.allowed
                         ? '<span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 whitespace-nowrap"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>Acesso</span>'
