@@ -69,7 +69,6 @@ Route::middleware('auth')->group(function () {
         Route::get('/access-monitor', [CompanyRulesController::class, 'monitor'])->name('company.access.monitor');
         Route::get('/access-logs', [CompanyRulesController::class, 'accessLogs'])->name('company.access.logs');
         Route::get('/workers/search', [WorkerController::class, 'search'])->name('company.worker.search');
-        Route::get('/workers/by-companies', [WorkerController::class, 'workersByCompanies'])->name('company.workers.by.companies');
         Route::get('/{company}', [CompanyController::class, 'show'])->name('company.show');
         Route::get('/{company}/edit', [CompanyController::class, 'edit'])->name('company.edit');
         Route::put('/{company}', [CompanyController::class, 'update'])->name('company.update');
