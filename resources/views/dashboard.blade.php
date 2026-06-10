@@ -22,6 +22,24 @@
                 </div>
             </div>
 
+            {{-- ============================== Avisos ============================= --}}
+            <x-dashboard.section title="Avisos" color="rose"
+                :href="route('avisos.index')" linkLabel="Ver todos"
+                icon="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9">
+
+                @if($avisos->isEmpty())
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 text-center text-gray-400 dark:text-gray-500 font-medium">
+                        {{ __('Nenhum aviso ativo no momento.') }}
+                    </div>
+                @else
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        @foreach($avisos as $aviso)
+                            @include('avisos.partials.card', ['aviso' => $aviso])
+                        @endforeach
+                    </div>
+                @endif
+            </x-dashboard.section>
+
             {{-- ============================ InfoClube ============================ --}}
             @can('view information')
                 <x-dashboard.section title="InfoClube" color="teal"

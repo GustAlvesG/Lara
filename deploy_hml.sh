@@ -98,7 +98,19 @@ fi
 echo "🔄 Reiniciando worker de filas..."
 sudo supervisorctl restart lara-queue:*
 
-# 9. Finalização
+# 9. Cron — scheduler do Laravel (avisos: lembretes e expirações)
+CRON_JOB="* * * * * $PHP_BIN $PROJECT_PATH/artisan schedule:run >> /dev/null 2>&1"
+CRON_MARKER="$PROJECT_PATH/artisan schedule:run"
+
+echo "⏰ Verificando cron do scheduler Laravel..."
+if sudo crontab -u $APACHE_USER -l 2>/dev/null | grep -qF "$CRON_MARKER"; then
+    echo "✅ Cron do scheduler já configurado."
+else
+    (sudo crontab -u $APACHE_USER -l 2>/dev/null; echo "$CRON_JOB") | sudo crontab -u $APACHE_USER -
+    echo "✅ Cron do scheduler adicionado para o usuário $APACHE_USER."
+fi
+
+# 10. Finalização
 echo "⚙️ Reiniciando Apache..."
 sudo systemctl restart apache2
 

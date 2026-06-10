@@ -23,6 +23,10 @@ use App\Http\Controllers\SectorController;
 use App\Http\Controllers\CompTimeController;
 use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\DocumentationController;
+
+use App\Http\Controllers\AvisoController;
+use App\Http\Controllers\NotificationController;
+
 use App\Http\Controllers\DashboardController;
 
 
@@ -199,6 +203,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/docs', [DocumentationController::class, 'index'])->name('docs.index');
     Route::get('/docs/{slug}', [DocumentationController::class, 'show'])
         ->where('slug', '.*')->name('docs.show');
+
+    // Avisos e Lembretes
+    Route::resource('avisos', AvisoController::class);
+
+    // Notificações
+    Route::get('/notifications/{id}/mark-read', [NotificationController::class, 'markRead'])->name('notifications.markRead');
+    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notifications.markAllRead');
 
 });
 

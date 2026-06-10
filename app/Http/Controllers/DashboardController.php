@@ -13,6 +13,7 @@ use App\Models\DataInfo;
 use App\Models\Company\Company;
 use App\Models\Company\CompanyWorker;
 use App\Models\Company\CompanyAccessLog;
+use App\Models\Aviso;
 
 class DashboardController extends Controller
 {
@@ -27,6 +28,13 @@ class DashboardController extends Controller
         $data = [
             'user' => $user,
         ];
+
+        // Avisos — visíveis a todos os usuários autenticados (conforme regra de visibilidade)
+        $data['avisos'] = Aviso::with('creator', 'lembretes')
+            ->visibleTo($user)
+            ->active()
+            ->orderByDesc('created_at')
+            ->get();
 
         // Últimos 14 dias (labels d/m e chaves Y-m-d para casar com as queries)
         $days = collect(range(13, 0))->map(fn ($i) => Carbon::today()->subDays($i));
