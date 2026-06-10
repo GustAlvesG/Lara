@@ -87,7 +87,7 @@ class CompanyAccessRulesController extends Controller
 
     public function accessLogs(Request $request)
     {
-        $query = CompanyAccessLog::with('company', 'worker')->latest();
+        $query = CompanyAccessLog::with('company', 'worker', 'appDriver')->latest();
 
         if ($request->filled('company_id')) {
             $query->where('company_id', $request->company_id);
