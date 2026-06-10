@@ -24,7 +24,7 @@ class AvisoExpiring extends Notification
             'aviso_id' => $this->aviso->id,
             'title' => $this->aviso->title,
             'message' => 'Aviso expirado: ' . $this->aviso->title,
-            'url' => route('avisos.show', $this->aviso->id),
+            'url' => route('avisos.show', $this->aviso->id, false),
         ];
     }
 }

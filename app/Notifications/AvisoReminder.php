@@ -24,7 +24,7 @@ class AvisoReminder extends Notification
             'aviso_id' => $this->aviso->id,
             'title' => $this->aviso->title,
             'message' => 'Lembrete: ' . $this->aviso->title,
-            'url' => route('avisos.show', $this->aviso->id),
+            'url' => route('avisos.show', $this->aviso->id, false),
         ];
     }
 }

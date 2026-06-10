@@ -24,7 +24,7 @@ class AvisoCreated extends Notification
             'aviso_id' => $this->aviso->id,
             'title' => $this->aviso->title,
             'message' => 'Novo aviso: ' . $this->aviso->title,
-            'url' => route('avisos.show', $this->aviso->id),
+            'url' => route('avisos.show', $this->aviso->id, false),
         ];
     }
 }

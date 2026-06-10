@@ -51,6 +51,11 @@ class Aviso extends Model
         return $this->hasMany(AvisoView::class)->orderByDesc('viewed_at');
     }
 
+    public function tags()
+    {
+        return $this->belongsToMany(Tag::class, 'aviso_tag')->orderBy('name');
+    }
+
     public function isExpired(): bool
     {
         return $this->expires_at && $this->expires_at->isPast();
@@ -78,6 +83,22 @@ class Aviso extends Model
     public function scopeExpired($query)
     {
         return $query->whereNotNull('expires_at')->where('expires_at', '<', today());
+    }
+
+    /**
+     * Busca por título ou por nome de tag (case-insensitive).
+     */
+    public function scopeSearch($query, ?string $term)
+    {
+        $term = trim((string) $term);
+        if ($term === '') {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($term) {
+            $q->where('title', 'like', "%{$term}%")
+              ->orWhereHas('tags', fn($t) => $t->where('name', 'like', '%' . Tag::normalize($term) . '%'));
+        });
     }
 
     public function scopeVisibleTo($query, User $user)

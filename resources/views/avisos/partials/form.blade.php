@@ -9,6 +9,8 @@
         ->map(fn($l) => ['remind_at' => $l->remind_at->format('Y-m-d\TH:i')])
         ->values()
         ->toArray() ?? [];
+
+    $existingTags = old('tags', $aviso?->tags->pluck('name')->values()->toArray() ?? []);
 @endphp
 
 <div class="space-y-5">
@@ -81,6 +83,39 @@
                       file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
                       file:text-sm file:font-medium file:bg-red-50 dark:file:bg-red-900/30
                       file:text-red-800 dark:file:text-red-300 hover:file:bg-red-100 cursor-pointer">
+    </div>
+
+    {{-- Tags --}}
+    <div x-data="tagsInput({{ json_encode(array_values($existingTags)) }})">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Tags
+        </label>
+
+        <div class="flex flex-wrap items-center gap-2 p-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 focus-within:border-red-500 focus-within:ring-1 focus-within:ring-red-500 transition"
+             @click="$refs.tagField.focus()">
+            <template x-for="(tag, index) in items" :key="index">
+                <span class="flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300">
+                    <span x-text="tag"></span>
+                    <input type="hidden" name="tags[]" :value="tag">
+                    <button type="button" @click="remove(index)" class="hover:text-red-900 dark:hover:text-red-100" title="Remover tag">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </span>
+            </template>
+
+            <input type="text" x-ref="tagField" x-model="draft"
+                   @keydown.enter.prevent="add()"
+                   @keydown.,.prevent="add()"
+                   @keydown.backspace="if (draft === '') removeLast()"
+                   @blur="add()"
+                   placeholder="Digite e tecle Enter…"
+                   class="flex-1 min-w-[120px] border-0 p-0 bg-transparent text-sm text-gray-800 dark:text-gray-200 focus:ring-0 placeholder-gray-400">
+        </div>
+        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+            Tags inexistentes são criadas automaticamente. Não diferencia maiúsculas de minúsculas.
+        </p>
     </div>
 
     {{-- Lembretes múltiplos --}}
