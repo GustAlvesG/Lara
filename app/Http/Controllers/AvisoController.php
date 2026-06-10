@@ -25,10 +25,14 @@ class AvisoController extends Controller
             ->visibleTo($user)
             ->expired()
             ->orderByDesc('created_at')
-            ->limit(10)
             ->get();
 
-        return view('avisos.index', compact('avisos', 'expirados'));
+        $todos = Aviso::with('creator', 'lembretes')
+            ->visibleTo($user)
+            ->orderByDesc('created_at')
+            ->get();
+
+        return view('avisos.index', compact('avisos', 'expirados', 'todos'));
     }
 
     public function show(Aviso $aviso)
@@ -41,7 +45,7 @@ class AvisoController extends Controller
             'viewed_at' => now(),
         ]);
 
-        $canManage = auth()->user()->can('manage avisos') || auth()->user()->hasRole('admin');
+        $canManage = auth()->user()->can('manage avisos');
         $viewHistory = $canManage
             ? $aviso->views()->with('user:id,name')->get()
                 ->groupBy('user_id')
@@ -185,9 +189,6 @@ class AvisoController extends Controller
 
     private function authorizeManage(): void
     {
-        abort_unless(
-            auth()->user()->can('manage avisos') || auth()->user()->hasRole('admin'),
-            403
-        );
+        abort_unless(auth()->user()->can('manage avisos'), 403);
     }
 }

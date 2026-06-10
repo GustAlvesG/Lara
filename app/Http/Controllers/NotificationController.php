@@ -10,8 +10,11 @@ class NotificationController extends Controller
 {
     public function unreadJson(Request $request): JsonResponse
     {
+        // O navegador envia `since` em UTC (new Date().toISOString() -> "...Z").
+        // Como created_at é gravado no fuso da aplicação (America/Sao_Paulo),
+        // precisamos converter antes de comparar, senão a query erra em ~3h.
         $since = $request->query('since')
-            ? Carbon::parse($request->query('since'))
+            ? Carbon::parse($request->query('since'))->setTimezone(config('app.timezone'))
             : now()->subSeconds(35);
 
         $checkedAt = now()->toISOString();

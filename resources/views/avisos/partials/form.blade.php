@@ -1,7 +1,11 @@
 @php
     $aviso = $aviso ?? null;
     $currentPrivacy = old('privacy', $aviso?->privacy ?? 'setor');
+    // Só lembretes ainda não enviados são editáveis. Os já enviados são
+    // histórico (exibidos na tela do aviso) e não devem voltar como inputs,
+    // senão o salvar os recriaria como pendentes e eles disparariam de novo.
     $existingLembretes = $aviso?->lembretes
+        ->where('sent', false)
         ->map(fn($l) => ['remind_at' => $l->remind_at->format('Y-m-d\TH:i')])
         ->values()
         ->toArray() ?? [];
