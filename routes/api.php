@@ -50,7 +50,7 @@ Route::prefix('company-access')->group(function () {
 
 Route::middleware('api_token')->group(function () {
 
-    Route::get('/parking/check/{plate}', [ParkingAuthorizationController::class, 'checkPlate'])
+    Route::post('/parking/check', [ParkingAuthorizationController::class, 'checkPlate'])
         ->name('api.parking.check');
 
     Route::prefix('telegram')->group(function () {

@@ -8,6 +8,7 @@ use App\Http\Requests\StoreParkingAuthorizationRequest;
 use App\Http\Requests\UpdateParkingAuthorizationRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class ParkingAuthorizationController extends Controller
@@ -53,8 +54,10 @@ class ParkingAuthorizationController extends Controller
             ->with('success', 'Placa removida com sucesso.');
     }
 
-    public function checkPlate(string $plate): JsonResponse
+    public function checkPlate(Request $request)
     {
-        return response()->json($this->service->checkPlate($plate));
+
+        $data = $request->all();
+        return response()->json($this->service->checkPlate($data));
     }
 }

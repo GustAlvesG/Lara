@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Carbon\Carbon;
 use App\Models\ParkingAuthorization;
+use App\Models\ParkingAccessLog;
 
 class ParkingAuthorizationService
 {
@@ -29,15 +30,19 @@ class ParkingAuthorizationService
         return $authorization;
     }
 
-    public function checkPlate(string $plate): array
+    public function checkPlate(array $data): array
     {
-        $authorization = ParkingAuthorization::where('plate', strtoupper($plate))->first();
+        $plate = strtoupper($data['plate']);
+        $confidence = isset($data['confidence']) ? (int) $data['confidence'] : null;
+        $authorization = ParkingAuthorization::where('plate', $plate)->first();
 
         if (!$authorization) {
+            $this->storeAccessLog($plate, $data['camera'], $data['time_entry'], $confidence, false, 'not_found');
             return ['valid' => false, 'reason' => 'not_found'];
         }
 
         if ($authorization->expiration_date->lt(Carbon::today())) {
+            $this->storeAccessLog($plate, $data['camera'], $data['time_entry'], $confidence, false, 'expired');
             return [
                 'valid'           => false,
                 'reason'          => 'expired',
@@ -45,10 +50,26 @@ class ParkingAuthorizationService
             ];
         }
 
+        $this->storeAccessLog($plate, $data['camera'], $data['time_entry'], $confidence, true);
+
         return [
             'valid'           => true,
             'name'            => $authorization->name,
             'expiration_date' => $authorization->expiration_date->toDateString(),
         ];
+    }
+
+    public function storeAccessLog(string $plate, string $camera, string $timeEntry, ?int $confidence, bool $authorized, ?string $reason = null): void
+    {
+        if ($confidence >= 95 || $authorized) {
+            ParkingAccessLog::create([
+                'plate'      => $plate,
+                'camera'     => $camera,
+                'time_entry' => $timeEntry,
+                'confidence' => $confidence,
+                'authorized' => $authorized,
+                'reason'     => $reason,
+            ]);
+        }
     }
 }
