@@ -16,7 +16,7 @@ class CompanyService
 {
     public function getAllCompanies()
     {
-        return Company::with(['workers', 'rules.weekdays'])->get();
+        return Company::with(['workers', 'rules.weekdays'])->orderBy('name')->get();
     }
 
     public function getCompanyAccessStatus(Company $company): bool
@@ -24,13 +24,51 @@ class CompanyService
         return $this->validateRulesForAccess($company);
     }
 
+    /**
+     * Detalhes carregados sob demanda (accordion): funcionários com status de
+     * acesso individual e regras da empresa. O cálculo de acesso por funcionário
+     * fica fora do carregamento da listagem para não pesar a página.
+     */
+    public function getCompanyAccessDetails(Company $company): array
+    {
+        $company->load(['workers', 'rules.weekdays', 'rules.worker']);
+
+        $workers = $company->workers->map(function (CompanyWorker $worker) use ($company) {
+            return [
+                'id'      => $worker->id,
+                'name'    => $worker->name,
+                'position'=> $worker->position,
+                'allowed' => $this->validateRulesForAccess($company, $worker),
+                'url'     => route('company.worker.show', [$company->id, $worker->id]),
+            ];
+        })->values();
+
+        $rules = $company->rules->map(function (CompanyAccessRule $rule) {
+            return [
+                'id'          => $rule->id,
+                'type'        => $rule->type,
+                'description' => $rule->description,
+                'worker'      => $rule->worker?->name,
+                'start_date'  => $rule->start_date ? date('d/m/Y', strtotime($rule->start_date)) : null,
+                'end_date'    => $rule->end_date ? date('d/m/Y', strtotime($rule->end_date)) : null,
+                'start_time'  => $rule->start_time ? date('H:i', strtotime($rule->start_time)) : null,
+                'end_time'    => $rule->end_time ? date('H:i', strtotime($rule->end_time)) : null,
+                'weekdays'    => $rule->weekdays->pluck('short_name_pt')->values(),
+            ];
+        })->values();
+
+        return [
+            'workers' => $workers,
+            'rules'   => $rules,
+        ];
+    }
+
     public function createCompany($request)
     {
         $data = $request->only(['name', 'telephone', 'email', 'address', 'description']);
 
         if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('company_images', 'public');
-            $data['image'] = $imagePath;
+            $data['image'] = $this->saveCompanyImage($request->file('image'));
         }
 
         $company = Company::create($data);
@@ -42,11 +80,18 @@ class CompanyService
         $data = $request->only(['name', 'telephone', 'email', 'address', 'description']);
 
         if ($request->hasFile('image')) {
-            $data['image'] = $request->file('image')->store('company_images', 'public');
+            $data['image'] = $this->saveCompanyImage($request->file('image'));
         }
 
         $company->update($data);
         return $company;
+    }
+
+    private function saveCompanyImage($file): string
+    {
+        $imageName = 'company_' . time() . '.' . $file->getClientOriginalExtension();
+        $file->move(public_path('images'), $imageName);
+        return $imageName;
     }
 
     public function getCompanyDetails($company)
@@ -64,7 +109,7 @@ class CompanyService
             'email' => $data['email'],
             'position' => $data['position'] ?? $data['role'] ?? 'Funcionário',
             'telephone' => $data['telephone'] ?? null,
-            'document' => $data['document'] ?? null,
+            'document' => isset($data['document']) ? (preg_replace('/\D/', '', $data['document']) ?: null) : null,
             'image' => $data['image'] ?? null,
         ];
 
@@ -80,6 +125,10 @@ class CompanyService
     public function updateWorker(array $data, CompanyWorker $worker): CompanyWorker
     {
         $fields = array_intersect_key($data, array_flip(['name', 'email', 'position', 'telephone', 'document']));
+
+        if (isset($fields['document'])) {
+            $fields['document'] = preg_replace('/\D/', '', $fields['document']) ?: null;
+        }
 
         if (!empty($data['image'])) {
             $fields['image'] = $this->saveBase64Image($data['image']);

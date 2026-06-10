@@ -25,16 +25,18 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|string|email|max:255|unique:users,email',
-            'password' => 'required|string|min:8|confirmed',
-            'role_id'  => 'required|exists:roles,id',
-            'status'   => 'nullable|in:1,2',
+            'name'       => 'required|string|max:255',
+            'email'      => 'required|string|email|max:255|unique:users,email',
+            'matricula'  => 'nullable|string|max:5|unique:users,matricula',
+            'password'   => 'required|string|min:8|confirmed',
+            'role_id'    => 'required|exists:roles,id',
+            'status'     => 'nullable|in:1,2',
         ]);
 
         $user = User::create([
             'name'      => $request->input('name'),
             'email'     => $request->input('email'),
+            'matricula' => $request->input('matricula') ?: null,
             'password'  => Hash::make($request->input('password')),
             'status_id' => $request->input('status', 1),
         ]);
@@ -60,15 +62,17 @@ class UserController extends Controller
         $user = $id;
 
         $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|string|email|max:255|unique:users,email,' . $user->id,
-            'status'   => 'required|in:1,2',
-            'role_id'  => 'required|exists:roles,id',
-            'password' => 'nullable|string|min:8|confirmed',
+            'name'      => 'required|string|max:255',
+            'email'     => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'matricula' => 'nullable|string|max:5|unique:users,matricula,' . $user->id,
+            'status'    => 'required|in:1,2',
+            'role_id'   => 'required|exists:roles,id',
+            'password'  => 'nullable|string|min:8|confirmed',
         ]);
 
-        $user->name     = $request->input('name');
-        $user->email    = $request->input('email');
+        $user->name      = $request->input('name');
+        $user->email     = $request->input('email');
+        $user->matricula = $request->input('matricula') ?: null;
         $user->status_id = $request->input('status');
 
         if ($request->filled('password')) {

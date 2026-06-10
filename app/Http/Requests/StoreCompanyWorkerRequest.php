@@ -26,7 +26,7 @@ class StoreCompanyWorkerRequest extends FormRequest
             'name'       => 'required|string|max:255',
             'email'      => 'nullable|email|max:255',
             'position'   => 'required|string|max:255',
-            'document'   => 'nullable|string|max:20',
+            'document'   => 'nullable|digits:11',
             'telephone'  => 'nullable|string|max:20',
             'image'      => 'nullable|string',
         ];

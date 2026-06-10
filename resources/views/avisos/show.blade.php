@@ -96,6 +96,65 @@
                     </div>
                 </div>
             </div>
+
+            {{-- Histórico de acessos (somente managers/admins) --}}
+            @if($canManage && $viewHistory->isNotEmpty())
+                <div class="mt-4 bg-white dark:bg-gray-800 shadow sm:rounded-lg overflow-hidden"
+                     x-data="{ open: false }">
+                    <button type="button" @click="open = !open"
+                            class="w-full flex justify-between items-center px-6 py-4 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
+                        <span class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                            </svg>
+                            Histórico de acessos
+                            <span class="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs">
+                                {{ $viewHistory->count() }} {{ $viewHistory->count() === 1 ? 'pessoa' : 'pessoas' }}
+                            </span>
+                        </span>
+                        <svg class="w-4 h-4 text-gray-400 transition-transform" :class="{ 'rotate-180': open }"
+                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+
+                    <div x-show="open" x-collapse class="border-t border-gray-100 dark:border-gray-700">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                    <th class="px-6 py-2 text-left font-medium">Usuário</th>
+                                    <th class="px-6 py-2 text-left font-medium">Último acesso</th>
+                                    <th class="px-6 py-2 text-right font-medium">Acessos</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                                @foreach($viewHistory as $entry)
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
+                                        <td class="px-6 py-3 text-gray-800 dark:text-gray-200 font-medium">
+                                            {{ $entry['user']->name ?? '—' }}
+                                        </td>
+                                        <td class="px-6 py-3 text-gray-500 dark:text-gray-400">
+                                            {{ $entry['last_view']->format('d/m/Y \à\s H:i') }}
+                                            <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">
+                                                ({{ $entry['last_view']->diffForHumans() }})
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-3 text-right">
+                                            <span class="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 text-xs font-medium">
+                                                {{ $entry['count'] }}x
+                                            </span>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @endif
+
         </div>
     </div>
 

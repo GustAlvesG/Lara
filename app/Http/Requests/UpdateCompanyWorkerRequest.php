@@ -25,7 +25,7 @@ class UpdateCompanyWorkerRequest extends FormRequest
             'name'      => 'sometimes|required|string|max:255',
             'email'     => 'nullable|email|max:255',
             'position'  => 'sometimes|required|string|max:255',
-            'document'  => 'nullable|string|max:20',
+            'document'  => 'nullable|digits:11',
             'telephone' => 'nullable|string|max:20',
             'image'     => 'nullable|string',
         ];

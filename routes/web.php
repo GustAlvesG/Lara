@@ -19,11 +19,15 @@ use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ScheduleRulesController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\SectorController;
 use App\Http\Controllers\CompTimeController;
 use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\DocumentationController;
+
 use App\Http\Controllers\AvisoController;
 use App\Http\Controllers\NotificationController;
+
+use App\Http\Controllers\DashboardController;
 
 
 Route::get('/', function () {
@@ -31,9 +35,8 @@ Route::get('/', function () {
 });
 
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware('auth')->group(function () {
 
@@ -69,7 +72,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/', [CompanyController::class, 'store'])->name('company.store');
         Route::get('/access-monitor', [CompanyRulesController::class, 'monitor'])->name('company.access.monitor');
         Route::get('/access-logs', [CompanyRulesController::class, 'accessLogs'])->name('company.access.logs');
+        Route::get('/workers/search', [WorkerController::class, 'search'])->name('company.worker.search');
+        Route::get('/workers/quick-create', [WorkerController::class, 'quickCreate'])->name('company.worker.quick.create');
+        Route::post('/workers/quick-create', [WorkerController::class, 'store'])->name('company.worker.quick.store');
         Route::get('/{company}', [CompanyController::class, 'show'])->name('company.show');
+        Route::get('/{company}/access-details', [CompanyController::class, 'accessDetails'])->name('company.access-details');
         Route::get('/{company}/edit', [CompanyController::class, 'edit'])->name('company.edit');
         Route::put('/{company}', [CompanyController::class, 'update'])->name('company.update');
         Route::delete('/{company}', [CompanyController::class, 'destroy'])->name('company.destroy');
@@ -149,6 +156,17 @@ Route::middleware('auth')->group(function () {
             Route::put('/{id}', [PermissionController::class, 'update'])->name('roles-permission.update');
             Route::delete('/{id}', [PermissionController::class, 'destroy'])->name('roles-permission.destroy');
         });
+
+        Route::group(['prefix' => 'sectors'], function () {
+            Route::get('/', [SectorController::class, 'index'])->name('sectors.index');
+            Route::get('/create', [SectorController::class, 'create'])->name('sectors.create');
+            Route::post('/', [SectorController::class, 'store'])->name('sectors.store');
+            Route::get('/{id}', [SectorController::class, 'show'])->name('sectors.show');
+            Route::put('/{id}', [SectorController::class, 'update'])->name('sectors.update');
+            Route::delete('/{id}', [SectorController::class, 'destroy'])->name('sectors.destroy');
+            Route::post('/{id}/users', [SectorController::class, 'addUser'])->name('sectors.users.add');
+            Route::delete('/{id}/users/{userId}', [SectorController::class, 'removeUser'])->name('sectors.users.remove');
+        });
     });
 
     Route::group(['prefix' => 'comp-time'], function () {
@@ -158,6 +176,13 @@ Route::middleware('auth')->group(function () {
         Route::post('/details', [CompTimeController::class, 'showDetails'])->name('comp-time.show.details');
         Route::post('/details/day', [CompTimeController::class, 'showDayDetails'])->name('comp-time.show.day.details');
         Route::post('/recalculate', [CompTimeController::class, 'recalculateBalances'])->name('comp-time.recalculate');
+        Route::post('/write-off', [CompTimeController::class, 'writeOff'])->name('comp-time.write-off');
+        Route::post('/undo-write-off', [CompTimeController::class, 'undoWriteOff'])->name('comp-time.undo-write-off');
+        Route::get('/import-status/{uuid}', [CompTimeController::class, 'importStatus'])->name('comp-time.import-status');
+        Route::get('/import-status/{uuid}/api', [CompTimeController::class, 'importStatusApi'])->name('comp-time.import-status.api');
+        Route::get('/import-status/{uuid}/complete', [CompTimeController::class, 'importComplete'])->name('comp-time.import-complete');
+        Route::get('/import-preview/{uuid}', [CompTimeController::class, 'showImportPreview'])->name('comp-time.import-preview');
+        Route::post('/confirm-import/{uuid}', [CompTimeController::class, 'confirmImport'])->name('comp-time.confirm-import');
     });
 
 

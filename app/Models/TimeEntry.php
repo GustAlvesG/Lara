@@ -23,6 +23,11 @@ class TimeEntry extends Model
         'balance_minutes',
         'due_date',
         'status_id',
+        'written_off',
+    ];
+
+    protected $casts = [
+        'written_off' => 'boolean',
     ];
 
     public function employee()

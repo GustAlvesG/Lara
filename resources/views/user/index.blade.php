@@ -44,6 +44,7 @@
                         <thead class="bg-gray-50 dark:bg-gray-700">
                             <tr>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Usuário</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Matrícula</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Perfil</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Último Acesso</th>
@@ -66,6 +67,9 @@
                                             <div class="text-xs text-gray-500 dark:text-gray-400 user-email">{{ $user['email'] }}</div>
                                         </div>
                                     </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300 font-mono">
+                                    {{ $user['matricula'] ?? '—' }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 uppercase tracking-tight user-role">

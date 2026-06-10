@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Aviso;
+use App\Models\AvisoView;
 use App\Models\Lembrete;
 use App\Models\User;
 use App\Notifications\AvisoCreated;
@@ -33,7 +34,27 @@ class AvisoController extends Controller
     public function show(Aviso $aviso)
     {
         $aviso->load('creator', 'lembretes');
-        return view('avisos.show', compact('aviso'));
+
+        AvisoView::create([
+            'aviso_id'  => $aviso->id,
+            'user_id'   => auth()->id(),
+            'viewed_at' => now(),
+        ]);
+
+        $canManage = auth()->user()->can('manage avisos') || auth()->user()->hasRole('admin');
+        $viewHistory = $canManage
+            ? $aviso->views()->with('user:id,name')->get()
+                ->groupBy('user_id')
+                ->map(fn($entries) => [
+                    'user'       => $entries->first()->user,
+                    'last_view'  => $entries->first()->viewed_at,
+                    'count'      => $entries->count(),
+                ])
+                ->sortByDesc('last_view')
+                ->values()
+            : collect();
+
+        return view('avisos.show', compact('aviso', 'canManage', 'viewHistory'));
     }
 
     public function create()

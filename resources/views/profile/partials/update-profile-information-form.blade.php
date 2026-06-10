@@ -24,6 +24,13 @@
         </div>
 
         <div>
+            <x-input-label for="matricula" :value="__('Matrícula')" />
+            <x-text-input id="matricula" name="matricula" type="text" class="mt-1 block w-full" :value="old('matricula', $user->matricula)" maxlength="5" autocomplete="off" placeholder="Ex: 00123" />
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Usada para vincular ao Banco de Horas.</p>
+            <x-input-error class="mt-2" :messages="$errors->get('matricula')" />
+        </div>
+
+        <div>
             <x-input-label for="email" :value="__('Email')" />
             <x-text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $user->email)" required autocomplete="username" />
             <x-input-error class="mt-2" :messages="$errors->get('email')" />

@@ -46,6 +46,11 @@ class Aviso extends Model
         return $this->hasMany(Lembrete::class)->orderBy('remind_at');
     }
 
+    public function views()
+    {
+        return $this->hasMany(AvisoView::class)->orderByDesc('viewed_at');
+    }
+
     public function isExpired(): bool
     {
         return $this->expires_at && $this->expires_at->isPast();

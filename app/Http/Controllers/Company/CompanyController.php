@@ -69,6 +69,15 @@ class CompanyController extends Controller
     }
 
     /**
+     * Funcionários (com status de acesso) e regras da empresa, carregados sob
+     * demanda pelo accordion da listagem.
+     */
+    public function accessDetails(Company $company)
+    {
+        return response()->json($this->companyService->getCompanyAccessDetails($company));
+    }
+
+    /**
      * Show the form for editing the specified resource.
      */
     public function edit(Company $company)

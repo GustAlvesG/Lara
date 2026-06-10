@@ -2,9 +2,10 @@
 
 # --- Configurações ---
 PROJECT_PATH="/home/administrator/Lara"
-GIT_REPO="https://github.com/GustAlvesG/Lara.git" # Atualize com seu link
+GIT_REPO="https://github.com/GustAlvesG/Lara.git"
 BACKUP_DIR="/home/administrator/lara_backup"
 APACHE_USER="www-data"
+SUPERVISOR_CONF="/etc/supervisor/conf.d/lara-queue.conf"
 
 echo "🚀 Iniciando processo de deploy..."
 
@@ -16,7 +17,6 @@ DATA_ATUAL=$(date +%d%m%Y)
 FILE_NAME="backuplara_$DATA_ATUAL.sql"
 
 echo "📂 Gerando dump do banco em: $BACKUP_DIR/$FILE_NAME"
-# Nota: O sistema pedirá a senha do banco se não houver um .my.cnf configurado
 mysqldump -u administrator -p lara > "$BACKUP_DIR/$FILE_NAME"
 
 if [ $? -eq 0 ]; then
@@ -36,7 +36,7 @@ else
     cd $PROJECT_PATH
 fi
 
-# 4. Instalar Dependências (Resolvendo erro de Superuser)
+# 4. Instalar Dependências
 echo "📦 Rodando Composer..."
 export COMPOSER_ALLOW_SUPERUSER=1
 composer install --no-interaction --prefer-dist --optimize-autoloader --ignore-platform-req=ext-curl
@@ -60,7 +60,57 @@ php artisan migrate
 php artisan config:cache
 php artisan route:cache
 
-# 8. Finalização
+# 8. Supervisor — instalar e configurar se necessário
+echo "⚙️ Verificando Supervisor..."
+
+if ! command -v supervisord &> /dev/null; then
+    echo "📦 Instalando Supervisor..."
+    sudo apt-get install -y supervisor
+    sudo systemctl enable supervisor
+    sudo systemctl start supervisor
+fi
+
+PHP_BIN=$(which php)
+
+if [ ! -f "$SUPERVISOR_CONF" ]; then
+    echo "📝 Criando configuração do Supervisor..."
+    sudo tee $SUPERVISOR_CONF > /dev/null <<EOF
+[program:lara-queue]
+process_name=%(program_name)s_%(process_num)02d
+command=$PHP_BIN $PROJECT_PATH/artisan queue:work database --sleep=3 --tries=3 --max-time=3600
+directory=$PROJECT_PATH
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=$APACHE_USER
+numprocs=1
+redirect_stderr=true
+stdout_logfile=$PROJECT_PATH/storage/logs/queue.log
+stopwaitsecs=3600
+EOF
+    sudo supervisorctl reread
+    sudo supervisorctl update
+    echo "✅ Supervisor configurado."
+fi
+
+# A cada deploy, reinicia o worker para carregar o novo código
+echo "🔄 Reiniciando worker de filas..."
+sudo supervisorctl restart lara-queue:*
+
+# 9. Cron — scheduler do Laravel (avisos: lembretes e expirações)
+CRON_JOB="* * * * * $PHP_BIN $PROJECT_PATH/artisan schedule:run >> /dev/null 2>&1"
+CRON_MARKER="$PROJECT_PATH/artisan schedule:run"
+
+echo "⏰ Verificando cron do scheduler Laravel..."
+if sudo crontab -u $APACHE_USER -l 2>/dev/null | grep -qF "$CRON_MARKER"; then
+    echo "✅ Cron do scheduler já configurado."
+else
+    (sudo crontab -u $APACHE_USER -l 2>/dev/null; echo "$CRON_JOB") | sudo crontab -u $APACHE_USER -
+    echo "✅ Cron do scheduler adicionado para o usuário $APACHE_USER."
+fi
+
+# 10. Finalização
 echo "⚙️ Reiniciando Apache..."
 sudo systemctl restart apache2
 
