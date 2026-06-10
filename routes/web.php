@@ -208,6 +208,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('avisos', AvisoController::class);
 
     // Notificações
+    Route::get('/notifications/unread-json', [NotificationController::class, 'unreadJson'])->name('notifications.unreadJson');
     Route::get('/notifications/{id}/mark-read', [NotificationController::class, 'markRead'])->name('notifications.markRead');
     Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notifications.markAllRead');
 

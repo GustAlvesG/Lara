@@ -30,28 +30,32 @@
                             </label>
                         </div>
                     @endif
-
-                    <div class="flex justify-between items-center mt-6 pt-4 border-t border-gray-100 dark:border-gray-700">
-                        <form action="{{ route('avisos.destroy', $aviso) }}" method="POST"
-                              onsubmit="return confirm('Remover este aviso permanentemente?')">
-                            @csrf @method('DELETE')
-                            <button type="submit" class="text-sm text-red-600 hover:text-red-800 dark:hover:text-red-400">
-                                Remover aviso
-                            </button>
-                        </form>
-
-                        <div class="flex gap-3">
-                            <a href="{{ route('avisos.show', $aviso) }}"
-                               class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-                                Cancelar
-                            </a>
-                            <button type="submit" form="aviso-form"
-                                class="px-6 py-2 text-sm font-medium text-white bg-red-800 hover:bg-red-700 rounded-lg transition">
-                                Salvar
-                            </button>
-                        </div>
-                    </div>
                 </form>
+
+                {{-- Form de exclusão separado (fora do form de edição) --}}
+                <form id="aviso-delete-form"
+                      action="{{ route('avisos.destroy', $aviso) }}" method="POST"
+                      onsubmit="return confirm('Remover este aviso permanentemente?')">
+                    @csrf @method('DELETE')
+                </form>
+
+                <div class="flex justify-between items-center mt-6 pt-4 border-t border-gray-100 dark:border-gray-700">
+                    <button type="submit" form="aviso-delete-form"
+                            class="text-sm text-red-600 hover:text-red-800 dark:hover:text-red-400">
+                        Remover aviso
+                    </button>
+
+                    <div class="flex gap-3">
+                        <a href="{{ route('avisos.show', $aviso) }}"
+                           class="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                            Cancelar
+                        </a>
+                        <button type="submit" form="aviso-form"
+                            class="px-6 py-2 text-sm font-medium text-white bg-red-800 hover:bg-red-700 rounded-lg transition">
+                            Salvar
+                        </button>
+                    </div>
+                </div>
 
             </div>
         </div>

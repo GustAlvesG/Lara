@@ -61,7 +61,7 @@
         <div class="mt-auto pt-2 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center text-xs text-gray-400 dark:text-gray-500">
             <span>{{ $aviso->creator->name ?? '—' }} · {{ $aviso->created_at->diffForHumans() }}</span>
 
-            @if(auth()->user()->can('manage avisos') || auth()->user()->hasRole('admin'))
+            @can('manage avisos')
                 <div class="flex gap-2">
                     <a href="{{ route('avisos.edit', $aviso) }}"
                        class="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">Editar</a>
@@ -71,7 +71,7 @@
                         <button type="submit" class="text-gray-400 hover:text-red-600 dark:hover:text-red-400">Remover</button>
                     </form>
                 </div>
-            @endif
+            @endcan
         </div>
 
     </div>

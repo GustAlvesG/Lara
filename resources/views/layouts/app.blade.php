@@ -48,5 +48,48 @@
             integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4="
             crossorigin="anonymous"></script>
         {{ $js ?? '' }}
+
+        @auth
+        <script>
+        (function () {
+            const POLL_MS  = 30000;
+            const ICON_URL = '{{ asset("favicon.ico") }}';
+            let since = new Date().toISOString();
+
+            function requestPermission() {
+                if ('Notification' in window && Notification.permission === 'default') {
+                    Notification.requestPermission();
+                }
+            }
+
+            function showNotification(title, body, url) {
+                if (!('Notification' in window) || Notification.permission !== 'granted') return;
+                const n = new Notification(title, { body: body, icon: ICON_URL });
+                n.onclick = function () {
+                    window.focus();
+                    if (url) window.location.href = url;
+                    n.close();
+                };
+            }
+
+            async function poll() {
+                try {
+                    const res = await fetch('/notifications/unread-json?since=' + encodeURIComponent(since), {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    since = data.checked_at;
+                    data.notifications.forEach(function (n) {
+                        showNotification(n.title, n.message, n.url);
+                    });
+                } catch (_) {}
+            }
+
+            requestPermission();
+            setInterval(poll, POLL_MS);
+        })();
+        </script>
+        @endauth
     </body>
 </html>
