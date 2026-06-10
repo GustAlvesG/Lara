@@ -57,6 +57,18 @@
             </p>
         @endif
 
+        {{-- Tags --}}
+        @if($aviso->tags->isNotEmpty())
+            <div class="flex flex-wrap gap-1">
+                @foreach($aviso->tags as $tag)
+                    <a href="{{ route('avisos.index', ['q' => $tag->name]) }}"
+                       class="px-2 py-0.5 text-xs rounded-full bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50 transition">
+                        #{{ $tag->name }}
+                    </a>
+                @endforeach
+            </div>
+        @endif
+
         {{-- Rodapé --}}
         <div class="mt-auto pt-2 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center text-xs text-gray-400 dark:text-gray-500">
             <span>{{ $aviso->creator->name ?? '—' }} · {{ $aviso->created_at->diffForHumans() }}</span>

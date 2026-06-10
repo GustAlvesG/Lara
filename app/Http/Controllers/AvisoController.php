@@ -5,39 +5,44 @@ namespace App\Http\Controllers;
 use App\Models\Aviso;
 use App\Models\AvisoView;
 use App\Models\Lembrete;
+use App\Models\Tag;
 use App\Models\User;
 use App\Notifications\AvisoCreated;
 use Illuminate\Http\Request;
 
 class AvisoController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $user = auth()->user();
+        $user   = auth()->user();
+        $search = $request->query('q');
 
-        $avisos = Aviso::with('creator', 'lembretes')
+        $avisos = Aviso::with('creator', 'lembretes', 'tags')
             ->visibleTo($user)
+            ->search($search)
             ->active()
             ->orderByDesc('created_at')
             ->get();
 
-        $expirados = Aviso::with('creator', 'lembretes')
+        $expirados = Aviso::with('creator', 'lembretes', 'tags')
             ->visibleTo($user)
+            ->search($search)
             ->expired()
             ->orderByDesc('created_at')
             ->get();
 
-        $todos = Aviso::with('creator', 'lembretes')
+        $todos = Aviso::with('creator', 'lembretes', 'tags')
             ->visibleTo($user)
+            ->search($search)
             ->orderByDesc('created_at')
             ->get();
 
-        return view('avisos.index', compact('avisos', 'expirados', 'todos'));
+        return view('avisos.index', compact('avisos', 'expirados', 'todos', 'search'));
     }
 
     public function show(Aviso $aviso)
     {
-        $aviso->load('creator', 'lembretes');
+        $aviso->load('creator', 'lembretes', 'tags');
 
         AvisoView::create([
             'aviso_id'  => $aviso->id,
@@ -78,6 +83,8 @@ class AvisoController extends Controller
             'expires_at'                 => 'nullable|date|after_or_equal:today',
             'lembretes'                  => 'nullable|array',
             'lembretes.*.remind_at'      => 'required|date|after:now',
+            'tags'                       => 'nullable|array',
+            'tags.*'                     => 'string|max:50',
         ]);
 
         $data['created_by'] = auth()->id();
@@ -91,6 +98,7 @@ class AvisoController extends Controller
         $aviso = Aviso::create($data);
 
         $this->syncLembretes($aviso, $request->input('lembretes', []));
+        $this->syncTags($aviso, $request->input('tags', []));
 
         $this->notifyUsers($aviso, new AvisoCreated($aviso));
 
@@ -100,7 +108,7 @@ class AvisoController extends Controller
     public function edit(Aviso $aviso)
     {
         $this->authorizeManage();
-        $aviso->load('lembretes');
+        $aviso->load('lembretes', 'tags');
         return view('avisos.edit', compact('aviso'));
     }
 
@@ -115,6 +123,8 @@ class AvisoController extends Controller
             'expires_at'            => 'nullable|date',
             'lembretes'             => 'nullable|array',
             'lembretes.*.remind_at' => 'required|date',
+            'tags'                  => 'nullable|array',
+            'tags.*'                => 'string|max:50',
         ]);
 
         if ($request->hasFile('image')) {
@@ -132,6 +142,7 @@ class AvisoController extends Controller
         $aviso->update($data);
 
         $this->syncLembretes($aviso, $request->input('lembretes', []));
+        $this->syncTags($aviso, $request->input('tags', []));
 
         return redirect()->route('avisos.show', $aviso)->with('success', 'Aviso atualizado!');
     }
@@ -156,6 +167,22 @@ class AvisoController extends Controller
                 ]);
             }
         }
+    }
+
+    /**
+     * Sincroniza as tags do aviso. Nomes são normalizados (minúsculas, sem
+     * espaços nas pontas) e tags inexistentes são criadas automaticamente.
+     */
+    private function syncTags(Aviso $aviso, array $tags): void
+    {
+        $ids = collect($tags)
+            ->map(fn($name) => Tag::normalize($name))
+            ->filter()
+            ->unique()
+            ->map(fn($name) => Tag::firstOrCreate(['name' => $name])->id)
+            ->all();
+
+        $aviso->tags()->sync($ids);
     }
 
     private function notifyUsers(Aviso $aviso, $notification): void

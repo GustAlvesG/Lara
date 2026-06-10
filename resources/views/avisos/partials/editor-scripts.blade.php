@@ -21,5 +21,24 @@
             },
         };
     }
+
+    function tagsInput(existing) {
+        return {
+            items: Array.isArray(existing) ? existing.slice() : [],
+            draft: '',
+            add() {
+                const name = this.draft.trim().toLowerCase();
+                this.draft = '';
+                if (name === '') return;
+                if (!this.items.includes(name)) this.items.push(name);
+            },
+            remove(index) {
+                this.items.splice(index, 1);
+            },
+            removeLast() {
+                if (this.items.length) this.items.pop();
+            },
+        };
+    }
 </script>
 </x-slot>

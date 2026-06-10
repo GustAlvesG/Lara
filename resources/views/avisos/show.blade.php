@@ -57,6 +57,18 @@
                         @endif
                     </div>
 
+                    {{-- Tags --}}
+                    @if($aviso->tags->isNotEmpty())
+                        <div class="flex flex-wrap gap-1.5">
+                            @foreach($aviso->tags as $tag)
+                                <a href="{{ route('avisos.index', ['q' => $tag->name]) }}"
+                                   class="px-2.5 py-1 text-xs rounded-full bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50 transition">
+                                    #{{ $tag->name }}
+                                </a>
+                            @endforeach
+                        </div>
+                    @endif
+
                     {{-- Conteúdo --}}
                     @if($aviso->content)
                         <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed aviso-content">
