@@ -24,6 +24,7 @@ use App\Http\Controllers\CompTimeController;
 use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\DocumentationController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\HomeAssistantController;
 
 
 Route::get('/', function () {
@@ -102,6 +103,25 @@ Route::middleware('auth')->group(function () {
     
     
     Route::get('/videowall', [VideoWallController::class, 'index'])->name('videowall.index');
+
+    Route::group(['prefix' => 'home-assistant'], function () {
+        Route::get('/', [HomeAssistantController::class, 'index'])->name('home-assistant.index');
+
+        // Contactors
+        Route::post('/', [HomeAssistantController::class, 'store'])->name('home-assistant.store');
+        Route::put('/{contactor}', [HomeAssistantController::class, 'update'])->name('home-assistant.update');
+        Route::delete('/{contactor}', [HomeAssistantController::class, 'destroy'])->name('home-assistant.destroy');
+
+        // Ações rápidas por contator
+        Route::post('/{contactor}/quick', [HomeAssistantController::class, 'quickAction'])->name('home-assistant.quick');
+        Route::post('/{contactor}/quick/clear', [HomeAssistantController::class, 'clearQuick'])->name('home-assistant.quick.clear');
+
+        // Agendamentos (overrides ricos)
+        Route::post('/overrides', [HomeAssistantController::class, 'storeOverride'])->name('home-assistant.overrides.store');
+        Route::put('/overrides/{override}', [HomeAssistantController::class, 'updateOverride'])->name('home-assistant.overrides.update');
+        Route::post('/overrides/{override}/toggle', [HomeAssistantController::class, 'toggleOverride'])->name('home-assistant.overrides.toggle');
+        Route::delete('/overrides/{override}', [HomeAssistantController::class, 'destroyOverride'])->name('home-assistant.overrides.destroy');
+    });
 
 
     Route::resource('place-group', PlaceGroupController::class);

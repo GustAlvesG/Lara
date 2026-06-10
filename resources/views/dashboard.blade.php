@@ -22,6 +22,26 @@
                 </div>
             </div>
 
+            {{-- ========================= Home Assistant ========================= --}}
+            @can('manage home assistant')
+                <x-dashboard.section title="Home Assistant" color="amber"
+                    :href="route('home-assistant.index')" linkLabel="Gerenciar"
+                    icon="M13 10V3L4 14h7v7l9-11h-7z">
+
+                    @if($homeAssistant['contactors']->isEmpty())
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 text-center text-gray-400 dark:text-gray-500 font-medium">
+                            {{ __('Nenhum interruptor cadastrado.') }}
+                        </div>
+                    @else
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            @foreach($homeAssistant['contactors'] as $contactor)
+                                <x-dashboard.ha-switch :contactor="$contactor" />
+                            @endforeach
+                        </div>
+                    @endif
+                </x-dashboard.section>
+            @endcan
+
             {{-- ============================ InfoClube ============================ --}}
             @can('view information')
                 <x-dashboard.section title="InfoClube" color="teal"

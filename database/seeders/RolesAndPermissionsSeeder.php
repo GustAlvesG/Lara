@@ -49,12 +49,17 @@ class RolesAndPermissionsSeeder extends Seeder
             [ 'name' => 'manage permissions', 'description' => 'Permite gerenciar permissões'],
         ];
 
+        $permission_home_assistant = [
+            [ 'name' => 'manage home assistant', 'description' => 'Permite gerenciar o painel Home Assistant'],
+        ];
+
         $allPermissions = array_merge(
             $permissions_infoclube,
             $permissions_siv,
             $permission_smart_panel,
             $permission_reserve,
-            $permission_admin
+            $permission_admin,
+            $permission_home_assistant
         );
 
         foreach ($allPermissions as $permission) {

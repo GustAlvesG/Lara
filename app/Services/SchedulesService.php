@@ -9,6 +9,7 @@ use App\Models\Schedule;
 use App\Models\Place;
 use App\Models\Member;
 use App\Models\ScheduleRules;
+use App\Models\Contactor;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
@@ -276,40 +277,42 @@ class SchedulesService
 
         $now = Carbon::now();
 
-
-        //Get schedules than start in 5 minutes or started in 5 minutes
         $schedules = Schedule::where('status_id', 1)
-        ->whereDate('start_schedule', Carbon::now()->toDateString())->get();
+            ->whereDate('start_schedule', $now->toDateString())
+            ->get();
 
-        
         $places_schedules = [];
 
         foreach ($schedules as $schedule) {
-            // Lights ON = start_schedule - 5 minutes
-            // Lights OFF = end_schedule + 5 minutes
-
-            $schedule->lights_on = $schedule->start_schedule->copy()->subMinutes(5);
+            $schedule->lights_on  = $schedule->start_schedule->copy()->subMinutes(5);
             $schedule->lights_off = $schedule->end_schedule->copy()->addMinutes(5);
-            // dd($schedule->lights_on, $schedule->lights_off, $now);
+
             if ($now->between($schedule->lights_on, $schedule->lights_off)) {
-                $places_schedules[] = $schedule->place->id;
+                $places_schedules[] = $schedule->place_id;
             }
         }
 
-        array_unique($places_schedules);
+        $places_schedules = array_unique($places_schedules);
 
-        $places = Place::query()
-            // ->whereIn('id', array_unique($places))
-            ->whereNotNull('contactor')
-            ->where('contactor', '!=', '')
-            ->get();
+        $contactors_list = Contactor::with([
+            'places',
+            'overrides' => fn ($q) => $q->where('is_active', true)->with(['weekdays', 'windows']),
+        ])->get();
 
         $contactors = [];
 
-        // dd($places, $places_schedules);
+        foreach ($contactors_list as $contactor) {
+            // Agendamento vigente de maior prioridade (manual ou por horário)
+            $override = $contactor->effectiveOverride($now);
 
-        foreach ($places as $place) {
-            $contactors[$place->contactor] = in_array($place->id, $places_schedules);
+            if ($override) {
+                $contactors[$contactor->entity_id] = $override->resolvedState($now);
+                continue;
+            }
+
+            // Sem override: usa lógica padrão — verifica se algum place do contator tem reserva ativa
+            $hasActiveSchedule = $contactor->places->contains(fn($place) => in_array($place->id, $places_schedules));
+            $contactors[$contactor->entity_id] = $hasActiveSchedule;
         }
 
         return response()->json(['contactors' => $contactors], 200);

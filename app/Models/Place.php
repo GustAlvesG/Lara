@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\PlaceGroup;
 use App\Models\Schedule;
+use App\Models\Contactor;
 
 class Place extends Model
 {
@@ -16,7 +17,7 @@ class Place extends Model
     
     protected $fillable = [
         'name',
-        'contactor',
+        'contactor_id',
         'image',
         'place_group_id',
         'price',
@@ -34,6 +35,11 @@ class Place extends Model
     public function group()
     {
         return $this->belongsTo(PlaceGroup::class, 'place_group_id');
+    }
+
+    public function contactor()
+    {
+        return $this->belongsTo(Contactor::class);
     }
 
     public function schedule()

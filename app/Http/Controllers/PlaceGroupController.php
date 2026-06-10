@@ -11,6 +11,7 @@ use App\Models\ScheduleRules;
 use Illuminate\Support\Facades\DB;
 use App\Services\PlaceGroupService;
 use App\Services\ScheduleRulesService;
+use App\Models\Contactor;
 
 class PlaceGroupController extends Controller
 {
@@ -322,7 +323,8 @@ class PlaceGroupController extends Controller
 
         return view('location.place.create', [
             'place_group' => $group,
-            'rules' => $rules,
+            'rules'       => $rules,
+            'contactors'  => Contactor::orderBy('name')->get(),
         ]);
     }
 
@@ -338,12 +340,12 @@ class PlaceGroupController extends Controller
         }
 
         $place = Place::create([
-            'name' => $validated['name'],
-            'contactor' => $validated['contactor'],
+            'name'           => $validated['name'],
+            'contactor_id'   => ($validated['contactor_id'] ?? null) ?: null,
             'place_group_id' => $validated['place_group_id'],
-            'image' => $validated['image'] ?? null,
-            'price' => $validated['price'],
-            'status_id' => $validated['status_id'],
+            'image'          => $validated['image'] ?? null,
+            'price'          => $validated['price'],
+            'status_id'      => $validated['status_id'],
         ]);
 
         //Check if has rules
@@ -374,8 +376,9 @@ class PlaceGroupController extends Controller
 
 
         return view('location.place.edit', [
-            'place' => $place,
-            'rules' => $this->filterRules($place->group),
+            'place'      => $place,
+            'rules'      => $this->filterRules($place->group),
+            'contactors' => Contactor::orderBy('name')->get(),
         ]);
     }
 
@@ -393,13 +396,14 @@ class PlaceGroupController extends Controller
             $validated['image'] = $place->image;
         }
 
-        //Update the place
         $place->update([
-            'name' => $validated['name'],
-            'contactor' => $validated['contactor'],
-            'price' => $validated['price'],
-            'status_id' => $validated['status_id'],
-            'image' => $validated['image'] ?? null,
+            'name'         => $validated['name'],
+            'contactor_id' => array_key_exists('contactor_id', $validated)
+                                ? (($validated['contactor_id'] ?: null))
+                                : $place->contactor_id,
+            'price'        => $validated['price'],
+            'status_id'    => $validated['status_id'],
+            'image'        => $validated['image'] ?? null,
         ]);
 
         $place->scheduleRules()->detach();

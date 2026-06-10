@@ -13,6 +13,7 @@ use App\Models\DataInfo;
 use App\Models\Company\Company;
 use App\Models\Company\CompanyWorker;
 use App\Models\Company\CompanyAccessLog;
+use App\Models\Contactor;
 
 class DashboardController extends Controller
 {
@@ -123,6 +124,16 @@ class DashboardController extends Controller
                     ->map->count()
                     ->sortDesc()
                     ->take(5),
+            ];
+        }
+
+        // Home Assistant (interruptores / contatores) -------------------------
+        if ($user->can('manage home assistant')) {
+            $data['homeAssistant'] = [
+                'contactors' => Contactor::with([
+                    'places',
+                    'overrides' => fn ($q) => $q->with(['weekdays', 'windows']),
+                ])->orderBy('name')->get(),
             ];
         }
 
