@@ -83,7 +83,7 @@
             <!-- Conteúdo da Aba: Funcionários -->
             <div id="content-workers" class="tab-content p-6">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-xl font-extrabold text-gray-800 dark:text-white">Equipe Registada</h3>
+                    <h3 class="text-xl font-extrabold text-gray-800 dark:text-white">Equipe Registrada</h3>
                     <a href="{{ route('company.worker.create', $companyDetails->id) }}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-xs shadow-md hover:bg-indigo-700 transition">
                         Adicionar Funcionário
                     </a>
