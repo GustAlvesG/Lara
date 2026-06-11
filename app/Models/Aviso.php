@@ -107,19 +107,19 @@ class Aviso extends Model
             return $query;
         }
 
-        $roleNames = $user->roles->pluck('name');
+        $userSectorIds = $user->sectors->pluck('id');
 
-        return $query->where(function ($q) use ($user, $roleNames) {
+        return $query->where(function ($q) use ($user, $userSectorIds) {
             // Público: todos veem
             $q->where('privacy', self::PRIVACY_PUBLICO);
 
-            // Setor: criador compartilha ao menos um role com o usuário atual
-            $q->orWhere(function ($sq) use ($user, $roleNames) {
+            // Setor: criador compartilha ao menos um setor com o usuário atual
+            $q->orWhere(function ($sq) use ($user, $userSectorIds) {
                 $sq->where('privacy', self::PRIVACY_SETOR)
-                   ->where(function ($cq) use ($user, $roleNames) {
+                   ->where(function ($cq) use ($user, $userSectorIds) {
                        $cq->where('created_by', $user->id)
-                          ->orWhereHas('creator', function ($rq) use ($roleNames) {
-                              $rq->whereHas('roles', fn($r) => $r->whereIn('name', $roleNames));
+                          ->orWhereHas('creator', function ($rq) use ($userSectorIds) {
+                              $rq->whereHas('sectors', fn($s) => $s->whereIn('sectors.id', $userSectorIds));
                           });
                    });
             });
