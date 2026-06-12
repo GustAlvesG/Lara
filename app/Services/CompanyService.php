@@ -192,39 +192,55 @@ class CompanyService
             $target = str_replace('*', '', $target);
         }
 
-        $specificWorker = null;
-
         if ($this->isValidCPF($target)) {
             $normalized = preg_replace('/\D/', '', $target);
-            $specificWorker = CompanyWorker::where('document', $normalized)
+            $matchedWorkers = CompanyWorker::with('company')
+                ->where('document', $normalized)
                 ->orWhere('document', $target)
-                ->first();
-            if (!$specificWorker) {
+                ->get();
+
+            if ($matchedWorkers->isEmpty()) {
                 return ['found' => false, 'reason' => 'worker_not_found', 'workers' => []];
             }
-            $company = $specificWorker->company;
-        } else {
-            $company = Company::where('name', 'like', '%' . $target . '%')->first();
-            if (!$company) {
-                return ['found' => false, 'reason' => 'company_not_found', 'workers' => []];
+
+            $response = [];
+            foreach ($matchedWorkers as $worker) {
+                $workerCompany = $worker->company;
+                $allowed = $this->validateRulesForAccess($workerCompany, $worker);
+                $response[] = [
+                    'id'         => $worker->id,
+                    'name'       => $worker->name,
+                    'allowed'    => $allowed,
+                    'image'      => $worker->image ? asset('images/' . $worker->image) : null,
+                    'company_id' => $workerCompany->id,
+                    'company'    => $workerCompany->name,
+                ];
             }
+
+            $first = $matchedWorkers->first();
+            return [
+                'found'      => true,
+                'company_id' => $first->company->id,
+                'company'    => $first->company->name,
+                'workers'    => $response,
+            ];
         }
 
-        $workers = $company->workers()->get();
+        $company = Company::where('name', 'like', '%' . $target . '%')->first();
+        if (!$company) {
+            return ['found' => false, 'reason' => 'company_not_found', 'workers' => []];
+        }
+
         $response = [];
-
-        foreach ($workers as $worker) {
-            if ($specificWorker && $worker->id !== $specificWorker->id) {
-                continue;
-            }
-
+        foreach ($company->workers()->get() as $worker) {
             $allowed = $this->validateRulesForAccess($company, $worker);
-
             $response[] = [
-                'id'      => $worker->id,
-                'name'    => $worker->name,
-                'allowed' => $allowed,
-                'image'   => $worker->image ? asset('images/' . $worker->image) : null,
+                'id'         => $worker->id,
+                'name'       => $worker->name,
+                'allowed'    => $allowed,
+                'image'      => $worker->image ? asset('images/' . $worker->image) : null,
+                'company_id' => $company->id,
+                'company'    => $company->name,
             ];
         }
 
@@ -267,7 +283,7 @@ class CompanyService
 
         foreach ($result['workers'] as $worker) {
             CompanyAccessLog::create([
-                'company_id'        => $result['company_id'],
+                'company_id'        => $worker['company_id'] ?? $result['company_id'],
                 'company_worker_id' => $worker['id'],
                 'target'            => $data['target'],
                 'allowed'           => $worker['allowed'],
