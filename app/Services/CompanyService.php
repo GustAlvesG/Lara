@@ -97,7 +97,7 @@ class CompanyService
 
     public function getCompanyDetails($company)
     {
-        $company = $company->load('workers.rules', 'rules.weekdays', 'rules.worker');
+        $company = $company->load('workers.rules', 'workers.creator', 'workers.editor', 'rules.weekdays', 'rules.worker', 'rules.creator', 'rules.editor');
         return $company;
     }
 
@@ -112,6 +112,7 @@ class CompanyService
             'telephone' => $data['telephone'] ?? null,
             'document' => isset($data['document']) ? (preg_replace('/\D/', '', $data['document']) ?: null) : null,
             'image' => $data['image'] ?? null,
+            'created_by_user' => auth()->id(),
         ];
 
         if (isset($data['image']) && !empty($data['image'])) {
@@ -135,6 +136,8 @@ class CompanyService
             $fields['image'] = $this->saveBase64Image($data['image']);
         }
 
+        $fields['updated_by_user'] = auth()->id();
+
         $worker->update($fields);
         return $worker;
     }
@@ -151,6 +154,7 @@ class CompanyService
             'start_time' => $data['start_time'] ?? null,
             'end_time' => $data['end_time'] ?? null,
             'description' => $data['description'] ?? null,
+            'created_by_user' => auth()->id(),
         ];
 
         $rule = $company->rules()->create($ruleData);
@@ -166,6 +170,7 @@ class CompanyService
     public function updateAccessRule($data, CompanyAccessRule $rule): CompanyAccessRule
     {
         $fields = array_intersect_key($data, array_flip(['type', 'start_date', 'end_date', 'start_time', 'end_time', 'description']));
+        $fields['updated_by_user'] = auth()->id();
         $rule->update($fields);
 
         if (isset($data['days']) && is_array($data['days'])) {

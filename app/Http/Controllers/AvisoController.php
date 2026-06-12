@@ -69,7 +69,8 @@ class AvisoController extends Controller
     public function create()
     {
         $this->authorizeManage();
-        return view('avisos.create');
+        $users = User::orderBy('name')->get(['id', 'name']);
+        return view('avisos.create', compact('users'));
     }
 
     public function store(Request $request)
@@ -79,7 +80,9 @@ class AvisoController extends Controller
         $data = $request->validate([
             'title'                      => 'required|string|max:200',
             'content'                    => 'nullable|string',
-            'privacy'                    => 'required|in:pessoa,setor,publico',
+            'privacy'                    => 'required|in:pessoa,setor,publico,grupo',
+            'user_ids'                   => 'required_if:privacy,grupo|nullable|array',
+            'user_ids.*'                 => 'integer|exists:users,id',
             'expires_at'                 => 'nullable|date|after_or_equal:today',
             'lembretes'                  => 'nullable|array',
             'lembretes.*.remind_at'      => 'required|date|after:now',
@@ -99,6 +102,7 @@ class AvisoController extends Controller
 
         $this->syncLembretes($aviso, $request->input('lembretes', []));
         $this->syncTags($aviso, $request->input('tags', []));
+        $this->syncUsers($aviso, $request->input('user_ids', []));
 
         $this->notifyUsers($aviso, new AvisoCreated($aviso));
 
@@ -108,8 +112,9 @@ class AvisoController extends Controller
     public function edit(Aviso $aviso)
     {
         $this->authorizeManage();
-        $aviso->load('lembretes', 'tags');
-        return view('avisos.edit', compact('aviso'));
+        $aviso->load('lembretes', 'tags', 'users');
+        $users = User::orderBy('name')->get(['id', 'name']);
+        return view('avisos.edit', compact('aviso', 'users'));
     }
 
     public function update(Request $request, Aviso $aviso)
@@ -119,7 +124,9 @@ class AvisoController extends Controller
         $data = $request->validate([
             'title'                 => 'required|string|max:200',
             'content'               => 'nullable|string',
-            'privacy'               => 'required|in:pessoa,setor,publico',
+            'privacy'               => 'required|in:pessoa,setor,publico,grupo',
+            'user_ids'              => 'required_if:privacy,grupo|nullable|array',
+            'user_ids.*'            => 'integer|exists:users,id',
             'expires_at'            => 'nullable|date',
             'lembretes'             => 'nullable|array',
             'lembretes.*.remind_at' => 'required|date',
@@ -143,6 +150,7 @@ class AvisoController extends Controller
 
         $this->syncLembretes($aviso, $request->input('lembretes', []));
         $this->syncTags($aviso, $request->input('tags', []));
+        $this->syncUsers($aviso, $request->input('user_ids', []));
 
         return redirect()->route('avisos.show', $aviso)->with('success', 'Aviso atualizado!');
     }
@@ -185,12 +193,18 @@ class AvisoController extends Controller
         $aviso->tags()->sync($ids);
     }
 
+    private function syncUsers(Aviso $aviso, array $userIds): void
+    {
+        $aviso->users()->sync($aviso->privacy === Aviso::PRIVACY_GRUPO ? $userIds : []);
+    }
+
     private function notifyUsers(Aviso $aviso, $notification): void
     {
         $users = match ($aviso->privacy) {
             Aviso::PRIVACY_PESSOA  => User::where('id', $aviso->created_by)->get(),
             Aviso::PRIVACY_SETOR   => $this->usersInSameSetor($aviso),
             Aviso::PRIVACY_PUBLICO => User::all(),
+            Aviso::PRIVACY_GRUPO   => $aviso->users,
         };
 
         $users->each(fn($user) => $user->notify($notification));

@@ -70,6 +70,24 @@
             </div>
         </div>
 
+        <!-- Auditoria -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 px-6 py-4 mb-8 flex flex-wrap gap-6 text-xs text-gray-500 dark:text-gray-400">
+            <div>
+                <span class="font-semibold text-gray-700 dark:text-gray-300">Criado por:</span>
+                {{ $worker->creator?->name ?? '—' }}
+                @if($worker->created_at)
+                    <span class="ml-1 text-gray-400 dark:text-gray-500">em {{ $worker->created_at->format('d/m/Y H:i') }}</span>
+                @endif
+            </div>
+            <div>
+                <span class="font-semibold text-gray-700 dark:text-gray-300">Última alteração por:</span>
+                {{ $worker->editor?->name ?? '—' }}
+                @if($worker->updated_at && $worker->updated_at->ne($worker->created_at))
+                    <span class="ml-1 text-gray-400 dark:text-gray-500">em {{ $worker->updated_at->format('d/m/Y H:i') }}</span>
+                @endif
+            </div>
+        </div>
+
         <!-- Regras Individuais -->
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
             <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/30">

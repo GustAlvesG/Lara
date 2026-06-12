@@ -83,7 +83,7 @@
             <!-- Conteúdo da Aba: Funcionários -->
             <div id="content-workers" class="tab-content p-6">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-xl font-extrabold text-gray-800 dark:text-white">Equipe Registada</h3>
+                    <h3 class="text-xl font-extrabold text-gray-800 dark:text-white">Equipe Registrada</h3>
                     <a href="{{ route('company.worker.create', $companyDetails->id) }}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-xs shadow-md hover:bg-indigo-700 transition">
                         Adicionar Funcionário
                     </a>
@@ -105,6 +105,15 @@
                         <div class="flex-grow">
                             <h4 class="font-bold text-gray-900 dark:text-white">{{ $worker->name }}</h4>
                             <p class="text-xs text-gray-500 dark:text-gray-400">{{ ucfirst($worker->position) }}</p>
+                            <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+                                Criado por {{ $worker->creator?->name ?? '—' }}
+                                @if($worker->created_at)
+                                    em {{ $worker->created_at->format('d/m/Y H:i') }}
+                                @endif
+                                @if($worker->editor && $worker->updated_at?->ne($worker->created_at))
+                                    · Alterado por {{ $worker->editor->name }} em {{ $worker->updated_at->format('d/m/Y H:i') }}
+                                @endif
+                            </p>
                         </div>
                          <div class="flex gap-2 items-center">
                             <a href="{{ route('company.worker.show', [$companyDetails->id, $worker->id]) }}"
@@ -186,6 +195,16 @@
                                                 Horário: <span class="mx-1 font-bold text-gray-700 dark:text-gray-300">{{ date('H:i', strtotime($rule['start_time']))}}</span> /<span class="ml-1 font-bold text-gray-700 dark:text-gray-300">{{ date('H:i', strtotime($rule['end_time'])) }}</span>
                                             </div>
                                         @endif
+
+                                        <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-2">
+                                            Criado por {{ $rule->creator?->name ?? '—' }}
+                                            @if($rule->created_at)
+                                                em {{ $rule->created_at->format('d/m/Y H:i') }}
+                                            @endif
+                                            @if($rule->editor && $rule->updated_at?->ne($rule->created_at))
+                                                · Alterado por {{ $rule->editor->name }} em {{ $rule->updated_at->format('d/m/Y H:i') }}
+                                            @endif
+                                        </p>
                                     </div>
 
                                     <!-- Ações -->
