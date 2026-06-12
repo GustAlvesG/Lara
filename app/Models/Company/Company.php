@@ -35,4 +35,12 @@ class Company extends Model
     {
         return $this->hasMany(CompanyAccessRule::class);
     }
+
+    protected static function booted(): void
+    {
+        static::deleting(function (Company $company) {
+            $company->workers()->each(fn($w) => $w->delete());
+            $company->rules()->each(fn($r) => $r->delete());
+        });
+    }
 }
