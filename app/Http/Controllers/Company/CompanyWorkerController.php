@@ -96,7 +96,7 @@ class CompanyWorkerController extends Controller
 
     public function show(Company $company, CompanyWorker $worker)
     {
-        $worker->load('rules.weekdays');
+        $worker->load('rules.weekdays', 'creator', 'editor');
         return view('companies.workers.show', compact('company', 'worker'));
     }
 

@@ -9,6 +9,7 @@ use App\Models\Company\Company;
 use App\Models\Company\CompanyWorker;
 use App\Models\Company\CompanyAccessRule;
 use App\Models\Company\CompanyAccessLog;
+use App\Models\AppDriver;
 use App\Services\RuleValidatorService;
 
 
@@ -96,7 +97,7 @@ class CompanyService
 
     public function getCompanyDetails($company)
     {
-        $company = $company->load('workers.rules', 'rules.weekdays', 'rules.worker');
+        $company = $company->load('workers.rules', 'workers.creator', 'workers.editor', 'rules.weekdays', 'rules.worker', 'rules.creator', 'rules.editor');
         return $company;
     }
 
@@ -111,6 +112,7 @@ class CompanyService
             'telephone' => $data['telephone'] ?? null,
             'document' => isset($data['document']) ? (preg_replace('/\D/', '', $data['document']) ?: null) : null,
             'image' => $data['image'] ?? null,
+            'created_by_user' => auth()->id(),
         ];
 
         if (isset($data['image']) && !empty($data['image'])) {
@@ -134,6 +136,8 @@ class CompanyService
             $fields['image'] = $this->saveBase64Image($data['image']);
         }
 
+        $fields['updated_by_user'] = auth()->id();
+
         $worker->update($fields);
         return $worker;
     }
@@ -150,6 +154,7 @@ class CompanyService
             'start_time' => $data['start_time'] ?? null,
             'end_time' => $data['end_time'] ?? null,
             'description' => $data['description'] ?? null,
+            'created_by_user' => auth()->id(),
         ];
 
         $rule = $company->rules()->create($ruleData);
@@ -165,6 +170,7 @@ class CompanyService
     public function updateAccessRule($data, CompanyAccessRule $rule): CompanyAccessRule
     {
         $fields = array_intersect_key($data, array_flip(['type', 'start_date', 'end_date', 'start_time', 'end_time', 'description']));
+        $fields['updated_by_user'] = auth()->id();
         $rule->update($fields);
 
         if (isset($data['days']) && is_array($data['days'])) {
@@ -230,8 +236,21 @@ class CompanyService
         ];
     }
 
+    /**
+     * Endpoint único de registro de acesso. O tipo é definido pelo conteúdo do
+     * target enviado no corpo:
+     *   - CPF (terceirizado)          → funcionário da empresa parceira
+     *   - PLACA.Nome.Obs              → motorista de aplicativo
+     *   - texto livre (nome empresa)  → empresa parceira
+     */
     public function registerAccess($data): array
     {
+        $target = trim((string) ($data['target'] ?? ''));
+
+        if ($this->isAppDriverTarget($target)) {
+            return $this->registerAppDriverAccess($data);
+        }
+
         $result = $this->validateTryToAccess($data);
 
         if (!$result['found']) {
@@ -257,6 +276,50 @@ class CompanyService
         }
 
         return $result;
+    }
+
+    /**
+     * Registra o acesso de um motorista de aplicativo a partir de um target no
+     * formato "PLACA.NomeMotorista.Obs" (Obs é opcional). O veículo é cadastrado
+     * automaticamente caso ainda não exista e o acesso é gravado no histórico.
+     */
+    public function registerAppDriverAccess(array $data): array
+    {
+        $parts = explode('.', $data['target'], 3);
+
+        $plate = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $parts[0] ?? ''));
+        $name  = trim($parts[1] ?? '');
+        $obs   = isset($parts[2]) ? (trim($parts[2]) ?: null) : null;
+
+        if ($plate === '' || $name === '') {
+            return ['found' => false, 'reason' => 'invalid_target'];
+        }
+
+        $driver = AppDriver::firstOrCreate(
+            ['plate' => $plate],
+            ['name' => $name]
+        );
+
+        CompanyAccessLog::create([
+            'company_id'        => null,
+            'company_worker_id' => null,
+            'app_driver_id'     => $driver->id,
+            'target'            => $plate,
+            'obs'               => $obs,
+            'allowed'           => true,
+            'reason'            => 'app_driver_access',
+        ]);
+
+        return [
+            'found'    => true,
+            'created'  => $driver->wasRecentlyCreated,
+            'driver'   => [
+                'id'    => $driver->id,
+                'plate' => $driver->plate,
+                'name'  => $driver->name,
+                'obs'   => $obs,
+            ],
+        ];
     }
 
     public function registerWorkerAccess(int $workerId): array
@@ -345,6 +408,25 @@ class CompanyService
         $imageName = 'worker_' . time() . '.jpg';
         file_put_contents(public_path('images/' . $imageName), base64_decode($imageData));
         return $imageName;
+    }
+
+    /**
+     * Detecta o formato "PLACA.Nome.Obs": o primeiro segmento precisa ser uma
+     * placa válida (Mercosul ABC1D23 ou antiga ABC1234) e precisa haver um nome.
+     * CPF (que também contém pontos) não passa, pois "123" não é placa.
+     */
+    private function isAppDriverTarget(string $target): bool
+    {
+        $parts = explode('.', $target);
+
+        if (count($parts) < 2 || trim($parts[1]) === '') {
+            return false;
+        }
+
+        $plate = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $parts[0]));
+
+        return (bool) preg_match('/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/', $plate)
+            || (bool) preg_match('/^[A-Z]{3}[0-9]{4}$/', $plate);
     }
 
     private function isValidCPF($cpf)

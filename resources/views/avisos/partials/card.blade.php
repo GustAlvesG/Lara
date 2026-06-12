@@ -4,6 +4,7 @@
         'pessoa'  => ['label' => 'Pessoal', 'class' => 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'],
         'setor'   => ['label' => 'Setor',   'class' => 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'],
         'publico' => ['label' => 'Público', 'class' => 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'],
+        'grupo'   => ['label' => 'Grupo',   'class' => 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'],
     ];
     $privacyInfo = $privacyConfig[$aviso->privacy] ?? $privacyConfig['setor'];
 @endphp

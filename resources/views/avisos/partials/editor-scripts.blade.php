@@ -22,6 +22,31 @@
         };
     }
 
+    function usersSelector(allUsers, selectedIds) {
+        return {
+            users: allUsers,
+            selected: allUsers.filter(u => selectedIds.includes(u.id)),
+            search: '',
+            open: false,
+            get filtered() {
+                const q = this.search.toLowerCase();
+                return this.users.filter(u =>
+                    u.name.toLowerCase().includes(q) &&
+                    !this.selected.find(s => s.id === u.id)
+                );
+            },
+            add(user) {
+                if (!this.selected.find(s => s.id === user.id)) {
+                    this.selected.push(user);
+                }
+                this.search = '';
+            },
+            remove(user) {
+                this.selected = this.selected.filter(s => s.id !== user.id);
+            },
+        };
+    }
+
     function tagsInput(existing) {
         return {
             items: Array.isArray(existing) ? existing.slice() : [],

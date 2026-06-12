@@ -1,6 +1,8 @@
 @php
     $aviso = $aviso ?? null;
     $currentPrivacy = old('privacy', $aviso?->privacy ?? 'setor');
+    $allUsers = $users ?? collect();
+    $selectedUserIds = old('user_ids', $aviso?->users?->pluck('id')->all() ?? []);
     // Só lembretes ainda não enviados são editáveis. Os já enviados são
     // histórico (exibidos na tela do aviso) e não devem voltar como inputs,
     // senão o salvar os recriaria como pendentes e eles disparariam de novo.
@@ -13,7 +15,7 @@
     $existingTags = old('tags', $aviso?->tags->pluck('name')->values()->toArray() ?? []);
 @endphp
 
-<div class="space-y-5">
+<div class="space-y-5" x-data="{ privacy: '{{ $currentPrivacy }}' }">
 
     {{-- Título --}}
     <div>
@@ -55,10 +57,11 @@
     <div>
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Visibilidade</label>
         <div class="flex gap-2 flex-wrap">
-            @foreach(['pessoa' => ['label' => 'Pessoal', 'desc' => 'Só você', 'icon' => '🔒'], 'setor' => ['label' => 'Setor', 'desc' => 'Seu setor', 'icon' => '👥'], 'publico' => ['label' => 'Público', 'desc' => 'Todos', 'icon' => '🌐']] as $value => $opt)
+            @foreach(['pessoa' => ['label' => 'Pessoal', 'desc' => 'Só você', 'icon' => '🔒'], 'setor' => ['label' => 'Setor', 'desc' => 'Seu setor', 'icon' => '👥'], 'publico' => ['label' => 'Público', 'desc' => 'Todos', 'icon' => '🌐'], 'grupo' => ['label' => 'Grupo', 'desc' => 'Selecionar', 'icon' => '🎯']] as $value => $opt)
                 <label class="flex-1 min-w-[100px] cursor-pointer">
                     <input type="radio" name="privacy" value="{{ $value }}"
                            {{ $currentPrivacy === $value ? 'checked' : '' }}
+                           @change="privacy = '{{ $value }}'"
                            class="sr-only peer">
                     <div class="flex flex-col items-center p-3 rounded-lg border-2 border-gray-200 dark:border-gray-600
                                 peer-checked:border-red-700 peer-checked:bg-red-50 dark:peer-checked:bg-red-900/20 dark:peer-checked:border-red-600
@@ -69,6 +72,56 @@
                     </div>
                 </label>
             @endforeach
+        </div>
+
+        {{-- Seletor de usuários (visível apenas quando privacy = grupo) --}}
+        <div x-show="privacy === 'grupo'" x-transition
+             x-data="usersSelector({{ $allUsers->toJson() }}, {{ json_encode($selectedUserIds) }})"
+             class="mt-3">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Destinatários <span class="text-red-500">*</span>
+            </label>
+
+            {{-- Chips dos selecionados --}}
+            <div class="flex flex-wrap items-center gap-2 min-h-[42px] p-2 rounded-t-lg border border-b-0 border-gray-300 dark:border-gray-600 dark:bg-gray-700 bg-white">
+                <template x-for="user in selected" :key="user.id">
+                    <span class="flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300">
+                        <input type="hidden" name="user_ids[]" :value="user.id">
+                        <span x-text="user.name"></span>
+                        <button type="button" @click="remove(user)"
+                                class="hover:text-orange-900 dark:hover:text-orange-100" title="Remover">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </span>
+                </template>
+            </div>
+
+            {{-- Campo de busca --}}
+            <div class="relative">
+                <input type="text" x-model="search" @focus="open = true" @click.outside="open = false"
+                       placeholder="Buscar usuário para adicionar…"
+                       autocomplete="off"
+                       class="w-full rounded-b-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm focus:border-red-500 focus:ring-red-500 text-sm">
+
+                <div x-show="open && filtered.length > 0"
+                     class="absolute z-20 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    <template x-for="user in filtered" :key="user.id">
+                        <button type="button" @click="add(user); open = filtered.length > 0"
+                                class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-red-50 dark:hover:bg-red-900/20 transition">
+                            <span x-text="user.name"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <p x-show="selected.length === 0" class="mt-1 text-xs text-red-500">
+                Selecione ao menos um destinatário.
+            </p>
+            @error('user_ids')
+                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+            @enderror
         </div>
         @error('privacy')
             <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
