@@ -14,11 +14,13 @@ class Aviso extends Model
     const PRIVACY_PESSOA  = 'pessoa';
     const PRIVACY_SETOR   = 'setor';
     const PRIVACY_PUBLICO = 'publico';
+    const PRIVACY_GRUPO   = 'grupo';
 
     const PRIVACY_LABELS = [
         self::PRIVACY_PESSOA  => 'Pessoal',
         self::PRIVACY_SETOR   => 'Setor',
         self::PRIVACY_PUBLICO => 'Público',
+        self::PRIVACY_GRUPO   => 'Grupo',
     ];
 
     protected $fillable = [
@@ -30,6 +32,11 @@ class Aviso extends Model
         'expiry_notified',
         'created_by',
     ];
+
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'aviso_user');
+    }
 
     protected $casts = [
         'expires_at'      => 'date',
@@ -127,6 +134,15 @@ class Aviso extends Model
             // Pessoal: só o criador
             $q->orWhere(fn($sq) => $sq->where('privacy', self::PRIVACY_PESSOA)
                                       ->where('created_by', $user->id));
+
+            // Grupo: criador ou usuário explicitamente incluído na lista
+            $q->orWhere(function ($sq) use ($user) {
+                $sq->where('privacy', self::PRIVACY_GRUPO)
+                   ->where(function ($cq) use ($user) {
+                       $cq->where('created_by', $user->id)
+                          ->orWhereHas('users', fn($r) => $r->where('users.id', $user->id));
+                   });
+            });
         });
     }
 }

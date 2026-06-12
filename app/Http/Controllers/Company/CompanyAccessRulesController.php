@@ -50,7 +50,7 @@ class CompanyAccessRulesController extends Controller
 
     public function edit(Company $company, CompanyAccessRule $rule)
     {
-        $rule->load('weekdays');
+        $rule->load('weekdays', 'creator', 'editor');
         return view('companies.rules.edit', compact('company', 'rule'));
     }
 
