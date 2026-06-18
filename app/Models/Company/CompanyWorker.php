@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Company\Company;
+use App\Models\Company\CompanyAccessLog;
 use App\Models\Company\CompanyAccessRule;
 use App\Models\User;
 
@@ -48,5 +49,10 @@ class CompanyWorker extends Model
     public function editor()
     {
         return $this->belongsTo(User::class, 'updated_by_user');
+    }
+
+    public function latestAccessLog()
+    {
+        return $this->hasOne(CompanyAccessLog::class)->latestOfMany();
     }
 }

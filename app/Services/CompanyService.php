@@ -97,7 +97,13 @@ class CompanyService
 
     public function getCompanyDetails($company)
     {
-        $company = $company->load('workers.rules', 'workers.creator', 'workers.editor', 'rules.weekdays', 'rules.worker', 'rules.creator', 'rules.editor');
+        $company->load([
+            'workers' => fn($q) => $q->with(['rules', 'latestAccessLog', 'creator', 'editor'])->orderBy('name'),
+            'rules.weekdays',
+            'rules.worker',
+            'rules.creator',
+            'rules.editor',
+        ]);
         return $company;
     }
 
