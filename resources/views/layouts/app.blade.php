@@ -25,21 +25,38 @@
         {{ $css ?? '' }}
     </head>
     <body class="font-sans antialiased">
-        <div class="min-h-screen bg-gray-100 dark:bg-gray-900">
+        <div
+            x-data="{
+                collapsed: window.matchMedia('(max-width: 640px)').matches ? false : (localStorage.getItem('sidebarCollapsed') === 'true'),
+                mobileOpen: false,
+                toggle() {
+                    this.collapsed = !this.collapsed;
+                    localStorage.setItem('sidebarCollapsed', this.collapsed);
+                }
+            }"
+            class="min-h-screen bg-gray-100 dark:bg-gray-900"
+        >
             @include('partials.navigation')
-            <!-- Page Heading -->
-            @if (isset($header))
-                <header class="bg-white dark:bg-gray-800 shadow">
-                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                        {{ $header }}
-                    </div>
-                </header>
-            @endif
 
-            <!-- Page Content -->
-            <main>
-                {{ $slot }}
-            </main>
+            <!-- Content shifted by the sidebar width -->
+            <div
+                class="transition-all duration-300 ease-in-out"
+                :class="collapsed ? 'sm:ml-20' : 'sm:ml-64'"
+            >
+                <!-- Page Heading -->
+                @if (isset($header))
+                    <header class="bg-white dark:bg-gray-800 shadow">
+                        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                            {{ $header }}
+                        </div>
+                    </header>
+                @endif
+
+                <!-- Page Content -->
+                <main>
+                    {{ $slot }}
+                </main>
+            </div>
         </div>
 
         {{-- JQUERY --}}
