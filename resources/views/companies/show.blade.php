@@ -105,15 +105,14 @@
                         <div class="flex-grow">
                             <h4 class="font-bold text-gray-900 dark:text-white">{{ $worker->name }}</h4>
                             <p class="text-xs text-gray-500 dark:text-gray-400">{{ ucfirst($worker->position) }}</p>
-                            <p class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
-                                Criado por {{ $worker->creator?->name ?? '—' }}
-                                @if($worker->created_at)
-                                    em {{ $worker->created_at->format('d/m/Y H:i') }}
-                                @endif
-                                @if($worker->editor && $worker->updated_at?->ne($worker->created_at))
-                                    · Alterado por {{ $worker->editor->name }} em {{ $worker->updated_at->format('d/m/Y H:i') }}
-                                @endif
-                            </p>
+                            @if($worker->latestAccessLog)
+                                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-1">
+                                    <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    {{ $worker->latestAccessLog->created_at->diffForHumans() }}
+                                </p>
+                            @else
+                                <p class="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Sem acessos registados</p>
+                            @endif
                         </div>
                          <div class="flex gap-2 items-center">
                             <a href="{{ route('company.worker.show', [$companyDetails->id, $worker->id]) }}"
