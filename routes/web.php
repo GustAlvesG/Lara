@@ -28,6 +28,8 @@ use App\Http\Controllers\AvisoController;
 use App\Http\Controllers\NotificationController;
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\CardIssuerController;
+use App\Http\Controllers\CardTemplateController;
 
 
 Route::get('/', function () {
@@ -206,6 +208,20 @@ Route::middleware('auth')->group(function () {
 
     // Avisos e Lembretes
     Route::resource('avisos', AvisoController::class);
+
+    // Carteirinhas (emissão via webcam/impressão em cartão PVC + gestão de modelos)
+    Route::group(['middleware' => 'permission:manage id cards'], function () {
+        Route::get('/id-cards', [CardIssuerController::class, 'create'])->name('id-cards.issue');
+
+        Route::prefix('card-templates')->group(function () {
+            Route::get('/', [CardTemplateController::class, 'index'])->name('card-templates.index');
+            Route::get('/create', [CardTemplateController::class, 'create'])->name('card-templates.create');
+            Route::post('/', [CardTemplateController::class, 'store'])->name('card-templates.store');
+            Route::get('/{cardTemplate}/edit', [CardTemplateController::class, 'edit'])->name('card-templates.edit');
+            Route::put('/{cardTemplate}', [CardTemplateController::class, 'update'])->name('card-templates.update');
+            Route::delete('/{cardTemplate}', [CardTemplateController::class, 'destroy'])->name('card-templates.destroy');
+        });
+    });
 
     // Notificações
     Route::get('/notifications/unread-json', [NotificationController::class, 'unreadJson'])->name('notifications.unreadJson');
