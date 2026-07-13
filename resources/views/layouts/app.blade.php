@@ -56,6 +56,13 @@
                         ['route' => 'company.access.logs', 'label' => 'Histórico'],
                     ],
                 ],
+                ['route' => 'id-cards.issue', 'label' => 'Carteirinhas', 'icon' => 'M12 4.5v15m7.5-7.5h-15',
+                    'permission' => 'manage id cards',
+                    'children' => [
+                        ['route' => 'id-cards.issue', 'label' => 'Emitir Carteirinha'],
+                        ['route' => 'card-templates.index', 'label' => 'Modelos'],
+                    ],
+                ],
             ];
         @endphp
 
