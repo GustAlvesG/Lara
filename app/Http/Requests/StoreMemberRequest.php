@@ -23,9 +23,9 @@ class StoreMemberRequest extends FormRequest
     {
         return [
             'title' => ['required', 'string', 'max:8'],
-            'cpf' => ['required', 'string'],
+            'cpf' => ['required', 'string', 'regex:/^\d{11}$/'],
             'birthDate' => ['required', 'date'],
-            'password' => ['nullable', 'string'],
+            'password' => ['nullable', 'string', 'min:8'],
         ];
     }
 }

@@ -12,10 +12,14 @@ class JwtService
 
     public function __construct()
     {
-        
-        $this->secretKey = 'a1b2c3d4e5f6g7h8i9j0';
-        $this->algorithm = 'HS256';
+        $secret = config('services.jwt.secret');
 
+        if (!$secret) {
+            throw new \RuntimeException('JWT_SECRET não configurado.');
+        }
+
+        $this->secretKey = $secret;
+        $this->algorithm = 'HS256';
     }
 
     public function generateToken(array $payload): string

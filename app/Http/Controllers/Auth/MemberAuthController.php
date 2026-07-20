@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Requests\StoreMemberRequest;
 use App\Http\Requests\UpdateMemberRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use App\Http\Controllers\Auth\LoginTokenController;
 
 
@@ -51,8 +52,8 @@ class MemberAuthController extends Controller
             if ($member->image) {
                 $member->image = base64_encode($member->image);
             }
-            // SHA256 in cpf if not $password
-            $member->Password = $password ?? hash('SHA256', $cpf);
+            // Senha padrão (SHA256 do cpf) apenas quando nenhuma é informada; sempre hasheada antes de persistir.
+            $member->Password = Hash::make($password ?? hash('SHA256', $cpf));
 
             //Convert the object to an array
             $member = json_decode(json_encode($member), true);
@@ -140,9 +141,7 @@ class MemberAuthController extends Controller
             // Validação das credenciais
 
             if (!$member = $this->validateCredentials($request->input('login'), $request->input('password'))) {
-                return response()->json(['error' => 'Credenciais inválidas',
-                'data' => $request->all()
-            ], 401);
+                return response()->json(['error' => 'Credenciais inválidas'], 401);
             }
 
             $token = LoginTokenController::generate($member);
@@ -156,15 +155,18 @@ class MemberAuthController extends Controller
         }
 
         return response()->json([
-            'error' => 'Invalid login credentials',
-            'data' => $request->all()
+            'error' => 'Invalid login credentials'
         ], 401);
     }
 
     public function update(Request $request)
     {
+        // O membro alvo é sempre o dono do Session (login_token) — nunca um cpf
+        // arbitrário vindo do body.
+        $sessionUser = $request->input('user');
+        $cpf = $sessionUser['username'] ?? null;
 
-        $member = Member::where('cpf', $request->input('cpf'))->first();
+        $member = $cpf ? Member::where('cpf', $cpf)->first() : null;
 
         if (!$member) {
             return response()->json(['error' => 'Member not found'], 404);
@@ -175,14 +177,55 @@ class MemberAuthController extends Controller
         $member->telephone = $request->input('telephone', $member->telephone) ?? $member->telephone;
         $member->save();
 
+        $member->makeHidden(['Password', 'password', 'image', 'created_at', 'updated_at', 'deleted_at']);
+
         return response()->json(['user' => $member], 200);
     }
 
     public function changePassword(Request $request)
     {
-        $member = Member::where('cpf', $request->input('cpf'))->first();
+        $newPassword = $request->input('new_password');
+        if (!is_string($newPassword) || strlen($newPassword) < 6) {
+            return response()->json(['error' => 'Nova senha inválida.'], 422);
+        }
 
-        $member->Password = $request->input('new_password');
+        $member = null;
+
+        // Caminho autenticado: se vier um Session (login_token) válido, a troca só
+        // pode ser aplicada ao próprio dono do token — o cpf do body é ignorado.
+        $sessionToken = $request->header('Session');
+        if ($sessionToken) {
+            try {
+                $payload = $this->jwtService->validateToken($sessionToken);
+                $member = Member::where('cpf', $payload['username'] ?? null)->first();
+            } catch (\Exception $e) {
+                return response()->json(['error' => 'Sessão inválida.'], 401);
+            }
+        }
+
+        // Caminho de recuperação pré-login ("esqueci minha senha"): exige o mesmo
+        // trio já validado em check-member (cpf + title + birth_date) — nunca aceita
+        // a troca com base apenas em um cpf informado no body.
+        if (!$member) {
+            $cpf = $request->input('cpf');
+            $title = $request->input('title');
+            $birthDate = $request->input('birth_date');
+
+            if (!$cpf || !$title || !$birthDate) {
+                return response()->json(['error' => 'Dados insuficientes para redefinir a senha.'], 422);
+            }
+
+            $member = Member::where('cpf', $cpf)
+                ->where('title', $title)
+                ->where('birth_date', $birthDate)
+                ->first();
+        }
+
+        if (!$member) {
+            return response()->json(['error' => 'Não foi possível alterar a senha.'], 404);
+        }
+
+        $member->Password = Hash::make($newPassword);
         $member->save();
 
         return response()->json(['message' => 'Senha alterada com sucesso'], 200);
@@ -213,7 +256,7 @@ class MemberAuthController extends Controller
     private static function getPhotoBlob($photoID)
     {
         if ($photoID) {
-            return DB::connection('mc_sqlsrv_image')->select("SELECT Content FROM dbo.Files WHERE Id = " . $photoID);
+            return DB::connection('mc_sqlsrv_image')->select("SELECT Content FROM dbo.Files WHERE Id = ?", [$photoID]);
         }
         return null;
     }
@@ -231,8 +274,29 @@ class MemberAuthController extends Controller
 
     private function validateCredentials($username, $password)
     {
-        $member = Member::where('cpf', $username)->where('Password', $password)->first();
-        return $member;
+        $member = Member::where('cpf', $username)->first();
+
+        // A coluna física é "password" (minúsculo) — o restante do código usa
+        // "Password" (maiúsculo) apenas em escritas, que funcionam por coincidência
+        // (MySQL resolve nomes de coluna sem diferenciar maiúsculas/minúsculas), mas
+        // uma leitura via atributo do model exige a chave real hidratada do SELECT.
+        if (!$member || !$member->password) {
+            return null;
+        }
+
+        if (Hash::check($password, $member->password)) {
+            return $member;
+        }
+
+        // Compatibilidade com senhas gravadas antes do hashing (texto puro/SHA256 do cliente).
+        // Ao validar por esse esquema legado, a senha é imediatamente re-hasheada com Hash::make.
+        if (hash_equals((string) $member->password, (string) $password)) {
+            $member->Password = Hash::make($password);
+            $member->save();
+            return $member;
+        }
+
+        return null;
     }
 
     
@@ -247,10 +311,10 @@ class MemberAuthController extends Controller
             dbo.Titles ON dbo.Members.Title = dbo.Titles.Id
             AND dbo.Titles.TitleType NOT IN (374, 375, 693320, 1297904, 3804861, 4062070, 6736996, 6736997, 6736998, 6737000)
         WHERE
-		dbo.Titles.Code = '". $title . "' And 
+		dbo.Titles.Code = ? And
         dbo.Titles.Status = 0 And
-		dbo.Members.DocumentUnmasked = '" . $document . "' And
-        dbo.Members.BirthDate = '" . $birthdate . "'");
+		dbo.Members.DocumentUnmasked = ? And
+        dbo.Members.BirthDate = ?", [$title, $document, $birthdate]);
     }
 
     private static function removeFields($data, $fields)

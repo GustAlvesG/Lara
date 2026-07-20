@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote')->hourly();
 
 Schedule::command('avisos:process-notifications')->everyMinute();
+Schedule::command('app:expire-pending-schedules')->everyMinute();
