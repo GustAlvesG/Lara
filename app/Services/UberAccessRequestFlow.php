@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
  */
 class UberAccessRequestFlow
 {
-    private const TRIGGER_TEXT = 'pedi um uber';
+    private const TRIGGER_TEXT = 'Pedi um Uber/99/Taxi';
     private const SESSION_TIMEOUT_MINUTES = 30;
     private const ACCESS_VALIDITY_MINUTES = 30;
     private const PLATE_PATTERN = '/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/';
