@@ -18,9 +18,12 @@ use App\Services\SchedulesService;
 
 class ScheduleController extends Controller
 {
-    public function __construct()
+    protected $jwtService;
+
+    public function __construct(\App\Providers\Services\JwtService $jwtService)
     {
         $this->schedulesService = new SchedulesService();
+        $this->jwtService = $jwtService;
     }
 
 
@@ -57,6 +60,38 @@ class ScheduleController extends Controller
     public function store(Request $request)
     {
         $route_name = $request->route()->getName();
+        $isApi = 'api' == explode('.', $route_name)[0];
+
+        if ($isApi) {
+            $sessionToken = $request->header('Session');
+
+            if ($sessionToken) {
+                // Chamada de um membro (via Clubeel/Next.js): a identidade, o preço
+                // e o status nunca vêm do body — são sempre derivados da sessão e do
+                // preço real cadastrado no Place, nunca do que o cliente envia.
+                try {
+                    $payload = $this->jwtService->validateToken($sessionToken);
+                } catch (\Exception $e) {
+                    return response()->json(['message' => 'Sessão inválida.'], 401);
+                }
+
+                $member = Member::where('cpf', $payload['username'] ?? null)->first();
+                if (!$member) {
+                    return response()->json(['message' => 'Sessão inválida.'], 401);
+                }
+
+                $payloadData = $request->all();
+                $payloadData['member_id'] = $member->id;
+                $payloadData['status_id'] = 3; // Sempre pendente de pagamento nesse fluxo.
+                unset($payloadData['cpf'], $payloadData['price']);
+                $request = new Request($payloadData);
+            } elseif (!Auth()->check()) {
+                // Nem sessão de membro (header Session) nem sessão administrativa
+                // (painel interno autenticado): sem nenhuma das duas, não cria agendamento.
+                return response()->json(['message' => 'Não autorizado.'], 401);
+            }
+        }
+
         try {
             $scheudles = $this->schedulesService->createSchedule(new Request($request->all()));
             if ('api' == explode('.', $route_name)[0]) {
@@ -84,9 +119,18 @@ class ScheduleController extends Controller
         }
     }
 
-    public function indexByMember($member_id)
+    public function indexByMember(Request $request, $member_id)
     {
         try {
+            $sessionUser = $request->input('user');
+            $requester = $sessionUser['username'] ?? null;
+
+            $owner = Member::where('id', $member_id)->value('cpf');
+
+            if (!$requester || !$owner || $owner !== $requester) {
+                return response()->json(['message' => 'Acesso não autorizado a este recurso.'], 403);
+            }
+
             $response = $this->schedulesService->getScheduleByMember($member_id);
             return $response;
         } catch (\Exception $e) {

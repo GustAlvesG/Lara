@@ -137,7 +137,9 @@ class SchedulesService
                 'start_schedule' => $request->input('date') . ' ' . $time_start,
                 'end_schedule' => $request->input('date') . ' ' . $time_end,
                 'status_id' => $request->input('status_id') ?? 1,
-                'price' => $request['price'] ?? null,
+                // Se nenhum preço foi enviado explicitamente, usa o preço real do Place —
+                // nunca confia em um preço de cliente sem contrapartida no cadastro.
+                'price' => $request['price'] ?? optional(Place::find($request['place_id']))->price,
                 'created_by_user' => $request['created_by_user'] ?? null,
             ]));
         }
@@ -183,7 +185,13 @@ class SchedulesService
     {
         $validated = $request->all();
 
-        $schedule = Schedule::create($validated);
+        try {
+            $schedule = Schedule::create($validated);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            // Backstop de banco (índice único em active_slot_key): outra requisição
+            // concorrente reservou esse horário entre a checagem de colisão e o insert.
+            throw new \Exception("Horário colide com outro agendamento.");
+        }
 
         return response()->json(['schedule' => $schedule], 201);
     }

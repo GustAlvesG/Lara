@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSchedulePaymentRequest;
 use App\Http\Requests\UpdateSchedulePaymentRequest;
 use App\Models\Schedule;
+use App\Models\Member;
 //use DB
 use Illuminate\Support\Facades\DB;
 
@@ -19,8 +20,58 @@ class SchedulePaymentController extends Controller
     public function store(StoreSchedulePaymentRequest $request): \Illuminate\Http\JsonResponse
     {
         // 1. Obtém dados validados e os IDs dos agendamentos
-        $validated = $request->all(); 
+        $validated = $request->validated();
         $scheduleIds = $validated['schedule_ids'] ?? [];
+
+        // 1.1 Garante que TODOS os agendamentos pertencem ao dono da sessão —
+        // nunca confia no schedule_ids do body sem checar posse.
+        $sessionUser = $request->input('user');
+        $requesterCpf = $sessionUser['username'] ?? null;
+        $requesterId = $requesterCpf ? Member::where('cpf', $requesterCpf)->value('id') : null;
+
+        if (!$requesterId) {
+            return response()->json(['message' => 'Sessão inválida.'], 401);
+        }
+
+        $ownedCount = Schedule::withoutGlobalScopes()
+            ->whereIn('id', $scheduleIds)
+            ->where('member_id', $requesterId)
+            ->count();
+
+        if ($ownedCount !== count(array_unique($scheduleIds))) {
+            return response()->json(['message' => 'Um ou mais agendamentos não pertencem ao usuário autenticado.'], 403);
+        }
+
+        // 1.2 Idempotência: o mesmo payment_integration_id pode legitimamente
+        // aparecer em vários SchedulePayment — quando a pessoa seleciona N
+        // horários, são N agendamentos pagos em uma única cobrança (mesmo tid).
+        // O que nunca pode acontecer é o MESMO agendamento ser vinculado a um
+        // pagamento duas vezes. Se todos os ids pedidos já estiverem pagos com
+        // esse mesmo tid, é um reenvio/retry — devolve o pagamento existente em
+        // vez de reprocessar. Se a situação for mista (alguns pagos, outros não,
+        // ou pagos com um tid diferente), é conflito genuíno.
+        $alreadyLinked = Schedule::withoutGlobalScopes()
+            ->whereIn('id', $scheduleIds)
+            ->whereNotNull('schedule_payment_id')
+            ->with('schedulePayment')
+            ->get();
+
+        if ($alreadyLinked->isNotEmpty()) {
+            $isSameRetry = $alreadyLinked->count() === count(array_unique($scheduleIds))
+                && $alreadyLinked->every(function ($schedule) use ($validated) {
+                    return $schedule->schedulePayment
+                        && $schedule->schedulePayment->payment_integration_id === $validated['payment_integration_id'];
+                });
+
+            if ($isSameRetry) {
+                return response()->json([
+                    'message' => 'Payment already processed.',
+                    'data' => $alreadyLinked->first()->schedulePayment,
+                ], 200);
+            }
+
+            return response()->json(['message' => 'Um ou mais agendamentos já foram pagos.'], 409);
+        }
 
         // Verifica a colisão, usando o novo método auxiliar
         $collidingSchedules = $this->checkSchedulesForCollisions($scheduleIds);
@@ -71,7 +122,7 @@ class SchedulePaymentController extends Controller
         } catch (\Exception $e) {
             // 4. Tratamento de erro (o rollback já ocorreu)
             report($e);
-            
+
             return response()->json([
                 'message' => 'Failed to create Schedule Payment due to an internal error. Operation was safely rolled back.',
                 'error' => $e->getMessage()

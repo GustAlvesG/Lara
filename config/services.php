@@ -39,6 +39,10 @@ return [
 	    'token' => env('API_TOKEN'),
     ],
 
+    'jwt' => [
+        'secret' => env('JWT_SECRET'),
+    ],
+
     'rede' => [
         'auth_url'      => env('INTERNAL_EREDE_AUTH_URL'),
         'base_url'      => env('INTERNAL_EREDE_API_URL'),
