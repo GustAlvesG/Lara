@@ -284,13 +284,19 @@ class MemberAuthController extends Controller
             return null;
         }
 
-        if (Hash::check($password, $member->password)) {
-            return $member;
+        $stored = (string) $member->password;
+
+        // Só chama Hash::check quando o valor salvo é de fato um hash bcrypt —
+        // caso contrário o Laravel lança RuntimeException em vez de false, e
+        // hoje TODO membro ainda tem a senha legada (SHA256 puro) até logar
+        // uma vez após esta correção.
+        if (preg_match('/^\$2[axy]\$/', $stored)) {
+            return Hash::check($password, $stored) ? $member : null;
         }
 
         // Compatibilidade com senhas gravadas antes do hashing (texto puro/SHA256 do cliente).
         // Ao validar por esse esquema legado, a senha é imediatamente re-hasheada com Hash::make.
-        if (hash_equals((string) $member->password, (string) $password)) {
+        if (hash_equals($stored, (string) $password)) {
             $member->Password = Hash::make($password);
             $member->save();
             return $member;
