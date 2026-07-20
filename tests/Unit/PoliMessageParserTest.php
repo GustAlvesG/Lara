@@ -69,7 +69,43 @@ class PoliMessageParserTest extends TestCase
         $this->assertTrue((new PoliMessageParser())->isRelevantEvent($this->realTextPayload()));
     }
 
-    public function test_detects_best_effort_image_component(): void
+    public function test_parses_confirmed_real_image_payload(): void
+    {
+        $url = 'https://cdn.polichat.io/company/52129/media/received/wamid.ABC123.jpeg';
+
+        $payload = $this->realTextPayload();
+        $payload['value']['type'] = 'IMAGE';
+        $payload['value']['components'] = [
+            'attachments' => [
+                ['type' => 'image', 'media' => ['url' => $url], 'mime_type' => 'image/jpeg'],
+            ],
+        ];
+
+        $parser = new PoliMessageParser();
+
+        $this->assertTrue($parser->isRelevantEvent($payload));
+
+        $parsed = $parser->parse($payload);
+        $this->assertSame(ParsedPoliMessage::TYPE_IMAGE, $parsed->type);
+        $this->assertSame($url, $parsed->mediaUrl);
+    }
+
+    public function test_normalizes_escaped_slashes_in_media_url(): void
+    {
+        $payload = $this->realTextPayload();
+        $payload['value']['type'] = 'IMAGE';
+        $payload['value']['components'] = [
+            'attachments' => [
+                ['type' => 'image', 'media' => ['url' => 'https:\\/\\/cdn.polichat.io\\/media\\/x.jpeg'], 'mime_type' => 'image/jpeg'],
+            ],
+        ];
+
+        $parsed = (new PoliMessageParser())->parse($payload);
+
+        $this->assertSame('https://cdn.polichat.io/media/x.jpeg', $parsed->mediaUrl);
+    }
+
+    public function test_detects_best_effort_image_component_fallback(): void
     {
         $payload = $this->realTextPayload();
         $payload['value']['components'] = ['image' => ['url' => 'https://poli.example/media/print.jpg']];
@@ -78,6 +114,27 @@ class PoliMessageParserTest extends TestCase
 
         $this->assertSame(ParsedPoliMessage::TYPE_IMAGE, $parsed->type);
         $this->assertSame('https://poli.example/media/print.jpg', $parsed->mediaUrl);
+    }
+
+    public function test_sanitizes_escaped_slashes_and_trailing_json_noise(): void
+    {
+        $payload = $this->realTextPayload();
+        $payload['value']['components'] = ['body' => ['text' => 'Pedi um Uber\\/99\\/Taxi\\n}']];
+
+        $parsed = (new PoliMessageParser())->parse($payload);
+
+        $this->assertSame(ParsedPoliMessage::TYPE_TEXT, $parsed->type);
+        $this->assertSame('Pedi um Uber/99/Taxi', $parsed->text);
+    }
+
+    public function test_sanitizes_real_control_characters_and_stray_braces(): void
+    {
+        $payload = $this->realTextPayload();
+        $payload['value']['components'] = ['body' => ['text' => "{Gustavo Alves}\n"]];
+
+        $parsed = (new PoliMessageParser())->parse($payload);
+
+        $this->assertSame('Gustavo Alves', $parsed->text);
     }
 
     public function test_logs_raw_payload_when_content_shape_is_unrecognized(): void

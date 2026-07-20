@@ -36,8 +36,9 @@ class UberAccessRequestWebhookTest extends TestCase
     ): array {
         $this->messageCounter++;
 
-        $components = $mediaUrl !== null
-            ? ['image' => ['url' => $mediaUrl]]
+        $isImage = $mediaUrl !== null;
+        $components = $isImage
+            ? ['attachments' => [['type' => 'image', 'media' => ['url' => $mediaUrl], 'mime_type' => 'image/jpeg']]]
             : ['body' => ['text' => $text ?? '']];
 
         return [
@@ -45,7 +46,7 @@ class UberAccessRequestWebhookTest extends TestCase
             'event' => 'received',
             'value' => [
                 'event' => 'MESSAGE',
-                'type' => 'CHAT',
+                'type' => $isImage ? 'IMAGE' : 'CHAT',
                 'direction' => $direction,
                 'contact' => [
                     'uuid' => $contactUuid,
