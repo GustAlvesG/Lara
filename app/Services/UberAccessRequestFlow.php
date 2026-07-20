@@ -67,7 +67,8 @@ class UberAccessRequestFlow
 
     private function isTrigger(?string $text): bool
     {
-        return $text !== null && Str::of($text)->trim()->lower()->is(self::TRIGGER_TEXT);
+        return $text !== null
+            && Str::of($text)->trim()->lower()->startsWith(Str::lower(self::TRIGGER_TEXT));
     }
 
     private function advance(UberAccessRequest $request, ParsedPoliMessage $message): ?UberAccessRequest
@@ -116,7 +117,7 @@ class UberAccessRequestFlow
             return $this->ignore($request, $message);
         }
 
-        $plate = strtoupper(str_replace([' ', '-'], '', $message->text));
+        $plate = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $message->text));
 
         if (!preg_match(self::PLATE_PATTERN, $plate)) {
             Log::warning('UberAccessRequestFlow: placa fora do formato esperado', [

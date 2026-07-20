@@ -13,6 +13,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     private const CONTACT_UUID = 'd5e8a972-6360-11f1-9d75-06799772b1cd';
     private const CONTACT_PHONE = '5524992542363';
+    private const TRIGGER = 'Pedi um Uber/99/Taxi';
 
     private int $messageCounter = 0;
 
@@ -59,7 +60,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_outbound_message_is_ignored(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: 'Pedi um Uber', direction: 'OUT'), $this->authHeaders())
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER, direction: 'OUT'), $this->authHeaders())
             ->assertOk();
 
         $this->assertDatabaseCount('uber_access_requests', 0);
@@ -75,7 +76,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_trigger_creates_session_awaiting_name(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: 'Pedi um Uber'), $this->authHeaders())
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())
             ->assertOk();
 
         $this->assertDatabaseHas('uber_access_requests', [
@@ -85,9 +86,36 @@ class UberAccessRequestWebhookTest extends TestCase
         ]);
     }
 
+    public function test_trigger_matches_when_message_starts_with_trigger_text(): void
+    {
+        $this->postJson(
+            $this->endpoint(),
+            $this->payload(text: self::TRIGGER . ' - Uber'),
+            $this->authHeaders()
+        )->assertOk();
+
+        $this->assertDatabaseHas('uber_access_requests', [
+            'contact_uuid' => self::CONTACT_UUID,
+            'status' => UberAccessRequest::STATUS_AGUARDANDO_NOME,
+        ]);
+    }
+
+    public function test_plate_capture_strips_special_characters(): void
+    {
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: 'Gustavo Alves'), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: 'Portaria 2'), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: 'abc-1d23.'), $this->authHeaders())->assertOk();
+
+        $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
+
+        $this->assertSame('ABC1D23', $request->vehicle_plate);
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_PRINT, $request->status);
+    }
+
     public function test_full_sequence_completes_and_sets_expiration(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: 'Pedi um Uber'), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'Gustavo Alves'), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'Portaria 2'), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'ABC1D23'), $this->authHeaders())->assertOk();
@@ -115,7 +143,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_media_out_of_order_does_not_advance_state(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: 'Pedi um Uber'), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
         $this->postJson(
             $this->endpoint(),
             $this->payload(mediaUrl: 'https://poli.example/media/print.jpg'),
@@ -130,7 +158,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_duplicate_message_id_is_not_reprocessed(): void
     {
-        $payload = $this->payload(text: 'Pedi um Uber', messageId: 'dup-1');
+        $payload = $this->payload(text: self::TRIGGER, messageId: 'dup-1');
 
         $this->postJson($this->endpoint(), $payload, $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $payload, $this->authHeaders())->assertOk();
@@ -141,7 +169,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_expired_session_does_not_accept_stale_answers_but_new_trigger_opens_fresh_session(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: 'Pedi um Uber'), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
 
         $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
         $request->update(['last_message_at' => now()->subMinutes(31)]);
@@ -153,7 +181,7 @@ class UberAccessRequestWebhookTest extends TestCase
         $this->assertNull($request->requester_name);
         $this->assertDatabaseCount('uber_access_requests', 1);
 
-        $this->postJson($this->endpoint(), $this->payload(text: 'Pedi um Uber'), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
 
         $this->assertDatabaseCount('uber_access_requests', 2);
         $this->assertDatabaseHas('uber_access_requests', [
@@ -170,7 +198,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_valid_payload_outside_flow_returns_200_without_side_effects(): void
     {
-        $payload = $this->payload(text: 'Pedi um Uber');
+        $payload = $this->payload(text: self::TRIGGER);
         $payload['value']['event'] = 'STATUS';
 
         $this->postJson($this->endpoint(), $payload, $this->authHeaders())->assertOk();
@@ -181,7 +209,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_request_without_valid_bearer_token_is_rejected(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: 'Pedi um Uber'), ['Authorization' => 'Bearer invalid'])
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), ['Authorization' => 'Bearer invalid'])
             ->assertStatus(401);
     }
 }
