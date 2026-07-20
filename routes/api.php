@@ -19,6 +19,7 @@ use App\Http\Controllers\FreelancerController;
 use App\Http\Controllers\FunctionFreelancerController;
 use App\Http\Controllers\FreelancerServiceController;
 use App\Http\Controllers\ParkingAuthorizationController;
+use App\Http\Controllers\UberAccessRequestWebhookController;
 
 
 Route::get('/user', function (Request $request) {
@@ -52,6 +53,11 @@ Route::middleware('api_token')->group(function () {
 
     Route::get('/parking/check/{plate}', [ParkingAuthorizationController::class, 'checkPlate'])
         ->name('api.parking.check');
+
+    Route::prefix('webhooks')->group(function () {
+        Route::post('/whatsapp', [UberAccessRequestWebhookController::class, 'handle'])
+            ->name('api.webhooks.whatsapp');
+    });
 
     Route::prefix('telegram')->group(function () {
         Route::post('/get-contacts', [TelegramContactController::class, 'find'])->name('telegram.findContacts');
