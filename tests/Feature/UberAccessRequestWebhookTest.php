@@ -128,7 +128,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
         $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
 
-        $this->assertSame(UberAccessRequest::STATUS_CONCLUIDO, $request->status);
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_ACESSO, $request->status);
         $this->assertSame('Gustavo Alves', $request->requester_name);
         $this->assertSame('Portaria 2', $request->club_location);
         $this->assertSame('ABC1D23', $request->vehicle_plate);

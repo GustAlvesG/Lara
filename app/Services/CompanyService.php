@@ -10,6 +10,7 @@ use App\Models\Company\CompanyWorker;
 use App\Models\Company\CompanyAccessRule;
 use App\Models\Company\CompanyAccessLog;
 use App\Models\AppDriver;
+use App\Models\UberAccessRequest;
 use App\Services\RuleValidatorService;
 
 
@@ -191,6 +192,11 @@ class CompanyService
     public function validateTryToAccess($data)
     {
         $target = $data['target'];
+
+        if ($this->isUberPlateTarget($target)) {
+            return $this->validateUberAccess($target);
+        }
+
         $allWorkers = false;
 
         if (Str::startsWith($target, '*') || Str::endsWith($target, '*')) {
@@ -273,6 +279,10 @@ class CompanyService
             return $this->registerAppDriverAccess($data);
         }
 
+        if ($this->isUberPlateTarget($target)) {
+            return $this->registerUberAccess($target);
+        }
+
         $result = $this->validateTryToAccess($data);
 
         if (!$result['found']) {
@@ -342,6 +352,89 @@ class CompanyService
                 'obs'   => $obs,
             ],
         ];
+    }
+
+    /**
+     * Valida o acesso de um Uber a partir da placa informada. O acesso é
+     * considerado válido quando existe um pedido de Uber com a exata placa
+     * cadastrada e ainda dentro da validade (expires_at no futuro).
+     *
+     * O retorno segue o mesmo formato do fluxo de terceirizados para que o
+     * monitor de acesso consiga renderizar o resultado sem alterações.
+     */
+    public function validateUberAccess(string $target): array
+    {
+        $plate = $this->normalizePlate($target);
+
+        $request = UberAccessRequest::where('vehicle_plate', $plate)
+            ->where('status', UberAccessRequest::STATUS_AGUARDANDO_ACESSO)
+            ->whereNotNull('expires_at')
+            ->where('expires_at', '>', now())
+            ->latest('expires_at')
+            ->first();
+
+        if (!$request) {
+            return [
+                'found'   => false,
+                'reason'  => 'uber_not_found',
+                'type'    => 'uber',
+                'plate'   => $plate,
+                'workers' => [],
+            ];
+        }
+
+        return [
+            'found'      => true,
+            'type'       => 'uber',
+            'plate'      => $plate,
+            'company_id' => null,
+            'company'    => 'Uber · ' . $plate,
+            'uber'       => [
+                'id'             => $request->id,
+                'requester_name' => $request->requester_name,
+                'club_location'  => $request->club_location,
+                'vehicle_plate'  => $request->vehicle_plate,
+                'screenshot_url' => $request->screenshot_url,
+                'expires_at'     => optional($request->expires_at)->toIso8601String(),
+            ],
+            'workers'    => [[
+                'id'      => $request->id,
+                'name'    => $request->requester_name ?: $plate,
+                'allowed' => true,
+                'image'   => null,
+            ]],
+        ];
+    }
+
+    /**
+     * Valida e registra no histórico o acesso de um Uber. Marca accessed_at no
+     * pedido correspondente e grava um CompanyAccessLog, mantendo o histórico
+     * unificado com os demais tipos de acesso.
+     */
+    public function registerUberAccess(string $target): array
+    {
+        $result = $this->validateUberAccess($target);
+
+        if ($result['found']) {
+            // Acesso validado: conclui o pedido e vence a validade no mesmo
+            // instante, impedindo que a mesma placa seja reutilizada.
+            UberAccessRequest::where('id', $result['uber']['id'])
+                ->update([
+                    'status'      => UberAccessRequest::STATUS_CONCLUIDO,
+                    'accessed_at' => now(),
+                    'expires_at'  => now(),
+                ]);
+        }
+
+        CompanyAccessLog::create([
+            'company_id'        => null,
+            'company_worker_id' => null,
+            'target'            => $result['plate'],
+            'allowed'           => $result['found'],
+            'reason'            => $result['found'] ? 'uber_access_granted' : 'uber_not_found',
+        ]);
+
+        return $result;
     }
 
     public function registerWorkerAccess(int $workerId): array
@@ -447,6 +540,27 @@ class CompanyService
 
         $plate = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $parts[0]));
 
+        return (bool) preg_match('/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/', $plate)
+            || (bool) preg_match('/^[A-Z]{3}[0-9]{4}$/', $plate);
+    }
+
+    /**
+     * Detecta um target que é apenas uma placa (Mercosul ABC1D23 ou antiga
+     * ABC1234), sem nome nem observação. É o formato usado para consultar o
+     * acesso de Uber. CPF e nome de empresa não passam nesse teste.
+     */
+    private function isUberPlateTarget(string $target): bool
+    {
+        return $this->isPlate($this->normalizePlate($target));
+    }
+
+    private function normalizePlate(string $target): string
+    {
+        return strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $target));
+    }
+
+    private function isPlate(string $plate): bool
+    {
         return (bool) preg_match('/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/', $plate)
             || (bool) preg_match('/^[A-Z]{3}[0-9]{4}$/', $plate);
     }

@@ -143,9 +143,12 @@ class UberAccessRequestFlow
 
         $completedAt = now();
 
+        // O pedido está completo, mas o acesso ainda não aconteceu: fica
+        // "aguardando acesso do motorista" até ele chegar na portaria (quando
+        // vira "concluido") ou a validade vencer (quando vira "expirado").
         $request->update([
             'screenshot_url' => $message->mediaUrl,
-            'status' => UberAccessRequest::STATUS_CONCLUIDO,
+            'status' => UberAccessRequest::STATUS_AGUARDANDO_ACESSO,
             'completed_at' => $completedAt,
             'expires_at' => $completedAt->copy()->addMinutes(self::ACCESS_VALIDITY_MINUTES),
             'last_message_at' => $completedAt,
