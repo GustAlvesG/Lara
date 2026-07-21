@@ -90,7 +90,7 @@ class SchedulesService
         }
         $response = [];
         if (isset($data['refund_payment']) && count($payments_ids) > 0)
-            $response = $this->redeItauService->beginRefund($payments_ids);
+            $response = $this->redeItauService->beginRefund($payments_ids, $user->id);
 
         return $response;
     }

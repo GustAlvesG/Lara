@@ -8,11 +8,58 @@ use App\Http\Requests\StoreSchedulePaymentRequest;
 use App\Http\Requests\UpdateSchedulePaymentRequest;
 use App\Models\Schedule;
 use App\Models\Member;
+use App\Models\Status;
+use App\Services\RedeItauService;
+use Illuminate\Http\Request;
+use Illuminate\Http\Client\RequestException;
 //use DB
 use Illuminate\Support\Facades\DB;
 
 class SchedulePaymentController extends Controller
 {
+    protected RedeItauService $redeItauService;
+
+    public function __construct(RedeItauService $redeItauService)
+    {
+        $this->redeItauService = $redeItauService;
+    }
+
+    /**
+     * Lista todos os pagamentos, com filtros para a tela de gestão de pagamentos.
+     */
+    public function index(Request $request)
+    {
+        $query = SchedulePayment::with(['status', 'schedules.place.group', 'schedules.member']);
+
+        if ($request->filled('status_id')) {
+            $query->where('status_id', $request->input('status_id'));
+        }
+
+        if ($request->filled('payment_method')) {
+            $query->where('payment_method', $request->input('payment_method'));
+        }
+
+        if ($request->filled('member')) {
+            $term = $request->input('member');
+            $query->whereHas('schedules.member', function ($q) use ($term) {
+                $q->where('name', 'like', "%{$term}%")
+                  ->orWhere('cpf', 'like', "%{$term}%");
+            });
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('paid_at', '>=', $request->input('date_from'));
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('paid_at', '<=', $request->input('date_to'));
+        }
+
+        $payments = $query->orderByDesc('paid_at')->paginate(25)->withQueryString();
+        $statuses = Status::all();
+
+        return view('payments.index', compact('payments', 'statuses'));
+    }
 
     /**
      * Store a newly created resource in storage.
@@ -131,11 +178,45 @@ class SchedulePaymentController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Display the specified resource, com opção de consultar dados ao vivo na Rede.
      */
-    public function show(SchedulePayment $schedulePayment)
+    public function show(Request $request, SchedulePayment $schedulePayment)
     {
-        //
+        $schedulePayment->load(['status', 'refunder', 'schedules.place.group', 'schedules.member']);
+
+        $redeSummary = null;
+        $redeError = null;
+
+        if ($request->boolean('consultar_rede') && $schedulePayment->payment_integration_id) {
+            try {
+                $redeTransaction = $this->redeItauService->getTransaction($schedulePayment->payment_integration_id);
+                $redeSummary = $this->summarizeRedeTransaction($redeTransaction);
+            } catch (RequestException $e) {
+                $redeError = 'Não foi possível consultar a transação na Rede: ' . $e->getMessage();
+            } catch (\Throwable $e) {
+                $redeError = 'Falha inesperada ao consultar a Rede: ' . $e->getMessage();
+            }
+        }
+
+        return view('payments.show', compact('schedulePayment', 'redeSummary', 'redeError'));
+    }
+
+    /**
+     * Reduz a resposta completa da Rede aos dados relevantes para exibição na tela
+     * (dados de cartão/portador ficam dentro de "authorization" na API da Rede).
+     */
+    private function summarizeRedeTransaction(array $transaction): array
+    {
+        $authorization = $transaction['authorization'] ?? $transaction;
+
+        return [
+            'cardHolderName' => $authorization['cardHolderName'] ?? null,
+            'last4' => $authorization['last4'] ?? null,
+            'status' => $authorization['status'] ?? null,
+            'nsu' => $authorization['nsu'] ?? null,
+            'kind' => $authorization['kind'] ?? null,
+            'tid' => $authorization['tid'] ?? null,
+        ];
     }
 
     /**
@@ -160,6 +241,32 @@ class SchedulePaymentController extends Controller
     public function destroy(SchedulePayment $schedulePayment)
     {
         //
+    }
+
+    /**
+     * Estorna (total ou parcialmente) um pagamento específico via Rede.
+     */
+    public function refund(Request $request, SchedulePayment $schedulePayment)
+    {
+        $validated = $request->validate([
+            'amount' => 'nullable|numeric|min:0.01',
+        ]);
+
+        try {
+            $this->redeItauService->refundPayment(
+                $schedulePayment,
+                $validated['amount'] ?? null,
+                $request->user()->id
+            );
+        } catch (\InvalidArgumentException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        } catch (RequestException $e) {
+            return redirect()->back()->with('error', 'O estorno não funcionou. Tire um print desta mensagem e envie para a TI. Detalhe: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            return redirect()->back()->with('error', 'Falha inesperada ao estornar o pagamento: ' . $e->getMessage());
+        }
+
+        return redirect()->route('payment.show', $schedulePayment->id)->with('success', 'Estorno realizado com sucesso.');
     }
 
     private function checkSchedulesForCollisions(array $scheduleIds): \Illuminate\Database\Eloquent\Collection

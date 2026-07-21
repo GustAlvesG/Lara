@@ -16,6 +16,7 @@ use App\Http\Controllers\VideoWallController;
 use App\Http\Controllers\PlaceGroupController;
 use App\Http\Controllers\PlaceController;
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\SchedulePaymentController;
 use App\Http\Controllers\ScheduleRulesController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PermissionController;
@@ -118,11 +119,23 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [ScheduleController::class, 'index'])->name('schedule.index');
         Route::post('/filter', [ScheduleController::class, 'indexFilter'])->name('schedule.index.filter');
         Route::get('/create', [ScheduleController::class, 'create'])->name('schedule.create');
+        Route::get('/list', [ScheduleController::class, 'list'])
+            ->middleware('permission:view reservations')->name('schedule.list');
         Route::get('/group/{category}/', [PlaceGroupController::class, 'indexByCategory'])->name('api.placegroup.indexByCategory');
         Route::get('/getDates/{place_id?}', [ScheduleRulesController::class, 'getScheduledDates'])->name('schedule.getScheduledDates');
         Route::get('/{id}', [ScheduleController::class, 'show'])->name('schedule.show');
         Route::put('/update', [ScheduleController::class, 'update'])->name('schedule.update');
         Route::post('/store/web', [ScheduleController::class, 'store'])->name('schedule.store.web');
+    });
+
+    // Gestão de pagamentos (visualização + estorno via Rede)
+    Route::group(['prefix' => 'payments'], function () {
+        Route::get('/', [SchedulePaymentController::class, 'index'])
+            ->middleware('permission:view payments')->name('payment.index');
+        Route::get('/{schedulePayment}', [SchedulePaymentController::class, 'show'])
+            ->middleware('permission:view payments')->name('payment.show');
+        Route::post('/{schedulePayment}/refund', [SchedulePaymentController::class, 'refund'])
+            ->middleware('permission:manage payments')->name('payment.refund');
     });
     
     Route::group(['prefix' => 'place-group'], function () {

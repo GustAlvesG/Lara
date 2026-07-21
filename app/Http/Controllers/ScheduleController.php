@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Schedule;
 use App\Models\Place;
+use App\Models\Status;
 use App\Http\Requests\StoreScheduleRequest;
 use App\Http\Requests\UpdateScheduleRequest;
 use Illuminate\Http\Request;
@@ -40,6 +41,44 @@ class ScheduleController extends Controller
         catch (\Exception $e) {
             return redirect()->back()->with('error', 'Ocorreu um erro ao carregar os agendamentos: ' . $e->getMessage());
         }
+    }
+
+    public function list(Request $request)
+    {
+        // withoutGlobalScopes: a listagem precisa mostrar cancelados/expirados também,
+        // diferente do fluxo de criação que ignora o scope "not_expired".
+        $query = Schedule::withoutGlobalScopes()->with(['status', 'place.group', 'member']);
+
+        if ($request->filled('status_id')) {
+            $query->where('status_id', $request->input('status_id'));
+        }
+
+        if ($request->filled('place_id')) {
+            $query->where('place_id', $request->input('place_id'));
+        }
+
+        if ($request->filled('member')) {
+            $term = $request->input('member');
+            $query->whereHas('member', function ($q) use ($term) {
+                $q->where('name', 'like', "%{$term}%")
+                  ->orWhere('cpf', 'like', "%{$term}%");
+            });
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('start_schedule', '>=', $request->input('date_from'));
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('start_schedule', '<=', $request->input('date_to'));
+        }
+
+        $schedules = $query->orderByDesc('start_schedule')->paginate(25)->withQueryString();
+
+        $places = Place::with('group')->get();
+        $statuses = Status::all();
+
+        return view('location.schedule.index', compact('schedules', 'places', 'statuses'));
     }
 
     public function update(Request $request)
