@@ -65,13 +65,20 @@ class SchedulesService
         $schedules = [];
         $user = Auth()->user();
         $payments_ids = [];
+        $isCancelling = isset($data['action_status']) && (int) $data['action_status'] === 0;
         foreach ($data['selected_reservations'] as $schedule_id) {
             $schedule = Schedule::find($schedule_id);
             if ($schedule) {
                 $schedule->status_id = $data['action_status'];
-                
+
                 $schedule->updated_by_user = $user->id;
-                
+
+                if ($isCancelling) {
+                    $schedule->cancel_reason = $data['cancel_reason'];
+                    $schedule->cancelled_by = $user->id;
+                    $schedule->cancelled_at = Carbon::now();
+                }
+
                 $schedule->save();
 
                 if(isset($data['refund_payment'])){

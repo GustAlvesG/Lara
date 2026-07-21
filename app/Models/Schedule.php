@@ -22,10 +22,13 @@ class Schedule extends Model
         'end_schedule',
         'status_id',
         'price',
-        'description',  
+        'description',
         'schedule_payment_id',
         'created_by_user',
         'updated_by_user',
+        'cancel_reason',
+        'cancelled_by',
+        'cancelled_at',
     ];
 
     //By default, ignore status_id = 4, Expired
@@ -40,6 +43,7 @@ class Schedule extends Model
         'start_schedule' => 'datetime',
         'end_schedule' => 'datetime',
         'price' => 'decimal:2',
+        'cancelled_at' => 'datetime',
     ];
 
     //Place Has ONE
@@ -73,6 +77,11 @@ class Schedule extends Model
     public function editor()
     {
         return $this->belongsTo(User::class, 'updated_by_user', 'id');
+    }
+
+    public function canceller()
+    {
+        return $this->belongsTo(User::class, 'cancelled_by', 'id');
     }
 
 }

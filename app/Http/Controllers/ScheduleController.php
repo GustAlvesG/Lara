@@ -46,6 +46,20 @@ class ScheduleController extends Controller
     {
         try {
             $updates = $request->all();
+
+            $validator = Validator::make($updates, [
+                'selected_reservations' => 'required|array',
+                'action_status' => 'required',
+                // Motivo obrigatório apenas quando a ação é cancelamento (status_id 0).
+                'cancel_reason' => 'required_if:action_status,0|nullable|string|max:1000',
+            ], [
+                'cancel_reason.required_if' => 'É necessário informar o motivo do cancelamento.',
+            ]);
+
+            if ($validator->fails()) {
+                return redirect()->back()->withErrors($validator)->withInput();
+            }
+
             $response = $this->schedulesService->updateSchedulesStatus($updates);
             $id = $request->id ?? $updates['selected_reservations'][0] ?? null;
             return redirect()->route($id ? 'schedule.show' : 'schedule.index', $id ? ['id' => $id] : [])->with('success', 'Agendamentos atualizado com sucesso!');
