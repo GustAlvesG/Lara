@@ -40,6 +40,7 @@ class UberAccessValidationTest extends TestCase
             'contact_uuid'   => 'uuid-' . $plate,
             'contact_phone'  => '5524999990000',
             'status'         => $status,
+            'matricula'      => '987654',
             'requester_name' => 'Fulano',
             'club_location'  => 'Sede',
             'vehicle_plate'  => $plate,
@@ -63,6 +64,8 @@ class UberAccessValidationTest extends TestCase
         $this->assertSame('uber', $result['type']);
         $this->assertSame($plate, $result['plate']);
         $this->assertSame('https://cdn.example.com/prints/' . $plate . '.jpg', $result['uber']['screenshot_url']);
+        $this->assertSame('987654', $result['uber']['matricula']);
+        $this->assertSame('987654', $result['workers'][0]['matricula']);
         $this->assertTrue($result['workers'][0]['allowed']);
     }
 
@@ -107,6 +110,7 @@ class UberAccessValidationTest extends TestCase
         $result = $this->service()->registerAccess(['target' => $plate]);
 
         $this->assertTrue($result['found']);
+        $this->assertSame('987654', $result['uber']['matricula']);
 
         $fresh = $request->fresh();
         $this->assertSame(UberAccessRequest::STATUS_CONCLUIDO, $fresh->status);
@@ -121,8 +125,7 @@ class UberAccessValidationTest extends TestCase
         ]);
 
         // Segunda tentativa com a mesma placa não é mais liberada.
-        $second = $this->service()->validateTryToAccess(['target' => $plate]);
-        $this->assertFalse($second['found']);
+        $this->assertFalse($this->service()->validateTryToAccess(['target' => $plate])['found']);
     }
 
     public function test_expire_command_marks_unaccessed_as_expired(): void

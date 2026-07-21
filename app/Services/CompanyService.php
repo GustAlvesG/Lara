@@ -357,7 +357,8 @@ class CompanyService
     /**
      * Valida o acesso de um Uber a partir da placa informada. O acesso é
      * considerado válido quando existe um pedido de Uber com a exata placa
-     * cadastrada e ainda dentro da validade (expires_at no futuro).
+     * cadastrada, ainda aguardando o acesso do motorista e dentro da validade
+     * (expires_at no futuro).
      *
      * O retorno segue o mesmo formato do fluxo de terceirizados para que o
      * monitor de acesso consiga renderizar o resultado sem alterações.
@@ -391,6 +392,7 @@ class CompanyService
             'company'    => 'Uber · ' . $plate,
             'uber'       => [
                 'id'             => $request->id,
+                'matricula'      => $request->matricula,
                 'requester_name' => $request->requester_name,
                 'club_location'  => $request->club_location,
                 'vehicle_plate'  => $request->vehicle_plate,
@@ -398,18 +400,19 @@ class CompanyService
                 'expires_at'     => optional($request->expires_at)->toIso8601String(),
             ],
             'workers'    => [[
-                'id'      => $request->id,
-                'name'    => $request->requester_name ?: $plate,
-                'allowed' => true,
-                'image'   => null,
+                'id'        => $request->id,
+                'name'      => $request->requester_name ?: $plate,
+                'matricula' => $request->matricula,
+                'allowed'   => true,
+                'image'     => null,
             ]],
         ];
     }
 
     /**
-     * Valida e registra no histórico o acesso de um Uber. Marca accessed_at no
-     * pedido correspondente e grava um CompanyAccessLog, mantendo o histórico
-     * unificado com os demais tipos de acesso.
+     * Valida e registra no histórico o acesso de um Uber. Conclui o pedido,
+     * marca accessed_at e vence o expires_at, gravando um CompanyAccessLog e
+     * mantendo o histórico unificado com os demais tipos de acesso.
      */
     public function registerUberAccess(string $target): array
     {
