@@ -11,3 +11,4 @@ Artisan::command('inspire', function () {
 Schedule::command('avisos:process-notifications')->everyMinute();
 Schedule::command('app:expire-pending-schedules')->everyMinute();
 Schedule::command('app:expire-uber-access-requests')->everyMinute();
+Schedule::command('app:prune-uber-access-request-messages')->dailyAt('03:00');

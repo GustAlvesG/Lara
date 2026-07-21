@@ -75,7 +75,7 @@ class UberAccessRequestWebhookTest extends TestCase
         $this->assertDatabaseCount('uber_access_requests', 0);
     }
 
-    public function test_trigger_creates_session_awaiting_name(): void
+    public function test_trigger_creates_session_awaiting_matricula(): void
     {
         $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())
             ->assertOk();
@@ -83,7 +83,7 @@ class UberAccessRequestWebhookTest extends TestCase
         $this->assertDatabaseHas('uber_access_requests', [
             'contact_uuid' => self::CONTACT_UUID,
             'contact_phone' => self::CONTACT_PHONE,
-            'status' => UberAccessRequest::STATUS_AGUARDANDO_NOME,
+            'status' => UberAccessRequest::STATUS_AGUARDANDO_MATRICULA,
         ]);
     }
 
@@ -97,13 +97,14 @@ class UberAccessRequestWebhookTest extends TestCase
 
         $this->assertDatabaseHas('uber_access_requests', [
             'contact_uuid' => self::CONTACT_UUID,
-            'status' => UberAccessRequest::STATUS_AGUARDANDO_NOME,
+            'status' => UberAccessRequest::STATUS_AGUARDANDO_MATRICULA,
         ]);
     }
 
     public function test_plate_capture_strips_special_characters(): void
     {
         $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: '12345'), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'Gustavo Alves'), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'Portaria 2'), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'abc-1d23.'), $this->authHeaders())->assertOk();
@@ -114,9 +115,21 @@ class UberAccessRequestWebhookTest extends TestCase
         $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_PRINT, $request->status);
     }
 
+    public function test_matricula_capture_advances_to_awaiting_name(): void
+    {
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: '987654'), $this->authHeaders())->assertOk();
+
+        $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
+
+        $this->assertSame('987654', $request->matricula);
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_NOME, $request->status);
+    }
+
     public function test_full_sequence_completes_and_sets_expiration(): void
     {
         $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: '987654'), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'Gustavo Alves'), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'Portaria 2'), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'ABC1D23'), $this->authHeaders())->assertOk();
@@ -130,6 +143,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
         $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_ACESSO, $request->status);
         $this->assertSame('Gustavo Alves', $request->requester_name);
+        $this->assertSame('987654', $request->matricula);
         $this->assertSame('Portaria 2', $request->club_location);
         $this->assertSame('ABC1D23', $request->vehicle_plate);
         $this->assertSame('https://poli.example/media/print.jpg', $request->screenshot_url);
@@ -153,7 +167,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
         $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
 
-        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_NOME, $request->status);
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_MATRICULA, $request->status);
         $this->assertNull($request->screenshot_url);
     }
 
@@ -187,7 +201,7 @@ class UberAccessRequestWebhookTest extends TestCase
         $this->assertDatabaseCount('uber_access_requests', 2);
         $this->assertDatabaseHas('uber_access_requests', [
             'contact_uuid' => self::CONTACT_UUID,
-            'status' => UberAccessRequest::STATUS_AGUARDANDO_NOME,
+            'status' => UberAccessRequest::STATUS_AGUARDANDO_MATRICULA,
         ]);
     }
 

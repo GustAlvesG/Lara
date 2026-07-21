@@ -9,8 +9,9 @@ use Illuminate\Support\Str;
 
 /**
  * State machine for the "Pedi um Uber" WhatsApp capture flow, keyed by
- * contact_uuid: idle -> aguardando_nome -> aguardando_local ->
- * aguardando_placa -> aguardando_print -> concluido.
+ * contact_uuid: idle -> aguardando_matricula -> aguardando_nome ->
+ * aguardando_local -> aguardando_placa -> aguardando_print ->
+ * aguardando_acesso.
  */
 class UberAccessRequestFlow
 {
@@ -60,7 +61,7 @@ class UberAccessRequestFlow
             'contact_phone' => $message->contactPhone,
             'contact_name_whatsapp' => $message->contactName,
             'poli_attendance_uuid' => $message->attendanceUuid,
-            'status' => UberAccessRequest::STATUS_AGUARDANDO_NOME,
+            'status' => UberAccessRequest::STATUS_AGUARDANDO_MATRICULA,
             'last_message_at' => now(),
         ]);
     }
@@ -74,6 +75,12 @@ class UberAccessRequestFlow
     private function advance(UberAccessRequest $request, ParsedPoliMessage $message): ?UberAccessRequest
     {
         return match ($request->status) {
+            UberAccessRequest::STATUS_AGUARDANDO_MATRICULA => $this->captureText(
+                $request,
+                $message,
+                'matricula',
+                UberAccessRequest::STATUS_AGUARDANDO_NOME
+            ),
             UberAccessRequest::STATUS_AGUARDANDO_NOME => $this->captureText(
                 $request,
                 $message,

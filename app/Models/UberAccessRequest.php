@@ -9,6 +9,7 @@ class UberAccessRequest extends Model
 {
     use HasFactory;
 
+    public const STATUS_AGUARDANDO_MATRICULA = 'aguardando_matricula';
     public const STATUS_AGUARDANDO_NOME = 'aguardando_nome';
     public const STATUS_AGUARDANDO_LOCAL = 'aguardando_local';
     public const STATUS_AGUARDANDO_PLACA = 'aguardando_placa';
@@ -30,13 +31,14 @@ class UberAccessRequest extends Model
     ];
 
     public const STATUS_LABELS = [
-        self::STATUS_AGUARDANDO_NOME   => 'Aguardando nome',
-        self::STATUS_AGUARDANDO_LOCAL  => 'Aguardando local',
-        self::STATUS_AGUARDANDO_PLACA  => 'Aguardando placa',
-        self::STATUS_AGUARDANDO_PRINT  => 'Aguardando print',
-        self::STATUS_AGUARDANDO_ACESSO => 'Aguardando acesso do motorista',
-        self::STATUS_CONCLUIDO         => 'Concluído',
-        self::STATUS_EXPIRADO          => 'Expirado',
+        self::STATUS_AGUARDANDO_MATRICULA => 'Aguardando matrícula',
+        self::STATUS_AGUARDANDO_NOME      => 'Aguardando nome',
+        self::STATUS_AGUARDANDO_LOCAL     => 'Aguardando local',
+        self::STATUS_AGUARDANDO_PLACA     => 'Aguardando placa',
+        self::STATUS_AGUARDANDO_PRINT     => 'Aguardando print',
+        self::STATUS_AGUARDANDO_ACESSO    => 'Aguardando acesso do motorista',
+        self::STATUS_CONCLUIDO            => 'Concluído',
+        self::STATUS_EXPIRADO             => 'Expirado',
     ];
 
     public function statusLabel(): string
@@ -50,6 +52,7 @@ class UberAccessRequest extends Model
         'contact_name_whatsapp',
         'poli_attendance_uuid',
         'status',
+        'matricula',
         'requester_name',
         'club_location',
         'vehicle_plate',
