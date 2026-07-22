@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\MemberAuthController;
 use App\Http\Controllers\Auth\LoginTokenController;
+use App\Http\Controllers\Auth\UserAuthController;
 use App\Http\Controllers\PlaceController;
 use App\Http\Controllers\PlaceGroupController;
 use App\Http\Controllers\ScheduleController;
@@ -58,18 +59,23 @@ Route::middleware('api_token')->group(function () {
         Route::post('/contacts', [TelegramContactController::class, 'store'])->name('telegram.createContact');
         Route::put('/contacts/{id}', [TelegramContactController::class, 'update'])->name('telegram.updateContact');
 
-        Route::prefix('freelancer')->group(function () {
-            //Get Freelancer By ID
-            Route::get('/freelancer/{cpf}', [FreelancerController::class, 'show']);
-            //POST Freelancer
-            Route::post('/freelancer', [FreelancerController::class, 'store']);
-            //Get function
-            Route::get('/functions', [FunctionFreelancerController::class, 'index']);
-            //POST Function
-            Route::post('/function', [FunctionFreelancerController::class, 'store']);
-            //POST Serviço
-            Route::post('/service', [FreelancerServiceController::class, 'store']);
+        //Login do usuário do sistema por matrícula (restrito ao papel comercial)
+        Route::post('/user/login', [UserAuthController::class, 'login'])->name('telegram.userLogin');
 
+        Route::prefix('freelancer')->group(function () {
+            //Consulta freelancer por CPF (404 quando não existe -> cadastrar)
+            Route::get('/freelancer/{cpf}', [FreelancerController::class, 'show']);
+            //Cadastra freelancer
+            Route::post('/freelancer', [FreelancerController::class, 'store']);
+            //Lista funções disponíveis
+            Route::get('/functions', [FunctionFreelancerController::class, 'index']);
+
+            //Serviços/contratos do freelancer
+            Route::get('/freelancer/{cpf}/services', [FreelancerServiceController::class, 'indexByCpf']);
+            Route::post('/service', [FreelancerServiceController::class, 'store']);
+            Route::put('/service/{freelancerService}', [FreelancerServiceController::class, 'update']);
+            //Assinatura do freelancer
+            Route::post('/service/{freelancerService}/sign', [FreelancerServiceController::class, 'sign']);
         });
     });
     Route::get('/image/{member_id}', [MemberAuthController::class, 'getImage'])->name('member.getImage');

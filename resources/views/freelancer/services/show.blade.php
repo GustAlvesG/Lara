@@ -1,0 +1,164 @@
+<x-app-layout>
+    <x-slot name="header">
+        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+            {{ __('Serviço / Contrato') }}
+        </h2>
+    </x-slot>
+
+@php $locked = !$service->canBeUpdated(); @endphp
+
+<div class="py-12 bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <div class="max-w-4xl mx-auto sm:px-6 lg:px-8 space-y-8">
+
+        @include('partials.alerts')
+
+        @if($exceedsWeeklyLimit)
+            <div class="p-4 bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 rounded-lg text-sm font-medium">
+                ⚠️ Este freelancer possui mais de {{ \App\Models\FreelancerService::WEEKLY_LIMIT }} serviços registrados numa janela de 7 dias em torno desta data.
+            </div>
+        @endif
+
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div class="flex items-center gap-4">
+                <a href="{{ route('freelancer-services.index') }}" class="p-2 bg-white dark:bg-gray-800 rounded-xl shadow-md text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 border border-gray-100 dark:border-gray-700 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                </a>
+                <div>
+                    <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">{{ $service->freelancer->name }}</h1>
+                    <p class="text-gray-500 dark:text-gray-400 font-medium">
+                        {{ $service->functionFreelancer->name }} · {{ $service->location }}
+                    </p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ $service->formattedPeriod() }} ({{ $service->formattedDuration() }})
+                    </p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        @if($service->createdBy)Cadastrado por {{ $service->createdBy->name }}@endif
+                        @if($service->updatedBy && $service->updated_by !== $service->created_by) · Atualizado por {{ $service->updatedBy->name }}@endif
+                    </p>
+                </div>
+            </div>
+
+            <x-freelancer-signature-badge :service="$service" />
+        </div>
+
+        {{-- Painel de assinaturas --}}
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div class="p-6 border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50">
+                <h2 class="text-lg font-bold text-gray-800 dark:text-white">Assinaturas do Contrato</h2>
+            </div>
+
+            <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="p-4 rounded-xl border {{ $service->freelancer_signed_at ? 'border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-600' }}">
+                    <p class="text-sm font-bold text-gray-700 dark:text-gray-300">Freelancer</p>
+                    @if($service->freelancer_signed_at)
+                        <p class="text-sm text-green-700 dark:text-green-400 font-semibold mt-1">
+                            ✓ Assinado em {{ $service->freelancer_signed_at->format('d/m/Y H:i') }}
+                        </p>
+                        @if($service->freelancerSignedBy)
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Atendimento conduzido por {{ $service->freelancerSignedBy->name }}.
+                            </p>
+                        @endif
+                    @else
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Aguardando assinatura (feita pelo bot no Telegram).</p>
+                    @endif
+                </div>
+
+                <div class="p-4 rounded-xl border {{ $service->coordinator_signed_at ? 'border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-600' }}">
+                    <p class="text-sm font-bold text-gray-700 dark:text-gray-300">Coordenador</p>
+                    @if($service->coordinator_signed_at)
+                        <p class="text-sm text-green-700 dark:text-green-400 font-semibold mt-1">
+                            ✓ Assinado por {{ $service->coordinatorSignedBy?->name ?? '—' }}
+                            em {{ $service->coordinator_signed_at->format('d/m/Y H:i') }}
+                        </p>
+                    @elseif($canSignAsCoordinator)
+                        <form method="POST" action="{{ route('freelancer-services.sign', $service) }}" class="mt-2"
+                              onsubmit="return confirm('Assinar este contrato como coordenador? Depois disso ele não poderá mais ser alterado nem cancelado.')">
+                            @csrf
+                            <button type="submit" class="px-4 py-2 bg-green-700 text-white rounded-lg font-bold text-sm hover:bg-green-800 transition">
+                                Assinar como coordenador
+                            </button>
+                        </form>
+                    @else
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            @if($service->isCancelled())
+                                Contrato cancelado.
+                            @else
+                                Aguardando assinatura de um coordenador de setor.
+                            @endif
+                        </p>
+                    @endif
+                </div>
+            </div>
+
+            @if($service->isPaid())
+                <div class="px-6 pb-6">
+                    <div class="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 text-sm text-emerald-800 dark:text-emerald-200">
+                        Baixa de pagamento registrada
+                        @if($service->paid_at) em {{ $service->paid_at->format('d/m/Y H:i') }} @endif
+                        @if($service->paidBy) por {{ $service->paidBy->name }} @endif.
+                    </div>
+                </div>
+            @endif
+
+            @if($service->isCancelled())
+                <div class="px-6 pb-6">
+                    <div class="p-4 rounded-xl bg-gray-100 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300">
+                        Contrato cancelado
+                        @if($service->cancelled_at) em {{ $service->cancelled_at->format('d/m/Y H:i') }} @endif
+                        @if($service->cancelledBy) por {{ $service->cancelledBy->name }} @endif.
+                    </div>
+                </div>
+            @elseif($locked)
+                <div class="px-6 pb-6">
+                    <div class="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-sm text-amber-800 dark:text-amber-200">
+                        Este contrato já possui assinatura e por isso não pode mais ser alterado nem cancelado.
+                    </div>
+                </div>
+            @endif
+        </div>
+
+        {{-- Dados do serviço --}}
+        <form action="{{ route('freelancer-services.update', $service) }}" method="POST">
+            @csrf
+            @method('PUT')
+
+            @include('freelancer.services.partials.form', ['locked' => $locked])
+
+            @unless($locked)
+                <div class="mt-6 flex justify-end">
+                    <button type="submit" class="inline-flex items-center px-6 py-3 bg-[#A00001] text-white rounded-xl font-bold shadow-lg hover:bg-[#800000] transition duration-150 transform hover:scale-[1.02]">
+                        Salvar Alterações
+                    </button>
+                </div>
+            @endunless
+        </form>
+
+        {{-- Ações destrutivas --}}
+        @if($canCancel || $service->canBeDeleted())
+            <div class="flex flex-wrap justify-end gap-3">
+                @if($canCancel)
+                    <form method="POST" action="{{ route('freelancer-services.cancel', $service) }}"
+                          onsubmit="return confirm('Cancelar este contrato? Essa ação não pode ser desfeita.')">
+                        @csrf
+                        <button type="submit" class="px-4 py-2 text-sm font-bold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition border border-amber-200 dark:border-amber-700">
+                            Cancelar Contrato
+                        </button>
+                    </form>
+                @endif
+
+                @if($service->canBeDeleted())
+                    <form method="POST" action="{{ route('freelancer-services.destroy', $service) }}"
+                          onsubmit="return confirm('Excluir este serviço permanentemente?')">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="px-4 py-2 text-sm font-bold text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
+                            Excluir Serviço
+                        </button>
+                    </form>
+                @endif
+            </div>
+        @endif
+    </div>
+</div>
+</x-app-layout>

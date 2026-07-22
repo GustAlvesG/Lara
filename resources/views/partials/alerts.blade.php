@@ -40,3 +40,23 @@
     </div>
 </div>
 @endif
+@if(session('warning'))
+<div id="warning-alert" class="mb-6 animate-fadeIn">
+    <div class="bg-amber-500 border border-amber-400 text-white px-6 py-4 rounded-2xl shadow-xl flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            <div class="bg-white/20 p-2 rounded-full">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path>
+                </svg>
+            </div>
+            <div>
+                <p class="font-extrabold text-lg leading-none">Atenção</p>
+                <p class="text-sm text-amber-50 mt-1">{{ session('warning') }}</p>
+            </div>
+        </div>
+        <button onclick="document.getElementById('warning-alert').remove()" class="text-white/60 hover:text-white transition">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+    </div>
+</div>
+@endif

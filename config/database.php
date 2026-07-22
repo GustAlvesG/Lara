@@ -34,8 +34,9 @@ return [
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DATABASE_URL'),
-            // 'database' => env('DB_DATABASE', database_path('database.sqlite')),
-            'database' => 'database',
+            // Precisa respeitar DB_DATABASE: é assim que o phpunit.xml aponta
+            // a suíte para :memory: em vez de um banco de verdade.
+            'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
         ],

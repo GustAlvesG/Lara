@@ -102,6 +102,12 @@ class User extends Authenticatable
             ->exists();
     }
 
+    /** Coordenador de ao menos um setor. */
+    public function isCoordinator(): bool
+    {
+        return $this->sectors()->wherePivot('role', 'coordinator')->exists();
+    }
+
     public function coordinatorSectors()
     {
         return $this->sectors()->wherePivot('role', 'coordinator');

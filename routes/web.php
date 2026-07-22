@@ -26,6 +26,10 @@ use App\Http\Controllers\DocumentationController;
 
 use App\Http\Controllers\AvisoController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Freelancer\FinanceController as FreelancerFinanceController;
+use App\Http\Controllers\Freelancer\FreelancerController as FreelancerWebController;
+use App\Http\Controllers\Freelancer\FunctionController as FreelancerFunctionController;
+use App\Http\Controllers\Freelancer\ServiceController as FreelancerServiceWebController;
 
 use App\Http\Controllers\DashboardController;
 
@@ -206,6 +210,55 @@ Route::middleware('auth')->group(function () {
 
     // Avisos e Lembretes
     Route::resource('avisos', AvisoController::class);
+
+    // Financeiro dos freelancers — permissão própria, e declarado antes do grupo
+    // abaixo para /freelancer-services/financeiro não cair na rota /{freelancerService}.
+    Route::group(['middleware' => 'permission:manage freelancer payments'], function () {
+        Route::prefix('freelancer-services')->group(function () {
+            Route::get('/financeiro', [FreelancerFinanceController::class, 'index'])->name('freelancer-services.finance');
+            // Uma rota só: a baixa individual manda `only`, a em lote manda `services[]`.
+            Route::post('/pay', [FreelancerFinanceController::class, 'pay'])->name('freelancer-services.pay');
+        });
+    });
+
+    // Freelancers: cadastro de freelancers, funções e serviços/contratos
+    Route::group(['middleware' => 'permission:manage freelancers'], function () {
+        Route::prefix('freelancers')->group(function () {
+            Route::get('/', [FreelancerWebController::class, 'index'])->name('freelancers.index');
+            Route::get('/create', [FreelancerWebController::class, 'create'])->name('freelancers.create');
+            Route::post('/', [FreelancerWebController::class, 'store'])->name('freelancers.store');
+            // Importação em massa — antes de /{freelancer} para não ser capturada por ela
+            Route::get('/import/template', [FreelancerWebController::class, 'importTemplate'])->name('freelancers.import.template');
+            Route::post('/import', [FreelancerWebController::class, 'import'])->name('freelancers.import');
+            Route::get('/{freelancer}', [FreelancerWebController::class, 'show'])->name('freelancers.show');
+            Route::put('/{freelancer}', [FreelancerWebController::class, 'update'])->name('freelancers.update');
+            Route::delete('/{freelancer}', [FreelancerWebController::class, 'destroy'])->name('freelancers.destroy');
+        });
+
+        Route::prefix('freelancer-functions')->group(function () {
+            Route::get('/', [FreelancerFunctionController::class, 'index'])->name('freelancer-functions.index');
+            Route::get('/create', [FreelancerFunctionController::class, 'create'])->name('freelancer-functions.create');
+            Route::post('/', [FreelancerFunctionController::class, 'store'])->name('freelancer-functions.store');
+            Route::get('/{freelancerFunction}', [FreelancerFunctionController::class, 'show'])->name('freelancer-functions.show');
+            Route::put('/{freelancerFunction}', [FreelancerFunctionController::class, 'update'])->name('freelancer-functions.update');
+            Route::delete('/{freelancerFunction}', [FreelancerFunctionController::class, 'destroy'])->name('freelancer-functions.destroy');
+        });
+
+        Route::prefix('freelancer-services')->group(function () {
+            Route::get('/', [FreelancerServiceWebController::class, 'index'])->name('freelancer-services.index');
+            Route::get('/create', [FreelancerServiceWebController::class, 'create'])->name('freelancer-services.create');
+            Route::post('/', [FreelancerServiceWebController::class, 'store'])->name('freelancer-services.store');
+            // Importação em massa — antes de /{freelancerService} para não ser capturada por ela
+            Route::get('/import/template', [FreelancerServiceWebController::class, 'importTemplate'])->name('freelancer-services.import.template');
+            Route::post('/import', [FreelancerServiceWebController::class, 'import'])->name('freelancer-services.import');
+            Route::get('/{freelancerService}', [FreelancerServiceWebController::class, 'show'])->name('freelancer-services.show');
+            Route::put('/{freelancerService}', [FreelancerServiceWebController::class, 'update'])->name('freelancer-services.update');
+            Route::delete('/{freelancerService}', [FreelancerServiceWebController::class, 'destroy'])->name('freelancer-services.destroy');
+            // Assinatura do coordenador e cancelamento (exigem ser coordenador de setor)
+            Route::post('/{freelancerService}/sign', [FreelancerServiceWebController::class, 'sign'])->name('freelancer-services.sign');
+            Route::post('/{freelancerService}/cancel', [FreelancerServiceWebController::class, 'cancel'])->name('freelancer-services.cancel');
+        });
+    });
 
     // Notificações
     Route::get('/notifications/unread-json', [NotificationController::class, 'unreadJson'])->name('notifications.unreadJson');
