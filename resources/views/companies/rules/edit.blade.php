@@ -16,6 +16,22 @@
                         <p class="text-gray-500 dark:text-gray-400 font-medium">
                             {{ $rule->company_worker_id && $rule->worker ? 'Regra individual de ' . $rule->worker->name : 'Regra geral da empresa ' . $company->name }}
                         </p>
+                        <div class="flex flex-wrap gap-4 mt-1 text-xs text-gray-400 dark:text-gray-500">
+                            <span>
+                                <span class="font-semibold text-gray-600 dark:text-gray-400">Criado por:</span>
+                                {{ $rule->creator?->name ?? '—' }}
+                                @if($rule->created_at)
+                                    em {{ $rule->created_at->format('d/m/Y H:i') }}
+                                @endif
+                            </span>
+                            <span>
+                                <span class="font-semibold text-gray-600 dark:text-gray-400">Última alteração por:</span>
+                                {{ $rule->editor?->name ?? '—' }}
+                                @if($rule->updated_at && $rule->updated_at->ne($rule->created_at))
+                                    em {{ $rule->updated_at->format('d/m/Y H:i') }}
+                                @endif
+                            </span>
+                        </div>
                     </div>
                 </div>
             </x-slot>

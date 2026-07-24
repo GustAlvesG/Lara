@@ -50,7 +50,7 @@ class CompanyAccessRulesController extends Controller
 
     public function edit(Company $company, CompanyAccessRule $rule)
     {
-        $rule->load('weekdays');
+        $rule->load('weekdays', 'creator', 'editor');
         return view('companies.rules.edit', compact('company', 'rule'));
     }
 
@@ -80,6 +80,14 @@ class CompanyAccessRulesController extends Controller
             ->with('success', 'Regra de acesso removida com sucesso.');
     }
 
+    public function bulkDestroy(Request $request, Company $company)
+    {
+        $ids = array_filter((array) $request->input('rule_ids', []), 'is_numeric');
+        $deleted = CompanyAccessRule::where('company_id', $company->id)->whereIn('id', $ids)->delete();
+        return redirect()->route('company.show', $company->id)
+            ->with('success', $deleted . ' regra(s) removida(s) com sucesso.');
+    }
+
     public function monitor()
     {
         return view('companies.access-monitor');
@@ -87,7 +95,7 @@ class CompanyAccessRulesController extends Controller
 
     public function accessLogs(Request $request)
     {
-        $query = CompanyAccessLog::with('company', 'worker')->latest();
+        $query = CompanyAccessLog::with('company', 'worker', 'appDriver')->latest();
 
         if ($request->filled('company_id')) {
             $query->where('company_id', $request->company_id);

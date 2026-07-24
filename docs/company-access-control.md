@@ -310,5 +310,51 @@ Ao aplicar filtros, o botão `✕` aparece para limpar todos de uma vez.
 | `access_denied` | Bloqueado pelas regras |
 | `worker_not_found` | Funcionário não encontrado |
 | `company_not_found` | Empresa não encontrada |
+| `app_driver_access` | Motorista de aplicativo |
+
+Acessos de **motorista de aplicativo** aparecem nesta mesma tabela: a coluna *Empresa* exibe a tag `Motorista de App`, a coluna *Funcionário* mostra o nome do motorista, e a *Obs* (quando informada) aparece abaixo do motivo.
+
+---
+
+## Registro de Acesso via API (endpoint único)
+
+Endpoint único usado por integrações (câmera/LPR, totem etc.) para registrar acessos. O **tipo de registro é decidido pelo conteúdo do `target`** enviado no corpo — não há rotas separadas por tipo.
+
+**Rota:** `POST /api/company-access/register-access`
+
+#### Detecção pelo corpo (`target`)
+
+| Formato do `target` | Detecção | Tipo de registro |
+|---|---|---|
+| CPF (ex: `123.456.789-09`) | regex de CPF (11 dígitos) | **Terceirizado** — funcionário da empresa parceira |
+| `PLACA.Nome.Obs` (ex: `ABC1D23.João Silva.Entrega`) | 1º segmento é placa válida (Mercosul `ABC1D23` ou antiga `ABC1234`) + há nome | **Motorista de aplicativo** |
+| Texto livre (ex: `Acme Serviços`) | qualquer outro caso | **Empresa** — todos os funcionários da empresa |
+
+> A ordem de detecção é: placa → senão CPF/empresa. Como o 1º segmento de um CPF (`123`) nunca é uma placa válida, não há colisão entre CPF e o formato de motorista.
+
+#### Motorista de aplicativo
+
+Ao receber `PLACA.Nome.Obs`, o sistema **cadastra o veículo automaticamente** (caso a placa ainda não exista) e **registra o acesso** naquele momento.
+
+- A **placa** é normalizada (maiúsculas, sem espaços/símbolos) e é a chave única do veículo.
+- O **nome** é obrigatório.
+- A **Obs** é opcional, um campo de descrição livre gravado no acesso (não no veículo).
+
+```
+target: ABC1D23.João Silva.Entrega iFood
+         ↓
+veículo ABC1D23 cadastrado (se novo) + acesso registrado com obs "Entrega iFood"
+```
+
+Resposta (motorista):
+```json
+{ "found": true, "created": true, "driver": { "id": 1, "plate": "ABC1D23", "name": "João Silva", "obs": "Entrega iFood" } }
+```
+`created` indica se o veículo foi cadastrado agora (`true`) ou já existia (`false`).
+
+#### Armazenamento (motorista de aplicativo)
+
+- **`app_drivers`** (tabela dedicada): registro do veículo/motorista — `plate` (única), `name`.
+- **`company_access_logs`**: o evento de acesso é gravado junto com os acessos de empresas (colunas `app_driver_id` e `obs`), por isso aparece no mesmo Histórico de Acessos.
 
 ---

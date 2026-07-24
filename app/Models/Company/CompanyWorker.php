@@ -6,7 +6,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Company\Company;
+use App\Models\Company\CompanyAccessLog;
 use App\Models\Company\CompanyAccessRule;
+use App\Models\User;
 
 class CompanyWorker extends Model
 {
@@ -20,7 +22,9 @@ class CompanyWorker extends Model
         'position',
         'document',
         'telephone',
-        'image'
+        'image',
+        'created_by_user',
+        'updated_by_user',
     ];
 
     protected $dates = [
@@ -35,5 +39,20 @@ class CompanyWorker extends Model
     public function rules()
     {
         return $this->hasMany(CompanyAccessRule::class);
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by_user');
+    }
+
+    public function editor()
+    {
+        return $this->belongsTo(User::class, 'updated_by_user');
+    }
+
+    public function latestAccessLog()
+    {
+        return $this->hasOne(CompanyAccessLog::class)->latestOfMany();
     }
 }

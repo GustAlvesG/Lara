@@ -148,6 +148,8 @@
                                     @if($log->company)
                                         <a href="{{ route('company.show', $log->company_id) }}"
                                            class="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">{{ $log->company->name }}</a>
+                                    @elseif($log->app_driver_id)
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded-full text-[11px] font-black uppercase">Motorista de App</span>
                                     @else
                                         <span class="text-gray-400 dark:text-gray-500">—</span>
                                     @endif
@@ -167,6 +169,13 @@
                                                class="font-semibold text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline">
                                                 {{ $log->worker->name }}
                                             </a>
+                                        </div>
+                                    @elseif($log->appDriver)
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13l1.5-4.5A2 2 0 016.4 7h11.2a2 2 0 011.9 1.5L21 13m-18 0v5a1 1 0 001 1h1a1 1 0 001-1v-1h12v1a1 1 0 001 1h1a1 1 0 001-1v-5m-18 0h18M7 16h.01M17 16h.01"/></svg>
+                                            </div>
+                                            <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $log->appDriver->name }}</span>
                                         </div>
                                     @else
                                         <span class="text-gray-400 dark:text-gray-500">—</span>
@@ -190,13 +199,17 @@
                                 <td class="px-5 py-3.5">
                                     @php
                                         $reasonMap = [
-                                            'access_granted'   => 'Acesso liberado pelas regras',
-                                            'access_denied'    => 'Bloqueado pelas regras',
-                                            'worker_not_found' => 'Funcionário não encontrado',
-                                            'company_not_found'=> 'Empresa não encontrada',
+                                            'access_granted'    => 'Acesso liberado pelas regras',
+                                            'access_denied'     => 'Bloqueado pelas regras',
+                                            'worker_not_found'  => 'Funcionário não encontrado',
+                                            'company_not_found' => 'Empresa não encontrada',
+                                            'app_driver_access' => 'Motorista de aplicativo',
                                         ];
                                     @endphp
                                     <span class="text-xs text-gray-500 dark:text-gray-400">{{ $reasonMap[$log->reason] ?? $log->reason ?? '—' }}</span>
+                                    @if($log->obs)
+                                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5 italic">{{ $log->obs }}</p>
+                                    @endif
                                 </td>
 
                             </tr>

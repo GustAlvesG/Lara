@@ -14,6 +14,7 @@
         'teal'    => ['bg' => 'bg-teal-100 dark:bg-teal-900/40',      'icon' => 'text-teal-600 dark:text-teal-400'],
         'emerald' => ['bg' => 'bg-emerald-100 dark:bg-emerald-900/40','icon' => 'text-emerald-600 dark:text-emerald-400'],
         'amber'   => ['bg' => 'bg-amber-100 dark:bg-amber-900/40',    'icon' => 'text-amber-600 dark:text-amber-400'],
+        'rose'    => ['bg' => 'bg-rose-100 dark:bg-rose-900/40',      'icon' => 'text-rose-600 dark:text-rose-400'],
     ];
     $c = $palette[$color] ?? $palette['indigo'];
 @endphp

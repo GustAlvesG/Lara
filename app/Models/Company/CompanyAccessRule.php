@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Weekday;
+use App\Models\User;
 
 class CompanyAccessRule extends Model
 {
@@ -22,7 +23,9 @@ class CompanyAccessRule extends Model
         'end_date',
         'start_time',
         'end_time',
-        'description'
+        'description',
+        'created_by_user',
+        'updated_by_user',
     ];
 
     public function company()
@@ -60,5 +63,15 @@ class CompanyAccessRule extends Model
         }
 
         return true;
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by_user');
+    }
+
+    public function editor()
+    {
+        return $this->belongsTo(User::class, 'updated_by_user');
     }
 }

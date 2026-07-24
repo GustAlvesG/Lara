@@ -32,6 +32,7 @@
             // Dados de Auditoria
             $createdByUser = optional($schedule->creator)->name;
             $updatedByUser = optional($schedule->editor)->name;
+            $cancelledByUser = optional($schedule->canceller)->name;
             
             // Lógica de Status
             $statusId = $schedule->status_id;
@@ -144,10 +145,29 @@
                                     </div>
                                 </div>
                                 @endif
-                              
+
+                                @if($isCanceled)
+                                <!-- Cancelamento -->
+                                <div class="flex items-start gap-3">
+                                    <div class="mt-1 w-2 h-2 rounded-full bg-red-500 shadow-sm shadow-red-200"></div>
+                                    <div class="flex-grow">
+                                        <p class="text-[10px] font-bold text-gray-500 uppercase leading-none mb-1">Cancelado por</p>
+                                        <p class="text-xs font-extrabold text-gray-700">
+                                            {{ $cancelledByUser ?? $updatedByUser ?? 'Via Site' }}
+                                        </p>
+                                        @if($schedule->cancelled_at)
+                                        <p class="text-[10px] text-gray-400 mt-0.5">Em: {{ \Carbon\Carbon::parse($schedule->cancelled_at)->format('d/m/Y H:i') }}</p>
+                                        @endif
+                                        @if($schedule->cancel_reason)
+                                        <p class="text-[10px] text-gray-500 mt-1 italic">"{{ $schedule->cancel_reason }}"</p>
+                                        @endif
+                                    </div>
+                                </div>
+                                @endif
+
                             </div>
                         </div>
-                        
+
                         <!-- Contador de Tempo (Somente para Status Pendente) -->
                         @if($isPending)
                             @php
@@ -305,7 +325,17 @@
                                 <!-- OPÇÕES DINÂMICAS DE CANCELAMENTO -->
                                 <div id="cancel-options" class="hidden animate-fadeIn space-y-3 bg-red-50 p-6 rounded-2xl border border-red-100">
                                     <p class="text-[10px] font-black text-red-400 uppercase tracking-widest mb-2">Configurações de Cancelamento</p>
-                                    
+
+                                    <div>
+                                        <label for="cancel_reason" class="block text-xs font-black text-red-400 uppercase mb-2 tracking-widest">Motivo do Cancelamento</label>
+                                        <textarea id="cancel_reason" name="cancel_reason" rows="3" maxlength="1000"
+                                            class="block w-full py-3 px-4 bg-white border border-red-200 rounded-2xl focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition font-medium text-gray-700"
+                                            placeholder="Descreva o motivo do cancelamento">{{ old('cancel_reason') }}</textarea>
+                                        @error('cancel_reason')
+                                            <p class="text-xs font-bold text-red-600 mt-1">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+
                                     <label class="flex items-center gap-3 cursor-pointer group">
                                         <input type="checkbox" name="confirm_cancel" required class="w-5 h-5 text-red-600 border-red-300 rounded focus:ring-red-500 transition">
                                         <span class="text-sm font-bold text-red-700 group-hover:text-red-900 transition">Confirmo que desejo cancelar permanentemente</span>
@@ -338,13 +368,16 @@
         function handleActionChange(select) {
             const cancelOptions = document.getElementById('cancel-options');
             const confirmCheckbox = document.querySelector('input[name="confirm_cancel"]');
-            
+            const cancelReason = document.getElementById('cancel_reason');
+
             if (select.value === '0') {
                 cancelOptions.classList.remove('hidden');
                 confirmCheckbox.required = true;
+                cancelReason.required = true;
             } else {
                 cancelOptions.classList.add('hidden');
                 confirmCheckbox.required = false;
+                cancelReason.required = false;
             }
         }
     </script>

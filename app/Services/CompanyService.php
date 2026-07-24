@@ -9,6 +9,8 @@ use App\Models\Company\Company;
 use App\Models\Company\CompanyWorker;
 use App\Models\Company\CompanyAccessRule;
 use App\Models\Company\CompanyAccessLog;
+use App\Models\AppDriver;
+use App\Models\UberAccessRequest;
 use App\Services\RuleValidatorService;
 
 
@@ -96,7 +98,13 @@ class CompanyService
 
     public function getCompanyDetails($company)
     {
-        $company = $company->load('workers.rules', 'rules.weekdays', 'rules.worker');
+        $company->load([
+            'workers' => fn($q) => $q->with(['rules', 'latestAccessLog', 'creator', 'editor'])->orderBy('name'),
+            'rules.weekdays',
+            'rules.worker',
+            'rules.creator',
+            'rules.editor',
+        ]);
         return $company;
     }
 
@@ -111,6 +119,7 @@ class CompanyService
             'telephone' => $data['telephone'] ?? null,
             'document' => isset($data['document']) ? (preg_replace('/\D/', '', $data['document']) ?: null) : null,
             'image' => $data['image'] ?? null,
+            'created_by_user' => auth()->id(),
         ];
 
         if (isset($data['image']) && !empty($data['image'])) {
@@ -134,6 +143,8 @@ class CompanyService
             $fields['image'] = $this->saveBase64Image($data['image']);
         }
 
+        $fields['updated_by_user'] = auth()->id();
+
         $worker->update($fields);
         return $worker;
     }
@@ -150,6 +161,7 @@ class CompanyService
             'start_time' => $data['start_time'] ?? null,
             'end_time' => $data['end_time'] ?? null,
             'description' => $data['description'] ?? null,
+            'created_by_user' => auth()->id(),
         ];
 
         $rule = $company->rules()->create($ruleData);
@@ -165,6 +177,7 @@ class CompanyService
     public function updateAccessRule($data, CompanyAccessRule $rule): CompanyAccessRule
     {
         $fields = array_intersect_key($data, array_flip(['type', 'start_date', 'end_date', 'start_time', 'end_time', 'description']));
+        $fields['updated_by_user'] = auth()->id();
         $rule->update($fields);
 
         if (isset($data['days']) && is_array($data['days'])) {
@@ -179,6 +192,11 @@ class CompanyService
     public function validateTryToAccess($data)
     {
         $target = $data['target'];
+
+        if ($this->isUberPlateTarget($target)) {
+            return $this->validateUberAccess($target);
+        }
+
         $allWorkers = false;
 
         if (Str::startsWith($target, '*') || Str::endsWith($target, '*')) {
@@ -186,39 +204,55 @@ class CompanyService
             $target = str_replace('*', '', $target);
         }
 
-        $specificWorker = null;
-
         if ($this->isValidCPF($target)) {
             $normalized = preg_replace('/\D/', '', $target);
-            $specificWorker = CompanyWorker::where('document', $normalized)
+            $matchedWorkers = CompanyWorker::with('company')
+                ->where('document', $normalized)
                 ->orWhere('document', $target)
-                ->first();
-            if (!$specificWorker) {
+                ->get();
+
+            if ($matchedWorkers->isEmpty()) {
                 return ['found' => false, 'reason' => 'worker_not_found', 'workers' => []];
             }
-            $company = $specificWorker->company;
-        } else {
-            $company = Company::where('name', 'like', '%' . $target . '%')->first();
-            if (!$company) {
-                return ['found' => false, 'reason' => 'company_not_found', 'workers' => []];
+
+            $response = [];
+            foreach ($matchedWorkers as $worker) {
+                $workerCompany = $worker->company;
+                $allowed = $this->validateRulesForAccess($workerCompany, $worker);
+                $response[] = [
+                    'id'         => $worker->id,
+                    'name'       => $worker->name,
+                    'allowed'    => $allowed,
+                    'image'      => $worker->image ? asset('images/' . $worker->image) : null,
+                    'company_id' => $workerCompany->id,
+                    'company'    => $workerCompany->name,
+                ];
             }
+
+            $first = $matchedWorkers->first();
+            return [
+                'found'      => true,
+                'company_id' => $first->company->id,
+                'company'    => $first->company->name,
+                'workers'    => $response,
+            ];
         }
 
-        $workers = $company->workers()->get();
+        $company = Company::where('name', 'like', '%' . $target . '%')->first();
+        if (!$company) {
+            return ['found' => false, 'reason' => 'company_not_found', 'workers' => []];
+        }
+
         $response = [];
-
-        foreach ($workers as $worker) {
-            if ($specificWorker && $worker->id !== $specificWorker->id) {
-                continue;
-            }
-
+        foreach ($company->workers()->get() as $worker) {
             $allowed = $this->validateRulesForAccess($company, $worker);
-
             $response[] = [
-                'id'      => $worker->id,
-                'name'    => $worker->name,
-                'allowed' => $allowed,
-                'image'   => $worker->image ? asset('images/' . $worker->image) : null,
+                'id'         => $worker->id,
+                'name'       => $worker->name,
+                'allowed'    => $allowed,
+                'image'      => $worker->image ? asset('images/' . $worker->image) : null,
+                'company_id' => $company->id,
+                'company'    => $company->name,
             ];
         }
 
@@ -230,8 +264,25 @@ class CompanyService
         ];
     }
 
+    /**
+     * Endpoint único de registro de acesso. O tipo é definido pelo conteúdo do
+     * target enviado no corpo:
+     *   - CPF (terceirizado)          → funcionário da empresa parceira
+     *   - PLACA.Nome.Obs              → motorista de aplicativo
+     *   - texto livre (nome empresa)  → empresa parceira
+     */
     public function registerAccess($data): array
     {
+        $target = trim((string) ($data['target'] ?? ''));
+
+        if ($this->isAppDriverTarget($target)) {
+            return $this->registerAppDriverAccess($data);
+        }
+
+        if ($this->isUberPlateTarget($target)) {
+            return $this->registerUberAccess($target);
+        }
+
         $result = $this->validateTryToAccess($data);
 
         if (!$result['found']) {
@@ -248,13 +299,143 @@ class CompanyService
 
         foreach ($result['workers'] as $worker) {
             CompanyAccessLog::create([
-                'company_id'        => $result['company_id'],
+                'company_id'        => $worker['company_id'] ?? $result['company_id'],
                 'company_worker_id' => $worker['id'],
                 'target'            => $data['target'],
                 'allowed'           => $worker['allowed'],
                 'reason'            => $worker['allowed'] ? 'access_granted' : 'access_denied',
             ]);
         }
+
+        return $result;
+    }
+
+    /**
+     * Registra o acesso de um motorista de aplicativo a partir de um target no
+     * formato "PLACA.NomeMotorista.Obs" (Obs é opcional). O veículo é cadastrado
+     * automaticamente caso ainda não exista e o acesso é gravado no histórico.
+     */
+    public function registerAppDriverAccess(array $data): array
+    {
+        $parts = explode('.', $data['target'], 3);
+
+        $plate = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $parts[0] ?? ''));
+        $name  = trim($parts[1] ?? '');
+        $obs   = isset($parts[2]) ? (trim($parts[2]) ?: null) : null;
+
+        if ($plate === '' || $name === '') {
+            return ['found' => false, 'reason' => 'invalid_target'];
+        }
+
+        $driver = AppDriver::firstOrCreate(
+            ['plate' => $plate],
+            ['name' => $name]
+        );
+
+        CompanyAccessLog::create([
+            'company_id'        => null,
+            'company_worker_id' => null,
+            'app_driver_id'     => $driver->id,
+            'target'            => $plate,
+            'obs'               => $obs,
+            'allowed'           => true,
+            'reason'            => 'app_driver_access',
+        ]);
+
+        return [
+            'found'    => true,
+            'created'  => $driver->wasRecentlyCreated,
+            'driver'   => [
+                'id'    => $driver->id,
+                'plate' => $driver->plate,
+                'name'  => $driver->name,
+                'obs'   => $obs,
+            ],
+        ];
+    }
+
+    /**
+     * Valida o acesso de um Uber a partir da placa informada. O acesso é
+     * considerado válido quando existe um pedido de Uber com a exata placa
+     * cadastrada, ainda aguardando o acesso do motorista e dentro da validade
+     * (expires_at no futuro).
+     *
+     * O retorno segue o mesmo formato do fluxo de terceirizados para que o
+     * monitor de acesso consiga renderizar o resultado sem alterações.
+     */
+    public function validateUberAccess(string $target): array
+    {
+        $plate = $this->normalizePlate($target);
+
+        $request = UberAccessRequest::where('vehicle_plate', $plate)
+            ->where('status', UberAccessRequest::STATUS_AGUARDANDO_ACESSO)
+            ->whereNotNull('expires_at')
+            ->where('expires_at', '>', now())
+            ->latest('expires_at')
+            ->first();
+
+        if (!$request) {
+            return [
+                'found'   => false,
+                'reason'  => 'uber_not_found',
+                'type'    => 'uber',
+                'plate'   => $plate,
+                'workers' => [],
+            ];
+        }
+
+        return [
+            'found'      => true,
+            'type'       => 'uber',
+            'plate'      => $plate,
+            'company_id' => null,
+            'company'    => 'Uber · ' . $plate,
+            'uber'       => [
+                'id'             => $request->id,
+                'matricula'      => $request->matricula,
+                'requester_name' => $request->requester_name,
+                'club_location'  => $request->club_location,
+                'vehicle_plate'  => $request->vehicle_plate,
+                'screenshot_url' => $request->screenshot_url,
+                'expires_at'     => optional($request->expires_at)->toIso8601String(),
+            ],
+            'workers'    => [[
+                'id'        => $request->id,
+                'name'      => $request->requester_name ?: $plate,
+                'matricula' => $request->matricula,
+                'allowed'   => true,
+                'image'     => null,
+            ]],
+        ];
+    }
+
+    /**
+     * Valida e registra no histórico o acesso de um Uber. Conclui o pedido,
+     * marca accessed_at e vence o expires_at, gravando um CompanyAccessLog e
+     * mantendo o histórico unificado com os demais tipos de acesso.
+     */
+    public function registerUberAccess(string $target): array
+    {
+        $result = $this->validateUberAccess($target);
+
+        if ($result['found']) {
+            // Acesso validado: conclui o pedido e vence a validade no mesmo
+            // instante, impedindo que a mesma placa seja reutilizada.
+            UberAccessRequest::where('id', $result['uber']['id'])
+                ->update([
+                    'status'      => UberAccessRequest::STATUS_CONCLUIDO,
+                    'accessed_at' => now(),
+                    'expires_at'  => now(),
+                ]);
+        }
+
+        CompanyAccessLog::create([
+            'company_id'        => null,
+            'company_worker_id' => null,
+            'target'            => $result['plate'],
+            'allowed'           => $result['found'],
+            'reason'            => $result['found'] ? 'uber_access_granted' : 'uber_not_found',
+        ]);
 
         return $result;
     }
@@ -345,6 +526,46 @@ class CompanyService
         $imageName = 'worker_' . time() . '.jpg';
         file_put_contents(public_path('images/' . $imageName), base64_decode($imageData));
         return $imageName;
+    }
+
+    /**
+     * Detecta o formato "PLACA.Nome.Obs": o primeiro segmento precisa ser uma
+     * placa válida (Mercosul ABC1D23 ou antiga ABC1234) e precisa haver um nome.
+     * CPF (que também contém pontos) não passa, pois "123" não é placa.
+     */
+    private function isAppDriverTarget(string $target): bool
+    {
+        $parts = explode('.', $target);
+
+        if (count($parts) < 2 || trim($parts[1]) === '') {
+            return false;
+        }
+
+        $plate = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $parts[0]));
+
+        return (bool) preg_match('/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/', $plate)
+            || (bool) preg_match('/^[A-Z]{3}[0-9]{4}$/', $plate);
+    }
+
+    /**
+     * Detecta um target que é apenas uma placa (Mercosul ABC1D23 ou antiga
+     * ABC1234), sem nome nem observação. É o formato usado para consultar o
+     * acesso de Uber. CPF e nome de empresa não passam nesse teste.
+     */
+    private function isUberPlateTarget(string $target): bool
+    {
+        return $this->isPlate($this->normalizePlate($target));
+    }
+
+    private function normalizePlate(string $target): string
+    {
+        return strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $target));
+    }
+
+    private function isPlate(string $plate): bool
+    {
+        return (bool) preg_match('/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/', $plate)
+            || (bool) preg_match('/^[A-Z]{3}[0-9]{4}$/', $plate);
     }
 
     private function isValidCPF($cpf)

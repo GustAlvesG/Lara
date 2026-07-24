@@ -22,7 +22,14 @@ class StoreSchedulePaymentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'schedule_ids' => ['required', 'array', 'min:1'],
+            'schedule_ids.*' => ['integer', 'exists:schedules,id'],
+            'status_id' => ['required', 'integer'],
+            'payment_method' => ['required', 'string'],
+            'paid_amount' => ['required', 'numeric', 'min:0'],
+            'payment_integration_id' => ['required', 'string'],
+            'paid_at' => ['nullable'],
+            'metadata' => ['nullable', 'array'],
         ];
     }
 }

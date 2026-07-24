@@ -13,6 +13,7 @@ use App\Models\ScheduleRules;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Hash;
 use PDF; // Facade do pacote barryvdh/laravel-dompdf
 use App\Services\LoginTokenService;
 
@@ -75,8 +76,8 @@ class MemberService
             if ($member->image) {
                 $member->image = base64_encode($member->image);
             }
-            // SHA256 in cpf if not $password
-            $member->Password = $password ?? hash('SHA256', $cpf);
+            // Senha padrão (SHA256 do cpf) — sempre hasheada antes de persistir.
+            $member->Password = Hash::make($password ?? hash('SHA256', $cpf));
 
             //Convert the object to an array
             $member = json_decode(json_encode($member), true);
@@ -111,16 +112,16 @@ class MemberService
             dbo.Titles ON dbo.Members.Title = dbo.Titles.Id
             AND dbo.Titles.TitleType NOT IN (374, 375, 693320, 1297904, 3804861, 4062070, 6736996, 6736997, 6736998, 6737000)
         WHERE
-		dbo.Titles.Code = '". $title . "' And 
+		dbo.Titles.Code = ? And
         dbo.Titles.Status = 0 And
-		dbo.Members.DocumentUnmasked = '" . $document . "' And
-        dbo.Members.BirthDate = '" . $birthdate . "'");
+		dbo.Members.DocumentUnmasked = ? And
+        dbo.Members.BirthDate = ?", [$title, $document, $birthdate]);
     }
 
     private static function getPhotoBlob($photoID)
     {
         if ($photoID) {
-            return DB::connection('mc_sqlsrv_image')->select("SELECT Content FROM dbo.Files WHERE Id = " . $photoID);
+            return DB::connection('mc_sqlsrv_image')->select("SELECT Content FROM dbo.Files WHERE Id = ?", [$photoID]);
         }
         return null;
     }

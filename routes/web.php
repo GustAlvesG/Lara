@@ -16,6 +16,7 @@ use App\Http\Controllers\VideoWallController;
 use App\Http\Controllers\PlaceGroupController;
 use App\Http\Controllers\PlaceController;
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\SchedulePaymentController;
 use App\Http\Controllers\ScheduleRulesController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PermissionController;
@@ -23,8 +24,14 @@ use App\Http\Controllers\SectorController;
 use App\Http\Controllers\CompTimeController;
 use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\DocumentationController;
+
+use App\Http\Controllers\AvisoController;
+use App\Http\Controllers\NotificationController;
+
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HomeAssistantController;
+use App\Http\Controllers\CardIssuerController;
+use App\Http\Controllers\CardTemplateController;
 
 
 Route::get('/', function () {
@@ -90,6 +97,7 @@ Route::middleware('auth')->group(function () {
         Route::group(['prefix' => '{company}/rules'], function () {
             Route::get('/create', [CompanyRulesController::class, 'create'])->name('company.rules.create');
             Route::post('/', [CompanyRulesController::class, 'store'])->name('company.rules.store');
+            Route::delete('/', [CompanyRulesController::class, 'bulkDestroy'])->name('company.rules.bulk-destroy');
             Route::get('/{rule}/edit', [CompanyRulesController::class, 'edit'])->name('company.rules.edit');
             Route::put('/{rule}', [CompanyRulesController::class, 'update'])->name('company.rules.update');
             Route::delete('/{rule}', [CompanyRulesController::class, 'destroy'])->name('company.rules.destroy');
@@ -131,11 +139,23 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [ScheduleController::class, 'index'])->name('schedule.index');
         Route::post('/filter', [ScheduleController::class, 'indexFilter'])->name('schedule.index.filter');
         Route::get('/create', [ScheduleController::class, 'create'])->name('schedule.create');
+        Route::get('/list', [ScheduleController::class, 'list'])
+            ->middleware('permission:view reservations')->name('schedule.list');
         Route::get('/group/{category}/', [PlaceGroupController::class, 'indexByCategory'])->name('api.placegroup.indexByCategory');
         Route::get('/getDates/{place_id?}', [ScheduleRulesController::class, 'getScheduledDates'])->name('schedule.getScheduledDates');
         Route::get('/{id}', [ScheduleController::class, 'show'])->name('schedule.show');
         Route::put('/update', [ScheduleController::class, 'update'])->name('schedule.update');
         Route::post('/store/web', [ScheduleController::class, 'store'])->name('schedule.store.web');
+    });
+
+    // Gestão de pagamentos (visualização + estorno via Rede)
+    Route::group(['prefix' => 'payments'], function () {
+        Route::get('/', [SchedulePaymentController::class, 'index'])
+            ->middleware('permission:view payments')->name('payment.index');
+        Route::get('/{schedulePayment}', [SchedulePaymentController::class, 'show'])
+            ->middleware('permission:view payments')->name('payment.show');
+        Route::post('/{schedulePayment}/refund', [SchedulePaymentController::class, 'refund'])
+            ->middleware('permission:manage payments')->name('payment.refund');
     });
     
     Route::group(['prefix' => 'place-group'], function () {
@@ -219,6 +239,28 @@ Route::middleware('auth')->group(function () {
     Route::get('/docs', [DocumentationController::class, 'index'])->name('docs.index');
     Route::get('/docs/{slug}', [DocumentationController::class, 'show'])
         ->where('slug', '.*')->name('docs.show');
+
+    // Avisos e Lembretes
+    Route::resource('avisos', AvisoController::class);
+
+    // Carteirinhas (emissão via webcam/impressão em cartão PVC + gestão de modelos)
+    Route::group(['middleware' => 'permission:manage id cards'], function () {
+        Route::get('/id-cards', [CardIssuerController::class, 'create'])->name('id-cards.issue');
+
+        Route::prefix('card-templates')->group(function () {
+            Route::get('/', [CardTemplateController::class, 'index'])->name('card-templates.index');
+            Route::get('/create', [CardTemplateController::class, 'create'])->name('card-templates.create');
+            Route::post('/', [CardTemplateController::class, 'store'])->name('card-templates.store');
+            Route::get('/{cardTemplate}/edit', [CardTemplateController::class, 'edit'])->name('card-templates.edit');
+            Route::put('/{cardTemplate}', [CardTemplateController::class, 'update'])->name('card-templates.update');
+            Route::delete('/{cardTemplate}', [CardTemplateController::class, 'destroy'])->name('card-templates.destroy');
+        });
+    });
+
+    // Notificações
+    Route::get('/notifications/unread-json', [NotificationController::class, 'unreadJson'])->name('notifications.unreadJson');
+    Route::get('/notifications/{id}/mark-read', [NotificationController::class, 'markRead'])->name('notifications.markRead');
+    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notifications.markAllRead');
 
 });
 

@@ -66,13 +66,20 @@ class SchedulesService
         $schedules = [];
         $user = Auth()->user();
         $payments_ids = [];
+        $isCancelling = isset($data['action_status']) && (int) $data['action_status'] === 0;
         foreach ($data['selected_reservations'] as $schedule_id) {
             $schedule = Schedule::find($schedule_id);
             if ($schedule) {
                 $schedule->status_id = $data['action_status'];
-                
+
                 $schedule->updated_by_user = $user->id;
-                
+
+                if ($isCancelling) {
+                    $schedule->cancel_reason = $data['cancel_reason'];
+                    $schedule->cancelled_by = $user->id;
+                    $schedule->cancelled_at = Carbon::now();
+                }
+
                 $schedule->save();
 
                 if(isset($data['refund_payment'])){
@@ -84,7 +91,7 @@ class SchedulesService
         }
         $response = [];
         if (isset($data['refund_payment']) && count($payments_ids) > 0)
-            $response = $this->redeItauService->beginRefund($payments_ids);
+            $response = $this->redeItauService->beginRefund($payments_ids, $user->id);
 
         return $response;
     }
@@ -138,7 +145,9 @@ class SchedulesService
                 'start_schedule' => $request->input('date') . ' ' . $time_start,
                 'end_schedule' => $request->input('date') . ' ' . $time_end,
                 'status_id' => $request->input('status_id') ?? 1,
-                'price' => $request['price'] ?? null,
+                // Se nenhum preço foi enviado explicitamente, usa o preço real do Place —
+                // nunca confia em um preço de cliente sem contrapartida no cadastro.
+                'price' => $request['price'] ?? optional(Place::find($request['place_id']))->price,
                 'created_by_user' => $request['created_by_user'] ?? null,
             ]));
         }
@@ -184,7 +193,13 @@ class SchedulesService
     {
         $validated = $request->all();
 
-        $schedule = Schedule::create($validated);
+        try {
+            $schedule = Schedule::create($validated);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            // Backstop de banco (índice único em active_slot_key): outra requisição
+            // concorrente reservou esse horário entre a checagem de colisão e o insert.
+            throw new \Exception("Horário colide com outro agendamento.");
+        }
 
         return response()->json(['schedule' => $schedule], 201);
     }
