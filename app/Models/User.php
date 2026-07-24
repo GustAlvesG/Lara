@@ -123,6 +123,19 @@ class User extends Authenticatable
         return $this->sectors()->wherePivot('role', 'coordinator')->exists();
     }
 
+    /**
+     * Coordenador de um setor específico, identificado pelo nome (sem diferenciar
+     * maiúsculas/acentuação de digitação). Usado pelo Kiosk, que só libera a
+     * assinatura do coordenador para o setor Comercial.
+     */
+    public function isCoordinatorOfSectorNamed(string $name): bool
+    {
+        return $this->sectors()
+            ->wherePivot('role', 'coordinator')
+            ->whereRaw('LOWER(sectors.name) = ?', [mb_strtolower($name)])
+            ->exists();
+    }
+
     public function coordinatorSectors()
     {
         return $this->sectors()->wherePivot('role', 'coordinator');

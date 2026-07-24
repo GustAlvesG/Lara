@@ -71,20 +71,14 @@
                             ✓ Assinado por {{ $service->coordinatorSignedBy?->name ?? '—' }}
                             em {{ $service->coordinator_signed_at->format('d/m/Y H:i') }}
                         </p>
-                    @elseif($canSignAsCoordinator)
-                        <form method="POST" action="{{ route('freelancer-services.sign', $service) }}" class="mt-2"
-                              onsubmit="return confirm('Assinar este contrato como coordenador? Depois disso ele não poderá mais ser alterado nem cancelado.')">
-                            @csrf
-                            <button type="submit" class="px-4 py-2 bg-green-700 text-white rounded-lg font-bold text-sm hover:bg-green-800 transition">
-                                Assinar como coordenador
-                            </button>
-                        </form>
                     @else
                         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
                             @if($service->isCancelled())
                                 Contrato cancelado.
                             @else
-                                Aguardando assinatura de um coordenador de setor.
+                                {{-- A assinatura do coordenador é sempre desenhada; o painel só acompanha. --}}
+                                Aguardando assinatura do coordenador do setor Comercial,
+                                feita <b>no tablet</b> (Kiosk → modo coordenador).
                             @endif
                         </p>
                     @endif
@@ -144,8 +138,20 @@
                 <div class="px-6 pb-6">
                     <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Assinatura do freelancer</p>
                     <div class="inline-block bg-white border border-gray-200 dark:border-gray-600 rounded-lg p-2">
-                        <img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($service->freelancer_signature_path) }}"
+                        <img src="{{ route('freelancer-services.signature', ['freelancerService' => $service->id, 'party' => 'freelancer']) }}"
                              alt="Assinatura de {{ $service->freelancer->name }}" class="h-20 w-auto object-contain">
+                    </div>
+                </div>
+            @endif
+
+            {{-- Toda assinatura de coordenador é desenhada no tablet. Contratos antigos,
+                 assinados pelo painel antes da mudança, não têm traço. --}}
+            @if($service->coordinator_signature_path)
+                <div class="px-6 pb-6">
+                    <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Assinatura do coordenador</p>
+                    <div class="inline-block bg-white border border-gray-200 dark:border-gray-600 rounded-lg p-2">
+                        <img src="{{ route('freelancer-services.signature', ['freelancerService' => $service->id, 'party' => 'coordinator']) }}"
+                             alt="Assinatura de {{ $service->coordinatorSignedBy->name ?? 'coordenador' }}" class="h-20 w-auto object-contain">
                     </div>
                 </div>
             @endif

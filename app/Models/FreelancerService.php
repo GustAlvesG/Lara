@@ -94,6 +94,22 @@ class FreelancerService extends Model
         return $this->belongsTo(User::class, 'coordinator_signed_by');
     }
 
+    /** Último lote em que o contrato entrou (rascunho, enviado ou já analisado). */
+    public function batch()
+    {
+        return $this->belongsTo(FreelancerServiceBatch::class, 'batch_id');
+    }
+
+    public function managerApprovedBy()
+    {
+        return $this->belongsTo(User::class, 'manager_approved_by');
+    }
+
+    public function managerRejectedBy()
+    {
+        return $this->belongsTo(User::class, 'manager_rejected_by');
+    }
+
     /** Usuário do financeiro que deu baixa no pagamento. */
     public function paidBy()
     {
@@ -283,6 +299,107 @@ class FreelancerService extends Model
     }
 
     /* ---------------------------------------------------------------------
+     | Aprovação da gerência (lote)
+     |---------------------------------------------------------------------*/
+
+    public function isManagerApproved(): bool
+    {
+        return $this->manager_approved_at !== null;
+    }
+
+    public function isManagerRejected(): bool
+    {
+        return $this->manager_rejected_at !== null && !$this->isManagerApproved();
+    }
+
+    public function isDirectorApproved(): bool
+    {
+        return $this->director_approved_at !== null;
+    }
+
+    public function isDirectorRejected(): bool
+    {
+        return $this->director_rejected_at !== null && !$this->isDirectorApproved();
+    }
+
+    /** Está num lote que ainda está tramitando (rascunho, gerência ou diretoria). */
+    public function isInOpenBatch(): bool
+    {
+        return $this->batch_id !== null
+            && $this->batch !== null
+            && !$this->batch->isClosed();
+    }
+
+    /**
+     * Pode entrar num lote: assinado pelas duas partes, não cancelado, ainda
+     * não aprovado pela diretoria e fora de qualquer lote em tramitação. O que
+     * a gerência ou a diretoria recusou volta para cá.
+     */
+    public function canBeBatched(): bool
+    {
+        if (!$this->isFullySigned() || $this->isCancelled() || $this->isDirectorApproved()) {
+            return false;
+        }
+
+        if ($this->batch_id === null || $this->batch === null) {
+            return true;
+        }
+
+        // Lote encerrado sem aprovar, ou item que a gerência recusou depois de
+        // já ter dado seu parecer no lote.
+        return $this->batch->isClosed() && !$this->isDirectorApproved()
+            || ($this->batch->isReviewed() && $this->isManagerRejected());
+    }
+
+    /** Rótulo do trâmite de aprovação, para exibição. */
+    public function approvalLabel(): string
+    {
+        return match (true) {
+            $this->isCancelled() => 'Cancelado',
+            !$this->isFullySigned() => 'Aguardando assinaturas',
+            $this->isDirectorApproved() => 'Aprovado pela diretoria',
+            $this->isDirectorRejected() => 'Recusado pela diretoria',
+            $this->isManagerRejected() => 'Recusado pela gerência',
+            $this->isManagerApproved() => 'Aguardando diretoria',
+            $this->isInOpenBatch() && $this->batch->isSent() => 'Aguardando gerência',
+            $this->isInOpenBatch() => 'Em lote (rascunho)',
+            default => 'Aguardando envio para a gerência',
+        };
+    }
+
+    /** Contratos que o coordenador pode incluir num lote. */
+    public function scopeAvailableForBatch($query)
+    {
+        $encerrados = [
+            FreelancerServiceBatch::STATUS_DIRECTOR_REJECTED,
+            FreelancerServiceBatch::STATUS_CLOSED,
+        ];
+
+        $comParecerDaGerencia = [
+            FreelancerServiceBatch::STATUS_AWAITING_DIRECTOR,
+            FreelancerServiceBatch::STATUS_DIRECTOR_APPROVED,
+            FreelancerServiceBatch::STATUS_DIRECTOR_REJECTED,
+            FreelancerServiceBatch::STATUS_CLOSED,
+        ];
+
+        return $query->whereNotNull('freelancer_signed_at')
+            ->whereNotNull('coordinator_signed_at')
+            ->where('status_id', '!=', self::STATUS_CANCELLED)
+            ->whereNull('director_approved_at')
+            ->where(function ($q) use ($encerrados, $comParecerDaGerencia) {
+                $q->whereNull('batch_id')
+                    // Lote encerrado sem aprovação: tudo volta para a fila.
+                    ->orWhereHas('batch', fn($b) => $b->whereIn('status', $encerrados))
+                    // Item recusado pela gerência dentro de um lote que já
+                    // seguiu adiante. A checagem do status do lote é o que
+                    // impede o contrato de reaparecer depois de entrar num
+                    // rascunho novo, quando a recusa antiga ainda está gravada.
+                    ->orWhere(fn($sub) => $sub->whereNotNull('manager_rejected_at')
+                        ->whereHas('batch', fn($b) => $b->whereIn('status', $comParecerDaGerencia)));
+            });
+    }
+
+    /* ---------------------------------------------------------------------
      | Financeiro
      |---------------------------------------------------------------------*/
 
@@ -292,12 +409,17 @@ class FreelancerService extends Model
     }
 
     /**
-     * Só entra no financeiro o contrato assinado pelas duas partes: é a
-     * assinatura do coordenador que confirma o serviço prestado.
+     * Só entra no financeiro o contrato assinado pelas duas partes e aprovado
+     * pelos DOIS níveis: a assinatura do coordenador confirma o serviço
+     * prestado, a gerência confere contrato a contrato e a diretoria dá o aval
+     * final que libera o pagamento.
      */
     public function isPayable(): bool
     {
-        return $this->isFullySigned() && !$this->isCancelled();
+        return $this->isFullySigned()
+            && $this->isManagerApproved()
+            && $this->isDirectorApproved()
+            && !$this->isCancelled();
     }
 
     public function canBePaid(): bool
@@ -305,11 +427,27 @@ class FreelancerService extends Model
         return $this->isPayable() && !$this->isPaid();
     }
 
-    /** Contratos que o financeiro enxerga: assinados por freelancer e coordenador. */
+    /**
+     * Contratos que o coordenador enxerga no Kiosk: o freelancer já assinou e
+     * só falta a contraparte. Cancelados ficam de fora.
+     */
+    public function scopeAwaitingCoordinator($query)
+    {
+        return $query->whereNotNull('freelancer_signed_at')
+            ->whereNull('coordinator_signed_at')
+            ->where('status_id', '!=', self::STATUS_CANCELLED);
+    }
+
+    /**
+     * Contratos que o financeiro enxerga: assinados pelas duas partes e
+     * aprovados pela gerência e pela diretoria.
+     */
     public function scopeAwaitingFinance($query)
     {
         return $query->whereNotNull('freelancer_signed_at')
             ->whereNotNull('coordinator_signed_at')
+            ->whereNotNull('manager_approved_at')
+            ->whereNotNull('director_approved_at')
             ->where('status_id', '!=', self::STATUS_CANCELLED);
     }
 

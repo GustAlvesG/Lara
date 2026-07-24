@@ -171,8 +171,9 @@ class FreelancerService
     }
 
     /**
-     * Assinatura do coordenador — feita pelo painel, por um usuário que seja
-     * coordenador de algum setor.
+     * Assinatura do coordenador — feita no kiosk, desenhada no tablet pelo
+     * coordenador do setor Comercial. O painel não assina mais: quem grava o
+     * traço e chama este método é o KioskController.
      *
      * @throws FreelancerServiceLockedException
      */
@@ -231,7 +232,7 @@ class FreelancerService
     {
         if (!$service->isPayable()) {
             throw new FreelancerServiceLockedException(
-                'Só é possível dar baixa em contrato assinado pelo freelancer e pelo coordenador.'
+                'Só é possível dar baixa em contrato assinado pelas duas partes e aprovado pela gerência.'
             );
         }
 

@@ -1,6 +1,6 @@
 <x-app-layout>
 
-    <div class="max-w-6xl mx-auto py-8 px-4">
+    <div class="max-w-full mx-auto py-8 px-4">
 
         <!-- Header -->
         <div class="mb-8 flex items-center justify-between">
@@ -120,7 +120,10 @@
                     <p class="text-gray-400 dark:text-gray-500 font-medium">Nenhum registro encontrado.</p>
                 </div>
             @else
-                <table class="w-full text-sm">
+                {{-- Sem este wrapper a tabela empurrava a página inteira,
+                     criando scroll horizontal no body em vez de na tabela. --}}
+                <div class="overflow-x-auto">
+                <table class="w-full min-w-[900px] text-sm">
                     <thead>
                         <tr class="border-b border-gray-100 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-700/50">
                             <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Data / Hora</th>
@@ -216,6 +219,7 @@
                         @endforeach
                     </tbody>
                 </table>
+                </div>
 
                 @if($logs->hasPages())
                     <div class="px-5 py-4 border-t border-gray-100 dark:border-gray-700">

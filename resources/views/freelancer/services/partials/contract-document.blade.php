@@ -6,7 +6,6 @@
      * (resources/views/kiosk/index.blade.php).
      */
     use Illuminate\Support\Carbon;
-    use Illuminate\Support\Facades\Storage;
 
     $f = $service->freelancer;
     $meses = [1=>'janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
@@ -22,8 +21,16 @@
     $dataRef = $service->freelancer_signed_at ?? now();
     $dataExtenso = $dataRef->day . ' de ' . $meses[(int) $dataRef->month] . ' de ' . $dataRef->year;
 
+    // As imagens vêm por rota autenticada, não pelo disco público.
     $signatureUrl = $service->freelancer_signature_path
-        ? Storage::disk('public')->url($service->freelancer_signature_path)
+        ? route('freelancer-services.signature', ['freelancerService' => $service->id, 'party' => 'freelancer'])
+        : null;
+
+    // O coordenador assina desenhando no tablet, então há traço. A marca
+    // eletrônica abaixo só aparece em contratos antigos, assinados pelo painel
+    // antes de essa opção ser retirada.
+    $coordinatorSignatureUrl = $service->coordinator_signature_path
+        ? route('freelancer-services.signature', ['freelancerService' => $service->id, 'party' => 'coordinator'])
         : null;
 @endphp
 
@@ -84,7 +91,10 @@
 
         <div class="doc-signatures">
             <div class="doc-sign-block">
-                @if($service->coordinator_signed_at)
+                @if($coordinatorSignatureUrl)
+                    <div class="doc-sign-img"><img src="{{ $coordinatorSignatureUrl }}" alt="Assinatura do coordenador"></div>
+                @elseif($service->coordinator_signed_at)
+                    {{-- Legado: contratos assinados pelo painel antes de a assinatura passar a ser só no tablet. --}}
                     <div class="doc-sign-mark">✓ Assinado eletronicamente{{ $service->coordinatorSignedBy ? ' por ' . $service->coordinatorSignedBy->name : '' }} em {{ $service->coordinator_signed_at->format('d/m/Y H:i') }}</div>
                 @else
                     <div class="doc-sign-empty"></div>
@@ -92,6 +102,9 @@
                 <div class="doc-sign-line"></div>
                 <div class="doc-sign-name">CLUBE DOS FUNCIONARIOS DA CSN</div>
                 <div class="doc-sign-role">CONTRATANTE</div>
+                @if($coordinatorSignatureUrl && $service->coordinator_signed_at)
+                    <div class="doc-sign-note">Assinado em {{ $service->coordinator_signed_at->format('d/m/Y H:i') }}{{ $service->coordinatorSignedBy ? ' · ' . $service->coordinatorSignedBy->name : '' }}</div>
+                @endif
             </div>
 
             <div class="doc-sign-block">

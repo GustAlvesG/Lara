@@ -134,6 +134,17 @@
   .chip.unsigned{color:var(--ink-2);background:var(--surface-3);}
   .chip.await{color:var(--warning);background:var(--warning-tint);}
 
+  /* Lote de aprovação */
+  .contract.pick{cursor:pointer;transition:border-color .15s var(--ease), transform .12s var(--ease);}
+  .contract.pick:active{transform:scale(.99);}
+  .contract.pick.sel{border-color:var(--brand);background:var(--brand-tint);}
+  .lote-sum{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-radius:var(--r);
+            background:var(--surface-2);border:1px solid var(--border);margin:18px 0 6px;}
+  .lote-sum b{font-size:17px;} .lote-sum span{font-size:13px;color:var(--ink-2);}
+  .lote-sum .tot{font-size:20px;font-weight:800;color:var(--brand);font-variant-numeric:tabular-nums;}
+  .lote-h{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--ink-2);margin:22px 0 10px;}
+  .reject-note{font-size:12.5px;color:var(--warning);margin-top:6px;line-height:1.35;}
+
   .steps{display:flex;gap:6px;margin:2px 0 18px;}
   .steps i{height:5px;flex:1;border-radius:99px;background:var(--border-strong);transition:.3s var(--ease);}
   .steps i.done{background:var(--brand);}
@@ -187,6 +198,11 @@
   .doc-sign-line{border-top:1.5px solid var(--paper-ink);}
   .doc-sign-name{font-size:13.5px;font-weight:800;margin-top:6px;font-family:var(--sans);}
   .doc-sign-role{font-size:11.5px;color:#6b6156;font-family:var(--sans);margin-top:2px;}
+  /* Assinatura já registrada da outra parte, exibida sobre a mesma altura do slot. */
+  .doc-sign-img{height:92px;display:grid;place-items:center;overflow:hidden;}
+  .doc-sign-img img{max-height:88px;max-width:100%;}
+  .doc-sign-empty{height:92px;}
+  .doc-sign-note{font-family:var(--sans);font-size:10.5px;color:#6b6156;margin-top:4px;line-height:1.35;}
   .doc-footer{font-family:var(--sans);font-size:9.5px;line-height:1.55;color:#6b6156;text-align:center;border-top:2px solid #c8102e;margin-top:16px;padding:12px 18px 16px;}
 
   .success{position:absolute;inset:0;z-index:20;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:30px;text-align:center;opacity:0;visibility:hidden;transition:opacity .3s var(--ease);}
@@ -260,6 +276,53 @@
             <button class="btn-quiet btn" id="matBack">Trocar matrícula</button>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ===== MODO (só para quem é operador E coordenador) ===== -->
+    <section class="screen" id="s-mode">
+      <div class="screen-body">
+        <p class="eyebrow">Bem-vindo</p>
+        <h2 class="title">O que você vai fazer agora?</h2>
+        <p class="subtitle">Você pode atender freelancers e assinar como coordenador.</p>
+        <div id="modeList" style="margin-top:20px"></div>
+      </div>
+      <div class="screen-foot">
+        <button class="btn-quiet btn" id="modeExit">Sair</button>
+      </div>
+    </section>
+
+    <!-- ===== FILA DO COORDENADOR ===== -->
+    <section class="screen" id="s-coord">
+      <div class="screen-body">
+        <p class="eyebrow">Coordenação · <span id="coordSector">Comercial</span></p>
+        <h2 class="title">Contratos a assinar</h2>
+        <p class="subtitle">Assinados pelo freelancer, aguardando sua assinatura</p>
+        <div class="clist" id="coordList" style="margin-top:18px"></div>
+      </div>
+      <div class="screen-foot">
+        <button class="btn btn-primary" id="coordLote">Lote para a gerência</button>
+        <button class="btn btn-ghost" id="coordReload">Atualizar lista</button>
+      </div>
+    </section>
+
+    <!-- ===== LOTE DE APROVAÇÃO ===== -->
+    <section class="screen" id="s-lote">
+      <div class="screen-body">
+        <p class="eyebrow">Coordenação · <span id="loteSector">Comercial</span></p>
+        <h2 class="title">Lote para a gerência</h2>
+        <p class="subtitle">Inclua os contratos já assinados pelas duas partes e envie para aprovação.</p>
+
+        <div class="lote-sum" id="loteSum"></div>
+        <div class="clist" id="loteDraft"></div>
+
+        <h3 class="lote-h">Disponíveis para incluir</h3>
+        <div class="clist" id="loteAvail"></div>
+      </div>
+      <div class="screen-foot">
+        <button class="btn btn-primary" id="loteAdd" disabled>Incluir selecionados</button>
+        <button class="btn btn-ghost" id="loteSend" disabled>Enviar para aprovação</button>
+        <button class="btn-quiet btn" id="loteBack">Voltar aos contratos</button>
       </div>
     </section>
 
@@ -399,9 +462,9 @@
     <!-- ===== ASSINAR (documento base + assinatura posicionada) ===== -->
     <section class="screen" id="s-assinar">
       <div class="screen-body">
-        <p class="eyebrow">Assinatura do freelancer</p>
+        <p class="eyebrow" id="signEyebrow">Assinatura do freelancer</p>
         <h2 class="title">Confira e assine o documento</h2>
-        <p class="subtitle">Role o contrato e assine no campo do Contratado. A assinatura é definitiva.</p>
+        <p class="subtitle" id="signSub">Role o contrato e assine no campo do Contratado. A assinatura é definitiva.</p>
         <div id="docHost"></div>
       </div>
       <div class="screen-foot">
@@ -409,7 +472,7 @@
           <button class="btn btn-ghost" id="sigClear" style="flex:1">Limpar</button>
           <button class="btn btn-primary" id="sigConfirm" style="flex:1" disabled>Confirmar assinatura</button>
         </div>
-        <button class="btn-quiet btn" data-go="contratos">Cancelar</button>
+        <button class="btn-quiet btn" id="sigCancel">Cancelar</button>
       </div>
     </section>
 
@@ -465,7 +528,7 @@
   }
 
   /* ---------- State ---------- */
-  const S = { operator:null, freelancer:null, functions:[], draft:{}, signing:null,
+  const S = { operator:null, mode:null, freelancer:null, functions:[], draft:{}, signing:null,
               signature:null, pinMode:null, timer:null, remaining:1800, count:0 };
 
   /* ---------- Helpers ---------- */
@@ -499,7 +562,8 @@
   }
   $$('[data-go]').forEach(b=> b.addEventListener('click', ()=> go('s-'+b.dataset.go)));
   function updateCtx(){
-    const map={'s-cpf':'Localizar freelancer','s-cadastro':'Cadastro','s-menu':'Atendimento','s-novo':'Novo contrato','s-previa':'Prévia','s-contratos':'Contratos','s-assinar':'Assinatura','s-pin':'Confirmação'};
+    const map={'s-mode':'Escolha o modo','s-coord':'Contratos pendentes','s-lote':'Lote de aprovação','s-cpf':'Localizar freelancer','s-cadastro':'Cadastro','s-menu':'Atendimento','s-novo':'Novo contrato','s-previa':'Prévia','s-contratos':'Contratos','s-assinar':'Assinatura','s-pin':'Confirmação'};
+    if(S.mode==='coordinator'){ $('#ctxLine').textContent='Coordenação · '+(S.operator&&S.operator.coordinator_sector||'Comercial'); return; }
     $('#ctxLine').textContent = S.freelancer ? S.freelancer.name : (map[current]||'Sessão de atendimento');
   }
 
@@ -524,10 +588,12 @@
 
   /* ---------- Session timer ---------- */
   function applySession(s){ if(!s) return; S.remaining=s.remaining_seconds; S.count=s.count;
+    // O coordenador não tem teto de contratos por sessão — some com o contador.
+    $('#countPill').style.display = s.counts_contracts===false ? 'none' : 'inline-flex';
     $('#countPill').textContent=`${s.count}/${s.max}`; $('#countPill').classList.toggle('warn', s.count>=s.max); renderTimer(); }
   function renderTimer(){ const m=Math.floor(S.remaining/60), sec=S.remaining%60; $('#timerVal').textContent=`${m}:${String(sec).padStart(2,'0')}`; $('#timerPill').classList.toggle('warn', S.remaining<=300); }
   function startTimer(){ clearInterval(S.timer); S.timer=setInterval(()=>{ S.remaining--; renderTimer(); if(S.remaining<=0){ handleExpired('Sessão expirada (30 min).'); } },1000); }
-  function handleExpired(reason){ clearInterval(S.timer); S.freelancer=null; S.operator=null; resetLogin(); go('s-login'); toast(reason,true); }
+  function handleExpired(reason){ clearInterval(S.timer); S.freelancer=null; S.operator=null; S.mode=null; resetLogin(); go('s-login'); toast(reason,true); }
 
   /* ---------- Login (matrícula + PIN) ---------- */
   let matBuf='', pinLoginBuf='';
@@ -546,11 +612,54 @@
   async function submitLogin(){
     try{
       const r=await api('POST','/kiosk/login',{ matricula:matBuf, pin:pinLoginBuf });
-      if(r.ok){ S.operator=r.data.operator; $('#opName').textContent=r.data.operator.name; applySession(r.data.session); startTimer(); resetCpf(); go('s-cpf'); }
+      if(r.ok){ startSession(r.data.operator, r.data.session); }
       else { $('#loginHint').textContent=r.data.error||'Não foi possível entrar.'; pinLoginBuf=''; renderDots($('#pinDotsLogin'),6,0); }
     }catch(e){ if(!e.handled) toast('Falha de conexão.',true); pinLoginBuf=''; renderDots($('#pinDotsLogin'),6,0); }
   }
-  $('#exitBtn').addEventListener('click', async ()=>{ try{ await api('POST','/kiosk/logout'); }catch(e){} clearInterval(S.timer); S.freelancer=null; S.operator=null; resetLogin(); go('s-login'); });
+  async function doLogout(){ try{ await api('POST','/kiosk/logout'); }catch(e){} clearInterval(S.timer); S.freelancer=null; S.operator=null; S.mode=null; resetLogin(); go('s-login'); }
+  $('#exitBtn').addEventListener('click', doLogout);
+  $('#modeExit').addEventListener('click', doLogout);
+
+  /* ---------- Modo de uso (atendimento x coordenação) ---------- */
+  /**
+   * Quem só tem um papel entra direto nele — o servidor já resolve o modo no
+   * login. Só quem acumula atendimento e coordenação vê a tela de escolha.
+   */
+  function startSession(op, sess){
+    S.operator=op; $('#opName').textContent=op.name; applySession(sess); startTimer();
+    if(sess.mode) enterMode(sess.mode); else renderModePicker();
+  }
+  function enterMode(mode){
+    S.mode=mode;
+    if(mode==='coordinator'){ $('#coordSector').textContent=S.operator.coordinator_sector||'Comercial'; openCoord(); }
+    else { S.freelancer=null; resetCpf(); go('s-cpf'); }
+  }
+  const MODE_CARDS={
+    operator:{ title:'Atender freelancer', sub:'Cadastrar, registrar contrato e colher a assinatura',
+      icon:'<path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM12 14a7 7 0 0 0-7 7h14a7 7 0 0 0-7-7z"/>' },
+    coordinator:{ title:'Assinar como coordenador', sub:'Contratos assinados pelo freelancer aguardando você',
+      icon:'<path stroke-linecap="round" stroke-linejoin="round" d="M15.2 4.8l4 4L8 20H4v-4L15.2 4.8zM13.5 6.5l4 4"/>' }
+  };
+  function renderModePicker(){
+    const host=$('#modeList'); host.innerHTML='';
+    (S.operator.modes||[]).forEach(m=>{
+      const meta=MODE_CARDS[m]; if(!meta) return;
+      const b=document.createElement('button'); b.className='menu-card';
+      b.innerHTML=`<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${meta.icon}</svg></span>
+        <span class="tx"><b>${meta.title}</b><span>${meta.sub}</span></span>
+        <span class="chev"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></span>`;
+      b.addEventListener('click', ()=> chooseMode(m));
+      host.appendChild(b);
+    });
+    go('s-mode');
+  }
+  async function chooseMode(mode){
+    try{
+      const r=await api('POST','/kiosk/mode',{ mode });
+      if(r.ok){ applySession(r.data.session); enterMode(mode); }
+      else toast(r.data.error||'Não foi possível abrir esse modo.',true);
+    }catch(e){ if(!e.handled) toast('Falha de conexão.',true); }
+  }
 
   /* ---------- CPF ---------- */
   let cpfBuf='';
@@ -702,19 +811,179 @@
     });
   }
 
+  /* ---------- Fila do coordenador ---------- */
+  async function openCoord(){
+    const list=$('#coordList'); list.innerHTML='<p class="subtitle" style="text-align:center;padding:20px 0">Carregando…</p>';
+    go('s-coord');
+    try{
+      const r=await api('GET','/kiosk/coordinator/services');
+      if(!r.ok){ list.innerHTML='<p class="subtitle" style="text-align:center;padding:20px 0">Erro ao carregar.</p>'; return; }
+      renderCoord(r.data);
+    }catch(e){ if(e.handled) return; list.innerHTML='<p class="subtitle" style="text-align:center;padding:20px 0">Erro ao carregar.</p>'; }
+  }
+  $('#coordReload').addEventListener('click', openCoord);
+  function renderCoord(items){
+    const list=$('#coordList'); list.innerHTML='';
+    if(!items.length){ list.innerHTML='<p class="subtitle" style="text-align:center;padding:30px 0">Nenhum contrato aguardando sua assinatura.</p>'; return; }
+    items.forEach(c=>{
+      const who = c.freelancer ? c.freelancer.name : '—';
+      const el=document.createElement('div'); el.className='contract';
+      el.innerHTML=`<div class="row1"><span class="fn">${esc(who)}</span><span class="chip await">${esc(c.status_label)}</span></div>
+        <div class="loc">${esc(c.function||'—')} · ${esc(c.location)}</div>
+        <div class="when"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
+        ${c.start_date_br} · ${c.start_time}–${c.end_time} · <b>${brl(c.price)}</b></div>
+        ${c.freelancer_signed_at_br?`<div class="when">Freelancer assinou em ${c.freelancer_signed_at_br}</div>`:''}
+        <div class="acts"><button class="btn btn-primary" data-sign>Conferir e assinar</button></div>`;
+      el.querySelector('[data-sign]').addEventListener('click', ()=> openCoordSign(c));
+      list.appendChild(el);
+    });
+    // A fila vem limitada pelo servidor; avisa que pode haver mais atrás.
+    if(items.length>=50){
+      const p=document.createElement('p'); p.className='subtitle'; p.style.textAlign='center';
+      p.textContent='Mostrando os 50 contratos mais antigos. Assine e atualize a lista para ver os próximos.';
+      list.appendChild(p);
+    }
+  }
+
+  /* ---------- Lote de aprovação ----------
+     O coordenador monta o lote aqui e envia; quem aprova é a gerência, e só
+     pela web — o tablet não tem tela de aprovação de propósito. */
+  let loteSel = [];
+  $('#coordLote').addEventListener('click', openLote);
+  $('#loteBack').addEventListener('click', ()=> openCoord());
+
+  async function openLote(){
+    $('#loteSector').textContent = S.operator && S.operator.coordinator_sector || 'Comercial';
+    loteSel = [];
+    $('#loteSum').innerHTML='<span>Carregando…</span>';
+    $('#loteDraft').innerHTML=''; $('#loteAvail').innerHTML='';
+    go('s-lote');
+    try{
+      const r=await api('GET','/kiosk/coordinator/batch');
+      if(!r.ok){ $('#loteSum').innerHTML='<span>Erro ao carregar.</span>'; return; }
+      renderLote(r.data.draft, r.data.available);
+    }catch(e){ if(e.handled) return; $('#loteSum').innerHTML='<span>Erro ao carregar.</span>'; }
+  }
+
+  function loteLine(c){
+    return `<div class="row1"><span class="fn">${esc(c.freelancer||'—')}</span></div>
+      <div class="loc">${esc(c.function||'—')} · ${esc(c.location)}</div>
+      <div class="when">${c.start_date_br} · ${c.start_time}–${c.end_time} · <b>${brl(c.price)}</b></div>
+      ${c.rejection_reason?`<div class="reject-note">Recusado antes: ${esc(c.rejection_reason)}</div>`:''}`;
+  }
+
+  function renderLote(draft, available){
+    const count = draft ? draft.count : 0, total = draft ? draft.total : 0;
+    $('#loteSum').innerHTML = count
+      ? `<div><b>${count} contrato${count>1?'s':''}</b><span> no lote</span></div><div class="tot">${brl(total)}</div>`
+      : `<div><b>Lote vazio</b><span> selecione abaixo para incluir</span></div>`;
+
+    const dh=$('#loteDraft'); dh.innerHTML='';
+    (draft ? draft.services : []).forEach(c=>{
+      const el=document.createElement('div'); el.className='contract';
+      el.innerHTML=loteLine(c)+`<div class="acts"><button class="btn btn-ghost" data-rm>Retirar do lote</button></div>`;
+      el.querySelector('[data-rm]').addEventListener('click', ()=> removeFromLote(c.id));
+      dh.appendChild(el);
+    });
+
+    const ah=$('#loteAvail'); ah.innerHTML='';
+    if(!available.length){
+      ah.innerHTML='<p class="subtitle" style="text-align:center;padding:20px 0">Nenhum contrato disponível para incluir.</p>';
+    } else {
+      available.forEach(c=>{
+        const el=document.createElement('div'); el.className='contract pick';
+        el.innerHTML=loteLine(c);
+        el.addEventListener('click', ()=>{
+          const i=loteSel.indexOf(c.id);
+          if(i>=0) loteSel.splice(i,1); else loteSel.push(c.id);
+          el.classList.toggle('sel', i<0);
+          syncLoteButtons();
+        });
+        ah.appendChild(el);
+      });
+    }
+    syncLoteButtons(count);
+  }
+  function syncLoteButtons(count){
+    $('#loteAdd').disabled = loteSel.length===0;
+    $('#loteAdd').textContent = loteSel.length ? `Incluir ${loteSel.length} no lote` : 'Incluir selecionados';
+    if(count!==undefined) $('#loteSend').disabled = count===0;
+  }
+
+  $('#loteAdd').addEventListener('click', async ()=>{
+    if(!loteSel.length) return;
+    try{
+      const r=await api('POST','/kiosk/coordinator/batch/items',{ services:loteSel });
+      if(r.ok){ toast(r.data.added===1?'1 contrato incluído.':`${r.data.added} contratos incluídos.`); loteSel=[]; openLote(); }
+      else toast(r.data.error||'Não foi possível incluir.',true);
+    }catch(e){ if(!e.handled) toast('Falha de conexão.',true); }
+  });
+
+  async function removeFromLote(id){
+    try{
+      const r=await api('DELETE','/kiosk/coordinator/batch/items/'+id);
+      if(r.ok){ toast('Contrato retirado do lote.'); openLote(); }
+      else toast(r.data.error||'Não foi possível retirar.',true);
+    }catch(e){ if(!e.handled) toast('Falha de conexão.',true); }
+  }
+
+  $('#loteSend').addEventListener('click', ()=> openPin('send-batch'));
+  async function submitSendBatch(pin){
+    try{
+      const r=await api('POST','/kiosk/coordinator/batch/send',{ pin });
+      if(r.ok){ applySession(r.data.session);
+        showSuccess('Lote enviado', `${r.data.batch.count} contrato(s) · ${brl(r.data.batch.total)} enviados para a aprovação da gerência.`, openCoord); }
+      else if(r.status===401){ $('#pinOpHint').textContent='PIN inválido.'; resetPinOp(); }
+      else { toast(r.data.error||'Não foi possível enviar o lote.',true); openLote(); }
+    }catch(e){ if(!e.handled) toast('Falha de conexão.',true); resetPinOp(); }
+  }
+
   /* ---------- Documento base + assinatura posicionada ---------- */
   const MESES=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
   function money(n){ return Number(n).toFixed(2).replace('.',','); }
   function longToday(){ const t=new Date(); return `${t.getDate()} de ${MESES[t.getMonth()]} de ${t.getFullYear()}`; }
+  function longFromIso(iso){ if(!iso) return longToday(); const [y,m,d]=iso.split('-').map(Number); return `${d} de ${MESES[m-1]} de ${y}`; }
+
+  const SIG_SLOT = `<div class="sig-slot" id="sigSlot"><canvas id="sigCanvas"></canvas><div class="sig-ph" id="sigPh">Assine aqui com o dedo</div></div>`;
 
   /**
    * Documento base = modelo do "Contrato Autônomo de Serviços de Freelancer"
    * do Clube dos Funcionários da CSN. As variáveis ((...)) do modelo são
    * preenchidas com os dados do freelancer (f) e do serviço (c).
+   *
+   * `role` diz qual dos dois campos recebe o canvas: 'freelancer' assina no
+   * campo do CONTRATADO; 'coordinator' assina no do CONTRATANTE e já vê o
+   * traço do freelancer no campo de baixo. Mantido em sincronia com o parcial
+   * do painel (freelancer/services/partials/contract-document.blade.php).
    */
-  function buildDocument(c, f){
+  function buildDocument(c, f, role){
     const nome = esc(f.name);
     const cpf = fmtCpf(f.cpf);
+    const asCoord = role==='coordinator';
+    // A data do contrato é a da assinatura do freelancer (ou hoje, se ainda não assinou).
+    const dataDoc = asCoord ? longFromIso(c.freelancer_signed_date) : longToday();
+
+    const blocoContratante = asCoord
+      ? `${SIG_SLOT}
+            <div class="doc-sign-line"></div>
+            <div class="doc-sign-name">CLUBE DOS FUNCIONARIOS DA CSN</div>
+            <div class="doc-sign-role">CONTRATANTE · ${esc(S.operator?S.operator.name:'')}</div>`
+      : `<div class="doc-sign-empty"></div>
+            <div class="doc-sign-line"></div>
+            <div class="doc-sign-name">CLUBE DOS FUNCIONARIOS DA CSN</div>
+            <div class="doc-sign-role">CONTRATANTE — assinatura do coordenador (pendente)</div>`;
+
+    const marcaFreelancer = asCoord
+      ? (c.freelancer_signature_url
+          ? `<div class="doc-sign-img"><img src="${esc(c.freelancer_signature_url)}" alt="Assinatura do freelancer"></div>`
+          : `<div class="doc-sign-empty"></div>`)
+      : SIG_SLOT;
+    // Contratos assinados pelo bot (antes do kiosk) não têm traço: o aviso evita
+    // que o coordenador ache que a assinatura se perdeu.
+    const notaFreelancer = (asCoord && c.freelancer_signed_at_br)
+      ? `<div class="doc-sign-note">Assinado em ${esc(c.freelancer_signed_at_br)}${c.freelancer_signature_url?'':' · registrado sem desenho'}</div>`
+      : '';
+
     return `
     <div class="doc" id="docSheet">
       <div class="doc-letterhead">
@@ -733,21 +1002,17 @@
         <p><b>7-</b> Em caso de o FREELANCER exercer o serviço contratado por período superior a 6 (Seis) horas diárias, o CONTRATANTE, por livre e espontânea vontade, fornecerá ao FREELANCER uma refeição diária, sem que haja desconto do valor previsto na cláusula 2.</p>
         <p><b>8- DO FORO DE ELEIÇÃO:</b> As partes elegem o foro de Volta Redonda, como único competente para dirimir quaisquer litígios oriundos do presente contrato.</p>
         <p>E assim por estarem de pleno acordo com o contido neste instrumento, CONTRATANTE e FREELANCER o firmam consoante os ditames legais.</p>
-        <p class="doc-place"><b>Volta Redonda-RJ, ${longToday()}</b></p>
+        <p class="doc-place"><b>Volta Redonda-RJ, ${dataDoc}</b></p>
         <div class="doc-signatures">
           <div class="doc-sign-block">
-            <div class="doc-sign-line"></div>
-            <div class="doc-sign-name">CLUBE DOS FUNCIONARIOS DA CSN</div>
-            <div class="doc-sign-role">CONTRATANTE — assinatura do coordenador (no painel)</div>
+            ${blocoContratante}
           </div>
           <div class="doc-sign-block">
-            <div class="sig-slot" id="sigSlot">
-              <canvas id="sigCanvas"></canvas>
-              <div class="sig-ph" id="sigPh">Assine aqui com o dedo</div>
-            </div>
+            ${marcaFreelancer}
             <div class="doc-sign-line"></div>
             <div class="doc-sign-name">${nome}</div>
             <div class="doc-sign-role">FREELANCER · CPF ${cpf}</div>
+            ${notaFreelancer}
           </div>
         </div>
       </div>
@@ -758,14 +1023,29 @@
       </div>
     </div>`;
   }
+  /** Assinatura do freelancer, conduzida pelo operador. */
   function openSign(c){
+    $('#signEyebrow').textContent='Assinatura do freelancer';
+    $('#signSub').textContent='Role o contrato e assine no campo do Contratado. A assinatura é definitiva.';
+    openDocument(c, S.freelancer, 'freelancer');
+  }
+
+  /** Assinatura do coordenador, sobre um contrato que o freelancer já assinou. */
+  function openCoordSign(c){
+    $('#signEyebrow').textContent='Assinatura do coordenador';
+    $('#signSub').textContent='Confira os dados e assine no campo do Contratante. A assinatura é definitiva e libera o contrato para entrar num lote de aprovação.';
+    openDocument(c, c.freelancer, 'coordinator');
+  }
+
+  function openDocument(c, f, role){
     S.signing=c; S.signature=null;
-    $('#docHost').innerHTML=buildDocument(c, S.freelancer);
+    $('#docHost').innerHTML=buildDocument(c, f, role);
     $('#sigConfirm').disabled=true;
     bindCanvas();
     go('s-assinar');
     requestAnimationFrame(()=>{ sizeCanvas(); });
   }
+  $('#sigCancel').addEventListener('click', ()=> go(S.mode==='coordinator' ? 's-coord' : 's-contratos'));
 
   /* ---------- Signature canvas ---------- */
   let canvas=null, ctx=null, drawing=false, hasInk=false, last=null;
@@ -780,25 +1060,33 @@
     canvas.width=rect.width*dpr; canvas.height=rect.height*dpr; ctx.setTransform(1,0,0,1,0,0); ctx.scale(dpr,dpr);
     ctx.lineJoin='round'; ctx.lineCap='round'; ctx.lineWidth=2.6; ctx.strokeStyle='#1a1512'; }
   $('#sigClear').addEventListener('click', ()=>{ if(!ctx) return; ctx.clearRect(0,0,canvas.width,canvas.height); hasInk=false; $('#sigPh').style.opacity='1'; $('#sigSlot').classList.remove('filled'); $('#sigConfirm').disabled=true; });
-  $('#sigConfirm').addEventListener('click', ()=>{ if(!hasInk) return; S.signature=canvas.toDataURL('image/png'); openPin('sign'); });
+  $('#sigConfirm').addEventListener('click', ()=>{ if(!hasInk) return; S.signature=canvas.toDataURL('image/png'); openPin(S.mode==='coordinator'?'sign-coord':'sign'); });
   window.addEventListener('resize', ()=>{ if(current==='s-assinar') sizeCanvas(); });
 
-  /* ---------- PIN (sign / weekly) ---------- */
+  /* ---------- PIN (sign / sign-coord / weekly) ---------- */
   let pinBuf='';
   function resetPinOp(){ pinBuf=''; renderDots($('#pinDotsOp'),6,0); $('#pinOpHint').innerHTML='&nbsp;'; }
   function openPin(mode, extraMsg){
-    S.pinMode=mode; resetPinOp();
-    if(mode==='sign'){ $('#pinTitle').textContent='Digite seu PIN'; $('#pinSub').textContent='A assinatura fica registrada como auxiliada por você'; $('#pinExtra').innerHTML=''; $('#pinCancel').textContent='Voltar ao documento'; }
+    S.pinMode=mode; resetPinOp(); $('#pinExtra').innerHTML='';
+    if(mode==='sign'){ $('#pinTitle').textContent='Digite seu PIN'; $('#pinSub').textContent='A assinatura fica registrada como auxiliada por você'; $('#pinCancel').textContent='Voltar ao documento'; }
+    else if(mode==='sign-coord'){ $('#pinTitle').textContent='Digite seu PIN'; $('#pinSub').textContent='O contrato será assinado como coordenador, em seu nome'; $('#pinCancel').textContent='Voltar ao documento'; }
+    else if(mode==='send-batch'){ $('#pinTitle').textContent='Confirmar envio do lote'; $('#pinSub').textContent='O lote vai para a aprovação da gerência e não pode mais ser alterado'; $('#pinCancel').textContent='Voltar ao lote'; }
     else { $('#pinTitle').textContent='Confirmar limite semanal'; $('#pinSub').textContent='Digite seu PIN para gravar mesmo assim'; $('#pinExtra').innerHTML=`<div class="banner" style="margin:14px 0 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg><div><b>Limite recomendado</b><p>${esc(extraMsg||'')}</p></div></div>`; $('#pinCancel').textContent='Cancelar'; }
     go('s-pin');
   }
   buildKeypad($('#pinKeypadOp'),
     d=>{ if(pinBuf.length<6){ pinBuf+=d; renderDots($('#pinDotsOp'),6,pinBuf.length); if(pinBuf.length===6) submitPin(); } },
     ()=>{ pinBuf=pinBuf.slice(0,-1); renderDots($('#pinDotsOp'),6,pinBuf.length); $('#pinOpHint').innerHTML='&nbsp;'; });
-  $('#pinCancel').addEventListener('click', ()=>{ if(S.pinMode==='sign') go('s-assinar'); else go('s-previa'); });
+  $('#pinCancel').addEventListener('click', ()=>{
+    if(S.pinMode==='sign'||S.pinMode==='sign-coord') go('s-assinar');
+    else if(S.pinMode==='send-batch') go('s-lote');
+    else go('s-previa');
+  });
   async function submitPin(){
     const pin=pinBuf;
     if(S.pinMode==='weekly'){ await submitService(true, pin); return; }
+    if(S.pinMode==='sign-coord'){ await submitCoordSign(pin); return; }
+    if(S.pinMode==='send-batch'){ await submitSendBatch(pin); return; }
     try{
       const r=await api('POST',`/kiosk/service/${S.signing.id}/sign`,{ pin, signature:S.signature });
       if(r.ok){ applySession(r.data.session); showSuccess('Contrato assinado', `Assinatura de ${S.freelancer.name} registrada, auxiliada por ${S.operator.name}. O atendimento será encerrado.`); }
@@ -807,15 +1095,28 @@
       else { toast(firstError(r.data)||'Não foi possível assinar.',true); resetPinOp(); }
     }catch(e){ if(!e.handled) toast('Falha de conexão.',true); resetPinOp(); }
   }
+  async function submitCoordSign(pin){
+    const who = S.signing.freelancer ? S.signing.freelancer.name : 'o freelancer';
+    try{
+      const r=await api('POST',`/kiosk/service/${S.signing.id}/sign-coordinator`,{ pin, signature:S.signature });
+      if(r.ok){ applySession(r.data.session);
+        showSuccess('Contrato assinado', `Contrato de ${who} assinado por ${S.operator.name}. Já pode entrar num lote para a gerência.`, openCoord); }
+      else if(r.status===401){ $('#pinOpHint').textContent='PIN inválido.'; resetPinOp(); }
+      else if(r.status===409){ toast(r.data.error||'Contrato já assinado.',true); openCoord(); }
+      else { toast(firstError(r.data)||'Não foi possível assinar.',true); resetPinOp(); }
+    }catch(e){ if(!e.handled) toast('Falha de conexão.',true); resetPinOp(); }
+  }
 
   /* ---------- Success ---------- */
-  function showSuccess(title,msg){ $('#successTitle').textContent=title; $('#successMsg').textContent=msg; $('#success').classList.add('show');
-    setTimeout(()=>{ $('#success').classList.remove('show'); S.freelancer=null; S.signing=null; S.signature=null; resetCpf(); go('s-cpf'); },2800); }
+  /** `after` decide para onde a tela volta; por padrão, próximo atendimento. */
+  function showSuccess(title,msg,after){ $('#successTitle').textContent=title; $('#successMsg').textContent=msg; $('#success').classList.add('show');
+    setTimeout(()=>{ $('#success').classList.remove('show'); S.freelancer=null; S.signing=null; S.signature=null;
+      if(after) after(); else { resetCpf(); go('s-cpf'); } },2800); }
 
   /* ---------- Resume session on load ---------- */
   (async function init(){
     try{ const r=await api('GET','/kiosk/session');
-      if(r.ok && r.data.active){ S.operator=r.data.operator; $('#opName').textContent=r.data.operator.name; applySession(r.data.session); startTimer(); resetCpf(); go('s-cpf'); }
+      if(r.ok && r.data.active){ startSession(r.data.operator, r.data.session); }
     }catch(e){}
   })();
 

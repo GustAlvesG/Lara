@@ -9,7 +9,8 @@ O módulo tem duas frentes:
 
 | Frente | Onde | O que faz |
 |---|---|---|
-| **Painel interno** | `/freelancers`, `/freelancer-functions`, `/freelancer-services` | CRUD de freelancers, funções e serviços; assinatura do coordenador; cancelamento |
+| **Painel interno** | `/freelancers`, `/freelancer-functions`, `/freelancer-services` | CRUD de freelancers, funções e serviços; lotes e aprovações; cancelamento. **Não assina** |
+| **Kiosk (tablet)** | `/kiosk` | Interface de toque: atendimento ao freelancer (cadastro, contrato e assinatura), fila de assinatura do coordenador e montagem/envio de lotes |
 | **API** | `/api/telegram/*` | Consumida por um bot do Telegram: consulta/cadastra freelancer, consulta e atualiza serviços, registra a assinatura do freelancer |
 
 ## Entidades
@@ -53,8 +54,16 @@ Cada serviço tem duas assinaturas independentes:
 
 | Assinatura | Campos | Quem registra |
 |---|---|---|
-| Freelancer | `freelancer_signed_at` | **API** (bot do Telegram) |
-| Coordenador | `coordinator_signed_at`, `coordinator_signed_by` | **Painel**, por usuário que seja coordenador de algum setor |
+| Freelancer | `freelancer_signed_at`, `freelancer_signed_by`, `freelancer_signature_path` | **Kiosk** (traço desenhado no tablet, com o operador identificado) ou **API** (bot do Telegram) |
+| Coordenador | `coordinator_signed_at`, `coordinator_signed_by`, `coordinator_signature_path` | **Kiosk apenas** (traço desenhado, só o coordenador do setor **Comercial**) |
+
+Os campos `*_signature_path` guardam a imagem PNG do traço no disco público. O documento do
+contrato mostra o traço quando há.
+
+> **O painel não assina.** A assinatura eletrônica do coordenador pela web foi retirada: todo
+> contrato novo só é assinado com o traço desenhado no tablet. A marca "assinado eletronicamente"
+> continua no documento apenas para os contratos **antigos**, assinados pelo painel antes da
+> mudança — esses ficaram sem imagem e não são reassinados.
 
 - **Um contrato com qualquer assinatura não pode mais ser alterado** — vale para painel e API.
   No painel o formulário fica somente leitura; na API o `PUT` responde `409`.
@@ -67,8 +76,8 @@ Estados possíveis (`signatureLabel()`): `Não assinado` → `Aguardando coorden
 
 ### Cancelamento
 - Só é possível **enquanto não houver nenhuma assinatura**.
-- Feito **apenas pelo painel**, por um **coordenador de setor** (mesma regra da assinatura do
-  coordenador).
+- Feito **apenas pelo painel**, por um **coordenador de setor** (de qualquer setor — a restrição ao
+  Comercial vale só para a assinatura).
 - Marca `status_id = 0` (`cancelled`) e grava `cancelled_at` / `cancelled_by`. O registro é
   mantido no histórico (não é apagado).
 
@@ -114,9 +123,11 @@ arquivo modelo `.xlsx` para download e o envio do arquivo preenchido.
 ### Financeiro (baixa de pagamento)
 A tela **Serviços / Contratos** tem duas abas: *Contratos* e *Financeiro*.
 
-- A aba Financeiro (`/freelancer-services/financeiro`) lista **apenas os contratos assinados pelo
-  freelancer e pelo coordenador** e que não foram cancelados. Contratos parcialmente assinados não
-  aparecem: é a assinatura do coordenador que confirma o serviço prestado.
+- A aba Financeiro (`/freelancer-services/financeiro`) lista **apenas os contratos assinados pelas
+  duas partes e aprovados pela gerência E pela diretoria**, que não foram cancelados. Contratos
+  parcialmente assinados não aparecem (é a assinatura do coordenador que confirma o serviço
+  prestado), e os aprovados só chegam aqui depois de passar por um lote com os dois avais — ver
+  *Lote de aprovação* e *Aprovação da diretoria*.
 - Pendentes vêm primeiro, com os totais a pagar e já pagos no topo, e a **chave PIX** do freelancer
   na tabela (com botão de copiar).
 - O botão **Dar baixa** grava, no próprio contrato, `paid = true`, `paid_at` (data/hora) e `paid_by`
@@ -129,13 +140,124 @@ A tela **Serviços / Contratos** tem duas abas: *Contratos* e *Financeiro*.
   guardada no navegador.
 - A baixa também aparece na tela do contrato, junto às assinaturas.
 
+### Lote de aprovação (gerência e diretoria)
+Depois das duas assinaturas, o contrato **não vai direto para o financeiro**: ele precisa passar
+por **dois níveis de aprovação**, e isso acontece em **lote**.
+
+```
+freelancer assina → coordenador assina → coordenador monta o lote → envia
+    → gerente aprova (ou recusa) contrato a contrato
+        → e-mail automático à diretoria, com dois PINs
+            → diretor dita o PIN, gerência digita → financeiro paga
+```
+
+**Montagem (coordenador, web ou tablet).** Cada coordenador mantém **um rascunho por vez**
+(`freelancer_service_batches.status = 'draft'`). Ele inclui e retira contratos à vontade e, quando
+fecha, envia. Entram no rascunho os contratos assinados pelas duas partes, não cancelados, ainda
+não aprovados e fora de qualquer lote em aberto (`FreelancerService::scopeAvailableForBatch`).
+Descartar o rascunho solta os contratos de volta para a fila — nada se perde.
+
+**Envio.** O lote passa a `sent` e **congela**: nem o coordenador mexe mais nele, nem os contratos
+entram em outro lote. No tablet o envio pede o PIN, como as assinaturas.
+
+**Análise (gerente, só na web).** O gerente é um usuário com a role **`admin`** do Spatie. Ele abre
+o lote e decide **contrato a contrato** — tudo começa marcado como aprovar, e recusar exige um
+motivo. Concluída a análise:
+
+- **aprovado** → grava `manager_approved_at` / `manager_approved_by`; o contrato segue para a
+  diretoria;
+- **recusado** → grava `manager_rejected_at` / `_by` / `_reason`, e o contrato **volta para a fila
+  do coordenador**, que o vê com o motivo da recusa e pode incluí-lo num lote seguinte.
+
+Se sobrou ao menos um contrato aprovado, o lote vai para `awaiting_director` e **o e-mail à
+diretoria dispara na hora**. Se a gerência recusou tudo, o lote encerra em `closed` e nada é
+enviado.
+
+O tablet **não tem tela de aprovação**, por decisão de processo: monta e envia, só.
+
+### Aprovação da diretoria (por PIN ditado)
+O diretor **não acessa a plataforma** — a rede é interna e ele pode estar fora. Como nenhum link
+para o sistema o alcançaria, o retorno vem por um caminho humano com prova de origem:
+
+1. A gerência aprova o lote → o sistema gera **dois PINs de 6 dígitos** (um aprova, outro recusa) e
+   envia um e-mail à diretoria com os dois códigos e o **PDF da relação de contratos** em anexo.
+2. O diretor lê o e-mail, decide e **dita o código escolhido** para a gerência (telefone, WhatsApp,
+   pessoalmente — tanto faz).
+3. A gerência digita o código na tela do lote. **O próprio código diz qual foi a decisão** — não há
+   botão "aprovar" separado.
+
+O PIN é o que prova que a decisão partiu de quem recebeu o e-mail: ele **não aparece em lugar nenhum
+da interface**, só no corpo da mensagem.
+
+| Aspecto | Como é |
+|---|---|
+| Armazenamento | **Cifrado** (`encrypted`), não hash — o reenvio precisa repetir os mesmos números, senão o e-mail que o diretor tem em mãos deixaria de valer |
+| Geração | Uma vez por lote (`ensureDirectorPins`); reenviar **não** troca os códigos |
+| Comparação | `hash_equals`, tempo constante |
+| Força bruta | `throttle:10,1` na rota, e a mensagem de erro não diz qual dos dois códigos falhou |
+| Serialização | `$hidden` no model, para não vazar em JSON por acidente |
+
+**A decisão vale para o lote inteiro** (o diretor não tem tela para escolher item a item):
+
+- **aprovado** → `director_approved_at` em cada contrato aprovado pela gerência; o lote vira
+  `director_approved` e os contratos aparecem no Financeiro;
+- **recusado** → `director_rejected_at`; o lote vira `director_rejected` e **todos os contratos
+  voltam para a fila do coordenador**, refazendo o trâmite desde o início.
+
+Fica registrado quem digitou (`director_decided_by` — o gerente, não o diretor), quando, para qual
+e-mail a mensagem foi, e uma observação livre ("informado por telefone em 24/07").
+
+**O envio é síncrono, não enfileirado.** Com fila, uma falha de SMTP ficaria invisível e o lote
+travaria em silêncio. Aqui, se o e-mail não sai, a aprovação da gerência **é gravada assim mesmo**,
+a tela avisa o erro e oferece **"Reenviar à diretoria"**.
+
+Destinatário em `config/freelancers.php`, via `.env`:
+
+```
+FREELANCER_DIRECTOR_NAME="Diretoria"
+FREELANCER_DIRECTOR_EMAIL=diretor@clubedosfuncionarios.com.br
+FREELANCER_DIRECTOR_CC=secretaria@clubedosfuncionarios.com.br
+```
+
+Sem `FREELANCER_DIRECTOR_EMAIL` a tela avisa que falta configurar e desabilita o envio.
+
+### Kiosk (tablet)
+`/kiosk` é uma tela de toque **fora da sessão web**: entra-se com **matrícula + PIN de 6 dígitos**
+(`users.pin`, definido na tela de Usuários) e a sessão fica guardada do lado do servidor. O PIN é
+**reconfirmado a cada assinatura**.
+
+Dois modos, decididos pelo que o usuário é — quem acumula os dois papéis escolhe ao entrar:
+
+| Modo | Quem entra | O que faz | Limite da sessão |
+|---|---|---|---|
+| `operator` | permissão `manage freelancers` | localiza/cadastra freelancer, registra contrato e colhe a assinatura do freelancer | 30 min **ou** 5 contratos |
+| `coordinator` | **coordenador do setor `Comercial`** (`user_sector.role = 'coordinator'`) | assina os contratos que aguardam a contraparte e monta/envia o lote para a gerência | 30 min (sem teto de contratos) |
+
+- A fila do coordenador traz os **50 mais antigos** primeiro — são os que travam o financeiro — e
+  recarrega a cada assinatura.
+- O coordenador assina o **mesmo documento** que o freelancer assinou, já com o traço da outra
+  parte à vista, no campo do CONTRATANTE. A assinatura é definitiva e libera o contrato para a
+  aba Financeiro.
+- O papel é **reconferido a cada requisição**: retirar a permissão ou o vínculo de coordenação no
+  painel derruba na hora a sessão aberta no tablet.
+
 ### Permissões
 - Todo o painel exige a permissão `manage freelancers`.
 - A aba Financeiro e a baixa de pagamento exigem a permissão própria
   `manage freelancer payments` (criada apenas para o papel `admin`; os demais recebem pela tela de
   permissões). Quem tem só essa permissão enxerga no menu apenas a aba Financeiro.
-- Assinar como coordenador e cancelar exigem, além disso, ser **coordenador de algum setor**
+- Cancelar **pelo painel** exige, além disso, ser **coordenador de algum setor**
   (`user_sector.role = 'coordinator'`) — verificado por `User::isCoordinator()`.
+- Assinar como coordenador existe **só no kiosk** e é mais restrito: só o coordenador do setor
+  **Comercial** (`User::isCoordinatorOfSectorNamed('Comercial')`). Não há rota web equivalente.
+- **Montar e enviar lote** exige ser coordenador de setor (web) ou estar no modo `coordinator` do
+  kiosk (setor Comercial).
+- **Aprovar lote** exige a role **`admin`**, e só existe na web. Hoje nada impede que um admin que
+  também seja coordenador aprove o próprio lote — se a segregação for necessária, é uma checagem a
+  acrescentar em `BatchController::review`.
+- **Registrar a decisão da diretoria** também exige a role `admin`: quem digita o código é a
+  gerência. O controle não é de permissão e sim de conhecimento — só quem recebeu o e-mail sabe o
+  código.
 
 ## API
 

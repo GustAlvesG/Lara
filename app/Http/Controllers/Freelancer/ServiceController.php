@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Freelancer;
 use App\Exceptions\FreelancerServiceLockedException;
 use App\Exceptions\SpreadsheetImportException;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Freelancer\Concerns\ServesSignatureImages;
 use App\Http\Requests\ImportSpreadsheetRequest;
 use App\Http\Requests\StoreFreelancerServiceRequest;
 use App\Http\Requests\UpdateFreelancerServiceRequest;
@@ -17,8 +18,16 @@ use App\Services\FreelancerService as FreelancerServiceManager;
 
 class ServiceController extends Controller
 {
+    use ServesSignatureImages;
+
     public function __construct(private FreelancerServiceManager $freelancerService)
     {
+    }
+
+    /** Imagem da assinatura, protegida pela sessão do painel. */
+    public function signatureImage(FreelancerService $freelancerService, string $party)
+    {
+        return $this->signatureImageResponse($freelancerService, $party);
     }
 
     public function index()
@@ -113,7 +122,8 @@ class ServiceController extends Controller
         return view('freelancer.services.show', array_merge($this->formOptions(), [
             'service' => $freelancerService,
             'exceedsWeeklyLimit' => $freelancerService->exceedsWeeklyLimit(),
-            'canSignAsCoordinator' => $this->isCoordinator() && $freelancerService->canBeSignedByCoordinator(),
+            // Assinar como coordenador não é mais atribuição do painel: só o
+            // traço desenhado no tablet vale (ver KioskController).
             'canCancel' => $this->isCoordinator() && $freelancerService->canBeCancelled(),
         ]));
     }
@@ -152,24 +162,6 @@ class ServiceController extends Controller
         }
 
         return $redirect;
-    }
-
-    /**
-     * Assinatura do coordenador. Só quem é coordenador de algum setor assina.
-     */
-    public function sign(FreelancerService $freelancerService)
-    {
-        abort_unless($this->isCoordinator(), 403);
-
-        try {
-            $this->freelancerService->signAsCoordinator($freelancerService, auth()->user());
-        } catch (FreelancerServiceLockedException $e) {
-            return redirect()->route('freelancer-services.show', $freelancerService)
-                ->with('error', $e->getMessage());
-        }
-
-        return redirect()->route('freelancer-services.show', $freelancerService)
-            ->with('success', 'Contrato assinado como coordenador. Ele não pode mais ser alterado.');
     }
 
     /**

@@ -29,6 +29,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Freelancer\FinanceController as FreelancerFinanceController;
 use App\Http\Controllers\Freelancer\FreelancerController as FreelancerWebController;
 use App\Http\Controllers\Freelancer\FunctionController as FreelancerFunctionController;
+use App\Http\Controllers\Freelancer\BatchController as FreelancerBatchController;
 use App\Http\Controllers\Freelancer\ServiceController as FreelancerServiceWebController;
 use App\Http\Controllers\Freelancer\KioskController;
 
@@ -44,12 +45,14 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])->name('dashboard');
 
 // Kiosk de assinatura (tablet) — AUTENTICAÇÃO PRÓPRIA, fora da sessão web.
-// O operador entra com matrícula + PIN; a própria sessão de kiosk (operator_id)
-// protege os endpoints. Só usuários com `manage freelancers` conseguem operar.
+// Entra-se com matrícula + PIN; a própria sessão de kiosk (operator_id + mode)
+// protege os endpoints. Atendem freelancers os usuários com `manage freelancers`;
+// assinam como contraparte os coordenadores do setor Comercial.
 Route::prefix('kiosk')->group(function () {
     Route::get('/', [KioskController::class, 'index'])->name('kiosk.index');
     Route::get('/session', [KioskController::class, 'session'])->name('kiosk.session');
     Route::post('/login', [KioskController::class, 'login'])->middleware('throttle:10,1')->name('kiosk.login');
+    Route::post('/mode', [KioskController::class, 'mode'])->name('kiosk.mode');
     Route::post('/logout', [KioskController::class, 'logout'])->name('kiosk.logout');
     Route::get('/functions', [KioskController::class, 'functions'])->name('kiosk.functions');
     Route::get('/freelancer/{cpf}', [KioskController::class, 'findFreelancer'])
@@ -60,6 +63,26 @@ Route::prefix('kiosk')->group(function () {
         ->middleware('throttle:20,1')->name('kiosk.service.store');
     Route::post('/service/{freelancerService}/sign', [KioskController::class, 'signService'])
         ->middleware('throttle:20,1')->name('kiosk.service.sign');
+
+    // Imagem da assinatura — servida por rota (e não pelo disco público) porque é
+    // dado pessoal e porque o link public/storage nem sempre existe no ambiente.
+    Route::get('/service/{freelancerService}/signature/{party}', [KioskController::class, 'signatureImage'])
+        ->where('party', 'freelancer|coordinator')->name('kiosk.service.signature');
+
+    // Fila do coordenador: contratos assinados pelo freelancer aguardando a contraparte.
+    Route::get('/coordinator/services', [KioskController::class, 'coordinatorServices'])
+        ->name('kiosk.coordinator.services');
+
+    // Lote de aprovação: o coordenador monta e envia pelo tablet. A análise da
+    // gerência, por decisão de processo, só existe na web.
+    Route::get('/coordinator/batch', [KioskController::class, 'batch'])->name('kiosk.batch.show');
+    Route::post('/coordinator/batch/items', [KioskController::class, 'addToBatch'])->name('kiosk.batch.items.add');
+    Route::delete('/coordinator/batch/items/{freelancerService}', [KioskController::class, 'removeFromBatch'])
+        ->name('kiosk.batch.items.remove');
+    Route::post('/coordinator/batch/send', [KioskController::class, 'sendBatch'])
+        ->middleware('throttle:20,1')->name('kiosk.batch.send');
+    Route::post('/service/{freelancerService}/sign-coordinator', [KioskController::class, 'signServiceAsCoordinator'])
+        ->middleware('throttle:40,1')->name('kiosk.service.sign-coordinator');
 });
 
 Route::middleware('auth')->group(function () {
@@ -264,6 +287,30 @@ Route::middleware('auth')->group(function () {
             Route::delete('/{freelancerFunction}', [FreelancerFunctionController::class, 'destroy'])->name('freelancer-functions.destroy');
         });
 
+        // Lotes de aprovação — declarados antes de /freelancer-services/{freelancerService}
+        // para "lotes" não ser capturado como id de contrato.
+        Route::prefix('freelancer-services/lotes')->group(function () {
+            // Coordenador: monta o rascunho (um por coordenador) e envia.
+            Route::get('/', [FreelancerBatchController::class, 'index'])->name('freelancer-batches.index');
+            Route::post('/items', [FreelancerBatchController::class, 'addItems'])->name('freelancer-batches.items.add');
+            Route::delete('/items/{freelancerService}', [FreelancerBatchController::class, 'removeItem'])->name('freelancer-batches.items.remove');
+            Route::post('/send', [FreelancerBatchController::class, 'send'])->name('freelancer-batches.send');
+            Route::delete('/draft', [FreelancerBatchController::class, 'discard'])->name('freelancer-batches.discard');
+
+            // Gerente (role admin): fila e análise. Antes de /{batch}, senão
+            // "aprovacao" cairia na rota do lote.
+            Route::get('/aprovacao', [FreelancerBatchController::class, 'approvalQueue'])->name('freelancer-batches.queue');
+            Route::get('/{batch}', [FreelancerBatchController::class, 'show'])->name('freelancer-batches.show');
+            Route::post('/{batch}/analise', [FreelancerBatchController::class, 'review'])->name('freelancer-batches.review');
+
+            // Diretoria: e-mail com os dois PINs e registro do PIN ditado.
+            // O throttle é a proteção contra tentar adivinhar 6 dígitos.
+            Route::post('/{batch}/diretoria/email', [FreelancerBatchController::class, 'notifyDirector'])
+                ->middleware('throttle:10,1')->name('freelancer-batches.director.notify');
+            Route::post('/{batch}/diretoria', [FreelancerBatchController::class, 'directorDecision'])
+                ->middleware('throttle:10,1')->name('freelancer-batches.director.decision');
+        });
+
         Route::prefix('freelancer-services')->group(function () {
             Route::get('/', [FreelancerServiceWebController::class, 'index'])->name('freelancer-services.index');
             Route::get('/create', [FreelancerServiceWebController::class, 'create'])->name('freelancer-services.create');
@@ -273,10 +320,14 @@ Route::middleware('auth')->group(function () {
             Route::post('/import', [FreelancerServiceWebController::class, 'import'])->name('freelancer-services.import');
             Route::get('/{freelancerService}', [FreelancerServiceWebController::class, 'show'])->name('freelancer-services.show');
             Route::get('/{freelancerService}/document', [FreelancerServiceWebController::class, 'document'])->name('freelancer-services.document');
+            // Imagem da assinatura (freelancer ou coordenador), servida por rota.
+            Route::get('/{freelancerService}/signature/{party}', [FreelancerServiceWebController::class, 'signatureImage'])
+                ->where('party', 'freelancer|coordinator')->name('freelancer-services.signature');
             Route::put('/{freelancerService}', [FreelancerServiceWebController::class, 'update'])->name('freelancer-services.update');
             Route::delete('/{freelancerService}', [FreelancerServiceWebController::class, 'destroy'])->name('freelancer-services.destroy');
-            // Assinatura do coordenador e cancelamento (exigem ser coordenador de setor)
-            Route::post('/{freelancerService}/sign', [FreelancerServiceWebController::class, 'sign'])->name('freelancer-services.sign');
+            // A assinatura do coordenador é só pelo kiosk (traço desenhado no
+            // tablet) — ver routes de /kiosk. Aqui fica apenas o cancelamento,
+            // que exige ser coordenador de setor.
             Route::post('/{freelancerService}/cancel', [FreelancerServiceWebController::class, 'cancel'])->name('freelancer-services.cancel');
         });
     });

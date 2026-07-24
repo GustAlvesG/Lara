@@ -117,7 +117,8 @@
         <!-- ========================================== -->
         <!-- VISUALIZAÇÃO DE TELA (ACCORDION INTERATIVO) -->
         <!-- ========================================== -->
-        <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8 print-hidden">
+        {{-- Tabela de banco de horas é a mais larga do sistema: sem cap. --}}
+        <div class="max-w-full mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8 print-hidden">
             
             <!-- Dashboard Resumo -->
             @php

@@ -1,10 +1,22 @@
-{{-- Abas de Serviços / Contratos. A aba Financeiro só aparece para quem tem a permissão. --}}
+{{-- Abas de Serviços / Contratos. Cada aba aparece só para quem a opera. --}}
 @php
+    $user = auth()->user();
+
     $tabs = [
         ['route' => 'freelancer-services.index', 'label' => 'Contratos'],
     ];
 
-    if (auth()->user()?->can('manage freelancer payments')) {
+    // Montar lote é atribuição de coordenador de setor.
+    if ($user?->isCoordinator()) {
+        $tabs[] = ['route' => 'freelancer-batches.index', 'label' => 'Lotes'];
+    }
+
+    // Aprovação da gerência: role admin.
+    if ($user?->hasRole('admin')) {
+        $tabs[] = ['route' => 'freelancer-batches.queue', 'label' => 'Aprovação'];
+    }
+
+    if ($user?->can('manage freelancer payments')) {
         $tabs[] = ['route' => 'freelancer-services.finance', 'label' => 'Financeiro'];
     }
 @endphp
