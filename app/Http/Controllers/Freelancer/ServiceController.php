@@ -118,6 +118,23 @@ class ServiceController extends Controller
         ]));
     }
 
+    /**
+     * Documento do contrato (modelo do Clube dos Funcionários) preenchido com
+     * os dados do serviço e com a imagem da assinatura do freelancer, quando
+     * houver. Página imprimível/salvável em PDF pelo navegador.
+     */
+    public function document(FreelancerService $freelancerService)
+    {
+        $freelancerService->load([
+            'freelancer',
+            'functionFreelancer',
+            'freelancerSignedBy',
+            'coordinatorSignedBy',
+        ]);
+
+        return view('freelancer.services.document', ['service' => $freelancerService]);
+    }
+
     public function update(UpdateFreelancerServiceRequest $request, FreelancerService $freelancerService)
     {
         try {

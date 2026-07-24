@@ -70,6 +70,7 @@
                     $freelancerChildren[] = ['route' => 'freelancers.index', 'label' => 'Freelancers'];
                     $freelancerChildren[] = ['route' => 'freelancer-functions.index', 'label' => 'Funções'];
                     $freelancerChildren[] = ['route' => 'freelancer-services.index', 'label' => 'Serviços / Contratos'];
+                    $freelancerChildren[] = ['route' => 'kiosk.index', 'label' => 'Assinatura (Tablet)'];
                 }
 
                 if ($canFreelancerPayments) {

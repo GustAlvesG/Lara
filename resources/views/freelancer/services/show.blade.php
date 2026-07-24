@@ -118,6 +118,39 @@
             @endif
         </div>
 
+        {{-- Documento do contrato --}}
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div class="p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div class="flex items-start gap-3">
+                    <div class="p-2 rounded-xl bg-[#A00001]/10 text-[#A00001] shrink-0">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-800 dark:text-white">Documento do Contrato</h2>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            Contrato Autônomo de Serviços de Freelancer preenchido com os dados deste serviço
+                            @if($service->freelancer_signed_at) e a assinatura registrada @endif.
+                        </p>
+                    </div>
+                </div>
+                <a href="{{ route('freelancer-services.document', $service) }}" target="_blank" rel="noopener"
+                   class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#A00001] text-white rounded-xl font-bold shadow-lg hover:bg-[#800000] transition shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                    Abrir documento
+                </a>
+            </div>
+
+            @if($service->freelancer_signature_path)
+                <div class="px-6 pb-6">
+                    <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Assinatura do freelancer</p>
+                    <div class="inline-block bg-white border border-gray-200 dark:border-gray-600 rounded-lg p-2">
+                        <img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($service->freelancer_signature_path) }}"
+                             alt="Assinatura de {{ $service->freelancer->name }}" class="h-20 w-auto object-contain">
+                    </div>
+                </div>
+            @endif
+        </div>
+
         {{-- Dados do serviço --}}
         <form action="{{ route('freelancer-services.update', $service) }}" method="POST">
             @csrf

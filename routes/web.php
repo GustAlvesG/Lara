@@ -30,6 +30,7 @@ use App\Http\Controllers\Freelancer\FinanceController as FreelancerFinanceContro
 use App\Http\Controllers\Freelancer\FreelancerController as FreelancerWebController;
 use App\Http\Controllers\Freelancer\FunctionController as FreelancerFunctionController;
 use App\Http\Controllers\Freelancer\ServiceController as FreelancerServiceWebController;
+use App\Http\Controllers\Freelancer\KioskController;
 
 use App\Http\Controllers\DashboardController;
 
@@ -41,6 +42,25 @@ Route::get('/', function () {
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])->name('dashboard');
+
+// Kiosk de assinatura (tablet) — AUTENTICAÇÃO PRÓPRIA, fora da sessão web.
+// O operador entra com matrícula + PIN; a própria sessão de kiosk (operator_id)
+// protege os endpoints. Só usuários com `manage freelancers` conseguem operar.
+Route::prefix('kiosk')->group(function () {
+    Route::get('/', [KioskController::class, 'index'])->name('kiosk.index');
+    Route::get('/session', [KioskController::class, 'session'])->name('kiosk.session');
+    Route::post('/login', [KioskController::class, 'login'])->middleware('throttle:10,1')->name('kiosk.login');
+    Route::post('/logout', [KioskController::class, 'logout'])->name('kiosk.logout');
+    Route::get('/functions', [KioskController::class, 'functions'])->name('kiosk.functions');
+    Route::get('/freelancer/{cpf}', [KioskController::class, 'findFreelancer'])
+        ->where('cpf', '[0-9]{11}')->name('kiosk.freelancer.find');
+    Route::post('/freelancer', [KioskController::class, 'storeFreelancer'])->name('kiosk.freelancer.store');
+    Route::get('/freelancer/{freelancer}/services', [KioskController::class, 'services'])->name('kiosk.freelancer.services');
+    Route::post('/service', [KioskController::class, 'storeService'])
+        ->middleware('throttle:20,1')->name('kiosk.service.store');
+    Route::post('/service/{freelancerService}/sign', [KioskController::class, 'signService'])
+        ->middleware('throttle:20,1')->name('kiosk.service.sign');
+});
 
 Route::middleware('auth')->group(function () {
 
@@ -252,6 +272,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/import/template', [FreelancerServiceWebController::class, 'importTemplate'])->name('freelancer-services.import.template');
             Route::post('/import', [FreelancerServiceWebController::class, 'import'])->name('freelancer-services.import');
             Route::get('/{freelancerService}', [FreelancerServiceWebController::class, 'show'])->name('freelancer-services.show');
+            Route::get('/{freelancerService}/document', [FreelancerServiceWebController::class, 'document'])->name('freelancer-services.document');
             Route::put('/{freelancerService}', [FreelancerServiceWebController::class, 'update'])->name('freelancer-services.update');
             Route::delete('/{freelancerService}', [FreelancerServiceWebController::class, 'destroy'])->name('freelancer-services.destroy');
             // Assinatura do coordenador e cancelamento (exigem ser coordenador de setor)
