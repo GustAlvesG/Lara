@@ -45,6 +45,26 @@ class CompanyAccessRule extends Model
             ->withTimestamps();
     }
 
+    /**
+     * Indica se a regra está dentro do período de vigência (data de hoje entre
+     * start_date e end_date). Não considera dia da semana ou horário — apenas o
+     * intervalo de datas. Regras sem end_date são vigentes indefinidamente.
+     */
+    public function isWithinValidityPeriod(?string $today = null): bool
+    {
+        $today = $today ?? now()->toDateString();
+
+        if ($this->start_date && $today < \Illuminate\Support\Carbon::parse($this->start_date)->toDateString()) {
+            return false;
+        }
+
+        if ($this->end_date && $today > \Illuminate\Support\Carbon::parse($this->end_date)->toDateString()) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by_user');

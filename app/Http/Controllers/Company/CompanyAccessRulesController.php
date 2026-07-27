@@ -80,6 +80,14 @@ class CompanyAccessRulesController extends Controller
             ->with('success', 'Regra de acesso removida com sucesso.');
     }
 
+    public function bulkDestroy(Request $request, Company $company)
+    {
+        $ids = array_filter((array) $request->input('rule_ids', []), 'is_numeric');
+        $deleted = CompanyAccessRule::where('company_id', $company->id)->whereIn('id', $ids)->delete();
+        return redirect()->route('company.show', $company->id)
+            ->with('success', $deleted . ' regra(s) removida(s) com sucesso.');
+    }
+
     public function monitor()
     {
         return view('companies.access-monitor');

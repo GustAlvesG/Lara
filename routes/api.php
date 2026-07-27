@@ -20,6 +20,7 @@ use App\Http\Controllers\FreelancerController;
 use App\Http\Controllers\FunctionFreelancerController;
 use App\Http\Controllers\FreelancerServiceController;
 use App\Http\Controllers\ParkingAuthorizationController;
+use App\Http\Controllers\UberAccessRequestWebhookController;
 
 
 Route::get('/user', function (Request $request) {
@@ -54,6 +55,11 @@ Route::middleware('api_token')->group(function () {
     Route::get('/parking/check/{plate}', [ParkingAuthorizationController::class, 'checkPlate'])
         ->name('api.parking.check');
 
+    Route::prefix('webhooks')->group(function () {
+        Route::post('/whatsapp', [UberAccessRequestWebhookController::class, 'handle'])
+            ->name('api.webhooks.whatsapp');
+    });
+
     Route::prefix('telegram')->group(function () {
         Route::post('/get-contacts', [TelegramContactController::class, 'find'])->name('telegram.findContacts');
         Route::post('/contacts', [TelegramContactController::class, 'store'])->name('telegram.createContact');
@@ -79,23 +85,12 @@ Route::middleware('api_token')->group(function () {
         });
     });
     Route::get('/image/{member_id}', [MemberAuthController::class, 'getImage'])->name('member.getImage');
-    Route::post('/login', [MemberAuthController::class, 'login']);
-    Route::post('/register', [MemberAuthController::class, 'register']);
-    Route::post('/check-member', [MemberAuthController::class, 'checkMember']);
-    Route::put('/change-password', [MemberAuthController::class, 'changePassword']);
+    Route::post('/login', [MemberAuthController::class, 'login'])->middleware('throttle:10,1');
+    Route::post('/register', [MemberAuthController::class, 'register'])->middleware('throttle:5,1');
+    Route::post('/check-member', [MemberAuthController::class, 'checkMember'])->middleware('throttle:10,1');
+    Route::put('/change-password', [MemberAuthController::class, 'changePassword'])->middleware('throttle:5,1');
 
     Route::post('send-email', [EmailController::class, 'submit']);
-
-    Route::get('/debug-mail', function () {
-        dd([
-            'host' => config('mail.mailers.smtp.host'),
-            'port' => config('mail.mailers.smtp.port'),
-            'username' => config('mail.mailers.smtp.username'),
-            'password' => config('mail.mailers.smtp.password'), // Vai mostrar a senha na tela
-            'encryption' => config('mail.mailers.smtp.encryption'),
-        ]);
-    });
-
 
     Route::middleware('login_token')->group(function () {
         Route::get('/verify-token', [LoginTokenController::class, 'validate']);
@@ -132,7 +127,7 @@ Route::middleware('api_token')->group(function () {
             Route::post('/payment', [SchedulePaymentController::class, 'store']);
             Route::delete('/delete-pending', [ScheduleController::class, 'destroyPending']);
 
-            Route::get('/home-assistant/automation', [ScheduleController::class, 'homeAssistantAutomation'])->name('api.schedule.homeAssistantAutomation')->withoutMiddleware(['login_token', 'api_token']);
+            Route::get('/home-assistant/automation', [ScheduleController::class, 'homeAssistantAutomation'])->name('api.schedule.homeAssistantAutomation')->withoutMiddleware(['login_token']);
 
 
 

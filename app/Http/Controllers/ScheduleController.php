@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Schedule;
 use App\Models\Place;
+use App\Models\Status;
 use App\Http\Requests\StoreScheduleRequest;
 use App\Http\Requests\UpdateScheduleRequest;
 use Illuminate\Http\Request;
@@ -18,9 +19,12 @@ use App\Services\SchedulesService;
 
 class ScheduleController extends Controller
 {
-    public function __construct()
+    protected $jwtService;
+
+    public function __construct(\App\Providers\Services\JwtService $jwtService)
     {
         $this->schedulesService = new SchedulesService();
+        $this->jwtService = $jwtService;
     }
 
 
@@ -39,10 +43,62 @@ class ScheduleController extends Controller
         }
     }
 
+    public function list(Request $request)
+    {
+        // withoutGlobalScopes: a listagem precisa mostrar cancelados/expirados também,
+        // diferente do fluxo de criação que ignora o scope "not_expired".
+        $query = Schedule::withoutGlobalScopes()->with(['status', 'place.group', 'member']);
+
+        if ($request->filled('status_id')) {
+            $query->where('status_id', $request->input('status_id'));
+        }
+
+        if ($request->filled('place_id')) {
+            $query->where('place_id', $request->input('place_id'));
+        }
+
+        if ($request->filled('member')) {
+            $term = $request->input('member');
+            $query->whereHas('member', function ($q) use ($term) {
+                $q->where('name', 'like', "%{$term}%")
+                  ->orWhere('cpf', 'like', "%{$term}%");
+            });
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('start_schedule', '>=', $request->input('date_from'));
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('start_schedule', '<=', $request->input('date_to'));
+        }
+
+        $schedules = $query->orderByDesc('start_schedule')->paginate(25)->withQueryString();
+
+        $places = Place::with('group')->get();
+        $statuses = Status::all();
+
+        return view('location.schedule.index', compact('schedules', 'places', 'statuses'));
+    }
+
     public function update(Request $request)
     {
         try {
             $updates = $request->all();
+
+            $validator = Validator::make($updates, [
+                'selected_reservations' => 'required|array',
+                'action_status' => 'required',
+                // Motivo obrigatório apenas quando a ação é cancelamento (status_id 0).
+                'cancel_reason' => 'required_if:action_status,0|nullable|string|max:1000',
+            ], [
+                'cancel_reason.required_if' => 'É necessário informar o motivo do cancelamento.',
+            ]);
+
+            if ($validator->fails()) {
+                return redirect()->back()->withErrors($validator)->withInput();
+            }
+
             $response = $this->schedulesService->updateSchedulesStatus($updates);
             $id = $request->id ?? $updates['selected_reservations'][0] ?? null;
             return redirect()->route($id ? 'schedule.show' : 'schedule.index', $id ? ['id' => $id] : [])->with('success', 'Agendamentos atualizado com sucesso!');
@@ -57,6 +113,38 @@ class ScheduleController extends Controller
     public function store(Request $request)
     {
         $route_name = $request->route()->getName();
+        $isApi = 'api' == explode('.', $route_name)[0];
+
+        if ($isApi) {
+            $sessionToken = $request->header('Session');
+
+            if ($sessionToken) {
+                // Chamada de um membro (via Clubeel/Next.js): a identidade, o preço
+                // e o status nunca vêm do body — são sempre derivados da sessão e do
+                // preço real cadastrado no Place, nunca do que o cliente envia.
+                try {
+                    $payload = $this->jwtService->validateToken($sessionToken);
+                } catch (\Exception $e) {
+                    return response()->json(['message' => 'Sessão inválida.'], 401);
+                }
+
+                $member = Member::where('cpf', $payload['username'] ?? null)->first();
+                if (!$member) {
+                    return response()->json(['message' => 'Sessão inválida.'], 401);
+                }
+
+                $payloadData = $request->all();
+                $payloadData['member_id'] = $member->id;
+                $payloadData['status_id'] = 3; // Sempre pendente de pagamento nesse fluxo.
+                unset($payloadData['cpf'], $payloadData['price']);
+                $request = new Request($payloadData);
+            } elseif (!Auth()->check()) {
+                // Nem sessão de membro (header Session) nem sessão administrativa
+                // (painel interno autenticado): sem nenhuma das duas, não cria agendamento.
+                return response()->json(['message' => 'Não autorizado.'], 401);
+            }
+        }
+
         try {
             $scheudles = $this->schedulesService->createSchedule(new Request($request->all()));
             if ('api' == explode('.', $route_name)[0]) {
@@ -84,9 +172,18 @@ class ScheduleController extends Controller
         }
     }
 
-    public function indexByMember($member_id)
+    public function indexByMember(Request $request, $member_id)
     {
         try {
+            $sessionUser = $request->input('user');
+            $requester = $sessionUser['username'] ?? null;
+
+            $owner = Member::where('id', $member_id)->value('cpf');
+
+            if (!$requester || !$owner || $owner !== $requester) {
+                return response()->json(['message' => 'Acesso não autorizado a este recurso.'], 403);
+            }
+
             $response = $this->schedulesService->getScheduleByMember($member_id);
             return $response;
         } catch (\Exception $e) {

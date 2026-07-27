@@ -9,6 +9,7 @@ use App\Models\Schedule;
 use App\Models\Place;
 use App\Models\Member;
 use App\Models\ScheduleRules;
+use App\Models\Contactor;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
@@ -65,13 +66,20 @@ class SchedulesService
         $schedules = [];
         $user = Auth()->user();
         $payments_ids = [];
+        $isCancelling = isset($data['action_status']) && (int) $data['action_status'] === 0;
         foreach ($data['selected_reservations'] as $schedule_id) {
             $schedule = Schedule::find($schedule_id);
             if ($schedule) {
                 $schedule->status_id = $data['action_status'];
-                
+
                 $schedule->updated_by_user = $user->id;
-                
+
+                if ($isCancelling) {
+                    $schedule->cancel_reason = $data['cancel_reason'];
+                    $schedule->cancelled_by = $user->id;
+                    $schedule->cancelled_at = Carbon::now();
+                }
+
                 $schedule->save();
 
                 if(isset($data['refund_payment'])){
@@ -83,7 +91,7 @@ class SchedulesService
         }
         $response = [];
         if (isset($data['refund_payment']) && count($payments_ids) > 0)
-            $response = $this->redeItauService->beginRefund($payments_ids);
+            $response = $this->redeItauService->beginRefund($payments_ids, $user->id);
 
         return $response;
     }
@@ -137,7 +145,9 @@ class SchedulesService
                 'start_schedule' => $request->input('date') . ' ' . $time_start,
                 'end_schedule' => $request->input('date') . ' ' . $time_end,
                 'status_id' => $request->input('status_id') ?? 1,
-                'price' => $request['price'] ?? null,
+                // Se nenhum preço foi enviado explicitamente, usa o preço real do Place —
+                // nunca confia em um preço de cliente sem contrapartida no cadastro.
+                'price' => $request['price'] ?? optional(Place::find($request['place_id']))->price,
                 'created_by_user' => $request['created_by_user'] ?? null,
             ]));
         }
@@ -183,7 +193,13 @@ class SchedulesService
     {
         $validated = $request->all();
 
-        $schedule = Schedule::create($validated);
+        try {
+            $schedule = Schedule::create($validated);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            // Backstop de banco (índice único em active_slot_key): outra requisição
+            // concorrente reservou esse horário entre a checagem de colisão e o insert.
+            throw new \Exception("Horário colide com outro agendamento.");
+        }
 
         return response()->json(['schedule' => $schedule], 201);
     }
@@ -276,40 +292,42 @@ class SchedulesService
 
         $now = Carbon::now();
 
-
-        //Get schedules than start in 5 minutes or started in 5 minutes
         $schedules = Schedule::where('status_id', 1)
-        ->whereDate('start_schedule', Carbon::now()->toDateString())->get();
+            ->whereDate('start_schedule', $now->toDateString())
+            ->get();
 
-        
         $places_schedules = [];
 
         foreach ($schedules as $schedule) {
-            // Lights ON = start_schedule - 5 minutes
-            // Lights OFF = end_schedule + 5 minutes
-
-            $schedule->lights_on = $schedule->start_schedule->copy()->subMinutes(5);
+            $schedule->lights_on  = $schedule->start_schedule->copy()->subMinutes(5);
             $schedule->lights_off = $schedule->end_schedule->copy()->addMinutes(5);
-            // dd($schedule->lights_on, $schedule->lights_off, $now);
+
             if ($now->between($schedule->lights_on, $schedule->lights_off)) {
-                $places_schedules[] = $schedule->place->id;
+                $places_schedules[] = $schedule->place_id;
             }
         }
 
-        array_unique($places_schedules);
+        $places_schedules = array_unique($places_schedules);
 
-        $places = Place::query()
-            // ->whereIn('id', array_unique($places))
-            ->whereNotNull('contactor')
-            ->where('contactor', '!=', '')
-            ->get();
+        $contactors_list = Contactor::with([
+            'places',
+            'overrides' => fn ($q) => $q->where('is_active', true)->with(['weekdays', 'windows']),
+        ])->get();
 
         $contactors = [];
 
-        // dd($places, $places_schedules);
+        foreach ($contactors_list as $contactor) {
+            // Agendamento vigente de maior prioridade (manual ou por horário)
+            $override = $contactor->effectiveOverride($now);
 
-        foreach ($places as $place) {
-            $contactors[$place->contactor] = in_array($place->id, $places_schedules);
+            if ($override) {
+                $contactors[$contactor->entity_id] = $override->resolvedState($now);
+                continue;
+            }
+
+            // Sem override: usa lógica padrão — verifica se algum place do contator tem reserva ativa
+            $hasActiveSchedule = $contactor->places->contains(fn($place) => in_array($place->id, $places_schedules));
+            $contactors[$contactor->entity_id] = $hasActiveSchedule;
         }
 
         return response()->json(['contactors' => $contactors], 200);

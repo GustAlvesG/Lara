@@ -39,7 +39,7 @@ fi
 # 4. Instalar Dependências
 echo "📦 Rodando Composer..."
 export COMPOSER_ALLOW_SUPERUSER=1
-composer install --no-interaction --prefer-dist --optimize-autoloader --ignore-platform-req=ext-curl
+composer install --no-interaction --prefer-dist --optimize-autoloader --ignore-platform-req=ext-curl --no-dev
 
 # 5. Permissões e Pastas
 echo "🔐 Ajustando permissões de storage e cache..."
