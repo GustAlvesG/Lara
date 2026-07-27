@@ -29,6 +29,7 @@ class UserController extends Controller
             'email'      => 'required|string|email|max:255|unique:users,email',
             'matricula'  => 'nullable|string|max:5|unique:users,matricula',
             'password'   => 'required|string|min:8|confirmed',
+            'pin'        => 'nullable|digits:6',
             'role_id'    => 'required|exists:roles,id',
             'status'     => 'nullable|in:1,2',
         ]);
@@ -38,6 +39,8 @@ class UserController extends Controller
             'email'     => $request->input('email'),
             'matricula' => $request->input('matricula') ?: null,
             'password'  => Hash::make($request->input('password')),
+            // Cast 'hashed' no model aplica o hash automaticamente.
+            'pin'       => $request->filled('pin') ? $request->input('pin') : null,
             'status_id' => $request->input('status', 1),
         ]);
 
@@ -68,6 +71,7 @@ class UserController extends Controller
             'status'    => 'required|in:1,2',
             'role_id'   => 'required|exists:roles,id',
             'password'  => 'nullable|string|min:8|confirmed',
+            'pin'       => 'nullable|digits:6',
         ]);
 
         $user->name      = $request->input('name');
@@ -77,6 +81,11 @@ class UserController extends Controller
 
         if ($request->filled('password')) {
             $user->password = Hash::make($request->input('password'));
+        }
+
+        // PIN em branco mantém o atual; enviar 6 dígitos redefine (cast 'hashed').
+        if ($request->filled('pin')) {
+            $user->pin = $request->input('pin');
         }
 
         $user->save();

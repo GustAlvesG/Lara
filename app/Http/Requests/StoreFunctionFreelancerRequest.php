@@ -22,7 +22,11 @@ class StoreFunctionFreelancerRequest extends FormRequest
     public function rules(): array
     {
         return [
-            //
+            'name' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            // Preço cobrado por bloco de 15 minutos.
+            'price' => ['required', 'numeric', 'min:0'],
+            'created_by' => ['nullable', 'integer', 'exists:users,id'],
         ];
     }
 }

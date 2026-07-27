@@ -28,6 +28,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'pin',
         'cpf',
         'matricula',
         'last_login_at',
@@ -42,6 +43,7 @@ class User extends Authenticatable
      */
     protected $hidden = [
         'password',
+        'pin',
         'remember_token',
     ];
 
@@ -55,8 +57,21 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'pin' => 'hashed',
             'last_login_at' => 'datetime', // Isso permite usar Carbon no campo
         ];
+    }
+
+    /** O usuário definiu um PIN de assinatura (Kiosk)? */
+    public function hasPin(): bool
+    {
+        return filled($this->pin);
+    }
+
+    /** Confere o PIN informado contra o hash guardado. */
+    public function checkPin(?string $pin): bool
+    {
+        return $this->hasPin() && filled($pin) && \Illuminate\Support\Facades\Hash::check($pin, $this->pin);
     }
 
     //Relacionamento de um para muitos with data_info
@@ -99,6 +114,25 @@ class User extends Authenticatable
         return $this->sectors()
             ->wherePivot('sector_id', $sector->id)
             ->wherePivot('role', 'coordinator')
+            ->exists();
+    }
+
+    /** Coordenador de ao menos um setor. */
+    public function isCoordinator(): bool
+    {
+        return $this->sectors()->wherePivot('role', 'coordinator')->exists();
+    }
+
+    /**
+     * Coordenador de um setor específico, identificado pelo nome (sem diferenciar
+     * maiúsculas/acentuação de digitação). Usado pelo Kiosk, que só libera a
+     * assinatura do coordenador para o setor Comercial.
+     */
+    public function isCoordinatorOfSectorNamed(string $name): bool
+    {
+        return $this->sectors()
+            ->wherePivot('role', 'coordinator')
+            ->whereRaw('LOWER(sectors.name) = ?', [mb_strtolower($name)])
             ->exists();
     }
 

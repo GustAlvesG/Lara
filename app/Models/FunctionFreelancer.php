@@ -16,10 +16,26 @@ class FunctionFreelancer extends Model
         'name',
         'description',
         'price',
+        'created_by',
+        'updated_by',
+    ];
+
+    protected $casts = [
+        'price' => 'decimal:2',
     ];
 
     public function freelancerServices()
     {
         return $this->hasMany(FreelancerService::class);
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function updatedBy()
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 }

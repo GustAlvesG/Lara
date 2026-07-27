@@ -11,7 +11,7 @@ class UpdateFreelancerRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -21,8 +21,19 @@ class UpdateFreelancerRequest extends FormRequest
      */
     public function rules(): array
     {
+        $freelancer = $this->route('freelancer');
+
         return [
-            //
+            'name' => ['required', 'string'],
+            'cpf' => ['required', 'string', 'max:11', 'unique:freelancers,cpf,' . $freelancer?->id],
+            'pix_key' => ['nullable', 'string', 'max:255'],
+            'rg' => ['required', 'string'],
+            'email' => ['nullable', 'email'],
+            'nacionality' => ['required', 'string'],
+            'civil_status' => ['required', 'string'],
+            'address' => ['required', 'string'],
+            'telephone' => ['required', 'string'],
+            'updated_by' => ['nullable', 'integer', 'exists:users,id'],
         ];
     }
 }

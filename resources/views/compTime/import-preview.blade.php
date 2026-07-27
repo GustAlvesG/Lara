@@ -15,7 +15,7 @@
     </x-slot>
 
     <x-slot name="slot">
-        <div class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
+        <div class="max-w-full mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-8">
 
             @php
                 $formatMinutes = function (int $minutes): string {

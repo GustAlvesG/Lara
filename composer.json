@@ -11,6 +11,7 @@
         "laravel/framework": "^11.0",
         "laravel/tinker": "^2.9",
         "league/flysystem-ftp": "^3.27",
+        "phpoffice/phpspreadsheet": "^5.8",
         "spatie/laravel-permission": "^6.24",
         "symfony/css-selector": "^7.4",
         "symfony/dom-crawler": "^7.4"

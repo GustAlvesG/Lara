@@ -23,13 +23,15 @@ class StoreFreelancerRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string'],
-            'cpf'=> ['required','string','max:11'],
-            'rg'=> ['required','string'],
-            'email'=> ['required','email'],
-            'nacionality'=> ['required','string'],
-            'civil_status'=> ['required','string'],
-            'address'=> ['required','string'],
-            'telephone'=> ['required','string'],
+            'cpf' => ['required', 'string', 'max:11', 'unique:freelancers,cpf'],
+            'pix_key' => ['nullable', 'string', 'max:255'],
+            'rg' => ['required', 'string'],
+            'email' => ['nullable', 'email'],
+            'nacionality' => ['required', 'string'],
+            'civil_status' => ['required', 'string'],
+            'address' => ['required', 'string'],
+            'telephone' => ['required', 'string'],
+            'created_by' => ['nullable', 'integer', 'exists:users,id'],
         ];
     }
 }

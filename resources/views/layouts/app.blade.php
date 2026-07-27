@@ -74,6 +74,33 @@
                     ],
                 ],
             ];
+
+            // O financeiro tem permissão própria: quem só tem ela enxerga o menu
+            // Freelancers apenas com a aba Financeiro.
+            $canFreelancers = auth()->user()?->can('manage freelancers');
+            $canFreelancerPayments = auth()->user()?->can('manage freelancer payments');
+
+            if ($canFreelancers || $canFreelancerPayments) {
+                $freelancerChildren = [];
+
+                if ($canFreelancers) {
+                    $freelancerChildren[] = ['route' => 'freelancers.index', 'label' => 'Freelancers'];
+                    $freelancerChildren[] = ['route' => 'freelancer-functions.index', 'label' => 'Funções'];
+                    $freelancerChildren[] = ['route' => 'freelancer-services.index', 'label' => 'Serviços / Contratos'];
+                    $freelancerChildren[] = ['route' => 'kiosk.index', 'label' => 'Assinatura (Tablet)'];
+                }
+
+                if ($canFreelancerPayments) {
+                    $freelancerChildren[] = ['route' => 'freelancer-services.finance', 'label' => 'Financeiro'];
+                }
+
+                $navLinks[] = [
+                    'route' => $freelancerChildren[0]['route'],
+                    'label' => 'Freelancers',
+                    'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+                    'children' => $freelancerChildren,
+                ];
+            }
         @endphp
 
         <div

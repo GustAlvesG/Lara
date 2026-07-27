@@ -32,6 +32,10 @@ Empresas, WhatsApp, Telegram, Usuários/Permissões e Home Assistant.
 11. [Integrações Externas](integracoes.md) — WhatsApp, Telegram, RedeItau, e-mail, Home Assistant, SQL Server.
 12. [Banco de Dados](banco-de-dados.md) — migrações, seeders e factories.
 
+### Manutenção
+13. [Onde procurar erros](troubleshooting.md) — passo a passo de diagnóstico por camada
+    (rota, middleware, request, controller, service, model, view, fila, deploy).
+
 ## Como navegar
 
 - Cada método é documentado com **assinatura**, **parâmetros**, **retorno** e

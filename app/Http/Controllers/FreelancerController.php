@@ -2,85 +2,45 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Freelancer;
-use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreFreelancerRequest;
-use App\Http\Requests\UpdateFreelancerRequest;
 use App\Services\FreelancerService;
-use Illuminate\Http\Request;
 
+/**
+ * Endpoints de Freelancer consumidos pela integração externa (bot do Telegram).
+ * O CRUD do painel interno fica em App\Http\Controllers\Freelancer\*.
+ */
 class FreelancerController extends Controller
 {
-
-    public function __construct()
+    public function __construct(private FreelancerService $freelancerService)
     {
-        $this->freelancerService = new FreelancerService();
     }
 
     /**
-     * Display a listing of the resource.
+     * Consulta um freelancer pelo CPF. É o primeiro passo do fluxo do bot:
+     * se retornar 404, o cadastro deve ser feito via store().
      */
-    public function index()
+    public function show($cpf)
     {
-        //
+        $freelancer = $this->freelancerService->get($cpf);
+
+        if (!$freelancer) {
+            return response()->json(['error' => 'Freelancer não encontrado'], 404);
+        }
+
+        return response()->json($freelancer, 200);
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
+     * Cadastra um freelancer (usado quando a consulta por CPF não encontra).
      */
     public function store(StoreFreelancerRequest $request)
     {
         try {
-            $freelancer = $this->freelancerService->create($request->all());
+            $freelancer = $this->freelancerService->create($request->validated());
+
             return response()->json($freelancer, 201);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 400);
         }
-    
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show($cpf)
-    {
-        try {
-            $freelancer = $this->freelancerService->get($cpf);
-            return response()->json($freelancer, 200);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Invalid CPF'], 400);
-        }
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Freelancer $freelancer)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(UpdateFreelancerRequest $request, Freelancer $freelancer)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Freelancer $freelancer)
-    {
-        //
     }
 }
