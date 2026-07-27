@@ -34,6 +34,7 @@ class DashboardController extends Controller
         $data['avisos'] = Aviso::with('creator', 'lembretes')
             ->visibleTo($user)
             ->active()
+            ->notViewedBy($user)
             ->orderByDesc('created_at')
             ->get();
 

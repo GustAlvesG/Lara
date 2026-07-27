@@ -93,6 +93,14 @@ class Aviso extends Model
     }
 
     /**
+     * Avisos ainda não visualizados pelo usuário (sem registro em aviso_views).
+     */
+    public function scopeNotViewedBy($query, User $user)
+    {
+        return $query->whereDoesntHave('views', fn ($q) => $q->where('user_id', $user->id));
+    }
+
+    /**
      * Busca por título ou por nome de tag (case-insensitive).
      */
     public function scopeSearch($query, ?string $term)
