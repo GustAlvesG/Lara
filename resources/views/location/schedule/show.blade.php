@@ -20,6 +20,18 @@
                     <p class="text-gray-500 font-medium">Visualize detalhes ou altere o status deste agendamento.</p>
                 </div>
             </div>
+
+            @can('view payments')
+                @if($schedule->schedulePayment)
+                    <a href="{{ route('payment.show', $schedule->schedulePayment->id) }}"
+                       class="flex items-center gap-2 px-5 py-3 bg-white rounded-xl shadow-md text-indigo-600 hover:text-white hover:bg-indigo-600 border border-gray-100 hover:border-indigo-600 transition font-black text-xs uppercase tracking-widest">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a4 4 0 00-8 0v2M5 9h14l1 12H4L5 9z"></path>
+                        </svg>
+                        Ver Pagamento Vinculado
+                    </a>
+                @endif
+            @endcan
         </div>
 
         @php

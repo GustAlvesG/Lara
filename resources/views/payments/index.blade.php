@@ -1,6 +1,6 @@
 <x-app-layout>
 
-    <div class="max-w-7xl mx-auto pt-4 pb-10 px-4">
+    <div class="max-w-full  mx-auto pt-4 pb-10 px-4">
 
         <!-- HEADER -->
         <div class="mb-8 flex items-center justify-between flex-wrap gap-4">

@@ -211,7 +211,7 @@ class ScheduleController extends Controller
 
     public function show($id)
     {
-        $schedule = Schedule::with(['status','place.group','member', 'creator', 'editor'])->find($id);
+        $schedule = Schedule::with(['status','place.group','member', 'creator', 'editor', 'schedulePayment'])->find($id);
 
         if (!$schedule) {
             return response()->json(['message' => 'Schedule not founds.'], 404);
