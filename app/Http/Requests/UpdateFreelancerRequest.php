@@ -27,12 +27,12 @@ class UpdateFreelancerRequest extends FormRequest
             'name' => ['required', 'string'],
             'cpf' => ['required', 'string', 'max:11', 'unique:freelancers,cpf,' . $freelancer?->id],
             'pix_key' => ['nullable', 'string', 'max:255'],
-            'rg' => ['required', 'string'],
+            'rg' => ['nullable', 'string'],
             'email' => ['nullable', 'email'],
-            'nacionality' => ['required', 'string'],
-            'civil_status' => ['required', 'string'],
-            'address' => ['required', 'string'],
-            'telephone' => ['required', 'string'],
+            'nacionality' => ['nullable', 'string'],
+            'civil_status' => ['nullable', 'string'],
+            'address' => ['nullable', 'string'],
+            'telephone' => ['nullable', 'string'],
             'updated_by' => ['nullable', 'integer', 'exists:users,id'],
         ];
     }

@@ -52,6 +52,16 @@ class ServiceController extends Controller
     {
         $data = $request->validated();
 
+        // Contrato não é gerado enquanto o cadastro do freelancer estiver
+        // incompleto: o formulário volta preenchido apontando os dados que faltam.
+        $freelancer = Freelancer::find($data['freelancer_id']);
+
+        if ($freelancer && !$freelancer->hasCompleteContractData()) {
+            return back()
+                ->withInput()
+                ->with('error', $this->incompleteFreelancerMessage($freelancer));
+        }
+
         // O aviso de limite semanal vem antes de gravar: o formulário volta
         // preenchido, pedindo uma confirmação explícita.
         if (!$request->boolean('confirm_weekly_limit')
@@ -142,6 +152,13 @@ class ServiceController extends Controller
             'coordinatorSignedBy',
         ]);
 
+        // Barra a geração do documento para cadastros incompletos — cobre também
+        // contratos legados, criados antes desta trava.
+        if ($freelancerService->freelancer && !$freelancerService->freelancer->hasCompleteContractData()) {
+            return redirect()->route('freelancer-services.show', $freelancerService)
+                ->with('error', $this->incompleteFreelancerMessage($freelancerService->freelancer));
+        }
+
         return view('freelancer.services.document', ['service' => $freelancerService]);
     }
 
@@ -198,7 +215,10 @@ class ServiceController extends Controller
     private function formOptions(): array
     {
         return [
-            'freelancers' => Freelancer::orderBy('name')->get(['id', 'name']),
+            // Os campos do contrato vêm junto para o formulário sinalizar (e
+            // desabilitar) freelancers com cadastro incompleto no seletor.
+            'freelancers' => Freelancer::orderBy('name')
+                ->get(array_merge(['id', 'name'], Freelancer::CONTRACT_REQUIRED_FIELDS)),
             'functions' => FunctionFreelancer::orderBy('name')->get(['id', 'name', 'price']),
             'statuses' => Status::orderBy('status')->get(),
         ];
@@ -221,6 +241,14 @@ class ServiceController extends Controller
         return 'Com este registro, ' . ($freelancer?->name ?? 'o freelancer') . ' passa a ter ' . $total
             . ' serviços numa janela de 7 dias (limite recomendado: '
             . FreelancerService::WEEKLY_LIMIT . '). Confirme para prosseguir.';
+    }
+
+    /** Mensagem padrão quando o cadastro do freelancer impede gerar o contrato. */
+    private function incompleteFreelancerMessage(Freelancer $freelancer): string
+    {
+        return 'Cadastro de ' . $freelancer->name . ' incompleto: faltam '
+            . implode(', ', $freelancer->missingContractFieldLabels())
+            . '. Complete o cadastro do freelancer antes de gerar o contrato.';
     }
 
     private function weeklyLimitMessage(FreelancerService $service): string

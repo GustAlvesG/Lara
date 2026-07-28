@@ -18,17 +18,22 @@ class FreelancerImport extends SpreadsheetImport
     {
     }
 
+    /**
+     * Só `Nome` e `CPF` são obrigatórios na planilha. Os demais campos podem
+     * vir em branco: o freelancer é cadastrado com dados pendentes e só é
+     * preciso completá-los na hora de gerar o contrato.
+     */
     public function columns(): array
     {
         return [
             'name' => 'Nome *',
             'cpf' => 'CPF *',
-            'rg' => 'RG *',
+            'rg' => 'RG',
             'email' => 'E-mail',
-            'telephone' => 'Telefone *',
-            'nacionality' => 'Nacionalidade *',
-            'civil_status' => 'Estado civil *',
-            'address' => 'Endereço *',
+            'telephone' => 'Telefone',
+            'nacionality' => 'Nacionalidade',
+            'civil_status' => 'Estado civil',
+            'address' => 'Endereço',
             'pix_key' => 'Chave PIX',
         ];
     }
@@ -117,15 +122,17 @@ class FreelancerImport extends SpreadsheetImport
             $this->seenCpfs[$cpf] = $line;
         }
 
+        // Campos opcionais em branco entram como null (e não string vazia), para
+        // que a checagem de cadastro completo enxergue o dado como pendente.
         return [
             'name' => $row['name'] ?? '',
             'cpf' => $cpf,
-            'rg' => $row['rg'] ?? '',
+            'rg' => blank($row['rg'] ?? '') ? null : $row['rg'],
             'email' => blank($row['email'] ?? '') ? null : $row['email'],
-            'telephone' => $row['telephone'] ?? '',
-            'nacionality' => $row['nacionality'] ?? '',
-            'civil_status' => $row['civil_status'] ?? '',
-            'address' => $row['address'] ?? '',
+            'telephone' => blank($row['telephone'] ?? '') ? null : $row['telephone'],
+            'nacionality' => blank($row['nacionality'] ?? '') ? null : $row['nacionality'],
+            'civil_status' => blank($row['civil_status'] ?? '') ? null : $row['civil_status'],
+            'address' => blank($row['address'] ?? '') ? null : $row['address'],
             'pix_key' => blank($row['pix_key'] ?? '') ? null : $row['pix_key'],
         ];
     }

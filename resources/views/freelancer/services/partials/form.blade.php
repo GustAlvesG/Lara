@@ -62,11 +62,13 @@
                 class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed">
                 <option value="">Selecione...</option>
                 @foreach($freelancers as $freelancerOption)
-                    <option value="{{ $freelancerOption->id }}" @selected((int) old('freelancer_id', $service?->freelancer_id) === $freelancerOption->id)>
-                        {{ $freelancerOption->name }}
+                    @php $incomplete = method_exists($freelancerOption, 'hasCompleteContractData') && !$freelancerOption->hasCompleteContractData(); @endphp
+                    <option value="{{ $freelancerOption->id }}" @selected((int) old('freelancer_id', $service?->freelancer_id) === $freelancerOption->id) @disabled($incomplete)>
+                        {{ $freelancerOption->name }}{{ $incomplete ? ' — cadastro incompleto' : '' }}
                     </option>
                 @endforeach
             </select>
+            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Freelancers com cadastro incompleto ficam indisponíveis até os dados serem completados.</p>
             @error('freelancer_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
 

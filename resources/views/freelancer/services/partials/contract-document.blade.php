@@ -35,10 +35,20 @@
 @endphp
 
 <div class="doc">
-    <div class="doc-letterhead">
-        <div class="doc-emblem">⚙</div>
-        <div class="doc-brand">Clube dos <b>Funcionários</b></div>
-    </div>
+    {{-- Cabeçalho no thead e rodapé no tfoot: o navegador repete os dois em
+         todas as páginas na impressão. O conteúdo fica no tbody. --}}
+    <table class="doc-table">
+    <thead><tr><td>
+        <div class="doc-header-img">
+            <img src="{{ asset('images/freelancer/cabecalho.png') }}" alt="Clube dos Funcionários">
+        </div>
+    </td></tr></thead>
+    <tfoot><tr><td>
+        <div class="doc-footer-img">
+            <img src="{{ asset('images/freelancer/rodape.png') }}" alt="Endereços e contatos do Clube dos Funcionários">
+        </div>
+    </td></tr></tfoot>
+    <tbody><tr><td>
 
     <div class="doc-title">Contrato Autônomo de Serviços de Freelancer</div>
 
@@ -123,9 +133,6 @@
         </div>
     </div>
 
-    <div class="doc-footer">
-        PRAÇA DE ESPORTES TABAJARAS (PET): Rua 90, s/nº, Vila Santa Cecília – Volta Redonda/RJ – CEP: 27261-260 – Tel.: (24) 2102-2750<br>
-        SEDE SOCIAL: Rua General Oswaldo Pinto da Veiga, nº 231, Vila Santa Cecília – Volta Redonda/RJ – CEP: 27260-140 – Tel.: (24) 2107-8269<br>
-        www.clubedosfuncionarios.com.br · atendimento@clubedosfuncionarios.com.br · WhatsApp (24) 9.9251-0959
-    </div>
+    </td></tr></tbody>
+    </table>
 </div>

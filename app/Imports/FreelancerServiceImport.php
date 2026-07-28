@@ -116,11 +116,21 @@ class FreelancerServiceImport extends SpreadsheetImport
             throw new ImportRowException('informe o CPF do freelancer.');
         }
 
-        $freelancerId = $this->freelancers()->get($cpf);
+        $freelancer = $this->freelancers()->get($cpf);
 
-        if ($freelancerId === null) {
+        if ($freelancer === null) {
             throw new ImportRowException(
                 'nenhum freelancer cadastrado com o CPF ' . $cpf . '. Cadastre-o antes de importar os serviços.'
+            );
+        }
+
+        // Contrato não é gerado enquanto o cadastro do freelancer estiver
+        // incompleto — o mesmo bloqueio do registro individual e do tablet.
+        if (!$freelancer->hasCompleteContractData()) {
+            throw new ImportRowException(
+                'o cadastro de ' . $freelancer->name . ' (CPF ' . $cpf . ') está incompleto: '
+                . 'faltam ' . implode(', ', $freelancer->missingContractFieldLabels())
+                . '. Complete o cadastro antes de gerar o contrato.'
             );
         }
 
@@ -134,7 +144,7 @@ class FreelancerServiceImport extends SpreadsheetImport
         }
 
         return [
-            'freelancer_id' => $freelancerId,
+            'freelancer_id' => $freelancer->id,
             'function_freelancer_id' => $functionId,
             'location' => $row['location'] ?? '',
             'start_date' => ImportValues::date($row['start_date'] ?? '', 'data'),
@@ -159,11 +169,11 @@ class FreelancerServiceImport extends SpreadsheetImport
         return $this->freelancerService->createService($data);
     }
 
-    /** CPF => id, carregado uma vez por importação. */
+    /** CPF => freelancer, carregado uma vez por importação. */
     private function freelancers(): Collection
     {
-        return $this->freelancersByCpf ??= Freelancer::pluck('id', 'cpf')
-            ->mapWithKeys(fn($id, $cpf) => [ImportValues::cpf((string) $cpf) => $id]);
+        return $this->freelancersByCpf ??= Freelancer::all()
+            ->keyBy(fn(Freelancer $f) => ImportValues::cpf((string) $f->cpf));
     }
 
     /** Nome em minúsculas => id, para casar sem depender de caixa. */

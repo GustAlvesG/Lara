@@ -62,6 +62,8 @@ Route::prefix('kiosk')->group(function () {
     Route::get('/freelancer/{cpf}', [KioskController::class, 'findFreelancer'])
         ->where('cpf', '[0-9]{11}')->name('kiosk.freelancer.find');
     Route::post('/freelancer', [KioskController::class, 'storeFreelancer'])->name('kiosk.freelancer.store');
+    // Completar o cadastro no tablet destrava a geração do contrato.
+    Route::put('/freelancer/{freelancer}', [KioskController::class, 'updateFreelancer'])->name('kiosk.freelancer.update');
     Route::get('/freelancer/{freelancer}/services', [KioskController::class, 'services'])->name('kiosk.freelancer.services');
     Route::post('/service', [KioskController::class, 'storeService'])
         ->middleware('throttle:20,1')->name('kiosk.service.store');

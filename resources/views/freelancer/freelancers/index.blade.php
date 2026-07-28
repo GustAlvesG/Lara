@@ -53,6 +53,12 @@
                                         ⚠️ excesso de serviços
                                     </span>
                                 @endif
+                                @unless($freelancer->hasCompleteContractData())
+                                    <span title="Faltam: {{ implode(', ', $freelancer->missingContractFieldLabels()) }}"
+                                          class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-700">
+                                        cadastro incompleto
+                                    </span>
+                                @endunless
                             </h2>
                             <p class="text-sm text-gray-500 dark:text-gray-400">CPF: {{ $freelancer->cpf }}</p>
                             <p class="text-sm text-gray-500 dark:text-gray-400">PIX: {{ $freelancer->pix_key }}</p>

@@ -6,7 +6,11 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>Assinatura de Contratos — Freelancers</title>
   <link rel="icon" href="{{ asset('favicon.ico') }}" type="image/x-icon" />
-  <script>window.KIOSK = { csrf: @json(csrf_token()) };</script>
+  <script>window.KIOSK = {
+    csrf: @json(csrf_token()),
+    headerImg: @json(asset('images/freelancer/cabecalho.png')),
+    footerImg: @json(asset('images/freelancer/rodape.png')),
+  };</script>
 @verbatim
   <style>
   :root{
@@ -181,10 +185,7 @@
 
   /* ---------- Documento base do contrato ---------- */
   .doc{background:var(--paper);color:var(--paper-ink);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;margin-top:16px;font-family:var(--serif);}
-  .doc-letterhead{display:flex;align-items:center;gap:12px;background:linear-gradient(120deg,#a30711,#c8102e);color:#fff;padding:15px 22px;}
-  .doc-emblem{width:44px;height:44px;border-radius:50%;border:2px solid rgba(255,255,255,.85);display:grid;place-items:center;font-size:23px;flex:0 0 auto;}
-  .doc-brand{font-family:var(--sans);font-size:22px;font-weight:600;letter-spacing:.3px;line-height:1;}
-  .doc-brand b{font-weight:800;}
+  .doc-header-img img{display:block;width:100%;height:auto;}
   .doc-title{text-align:center;font-size:16px;font-weight:800;margin:18px 22px 6px;font-family:var(--sans);}
   .doc-body{padding:6px 26px 4px;}
   .doc-body p{margin:0 0 12px;font-size:14px;text-align:justify;line-height:1.62;}
@@ -203,7 +204,8 @@
   .doc-sign-img img{max-height:88px;max-width:100%;}
   .doc-sign-empty{height:92px;}
   .doc-sign-note{font-family:var(--sans);font-size:10.5px;color:#6b6156;margin-top:4px;line-height:1.35;}
-  .doc-footer{font-family:var(--sans);font-size:9.5px;line-height:1.55;color:#6b6156;text-align:center;border-top:2px solid #c8102e;margin-top:16px;padding:12px 18px 16px;}
+  .doc-footer-img{margin-top:16px;}
+  .doc-footer-img img{display:block;width:100%;height:auto;}
 
   .success{position:absolute;inset:0;z-index:20;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:30px;text-align:center;opacity:0;visibility:hidden;transition:opacity .3s var(--ease);}
   .success.show{opacity:1;visibility:visible;}
@@ -365,6 +367,28 @@
       </div>
     </section>
 
+    <!-- ===== COMPLETAR CADASTRO ===== -->
+    <section class="screen" id="s-completar">
+      <div class="screen-body">
+        <p class="eyebrow">Cadastro incompleto</p>
+        <h2 class="title">Completar cadastro</h2>
+        <p class="subtitle">Preencha os dados que faltam para liberar o contrato. E-mail é opcional.</p>
+        <div class="form-grid" id="compForm">
+          <div class="frow"><span class="field-label">Nome completo *</span><input class="txt-input" data-f="name" autocomplete="off"></div>
+          <div class="frow"><span class="field-label">RG *</span><input class="txt-input" data-f="rg" autocomplete="off"></div>
+          <div class="frow"><span class="field-label">Nacionalidade *</span><input class="txt-input" data-f="nacionality" autocomplete="off"></div>
+          <div class="frow"><span class="field-label">Estado civil *</span><input class="txt-input" data-f="civil_status" autocomplete="off"></div>
+          <div class="frow"><span class="field-label">E-mail (opcional)</span><input class="txt-input" data-f="email" type="email" autocomplete="off"></div>
+          <div class="frow"><span class="field-label">Endereço *</span><input class="txt-input" data-f="address" autocomplete="off"></div>
+          <div class="frow"><span class="field-label">Telefone *</span><input class="txt-input" data-f="telephone" inputmode="tel" autocomplete="off"></div>
+        </div>
+      </div>
+      <div class="screen-foot">
+        <button class="btn btn-primary" id="compSave">Salvar e continuar</button>
+        <button class="btn-quiet btn" data-go="menu">Cancelar</button>
+      </div>
+    </section>
+
     <!-- ===== MENU ===== -->
     <section class="screen" id="s-menu">
       <div class="screen-body">
@@ -372,6 +396,11 @@
         <div class="person" style="margin-top:8px">
           <div class="avatar" id="menuAvatar">M</div>
           <div><b id="menuName">—</b><span id="menuCpf">—</span></div>
+        </div>
+        <div id="menuIncomplete" style="display:none;margin:4px 0 14px;padding:14px 16px;border-radius:14px;border:1px solid var(--warning);background:color-mix(in srgb, var(--warning) 12%, transparent)">
+          <b style="display:block;color:var(--warning)">Cadastro incompleto</b>
+          <span class="subtitle" id="menuMissing" style="display:block;margin:4px 0 10px"></span>
+          <button class="btn btn-primary" id="cardCompletar" style="width:100%">Completar cadastro</button>
         </div>
         <button class="menu-card" id="cardNovo">
           <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14"/></svg></span>
@@ -695,9 +724,40 @@
   function firstError(data){ if(data && data.errors){ const k=Object.keys(data.errors)[0]; return data.errors[k][0]; } return data && data.error; }
 
   /* ---------- Menu ---------- */
-  function openMenu(){ const f=S.freelancer; $('#menuName').textContent=f.name; $('#menuCpf').textContent=fmtCpf(f.cpf); $('#menuAvatar').textContent=initials(f.name).toUpperCase(); go('s-menu'); }
+  function openMenu(){
+    const f=S.freelancer;
+    $('#menuName').textContent=f.name; $('#menuCpf').textContent=fmtCpf(f.cpf); $('#menuAvatar').textContent=initials(f.name).toUpperCase();
+    // Cadastro incompleto trava a geração de contrato: some o card de novo
+    // contrato e mostra o aviso com o atalho para completar os dados.
+    const incomplete = f.complete === false;
+    const labels = f.missing_field_labels || [];
+    $('#menuIncomplete').style.display = incomplete ? 'block' : 'none';
+    $('#menuMissing').textContent = labels.length ? ('Faltam: '+labels.join(', ')+'.') : '';
+    $('#cardNovo').style.display = incomplete ? 'none' : '';
+    go('s-menu');
+  }
   $('#cardNovo').addEventListener('click', startNovo);
   $('#cardContratos').addEventListener('click', openContratos);
+  $('#cardCompletar').addEventListener('click', openCompletar);
+
+  /* ---------- Completar cadastro ---------- */
+  function openCompletar(){
+    const f=S.freelancer;
+    $$('#compForm [data-f]').forEach(i=>{ i.value = f[i.dataset.f] || ''; });
+    go('s-completar');
+  }
+  $('#compSave').addEventListener('click', async ()=>{
+    const f=S.freelancer; const payload={ cpf:f.cpf }; let missing=false;
+    $$('#compForm [data-f]').forEach(i=>{ payload[i.dataset.f]=i.value.trim(); });
+    ['name','rg','nacionality','civil_status','address','telephone'].forEach(k=>{ if(!payload[k]) missing=true; });
+    if(missing){ toast('Preencha os campos obrigatórios (*).',true); return; }
+    if(!payload.email) delete payload.email;
+    try{
+      const r=await api('PUT','/kiosk/freelancer/'+f.id,payload);
+      if(r.ok){ S.freelancer=r.data.freelancer; toast('Cadastro atualizado.'); openMenu(); }
+      else { toast((r.data && (r.data.message||firstError(r.data)))||'Não foi possível salvar.',true); }
+    }catch(e){ if(!e.handled) toast('Falha de conexão.',true); }
+  });
 
   /* ---------- Novo contrato ---------- */
   let nstep=0;
@@ -778,6 +838,9 @@
     try{
       const r=await api('POST','/kiosk/service',payload);
       if(r.status===201){ applySession(r.data.session); toast('Contrato registrado · '+brl(r.data.service.price)); openMenu(); return true; }
+      // Cadastro ficou incompleto (ex.: alterado noutra tela): abre o formulário
+      // de completar em vez de deixar o contrato ser gravado sem dados.
+      if(r.status===422 && r.data && r.data.incomplete_freelancer){ S.freelancer=r.data.freelancer; toast(r.data.error||'Cadastro incompleto.',true); openCompletar(); return false; }
       if(r.status===409){ openPin('weekly', r.data.message); return false; }
       if(r.status===401){ $('#pinOpHint').textContent='PIN inválido.'; resetPinOp(); return false; }
       toast((r.data && (r.data.message||firstError(r.data)))||'Não foi possível registrar.',true); return false;
@@ -986,9 +1049,8 @@
 
     return `
     <div class="doc" id="docSheet">
-      <div class="doc-letterhead">
-        <div class="doc-emblem">⚙</div>
-        <div class="doc-brand">Clube dos <b>Funcionários</b></div>
+      <div class="doc-header-img">
+        <img src="${KIOSK.headerImg}" alt="Clube dos Funcionários">
       </div>
       <div class="doc-title">Contrato Autônomo de Serviços de Freelancer</div>
       <div class="doc-body">
@@ -1016,10 +1078,8 @@
           </div>
         </div>
       </div>
-      <div class="doc-footer">
-        PRAÇA DE ESPORTES TABAJARAS (PET): Rua 90, s/nº, Vila Santa Cecília – Volta Redonda/RJ – CEP: 27261-260 – Tel.: (24) 2102-2750<br>
-        SEDE SOCIAL: Rua General Oswaldo Pinto da Veiga, nº 231, Vila Santa Cecília – Volta Redonda/RJ – CEP: 27260-140 – Tel.: (24) 2107-8269<br>
-        www.clubedosfuncionarios.com.br · atendimento@clubedosfuncionarios.com.br · WhatsApp (24) 9.9251-0959
+      <div class="doc-footer-img">
+        <img src="${KIOSK.footerImg}" alt="Endereços e contatos do Clube dos Funcionários">
       </div>
     </div>`;
   }

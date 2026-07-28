@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Freelancer\Concerns\ServesSignatureImages;
 use App\Http\Requests\StoreFreelancerRequest;
 use App\Http\Requests\StoreFreelancerServiceRequest;
+use App\Http\Requests\UpdateFreelancerRequest;
 use App\Models\Freelancer;
 use App\Models\FreelancerService;
 use App\Models\FreelancerServiceBatch;
@@ -190,6 +191,23 @@ class KioskController extends Controller
         return response()->json(['freelancer' => $this->freelancerPayload($freelancer)], 201);
     }
 
+    /**
+     * Completa/atualiza o cadastro do freelancer pelo tablet — o caminho para
+     * destravar a geração do contrato quando faltam dados. Mesmas regras
+     * lenientes do painel (só nome e CPF obrigatórios).
+     */
+    public function updateFreelancer(UpdateFreelancerRequest $request, Freelancer $freelancer)
+    {
+        $operator = $this->operatorModeOrFail();
+
+        $data = $request->validated();
+        $data['updated_by'] = $operator->id;
+
+        $freelancer = $this->freelancerService->updateFreelancer($freelancer, $data);
+
+        return response()->json(['freelancer' => $this->freelancerPayload($freelancer)]);
+    }
+
     /* ---------------------------------------------------------------------
      | Funções e serviços
      |---------------------------------------------------------------------*/
@@ -231,6 +249,18 @@ class KioskController extends Controller
         $data = $request->validated();
         $data['created_by'] = $operator->id;
 
+        // Contrato não é gerado enquanto o cadastro estiver incompleto. A tela
+        // trata este 422 abrindo o formulário para completar os dados faltantes.
+        $freelancer = Freelancer::find($data['freelancer_id']);
+
+        if ($freelancer && !$freelancer->hasCompleteContractData()) {
+            return response()->json([
+                'error' => 'Cadastro incompleto. Complete os dados do freelancer antes de gerar o contrato.',
+                'incomplete_freelancer' => true,
+                'freelancer' => $this->freelancerPayload($freelancer),
+            ], 422);
+        }
+
         // Limite semanal: primeiro toque devolve 409 pedindo confirmação; o
         // reenvio exige confirm_weekly_limit + o PIN do operador.
         if (FreelancerService::wouldExceedWeeklyLimit($data['freelancer_id'], $data['start_date'])) {
@@ -268,6 +298,14 @@ class KioskController extends Controller
 
         if (!$operator->checkPin($request->input('pin'))) {
             return response()->json(['error' => 'PIN inválido.'], 401);
+        }
+
+        // Contrato de cadastro incompleto não pode ser assinado (cobre contratos
+        // legados, gerados antes desta trava).
+        if ($freelancerService->freelancer && !$freelancerService->freelancer->hasCompleteContractData()) {
+            return response()->json([
+                'error' => 'Cadastro do freelancer incompleto. Complete os dados antes de assinar o contrato.',
+            ], 409);
         }
 
         try {
@@ -354,6 +392,14 @@ class KioskController extends Controller
         // demais aqui também, porque a tela pode ter ficado aberta.
         if ($freelancerService->freelancer_signed_at === null) {
             return response()->json(['error' => 'O freelancer ainda não assinou este contrato.'], 409);
+        }
+
+        // Mesma trava defensiva da assinatura do freelancer: cadastro incompleto
+        // não gera contrato assinado.
+        if ($freelancerService->freelancer && !$freelancerService->freelancer->hasCompleteContractData()) {
+            return response()->json([
+                'error' => 'Cadastro do freelancer incompleto. Complete os dados antes de assinar o contrato.',
+            ], 409);
         }
 
         try {
@@ -659,6 +705,13 @@ class KioskController extends Controller
             'nacionality' => $f->nacionality,
             'civil_status' => $f->civil_status,
             'address' => $f->address,
+            'telephone' => $f->telephone,
+            'email' => $f->email,
+            // A tela usa isto para bloquear o registro do contrato e abrir o
+            // formulário de completar os dados faltantes.
+            'complete' => $f->hasCompleteContractData(),
+            'missing_fields' => $f->missingContractFields(),
+            'missing_field_labels' => $f->missingContractFieldLabels(),
         ];
     }
 

@@ -17,6 +17,11 @@ class StoreFreelancerRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
+     * Só `name` e `cpf` são obrigatórios: aceitamos o cadastro com dados
+     * pendentes (rg, nacionalidade, estado civil, endereço, telefone). Esses
+     * campos precisam estar preenchidos apenas na hora de gerar o contrato —
+     * regra centralizada em Freelancer::hasCompleteContractData().
+     *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
@@ -25,12 +30,12 @@ class StoreFreelancerRequest extends FormRequest
             'name' => ['required', 'string'],
             'cpf' => ['required', 'string', 'max:11', 'unique:freelancers,cpf'],
             'pix_key' => ['nullable', 'string', 'max:255'],
-            'rg' => ['required', 'string'],
+            'rg' => ['nullable', 'string'],
             'email' => ['nullable', 'email'],
-            'nacionality' => ['required', 'string'],
-            'civil_status' => ['required', 'string'],
-            'address' => ['required', 'string'],
-            'telephone' => ['required', 'string'],
+            'nacionality' => ['nullable', 'string'],
+            'civil_status' => ['nullable', 'string'],
+            'address' => ['nullable', 'string'],
+            'telephone' => ['nullable', 'string'],
             'created_by' => ['nullable', 'integer', 'exists:users,id'],
         ];
     }
