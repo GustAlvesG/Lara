@@ -16,6 +16,29 @@
                 </div>
             @endif
 
+            <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
+                <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Push Manual</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Abre a cancela diretamente, sem depender da leitura da placa. Tempo selecionado + 5 segundos de segurança.</p>
+                    </div>
+                    <div class="flex items-end gap-3">
+                        <div>
+                            <label for="manual-push-seconds" class="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-1">
+                                Tempo aberto (seg) - 
+                            </label>
+                            <input type="number" id="manual-push-seconds" min="0.1" step="0.1" value="2"
+                                   class="w-28 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                        </div>
+                        <button type="button" id="manual-push-btn"
+                                class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition disabled:opacity-50">
+                            Abrir Cancela
+                        </button>
+                    </div>
+                </div>
+                <p id="manual-push-feedback" class="mt-3 text-sm hidden"></p>
+            </div>
+
             <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg flex justify-between items-center">
                 <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Gerenciar Placas</h3>
                 <a href="{{ route('parking-authorizations.create') }}"
@@ -23,6 +46,8 @@
                     Nova Placa
                 </a>
             </div>
+
+
 
             <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg overflow-x-auto">
                 <table class="w-full text-sm text-left text-gray-700 dark:text-gray-300">
@@ -87,5 +112,55 @@
         </div>
     </div>
 
-    <x-slot name="js"></x-slot>
+    <x-slot name="js">
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const btn = document.getElementById('manual-push-btn');
+                const secondsInput = document.getElementById('manual-push-seconds');
+                const feedback = document.getElementById('manual-push-feedback');
+
+                btn.addEventListener('click', function () {
+                    const seconds = parseFloat(secondsInput.value);
+
+                    if (!seconds || seconds <= 0) {
+                        feedback.textContent = 'Informe um tempo válido em segundos.';
+                        feedback.className = 'mt-3 text-sm text-red-600 dark:text-red-400';
+                        return;
+                    }
+
+                    btn.disabled = true;
+                    feedback.textContent = 'Enviando...';
+                    feedback.className = 'mt-3 text-sm text-gray-500 dark:text-gray-400';
+
+                    // O dispositivo não responde a preflight CORS, então usamos
+                    // modo 'no-cors' com Content-Type simples (sem application/json)
+                    // para evitar o OPTIONS e garantir que o POST realmente saia.
+                    // Como consequência, a resposta fica opaca e não dá para
+                    // confirmar programaticamente se o comando teve sucesso.
+                    fetch('http://192.168.100.96:5000/trigger', {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify({
+                            pin: 17,
+                            active_high: true,
+                            pulse_seconds: seconds
+                        })
+                    })
+                        .then(function () {
+                            feedback.textContent = 'Comando enviado ao dispositivo.';
+                            feedback.className = 'mt-3 text-sm text-green-600 dark:text-green-400';
+                        })
+                        .catch(function (error) {
+                            console.error(error);
+                            feedback.textContent = 'Falha ao acionar a cancela. Verifique a conexão com o dispositivo.';
+                            feedback.className = 'mt-3 text-sm text-red-600 dark:text-red-400';
+                        })
+                        .finally(function () {
+                            btn.disabled = false;
+                        });
+                });
+            });
+        </script>
+    </x-slot>
 </x-app-layout>
