@@ -52,8 +52,14 @@ Route::prefix('company-access')->group(function () {
 
 Route::middleware('api_token')->group(function () {
 
+    Route::post('/parking/check', [ParkingAuthorizationController::class, 'checkPlateFromCamera'])
+        ->name('api.parking.check.post');
+
     Route::get('/parking/check/{plate}', [ParkingAuthorizationController::class, 'checkPlate'])
         ->name('api.parking.check');
+
+    Route::get('/parking/authorized', [ParkingAuthorizationController::class, 'listAuthorized'])
+        ->name('api.parking.authorized');
 
     Route::prefix('webhooks')->group(function () {
         Route::post('/whatsapp', [UberAccessRequestWebhookController::class, 'handle'])

@@ -73,6 +73,14 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'parking_access' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/parking-access.log'),
+            'level' => 'info',
+            'days' => env('PARKING_ACCESS_LOG_DAYS', 30),
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),
