@@ -9,19 +9,56 @@ use App\Http\Requests\StoreParkingAuthorizationRequest;
 use App\Http\Requests\UpdateParkingAuthorizationRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class ParkingAuthorizationController extends Controller
 {
+    /** Colunas liberadas para ordenação, para não aceitar SQL vindo da query string. */
+    private const SORTABLE = ['plate', 'name', 'expiration_date'];
+
     public function __construct(
         protected ParkingAuthorizationService $service
     ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
-        $authorizations = ParkingAuthorization::orderBy('plate')->paginate(20);
-        return view('parking.authorizations.index', compact('authorizations'));
+        $search    = trim((string) $request->query('q', ''));
+        $sort      = in_array($request->query('sort'), self::SORTABLE, true)
+            ? $request->query('sort')
+            : 'plate';
+        $direction = $request->query('direction') === 'desc' ? 'desc' : 'asc';
+
+        $authorizations = ParkingAuthorization::query()
+            ->when($search !== '', fn ($query) => $query->where(
+                fn ($group) => $this->applySearch($group, $search)
+            ))
+            ->orderBy($sort, $direction)
+            ->when($sort !== 'plate', fn ($query) => $query->orderBy('plate'))
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('parking.authorizations.index', compact('authorizations', 'search', 'sort', 'direction'));
+    }
+
+    /**
+     * Busca por nome ou placa. A placa também é comparada na forma normalizada
+     * para que "ABC-1234" encontre registros gravados como "ABC1234" e vice-versa.
+     */
+    private function applySearch($query, string $search): void
+    {
+        $query->where('name', 'like', "%{$search}%")
+            ->orWhere('plate', 'like', "%{$search}%");
+
+        $normalized = $this->service->normalizePlate($search);
+
+        if ($normalized !== '') {
+            $query->orWhereRaw(
+                "UPPER(REPLACE(REPLACE(REPLACE(plate, '-', ''), ' ', ''), '.', '')) LIKE ?",
+                ["%{$normalized}%"]
+            );
+        }
     }
 
     public function create(): View

@@ -10,24 +10,43 @@ class ParkingAuthorizationService
 {
     public function store(array $data): ParkingAuthorization
     {
-        return ParkingAuthorization::updateOrCreate(
-            ['plate' => strtoupper($data['plate'])],
-            [
-                'name'            => $data['name'],
-                'expiration_date' => $data['expiration_date'],
-            ]
-        );
+        return ParkingAuthorization::create([
+            'plate'           => $this->normalizePlate($data['plate']),
+            'name'            => $data['name'],
+            'expiration_date' => $data['expiration_date'],
+        ]);
     }
 
     public function update(array $data, ParkingAuthorization $authorization): ParkingAuthorization
     {
         $authorization->update([
-            'plate'           => strtoupper($data['plate']),
+            'plate'           => $this->normalizePlate($data['plate']),
             'name'            => $data['name'],
             'expiration_date' => $data['expiration_date'],
         ]);
 
         return $authorization;
+    }
+
+    /**
+     * Duplicidade é avaliada na placa normalizada, senão "ABC-1234" e "ABC1234"
+     * passariam pelo unique da coluna como registros diferentes.
+     */
+    public function plateExists(string $plate, ?int $ignoreId = null): bool
+    {
+        $normalized = $this->normalizePlate($plate);
+
+        if ($normalized === '') {
+            return false;
+        }
+
+        return ParkingAuthorization::query()
+            ->whereRaw(
+                "UPPER(REPLACE(REPLACE(REPLACE(plate, '-', ''), ' ', ''), '.', '')) = ?",
+                [$normalized]
+            )
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+            ->exists();
     }
 
     public function getValidAuthorizations()

@@ -39,23 +39,66 @@
                 <p id="manual-push-feedback" class="mt-3 text-sm hidden"></p>
             </div>
 
-            <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg flex justify-between items-center">
-                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Gerenciar Placas</h3>
-                <a href="{{ route('parking-authorizations.create') }}"
-                   class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
-                    Nova Placa
-                </a>
+            <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg space-y-4">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Gerenciar Placas</h3>
+                    <a href="{{ route('parking-authorizations.create') }}"
+                       class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                        Nova Placa
+                    </a>
+                </div>
+
+                <form method="GET" action="{{ route('parking-authorizations.index') }}"
+                      class="flex flex-col sm:flex-row gap-3">
+                    <input type="hidden" name="sort" value="{{ $sort }}">
+                    <input type="hidden" name="direction" value="{{ $direction }}">
+
+                    <div class="relative flex-1">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        </span>
+                        <input type="text" name="q" value="{{ $search }}" placeholder="Buscar por placa ou nome..."
+                               class="w-full pl-10 pr-4 py-2 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button type="submit"
+                                class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                            Buscar
+                        </button>
+                        @if ($search !== '')
+                            <a href="{{ route('parking-authorizations.index', ['sort' => $sort, 'direction' => $direction]) }}"
+                               class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-600 dark:text-gray-300 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                                Limpar
+                            </a>
+                        @endif
+                    </div>
+                </form>
             </div>
 
-
+            @php
+                $columns = ['plate' => 'Placa', 'name' => 'Nome', 'expiration_date' => 'Validade'];
+            @endphp
 
             <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg overflow-x-auto">
                 <table class="w-full text-sm text-left text-gray-700 dark:text-gray-300">
                     <thead class="text-xs uppercase text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700">
                         <tr>
-                            <th class="py-3 px-4">Placa</th>
-                            <th class="py-3 px-4">Nome</th>
-                            <th class="py-3 px-4">Validade</th>
+                            @foreach ($columns as $column => $label)
+                                @php
+                                    $active = $sort === $column;
+                                    $nextDirection = $active && $direction === 'asc' ? 'desc' : 'asc';
+                                @endphp
+                                <th class="py-3 px-4">
+                                    <a href="{{ route('parking-authorizations.index', ['q' => $search, 'sort' => $column, 'direction' => $nextDirection]) }}"
+                                       class="inline-flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 {{ $active ? 'text-indigo-600 dark:text-indigo-400' : '' }}">
+                                        {{ $label }}
+                                        @if ($active)
+                                            <span aria-hidden="true">{{ $direction === 'asc' ? '▲' : '▼' }}</span>
+                                        @endif
+                                    </a>
+                                </th>
+                            @endforeach
                             <th class="py-3 px-4">Status</th>
                             <th class="py-3 px-4 text-right">Ações</th>
                         </tr>
@@ -97,7 +140,7 @@
                         @empty
                             <tr>
                                 <td colspan="5" class="py-8 text-center text-gray-400 dark:text-gray-500">
-                                    Nenhuma placa cadastrada.
+                                    {{ $search !== '' ? 'Nenhuma placa encontrada para "'.$search.'".' : 'Nenhuma placa cadastrada.' }}
                                 </td>
                             </tr>
                         @endforelse
@@ -137,7 +180,7 @@
                     // para evitar o OPTIONS e garantir que o POST realmente saia.
                     // Como consequência, a resposta fica opaca e não dá para
                     // confirmar programaticamente se o comando teve sucesso.
-                    fetch('http://192.168.100.96:5000/trigger', {
+                    fetch('http://192.168.100.96:8017/trigger/lara-push', {
                         method: 'POST',
                         mode: 'no-cors',
                         headers: { 'Content-Type': 'text/plain' },
