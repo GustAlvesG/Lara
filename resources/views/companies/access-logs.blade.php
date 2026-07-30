@@ -21,6 +21,20 @@
             </a>
         </div>
 
+        <!-- Abas: todos os acessos x carros de aplicativo -->
+        @php $tabBase = request()->except(['type', 'page']); @endphp
+        <div class="flex gap-2 mb-6">
+            <a href="{{ route('company.access.logs', array_merge($tabBase, ['type' => 'all'])) }}"
+               class="px-4 py-2 rounded-xl font-bold text-sm transition {{ $type === 'all' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                Todos os Acessos
+            </a>
+            <a href="{{ route('company.access.logs', array_merge($tabBase, ['type' => 'app'])) }}"
+               class="px-4 py-2 rounded-xl font-bold text-sm transition flex items-center gap-2 {{ $type === 'app' ? 'bg-indigo-600 text-white shadow-md' : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13l1.5-4.5A2 2 0 016.4 7h11.2a2 2 0 011.9 1.5L21 13m-18 0v5a1 1 0 001 1h1a1 1 0 001-1v-1h12v1a1 1 0 001 1h1a1 1 0 001-1v-5m-18 0h18M7 16h.01M17 16h.01"/></svg>
+                Carros de Aplicativo
+            </a>
+        </div>
+
         <!-- Stats do dia -->
         <div class="grid grid-cols-3 gap-4 mb-6">
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 flex items-center gap-4">
@@ -61,8 +75,11 @@
         <!-- Filtros -->
         <form method="GET" action="{{ route('company.access.logs') }}"
               class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 mb-6">
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
+            <input type="hidden" name="type" value="{{ $type }}">
+            <div class="grid grid-cols-2 {{ $type === 'app' ? 'md:grid-cols-3' : 'md:grid-cols-4' }} gap-4 items-end">
 
+                {{-- Empresa não se aplica a carros de aplicativo: só a busca por data. --}}
+                @if($type !== 'app')
                 <div>
                     <label class="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Empresa</label>
                     <select name="company_id" class="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
@@ -74,6 +91,7 @@
                         @endforeach
                     </select>
                 </div>
+                @endif
 
                 <div>
                     <label class="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Status</label>
@@ -99,7 +117,7 @@
                             Filtrar
                         </button>
                         @if(request()->hasAny(['company_id','status','date_from','date_to']))
-                            <a href="{{ route('company.access.logs') }}" class="px-3 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 rounded-xl font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition shrink-0">
+                            <a href="{{ route('company.access.logs', ['type' => $type]) }}" class="px-3 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 rounded-xl font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition shrink-0">
                                 ✕
                             </a>
                         @endif
@@ -129,7 +147,10 @@
                             <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Data / Hora</th>
                             <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Alvo</th>
                             <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Empresa</th>
-                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Funcionário</th>
+                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ $type === 'app' ? 'Motorista' : 'Funcionário' }}</th>
+                            @if($type === 'app')
+                                <th class="px-5 py-3.5 text-center text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Imagem</th>
+                            @endif
                             <th class="px-5 py-3.5 text-center text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Status</th>
                             <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Motivo</th>
                         </tr>
@@ -151,6 +172,8 @@
                                     @if($log->company)
                                         <a href="{{ route('company.show', $log->company_id) }}"
                                            class="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">{{ $log->company->name }}</a>
+                                    @elseif($log->uber_access_request_id || \Illuminate\Support\Str::startsWith($log->reason ?? '', 'uber'))
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 rounded-full text-[11px] font-black uppercase">Carro de Aplicativo</span>
                                     @elseif($log->app_driver_id)
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded-full text-[11px] font-black uppercase">Motorista de App</span>
                                     @else
@@ -173,6 +196,18 @@
                                                 {{ $log->worker->name }}
                                             </a>
                                         </div>
+                                    @elseif($log->uberRequest)
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13l1.5-4.5A2 2 0 016.4 7h11.2a2 2 0 011.9 1.5L21 13m-18 0v5a1 1 0 001 1h1a1 1 0 001-1v-1h12v1a1 1 0 001 1h1a1 1 0 001-1v-5m-18 0h18M7 16h.01M17 16h.01"/></svg>
+                                            </div>
+                                            <div>
+                                                <p class="font-semibold text-gray-700 dark:text-gray-300">{{ $log->uberRequest->requester_name ?? '—' }}</p>
+                                                @if($log->uberRequest->matricula)
+                                                    <p class="text-xs text-gray-400 dark:text-gray-500">Matrícula {{ $log->uberRequest->matricula }}</p>
+                                                @endif
+                                            </div>
+                                        </div>
                                     @elseif($log->appDriver)
                                         <div class="flex items-center gap-2">
                                             <div class="w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
@@ -184,6 +219,21 @@
                                         <span class="text-gray-400 dark:text-gray-500">—</span>
                                     @endif
                                 </td>
+
+                                @if($type === 'app')
+                                    <td class="px-5 py-3.5 text-center">
+                                        @if($log->screenshot_url)
+                                            <a href="{{ $log->screenshot_url }}" target="_blank" rel="noopener"
+                                               class="inline-block group" title="Ver imagem da solicitação">
+                                                <img src="{{ $log->screenshot_url }}" alt="Solicitação"
+                                                     loading="lazy"
+                                                     class="w-12 h-12 rounded-lg object-cover border border-gray-200 dark:border-gray-600 group-hover:ring-2 group-hover:ring-indigo-400 transition mx-auto">
+                                            </a>
+                                        @else
+                                            <span class="text-gray-300 dark:text-gray-600">—</span>
+                                        @endif
+                                    </td>
+                                @endif
 
                                 <td class="px-5 py-3.5 text-center">
                                     @if($log->allowed)
@@ -202,11 +252,13 @@
                                 <td class="px-5 py-3.5">
                                     @php
                                         $reasonMap = [
-                                            'access_granted'    => 'Acesso liberado pelas regras',
-                                            'access_denied'     => 'Bloqueado pelas regras',
-                                            'worker_not_found'  => 'Funcionário não encontrado',
-                                            'company_not_found' => 'Empresa não encontrada',
-                                            'app_driver_access' => 'Motorista de aplicativo',
+                                            'access_granted'      => 'Acesso liberado pelas regras',
+                                            'access_denied'       => 'Bloqueado pelas regras',
+                                            'worker_not_found'    => 'Funcionário não encontrado',
+                                            'company_not_found'   => 'Empresa não encontrada',
+                                            'app_driver_access'   => 'Motorista de aplicativo',
+                                            'uber_access_granted' => 'Acesso de app liberado',
+                                            'uber_not_found'      => 'App não encontrado ou expirado',
                                         ];
                                     @endphp
                                     <span class="text-xs text-gray-500 dark:text-gray-400">{{ $reasonMap[$log->reason] ?? $log->reason ?? '—' }}</span>

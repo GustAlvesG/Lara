@@ -522,6 +522,7 @@
           <div class="keypad" id="pinMatKeypad"></div>
           <div style="margin-top:14px">
             <button class="btn btn-primary" id="pinMatNext" disabled>Continuar</button>
+            <button class="btn btn-ghost" id="pinMatSendCode" disabled style="margin-top:10px">Coordenador ausente? Enviar código por e-mail</button>
           </div>
         </div>
 
@@ -1178,19 +1179,43 @@
   // No passo da matrícula, "Voltar" abandona a liberação e devolve a prévia.
   function showPinMatStep(){ $('#pinMatStep').style.display='block'; $('#pinPinStep').style.display='none'; $('#pinCancel').textContent='Cancelar'; }
   function showPinPinStep(){ $('#pinMatStep').style.display='none'; $('#pinPinStep').style.display='block'; }
-  function renderPinMat(){ const el=$('#pinMatVal'); el.textContent=pinMatBuf||'matrícula'; el.classList.toggle('placeholder',!pinMatBuf); $('#pinMatNext').disabled=pinMatBuf.length<1; }
+  function renderPinMat(){ const el=$('#pinMatVal'); el.textContent=pinMatBuf||'matrícula'; el.classList.toggle('placeholder',!pinMatBuf); $('#pinMatNext').disabled=pinMatBuf.length<1; $('#pinMatSendCode').disabled=pinMatBuf.length<1; }
   buildKeypad($('#pinMatKeypad'),
     d=>{ if(pinMatBuf.length<5){ pinMatBuf+=d; renderPinMat(); $('#pinMatHint').innerHTML='&nbsp;'; } },
     ()=>{ pinMatBuf=pinMatBuf.slice(0,-1); renderPinMat(); $('#pinMatHint').innerHTML='&nbsp;'; });
   renderPinMat();
-  $('#pinMatNext').addEventListener('click', ()=>{
+  /** Mesmo teclado para os dois caminhos: o PIN dele ou o código do e-mail. */
+  function goToCoordSecretStep(title, sub){
     resetPinOp();
     $('#pinEyebrow').textContent='Liberação do coordenador';
-    $('#pinTitle').textContent='PIN do coordenador';
-    $('#pinSub').textContent='Matrícula ' + pinMatBuf + ' · o PIN é do coordenador, não do operador';
+    $('#pinTitle').textContent=title;
+    $('#pinSub').textContent=sub;
     $('#pinExtra').innerHTML=weeklyBanner(weeklyMsg);
     $('#pinCancel').textContent='Trocar matrícula';
     showPinPinStep();
+  }
+  $('#pinMatNext').addEventListener('click', ()=>{
+    goToCoordSecretStep('PIN do coordenador', 'Matrícula ' + pinMatBuf + ' · o PIN é do coordenador, não do operador');
+  });
+  /**
+   * Coordenador longe do tablet: o sistema manda 6 dígitos para o e-mail dele e
+   * ele dita. O código nunca volta para esta tela — só o e-mail mascarado.
+   */
+  $('#pinMatSendCode').addEventListener('click', async ()=>{
+    const btn=$('#pinMatSendCode'); btn.disabled=true; const label=btn.textContent; btn.textContent='Enviando…';
+    const d=S.draft;
+    try{
+      const r=await api('POST','/kiosk/service/weekly-limit-code',{
+        coordinator_matricula:pinMatBuf, freelancer_id:S.freelancer.id, start_date:d.dayIso });
+      if(r.ok){
+        toast('Código enviado para '+r.data.sent_to);
+        goToCoordSecretStep('Código do coordenador',
+          'Enviado para '+r.data.sent_to+' · vale até '+r.data.expires_at+' · peça que ele dite');
+        return;
+      }
+      $('#pinMatHint').textContent=(r.data && r.data.error)||'Não foi possível enviar o código.';
+    }catch(e){ if(!e.handled) $('#pinMatHint').textContent='Falha de conexão.'; }
+    finally{ btn.textContent=label; btn.disabled=pinMatBuf.length<1; }
   });
   buildKeypad($('#pinKeypadOp'),
     d=>{ if(pinBuf.length<6){ pinBuf+=d; renderDots($('#pinDotsOp'),6,pinBuf.length); if(pinBuf.length===6) submitPin(); } },

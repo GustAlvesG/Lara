@@ -25,6 +25,23 @@
             </div>
         @endif
 
+        {{-- Contrato assinado depois de o turno já ter começado. A tolerância de
+             30 min já está descontada; o tempo mostrado é o atraso em relação ao
+             início. Só na web: o tablet é onde a assinatura acontece, e cobrar o
+             atraso ali não muda mais nada. --}}
+        @if($service->isSignedAfterStart())
+            <div class="p-4 bg-rose-100 dark:bg-rose-900/30 border border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200 rounded-lg text-sm font-medium">
+                🕒 Contrato assinado <b>após o início do serviço</b>.
+                O turno começou em {{ $service->startsAt()->format('d/m/Y H:i') }} e a assinatura do
+                freelancer foi registrada em {{ $service->freelancer_signed_at->format('d/m/Y H:i') }} —
+                <b>{{ $service->formattedSignatureDelay() }} depois</b>.
+                <span class="block mt-1 font-normal">
+                    O contrato deve ser assinado antes do início, com tolerância de
+                    {{ \App\Models\FreelancerService::SIGNATURE_TOLERANCE_MINUTES }} minutos.
+                </span>
+            </div>
+        @endif
+
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div class="flex items-center gap-4">
                 <a href="{{ route('freelancer-services.index') }}" class="p-2 bg-white dark:bg-gray-800 rounded-xl shadow-md text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 border border-gray-100 dark:border-gray-700 transition">

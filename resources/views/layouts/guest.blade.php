@@ -19,7 +19,11 @@
         }
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-4">
+<body class="flex flex-col min-h-screen">
+    <div class="flex flex-1 items-center justify-center p-4">
         {{ $slot }}
+    </div>
+
+    @include('partials.footer')
 </body>
 </html>

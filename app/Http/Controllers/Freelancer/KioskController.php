@@ -18,6 +18,7 @@ use App\Models\FunctionFreelancer;
 use App\Models\User;
 use App\Services\FreelancerBatchService;
 use App\Services\FreelancerService as FreelancerServiceManager;
+use App\Services\WeeklyLimitCodeService;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -276,7 +277,9 @@ class KioskController extends Controller
             try {
                 $coordinator = $this->authorizeCommercialCoordinator(
                     $request->input('coordinator_matricula'),
-                    $request->input('coordinator_pin')
+                    $request->input('coordinator_pin'),
+                    (int) $data['freelancer_id'],
+                    $data['start_date'],
                 );
             } catch (CoordinatorAuthorizationException $e) {
                 return response()->json(['error' => $e->getMessage(), 'step' => $e->step], 401);
@@ -294,6 +297,49 @@ class KioskController extends Controller
             'service' => $this->servicePayload($service->load('functionFreelancer')),
             'session' => $this->sessionPayload(),
         ], 201);
+    }
+
+    /**
+     * Manda o código de liberação por e-mail ao coordenador do Comercial —
+     * caminho para quando ele não pode vir até o tablet digitar o PIN. A tela
+     * confirma só o e-mail mascarado e o horário de validade; o código em si
+     * não volta na resposta, senão o operador o teria sem falar com ninguém.
+     */
+    public function weeklyLimitCode(Request $request, WeeklyLimitCodeService $codes)
+    {
+        $operator = $this->operatorModeOrFail();
+
+        $request->validate([
+            'coordinator_matricula' => ['required', 'string'],
+            'freelancer_id' => ['required', 'integer', 'exists:freelancers,id'],
+            'start_date' => ['required', 'date'],
+        ]);
+
+        try {
+            $coordinator = $this->findCommercialCoordinator($request->input('coordinator_matricula'));
+
+            $code = $codes->issue(
+                $coordinator,
+                (int) $request->input('freelancer_id'),
+                Carbon::parse($request->input('start_date'))->toDateString(),
+                $operator,
+            );
+        } catch (CoordinatorAuthorizationException $e) {
+            return response()->json(['error' => $e->getMessage(), 'step' => $e->step], 401);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'error' => 'Não foi possível enviar o e-mail com o código. Tente novamente ou use o PIN.',
+                'step' => 'pin',
+            ], 502);
+        }
+
+        return response()->json([
+            'sent_to' => WeeklyLimitCodeService::maskEmail($code->sent_to),
+            'expires_at' => $code->expires_at->format('H:i'),
+            'coordinator' => $coordinator->name,
+        ]);
     }
 
     /**

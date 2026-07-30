@@ -72,6 +72,13 @@
                                 <td class="px-4 py-4 text-gray-700 dark:text-gray-300">R$ {{ number_format($service->price, 2, ',', '.') }}</td>
                                 <td class="px-4 py-4">
                                     <x-freelancer-signature-badge :service="$service" />
+                                    {{-- Mesma informação da tarja da tela do contrato, em selo. --}}
+                                    @if($service->isSignedAfterStart())
+                                        <span class="block mt-1 text-xs font-bold text-rose-600 dark:text-rose-400 whitespace-nowrap"
+                                              title="O turno começou em {{ $service->startsAt()->format('d/m/Y H:i') }} e a assinatura do freelancer foi registrada em {{ $service->freelancer_signed_at->format('d/m/Y H:i') }}. Tolerância de {{ \App\Models\FreelancerService::SIGNATURE_TOLERANCE_MINUTES }} minutos.">
+                                            🕒 Assinado {{ $service->formattedSignatureDelay() }} após o início
+                                        </span>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-4 text-right space-x-3 whitespace-nowrap">
                                     <a href="{{ route('freelancer-services.show', $service) }}" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium text-xs">

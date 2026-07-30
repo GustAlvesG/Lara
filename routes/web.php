@@ -66,6 +66,10 @@ Route::prefix('kiosk')->group(function () {
     Route::get('/freelancer/{freelancer}/services', [KioskController::class, 'services'])->name('kiosk.freelancer.services');
     Route::post('/service', [KioskController::class, 'storeService'])
         ->middleware('throttle:20,1')->name('kiosk.service.store');
+    // Código de liberação do limite semanal por e-mail. Throttle baixo: é um
+    // e-mail para uma caixa de terceiro, não um endpoint de consulta.
+    Route::post('/service/weekly-limit-code', [KioskController::class, 'weeklyLimitCode'])
+        ->middleware('throttle:6,1')->name('kiosk.service.weekly-limit-code');
     Route::post('/service/{freelancerService}/sign', [KioskController::class, 'signService'])
         ->middleware('throttle:20,1')->name('kiosk.service.sign');
 
@@ -360,6 +364,10 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [FreelancerServiceWebController::class, 'index'])->name('freelancer-services.index');
             Route::get('/create', [FreelancerServiceWebController::class, 'create'])->name('freelancer-services.create');
             Route::post('/', [FreelancerServiceWebController::class, 'store'])->name('freelancer-services.store');
+            // Código de liberação do limite semanal por e-mail — declarado antes
+            // de /{freelancerService} e com throttle baixo (dispara e-mail).
+            Route::post('/weekly-limit-code', [FreelancerServiceWebController::class, 'sendWeeklyLimitCode'])
+                ->middleware('throttle:6,1')->name('freelancer-services.weekly-limit-code');
             // Importação em massa — antes de /{freelancerService} para não ser capturada por ela
             Route::get('/import/template', [FreelancerServiceWebController::class, 'importTemplate'])->name('freelancer-services.import.template');
             Route::post('/import', [FreelancerServiceWebController::class, 'import'])->name('freelancer-services.import');

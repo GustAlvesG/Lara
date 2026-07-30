@@ -30,7 +30,7 @@ A validação sempre verifica as **regras de acesso** cadastradas para a empresa
 
 ## Cadastro de Empresas
 
-**Navegação:** Parceiros → Empresas (`lara.clubedosfuncionarios.com.br/company`)
+**Navegação:** Externos → Empresas (`lara.clubedosfuncionarios.com.br/company`)
 
 O módulo é organizado em três níveis: **Empresa → Funcionários → Regras de Acesso**.  
 Uma empresa pode ter regras gerais (valem para todos os funcionários) e cada funcionário pode ter regras individuais que sobrescrevem as da empresa.
@@ -201,7 +201,7 @@ Cada regra exibe um ícone de lixeira. Ao clicar, uma confirmação é solicitad
 ### Monitor de Acesso
 
 **URL:** `lara.clubedosfuncionarios.com.br/company/access-monitor`  
-**Navegação:** Parceiros → Monitor de Acesso
+**Navegação:** Externos → Monitor de Acesso
 
 #### Como usar
 
@@ -268,7 +268,7 @@ No rodapé da página, as últimas 10 consultas da sessão atual são exibidas e
 ### Histórico de Acessos
 
 **URL:** `lara.clubedosfuncionarios.com.br/company/access-logs`  
-**Navegação:** Parceiros → Histórico
+**Navegação:** Externos → Histórico
 
 Exibe todos os acessos registrados com filtros e estatísticas.
 

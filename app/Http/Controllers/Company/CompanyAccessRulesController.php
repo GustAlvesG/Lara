@@ -95,9 +95,17 @@ class CompanyAccessRulesController extends Controller
 
     public function accessLogs(Request $request)
     {
-        $query = CompanyAccessLog::with('company', 'worker', 'appDriver')->latest();
+        $type = $request->input('type') === 'app' ? 'app' : 'all';
 
-        if ($request->filled('company_id')) {
+        $query = CompanyAccessLog::with('company', 'worker', 'appDriver', 'uberRequest')->latest();
+
+        // Aba separada: apenas acessos de carros de aplicativo (Uber e motoristas de app).
+        if ($type === 'app') {
+            $query->appCars();
+        }
+
+        // Empresa não se aplica a carros de aplicativo (só filtro por data).
+        if ($type !== 'app' && $request->filled('company_id')) {
             $query->where('company_id', $request->company_id);
         }
 
@@ -116,13 +124,17 @@ class CompanyAccessRulesController extends Controller
         $logs = $query->paginate(25)->withQueryString();
         $companies = Company::orderBy('name')->get();
 
+        // Estatísticas do dia respeitam a aba selecionada.
+        $statsBase = fn () => CompanyAccessLog::whereDate('created_at', today())
+            ->when($type === 'app', fn ($q) => $q->appCars());
+
         $stats = [
-            'total'   => CompanyAccessLog::whereDate('created_at', today())->count(),
-            'allowed' => CompanyAccessLog::whereDate('created_at', today())->where('allowed', true)->count(),
-            'denied'  => CompanyAccessLog::whereDate('created_at', today())->where('allowed', false)->count(),
+            'total'   => $statsBase()->count(),
+            'allowed' => $statsBase()->where('allowed', true)->count(),
+            'denied'  => $statsBase()->where('allowed', false)->count(),
         ];
 
-        return view('companies.access-logs', compact('logs', 'companies', 'stats'));
+        return view('companies.access-logs', compact('logs', 'companies', 'stats', 'type'));
     }
 
     public function validateCompanyAccess(Request $request)

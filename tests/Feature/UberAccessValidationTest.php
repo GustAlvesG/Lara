@@ -118,10 +118,14 @@ class UberAccessValidationTest extends TestCase
         // expires_at foi vencido no ato do acesso.
         $this->assertTrue($fresh->expires_at->lessThanOrEqualTo(now()));
 
+        // O log anexa a imagem da solicitação e o vínculo ao pedido, para
+        // consulta posterior na aba de carros de aplicativo.
         $this->assertDatabaseHas('company_access_logs', [
-            'target'  => $plate,
-            'allowed' => true,
-            'reason'  => 'uber_access_granted',
+            'target'                 => $plate,
+            'allowed'                => true,
+            'reason'                 => 'uber_access_granted',
+            'uber_access_request_id' => $request->id,
+            'screenshot_url'         => 'https://cdn.example.com/prints/' . $plate . '.jpg',
         ]);
 
         // Segunda tentativa com a mesma placa não é mais liberada.

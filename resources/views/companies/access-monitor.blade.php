@@ -19,7 +19,7 @@
                 </a>
                 <div>
                     <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white">Monitor de Acesso</h1>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Consulte ou registre acessos de parceiros terceirizados.</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Consulte ou registre acessos de Externos terceirizados.</p>
                 </div>
             </div>
             <a href="{{ route('company.access.logs') }}"

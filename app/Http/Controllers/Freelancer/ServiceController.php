@@ -17,7 +17,9 @@ use App\Models\FreelancerService;
 use App\Models\FunctionFreelancer;
 use App\Models\Status;
 use App\Services\FreelancerService as FreelancerServiceManager;
+use App\Services\WeeklyLimitCodeService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class ServiceController extends Controller
 {
@@ -78,7 +80,9 @@ class ServiceController extends Controller
             try {
                 $coordinator = $this->authorizeCommercialCoordinator(
                     $request->input('coordinator_matricula'),
-                    $request->input('coordinator_pin')
+                    $request->input('coordinator_pin'),
+                    (int) $data['freelancer_id'],
+                    $data['start_date'],
                 );
             } catch (CoordinatorAuthorizationException $e) {
                 return $this->backToWeeklyLimitConfirmation($request, $data)
@@ -93,6 +97,47 @@ class ServiceController extends Controller
 
         return redirect()->route('freelancer-services.show', $service)
             ->with('success', 'Serviço registrado com sucesso.');
+    }
+
+    /**
+     * Manda por e-mail o código de liberação ao coordenador do Comercial, para
+     * quando ele não pode vir digitar o PIN. O botão fica no próprio formulário
+     * (via `formaction`), então tudo que já foi preenchido volta intacto — só
+     * muda a mensagem no topo do bloco de liberação.
+     */
+    public function sendWeeklyLimitCode(Request $request, WeeklyLimitCodeService $codes)
+    {
+        $data = $request->validate([
+            'coordinator_matricula' => ['required', 'string'],
+            'freelancer_id' => ['required', 'integer', 'exists:freelancers,id'],
+            'start_date' => ['required', 'date'],
+        ], [], ['coordinator_matricula' => 'matrícula do coordenador']);
+
+        try {
+            $coordinator = $this->findCommercialCoordinator($data['coordinator_matricula']);
+
+            $code = $codes->issue(
+                $coordinator,
+                (int) $data['freelancer_id'],
+                Carbon::parse($data['start_date'])->toDateString(),
+                auth()->user(),
+            );
+        } catch (CoordinatorAuthorizationException $e) {
+            return $this->backToWeeklyLimitConfirmation($request, $data)->with('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            // Falha de SMTP não pode passar por "código enviado": quem está no
+            // balcão ficaria esperando um e-mail que não saiu.
+            report($e);
+
+            return $this->backToWeeklyLimitConfirmation($request, $data)
+                ->with('error', 'Não foi possível enviar o e-mail com o código. Verifique o servidor de e-mail e tente novamente.');
+        }
+
+        return $this->backToWeeklyLimitConfirmation($request, $data)->with(
+            'success',
+            'Código enviado para ' . WeeklyLimitCodeService::maskEmail($code->sent_to) . '. '
+                . 'Vale até ' . $code->expires_at->format('H:i') . '. Peça que o coordenador dite o número.'
+        );
     }
 
     /** Arquivo .xlsx em branco, no formato aceito pela importação. */

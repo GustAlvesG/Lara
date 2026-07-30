@@ -74,6 +74,20 @@ contrato mostra o traço quando há.
 Estados possíveis (`signatureLabel()`): `Não assinado` → `Aguardando coordenador` /
 `Aguardando freelancer` → `Assinado`; ou `Cancelado`.
 
+### Assinatura fora do prazo
+O contrato existe para ser assinado **antes de o turno começar**, com tolerância de
+**30 minutos** (`FreelancerService::SIGNATURE_TOLERANCE_MINUTES`). Um turno que começa 16:00 pode
+ser assinado até 16:30 sem marcação; 16:31 já é fora do prazo.
+
+- A conta é sobre a **assinatura do freelancer** (`isSignedAfterStart()`): é ela que acontece no
+  momento do serviço. A do coordenador é sempre posterior — ele assina em fila, pelo tablet —, e
+  cobrá-la pelo mesmo prazo acusaria praticamente todo contrato.
+- **Só aparece na web**, e não bloqueia nada: é informativo. Tarja no topo da tela do contrato
+  (com o horário do início, o da assinatura e o atraso) e selo na listagem de Serviços. O kiosk não
+  mostra — é lá que a assinatura acontece, e apontar o atraso naquele momento não muda mais nada.
+- O tempo exibido é o atraso em relação ao **início do turno**, não à tolerância: assinar 16:31 num
+  turno de 16:00 mostra "31min".
+
 ### Cancelamento
 - Só é possível **enquanto não houver nenhuma assinatura**.
 - Feito **apenas pelo painel**, por um **coordenador de setor** (de qualquer setor — a restrição ao
@@ -93,17 +107,38 @@ contados por `start_date`. O 3º (e cada um depois dele) **não é bloqueado**, 
 liberação não é o login da sessão, e no tablet não é o PIN do operador.
 
 A regra vive em `AuthorizesCommercialCoordinator` — fonte única do painel e do kiosk. Recusa quando
-a matrícula não existe, o usuário está inativo, não é coordenador do Comercial, não tem PIN, ou o
-PIN está errado.
+a matrícula não existe, o usuário está inativo, não é coordenador do Comercial, ou o segredo
+digitado não bate.
 
 - **Painel web** (`POST /freelancer-services`): o 1º envio volta com o formulário preenchido, a
   mensagem de aviso e o bloco "Liberação do coordenador do setor Comercial". O 2º envio leva
-  `confirm_weekly_limit` + `coordinator_matricula` + `coordinator_pin`. O PIN não é repopulado na
-  tela nem guardado na sessão.
+  `confirm_weekly_limit` + `coordinator_matricula` + `coordinator_pin`. O segredo não é repopulado
+  na tela nem guardado na sessão.
 - **Kiosk** (`POST /kiosk/service`): o 1º toque responde `409` com a mensagem; a tela então pede,
-  em dois passos, a matrícula e o PIN do coordenador. O reenvio leva os mesmos três campos. Erro
-  devolve `401` com `step` (`matricula` ou `pin`), e a tela volta ao passo certo.
+  em dois passos, a matrícula e o segredo do coordenador. O reenvio leva os mesmos três campos.
+  Erro devolve `401` com `step` (`matricula` ou `pin`), e a tela volta ao passo certo.
 - Quem liberou fica gravado em `weekly_limit_authorized_by` / `weekly_limit_authorized_at`.
+
+#### Coordenador ausente: código por e-mail
+`coordinator_pin` aceita **duas coisas**, ambas de 6 dígitos: o **PIN** do coordenador (presencial)
+ou um **código enviado ao e-mail dele** (à distância). O código existe para o caso de o coordenador
+não poder ir até o balcão ou o tablet: ele confere os dados no e-mail e **dita o número** por
+telefone para quem está registrando. É o mesmo desenho do PIN da diretoria — o código não aparece
+em tela nenhuma do sistema, e é isso que prova que quem liberou foi quem recebeu o e-mail.
+
+- Pedido: `POST /freelancer-services/weekly-limit-code` (web, botão dentro do próprio formulário
+  via `formaction`, então nada do que já foi digitado se perde) e
+  `POST /kiosk/service/weekly-limit-code` (tablet, botão no passo da matrícula). Ambos com
+  `throttle:6,1` — disparam e-mail para a caixa de terceiro.
+- Vai para o e-mail cadastrado do coordenador **daquela matrícula**. A resposta devolve só o
+  endereço mascarado e o horário de validade; nunca o código.
+- O código é preso ao trio **coordenador + freelancer + data do serviço**: não serve para liberar
+  outro contrato. Vale **uma vez só**, expira em `FREELANCER_WEEKLY_CODE_TTL_MINUTES` (15 por
+  padrão) e aceita no máximo `FREELANCER_WEEKLY_CODE_MAX_ATTEMPTS` (5) tentativas. Fica guardado em
+  hash na tabela `freelancer_weekly_limit_codes`.
+- Pedir um código novo invalida o anterior, para não haver dois números válidos ao mesmo tempo.
+- O envio é **síncrono** (sem fila), como o da diretoria: falha de SMTP tem de aparecer na hora
+  para quem está no balcão, e não sumir numa fila.
 
 **Janela de 7 dias.** Vale **qualquer** intervalo de 7 dias que contenha a data do serviço, não só
 os 6 dias anteriores — lançar um contrato numa data anterior a outros já registrados aperta a mesma
@@ -269,7 +304,8 @@ Dois modos, decididos pelo que o usuário é — quem acumula os dois papéis es
 - Assinar como coordenador existe **só no kiosk** e é mais restrito: só o coordenador do setor
   **Comercial** (`User::isCoordinatorOfSectorNamed('Comercial')`). Não há rota web equivalente.
 - **Liberar um serviço acima do limite de 7 dias** (painel e kiosk) também é exclusivo do
-  coordenador do setor **Comercial**, e por matrícula + PIN dele, não pela sessão de quem registra.
+  coordenador do setor **Comercial**, e por matrícula + PIN (ou código de e-mail) dele, não pela
+  sessão de quem registra.
 - **Montar e enviar lote** exige ser coordenador de setor (web) ou estar no modo `coordinator` do
   kiosk (setor Comercial).
 - **Aprovar lote** exige a role **`admin`**, e só existe na web. Hoje nada impede que um admin que

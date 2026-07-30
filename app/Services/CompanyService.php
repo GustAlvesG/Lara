@@ -430,11 +430,14 @@ class CompanyService
         }
 
         CompanyAccessLog::create([
-            'company_id'        => null,
-            'company_worker_id' => null,
-            'target'            => $result['plate'],
-            'allowed'           => $result['found'],
-            'reason'            => $result['found'] ? 'uber_access_granted' : 'uber_not_found',
+            'company_id'             => null,
+            'company_worker_id'      => null,
+            'uber_access_request_id' => $result['found'] ? $result['uber']['id'] : null,
+            'target'                 => $result['plate'],
+            // Anexa a imagem da solicitação ao log para consulta posterior.
+            'screenshot_url'         => $result['found'] ? ($result['uber']['screenshot_url'] ?? null) : null,
+            'allowed'                => $result['found'],
+            'reason'                 => $result['found'] ? 'uber_access_granted' : 'uber_not_found',
         ]);
 
         return $result;

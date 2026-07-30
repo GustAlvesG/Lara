@@ -95,7 +95,7 @@ class DashboardController extends Controller
             ];
         }
 
-        // Parceiros (empresas terceirizadas) — visível a todos os autenticados
+        // Externos (empresas terceirizadas) — visível a todos os autenticados
         $logsByDay = CompanyAccessLog::selectRaw('DATE(created_at) as day, allowed, COUNT(*) as total')
             ->where('created_at', '>=', Carbon::today()->subDays(13)->startOfDay())
             ->groupBy('day', 'allowed')

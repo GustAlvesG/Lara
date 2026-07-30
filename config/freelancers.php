@@ -25,4 +25,24 @@ return [
         ))),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Limite semanal
+    |--------------------------------------------------------------------------
+    |
+    | Passar de 2 serviços em 7 dias exige a liberação do coordenador do setor
+    | Comercial. Presencialmente ele digita o próprio PIN; ausente, recebe por
+    | e-mail um código de 6 dígitos e o dita para quem está registrando.
+    |
+    | O prazo é curto de propósito: o código atravessa uma ligação telefônica,
+    | não um processo. E as tentativas são limitadas — seis dígitos não
+    | resistem a chutes ilimitados.
+    |
+    */
+
+    'weekly_limit' => [
+        'code_ttl_minutes' => (int) env('FREELANCER_WEEKLY_CODE_TTL_MINUTES', 15),
+        'code_max_attempts' => (int) env('FREELANCER_WEEKLY_CODE_MAX_ATTEMPTS', 5),
+    ],
+
 ];

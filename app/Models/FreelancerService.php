@@ -18,6 +18,13 @@ class FreelancerService extends Model
     /** Tamanho da janela do limite, em dias. */
     const WEEKLY_WINDOW_DAYS = 7;
 
+    /**
+     * Quanto a assinatura do freelancer pode atrasar em relação ao início do
+     * turno sem ser considerada fora do prazo. Um turno que começa 16:00 pode
+     * ser assinado até 16:30.
+     */
+    const SIGNATURE_TOLERANCE_MINUTES = 30;
+
     /** O valor da função é cobrado por bloco de 15 minutos. */
     const BLOCK_MINUTES = 15;
 
@@ -296,6 +303,58 @@ class FreelancerService extends Model
     public function canBeDeleted(): bool
     {
         return !$this->isSigned();
+    }
+
+    /* ---------------------------------------------------------------------
+     | Prazo da assinatura
+     |
+     | O contrato existe para ser assinado ANTES de o turno começar. A conta é
+     | feita sobre a assinatura DO FREELANCER: é ela que acontece no momento do
+     | serviço. A do coordenador é sempre posterior — ele assina em fila, pelo
+     | tablet —, e cobrá-la pelo mesmo prazo acusaria praticamente todo contrato.
+     |---------------------------------------------------------------------*/
+
+    /**
+     * Minutos entre o início do turno e a assinatura do freelancer. Negativo
+     * quando assinado antes (o esperado); null enquanto não houver assinatura.
+     */
+    public function minutesFromStartToSignature(): ?int
+    {
+        if ($this->freelancer_signed_at === null || $this->start_date === null || blank($this->start_time)) {
+            return null;
+        }
+
+        return (int) $this->startsAt()->diffInMinutes($this->freelancer_signed_at, false);
+    }
+
+    /** Assinado depois do início do turno, já descontada a tolerância. */
+    public function isSignedAfterStart(): bool
+    {
+        $minutes = $this->minutesFromStartToSignature();
+
+        return $minutes !== null && $minutes > self::SIGNATURE_TOLERANCE_MINUTES;
+    }
+
+    /**
+     * O atraso em relação ao INÍCIO do turno (não à tolerância), formatado:
+     * "45min", "2h", "2h15". Null quando não há atraso.
+     */
+    public function formattedSignatureDelay(): ?string
+    {
+        $minutes = $this->minutesFromStartToSignature();
+
+        if ($minutes === null || $minutes <= 0) {
+            return null;
+        }
+
+        $hours = intdiv($minutes, 60);
+        $rest = $minutes % 60;
+
+        return match (true) {
+            $hours === 0 => "{$rest}min",
+            $rest === 0 => "{$hours}h",
+            default => sprintf('%dh%02d', $hours, $rest),
+        };
     }
 
     /** Rótulo curto do estado do contrato, para exibição. */
