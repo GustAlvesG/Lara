@@ -147,7 +147,7 @@
                             <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Data / Hora</th>
                             <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Alvo</th>
                             <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Empresa</th>
-                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ $type === 'app' ? 'Motorista' : 'Funcionário' }}</th>
+                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ $type === 'app' ? 'Solicitante' : 'Funcionário' }}</th>
                             @if($type === 'app')
                                 <th class="px-5 py-3.5 text-center text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Imagem</th>
                             @endif
@@ -199,13 +199,18 @@
                                     @elseif($log->uberRequest)
                                         <div class="flex items-center gap-2">
                                             <div class="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13l1.5-4.5A2 2 0 016.4 7h11.2a2 2 0 011.9 1.5L21 13m-18 0v5a1 1 0 001 1h1a1 1 0 001-1v-1h12v1a1 1 0 001 1h1a1 1 0 001-1v-5m-18 0h18M7 16h.01M17 16h.01"/></svg>
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                                             </div>
                                             <div>
                                                 <p class="font-semibold text-gray-700 dark:text-gray-300">{{ $log->uberRequest->requester_name ?? '—' }}</p>
-                                                @if($log->uberRequest->matricula)
-                                                    <p class="text-xs text-gray-400 dark:text-gray-500">Matrícula {{ $log->uberRequest->matricula }}</p>
-                                                @endif
+                                                <div class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
+                                                    @if($log->uberRequest->matricula)
+                                                        <span>Matrícula {{ $log->uberRequest->matricula }}</span>
+                                                    @endif
+                                                    @if($log->uberRequest->contact_phone)
+                                                        <span class="font-mono">{{ $log->uberRequest->contact_phone }}</span>
+                                                    @endif
+                                                </div>
                                             </div>
                                         </div>
                                     @elseif($log->appDriver)
