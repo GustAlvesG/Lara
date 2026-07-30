@@ -15,6 +15,9 @@ class FreelancerService extends Model
     /** Limite recomendado de serviços por freelancer numa janela de 7 dias. */
     const WEEKLY_LIMIT = 2;
 
+    /** Tamanho da janela do limite, em dias. */
+    const WEEKLY_WINDOW_DAYS = 7;
+
     /** O valor da função é cobrado por bloco de 15 minutos. */
     const BLOCK_MINUTES = 15;
 
@@ -46,6 +49,8 @@ class FreelancerService extends Model
         'cancelled_by',
         'created_by',
         'updated_by',
+        'weekly_limit_authorized_at',
+        'weekly_limit_authorized_by',
     ];
 
     /**
@@ -66,6 +71,7 @@ class FreelancerService extends Model
         'paid' => 'boolean',
         'paid_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'weekly_limit_authorized_at' => 'datetime',
     ];
 
     public function freelancer()
@@ -92,6 +98,12 @@ class FreelancerService extends Model
     public function coordinatorSignedBy()
     {
         return $this->belongsTo(User::class, 'coordinator_signed_by');
+    }
+
+    /** Coordenador do Comercial que liberou o registro acima do limite de 7 dias. */
+    public function weeklyLimitAuthorizedBy()
+    {
+        return $this->belongsTo(User::class, 'weekly_limit_authorized_by');
     }
 
     /** Último lote em que o contrato entrou (rascunho, enviado ou já analisado). */
@@ -466,18 +478,47 @@ class FreelancerService extends Model
     }
 
     /**
-     * Serviços já registrados para o freelancer na janela de 7 dias que termina
-     * em $startDate. Contratos cancelados não entram na conta.
+     * Serviços já registrados para o freelancer na janela de 7 dias MAIS CHEIA
+     * que contenha $startDate. A janela não é só "os 6 dias anteriores": lançar
+     * um contrato numa data ANTERIOR a outros já registrados também aperta a
+     * mesma semana, e olhar só para trás deixava esse caso passar sem aviso.
+     * Contratos cancelados não entram na conta.
      */
     public static function countInWeeklyWindow(int $freelancerId, $startDate): int
     {
-        return static::where('freelancer_id', $freelancerId)
+        $date = Carbon::parse($startDate)->startOfDay();
+        $reach = self::WEEKLY_WINDOW_DAYS - 1;
+
+        $dates = static::where('freelancer_id', $freelancerId)
             ->where('status_id', '!=', self::STATUS_CANCELLED)
             ->whereBetween('start_date', [
-                Carbon::parse($startDate)->subDays(6)->startOfDay(),
-                Carbon::parse($startDate)->endOfDay(),
+                $date->copy()->subDays($reach)->startOfDay(),
+                $date->copy()->addDays($reach)->endOfDay(),
             ])
-            ->count();
+            ->pluck('start_date')
+            ->map(fn($value) => Carbon::parse($value)->startOfDay());
+
+        return self::fullestWindowCount($date, $dates);
+    }
+
+    /**
+     * Maior número de datas que cabem numa janela de 7 dias que também contenha
+     * $date — testa as 7 posições possíveis dessa janela.
+     *
+     * @param  Collection<int, Carbon>  $dates
+     */
+    private static function fullestWindowCount(Carbon $date, Collection $dates): int
+    {
+        $counts = [];
+
+        for ($back = 0; $back < self::WEEKLY_WINDOW_DAYS; $back++) {
+            $start = $date->copy()->subDays($back);
+            $end = $start->copy()->addDays(self::WEEKLY_WINDOW_DAYS - 1);
+
+            $counts[] = $dates->filter(fn(Carbon $other) => $other->between($start, $end))->count();
+        }
+
+        return max($counts);
     }
 
     /**
@@ -503,12 +544,16 @@ class FreelancerService extends Model
                 return [$service->id => false];
             }
 
-            $windowStart = Carbon::parse($service->start_date)->subDays(6);
-            $windowEnd = Carbon::parse($service->start_date);
+            // Mesma regra de countInWeeklyWindow (janela mais cheia), só que
+            // sobre o que já está em memória.
+            $dates = $considered
+                ->filter(fn($other) => $other->freelancer_id === $service->freelancer_id)
+                ->map(fn($other) => Carbon::parse($other->start_date)->startOfDay());
 
-            $count = $considered->filter(fn($other) => $other->freelancer_id === $service->freelancer_id
-                && $other->start_date->between($windowStart, $windowEnd))
-                ->count();
+            $count = self::fullestWindowCount(
+                Carbon::parse($service->start_date)->startOfDay(),
+                $dates->values()
+            );
 
             return [$service->id => $count > self::WEEKLY_LIMIT];
         });

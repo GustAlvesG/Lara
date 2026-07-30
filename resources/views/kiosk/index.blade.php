@@ -505,18 +505,38 @@
       </div>
     </section>
 
-    <!-- ===== PIN (assinar / confirmar limite) ===== -->
+    <!-- ===== PIN (assinar / liberar limite semanal) ===== -->
     <section class="screen" id="s-pin">
       <div class="screen-body" style="display:flex;flex-direction:column;justify-content:center;min-height:100%">
-        <div style="text-align:center">
-          <p class="eyebrow" style="text-align:center">Confirmação do operador</p>
-          <h2 class="title" style="text-align:center" id="pinTitle">Digite seu PIN</h2>
-          <p class="subtitle" style="text-align:center" id="pinSub">A assinatura fica registrada como auxiliada por você</p>
+
+        <!-- passo 1, só no limite semanal: matrícula do coordenador do Comercial -->
+        <div id="pinMatStep" style="display:none">
+          <div style="text-align:center">
+            <p class="eyebrow" style="text-align:center">Liberação do coordenador</p>
+            <h2 class="title" style="text-align:center">Matrícula do coordenador</h2>
+            <p class="subtitle" style="text-align:center">Setor <b id="pinMatSector">Comercial</b> · só ele libera este registro</p>
+          </div>
+          <div id="pinMatExtra"></div>
+          <div class="display" style="margin-top:18px"><div class="val placeholder" id="pinMatVal">matrícula</div></div>
+          <div class="hint" id="pinMatHint" style="text-align:center;color:var(--brand);font-size:13px;min-height:18px">&nbsp;</div>
+          <div class="keypad" id="pinMatKeypad"></div>
+          <div style="margin-top:14px">
+            <button class="btn btn-primary" id="pinMatNext" disabled>Continuar</button>
+          </div>
         </div>
-        <div id="pinExtra"></div>
-        <div class="dots" id="pinDotsOp" style="margin-top:22px"></div>
-        <div class="hint" id="pinOpHint" style="text-align:center;color:var(--brand);font-size:13px;min-height:18px">&nbsp;</div>
-        <div class="keypad" id="pinKeypadOp"></div>
+
+        <!-- passo 2: PIN -->
+        <div id="pinPinStep">
+          <div style="text-align:center">
+            <p class="eyebrow" style="text-align:center" id="pinEyebrow">Confirmação do operador</p>
+            <h2 class="title" style="text-align:center" id="pinTitle">Digite seu PIN</h2>
+            <p class="subtitle" style="text-align:center" id="pinSub">A assinatura fica registrada como auxiliada por você</p>
+          </div>
+          <div id="pinExtra"></div>
+          <div class="dots" id="pinDotsOp" style="margin-top:22px"></div>
+          <div class="hint" id="pinOpHint" style="text-align:center;color:var(--brand);font-size:13px;min-height:18px">&nbsp;</div>
+          <div class="keypad" id="pinKeypadOp"></div>
+        </div>
       </div>
       <div class="screen-foot">
         <button class="btn-quiet btn" id="pinCancel">Voltar</button>
@@ -831,20 +851,31 @@
     $('#previaReceipt').innerHTML=h; $('#previaWarn').innerHTML=''; go('s-previa');
   }
   function servicePayload(){ const d=S.draft; return { freelancer_id:S.freelancer.id, function_freelancer_id:d.fn.id, location:d.loc.trim(), start_date:d.dayIso, start_time:d.start, end_time:d.end }; }
-  $('#registrarBtn').addEventListener('click', ()=> submitService(false, null));
-  async function submitService(confirmWeekly, pin){
+  $('#registrarBtn').addEventListener('click', ()=> submitService(false));
+  /**
+   * Acima do limite de 7 dias o servidor devolve 409 e o contrato só é gravado
+   * com a matrícula e o PIN do coordenador do Comercial — não com os do
+   * operador. O 401 diz, em `step`, se é a matrícula ou o PIN que está errado.
+   */
+  async function submitService(confirmWeekly, pin, matricula){
     const payload=servicePayload();
-    if(confirmWeekly){ payload.confirm_weekly_limit=true; payload.pin=pin; }
+    if(confirmWeekly){ payload.confirm_weekly_limit=true; payload.coordinator_matricula=matricula; payload.coordinator_pin=pin; }
     try{
       const r=await api('POST','/kiosk/service',payload);
       if(r.status===201){ applySession(r.data.session); toast('Contrato registrado · '+brl(r.data.service.price)); openMenu(); return true; }
       // Cadastro ficou incompleto (ex.: alterado noutra tela): abre o formulário
       // de completar em vez de deixar o contrato ser gravado sem dados.
       if(r.status===422 && r.data && r.data.incomplete_freelancer){ S.freelancer=r.data.freelancer; toast(r.data.error||'Cadastro incompleto.',true); openCompletar(); return false; }
-      if(r.status===409){ openPin('weekly', r.data.message); return false; }
-      if(r.status===401){ $('#pinOpHint').textContent='PIN inválido.'; resetPinOp(); return false; }
+      if(r.status===409){ openPin('weekly', r.data.message, r.data.coordinator_sector); return false; }
+      if(r.status===401){ weeklyAuthFailed(r.data); return false; }
       toast((r.data && (r.data.message||firstError(r.data)))||'Não foi possível registrar.',true); return false;
     }catch(e){ if(!e.handled) toast('Falha de conexão.',true); return false; }
+  }
+  /** Erro na liberação: volta para a matrícula ou só limpa o PIN, conforme o passo. */
+  function weeklyAuthFailed(data){
+    const msg=(data && data.error)||'Não foi possível liberar.';
+    if(data && data.step==='pin'){ $('#pinOpHint').textContent=msg; resetPinOp(); return; }
+    showPinMatStep(); $('#pinMatHint').textContent=msg;
   }
 
   /* ---------- Contratos ---------- */
@@ -1123,28 +1154,57 @@
   $('#sigConfirm').addEventListener('click', ()=>{ if(!hasInk) return; S.signature=canvas.toDataURL('image/png'); openPin(S.mode==='coordinator'?'sign-coord':'sign'); });
   window.addEventListener('resize', ()=>{ if(current==='s-assinar') sizeCanvas(); });
 
-  /* ---------- PIN (sign / sign-coord / weekly) ---------- */
-  let pinBuf='';
+  /* ---------- PIN (sign / sign-coord / send-batch / weekly) ---------- */
+  let pinBuf='', pinMatBuf='', weeklyMsg='';
   function resetPinOp(){ pinBuf=''; renderDots($('#pinDotsOp'),6,0); $('#pinOpHint').innerHTML='&nbsp;'; }
-  function openPin(mode, extraMsg){
+  function weeklyBanner(msg){ return `<div class="banner" style="margin:14px 0 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg><div><b>Limite semanal excedido</b><p>${esc(msg||'')}</p></div></div>`; }
+  function openPin(mode, extraMsg, sector){
     S.pinMode=mode; resetPinOp(); $('#pinExtra').innerHTML='';
-    if(mode==='sign'){ $('#pinTitle').textContent='Digite seu PIN'; $('#pinSub').textContent='A assinatura fica registrada como auxiliada por você'; $('#pinCancel').textContent='Voltar ao documento'; }
-    else if(mode==='sign-coord'){ $('#pinTitle').textContent='Digite seu PIN'; $('#pinSub').textContent='O contrato será assinado como coordenador, em seu nome'; $('#pinCancel').textContent='Voltar ao documento'; }
-    else if(mode==='send-batch'){ $('#pinTitle').textContent='Confirmar envio do lote'; $('#pinSub').textContent='O lote vai para a aprovação da gerência e não pode mais ser alterado'; $('#pinCancel').textContent='Voltar ao lote'; }
-    else { $('#pinTitle').textContent='Confirmar limite semanal'; $('#pinSub').textContent='Digite seu PIN para gravar mesmo assim'; $('#pinExtra').innerHTML=`<div class="banner" style="margin:14px 0 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg><div><b>Limite recomendado</b><p>${esc(extraMsg||'')}</p></div></div>`; $('#pinCancel').textContent='Cancelar'; }
+    if(mode==='weekly'){
+      // Duas etapas, porque quem libera não é quem está operando o tablet:
+      // primeiro a matrícula do coordenador do Comercial, depois o PIN dele.
+      weeklyMsg=extraMsg||''; pinMatBuf=''; renderPinMat();
+      $('#pinMatSector').textContent=sector||'Comercial';
+      $('#pinMatExtra').innerHTML=weeklyBanner(weeklyMsg);
+      $('#pinMatHint').innerHTML='&nbsp;';
+      showPinMatStep(); go('s-pin'); return;
+    }
+    showPinPinStep();
+    if(mode==='sign'){ $('#pinEyebrow').textContent='Confirmação do operador'; $('#pinTitle').textContent='Digite seu PIN'; $('#pinSub').textContent='A assinatura fica registrada como auxiliada por você'; $('#pinCancel').textContent='Voltar ao documento'; }
+    else if(mode==='sign-coord'){ $('#pinEyebrow').textContent='Confirmação do operador'; $('#pinTitle').textContent='Digite seu PIN'; $('#pinSub').textContent='O contrato será assinado como coordenador, em seu nome'; $('#pinCancel').textContent='Voltar ao documento'; }
+    else { $('#pinEyebrow').textContent='Confirmação do operador'; $('#pinTitle').textContent='Confirmar envio do lote'; $('#pinSub').textContent='O lote vai para a aprovação da gerência e não pode mais ser alterado'; $('#pinCancel').textContent='Voltar ao lote'; }
     go('s-pin');
   }
+  // No passo da matrícula, "Voltar" abandona a liberação e devolve a prévia.
+  function showPinMatStep(){ $('#pinMatStep').style.display='block'; $('#pinPinStep').style.display='none'; $('#pinCancel').textContent='Cancelar'; }
+  function showPinPinStep(){ $('#pinMatStep').style.display='none'; $('#pinPinStep').style.display='block'; }
+  function renderPinMat(){ const el=$('#pinMatVal'); el.textContent=pinMatBuf||'matrícula'; el.classList.toggle('placeholder',!pinMatBuf); $('#pinMatNext').disabled=pinMatBuf.length<1; }
+  buildKeypad($('#pinMatKeypad'),
+    d=>{ if(pinMatBuf.length<5){ pinMatBuf+=d; renderPinMat(); $('#pinMatHint').innerHTML='&nbsp;'; } },
+    ()=>{ pinMatBuf=pinMatBuf.slice(0,-1); renderPinMat(); $('#pinMatHint').innerHTML='&nbsp;'; });
+  renderPinMat();
+  $('#pinMatNext').addEventListener('click', ()=>{
+    resetPinOp();
+    $('#pinEyebrow').textContent='Liberação do coordenador';
+    $('#pinTitle').textContent='PIN do coordenador';
+    $('#pinSub').textContent='Matrícula ' + pinMatBuf + ' · o PIN é do coordenador, não do operador';
+    $('#pinExtra').innerHTML=weeklyBanner(weeklyMsg);
+    $('#pinCancel').textContent='Trocar matrícula';
+    showPinPinStep();
+  });
   buildKeypad($('#pinKeypadOp'),
     d=>{ if(pinBuf.length<6){ pinBuf+=d; renderDots($('#pinDotsOp'),6,pinBuf.length); if(pinBuf.length===6) submitPin(); } },
     ()=>{ pinBuf=pinBuf.slice(0,-1); renderDots($('#pinDotsOp'),6,pinBuf.length); $('#pinOpHint').innerHTML='&nbsp;'; });
   $('#pinCancel').addEventListener('click', ()=>{
     if(S.pinMode==='sign'||S.pinMode==='sign-coord') go('s-assinar');
     else if(S.pinMode==='send-batch') go('s-lote');
+    // No limite semanal, o "Voltar" do passo do PIN só desfaz a matrícula.
+    else if($('#pinPinStep').style.display!=='none'){ $('#pinMatHint').innerHTML='&nbsp;'; showPinMatStep(); }
     else go('s-previa');
   });
   async function submitPin(){
     const pin=pinBuf;
-    if(S.pinMode==='weekly'){ await submitService(true, pin); return; }
+    if(S.pinMode==='weekly'){ await submitService(true, pin, pinMatBuf); return; }
     if(S.pinMode==='sign-coord'){ await submitCoordSign(pin); return; }
     if(S.pinMode==='send-batch'){ await submitSendBatch(pin); return; }
     try{

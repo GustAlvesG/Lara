@@ -85,20 +85,38 @@ Estados possíveis (`signatureLabel()`): `Não assinado` → `Aguardando coorden
 Um serviço **assinado não pode ser excluído** (o caminho é cancelar, e cancelar exige que ainda
 não haja assinatura). Freelancers e funções com serviços vinculados também não podem ser excluídos.
 
-### Alerta de limite semanal
-Limite recomendado de **2 serviços por freelancer a cada 7 dias** (`FreelancerService::WEEKLY_LIMIT`),
-contados por `start_date`. O 3º **não é bloqueado**, mas exige confirmação:
+### Limite semanal e liberação pelo coordenador
+Limite de **2 serviços por freelancer a cada 7 dias** (`FreelancerService::WEEKLY_LIMIT`),
+contados por `start_date`. O 3º (e cada um depois dele) **não é bloqueado**, mas só é gravado com
+**aviso + liberação do coordenador do setor Comercial**, que informa a **própria matrícula** e o
+**próprio PIN** de 6 dígitos. Quem registra o contrato não se autoriza sozinho: no painel a
+liberação não é o login da sessão, e no tablet não é o PIN do operador.
 
-- no cadastro pelo painel, o aviso aparece **antes de gravar**: o formulário volta preenchido com
-  a mensagem e o botão passa a ser "Confirmar e registrar" (`confirm_weekly_limit`);
-- na edição e na importação em massa, o aviso continua saindo depois de salvar;
-- selo ⚠️ no index de Serviços e no index de Freelancers.
+A regra vive em `AuthorizesCommercialCoordinator` — fonte única do painel e do kiosk. Recusa quando
+a matrícula não existe, o usuário está inativo, não é coordenador do Comercial, não tem PIN, ou o
+PIN está errado.
+
+- **Painel web** (`POST /freelancer-services`): o 1º envio volta com o formulário preenchido, a
+  mensagem de aviso e o bloco "Liberação do coordenador do setor Comercial". O 2º envio leva
+  `confirm_weekly_limit` + `coordinator_matricula` + `coordinator_pin`. O PIN não é repopulado na
+  tela nem guardado na sessão.
+- **Kiosk** (`POST /kiosk/service`): o 1º toque responde `409` com a mensagem; a tela então pede,
+  em dois passos, a matrícula e o PIN do coordenador. O reenvio leva os mesmos três campos. Erro
+  devolve `401` com `step` (`matricula` ou `pin`), e a tela volta ao passo certo.
+- Quem liberou fica gravado em `weekly_limit_authorized_by` / `weekly_limit_authorized_at`.
+
+**Janela de 7 dias.** Vale **qualquer** intervalo de 7 dias que contenha a data do serviço, não só
+os 6 dias anteriores — lançar um contrato numa data anterior a outros já registrados aperta a mesma
+semana e também exige liberação. `countInWeeklyWindow()` devolve a contagem da janela mais cheia.
 
 Contratos cancelados não entram nessa contagem.
 
-Na **API (bot)** o mesmo aviso vem antes de gravar: o `POST` de serviço responde `409` pedindo
-confirmação e, no reenvio, exige `confirm_weekly_limit` **mais a senha do usuário logado** (ver
-seção da API).
+Ainda **sem** essa exigência (só aviso depois de salvar): a **edição** de um serviço já gravado e a
+**importação em massa** por planilha. Na **API (bot)** o `POST` continua pedindo
+`confirm_weekly_limit` + a senha do usuário de `created_by` (ver seção da API) — ou seja, ali quem
+confirma ainda é o próprio atendente, não o coordenador.
+
+Selo ⚠️ no index de Serviços e no index de Freelancers marca quem está acima do limite.
 
 ### Importação em massa por planilha
 As telas **Novo Freelancer** e **Novo Serviço** trazem um bloco "Importar por planilha", com o
@@ -250,6 +268,8 @@ Dois modos, decididos pelo que o usuário é — quem acumula os dois papéis es
   (`user_sector.role = 'coordinator'`) — verificado por `User::isCoordinator()`.
 - Assinar como coordenador existe **só no kiosk** e é mais restrito: só o coordenador do setor
   **Comercial** (`User::isCoordinatorOfSectorNamed('Comercial')`). Não há rota web equivalente.
+- **Liberar um serviço acima do limite de 7 dias** (painel e kiosk) também é exclusivo do
+  coordenador do setor **Comercial**, e por matrícula + PIN dele, não pela sessão de quem registra.
 - **Montar e enviar lote** exige ser coordenador de setor (web) ou estar no modo `coordinator` do
   kiosk (setor Comercial).
 - **Aprovar lote** exige a role **`admin`**, e só existe na web. Hoje nada impede que um admin que
@@ -420,6 +440,9 @@ Serviços registram ainda `coordinator_signed_by` (quem assinou como coordenador
 bot** (quem assina continua sendo o freelancer; o campo diz quem conduziu o atendimento e
 reconfirmou a senha). Junto com `created_by`, é o par que mostra quem ajudou no preenchimento e na
 assinatura.
+
+Quando o serviço passa do limite de 7 dias, `weekly_limit_authorized_by` / `weekly_limit_authorized_at`
+guardam qual coordenador do Comercial liberou e quando — sem isso a autorização não deixaria rastro.
 
 ## Referência técnica
 

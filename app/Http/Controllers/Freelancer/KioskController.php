@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Freelancer;
 
+use App\Exceptions\CoordinatorAuthorizationException;
 use App\Exceptions\FreelancerBatchException;
 use App\Exceptions\FreelancerServiceLockedException;
+use App\Http\Controllers\Concerns\AuthorizesCommercialCoordinator;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Freelancer\Concerns\ServesSignatureImages;
 use App\Http\Requests\StoreFreelancerRequest;
@@ -45,13 +47,14 @@ use Illuminate\Support\Facades\Storage;
  */
 class KioskController extends Controller
 {
+    use AuthorizesCommercialCoordinator;
     use ServesSignatureImages;
 
     private const SESSION_MINUTES = 30;
     private const SESSION_MAX_CONTRACTS = 5;
 
-    /** Só o coordenador deste setor assina contratos pelo kiosk. */
-    private const COORDINATOR_SECTOR = 'Comercial';
+    // COORDINATOR_SECTOR ('Comercial') vem de AuthorizesCommercialCoordinator:
+    // é o mesmo setor que assina contratos e que libera o limite semanal.
 
     /** Quantos contratos pendentes a fila do coordenador traz por vez. */
     private const COORDINATOR_QUEUE_LIMIT = 50;
@@ -262,15 +265,25 @@ class KioskController extends Controller
         }
 
         // Limite semanal: primeiro toque devolve 409 pedindo confirmação; o
-        // reenvio exige confirm_weekly_limit + o PIN do operador.
+        // reenvio exige confirm_weekly_limit + a matrícula e o PIN do
+        // coordenador do Comercial. Não é o PIN de quem está operando o tablet:
+        // o operador não se autoriza a passar do limite.
         if (FreelancerService::wouldExceedWeeklyLimit($data['freelancer_id'], $data['start_date'])) {
             if (!$request->boolean('confirm_weekly_limit')) {
                 return response()->json($this->weeklyLimitPayload($data), 409);
             }
 
-            if (!$operator->checkPin($request->input('pin'))) {
-                return response()->json(['error' => 'PIN inválido.'], 401);
+            try {
+                $coordinator = $this->authorizeCommercialCoordinator(
+                    $request->input('coordinator_matricula'),
+                    $request->input('coordinator_pin')
+                );
+            } catch (CoordinatorAuthorizationException $e) {
+                return response()->json(['error' => $e->getMessage(), 'step' => $e->step], 401);
             }
+
+            $data['weekly_limit_authorized_by'] = $coordinator->id;
+            $data['weekly_limit_authorized_at'] = now();
         }
 
         $service = $this->freelancerService->createService($data);
@@ -759,15 +772,18 @@ class KioskController extends Controller
         $freelancer = Freelancer::find($data['freelancer_id']);
 
         return [
-            'error' => 'Limite semanal recomendado excedido',
+            'error' => 'Limite semanal excedido',
             'requires_confirmation' => true,
-            'requires_pin' => true,
+            // Não é o PIN do operador: só o coordenador do Comercial libera, e
+            // ele se identifica pela própria matrícula.
+            'requires_coordinator_pin' => true,
+            'coordinator_sector' => self::COORDINATOR_SECTOR,
             'weekly_limit' => FreelancerService::WEEKLY_LIMIT,
             'services_in_window' => $count,
             'services_after_save' => $count + 1,
             'message' => 'Com este registro, ' . ($freelancer?->name ?? 'o freelancer') . ' passa a ter '
-                . ($count + 1) . ' serviços numa janela de 7 dias (recomendado: '
-                . FreelancerService::WEEKLY_LIMIT . ').',
+                . ($count + 1) . ' serviços numa janela de ' . FreelancerService::WEEKLY_WINDOW_DAYS
+                . ' dias (limite: ' . FreelancerService::WEEKLY_LIMIT . ').',
         ];
     }
 

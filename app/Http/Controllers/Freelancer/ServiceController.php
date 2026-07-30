@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Freelancer;
 
+use App\Exceptions\CoordinatorAuthorizationException;
 use App\Exceptions\FreelancerServiceLockedException;
 use App\Exceptions\SpreadsheetImportException;
+use App\Http\Controllers\Concerns\AuthorizesCommercialCoordinator;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Freelancer\Concerns\ServesSignatureImages;
 use App\Http\Requests\ImportSpreadsheetRequest;
@@ -15,9 +17,11 @@ use App\Models\FreelancerService;
 use App\Models\FunctionFreelancer;
 use App\Models\Status;
 use App\Services\FreelancerService as FreelancerServiceManager;
+use Illuminate\Http\Request;
 
 class ServiceController extends Controller
 {
+    use AuthorizesCommercialCoordinator;
     use ServesSignatureImages;
 
     public function __construct(private FreelancerServiceManager $freelancerService)
@@ -63,12 +67,26 @@ class ServiceController extends Controller
         }
 
         // O aviso de limite semanal vem antes de gravar: o formulário volta
-        // preenchido, pedindo uma confirmação explícita.
-        if (!$request->boolean('confirm_weekly_limit')
-            && FreelancerService::wouldExceedWeeklyLimit($data['freelancer_id'], $data['start_date'])) {
-            return back()
-                ->withInput()
-                ->with('confirm_weekly_limit', $this->weeklyLimitConfirmMessage($data));
+        // preenchido pedindo confirmação e, junto com ela, a matrícula e o PIN
+        // do coordenador do Comercial — quem registra o contrato não se
+        // autoriza sozinho a passar do limite.
+        if (FreelancerService::wouldExceedWeeklyLimit($data['freelancer_id'], $data['start_date'])) {
+            if (!$request->boolean('confirm_weekly_limit')) {
+                return $this->backToWeeklyLimitConfirmation($request, $data);
+            }
+
+            try {
+                $coordinator = $this->authorizeCommercialCoordinator(
+                    $request->input('coordinator_matricula'),
+                    $request->input('coordinator_pin')
+                );
+            } catch (CoordinatorAuthorizationException $e) {
+                return $this->backToWeeklyLimitConfirmation($request, $data)
+                    ->with('error', $e->getMessage());
+            }
+
+            $data['weekly_limit_authorized_by'] = $coordinator->id;
+            $data['weekly_limit_authorized_at'] = now();
         }
 
         $service = $this->freelancerService->createService($data);
@@ -127,6 +145,7 @@ class ServiceController extends Controller
             'cancelledBy',
             'createdBy',
             'updatedBy',
+            'weeklyLimitAuthorizedBy',
         ]);
 
         return view('freelancer.services.show', array_merge($this->formOptions(), [
@@ -230,6 +249,18 @@ class ServiceController extends Controller
     }
 
     /**
+     * Devolve o formulário no estado "aguardando a liberação do coordenador".
+     * O PIN digitado NÃO volta para a tela: sai do input reenviado, para não
+     * ficar guardado na sessão nem repopular o campo.
+     */
+    private function backToWeeklyLimitConfirmation(Request $request, array $data)
+    {
+        return back()
+            ->withInput($request->except('coordinator_pin'))
+            ->with('confirm_weekly_limit', $this->weeklyLimitConfirmMessage($data));
+    }
+
+    /**
      * Mensagem do aviso exibido antes da gravação, contando o serviço que está
      * prestes a ser criado.
      */
@@ -239,8 +270,9 @@ class ServiceController extends Controller
         $total = FreelancerService::countInWeeklyWindow($data['freelancer_id'], $data['start_date']) + 1;
 
         return 'Com este registro, ' . ($freelancer?->name ?? 'o freelancer') . ' passa a ter ' . $total
-            . ' serviços numa janela de 7 dias (limite recomendado: '
-            . FreelancerService::WEEKLY_LIMIT . '). Confirme para prosseguir.';
+            . ' serviços numa janela de ' . FreelancerService::WEEKLY_WINDOW_DAYS
+            . ' dias (limite: ' . FreelancerService::WEEKLY_LIMIT . '). Para prosseguir, o coordenador do setor '
+            . self::COORDINATOR_SECTOR . ' precisa liberar com a matrícula e o PIN dele.';
     }
 
     /** Mensagem padrão quando o cadastro do freelancer impede gerar o contrato. */
