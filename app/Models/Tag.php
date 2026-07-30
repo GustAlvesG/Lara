@@ -14,6 +14,14 @@ class Tag extends Model
     }
 
     /**
+     * Versões de informações do InfoClube marcadas com esta tag.
+     */
+    public function dataInfos()
+    {
+        return $this->belongsToMany(DataInfo::class, 'data_info_tag');
+    }
+
+    /**
      * Normaliza o nome da tag: minúsculas e sem espaços nas pontas.
      * Garante que "Urgente", "urgente" e " URGENTE " sejam a mesma tag.
      */

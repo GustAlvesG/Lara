@@ -6,7 +6,6 @@ use App\Http\Controllers\ParkingController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\AccessController;
 use App\Http\Controllers\InformationController;
-use App\Http\Controllers\DataInfoController;
 use App\Http\Controllers\Company\CompanyController;
 use App\Http\Controllers\Company\CompanyWorkerController as WorkerController;
 use App\Http\Controllers\Company\CompanyAccessRulesController as CompanyRulesController;
@@ -108,15 +107,23 @@ Route::middleware('auth')->group(function () {
     Route::get('/accesses/{time}', [AccessController::class, 'findAccessByTime'])->name('accesses.findAccessByTime');
     Route::get('/accesses', [AccessController::class, 'index'])->name('accesses.index');
     
-    Route::get('/information', [InformationController::class, 'index'])->name('information.index');
-    Route::get('/information/create', [InformationController::class, 'create'])->name('information.create');
-    Route::post('/information', [InformationController::class, 'store'])->name('information.store');
-    Route::get('/information/{information}', [InformationController::class, 'show'])->name('information.show');
-    Route::get('/information/{information}/edit', [InformationController::class, 'edit'])->name('information.edit');
-    Route::put('/information/{information}', [InformationController::class, 'update'])->name('information.update');
-    Route::delete('/information/{information}', [InformationController::class, 'destroy'])->name('information.destroy');
-    
-    Route::get('/information/{id}/history', [InformationController::class, 'history'])->name('information.history');
+    Route::get('/information', [InformationController::class, 'index'])
+        ->middleware('permission:view information')->name('information.index');
+    Route::get('/information/create', [InformationController::class, 'create'])
+        ->middleware('permission:create information')->name('information.create');
+    Route::post('/information', [InformationController::class, 'store'])
+        ->middleware('permission:create information|edit information')->name('information.store');
+    Route::get('/information/{information}', [InformationController::class, 'show'])
+        ->middleware('permission:view information')->name('information.show');
+    Route::get('/information/{information}/edit', [InformationController::class, 'edit'])
+        ->middleware('permission:edit information')->name('information.edit');
+    Route::put('/information/{information}', [InformationController::class, 'update'])
+        ->middleware('permission:edit information')->name('information.update');
+    Route::delete('/information/{information}', [InformationController::class, 'destroy'])
+        ->middleware('permission:delete information')->name('information.destroy');
+
+    Route::get('/information/{id}/history', [InformationController::class, 'history'])
+        ->middleware('permission:view information')->name('information.history');
     Route::get('/members/{title}', [MemberController::class, 'findMemberByCode'])->name('information.findMemberByCode');
 
     Route::group(['prefix' => 'company'], function () {

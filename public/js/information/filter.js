@@ -1,36 +1,43 @@
-document.addEventListener('DOMContentLoaded', function() {
-    // Inicializa o listener de filtragem se o input estiver presente
-    const input = document.getElementById('search-filter-text');
+/**
+ * Filtro em tempo real dos cards do InfoClube.
+ *
+ * Esconde o próprio item do grid (.elements). Antes cada card vinha embrulhado
+ * num div extra que continuava ocupando a célula depois de esconder o card,
+ * o que abria buracos na grade.
+ */
+document.addEventListener('DOMContentLoaded', function () {
+    var input = document.getElementById('search-filter-text');
+
     if (input) {
-        input.addEventListener('keyup', filterCards);
+        input.addEventListener('input', filterCards);
     }
 });
 
-/**
- * Função que filtra os cards de serviço em tempo real.
- * Requer que o contêiner de cards tenha o ID #elements-container.
- * ASSUME que o item do Grid (o elemento a ser escondido) é o pai direto do card âncora (o 'a.elements').
- */
 function filterCards() {
-    const input = document.getElementById('search-filter-text');
-    if (!input) return;
+    var input = document.getElementById('search-filter-text');
+    var container = document.getElementById('elements-container');
 
-    const filter = input.value.toUpperCase();
-    const container = document.getElementById('elements-container');
-    if (!container) return; 
+    if (!input || !container) {
+        return;
+    }
 
+    var filter = input.value.trim().toUpperCase();
+    var cards = container.querySelectorAll('.elements');
+    var visible = 0;
 
-    // Seleciona todos os elementos que representam o card content (a tag 'a' ou o wrapper do card)
-    const cardAnchors = container.querySelectorAll('.elements'); 
+    cards.forEach(function (card) {
+        var text = (card.textContent || '').toUpperCase();
+        var matches = filter === '' || text.indexOf(filter) > -1;
 
-    cardAnchors.forEach(cardAnchor => {
-        const fullCardText = cardAnchor.textContent || cardAnchor.innerText;
-        const textToFilter = fullCardText.toUpperCase();
+        card.style.display = matches ? '' : 'none';
 
-        if (textToFilter.indexOf(filter) > -1) {
-            cardAnchor.style.display = "";
-        } else {
-            cardAnchor.style.display = "none";
+        if (matches) {
+            visible++;
         }
     });
+
+    var empty = document.getElementById('no-results');
+    if (empty) {
+        empty.classList.toggle('hidden', visible > 0);
+    }
 }

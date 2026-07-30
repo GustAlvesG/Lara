@@ -106,11 +106,11 @@ deletes, scopes globais, etc.).
 ### Information
 - **Tabela:** `information` · **SoftDeletes**
 - **`$fillable`:** `created_by`, `privacy`
-- **Relacionamentos:** `user()` belongsTo User (`created_by`) · `data_info()` hasMany DataInfo
+- **Relacionamentos:** `user()` belongsTo User (`created_by`) · `data_info()` hasMany DataInfo (`information_id`)
 
 ### DataInfo
 - **Tabela:** `data_infos` · **SoftDeletes** · `UPDATED_AT = null`
-- **`$fillable`:** `name`, `description`, `fee`, `image`, `category`, `responsible`, `responsible_contact`, `name_price`, `price_associated`, `price_not_associated`, `slots`, `day_hour`, `location`, `status`, `information_id`, `created_by`, `before_data`
+- **`$fillable`:** `name`, `description`, `fee`, `image`, `category`, `responsible`, `responsible_contact`, `name_price`, `price_associated`, `price_not_associated`, `slots`, `day_hour`, `location`, `status`, `information_id`, `created_by`
 - **Relacionamentos:** `user()` belongsTo User (`created_by`) · `information()` belongsTo Information
 
 ---

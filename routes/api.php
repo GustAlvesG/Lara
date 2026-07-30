@@ -21,6 +21,7 @@ use App\Http\Controllers\FunctionFreelancerController;
 use App\Http\Controllers\FreelancerServiceController;
 use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\UberAccessRequestWebhookController;
+use App\Http\Controllers\InformationSearchController;
 
 
 Route::get('/user', function (Request $request) {
@@ -60,6 +61,12 @@ Route::middleware('api_token')->group(function () {
 
     Route::get('/parking/authorized', [ParkingAuthorizationController::class, 'listAuthorized'])
         ->name('api.parking.authorized');
+
+    Route::prefix('information')->group(function () {
+        //Busca por palavra-chave em name, description e category do data_info
+        Route::get('/search', [InformationSearchController::class, 'index'])
+            ->name('api.information.search');
+    });
 
     Route::prefix('webhooks')->group(function () {
         Route::post('/whatsapp', [UberAccessRequestWebhookController::class, 'handle'])

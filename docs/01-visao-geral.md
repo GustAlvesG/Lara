@@ -26,7 +26,7 @@ A aplicação está configurada em Português do Brasil (`APP_LOCALE=pt_BR`) e f
 | **Comunicação WhatsApp** | Webhook do WhatsApp Cloud API (Meta), recebimento/envio de mensagens e mídia. | `WhatsAppController`, `WhatsAppService`, `ProcessWhatsAppWebhook`, models em `WhatsApp/` |
 | **Comunicação Telegram** | Cadastro/consulta de contatos do Telegram (para notificações de equipe). | `TelegramContactController`, `TelegramService`, `TelegramContact` |
 | **Controle de acesso físico** | Consulta de acessos (catracas) e estacionamento, lendo a base SQL Server externa. | `AccessController`, `ParkingController`, `Access`, `Parking`, `Visitor` |
-| **Conteúdo informativo** | Páginas de informações e dados estruturados (preços, responsáveis, etc.). | `InformationController`, `DataInfoController`, `Information`, `DataInfo` |
+| **Conteúdo informativo** | InfoClube: catálogo versionado de atividades/serviços (preços, responsáveis, etc.). | `InformationController`, `Information`, `DataInfo` |
 | **Usuários e Permissões** | Gestão de usuários administrativos, papéis e permissões (Spatie). | `UserController`, `PermissionController`, `User` |
 | **Energia / VideoWall / FTP** | Painéis auxiliares (dashboard de energia, mural de vídeos, listagem FTP). | `EnergyController`, `VideoWallController`, `FtpController` |
 

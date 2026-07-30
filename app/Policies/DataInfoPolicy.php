@@ -13,7 +13,7 @@ class DataInfoPolicy
      */
     public function viewAny(User $user): bool
     {
-        //
+        return $user->can('view information');
     }
 
     /**
@@ -21,7 +21,7 @@ class DataInfoPolicy
      */
     public function view(User $user, DataInfo $dataInfo): bool
     {
-        //
+        return $user->can('view information');
     }
 
     /**
@@ -29,7 +29,7 @@ class DataInfoPolicy
      */
     public function create(User $user): bool
     {
-        //
+        return $user->can('create information');
     }
 
     /**
@@ -37,7 +37,7 @@ class DataInfoPolicy
      */
     public function update(User $user, DataInfo $dataInfo): bool
     {
-        //
+        return $user->can('edit information');
     }
 
     /**
@@ -45,7 +45,7 @@ class DataInfoPolicy
      */
     public function delete(User $user, DataInfo $dataInfo): bool
     {
-        //
+        return $user->can('delete information');
     }
 
     /**
@@ -53,7 +53,7 @@ class DataInfoPolicy
      */
     public function restore(User $user, DataInfo $dataInfo): bool
     {
-        //
+        return $user->can('edit information');
     }
 
     /**
@@ -61,6 +61,6 @@ class DataInfoPolicy
      */
     public function forceDelete(User $user, DataInfo $dataInfo): bool
     {
-        //
+        return $user->can('delete information');
     }
 }

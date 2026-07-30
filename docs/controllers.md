@@ -302,36 +302,24 @@ Depende de `CompanyService`.
 
 ## InformationController
 
-`app/Http/Controllers/InformationController.php` — conteúdo informativo. CRUD completo.
+`app/Http/Controllers/InformationController.php` — conteúdo informativo. CRUD completo, com
+versionamento (toda alteração cria uma nova linha em `data_infos`) e permissões Spatie
+(`view information`, `create information`, `edit information`, `delete information`).
 
 | Método | Assinatura | Descrição | Rota |
 |--------|-----------|-----------|------|
 | `index` | `index()` | Lista informações. → View | `GET /information` |
 | `create` | `create()` | Formulário. → View | `GET /information/create` |
-| `store` | `store(StoreInformationRequest $request)` | Cria (com imagem). → Redirect | `POST /information` |
-| `show` | `show(DataInfo $information)` | Detalhes. → View | `GET /information/{information}` |
-| `edit` | `edit(DataInfo $information)` | Formulário de edição. → View | `GET /information/{information}/edit` |
-| `update` | `update($information)` | Atualiza. → Redirect | `PUT /information/{information}` |
-| `destroy` | `destroy(Information $information)` | Remove. → Redirect | `DELETE /information/{information}` |
+| `store` | `store(StoreInformationRequest $request)` | Cria (sem `information_id`) ou grava uma nova versão (com `information_id` — é o que o formulário de edição usa). → Redirect | `POST /information` |
+| `show` | `show(DataInfo $information)` | Detalhes da versão atual. → View | `GET /information/{information}` |
+| `edit` | `edit(DataInfo $information)` | Formulário de edição, submete para `store`. → View | `GET /information/{information}/edit` |
+| `update` | `update(UpdateInformationRequest $request, DataInfo $information)` | Restaura uma versão do histórico como a atual (botão "Tornar versão atual"). → Redirect | `PUT /information/{information}` |
+| `destroy` | `destroy(Information $information)` | Soft delete. → Redirect | `DELETE /information/{information}` |
 | `history` | `history($information)` | Histórico de alterações. → View | `GET /information/{id}/history` |
 
 > Métodos auxiliares: `concatenateArrayValues($array, $delimiter = ';')` e
 > `explode_fields($info)` (privado) tratam a serialização dos campos compostos.
-
----
-
-## DataInfoController
-
-`app/Http/Controllers/DataInfoController.php` — dados estruturados ligados a `Information`. CRUD (resource).
-
-| Método | Assinatura | Descrição | Rota |
-|--------|-----------|-----------|------|
-| `create` | `create()` | Formulário. → View | `GET /data-info/create` |
-| `store` | `store(StoreDataInfoRequest $request)` | Cria registro de dado. → Redirect | `POST /data-info` |
-| `edit` | `edit(DataInfo $dataInfo)` | Formulário de edição. → View | `GET /data-info/{dataInfo}/edit` |
-| `update` | `update(UpdateDataInfoRequest $request, DataInfo $dataInfo)` | Atualiza. → Redirect | `PUT /data-info/{dataInfo}` |
-| `destroy` | `destroy(DataInfo $dataInfo)` | Remove. → Redirect | `DELETE /data-info/{dataInfo}` |
-| `index`/`show` | — | _stub_. | — |
+> `show`/`edit`/`history` retornam 404 se a `Information` pai estiver soft-deleted.
 
 ---
 

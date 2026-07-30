@@ -1,0 +1,342 @@
+/*
+ * Formulário do InfoClube (criar/editar).
+ *
+ * Estilos escritos à mão de propósito: o layout antigo dependia do grid do
+ * Bootstrap (.row/.col-*) misturado com Tailwind, e as margens negativas do
+ * .row dentro de cards com padding eram a causa dos elementos sobrepostos.
+ * Aqui o layout é flex/grid nativo, sem classes de grid de terceiros.
+ */
+
+/* --- Switch das seções opcionais --- */
+
+.info-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.info-switch input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+.info-switch-track {
+    position: relative;
+    flex: 0 0 auto;
+    width: 2.5rem;
+    height: 1.375rem;
+    border-radius: 9999px;
+    background: #d1d5db;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.info-switch-track::after {
+    content: "";
+    position: absolute;
+    top: 0.1875rem;
+    left: 0.1875rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 9999px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    transition: transform 0.15s ease-in-out;
+}
+
+.info-switch input:checked + .info-switch-track {
+    background: #4f46e5;
+}
+
+.info-switch input:checked + .info-switch-track::after {
+    transform: translateX(1.125rem);
+}
+
+.info-switch input:focus-visible + .info-switch-track {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+}
+
+.info-switch-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+}
+
+/* --- Linhas repetíveis (preços, horários, responsáveis) --- */
+
+.info-repeat-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-end;
+    padding: 0.875rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    background: #f9fafb;
+}
+
+.info-repeat-item + .info-repeat-item {
+    margin-top: 0.75rem;
+}
+
+/* Selo da primeira linha: é ela que aparece no card da listagem. */
+.info-featured-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-radius: 9999px;
+    background: #eef2ff;
+    color: #4338ca;
+}
+
+.info-repeat-item:first-child .info-repeat-row {
+    border-color: #a5b4fc;
+}
+
+/* Coluna estreita com mover para cima / baixo / remover. */
+.info-row-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 0 0 auto;
+}
+
+.info-move-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.5rem;
+    width: 2.375rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    background: #fff;
+    color: #4b5563;
+    cursor: pointer;
+    font-size: 0.75rem;
+    line-height: 1;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.info-move-btn:hover:not(:disabled) {
+    background: #f3f4f6;
+}
+
+.info-move-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+/*
+ * auto-fit em vez de media query: no layout de duas colunas a largura
+ * disponível depende do container, não da viewport — uma media query deixaria
+ * três inputs espremidos lado a lado dentro de uma coluna estreita.
+ */
+.info-repeat-fields {
+    flex: 1 1 auto;
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    min-width: 0;
+}
+
+/* --- Corte de texto por número de linhas (usado nos cards) --- */
+
+.info-clamp-2,
+.info-clamp-3 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.info-clamp-2 {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+}
+
+.info-clamp-3 {
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+}
+
+/* --- Campo de tags --- */
+
+.info-tags-box {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    background: #fff;
+    cursor: text;
+}
+
+.info-tags-box:focus-within {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 1px #6366f1;
+}
+
+.info-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 9999px;
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.info-tag-chip button {
+    line-height: 1;
+    cursor: pointer;
+    color: inherit;
+    opacity: 0.7;
+}
+
+.info-tag-chip button:hover {
+    opacity: 1;
+}
+
+.info-tags-box input {
+    flex: 1 1 8rem;
+    min-width: 8rem;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    font-size: 0.875rem;
+    color: #111827;
+}
+
+.info-tags-box input:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.info-remove-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.375rem;
+    width: 2.375rem;
+    border: 1px solid #fca5a5;
+    border-radius: 0.5rem;
+    background: #fff;
+    color: #dc2626;
+    cursor: pointer;
+    font-size: 1.125rem;
+    line-height: 1;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.info-remove-btn:hover {
+    background: #fef2f2;
+}
+
+/* --- Leitura (show / histórico) --- */
+
+.info-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.info-detail-table th,
+.info-detail-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: left;
+}
+
+.info-detail-table th {
+    font-weight: 600;
+    color: #374151;
+    background: #f9fafb;
+}
+
+.info-detail-table tr:last-child td {
+    border-bottom: none;
+}
+
+@media (prefers-color-scheme: dark) {
+    .info-switch-track {
+        background: #4b5563;
+    }
+
+    .info-switch-label {
+        color: #d1d5db;
+    }
+
+    .info-repeat-row {
+        border-color: #374151;
+        background: rgba(31, 41, 55, 0.5);
+    }
+
+    .info-tags-box {
+        border-color: #4b5563;
+        background: #111827;
+    }
+
+    .info-tags-box input {
+        color: #f3f4f6;
+    }
+
+    .info-tag-chip {
+        background: rgba(127, 29, 29, 0.35);
+        color: #fca5a5;
+    }
+
+    .info-remove-btn {
+        border-color: #7f1d1d;
+        background: transparent;
+        color: #f87171;
+    }
+
+    .info-featured-badge {
+        background: rgba(49, 46, 129, 0.5);
+        color: #c7d2fe;
+    }
+
+    .info-repeat-item:first-child .info-repeat-row {
+        border-color: #4f46e5;
+    }
+
+    .info-move-btn {
+        border-color: #4b5563;
+        background: transparent;
+        color: #d1d5db;
+    }
+
+    .info-move-btn:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .info-remove-btn:hover {
+        background: rgba(127, 29, 29, 0.25);
+    }
+
+    .info-detail-table th,
+    .info-detail-table td {
+        border-color: #374151;
+    }
+
+    .info-detail-table th {
+        color: #e5e7eb;
+        background: rgba(31, 41, 55, 0.6);
+    }
+}

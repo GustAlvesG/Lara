@@ -13,8 +13,6 @@ class Information extends Model
     use HasFactory;
     use SoftDeletes;
 
-    protected $conneciton = 'mysql';
-
     protected $fillable = [
         'created_by',
         'privacy'
@@ -29,6 +27,6 @@ class Information extends Model
     //Relacionamento de um para muitos com data_info
     public function data_info()
     {
-        return $this->hasMany(DataInfo::class, 'created_by');
+        return $this->hasMany(DataInfo::class, 'information_id');
     }
 }

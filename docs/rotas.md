@@ -26,19 +26,14 @@ Todas, salvo `/`, `/members` e `/dashboard`, estão sob o middleware `auth`.
 | GET | `/accesses` | AccessController@index | accesses.index | auth |
 | GET | `/accesses/{time}` | AccessController@findAccessByTime | accesses.findAccessByTime | auth |
 | GET | `/members/{title}` | MemberController@findMemberByCode | information.findMemberByCode | auth |
-| GET | `/information` | InformationController@index | information.index | auth |
-| GET | `/information/create` | InformationController@create | information.create | auth |
-| POST | `/information` | InformationController@store | information.store | auth |
-| GET | `/information/{information}` | InformationController@show | information.show | auth |
-| GET | `/information/{information}/edit` | InformationController@edit | information.edit | auth |
-| PUT | `/information/{information}` | InformationController@update | information.update | auth |
-| DELETE | `/information/{information}` | InformationController@destroy | information.destroy | auth |
-| GET | `/information/{id}/history` | InformationController@history | information.history | auth |
-| GET | `/data-info/create` | DataInfoController@create | data-info.create | auth |
-| POST | `/data-info` | DataInfoController@store | data-info.store | auth |
-| GET | `/data-info/{dataInfo}/edit` | DataInfoController@edit | data-info.edit | auth |
-| PUT | `/data-info/{dataInfo}` | DataInfoController@update | data-info.update | auth |
-| DELETE | `/data-info/{dataInfo}` | DataInfoController@destroy | data-info.destroy | auth |
+| GET | `/information` | InformationController@index | information.index | auth, permission:view information |
+| GET | `/information/create` | InformationController@create | information.create | auth, permission:create information |
+| POST | `/information` | InformationController@store | information.store | auth, permission:create information\|edit information |
+| GET | `/information/{information}` | InformationController@show | information.show | auth, permission:view information |
+| GET | `/information/{information}/edit` | InformationController@edit | information.edit | auth, permission:edit information |
+| PUT | `/information/{information}` | InformationController@update | information.update | auth, permission:edit information |
+| DELETE | `/information/{information}` | InformationController@destroy | information.destroy | auth, permission:delete information |
+| GET | `/information/{id}/history` | InformationController@history | information.history | auth, permission:view information |
 | GET | `/parking/search` | ParkingController@search | parking.search | auth, permission:search parking |
 | POST | `/parking/find` | ParkingController@show | parking.show | auth, permission:search parking |
 | GET | `/company` | CompanyController@index | company.index | auth |
