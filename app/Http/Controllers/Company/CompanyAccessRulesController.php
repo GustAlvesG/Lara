@@ -6,6 +6,7 @@ use App\Models\Company\Company;
 use App\Models\Company\CompanyWorker;
 use App\Models\Company\CompanyAccessRule;
 use App\Models\Company\CompanyAccessLog;
+use App\Models\UberAccessRequest;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCompanyAccessRulesRequest;
 use App\Http\Requests\UpdateCompanyAccessRulesRequest;
@@ -135,6 +136,72 @@ class CompanyAccessRulesController extends Controller
         ];
 
         return view('companies.access-logs', compact('logs', 'companies', 'stats', 'type'));
+    }
+
+    /**
+     * Lista TODOS os pedidos de Uber (uber_access_requests), em qualquer status
+     * — não só os que viraram acesso. Aba "Pedidos" da seção de Uber.
+     */
+    public function uberRequests(Request $request)
+    {
+        $query = UberAccessRequest::query()->latest('id');
+
+        if ($request->filled('status') && array_key_exists($request->status, UberAccessRequest::STATUS_LABELS)) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        $requests = $query->paginate(25)->withQueryString();
+        $statuses = UberAccessRequest::STATUS_LABELS;
+
+        $stats = [
+            'total'      => UberAccessRequest::whereDate('created_at', today())->count(),
+            'aguardando' => UberAccessRequest::where('status', UberAccessRequest::STATUS_AGUARDANDO_ACESSO)->count(),
+            'concluido'  => UberAccessRequest::whereDate('created_at', today())->where('status', UberAccessRequest::STATUS_CONCLUIDO)->count(),
+            'expirado'   => UberAccessRequest::whereDate('created_at', today())->where('status', UberAccessRequest::STATUS_EXPIRADO)->count(),
+        ];
+
+        return view('companies.uber.requests', compact('requests', 'statuses', 'stats'));
+    }
+
+    /**
+     * Lista os acessos efetivamente realizados a partir do fluxo de Uber
+     * (company_access_logs). Aba "Acessos Realizados" da seção de Uber.
+     */
+    public function uberAccesses(Request $request)
+    {
+        $query = CompanyAccessLog::uber()->with('uberRequest')->latest();
+
+        if ($request->filled('status') && in_array($request->status, ['1', '0'])) {
+            $query->where('allowed', (bool) $request->status);
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        $logs = $query->paginate(25)->withQueryString();
+
+        $statsBase = fn () => CompanyAccessLog::uber()->whereDate('created_at', today());
+
+        $stats = [
+            'total'   => $statsBase()->count(),
+            'allowed' => $statsBase()->where('allowed', true)->count(),
+            'denied'  => $statsBase()->where('allowed', false)->count(),
+        ];
+
+        return view('companies.uber.accesses', compact('logs', 'stats'));
     }
 
     public function validateCompanyAccess(Request $request)

@@ -136,6 +136,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/', [CompanyController::class, 'store'])->name('company.store');
         Route::get('/access-monitor', [CompanyRulesController::class, 'monitor'])->name('company.access.monitor');
         Route::get('/access-logs', [CompanyRulesController::class, 'accessLogs'])->name('company.access.logs');
+        Route::get('/uber-requests', [CompanyRulesController::class, 'uberRequests'])->name('company.uber.requests');
+        Route::get('/uber-accesses', [CompanyRulesController::class, 'uberAccesses'])->name('company.uber.accesses');
         Route::get('/workers/search', [WorkerController::class, 'search'])->name('company.worker.search');
         Route::get('/workers/quick-create', [WorkerController::class, 'quickCreate'])->name('company.worker.quick.create');
         Route::post('/workers/quick-create', [WorkerController::class, 'store'])->name('company.worker.quick.store');

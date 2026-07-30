@@ -15,10 +15,16 @@
                     <p class="text-sm text-gray-500 dark:text-gray-400">Registro de todas as validações realizadas.</p>
                 </div>
             </div>
-            <a href="{{ route('company.access.monitor') }}"
-               class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm shadow-md hover:bg-indigo-700 transition">
-                Monitor de Acesso
-            </a>
+            <div class="flex gap-2">
+                <a href="{{ route('company.uber.requests') }}"
+                   class="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    Pedidos de Uber
+                </a>
+                <a href="{{ route('company.access.monitor') }}"
+                   class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm shadow-md hover:bg-indigo-700 transition">
+                    Monitor de Acesso
+                </a>
+            </div>
         </div>
 
         <!-- Abas: todos os acessos x carros de aplicativo -->

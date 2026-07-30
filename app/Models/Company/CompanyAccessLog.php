@@ -55,4 +55,16 @@ class CompanyAccessLog extends Model
                 ->orWhere('reason', 'like', 'uber%');
         });
     }
+
+    /**
+     * Somente os acessos vindos do fluxo de Uber (exclui o registro manual de
+     * motorista de app).
+     */
+    public function scopeUber($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNotNull('uber_access_request_id')
+                ->orWhere('reason', 'like', 'uber%');
+        });
+    }
 }
