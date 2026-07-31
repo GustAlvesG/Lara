@@ -261,9 +261,9 @@
                     <div class="p-6 border-b border-gray-50 dark:border-gray-700 bg-amber-50/60 dark:bg-amber-900/20">
                         <h2 class="text-lg font-bold text-gray-800 dark:text-white">Liberação do coordenador do setor Comercial</h2>
                         <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                            Peça que o coordenador informe a <b>própria matrícula</b> e o <b>próprio PIN</b>.
-                            Para liberar por código enviado ao e-mail dele, use o registro individual — o código
-                            vale para um contrato de cada vez.
+                            Peça que um coordenador informe a <b>própria matrícula</b> e o <b>próprio PIN</b>.
+                            O código por e-mail não serve aqui: ele vale para um contrato de cada vez — para
+                            esse caminho, use o registro individual.
                         </p>
                     </div>
 

@@ -6,9 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Hash;
 
 /**
- * Código de 6 dígitos enviado por e-mail ao coordenador do Comercial para
- * liberar um serviço acima do limite de 7 dias sem que ele precise estar
- * presente. Vale uma vez só, para um contrato só, e por pouco tempo.
+ * Código de 6 dígitos enviado por e-mail aos coordenadores do Comercial para
+ * liberar um serviço acima do limite de 7 dias sem que nenhum deles precise
+ * estar presente. Vale uma vez só, para um contrato só, e por pouco tempo.
+ *
+ * O código é do CONTRATO, não de uma pessoa: o mesmo número vai para todos os
+ * coordenadores e quem estiver disponível dita. Por isso `coordinator_id` é
+ * nulo — `sent_to` guarda a lista de quem recebeu.
  */
 class FreelancerWeeklyLimitCode extends Model
 {
@@ -67,14 +71,12 @@ class FreelancerWeeklyLimitCode extends Model
     }
 
     /**
-     * Códigos daquele contrato para aquele coordenador, do mais novo para o
-     * mais antigo. Um pedido novo invalida os anteriores, então na prática só
-     * o primeiro da lista interessa.
+     * Códigos daquele contrato, do mais novo para o mais antigo. Um pedido novo
+     * invalida os anteriores, então na prática só o primeiro da lista interessa.
      */
-    public function scopeFor($query, int $coordinatorId, int $freelancerId, $startDate)
+    public function scopeFor($query, int $freelancerId, $startDate)
     {
-        return $query->where('coordinator_id', $coordinatorId)
-            ->where('freelancer_id', $freelancerId)
+        return $query->where('freelancer_id', $freelancerId)
             ->whereDate('start_date', $startDate)
             ->orderByDesc('id');
     }

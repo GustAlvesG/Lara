@@ -53,35 +53,48 @@
                     <div class="p-6 border-b border-gray-50 dark:border-gray-700 bg-amber-50/60 dark:bg-amber-900/20">
                         <h2 class="text-lg font-bold text-gray-800 dark:text-white">Liberação do coordenador do setor Comercial</h2>
                         <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                            Somente o coordenador do setor Comercial pode liberar este registro. Presencialmente,
-                            ele informa a <b>própria matrícula</b> e o <b>próprio PIN</b>. Se não estiver no local,
-                            envie um <b>código por e-mail</b> para ele ditar.
+                            Somente um coordenador do setor Comercial pode liberar este registro.
+                            <b>Presencialmente</b>, ele informa a própria matrícula e o próprio PIN.
+                            <b>À distância</b>, envie o código: ele vai para todos os coordenadores do setor
+                            e qualquer um deles pode ditar o número — nesse caso a matrícula não é necessária.
                         </p>
                     </div>
 
-                    <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Matrícula do coordenador <span class="text-red-500">*</span></label>
-                            <input type="text" name="coordinator_matricula" value="{{ old('coordinator_matricula') }}"
-                                inputmode="numeric" autocomplete="off" required
-                                class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-                            {{-- Mesmo formulário, outro destino: nada do que já foi
-                                 preenchido se perde ao pedir o código. --}}
+                    <div class="p-6 space-y-6">
+                        {{-- Mesmo formulário, outro destino: nada do que já foi
+                             preenchido se perde ao pedir o código. Não pede
+                             matrícula — o código vai para todos. --}}
+                        <div class="flex flex-wrap items-center gap-3">
                             <button type="submit" formaction="{{ route('freelancer-services.weekly-limit-code') }}"
                                 formnovalidate
-                                class="mt-2 text-sm font-bold text-amber-700 dark:text-amber-400 hover:underline">
-                                Coordenador ausente? Enviar código por e-mail
+                                class="inline-flex items-center px-4 py-2 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 rounded-xl font-bold border border-amber-300 dark:border-amber-700 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition">
+                                Nenhum coordenador presente? Enviar código por e-mail
                             </button>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">
+                                Vai para todos os coordenadores do Comercial, com validade curta.
+                            </span>
                         </div>
 
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">PIN ou código do coordenador <span class="text-red-500">*</span></label>
-                            <input type="password" name="coordinator_pin" inputmode="numeric" maxlength="6"
-                                pattern="[0-9]{6}" autocomplete="new-password" required placeholder="••••••"
-                                class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white tracking-[0.4em]">
-                            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                                6 dígitos: o PIN dele, ou o código que ele recebeu por e-mail. Não fica guardado na tela.
-                            </p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Matrícula do coordenador</label>
+                                <input type="text" name="coordinator_matricula" value="{{ old('coordinator_matricula') }}"
+                                    inputmode="numeric" autocomplete="off"
+                                    class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
+                                <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                                    Só para liberar com o PIN. Deixe em branco ao usar o código do e-mail.
+                                </p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">PIN ou código <span class="text-red-500">*</span></label>
+                                <input type="password" name="coordinator_pin" inputmode="numeric" maxlength="6"
+                                    pattern="[0-9]{6}" autocomplete="new-password" required placeholder="••••••"
+                                    class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white tracking-[0.4em]">
+                                <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                                    6 dígitos: o PIN do coordenador, ou o código enviado por e-mail. Não fica guardado na tela.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>

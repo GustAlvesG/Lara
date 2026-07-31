@@ -35,8 +35,12 @@
                 {{ \App\Models\FreelancerService::WEEKLY_LIMIT }}.
             </p>
             <p style="margin:0 0 14px;font-size:15px;line-height:1.55;">
-                Só você, como coordenador do setor Comercial, pode liberar. Se concordar,
-                <strong>dite o código abaixo</strong> para quem está registrando.
+                A liberação é do setor Comercial. Se concordar, <strong>dite o código abaixo</strong>
+                para quem está registrando.
+            </p>
+            <p style="margin:0 0 14px;font-size:14px;line-height:1.55;color:#5c5253;">
+                Este mesmo código foi enviado a <strong>todos os coordenadores do Comercial</strong> —
+                basta que um de vocês responda. Se outro já tiver liberado, o código deixa de valer.
             </p>
         </td>
     </tr>

@@ -114,29 +114,39 @@ digitado não bate.
   mensagem de aviso e o bloco "Liberação do coordenador do setor Comercial". O 2º envio leva
   `confirm_weekly_limit` + `coordinator_matricula` + `coordinator_pin`. O segredo não é repopulado
   na tela nem guardado na sessão.
-- **Kiosk** (`POST /kiosk/service`): o 1º toque responde `409` com a mensagem; a tela então pede,
-  em dois passos, a matrícula e o segredo do coordenador. O reenvio leva os mesmos três campos.
+- **Kiosk** (`POST /kiosk/service`): o 1º toque responde `409` com a mensagem; a tela então pergunta
+  **como** o coordenador vai liberar (presente, com PIN; ou por código de e-mail) e pede o segredo.
   Erro devolve `401` com `step` (`matricula` ou `pin`), e a tela volta ao passo certo.
 - Quem liberou fica gravado em `weekly_limit_authorized_by` / `weekly_limit_authorized_at`.
 
-#### Coordenador ausente: código por e-mail
-`coordinator_pin` aceita **duas coisas**, ambas de 6 dígitos: o **PIN** do coordenador (presencial)
-ou um **código enviado ao e-mail dele** (à distância). O código existe para o caso de o coordenador
-não poder ir até o balcão ou o tablet: ele confere os dados no e-mail e **dita o número** por
-telefone para quem está registrando. É o mesmo desenho do PIN da diretoria — o código não aparece
-em tela nenhuma do sistema, e é isso que prova que quem liberou foi quem recebeu o e-mail.
+#### Nenhum coordenador presente: código por e-mail
+`coordinator_pin` aceita **duas coisas**, ambas de 6 dígitos: o **PIN** de um coordenador
+(presencial, acompanhado da matrícula dele) ou o **código enviado por e-mail** (à distância, **sem
+matrícula**). É o mesmo desenho do PIN da diretoria — o código não aparece em tela nenhuma do
+sistema, e é isso que prova que a liberação veio de quem tem acesso à caixa de um coordenador.
 
+- **Um único código vai para TODOS os coordenadores do Comercial** ativos e com e-mail cadastrado.
+  Não se escolhe destinatário: quem registra não precisa saber quem está de plantão, e qualquer um
+  deles pode ditar o número. Cada um recebe a própria mensagem, nominal — em cópia, um veria o
+  e-mail dos outros sem necessidade.
 - Pedido: `POST /freelancer-services/weekly-limit-code` (web, botão dentro do próprio formulário
   via `formaction`, então nada do que já foi digitado se perde) e
-  `POST /kiosk/service/weekly-limit-code` (tablet, botão no passo da matrícula). Ambos com
-  `throttle:6,1` — disparam e-mail para a caixa de terceiro.
-- Vai para o e-mail cadastrado do coordenador **daquela matrícula**. A resposta devolve só o
-  endereço mascarado e o horário de validade; nunca o código.
-- O código é preso ao trio **coordenador + freelancer + data do serviço**: não serve para liberar
-  outro contrato. Vale **uma vez só**, expira em `FREELANCER_WEEKLY_CODE_TTL_MINUTES` (15 por
-  padrão) e aceita no máximo `FREELANCER_WEEKLY_CODE_MAX_ATTEMPTS` (5) tentativas. Fica guardado em
-  hash na tabela `freelancer_weekly_limit_codes`.
+  `POST /kiosk/service/weekly-limit-code` (tablet). Ambos com `throttle:6,1` — disparam e-mail para
+  caixas de terceiros — e **nenhum dos dois pede matrícula**. A resposta devolve só os endereços
+  mascarados e o horário de validade; nunca o código.
+- Basta **uma** mensagem sair para o código servir. Uma caixa recusada é registrada no log (sem o
+  código) e não derruba o pedido; só quando **nenhuma** sai é que o envio falha.
+- **Sem dono, sem atribuição:** liberado por código, `weekly_limit_authorized_by` fica **nulo** —
+  só `weekly_limit_authorized_at` é gravado, e a tarja do contrato diz "liberado por código enviado
+  aos coordenadores do setor Comercial". Nomear um coordenador ali seria inventar: o código vale
+  para todos. Só o caminho do PIN identifica uma pessoa.
+- O código é preso ao par **freelancer + data do serviço**: não serve para liberar outro contrato.
+  Vale **uma vez só**, expira em `FREELANCER_WEEKLY_CODE_TTL_MINUTES` (15 por padrão) e aceita no
+  máximo `FREELANCER_WEEKLY_CODE_MAX_ATTEMPTS` (5) tentativas. Fica guardado em hash na tabela
+  `freelancer_weekly_limit_codes` (`coordinator_id` nulo; `sent_to` lista quem recebeu).
 - Pedir um código novo invalida o anterior, para não haver dois números válidos ao mesmo tempo.
+- Na conferência, o **PIN é tentado antes do código** quando há matrícula informada — assim o uso
+  normal do PIN não gasta as tentativas do código pendente.
 - O envio é **síncrono** (sem fila), como o da diretoria: falha de SMTP tem de aparecer na hora
   para quem está no balcão, e não sumir numa fila.
 
@@ -222,7 +232,7 @@ por **dois níveis de aprovação**, e isso acontece em **lote**.
 
 ```
 freelancer assina → coordenador assina → coordenador monta o lote → envia
-    → gerente aprova (ou recusa) contrato a contrato
+    → coordenador da Gerência aprova (ou recusa) contrato a contrato
         → e-mail automático à diretoria, com dois PINs
             → diretor dita o PIN, gerência digita → financeiro paga
 ```
@@ -236,9 +246,11 @@ Descartar o rascunho solta os contratos de volta para a fila — nada se perde.
 **Envio.** O lote passa a `sent` e **congela**: nem o coordenador mexe mais nele, nem os contratos
 entram em outro lote. No tablet o envio pede o PIN, como as assinaturas.
 
-**Análise (gerente, só na web).** O gerente é um usuário com a role **`admin`** do Spatie. Ele abre
-o lote e decide **contrato a contrato** — tudo começa marcado como aprovar, e recusar exige um
-motivo. Concluída a análise:
+**Análise (gerência, só na web).** Quem aprova é o **coordenador do setor `Gerência`**
+(`user_sector.role = 'coordinator'`, verificado por `User::isManagementCoordinator()`) — e mais
+ninguém: a role `admin` **não** dá acesso à aprovação. Responder pelo lote é um cargo, não um nível
+de acesso ao sistema. Ele abre o lote e decide **contrato a contrato** — tudo começa marcado como
+aprovar, e recusar exige um motivo. Concluída a análise:
 
 - **aprovado** → grava `manager_approved_at` / `manager_approved_by`; o contrato segue para a
   diretoria;
@@ -327,16 +339,21 @@ Dois modos, decididos pelo que o usuário é — quem acumula os dois papéis es
 - Assinar como coordenador existe **só no kiosk** e é mais restrito: só o coordenador do setor
   **Comercial** (`User::isCoordinatorOfSectorNamed('Comercial')`). Não há rota web equivalente.
 - **Liberar um serviço acima do limite de 7 dias** (painel e kiosk) também é exclusivo do
-  coordenador do setor **Comercial**, e por matrícula + PIN (ou código de e-mail) dele, não pela
-  sessão de quem registra.
+  coordenador do setor **Comercial** — por matrícula + PIN dele, ou pelo código enviado a todos os
+  coordenadores do setor —, nunca pela sessão de quem registra.
 - **Montar e enviar lote** exige ser coordenador de setor (web) ou estar no modo `coordinator` do
   kiosk (setor Comercial).
-- **Aprovar lote** exige a role **`admin`**, e só existe na web. Hoje nada impede que um admin que
-  também seja coordenador aprove o próprio lote — se a segregação for necessária, é uma checagem a
-  acrescentar em `BatchController::review`.
-- **Registrar a decisão da diretoria** também exige a role `admin`: quem digita o código é a
-  gerência. O controle não é de permissão e sim de conhecimento — só quem recebeu o e-mail sabe o
-  código.
+- **Aprovar lote** exige ser **coordenador do setor `Gerência`**
+  (`User::isManagementCoordinator()`), e só existe na web. A role `admin` não vale: administrar o
+  sistema e responder pela aprovação do lote são coisas separadas. Se ninguém estiver vinculado
+  como coordenador da Gerência, **a fila de aprovação fica sem dono** e os lotes enviados param —
+  o vínculo é feito na tela de Setores.
+- Nada impede que o coordenador da Gerência monte o próprio lote e depois o aprove (montar lote é
+  de coordenador de qualquer setor). Se a segregação for necessária, é uma checagem a acrescentar
+  em `BatchController::review`.
+- **Registrar a decisão da diretoria** também é do coordenador da Gerência: quem digita o código é
+  a gerência. O controle não é de permissão e sim de conhecimento — só quem recebeu o e-mail sabe
+  o código.
 
 ## API
 

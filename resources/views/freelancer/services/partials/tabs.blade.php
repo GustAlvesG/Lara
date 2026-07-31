@@ -11,8 +11,8 @@
         $tabs[] = ['route' => 'freelancer-batches.index', 'label' => 'Lotes'];
     }
 
-    // Aprovação da gerência: role admin.
-    if ($user?->hasRole('admin')) {
+    // Aprovação: só o coordenador do setor Gerência.
+    if ($user?->isManagementCoordinator()) {
         $tabs[] = ['route' => 'freelancer-batches.queue', 'label' => 'Aprovação'];
     }
 

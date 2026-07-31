@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\EmailRequest;
 use App\Services\EmailService;
+use App\Services\MailConfigurationTester;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class EmailController extends Controller
@@ -40,5 +42,15 @@ class EmailController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Diagnóstico das configurações de e-mail, disponível no perfil de quem
+     * administra o sistema. Confere o que está configurado e conversa com o
+     * servidor SMTP — sem enviar mensagem alguma.
+     */
+    public function testConfiguration(MailConfigurationTester $tester): RedirectResponse
+    {
+        return back()->with('mail_test', $tester->run());
     }
 }

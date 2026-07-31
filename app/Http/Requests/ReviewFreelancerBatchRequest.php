@@ -10,9 +10,10 @@ use Illuminate\Foundation\Http\FormRequest;
  */
 class ReviewFreelancerBatchRequest extends FormRequest
 {
+    /** Só o coordenador do setor Gerência aprova lote (ver BatchController). */
     public function authorize(): bool
     {
-        return $this->user()?->hasRole('admin') ?? false;
+        return $this->user()?->isManagementCoordinator() ?? false;
     }
 
     /**

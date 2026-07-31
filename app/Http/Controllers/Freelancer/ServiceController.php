@@ -91,7 +91,9 @@ class ServiceController extends Controller
                     ->with('error', $e->getMessage());
             }
 
-            $data['weekly_limit_authorized_by'] = $coordinator->id;
+            // Null quando a liberação veio do código: o mesmo número foi para
+            // todos os coordenadores e não há a quem atribuir.
+            $data['weekly_limit_authorized_by'] = $coordinator?->id;
             $data['weekly_limit_authorized_at'] = now();
         }
 
@@ -156,7 +158,7 @@ class ServiceController extends Controller
             }
 
             $authorization = [
-                'weekly_limit_authorized_by' => $coordinator->id,
+                'weekly_limit_authorized_by' => $coordinator?->id,
                 'weekly_limit_authorized_at' => now(),
             ];
         }
@@ -201,16 +203,12 @@ class ServiceController extends Controller
     public function sendWeeklyLimitCode(Request $request, WeeklyLimitCodeService $codes)
     {
         $data = $request->validate([
-            'coordinator_matricula' => ['required', 'string'],
             'freelancer_id' => ['required', 'integer', 'exists:freelancers,id'],
             'start_date' => ['required', 'date'],
-        ], [], ['coordinator_matricula' => 'matrícula do coordenador']);
+        ]);
 
         try {
-            $coordinator = $this->findCommercialCoordinator($data['coordinator_matricula']);
-
             $code = $codes->issue(
-                $coordinator,
                 (int) $data['freelancer_id'],
                 Carbon::parse($data['start_date'])->toDateString(),
                 auth()->user(),
@@ -228,8 +226,9 @@ class ServiceController extends Controller
 
         return $this->backToWeeklyLimitConfirmation($request, $data)->with(
             'success',
-            'Código enviado para ' . WeeklyLimitCodeService::maskEmail($code->sent_to) . '. '
-                . 'Vale até ' . $code->expires_at->format('H:i') . '. Peça que o coordenador dite o número.'
+            'Código enviado aos coordenadores do setor ' . self::COORDINATOR_SECTOR . ' ('
+                . WeeklyLimitCodeService::maskEmails($code->sent_to) . '). Vale até '
+                . $code->expires_at->format('H:i') . '. Peça a qualquer um deles que dite o número.'
         );
     }
 

@@ -509,12 +509,27 @@
     <section class="screen" id="s-pin">
       <div class="screen-body" style="display:flex;flex-direction:column;justify-content:center;min-height:100%">
 
-        <!-- passo 1, só no limite semanal: matrícula do coordenador do Comercial -->
+        <!-- passo 1, só no limite semanal: como o coordenador vai liberar -->
+        <div id="pinChoiceStep" style="display:none">
+          <div style="text-align:center">
+            <p class="eyebrow" style="text-align:center">Liberação do coordenador</p>
+            <h2 class="title" style="text-align:center">Quem libera é o Comercial</h2>
+            <p class="subtitle" style="text-align:center">Só um coordenador do setor <b id="pinMatSector">Comercial</b> pode autorizar este registro</p>
+          </div>
+          <div id="pinChoiceExtra"></div>
+          <div class="hint" id="pinChoiceHint" style="text-align:center;color:var(--brand);font-size:13px;min-height:18px">&nbsp;</div>
+          <div style="margin-top:16px">
+            <button class="btn btn-primary" id="pinChoicePresent">O coordenador está aqui · usar o PIN dele</button>
+            <button class="btn btn-ghost" id="pinChoiceEmail" style="margin-top:10px">Ninguém presente · enviar código por e-mail</button>
+          </div>
+        </div>
+
+        <!-- passo 2a (só no caminho do PIN): matrícula do coordenador -->
         <div id="pinMatStep" style="display:none">
           <div style="text-align:center">
             <p class="eyebrow" style="text-align:center">Liberação do coordenador</p>
             <h2 class="title" style="text-align:center">Matrícula do coordenador</h2>
-            <p class="subtitle" style="text-align:center">Setor <b id="pinMatSector">Comercial</b> · só ele libera este registro</p>
+            <p class="subtitle" style="text-align:center">Do coordenador do Comercial que está liberando</p>
           </div>
           <div id="pinMatExtra"></div>
           <div class="display" style="margin-top:18px"><div class="val placeholder" id="pinMatVal">matrícula</div></div>
@@ -522,7 +537,6 @@
           <div class="keypad" id="pinMatKeypad"></div>
           <div style="margin-top:14px">
             <button class="btn btn-primary" id="pinMatNext" disabled>Continuar</button>
-            <button class="btn btn-ghost" id="pinMatSendCode" disabled style="margin-top:10px">Coordenador ausente? Enviar código por e-mail</button>
           </div>
         </div>
 
@@ -860,7 +874,9 @@
    */
   async function submitService(confirmWeekly, pin, matricula){
     const payload=servicePayload();
-    if(confirmWeekly){ payload.confirm_weekly_limit=true; payload.coordinator_matricula=matricula; payload.coordinator_pin=pin; }
+    // Sem matrícula quando a liberação é pelo código: ele vale para qualquer
+    // coordenador do Comercial, então não há quem identificar.
+    if(confirmWeekly){ payload.confirm_weekly_limit=true; payload.coordinator_matricula=matricula||null; payload.coordinator_pin=pin; }
     try{
       const r=await api('POST','/kiosk/service',payload);
       if(r.status===201){ applySession(r.data.session); toast('Contrato registrado · '+brl(r.data.service.price)); openMenu(); return true; }
@@ -872,10 +888,10 @@
       toast((r.data && (r.data.message||firstError(r.data)))||'Não foi possível registrar.',true); return false;
     }catch(e){ if(!e.handled) toast('Falha de conexão.',true); return false; }
   }
-  /** Erro na liberação: volta para a matrícula ou só limpa o PIN, conforme o passo. */
+  /** Erro na liberação: volta para a matrícula ou só limpa o segredo, conforme o passo. */
   function weeklyAuthFailed(data){
     const msg=(data && data.error)||'Não foi possível liberar.';
-    if(data && data.step==='pin'){ $('#pinOpHint').textContent=msg; resetPinOp(); return; }
+    if(!data || data.step==='pin'){ $('#pinOpHint').textContent=msg; resetPinOp(); return; }
     showPinMatStep(); $('#pinMatHint').textContent=msg;
   }
 
@@ -1156,19 +1172,21 @@
   window.addEventListener('resize', ()=>{ if(current==='s-assinar') sizeCanvas(); });
 
   /* ---------- PIN (sign / sign-coord / send-batch / weekly) ---------- */
-  let pinBuf='', pinMatBuf='', weeklyMsg='';
+  let pinBuf='', pinMatBuf='', weeklyMsg='', weeklyVia=null;
   function resetPinOp(){ pinBuf=''; renderDots($('#pinDotsOp'),6,0); $('#pinOpHint').innerHTML='&nbsp;'; }
   function weeklyBanner(msg){ return `<div class="banner" style="margin:14px 0 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg><div><b>Limite semanal excedido</b><p>${esc(msg||'')}</p></div></div>`; }
   function openPin(mode, extraMsg, sector){
     S.pinMode=mode; resetPinOp(); $('#pinExtra').innerHTML='';
     if(mode==='weekly'){
-      // Duas etapas, porque quem libera não é quem está operando o tablet:
-      // primeiro a matrícula do coordenador do Comercial, depois o PIN dele.
-      weeklyMsg=extraMsg||''; pinMatBuf=''; renderPinMat();
+      // Quem libera não é quem está operando o tablet. Primeiro se decide como:
+      // com o coordenador presente (matrícula + PIN dele) ou com o código que o
+      // sistema manda para todos os coordenadores do Comercial.
+      weeklyMsg=extraMsg||''; weeklyVia=null; pinMatBuf=''; renderPinMat();
       $('#pinMatSector').textContent=sector||'Comercial';
+      $('#pinChoiceExtra').innerHTML=weeklyBanner(weeklyMsg);
       $('#pinMatExtra').innerHTML=weeklyBanner(weeklyMsg);
-      $('#pinMatHint').innerHTML='&nbsp;';
-      showPinMatStep(); go('s-pin'); return;
+      $('#pinChoiceHint').innerHTML='&nbsp;'; $('#pinMatHint').innerHTML='&nbsp;';
+      showPinChoiceStep(); go('s-pin'); return;
     }
     showPinPinStep();
     if(mode==='sign'){ $('#pinEyebrow').textContent='Confirmação do operador'; $('#pinTitle').textContent='Digite seu PIN'; $('#pinSub').textContent='A assinatura fica registrada como auxiliada por você'; $('#pinCancel').textContent='Voltar ao documento'; }
@@ -1176,10 +1194,16 @@
     else { $('#pinEyebrow').textContent='Confirmação do operador'; $('#pinTitle').textContent='Confirmar envio do lote'; $('#pinSub').textContent='O lote vai para a aprovação da gerência e não pode mais ser alterado'; $('#pinCancel').textContent='Voltar ao lote'; }
     go('s-pin');
   }
-  // No passo da matrícula, "Voltar" abandona a liberação e devolve a prévia.
-  function showPinMatStep(){ $('#pinMatStep').style.display='block'; $('#pinPinStep').style.display='none'; $('#pinCancel').textContent='Cancelar'; }
-  function showPinPinStep(){ $('#pinMatStep').style.display='none'; $('#pinPinStep').style.display='block'; }
-  function renderPinMat(){ const el=$('#pinMatVal'); el.textContent=pinMatBuf||'matrícula'; el.classList.toggle('placeholder',!pinMatBuf); $('#pinMatNext').disabled=pinMatBuf.length<1; $('#pinMatSendCode').disabled=pinMatBuf.length<1; }
+  // Um passo de cada vez dentro da tela de PIN.
+  function showWeeklyStep(id, cancelLabel){
+    ['pinChoiceStep','pinMatStep','pinPinStep'].forEach(s => $('#'+s).style.display = (s===id ? 'block' : 'none'));
+    if(cancelLabel) $('#pinCancel').textContent=cancelLabel;
+  }
+  // Na escolha, "Voltar" abandona a liberação e devolve a prévia.
+  function showPinChoiceStep(){ showWeeklyStep('pinChoiceStep','Cancelar'); }
+  function showPinMatStep(){ showWeeklyStep('pinMatStep','Voltar'); }
+  function showPinPinStep(){ showWeeklyStep('pinPinStep'); }
+  function renderPinMat(){ const el=$('#pinMatVal'); el.textContent=pinMatBuf||'matrícula'; el.classList.toggle('placeholder',!pinMatBuf); $('#pinMatNext').disabled=pinMatBuf.length<1; }
   buildKeypad($('#pinMatKeypad'),
     d=>{ if(pinMatBuf.length<5){ pinMatBuf+=d; renderPinMat(); $('#pinMatHint').innerHTML='&nbsp;'; } },
     ()=>{ pinMatBuf=pinMatBuf.slice(0,-1); renderPinMat(); $('#pinMatHint').innerHTML='&nbsp;'; });
@@ -1191,45 +1215,57 @@
     $('#pinTitle').textContent=title;
     $('#pinSub').textContent=sub;
     $('#pinExtra').innerHTML=weeklyBanner(weeklyMsg);
-    $('#pinCancel').textContent='Trocar matrícula';
+    $('#pinCancel').textContent = weeklyVia==='code' ? 'Voltar' : 'Trocar matrícula';
     showPinPinStep();
   }
+  $('#pinChoicePresent').addEventListener('click', ()=>{
+    weeklyVia='pin'; pinMatBuf=''; renderPinMat(); $('#pinMatHint').innerHTML='&nbsp;'; showPinMatStep();
+  });
   $('#pinMatNext').addEventListener('click', ()=>{
     goToCoordSecretStep('PIN do coordenador', 'Matrícula ' + pinMatBuf + ' · o PIN é do coordenador, não do operador');
   });
   /**
-   * Coordenador longe do tablet: o sistema manda 6 dígitos para o e-mail dele e
-   * ele dita. O código nunca volta para esta tela — só o e-mail mascarado.
+   * Nenhum coordenador no local: o sistema manda os mesmos 6 dígitos para TODOS
+   * os coordenadores do Comercial e qualquer um deles dita. Não se escolhe
+   * destinatário — quem opera não precisa saber quem está de plantão. O código
+   * nunca volta para esta tela: só os e-mails mascarados.
    */
-  $('#pinMatSendCode').addEventListener('click', async ()=>{
-    const btn=$('#pinMatSendCode'); btn.disabled=true; const label=btn.textContent; btn.textContent='Enviando…';
+  $('#pinChoiceEmail').addEventListener('click', async ()=>{
+    const btn=$('#pinChoiceEmail'); btn.disabled=true; const label=btn.textContent; btn.textContent='Enviando…';
     const d=S.draft;
     try{
       const r=await api('POST','/kiosk/service/weekly-limit-code',{
-        coordinator_matricula:pinMatBuf, freelancer_id:S.freelancer.id, start_date:d.dayIso });
+        freelancer_id:S.freelancer.id, start_date:d.dayIso });
       if(r.ok){
-        toast('Código enviado para '+r.data.sent_to);
-        goToCoordSecretStep('Código do coordenador',
-          'Enviado para '+r.data.sent_to+' · vale até '+r.data.expires_at+' · peça que ele dite');
+        weeklyVia='code'; pinMatBuf='';
+        toast('Código enviado aos coordenadores do Comercial');
+        goToCoordSecretStep('Código de liberação',
+          'Enviado para ' + r.data.sent_to + ' · vale até ' + r.data.expires_at + ' · peça que ditem o número');
         return;
       }
-      $('#pinMatHint').textContent=(r.data && r.data.error)||'Não foi possível enviar o código.';
-    }catch(e){ if(!e.handled) $('#pinMatHint').textContent='Falha de conexão.'; }
-    finally{ btn.textContent=label; btn.disabled=pinMatBuf.length<1; }
+      $('#pinChoiceHint').textContent=(r.data && r.data.error)||'Não foi possível enviar o código.';
+    }catch(e){ if(!e.handled) $('#pinChoiceHint').textContent='Falha de conexão.'; }
+    finally{ btn.textContent=label; btn.disabled=false; }
   });
   buildKeypad($('#pinKeypadOp'),
     d=>{ if(pinBuf.length<6){ pinBuf+=d; renderDots($('#pinDotsOp'),6,pinBuf.length); if(pinBuf.length===6) submitPin(); } },
     ()=>{ pinBuf=pinBuf.slice(0,-1); renderDots($('#pinDotsOp'),6,pinBuf.length); $('#pinOpHint').innerHTML='&nbsp;'; });
   $('#pinCancel').addEventListener('click', ()=>{
-    if(S.pinMode==='sign'||S.pinMode==='sign-coord') go('s-assinar');
-    else if(S.pinMode==='send-batch') go('s-lote');
-    // No limite semanal, o "Voltar" do passo do PIN só desfaz a matrícula.
-    else if($('#pinPinStep').style.display!=='none'){ $('#pinMatHint').innerHTML='&nbsp;'; showPinMatStep(); }
-    else go('s-previa');
+    if(S.pinMode==='sign'||S.pinMode==='sign-coord') return go('s-assinar');
+    if(S.pinMode==='send-batch') return go('s-lote');
+    // No limite semanal o "Voltar" recua um passo por vez, até a prévia. Pelo
+    // código não há matrícula no meio: volta direto para a escolha.
+    if($('#pinPinStep').style.display!=='none'){
+      $('#pinMatHint').innerHTML='&nbsp;'; $('#pinChoiceHint').innerHTML='&nbsp;';
+      return weeklyVia==='code' ? showPinChoiceStep() : showPinMatStep();
+    }
+    if($('#pinMatStep').style.display!=='none'){ $('#pinChoiceHint').innerHTML='&nbsp;'; return showPinChoiceStep(); }
+    go('s-previa');
   });
   async function submitPin(){
     const pin=pinBuf;
-    if(S.pinMode==='weekly'){ await submitService(true, pin, pinMatBuf); return; }
+    // Pelo código não vai matrícula: ele vale para qualquer coordenador.
+    if(S.pinMode==='weekly'){ await submitService(true, pin, weeklyVia==='code' ? null : pinMatBuf); return; }
     if(S.pinMode==='sign-coord'){ await submitCoordSign(pin); return; }
     if(S.pinMode==='send-batch'){ await submitSendBatch(pin); return; }
     try{

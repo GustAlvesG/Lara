@@ -22,7 +22,10 @@ class CommercialCoordinatorAuthorizationTest extends TestCase
     private const FREELANCER_ID = 7;
     private const START_DATE = '2026-08-01';
 
-    /** Dublê do serviço de códigos: guarda um código válido para um contrato. */
+    /**
+     * Dublê do serviço de códigos: guarda um código válido para um contrato.
+     * O código não tem dono — o mesmo número vai para todos os coordenadores.
+     */
     private function codes(?string $code = null, int $freelancerId = self::FREELANCER_ID, string $startDate = self::START_DATE): WeeklyLimitCodeService
     {
         return new class($code, $freelancerId, $startDate) extends WeeklyLimitCodeService {
@@ -42,12 +45,12 @@ class CommercialCoordinatorAuthorizationTest extends TestCase
                     && (string) $startDate === $this->startDate;
             }
 
-            public function hasPending(User $coordinator, int $freelancerId, $startDate): bool
+            public function hasPending(int $freelancerId, $startDate): bool
             {
                 return $this->isTheContract($freelancerId, $startDate);
             }
 
-            public function consume(User $coordinator, int $freelancerId, $startDate, ?string $code): bool
+            public function consume(int $freelancerId, $startDate, ?string $code): bool
             {
                 if (!$this->isTheContract($freelancerId, $startDate) || $code !== $this->code) {
                     return false;
@@ -80,7 +83,7 @@ class CommercialCoordinatorAuthorizationTest extends TestCase
                 return $this->codes;
             }
 
-            public function run(?string $matricula, ?string $secret, ?int $freelancerId = null, $startDate = null): User
+            public function run(?string $matricula, ?string $secret, ?int $freelancerId = null, $startDate = null): ?User
             {
                 return $this->authorizeCommercialCoordinator($matricula, $secret, $freelancerId, $startDate);
             }
@@ -171,12 +174,25 @@ class CommercialCoordinatorAuthorizationTest extends TestCase
         $this->authorizer($this->user('Comercial', '123456', statusId: 2))->run('1234', '123456');
     }
 
-    public function test_matricula_em_branco_e_recusada_antes_de_qualquer_consulta(): void
+    /** Sem matrícula e sem código pendente não há como liberar. */
+    public function test_sem_matricula_e_sem_codigo_nao_libera(): void
     {
-        $this->expectException(CoordinatorAuthorizationException::class);
-        $this->expectExceptionMessage('Informe a matrícula do coordenador do setor Comercial.');
+        try {
+            $this->authorizer($this->user('Comercial'))->run(null, '123456');
+            $this->fail('Deveria ter recusado.');
+        } catch (CoordinatorAuthorizationException $e) {
+            $this->assertStringContainsString('Código inválido ou expirado', $e->getMessage());
+            $this->assertSame('pin', $e->step);
+        }
+    }
 
-        $this->authorizer($this->user('Comercial'))->run(null, '123456');
+    /** O envio do código não passa por matrícula nenhuma. */
+    public function test_envio_do_codigo_nao_depende_de_matricula(): void
+    {
+        $codes = $this->codes('654321');
+
+        $this->assertTrue($codes->hasPending(self::FREELANCER_ID, self::START_DATE));
+        $this->assertFalse($codes->hasPending(self::FREELANCER_ID, '2026-08-02'));
     }
 
     /** O envio do código por e-mail usa só este passo — sem segredo nenhum. */
@@ -215,7 +231,7 @@ class CommercialCoordinatorAuthorizationTest extends TestCase
     public function test_coordenador_sem_pin_e_sem_codigo_nao_libera(): void
     {
         $this->expectException(CoordinatorAuthorizationException::class);
-        $this->expectExceptionMessage('Este coordenador não tem PIN definido nem código pendente.');
+        $this->expectExceptionMessage('Este coordenador não tem PIN definido.');
 
         $this->authorizer($this->user('Comercial', pin: null))->run('1234', '123456');
     }
@@ -224,14 +240,31 @@ class CommercialCoordinatorAuthorizationTest extends TestCase
      | Código por e-mail (coordenador ausente)
      |-----------------------------------------------------------------*/
 
-    public function test_codigo_enviado_por_email_libera_o_contrato(): void
+    /**
+     * Sem matrícula: é o caminho de quem recebeu o e-mail. Libera, mas sem
+     * dono — o mesmo código foi para todos os coordenadores e não dá para dizer
+     * qual deles ditou.
+     */
+    public function test_codigo_enviado_por_email_libera_sem_matricula_e_sem_dono(): void
+    {
+        $codes = $this->codes('654321');
+
+        $authorized = $this->authorizer($this->user('Comercial'), $codes)
+            ->run(null, '654321', self::FREELANCER_ID, self::START_DATE);
+
+        $this->assertNull($authorized);
+        $this->assertTrue($codes->consumed);
+    }
+
+    /** Informar a matrícula não atrapalha: o código continua valendo. */
+    public function test_codigo_vale_mesmo_com_matricula_informada(): void
     {
         $codes = $this->codes('654321');
 
         $authorized = $this->authorizer($this->user('Comercial'), $codes)
             ->run('1234', '654321', self::FREELANCER_ID, self::START_DATE);
 
-        $this->assertNotNull($authorized);
+        $this->assertNull($authorized);
         $this->assertTrue($codes->consumed);
     }
 
@@ -240,9 +273,10 @@ class CommercialCoordinatorAuthorizationTest extends TestCase
         $codes = $this->codes('654321');
 
         $authorized = $this->authorizer($this->user('Comercial', pin: null), $codes)
-            ->run('1234', '654321', self::FREELANCER_ID, self::START_DATE);
+            ->run(null, '654321', self::FREELANCER_ID, self::START_DATE);
 
-        $this->assertNotNull($authorized);
+        $this->assertNull($authorized);
+        $this->assertTrue($codes->consumed);
     }
 
     /** O código é preso ao contrato: não serve para registrar outro. */

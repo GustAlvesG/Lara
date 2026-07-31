@@ -23,6 +23,7 @@ use App\Http\Controllers\SectorController;
 use App\Http\Controllers\CompTimeController;
 use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\DocumentationController;
+use App\Http\Controllers\EmailController;
 
 use App\Http\Controllers\AvisoController;
 use App\Http\Controllers\NotificationController;
@@ -98,7 +99,14 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::put('/profile/pin', [ProfileController::class, 'updatePin'])->name('profile.pin.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Diagnóstico das configurações de e-mail, no perfil de quem administra.
+    // Só abre conexão com o servidor SMTP: nenhuma mensagem é enviada.
+    Route::post('/profile/email-test', [EmailController::class, 'testConfiguration'])
+        ->middleware(['permission:manage users', 'throttle:10,1'])
+        ->name('profile.email-test');
 
     Route::group(['prefix' => 'parking', 
                 'middleware' => 'permission:search parking',
@@ -348,8 +356,8 @@ Route::middleware('auth')->group(function () {
             Route::post('/send', [FreelancerBatchController::class, 'send'])->name('freelancer-batches.send');
             Route::delete('/draft', [FreelancerBatchController::class, 'discard'])->name('freelancer-batches.discard');
 
-            // Gerente (role admin): fila e análise. Antes de /{batch}, senão
-            // "aprovacao" cairia na rota do lote.
+            // Gerência (coordenador do setor Gerência): fila e análise. Antes
+            // de /{batch}, senão "aprovacao" cairia na rota do lote.
             Route::get('/aprovacao', [FreelancerBatchController::class, 'approvalQueue'])->name('freelancer-batches.queue');
             Route::get('/{batch}', [FreelancerBatchController::class, 'show'])->name('freelancer-batches.show');
             Route::post('/{batch}/analise', [FreelancerBatchController::class, 'review'])->name('freelancer-batches.review');

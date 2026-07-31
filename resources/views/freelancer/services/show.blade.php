@@ -15,11 +15,18 @@
         @if($exceedsWeeklyLimit)
             <div class="p-4 bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 rounded-lg text-sm font-medium">
                 ⚠️ Este freelancer possui mais de {{ \App\Models\FreelancerService::WEEKLY_LIMIT }} serviços registrados numa janela de {{ \App\Models\FreelancerService::WEEKLY_WINDOW_DAYS }} dias em torno desta data.
-                {{-- Quem liberou o excedente. Contratos anteriores à regra não têm o registro. --}}
+                {{-- Quem liberou o excedente. Contratos anteriores à regra não têm o registro.
+                     Sem autor: veio do código de e-mail, que vai para todos os
+                     coordenadores do Comercial e não identifica qual deles ditou. --}}
                 @if($service->weekly_limit_authorized_at)
                     <span class="block mt-1 font-normal">
-                        Liberado por {{ $service->weeklyLimitAuthorizedBy?->name ?? 'coordenador removido' }}
-                        (coordenação do setor Comercial) em {{ $service->weekly_limit_authorized_at->format('d/m/Y H:i') }}.
+                        @if($service->weeklyLimitAuthorizedBy)
+                            Liberado por {{ $service->weeklyLimitAuthorizedBy->name }}
+                            (coordenação do setor Comercial, PIN presencial)
+                        @else
+                            Liberado por código enviado aos coordenadores do setor Comercial
+                        @endif
+                        em {{ $service->weekly_limit_authorized_at->format('d/m/Y H:i') }}.
                     </span>
                 @endif
             </div>

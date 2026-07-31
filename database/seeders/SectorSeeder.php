@@ -12,6 +12,8 @@ class SectorSeeder extends Seeder
         $sectors = [
             'Manutenção',
             'Comercial',
+            // Coordenador da Gerência é quem aprova os lotes de contratos.
+            'Gerência',
             'Atendimento',
             'Finanças',
             'Portaria',

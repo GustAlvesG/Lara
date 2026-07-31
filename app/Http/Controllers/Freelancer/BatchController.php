@@ -13,9 +13,10 @@ use Illuminate\Http\Request;
 /**
  * Lotes de contratos para aprovação da gerência.
  *
- * Duas frentes na mesma tela-base: o **coordenador** monta um rascunho com os
- * contratos já assinados pelas duas partes e o envia; o **gerente** (role
- * `admin`) analisa o lote enviado, aprovando ou recusando contrato a contrato.
+ * Duas frentes na mesma tela-base: o **coordenador** (de qualquer setor) monta
+ * um rascunho com os contratos já assinados pelas duas partes e o envia; o
+ * **coordenador do setor Gerência** analisa o lote enviado, aprovando ou
+ * recusando contrato a contrato.
  *
  * Montar e enviar também acontece pelo kiosk (ver KioskController); a análise,
  * por decisão de processo, é só aqui na web.
@@ -294,9 +295,13 @@ class BatchController extends Controller
      | Auxiliares
      |---------------------------------------------------------------------*/
 
+    /**
+     * A gerência é o coordenador do setor Gerência — e mais ninguém. Nem a role
+     * `admin`, que continua administrando o sistema sem responder pelo lote.
+     */
     private function isManager(): bool
     {
-        return request()->user()?->hasRole('admin') ?? false;
+        return request()->user()?->isManagementCoordinator() ?? false;
     }
 
     /** Montar lote é atribuição de coordenador — de qualquer setor, ao contrário

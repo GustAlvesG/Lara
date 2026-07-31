@@ -24,6 +24,12 @@ class User extends Authenticatable
 
      protected $connection = 'mysql';
 
+    /**
+     * Setor cujo coordenador aprova os lotes de contratos antes da diretoria.
+     * Criado pela migration `create_gerencia_sector`.
+     */
+    public const MANAGEMENT_SECTOR = 'Gerência';
+
     protected $fillable = [
         'name',
         'email',
@@ -134,6 +140,20 @@ class User extends Authenticatable
             ->wherePivot('role', 'coordinator')
             ->whereRaw('LOWER(sectors.name) = ?', [mb_strtolower($name)])
             ->exists();
+    }
+
+    /**
+     * Coordenador do setor **Gerência** — quem aprova o lote de contratos antes
+     * de ele seguir para a diretoria, e quem depois digita o PIN que o diretor
+     * ditou.
+     *
+     * É um cargo, não um nível de acesso: a role `admin` do Spatie não vale
+     * mais aqui. Administrar o sistema e responder pela aprovação do lote são
+     * coisas diferentes, e quem responde pelo lote é uma pessoa só.
+     */
+    public function isManagementCoordinator(): bool
+    {
+        return $this->isCoordinatorOfSectorNamed(self::MANAGEMENT_SECTOR);
     }
 
     public function coordinatorSectors()
