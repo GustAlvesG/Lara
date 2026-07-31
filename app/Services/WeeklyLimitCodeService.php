@@ -223,6 +223,18 @@ class WeeklyLimitCodeService
     }
 
     /**
+     * Validade para exibição. Só a hora quando vence no mesmo dia; com dia e
+     * mês quando vira a noite — com 2 horas de prazo, um código pedido às 23h
+     * vence no dia seguinte, e "01:00" sozinho seria ambíguo.
+     */
+    public static function formatExpiry(Carbon $expiresAt): string
+    {
+        return $expiresAt->isSameDay(now())
+            ? $expiresAt->format('H:i')
+            : $expiresAt->format('d/m H:i');
+    }
+
+    /**
      * Lista de e-mails parcialmente escondida, para a tela confirmar para onde
      * o código foi sem expor os endereços a quem está no balcão.
      */

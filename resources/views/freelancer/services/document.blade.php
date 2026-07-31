@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Contrato #{{ $service->id }} — {{ $service->freelancer->name }}</title>
+    <title>{{ $service->isAmendment() ? 'Aditivo' : 'Contrato' }} #{{ $service->id }} — {{ $service->freelancer->name }}</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}" type="image/x-icon" />
     <style>
         :root{ --paper:#fffefb; --ink:#241f1a; --line:#c9bfb4; --muted:#6b6156; --red:#c8102e; --red2:#a30711;
@@ -63,7 +63,7 @@
 <body>
     <div class="toolbar">
         <a class="back" href="{{ route('freelancer-services.show', $service) }}">← Voltar</a>
-        <span class="title">Contrato #{{ $service->id }} · {{ $service->freelancer->name }}</span>
+        <span class="title">{{ $service->isAmendment() ? 'Aditivo' : 'Contrato' }} #{{ $service->id }} · {{ $service->freelancer->name }}</span>
         <span class="sp"></span>
         <button class="print" onclick="window.print()">Imprimir / Salvar PDF</button>
     </div>

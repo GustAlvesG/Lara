@@ -9,6 +9,7 @@ use App\Http\Controllers\Concerns\AuthorizesCommercialCoordinator;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Freelancer\Concerns\ServesSignatureImages;
 use App\Http\Requests\StoreFreelancerRequest;
+use App\Http\Requests\StoreFreelancerServiceAmendmentRequest;
 use App\Http\Requests\StoreFreelancerServiceRequest;
 use App\Http\Requests\UpdateFreelancerRequest;
 use App\Models\Freelancer;
@@ -230,16 +231,23 @@ class KioskController extends Controller
         );
     }
 
-    /** Só os contratos que ainda aceitam a assinatura do freelancer. */
+    /**
+     * O que o freelancer ainda tem a fazer no tablet: contratos esperando a
+     * assinatura dele e contratos já assinados cujo turno pode ter mudado — é
+     * neles que se faz o aditivo. O payload diz, por contrato, qual das duas
+     * ações está liberada.
+     */
     public function services(Freelancer $freelancer)
     {
         $this->operatorModeOrFail();
 
         $services = $freelancer->freelancerServices()
-            ->with('functionFreelancer')
+            // `batch` e `baseService` entram na regra do aditivo; sem eles cada
+            // linha da lista viraria duas consultas.
+            ->with(['functionFreelancer', 'batch', 'baseService.functionFreelancer'])
             ->orderByDesc('start_date')
             ->get()
-            ->filter(fn(FreelancerService $s) => $s->canBeSignedByFreelancer())
+            ->filter(fn(FreelancerService $s) => $s->canBeSignedByFreelancer() || $s->canBeAmended())
             ->values()
             ->map(fn(FreelancerService $s) => $this->servicePayload($s));
 
@@ -302,6 +310,51 @@ class KioskController extends Controller
     }
 
     /**
+     * Contrato aditivo: o turno mudou depois de o contrato já estar assinado —
+     * esticou, encurtou ou trocou de local. Como contrato assinado não se
+     * altera, gera-se um contrato novo que referencia o base e muda só horário
+     * de início, de término e local; o base fica marcado como substituído.
+     *
+     * Não passa pelo limite semanal: o aditivo não acrescenta um dia de
+     * trabalho, remenda um turno que já foi contado quando o base foi criado.
+     */
+    public function storeAmendment(StoreFreelancerServiceAmendmentRequest $request, FreelancerService $freelancerService)
+    {
+        $operator = $this->operatorModeOrFail();
+
+        // Mesma trava do contrato comum: sem cadastro completo não se gera
+        // documento para assinar.
+        $freelancer = $freelancerService->freelancer;
+
+        if ($freelancer && !$freelancer->hasCompleteContractData()) {
+            return response()->json([
+                'error' => 'Cadastro incompleto. Complete os dados do freelancer antes de gerar o aditivo.',
+                'incomplete_freelancer' => true,
+                'freelancer' => $this->freelancerPayload($freelancer),
+            ], 422);
+        }
+
+        try {
+            $amendment = $this->freelancerService->createAmendment(
+                $freelancerService,
+                $request->validated(),
+                $operator,
+            );
+        } catch (FreelancerServiceLockedException $e) {
+            return response()->json(['error' => $e->getMessage()], 409);
+        }
+
+        $this->bumpCount();
+
+        return response()->json([
+            'service' => $this->servicePayload(
+                $amendment->load(['functionFreelancer', 'baseService.functionFreelancer'])
+            ),
+            'session' => $this->sessionPayload(),
+        ], 201);
+    }
+
+    /**
      * Dispara o código de liberação para TODOS os coordenadores do Comercial —
      * caminho para quando nenhum deles pode vir até o tablet digitar o PIN. Não
      * se escolhe destinatário: quem opera não precisa saber quem está de
@@ -338,7 +391,7 @@ class KioskController extends Controller
 
         return response()->json([
             'sent_to' => WeeklyLimitCodeService::maskEmails($code->sent_to),
-            'expires_at' => $code->expires_at->format('H:i'),
+            'expires_at' => WeeklyLimitCodeService::formatExpiry($code->expires_at),
         ]);
     }
 
@@ -412,7 +465,9 @@ class KioskController extends Controller
         $this->coordinatorModeOrFail();
 
         $services = FreelancerService::awaitingCoordinator()
-            ->with(['functionFreelancer', 'freelancer'])
+            // `baseService` porque o coordenador também assina aditivos, e o
+            // documento do aditivo cita o contrato que ele altera.
+            ->with(['functionFreelancer', 'freelancer', 'batch', 'baseService.functionFreelancer'])
             ->orderBy('freelancer_signed_at')
             ->limit(self::COORDINATOR_QUEUE_LIMIT)
             ->get()
@@ -606,6 +661,7 @@ class KioskController extends Controller
             'id' => $s->id,
             'freelancer' => $s->freelancer?->name,
             'function' => $s->functionFreelancer?->name,
+            'is_amendment' => $s->isAmendment(),
             'location' => $s->location,
             'start_date_br' => $s->start_date ? Carbon::parse($s->start_date)->format('d/m/Y') : null,
             'start_time' => substr((string) $s->start_time, 0, 5),
@@ -779,6 +835,21 @@ class KioskController extends Controller
         return [
             'id' => $s->id,
             'function' => $s->functionFreelancer?->name,
+            // O que a tela pode oferecer neste contrato: assinar e/ou aditivar.
+            // O motivo de uma recusa não vem aqui — quem não pode nem uma coisa
+            // nem outra sequer entra na lista; a explicação chega no 409.
+            'can_be_signed' => $s->canBeSignedByFreelancer(),
+            'can_be_amended' => $s->canBeAmended(),
+            'is_amendment' => $s->isAmendment(),
+            // Recebeu aditivo: continua sendo assinado, mas quem paga é o outro.
+            'is_amended' => $s->isAmended(),
+            'amendment_order' => $s->amendmentOrder(),
+            'document_title' => $s->documentTitle(),
+            // Dados do contrato alterado — o documento do aditivo cita o que
+            // estava valendo antes.
+            'base' => $s->isAmendment() && $s->baseService
+                ? $this->amendmentBasePayload($s->baseService)
+                : null,
             'function_id' => $s->function_freelancer_id,
             'location' => $s->location,
             'start_date' => $s->start_date?->toDateString(),
@@ -789,8 +860,34 @@ class KioskController extends Controller
             'crosses_midnight' => ($s->start_date && $s->end_date) ? $s->start_date->ne($s->end_date) : false,
             'total_hours' => $s->total_hours,
             'price' => (float) $s->price,
+            // Valor do bloco de 15 min da função: é com ele que a prévia do
+            // aditivo recalcula o preço na tela, sem inventar uma segunda regra.
+            'block_price' => (float) ($s->functionFreelancer?->price ?? 0),
             'duration_minutes' => $s->durationInMinutes(),
             'status_label' => $s->signatureLabel(),
+        ];
+    }
+
+    /**
+     * O contrato que o aditivo altera, resumido: é o que o documento cita ao
+     * dizer o que estava valendo e o que passa a valer.
+     */
+    private function amendmentBasePayload(FreelancerService $base): array
+    {
+        return [
+            'id' => $base->id,
+            'location' => $base->location,
+            'function' => $base->functionFreelancer?->name,
+            'start_date_br' => $base->start_date ? Carbon::parse($base->start_date)->format('d/m/Y') : null,
+            'start_time' => substr((string) $base->start_time, 0, 5),
+            'end_date_br' => $base->end_date ? Carbon::parse($base->end_date)->format('d/m/Y') : null,
+            'end_time' => substr((string) $base->end_time, 0, 5),
+            'price' => (float) $base->price,
+            'duration_minutes' => $base->durationInMinutes(),
+            'is_amendment' => $base->isAmendment(),
+            // Data em que o contrato alterado foi firmado — a da assinatura do
+            // freelancer, que é o ato que o fechou.
+            'signed_date_br' => $base->freelancer_signed_at?->format('d/m/Y'),
         ];
     }
 

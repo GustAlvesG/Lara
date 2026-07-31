@@ -137,6 +137,14 @@
   .chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;}
   .chip.unsigned{color:var(--ink-2);background:var(--surface-3);}
   .chip.await{color:var(--warning);background:var(--warning-tint);}
+  .chip.done{color:var(--success);background:var(--success-tint);}
+  .chip.adit{color:var(--brand);background:var(--brand-tint);}
+
+  /* Aditivo: o que estava valendo, riscado, ao lado do que passa a valer. */
+  .was{color:var(--ink-3);text-decoration:line-through;margin-right:7px;font-weight:500;}
+  .adit-base{padding:14px 16px;border-radius:var(--r);background:var(--surface-2);border:1px solid var(--border);margin:0 0 18px;}
+  .adit-base b{display:block;font-size:14.5px;margin-bottom:2px;}
+  .adit-base span{display:block;font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums;}
 
   /* Lote de aprovação */
   .contract.pick{cursor:pointer;transition:border-color .15s var(--ease), transform .12s var(--ease);}
@@ -409,7 +417,7 @@
         </button>
         <button class="menu-card" id="cardContratos">
           <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6M9 16h6M9 8h6M5 3h14a1 1 0 0 1 1 1v16l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1z"/></svg></span>
-          <span class="tx"><b>Meus contratos</b><span>Assinar contratos em aberto</span></span>
+          <span class="tx"><b>Meus contratos</b><span>Assinar contratos em aberto ou fazer aditivo</span></span>
           <span class="chev"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></span>
         </button>
       </div>
@@ -480,11 +488,57 @@
       <div class="screen-body">
         <p class="eyebrow">Freelancer · <span id="ctName">—</span></p>
         <h2 class="title">Meus contratos</h2>
-        <p class="subtitle">Apenas contratos que ainda aceitam a assinatura</p>
+        <p class="subtitle">Contratos a assinar e contratos assinados cujo turno mudou</p>
         <div class="clist" id="clist" style="margin-top:18px"></div>
       </div>
       <div class="screen-foot">
         <button class="btn-quiet btn" data-go="menu">Voltar ao menu</button>
+      </div>
+    </section>
+
+    <!-- ===== ADITIVO (turno mudou depois da assinatura) ===== -->
+    <section class="screen" id="s-aditivo">
+      <div class="screen-body">
+        <p class="eyebrow">Aditivo de contrato</p>
+        <div class="steps" id="aditSteps"><i class="done"></i><i></i><i></i></div>
+        <div class="adit-base" id="aditBase"></div>
+
+        <div class="astep" data-step="0">
+          <h2 class="title">Novo horário de início</h2>
+          <p class="subtitle">Como o turno ficou de fato</p>
+          <div class="display" style="margin-top:20px"><div class="val placeholder" id="aditStartVal">--:--</div></div>
+          <div class="keypad" id="aditStartKeypad"></div>
+        </div>
+        <div class="astep" data-step="1" style="display:none">
+          <h2 class="title">Novo horário de término</h2>
+          <p class="subtitle">Se for menor que o início, o turno vira o dia</p>
+          <div class="display" style="margin-top:20px"><div class="val placeholder" id="aditEndVal">--:--</div></div>
+          <div class="keypad" id="aditEndKeypad"></div>
+        </div>
+        <div class="astep" data-step="2" style="display:none">
+          <h2 class="title">Local ou evento</h2>
+          <p class="subtitle">Deixe como está se o local não mudou</p>
+          <input type="text" class="txt-input" id="aditLocInput" style="margin-top:20px" autocomplete="off">
+        </div>
+      </div>
+      <div class="screen-foot">
+        <button class="btn btn-primary" id="aditNext" disabled>Continuar</button>
+        <button class="btn-quiet btn" id="aditBack">Voltar</button>
+      </div>
+    </section>
+
+    <!-- ===== PRÉVIA DO ADITIVO ===== -->
+    <section class="screen" id="s-adit-previa">
+      <div class="screen-body">
+        <p class="eyebrow">Confira antes de gerar</p>
+        <h2 class="title">Prévia do aditivo</h2>
+        <p class="subtitle">O aditivo substitui o contrato original: o valor abaixo passa a ser o único a pagar por este turno.</p>
+        <div class="receipt" id="aditReceipt" style="margin-top:18px"></div>
+        <div id="aditWarn"></div>
+      </div>
+      <div class="screen-foot">
+        <button class="btn btn-primary" id="aditRegistrar">Gerar aditivo</button>
+        <button class="btn-quiet btn" id="aditDescartar">Descartar</button>
       </div>
     </section>
 
@@ -592,7 +646,7 @@
   }
 
   /* ---------- State ---------- */
-  const S = { operator:null, mode:null, freelancer:null, functions:[], draft:{}, signing:null,
+  const S = { operator:null, mode:null, freelancer:null, functions:[], draft:{}, aditivo:null, signing:null,
               signature:null, pinMode:null, timer:null, remaining:1800, count:0 };
 
   /* ---------- Helpers ---------- */
@@ -626,7 +680,7 @@
   }
   $$('[data-go]').forEach(b=> b.addEventListener('click', ()=> go('s-'+b.dataset.go)));
   function updateCtx(){
-    const map={'s-mode':'Escolha o modo','s-coord':'Contratos pendentes','s-lote':'Lote de aprovação','s-cpf':'Localizar freelancer','s-cadastro':'Cadastro','s-menu':'Atendimento','s-novo':'Novo contrato','s-previa':'Prévia','s-contratos':'Contratos','s-assinar':'Assinatura','s-pin':'Confirmação'};
+    const map={'s-mode':'Escolha o modo','s-coord':'Contratos pendentes','s-lote':'Lote de aprovação','s-cpf':'Localizar freelancer','s-cadastro':'Cadastro','s-menu':'Atendimento','s-novo':'Novo contrato','s-previa':'Prévia','s-contratos':'Contratos','s-aditivo':'Aditivo','s-adit-previa':'Prévia do aditivo','s-assinar':'Assinatura','s-pin':'Confirmação'};
     if(S.mode==='coordinator'){ $('#ctxLine').textContent='Coordenação · '+(S.operator&&S.operator.coordinator_sector||'Comercial'); return; }
     $('#ctxLine').textContent = S.freelancer ? S.freelancer.name : (map[current]||'Sessão de atendimento');
   }
@@ -906,21 +960,128 @@
       renderContratos(r.data);
     }catch(e){ if(e.handled) return; }
   }
+  /**
+   * A lista traz o que ainda há para fazer no contrato: assinar, quando falta a
+   * assinatura do freelancer, e/ou fazer o aditivo, quando o turno já assinado
+   * mudou. O servidor decide as duas coisas; aqui só se mostram os botões.
+   */
   function renderContratos(items){
     const list=$('#clist'); list.innerHTML='';
-    if(!items.length){ list.innerHTML='<p class="subtitle" style="text-align:center;padding:30px 0">Nenhum contrato aguardando assinatura.</p>'; return; }
+    if(!items.length){ list.innerHTML='<p class="subtitle" style="text-align:center;padding:30px 0">Nenhum contrato aguardando assinatura ou aditivo.</p>'; return; }
     items.forEach(c=>{
-      const chip = c.status_label==='Não assinado' ? '<span class="chip unsigned">Não assinado</span>' : `<span class="chip await">${esc(c.status_label)}</span>`;
+      // Contrato já assinado pelas duas partes aparece aqui só por causa do
+      // aditivo: marcá-lo de âmbar diria que falta alguma coisa nele.
+      const chipClass = c.status_label==='Não assinado' ? 'unsigned' : (c.status_label==='Assinado' ? 'done' : 'await');
+      const chip = `<span class="chip ${chipClass}">${esc(c.status_label)}</span>`;
+      const aditChip = c.is_amendment ? '<span class="chip adit">Aditivo</span>'
+                     : (c.is_amended ? '<span class="chip unsigned">Aditivado</span>' : '');
+      const acts = (c.can_be_signed ? '<button class="btn btn-primary" data-sign>Assinar</button>' : '')
+                 + (c.can_be_amended ? '<button class="btn btn-ghost" data-adit>Fazer aditivo</button>' : '');
       const el=document.createElement('div'); el.className='contract';
-      el.innerHTML=`<div class="row1"><span class="fn">${esc(c.function||'—')}</span>${chip}</div>
+      el.innerHTML=`<div class="row1"><span class="fn">${esc(c.function||'—')}</span>${chip}${aditChip}</div>
         <div class="loc">${esc(c.location)}</div>
         <div class="when"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
         ${c.start_date_br} · ${c.start_time}–${c.end_time} · <b>${brl(c.price)}</b></div>
-        <div class="acts"><button class="btn btn-primary" data-sign>Assinar</button></div>`;
-      el.querySelector('[data-sign]').addEventListener('click', ()=> openSign(c));
+        <div class="acts">${acts}</div>`;
+      const sign=el.querySelector('[data-sign]'); if(sign) sign.addEventListener('click', ()=> openSign(c));
+      const adit=el.querySelector('[data-adit]'); if(adit) adit.addEventListener('click', ()=> startAditivo(c));
       list.appendChild(el);
     });
   }
+
+  /* ---------- Aditivo ----------
+     O turno mudou depois de o contrato estar assinado. Contrato assinado não se
+     altera: gera-se um aditivo, que repete o contrato base e muda só horário de
+     início, de término e local — e passa a ser o documento válido do turno. */
+  let astep=0;
+  function startAditivo(c){
+    S.aditivo={ base:c, start:c.start_time, end:c.end_time, loc:c.location||'' };
+    $('#aditBase').innerHTML=`<b>Contrato original · ${esc(c.function||'—')}</b>
+      <span>${c.start_date_br} · ${c.start_time}–${c.end_time} · ${brl(c.price)}</span>
+      <span>${esc(c.location||'—')}</span>`;
+    astep=0;
+    setTime2('start', digits(c.start_time), $('#aditStartVal'));
+    setTime2('end', digits(c.end_time), $('#aditEndVal'));
+    $('#aditLocInput').value=S.aditivo.loc;
+    showAditStep(); go('s-aditivo');
+  }
+  function showAditStep(){
+    $$('#s-aditivo .astep').forEach(el=> el.style.display=(+el.dataset.step===astep)?'block':'none');
+    $$('#aditSteps i').forEach((el,i)=> el.classList.toggle('done', i<=astep));
+    $('#aditBack').textContent = astep===0?'Cancelar':'Voltar';
+    $('#aditNext').textContent = astep===2?'Ver prévia':'Continuar';
+    validateAditStep();
+  }
+  function validateAditStep(){
+    const a=S.aditivo; let ok=false;
+    if(astep===0) ok=validTime(a.start);
+    if(astep===1) ok=validTime(a.end);
+    if(astep===2) ok=a.loc.trim().length>1;
+    $('#aditNext').disabled=!ok;
+  }
+  /** Mesmo teclado de horário do novo contrato, sobre o rascunho do aditivo. */
+  function setTime2(field, dg, valEl){
+    let disp='--:--';
+    if(dg.length===1) disp=`${dg}_:__`; else if(dg.length===2) disp=`${dg}:__`;
+    else if(dg.length===3) disp=`${dg.slice(0,2)}:${dg[2]}_`; else if(dg.length>=4) disp=`${dg.slice(0,2)}:${dg.slice(2,4)}`;
+    S.aditivo[field] = dg.length>=4 ? `${dg.slice(0,2)}:${dg.slice(2,4)}` : (dg.length>=3?`${dg.slice(0,2)}:${dg.slice(2)}`:dg);
+    valEl.textContent=disp; valEl.classList.toggle('placeholder', dg.length<4); validateAditStep();
+  }
+  function aditTimeKeypad(container, field, valEl){
+    buildKeypad(container,
+      d=>{ let cur=digits(S.aditivo[field]); if(cur.length>=4) cur=''; cur+=d; setTime2(field,cur,valEl); },
+      ()=>{ setTime2(field, digits(S.aditivo[field]).slice(0,-1), valEl); });
+  }
+  aditTimeKeypad($('#aditStartKeypad'),'start',$('#aditStartVal'));
+  aditTimeKeypad($('#aditEndKeypad'),'end',$('#aditEndVal'));
+  $('#aditLocInput').addEventListener('input', ()=>{ S.aditivo.loc=$('#aditLocInput').value; validateAditStep(); });
+  $('#aditNext').addEventListener('click', ()=>{ if(astep<2){ astep++; showAditStep(); } else showAditPrevia(); });
+  $('#aditBack').addEventListener('click', ()=>{ if(astep===0) openContratos(); else { astep--; showAditStep(); } });
+  $('#aditDescartar').addEventListener('click', openContratos);
+
+  /** Antes → depois, com o valor que passa a valer no lugar do original. */
+  function showAditPrevia(){
+    const a=S.aditivo, b=a.base;
+    // Quem calcula de verdade é o servidor; aqui é só a conferência na tela.
+    const r=calc(a.start,a.end,b.block_price||0);
+    const endIso = r.crosses ? nextDayIso(b.start_date) : b.start_date;
+    const diff = r.paidMin - Math.floor(b.duration_minutes/15)*15;
+    let h=`<div class="head"><div class="fn">Aditivo · ${esc(b.function||'—')}</div><div class="fl">${esc(S.freelancer.name)}</div></div>`;
+    h+=rrow('Local', b.location!==a.loc.trim()
+      ? `<span class="was">${esc(b.location)}</span>${esc(a.loc.trim())}`
+      : esc(a.loc.trim()));
+    h+=rrow('Início', `<span class="was">${b.start_time}</span>${brFromIso(b.start_date)} · ${a.start}`);
+    h+=rrow('Término', `<span class="was">${b.end_time}</span>${brFromIso(endIso)} · ${a.end}`
+      +(r.crosses?' <span style="color:var(--warning)">(vira o dia)</span>':''));
+    h+=rrow('Horas pagas', `<span class="was">${fmtDur(Math.floor(b.duration_minutes/15)*15)}</span>${fmtDur(r.paidMin)}`
+      +(diff!==0?` <span class="note">(${diff>0?'+':'−'}${fmtDur(Math.abs(diff))})</span>`:''));
+    h+=`<div class="rrow total"><span class="k">Valor a pagar</span><span class="v"><span class="was" style="font-size:15px">${brl(b.price)}</span>${brl(r.price)}</span></div>`;
+    $('#aditReceipt').innerHTML=h;
+    $('#aditWarn').innerHTML=`<div class="banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>
+      <div><b>Quem paga o turno passa a ser o aditivo</b><p>O contrato original continua valendo e sendo assinado pelas duas partes — ele só deixa de ir ao financeiro, para o turno não ser pago duas vezes. O freelancer assina o aditivo em seguida.</p></div></div>`;
+    go('s-adit-previa');
+  }
+
+  $('#aditRegistrar').addEventListener('click', async ()=>{
+    const a=S.aditivo;
+    const btn=$('#aditRegistrar'); btn.disabled=true;
+    try{
+      const r=await api('POST',`/kiosk/service/${a.base.id}/amendment`,
+        { location:a.loc.trim(), start_time:a.start, end_time:a.end });
+      if(r.status===201){
+        applySession(r.data.session);
+        toast('Aditivo gerado · '+brl(r.data.service.price));
+        // Emenda direto na assinatura: o freelancer está ali, e um aditivo sem
+        // assinatura não vale mais que o contrato que ele substituiu.
+        openSign(r.data.service);
+        return;
+      }
+      if(r.status===422 && r.data && r.data.incomplete_freelancer){ S.freelancer=r.data.freelancer; toast(r.data.error||'Cadastro incompleto.',true); openCompletar(); return; }
+      if(r.status===409){ toast(r.data.error||'Este contrato não aceita mais aditivo.',true); openContratos(); return; }
+      toast((r.data && (r.data.message||firstError(r.data)))||'Não foi possível gerar o aditivo.',true);
+    }catch(e){ if(!e.handled) toast('Falha de conexão.',true); }
+    finally{ btn.disabled=false; }
+  });
 
   /* ---------- Fila do coordenador ---------- */
   async function openCoord(){
@@ -939,7 +1100,12 @@
     items.forEach(c=>{
       const who = c.freelancer ? c.freelancer.name : '—';
       const el=document.createElement('div'); el.className='contract';
-      el.innerHTML=`<div class="row1"><span class="fn">${esc(who)}</span><span class="chip await">${esc(c.status_label)}</span></div>
+      // O contrato aditivado continua na fila — ele é um documento firmado e
+      // precisa da contraparte. O selo evita a dúvida de "por que estou
+      // assinando um contrato que não vai ser pago".
+      const marca = c.is_amendment ? '<span class="chip adit">Aditivo</span>'
+                  : (c.is_amended ? '<span class="chip unsigned">Aditivado · pago no aditivo</span>' : '');
+      el.innerHTML=`<div class="row1"><span class="fn">${esc(who)}</span><span class="chip await">${esc(c.status_label)}</span>${marca}</div>
         <div class="loc">${esc(c.function||'—')} · ${esc(c.location)}</div>
         <div class="when"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
         ${c.start_date_br} · ${c.start_time}–${c.end_time} · <b>${brl(c.price)}</b></div>
@@ -977,7 +1143,7 @@
   }
 
   function loteLine(c){
-    return `<div class="row1"><span class="fn">${esc(c.freelancer||'—')}</span></div>
+    return `<div class="row1"><span class="fn">${esc(c.freelancer||'—')}</span>${c.is_amendment?'<span class="chip adit">Aditivo</span>':''}</div>
       <div class="loc">${esc(c.function||'—')} · ${esc(c.location)}</div>
       <div class="when">${c.start_date_br} · ${c.start_time}–${c.end_time} · <b>${brl(c.price)}</b></div>
       ${c.rejection_reason?`<div class="reject-note">Recusado antes: ${esc(c.rejection_reason)}</div>`:''}`;
@@ -1100,18 +1266,9 @@
       <div class="doc-header-img">
         <img src="${KIOSK.headerImg}" alt="Clube dos Funcionários">
       </div>
-      <div class="doc-title">Contrato Autônomo de Serviços de Freelancer</div>
+      <div class="doc-title">${esc(c.document_title||'Contrato Autônomo de Serviços de Freelancer')}</div>
       <div class="doc-body">
-        <p>Por este particular instrumento contratual de serviço autônomo de freelancer, firmado entre as partes, de um lado, <b>CLUBE DOS FUNCIONARIOS DA COMPANHIA SIDERURGICA NACIONAL</b>, empresa estabelecida na Rua - General Oswaldo Pinto da Veiga, 231, Volta Redonda – RJ, a seguir denominada simplesmente CONTRATANTE, e, de outro lado <b>${nome}</b>, ${esc(f.nacionality||'—')}, ${esc(f.civil_status||'—')}, titular do CPF: ${cpf} e do RG nº ${esc(f.rg||'—')}, residente e domiciliado ${esc(f.address||'—')} a seguir denominado simplesmente FREELANCER, fica justo e acordado o contrato de serviço autônomo freelancer nos seguintes termos:</p>
-        <p><b>1- DO OBJETO:</b> O objeto do presente contrato trata-se da prestação de serviços, na modalidade de trabalho autônomo, sem vínculo de emprego, pelo FREELANCER, ao CONTRATANTE, conforme artigo 442-B, da CLT. O (a) FREELANCER (a) <b>${esc(c.function||'—')}</b> com todas as atribuições que lhe são peculiares, bem como as que vierem a ser designadas por meio de instruções do CONTRATANTE.</p>
-        <p><b>2- DO VALOR:</b> O CONTRATANTE paga, neste ato, ao FREELANCER, pelos serviços ora prestados, o valor de <b>R$ ${money(c.price)}</b>, por dia, previamente acordado, no horário de <b>${c.start_time}</b> ás <b>${c.end_time}</b> servindo a assinatura no presente termo, como recibo do pagamento.</p>
-        <p><b>3- DO PRAZO DE VIGÊNCIA:</b> O presente contrato de serviços de freelancer tem a validade de 1 (Um) dia, no qual, ao final, o serviço do FREELANCER já deverá ter se concluído, ficando as partes compromissadas até o termino do contrato. O prazo terá início na data de <b>${c.start_date_br}</b> sendo regido por tempo determinado, finalizando na data de <b>${c.end_date_br}</b>.</p>
-        <p><b>4- Da Ausência de Vínculo Empregatício:</b> A prestação de serviços estabelecida no presente contrato tem natureza autônoma (cível), de forma que não implica em qualquer vínculo empregatício do FREELANCER pelos serviços prestados ao CONTRATANTE, uma vez que eventuais e sem a subordinação, exigidos para caracterização do vínculo de emprego (artigo 3º da CLT).</p>
-        <p><b>5- DOS DESCONTOS:</b> O CONTRATANTE poderá descontar dos haveres do FREELANCER, além dos descontos legais ou expressamente autorizados, os prejuízos por ele causados, por dolo ou culpa, sem prejuízo da penalidade que a ação ou omissão comportar.</p>
-        <p><b>6-</b> O FREELANCER deve se portar de forma adequada quando da prestação dos serviços, respeitando as orientações quanto ao uso do celular no horário de prestação dos serviços, atrasos, indisciplinas, devendo respeitar o contido nos seus regimentos internos e ao senso comum de educação e urbanidade.</p>
-        <p><b>7-</b> Em caso de o FREELANCER exercer o serviço contratado por período superior a 6 (Seis) horas diárias, o CONTRATANTE, por livre e espontânea vontade, fornecerá ao FREELANCER uma refeição diária, sem que haja desconto do valor previsto na cláusula 2.</p>
-        <p><b>8- DO FORO DE ELEIÇÃO:</b> As partes elegem o foro de Volta Redonda, como único competente para dirimir quaisquer litígios oriundos do presente contrato.</p>
-        <p>E assim por estarem de pleno acordo com o contido neste instrumento, CONTRATANTE e FREELANCER o firmam consoante os ditames legais.</p>
+        ${c.is_amendment ? amendmentClauses(c, f, nome, cpf) : originalClauses(c, f, nome, cpf)}
         <p class="doc-place"><b>Volta Redonda-RJ, ${dataDoc}</b></p>
         <div class="doc-signatures">
           <div class="doc-sign-block">
@@ -1131,16 +1288,68 @@
       </div>
     </div>`;
   }
+  /** Cláusulas do contrato original — modelo do Clube dos Funcionários. */
+  function originalClauses(c, f, nome, cpf){
+    return `
+        <p>Por este particular instrumento contratual de serviço autônomo de freelancer, firmado entre as partes, de um lado, <b>CLUBE DOS FUNCIONARIOS DA COMPANHIA SIDERURGICA NACIONAL</b>, empresa estabelecida na Rua - General Oswaldo Pinto da Veiga, 231, Volta Redonda – RJ, a seguir denominada simplesmente CONTRATANTE, e, de outro lado <b>${nome}</b>, ${esc(f.nacionality||'—')}, ${esc(f.civil_status||'—')}, titular do CPF: ${cpf} e do RG nº ${esc(f.rg||'—')}, residente e domiciliado ${esc(f.address||'—')} a seguir denominado simplesmente FREELANCER, fica justo e acordado o contrato de serviço autônomo freelancer nos seguintes termos:</p>
+        <p><b>1- DO OBJETO:</b> O objeto do presente contrato trata-se da prestação de serviços, na modalidade de trabalho autônomo, sem vínculo de emprego, pelo FREELANCER, ao CONTRATANTE, conforme artigo 442-B, da CLT. O (a) FREELANCER (a) <b>${esc(c.function||'—')}</b> com todas as atribuições que lhe são peculiares, bem como as que vierem a ser designadas por meio de instruções do CONTRATANTE.</p>
+        <p><b>2- DO VALOR:</b> O CONTRATANTE paga, neste ato, ao FREELANCER, pelos serviços ora prestados, o valor de <b>R$ ${money(c.price)}</b>, por dia, previamente acordado, no horário de <b>${c.start_time}</b> ás <b>${c.end_time}</b> servindo a assinatura no presente termo, como recibo do pagamento.</p>
+        <p><b>3- DO PRAZO DE VIGÊNCIA:</b> O presente contrato de serviços de freelancer tem a validade de 1 (Um) dia, no qual, ao final, o serviço do FREELANCER já deverá ter se concluído, ficando as partes compromissadas até o termino do contrato. O prazo terá início na data de <b>${c.start_date_br}</b> sendo regido por tempo determinado, finalizando na data de <b>${c.end_date_br}</b>.</p>
+        <p><b>4- Da Ausência de Vínculo Empregatício:</b> A prestação de serviços estabelecida no presente contrato tem natureza autônoma (cível), de forma que não implica em qualquer vínculo empregatício do FREELANCER pelos serviços prestados ao CONTRATANTE, uma vez que eventuais e sem a subordinação, exigidos para caracterização do vínculo de emprego (artigo 3º da CLT).</p>
+        <p><b>5- DOS DESCONTOS:</b> O CONTRATANTE poderá descontar dos haveres do FREELANCER, além dos descontos legais ou expressamente autorizados, os prejuízos por ele causados, por dolo ou culpa, sem prejuízo da penalidade que a ação ou omissão comportar.</p>
+        <p><b>6-</b> O FREELANCER deve se portar de forma adequada quando da prestação dos serviços, respeitando as orientações quanto ao uso do celular no horário de prestação dos serviços, atrasos, indisciplinas, devendo respeitar o contido nos seus regimentos internos e ao senso comum de educação e urbanidade.</p>
+        <p><b>7-</b> Em caso de o FREELANCER exercer o serviço contratado por período superior a 6 (Seis) horas diárias, o CONTRATANTE, por livre e espontânea vontade, fornecerá ao FREELANCER uma refeição diária, sem que haja desconto do valor previsto na cláusula 2.</p>
+        <p><b>8- DO FORO DE ELEIÇÃO:</b> As partes elegem o foro de Volta Redonda, como único competente para dirimir quaisquer litígios oriundos do presente contrato.</p>
+        <p>E assim por estarem de pleno acordo com o contido neste instrumento, CONTRATANTE e FREELANCER o firmam consoante os ditames legais.</p>`;
+  }
+
+  /**
+   * Cláusulas do TERMO ADITIVO. O aditivo não repete o contrato: cita o que
+   * estava valendo, diz o que passa a valer e ratifica o resto. A cláusula do
+   * valor é explícita quanto a substituir — e não somar — o valor original,
+   * porque é isso que o sistema faz com o contrato base. Mantido em sincronia
+   * com o parcial do painel (services/partials/amendment-clauses.blade.php).
+   */
+  function amendmentClauses(c, f, nome, cpf){
+    const b = c.base || {};
+    const celebrado = b.signed_date_br ? ` em ${b.signed_date_br}` : '';
+    const referencia = (c.amendment_order||1) > 1
+      ? 'CONTRATO ORIGINAL, já alterado por termo(s) aditivo(s) anterior(es),'
+      : 'CONTRATO ORIGINAL';
+
+    // Acréscimo, redução ou mesma duração: o que motivou o aditivo.
+    const delta = (c.duration_minutes||0) - (b.duration_minutes||0);
+    const mudanca = delta>0 ? `, com acréscimo de ${fmtDur(delta)} em relação ao originalmente ajustado`
+                  : delta<0 ? `, com redução de ${fmtDur(-delta)} em relação ao originalmente ajustado`
+                  : ', mantida a duração originalmente ajustada';
+
+    const local = (b.location && b.location!==c.location)
+      ? `O local da prestação dos serviços, originalmente ${esc(b.location)}, passa a ser <b>${esc(c.location)}</b>.`
+      : `Permanece inalterado o local da prestação dos serviços, <b>${esc(c.location)}</b>.`;
+
+    return `
+        <p>Por este particular instrumento, firmado entre as partes, de um lado, <b>CLUBE DOS FUNCIONARIOS DA COMPANHIA SIDERURGICA NACIONAL</b>, empresa estabelecida na Rua - General Oswaldo Pinto da Veiga, 231, Volta Redonda – RJ, a seguir denominada simplesmente CONTRATANTE, e, de outro lado <b>${nome}</b>, ${esc(f.nacionality||'—')}, ${esc(f.civil_status||'—')}, titular do CPF: ${cpf} e do RG nº ${esc(f.rg||'—')}, residente e domiciliado ${esc(f.address||'—')}, a seguir denominado simplesmente FREELANCER, fica justo e acordado o presente <b>TERMO ADITIVO</b> ao Contrato Autônomo de Serviços de Freelancer celebrado entre as partes${celebrado}, para a prestação de serviços na função de <b>${esc(c.function||'—')}</b> no dia ${b.start_date_br||c.start_date_br}, a seguir denominado simplesmente CONTRATO ORIGINAL, nos seguintes termos:</p>
+        <p><b>1- DO OBJETO DO ADITAMENTO:</b> O presente termo tem por objeto, exclusivamente, alterar o horário e o local da prestação dos serviços ajustados no ${referencia} em razão de alteração superveniente na necessidade do CONTRATANTE, permanecendo a prestação vinculada à mesma função e ao mesmo dia ali previstos.</p>
+        <p><b>2- DA ALTERAÇÃO DO PERÍODO:</b> O período de prestação dos serviços, originalmente ajustado no horário de <b>${b.start_time||'—'}</b> às <b>${b.end_time||'—'}</b>, com início em ${b.start_date_br||'—'} e término em ${b.end_date_br||'—'}, passa a vigorar no horário de <b>${c.start_time}</b> às <b>${c.end_time}</b>, com início em <b>${c.start_date_br}</b> e término em <b>${c.end_date_br}</b>, perfazendo <b>${fmtDur(c.duration_minutes||0)}</b> de prestação de serviços${mudanca}.</p>
+        <p><b>3- DO LOCAL DA PRESTAÇÃO:</b> ${local}</p>
+        <p><b>4- DO VALOR:</b> Em razão da alteração do período, o valor devido pelos serviços passa a ser de <b>R$ ${money(c.price)}</b>, apurado na forma da cláusula 2 do CONTRATO ORIGINAL, em substituição integral ao valor de R$ ${money(b.price||0)} ali previsto. O valor ora ajustado <b>não se soma</b> ao do CONTRATO ORIGINAL, sendo o único devido pela prestação de serviços aqui tratada, e a assinatura do presente termo serve como recibo do pagamento.</p>
+        <p><b>5- DA RATIFICAÇÃO:</b> Permanecem inalteradas e em pleno vigor todas as demais cláusulas e condições do CONTRATO ORIGINAL que não conflitem com o presente termo, em especial a natureza autônoma da prestação e a ausência de vínculo empregatício, nos termos dos artigos 442-B e 3º da CLT, as disposições sobre descontos, os deveres de conduta do FREELANCER, o fornecimento de refeição na prestação superior a 6 (seis) horas diárias e o foro de eleição de Volta Redonda.</p>
+        <p><b>6- DA VIGÊNCIA:</b> O presente termo aditivo integra o CONTRATO ORIGINAL para todos os fins de direito e produz efeitos a partir da sua assinatura, mantida a validade de 1 (um) dia do contrato aditado, ao final do qual o serviço do FREELANCER já deverá ter se concluído.</p>
+        <p>E assim por estarem de pleno acordo com o contido neste instrumento, CONTRATANTE e FREELANCER o firmam consoante os ditames legais.</p>`;
+  }
+
   /** Assinatura do freelancer, conduzida pelo operador. */
   function openSign(c){
-    $('#signEyebrow').textContent='Assinatura do freelancer';
-    $('#signSub').textContent='Role o contrato e assine no campo do Contratado. A assinatura é definitiva.';
+    $('#signEyebrow').textContent = c.is_amendment ? 'Assinatura do freelancer · Aditivo' : 'Assinatura do freelancer';
+    $('#signSub').textContent = c.is_amendment
+      ? 'Este termo aditivo substitui o contrato original. Role o documento e assine no campo do Contratado.'
+      : 'Role o contrato e assine no campo do Contratado. A assinatura é definitiva.';
     openDocument(c, S.freelancer, 'freelancer');
   }
 
   /** Assinatura do coordenador, sobre um contrato que o freelancer já assinou. */
   function openCoordSign(c){
-    $('#signEyebrow').textContent='Assinatura do coordenador';
+    $('#signEyebrow').textContent = c.is_amendment ? 'Assinatura do coordenador · Aditivo' : 'Assinatura do coordenador';
     $('#signSub').textContent='Confira os dados e assine no campo do Contratante. A assinatura é definitiva e libera o contrato para entrar num lote de aprovação.';
     openDocument(c, c.freelancer, 'coordinator');
   }

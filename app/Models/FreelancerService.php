@@ -37,6 +37,8 @@ class FreelancerService extends Model
     protected $fillable = [
         'freelancer_id',
         'function_freelancer_id',
+        // Contrato base, quando esta linha é um aditivo (ver seção "Aditivo").
+        'parent_service_id',
         'location',
         'start_date',
         'start_time',
@@ -79,6 +81,7 @@ class FreelancerService extends Model
         'paid_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'weekly_limit_authorized_at' => 'datetime',
+        'amended_at' => 'datetime',
     ];
 
     public function freelancer()
@@ -94,6 +97,24 @@ class FreelancerService extends Model
     public function status()
     {
         return $this->belongsTo(Status::class);
+    }
+
+    /** Contrato que este aditivo altera. Null nos contratos originais. */
+    public function baseService()
+    {
+        return $this->belongsTo(self::class, 'parent_service_id');
+    }
+
+    /** Aditivos feitos sobre este contrato (na prática, no máximo um vigente). */
+    public function amendments()
+    {
+        return $this->hasMany(self::class, 'parent_service_id');
+    }
+
+    /** O aditivo que passou a responder pelo pagamento deste contrato. */
+    public function activeAmendment()
+    {
+        return $this->belongsTo(self::class, 'amendment_service_id');
     }
 
     /** Usuário do sistema que conduziu a assinatura do freelancer pelo bot. */
@@ -286,6 +307,11 @@ class FreelancerService extends Model
         return !$this->isSigned() && !$this->isCancelled();
     }
 
+    /**
+     * Ter recebido aditivo NÃO tira a assinatura de cena: o contrato base é um
+     * documento firmado entre as partes e é assinado até o fim, como qualquer
+     * outro. O aditivo muda o caminho do dinheiro, não o do papel.
+     */
     public function canBeSignedByFreelancer(): bool
     {
         return !$this->isCancelled() && $this->freelancer_signed_at === null;
@@ -303,6 +329,99 @@ class FreelancerService extends Model
     public function canBeDeleted(): bool
     {
         return !$this->isSigned();
+    }
+
+    /* ---------------------------------------------------------------------
+     | Aditivo
+     |
+     | O turno muda depois de o contrato estar assinado: o serviço é esticado,
+     | encurtado ou muda de local. Contrato assinado não se altera — o caminho
+     | é um ADITIVO: um contrato novo que referencia o base e repete tudo dele,
+     | exceto horário de início, horário de término e local.
+     |
+     | O contrato base continua vivo: é assinado pelas duas partes até o fim e
+     | fica no histórico como o documento que elas firmaram. O que o aditivo
+     | tira dele é o PAGAMENTO — o base sai do lote e do financeiro, e quem paga
+     | o turno é o aditivo, com o período já corrigido. Somar os dois pagaria o
+     | mesmo turno duas vezes.
+     |---------------------------------------------------------------------*/
+
+    public function isAmendment(): bool
+    {
+        return $this->parent_service_id !== null;
+    }
+
+    /** Recebeu aditivo: continua sendo assinado, mas não é mais ele que paga. */
+    public function isAmended(): bool
+    {
+        return $this->amended_at !== null;
+    }
+
+    /** 1 = 1º termo aditivo, 2 = aditivo do aditivo, e assim por diante. */
+    public function amendmentOrder(): int
+    {
+        $order = 0;
+        $service = $this;
+
+        // O pai é sempre um registro anterior, então não há ciclo; o teto é só
+        // uma trava contra dados corrompidos.
+        while ($service?->parent_service_id !== null && $order < 20) {
+            $order++;
+            $service = $service->baseService;
+        }
+
+        return $order;
+    }
+
+    /** Título do documento: contrato original ou termo aditivo numerado. */
+    public function documentTitle(): string
+    {
+        if (!$this->isAmendment()) {
+            return 'Contrato Autônomo de Serviços de Freelancer';
+        }
+
+        $order = $this->amendmentOrder();
+
+        return ($order > 1 ? $order . 'º ' : '')
+            . 'Termo Aditivo ao Contrato Autônomo de Serviços de Freelancer';
+    }
+
+    public function canBeAmended(): bool
+    {
+        return $this->amendmentBlockReason() === null;
+    }
+
+    /**
+     * Por que este contrato não aceita aditivo — null quando aceita. A mesma
+     * frase serve ao tablet, ao painel e à exceção do serviço, para que o
+     * motivo da recusa seja sempre o mesmo texto.
+     */
+    public function amendmentBlockReason(): ?string
+    {
+        return match (true) {
+            $this->isCancelled() => 'Contrato cancelado não recebe aditivo.',
+            // Sem assinatura o contrato ainda é editável: aditivar seria criar
+            // um segundo documento onde bastava corrigir o primeiro.
+            !$this->isSigned() => 'Contrato ainda não assinado: altere os dados do próprio contrato, sem aditivo.',
+            $this->isAmended() => 'Este contrato já tem um aditivo — o novo aditivo se faz sobre ele.',
+            $this->isPaid() => 'Contrato já pago não recebe aditivo.',
+            $this->isManagerApproved() || $this->isDirectorApproved() => 'Contrato já aprovado não recebe aditivo.',
+            // Preso a um lote em tramitação: substituí-lo trocaria o conteúdo de
+            // um lote que a gerência já está analisando.
+            $this->batch_id !== null && !$this->canBeBatched() =>
+                'Contrato em lote de aprovação: retire-o do lote antes de fazer o aditivo.',
+            default => null,
+        };
+    }
+
+    /** Ex.: "de 4h para 6h30" — o que o aditivo mudou no período. */
+    public function amendmentDurationChange(): ?string
+    {
+        if (!$this->isAmendment() || $this->baseService === null) {
+            return null;
+        }
+
+        return 'de ' . $this->baseService->formattedDuration() . ' para ' . $this->formattedDuration();
     }
 
     /* ---------------------------------------------------------------------
@@ -360,6 +479,9 @@ class FreelancerService extends Model
     /** Rótulo curto do estado do contrato, para exibição. */
     public function signatureLabel(): string
     {
+        // Aditivado ou não, a leitura aqui é sobre as assinaturas: o contrato
+        // base é assinado até o fim. Quem conta a história do aditivo é o
+        // approvalLabel(), porque o que muda é o pagamento.
         return match (true) {
             $this->isCancelled() => 'Cancelado',
             $this->isFullySigned() => 'Assinado',
@@ -408,7 +530,8 @@ class FreelancerService extends Model
      */
     public function canBeBatched(): bool
     {
-        if (!$this->isFullySigned() || $this->isCancelled() || $this->isDirectorApproved()) {
+        // Aditivado: quem vai a lote é o aditivo, não ele.
+        if (!$this->isFullySigned() || $this->isCancelled() || $this->isAmended() || $this->isDirectorApproved()) {
             return false;
         }
 
@@ -427,6 +550,7 @@ class FreelancerService extends Model
     {
         return match (true) {
             $this->isCancelled() => 'Cancelado',
+            $this->isAmended() => 'Pago pelo aditivo',
             !$this->isFullySigned() => 'Aguardando assinaturas',
             $this->isDirectorApproved() => 'Aprovado pela diretoria',
             $this->isDirectorRejected() => 'Recusado pela diretoria',
@@ -456,6 +580,8 @@ class FreelancerService extends Model
         return $query->whereNotNull('freelancer_signed_at')
             ->whereNotNull('coordinator_signed_at')
             ->where('status_id', '!=', self::STATUS_CANCELLED)
+            // Aditivado: quem entra no lote é o aditivo.
+            ->whereNull('amended_at')
             ->whereNull('director_approved_at')
             ->where(function ($q) use ($encerrados, $comParecerDaGerencia) {
                 $q->whereNull('batch_id')
@@ -490,7 +616,9 @@ class FreelancerService extends Model
         return $this->isFullySigned()
             && $this->isManagerApproved()
             && $this->isDirectorApproved()
-            && !$this->isCancelled();
+            && !$this->isCancelled()
+            // Turno aditivado é pago pelo aditivo, uma vez só.
+            && !$this->isAmended();
     }
 
     public function canBePaid(): bool
@@ -501,6 +629,10 @@ class FreelancerService extends Model
     /**
      * Contratos que o coordenador enxerga no Kiosk: o freelancer já assinou e
      * só falta a contraparte. Cancelados ficam de fora.
+     *
+     * Contrato que recebeu aditivo CONTINUA aqui: ele é um documento firmado e
+     * precisa da assinatura das duas partes. O aditivo aparece ao lado, e é ele
+     * que seguirá para o lote.
      */
     public function scopeAwaitingCoordinator($query)
     {
@@ -519,7 +651,8 @@ class FreelancerService extends Model
             ->whereNotNull('coordinator_signed_at')
             ->whereNotNull('manager_approved_at')
             ->whereNotNull('director_approved_at')
-            ->where('status_id', '!=', self::STATUS_CANCELLED);
+            ->where('status_id', '!=', self::STATUS_CANCELLED)
+            ->whereNull('amended_at');
     }
 
     /* ---------------------------------------------------------------------
@@ -564,6 +697,10 @@ class FreelancerService extends Model
      * Isolado do resto do cálculo para que a regra possa ser exercitada nos
      * testes sem banco.
      *
+     * Aditivos ficam de fora: eles não acrescentam um dia de trabalho, apenas
+     * remendam um turno já contado pelo contrato base. Contá-los faria o
+     * segundo documento do mesmo dia estourar o limite sozinho.
+     *
      * @return Collection<int, Carbon>
      */
     protected static function weeklyWindowDates(int $freelancerId, Carbon $date): Collection
@@ -572,6 +709,7 @@ class FreelancerService extends Model
 
         return static::where('freelancer_id', $freelancerId)
             ->where('status_id', '!=', self::STATUS_CANCELLED)
+            ->whereNull('parent_service_id')
             ->whereBetween('start_date', [
                 $date->copy()->subDays($reach)->startOfDay(),
                 $date->copy()->addDays($reach)->endOfDay(),
@@ -649,10 +787,12 @@ class FreelancerService extends Model
      */
     public static function flagExcessWithinCollection(Collection $services): Collection
     {
-        $considered = $services->reject(fn($service) => $service->isCancelled());
+        // Mesmas exclusões de weeklyWindowDates(): cancelado não conta, e
+        // aditivo não é um dia novo de trabalho.
+        $considered = $services->reject(fn($service) => $service->isCancelled() || $service->isAmendment());
 
         return $services->mapWithKeys(function ($service) use ($considered) {
-            if ($service->isCancelled()) {
+            if ($service->isCancelled() || $service->isAmendment()) {
                 return [$service->id => false];
             }
 

@@ -228,7 +228,8 @@ class ServiceController extends Controller
             'success',
             'Código enviado aos coordenadores do setor ' . self::COORDINATOR_SECTOR . ' ('
                 . WeeklyLimitCodeService::maskEmails($code->sent_to) . '). Vale até '
-                . $code->expires_at->format('H:i') . '. Peça a qualquer um deles que dite o número.'
+                . WeeklyLimitCodeService::formatExpiry($code->expires_at)
+                . '. Peça a qualquer um deles que dite o número.'
         );
     }
 
@@ -283,6 +284,8 @@ class ServiceController extends Controller
             'createdBy',
             'updatedBy',
             'weeklyLimitAuthorizedBy',
+            'baseService.functionFreelancer',
+            'activeAmendment',
         ]);
 
         return view('freelancer.services.show', array_merge($this->formOptions(), [
@@ -306,6 +309,8 @@ class ServiceController extends Controller
             'functionFreelancer',
             'freelancerSignedBy',
             'coordinatorSignedBy',
+            // O documento do aditivo cita o contrato que ele altera.
+            'baseService.functionFreelancer',
         ]);
 
         // Barra a geração do documento para cadastros incompletos — cobre também
@@ -357,12 +362,14 @@ class ServiceController extends Controller
 
     public function destroy(FreelancerService $freelancerService)
     {
-        if (!$freelancerService->canBeDeleted()) {
+        try {
+            // Pelo serviço, e não pelo model: excluir um aditivo também precisa
+            // devolver o contrato base à vida.
+            $this->freelancerService->deleteService($freelancerService);
+        } catch (FreelancerServiceLockedException $e) {
             return redirect()->route('freelancer-services.show', $freelancerService)
-                ->with('error', 'Contrato assinado não pode ser excluído.');
+                ->with('error', $e->getMessage());
         }
-
-        $freelancerService->delete();
 
         return redirect()->route('freelancer-services.index')
             ->with('success', 'Serviço excluído com sucesso.');

@@ -10,11 +10,19 @@ use App\Models\FreelancerService;
  */
 trait ValidatesServiceSchedule
 {
-    /** Regras dos campos de horário. */
+    /** Regras da data + dos horários. */
     protected function scheduleRules(): array
     {
+        return ['start_date' => ['required', 'date']] + $this->timeRules();
+    }
+
+    /**
+     * Só os horários. O aditivo herda a data do contrato base e por isso não
+     * recebe `start_date`, mas as travas do período continuam valendo.
+     */
+    protected function timeRules(): array
+    {
         return [
-            'start_date' => ['required', 'date'],
             'start_time' => ['required', 'date_format:H:i,H:i:s'],
             'end_time' => ['required', 'date_format:H:i,H:i:s'],
         ];

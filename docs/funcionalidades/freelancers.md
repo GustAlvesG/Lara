@@ -19,7 +19,9 @@ O módulo tem duas frentes:
 2. **Função** (`function_freelancers`) — catálogo de funções (garçom, segurança...), com **preço
    por bloco de 15 minutos**.
 3. **Serviço / Contrato** (`freelancer_services`) — um trabalho de um freelancer numa função, num
-   evento/local, com data, horário de início e término, status e as duas assinaturas.
+   evento/local, com data, horário de início e término, status e as duas assinaturas. A mesma
+   tabela guarda os **aditivos**: são contratos com `parent_service_id` apontando para o contrato
+   que alteram (ver *Aditivo*).
 
 ## Regras de negócio
 
@@ -66,7 +68,8 @@ contrato mostra o traço quando há.
 > mudança — esses ficaram sem imagem e não são reassinados.
 
 - **Um contrato com qualquer assinatura não pode mais ser alterado** — vale para painel e API.
-  No painel o formulário fica somente leitura; na API o `PUT` responde `409`.
+  No painel o formulário fica somente leitura; na API o `PUT` responde `409`. Quando o turno muda
+  mesmo assim, o caminho é o **aditivo** (ver seção própria), não a edição.
 - As duas assinaturas são independentes: assinar uma não impede a outra de assinar depois. O que
   a assinatura bloqueia é a **edição dos dados** e o **cancelamento**.
 - Um contrato **cancelado** não pode ser assinado nem alterado.
@@ -87,6 +90,72 @@ ser assinado até 16:30 sem marcação; 16:31 já é fora do prazo.
   mostra — é lá que a assinatura acontece, e apontar o atraso naquele momento não muda mais nada.
 - O tempo exibido é o atraso em relação ao **início do turno**, não à tolerância: assinar 16:31 num
   turno de 16:00 mostra "31min".
+
+### Aditivo (o turno mudou depois da assinatura)
+Contrato tem curso: o turno é esticado, encurtado ou muda de local depois de o
+freelancer já ter assinado. Como **contrato assinado não pode ser alterado**, o caminho é o
+**aditivo** — um contrato novo, preso ao contrato base por `parent_service_id`, que repete tudo
+dele e muda **apenas horário de início, horário de término e local**.
+
+Freelancer, função e data **não são aceitos** na criação do aditivo: vêm do base. `end_date`,
+`total_hours` e `price` continuam derivados no servidor, pelas mesmas regras (virada de dia e
+blocos de 15 min) — o aditivo vale pelo **turno inteiro**, não pela diferença.
+
+**O contrato base continua vivo — o que o aditivo tira dele é o pagamento.** Ao criar o aditivo, o
+base recebe `amended_at` / `amendment_service_id`:
+
+| O que acontece com o contrato base | Por quê |
+|---|---|
+| **Continua na fila de assinatura e é assinado pelas duas partes** | é um documento firmado entre as partes; assinar até o fim é o que o mantém válido |
+| **Não é cancelado** — fica no histórico como o documento assinado | ele registra o que foi acordado no início do turno |
+| Não entra em lote (`scopeAvailableForBatch`, `canBeBatched()`) | quem vai à aprovação é o aditivo, com o período já corrigido |
+| Não aparece no Financeiro (`scopeAwaitingFinance`, `isPayable()`) | senão o mesmo turno seria pago duas vezes |
+
+`signatureLabel()` do base segue contando a história das **assinaturas** (`Aguardando coordenador`,
+`Assinado`); quem avisa que o dinheiro mudou de lugar é o `approvalLabel()`, que passa a dizer
+**`Pago pelo aditivo`**. Na fila do tablet e no índice do painel o contrato aditivado aparece
+marcado, para ninguém estranhar estar assinando um contrato que não será pago.
+
+O aditivo, daí em diante, é um contrato como outro qualquer: é assinado pelas duas partes, entra
+em lote, passa por gerência e diretoria e é pago.
+
+**Quando cabe aditivo** (`FreelancerService::canBeAmended()`; o motivo da recusa vem em
+`amendmentBlockReason()`, mesma frase no tablet, no painel e na exceção):
+
+- o contrato precisa ter **ao menos uma assinatura** — sem assinatura ele ainda é editável, e
+  aditivar seria criar um segundo documento onde bastava corrigir o primeiro;
+- **não** pode estar cancelado, já aditivado, já pago, já aprovado pela gerência ou diretoria;
+- **não** pode estar preso a um lote em tramitação — retire-o do lote antes, senão o aditivo
+  trocaria o conteúdo de um lote que a gerência já está analisando.
+
+Um aditivo **também pode ser aditivado** (o turno mudou duas vezes): ele referencia o anterior e o
+documento se numera sozinho — `Termo Aditivo`, `2º Termo Aditivo`… (`amendmentOrder()`).
+
+**Limite de 7 dias:** o aditivo **não conta**. Ele não acrescenta um dia de trabalho, remenda um
+turno já contado quando o base foi criado — contá-lo faria o segundo documento do mesmo dia
+estourar o limite sozinho. Por isso o registro do aditivo também não pede liberação do coordenador.
+
+**Desfazer.** Enquanto ninguém assinou o aditivo, cancelá-lo ou excluí-lo **devolve o pagamento ao
+contrato base** (limpa `amended_at`). Sem isso, um aditivo criado por engano deixaria o turno sem
+nenhum contrato pagável.
+
+**No tablet** (`POST /kiosk/service/{id}/amendment`): em *Meus contratos*, o contrato assinado
+ganha o botão **Fazer aditivo** ao lado de *Assinar*. São três passos — novo início, novo término,
+local (já preenchido com o do base) — e uma prévia que mostra **antes → depois** com o valor que
+passa a valer. Gerado o aditivo, a tela **abre direto o documento para assinatura**: o freelancer
+está ali, e aditivo sem assinatura não vale mais que o contrato que ele substituiu.
+
+**No painel** o aditivo não é criado (a mudança acontece no balcão, com a pessoa presente), mas
+aparece: a tela do contrato liga os dois documentos nos dois sentidos, e o índice marca as linhas
+como *Aditivo* e *Aditivado · pago no aditivo*. Os **documentos continuam separados** — cada um com
+seu PDF e suas assinaturas —, ligados pelos atalhos nas duas telas.
+
+**O documento** é um **Termo Aditivo**, não uma segunda via do contrato: cita o contrato original e
+a data em que foi firmado, diz o horário e o local que estavam valendo e os que passam a valer,
+declara que o novo valor **substitui** o anterior (e não se soma a ele) e ratifica todas as demais
+cláusulas — natureza autônoma, ausência de vínculo, descontos, refeição acima de 6 horas e foro.
+O texto vive em `partials/amendment-clauses.blade.php` (painel) e em `amendmentClauses()`
+(kiosk) — os dois precisam mudar juntos, como já acontece com o contrato original.
 
 ### Cancelamento
 - Só é possível **enquanto não houver nenhuma assinatura**.
@@ -141,9 +210,11 @@ sistema, e é isso que prova que a liberação veio de quem tem acesso à caixa 
   aos coordenadores do setor Comercial". Nomear um coordenador ali seria inventar: o código vale
   para todos. Só o caminho do PIN identifica uma pessoa.
 - O código é preso ao par **freelancer + data do serviço**: não serve para liberar outro contrato.
-  Vale **uma vez só**, expira em `FREELANCER_WEEKLY_CODE_TTL_MINUTES` (15 por padrão) e aceita no
-  máximo `FREELANCER_WEEKLY_CODE_MAX_ATTEMPTS` (5) tentativas. Fica guardado em hash na tabela
-  `freelancer_weekly_limit_codes` (`coordinator_id` nulo; `sent_to` lista quem recebeu).
+  Vale **uma vez só**, expira em `FREELANCER_WEEKLY_CODE_TTL_MINUTES` (**120 min = 2h** por padrão)
+  e aceita no máximo `FREELANCER_WEEKLY_CODE_MAX_ATTEMPTS` (5) tentativas. Fica guardado em hash na
+  tabela `freelancer_weekly_limit_codes` (`coordinator_id` nulo; `sent_to` lista quem recebeu).
+  O prazo dá folga para o coordenador ver o e-mail e responder; quem segura o risco de uma janela
+  mais longa é o resto do desenho — um contrato, um uso, tentativas contadas.
 - Pedir um código novo invalida o anterior, para não haver dois números válidos ao mesmo tempo.
 - Na conferência, o **PIN é tentado antes do código** quando há matrícula informada — assim o uso
   normal do PIN não gasta as tentativas do código pendente.
@@ -318,7 +389,7 @@ Dois modos, decididos pelo que o usuário é — quem acumula os dois papéis es
 
 | Modo | Quem entra | O que faz | Limite da sessão |
 |---|---|---|---|
-| `operator` | permissão `manage freelancers` | localiza/cadastra freelancer, registra contrato e colhe a assinatura do freelancer | 30 min **ou** 5 contratos |
+| `operator` | permissão `manage freelancers` | localiza/cadastra freelancer, registra contrato, faz o **aditivo** quando o turno muda e colhe a assinatura do freelancer | 30 min **ou** 5 contratos |
 | `coordinator` | **coordenador do setor `Comercial`** (`user_sector.role = 'coordinator'`) | assina os contratos que aguardam a contraparte e monta/envia o lote para a gerência | 30 min (sem teto de contratos) |
 
 - A fila do coordenador traz os **50 mais antigos** primeiro — são os que travam o financeiro — e
@@ -533,6 +604,12 @@ guardam qual coordenador do Comercial liberou e quando — sem isso a autorizaç
 - **Models:** `Freelancer` (default do PIX), `FunctionFreelancer`, `FreelancerService`
   (`isSigned()`, `canBeUpdated()`, `canBeCancelled()`, `canBeDeleted()`, `signatureLabel()`,
   `exceedsWeeklyLimit()`, `flagExcessWithinCollection()`), `User::isCoordinator()`.
+- **Aditivo:** `FreelancerService::canBeAmended()` / `amendmentBlockReason()` / `isAmended()` /
+  `amendmentOrder()` / `documentTitle()` (regra), `App\Services\FreelancerService::createAmendment()`
+  (criação + marcação do base, em transação) e `deleteService()` / `cancelService()` (desfazer),
+  `StoreFreelancerServiceAmendmentRequest` (só local e horários),
+  `KioskController::storeAmendment()`. Colunas em
+  `2026_07_31_140000_add_amendment_to_freelancer_services_table`.
 - **Importação:** `app/Imports/` — `SpreadsheetImport` (base tudo-ou-nada e geração do modelo),
   `FreelancerImport`, `FreelancerServiceImport`, `XlsxReader` (leitura crua do `.xlsx`) e
   `ImportValues` (normalização de CPF, data e hora). Formulário de envio em

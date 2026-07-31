@@ -63,7 +63,18 @@
                                         <span title="Freelancer com mais de {{ \App\Models\FreelancerService::WEEKLY_LIMIT }} serviços numa janela de 7 dias" class="text-amber-500">⚠️</span>
                                     @endif
                                 </td>
-                                <td class="px-4 py-4 font-semibold text-gray-900 dark:text-white">{{ $service->freelancer->name }}</td>
+                                <td class="px-4 py-4 font-semibold text-gray-900 dark:text-white">
+                                    {{ $service->freelancer->name }}
+                                    {{-- O par aditivo/aditivado explica por que duas linhas do mesmo
+                                         turno aparecem na lista e só uma delas será paga. --}}
+                                    @if($service->isAmendment())
+                                        <span class="block text-xs font-bold text-indigo-600 dark:text-indigo-400"
+                                              title="Aditivo do contrato #{{ $service->parent_service_id }}">Aditivo</span>
+                                    @elseif($service->isAmended())
+                                        <span class="block text-xs font-bold text-gray-400 dark:text-gray-500"
+                                              title="Assinado normalmente; o pagamento do turno é feito pelo aditivo #{{ $service->amendment_service_id }}">Aditivado · pago no aditivo</span>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-4 text-gray-700 dark:text-gray-300">{{ $service->functionFreelancer->name }}</td>
                                 <td class="px-4 py-4 text-gray-700 dark:text-gray-300">{{ $service->location ?? '—' }}</td>
                                 <td class="px-4 py-4 text-gray-700 dark:text-gray-300 whitespace-nowrap">

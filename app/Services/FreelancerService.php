@@ -93,6 +93,52 @@ class FreelancerService
         return $service;
     }
 
+    /* ---------------------------------------------------------------------
+     | Aditivo
+     |---------------------------------------------------------------------*/
+
+    /**
+     * Cria o contrato aditivo de $base: mesma pessoa, mesma função, mesmo dia,
+     * mudando só horário de início, horário de término e local. Preço, horas e
+     * data de término são recalculados pelo mesmo caminho de um contrato comum
+     * — o aditivo vale pelo turno INTEIRO, não pela diferença.
+     *
+     * Por isso o base é marcado como aditivado na mesma transação: os dois
+     * documentos existem e os dois são assinados, mas só o aditivo é pago.
+     *
+     * @param  array{location: string, start_time: string, end_time: string}  $data
+     * @throws FreelancerServiceLockedException quando o base não aceita aditivo
+     */
+    public function createAmendment(FreelancerServiceModel $base, array $data, ?User $actor = null)
+    {
+        if ($reason = $base->amendmentBlockReason()) {
+            throw new FreelancerServiceLockedException($reason);
+        }
+
+        $actorId = $actor?->id ?? $this->actorId($data);
+
+        return DB::transaction(function () use ($base, $data, $actorId) {
+            $amendment = $this->createService([
+                'freelancer_id' => $base->freelancer_id,
+                'function_freelancer_id' => $base->function_freelancer_id,
+                'parent_service_id' => $base->id,
+                'start_date' => Carbon::parse($base->start_date)->toDateString(),
+                'location' => $data['location'],
+                'start_time' => $data['start_time'],
+                'end_time' => $data['end_time'],
+                'created_by' => $actorId,
+            ]);
+
+            $base->forceFill([
+                'amended_at' => now(),
+                'amendment_service_id' => $amendment->id,
+                'updated_by' => $actorId ?? $base->updated_by,
+            ])->save();
+
+            return $amendment;
+        });
+    }
+
     public function getServicesByCpf(string $cpf)
     {
         $freelancer = $this->get($cpf);
@@ -198,6 +244,10 @@ class FreelancerService
     /**
      * Cancela o contrato. Só é possível enquanto não houver nenhuma assinatura.
      *
+     * Cancelar um ADITIVO devolve o pagamento ao contrato base: ele deixa de
+     * estar aditivado e volta ao lote e ao financeiro. Sem isso, um aditivo
+     * criado por engano deixaria o turno sem nenhum contrato pagável.
+     *
      * @throws FreelancerServiceLockedException
      */
     public function cancelService(FreelancerServiceModel $service, ?User $user = null)
@@ -210,13 +260,50 @@ class FreelancerService
             throw new FreelancerServiceLockedException('Contrato já assinado não pode ser cancelado.');
         }
 
-        $service->forceFill([
-            'status_id' => FreelancerServiceModel::STATUS_CANCELLED,
-            'cancelled_at' => now(),
-            'cancelled_by' => $user?->id,
-        ])->save();
+        return DB::transaction(function () use ($service, $user) {
+            $service->forceFill([
+                'status_id' => FreelancerServiceModel::STATUS_CANCELLED,
+                'cancelled_at' => now(),
+                'cancelled_by' => $user?->id,
+            ])->save();
 
-        return $service;
+            $base = $service->isAmendment() ? $service->baseService : null;
+
+            if ($base && $base->amendment_service_id === $service->id) {
+                $base->forceFill([
+                    'amended_at' => null,
+                    'amendment_service_id' => null,
+                ])->save();
+            }
+
+            return $service;
+        });
+    }
+
+    /**
+     * Exclui um contrato ainda sem assinatura. Excluir um aditivo, como
+     * cancelá-lo, devolve o contrato base à vida.
+     *
+     * @throws FreelancerServiceLockedException
+     */
+    public function deleteService(FreelancerServiceModel $service): void
+    {
+        if (!$service->canBeDeleted()) {
+            throw new FreelancerServiceLockedException('Contrato assinado não pode ser excluído.');
+        }
+
+        DB::transaction(function () use ($service) {
+            $base = $service->isAmendment() ? $service->baseService : null;
+
+            if ($base && $base->amendment_service_id === $service->id) {
+                $base->forceFill([
+                    'amended_at' => null,
+                    'amendment_service_id' => null,
+                ])->save();
+            }
+
+            $service->delete();
+        });
     }
 
     /* ---------------------------------------------------------------------

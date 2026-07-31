@@ -12,6 +12,41 @@
 
         @include('partials.alerts')
 
+        {{-- Aditivo e contrato base andam sempre em par: quem abre um precisa
+             chegar ao outro num clique, e saber qual dos dois é o que vale. --}}
+        @if($service->isAmendment())
+            <div class="p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 text-indigo-800 dark:text-indigo-200 rounded-lg text-sm font-medium">
+                📄 Este contrato é um <b>aditivo</b>{{ $service->amendmentOrder() > 1 ? ' (' . $service->amendmentOrder() . 'º termo)' : '' }}
+                e é ele que paga o turno — o contrato original continua sendo assinado, mas não vai ao financeiro.
+                @if($service->baseService)
+                    <span class="block mt-1 font-normal">
+                        Altera o contrato
+                        <a href="{{ route('freelancer-services.show', $service->baseService) }}" class="underline font-semibold">#{{ $service->baseService->id }}</a>,
+                        de {{ substr($service->baseService->start_time, 0, 5) }} às {{ substr($service->baseService->end_time, 0, 5) }}
+                        em {{ $service->baseService->location }}
+                        @if($service->amendmentDurationChange()) ({{ $service->amendmentDurationChange() }}) @endif.
+                    </span>
+                @endif
+            </div>
+        @endif
+
+        @if($service->isAmended())
+            <div class="p-4 bg-gray-100 dark:bg-gray-900/50 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium">
+                ↪️ Este contrato recebeu um <b>aditivo</b> em {{ $service->amended_at->format('d/m/Y H:i') }}.
+                Ele <b>continua sendo assinado normalmente</b> pelas duas partes e permanece no histórico como o
+                documento firmado — o que muda é o pagamento: não entra em lote nem no financeiro, para o mesmo
+                turno não ser pago duas vezes.
+                @if($service->activeAmendment)
+                    <span class="block mt-1 font-normal">
+                        Quem paga o turno é o aditivo
+                        <a href="{{ route('freelancer-services.show', $service->activeAmendment) }}" class="underline font-semibold">#{{ $service->activeAmendment->id }}</a>:
+                        {{ substr($service->activeAmendment->start_time, 0, 5) }} às {{ substr($service->activeAmendment->end_time, 0, 5) }}
+                        · R$ {{ number_format($service->activeAmendment->price, 2, ',', '.') }}.
+                    </span>
+                @endif
+            </div>
+        @endif
+
         @if($exceedsWeeklyLimit)
             <div class="p-4 bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 rounded-lg text-sm font-medium">
                 ⚠️ Este freelancer possui mais de {{ \App\Models\FreelancerService::WEEKLY_LIMIT }} serviços registrados numa janela de {{ \App\Models\FreelancerService::WEEKLY_WINDOW_DAYS }} dias em torno desta data.

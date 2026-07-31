@@ -50,9 +50,14 @@
     </td></tr></tfoot>
     <tbody><tr><td>
 
-    <div class="doc-title">Contrato Autônomo de Serviços de Freelancer</div>
+    <div class="doc-title">{{ $service->documentTitle() }}</div>
 
     <div class="doc-body">
+        @if($service->isAmendment())
+            {{-- O aditivo não repete o contrato: cita o que estava valendo e diz
+                 o que passa a valer, ratificando o resto. --}}
+            @include('freelancer.services.partials.amendment-clauses', ['service' => $service, 'f' => $f, 'cpf' => $cpf])
+        @else
         <p>Por este particular instrumento contratual de serviço autônomo de freelancer, firmado entre as partes, de um lado,
             <b>CLUBE DOS FUNCIONARIOS DA COMPANHIA SIDERURGICA NACIONAL</b>, empresa estabelecida na Rua - General Oswaldo
             Pinto da Veiga, 231, Volta Redonda – RJ, a seguir denominada simplesmente CONTRATANTE, e, de outro lado
@@ -96,6 +101,7 @@
 
         <p>E assim por estarem de pleno acordo com o contido neste instrumento, CONTRATANTE e FREELANCER o firmam consoante
             os ditames legais.</p>
+        @endif
 
         <p class="doc-place"><b>Volta Redonda-RJ, {{ $dataExtenso }}</b></p>
 

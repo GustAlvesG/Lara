@@ -71,6 +71,10 @@ Route::prefix('kiosk')->group(function () {
     // e-mail para uma caixa de terceiro, não um endpoint de consulta.
     Route::post('/service/weekly-limit-code', [KioskController::class, 'weeklyLimitCode'])
         ->middleware('throttle:6,1')->name('kiosk.service.weekly-limit-code');
+    // Aditivo: o turno mudou depois da assinatura. Gera um contrato novo preso
+    // ao base, que passa a ser o documento válido daquele turno.
+    Route::post('/service/{freelancerService}/amendment', [KioskController::class, 'storeAmendment'])
+        ->middleware('throttle:20,1')->name('kiosk.service.amendment');
     Route::post('/service/{freelancerService}/sign', [KioskController::class, 'signService'])
         ->middleware('throttle:20,1')->name('kiosk.service.sign');
 
