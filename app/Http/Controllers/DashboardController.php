@@ -18,6 +18,9 @@ use App\Models\Aviso;
 
 class DashboardController extends Controller
 {
+    /** Máximo de avisos no painel: 3 linhas × 3 colunas do grid. */
+    private const AVISOS_DASHBOARD_LIMIT = 9;
+
     /**
      * Painel inicial. Cada bloco de métricas só é calculado quando o
      * usuário tem a permissão correspondente, evitando consultas desnecessárias.
@@ -31,11 +34,13 @@ class DashboardController extends Controller
         ];
 
         // Avisos — visíveis a todos os usuários autenticados (conforme regra de visibilidade)
+        // Limitado a 3 linhas do grid (3 colunas no lg), os demais ficam em "Ver todos".
         $data['avisos'] = Aviso::with('creator', 'lembretes')
             ->visibleTo($user)
             ->active()
             ->notViewedBy($user)
             ->orderByDesc('created_at')
+            ->limit(self::AVISOS_DASHBOARD_LIMIT)
             ->get();
 
         // Últimos 14 dias (labels d/m e chaves Y-m-d para casar com as queries)

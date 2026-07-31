@@ -10,6 +10,12 @@
 
         @include('partials.alerts')
 
+        <div class="mb-6 flex justify-end">
+            <a href="{{ route('freelancer-services.bulk') }}" class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-xl font-bold shadow border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                Registrar vários de uma vez
+            </a>
+        </div>
+
         @include('freelancer.partials.import-card', [
             'action' => route('freelancer-services.import'),
             'templateRoute' => route('freelancer-services.import.template'),

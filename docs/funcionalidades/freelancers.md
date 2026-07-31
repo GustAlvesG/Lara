@@ -153,6 +153,29 @@ confirma ainda é o próprio atendente, não o coordenador.
 
 Selo ⚠️ no index de Serviços e no index de Freelancers marca quem está acima do limite.
 
+### Registro em massa pelo painel
+Tela **Serviços → Em massa** (`/freelancer-services/em-massa`): várias linhas na própria página,
+sem planilha. Cada linha é **freelancer** (select), **função** (select), **evento/local**, **data**,
+**início** e **término**. Duração, horas pagas e valor aparecem calculados na linha e somados no
+topo, mas quem calcula de verdade continua sendo o servidor.
+
+- **Tudo-ou-nada**, como a importação por planilha: havendo um erro, nada é gravado e a tela lista
+  os problemas numerados pela linha. A gravação corre em transação.
+- "Adicionar linha" repete função, local, data e horários da linha anterior e deixa só o freelancer
+  em branco — o caso comum é o mesmo evento com várias pessoas. Máximo de **100 linhas** por envio
+  (`StoreFreelancerServicesBulkRequest::MAX_ROWS`).
+- Mesmas travas do registro individual: freelancer com **cadastro incompleto** fica desabilitado no
+  select e é recusado no servidor; turno precisa ter ao menos um bloco de 15 min; turno que vira a
+  meia-noite é sinalizado na linha.
+- **Limite de 7 dias:** as linhas do mesmo envio **contam umas com as outras**
+  (`FreelancerService::rowsExceedingWeeklyLimit()`), somadas ao que já está no banco — três linhas
+  do mesmo freelancer na mesma semana estouram ainda que ele não tenha nada gravado. Estourando, o
+  lote inteiro só grava com a liberação do coordenador do Comercial, pedida **uma vez** para o
+  envio; `weekly_limit_authorized_by` fica gravado **só nas linhas que a exigiram**.
+- A liberação aqui é **pelo PIN**. O código por e-mail é preso a um contrato (coordenador +
+  freelancer + data) e não cobre um lote com várias linhas — para esse caminho, use o registro
+  individual.
+
 ### Importação em massa por planilha
 As telas **Novo Freelancer** e **Novo Serviço** trazem um bloco "Importar por planilha", com o
 arquivo modelo `.xlsx` para download e o envio do arquivo preenchido.

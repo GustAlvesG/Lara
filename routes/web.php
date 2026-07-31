@@ -365,6 +365,10 @@ Route::middleware('auth')->group(function () {
         Route::prefix('freelancer-services')->group(function () {
             Route::get('/', [FreelancerServiceWebController::class, 'index'])->name('freelancer-services.index');
             Route::get('/create', [FreelancerServiceWebController::class, 'create'])->name('freelancer-services.create');
+            // Registro em massa pelo painel (várias linhas, sem planilha) —
+            // antes de /{freelancerService} para não cair na rota do serviço.
+            Route::get('/em-massa', [FreelancerServiceWebController::class, 'bulkCreate'])->name('freelancer-services.bulk');
+            Route::post('/em-massa', [FreelancerServiceWebController::class, 'bulkStore'])->name('freelancer-services.bulk.store');
             Route::post('/', [FreelancerServiceWebController::class, 'store'])->name('freelancer-services.store');
             // Código de liberação do limite semanal por e-mail — declarado antes
             // de /{freelancerService} e com throttle baixo (dispara e-mail).

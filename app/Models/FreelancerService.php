@@ -542,13 +542,35 @@ class FreelancerService extends Model
      * um contrato numa data ANTERIOR a outros já registrados também aperta a
      * mesma semana, e olhar só para trás deixava esse caso passar sem aviso.
      * Contratos cancelados não entram na conta.
+     *
+     * `$extraDates` soma datas que ainda não estão no banco — é assim que o
+     * registro em massa faz as linhas do próprio lote contarem umas com as
+     * outras, em vez de cada uma se achar a primeira da semana.
+     *
+     * @param  array<int, mixed>  $extraDates
      */
-    public static function countInWeeklyWindow(int $freelancerId, $startDate): int
+    public static function countInWeeklyWindow(int $freelancerId, $startDate, array $extraDates = []): int
     {
         $date = Carbon::parse($startDate)->startOfDay();
+
+        $dates = static::weeklyWindowDates($freelancerId, $date)
+            ->concat(collect($extraDates)->map(fn($value) => Carbon::parse($value)->startOfDay()));
+
+        return self::fullestWindowCount($date, $dates);
+    }
+
+    /**
+     * Datas já gravadas que podem cair numa janela de 7 dias contendo $date.
+     * Isolado do resto do cálculo para que a regra possa ser exercitada nos
+     * testes sem banco.
+     *
+     * @return Collection<int, Carbon>
+     */
+    protected static function weeklyWindowDates(int $freelancerId, Carbon $date): Collection
+    {
         $reach = self::WEEKLY_WINDOW_DAYS - 1;
 
-        $dates = static::where('freelancer_id', $freelancerId)
+        return static::where('freelancer_id', $freelancerId)
             ->where('status_id', '!=', self::STATUS_CANCELLED)
             ->whereBetween('start_date', [
                 $date->copy()->subDays($reach)->startOfDay(),
@@ -556,8 +578,37 @@ class FreelancerService extends Model
             ])
             ->pluck('start_date')
             ->map(fn($value) => Carbon::parse($value)->startOfDay());
+    }
 
-        return self::fullestWindowCount($date, $dates);
+    /**
+     * Índices das linhas de um lote que passam do limite, contando o que já está
+     * no banco MAIS as linhas anteriores do próprio lote. Sem essa soma, três
+     * linhas do mesmo freelancer na mesma semana entrariam cada uma se achando
+     * a primeira, e o registro em massa viraria o caminho para furar a regra.
+     *
+     * @param  array<int, array>  $rows  linhas com `freelancer_id` e `start_date`
+     * @return array<int, int>
+     */
+    public static function rowsExceedingWeeklyLimit(array $rows): array
+    {
+        $exceeding = [];
+        $pending = [];
+
+        foreach (array_values($rows) as $index => $row) {
+            $freelancerId = (int) $row['freelancer_id'];
+
+            if (static::wouldExceedWeeklyLimit(
+                $freelancerId,
+                $row['start_date'],
+                $pending[$freelancerId] ?? []
+            )) {
+                $exceeding[] = $index;
+            }
+
+            $pending[$freelancerId][] = $row['start_date'];
+        }
+
+        return $exceeding;
     }
 
     /**
@@ -581,12 +632,14 @@ class FreelancerService extends Model
     }
 
     /**
-     * Um novo serviço nessa data ultrapassaria o limite recomendado? Usado para
-     * avisar antes de gravar, e não depois.
+     * Um novo serviço nessa data ultrapassaria o limite? Usado para avisar antes
+     * de gravar, e não depois.
+     *
+     * @param  array<int, mixed>  $extraDates  outras datas do mesmo lote, ainda não gravadas
      */
-    public static function wouldExceedWeeklyLimit(int $freelancerId, $startDate): bool
+    public static function wouldExceedWeeklyLimit(int $freelancerId, $startDate, array $extraDates = []): bool
     {
-        return static::countInWeeklyWindow($freelancerId, $startDate) + 1 > self::WEEKLY_LIMIT;
+        return static::countInWeeklyWindow($freelancerId, $startDate, $extraDates) + 1 > self::WEEKLY_LIMIT;
     }
 
     /**

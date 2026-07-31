@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Controllers\Freelancer\Concerns\ServesSignatureImages;
 use App\Http\Requests\ImportSpreadsheetRequest;
 use App\Http\Requests\StoreFreelancerServiceRequest;
+use App\Http\Requests\StoreFreelancerServicesBulkRequest;
 use App\Http\Requests\UpdateFreelancerServiceRequest;
 use App\Imports\FreelancerServiceImport;
 use App\Models\Freelancer;
@@ -20,6 +21,7 @@ use App\Services\FreelancerService as FreelancerServiceManager;
 use App\Services\WeeklyLimitCodeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class ServiceController extends Controller
 {
@@ -97,6 +99,97 @@ class ServiceController extends Controller
 
         return redirect()->route('freelancer-services.show', $service)
             ->with('success', 'Serviço registrado com sucesso.');
+    }
+
+    /* ---------------------------------------------------------------------
+     | Registro em massa (pelo painel, sem planilha)
+     |---------------------------------------------------------------------*/
+
+    public function bulkCreate()
+    {
+        return view('freelancer.services.bulk', array_merge($this->formOptions(), [
+            'maxRows' => StoreFreelancerServicesBulkRequest::MAX_ROWS,
+        ]));
+    }
+
+    /**
+     * Grava o lote inteiro ou nenhum. É a mesma escolha da importação por
+     * planilha: no meio-termo, metade entra e o reenvio duplica o resto.
+     *
+     * As linhas que passam do limite de 7 dias contam umas com as outras — três
+     * linhas do mesmo freelancer na mesma semana estouram, ainda que ele não
+     * tenha nada no banco. Passando do limite, o lote todo só grava com a
+     * liberação do coordenador do Comercial (PIN ou código de e-mail), pedida
+     * uma vez para o envio.
+     */
+    public function bulkStore(StoreFreelancerServicesBulkRequest $request)
+    {
+        $rows = array_values($request->validated()['services']);
+        $exceeding = FreelancerService::rowsExceedingWeeklyLimit($rows);
+
+        $authorization = [];
+
+        if ($exceeding) {
+            if (!$request->boolean('confirm_weekly_limit')) {
+                return back()
+                    ->withInput($request->except('coordinator_pin'))
+                    ->with('confirm_weekly_limit', $this->bulkWeeklyLimitMessage($exceeding));
+            }
+
+            try {
+                // O código de e-mail é preso a um contrato; num lote com várias
+                // linhas ele não serve, e a liberação é pelo PIN. Com uma linha
+                // só, o código daquela linha vale.
+                $single = count($exceeding) === 1 && count($rows) === 1 ? $rows[0] : null;
+
+                $coordinator = $this->authorizeCommercialCoordinator(
+                    $request->input('coordinator_matricula'),
+                    $request->input('coordinator_pin'),
+                    $single ? (int) $single['freelancer_id'] : null,
+                    $single['start_date'] ?? null,
+                );
+            } catch (CoordinatorAuthorizationException $e) {
+                return back()
+                    ->withInput($request->except('coordinator_pin'))
+                    ->with('confirm_weekly_limit', $this->bulkWeeklyLimitMessage($exceeding))
+                    ->with('error', $e->getMessage());
+            }
+
+            $authorization = [
+                'weekly_limit_authorized_by' => $coordinator->id,
+                'weekly_limit_authorized_at' => now(),
+            ];
+        }
+
+        $exceedingRows = array_flip($exceeding);
+
+        $created = DB::transaction(function () use ($rows, $exceedingRows, $authorization) {
+            foreach ($rows as $index => $row) {
+                // A autorização fica gravada só nas linhas que a exigiram.
+                $this->freelancerService->createService(
+                    isset($exceedingRows[$index]) ? $row + $authorization : $row
+                );
+            }
+
+            return count($rows);
+        });
+
+        return redirect()->route('freelancer-services.index')
+            ->with('success', $created . ' serviço(s) registrado(s) com sucesso.');
+    }
+
+    /** @param  array<int, int>  $exceeding  índices das linhas */
+    private function bulkWeeklyLimitMessage(array $exceeding): string
+    {
+        $lines = implode(', ', array_map(fn(int $index) => $index + 1, $exceeding));
+
+        return count($exceeding) === 1
+            ? 'A linha ' . $lines . ' passa do limite de ' . FreelancerService::WEEKLY_LIMIT
+                . ' serviços em ' . FreelancerService::WEEKLY_WINDOW_DAYS . ' dias. Para gravar o lote, o '
+                . 'coordenador do setor ' . self::COORDINATOR_SECTOR . ' precisa liberar.'
+            : 'As linhas ' . $lines . ' passam do limite de ' . FreelancerService::WEEKLY_LIMIT
+                . ' serviços em ' . FreelancerService::WEEKLY_WINDOW_DAYS . ' dias. Para gravar o lote, o '
+                . 'coordenador do setor ' . self::COORDINATOR_SECTOR . ' precisa liberar.';
     }
 
     /**
