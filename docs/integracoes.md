@@ -107,12 +107,15 @@ Base externa para sócios, acessos físicos e visitantes. Duas conexões em `con
 ## 11.10. Lara — agente de IA (Ollama)
 
 - **Componente:** `App\Services\Lara\LaraClient`.
-- **Endpoints consumidos:** `POST {LARA_BASE_URL}/perguntar` `{usuario_id, mensagem}` → `{resposta}`
-  e `POST {LARA_BASE_URL}/reiniciar` `{usuario_id}` → `{status}`.
+- **Endpoints consumidos:** `POST /perguntar` `{usuario_id, mensagem}` → `{resposta, transferir}`,
+  `POST /reiniciar` `{usuario_id}` → `{status}` e `GET /health` (2xx, sem passar pelo modelo).
 - **Autenticação:** nenhuma — o endpoint é protegido só pela rede (a porta 3000 da VM da IA
   aceita apenas o IP do portal). Por isso `LARA_BASE_URL` mora no `.env` do servidor e não no
   repositório.
-- **Timeout:** 30s, sem retry — o modelo roda em CPU e uma resposta legítima pode demorar.
+- **Timeout:** 25s, sem retry. O serviço da IA desiste sozinho em 22s; os 3s de folga cobrem
+  só a rede.
+- **`transferir: true`** é fallback de sistema da IA (timeout, limite de 3 chamadas simultâneas
+  ou erro do modelo) e vira `status = fallback`. Com `false`, é resposta de negócio e vira `ok`.
 - **Indisponibilidade:** nunca propaga exceção; devolve a frase de `LARA_FALLBACK_MESSAGE`
   marcada com `status = erro` em `lara_messages`.
 - **Guia de uso:** [Lara — Assistente de IA](funcionalidades/lara-ia.md).

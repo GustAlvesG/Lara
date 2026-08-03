@@ -3,6 +3,7 @@
 namespace App\Services\Lara;
 
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -11,8 +12,9 @@ use Illuminate\Support\Str;
  * Cliente HTTP do agente de IA (Lara), que roda numa VM própria.
  *
  * Contrato do serviço:
- *   POST /perguntar  {usuario_id, mensagem} -> {resposta}
+ *   POST /perguntar  {usuario_id, mensagem} -> {resposta, transferir}
  *   POST /reiniciar  {usuario_id}           -> {status: "ok"}
+ *   GET  /health                            -> 2xx (sem passar pelo modelo)
  *
  * Duas decisões que valem explicação:
  *
@@ -20,9 +22,9 @@ use Illuminate\Support\Str;
  *    web com um funcionário esperando na tela — indisponibilidade da IA vira
  *    uma frase de fallback, não uma tela de erro.
  *
- * 2. Não há retry. O serviço avisa que uma resposta legítima pode levar até
- *    30s porque o modelo roda em CPU; repetir a chamada depois de um timeout
- *    dobraria a carga justamente quando a VM já está saturada.
+ * 2. Não há retry. O modelo roda em CPU e o serviço já desiste sozinho em 22s;
+ *    repetir a chamada depois disso dobraria a carga justamente quando a VM
+ *    está saturada — que é, aliás, a causa mais provável da primeira falha.
  */
 class LaraClient
 {
@@ -33,6 +35,34 @@ class LaraClient
     public function enabled(): bool
     {
         return (bool) config('services.lara.enabled') && filled(config('services.lara.base_url'));
+    }
+
+    /**
+     * A VM está de pé? Serve para a tela bloquear o envio antes de o
+     * funcionário digitar a pergunta inteira e esperar meio minuto por nada.
+     *
+     * O resultado fica em cache por alguns segundos: a checagem roda a cada
+     * abertura da tela e não faz sentido bater na VM toda vez. O cache é curto
+     * de propósito — quando a VM volta, o chat destrava sozinho logo em
+     * seguida, sem ninguém precisar limpar nada.
+     */
+    public function healthy(): bool
+    {
+        if (!$this->enabled()) {
+            return false;
+        }
+
+        $ttl = (int) config('services.lara.health_ttl', 30);
+
+        return (bool) Cache::remember('lara:health', $ttl, function () {
+            try {
+                return Http::timeout((int) config('services.lara.health_timeout', 3))
+                    ->get($this->url('/health'))
+                    ->successful();
+            } catch (ConnectionException $e) {
+                return false;
+            }
+        });
     }
 
     public function ask(string $usuarioId, string $mensagem): LaraAnswer
@@ -64,7 +94,22 @@ class LaraClient
             return $this->falha($usuarioId, $inicio, 'corpo sem o campo "resposta"');
         }
 
-        return new LaraAnswer(trim($texto), LaraAnswer::STATUS_OK, $this->elapsed($inicio));
+        // `transferir: true` é a IA avisando que aquilo é fallback de sistema
+        // dela — timeout interno, limite de concorrência ou erro do modelo — e
+        // não uma resposta de negócio. É o que separa "a Lara quebrou" de "a
+        // Lara respondeu que o assunto é de outro setor", já que as duas coisas
+        // chegam aqui com exatamente o mesmo texto.
+        // filter_var em vez de cast: o campo pode não vir (versões antigas do
+        // serviço) e, se um dia vier como "true" em string, não vira o oposto
+        // do que diz — um cast simples transformaria "false" em true.
+        $fallbackDaIa = filter_var($response->json('transferir'), FILTER_VALIDATE_BOOL);
+
+        return new LaraAnswer(
+            trim($texto),
+            $fallbackDaIa ? LaraAnswer::STATUS_FALLBACK : LaraAnswer::STATUS_OK,
+            $this->elapsed($inicio),
+            $fallbackDaIa ? 'fallback sinalizado pela IA' : null,
+        );
     }
 
     /**

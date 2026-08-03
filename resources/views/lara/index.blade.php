@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div class="flex justify-between items-center">
             <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-                Lara — Assistente do Estatuto
+                Lara — Assistente do Clube 
             </h2>
         </div>
     </x-slot>
@@ -14,7 +14,12 @@
 
             @unless($disponivel)
                 <div class="mb-4 p-4 bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 rounded-lg text-sm">
-                    A Lara está desativada no momento. Fale com o time de TI se precisar dela agora.
+                    @if($configurado)
+                        A Lara não está respondendo agora — o servidor dela pode estar reiniciando.
+                        Recarregue a página em alguns instantes; se continuar assim, avise o time de TI.
+                    @else
+                        A Lara está desativada no momento. Fale com o time de TI se precisar dela agora.
+                    @endif
                 </div>
             @endunless
 
@@ -102,7 +107,7 @@
             </div>
 
             <p class="mt-3 text-xs text-gray-400 dark:text-gray-500 text-center">
-                A Lara responde com base no estatuto do clube. Em caso de dúvida, confirme com o setor responsável.
+                A Lara responde com base no estatuto do clube. Em caso de dúvida, confirme com o setor responsável. Essa é "A Lara".
             </p>
         </div>
     </div>
@@ -119,10 +124,10 @@ function laraChat(historico, disponivel) {
         segundos: 0,
         cronometro: null,
 
-        // O timeout do lado do PHP é 30s; damos folga para receber a resposta
-        // dele (inclusive a de fallback) em vez de abortar antes por conta
-        // própria e deixar o funcionário sem explicação nenhuma.
-        TIMEOUT_MS: 45000,
+        // A cadeia de timeouts é escalonada: a IA desiste em 22s, o PHP em 25s,
+        // e o navegador só em 35s. Abortar aqui antes do PHP jogaria fora uma
+        // resposta que estava a caminho e deixaria o funcionário sem explicação.
+        TIMEOUT_MS: 35000,
 
         async enviar() {
             const texto = this.pergunta.trim();

@@ -7,6 +7,7 @@ use App\Models\LaraMessage;
 use App\Services\Lara\LaraClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -36,7 +37,11 @@ class LaraChatController extends Controller
 
         return view('lara.index', [
             'mensagens' => LaraMessage::daConversa($request->user()->id, $conversationUuid)->get(),
-            'disponivel' => $lara->enabled(),
+            // Duas perguntas diferentes: "ligamos o chat?" e "a VM respondeu?".
+            // A tela explica cada caso de um jeito, porque a ação de quem vê é
+            // outra — desligado é decisão nossa, fora do ar é chamado para a TI.
+            'configurado' => $lara->enabled(),
+            'disponivel' => $lara->healthy(),
         ]);
     }
 
@@ -107,12 +112,37 @@ class LaraChatController extends Controller
     {
         $uuid = $request->session()->get(self::SESSION_KEY);
 
-        if (!is_string($uuid) || $uuid === '') {
-            $uuid = (string) Str::uuid();
-            $request->session()->put(self::SESSION_KEY, $uuid);
+        if (is_string($uuid) && $uuid !== '' && !$this->conversaExpirou($request->user()->id, $uuid)) {
+            return $uuid;
         }
 
+        $uuid = (string) Str::uuid();
+        $request->session()->put(self::SESSION_KEY, $uuid);
+
         return $uuid;
+    }
+
+    /**
+     * O histórico do lado da IA expira depois de 24h de inatividade. Manter a
+     * conversa antiga na tela depois disso seria enganoso: o funcionário veria
+     * o assunto anterior e a Lara não lembraria nada dele. Quando a memória lá
+     * zera, a tela começa limpa aqui também.
+     */
+    private function conversaExpirou(int $userId, string $uuid): bool
+    {
+        $ultimaMensagem = LaraMessage::query()
+            ->where('user_id', $userId)
+            ->where('conversation_uuid', $uuid)
+            ->max('created_at');
+
+        // Conversa recém-aberta, ainda sem nenhuma mensagem: nada a expirar.
+        if ($ultimaMensagem === null) {
+            return false;
+        }
+
+        $ttl = (int) config('services.lara.history_ttl_hours', 24);
+
+        return Carbon::parse($ultimaMensagem)->lt(now()->subHours($ttl));
     }
 
     /**

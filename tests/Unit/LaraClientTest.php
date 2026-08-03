@@ -6,6 +6,7 @@ use App\Services\Lara\LaraAnswer;
 use App\Services\Lara\LaraClient;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
@@ -26,11 +27,16 @@ class LaraClientTest extends TestCase
         config([
             'services.lara.enabled' => true,
             'services.lara.base_url' => self::BASE_URL,
-            'services.lara.timeout' => 30,
+            'services.lara.timeout' => 25,
             'services.lara.reset_timeout' => 10,
+            'services.lara.health_timeout' => 3,
+            'services.lara.health_ttl' => 30,
             'services.lara.max_input_chars' => 1000,
             'services.lara.fallback_message' => 'Vou te transferir para o setor responsável, só um momento!',
         ]);
+
+        // O health check é cacheado: sem limpar, um teste contaminaria o outro.
+        Cache::forget('lara:health');
 
         Log::spy();
     }
@@ -167,5 +173,85 @@ class LaraClientTest extends TestCase
         Http::fake(fn () => throw new ConnectionException('Connection refused'));
 
         $this->assertFalse($this->client()->reset('portal_7'));
+    }
+
+    /**
+     * `transferir: true` é fallback de sistema da IA (timeout dela, limite de
+     * concorrência, erro do modelo) — vira `fallback`, não `ok`. É o que
+     * permite medir a taxa de erro real.
+     */
+    public function test_transferir_true_marca_a_resposta_como_fallback(): void
+    {
+        Http::fake(['*' => Http::response([
+            'resposta' => 'Vou te transferir para o setor responsável, só um momento!',
+            'transferir' => true,
+        ])]);
+
+        $answer = $this->client()->ask('portal_7', 'qual o horário da academia?');
+
+        $this->assertSame(LaraAnswer::STATUS_FALLBACK, $answer->status);
+        $this->assertFalse($answer->ok());
+        $this->assertSame('fallback sinalizado pela IA', $answer->erro);
+    }
+
+    /**
+     * A mesma frase com `transferir: false` é resposta de negócio: o modelo
+     * decidiu encaminhar o assunto, e isso não é erro nenhum.
+     */
+    public function test_transferir_false_continua_sendo_resposta_valida(): void
+    {
+        Http::fake(['*' => Http::response([
+            'resposta' => 'Vou te transferir para o setor responsável, só um momento!',
+            'transferir' => false,
+        ])]);
+
+        $answer = $this->client()->ask('portal_7', 'quero cancelar meu título');
+
+        $this->assertTrue($answer->ok());
+        $this->assertNull($answer->erro);
+    }
+
+    public function test_resposta_sem_o_campo_transferir_e_tratada_como_ok(): void
+    {
+        Http::fake(['*' => Http::response(['resposta' => 'A academia abre às 06h.'])]);
+
+        $this->assertTrue($this->client()->ask('portal_7', 'oi')->ok());
+    }
+
+    public function test_health_check_bate_no_endpoint_health(): void
+    {
+        Http::fake(['*/health' => Http::response('', 200)]);
+
+        $this->assertTrue($this->client()->healthy());
+
+        Http::assertSent(fn (Request $request) => $request->url() === self::BASE_URL . '/health'
+            && $request->method() === 'GET');
+    }
+
+    public function test_health_check_devolve_false_com_a_vm_fora_do_ar(): void
+    {
+        Http::fake(fn () => throw new ConnectionException('Connection refused'));
+
+        $this->assertFalse($this->client()->healthy());
+    }
+
+    public function test_health_check_e_cacheado_para_nao_bater_na_vm_a_cada_pagina(): void
+    {
+        Http::fake(['*/health' => Http::response('', 200)]);
+
+        $this->client()->healthy();
+        $this->client()->healthy();
+        $this->client()->healthy();
+
+        Http::assertSentCount(1);
+    }
+
+    public function test_health_check_nao_chama_nada_com_a_integracao_desligada(): void
+    {
+        config(['services.lara.enabled' => false]);
+        Http::fake();
+
+        $this->assertFalse($this->client()->healthy());
+        Http::assertNothingSent();
     }
 }

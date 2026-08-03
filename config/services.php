@@ -56,15 +56,24 @@ return [
      * do portal alcança a porta), por isso a base_url mora no .env do servidor
      * e nunca no repositório.
      *
-     * `timeout` é generoso de propósito: o modelo roda em CPU, sem GPU, e uma
-     * resposta legítima pode levar até uns 30s quando há conversas simultâneas.
+     * `timeout` é 25s porque o serviço da IA desiste sozinho em 22s e devolve o
+     * fallback dele. Os 3s de folga cobrem só a rede: passou disso, o problema
+     * não é o modelo demorando, é a VM inalcançável.
+     *
+     * `history_ttl_hours` acompanha a expiração do histórico do lado da IA (24h
+     * de inatividade). Não confundir com a retenção do nosso banco
+     * (app:prune-lara-messages, 90 dias): uma é memória de contexto, a outra é
+     * auditoria.
      */
     'lara' => [
-        'base_url'         => env('LARA_BASE_URL'),
-        'enabled'          => env('LARA_ENABLED', false),
-        'timeout'          => (int) env('LARA_TIMEOUT', 30),
-        'reset_timeout'    => (int) env('LARA_RESET_TIMEOUT', 10),
-        'max_input_chars'  => (int) env('LARA_MAX_INPUT_CHARS', 1000),
-        'fallback_message' => env('LARA_FALLBACK_MESSAGE', 'Vou te transferir para o setor responsável, só um momento!'),
+        'base_url'          => env('LARA_BASE_URL'),
+        'enabled'           => env('LARA_ENABLED', false),
+        'timeout'           => (int) env('LARA_TIMEOUT', 25),
+        'reset_timeout'     => (int) env('LARA_RESET_TIMEOUT', 10),
+        'health_timeout'    => (int) env('LARA_HEALTH_TIMEOUT', 3),
+        'health_ttl'        => (int) env('LARA_HEALTH_TTL', 30),
+        'history_ttl_hours' => (int) env('LARA_HISTORY_TTL_HOURS', 24),
+        'max_input_chars'   => (int) env('LARA_MAX_INPUT_CHARS', 1000),
+        'fallback_message'  => env('LARA_FALLBACK_MESSAGE', 'Vou te transferir para o setor responsável, só um momento!'),
     ],
 ];

@@ -28,7 +28,9 @@ return new class extends Migration
             $table->uuid('conversation_uuid');
             $table->string('role', 16);            // user | assistant
             $table->text('conteudo');
-            $table->string('status', 16)->default('ok');  // ok | erro | desativado
+            // ok = resposta de verdade · fallback = a IA sinalizou problema dela
+            // (transferir: true) · erro = não falamos com a IA · desativado
+            $table->string('status', 16)->default('ok');
             $table->unsignedInteger('latencia_ms')->nullable();
             $table->string('erro')->nullable();
             $table->timestamp('created_at')->nullable();

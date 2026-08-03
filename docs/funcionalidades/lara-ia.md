@@ -20,10 +20,27 @@ logado") para permitir liberar o chat aos poucos.
 |----------|--------|----------------|
 | `LARA_ENABLED` | `false` | Liga/desliga o chat sem deploy. |
 | `LARA_BASE_URL` | — | `http://<ip-da-vm>:3000`. **Vazio = chat desativado.** |
-| `LARA_TIMEOUT` | `30` | Segundos de espera pela resposta. |
+| `LARA_TIMEOUT` | `25` | Segundos de espera pela resposta. |
 | `LARA_RESET_TIMEOUT` | `10` | Segundos de espera do "Nova conversa". |
+| `LARA_HEALTH_TIMEOUT` | `3` | Segundos de espera do health check. |
+| `LARA_HEALTH_TTL` | `30` | Segundos de cache do health check. |
+| `LARA_HISTORY_TTL_HOURS` | `24` | Espelha a expiração da memória da IA. |
 | `LARA_MAX_INPUT_CHARS` | `1000` | Tamanho máximo da pergunta. |
 | `LARA_FALLBACK_MESSAGE` | "Vou te transferir…" | Texto exibido quando a IA não responde. |
+
+### A cadeia de timeouts
+
+Os três limites são escalonados de propósito, do mais interno para o mais externo:
+
+| Camada | Limite | O que faz ao estourar |
+|--------|--------|-----------------------|
+| Serviço da IA | 22s | Devolve o fallback dele com `transferir: true` |
+| Portal (`LARA_TIMEOUT`) | 25s | Devolve o fallback com `status = erro` |
+| Navegador | 35s | Mostra "A Lara demorou demais para responder" |
+
+Cada camada dá folga para a de dentro responder primeiro. Encurtar a do portal
+para menos que os 22s da IA faria o portal desistir de respostas que estavam a
+caminho — e o modelo continuaria gerando texto que ninguém leria.
 
 O endereço da VM **não vai para o repositório** — a segurança do endpoint é de rede (só o IP
 do portal alcança a porta 3000) e ele não exige token.
@@ -31,9 +48,15 @@ do portal alcança a porta 3000) e ele não exige token.
 ## Fluxo passo a passo
 
 ### 1. Abrir o chat — `GET /lara`
-Carrega a conversa vigente do funcionário (guardada em `lara_messages`, identificada por um
-`conversation_uuid` na sessão). Se a integração estiver desligada, a tela avisa e o campo de
-envio fica bloqueado.
+Consulta `GET {LARA_BASE_URL}/health` (resultado em cache por 30s) e carrega a conversa vigente
+do funcionário — guardada em `lara_messages`, identificada por um `conversation_uuid` na sessão.
+O campo de envio fica bloqueado em dois casos, com mensagens diferentes: **desativada** (falta
+`LARA_ENABLED`/`LARA_BASE_URL`, decisão nossa) e **fora do ar** (health check falhou, chamado
+para a TI).
+
+Se a última mensagem da conversa tiver mais de `LARA_HISTORY_TTL_HOURS`, a tela abre uma conversa
+nova. É o espelho da expiração da memória do lado da IA: sem isso o funcionário veria o assunto
+antigo na tela e a Lara não lembraria nada dele.
 
 ### 2. Perguntar — `POST /lara/perguntar`
 Grava a pergunta, chama `POST {LARA_BASE_URL}/perguntar` com `{usuario_id, mensagem}`, grava a
@@ -48,7 +71,20 @@ Chama `POST {LARA_BASE_URL}/reiniciar` (limpa o histórico do lado da IA) e sort
 
 | Entidade | Campos principais |
 |----------|-------------------|
-| LaraMessage | `user_id`, `conversation_uuid`, `role` (`user`/`assistant`), `conteudo`, `status` (`ok`/`erro`/`desativado`), `latencia_ms`, `erro`, `created_at` |
+| LaraMessage | `user_id`, `conversation_uuid`, `role` (`user`/`assistant`), `conteudo`, `status`, `latencia_ms`, `erro`, `created_at` |
+
+### Os quatro `status` (é por eles que se mede a qualidade)
+
+| Status | Significa | De onde vem |
+|--------|-----------|-------------|
+| `ok` | Resposta de verdade — inclusive quando a Lara encaminha o assunto por decisão dela | `transferir: false` ou campo ausente |
+| `fallback` | A IA quebrou: timeout dela, limite de 3 chamadas simultâneas ou erro do modelo | `transferir: true` |
+| `erro` | Não chegamos a falar com a IA: rede, HTTP != 2xx, corpo inválido | Falha no portal |
+| `desativado` | Nem tentamos: integração desligada | Configuração |
+
+A distinção `ok` x `fallback` só existe porque a IA passou a mandar o campo `transferir`. Sem
+ele, a frase "Vou te transferir para o setor responsável" seria idêntica nos dois casos e a
+taxa de erro real ficaria invisível.
 
 ## Regras de negócio
 
@@ -60,10 +96,14 @@ Chama `POST {LARA_BASE_URL}/reiniciar` (limpa o histórico do lado da IA) e sort
 - **A IA nunca "não responde".** Falha de rede, HTTP de erro ou corpo inesperado viram a frase
   de fallback com `status = erro`. O status existe porque a própria IA usa a mesma frase quando
   não sabe responder — sem ele, queda de rede e transferência legítima ficariam indistinguíveis.
-- **Não há retry.** Repetir depois de um timeout dobraria a carga com a VM já saturada.
-- **O histórico tem dois donos.** A IA guarda contexto em memória (some se o processo dela
-  reiniciar); o portal guarda o texto no banco (sobrevive ao F5). Depois de um restart da IA a
-  tela ainda mostra a conversa antiga, mas a Lara não lembra mais dela.
+- **Não há retry.** Repetir depois de um timeout dobraria a carga com a VM já saturada — que é,
+  aliás, a causa mais provável da primeira falha.
+- **O histórico tem dois donos.** A IA guarda contexto em memória (expira em 24h de inatividade,
+  ou quando o processo dela reinicia); o portal guarda o texto no banco. A tela acompanha a
+  expiração de 24h abrindo uma conversa nova, mas não tem como saber de um restart da IA — nesse
+  caso a conversa continua na tela e a Lara não lembra dela.
+- **A resposta é limitada na origem** (`num_predict=300` no modelo, 3–4 parágrafos em texto
+  corrido). O portal não trunca nem reformata o que chega.
 - **A resposta é exibida como texto puro** (`x-text`, nunca `x-html`): o conteúdo vem de um
   modelo de linguagem e não pode virar HTML executável na tela.
 - Retenção: `php artisan app:prune-lara-messages --days=90`.
@@ -73,20 +113,26 @@ Chama `POST {LARA_BASE_URL}/reiniciar` (limpa o histórico do lado da IA) e sort
 | Situação | O que o funcionário vê |
 |----------|------------------------|
 | IA fora do ar / erro interno | A frase de `LARA_FALLBACK_MESSAGE`, como se fosse uma resposta |
+| Mais de 3 conversas simultâneas na VM | A mesma frase, na hora (a IA nem enfileira) |
 | Pergunta anterior ainda em curso | "Sua pergunta anterior ainda está sendo respondida…" (HTTP 429) |
 | Pergunta vazia, curta ou longa demais | Mensagem de validação (HTTP 422) |
-| `LARA_ENABLED=false` ou sem `LARA_BASE_URL` | Aviso no topo e campo de envio bloqueado |
-| Demora acima de 45s no navegador | "A Lara demorou demais para responder…" |
+| `LARA_ENABLED=false` ou sem `LARA_BASE_URL` | "A Lara está desativada no momento" |
+| Health check falhou | "A Lara não está respondendo agora — o servidor dela pode estar reiniciando" |
+| Demora acima de 35s no navegador | "A Lara demorou demais para responder…" |
 
 ## Como testar sem a tela
 
 ```bash
+curl -s http://<ip-da-vm>:3000/health
+
 curl -X POST http://<ip-da-vm>:3000/perguntar \
   -H "Content-Type: application/json" \
   -d '{"usuario_id": "func_teste", "mensagem": "qual o horário da academia?"}'
 ```
 
-Rodar **do servidor web** (é ele que faz a chamada), não do servidor de banco.
+Rodar **do servidor web** (é ele que faz a chamada). No nosso caso o PHP-FPM roda na mesma VM
+do banco (`192.168.10.10`), que é a liberada na porta 3000 — mas se um dia o portal sair dessa
+máquina, a liberação de rede precisa acompanhar.
 
 ## Rollout
 
@@ -95,7 +141,17 @@ Rodar **do servidor web** (é ele que faz a chamada), não do servidor de banco.
    (idempotente — só acrescenta a permissão nova).
 3. Conceder `use lara chat` a 2–3 pessoas.
 4. Preencher `LARA_BASE_URL`, ligar `LARA_ENABLED=true`, `php artisan config:clear`.
-5. Acompanhar `lara_messages` (`status` e `latencia_ms`) antes de abrir para todos.
+5. Acompanhar `lara_messages` antes de abrir para todos:
+
+```sql
+SELECT status, COUNT(*), ROUND(AVG(latencia_ms)) AS media_ms, MAX(latencia_ms) AS pior_ms
+FROM lara_messages
+WHERE role = 'assistant' AND created_at >= NOW() - INTERVAL 1 DAY
+GROUP BY status;
+```
+
+`fallback` subindo significa problema na VM da IA (timeout ou concorrência); `erro` subindo
+significa problema de rede entre o portal e ela. São donos diferentes.
 
 ## Referência técnica
 
