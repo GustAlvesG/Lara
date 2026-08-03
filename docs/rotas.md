@@ -124,7 +124,6 @@ Prefixo `/api`. Legenda de middleware: **T** = `api_token`, **L** = `login_token
 | GET | `/api/telegram/freelancer/functions` | FunctionFreelancerController@index |
 | POST | `/api/telegram/freelancer/function` | FunctionFreelancerController@store |
 | POST | `/api/telegram/freelancer/service` | FreelancerServiceController@store |
-| GET | `/api/image/{member_id}` | MemberAuthController@getImage |
 | POST | `/api/login` | MemberAuthController@login |
 | POST | `/api/register` | MemberAuthController@register |
 | POST | `/api/check-member` | MemberAuthController@checkMember |

@@ -46,12 +46,6 @@ class MemberAuthController extends Controller
             
             $member->cpf = $cpf;
             $member->birth_date = $birthDate;
-            $member->image = self::getPhotoBlob($member->Photo)[0]->Content ?? null;
-
-            //Convert the binary image to a image base324 string
-            if ($member->image) {
-                $member->image = base64_encode($member->image);
-            }
             // Senha padrão (SHA256 do cpf) apenas quando nenhuma é informada; sempre hasheada antes de persistir.
             $member->Password = Hash::make($password ?? hash('SHA256', $cpf));
 
@@ -62,7 +56,7 @@ class MemberAuthController extends Controller
     
                 $token = LoginTokenController::generate($member);
     
-                $member = self::removeFields($member, ['image','Password', 'created_at', 'updated_at', 'deleted_at']);
+                $member = self::removeFields($member, ['Password', 'created_at', 'updated_at', 'deleted_at']);
             } catch (\Exception $e) {
                 return response()->json([
                     'error' => $e->getMessage()
@@ -97,44 +91,6 @@ class MemberAuthController extends Controller
         );
     }
 
-    public function getImage($member_id)
-    {
-        $member = Member::where('id', $member_id)->first();
-
-        if (!$member || !$member->image) {
-            return response()->json(['error' => 'Member or image not found'], 404);
-        }
-
-        $base64Image = $member->image;
-        $mimeType = 'image/jpeg'; // Tipo padrão
-        
-        if (strpos($base64Image, ';base64,') !== false) {
-            // Separa o cabeçalho do conteúdo
-            list($header, $data) = explode(';', $base64Image);
-            list(, $data) = explode(',', $data);
-            
-            // Tenta pegar o tipo da imagem (ex: image/png) do cabeçalho
-            $mimeType = explode(':', $header)[1] ?? 'image/jpeg';
-            
-            $base64Image = $data; // Atualiza a variável apenas com os dados limpos
-        }
-
-        // 3. Decodifica para binário
-        $imageContent = base64_decode($base64Image);
-
-        if ($imageContent === false) {
-             return response()->json(['message' => 'Imagem inválida'], 500);
-        }
-
-        // 4. Retorna como arquivo de imagem com Cache
-        return response($imageContent, 200)
-            ->header('Content-Type', $mimeType)
-            ->header('Cache-Control', 'public, max-age=86400'); // Cache de 1 dia (importante!)
-    }
-
-
-
-
     public function login(Request $request)
     {
         if ($request->has('login') && $request->has('password')) {
@@ -146,7 +102,7 @@ class MemberAuthController extends Controller
 
             $token = LoginTokenController::generate($member);
 
-            $member = self::removeFields($member, ['image','Password', 'created_at', 'updated_at', 'deleted_at']);
+            $member = self::removeFields($member, ['Password', 'created_at', 'updated_at', 'deleted_at']);
 
             return response()->json([
                 'user' => $member,
@@ -177,7 +133,7 @@ class MemberAuthController extends Controller
         $member->telephone = $request->input('telephone', $member->telephone) ?? $member->telephone;
         $member->save();
 
-        $member->makeHidden(['Password', 'password', 'image', 'created_at', 'updated_at', 'deleted_at']);
+        $member->makeHidden(['Password', 'password', 'created_at', 'updated_at', 'deleted_at']);
 
         return response()->json(['user' => $member], 200);
     }
@@ -253,14 +209,6 @@ class MemberAuthController extends Controller
         }
     }
 
-    private static function getPhotoBlob($photoID)
-    {
-        if ($photoID) {
-            return DB::connection('mc_sqlsrv_image')->select("SELECT Content FROM dbo.Files WHERE Id = ?", [$photoID]);
-        }
-        return null;
-    }
-
     private function generateToken($member)
     {
         $endOfDay = now()->endOfDay()->timestamp;
@@ -310,7 +258,7 @@ class MemberAuthController extends Controller
     public static function queryMember($title, $document, $birthdate)
     {
         return DB::connection('mc_sqlsrv')->select("SELECT
-            Name, Email, MobilePhone As telephone, Barcode, Photo
+            Name, Email, MobilePhone As telephone, Barcode
         FROM
             dbo.Members
         LEFT JOIN

@@ -28,7 +28,7 @@ class ExpirePendingSchedules extends Command
      * (`SchedulesService`), por isso mora numa constante: se mudar aqui, muda no
      * e-mail — nunca prometer um prazo diferente do que a rotina de fato aplica.
      */
-    public const HOLD_MINUTES = 30;
+    public const HOLD_MINUTES = 10;
 
     protected int $holdMinutes = self::HOLD_MINUTES;
 

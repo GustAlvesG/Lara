@@ -13,7 +13,7 @@ e a foto vêm da base externa MultiClubes (SQL Server); a autenticação usa tok
 ## Pré-requisitos
 
 - Token de API válido (header `Authorization: Bearer <API_TOKEN>`).
-- Conexões com a base MultiClubes (`mc_sqlsrv` e `mc_sqlsrv_image`) configuradas.
+- Conexão com a base MultiClubes (`mc_sqlsrv`) configurada.
 
 ## Fluxo passo a passo
 
@@ -23,8 +23,8 @@ Campos: `cpf`, `title` (código do título no MultiClubes), `birthDate` e `passw
 1. Verifica se o sócio já existe localmente (tabela `members`).
 2. Se não, consulta a base MultiClubes por `title` + `cpf` + `birthDate`, exigindo título
    **ativo** e **excluindo títulos especiais** (lista fixa de códigos).
-3. Cria o registro local, salvando nome, contato, código de barras e a **foto convertida em
-   base64**. Se não houver senha, usa o **SHA256 do CPF** como senha padrão.
+3. Cria o registro local, salvando nome, contato e código de barras. Se não houver senha,
+   usa o **SHA256 do CPF** como senha padrão.
 4. Retorna (HTTP 201) os dados do sócio e um **token JWT** (`login_token`).
 
 ### Login — `POST /api/login`
@@ -40,10 +40,6 @@ Campos: `login` (CPF) e `password`.
 - `PUT /api/member/update` — atualiza dados do sócio autenticado.
 - `PUT /api/change-password` — altera a senha.
 
-### Foto do sócio — `GET /api/image/{member_id}`
-Retorna a imagem do sócio (base64), com cache. A foto é extraída da base de imagens do
-MultiClubes (`mc_sqlsrv_image`) no momento do cadastro.
-
 ## Token JWT (`login_token`)
 
 Gerado por `LoginTokenService::generate()`. Contém o CPF (`username`) e **expira no fim do dia
@@ -52,8 +48,8 @@ pelo middleware `login_token`. Veja [Autenticação e Permissões](../04-autenti
 
 ## Campos da tabela `members`
 
-`id`, `title`, `cpf`, `birth_date`, `Name`, `Barcode`, `telephone`, `Email`, `image`
-(base64), `Password` (hash). Os campos `image` e `password` ficam ocultos nas respostas.
+`id`, `title`, `cpf`, `birth_date`, `Name`, `Barcode`, `telephone`, `Email`,
+`Password` (hash). O campo `password` fica oculto nas respostas.
 
 ## Regras de negócio
 
@@ -64,7 +60,7 @@ pelo middleware `login_token`. Veja [Autenticação e Permissões](../04-autenti
 
 ## Integrações
 
-- **SQL Server / MultiClubes** — dados e foto do sócio. Ver [Integrações](../integracoes.md#114-sql-server--multiclubes).
+- **SQL Server / MultiClubes** — dados do sócio. Ver [Integrações](../integracoes.md#114-sql-server--multiclubes).
 
 ## Referência técnica
 

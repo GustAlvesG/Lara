@@ -38,13 +38,8 @@ class MemberController extends Controller
         dd($title);
         foreach ($title as $t) {
             $data[] = Member::where('Title', $t->Id)->where('Status', '!=', '2')->get();
-            foreach ($data[count($data)-1] as $d) {
-                $photo = DB::connection('mc_sqlsrv')->table('dbo.Storages')->where('Id', $d->Photo)->first();
-                $d->Photo = $photo ? $photo->Content : null;
-            }
         }
 
-        //Return the image
         return view('member.index', ['data' => $data]);
         
     }

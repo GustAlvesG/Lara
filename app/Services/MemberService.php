@@ -70,12 +70,6 @@ class MemberService
             
             $member->cpf = $cpf;
             $member->birth_date = $birthDate;
-            $member->image = self::getPhotoBlob($member->Photo)[0]->Content ?? null;
-
-            //Convert the binary image to a image base324 string
-            if ($member->image) {
-                $member->image = base64_encode($member->image);
-            }
             // Senha padrão (SHA256 do cpf) — sempre hasheada antes de persistir.
             $member->Password = Hash::make($password ?? hash('SHA256', $cpf));
 
@@ -105,7 +99,7 @@ class MemberService
     public static function queryMember($title, $document, $birthdate)
     {
         return DB::connection('mc_sqlsrv')->select("SELECT
-            Name, Email, MobilePhone As telephone, Barcode, Photo
+            Name, Email, MobilePhone As telephone, Barcode
         FROM
             dbo.Members
         LEFT JOIN
@@ -116,13 +110,5 @@ class MemberService
         dbo.Titles.Status = 0 And
 		dbo.Members.DocumentUnmasked = ? And
         dbo.Members.BirthDate = ?", [$title, $document, $birthdate]);
-    }
-
-    private static function getPhotoBlob($photoID)
-    {
-        if ($photoID) {
-            return DB::connection('mc_sqlsrv_image')->select("SELECT Content FROM dbo.Files WHERE Id = ?", [$photoID]);
-        }
-        return null;
     }
 }

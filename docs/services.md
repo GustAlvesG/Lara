@@ -79,11 +79,10 @@ banco e integrações externas. Os controllers delegam a essas classes.
 |--------|-----------|-----------|
 | `memberByCpf` | `memberByCpf(Request $request)` | Busca ou cria o sócio pelo CPF. |
 | `getMemberById` | `getMemberById($member_id)` | Recupera o registro do sócio. |
-| `store` | `store($cpf, $title, $birthDate)` | Cria sócio a partir da consulta externa e recupera a foto. |
+| `store` | `store($cpf, $title, $birthDate)` | Cria sócio a partir da consulta externa. |
 | `queryMember` | `static queryMember($title, $document, $birthdate)` | Consulta o SQL Server por dados do sócio. |
-| `getPhotoBlob` | `static getPhotoBlob($photoID)` | Recupera o blob binário da foto no SQL Server. |
 
-**Conexões:** `mc_sqlsrv` (dados) e `mc_sqlsrv_image` (fotos). Converte binário em base64.
+**Conexões:** `mc_sqlsrv` (dados).
 
 ---
 

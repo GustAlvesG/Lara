@@ -97,7 +97,6 @@ Route::middleware('api_token')->group(function () {
             Route::post('/service/{freelancerService}/sign', [FreelancerServiceController::class, 'sign']);
         });
     });
-    Route::get('/image/{member_id}', [MemberAuthController::class, 'getImage'])->name('member.getImage');
     Route::post('/login', [MemberAuthController::class, 'login'])->middleware('throttle:10,1');
     Route::post('/register', [MemberAuthController::class, 'register'])->middleware('throttle:5,1');
     Route::post('/check-member', [MemberAuthController::class, 'checkMember'])->middleware('throttle:10,1');

@@ -39,12 +39,12 @@ A aplicação trabalha com **múltiplas conexões**:
 |---------|--------|-----|
 | `mysql` | MySQL | Banco principal da aplicação (agendamentos, espaços, usuários, etc.). |
 | `mc_sqlsrv` | SQL Server | Base externa MultiClubes (sócios, acessos, visitantes — leitura). |
-| `mc_sqlsrv_image` | SQL Server | Base externa para blobs de fotos de sócios. |
+| `mc_sqlsrv_image` | SQL Server | Base externa configurada, sem uso no momento. |
 
 Os models que apontam para o SQL Server definem `protected $connection`:
 - `Access` → `mc_sqlsrv` (tabela `Analytics.RealizedAccesses`)
 - `Visitor` → `mc_sqlsrv` (tabela `dbo.Visitors`)
-- Consultas de `Member` usam `MemberService::queryMember()` e `getPhotoBlob()` via SQL Server.
+- Consultas de `Member` usam `MemberService::queryMember()` via SQL Server.
 
 ## Registro de middleware (bootstrap/app.php)
 

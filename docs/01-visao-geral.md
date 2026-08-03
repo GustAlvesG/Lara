@@ -35,7 +35,7 @@ A aplicação está configurada em Português do Brasil (`APP_LOCALE=pt_BR`) e f
 - **WhatsApp Cloud API (Meta Graph v18)** — envio/recebimento de mensagens e download de mídia.
 - **Telegram** — gerenciamento de contatos.
 - **RedeItau (Itaú/Rede)** — gateway de pagamento com autenticação OAuth e estorno.
-- **SQL Server (MultiClubes)** — base externa de sócios, acessos e visitantes (conexões `mc_sqlsrv` e `mc_sqlsrv_image`).
+- **SQL Server (MultiClubes)** — base externa de sócios, acessos e visitantes (conexão `mc_sqlsrv`).
 - **E-mail (SMTP/Mailable)** — confirmações de agendamento, contato e redefinição de senha.
 - **Home Assistant** — endpoint de automação de iluminação a partir do estado dos agendamentos.
 - **LDAP** — configuração presente (`config/ldap.php`) para autenticação corporativa.

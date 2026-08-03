@@ -52,12 +52,10 @@ Base externa para sócios, acessos físicos e visitantes. Duas conexões em `con
 | Conexão | Driver | Uso |
 |---------|--------|-----|
 | `mc_sqlsrv` | `sqlsrv` | Dados de acesso (`Analytics.RealizedAccesses`), visitantes (`dbo.Visitors`), consultas de sócios. |
-| `mc_sqlsrv_image` | `sqlsrv` | Blobs de fotos de sócios. |
+| `mc_sqlsrv_image` | `sqlsrv` | Configurada, sem uso no momento (era usada para blobs de fotos de sócios). |
 
-- **Componentes:** models `Access`, `Visitor`; `MemberService::queryMember()` e
-  `getPhotoBlob()`; `AccessController::queryAccess()`.
-- **Observação:** as fotos binárias são convertidas em base64 para entrega via API
-  (`MemberAuthController@getImage`).
+- **Componentes:** models `Access`, `Visitor`; `MemberService::queryMember()`;
+  `AccessController::queryAccess()`.
 
 ---
 

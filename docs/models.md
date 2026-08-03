@@ -52,8 +52,8 @@ deletes, scopes globais, etc.).
 
 ### Member
 - **Tabela:** `members`
-- **`$fillable`:** `Id`, `title`, `cpf`, `birth_date`, `Barcode`, `Name`, `Titular`, `telephone`, `Email`, `image`, `Password`
-- **`$hidden`:** `image`, `password`, `created_at`, `updated_at`, `deleted_at`
+- **`$fillable`:** `Id`, `title`, `cpf`, `birth_date`, `Barcode`, `Name`, `Titular`, `telephone`, `Email`, `Password`
+- **`$hidden`:** `password`, `created_at`, `updated_at`, `deleted_at`
 - **Relacionamentos:** nenhum definido (dados de sócio vêm também da base externa).
 
 ### User

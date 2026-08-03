@@ -138,7 +138,6 @@ Autenticação e dados de sócios; integra com a base externa (SQL Server) e ger
 | `checkMember` | `checkMember(Request $request)` | Verifica existência de sócio. → JSON | `POST /api/check-member` |
 | `changePassword` | `changePassword(Request $request)` | Altera a senha do sócio. → JSON | `PUT /api/change-password` |
 | `update` | `update(Request $request)` | Atualiza dados do sócio autenticado. → JSON | `PUT /api/member/update` |
-| `getImage` | `getImage($member_id)` | Retorna a imagem (foto) do sócio em base64/arquivo. → imagem (`404` se ausente) | `GET /api/image/{member_id}` |
 
 ---
 

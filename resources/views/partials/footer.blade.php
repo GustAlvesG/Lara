@@ -1,12 +1,35 @@
 @php
     $authorName = 'Gustavo Delgado Alves Gonçalves';
     $authorLinkedin = 'https://www.linkedin.com/in/gustavo-alves-81895321a/';
+
+    // O nome do app é escapado antes de receber o marcador do easter egg,
+    // então o HTML injetado abaixo é o único trecho não escapado.
+    $appName = e(config('app.name', 'Lara'));
+    $appNameHtml = str_contains($appName, 'Lara')
+        ? \Illuminate\Support\Str::replaceFirst(
+            'Lara',
+            '<span class="lara-egg-trigger cursor-help">Lara</span>',
+            $appName
+        )
+        : $appName;
 @endphp
 
 <footer class="mt-10 border-t border-gray-200 py-6 dark:border-gray-700">
     <div class="max-w-7xl mx-auto flex flex-col items-center gap-2 px-4 text-center text-sm text-gray-500 sm:flex-row sm:justify-between sm:gap-4 sm:text-left dark:text-gray-400">
         <p>
-            &copy; {{ date('Y') }} {{ config('app.name', 'Lara Clube') }} &mdash; Todos os direitos reservados.
+            &copy; {{ date('Y') }}
+            <span class="lara-egg relative inline-block">
+                {!! $appNameHtml !!}
+
+                <span
+                    class="lara-egg-tip pointer-events-none absolute bottom-full left-1/2 z-50 mb-3 hidden w-64 -translate-x-1/2 rounded-lg bg-gray-900 px-3 py-2 text-left text-xs leading-relaxed text-white shadow-lg dark:bg-gray-700"
+                    role="status"
+                >
+                    <span class="block">O Lara é o sistema web feito pelo Gustavo.</span>
+                    <span class="mt-1 block">A Lara é uma outra parte feita pela Josué, acho que é uma dentista...</span>
+                </span>
+            </span>
+            &mdash; Todos os direitos reservados.
         </p>
 
         <p class="flex items-center gap-2">
@@ -26,3 +49,43 @@
         </p>
     </div>
 </footer>
+
+<script>
+    // Easter egg: 10 segundos com o mouse parado sobre "Lara" revelam o recado.
+    (function () {
+        if (window.__laraEggReady) return;
+        window.__laraEggReady = true;
+
+        var DELAY_MS = 10000;
+
+        function init() {
+            document.querySelectorAll('.lara-egg').forEach(function (wrapper) {
+                var trigger = wrapper.querySelector('.lara-egg-trigger');
+                var tip = wrapper.querySelector('.lara-egg-tip');
+
+                if (!trigger || !tip) return;
+
+                var timer = null;
+
+                trigger.addEventListener('mouseenter', function () {
+                    clearTimeout(timer);
+                    timer = setTimeout(function () {
+                        tip.classList.remove('hidden');
+                    }, DELAY_MS);
+                });
+
+                trigger.addEventListener('mouseleave', function () {
+                    clearTimeout(timer);
+                    timer = null;
+                    tip.classList.add('hidden');
+                });
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    })();
+</script>
