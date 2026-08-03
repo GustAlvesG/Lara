@@ -32,6 +32,33 @@ class FreelancerService extends Model
     const STATUS_CANCELLED = 0;
     const STATUS_ACTIVE = 1;
 
+    /**
+     * Estados de assinatura pelos quais a listagem pode ser filtrada, com o
+     * rótulo que aparece na tela. São os mesmos de `signatureLabel()`: um lugar
+     * só, para o filtro não passar a oferecer um estado que a coluna não mostra.
+     */
+    const SIGNATURE_FILTERS = [
+        'unsigned' => 'Não assinado',
+        'awaiting_coordinator' => 'Aguardando coordenador',
+        'awaiting_freelancer' => 'Aguardando freelancer',
+        'signed' => 'Assinado',
+        'cancelled' => 'Cancelado',
+    ];
+
+    /**
+     * Registros com falha — os dois desvios que o sistema já marca na listagem:
+     * o freelancer acima do limite de 7 dias e o contrato assinado depois de o
+     * turno ter começado. Nenhum dos dois bloqueia nada na hora; o filtro é o
+     * que permite ir atrás deles depois.
+     */
+    const ISSUE_FILTERS = [
+        'any' => 'Qualquer falha',
+        'none' => 'Sem falhas',
+        'weekly' => 'Excesso em 7 dias',
+        'late' => 'Assinatura em atraso',
+        'unsigned_late' => 'Sem assinatura, turno já começou',
+    ];
+
     protected $table = 'freelancer_services';
 
     protected $fillable = [
@@ -462,10 +489,45 @@ class FreelancerService extends Model
     {
         $minutes = $this->minutesFromStartToSignature();
 
-        if ($minutes === null || $minutes <= 0) {
+        return $minutes === null || $minutes <= 0 ? null : self::formatMinutes($minutes);
+    }
+
+    /**
+     * O turno já começou e o freelancer NUNCA assinou — o caso vizinho ao da
+     * assinatura em atraso, e mais grave: lá o contrato ao menos existe
+     * assinado, aqui o serviço está sendo prestado sem contrato firmado.
+     *
+     * Mesma tolerância de 30 min da assinatura em atraso, para as duas marcas
+     * aparecerem a partir do mesmo instante — e a mesma conta sobre a assinatura
+     * DO FREELANCER: a do coordenador é sempre posterior, por desenho.
+     * Cancelado não conta: saiu do fluxo antes de qualquer assinatura.
+     */
+    public function isUnsignedAfterStart(): bool
+    {
+        if ($this->isCancelled() || $this->freelancer_signed_at !== null) {
+            return false;
+        }
+
+        if ($this->start_date === null || blank($this->start_time)) {
+            return false;
+        }
+
+        return $this->startsAt()->addMinutes(self::SIGNATURE_TOLERANCE_MINUTES)->isPast();
+    }
+
+    /** Há quanto tempo o turno começou, para o contrato que segue sem assinatura. */
+    public function formattedTimeSinceStart(): ?string
+    {
+        if (!$this->isUnsignedAfterStart()) {
             return null;
         }
 
+        return self::formatMinutes((int) $this->startsAt()->diffInMinutes(now(), false));
+    }
+
+    /** "45min", "2h", "2h15" — formato comum das marcas de prazo. */
+    private static function formatMinutes(int $minutes): string
+    {
         $hours = intdiv($minutes, 60);
         $rest = $minutes % 60;
 
@@ -594,6 +656,80 @@ class FreelancerService extends Model
                     ->orWhere(fn($sub) => $sub->whereNotNull('manager_rejected_at')
                         ->whereHas('batch', fn($b) => $b->whereIn('status', $comParecerDaGerencia)));
             });
+    }
+
+    /* ---------------------------------------------------------------------
+     | Busca e ordenação da listagem
+     |---------------------------------------------------------------------*/
+
+    /**
+     * Busca livre da listagem: nome ou CPF do freelancer e evento/local. São os
+     * três jeitos de procurar um contrato quando não se sabe a data.
+     */
+    public function scopeSearch($query, ?string $term)
+    {
+        if (blank($term)) {
+            return $query;
+        }
+
+        $like = '%' . str_replace(['%', '_'], ['\%', '\_'], trim($term)) . '%';
+        // Só os dígitos: o CPF é gravado sem pontuação, mas se digita com.
+        $digits = preg_replace('/\D/', '', $term);
+
+        return $query->where(function ($q) use ($like, $digits) {
+            $q->where('location', 'like', $like)
+                ->orWhereHas('freelancer', function ($f) use ($like, $digits) {
+                    $f->where('name', 'like', $like);
+
+                    if ($digits !== '') {
+                        $f->orWhere('cpf', 'like', '%' . $digits . '%');
+                    }
+                });
+        });
+    }
+
+    /**
+     * Filtra pelo estado das assinaturas — a mesma leitura de `signatureLabel()`,
+     * escrita em SQL. Valor desconhecido (ou vazio) não filtra nada.
+     */
+    public function scopeSignatureStatus($query, ?string $status)
+    {
+        if (!array_key_exists((string) $status, self::SIGNATURE_FILTERS)) {
+            return $query;
+        }
+
+        // Cancelado tem precedência sobre as assinaturas na hora de rotular, e
+        // por isso também sai dos demais filtros.
+        $active = fn($q) => $q->where('status_id', '!=', self::STATUS_CANCELLED);
+
+        return match ($status) {
+            'cancelled' => $query->where('status_id', self::STATUS_CANCELLED),
+            'unsigned' => $active($query)->whereNull('freelancer_signed_at')->whereNull('coordinator_signed_at'),
+            'awaiting_coordinator' => $active($query)->whereNotNull('freelancer_signed_at')->whereNull('coordinator_signed_at'),
+            'awaiting_freelancer' => $active($query)->whereNotNull('coordinator_signed_at')->whereNull('freelancer_signed_at'),
+            'signed' => $active($query)->whereNotNull('freelancer_signed_at')->whereNotNull('coordinator_signed_at'),
+        };
+    }
+
+    /**
+     * Ordenação da listagem: por data do turno (padrão) ou por nome do
+     * freelancer. O desempate é sempre a data, para a ordem ser estável entre
+     * contratos do mesmo freelancer.
+     */
+    public function scopeSortedBy($query, string $sort = 'date', string $direction = 'desc')
+    {
+        $direction = $direction === 'asc' ? 'asc' : 'desc';
+
+        if ($sort === 'name') {
+            return $query->select('freelancer_services.*')
+                ->join('freelancers', 'freelancers.id', '=', 'freelancer_services.freelancer_id')
+                ->orderBy('freelancers.name', $direction)
+                ->orderByDesc('freelancer_services.start_date')
+                ->orderByDesc('freelancer_services.start_time');
+        }
+
+        return $query->orderBy('start_date', $direction)
+            ->orderBy('start_time', $direction);
     }
 
     /* ---------------------------------------------------------------------

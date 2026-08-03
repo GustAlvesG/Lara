@@ -96,6 +96,68 @@ class FreelancerSignatureDeadlineTest extends TestCase
         $this->assertSame('17h', $service->formattedSignatureDelay());
     }
 
+    /* ---------------------------------------------------------------------
+     | Turno começado sem nenhuma assinatura — o caso vizinho, e mais grave
+     |---------------------------------------------------------------------*/
+
+    public function test_sem_assinatura_antes_do_inicio_nao_e_marcado(): void
+    {
+        Carbon::setTestNow('2026-08-01 15:00');
+
+        $this->assertFalse($this->service(null)->isUnsignedAfterStart());
+        $this->assertNull($this->service(null)->formattedTimeSinceStart());
+
+        Carbon::setTestNow();
+    }
+
+    /** Mesma tolerância da assinatura em atraso: as duas marcas nascem juntas. */
+    public function test_sem_assinatura_dentro_da_tolerancia_nao_e_marcado(): void
+    {
+        Carbon::setTestNow('2026-08-01 16:30');
+
+        $this->assertFalse($this->service(null)->isUnsignedAfterStart());
+
+        Carbon::setTestNow();
+    }
+
+    public function test_sem_assinatura_alem_da_tolerancia_e_marcado(): void
+    {
+        Carbon::setTestNow('2026-08-01 18:15');
+
+        $service = $this->service(null);
+
+        $this->assertTrue($service->isUnsignedAfterStart());
+        $this->assertSame('2h15', $service->formattedTimeSinceStart());
+
+        Carbon::setTestNow();
+    }
+
+    /** Assinado com atraso e não assinado são estados excludentes. */
+    public function test_contrato_assinado_nunca_e_marcado_como_sem_assinatura(): void
+    {
+        Carbon::setTestNow('2026-08-02 10:00');
+
+        $service = $this->service('2026-08-01 18:00');
+
+        $this->assertTrue($service->isSignedAfterStart());
+        $this->assertFalse($service->isUnsignedAfterStart());
+
+        Carbon::setTestNow();
+    }
+
+    /** Cancelado saiu do fluxo antes de qualquer assinatura: não é falha. */
+    public function test_contrato_cancelado_nao_e_marcado(): void
+    {
+        Carbon::setTestNow('2026-08-01 20:00');
+
+        $service = $this->service(null);
+        $service->status_id = FreelancerService::STATUS_CANCELLED;
+
+        $this->assertFalse($service->isUnsignedAfterStart());
+
+        Carbon::setTestNow();
+    }
+
     /** Turno que vira a meia-noite: o prazo conta do início, não do término. */
     public function test_turno_noturno_conta_do_horario_de_inicio(): void
     {

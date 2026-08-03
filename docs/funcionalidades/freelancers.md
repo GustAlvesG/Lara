@@ -88,6 +88,10 @@ ser assinado até 16:30 sem marcação; 16:31 já é fora do prazo.
 - **Só aparece na web**, e não bloqueia nada: é informativo. Tarja no topo da tela do contrato
   (com o horário do início, o da assinatura e o atraso) e selo na listagem de Serviços. O kiosk não
   mostra — é lá que a assinatura acontece, e apontar o atraso naquele momento não muda mais nada.
+- O mesmo prazo marca o contrato que o turno já começou e **ninguém assinou**
+  (`isUnsignedAfterStart()`, selo ⏳ e tarja própria). É o caso mais grave dos dois: sem assinatura
+  o serviço foi prestado sem contrato firmado, e o contrato não entra em lote nem é pago. Ambos são
+  filtráveis na listagem — ver *Listagem de contratos*.
 - O tempo exibido é o atraso em relação ao **início do turno**, não à tolerância: assinar 16:31 num
   turno de 16:00 mostra "31min".
 
@@ -276,6 +280,70 @@ arquivo modelo `.xlsx` para download e o envio do arquivo preenchido.
   `HH:MM`, e células formatadas como data/hora no Excel são convertidas automaticamente.
   `total_hours`, `end_date` e `price` continuam sendo derivados no servidor, e o alerta de limite
   semanal aparece resumido ao final da importação.
+
+### Listagem de contratos: busca, filtros e ordenação
+A tela **Serviços / Contratos** (`/freelancer-services`) filtra e ordena **no servidor**, por
+parâmetros na URL — o endereço filtrado é compartilhável e sobrevive ao F5.
+
+| Campo | Parâmetro | O que faz |
+|---|---|---|
+| Busca | `q` | nome ou **CPF** do freelancer e evento/local, em um campo só. O CPF é comparado só pelos dígitos, então `123.456` acha o que está gravado sem pontuação |
+| Freelancer | `freelancer_id` | seleção direta, para quem já sabe de quem procura |
+| Serviço | `function_id` | a função exercida (garçom, segurança...) |
+| Assinatura | `signature` | `unsigned`, `awaiting_coordinator`, `awaiting_freelancer`, `signed`, `cancelled` |
+| Registro | `issue` | falhas do registro: `any`, `none` ou uma das três (abaixo) |
+| Período | `from` / `to` | pelo **dia do turno** (`start_date`), não pela data de cadastro |
+
+**Registros com falha** (`FreelancerService::ISSUE_FILTERS`) são os desvios que a tela marca com
+selo, agora procuráveis — nenhum deles bloqueia nada na hora, e sem filtro a única forma de ir
+atrás deles era varrer a lista com o olho:
+
+| Valor | Selo | Regra |
+|---|---|---|
+| `weekly` | ⚠️ | freelancer acima do limite de 7 dias (`flagExcessWithinCollection()`) |
+| `late` | 🕒 | assinado depois do início do turno (`isSignedAfterStart()`) |
+| `unsigned_late` | ⏳ | turno começou e o freelancer **nunca assinou** (`isUnsignedAfterStart()`) |
+| `any` | — | qualquer uma das três |
+| `none` | — | nenhuma delas — complemento exato de `any` (as duas somadas dão a lista inteira) |
+
+`unsigned_late` é o vizinho de `late`, e mais grave: lá o contrato ao menos existe assinado, aqui o
+serviço foi prestado sem contrato firmado. Usa a **mesma tolerância de 30 minutos**, para as duas
+marcas aparecerem a partir do mesmo instante, e a mesma conta sobre a assinatura **do freelancer**.
+Contrato cancelado não é marcado: saiu do fluxo antes de qualquer assinatura. Os dois estados são
+excludentes — ou o contrato foi assinado com atraso, ou não foi assinado.
+
+Este filtro é aplicado **em memória**, depois da consulta (`ServiceController::onlyWithIssue()`),
+porque as regras já existem em PHP. Reescrevê-las em SQL criaria uma segunda versão das mesmas
+regras, fadada a divergir da que a tela mostra.
+
+**Paginação:** **20 contratos por página** (`ServiceController::PER_PAGE`), com os filtros e a
+ordenação preservados na URL das páginas seguintes. Reordenar volta à primeira página — cair na
+página 3 de uma ordem que acabou de mudar não leva a lugar nenhum. Filtrando por `issue`, a
+paginação é feita **em memória** (`paginateCollection()`), porque a peneira das falhas roda em PHP:
+paginar no banco e peneirar depois devolveria páginas de tamanhos aleatórios.
+
+**Ordenação:** `sort=date` (padrão) ou `sort=name`, com `dir=asc|desc`. O padrão é **data
+decrescente** — o contrato de ontem interessa mais que o do mês passado. Clicar no cabeçalho já
+ordenado inverte a direção; clicar num novo usa a direção natural dele (data decrescente, nome de
+A a Z), e os filtros ativos viajam junto na URL. Sem `dir` explícito, `name` assume `asc` e `date`
+assume `desc`. Valor desconhecido em `sort`, `dir` ou `signature` é ignorado e cai no padrão.
+
+Os estados de assinatura vivem em `FreelancerService::SIGNATURE_FILTERS` e são traduzidos para SQL
+em `scopeSignatureStatus()` — mesma leitura de `signatureLabel()`, para o filtro não oferecer um
+estado que a coluna não mostra.
+
+> **O selo ⚠️ de limite semanal não é filtrado junto.** Ele é calculado sobre **todos** os serviços
+> dos freelancers listados (`ServiceController::excessFlagsFor()`), e não sobre o resultado do
+> filtro: filtrar por uma data esconderia justamente os outros contratos da semana que fazem o selo
+> existir, e o aviso sumiria quando é mais necessário.
+
+**A linha inteira abre o contrato** — clicar em qualquer lugar dela leva à tela do contrato (com
+`Enter` pelo teclado, que a linha recebe por `tabindex`). Cliques em link, botão ou formulário
+continuam sendo deles, e um clique que apenas selecionou texto não navega. O link *Ver/Editar*
+permanece na coluna de ações.
+
+Na tela do contrato, o **nome do freelancer é um link para o cadastro dele** — é de lá que se
+corrige um dado que o contrato apenas reproduz.
 
 ### Financeiro (baixa de pagamento)
 A tela **Serviços / Contratos** tem duas abas: *Contratos* e *Financeiro*.

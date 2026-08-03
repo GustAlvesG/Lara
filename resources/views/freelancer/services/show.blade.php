@@ -84,13 +84,36 @@
             </div>
         @endif
 
+        {{-- O caso vizinho, e mais grave: o turno começou e o freelancer nunca
+             assinou — o serviço está sendo prestado sem contrato firmado. --}}
+        @if($service->isUnsignedAfterStart())
+            <div class="p-4 bg-rose-100 dark:bg-rose-900/30 border border-rose-300 dark:border-rose-700 text-rose-800 dark:text-rose-200 rounded-lg text-sm font-medium">
+                ⏳ Contrato <b>sem assinatura do freelancer</b> e o turno já começou.
+                O início foi em {{ $service->startsAt()->format('d/m/Y H:i') }} —
+                <b>há {{ $service->formattedTimeSinceStart() }}</b>.
+                <span class="block mt-1 font-normal">
+                    Colha a assinatura no tablet (Kiosk → atendimento) assim que possível: sem ela, o
+                    serviço foi prestado sem contrato firmado, e o contrato não entra em lote nem é pago.
+                </span>
+            </div>
+        @endif
+
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div class="flex items-center gap-4">
                 <a href="{{ route('freelancer-services.index') }}" class="p-2 bg-white dark:bg-gray-800 rounded-xl shadow-md text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 border border-gray-100 dark:border-gray-700 transition">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                 </a>
                 <div>
-                    <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">{{ $service->freelancer->name }}</h1>
+                    {{-- O nome leva ao cadastro do freelancer: é de lá que se
+                         corrige um dado que o contrato apenas reproduz. --}}
+                    <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">
+                        <a href="{{ route('freelancers.show', $service->freelancer) }}"
+                           title="Abrir o cadastro de {{ $service->freelancer->name }}"
+                           class="inline-flex items-center gap-2 hover:text-[#A00001] dark:hover:text-red-400 hover:underline decoration-2 underline-offset-4 transition">
+                            {{ $service->freelancer->name }}
+                            <svg class="w-5 h-5 shrink-0 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                        </a>
+                    </h1>
                     <p class="text-gray-500 dark:text-gray-400 font-medium">
                         {{ $service->functionFreelancer->name }} · {{ $service->location }}
                     </p>

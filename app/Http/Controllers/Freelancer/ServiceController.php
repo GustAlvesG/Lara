@@ -20,6 +20,8 @@ use App\Models\Status;
 use App\Services\FreelancerService as FreelancerServiceManager;
 use App\Services\WeeklyLimitCodeService;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -38,15 +40,149 @@ class ServiceController extends Controller
         return $this->signatureImageResponse($freelancerService, $party);
     }
 
-    public function index()
+    /** Ordenações aceitas na listagem; qualquer outra volta para a padrão. */
+    private const SORTS = ['date', 'name'];
+
+    /** Contratos por página na listagem. */
+    private const PER_PAGE = 20;
+
+    public function index(Request $request)
     {
-        $services = FreelancerService::with(['freelancer', 'functionFreelancer', 'status'])
-            ->orderByDesc('start_date')
-            ->get();
+        $filters = $this->indexFilters($request);
 
-        $excessFlags = FreelancerService::flagExcessWithinCollection($services);
+        $query = FreelancerService::with(['freelancer', 'functionFreelancer', 'status'])
+            ->search($filters['q'])
+            ->signatureStatus($filters['signature'])
+            ->when($filters['freelancer_id'], fn($q, $id) => $q->where('freelancer_id', $id))
+            ->when($filters['function_id'], fn($q, $id) => $q->where('function_freelancer_id', $id))
+            // O período filtra pelo DIA do turno, que é como se procura um
+            // contrato ("os do dia 22"), e não pela data de cadastro.
+            ->when($filters['from'], fn($q, $date) => $q->whereDate('start_date', '>=', $date))
+            ->when($filters['to'], fn($q, $date) => $q->whereDate('start_date', '<=', $date))
+            ->sortedBy($filters['sort'], $filters['dir']);
 
-        return view('freelancer.services.index', compact('services', 'excessFlags'));
+        if ($filters['issue']) {
+            // O filtro de falhas roda em PHP, então precisa do conjunto inteiro
+            // em mãos antes de paginar: paginar no banco e peneirar depois
+            // devolveria páginas de tamanhos aleatórios.
+            $all = $query->get();
+            $excessFlags = $this->excessFlagsFor($all);
+            $services = $this->paginateCollection(
+                $this->onlyWithIssue($all, $excessFlags, $filters['issue']),
+                $request
+            );
+        } else {
+            $services = $query->paginate(self::PER_PAGE)->withQueryString();
+            // Só os freelancers desta página: o selo olha a semana inteira de
+            // cada um deles, mas não precisa varrer a tabela toda.
+            $excessFlags = $this->excessFlagsFor($services->getCollection());
+        }
+
+        return view('freelancer.services.index', array_merge($this->formOptions(), [
+            'services' => $services,
+            'excessFlags' => $excessFlags,
+            'filters' => $filters,
+            'signatureFilters' => FreelancerService::SIGNATURE_FILTERS,
+            'issueFilters' => FreelancerService::ISSUE_FILTERS,
+        ]));
+    }
+
+    /**
+     * Peneira os registros com falha. Feito em memória, e não em SQL, porque as
+     * duas regras já existem em PHP: a janela de 7 dias mais cheia
+     * (`flagExcessWithinCollection`) e o prazo da assinatura com tolerância
+     * (`isSignedAfterStart`). Reescrevê-las em SQL criaria uma segunda versão
+     * das mesmas regras, fadada a divergir da que a tela mostra.
+     *
+     * @param  \Illuminate\Support\Collection  $services
+     * @param  \Illuminate\Support\Collection  $excessFlags
+     */
+    private function onlyWithIssue($services, $excessFlags, string $issue)
+    {
+        return $services->filter(function (FreelancerService $service) use ($excessFlags, $issue) {
+            $exceeds = $excessFlags[$service->id] ?? false;
+            $anyIssue = $exceeds || $service->isSignedAfterStart() || $service->isUnsignedAfterStart();
+
+            return match ($issue) {
+                'weekly' => $exceeds,
+                'late' => $service->isSignedAfterStart(),
+                'unsigned_late' => $service->isUnsignedAfterStart(),
+                // "Sem falhas" é o complemento exato de "qualquer falha": as
+                // duas opções somadas devolvem a lista inteira.
+                'none' => !$anyIssue,
+                default => $anyIssue,
+            };
+        })->values();
+    }
+
+    /**
+     * Pagina uma coleção já filtrada em memória, mantendo os filtros na URL das
+     * páginas seguintes.
+     *
+     * @param  \Illuminate\Support\Collection  $items
+     */
+    private function paginateCollection($items, Request $request): LengthAwarePaginator
+    {
+        $page = Paginator::resolveCurrentPage();
+
+        return new LengthAwarePaginator(
+            $items->forPage($page, self::PER_PAGE)->values(),
+            $items->count(),
+            self::PER_PAGE,
+            $page,
+            [
+                'path' => Paginator::resolveCurrentPath(),
+                'query' => $request->query(),
+            ]
+        );
+    }
+
+    /**
+     * Filtros da listagem já normalizados — a view lê daqui, e não de
+     * `request()`, para o estado da tela ser sempre o mesmo que o da consulta.
+     *
+     * @return array<string, string|null>
+     */
+    private function indexFilters(Request $request): array
+    {
+        $sort = in_array($request->query('sort'), self::SORTS, true) ? $request->query('sort') : 'date';
+        $dir = $request->query('dir');
+
+        return [
+            'q' => trim((string) $request->query('q', '')) ?: null,
+            'freelancer_id' => $request->query('freelancer_id') ?: null,
+            'function_id' => $request->query('function_id') ?: null,
+            'from' => $request->query('from') ?: null,
+            'to' => $request->query('to') ?: null,
+            'signature' => $request->query('signature') ?: null,
+            'issue' => array_key_exists((string) $request->query('issue'), FreelancerService::ISSUE_FILTERS)
+                ? $request->query('issue')
+                : null,
+            'sort' => $sort,
+            // Sem direção escolhida, cada ordenação tem a sua natural: data do
+            // mais recente para o mais antigo, nome de A a Z.
+            'dir' => in_array($dir, ['asc', 'desc'], true) ? $dir : ($sort === 'name' ? 'asc' : 'desc'),
+        ];
+    }
+
+    /**
+     * Selo de limite semanal das linhas exibidas. A conta é feita sobre TODOS os
+     * serviços dos freelancers listados, não só sobre o que passou pelo filtro:
+     * filtrar por uma data esconderia justamente os outros contratos da semana
+     * que fazem o selo existir.
+     */
+    private function excessFlagsFor($services)
+    {
+        $freelancerIds = $services->pluck('freelancer_id')->unique();
+
+        if ($freelancerIds->isEmpty()) {
+            return collect();
+        }
+
+        return FreelancerService::flagExcessWithinCollection(
+            FreelancerService::whereIn('freelancer_id', $freelancerIds)
+                ->get(['id', 'freelancer_id', 'start_date', 'status_id', 'parent_service_id'])
+        );
     }
 
     public function create(FreelancerServiceImport $import)
