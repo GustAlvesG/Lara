@@ -16,8 +16,9 @@ banco e integrações externas. Os controllers delegam a essas classes.
 | `getScheduleByMember` | `getScheduleByMember($member_id)` | Todos os agendamentos de um sócio. |
 | `getSchedules` | `getSchedules($date = null)` | Agendamentos disponíveis agrupados por grupo de espaços. |
 | `createSchedule` | `createSchedule(Request $request)` | Cria agendamento com detecção de colisão e notificação por e-mail. |
+| `notifyScheduleStatus` | `notifyScheduleStatus(iterable $schedules, ?SchedulePayment $payment = null, array $extra = []): bool` | Envia ao sócio o e-mail correspondente ao status gravado (1 → confirmação, 3 → pendência, 0 → cancelamento). Ponto único usado na criação, na confirmação do pagamento e no cancelamento pelo painel; agrupa por sócio e por status e nunca propaga falha de envio. |
 | `store` | `store(Request $request)` | Persiste um registro de agendamento. |
-| `updateSchedulesStatus` | `updateSchedulesStatus($data)` | Atualiza o status e, se aplicável, estorna o pagamento. |
+| `updateSchedulesStatus` | `updateSchedulesStatus($data)` | Atualiza o status e, se aplicável, estorna o pagamento. No cancelamento, avisa o sócio por e-mail depois da tentativa de estorno, informando o valor efetivamente devolvido. |
 | `checkColide` | `checkColide($slotStartTime, $slotEndTime, $place_id, $date, $member_id = null)` | Detecta sobreposição de horários. |
 | `countMemberSchedulesInPlaceGroupOnDate` | `countMemberSchedulesInPlaceGroupOnDate($group, $member_id, $date)` | Conta agendamentos do sócio no grupo/dia e o limite restante. |
 | `homeAssistantAutomation` | `homeAssistantAutomation()` | Retorna o estado dos contatores (iluminação) para automação. |
@@ -204,7 +205,8 @@ banco e integrações externas. Os controllers delegam a essas classes.
 
 | Método | Assinatura | Descrição |
 |--------|-----------|-----------|
-| `processContactForm` | `processContactForm(array $data): void` | Envia o e-mail do formulário de contato (Mailable `ContactMail`), com tratamento de exceções. |
+| `processContactForm` | `processContactForm(array $data): void` | Envia o e-mail do formulário de contato (Mailable `ContactMail`) para o endereço administrativo, com tratamento de exceções. |
+| `sendScheduleMail` | `sendScheduleMail(array $data): bool` | Envia o e-mail transacional de agendamento **para o próprio sócio** (`$data['email']`). Endereço inválido ou falha de envio viram log e `false` — nunca derrubam o agendamento/pagamento já gravado. |
 
 ---
 

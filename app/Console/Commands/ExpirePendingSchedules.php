@@ -23,8 +23,14 @@ class ExpirePendingSchedules extends Command
 
     /**
      * Janela de tolerância do hold pendente, em minutos, antes de liberar o horário.
+     *
+     * É a mesma janela informada ao sócio no e-mail de pendência
+     * (`SchedulesService`), por isso mora numa constante: se mudar aqui, muda no
+     * e-mail — nunca prometer um prazo diferente do que a rotina de fato aplica.
      */
-    protected int $holdMinutes = 30;
+    public const HOLD_MINUTES = 30;
+
+    protected int $holdMinutes = self::HOLD_MINUTES;
 
     /**
      * Execute the console command.

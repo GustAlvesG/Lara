@@ -3,13 +3,17 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Console\Commands\ExpirePendingSchedules;
 use App\Models\Schedule;
+use App\Models\SchedulePayment;
 use App\Models\Place;
 use App\Models\Member;
 use App\Models\ScheduleRules;
 use App\Models\Contactor;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
@@ -66,6 +70,7 @@ class SchedulesService
         $schedules = [];
         $user = Auth()->user();
         $payments_ids = [];
+        $cancelled = [];
         $isCancelling = isset($data['action_status']) && (int) $data['action_status'] === 0;
         foreach ($data['selected_reservations'] as $schedule_id) {
             $schedule = Schedule::find($schedule_id);
@@ -82,6 +87,10 @@ class SchedulesService
 
                 $schedule->save();
 
+                if ($isCancelling) {
+                    $cancelled[] = $schedule;
+                }
+
                 if(isset($data['refund_payment'])){
                     if (!in_array($schedule->schedule_payment_id, $payments_ids)) {
                         $payments_ids[] = $schedule->schedule_payment_id;
@@ -90,10 +99,52 @@ class SchedulesService
             }
         }
         $response = [];
-        if (isset($data['refund_payment']) && count($payments_ids) > 0)
-            $response = $this->redeItauService->beginRefund($payments_ids, $user->id);
+        $refundRequested = isset($data['refund_payment']) && count($payments_ids) > 0;
+
+        // Quanto cada pagamento já tinha de estorno antes desta ação: a diferença
+        // depois da chamada é exatamente o que foi estornado agora, e é esse
+        // valor — não o preço da reserva — que o sócio é informado no e-mail.
+        $refundedBefore = $refundRequested ? $this->refundedAmounts($payments_ids) : [];
+
+        try {
+            if ($refundRequested) {
+                $response = $this->redeItauService->beginRefund($payments_ids, $user->id);
+            }
+        } finally {
+            // `finally`: se o estorno falhar, o cancelamento já está gravado e o
+            // sócio precisa ser avisado do mesmo jeito — só que sem prometer
+            // devolução nenhuma. A exceção continua subindo para a tela do admin.
+            if ($isCancelling && $cancelled) {
+                $deltas = [];
+                foreach ($refundRequested ? $this->refundedAmounts($payments_ids) : [] as $paymentId => $after) {
+                    $delta = round($after - ($refundedBefore[$paymentId] ?? 0), 2);
+                    if ($delta > 0) {
+                        $deltas[$paymentId] = $delta;
+                    }
+                }
+
+                $this->notifyScheduleStatus($cancelled, null, [
+                    'refund_requested' => $refundRequested,
+                    'refund_deltas' => $deltas,
+                ]);
+            }
+        }
 
         return $response;
+    }
+
+    /**
+     * Total já estornado de cada pagamento, indexado por id.
+     *
+     * @param  array<int, int|null>  $payments_ids
+     * @return array<int, float>
+     */
+    private function refundedAmounts(array $payments_ids): array
+    {
+        return SchedulePayment::whereIn('id', array_filter($payments_ids))
+            ->pluck('refunded_amount', 'id')
+            ->map(fn ($amount) => (float) $amount)
+            ->all();
     }
 
     public function getSchedules($date = null)
@@ -124,7 +175,7 @@ class SchedulesService
         }
 
         $schedules = [];
-        $mailData = [];
+        $createdSchedules = [];
 
         foreach ($request->input('selected_slots') as $slot) {
             $time_start = explode(" - ", $slot)[0];
@@ -139,7 +190,7 @@ class SchedulesService
                 $request['created_by_user'] = Auth()->user()->id;
             }
 
-            $schedules[] = $this->store(new Request([
+            $schedule = $this->persistSchedule([
                 'place_id' => $request['place_id'],
                 'member_id' => $request['member_id'],
                 'start_schedule' => $request->input('date') . ' ' . $time_start,
@@ -149,31 +200,239 @@ class SchedulesService
                 // nunca confia em um preço de cliente sem contrapartida no cadastro.
                 'price' => $request['price'] ?? optional(Place::find($request['place_id']))->price,
                 'created_by_user' => $request['created_by_user'] ?? null,
-            ]));
-        }
-        
-        
-        $member = Member::find($request['member_id']);
-        $place = Place::find($request['place_id']);
-        $dateFormated = Carbon::createFromFormat('Y-m-d', $request->input('date'))->locale('pt_BR')->isoFormat('DD [de] MMMM [de] YYYY');
-        
-        $timesSlotsCount = count($request->input('selected_slots'));
-        $timesSlotsString = implode(" / ", $request->input('selected_slots'));
-        $mailMsg = [
-            'place_name' => $place->group->name . ' - ' . $place->name,
-            'name' => $member->name,
-            'email' => $member->email,
-            'time' => $timesSlotsString,
-            'date' => $dateFormated,
-            'email_type' => $request->input('status_id') == 3 ? 'schedule.pending' : 'schedule.confirm',
-            'status_id' => $request->input('status_id') ?? 1,
-            'price' => number_format(($request['price'] ?? 0) * $timesSlotsCount, 2, ',', '.'),
-        ];
-        
-        $this->sendScheduleEmail($mailMsg);
+            ]);
 
+            $createdSchedules[] = $schedule;
+            $schedules[] = response()->json(['schedule' => $schedule], 201);
+        }
+
+        // O e-mail sai a partir do que foi de fato gravado (status e preço reais
+        // dos agendamentos), e não do que veio na requisição: no fluxo do app
+        // externo o preço nem chega a ser enviado — é resolvido pelo Place.
+        $this->notifyScheduleStatus($createdSchedules);
 
         return $schedules;
+    }
+
+    /**
+     * Envia ao sócio o e-mail correspondente ao estado atual dos agendamentos.
+     *
+     * Ponto único de saída dos e-mails de agendamento: criação (pendente ou
+     * confirmado na hora), confirmação do pagamento vinda do app externo e
+     * cancelamento pelo painel. Só notifica estados que interessam ao sócio:
+     * pendente (3), confirmado (1) e cancelado (0) — expirado não vira e-mail.
+     *
+     * @param  iterable<int, Schedule>  $schedules
+     * @param  array<string, mixed>  $extra  dados do contexto (ex.: estorno do cancelamento)
+     */
+    public function notifyScheduleStatus(iterable $schedules, ?SchedulePayment $payment = null, array $extra = []): bool
+    {
+        $schedules = EloquentCollection::make(collect($schedules)->filter()->values()->all());
+
+        if ($schedules->isEmpty()) {
+            return false;
+        }
+
+        // Cancelamento em lote pelo painel pode juntar reservas de sócios
+        // diferentes: cada um recebe um e-mail com as suas, e só com as suas.
+        if ($schedules->pluck('member_id')->unique()->count() > 1) {
+            $sent = false;
+            foreach ($schedules->groupBy('member_id') as $group) {
+                $sent = $this->notifyScheduleStatus($group, $payment, $extra) || $sent;
+            }
+
+            return $sent;
+        }
+
+        $statuses = $schedules->pluck('status_id')->unique();
+
+        // Lote misto (parte confirmada, parte pendente) não vira um e-mail só:
+        // cada estado é notificado separadamente para não informar errado.
+        if ($statuses->count() > 1) {
+            $sent = false;
+            foreach ($schedules->groupBy('status_id') as $group) {
+                $sent = $this->notifyScheduleStatus($group, $payment, $extra) || $sent;
+            }
+
+            return $sent;
+        }
+
+        $type = match ((int) $statuses->first()) {
+            0 => 'schedule.cancel',
+            1 => 'schedule.confirm',
+            3 => 'schedule.pending',
+            default => null,
+        };
+
+        if ($type === null) {
+            return false;
+        }
+
+        // Notificar é efeito colateral: se o conteúdo não puder ser montado
+        // (sócio/espaço ausente, banco de sócios fora do ar), registra e segue —
+        // o agendamento e o pagamento já estão gravados e não podem cair por isso.
+        try {
+            $data = $this->buildScheduleMailData($schedules, $type, $payment, $extra);
+        } catch (\Throwable $e) {
+            Log::error('Falha ao montar o e-mail de agendamento.', [
+                'type' => $type,
+                'schedule_ids' => $schedules->pluck('id')->all(),
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+
+        if ($data === null) {
+            return false;
+        }
+
+        return $this->emailService->sendScheduleMail($data);
+    }
+
+    /**
+     * Monta o conteúdo do e-mail a partir dos agendamentos gravados.
+     *
+     * Cada horário vira um item com local, data, faixa de horário e valor, de
+     * modo que a mensagem descreva a reserva exatamente como ela está no banco
+     * — inclusive quando o sócio reserva vários horários de uma vez.
+     *
+     * @param  EloquentCollection<int, Schedule>  $schedules
+     * @param  array<string, mixed>  $extra
+     */
+    private function buildScheduleMailData(EloquentCollection $schedules, string $type, ?SchedulePayment $payment, array $extra = []): ?array
+    {
+        $schedules = $schedules->sortBy('start_schedule')->values();
+        $schedules->loadMissing(['place.group', 'member']);
+
+        $member = $schedules->first()->member ?? Member::find($schedules->first()->member_id);
+
+        if (!$member) {
+            Log::warning('E-mail de agendamento não enviado: sócio não encontrado.', [
+                'schedule_ids' => $schedules->pluck('id')->all(),
+            ]);
+
+            return null;
+        }
+
+        $items = $schedules->map(function (Schedule $schedule) {
+            $place = $schedule->place;
+            $start = $schedule->start_schedule;
+            $end = $schedule->end_schedule;
+
+            return [
+                'id' => $schedule->id,
+                'place_name' => $place
+                    ? trim(optional($place->group)->name . ' - ' . $place->name, ' -')
+                    : 'Espaço não identificado',
+                'date' => $start->locale('pt_BR')->isoFormat('DD [de] MMMM [de] YYYY'),
+                'weekday' => ucfirst($start->locale('pt_BR')->isoFormat('dddd')),
+                'time' => $start->format('H:i') . ' às ' . $end->format('H:i'),
+                'duration' => $this->humanDuration((int) $start->diffInMinutes($end)),
+                'price' => number_format((float) $schedule->price, 2, ',', '.'),
+            ];
+        })->all();
+
+        $total = $schedules->sum(fn (Schedule $schedule) => (float) $schedule->price);
+
+        // Assunto já traz local, dia e hora: quem recebe entende a mensagem
+        // pela lista da caixa de entrada, sem precisar abrir.
+        $first = $schedules->first();
+        $extras = $schedules->count() - 1;
+        $subject = match ($type) {
+                'schedule.confirm' => 'Agendamento confirmado',
+                'schedule.cancel' => 'Agendamento cancelado',
+                default => 'Agendamento aguardando pagamento',
+            }
+            . ' - ' . $items[0]['place_name']
+            . ', ' . $first->start_schedule->format('d/m')
+            . ' às ' . $first->start_schedule->format('H:i')
+            . ($extras > 0 ? " (+{$extras} " . ($extras > 1 ? 'horários' : 'horário') . ')' : '');
+
+        $data = [
+            'email' => $member->email,
+            'name' => $member->name,
+            'member_title' => $member->title ?? null,
+            'type' => $type,
+            'subject' => $subject,
+            'schedule_ids' => $schedules->pluck('id')->all(),
+            'items' => $items,
+            'total' => number_format($total, 2, ',', '.'),
+            'issued_at' => Carbon::now()->format('d/m/Y H:i'),
+
+            // Campos "achatados" mantidos para compatibilidade com quem já lia
+            // place_name/date/time/price direto no template.
+            'place_name' => $items[0]['place_name'],
+            'date' => $items[0]['date'],
+            'time' => implode(' / ', array_column($items, 'time')),
+            'price' => number_format($total, 2, ',', '.'),
+        ];
+
+        if ($type === 'schedule.pending') {
+            $holdMinutes = ExpirePendingSchedules::HOLD_MINUTES;
+            $createdAt = $schedules->min('created_at') ?? Carbon::now();
+
+            $data['hold_minutes'] = $holdMinutes;
+            $data['hold_deadline'] = $createdAt->copy()->addMinutes($holdMinutes)->format('d/m/Y H:i');
+        }
+
+        if ($type === 'schedule.confirm' || $type === 'schedule.cancel') {
+            $payment = $payment ?: $first->schedulePayment;
+
+            if ($payment) {
+                $data['payment'] = [
+                    'method' => $this->paymentMethodLabel($payment->payment_method),
+                    'amount' => number_format((float) $payment->paid_amount, 2, ',', '.'),
+                    'paid_at' => optional($payment->paid_at)->format('d/m/Y H:i'),
+                    'reference' => $payment->payment_integration_id,
+                ];
+            }
+        }
+
+        if ($type === 'schedule.cancel') {
+            $data['cancel_reason'] = $first->cancel_reason;
+            $data['cancelled_at'] = optional($first->cancelled_at)->format('d/m/Y H:i');
+
+            // Só é estorno o que o gateway de fato devolveu agora (diferença
+            // medida em updateSchedulesStatus). Sem isso, o e-mail prometeria
+            // devolução em cancelamento sem pagamento — ou quando a chamada falhou.
+            $deltas = $extra['refund_deltas'] ?? [];
+            $refunded = $schedules->pluck('schedule_payment_id')
+                ->filter()
+                ->unique()
+                ->sum(fn ($paymentId) => (float) ($deltas[$paymentId] ?? 0));
+
+            $data['refund'] = [
+                'requested' => (bool) ($extra['refund_requested'] ?? false),
+                'amount' => $refunded > 0 ? number_format($refunded, 2, ',', '.') : null,
+                'paid' => (bool) $payment,
+            ];
+        }
+
+        return $data;
+    }
+
+    private function humanDuration(int $minutes): string
+    {
+        $hours = intdiv($minutes, 60);
+        $rest = $minutes % 60;
+
+        if ($hours && $rest) {
+            return "{$hours}h{$rest}min";
+        }
+
+        return $hours ? "{$hours}h" : "{$rest}min";
+    }
+
+    private function paymentMethodLabel(?string $method): string
+    {
+        return match (strtolower((string) $method)) {
+            'credit', 'credit_card', 'cartao_credito' => 'Cartão de crédito',
+            'debit', 'debit_card', 'cartao_debito' => 'Cartão de débito',
+            'pix' => 'Pix',
+            '' => 'Não informado',
+            default => ucfirst((string) $method),
+        };
     }
 
 
@@ -191,37 +450,22 @@ class SchedulesService
 
     public function store(Request $request)
     {
-        $validated = $request->all();
+        return response()->json(['schedule' => $this->persistSchedule($request->all())], 201);
+    }
 
+    /**
+     * Grava o agendamento e devolve o model — quem chama precisa do registro em
+     * si (preço e status reais) para montar o e-mail, não de uma resposta HTTP.
+     */
+    private function persistSchedule(array $attributes): Schedule
+    {
         try {
-            $schedule = Schedule::create($validated);
+            return Schedule::create($attributes);
         } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
             // Backstop de banco (índice único em active_slot_key): outra requisição
             // concorrente reservou esse horário entre a checagem de colisão e o insert.
             throw new \Exception("Horário colide com outro agendamento.");
         }
-
-        return response()->json(['schedule' => $schedule], 201);
-    }
-
-    private function sendScheduleEmail($data){
-
-        // dd($data);
-        $emailData = [
-
-            'email' => $data['email'],
-            // 'email' => 'al.gustavo@outlook.com',
-            'type' => $data['email_type'], // 'schedule.confirm' ou 'schedule.pending'
-            'subject' => "Agendamento " . ($data['email_type'] == 'schedule.confirm' ? 'Confirmado' : 'Pendente'),
-            'name' => $data['name'],
-            'place_name' => $data['place_name'],
-            'time' => $data['time'],
-            'date' => $data['date'],
-            'price' => $data['price']
-            
-        ];
-
-        $this->emailService->processContactForm($emailData);
     }
 
 

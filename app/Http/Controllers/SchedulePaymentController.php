@@ -10,6 +10,7 @@ use App\Models\Schedule;
 use App\Models\Member;
 use App\Models\Status;
 use App\Services\RedeItauService;
+use App\Services\SchedulesService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Client\RequestException;
 //use DB
@@ -18,10 +19,12 @@ use Illuminate\Support\Facades\DB;
 class SchedulePaymentController extends Controller
 {
     protected RedeItauService $redeItauService;
+    protected SchedulesService $schedulesService;
 
-    public function __construct(RedeItauService $redeItauService)
+    public function __construct(RedeItauService $redeItauService, SchedulesService $schedulesService)
     {
         $this->redeItauService = $redeItauService;
+        $this->schedulesService = $schedulesService;
     }
 
     /**
@@ -160,7 +163,26 @@ class SchedulePaymentController extends Controller
                 return $schedulePayment;
             });
 
-            // 3. Retorno de sucesso (201 Created)
+            // 3. Confirmação por e-mail.
+            // É aqui que o agendamento deixa de ser pendente: no fluxo do app
+            // externo a reserva nasce com status 3 (só o e-mail de pendência
+            // sai na criação) e só chega ao status pago neste endpoint. Sem
+            // este disparo, o sócio nunca recebia o e-mail de confirmação.
+            // Fora da transação e sem propagar falha: e-mail não desfaz pagamento.
+            // Só notifica quando o pagamento de fato confirmou a reserva — um
+            // pagamento que a mantenha pendente reenviaria o e-mail de pendência.
+            if ((int) $schedulePayment->status_id === 1) {
+                try {
+                    $this->schedulesService->notifyScheduleStatus(
+                        Schedule::withoutGlobalScopes()->whereIn('id', $scheduleIds)->get(),
+                        $schedulePayment
+                    );
+                } catch (\Throwable $e) {
+                    report($e);
+                }
+            }
+
+            // 4. Retorno de sucesso (201 Created)
             return response()->json([
                 'message' => 'Schedule Payment created and schedules linked successfully.',
                 'data' => $schedulePayment->refresh()

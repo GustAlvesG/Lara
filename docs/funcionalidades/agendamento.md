@@ -71,10 +71,33 @@ o restante.
 
 ## Pagamento e e-mails
 
-- Reserva paga → status **1** → e-mail **`schedule.confirm`**.
-- Reserva aguardando pagamento → status **3** → e-mail **`schedule.pending`** (com link).
-- Cancelamento (admin) → e-mail **`schedule.cancel`**, com possível estorno via
-  [RedeItau](../integracoes.md#113-redeitau-gateway-de-pagamento).
+O e-mail é decidido pelo **status gravado no agendamento**, e não pelo que veio na
+requisição — `SchedulesService::notifyScheduleStatus()` é o ponto único de saída:
+
+- Reserva aguardando pagamento → status **3** → e-mail **`schedule.pending`**, informando o
+  prazo real do hold (`ExpirePendingSchedules::HOLD_MINUTES`) e o horário-limite.
+- Reserva paga → status **1** → e-mail **`schedule.confirm`**, com os dados do pagamento
+  (forma, valor pago, data e transação).
+- Cancelamento pelo painel → status **0** → e-mail **`schedule.cancel`**, com o motivo digitado
+  pelo administrador, a data/hora do cancelamento e o pagamento original.
+
+**Fluxo do app externo:** a reserva nasce em `POST /api/schedule` já como pendente (3) — só o
+e-mail de pendência sai nesse momento. A confirmação acontece em
+`POST /api/schedule-payment`, e é lá que o e-mail `schedule.confirm` é disparado (fora da
+transação; falha de envio não desfaz o pagamento). Antes, o e-mail de confirmação era decidido
+apenas na criação e, por isso, nunca chegava ao sócio nesse fluxo.
+
+**Cancelamento pela interface web** (`PUT /schedule/update`, tela de detalhe do agendamento): o
+e-mail sai depois da tentativa de estorno, para poder informar o que de fato foi devolvido. O
+valor anunciado é a diferença do `refunded_amount` do pagamento antes e depois da chamada à
+[RedeItau](../integracoes.md#113-redeitau-gateway-de-pagamento) — se o estorno falhar, o sócio
+ainda recebe o aviso de cancelamento, só que sem promessa de devolução (e o erro continua
+subindo para a tela do administrador). Cancelamento em lote de sócios diferentes gera um e-mail
+por sócio, cada um só com as próprias reservas.
+
+Os valores do e-mail vêm dos agendamentos gravados (soma dos `price` de cada horário), não do
+preço enviado pelo cliente — que nesse fluxo sequer é aceito. O destinatário é sempre o e-mail
+do sócio; sem endereço válido, o envio é registrado em log e o fluxo segue.
 
 ## Gerenciamento (admin)
 

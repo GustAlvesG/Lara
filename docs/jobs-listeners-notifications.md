@@ -51,7 +51,10 @@ Notificação de redefinição de senha (canal e-mail), em Português.
 | `envelope` | `envelope(): Envelope` | Define remetente/assunto. |
 | `content` | `content(): Content` | Define a view do corpo do e-mail. |
 
-Enviado por `EmailService::processContactForm()`.
+Enviado por `EmailService::processContactForm()` (formulário de contato → endereço
+administrativo) e por `EmailService::sendScheduleMail()` (agendamento → e-mail do sócio). O
+campo `type` dos dados escolhe a view: `schedule.confirm`, `schedule.pending`, `schedule.cancel`
+ou o template de contato.
 
 ---
 

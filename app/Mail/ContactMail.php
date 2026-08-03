@@ -28,15 +28,17 @@ class ContactMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
-        // Podemos até mudar o assunto dinamicamente também!
+        $subject = $this->data['subject'] ?? 'Novo E-mail';
+
+        // Os e-mails de agendamento já montam um assunto completo (situação,
+        // local, dia e hora); prefixá-los só repetiria a informação.
         $subjectPrefix = match ($this->type) {
-            'schedule.confirm'   => '[CONFIRMADO]',
-            'schedule.pending' => '[PENDENTE]',
-            default   => '[Contato]',
+            'schedule.confirm', 'schedule.pending', 'schedule.cancel' => '',
+            default => '[Contato] ',
         };
 
         return new Envelope(
-            subject: $subjectPrefix . ' ' . ($this->data['subject'] ?? 'Novo E-mail'),
+            subject: $subjectPrefix . $subject,
         );
     }
 
@@ -49,6 +51,7 @@ class ContactMail extends Mailable implements ShouldQueue
         $viewName = match ($this->type) {
             'schedule.confirm'   => 'emails.schedule.confirm',   // resources/views/emails/confirm_schedule.blade.php
             'schedule.pending' => 'emails.schedule.pending', // resources/views/emails/pending_schedule.blade.php
+            'schedule.cancel' => 'emails.schedule.cancel',   // resources/views/emails/schedule/cancel.blade.php
             'job'     => 'emails.hr_template',      // resources/views/emails/hr_template.blade.php
             default   => 'emails.general_contact',  // template padrão
         };
