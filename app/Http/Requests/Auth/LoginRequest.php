@@ -26,11 +26,30 @@ class LoginRequest extends FormRequest
      */
     public function rules(): array
     {
+        $byMatricula = $this->identifierField() === 'matricula';
+
         return [
-            'email' => ['string', 'email'],
-            'login' => ['string'],
+            'login_type' => ['nullable', 'in:email,matricula'],
+            'email' => [$byMatricula ? 'nullable' : 'required', 'string', 'email'],
+            'matricula' => [$byMatricula ? 'required' : 'nullable', 'string', 'max:5'],
             'password' => ['required', 'string'],
         ];
+    }
+
+    /**
+     * Qual coluna identifica o usuário nesta tentativa: `email` (padrão) ou
+     * `matricula`. A aba escolhida no formulário manda; se ela não vier, cai
+     * no campo que de fato foi preenchido.
+     */
+    public function identifierField(): string
+    {
+        if (in_array($this->input('login_type'), ['email', 'matricula'], true)) {
+            return $this->input('login_type');
+        }
+
+        return filled($this->input('matricula')) && blank($this->input('email'))
+            ? 'matricula'
+            : 'email';
     }
 
     /**
@@ -42,11 +61,13 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        $field = $this->identifierField();
+
+        if (! Auth::attempt($this->only($field, 'password'), $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
+                $field => trans('auth.failed'),
             ]);
         }
 
@@ -70,7 +91,7 @@ class LoginRequest extends FormRequest
 
 
         throw ValidationException::withMessages([
-            'email' => trans('auth.throttle', [
+            $this->identifierField() => trans('auth.throttle', [
                 'seconds' => $seconds,
                 'minutes' => ceil($seconds / 60),
             ]),
@@ -82,6 +103,6 @@ class LoginRequest extends FormRequest
      */
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+        return Str::transliterate(Str::lower($this->string($this->identifierField()))).'|'.$this->ip();
     }
 }
