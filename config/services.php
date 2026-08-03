@@ -49,4 +49,22 @@ return [
         'client_id'     => env('INTERNAL_EREDE_CLIENT_ID'),
         'client_secret' => env('INTERNAL_EREDE_SECRET_ID'),
     ],
+
+    /*
+     * Lara — agente de IA (Ollama + base do estatuto) hospedado numa VM
+     * própria. O endpoint não tem autenticação: a proteção é de rede (só o IP
+     * do portal alcança a porta), por isso a base_url mora no .env do servidor
+     * e nunca no repositório.
+     *
+     * `timeout` é generoso de propósito: o modelo roda em CPU, sem GPU, e uma
+     * resposta legítima pode levar até uns 30s quando há conversas simultâneas.
+     */
+    'lara' => [
+        'base_url'         => env('LARA_BASE_URL'),
+        'enabled'          => env('LARA_ENABLED', false),
+        'timeout'          => (int) env('LARA_TIMEOUT', 30),
+        'reset_timeout'    => (int) env('LARA_RESET_TIMEOUT', 10),
+        'max_input_chars'  => (int) env('LARA_MAX_INPUT_CHARS', 1000),
+        'fallback_message' => env('LARA_FALLBACK_MESSAGE', 'Vou te transferir para o setor responsável, só um momento!'),
+    ],
 ];

@@ -53,13 +53,20 @@ class RolesAndPermissionsSeeder extends Seeder
             [ 'name' => 'manage home assistant', 'description' => 'Permite gerenciar o painel Home Assistant'],
         ];
 
+        // Permissão própria (e não "todo mundo logado") para liberar o chat da
+        // Lara aos poucos: começa com um grupo pequeno e abre depois.
+        $permission_lara = [
+            [ 'name' => 'use lara chat', 'description' => 'Permite usar o chat com a Lara (assistente de IA)'],
+        ];
+
         $allPermissions = array_merge(
             $permissions_infoclube,
             $permissions_siv,
             $permission_smart_panel,
             $permission_reserve,
             $permission_admin,
-            $permission_home_assistant
+            $permission_home_assistant,
+            $permission_lara
         );
 
         foreach ($allPermissions as $permission) {
