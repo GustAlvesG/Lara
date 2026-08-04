@@ -3,11 +3,15 @@
 namespace App\Services;
 
 use App\Exceptions\FreelancerServiceLockedException;
+use App\Jobs\SendFreelancerPixPayment;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use App\Models\Freelancer;
 use App\Models\FunctionFreelancer;
 use App\Models\FreelancerService as FreelancerServiceModel;
+use App\Models\PixPayment;
 use App\Models\User;
 
 class FreelancerService
@@ -360,6 +364,191 @@ class FreelancerService
             $services->each(fn(FreelancerServiceModel $service) => $this->markAsPaid($service, $user));
 
             return $services->count();
+        });
+    }
+
+    /* ---------------------------------------------------------------------
+     | Pix automático (Sicoob)
+     |
+     | Com `sicoob.enabled`, o botão "Dar baixa" deixa de ser uma marcação e
+     | passa a MOVER DINHEIRO. A diferença que organiza tudo aqui é: o clique
+     | não paga nada — ele enfileira um pedido. A baixa (`paid`) só é gravada
+     | quando o banco confirma que o Pix foi FINALIZADO, e é por isso que
+     | `markAsPaidFromPix()` existe separado de `markAsPaid()`.
+     |
+     | Marcar na hora do clique deixaria a tela dizendo "pago" para um Pix que
+     | o banco ainda pode recusar — e o financeiro não teria como saber.
+     |---------------------------------------------------------------------*/
+
+    /**
+     * Enfileira o Pix dos contratos selecionados.
+     *
+     * Um `PixPayment` e um job por contrato: um pagamento que falha não derruba
+     * os outros da mesma seleção, e cada linha da tela conta a própria história.
+     *
+     * @param  array<int>  $ids
+     * @return array{queued: int, skipped: int, problems: array<int, string>}
+     */
+    public function requestPixForMany(array $ids, User $user): array
+    {
+        $resultado = ['queued' => 0, 'skipped' => 0, 'problems' => []];
+
+        if (!$ids) {
+            return $resultado;
+        }
+
+        // Os ids a despachar são coletados dentro da transação, mas os jobs só
+        // são disparados DEPOIS do commit: um job que começa a rodar antes de a
+        // linha existir no banco encontraria um `PixPayment` inexistente.
+        $paraDespachar = DB::transaction(function () use ($ids, $user, &$resultado) {
+            $services = FreelancerServiceModel::whereIn('id', $ids)
+                ->awaitingFinance()
+                ->where('paid', false)
+                ->with('freelancer')
+                ->lockForUpdate()
+                ->get();
+
+            $resultado['skipped'] = count($ids) - $services->count();
+
+            $pagamentos = [];
+
+            foreach ($services as $service) {
+                $problema = $this->pixBlockReason($service);
+
+                if ($problema !== null) {
+                    $resultado['problems'][] = $problema;
+                    $resultado['skipped']++;
+
+                    continue;
+                }
+
+                $pagamentos[] = $this->createPixPayment($service, $user)->id;
+            }
+
+            return $pagamentos;
+        });
+
+        foreach ($paraDespachar as $pixPaymentId) {
+            SendFreelancerPixPayment::dispatch($pixPaymentId);
+            $resultado['queued']++;
+        }
+
+        return $resultado;
+    }
+
+    /**
+     * Por que este contrato não pode ter Pix enviado agora — null quando pode.
+     *
+     * A trava que importa é a última: um contrato com pagamento em andamento,
+     * já finalizado ou com desfecho desconhecido não aceita uma nova tentativa.
+     * É ela que impede o duplo clique, a tela aberta em duas abas e o lote
+     * reenviado por engano de virarem duas transferências.
+     */
+    public function pixBlockReason(FreelancerServiceModel $service): ?string
+    {
+        $freelancer = $service->freelancer;
+
+        if (!$freelancer) {
+            return "Contrato #{$service->id}: freelancer não encontrado.";
+        }
+
+        if (blank($freelancer->pix_key)) {
+            return "{$freelancer->name}: sem chave PIX no cadastro.";
+        }
+
+        if ((float) $service->price <= 0) {
+            return "{$freelancer->name}: contrato #{$service->id} sem valor.";
+        }
+
+        $max = (float) config('sicoob.pix.max_amount', 0);
+
+        if ($max > 0 && (float) $service->price > $max) {
+            return "{$freelancer->name}: valor de R$ " . number_format((float) $service->price, 2, ',', '.')
+                . ' acima do teto por transferência (R$ ' . number_format($max, 2, ',', '.') . ').';
+        }
+
+        $emAndamento = PixPayment::where('freelancer_service_id', $service->id)->blocking()->first();
+
+        if ($emAndamento) {
+            return "{$freelancer->name}: já existe um Pix para o contrato #{$service->id} ("
+                . $emAndamento->statusLabel() . '). Nenhum novo envio foi feito.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Cria a linha da tentativa. Ela nasce em `pending` e com todos os dados
+     * congelados como estavam no clique — o cadastro do freelancer pode mudar
+     * amanhã, a trilha de auditoria não.
+     */
+    protected function createPixPayment(FreelancerServiceModel $service, User $user): PixPayment
+    {
+        $freelancer = $service->freelancer;
+
+        return PixPayment::create([
+            'freelancer_service_id' => $service->id,
+            'freelancer_id' => $freelancer->id,
+            'idempotency_key' => (string) Str::uuid(),
+            'pix_key' => $freelancer->pix_key,
+            'amount' => $service->price,
+            'description' => $this->pixDescription($service),
+            'status' => PixPayment::STATUS_PENDING,
+            'environment' => config('sicoob.environment'),
+            'requested_by' => $user->id,
+        ]);
+    }
+
+    /**
+     * Texto que aparece no extrato das duas pontas (limite de 140 no schema da
+     * API). Vale a pena ser específico: é por ele que o freelancer reconhece o
+     * crédito e o contábil casa a saída com o contrato.
+     */
+    protected function pixDescription(FreelancerServiceModel $service): string
+    {
+        $data = $service->start_date ? Carbon::parse($service->start_date)->format('d/m/Y') : '';
+
+        return mb_substr(trim("Serviço freelancer #{$service->id} {$data}"), 0, 140);
+    }
+
+    /**
+     * Baixa do contrato a partir de um Pix que o banco deu como FINALIZADO.
+     *
+     * `paid_by` guarda quem CLICOU em "Dar baixa", não o processo que
+     * confirmou: a responsabilidade pelo pagamento é de quem o autorizou.
+     *
+     * Idempotente de propósito — o job e a reconciliação podem chegar aqui
+     * para o mesmo pagamento, e a segunda passagem não deve fazer nada.
+     */
+    public function markAsPaidFromPix(PixPayment $payment): ?FreelancerServiceModel
+    {
+        if (!$payment->isFinalized()) {
+            return null;
+        }
+
+        return DB::transaction(function () use ($payment) {
+            $service = FreelancerServiceModel::whereKey($payment->freelancer_service_id)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$service || $service->isPaid()) {
+                return $service;
+            }
+
+            $service->forceFill([
+                'paid' => true,
+                'paid_at' => $payment->finalized_at ?? now(),
+                'paid_by' => $payment->requested_by,
+            ])->save();
+
+            Log::channel('sicoob')->info('Sicoob: baixa registrada após Pix finalizado', [
+                'freelancer_service_id' => $service->id,
+                'pix_payment_id' => $payment->id,
+                'end_to_end_id' => $payment->end_to_end_id,
+                'valor' => (float) $payment->amount,
+            ]);
+
+            return $service;
         });
     }
 

@@ -18,3 +18,12 @@ yarn-error.log
 /.idea
 /.vscode
 *.sql
+
+# Certificados ICP Brasil da integração Sicoob (mTLS). Vazar o par
+# certificado+chave é entregar a capacidade de MOVER DINHEIRO da conta.
+storage/certificates
+*.pfx
+*.p12
+*.pem
+*.key
+*.crt

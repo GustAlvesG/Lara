@@ -79,7 +79,34 @@ deletes, scopes globais, etc.).
 ### FreelancerService
 - **Tabela:** `freelancer_services`
 - **`$fillable`:** `freelancer_id`, `function_freelancer_id`, `start_date`, `end_date`, `price`, `total_hours`, `status_id`
-- **Relacionamentos:** `freelancer()` belongsTo Freelancer · `functionFreelancer()` belongsTo FunctionFreelancer · `status()` belongsTo Status
+- **Relacionamentos:** `freelancer()` belongsTo Freelancer · `functionFreelancer()` belongsTo FunctionFreelancer · `status()` belongsTo Status · `pixPayments()` hasMany PixPayment · `latestPixPayment()` hasOne PixPayment (`latestOfMany`)
+- **Estado do Pix:** `hasPixInProgress()` e `canRequestPix()` — leitura da tela. Quem decide de
+  fato é `FreelancerService::pixBlockReason()` no servidor, com lock.
+
+### PixPayment
+- **Tabela:** `pix_payments` — **trilha de auditoria de dinheiro real.** Uma linha por
+  tentativa, nunca sobrescrita nem apagada. Ver [Pix automático (Sicoob)](funcionalidades/pix-sicoob.md).
+- **`$fillable`:** `freelancer_service_id`, `freelancer_id`, `idempotency_key`, `end_to_end_id`, `pix_key`, `payee_document`, `payee_name`, `payee_key_type`, `amount`, `description`, `status`, `bank_state`, `rejection_detail`, `request_payload`, `response_payload`, `environment`, `requested_by`, `initiated_at`, `confirmed_at`, `finalized_at`, `last_checked_at`
+- **`$casts`:** `amount` → `decimal:2` · `request_payload`/`response_payload` → `array` · os quatro timestamps → `datetime`
+- **Relacionamentos:** `freelancerService()` belongsTo FreelancerService · `freelancer()` belongsTo Freelancer · `requestedBy()` belongsTo User
+- **`status`** — responde "o dinheiro saiu?":
+
+  | Valor | O dinheiro saiu? | Pode reenviar? |
+  |-------|------------------|----------------|
+  | `pending` | Não | — |
+  | `initiated` | Não (só reservou o `endToEndId`) | — |
+  | `sent` | Está saindo | Não |
+  | `finalized` | **Sim** | Não |
+  | `rejected` | Não — o banco recusou | **Sim** |
+  | `failed` | Não — parou antes de confirmar | **Sim** |
+  | `unknown` | **Não sabemos** | **NUNCA** |
+
+- **Métodos:** `canBeRetried()` (só `failed`/`rejected`) · `needsManualCheck()` (`unknown`) ·
+  `isPending()` · `isFinalized()` · `statusLabel()`
+- **Escopos:** `blocking()` (impedem novo envio para o contrato) · `open()` (a reconciliação precisa resolver)
+- **Índices:** `end_to_end_id` e `idempotency_key` são **únicos** — é o índice único do
+  `end_to_end_id` que impede duas linhas reivindicarem a mesma transação no SPI.
+- **Sem FK para `users`** em `requested_by`: o model User fixa a conexão `mysql`.
 
 ---
 

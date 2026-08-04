@@ -96,6 +96,52 @@ banco e integrações externas. Os controllers delegam a essas classes.
 | `get` | `get($cpf)` | Recupera o freelancer pelo CPF. |
 | `getFunctions` | `getFunctions()` | Lista as funções disponíveis. |
 | `createService` | `createService($data)` | Cria um registro de serviço de freelancer. |
+| `markAsPaid` | `markAsPaid(FreelancerService $service, User $user)` | Baixa manual de pagamento (fluxo sem Pix). Registra quem deu e quando. |
+| `markManyAsPaid` | `markManyAsPaid(array $ids, User $user): int` | Baixa manual em lote. Ignora contratos não aptos ou já pagos. |
+| `requestPixForMany` | `requestPixForMany(array $ids, User $user): array` | **Move dinheiro.** Cria um `PixPayment` e enfileira um `SendFreelancerPixPayment` por contrato. Retorna `{queued, skipped, problems}`. **Não** marca `paid` — a baixa vem depois, do banco. |
+| `pixBlockReason` | `pixBlockReason(FreelancerService $service): ?string` | Por que o contrato não pode receber Pix agora (sem chave, sem valor, acima do teto, ou já com pagamento em andamento). `null` quando pode. É a trava contra pagamento em dobro. |
+| `markAsPaidFromPix` | `markAsPaidFromPix(PixPayment $payment): ?FreelancerService` | Grava a baixa a partir de um Pix `FINALIZADO`. Idempotente — job e reconciliação podem chamar para o mesmo pagamento. |
+
+---
+
+## Sicoob (`app/Services/Sicoob/`)
+
+> **Movimenta dinheiro real.** Guia completo: [Pix automático (Sicoob)](funcionalidades/pix-sicoob.md).
+
+### SicoobAuthService
+
+`app/Services/Sicoob/SicoobAuthService.php` — OAuth2 `client_credentials` sobre **mTLS**.
+
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `token` | `token(array $scopes): string` | Access token válido para os escopos pedidos. Cacheado 240s (validade real ~300s), **por conjunto de escopos**. |
+| `forgetToken` | `forgetToken(array $scopes): void` | Descarta o token cacheado — usado quando a API responde 401 dentro da validade. |
+| `client` | `client(array $scopes): PendingRequest` | Cliente HTTP já com certificado, timeouts e os headers `Authorization` e `client_id`. |
+
+Lança `SicoobCertificateException` (arquivo ausente/ilegível, senha errada, handshake) e
+`SicoobAuthenticationException` (credencial recusada). Nunca loga token nem senha.
+
+### SicoobPixPagamentoService
+
+`app/Services/Sicoob/SicoobPixPagamentoService.php` — envio e consulta de Pix.
+
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `enviar` | `enviar(PixPayment $payment): PixPayment` | Orquestra a tentativa inteira: valida valor → confere saldo → inicia (DICT) → confere titular → confirma. Grava cada transição na linha. |
+| `iniciar` | `iniciar(string $chave): array` | `POST /pagamentos`. **Não move dinheiro:** devolve `endToEndId`, `tipo` e `proprietario`. |
+| `consultar` | `consultar(string $endToEndId): array` | `GET /pagamentos/{id}`. Estado atual da transação. |
+| `reconciliar` | `reconciliar(PixPayment $payment): PixPayment` | Consulta o banco e atualiza a linha. Único caminho legítimo para tirar um pagamento de `unknown`. |
+| `formatarValor` | `static formatarValor(float): string` | Formato da API: string com **vírgula**, sem milhar (`1234.5` → `"1234,50"`). |
+| `validarValor` | `validarValor(float): void` | Positivo, ≤ `SICOOB_PIX_MAX_AMOUNT`, no máximo 2 casas. Última barreira local. |
+
+### SicoobContaCorrenteService
+
+`app/Services/Sicoob/SicoobContaCorrenteService.php` — só consulta de saldo.
+
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `assertSaldoSuficiente` | `assertSaldoSuficiente(float $valor): void` | Lança `SicoobInsufficientFundsException` se o disponível não cobrir. |
+| `saldoDisponivel` | `saldoDisponivel(): ?float` | `GET /saldo`. `null` quando a consulta não pôde ser feita — e nesse caso o pagamento **segue**: quem recusa por saldo é o banco. Não considera cheque especial. |
 
 ---
 

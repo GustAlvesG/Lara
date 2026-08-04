@@ -81,6 +81,23 @@ return [
             'replace_placeholders' => true,
         ],
 
+        /*
+         | Integração Sicoob: cada tentativa de Pix, com o identificador
+         | fim a fim. Fica em arquivo próprio porque é a trilha que se olha
+         | quando alguém pergunta "esse dinheiro saiu?", e ela não pode estar
+         | diluída no meio do laravel.log. Retenção longa pelo mesmo motivo.
+         |
+         | O que entra aqui é auditoria, não depuração: nunca token, nunca
+         | senha de certificado, nunca o header Authorization.
+         */
+        'sicoob' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/sicoob.log'),
+            'level' => 'info',
+            'days' => env('SICOOB_LOG_DAYS', 180),
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),

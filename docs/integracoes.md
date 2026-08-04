@@ -117,3 +117,42 @@ Base externa para sócios, acessos físicos e visitantes. Duas conexões em `con
 - **Indisponibilidade:** nunca propaga exceção; devolve a frase de `LARA_FALLBACK_MESSAGE`
   marcada com `status = erro` em `lara_messages`.
 - **Guia de uso:** [Lara — Assistente de IA](funcionalidades/lara-ia.md).
+
+---
+
+## 11.11. Sicoob — Pix Pagamentos e Conta Corrente
+
+> **Única integração do sistema que MOVE DINHEIRO.** O botão "Dar baixa" do financeiro de
+> freelancers transfere o valor do contrato via Pix. Leia
+> [Pix automático (Sicoob)](funcionalidades/pix-sicoob.md) antes de mexer.
+
+- **Componentes:** `SicoobAuthService`, `SicoobPixPagamentoService`,
+  `SicoobContaCorrenteService`, Job `SendFreelancerPixPayment`, comando
+  `sicoob:pix-reconciliar`, model `PixPayment`, exceptions em `app/Exceptions/Sicoob/`.
+- **Configuração:** `config/sicoob.php` (chave geral `SICOOB_PIX_ENABLED`, **default `false`**).
+  Instalação passo a passo: [Pix Sicoob — instalação](pix-sicoob-instalacao.md).
+- **Autenticação:** OAuth2 `client_credentials` **sobre mTLS** (certificado ICP Brasil em PEM).
+  Token de ~300s, cacheado por 240s **por conjunto de escopos** — Pix e Conta Corrente pedem
+  escopos diferentes. Todas as chamadas levam `Authorization: Bearer` **e** `client_id`.
+- **Escopos:** `pixpagamentos_escrita`, `pixpagamentos_consulta` (Pix); `cco_consulta` (CC).
+- **Endpoints (spec oficial "Pagamentos PIX 2.0.24.6"):**
+
+  | Operação | Endpoint | Move dinheiro? |
+  |----------|----------|----------------|
+  | Iniciação DICT | `POST /pagamentos` | Não — devolve `endToEndId` e o titular da chave |
+  | Efetivação | `POST /pagamentos/confirmacao` | **Sim** |
+  | Consulta | `GET /pagamentos/{endToEndId}` | Não |
+  | Saldo | `GET /saldo` (API Conta Corrente v4) | Não |
+
+- **Idempotência:** o `endToEndId` gerado pelo banco na iniciação é a chave da transação, com
+  índice único em `pix_payments`. Uma linha por tentativa, nunca sobrescrita.
+- **Retry:** o Job tem `tries = 1` **de propósito** — reenviar uma confirmação transfere de
+  novo. Quem fecha o ciclo é `sicoob:pix-reconciliar` (agendado a cada minuto), que só
+  consulta.
+- **Armadilhas de formato:** `valor` é **string com vírgula** (`"1234,50"`); o estado
+  `NÃO_REALIZADO` vem **acentuado**.
+- **Sandbox:** é um mock estático — `/pagamentos/confirmacao` sempre responde 400. Serve para
+  validar mTLS/token, não o caminho feliz.
+- **Log:** canal `sicoob` (`storage/logs/sicoob-*.log`, 180 dias). Nunca registra token nem
+  senha de certificado.
+- **Guia de uso:** [Pix automático (Sicoob)](funcionalidades/pix-sicoob.md).

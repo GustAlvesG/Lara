@@ -16,6 +16,10 @@ campos e regras). Comece por aqui se quer entender **o que o sistema faz**:
 carro/Estacionamento, Agendamento, Espaços, Sócios, Freelancers, Banco de Horas, Torneios,
 Empresas, WhatsApp, Telegram, Usuários/Permissões e Home Assistant.
 
+> ⚠️ **[Pix automático (Sicoob)](funcionalidades/pix-sicoob.md)** — única funcionalidade que
+> movimenta dinheiro real. Instalação em
+> [Pix Sicoob — instalação](pix-sicoob-instalacao.md).
+
 ### Guias gerais
 1. [Visão Geral](01-visao-geral.md) — o que é o sistema, módulos, integrações e fluxo principal.
 2. [Instalação e Configuração](02-instalacao.md) — requisitos, `.env`, migrações, filas e deploy.
@@ -29,8 +33,14 @@ Empresas, WhatsApp, Telegram, Usuários/Permissões e Home Assistant.
 8. [Rotas](rotas.md) — tabelas de rotas `web`, `api` e `auth`.
 9. [Requests, Resources e Middleware](requests-resources-middleware.md) — validação, transformação e filtros.
 10. [Jobs, Listeners, Notifications e Providers](jobs-listeners-notifications.md) — componentes assíncronos e de bootstrap.
-11. [Integrações Externas](integracoes.md) — WhatsApp, Telegram, RedeItau, e-mail, Home Assistant, SQL Server.
+11. [Integrações Externas](integracoes.md) — WhatsApp, Telegram, RedeItau, **Sicoob (Pix)**, e-mail, Home Assistant, SQL Server.
 12. [Banco de Dados](banco-de-dados.md) — migrações, seeders e factories.
+
+### Dinheiro
+- [Pix automático (Sicoob)](funcionalidades/pix-sicoob.md) — como o pagamento de freelancers
+  funciona, os estados de uma transferência e o que nunca fazer.
+- [Pix Sicoob — instalação](pix-sicoob-instalacao.md) — certificado, `.env`, ativação e o
+  primeiro pagamento real.
 
 ### Manutenção
 13. [Onde procurar erros](troubleshooting.md) — passo a passo de diagnóstico por camada

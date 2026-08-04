@@ -192,6 +192,22 @@ class FreelancerService extends Model
         return $this->belongsTo(User::class, 'paid_by');
     }
 
+    /** Todas as tentativas de Pix deste contrato, da mais antiga à mais nova. */
+    public function pixPayments()
+    {
+        return $this->hasMany(PixPayment::class);
+    }
+
+    /**
+     * A tentativa de Pix mais recente — a que a tela do financeiro mostra.
+     * As anteriores continuam no histórico; o que interessa na listagem é
+     * onde o dinheiro está agora.
+     */
+    public function latestPixPayment()
+    {
+        return $this->hasOne(PixPayment::class)->latestOfMany();
+    }
+
     public function cancelledBy()
     {
         return $this->belongsTo(User::class, 'cancelled_by');
@@ -844,6 +860,31 @@ class FreelancerService extends Model
     public function canBePaid(): bool
     {
         return $this->isPayable() && !$this->isPaid();
+    }
+
+    /**
+     * Existe um Pix deste contrato em andamento, já finalizado ou com desfecho
+     * desconhecido? Enquanto houver, a tela não oferece o botão de baixa — é a
+     * trava visual contra o segundo clique, complementar à trava do serviço.
+     *
+     * Depende de `latestPixPayment` estar carregada; sem ela, responde `false`
+     * e a decisão fica com a trava do servidor, que é a que vale.
+     */
+    public function hasPixInProgress(): bool
+    {
+        $pix = $this->relationLoaded('latestPixPayment') ? $this->latestPixPayment : null;
+
+        return $pix !== null && in_array($pix->status, PixPayment::BLOCKING_STATUSES, true);
+    }
+
+    /**
+     * O contrato pode receber uma ordem de Pix agora? Só a leitura da tela —
+     * quem realmente decide é `FreelancerService::pixBlockReason()`, no
+     * servidor, onde a corrida entre duas abas é resolvida com lock.
+     */
+    public function canRequestPix(): bool
+    {
+        return $this->canBePaid() && !$this->hasPixInProgress();
     }
 
     /**

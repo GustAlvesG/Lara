@@ -18,6 +18,7 @@ rotas).
 | [Espaços e Grupos (admin)](espacos-e-grupos.md) | Cadastro de grupos, espaços e regras de disponibilidade. |
 | [Sócios](socios.md) | Login, registro, foto e autenticação JWT (integração MultiClubes). |
 | [Freelancers](freelancers.md) | Cadastro de freelancers, funções e serviços prestados. |
+| [Pix automático (Sicoob)](pix-sicoob.md) | **Movimenta dinheiro real:** o "Dar baixa" do financeiro transfere o valor do contrato via Pix. |
 | [Banco de Horas](banco-de-horas.md) | Importação de ponto, cálculo de saldo e ajustes. |
 | [Torneios](torneios.md) | Torneios, categorias, times, inscrições e pagamentos. |
 | [Empresas e Controle de Acesso](empresas.md) | Empresas terceirizadas, trabalhadores e regras de acesso. |

@@ -384,6 +384,12 @@ descritas em *Barra de abas* logo abaixo.
   na tabela (com botão de copiar).
 - O botão **Dar baixa** grava, no próprio contrato, `paid = true`, `paid_at` (data/hora) e `paid_by`
   (usuário que efetuou a baixa). A baixa é definitiva — não há desfazer pelo painel.
+- ⚠️ **Com o Pix automático ligado** (`SICOOB_PIX_ENABLED=true`), o mesmo botão passa a se chamar
+  **Pagar via Pix** e **transfere o valor de verdade** para a chave do freelancer. Nesse modo o
+  clique NÃO marca o contrato como pago: ele enfileira a transferência, o contrato aparece como
+  *em processamento*, e a baixa só é gravada quando o banco confirma. Contrato com Pix em
+  andamento sai da seleção e não aceita um segundo envio. Fluxo completo, estados e riscos em
+  [Pix automático (Sicoob)](pix-sicoob.md).
 - **Baixa em lote:** as caixas de seleção marcam vários contratos pendentes (com total selecionado
   em tempo real) e a barra no rodapé dá baixa em todos de uma vez. Contratos que deixaram de estar
   aptos enquanto a tela estava aberta são ignorados, e o aviso informa quantos ficaram de fora.
