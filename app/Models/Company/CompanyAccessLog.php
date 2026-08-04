@@ -11,6 +11,8 @@ class CompanyAccessLog extends Model
         'company_worker_id',
         'app_driver_id',
         'uber_access_request_id',
+        'freelancer_id',
+        'freelancer_service_id',
         'target',
         'obs',
         'screenshot_url',
@@ -40,6 +42,18 @@ class CompanyAccessLog extends Model
     public function uberRequest()
     {
         return $this->belongsTo(\App\Models\UberAccessRequest::class, 'uber_access_request_id');
+    }
+
+    /** Freelancer consultado por CPF na portaria (permitido ou negado). */
+    public function freelancer()
+    {
+        return $this->belongsTo(\App\Models\Freelancer::class, 'freelancer_id');
+    }
+
+    /** O contrato que liberou a entrada — null quando o acesso foi negado. */
+    public function freelancerService()
+    {
+        return $this->belongsTo(\App\Models\FreelancerService::class, 'freelancer_service_id');
     }
 
     /**

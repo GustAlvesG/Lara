@@ -56,9 +56,17 @@ return [
      * do portal alcança a porta), por isso a base_url mora no .env do servidor
      * e nunca no repositório.
      *
-     * `timeout` é 25s porque o serviço da IA desiste sozinho em 22s e devolve o
-     * fallback dele. Os 3s de folga cobrem só a rede: passou disso, o problema
-     * não é o modelo demorando, é a VM inalcançável.
+     * `timeout` precisa ficar acima do teto interno da IA (ela desiste sozinha e
+     * devolve o fallback dela), senão o portal abandona respostas que estavam a
+     * caminho. A folga acima disso cobre a rede.
+     *
+     * Atenção ao mexer: o navegador espera `timeout + 10s` (calculado na view),
+     * a trava por usuário dura `timeout + 10s` e o PHP recebe `timeout + 30s`
+     * via set_time_limit — os três derivam daqui, só este número se ajusta.
+     *
+     * Acima de ~50s vale conferir o Apache também: se ele fala com o PHP por
+     * proxy_fcgi ou fcgid, o timeout dele corta a requisição por fora e devolve
+     * 504 antes de qualquer limite da aplicação. Ver docs/funcionalidades/lara-ia.md.
      *
      * `history_ttl_hours` acompanha a expiração do histórico do lado da IA (24h
      * de inatividade). Não confundir com a retenção do nosso banco
@@ -68,7 +76,7 @@ return [
     'lara' => [
         'base_url'          => env('LARA_BASE_URL'),
         'enabled'           => env('LARA_ENABLED', false),
-        'timeout'           => (int) env('LARA_TIMEOUT', 25),
+        'timeout'           => (int) env('LARA_TIMEOUT', 60),
         'reset_timeout'     => (int) env('LARA_RESET_TIMEOUT', 10),
         'health_timeout'    => (int) env('LARA_HEALTH_TIMEOUT', 3),
         'health_ttl'        => (int) env('LARA_HEALTH_TTL', 30),

@@ -460,6 +460,8 @@
           <h2 class="title">Local ou evento</h2>
           <p class="subtitle">Onde o serviço foi prestado</p>
           <input type="text" class="txt-input" id="locInput" placeholder="Ex.: Confraternização — Salão Nobre" style="margin-top:20px" autocomplete="off">
+          <label class="subtitle" style="display:block;margin-top:22px">Descrição / justificativa <span style="opacity:.6">(opcional)</span></label>
+          <textarea class="txt-input" id="descInput" rows="3" maxlength="2000" placeholder="Esclarecimentos sobre o serviço. Não vai ao contrato." style="margin-top:8px;resize:none" autocomplete="off"></textarea>
         </div>
       </div>
       <div class="screen-foot">
@@ -851,7 +853,7 @@
   /* ---------- Novo contrato ---------- */
   let nstep=0;
   async function startNovo(){
-    S.draft={ day:null, dayIso:'', start:'', end:'', fn:null, loc:'' };
+    S.draft={ day:null, dayIso:'', start:'', end:'', fn:null, loc:'', description:'' };
     if(!S.functions.length){ try{ const r=await api('GET','/kiosk/functions'); if(r.ok) S.functions=r.data; }catch(e){ if(e.handled) return; } }
     nstep=0; showStep(); go('s-novo');
   }
@@ -898,9 +900,10 @@
       b.innerHTML=`<span>${esc(f.name)}</span><span class="price">${brl(f.price)}/15min</span>`;
       b.addEventListener('click', ()=>{ S.draft.fn=f; renderFnList(); validateStep(); }); c.appendChild(b); }); }
   $('#locInput').addEventListener('input', ()=>{ S.draft.loc=$('#locInput').value; validateStep(); });
+  $('#descInput').addEventListener('input', ()=>{ S.draft.description=$('#descInput').value; });
 
   $('#novoNext').addEventListener('click', ()=>{
-    if(nstep<4){ nstep++; if(nstep===3) renderFnList(); if(nstep===4) $('#locInput').value=S.draft.loc||''; showStep(); }
+    if(nstep<4){ nstep++; if(nstep===3) renderFnList(); if(nstep===4){ $('#locInput').value=S.draft.loc||''; $('#descInput').value=S.draft.description||''; } showStep(); }
     else showPrevia();
   });
   $('#novoBack').addEventListener('click', ()=>{ if(nstep===0) go('s-menu'); else { nstep--; showStep(); } });
@@ -912,6 +915,7 @@
     const endIso = r.crosses ? nextDayIso(d.dayIso) : d.dayIso;
     let h=`<div class="head"><div class="fn">${esc(d.fn.name)}</div><div class="fl">${esc(S.freelancer.name)}</div></div>`;
     h+=rrow('Local', esc(d.loc));
+    if(d.description && d.description.trim()) h+=rrow('Descrição', esc(d.description.trim()));
     h+=rrow('Início', `${brFromIso(d.dayIso)} · ${d.start}`);
     h+=rrow('Término', `${brFromIso(endIso)} · ${d.end}`+(r.crosses?' <span style="color:var(--warning)">(vira o dia)</span>':''));
     if(r.paidMin!==r.dur){ h+=rrow('Duração real', fmtDur(r.dur)); h+=rrow('Horas pagas', `${fmtDur(r.paidMin)} <span class="note">(${r.blocks} blocos)</span>`); }
@@ -919,7 +923,7 @@
     h+=`<div class="rrow total"><span class="k">Valor a pagar</span><span class="v">${brl(r.price)}</span></div>`;
     $('#previaReceipt').innerHTML=h; $('#previaWarn').innerHTML=''; go('s-previa');
   }
-  function servicePayload(){ const d=S.draft; return { freelancer_id:S.freelancer.id, function_freelancer_id:d.fn.id, location:d.loc.trim(), start_date:d.dayIso, start_time:d.start, end_time:d.end }; }
+  function servicePayload(){ const d=S.draft; return { freelancer_id:S.freelancer.id, function_freelancer_id:d.fn.id, location:d.loc.trim(), description:(d.description||'').trim()||null, start_date:d.dayIso, start_time:d.start, end_time:d.end }; }
   $('#registrarBtn').addEventListener('click', ()=> submitService(false));
   /**
    * Acima do limite de 7 dias o servidor devolve 409 e o contrato só é gravado

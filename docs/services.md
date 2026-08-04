@@ -126,7 +126,9 @@ banco e integrações externas. Os controllers delegam a essas classes.
 | `getCompanyDetails` | `getCompanyDetails($company)` | Carrega empresa com trabalhadores e regras. |
 | `storeWorker` | `storeWorker($data)` | Cria trabalhador (imagem em base64). |
 | `storeAccessRule` | `storeAccessRule($data)` | Cria regra de acesso com sincronização de dias da semana. |
-| `validateTryToAccess` | `validateTryToAccess($data)` | Valida a tentativa de acesso por CPF ou nome da empresa. |
+| `validateTryToAccess` | `validateTryToAccess($data)` | Valida a tentativa de acesso por CPF ou nome da empresa. Por CPF, consulta terceirizados **e** freelancers (contrato). |
+| `registerWorkerAccess` | `registerWorkerAccess(int $workerId)` | Valida e grava no histórico o acesso de um terceirizado já identificado. |
+| `registerFreelancerAccess` | `registerFreelancerAccess(int $freelancerId)` | Valida e grava no histórico o acesso de um freelancer — liberado pelo contrato vigente (30 min antes do turno até o término). |
 
 ---
 

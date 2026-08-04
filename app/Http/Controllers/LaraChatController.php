@@ -50,9 +50,11 @@ class LaraChatController extends Controller
         $user = $request->user();
         $timeout = (int) config('services.lara.timeout', 30);
 
-        // O max_execution_time padrão do PHP-FPM é 30s. Sem esta linha o PHP
-        // mataria a requisição junto com o timeout do cliente HTTP, e o
-        // funcionário veria um erro 500 em vez da frase de fallback.
+        // Rede de segurança para o max_execution_time. Em Linux ele conta só
+        // tempo de CPU — a espera pela IA não entra na conta, então na prática
+        // isto não é o que nos salva lá. Mas em Windows (dev) o tempo medido é
+        // real, e nada garante que o SAPI de produção não mude: a linha é
+        // barata e evita um 500 no lugar da frase de fallback.
         set_time_limit($timeout + 30);
 
         $lock = Cache::lock("lara:ask:{$user->id}", $timeout + 10);

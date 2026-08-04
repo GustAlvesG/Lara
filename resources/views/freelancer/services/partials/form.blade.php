@@ -92,6 +92,16 @@
                 placeholder="Ex: Festa de Confraternização - Salão Nobre"
                 class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed">
             @error('location')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Apenas o evento/local. Esclarecimentos vão no campo abaixo.</p>
+        </div>
+
+        <div class="md:col-span-2">
+            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Descrição / Justificativa</label>
+            <textarea name="description" rows="3" @disabled($locked)
+                placeholder="Observações e justificativas sobre o serviço (opcional)."
+                class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed">{{ old('description', $service?->description) }}</textarea>
+            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Campo informativo, não aparece no contrato nem altera o cálculo.</p>
+            @error('description')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
         </div>
 
         <div>

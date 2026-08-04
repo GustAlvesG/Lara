@@ -246,7 +246,9 @@ Depende de `CompanyService`.
 |--------|-----------|-----------|------|
 | `create` | `create(...)` | Formulário de regra de acesso. → View | `GET /company/{company}/rules/create` |
 | `store` | `store(StoreCompanyAccessRulesRequest $request, ...)` | Cria regra de acesso (dias da semana). → Redirect | `POST /company/{company}/rules` |
-| `validateCompanyAccess` | `validateCompanyAccess(Request $request)` | Valida tentativa de acesso de empresa (por CPF ou nome). → JSON | `POST /api/company-access/validate-access` |
+| `validateCompanyAccess` | `validateCompanyAccess(Request $request)` | Valida tentativa de acesso (por CPF — terceirizado e/ou freelancer — ou nome da empresa). → JSON | `POST /api/company-access/validate-access` |
+| `registerWorkerAccess` | `registerWorkerAccess(Request $request)` | Grava o acesso de um terceirizado (`worker_id`). → JSON | `POST /api/company-access/register-worker-access` |
+| `registerFreelancerAccess` | `registerFreelancerAccess(Request $request)` | Grava o acesso de um freelancer (`freelancer_id`), validado pelo contrato. → JSON | `POST /api/company-access/register-freelancer-access` |
 
 ---
 

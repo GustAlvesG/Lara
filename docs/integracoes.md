@@ -112,8 +112,8 @@ Base externa para sócios, acessos físicos e visitantes. Duas conexões em `con
 - **Autenticação:** nenhuma — o endpoint é protegido só pela rede (a porta 3000 da VM da IA
   aceita apenas o IP do portal). Por isso `LARA_BASE_URL` mora no `.env` do servidor e não no
   repositório.
-- **Timeout:** 25s, sem retry. O serviço da IA desiste sozinho em 22s; os 3s de folga cobrem
-  só a rede.
+- **Timeout:** `LARA_TIMEOUT` (60s), sem retry. O serviço da IA desiste sozinho em 22s; a folga
+  cobre a rede. Acima de ~50s é preciso subir também o `fastcgi_read_timeout` do nginx.
 - **`transferir: true`** é fallback de sistema da IA (timeout, limite de 3 chamadas simultâneas
   ou erro do modelo) e vira `status = fallback`. Com `false`, é resposta de negócio e vira `ok`.
 - **Indisponibilidade:** nunca propaga exceção; devolve a frase de `LARA_FALLBACK_MESSAGE`

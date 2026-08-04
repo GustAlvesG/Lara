@@ -20,7 +20,7 @@ logado") para permitir liberar o chat aos poucos.
 |----------|--------|----------------|
 | `LARA_ENABLED` | `false` | Liga/desliga o chat sem deploy. |
 | `LARA_BASE_URL` | — | `http://<ip-da-vm>:3000`. **Vazio = chat desativado.** |
-| `LARA_TIMEOUT` | `25` | Segundos de espera pela resposta. |
+| `LARA_TIMEOUT` | `60` | Segundos de espera pela resposta. |
 | `LARA_RESET_TIMEOUT` | `10` | Segundos de espera do "Nova conversa". |
 | `LARA_HEALTH_TIMEOUT` | `3` | Segundos de espera do health check. |
 | `LARA_HEALTH_TTL` | `30` | Segundos de cache do health check. |
@@ -35,12 +35,44 @@ Os três limites são escalonados de propósito, do mais interno para o mais ext
 | Camada | Limite | O que faz ao estourar |
 |--------|--------|-----------------------|
 | Serviço da IA | 22s | Devolve o fallback dele com `transferir: true` |
-| Portal (`LARA_TIMEOUT`) | 25s | Devolve o fallback com `status = erro` |
-| Navegador | 35s | Mostra "A Lara demorou demais para responder" |
+| Portal (`LARA_TIMEOUT`) | 60s | Devolve o fallback com `status = erro` |
+| Trava por usuário | `LARA_TIMEOUT + 10` = 70s | Libera a próxima pergunta |
+| Navegador | `LARA_TIMEOUT + 10` = 70s | Mostra "A Lara demorou demais para responder" |
+| PHP (`set_time_limit`) | `LARA_TIMEOUT + 30` = 90s | Erro 500 (não deve acontecer) |
 
-Cada camada dá folga para a de dentro responder primeiro. Encurtar a do portal
-para menos que os 22s da IA faria o portal desistir de respostas que estavam a
-caminho — e o modelo continuaria gerando texto que ninguém leria.
+**Só `LARA_TIMEOUT` se ajusta** — os outros quatro derivam dele no código.
+Encurtá-lo para menos que o teto da IA faria o portal desistir de respostas que
+estavam a caminho, e o modelo continuaria gerando texto que ninguém leria.
+
+Latência medida contra a VM real (modelo aquecido, 2026-08-03): `/health` em
+0,19s, perguntas em 4,2s e 8,9s. Os 60s são folga para o pior caso — se a média
+observada em `lara_messages` subir para perto disso, o problema é capacidade da
+VM, não configuração daqui.
+
+Sobre o `set_time_limit`: em Linux o `max_execution_time` conta apenas tempo de
+CPU, então a espera pela IA não entra na conta e ele não é o que segura a
+requisição em produção. A chamada fica porque em Windows (ambiente de dev) o
+tempo medido é real, e porque é barata.
+
+> **Acima de ~50s, conferir o Apache.** O deploy roda em Apache
+> (`deploy_hml.sh`). Se ele conversa com o PHP por proxy (php-fpm) ou fcgid, o
+> timeout dele corta por fora e devolve **504 antes** de qualquer limite da
+> aplicação — o funcionário veria erro de servidor em vez da frase de fallback.
+>
+> Descobrir qual é o caso, no servidor:
+>
+> ```bash
+> apache2ctl -M | grep -E 'php|proxy_fcgi|fcgid'
+> ```
+>
+> | Módulo | Diretiva | Padrão | Ação com `LARA_TIMEOUT=60` |
+> |--------|----------|--------|-----------------------------|
+> | `php_module` (mod_php) | — | — | Nada a fazer |
+> | `proxy_fcgi_module` | `ProxyTimeout` (herda de `Timeout`) | 60s | Subir para 90s |
+> | `fcgid_module` | `FcgidIOTimeout` | 40s | Subir para 90s |
+>
+> Conferir também `request_terminate_timeout` no pool do php-fpm (padrão `0`,
+> desligado — mas algumas distribuições preenchem).
 
 O endereço da VM **não vai para o repositório** — a segurança do endpoint é de rede (só o IP
 do portal alcança a porta 3000) e ele não exige token.
@@ -118,7 +150,7 @@ taxa de erro real ficaria invisível.
 | Pergunta vazia, curta ou longa demais | Mensagem de validação (HTTP 422) |
 | `LARA_ENABLED=false` ou sem `LARA_BASE_URL` | "A Lara está desativada no momento" |
 | Health check falhou | "A Lara não está respondendo agora — o servidor dela pode estar reiniciando" |
-| Demora acima de 35s no navegador | "A Lara demorou demais para responder…" |
+| Demora acima de `LARA_TIMEOUT + 10s` | "A Lara demorou demais para responder…" |
 
 ## Como testar sem a tela
 
@@ -140,7 +172,13 @@ máquina, a liberação de rede precisa acompanhar.
 2. `php artisan migrate` e `php artisan db:seed --class=RolesAndPermissionsSeeder`
    (idempotente — só acrescenta a permissão nova).
 3. Conceder `use lara chat` a 2–3 pessoas.
-4. Preencher `LARA_BASE_URL`, ligar `LARA_ENABLED=true`, `php artisan config:clear`.
+4. Preencher `LARA_BASE_URL`, ligar `LARA_ENABLED=true` e rodar
+   **`php artisan config:cache`**.
+
+> O `deploy_hml.sh` roda `config:cache`, então o `.env` fica congelado no cache:
+> editar uma variável sem recachear não muda nada. Pelo mesmo motivo, o valor
+> em `config/services.php` é só o padrão de quem **não** tem a variável no
+> `.env` — quem tem, o `.env` manda.
 5. Acompanhar `lara_messages` antes de abrir para todos:
 
 ```sql

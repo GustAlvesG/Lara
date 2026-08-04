@@ -98,7 +98,7 @@ class CompanyAccessRulesController extends Controller
     {
         $type = $request->input('type') === 'app' ? 'app' : 'all';
 
-        $query = CompanyAccessLog::with('company', 'worker', 'appDriver', 'uberRequest')->latest();
+        $query = CompanyAccessLog::with('company', 'worker', 'appDriver', 'uberRequest', 'freelancer', 'freelancerService')->latest();
 
         // Aba separada: apenas acessos de carros de aplicativo (Uber e motoristas de app).
         if ($type === 'app') {
@@ -231,6 +231,19 @@ class CompanyAccessRulesController extends Controller
         $request->validate(['worker_id' => 'required|integer|exists:company_workers,id']);
 
         $result = $this->companyService->registerWorkerAccess($request->integer('worker_id'));
+
+        return response()->json($result, $result['found'] ? 200 : 404);
+    }
+
+    /**
+     * Contraparte do registerWorkerAccess para o freelancer: o monitor já sabe
+     * quem é (veio da consulta por CPF) e manda gravar o acesso daquela pessoa.
+     */
+    public function registerFreelancerAccess(Request $request)
+    {
+        $request->validate(['freelancer_id' => 'required|integer|exists:freelancers,id']);
+
+        $result = $this->companyService->registerFreelancerAccess($request->integer('freelancer_id'));
 
         return response()->json($result, $result['found'] ? 200 : 404);
     }
