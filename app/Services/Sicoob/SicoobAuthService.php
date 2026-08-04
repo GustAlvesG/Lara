@@ -64,19 +64,27 @@ class SicoobAuthService
     }
 
     /**
-     * Um cliente HTTP já com o certificado, o timeout e os headers que TODA
-     * chamada às APIs do Sicoob precisa: `Authorization` e `client_id`.
+     * Um cliente HTTP já com o certificado, o timeout e os headers de
+     * autenticação: `Authorization` e, quando aplicável, `client_id`.
+     *
+     * `$comClientId` existe porque as APIs não são uniformes: a especificação da
+     * Conta Corrente declara o header `client_id` como obrigatório, enquanto a
+     * de Pix Pagamentos não o menciona — só OAuth sobre mTLS. Mandar o header
+     * onde ele não é esperado pode ser lido pelo gateway como credencial
+     * inválida para aquele produto.
      *
      * @param  array<int, string>  $scopes
      *
      * @throws SicoobAuthenticationException
      * @throws SicoobCertificateException
      */
-    public function client(array $scopes): PendingRequest
+    public function client(array $scopes, bool $comClientId = true): PendingRequest
     {
-        return $this->baseClient()
-            ->withToken($this->token($scopes))
-            ->withHeaders(['client_id' => (string) config('sicoob.client_id')]);
+        $client = $this->baseClient()->withToken($this->token($scopes));
+
+        return $comClientId
+            ? $client->withHeaders(['client_id' => (string) config('sicoob.client_id')])
+            : $client;
     }
 
     /**

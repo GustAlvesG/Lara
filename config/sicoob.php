@@ -139,6 +139,20 @@ return [
         'max_amount' => (float) env('SICOOB_PIX_MAX_AMOUNT', 5000),
 
         /*
+        | Enviar o header `client_id` nas chamadas de Pix Pagamentos.
+        |
+        | A especificação da Conta Corrente declara esse header como obrigatório;
+        | a de Pix Pagamentos não o menciona — ela só declara OAuth sobre mTLS.
+        | Quando o gateway responde 401 "Invalid client id or secret" numa conta
+        | em que a Conta Corrente funciona com a MESMA credencial, este é o
+        | primeiro parafuso a mexer.
+        |
+        | Padrão `true` porque é o comportamento uniforme das APIs do Sicoob;
+        | desligue apenas se o teste mostrar que é isso.
+        */
+        'enviar_client_id' => (bool) env('SICOOB_PIX_ENVIAR_CLIENT_ID', true),
+
+        /*
         | Exige que o CPF/CNPJ dono da chave no DICT seja o mesmo CPF do
         | freelancer cadastrado. É o que impede pagar a pessoa errada quando a
         | chave PIX do cadastro está errada ou foi trocada de dono. Só desligue

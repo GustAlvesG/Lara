@@ -25,7 +25,8 @@ use Throwable;
 class TestSicoobConnection extends Command
 {
     protected $signature = 'sicoob:testar
-                            {--chave= : Chave Pix para consultar no DICT (opcional, não move dinheiro)}';
+                            {--chave= : Chave Pix para consultar no DICT (opcional, não move dinheiro)}
+                            {--sem-client-id : Testa o Pix SEM o header client_id (a spec do Pix Pagamentos não o declara)}';
 
     protected $description = 'Verifica certificado, token, saldo e consulta de chave no DICT do Sicoob. Não transfere dinheiro.';
 
@@ -37,6 +38,12 @@ class TestSicoobConnection extends Command
         $this->info('Sicoob — pré-checagem da integração');
         $this->line('Nenhum pagamento é efetivado por este comando.');
         $this->newLine();
+
+        if ($this->option('sem-client-id')) {
+            config(['sicoob.pix.enviar_client_id' => false]);
+            $this->comment('Modo de teste: header client_id OMITIDO nas chamadas de Pix.');
+            $this->newLine();
+        }
 
         $ok = $this->mostrarConfiguracao()
             && $this->conferirCertificados();
@@ -90,6 +97,7 @@ class TestSicoobConnection extends Command
             ['Teto por transferência', 'R$ ' . number_format((float) config('sicoob.pix.max_amount'), 2, ',', '.')],
             ['Valida titular da chave', var_export((bool) config('sicoob.pix.validar_titular'), true)],
             ['client_id', $this->mascarar((string) config('sicoob.client_id'))],
+            ['Header client_id no Pix', var_export((bool) config('sicoob.pix.enviar_client_id', true), true)],
             ['Conta corrente', config('sicoob.conta_corrente.numero_conta') ?: '(não configurada)'],
         ]);
 

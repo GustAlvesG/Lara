@@ -282,7 +282,7 @@ class SicoobPixPagamentoService
     {
         try {
             $response = $this->auth
-                ->client(config('sicoob.scopes.pix'))
+                ->client(config('sicoob.scopes.pix'), (bool) config('sicoob.pix.enviar_client_id', true))
                 ->get($this->url('/pagamentos/' . $endToEndId));
         } catch (ConnectionException $e) {
             throw new SicoobException(
@@ -655,7 +655,7 @@ class SicoobPixPagamentoService
     protected function post(string $path, array $body): Response
     {
         return $this->auth
-            ->client(config('sicoob.scopes.pix'))
+            ->client(config('sicoob.scopes.pix'), (bool) config('sicoob.pix.enviar_client_id', true))
             ->post($this->url($path), $body);
     }
 
