@@ -154,10 +154,81 @@ class TestSicoobConnection extends Command
         }
 
         // Só o tamanho: o token é credencial e não vai para a tela nem para o log.
-        $this->line('<info>OK</info>  Token obtido (' . strlen($token) . ' caracteres), escopos: '
-            . implode(' ', config('sicoob.scopes.pix')));
+        $this->line('<info>OK</info>  Token obtido (' . strlen($token) . ' caracteres)');
 
-        return true;
+        return $this->conferirEscopos($token);
+    }
+
+    /**
+     * Compara os escopos PEDIDOS com os efetivamente CONCEDIDOS no token.
+     *
+     * O SSO do Sicoob emite o token mesmo quando o app não tem algum dos
+     * escopos pedidos — ele simplesmente devolve o subconjunto que o app possui,
+     * sem erro. O resultado é um 401 depois, na API, sem nenhuma pista de que a
+     * causa foi um escopo ausente lá atrás. Abrir o token aqui transforma esse
+     * 401 misterioso numa resposta objetiva.
+     */
+    private function conferirEscopos(string $token): bool
+    {
+        $pedidos = (array) config('sicoob.scopes.pix');
+        $concedidos = $this->escoposDoToken($token);
+
+        if ($concedidos === null) {
+            $this->comment('  Não foi possível ler os escopos do token (formato inesperado).');
+            $this->line('  Escopos pedidos: ' . implode(' ', $pedidos));
+
+            return true;
+        }
+
+        $faltando = array_diff($pedidos, $concedidos);
+
+        if ($faltando === []) {
+            $this->line('<info>OK</info>  Escopos concedidos: ' . implode(' ', $pedidos));
+
+            return true;
+        }
+
+        $this->error('Escopos NÃO concedidos pelo Sicoob: ' . implode(', ', $faltando));
+        $this->line('  Pedidos:    ' . implode(' ', $pedidos));
+        $this->line('  Concedidos: ' . (implode(' ', $concedidos) ?: '(nenhum)'));
+        $this->newLine();
+        $this->line('  O token foi emitido mesmo assim — por isso a falha só aparece como 401 na API.');
+        $this->line('  Resolve-se no portal/cooperativa, não no código: o produto precisa estar');
+        $this->line('  contratado e habilitado para PRODUÇÃO no app.');
+
+        return false;
+    }
+
+    /**
+     * Escopos dentro do access token (claim `scope`).
+     *
+     * Decodifica o payload do JWT sem validar assinatura — aqui não se está
+     * confiando no token, apenas lendo o que o próprio emissor declarou. Nada
+     * do conteúdo é impresso além da lista de escopos.
+     *
+     * @return array<int, string>|null  null quando o token não é um JWT legível
+     */
+    private function escoposDoToken(string $token): ?array
+    {
+        $partes = explode('.', $token);
+
+        if (count($partes) < 2) {
+            return null;
+        }
+
+        $payload = base64_decode(strtr($partes[1], '-_', '+/'), false);
+
+        if ($payload === false) {
+            return null;
+        }
+
+        $dados = json_decode($payload, true);
+
+        if (!is_array($dados) || !isset($dados['scope'])) {
+            return null;
+        }
+
+        return array_values(array_filter(explode(' ', (string) $dados['scope'])));
     }
 
     private function testarSaldo(SicoobContaCorrenteService $contaCorrente): void
