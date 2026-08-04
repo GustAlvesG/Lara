@@ -317,9 +317,10 @@ Route::middleware('auth')->group(function () {
     // Avisos e Lembretes
     Route::resource('avisos', AvisoController::class);
 
-    // Financeiro dos freelancers — permissão própria, e declarado antes do grupo
-    // abaixo para /freelancer-services/financeiro não cair na rota /{freelancerService}.
-    Route::group(['middleware' => 'permission:manage freelancer payments'], function () {
+    // Financeiro dos freelancers — regra própria (Gate de setor, não permissão
+    // do Spatie: ver AppServiceProvider), e declarado antes do grupo abaixo para
+    // /freelancer-services/financeiro não cair na rota /{freelancerService}.
+    Route::group(['middleware' => 'can:manage-freelancer-payments'], function () {
         Route::prefix('freelancer-services')->group(function () {
             Route::get('/financeiro', [FreelancerFinanceController::class, 'index'])->name('freelancer-services.finance');
             // Uma rota só: a baixa individual manda `only`, a em lote manda `services[]`.

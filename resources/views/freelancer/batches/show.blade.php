@@ -31,6 +31,13 @@
             </span>
         </div>
 
+        {{-- A tela do lote era um beco sem saída: com as abas dá para voltar a
+             qualquer frente sem passar pelo menu. O gerente chegou aqui pela
+             Aprovação; o coordenador, pelos Lotes. --}}
+        @include('freelancer.services.partials.tabs', [
+            'activeTab' => $isManager ? 'freelancer-batches.queue' : 'freelancer-batches.index',
+        ])
+
         @include('partials.alerts')
 
         @if($errors->any())

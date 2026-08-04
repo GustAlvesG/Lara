@@ -346,7 +346,8 @@ Na tela do contrato, o **nome do freelancer é um link para o cadastro dele** �
 corrige um dado que o contrato apenas reproduz.
 
 ### Financeiro (baixa de pagamento)
-A tela **Serviços / Contratos** tem duas abas: *Contratos* e *Financeiro*.
+A tela **Serviços / Contratos** tem quatro abas — *Contratos*, *Lotes*, *Aprovação* e *Financeiro* —,
+descritas em *Barra de abas* logo abaixo.
 
 - A aba Financeiro (`/freelancer-services/financeiro`) lista **apenas os contratos assinados pelas
   duas partes e aprovados pela gerência E pela diretoria**, que não foram cancelados. Contratos
@@ -364,6 +365,26 @@ A tela **Serviços / Contratos** tem duas abas: *Contratos* e *Financeiro*.
   botão de baixa, mostrando só os pendentes — o formato de folha de pagamento. A preferência fica
   guardada no navegador.
 - A baixa também aparece na tela do contrato, junto às assinaturas.
+
+### Barra de abas (Contratos · Lotes · Aprovação · Financeiro)
+As quatro frentes do fluxo dividem a mesma barra de abas
+(`resources/views/freelancer/services/partials/tabs.blade.php`), presente em todas elas e também na
+tela de um lote — de qualquer uma se chega a qualquer outra, sem voltar ao menu.
+
+**A aba só aparece para quem a rota deixa entrar** — a condição do Blade é a mesma do middleware,
+para que nenhuma aba leve a um 403:
+
+| Aba | Rota | Quem vê |
+|---|---|---|
+| Contratos | `freelancer-services.index` | `manage freelancers` |
+| Lotes | `freelancer-batches.index` | `manage freelancers` **e** coordenador de algum setor |
+| Aprovação | `freelancer-batches.queue` | `manage freelancers` **e** coordenador do setor `Gerência` |
+| Financeiro | `freelancer-services.finance` | membro do setor `Contabilidade` **ou** `Gerência` |
+
+Consequências práticas: quem só está na Contabilidade navega no Financeiro sem ver uma aba
+Contratos quebrada; quem tem **só** `manage freelancers` e não coordena nada fica com uma aba única
+e a barra some. A tela de um lote destaca *Aprovação* para o gerente e *Lotes* para o coordenador
+que o montou (`$activeTab`).
 
 ### Lote de aprovação (gerência e diretoria)
 Depois das duas assinaturas, o contrato **não vai direto para o financeiro**: ele precisa passar
@@ -470,9 +491,18 @@ Dois modos, decididos pelo que o usuário é — quem acumula os dois papéis es
 
 ### Permissões
 - Todo o painel exige a permissão `manage freelancers`.
-- A aba Financeiro e a baixa de pagamento exigem a permissão própria
-  `manage freelancer payments` (criada apenas para o papel `admin`; os demais recebem pela tela de
-  permissões). Quem tem só essa permissão enxerga no menu apenas a aba Financeiro.
+- **A aba Financeiro e a baixa de pagamento são vínculo de setor, não permissão:** acessa quem
+  estiver no setor **`Contabilidade`** ou **`Gerência`**, em **qualquer papel** — colaborador ou
+  coordenador. É o Gate `manage-freelancer-payments` (`AppServiceProvider`), apoiado em
+  `User::canManageFreelancerPayments()`.
+  - A role `admin` **não** dá acesso. Como na aprovação do lote, administrar o sistema e responder
+    pelo dinheiro são coisas separadas — entra no setor quem de fato paga.
+  - Não há mais a permissão `manage freelancer payments`; a migration
+    `drop_manage_freelancer_payments_permission` a apagou, para não sobrar na tela de permissões
+    uma linha que não concede nada. O vínculo é feito na tela de **Setores**.
+  - Enquanto ninguém estiver vinculado a Contabilidade nem a Gerência, **o Financeiro fica sem
+    dono**: a aba não aparece para ninguém e nenhuma baixa é possível.
+  - Quem está só nesses setores, sem `manage freelancers`, enxerga no menu apenas o Financeiro.
 - Cancelar **pelo painel** exige, além disso, ser **coordenador de algum setor**
   (`user_sector.role = 'coordinator'`) — verificado por `User::isCoordinator()`.
 - Assinar como coordenador existe **só no kiosk** e é mais restrito: só o coordenador do setor

@@ -30,6 +30,12 @@ class User extends Authenticatable
      */
     public const MANAGEMENT_SECTOR = 'Gerência';
 
+    /**
+     * Setor que responde pelo financeiro dos freelancers.
+     * Criado pela migration `create_contabilidade_sector`.
+     */
+    public const ACCOUNTING_SECTOR = 'Contabilidade';
+
     protected $fillable = [
         'name',
         'email',
@@ -52,6 +58,9 @@ class User extends Authenticatable
         'pin',
         'remember_token',
     ];
+
+    /** Cache da requisição para canManageFreelancerPayments(). */
+    private ?bool $freelancerPaymentsAccess = null;
 
     /**
      * Get the attributes that should be cast.
@@ -154,6 +163,37 @@ class User extends Authenticatable
     public function isManagementCoordinator(): bool
     {
         return $this->isCoordinatorOfSectorNamed(self::MANAGEMENT_SECTOR);
+    }
+
+    /**
+     * Vinculado a um setor pelo nome, **em qualquer papel** — colaborador ou
+     * coordenador. Diferente de isCoordinatorOfSectorNamed(), que só enxerga
+     * quem responde pelo setor.
+     */
+    public function belongsToSectorNamed(string $name): bool
+    {
+        return $this->sectors()
+            ->whereRaw('LOWER(sectors.name) = ?', [mb_strtolower($name)])
+            ->exists();
+    }
+
+    /**
+     * Financeiro dos freelancers (aba Financeiro e baixa de pagamento): quem
+     * está no setor **Contabilidade** ou no setor **Gerência**, em qualquer
+     * papel.
+     *
+     * Como a aprovação do lote, é atribuição de setor e não nível de acesso —
+     * a role `admin` não vale aqui. Quem administra o sistema não paga
+     * freelancer por consequência disso; entra no setor quem de fato paga.
+     *
+     * Memorizado por instância porque a barra de abas, o menu e o middleware
+     * perguntam a mesma coisa na mesma requisição. Cada requisição reconfere,
+     * então tirar o vínculo no painel corta o acesso na hora.
+     */
+    public function canManageFreelancerPayments(): bool
+    {
+        return $this->freelancerPaymentsAccess ??= $this->belongsToSectorNamed(self::ACCOUNTING_SECTOR)
+            || $this->belongsToSectorNamed(self::MANAGEMENT_SECTOR);
     }
 
     public function coordinatorSectors()

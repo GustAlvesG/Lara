@@ -13,7 +13,7 @@ class PayFreelancerServicesRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('manage freelancer payments') ?? false;
+        return $this->user()?->can('manage-freelancer-payments') ?? false;
     }
 
     /**

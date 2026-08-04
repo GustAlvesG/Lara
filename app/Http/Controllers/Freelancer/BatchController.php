@@ -191,6 +191,7 @@ class BatchController extends Controller
 
         return view('freelancer.batches.show', [
             'batch' => $batch,
+            'isManager' => $isManager,
             'canReview' => $isManager && $batch->canBeReviewed(),
             // A gerência é quem digita o PIN que o diretor ditou.
             'canRecordDirector' => $isManager && $batch->isAwaitingDirector(),

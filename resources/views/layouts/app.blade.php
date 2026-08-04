@@ -75,10 +75,11 @@
                 ],
             ];
 
-            // O financeiro tem permissão própria: quem só tem ela enxerga o menu
-            // Freelancers apenas com a aba Financeiro.
+            // O financeiro tem regra própria — vínculo com o setor Contabilidade
+            // ou Gerência: quem só tem isso enxerga o menu Freelancers apenas
+            // com a aba Financeiro.
             $canFreelancers = auth()->user()?->can('manage freelancers');
-            $canFreelancerPayments = auth()->user()?->can('manage freelancer payments');
+            $canFreelancerPayments = auth()->user()?->can('manage-freelancer-payments');
 
             if ($canFreelancers || $canFreelancerPayments) {
                 $freelancerChildren = [];

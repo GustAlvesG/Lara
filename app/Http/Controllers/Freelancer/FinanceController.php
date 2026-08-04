@@ -9,8 +9,8 @@ use App\Services\FreelancerService as FreelancerServiceManager;
 
 /**
  * Aba Financeiro de Serviços / Contratos: lista os contratos assinados pelas
- * duas partes e permite dar baixa de pagamento. Acesso restrito à permissão
- * "manage freelancer payments".
+ * duas partes e permite dar baixa de pagamento. Acesso restrito a quem está no
+ * setor Contabilidade ou Gerência — Gate "manage-freelancer-payments".
  */
 class FinanceController extends Controller
 {
