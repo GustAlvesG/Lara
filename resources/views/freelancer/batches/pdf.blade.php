@@ -68,7 +68,7 @@
                 <td>{{ $service->freelancer->name ?? '—' }}</td>
                 <td>{{ preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', str_pad((string) ($service->freelancer->cpf ?? ''), 11, '0', STR_PAD_LEFT)) }}</td>
                 <td>{{ $service->functionFreelancer->name ?? '—' }}</td>
-                <td>{{ $service->location }}</td>
+                <td>{{ $service->location }}@if(filled($service->description))<br><span style="color:#777;font-size:9px;">{{ $service->description }}</span>@endif</td>
                 <td>{{ $service->formattedPeriod() }}<br><span style="color:#777">{{ $service->formattedDuration() }}</span></td>
                 <td class="num">R$ {{ number_format($service->price, 2, ',', '.') }}</td>
             </tr>

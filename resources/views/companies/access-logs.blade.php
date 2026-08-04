@@ -182,6 +182,9 @@
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 rounded-full text-[11px] font-black uppercase">Carro de Aplicativo</span>
                                     @elseif($log->app_driver_id)
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded-full text-[11px] font-black uppercase">Motorista de App</span>
+                                    @elseif($log->freelancer_id)
+                                        {{-- Freelancer não pertence a empresa parceira: quem o autoriza é o contrato. --}}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 rounded-full text-[11px] font-black uppercase">Freelancer</span>
                                     @else
                                         <span class="text-gray-400 dark:text-gray-500">—</span>
                                     @endif
@@ -225,6 +228,27 @@
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13l1.5-4.5A2 2 0 016.4 7h11.2a2 2 0 011.9 1.5L21 13m-18 0v5a1 1 0 001 1h1a1 1 0 001-1v-1h12v1a1 1 0 001 1h1a1 1 0 001-1v-5m-18 0h18M7 16h.01M17 16h.01"/></svg>
                                             </div>
                                             <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $log->appDriver->name }}</span>
+                                        </div>
+                                    @elseif($log->freelancer)
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 flex items-center justify-center text-xs font-black shrink-0">
+                                                {{ strtoupper(substr($log->freelancer->name, 0, 1)) }}
+                                            </div>
+                                            <div>
+                                                <a href="{{ route('freelancers.show', $log->freelancer_id) }}"
+                                                   class="font-semibold text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline">
+                                                    {{ $log->freelancer->name }}
+                                                </a>
+                                                {{-- O contrato que liberou a entrada — ausente quando o acesso foi negado. --}}
+                                                @if($log->freelancerService)
+                                                    <p class="text-xs text-gray-400 dark:text-gray-500">
+                                                        {{ $log->freelancerService->formattedPeriod() }}
+                                                        @if($log->freelancerService->location)
+                                                            &middot; {{ $log->freelancerService->location }}
+                                                        @endif
+                                                    </p>
+                                                @endif
+                                            </div>
                                         </div>
                                     @else
                                         <span class="text-gray-400 dark:text-gray-500">—</span>
@@ -270,6 +294,8 @@
                                             'app_driver_access'   => 'Motorista de aplicativo',
                                             'uber_access_granted' => 'Acesso de app liberado',
                                             'uber_not_found'      => 'App não encontrado ou expirado',
+                                            'freelancer_access_granted' => 'Liberado pelo contrato de freelancer',
+                                            'freelancer_no_service'     => 'Freelancer sem serviço no horário',
                                         ];
                                     @endphp
                                     <span class="text-xs text-gray-500 dark:text-gray-400">{{ $reasonMap[$log->reason] ?? $log->reason ?? '—' }}</span>

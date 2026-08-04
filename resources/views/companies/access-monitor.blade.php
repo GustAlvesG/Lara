@@ -19,7 +19,7 @@
                 </a>
                 <div>
                     <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white">Monitor de Acesso</h1>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Consulte ou registre acessos de Externos terceirizados.</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Consulte ou registre acessos de Externos terceirizados e freelancers.</p>
                 </div>
             </div>
             <a href="{{ route('company.access.logs') }}"
@@ -30,7 +30,7 @@
 
         <!-- Input Card -->
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6 mb-6">
-            <label class="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">CPF do funcionário ou nome da empresa</label>
+            <label class="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">CPF do funcionário/freelancer ou nome da empresa</label>
             <div class="flex gap-3">
                 <input type="text" id="target-input"
                     placeholder="Ex: 123.456.789-09  ou  Acme Serviços"
@@ -49,6 +49,9 @@
             <p class="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
                 <span class="font-semibold">Consultar</span> apenas valida sem gravar.
                 <span class="font-semibold ml-2">Registrar Acesso</span> valida e grava no histórico.
+            </p>
+            <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                O CPF também consulta o contrato do freelancer: ele entra a partir de 30 min antes do início do serviço, até o término.
             </p>
         </div>
 
@@ -70,6 +73,27 @@
 
     <script>
         const sessionLog = [];
+
+        // Linhas do último resultado renderizado. Os botões "Registrar" mandam
+        // o índice daqui, e não só o id: terceirizado e freelancer são tabelas
+        // diferentes e cada um tem o seu endpoint de registro.
+        let currentEntries = [];
+
+        // Cada tipo de resultado grava por um caminho próprio.
+        const REGISTER_ENDPOINT = {
+            worker:     { url: '/api/company-access/register-worker-access',     key: 'worker_id' },
+            freelancer: { url: '/api/company-access/register-freelancer-access', key: 'freelancer_id' },
+        };
+
+        function registerRequest(entry) {
+            const endpoint = REGISTER_ENDPOINT[entry.type ?? 'worker'] ?? REGISTER_ENDPOINT.worker;
+
+            return fetch(endpoint.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ [endpoint.key]: entry.id })
+            });
+        }
 
         document.getElementById('target-input').addEventListener('keydown', function (e) {
             if (e.key === 'Enter') checkAccess(true);
@@ -98,12 +122,8 @@
 
                 if (register && data.found) {
                     if (data.workers.length === 1) {
-                        // Single worker (CPF search) → register immediately
-                        await fetch('/api/company-access/register-worker-access', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                            body: JSON.stringify({ worker_id: data.workers[0].id })
-                        });
+                        // Single result (CPF search) → register immediately
+                        await registerRequest(data.workers[0]);
                         renderResult(data, 'registered', target);
                         sessionLog.unshift({ target, data, register: true, time: new Date() });
                     } else {
@@ -128,24 +148,23 @@
             }
         }
 
-        // Called by per-worker "Registrar" buttons
-        async function registerWorker(workerId, workerName, buttonEl) {
+        // Called by per-row "Registrar" buttons
+        async function registerEntry(index, buttonEl) {
+            const entry = currentEntries[index];
+            if (!entry) return;
+
             buttonEl.disabled = true;
             buttonEl.textContent = '...';
 
             try {
-                const res  = await fetch('/api/company-access/register-worker-access', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({ worker_id: workerId })
-                });
+                const res  = await registerRequest(entry);
                 const data = await res.json();
 
                 if (data.found) {
                     const allowed = data.workers[0].allowed;
                     buttonEl.textContent  = allowed ? '✓ Registrado' : '✗ Registrado';
                     buttonEl.className    = `px-3 py-1.5 rounded-full text-xs font-black ${allowed ? 'bg-green-600 text-white' : 'bg-red-600 text-white'} cursor-default`;
-                    sessionLog.unshift({ target: workerName, data, register: true, time: new Date() });
+                    sessionLog.unshift({ target: entry.name, data, register: true, time: new Date() });
                     renderSessionLog();
                 }
             } catch {
@@ -156,10 +175,39 @@
 
         function reasonLabel(reason) {
             const map = {
-                worker_not_found:  'Funcionário não encontrado no sistema.',
+                worker_not_found:  'CPF não encontrado como terceirizado nem como freelancer.',
                 company_not_found: 'Empresa não encontrada no sistema.',
             };
             return map[reason] ?? reason ?? 'Não encontrado.';
+        }
+
+        /**
+         * Linha de detalhe abaixo do nome. O freelancer sempre se identifica
+         * como tal: um mesmo CPF pode voltar como terceirizado E como
+         * freelancer, e o cabeçalho só cabe um nome de empresa.
+         */
+        function entryDetail(w) {
+            if ((w.type ?? 'worker') !== 'freelancer') {
+                return '';
+            }
+
+            const tag = `<span class="text-[10px] font-black uppercase tracking-wide bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Freelancer</span>`;
+
+            if (!w.allowed) {
+                return `<div class="flex items-center gap-2 mt-1">${tag}
+                            <span class="text-xs text-gray-500">Sem serviço registrado para este horário.</span>
+                        </div>`;
+            }
+
+            const s = w.service ?? {};
+            const parts = [s.window ? `Entrada liberada ${escHtml(s.window)}` : null, s.period ? escHtml(s.period) : null]
+                .filter(Boolean).join(' &nbsp;·&nbsp; ');
+            const place = [s.function, s.location].filter(Boolean).map(escHtml).join(' &nbsp;·&nbsp; ');
+
+            return `<div class="flex items-center gap-2 mt-1">${tag}
+                        <span class="text-xs text-gray-500">${parts}</span>
+                    </div>
+                    ${place ? `<p class="text-xs text-gray-400 mt-0.5">${place}</p>` : ''}`;
         }
 
         // mode: 'registered' | 'pending' | 'consulta'
@@ -192,7 +240,9 @@
 
             const showPerWorkerBtn = (mode === 'pending');
 
-            const workersHtml = data.workers.map(w => {
+            currentEntries = data.workers;
+
+            const workersHtml = data.workers.map((w, index) => {
                 const avatar = w.image
                     ? `<img src="${escHtml(w.image)}" class="w-12 h-12 rounded-full object-cover border-2 ${w.allowed ? 'border-green-200' : 'border-red-200'} shrink-0">`
                     : `<div class="w-12 h-12 rounded-full ${w.allowed ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'} flex items-center justify-center font-black text-lg shrink-0">${escHtml(w.name.charAt(0).toUpperCase())}</div>`;
@@ -200,7 +250,7 @@
                 const statusBadge = `<span class="px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-wide ${w.allowed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${w.allowed ? '✓ Permitido' : '✗ Negado'}</span>`;
 
                 const registerBtn = showPerWorkerBtn
-                    ? `<button onclick="registerWorker(${w.id}, '${escHtml(w.name).replace(/'/g, "\\'")}', this)"
+                    ? `<button onclick="registerEntry(${index}, this)"
                             class="px-3 py-1.5 bg-indigo-600 text-white rounded-full text-xs font-black hover:bg-indigo-700 transition">
                            Registrar
                        </button>`
@@ -211,6 +261,7 @@
                         ${avatar}
                         <div class="flex-grow">
                             <p class="font-bold text-gray-900">${escHtml(w.name)}</p>
+                            ${entryDetail(w)}
                         </div>
                         ${statusBadge}
                         ${registerBtn}
@@ -229,7 +280,7 @@
                     <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                         <div>
                             <p class="font-black text-gray-900 text-lg">${escHtml(data.company)}</p>
-                            <p class="text-xs text-gray-400 mt-0.5">${new Date().toLocaleTimeString('pt-BR')} &nbsp;·&nbsp; ${data.workers.length} funcionário(s)</p>
+                            <p class="text-xs text-gray-400 mt-0.5">${new Date().toLocaleTimeString('pt-BR')} &nbsp;·&nbsp; ${data.workers.length} resultado(s)</p>
                         </div>
                         ${tagMap[mode] ?? ''}
                     </div>

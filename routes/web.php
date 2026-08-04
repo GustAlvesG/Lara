@@ -35,6 +35,7 @@ use App\Http\Controllers\Freelancer\ServiceController as FreelancerServiceWebCon
 use App\Http\Controllers\Freelancer\KioskController;
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\LaraChatController;
 use App\Http\Controllers\HomeAssistantController;
 use App\Http\Controllers\CardIssuerController;
 use App\Http\Controllers\CardTemplateController;
@@ -416,6 +417,17 @@ Route::middleware('auth')->group(function () {
             Route::put('/{cardTemplate}', [CardTemplateController::class, 'update'])->name('card-templates.update');
             Route::delete('/{cardTemplate}', [CardTemplateController::class, 'destroy'])->name('card-templates.destroy');
         });
+    });
+
+    // Lara — chat interno com o agente de IA do estatuto.
+    // O throttle é baixo de propósito: cada pergunta pode segurar um worker do
+    // PHP-FPM por até 30s enquanto o modelo (que roda em CPU) responde.
+    Route::prefix('lara')->middleware('permission:use lara chat')->group(function () {
+        Route::get('/', [LaraChatController::class, 'index'])->name('lara.index');
+        Route::post('/perguntar', [LaraChatController::class, 'ask'])
+            ->middleware('throttle:15,1')->name('lara.ask');
+        Route::post('/reiniciar', [LaraChatController::class, 'reset'])
+            ->middleware('throttle:15,1')->name('lara.reset');
     });
 
     // Notificações

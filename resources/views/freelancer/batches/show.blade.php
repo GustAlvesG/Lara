@@ -186,6 +186,12 @@
                                     <p class="text-xs text-gray-400 tabular-nums mt-1">
                                         {{ $service->formattedPeriod() }} · {{ $service->formattedDuration() }}
                                     </p>
+                                    @if(filled($service->description))
+                                        <p class="text-xs text-gray-600 dark:text-gray-300 mt-2 whitespace-pre-line bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-2">
+                                            <span class="font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide text-[10px] block mb-0.5">Descrição / justificativa</span>
+                                            {{ $service->description }}
+                                        </p>
+                                    @endif
                                     <a href="{{ route('freelancer-services.document', $service) }}" target="_blank"
                                        class="inline-block mt-2 text-xs font-bold text-[#A00001] dark:text-red-400 hover:underline">
                                         Abrir contrato assinado

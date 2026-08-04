@@ -121,7 +121,12 @@
                                         </td>
                                         <td class="px-4 py-4 font-semibold text-gray-900 dark:text-white">{{ $service->freelancer->name }}</td>
                                         <td class="px-4 py-4 text-gray-700 dark:text-gray-300" x-show="!compact">{{ $service->functionFreelancer->name }}</td>
-                                        <td class="px-4 py-4 text-gray-700 dark:text-gray-300" x-show="!compact">{{ $service->location ?? '—' }}</td>
+                                        <td class="px-4 py-4 text-gray-700 dark:text-gray-300" x-show="!compact">
+                                            {{ $service->location ?? '—' }}
+                                            @if(filled($service->description))
+                                                <span class="block max-w-[16rem] truncate text-xs text-gray-400 dark:text-gray-500" title="{{ $service->description }}">{{ $service->description }}</span>
+                                            @endif
+                                        </td>
                                         <td class="px-4 py-4 text-gray-700 dark:text-gray-300 whitespace-nowrap">
                                             {{ $service->start_date->format('d/m/Y') }}
                                             <span class="text-gray-400 dark:text-gray-500">

@@ -105,11 +105,18 @@
                 </tr>
                 @foreach($services as $service)
                     <tr>
-                        <td style="padding:9px 10px;border-bottom:1px solid #f0eae9;">{{ $service->freelancer->name ?? '—' }}</td>
-                        <td style="padding:9px 10px;border-bottom:1px solid #f0eae9;color:#6d6062;">{{ $service->functionFreelancer->name ?? '—' }}</td>
-                        <td style="padding:9px 10px;border-bottom:1px solid #f0eae9;color:#6d6062;white-space:nowrap;">{{ Carbon::parse($service->start_date)->format('d/m/Y') }}</td>
-                        <td align="right" style="padding:9px 10px;border-bottom:1px solid #f0eae9;white-space:nowrap;">R$ {{ number_format($service->price, 2, ',', '.') }}</td>
+                        <td style="padding:9px 10px;{{ filled($service->description) ? '' : 'border-bottom:1px solid #f0eae9;' }}">{{ $service->freelancer->name ?? '—' }}</td>
+                        <td style="padding:9px 10px;{{ filled($service->description) ? '' : 'border-bottom:1px solid #f0eae9;' }}color:#6d6062;">{{ $service->functionFreelancer->name ?? '—' }}</td>
+                        <td style="padding:9px 10px;{{ filled($service->description) ? '' : 'border-bottom:1px solid #f0eae9;' }}color:#6d6062;white-space:nowrap;">{{ Carbon::parse($service->start_date)->format('d/m/Y') }}</td>
+                        <td align="right" style="padding:9px 10px;{{ filled($service->description) ? '' : 'border-bottom:1px solid #f0eae9;' }}white-space:nowrap;">R$ {{ number_format($service->price, 2, ',', '.') }}</td>
                     </tr>
+                    @if(filled($service->description))
+                        <tr>
+                            <td colspan="4" style="padding:0 10px 9px;border-bottom:1px solid #f0eae9;color:#6d6062;font-size:12.5px;line-height:1.45;">
+                                <span style="color:#9a8e90;">Descrição / justificativa:</span> {{ $service->description }}
+                            </td>
+                        </tr>
+                    @endif
                 @endforeach
                 <tr style="background:#f7f4f3;">
                     <td colspan="3" style="padding:11px 10px;font-weight:bold;">Total</td>

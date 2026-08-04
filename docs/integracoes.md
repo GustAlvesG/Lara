@@ -99,3 +99,21 @@ Base externa para sócios, acessos físicos e visitantes. Duas conexões em `con
 
 - **Pacote:** `league/flysystem-ftp`.
 - **Componente:** `FtpController::getImage($imageName)` — recupera imagens via disco FTP.
+
+---
+
+## 11.10. Lara — agente de IA (Ollama)
+
+- **Componente:** `App\Services\Lara\LaraClient`.
+- **Endpoints consumidos:** `POST /perguntar` `{usuario_id, mensagem}` → `{resposta, transferir}`,
+  `POST /reiniciar` `{usuario_id}` → `{status}` e `GET /health` (2xx, sem passar pelo modelo).
+- **Autenticação:** nenhuma — o endpoint é protegido só pela rede (a porta 3000 da VM da IA
+  aceita apenas o IP do portal). Por isso `LARA_BASE_URL` mora no `.env` do servidor e não no
+  repositório.
+- **Timeout:** `LARA_TIMEOUT` (60s), sem retry. O serviço da IA desiste sozinho em 22s; a folga
+  cobre a rede. Acima de ~50s é preciso subir também o `fastcgi_read_timeout` do nginx.
+- **`transferir: true`** é fallback de sistema da IA (timeout, limite de 3 chamadas simultâneas
+  ou erro do modelo) e vira `status = fallback`. Com `false`, é resposta de negócio e vira `ok`.
+- **Indisponibilidade:** nunca propaga exceção; devolve a frase de `LARA_FALLBACK_MESSAGE`
+  marcada com `status = erro` em `lara_messages`.
+- **Guia de uso:** [Lara — Assistente de IA](funcionalidades/lara-ia.md).
