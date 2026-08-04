@@ -244,9 +244,15 @@ class SicoobPixPagamentoService
         if ($response->status() === 401 || $response->status() === 403) {
             $this->auth->forgetToken(config('sicoob.scopes.pix'));
 
+            // O corpo do 401 é a única pista de POR QUE foi recusado: o gateway
+            // distingue credencial inválida de escopo ausente, e sem isso os dois
+            // casos chegam aqui como o mesmo "401" mudo.
             throw new SicoobAuthenticationException(
                 'O Sicoob recusou a autenticação na iniciação do pagamento (HTTP ' . $response->status() . ').',
-                ['status' => $response->status()]
+                [
+                    'status' => $response->status(),
+                    'resposta' => $this->corpoDoErro($response),
+                ]
             );
         }
 
@@ -680,6 +686,25 @@ class SicoobPixPagamentoService
         $texto = trim(implode(' ', array_unique($partes)));
 
         return $texto === '' ? null : mb_substr($texto, 0, 500);
+    }
+
+    /**
+     * Corpo da resposta de erro, encurtado, para o log e o diagnóstico.
+     *
+     * Erros de autenticação do gateway não vêm no formato RFC 7807 do Pix — são
+     * `{httpCode, httpMessage, moreInformation}` — e é justamente o
+     * `moreInformation` que diz se o problema foi credencial ou escopo. Nada
+     * aqui contém segredo nosso: é o que o Sicoob respondeu.
+     */
+    protected function corpoDoErro(Response $response): string
+    {
+        $json = $response->json();
+
+        if (is_array($json) && $json !== []) {
+            return mb_substr((string) json_encode($json, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), 0, 500);
+        }
+
+        return mb_substr(trim($response->body()), 0, 500) ?: '(corpo vazio)';
     }
 
     protected function pareceSaldoInsuficiente(?string $detalhe): bool

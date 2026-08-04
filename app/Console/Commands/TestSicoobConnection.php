@@ -259,6 +259,14 @@ class TestSicoobConnection extends Command
         } catch (Throwable $e) {
             $this->error('DICT: FALHOU — ' . $e->getMessage());
 
+            // O contexto carrega a resposta crua do Sicoob, que é onde está o
+            // motivo real de um 401 — a mensagem da exceção só diz o código.
+            if ($e instanceof \App\Exceptions\Sicoob\SicoobException) {
+                foreach ($e->context() as $chaveCtx => $valor) {
+                    $this->line('  ' . $chaveCtx . ': ' . (is_scalar($valor) ? $valor : json_encode($valor, JSON_UNESCAPED_UNICODE)));
+                }
+            }
+
             return false;
         }
 
