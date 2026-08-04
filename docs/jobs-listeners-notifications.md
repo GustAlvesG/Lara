@@ -56,6 +56,21 @@ enviada.
 Um 404 na consulta é lido conforme o estado: em `initiated` (nunca confirmamos) vira `failed`;
 em `sent`/`unknown` **não** conclui nada e o caso segue aberto.
 
+### `sicoob:testar`
+
+`app/Console/Commands/TestSicoobConnection.php` — pré-checagem manual, não agendada.
+
+```bash
+sudo -u www-data php artisan sicoob:testar --chave=<chave pix>
+```
+
+Confere configuração, leitura dos certificados, token (mTLS + escopos), saldo e consulta da
+chave no DICT, apontando em qual etapa quebrou. **Não efetiva pagamento** — a iniciação DICT
+só consulta e reserva um identificador. Avisa quando a resposta veio do mock do sandbox.
+
+Rode como o usuário do PHP: testar como `root` pode passar e mascarar um problema de permissão
+que só apareceria no worker, na hora do primeiro pagamento.
+
 ---
 
 ## 10.2. Listeners (`app/Listeners/`)

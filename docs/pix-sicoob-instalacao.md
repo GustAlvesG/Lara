@@ -125,32 +125,28 @@ php artisan schedule:list | grep sicoob
 
 ## 5. Validar a conexão (ainda sem transferir)
 
-Com `SICOOB_PIX_ENABLED=false`, use o Tinker para exercitar só a autenticação:
+Com `SICOOB_PIX_ENABLED=false`:
 
 ```bash
-php artisan tinker
+sudo -u www-data php artisan sicoob:testar --chave=<uma chave pix sua>
 ```
 
-```php
-// 1. mTLS + token. Deve devolver uma string; qualquer erro aqui é certificado ou credencial.
-$token = app(\App\Services\Sicoob\SicoobAuthService::class)
-    ->token(config('sicoob.scopes.pix'));
-strlen($token);
+**Rode como o usuário do PHP** (`www-data`, ou o que o seu servidor usa). Testar como `root`
+pode passar e depois falhar no worker por permissão do certificado — justamente o erro que
+aparece só na hora do primeiro pagamento.
 
-// 2. Saldo. Deve devolver um número (ou null, se a conta não estiver configurada).
-app(\App\Services\Sicoob\SicoobContaCorrenteService::class)->saldoDisponivel();
+O comando confere, em ordem: a configuração carregada, a leitura dos certificados, o token
+(mTLS + escopos), o saldo e a consulta da chave no DICT. **Nenhuma etapa efetiva pagamento** —
+a iniciação DICT só consulta a chave e reserva um identificador.
 
-// 3. Iniciação DICT — NÃO MOVE DINHEIRO. Confirma que o escopo de pagamentos funciona.
-app(\App\Services\Sicoob\SicoobPixPagamentoService::class)->iniciar('<uma chave pix sua>');
-```
+O `--chave` é opcional; sem ele, o DICT não é testado. Com ele, confira na tabela final se o
+**titular** é mesmo quem você espera.
 
-O passo 3 devolve `endToEndId`, `tipo` e `proprietario`. Se chegou até aqui, mTLS, token,
-escopos e o endpoint de pagamentos estão todos funcionando.
+> **No sandbox** o DICT devolve valores fixos (`"string"`) e a confirmação sempre falha com
+> 400. O comando reconhece e avisa que a resposta é do mock. Isso é o sandbox do Sicoob, não
+> um bug da integração.
 
-> **Lembre-se:** no sandbox o passo 3 devolve valores fixos (`"stringstring..."`) e a
-> confirmação sempre falha com 400. Isso é o mock do Sicoob, não um bug da integração.
-
-Acompanhe em `storage/logs/sicoob-*.log`.
+Detalhes em `storage/logs/sicoob-*.log`.
 
 ---
 

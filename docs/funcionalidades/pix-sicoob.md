@@ -251,6 +251,14 @@ feliz está nos testes com `Http::fake()`.
 | Contrato não recebe baixa | O worker de fila não está rodando, ou o Pix não chegou a `FINALIZADO` |
 | "já existe um Pix para o contrato" e nada acontece | Tentativa órfã em `pending` — a reconciliação libera em até 30 min; se persistir, o scheduler não está rodando |
 
+**Primeiro comando a rodar** em qualquer suspeita — ele não transfere nada:
+
+```bash
+sudo -u www-data php artisan sicoob:testar --chave=<uma chave pix>
+```
+
+Confere configuração, certificados, token, saldo e DICT, e diz em qual etapa quebrou.
+
 **Onde olhar:** `storage/logs/sicoob-YYYY-MM-DD.log` (retenção de 180 dias) e a tabela
 `pix_payments`.
 
@@ -276,6 +284,7 @@ ORDER BY created_at;
 | Consulta de saldo | `app/Services/Sicoob/SicoobContaCorrenteService.php` |
 | Job de envio | `app/Jobs/SendFreelancerPixPayment.php` |
 | Reconciliação | `app/Console/Commands/ReconcilePixPayments.php` |
+| Pré-checagem (`sicoob:testar`) | `app/Console/Commands/TestSicoobConnection.php` |
 | Trilha de auditoria | `app/Models/PixPayment.php` + migration `create_pix_payments_table` |
 | Orquestração pelo financeiro | `app/Services/FreelancerService.php` (`requestPixForMany`, `pixBlockReason`, `markAsPaidFromPix`) |
 | Tela | `app/Http/Controllers/Freelancer/FinanceController.php` + `resources/views/freelancer/services/finance.blade.php` |
