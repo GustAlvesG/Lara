@@ -10,12 +10,21 @@ use App\Models\Company\CompanyWorker;
 use App\Models\Company\CompanyAccessRule;
 use App\Models\Company\CompanyAccessLog;
 use App\Models\AppDriver;
+use App\Models\Freelancer;
+use App\Models\FreelancerService;
 use App\Models\UberAccessRequest;
 use App\Services\RuleValidatorService;
 
 
 class CompanyService
 {
+    /**
+     * Nome que aparece no lugar da empresa parceira quando quem foi consultado
+     * é um freelancer. Ele não pertence a nenhuma empresa: o vínculo é o
+     * contrato.
+     */
+    public const FREELANCER_LABEL = 'Freelancer';
+
     public function getAllCompanies()
     {
         return Company::with(['workers', 'rules.weekdays'])->orderBy('name')->get();
@@ -211,7 +220,14 @@ class CompanyService
                 ->orWhere('document', $target)
                 ->get();
 
-            if ($matchedWorkers->isEmpty()) {
+            // O mesmo CPF pode responder por dois cadastros diferentes:
+            // terceirizado de empresa parceira e freelancer com contrato. Quem
+            // está na portaria digita um CPF e quer saber se AQUELA pessoa
+            // entra — venha a autorização de onde vier —, então os dois
+            // caminhos são consultados e o resultado é somado.
+            $freelancerEntries = $this->freelancerAccessEntries($target);
+
+            if ($matchedWorkers->isEmpty() && $freelancerEntries === []) {
                 return ['found' => false, 'reason' => 'worker_not_found', 'workers' => []];
             }
 
@@ -221,6 +237,7 @@ class CompanyService
                 $allowed = $this->validateRulesForAccess($workerCompany, $worker);
                 $response[] = [
                     'id'         => $worker->id,
+                    'type'       => 'worker',
                     'name'       => $worker->name,
                     'allowed'    => $allowed,
                     'image'      => $worker->image ? asset('images/' . $worker->image) : null,
@@ -232,9 +249,12 @@ class CompanyService
             $first = $matchedWorkers->first();
             return [
                 'found'      => true,
-                'company_id' => $first->company->id,
-                'company'    => $first->company->name,
-                'workers'    => $response,
+                // Sem terceirizado no resultado, o cabeçalho da consulta é o do
+                // freelancer: não há empresa parceira a nomear.
+                'type'       => $first ? 'worker' : 'freelancer',
+                'company_id' => $first?->company->id,
+                'company'    => $first ? $first->company->name : self::FREELANCER_LABEL,
+                'workers'    => array_merge($response, $freelancerEntries),
             ];
         }
 
@@ -298,6 +318,13 @@ class CompanyService
         }
 
         foreach ($result['workers'] as $worker) {
+            // O `id` de uma linha de freelancer é de outra tabela: gravá-lo em
+            // company_worker_id apontaria para o terceirizado errado.
+            if (($worker['type'] ?? 'worker') === 'freelancer') {
+                $this->logFreelancerAccess($worker, $data['target']);
+                continue;
+            }
+
             CompanyAccessLog::create([
                 'company_id'        => $worker['company_id'] ?? $result['company_id'],
                 'company_worker_id' => $worker['id'],
@@ -443,6 +470,117 @@ class CompanyService
         return $result;
     }
 
+    /* ---------------------------------------------------------------------
+     | Freelancer
+     |
+     | O freelancer não tem regra de acesso cadastrada: quem autoriza a entrada
+     | dele é o CONTRATO. Ter serviço registrado para agora — com a
+     | antecedência de 30 min do model — é o que libera a portaria.
+     |---------------------------------------------------------------------*/
+
+    /**
+     * Uma linha por freelancer cadastrado com este CPF: permitida quando existe
+     * contrato liberando a portaria neste instante, negada quando o cadastro
+     * existe mas não há serviço na janela. Lista vazia quando o CPF não é de
+     * nenhum freelancer — aí a consulta segue sendo só de terceirizado.
+     *
+     * @return array<int, array>
+     */
+    private function freelancerAccessEntries(string $cpf): array
+    {
+        $normalized = preg_replace('/\D/', '', $cpf);
+
+        $freelancers = Freelancer::where(function ($q) use ($normalized, $cpf) {
+            $q->where('cpf', $normalized)->orWhere('cpf', $cpf);
+        })->get();
+
+        return $freelancers->map(fn(Freelancer $freelancer) => $this->freelancerAccessEntry($freelancer))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * O resultado da portaria para um freelancer: o primeiro contrato que
+     * estiver liberando a entrada agora, ou a negativa quando não há nenhum.
+     * O formato acompanha o das linhas de terceirizado para que o monitor
+     * renderize os dois lado a lado.
+     */
+    private function freelancerAccessEntry(Freelancer $freelancer): array
+    {
+        $now = now();
+
+        $service = $freelancer->freelancerServices()
+            ->with('functionFreelancer')
+            ->aroundAccessWindow($now)
+            ->orderBy('start_date')
+            ->orderBy('start_time')
+            ->get()
+            ->first(fn(FreelancerService $service) => $service->allowsAccessAt($now));
+
+        return [
+            'id'         => $freelancer->id,
+            'type'       => 'freelancer',
+            'name'       => $freelancer->name,
+            'allowed'    => $service !== null,
+            'image'      => null,
+            'company_id' => null,
+            'company'    => self::FREELANCER_LABEL,
+            'reason'     => $service ? 'freelancer_access_granted' : 'freelancer_no_service',
+            'service'    => $service ? [
+                'id'       => $service->id,
+                'location' => $service->location,
+                'function' => $service->functionFreelancer?->name,
+                'period'   => $service->formattedPeriod(),
+                'window'   => $service->formattedAccessWindow(),
+            ] : null,
+        ];
+    }
+
+    /**
+     * Registra no histórico o acesso de um freelancer já identificado — o
+     * caminho do botão "Registrar" do monitor, equivalente ao
+     * registerWorkerAccess() do terceirizado.
+     */
+    public function registerFreelancerAccess(int $freelancerId): array
+    {
+        $freelancer = Freelancer::find($freelancerId);
+
+        if (!$freelancer) {
+            return ['found' => false, 'reason' => 'freelancer_not_found', 'workers' => []];
+        }
+
+        $entry = $this->freelancerAccessEntry($freelancer);
+
+        $this->logFreelancerAccess($entry, $freelancer->cpf ?? $freelancer->name);
+
+        return [
+            'found'      => true,
+            'type'       => 'freelancer',
+            'company_id' => null,
+            'company'    => self::FREELANCER_LABEL,
+            'workers'    => [$entry],
+        ];
+    }
+
+    /**
+     * Grava a linha do freelancer no MESMO histórico dos terceirizados: é a
+     * mesma portaria, e separar as duas tabelas obrigaria o porteiro a olhar em
+     * dois lugares para reconstituir um turno.
+     */
+    private function logFreelancerAccess(array $entry, string $target): void
+    {
+        CompanyAccessLog::create([
+            'company_id'            => null,
+            'company_worker_id'     => null,
+            'freelancer_id'         => $entry['id'],
+            // Só há contrato a vincular quando foi ele que liberou a entrada.
+            'freelancer_service_id' => $entry['service']['id'] ?? null,
+            'target'                => $target,
+            'allowed'               => $entry['allowed'],
+            'reason'                => $entry['reason'],
+        ]);
+    }
+
     public function registerWorkerAccess(int $workerId): array
     {
         $worker = CompanyWorker::with('company')->find($workerId);
@@ -468,6 +606,7 @@ class CompanyService
             'company'    => $company->name,
             'workers'    => [[
                 'id'      => $worker->id,
+                'type'    => 'worker',
                 'name'    => $worker->name,
                 'allowed' => $allowed,
                 'image'   => $worker->image ? asset('images/' . $worker->image) : null,

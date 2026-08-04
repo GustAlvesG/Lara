@@ -25,6 +25,13 @@ class FreelancerService extends Model
      */
     const SIGNATURE_TOLERANCE_MINUTES = 30;
 
+    /**
+     * Com quanta antecedência o contrato libera a entrada do freelancer na
+     * portaria. Turno às 08:00 abre a portaria às 07:30. Ver a seção
+     * "Liberação na portaria".
+     */
+    const ACCESS_EARLY_MINUTES = 30;
+
     /** O valor da função é cobrado por bloco de 15 minutos. */
     const BLOCK_MINUTES = 15;
 
@@ -67,6 +74,8 @@ class FreelancerService extends Model
         // Contrato base, quando esta linha é um aditivo (ver seção "Aditivo").
         'parent_service_id',
         'location',
+        // Esclarecimento livre do serviço — apenas informativo (ver migration).
+        'description',
         'start_date',
         'start_time',
         'end_date',
@@ -551,6 +560,81 @@ class FreelancerService extends Model
             $this->coordinator_signed_at !== null => 'Aguardando freelancer',
             default => 'Não assinado',
         };
+    }
+
+    /* ---------------------------------------------------------------------
+     | Liberação na portaria
+     |
+     | O contrato é o que autoriza o freelancer a entrar no clube: ele tem
+     | serviço registrado, então tem entrada liberada. A janela começa 30 min
+     | ANTES do início do turno — quem trabalha às 08:00 entra a partir das
+     | 07:30 — e vai até o horário de término do contrato.
+     |
+     | A assinatura NÃO entra na conta: ela é colhida no tablet, dentro do
+     | clube, depois de o freelancer já ter passado pela portaria. Exigi-la
+     | aqui deixaria todo freelancer do lado de fora.
+     |---------------------------------------------------------------------*/
+
+    /** Instante a partir do qual este contrato libera a portaria. */
+    public function accessOpensAt(): Carbon
+    {
+        return $this->startsAt()->subMinutes(self::ACCESS_EARLY_MINUTES);
+    }
+
+    /**
+     * Este contrato libera a entrada no instante informado (padrão: agora)?
+     * Contrato cancelado não libera nada, e contrato sem período gravado
+     * também não — não há janela a calcular.
+     */
+    public function allowsAccessAt(?Carbon $moment = null): bool
+    {
+        if ($this->isCancelled()) {
+            return false;
+        }
+
+        if ($this->start_date === null || $this->end_date === null
+            || blank($this->start_time) || blank($this->end_time)) {
+            return false;
+        }
+
+        $moment ??= Carbon::now();
+
+        return $moment->greaterThanOrEqualTo($this->accessOpensAt())
+            && $moment->lessThanOrEqualTo($this->endsAt());
+    }
+
+    /** Ex.: "07:30 → 12:00" — a janela de entrada, para exibição na portaria. */
+    public function formattedAccessWindow(): ?string
+    {
+        if ($this->start_date === null || $this->end_date === null
+            || blank($this->start_time) || blank($this->end_time)) {
+            return null;
+        }
+
+        return $this->accessOpensAt()->format('H:i') . ' → ' . $this->endsAt()->format('H:i');
+    }
+
+    /**
+     * Peneira grossa dos contratos que PODEM estar liberando a portaria no
+     * instante informado: não cancelados, não aditivados e com o turno
+     * começando na véspera, no dia ou no dia seguinte — o bastante para pegar
+     * turnos que viram a meia-noite e a antecedência de 30 min. A janela exata
+     * é conferida em PHP por `allowsAccessAt()`, porque data e hora moram em
+     * colunas separadas e concatená-las em SQL muda de MySQL para SQLite.
+     *
+     * Aditivado fica de fora: quem responde pelo período corrigido é o aditivo,
+     * e o base pode ter horário que não vale mais.
+     */
+    public function scopeAroundAccessWindow($query, ?Carbon $moment = null)
+    {
+        $moment ??= Carbon::now();
+
+        return $query->where('status_id', '!=', self::STATUS_CANCELLED)
+            ->whereNull('amended_at')
+            ->whereBetween('start_date', [
+                $moment->copy()->subDay()->startOfDay(),
+                $moment->copy()->addDay()->endOfDay(),
+            ]);
     }
 
     /* ---------------------------------------------------------------------

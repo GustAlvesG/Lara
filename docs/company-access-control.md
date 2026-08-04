@@ -26,6 +26,8 @@ O módulo funciona é bem simples
 
 A validação sempre verifica as **regras de acesso** cadastradas para a empresa e/ou o funcionário específico antes de liberar ou negar.
 
+A consulta por CPF atende também os **freelancers**, que não têm regra de acesso: quem os autoriza é o contrato de serviço. Ver [Freelancer](#freelancer).
+
 ---
 
 ## Cadastro de Empresas
@@ -224,6 +226,41 @@ Campo: 123.456.789-09
 Resultado: João Silva — ✓ Permitido
 ```
 
+O mesmo CPF também é procurado entre os **freelancers** — ver [Freelancer](#freelancer) logo abaixo. As duas buscas são somadas: se o CPF responder pelos dois cadastros, as duas linhas aparecem no resultado, cada uma com seu próprio status e seu próprio botão de registro.
+
+#### Freelancer
+
+O freelancer **não tem regra de acesso cadastrada**: quem autoriza a entrada dele é o **contrato**. Ter serviço registrado para aquele momento é o que libera a portaria.
+
+A janela abre **30 minutos antes** do início do turno e fecha no **horário de término** do contrato:
+
+```
+Serviço das 08:00 às 12:00
+         ↓
+Entrada liberada das 07:30 às 12:00
+```
+
+Turnos que viram a meia-noite acompanham o término no dia seguinte (22:00 → 02:00 libera das 21:30 às 02:00).
+
+| Situação | Resultado |
+|---|---|
+| Existe contrato com a janela aberta agora | ✓ Permitido — a linha mostra o horário liberado, o período do turno, a função e o local |
+| Cadastro existe, mas nenhum contrato na janela | ✗ Negado — "Sem serviço registrado para este horário" |
+| CPF não é de freelancer nem de terceirizado | Não encontrado |
+
+Não entram na conta:
+
+- **Contratos cancelados** — saíram do fluxo.
+- **Contratos aditivados** — quem responde pelo período corrigido é o aditivo; o contrato base pode ter horário que não vale mais.
+
+A **assinatura não é exigida**: ela é colhida no tablet, dentro do clube, depois de o freelancer já ter passado pela portaria. Cobrá-la aqui deixaria todo freelancer do lado de fora.
+
+O acesso é gravado no mesmo histórico dos terceirizados, com a tag `Freelancer` na coluna *Empresa* e o contrato que liberou a entrada abaixo do nome. Em `company_access_logs`, as colunas são `freelancer_id` (sempre preenchida, mesmo no acesso negado) e `freelancer_service_id` (o contrato — só existe quando foi ele que liberou a entrada).
+
+O registro pelo botão do monitor usa endpoint próprio, `POST /api/company-access/register-freelancer-access` com `freelancer_id` — o `register-worker-access` grava terceirizado, e os ids são de tabelas diferentes.
+
+---
+
 #### Busca por Nome de Empresa
 
 Retorna **todos os funcionários** da empresa. Para registrar, cada funcionário possui um botão individual **"Registrar"** — o registro é por pessoa, não em massa.
@@ -311,6 +348,8 @@ Ao aplicar filtros, o botão `✕` aparece para limpar todos de uma vez.
 | `worker_not_found` | Funcionário não encontrado |
 | `company_not_found` | Empresa não encontrada |
 | `app_driver_access` | Motorista de aplicativo |
+| `freelancer_access_granted` | Liberado pelo contrato de freelancer |
+| `freelancer_no_service` | Freelancer sem serviço no horário |
 
 Acessos de **motorista de aplicativo** aparecem nesta mesma tabela: a coluna *Empresa* exibe a tag `Motorista de App`, a coluna *Funcionário* mostra o nome do motorista, e a *Obs* (quando informada) aparece abaixo do motivo.
 
@@ -326,7 +365,7 @@ Endpoint único usado por integrações (câmera/LPR, totem etc.) para registrar
 
 | Formato do `target` | Detecção | Tipo de registro |
 |---|---|---|
-| CPF (ex: `123.456.789-09`) | regex de CPF (11 dígitos) | **Terceirizado** — funcionário da empresa parceira |
+| CPF (ex: `123.456.789-09`) | regex de CPF (11 dígitos) | **Terceirizado** — funcionário da empresa parceira — **e/ou Freelancer**, pelo contrato |
 | `PLACA.Nome.Obs` (ex: `ABC1D23.João Silva.Entrega`) | 1º segmento é placa válida (Mercosul `ABC1D23` ou antiga `ABC1234`) + há nome | **Motorista de aplicativo** |
 | Texto livre (ex: `Acme Serviços`) | qualquer outro caso | **Empresa** — todos os funcionários da empresa |
 

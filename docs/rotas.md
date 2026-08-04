@@ -111,6 +111,9 @@ Prefixo `/api`. Legenda de middleware: **T** = `api_token`, **L** = `login_token
 | POST | `/api/whatsapp/webhook` | WhatsAppController@handleWebhook |
 | POST | `/api/whatsapp/send-message` | WhatsAppController@sendMessage |
 | POST | `/api/company-access/validate-access` | CompanyAccessRulesController@validateCompanyAccess |
+| POST | `/api/company-access/register-access` | CompanyAccessRulesController@registerAccess |
+| POST | `/api/company-access/register-worker-access` | CompanyAccessRulesController@registerWorkerAccess |
+| POST | `/api/company-access/register-freelancer-access` | CompanyAccessRulesController@registerFreelancerAccess |
 | GET | `/api/schedule/home-assistant/automation` | ScheduleController@homeAssistantAutomation |
 
 ### Com `api_token` (T)

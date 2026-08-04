@@ -49,6 +49,7 @@ Route::prefix('company-access')->group(function () {
     Route::post('/validate-access', [CompanyAccessRulesController::class, 'validateCompanyAccess'])->name('company_access.validate');
     Route::post('/register-access', [CompanyAccessRulesController::class, 'registerAccess'])->name('company_access.register');
     Route::post('/register-worker-access', [CompanyAccessRulesController::class, 'registerWorkerAccess'])->name('company_access.register_worker');
+    Route::post('/register-freelancer-access', [CompanyAccessRulesController::class, 'registerFreelancerAccess'])->name('company_access.register_freelancer');
 });
 
 Route::middleware('api_token')->group(function () {

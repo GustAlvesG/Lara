@@ -22,6 +22,7 @@
         'freelancer_id' => (string) ($row['freelancer_id'] ?? ''),
         'function_freelancer_id' => (string) ($row['function_freelancer_id'] ?? ''),
         'location' => (string) ($row['location'] ?? ''),
+        'description' => (string) ($row['description'] ?? ''),
         'start_date' => (string) ($row['start_date'] ?? ''),
         'start_time' => (string) ($row['start_time'] ?? ''),
         'end_time' => (string) ($row['end_time'] ?? ''),
@@ -100,6 +101,9 @@
                         /* O caso comum é o mesmo evento com várias pessoas: a
                            linha nova nasce com local, data e horários repetidos. */
                         location: from ? from.location : '',
+                        /* A justificativa costuma ser própria de cada contrato,
+                           então não é herdada: a linha nova começa sem ela. */
+                        description: '',
                         start_date: from ? from.start_date : '',
                         start_time: from ? from.start_time : '',
                         end_time: from ? from.end_time : '',
@@ -171,6 +175,7 @@
                                 <th class="px-3 py-3">Freelancer</th>
                                 <th class="px-3 py-3">Função</th>
                                 <th class="px-3 py-3">Evento / Local</th>
+                                <th class="px-3 py-3">Descrição / Justificativa</th>
                                 <th class="px-3 py-3">Data</th>
                                 <th class="px-3 py-3">Início</th>
                                 <th class="px-3 py-3">Término</th>
@@ -211,6 +216,12 @@
                                     </td>
 
                                     <td class="px-3 py-3">
+                                        <textarea :name="'services[' + i + '][description]'" x-model="row.description" rows="2"
+                                            maxlength="2000" placeholder="Opcional — não vai ao contrato"
+                                            class="w-full min-w-[14rem] px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 outline-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white"></textarea>
+                                    </td>
+
+                                    <td class="px-3 py-3">
                                         <input type="date" :name="'services[' + i + '][start_date]'" x-model="row.start_date" required
                                             class="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 outline-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
                                     </td>
@@ -247,7 +258,7 @@
                         + Adicionar linha
                     </button>
                     <span class="ml-3 text-xs text-gray-400 dark:text-gray-500">
-                        A linha nova repete função, local, data e horários da anterior — só o freelancer fica em branco.
+                        A linha nova repete função, local, data e horários da anterior — freelancer e descrição ficam em branco.
                         Máximo de {{ $maxRows }} linhas por envio.
                     </span>
                 </div>

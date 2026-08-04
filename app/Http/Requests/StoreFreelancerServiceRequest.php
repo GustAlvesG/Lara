@@ -31,6 +31,7 @@ class StoreFreelancerServiceRequest extends FormRequest
             'freelancer_id' => ['required', 'integer', 'exists:freelancers,id'],
             'function_freelancer_id' => ['required', 'integer', 'exists:function_freelancers,id'],
             'location' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string', 'max:2000'],
             'status_id' => ['nullable', 'integer', 'exists:status,id'],
             'created_by' => ['nullable', 'integer', 'exists:users,id'],
         ]);
@@ -40,6 +41,7 @@ class StoreFreelancerServiceRequest extends FormRequest
     {
         return [
             'location' => 'evento/local',
+            'description' => 'descrição/justificativa',
             'freelancer_id' => 'freelancer',
             'function_freelancer_id' => 'função',
             'start_date' => 'data de início',

@@ -19,9 +19,15 @@ O módulo tem duas frentes:
 2. **Função** (`function_freelancers`) — catálogo de funções (garçom, segurança...), com **preço
    por bloco de 15 minutos**.
 3. **Serviço / Contrato** (`freelancer_services`) — um trabalho de um freelancer numa função, num
-   evento/local, com data, horário de início e término, status e as duas assinaturas. A mesma
-   tabela guarda os **aditivos**: são contratos com `parent_service_id` apontando para o contrato
-   que alteram (ver *Aditivo*).
+   evento/local, com data, horário de início e término, status e as duas assinaturas. Tem ainda uma
+   **descrição/justificativa** (`description`) livre e opcional, só para esclarecimentos: não entra
+   no contrato nem no cálculo, e existe para tirar do campo *evento/local* o texto de justificativa
+   que vinha sendo colocado ali indevidamente. Está em todos os caminhos de criação — registro
+   individual, registro em massa pelo painel (`/freelancer-services/em-massa`), importação por
+   planilha e o tablet (`/kiosk`) — e aparece nas listagens de serviços e do freelancer, nos cards
+   de aprovação da gerência, no e-mail de aprovação da diretoria e no PDF do lote. A mesma tabela
+   guarda os **aditivos**: são contratos
+   com `parent_service_id` apontando para o contrato que alteram (ver *Aditivo*).
 
 ## Regras de negócio
 
@@ -94,6 +100,26 @@ ser assinado até 16:30 sem marcação; 16:31 já é fora do prazo.
   filtráveis na listagem — ver *Listagem de contratos*.
 - O tempo exibido é o atraso em relação ao **início do turno**, não à tolerância: assinar 16:31 num
   turno de 16:00 mostra "31min".
+
+### Entrada na portaria (Monitor de Acesso)
+O contrato é o que **autoriza o freelancer a entrar no clube**. Não há regra de acesso cadastrada
+para ele como há para os terceirizados: ter serviço registrado para aquele momento é o que libera a
+portaria.
+
+A janela abre **30 minutos antes** do início do turno (`FreelancerService::ACCESS_EARLY_MINUTES`) e
+fecha no **horário de término** do contrato — serviço às 08:00 entra a partir das 07:30 até as
+12:00. Turno que vira a meia-noite acompanha o término no dia seguinte.
+
+- A consulta é a **mesma do terceirizado**: o porteiro digita o CPF no Monitor de Acesso
+  (`/company/access-monitor`) e o sistema procura nos dois cadastros. Se o CPF responder pelos dois,
+  as duas linhas aparecem, cada uma com seu status. Ver
+  [Controle de Acesso de Empresas Parceiras](../company-access-control.md#freelancer).
+- **Cancelado** não libera. **Aditivado** também não: quem responde pelo período corrigido é o
+  aditivo, e o base pode ter horário que não vale mais.
+- A **assinatura não é exigida** — ela é colhida no tablet, dentro do clube, depois de o freelancer
+  já ter passado pela portaria. Exigi-la aqui deixaria todo freelancer do lado de fora.
+- Regra em `FreelancerService::allowsAccessAt()` / `accessOpensAt()` / `scopeAroundAccessWindow()`;
+  a consulta e o registro ficam em `App\Services\CompanyService`.
 
 ### Aditivo (o turno mudou depois da assinatura)
 Contrato tem curso: o turno é esticado, encurtado ou muda de local depois de o
@@ -277,9 +303,9 @@ arquivo modelo `.xlsx` para download e o envio do arquivo preenchido.
   também é barrado — a regra `unique` só enxergaria o banco.
 - **Serviços:** o vínculo com o freelancer é feito **pelo CPF**, que já deve estar cadastrado; a
   função é casada pelo nome (ignorando caixa). Data aceita `dd/mm/aaaa` ou `aaaa-mm-dd`, horários
-  `HH:MM`, e células formatadas como data/hora no Excel são convertidas automaticamente.
-  `total_hours`, `end_date` e `price` continuam sendo derivados no servidor, e o alerta de limite
-  semanal aparece resumido ao final da importação.
+  `HH:MM`, e células formatadas como data/hora no Excel são convertidas automaticamente. A coluna
+  *Descrição / Justificativa* é opcional. `total_hours`, `end_date` e `price` continuam sendo
+  derivados no servidor, e o alerta de limite semanal aparece resumido ao final da importação.
 
 ### Listagem de contratos: busca, filtros e ordenação
 A tela **Serviços / Contratos** (`/freelancer-services`) filtra e ordena **no servidor**, por
@@ -693,6 +719,12 @@ guardam qual coordenador do Comercial liberou e quando — sem isso a autorizaç
 - **Trait:** `App\Http\Requests\Concerns\ValidatesServiceSchedule` — regras dos horários
   (formato, horários iguais e período mínimo de um bloco), compartilhada entre criação e edição;
   as duas últimas ficam em `FreelancerService::scheduleError()`, reaproveitada pela importação.
+- **Entrada na portaria:** `FreelancerService::ACCESS_EARLY_MINUTES` / `accessOpensAt()` /
+  `allowsAccessAt()` / `formattedAccessWindow()` / `scopeAroundAccessWindow()` (a janela),
+  `App\Services\CompanyService::registerFreelancerAccess()` e os métodos privados
+  `freelancerAccessEntries()` / `freelancerAccessEntry()` (a consulta por CPF do Monitor de Acesso).
+  Colunas do log em `2026_08_03_130000_add_freelancer_to_company_access_logs`.
+  Testes em `tests/Unit/FreelancerAccessWindowTest.php`.
 - **Cálculo do período:** concentrado em `FreelancerService::minutesBetween()`,
   `crossesMidnight()` e `billedBlocks()` — a virada de dia e o arredondamento para baixo existem
   em um lugar só, reaproveitados por painel, API e validação.

@@ -66,6 +66,9 @@
                         ['route' => 'company.access.logs', 'label' => 'Histórico'],
                     ],
                 ],
+                ['route' => 'lara.index', 'label' => 'Lara (IA)', 'icon' => 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z',
+                    'permission' => 'use lara chat',
+                ],
                 ['route' => 'id-cards.issue', 'label' => 'Carteirinhas', 'icon' => 'M12 4.5v15m7.5-7.5h-15',
                     'permission' => 'manage id cards',
                     'children' => [

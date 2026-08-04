@@ -49,4 +49,39 @@ return [
         'client_id'     => env('INTERNAL_EREDE_CLIENT_ID'),
         'client_secret' => env('INTERNAL_EREDE_SECRET_ID'),
     ],
+
+    /*
+     * Lara — agente de IA (Ollama + base do estatuto) hospedado numa VM
+     * própria. O endpoint não tem autenticação: a proteção é de rede (só o IP
+     * do portal alcança a porta), por isso a base_url mora no .env do servidor
+     * e nunca no repositório.
+     *
+     * `timeout` precisa ficar acima do teto interno da IA (ela desiste sozinha e
+     * devolve o fallback dela), senão o portal abandona respostas que estavam a
+     * caminho. A folga acima disso cobre a rede.
+     *
+     * Atenção ao mexer: o navegador espera `timeout + 10s` (calculado na view),
+     * a trava por usuário dura `timeout + 10s` e o PHP recebe `timeout + 30s`
+     * via set_time_limit — os três derivam daqui, só este número se ajusta.
+     *
+     * Acima de ~50s vale conferir o Apache também: se ele fala com o PHP por
+     * proxy_fcgi ou fcgid, o timeout dele corta a requisição por fora e devolve
+     * 504 antes de qualquer limite da aplicação. Ver docs/funcionalidades/lara-ia.md.
+     *
+     * `history_ttl_hours` acompanha a expiração do histórico do lado da IA (24h
+     * de inatividade). Não confundir com a retenção do nosso banco
+     * (app:prune-lara-messages, 90 dias): uma é memória de contexto, a outra é
+     * auditoria.
+     */
+    'lara' => [
+        'base_url'          => env('LARA_BASE_URL'),
+        'enabled'           => env('LARA_ENABLED', false),
+        'timeout'           => (int) env('LARA_TIMEOUT', 60),
+        'reset_timeout'     => (int) env('LARA_RESET_TIMEOUT', 10),
+        'health_timeout'    => (int) env('LARA_HEALTH_TIMEOUT', 3),
+        'health_ttl'        => (int) env('LARA_HEALTH_TTL', 30),
+        'history_ttl_hours' => (int) env('LARA_HISTORY_TTL_HOURS', 24),
+        'max_input_chars'   => (int) env('LARA_MAX_INPUT_CHARS', 1000),
+        'fallback_message'  => env('LARA_FALLBACK_MESSAGE', 'Vou te transferir para o setor responsável, só um momento!'),
+    ],
 ];

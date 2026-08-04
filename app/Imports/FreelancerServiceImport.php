@@ -35,6 +35,7 @@ class FreelancerServiceImport extends SpreadsheetImport
             'start_date' => 'Data (dd/mm/aaaa) *',
             'start_time' => 'Início (HH:MM) *',
             'end_time' => 'Término (HH:MM) *',
+            'description' => 'Descrição / Justificativa',
         ];
     }
 
@@ -60,6 +61,10 @@ class FreelancerServiceImport extends SpreadsheetImport
             'termino' => 'end_time',
             'fim' => 'end_time',
             'end_time' => 'end_time',
+            'descricao_justificativa' => 'description',
+            'descricao' => 'description',
+            'justificativa' => 'description',
+            'description' => 'description',
         ];
     }
 
@@ -74,6 +79,7 @@ class FreelancerServiceImport extends SpreadsheetImport
             'start_date' => now()->format('d/m/Y'),
             'start_time' => '18:00',
             'end_time' => '23:00',
+            'description' => 'Reforço de equipe por conta do público acima do previsto.',
         ];
     }
 
@@ -100,6 +106,7 @@ class FreelancerServiceImport extends SpreadsheetImport
     {
         return [
             'location' => 'evento/local',
+            'description' => 'descrição/justificativa',
             'freelancer_id' => 'freelancer',
             'function_freelancer_id' => 'função',
             'start_date' => 'data de início',
@@ -147,6 +154,7 @@ class FreelancerServiceImport extends SpreadsheetImport
             'freelancer_id' => $freelancer->id,
             'function_freelancer_id' => $functionId,
             'location' => $row['location'] ?? '',
+            'description' => blank($row['description'] ?? '') ? null : $row['description'],
             'start_date' => ImportValues::date($row['start_date'] ?? '', 'data'),
             'start_time' => ImportValues::time($row['start_time'] ?? '', 'horário de início'),
             'end_time' => ImportValues::time($row['end_time'] ?? '', 'horário de término'),
