@@ -129,6 +129,9 @@
   .contract{padding:16px 18px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface);box-shadow:var(--shadow);}
   .contract .row1{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
   .contract .fn{font-size:16.5px;font-weight:700;}
+  /* Número do documento: é por ele que a coordenação, a gerência e o financeiro
+     falam deste contrato — precisa estar visível também no tablet. */
+  .contract .num{font-size:12.5px;font-weight:700;color:var(--ink-3);font-variant-numeric:tabular-nums;}
   .contract .loc{font-size:13.5px;color:var(--ink-2);margin:2px 0 0;}
   .contract .when{font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums;margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
   .contract .acts{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
@@ -212,6 +215,15 @@
   .doc-sign-img img{max-height:88px;max-width:100%;}
   .doc-sign-empty{height:92px;}
   .doc-sign-note{font-family:var(--sans);font-size:10.5px;color:#6b6156;margin-top:4px;line-height:1.35;}
+  /* Anexo do relatório de vendas, dentro do próprio termo. */
+  .doc-annex{margin-top:26px;border-top:1.5px solid var(--paper-line);padding-top:14px;}
+  .doc-annex-title{font-family:var(--sans);font-size:13px;font-weight:800;margin-bottom:4px;}
+  .doc-annex-meta{font-size:11.5px !important;margin-bottom:8px !important;}
+  table.annex{width:100%;border-collapse:collapse;font-family:var(--sans);font-size:10.5px;}
+  table.annex th{text-align:left;border-bottom:1px solid var(--paper-line);padding:4px 3px;font-size:9.5px;text-transform:uppercase;letter-spacing:.4px;}
+  table.annex td{padding:3px;border-bottom:1px solid rgba(0,0,0,.06);vertical-align:top;}
+  table.annex .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  table.annex .annex-sec{font-weight:800;padding-top:8px;background:rgba(0,0,0,.04);letter-spacing:.6px;font-size:9.5px;}
   .doc-footer-img{margin-top:16px;}
   .doc-footer-img img{display:block;width:100%;height:auto;}
 
@@ -544,6 +556,61 @@
       </div>
     </section>
 
+    <!-- ===== COMISSÃO DE VENDA (aditivo do garçom, ao fim do expediente) ===== -->
+    <section class="screen" id="s-comissao">
+      <div class="screen-body">
+        <p class="eyebrow">Comissão de venda</p>
+        <div class="steps" id="comSteps"><i class="done"></i><i></i><i></i></div>
+        <div class="adit-base" id="comBase"></div>
+
+        <div class="cstep" data-step="0">
+          <h2 class="title">Critério da comissão</h2>
+          <p class="subtitle">Como esta comissão foi combinada</p>
+          <div class="chipset" id="comMethods" style="margin-top:20px;flex-direction:column"></div>
+        </div>
+        <div class="cstep" data-step="1" style="display:none">
+          <h2 class="title">Apurar vendas</h2>
+          <p class="subtitle">Login do vendedor no MultiVendas e o período do turno. Já vêm preenchidos — corrija se precisar.</p>
+          <div class="form-grid" style="margin-top:16px">
+            <div class="frow"><span class="field-label">Login do vendedor</span>
+              <input class="txt-input" id="comLogin" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+            <div class="frow"><span class="field-label">Início do período</span>
+              <input type="datetime-local" class="txt-input" id="comFrom"></div>
+            <div class="frow"><span class="field-label">Fim do período</span>
+              <input type="datetime-local" class="txt-input" id="comTo"></div>
+          </div>
+          <button class="btn btn-primary" id="comFetch" style="margin-top:16px">Consultar vendas</button>
+          <div id="comReportBox"></div>
+        </div>
+        <div class="cstep" data-step="2" style="display:none">
+          <h2 class="title">Valor vendido</h2>
+          <p class="subtitle" id="comSalesSub">Total das vendas do turno</p>
+          <div class="display" style="margin-top:20px"><div class="val placeholder" id="comSalesVal">R$ 0,00</div></div>
+          <div class="hint" id="comSalesHint" style="text-align:center;color:var(--brand);font-size:13px;min-height:18px">&nbsp;</div>
+          <div class="keypad" id="comKeypad"></div>
+        </div>
+      </div>
+      <div class="screen-foot">
+        <button class="btn btn-primary" id="comNext" disabled>Continuar</button>
+        <button class="btn-quiet btn" id="comBack">Voltar</button>
+      </div>
+    </section>
+
+    <!-- ===== PRÉVIA DA COMISSÃO ===== -->
+    <section class="screen" id="s-com-previa">
+      <div class="screen-body">
+        <p class="eyebrow">Confira antes de gerar</p>
+        <h2 class="title">Prévia da comissão</h2>
+        <p class="subtitle">A comissão é paga <b>além</b> do contrato do turno, não no lugar dele.</p>
+        <div class="receipt" id="comReceipt" style="margin-top:18px"></div>
+        <div id="comWarn"></div>
+      </div>
+      <div class="screen-foot">
+        <button class="btn btn-primary" id="comRegistrar">Gerar comissão</button>
+        <button class="btn-quiet btn" id="comDescartar">Descartar</button>
+      </div>
+    </section>
+
     <!-- ===== ASSINAR (documento base + assinatura posicionada) ===== -->
     <section class="screen" id="s-assinar">
       <div class="screen-body">
@@ -682,7 +749,7 @@
   }
   $$('[data-go]').forEach(b=> b.addEventListener('click', ()=> go('s-'+b.dataset.go)));
   function updateCtx(){
-    const map={'s-mode':'Escolha o modo','s-coord':'Contratos pendentes','s-lote':'Lote de aprovação','s-cpf':'Localizar freelancer','s-cadastro':'Cadastro','s-menu':'Atendimento','s-novo':'Novo contrato','s-previa':'Prévia','s-contratos':'Contratos','s-aditivo':'Aditivo','s-adit-previa':'Prévia do aditivo','s-assinar':'Assinatura','s-pin':'Confirmação'};
+    const map={'s-mode':'Escolha o modo','s-coord':'Contratos pendentes','s-lote':'Lote de aprovação','s-cpf':'Localizar freelancer','s-cadastro':'Cadastro','s-menu':'Atendimento','s-novo':'Novo contrato','s-previa':'Prévia','s-contratos':'Contratos','s-aditivo':'Aditivo','s-adit-previa':'Prévia do aditivo','s-comissao':'Comissão de venda','s-com-previa':'Prévia da comissão','s-assinar':'Assinatura','s-pin':'Confirmação'};
     if(S.mode==='coordinator'){ $('#ctxLine').textContent='Coordenação · '+(S.operator&&S.operator.coordinator_sector||'Comercial'); return; }
     $('#ctxLine').textContent = S.freelancer ? S.freelancer.name : (map[current]||'Sessão de atendimento');
   }
@@ -977,18 +1044,21 @@
       // aditivo: marcá-lo de âmbar diria que falta alguma coisa nele.
       const chipClass = c.status_label==='Não assinado' ? 'unsigned' : (c.status_label==='Assinado' ? 'done' : 'await');
       const chip = `<span class="chip ${chipClass}">${esc(c.status_label)}</span>`;
-      const aditChip = c.is_amendment ? '<span class="chip adit">Aditivo</span>'
+      const aditChip = c.is_commission ? '<span class="chip adit">Comissão</span>'
+                     : c.is_amendment ? '<span class="chip adit">Aditivo</span>'
                      : (c.is_amended ? '<span class="chip unsigned">Aditivado</span>' : '');
       const acts = (c.can_be_signed ? '<button class="btn btn-primary" data-sign>Assinar</button>' : '')
-                 + (c.can_be_amended ? '<button class="btn btn-ghost" data-adit>Fazer aditivo</button>' : '');
+                 + (c.can_be_amended ? '<button class="btn btn-ghost" data-adit>Fazer aditivo</button>' : '')
+                 + (c.can_receive_commission ? '<button class="btn btn-ghost" data-com>Comissão de venda</button>' : '');
       const el=document.createElement('div'); el.className='contract';
-      el.innerHTML=`<div class="row1"><span class="fn">${esc(c.function||'—')}</span>${chip}${aditChip}</div>
+      el.innerHTML=`<div class="row1"><span class="num">#${c.id}</span><span class="fn">${esc(c.function||'—')}</span>${chip}${aditChip}</div>
         <div class="loc">${esc(c.location)}</div>
         <div class="when"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
         ${c.start_date_br} · ${c.start_time}–${c.end_time} · <b>${brl(c.price)}</b></div>
         <div class="acts">${acts}</div>`;
       const sign=el.querySelector('[data-sign]'); if(sign) sign.addEventListener('click', ()=> openSign(c));
       const adit=el.querySelector('[data-adit]'); if(adit) adit.addEventListener('click', ()=> startAditivo(c));
+      const com=el.querySelector('[data-com]'); if(com) com.addEventListener('click', ()=> startComissao(c));
       list.appendChild(el);
     });
   }
@@ -1107,9 +1177,10 @@
       // O contrato aditivado continua na fila — ele é um documento firmado e
       // precisa da contraparte. O selo evita a dúvida de "por que estou
       // assinando um contrato que não vai ser pago".
-      const marca = c.is_amendment ? '<span class="chip adit">Aditivo</span>'
+      const marca = c.is_commission ? '<span class="chip adit">Comissão</span>'
+                  : c.is_amendment ? '<span class="chip adit">Aditivo</span>'
                   : (c.is_amended ? '<span class="chip unsigned">Aditivado · pago no aditivo</span>' : '');
-      el.innerHTML=`<div class="row1"><span class="fn">${esc(who)}</span><span class="chip await">${esc(c.status_label)}</span>${marca}</div>
+      el.innerHTML=`<div class="row1"><span class="num">#${c.id}</span><span class="fn">${esc(who)}</span><span class="chip await">${esc(c.status_label)}</span>${marca}</div>
         <div class="loc">${esc(c.function||'—')} · ${esc(c.location)}</div>
         <div class="when"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
         ${c.start_date_br} · ${c.start_time}–${c.end_time} · <b>${brl(c.price)}</b></div>
@@ -1147,7 +1218,7 @@
   }
 
   function loteLine(c){
-    return `<div class="row1"><span class="fn">${esc(c.freelancer||'—')}</span>${c.is_amendment?'<span class="chip adit">Aditivo</span>':''}</div>
+    return `<div class="row1"><span class="num">#${c.id}</span><span class="fn">${esc(c.freelancer||'—')}</span>${c.is_commission?'<span class="chip adit">Comissão</span>':c.is_amendment?'<span class="chip adit">Aditivo</span>':''}</div>
       <div class="loc">${esc(c.function||'—')} · ${esc(c.location)}</div>
       <div class="when">${c.start_date_br} · ${c.start_time}–${c.end_time} · <b>${brl(c.price)}</b></div>
       ${c.rejection_reason?`<div class="reject-note">Recusado antes: ${esc(c.rejection_reason)}</div>`:''}`;
@@ -1219,6 +1290,180 @@
     }catch(e){ if(!e.handled) toast('Falha de conexão.',true); resetPinOp(); }
   }
 
+  /* ---------- Comissão de venda ----------
+     O outro aditivo: exclusivo das funções que a recebem (o servidor decide) e
+     assinado no fim do expediente, quando já se sabe quanto se vendeu. Ao
+     contrário do aditivo de horário, ela SOMA ao contrato do turno. */
+  const COM_METHODS = {
+    block:   { label:'R$ 50,00 a cada R$ 1.000,00 vendidos', hint:'Só blocos fechados de R$ 1.000 contam' },
+    percent: { label:'5% do valor total vendido',            hint:'Percentual sobre o total, sem arredondar para baixo' }
+  };
+  let cstep=0, comCents=0, comReport=null;
+  function comCalc(method, sales){
+    if(!(sales>0)) return 0;
+    return method==='percent' ? Math.round(sales*5)/100 : Math.floor(sales/1000)*50;
+  }
+  function comExplain(method, sales){
+    if(method==='percent') return '5% de '+brl(sales);
+    const b=Math.floor(sales/1000);
+    return b+(b===1?' bloco':' blocos')+' de R$ 1.000,00 × R$ 50,00';
+  }
+  /** "2026-08-04T14:00" para o input datetime-local, a partir da data BR + hora. */
+  function localDateTime(dateBr, time){
+    if(!dateBr || !time) return '';
+    const [d,m,y]=dateBr.split('/');
+    return `${y}-${m}-${d}T${time}`;
+  }
+  function startComissao(c){
+    S.comissao={ base:c, method:null, sales:0 };
+    comCents=0; cstep=0; comReport=null;
+    $('#comBase').innerHTML=`<b>Turno · ${esc(c.function||'—')}</b>
+      <span>${c.start_date_br} · ${c.start_time}–${c.end_time} · contrato ${brl(c.price)}</span>
+      <span>${esc(c.location||'—')}</span>`;
+    // Pré-preenchidos com o que o sistema já sabe: o CPF como login e o período
+    // do próprio turno. Os dois são editáveis — o login do PDV nem sempre é o
+    // CPF, e o caixa pode ter fechado fora do horário do contrato.
+    $('#comLogin').value = S.freelancer ? S.freelancer.cpf : '';
+    $('#comFrom').value = localDateTime(c.start_date_br, c.start_time);
+    $('#comTo').value = localDateTime(c.end_date_br || c.start_date_br, c.end_time);
+    $('#comReportBox').innerHTML='';
+    renderComMethods(); renderComSales(); showComStep(); go('s-comissao');
+  }
+  function showComStep(){
+    $$('#s-comissao .cstep').forEach(el=> el.style.display=(+el.dataset.step===cstep)?'block':'none');
+    $$('#comSteps i').forEach((el,i)=> el.classList.toggle('done', i<=cstep));
+    $('#comBack').textContent = cstep===0?'Cancelar':'Voltar';
+    $('#comNext').textContent = cstep===2?'Ver prévia':'Continuar';
+    $('#comSalesSub').textContent = comReport
+      ? 'Apurado no MultiVendas. Corrija apenas se houver motivo.'
+      : 'Total das vendas do turno, informado manualmente';
+    validateComStep();
+  }
+  function validateComStep(){
+    const c=S.comissao;
+    if(cstep===0){ $('#comNext').disabled = !c.method; return; }
+    // A apuração não é obrigatória: sem MultiVendas, digita-se o valor.
+    if(cstep===1){ $('#comNext').disabled = false; return; }
+    $('#comNext').disabled = !(c.sales>0 && c.sales<=1000000);
+  }
+
+  /* --- apuração no MultiVendas --- */
+  $('#comFetch').addEventListener('click', async ()=>{
+    const btn=$('#comFetch'), label=btn.textContent;
+    const login=$('#comLogin').value.trim(), from=$('#comFrom').value, to=$('#comTo').value;
+    if(!login || !from || !to){ toast('Preencha login, início e fim.',true); return; }
+    btn.disabled=true; btn.textContent='Consultando…';
+    $('#comReportBox').innerHTML='<p class="subtitle" style="text-align:center;padding:16px 0">Consultando o MultiVendas…</p>';
+    try{
+      const r=await api('POST',`/kiosk/service/${S.comissao.base.id}/sales-report`,{ login, from, to });
+      if(r.ok){
+        comReport=r.data.report;
+        // O total apurado entra no campo do valor; o operador ainda pode mexer.
+        comCents=Math.round((comReport.base||0)*100); renderComSales();
+        renderComReport(comReport);
+      } else {
+        comReport=null;
+        $('#comReportBox').innerHTML=`<div class="banner" style="margin-top:14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>
+          <div><b>Não foi possível apurar</b><p>${esc((r.data&&r.data.error)||'Erro ao consultar as vendas.')} Você pode seguir e informar o valor manualmente.</p></div></div>`;
+      }
+    }catch(e){ if(!e.handled) $('#comReportBox').innerHTML='<p class="subtitle" style="text-align:center;padding:16px 0">Falha de conexão. Siga informando o valor manualmente.</p>'; }
+    finally{ btn.disabled=false; btn.textContent=label; validateComStep(); }
+  });
+
+  /** Resumo do cupom na tela: totais e um punhado de linhas por seção. */
+  function renderComReport(rep){
+    const t=rep.totals||{};
+    const linhas = (nome, max) => (rep.sections && rep.sections[nome] || []).slice(0, max)
+      .map(l=>`<div class="rrow"><span class="k">${esc(l.descricao)}</span><span class="v">${l.valor==null?'—':brl(l.valor)}</span></div>`).join('');
+    const total = (rep.sections && rep.sections['ITENS'] || []).length;
+    $('#comReportBox').innerHTML=`
+      <div class="receipt" style="margin-top:16px">
+        <div class="head"><div class="fn">Vendas apuradas</div><div class="fl">${esc(rep.login)} · ${esc(rep.period.start)} a ${esc(rep.period.end)}</div></div>
+        ${rrow('Qtd. de vendas', t.sales_count==null?'—':t.sales_count)}
+        ${rrow('Total líquido (itens)', t.net_items==null?'—':brl(t.net_items))}
+        ${rrow('Total recebido', t.received==null?'—':brl(t.received))}
+        ${rrow('Diferença (recebido − cabeçalho)', (t.difference==null?'—':brl(t.difference))
+          + (Math.abs(t.difference||0)>=0.01?' <span style="color:var(--warning)">confira o fechamento</span>':''))}
+        <div class="rrow total"><span class="k">Base da comissão</span><span class="v">${brl(rep.base||0)}</span></div>
+      </div>
+      <h3 class="lote-h">Itens (${total})</h3>
+      <div class="receipt">${linhas('ITENS', 8) || '<div class="rrow"><span class="k">Nenhum item</span></div>'}</div>
+      <h3 class="lote-h">Recebimentos</h3>
+      <div class="receipt">${linhas('RECEBIMENTOS', 8) || '<div class="rrow"><span class="k">Nenhum recebimento</span></div>'}</div>
+      <p class="note" style="margin-top:10px">O relatório completo fica anexado ao documento que o freelancer vai assinar.</p>`;
+  }
+  function renderComMethods(){
+    const host=$('#comMethods'); host.innerHTML='';
+    Object.keys(COM_METHODS).forEach(k=>{
+      const m=COM_METHODS[k];
+      const b=document.createElement('button');
+      b.className='opt fn-opt'+(S.comissao.method===k?' sel':'');
+      b.style.flexDirection='column'; b.style.alignItems='flex-start'; b.style.gap='4px'; b.style.padding='16px';
+      b.innerHTML=`<span>${m.label}</span><span class="price" style="font-size:12.5px">${m.hint}</span>`;
+      b.addEventListener('click', ()=>{ S.comissao.method=k; renderComMethods(); validateComStep(); });
+      host.appendChild(b);
+    });
+  }
+  /** Teclado de dinheiro: os dígitos entram pelos centavos (12345 → R$ 123,45). */
+  function renderComSales(){
+    S.comissao.sales = comCents/100;
+    const el=$('#comSalesVal');
+    el.textContent = brl(S.comissao.sales);
+    el.classList.toggle('placeholder', comCents===0);
+    $('#comSalesHint').innerHTML = S.comissao.sales>1000000
+      ? 'Valor acima do limite aceito. Confira o que foi digitado.' : '&nbsp;';
+    validateComStep();
+  }
+  buildKeypad($('#comKeypad'),
+    d=>{ if(String(comCents).length<9){ comCents=comCents*10+Number(d); renderComSales(); } },
+    ()=>{ comCents=Math.floor(comCents/10); renderComSales(); });
+  $('#comNext').addEventListener('click', ()=>{ if(cstep<2){ cstep++; showComStep(); } else showComPrevia(); });
+  $('#comBack').addEventListener('click', ()=>{ if(cstep===0) openContratos(); else { cstep--; showComStep(); } });
+  $('#comDescartar').addEventListener('click', openContratos);
+
+  function showComPrevia(){
+    const c=S.comissao, b=c.base, valor=comCalc(c.method, c.sales);
+    let h=`<div class="head"><div class="fn">Comissão de venda</div><div class="fl">${esc(S.freelancer.name)}</div></div>`;
+    h+=rrow('Turno', `${b.start_date_br} · ${b.start_time}–${b.end_time}`);
+    const apurado = comReport ? Math.abs((comReport.base||0)-c.sales)<0.01 : false;
+    h+=rrow('Vendas do turno', brl(c.sales) + (comReport
+      ? (apurado ? ' <span class="note">(apurado no MultiVendas)</span>'
+                 : ` <span class="note" style="color:var(--warning)">(corrigido; apurado: ${brl(comReport.base||0)})</span>`)
+      : ' <span class="note">(informado manualmente)</span>'));
+    h+=rrow('Critério', esc(COM_METHODS[c.method].label));
+    h+=rrow('Conta', `<span class="note">${esc(comExplain(c.method, c.sales))}</span>`);
+    h+=`<div class="rrow total"><span class="k">Comissão a pagar</span><span class="v">${brl(valor)}</span></div>`;
+    h+=rrow('Contrato do turno', `${brl(b.price)} <span class="note">(continua sendo pago)</span>`);
+    $('#comReceipt').innerHTML=h;
+    // Comissão zerada é o caso que mais confunde: o garçom vendeu, mas não
+    // fechou um bloco inteiro. Melhor dizer isso antes de alguém assinar.
+    $('#comWarn').innerHTML = valor>0 ? '' :
+      `<div class="banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>
+        <div><b>Comissão de R$ 0,00</b><p>As vendas não fecharam um bloco inteiro de R$ 1.000,00. Confira o valor ou o critério antes de gerar.</p></div></div>`;
+    go('s-com-previa');
+  }
+
+  $('#comRegistrar').addEventListener('click', async ()=>{
+    const c=S.comissao, btn=$('#comRegistrar'); btn.disabled=true;
+    try{
+      // Os parâmetros da apuração vão junto: o servidor REFAZ a consulta e
+      // grava o anexo, em vez de aceitar um relatório vindo do navegador.
+      const payload={ method:c.method, sales_amount:c.sales };
+      if(comReport){ payload.login=comReport.login; payload.from=comReport.period.start; payload.to=comReport.period.end; }
+      const r=await api('POST',`/kiosk/service/${c.base.id}/commission`, payload);
+      if(r.status===201){
+        applySession(r.data.session);
+        toast('Comissão gerada · '+brl(r.data.service.price));
+        openSign(r.data.service);
+        return;
+      }
+      if(r.status===422 && r.data && r.data.incomplete_freelancer){ S.freelancer=r.data.freelancer; toast(r.data.error||'Cadastro incompleto.',true); openCompletar(); return; }
+      if(r.status===409){ toast(r.data.error||'Este turno não aceita comissão.',true); openContratos(); return; }
+      toast((r.data && (r.data.message||firstError(r.data)))||'Não foi possível gerar a comissão.',true);
+    }catch(e){ if(!e.handled) toast('Falha de conexão.',true); }
+    finally{ btn.disabled=false; }
+  });
+
   /* ---------- Documento base + assinatura posicionada ---------- */
   const MESES=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
   function money(n){ return Number(n).toFixed(2).replace('.',','); }
@@ -1272,7 +1517,9 @@
       </div>
       <div class="doc-title">${esc(c.document_title||'Contrato Autônomo de Serviços de Freelancer')}</div>
       <div class="doc-body">
-        ${c.is_amendment ? amendmentClauses(c, f, nome, cpf) : originalClauses(c, f, nome, cpf)}
+        ${c.is_commission ? commissionClauses(c, f, nome, cpf)
+          : c.is_amendment ? amendmentClauses(c, f, nome, cpf)
+          : originalClauses(c, f, nome, cpf)}
         <p class="doc-place"><b>Volta Redonda-RJ, ${dataDoc}</b></p>
         <div class="doc-signatures">
           <div class="doc-sign-block">
@@ -1342,10 +1589,76 @@
         <p>E assim por estarem de pleno acordo com o contido neste instrumento, CONTRATANTE e FREELANCER o firmam consoante os ditames legais.</p>`;
   }
 
+  /**
+   * Cláusulas do TERMO ADITIVO DE COMISSÃO SOBRE VENDAS. O oposto do aditivo de
+   * horário na cláusula do valor: aqui a comissão ACRESCE ao contrato, e o texto
+   * diz isso com todas as letras — os dois documentos existem lado a lado, e
+   * confundi-los é confundir o pagamento. Mantido em sincronia com o parcial do
+   * painel (services/partials/commission-clauses.blade.php).
+   */
+  function commissionClauses(c, f, nome, cpf){
+    const b = c.base || {};
+    const celebrado = b.signed_date_br ? ` em ${b.signed_date_br}` : '';
+    const dia = b.start_date_br || c.start_date_br;
+    const criterio = c.commission_method==='percent'
+      ? `${esc(c.commission_method_label||'')}, aplicado sobre o total apurado`
+      : `${esc(c.commission_method_label||'')}, considerados apenas os blocos de R$ 1.000,00 integralmente atingidos e desprezada a fração inferior`;
+
+    return `
+        <p>Por este particular instrumento, firmado entre as partes, de um lado, <b>CLUBE DOS FUNCIONARIOS DA COMPANHIA SIDERURGICA NACIONAL</b>, empresa estabelecida na Rua - General Oswaldo Pinto da Veiga, 231, Volta Redonda – RJ, a seguir denominada simplesmente CONTRATANTE, e, de outro lado <b>${nome}</b>, ${esc(f.nacionality||'—')}, ${esc(f.civil_status||'—')}, titular do CPF: ${cpf} e do RG nº ${esc(f.rg||'—')}, residente e domiciliado ${esc(f.address||'—')}, a seguir denominado simplesmente FREELANCER, fica justo e acordado o presente <b>TERMO ADITIVO DE COMISSÃO SOBRE VENDAS</b> ao Contrato Autônomo de Serviços de Freelancer celebrado entre as partes${celebrado}, para a prestação de serviços na função de <b>${esc(c.function||'—')}</b> no dia ${dia}, a seguir denominado simplesmente CONTRATO ORIGINAL, nos seguintes termos:</p>
+        <p><b>1- DO OBJETO:</b> O presente termo tem por objeto a remuneração variável, a título de comissão, devida ao FREELANCER em razão das vendas por ele realizadas durante a prestação de serviços objeto do CONTRATO ORIGINAL, sem alteração de qualquer outra condição ali ajustada — em especial a função, o local, o período e o valor da prestação.</p>
+        <p><b>2- DA APURAÇÃO DAS VENDAS:</b> As partes reconhecem como base de cálculo o valor de <b>R$ ${money(c.sales_amount||0)}</b>, correspondente ao total das vendas realizadas pelo FREELANCER no período de prestação de serviços do dia ${dia}, das <b>${c.start_time}</b> às <b>${c.end_time}</b>, apurado no encerramento do expediente.</p>
+        <p><b>3- DO CRITÉRIO:</b> A comissão é calculada segundo o critério de ${criterio}, do que resulta a apuração de ${esc(c.commission_explanation||'')}.</p>
+        <p><b>4- DO VALOR DA COMISSÃO:</b> Em razão do disposto nas cláusulas anteriores, o CONTRATANTE paga ao FREELANCER, a título de comissão sobre vendas, o valor de <b>R$ ${money(c.price)}</b>. Este valor <b>acresce</b> ao previsto na cláusula 2 do CONTRATO ORIGINAL, não o substituindo, servindo a assinatura do presente termo como recibo do pagamento.</p>
+        <p><b>5- DA NATUREZA DA COMISSÃO:</b> O pagamento ora ajustado decorre exclusivamente do resultado das vendas realizadas no período e não descaracteriza a natureza autônoma da prestação de serviços, não implicando vínculo empregatício, subordinação ou habitualidade, nos termos dos artigos 442-B e 3º da CLT.</p>
+        <p><b>6- DA RATIFICAÇÃO:</b> Permanecem inalteradas e em pleno vigor todas as demais cláusulas e condições do CONTRATO ORIGINAL que não conflitem com o presente termo, inclusive o foro de eleição de Volta Redonda.</p>
+        <p>E assim por estarem de pleno acordo com o contido neste instrumento, CONTRATANTE e FREELANCER o firmam consoante os ditames legais.</p>
+        ${salesAnnex(c)}`;
+  }
+
+  /**
+   * ANEXO I — o relatório de fechamento que apurou as vendas, impresso dentro
+   * do próprio termo. É o que permite ao freelancer conferir de onde saiu o
+   * número que ele está assinando. Mantido em sincronia com o parcial do painel
+   * (services/partials/sales-report-annex.blade.php).
+   */
+  function salesAnnex(c){
+    const rep = c.sales_report;
+    if(!rep || !rep.sections) return '';
+
+    const secao = (nome) => {
+      const linhas = rep.sections[nome] || [];
+      if(!linhas.length) return '';
+      return `<tr><td colspan="4" class="annex-sec">${esc(nome)}</td></tr>` + linhas.map(l=>`
+        <tr>
+          <td>${esc(l.descricao)}</td>
+          <td class="num">${l.qtde==null?'':Number(l.qtde).toLocaleString('pt-BR',{maximumFractionDigits:3})}${l.un?' '+esc(l.un):''}</td>
+          <td class="num">${l.valor_unit==null?'':money(l.valor_unit)}</td>
+          <td class="num">${l.valor==null?'':money(l.valor)}</td>
+        </tr>`).join('');
+    };
+
+    return `
+      <div class="doc-annex">
+        <div class="doc-annex-title">ANEXO I — Relatório de vendas do período</div>
+        <p class="doc-annex-meta">Vendedor: <b>${esc(rep.login)}</b> · Período: ${esc(rep.period.start)} a ${esc(rep.period.end)}
+          · Apurado em ${esc(rep.generated_at||'')} no sistema MultiVendas.</p>
+        <table class="annex">
+          <thead><tr><th>Descrição</th><th class="num">Qtde</th><th class="num">Unit.</th><th class="num">Valor</th></tr></thead>
+          <tbody>
+            ${secao('CABEÇALHO')}${secao('ITENS')}${secao('RECEBIMENTOS')}${secao('TOTAIS')}${secao('CANCELAMENTOS')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
   /** Assinatura do freelancer, conduzida pelo operador. */
   function openSign(c){
-    $('#signEyebrow').textContent = c.is_amendment ? 'Assinatura do freelancer · Aditivo' : 'Assinatura do freelancer';
-    $('#signSub').textContent = c.is_amendment
+    $('#signEyebrow').textContent = c.is_commission ? 'Assinatura do freelancer · Comissão'
+      : c.is_amendment ? 'Assinatura do freelancer · Aditivo' : 'Assinatura do freelancer';
+    $('#signSub').textContent = c.is_commission
+      ? 'Esta comissão é paga além do contrato do turno. Role o documento e assine no campo do Contratado.'
+      : c.is_amendment
       ? 'Este termo aditivo substitui o contrato original. Role o documento e assine no campo do Contratado.'
       : 'Role o contrato e assine no campo do Contratado. A assinatura é definitiva.';
     openDocument(c, S.freelancer, 'freelancer');
@@ -1353,7 +1666,8 @@
 
   /** Assinatura do coordenador, sobre um contrato que o freelancer já assinou. */
   function openCoordSign(c){
-    $('#signEyebrow').textContent = c.is_amendment ? 'Assinatura do coordenador · Aditivo' : 'Assinatura do coordenador';
+    $('#signEyebrow').textContent = c.is_commission ? 'Assinatura do coordenador · Comissão'
+      : c.is_amendment ? 'Assinatura do coordenador · Aditivo' : 'Assinatura do coordenador';
     $('#signSub').textContent='Confira os dados e assine no campo do Contratante. A assinatura é definitiva e libera o contrato para entrar num lote de aprovação.';
     openDocument(c, c.freelancer, 'coordinator');
   }

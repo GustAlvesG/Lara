@@ -26,6 +26,8 @@ class StoreFunctionFreelancerRequest extends FormRequest
             'description' => ['nullable', 'string'],
             // Preço cobrado por bloco de 15 minutos.
             'price' => ['required', 'numeric', 'min:0'],
+            // Habilita o aditivo de comissão de venda para esta função.
+            'allows_sales_commission' => ['nullable', 'boolean'],
             'created_by' => ['nullable', 'integer', 'exists:users,id'],
         ];
     }

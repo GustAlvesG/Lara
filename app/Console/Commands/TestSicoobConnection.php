@@ -26,7 +26,8 @@ class TestSicoobConnection extends Command
 {
     protected $signature = 'sicoob:testar
                             {--chave= : Chave Pix para consultar no DICT (opcional, não move dinheiro)}
-                            {--sem-client-id : Testa o Pix SEM o header client_id (a spec do Pix Pagamentos não o declara)}';
+                            {--sem-client-id : Testa o Pix SEM o header client_id (a spec do Pix Pagamentos não o declara)}
+                            {--headers : Mostra os headers que o app envia no fio e varre variações deles}';
 
     protected $description = 'Verifica certificado, token, saldo e consulta de chave no DICT do Sicoob. Não transfere dinheiro.';
 
@@ -58,6 +59,10 @@ class TestSicoobConnection extends Command
             // Saldo não é bloqueante: falhar aqui não impede pagamento, então
             // também não deve reprovar a checagem inteira.
             $this->testarSaldo($contaCorrente);
+
+            if ($this->option('headers')) {
+                $this->diagnosticarCabecalhos($auth, (string) $this->option('chave'));
+            }
 
             if ($this->option('chave')) {
                 $ok = $this->testarDict($pix, (string) $this->option('chave'));
@@ -301,6 +306,144 @@ class TestSicoobConnection extends Command
         $this->line('<info>OK</info>  Consulta real ao DICT. Confira se o titular acima é quem você espera.');
 
         return true;
+    }
+
+    /* ---------------------------------------------------------------------
+     | Cabeçalhos
+     |
+     | A documentação do Sicoob atrela o 401 aos headers de autenticação, e a
+     | única forma honesta de conferir isso é ler o que sai NO FIO — não o que
+     | achamos que o código monta. `beforeSending` entrega a requisição PSR-7
+     | já pronta, com tudo que o Guzzle acrescentou por conta própria.
+     |
+     | Depois da leitura, varre variações do header: presença, ausência e
+     | grafia. Se alguma passar, ela é a resposta; se nenhuma mudar nada, o
+     | problema não é cabeçalho — e isso também é uma conclusão útil.
+     |-------------------------------------------------------------------*/
+
+    private function diagnosticarCabecalhos(SicoobAuthService $auth, string $chave): void
+    {
+        $this->newLine();
+        $this->info('Headers enviados pela aplicação (leitura do fio)');
+
+        $url = rtrim((string) config('sicoob.pix.base_url'), '/') . '/pagamentos';
+        $corpo = ['chave' => $chave !== '' ? $chave : 'diagnostico@invalido'];
+
+        $enviados = [];
+
+        try {
+            $auth->client(config('sicoob.scopes.pix'), (bool) config('sicoob.pix.enviar_client_id', true))
+                ->beforeSending(function ($request) use (&$enviados) {
+                    $enviados = $request->headers();
+                })
+                ->post($url, $corpo);
+        } catch (Throwable $e) {
+            // A resposta não importa aqui — o objetivo é capturar os headers, e
+            // `beforeSending` já rodou antes de qualquer falha de rede.
+            $this->line('  (a chamada falhou, mas os headers abaixo foram os enviados)');
+        }
+
+        if ($enviados === []) {
+            $this->warn('  Não foi possível capturar os headers.');
+
+            return;
+        }
+
+        $linhas = [];
+
+        foreach ($enviados as $nome => $valores) {
+            $valor = implode(', ', (array) $valores);
+
+            // Nem token nem client_id aparecem inteiros: este comando roda em
+            // produção e a saída costuma virar anexo de chamado.
+            if (strcasecmp($nome, 'Authorization') === 0) {
+                $valor = 'Bearer <token de ' . max(0, strlen($valor) - 7) . ' caracteres>';
+            } elseif (strcasecmp($nome, 'client_id') === 0) {
+                $valor = $this->mascarar($valor);
+            }
+
+            $linhas[] = [$nome, $valor];
+        }
+
+        $this->table(['Header', 'Valor'], $linhas);
+
+        $nomes = array_map('strtolower', array_keys($enviados));
+
+        in_array('authorization', $nomes, true)
+            ? $this->line('<info>OK</info>  Authorization presente')
+            : $this->error('Authorization AUSENTE');
+
+        if (config('sicoob.pix.enviar_client_id', true)) {
+            in_array('client_id', $nomes, true)
+                ? $this->line('<info>OK</info>  client_id presente')
+                : $this->error('client_id deveria estar presente e não está');
+        }
+
+        $this->varrerVariacoesDeHeader($auth, $url, $corpo);
+    }
+
+    /**
+     * Testa o mesmo POST com combinações diferentes de header, comparando os
+     * códigos HTTP.
+     *
+     * Só a iniciação DICT é usada — ela consulta a chave e reserva um
+     * identificador, sem mover dinheiro. Um 404 no lugar de 401 seria a
+     * descoberta mais valiosa: significa que a autorização passou naquela
+     * variação e apenas o recurso não existe.
+     *
+     * @param  array<string, mixed>  $corpo
+     */
+    private function varrerVariacoesDeHeader(SicoobAuthService $auth, string $url, array $corpo): void
+    {
+        $this->newLine();
+        $this->info('Variações de cabeçalho (POST /pagamentos — não move dinheiro)');
+
+        $clientId = (string) config('sicoob.client_id');
+
+        $variacoes = [
+            'Authorization + client_id' => ['client_id' => $clientId],
+            'só Authorization' => [],
+            'Client-Id (hífen, capitalizado)' => ['Client-Id' => $clientId],
+            'client-id (hífen, minúsculo)' => ['client-id' => $clientId],
+            'X-Client-Id' => ['X-Client-Id' => $clientId],
+            'client_id + Accept: application/json' => ['client_id' => $clientId, 'Accept' => 'application/json'],
+        ];
+
+        $linhas = [];
+
+        foreach ($variacoes as $rotulo => $headers) {
+            // `comClientId: false` para que o header venha só do array acima —
+            // senão a variação "só Authorization" viria com ele de qualquer forma.
+            try {
+                $resposta = $auth->client(config('sicoob.scopes.pix'), false)
+                    ->withHeaders($headers)
+                    ->post($url, $corpo);
+
+                $codigo = (string) $resposta->status();
+                $detalhe = mb_substr((string) ($resposta->json('moreInformation')
+                    ?? $resposta->json('detail')
+                    ?? $resposta->json('title')
+                    ?? ''), 0, 60);
+            } catch (Throwable $e) {
+                $codigo = 'erro';
+                $detalhe = mb_substr($e->getMessage(), 0, 60);
+            }
+
+            $linhas[] = [$rotulo, $codigo, $detalhe];
+        }
+
+        $this->table(['Variação', 'HTTP', 'Mensagem'], $linhas);
+
+        $codigos = array_column($linhas, 1);
+
+        if (in_array('200', $codigos, true) || in_array('201', $codigos, true)) {
+            $this->line('<info>OK</info>  Alguma variação passou — veja qual na tabela e ajuste a configuração.');
+        } elseif (in_array('404', $codigos, true)) {
+            $this->comment('  Houve 404: naquela variação a autorização PASSOU (só o recurso não existe).');
+        } elseif (count(array_unique($codigos)) === 1) {
+            $this->comment('  Todas as variações deram o mesmo código — o problema NÃO é cabeçalho.');
+            $this->line('  Sobra a autorização do produto Pix Pagamentos para este client_id no gateway.');
+        }
     }
 
     private function mascarar(string $valor): string

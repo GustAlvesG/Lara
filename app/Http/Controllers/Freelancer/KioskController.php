@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Freelancer;
 use App\Exceptions\CoordinatorAuthorizationException;
 use App\Exceptions\FreelancerBatchException;
 use App\Exceptions\FreelancerServiceLockedException;
+use App\Exceptions\SalesReportException;
 use App\Http\Controllers\Concerns\AuthorizesCommercialCoordinator;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Freelancer\Concerns\ServesSignatureImages;
 use App\Http\Requests\StoreFreelancerRequest;
 use App\Http\Requests\StoreFreelancerServiceAmendmentRequest;
 use App\Http\Requests\StoreFreelancerServiceRequest;
+use App\Http\Requests\StoreSalesCommissionRequest;
 use App\Http\Requests\UpdateFreelancerRequest;
 use App\Models\Freelancer;
 use App\Models\FreelancerService;
@@ -19,6 +21,7 @@ use App\Models\FunctionFreelancer;
 use App\Models\User;
 use App\Services\FreelancerBatchService;
 use App\Services\FreelancerService as FreelancerServiceManager;
+use App\Services\MultiVendasSalesReport;
 use App\Services\WeeklyLimitCodeService;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
@@ -60,6 +63,9 @@ class KioskController extends Controller
 
     /** Quantos contratos pendentes a fila do coordenador traz por vez. */
     private const COORDINATOR_QUEUE_LIMIT = 50;
+
+    /** Por quantos dias o tablet ainda oferece a comissão de um turno. */
+    private const COMMISSION_WINDOW_DAYS = 7;
 
     private const MODE_OPERATOR = 'operator';
     private const MODE_COORDINATOR = 'coordinator';
@@ -244,14 +250,31 @@ class KioskController extends Controller
         $services = $freelancer->freelancerServices()
             // `batch` e `baseService` entram na regra do aditivo; sem eles cada
             // linha da lista viraria duas consultas.
-            ->with(['functionFreelancer', 'batch', 'baseService.functionFreelancer'])
+            // `amendments` responde "já tem comissão?" sem uma consulta por linha.
+            ->with(['functionFreelancer', 'batch', 'baseService.functionFreelancer', 'amendments'])
             ->orderByDesc('start_date')
             ->get()
-            ->filter(fn(FreelancerService $s) => $s->canBeSignedByFreelancer() || $s->canBeAmended())
+            ->filter(fn(FreelancerService $s) => $s->canBeSignedByFreelancer()
+                || $s->canBeAmended()
+                || ($s->canReceiveCommission() && $this->withinCommissionWindow($s)))
             ->values()
             ->map(fn(FreelancerService $s) => $this->servicePayload($s));
 
         return response()->json($services);
+    }
+
+    /**
+     * A comissão é oferecida no tablet só para turnos recentes. A REGRA não
+     * expira — um valor de venda pode chegar depois, e vai chegar quando a
+     * captura for automática —, mas o tablet é o aparelho do fim do expediente:
+     * sem essa janela, todo contrato de garçom já assinado ficaria para sempre
+     * na lista de atendimento oferecendo comissão.
+     */
+    private function withinCommissionWindow(FreelancerService $service): bool
+    {
+        return $service->start_date !== null
+            && Carbon::parse($service->start_date)->startOfDay()
+                ->greaterThanOrEqualTo(now()->subDays(self::COMMISSION_WINDOW_DAYS)->startOfDay());
     }
 
     public function storeService(StoreFreelancerServiceRequest $request)
@@ -349,6 +372,110 @@ class KioskController extends Controller
         return response()->json([
             'service' => $this->servicePayload(
                 $amendment->load(['functionFreelancer', 'baseService.functionFreelancer'])
+            ),
+            'session' => $this->sessionPayload(),
+        ], 201);
+    }
+
+    /**
+     * Comissão de venda: o segundo tipo de aditivo, exclusivo das funções
+     * marcadas na tela de Funções (hoje, só o Garçom) e assinado ao FINAL do
+     * expediente, quando já se sabe quanto foi vendido.
+     *
+     * Diferente do aditivo de horário, a comissão ACRESCE ao contrato: o turno
+     * continua sendo pago pelo contrato base, e este documento é pago por cima.
+     * Por isso ela não pede o base fora de lote nem por assinar — só que o
+     * freelancer tenha assinado o contrato do turno.
+     *
+     * Sem limite semanal, pela mesma razão do outro aditivo: nenhum dia novo de
+     * trabalho é acrescentado.
+     */
+    /**
+     * Apura as vendas do turno no MultiVendas, para o operador conferir antes de
+     * gerar a comissão. Login e período vêm pré-preenchidos pela tela (CPF do
+     * freelancer e horário do serviço) e podem ser corrigidos — o login do PDV
+     * nem sempre é o CPF, e o caixa pode ter sido fechado fora do horário.
+     *
+     * Só consulta: nada é gravado aqui. O relatório que vale é o que a gravação
+     * refaz, para o anexo do documento não vir do navegador.
+     */
+    public function salesReport(Request $request, FreelancerService $freelancerService, MultiVendasSalesReport $reports)
+    {
+        $this->operatorModeOrFail();
+
+        $data = $request->validate([
+            'login' => ['required', 'string', 'max:100'],
+            'from' => ['required', 'date'],
+            'to' => ['required', 'date'],
+        ]);
+
+        try {
+            $report = $reports->forSeller(
+                $data['login'],
+                Carbon::parse($data['from']),
+                Carbon::parse($data['to']),
+            );
+        } catch (SalesReportException $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['report' => $report]);
+    }
+
+    public function storeCommission(
+        StoreSalesCommissionRequest $request,
+        FreelancerService $freelancerService,
+        MultiVendasSalesReport $reports,
+    ) {
+        $operator = $this->operatorModeOrFail();
+
+        $freelancer = $freelancerService->freelancer;
+
+        if ($freelancer && !$freelancer->hasCompleteContractData()) {
+            return response()->json([
+                'error' => 'Cadastro incompleto. Complete os dados do freelancer antes de gerar a comissão.',
+                'incomplete_freelancer' => true,
+                'freelancer' => $this->freelancerPayload($freelancer),
+            ], 422);
+        }
+
+        $data = $request->validated();
+
+        // O anexo é refeito no servidor, com os mesmos parâmetros que a tela
+        // usou: um relatório vindo do navegador seria um anexo que o cliente
+        // escreve. Se o MultiVendas não responder na hora de gravar, a comissão
+        // ainda sai — com o valor informado e sem anexo, o que o documento diz.
+        $report = null;
+
+        if (!empty($data['login']) && !empty($data['from']) && !empty($data['to'])) {
+            try {
+                $report = $reports->forSeller(
+                    $data['login'],
+                    Carbon::parse($data['from']),
+                    Carbon::parse($data['to']),
+                );
+            } catch (SalesReportException $e) {
+                report($e);
+            }
+        }
+
+        try {
+            $commission = $this->freelancerService->createSalesCommission(
+                $freelancerService,
+                $data['method'],
+                (float) $data['sales_amount'],
+                $operator,
+                $report,
+            );
+        } catch (FreelancerServiceLockedException $e) {
+            return response()->json(['error' => $e->getMessage()], 409);
+        }
+
+        $this->bumpCount();
+
+        return response()->json([
+            'service' => $this->servicePayload(
+                $commission->load(['functionFreelancer', 'baseService.functionFreelancer'])
             ),
             'session' => $this->sessionPayload(),
         ], 201);
@@ -467,7 +594,7 @@ class KioskController extends Controller
         $services = FreelancerService::awaitingCoordinator()
             // `baseService` porque o coordenador também assina aditivos, e o
             // documento do aditivo cita o contrato que ele altera.
-            ->with(['functionFreelancer', 'freelancer', 'batch', 'baseService.functionFreelancer'])
+            ->with(['functionFreelancer', 'freelancer', 'batch', 'baseService.functionFreelancer', 'amendments'])
             ->orderBy('freelancer_signed_at')
             ->limit(self::COORDINATOR_QUEUE_LIMIT)
             ->get()
@@ -841,6 +968,19 @@ class KioskController extends Controller
             'can_be_signed' => $s->canBeSignedByFreelancer(),
             'can_be_amended' => $s->canBeAmended(),
             'is_amendment' => $s->isAmendment(),
+            'is_commission' => $s->isCommissionAmendment(),
+            'can_receive_commission' => $s->canReceiveCommission() && $this->withinCommissionWindow($s),
+            'commission_block_reason' => $s->commissionBlockReason(),
+            // Dados da comissão, quando esta linha é uma.
+            'sales_amount' => $s->sales_amount === null ? null : (float) $s->sales_amount,
+            'commission_method' => $s->commission_method,
+            'commission_method_label' => $s->commissionMethodLabel(),
+            'commission_explanation' => $s->commissionExplanation(),
+            // Relatório de vendas anexo, para o documento montar o anexo.
+            'sales_report' => $s->hasSalesReport() ? $s->sales_report : null,
+            'sales_period_label' => $s->salesPeriodLabel(),
+            'sales_source' => $s->sales_source,
+            'sales_adjusted' => $s->salesAmountWasAdjusted(),
             // Recebeu aditivo: continua sendo assinado, mas quem paga é o outro.
             'is_amended' => $s->isAmended(),
             'amendment_order' => $s->amendmentOrder(),

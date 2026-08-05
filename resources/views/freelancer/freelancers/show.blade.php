@@ -68,6 +68,7 @@
                         <thead class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider bg-gray-50 dark:bg-gray-900/40">
                             <tr>
                                 <th class="px-6 py-3"></th>
+                                <th class="px-6 py-3">Nº</th>
                                 <th class="px-6 py-3">Função</th>
                                 <th class="px-6 py-3">Evento/Local</th>
                                 <th class="px-6 py-3">Período</th>
@@ -85,7 +86,11 @@
                                         <span title="Mais de {{ \App\Models\FreelancerService::WEEKLY_LIMIT }} serviços numa janela de 7 dias" class="text-amber-500">⚠️</span>
                                     @endif
                                 </td>
-                                <td class="px-6 py-4 text-gray-900 dark:text-white font-medium">{{ $service->functionFreelancer->name }}</td>
+                                <td class="px-6 py-4 font-mono text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">#{{ $service->id }}</td>
+                                <td class="px-6 py-4 text-gray-900 dark:text-white font-medium">
+                                    {{ $service->functionFreelancer->name }}
+                                    <x-freelancer-kind-badge :service="$service" class="ml-1 align-middle" />
+                                </td>
                                 <td class="px-6 py-4 text-gray-700 dark:text-gray-300">
                                     {{ $service->location ?? '—' }}
                                     @if(filled($service->description))

@@ -53,7 +53,11 @@
     <div class="doc-title">{{ $service->documentTitle() }}</div>
 
     <div class="doc-body">
-        @if($service->isAmendment())
+        @if($service->isCommissionAmendment())
+            {{-- Comissão de venda: remunera as vendas do turno e ACRESCE ao
+                 contrato, sem alterar nenhuma outra condição dele. --}}
+            @include('freelancer.services.partials.commission-clauses', ['service' => $service, 'f' => $f, 'cpf' => $cpf])
+        @elseif($service->isAmendment())
             {{-- O aditivo não repete o contrato: cita o que estava valendo e diz
                  o que passa a valer, ratificando o resto. --}}
             @include('freelancer.services.partials.amendment-clauses', ['service' => $service, 'f' => $f, 'cpf' => $cpf])

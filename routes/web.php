@@ -76,6 +76,14 @@ Route::prefix('kiosk')->group(function () {
     // ao base, que passa a ser o documento válido daquele turno.
     Route::post('/service/{freelancerService}/amendment', [KioskController::class, 'storeAmendment'])
         ->middleware('throttle:20,1')->name('kiosk.service.amendment');
+    // Comissão de venda: o outro tipo de aditivo, assinado ao final do
+    // expediente e exclusivo das funções que a recebem (hoje, Garçom).
+    Route::post('/service/{freelancerService}/commission', [KioskController::class, 'storeCommission'])
+        ->middleware('throttle:20,1')->name('kiosk.service.commission');
+    // Apuração das vendas no MultiVendas, antes de gerar a comissão. Throttle
+    // apertado: cada toque é uma consulta pesada num banco de terceiro.
+    Route::post('/service/{freelancerService}/sales-report', [KioskController::class, 'salesReport'])
+        ->middleware('throttle:20,1')->name('kiosk.service.sales-report');
     Route::post('/service/{freelancerService}/sign', [KioskController::class, 'signService'])
         ->middleware('throttle:20,1')->name('kiosk.service.sign');
 

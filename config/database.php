@@ -97,6 +97,27 @@ return [
             'trust_server_certificate' => 'true',
         ],
 
+        /*
+         * MultiVendas — mesma instância e mesmas credenciais do MultiClubes,
+         * outro banco. É de onde sai o relatório de vendas que apura a comissão
+         * do garçom (ver App\Services\MultiVendasSalesReport).
+         */
+        'mv_sqlsrv' => [
+            'driver' => 'sqlsrv',
+            'url' => env('DB_URL'),
+            'host' => env('DB_MC_HOST', '127.0.0.1'),
+            'port' => env('DB_MC_PORT', '5432'),
+            'database' => env('DB_MV_DATABASE', 'MultiVendas'),
+            'username' => env('DB_MC_USERNAME', 'root'),
+            'password' => env('DB_MC_PASSWORD', ''),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => 'None',
+            'trust_server_certificate' => 'true',
+        ],
+
         'mc_sqlsrv_image' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),

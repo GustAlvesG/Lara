@@ -192,6 +192,7 @@
                         <thead class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider bg-gray-50 dark:bg-gray-900/40">
                             <tr>
                                 <th class="px-4 py-3"></th>
+                                <th class="px-4 py-3">Nº</th>
                                 <th class="px-4 py-3">
                                     <a href="{{ $sortUrl('name') }}" class="inline-flex items-center gap-1 hover:text-gray-600 dark:hover:text-gray-300 transition">
                                         Freelancer <span class="text-[#A00001] dark:text-red-400">{{ $sortMark('name') }}</span>
@@ -225,6 +226,7 @@
                                         <span title="Freelancer com mais de {{ \App\Models\FreelancerService::WEEKLY_LIMIT }} serviços numa janela de 7 dias" class="text-amber-500">⚠️</span>
                                     @endif
                                 </td>
+                                <td class="px-4 py-4 font-mono text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">#{{ $service->id }}</td>
                                 <td class="px-4 py-4 font-semibold text-gray-900 dark:text-white">{{ $service->freelancer->name }}</td>
                                 <td class="px-4 py-4 text-gray-700 dark:text-gray-300">{{ $service->functionFreelancer->name }}</td>
                                 <td class="px-4 py-4 text-gray-700 dark:text-gray-300">
@@ -248,7 +250,10 @@
                                     <x-freelancer-signature-badge :service="$service" />
                                     {{-- O par aditivo/aditivado explica por que duas linhas do mesmo
                                          turno aparecem na lista e só uma delas será paga. --}}
-                                    @if($service->isAmendment())
+                                    @if($service->isCommissionAmendment())
+                                        <span class="block text-xs font-bold text-emerald-600 dark:text-emerald-400"
+                                              title="Comissão sobre R$ {{ number_format((float) $service->sales_amount, 2, ',', '.') }} vendidos, paga além do contrato #{{ $service->parent_service_id }}">Comissão de venda</span>
+                                    @elseif($service->isAmendment())
                                         <span class="block text-xs font-bold text-indigo-600 dark:text-indigo-400"
                                               title="Aditivo do contrato #{{ $service->parent_service_id }}">Aditivo</span>
                                     @elseif($service->isAmended())

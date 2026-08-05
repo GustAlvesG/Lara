@@ -259,6 +259,41 @@ sudo -u www-data php artisan sicoob:testar --chave=<uma chave pix>
 
 Confere configuração, certificados, token, saldo e DICT, e diz em qual etapa quebrou.
 
+### Quando o erro é 401
+
+A documentação do Sicoob atrela o 401 aos headers de autenticação, então há duas
+ferramentas dedicadas a isso.
+
+**Do lado da aplicação** — mostra os headers que o Guzzle põe no fio e varre variações
+(presença, ausência, `Client-Id`, `client-id`, `X-Client-Id`, `Accept`):
+
+```bash
+sudo -u www-data php artisan sicoob:testar --chave=<chave> --headers
+```
+
+**Sem o Laravel na frente** — curl puro, para descartar a aplicação como suspeita e gerar
+um anexo de chamado:
+
+```bash
+sudo -u www-data ./sicoob-diagnostico.sh --env /var/www/html/Lara/.env --chave=<chave>
+```
+
+Como ler o resultado:
+
+| O que aparece | Conclusão |
+|---|---|
+| Alguma variação responde 2xx | É cabeçalho. Ajuste a configuração para essa variação |
+| Alguma variação responde **404** | A autorização passou ali (o recurso é que não existe) — compare com as linhas 401 |
+| **Todas** as variações dão o mesmo código | Não é cabeçalho. Sobra a autorização do produto para o `client_id` no gateway — resolve-se no portal/cooperativa |
+
+Um detalhe já verificado e que costuma confundir: a especificação de **Conta Corrente**
+declara o header `client_id` como obrigatório; a de **Pix Pagamentos não o menciona**. O flag
+`SICOOB_PIX_ENVIAR_CLIENT_ID=false` omite o header apenas nas chamadas de Pix, mantendo-o na
+Conta Corrente.
+
+Outra causa de 401 que não aparece em inspeção visual: **espaço ou CRLF dentro do
+`SICOOB_CLIENT_ID`** no `.env`. O script checa isso antes de qualquer chamada.
+
 **Onde olhar:** `storage/logs/sicoob-YYYY-MM-DD.log` (retenção de 180 dias) e a tabela
 `pix_payments`.
 
@@ -285,6 +320,7 @@ ORDER BY created_at;
 | Job de envio | `app/Jobs/SendFreelancerPixPayment.php` |
 | Reconciliação | `app/Console/Commands/ReconcilePixPayments.php` |
 | Pré-checagem (`sicoob:testar`) | `app/Console/Commands/TestSicoobConnection.php` |
+| Diagnóstico sem Laravel | `sicoob-diagnostico.sh` (raiz do projeto) |
 | Trilha de auditoria | `app/Models/PixPayment.php` + migration `create_pix_payments_table` |
 | Orquestração pelo financeiro | `app/Services/FreelancerService.php` (`requestPixForMany`, `pixBlockReason`, `markAsPaidFromPix`) |
 | Tela | `app/Http/Controllers/Freelancer/FinanceController.php` + `resources/views/freelancer/services/finance.blade.php` |

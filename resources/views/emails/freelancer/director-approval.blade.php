@@ -1,5 +1,10 @@
 @php
     use Illuminate\Support\Carbon;
+
+    // Os termos de comissão de venda aparecem no lote com o mesmo nome e a mesma
+    // data do contrato do turno, com outro valor. Sem dizer isso com todas as
+    // letras, a relação parece ter linhas repetidas.
+    $comissoes = $services->filter->isCommissionAmendment();
 @endphp
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -31,6 +36,22 @@
                 e aguarda o aval da diretoria. São <strong>{{ $services->count() }} contrato(s)</strong>,
                 totalizando <strong>R$ {{ number_format($total, 2, ',', '.') }}</strong>.
             </p>
+            @if($comissoes->isNotEmpty())
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                       style="border-left:4px solid #157a58;background:#eef8f3;border-radius:0 8px 8px 0;margin:0 0 14px;">
+                    <tr>
+                        <td style="padding:12px 16px;font-size:14px;line-height:1.55;">
+                            <strong style="color:#0f5c42;">
+                                {{ $comissoes->count() }} destes documentos {{ $comissoes->count() === 1 ? 'é um termo' : 'são termos' }}
+                                de comissão de venda</strong>, totalizando
+                            <strong>R$ {{ number_format($comissoes->sum('price'), 2, ',', '.') }}</strong>.
+                            A comissão remunera as vendas do garçom no turno e é paga <strong>além</strong> do contrato
+                            do mesmo dia — por isso o freelancer aparece duas vezes na relação, com valores diferentes.
+                            Não são lançamentos repetidos.
+                        </td>
+                    </tr>
+                </table>
+            @endif
             <p style="margin:0 0 4px;font-size:15px;line-height:1.55;">
                 A relação completa segue em anexo, em PDF.
             </p>
@@ -98,28 +119,49 @@
             </div>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:13.5px;">
                 <tr style="background:#f7f4f3;">
+                    <th align="left" style="padding:9px 10px;border-bottom:1px solid #e8dedd;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:#6d6062;">Nº</th>
                     <th align="left" style="padding:9px 10px;border-bottom:1px solid #e8dedd;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:#6d6062;">Freelancer</th>
                     <th align="left" style="padding:9px 10px;border-bottom:1px solid #e8dedd;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:#6d6062;">Função</th>
                     <th align="left" style="padding:9px 10px;border-bottom:1px solid #e8dedd;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:#6d6062;">Data</th>
                     <th align="right" style="padding:9px 10px;border-bottom:1px solid #e8dedd;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:#6d6062;">Valor</th>
                 </tr>
                 @foreach($services as $service)
+                    @php
+                        $nota = $service->kindNote();
+                        // A borda fecha a última linha do contrato, seja ela a
+                        // principal, a do tipo ou a da descrição.
+                        $borda = ($nota || filled($service->description)) ? '' : 'border-bottom:1px solid #f0eae9;';
+                        $cor = $service->isCommissionAmendment() ? '#157a58' : '#4f46e5';
+                    @endphp
                     <tr>
-                        <td style="padding:9px 10px;{{ filled($service->description) ? '' : 'border-bottom:1px solid #f0eae9;' }}">{{ $service->freelancer->name ?? '—' }}</td>
-                        <td style="padding:9px 10px;{{ filled($service->description) ? '' : 'border-bottom:1px solid #f0eae9;' }}color:#6d6062;">{{ $service->functionFreelancer->name ?? '—' }}</td>
-                        <td style="padding:9px 10px;{{ filled($service->description) ? '' : 'border-bottom:1px solid #f0eae9;' }}color:#6d6062;white-space:nowrap;">{{ Carbon::parse($service->start_date)->format('d/m/Y') }}</td>
-                        <td align="right" style="padding:9px 10px;{{ filled($service->description) ? '' : 'border-bottom:1px solid #f0eae9;' }}white-space:nowrap;">R$ {{ number_format($service->price, 2, ',', '.') }}</td>
+                        <td style="padding:9px 10px;{{ $borda }}color:#9a8e90;white-space:nowrap;font-family:'Courier New',Courier,monospace;">#{{ $service->id }}</td>
+                        <td style="padding:9px 10px;{{ $borda }}">
+                            {{ $service->freelancer->name ?? '—' }}
+                            @if($service->kindLabel())
+                                <span style="display:inline-block;margin-left:4px;padding:1px 7px;border-radius:9px;font-size:10.5px;font-weight:bold;color:#ffffff;background:{{ $cor }};white-space:nowrap;">{{ $service->kindLabel() }}</span>
+                            @endif
+                        </td>
+                        <td style="padding:9px 10px;{{ $borda }}color:#6d6062;">{{ $service->functionFreelancer->name ?? '—' }}</td>
+                        <td style="padding:9px 10px;{{ $borda }}color:#6d6062;white-space:nowrap;">{{ Carbon::parse($service->start_date)->format('d/m/Y') }}</td>
+                        <td align="right" style="padding:9px 10px;{{ $borda }}white-space:nowrap;">R$ {{ number_format($service->price, 2, ',', '.') }}</td>
                     </tr>
+                    @if($nota)
+                        <tr>
+                            <td colspan="5" style="padding:0 10px 9px;{{ filled($service->description) ? '' : 'border-bottom:1px solid #f0eae9;' }}color:{{ $cor }};font-size:12.5px;line-height:1.45;">
+                                {{ $nota }}
+                            </td>
+                        </tr>
+                    @endif
                     @if(filled($service->description))
                         <tr>
-                            <td colspan="4" style="padding:0 10px 9px;border-bottom:1px solid #f0eae9;color:#6d6062;font-size:12.5px;line-height:1.45;">
+                            <td colspan="5" style="padding:0 10px 9px;border-bottom:1px solid #f0eae9;color:#6d6062;font-size:12.5px;line-height:1.45;">
                                 <span style="color:#9a8e90;">Descrição / justificativa:</span> {{ $service->description }}
                             </td>
                         </tr>
                     @endif
                 @endforeach
                 <tr style="background:#f7f4f3;">
-                    <td colspan="3" style="padding:11px 10px;font-weight:bold;">Total</td>
+                    <td colspan="4" style="padding:11px 10px;font-weight:bold;">Total</td>
                     <td align="right" style="padding:11px 10px;font-weight:bold;font-size:16px;color:#A00001;white-space:nowrap;">
                         R$ {{ number_format($total, 2, ',', '.') }}
                     </td>

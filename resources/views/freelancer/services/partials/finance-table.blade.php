@@ -128,7 +128,13 @@
                                                class="rounded border-gray-300 dark:border-gray-600 text-[#A00001] focus:ring-[#A00001] dark:bg-gray-700">
                                     @endif
                                 </td>
-                                <td class="px-4 py-4 font-semibold text-gray-900 dark:text-white">{{ $service->freelancer->name }}</td>
+                                <td class="px-4 py-4 font-semibold text-gray-900 dark:text-white">
+                                    <span class="text-xs font-mono text-gray-400 dark:text-gray-500">#{{ $service->id }}</span>
+                                    {{ $service->freelancer->name }}
+                                    {{-- A comissão repete nome, data e período do contrato do turno,
+                                         com outro valor: sem o selo, parece pagamento em duplicidade. --}}
+                                    <x-freelancer-kind-badge :service="$service" :note="true" class="mt-1" />
+                                </td>
                                 <td class="px-4 py-4 text-gray-700 dark:text-gray-300" x-show="!compact">{{ $service->functionFreelancer->name }}</td>
                                 <td class="px-4 py-4 text-gray-700 dark:text-gray-300" x-show="!compact">
                                     {{ $service->location ?? '—' }}

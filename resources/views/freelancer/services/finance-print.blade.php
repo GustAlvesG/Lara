@@ -135,6 +135,7 @@
 <table>
     <thead>
         <tr>
+            <th>Nº</th>
             <th>Freelancer</th>
             <th>Função</th>
             <th>Evento/Local</th>
@@ -153,8 +154,14 @@
         @foreach($services as $service)
             @php $f = $service->freelancer; @endphp
             <tr>
+                <td class="nowrap">#{{ $service->id }}</td>
                 <td>
                     {{ $f->name ?? '—' }}
+                    {{-- A comissão repete nome e data do contrato do turno: sem o
+                         rótulo, a conferência lê duas linhas como uma duplicidade. --}}
+                    @if($service->kindLabel())
+                        <span class="sub"><b>{{ $service->kindLabel() }}</b> — {{ $service->kindNote() }}</span>
+                    @endif
                     @if($service->isPaid())
                         <span class="sub pago-tag">PAGO {{ $service->paid_at?->format('d/m/Y H:i') }}</span>
                     @endif
@@ -171,7 +178,9 @@
                 <td>{{ $f?->civil_status ?: '—' }}</td>
                 <td class="nowrap">
                     {{ $service->startsAt()->format('d/m/Y H:i') }}
-                    <span class="sub">até {{ $service->endsAt()->format('d/m/Y H:i') }} · {{ $service->formattedDuration() }}</span>
+                    {{-- Na comissão a duração é do turno, não do que se paga nesta
+                         linha: some, para não sugerir cálculo por hora. --}}
+                    <span class="sub">até {{ $service->endsAt()->format('d/m/Y H:i') }}@unless($service->isCommissionAmendment()) · {{ $service->formattedDuration() }}@endunless</span>
                 </td>
                 <td class="num">R$ {{ number_format($service->price, 2, ',', '.') }}</td>
                 <td>{{ $f?->pix_key ?: '—' }}</td>
@@ -191,7 +200,7 @@
         @endforeach
 
         <tr class="total">
-            <td colspan="7">Total do lote #{{ $batch->id }} — {{ $services->count() }} contrato(s)</td>
+            <td colspan="8">Total do lote #{{ $batch->id }} — {{ $services->count() }} contrato(s)</td>
             <td class="num">R$ {{ number_format($total, 2, ',', '.') }}</td>
             <td colspan="4"></td>
         </tr>

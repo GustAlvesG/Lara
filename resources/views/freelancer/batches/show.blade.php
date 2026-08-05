@@ -54,6 +54,7 @@
         @php
             $total = $batch->services->sum('price');
             $aprovadosPelaGerencia = $batch->services->filter->isManagerApproved();
+            $comissoes = $batch->services->filter->isCommissionAmendment();
         @endphp
 
         {{-- ============ DIRETORIA ============ --}}
@@ -166,6 +167,13 @@
                     <div>
                         <h2 class="text-lg font-extrabold text-gray-900 dark:text-white">{{ $batch->services->count() }} contrato(s)</h2>
                         <p class="text-sm text-gray-500 dark:text-gray-400">Total do lote: R$ {{ number_format($total, 2, ',', '.') }}</p>
+                        @if($comissoes->isNotEmpty())
+                            <p class="mt-1 text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                                {{ $comissoes->count() }} termo(s) de comissão de venda ·
+                                R$ {{ number_format($comissoes->sum('price'), 2, ',', '.') }} —
+                                pagos <b>além</b> do contrato do turno.
+                            </p>
+                        @endif
                     </div>
                     @if($canReview)
                         <p class="text-sm text-gray-500 dark:text-gray-400">
@@ -179,13 +187,39 @@
                         <div class="px-6 py-5" x-data="{ decision: '{{ $service->isManagerRejected() ? 'reject' : 'approve' }}' }">
                             <div class="flex flex-wrap items-start justify-between gap-4">
                                 <div class="min-w-0">
-                                    <p class="font-extrabold text-gray-900 dark:text-white">{{ $service->freelancer->name ?? '—' }}</p>
+                                    <p class="font-extrabold text-gray-900 dark:text-white">
+                                        <span class="font-mono text-xs font-normal text-gray-400 dark:text-gray-500">#{{ $service->id }}</span>
+                                        {{ $service->freelancer->name ?? '—' }}
+                                        <x-freelancer-kind-badge :service="$service" class="ml-1 align-middle" />
+                                    </p>
                                     <p class="text-sm text-gray-600 dark:text-gray-300">
                                         {{ $service->functionFreelancer->name ?? '—' }} · {{ $service->location }}
                                     </p>
+                                    {{-- Na comissão a duração é do turno, não do que se está pagando:
+                                         some, para não sugerir que o valor foi calculado por hora. --}}
                                     <p class="text-xs text-gray-400 tabular-nums mt-1">
-                                        {{ $service->formattedPeriod() }} · {{ $service->formattedDuration() }}
+                                        {{ $service->formattedPeriod() }}
+                                        @unless($service->isCommissionAmendment()) · {{ $service->formattedDuration() }} @endunless
                                     </p>
+                                    @if($service->kindNote())
+                                        <p class="mt-2 text-xs rounded-lg px-3 py-2 border
+                                                  {{ $service->isCommissionAmendment()
+                                                      ? 'text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+                                                      : 'text-indigo-800 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800' }}">
+                                            {{ $service->kindNote() }}
+                                            @if($service->isCommissionAmendment() && $service->hasSalesReport())
+                                                Vendas apuradas no MultiVendas sob o login
+                                                <b>{{ $service->sales_login }}</b>{{ $service->salesPeriodLabel() ? ' (' . $service->salesPeriodLabel() . ')' : '' }},
+                                                com relatório anexo ao termo.
+                                                @if($service->salesAmountWasAdjusted())
+                                                    <b>O valor de vendas foi ajustado à mão</b> em relação ao apurado
+                                                    (R$ {{ number_format((float) ($service->sales_report['base'] ?? 0), 2, ',', '.') }}).
+                                                @endif
+                                            @elseif($service->isCommissionAmendment())
+                                                Vendas informadas manualmente no encerramento do expediente, sem relatório do MultiVendas.
+                                            @endif
+                                        </p>
+                                    @endif
                                     @if(filled($service->description))
                                         <p class="text-xs text-gray-600 dark:text-gray-300 mt-2 whitespace-pre-line bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-2">
                                             <span class="font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide text-[10px] block mb-0.5">Descrição / justificativa</span>
@@ -194,7 +228,7 @@
                                     @endif
                                     <a href="{{ route('freelancer-services.document', $service) }}" target="_blank"
                                        class="inline-block mt-2 text-xs font-bold text-[#A00001] dark:text-red-400 hover:underline">
-                                        Abrir contrato assinado
+                                        {{ $service->isAmendment() ? 'Abrir termo assinado' : 'Abrir contrato assinado' }}
                                     </a>
                                 </div>
 

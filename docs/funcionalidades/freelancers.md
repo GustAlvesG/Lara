@@ -187,6 +187,108 @@ cláusulas — natureza autônoma, ausência de vínculo, descontos, refeição 
 O texto vive em `partials/amendment-clauses.blade.php` (painel) e em `amendmentClauses()`
 (kiosk) — os dois precisam mudar juntos, como já acontece com o contrato original.
 
+### Comissão de venda (o segundo tipo de aditivo)
+Há **dois tipos de aditivo**, distinguidos por `freelancer_services.amendment_type`, e eles fazem
+coisas **opostas** com o dinheiro:
+
+| Tipo | O que muda | Efeito no contrato base |
+|---|---|---|
+| `schedule` | horário e local | **substitui**: o base para de ir ao financeiro (`amended_at`) |
+| `commission` | nada do turno — acrescenta a comissão sobre vendas | **acresce**: o base continua sendo pago normalmente |
+
+Confundir os dois é pagar o turno duas vezes ou não pagá-lo. Por isso a comissão **nunca** marca
+`amended_at`, e o texto do termo diz, na cláusula do valor, que a comissão *acresce* — o oposto
+exato da cláusula equivalente do aditivo de horário.
+
+**Quem recebe.** Só funções com `function_freelancers.allows_sales_commission` — hoje, o **Garçom**.
+A permissão é uma **caixa na tela de Funções**, e não o nome "Garçom" no código: nomes mudam (os
+cadastrados hoje incluem um com quebra de linha e dois "TI"), e estender para outra função não deve
+exigir deploy.
+
+**Os dois critérios** (`FreelancerService::COMMISSION_METHODS`), escolhidos no tablet a cada
+comissão:
+
+| Critério | Conta | R$ 999 | R$ 1.000 | R$ 1.900 | R$ 12.400 |
+|---|---|---|---|---|---|
+| `block` | R$ 50 a cada R$ 1.000 vendidos | R$ 0 | R$ 50 | R$ 50 | R$ 600 |
+| `percent` | 5% do total vendido | R$ 49,95 | R$ 50 | R$ 95 | R$ 620 |
+
+`block` conta **blocos fechados**, arredondando para baixo — mesma lógica dos blocos de 15 minutos.
+É o que separa os dois critérios: fosse proporcional, R$ 50 por R$ 1.000 seriam os mesmos 5% e
+escolher o método não mudaria nada.
+
+**Quando pode** (`commissionBlockReason()`): a função recebe comissão, o **freelancer já assinou** o
+contrato do turno (é o que prova que o turno aconteceu), o contrato não está cancelado nem foi
+substituído por aditivo de horário — a comissão se faz sobre o documento **vigente** — e o turno
+ainda não tem comissão.
+
+> **O que NÃO bloqueia:** lote enviado, aprovação da gerência ou da diretoria, e até o pagamento do
+> contrato do turno. É a diferença de natureza entre os dois aditivos — o de horário mexe no
+> contrato que a gerência está analisando, enquanto a comissão nasce como documento novo e segue
+> sozinha para o lote seguinte. Isso importa porque o valor de venda pode chegar depois.
+
+**Uma comissão por turno**, e a pergunta é sobre o **turno**, não sobre a linha: com um aditivo de
+horário no meio, a comissão pode estar pendurada no documento anterior. A checagem tem duas
+velocidades — `hasCommissionChild()` (barata, filhos diretos, usa a relação carregada) nas telas, e
+`shiftHasCommission()` (varre a cadeia inteira) na **gravação**, onde precisa ser exata. No caso raro
+em que discordam, o botão aparece e o servidor recusa com o motivo.
+
+**No tablet** (`POST /kiosk/service/{id}/commission`), em *Meus contratos*: botão **Comissão de
+venda** → critério → valor vendido (teclado em centavos) → prévia com a conta demonstrada → gera e
+abre o documento para assinar. Assinada ao **final do expediente**, quando se sabe quanto foi
+vendido. O tablet só oferece a comissão de turnos dos últimos **7 dias**
+(`KioskController::COMMISSION_WINDOW_DAYS`) — a regra não expira, mas sem essa janela todo contrato
+de garçom ficaria para sempre na lista oferecendo comissão.
+
+#### Apuração das vendas no MultiVendas
+O valor vendido é apurado no **MultiVendas**, pela conexão **`mv_sqlsrv`** — mesma instância e
+mesmas credenciais do `mc_sqlsrv` (reaproveita as variáveis `DB_MC_*`), trocando só o banco:
+`DB_MV_DATABASE`, com padrão `MultiVendas`.
+
+A consulta é o **cupom de fechamento por vendedor e período** que a operação escreveu e conferiu,
+preservada em `App\Services\MultiVendasSalesReport` com os `DECLARE` alimentados por binding. As
+únicas mudanças no SQL são `Secao` e `Ordem` no SELECT final: sem elas, achar "o total" no resultado
+dependeria de comparar textos acentuados, e um acento a mais mudaria em silêncio a base da comissão.
+A base é a linha **`Sales.Total`** (seção TOTAIS, `Ordem = 5`), em `COMMISSION_BASE` — trocar para o
+líquido dos itens é mudar uma constante.
+
+- **Login e período vêm pré-preenchidos** com o **CPF** do freelancer e o horário do próprio turno, e
+  os dois são **editáveis**: `Users.UserName` no MultiVendas é de fato o CPF na maioria dos casos,
+  mas há logins curtos, e o caixa pode ter fechado fora do horário do contrato.
+- O operador toca em **Consultar vendas**, confere o resumo (quantidade, líquido, recebido,
+  diferença de fechamento e a base) e segue. O total apurado **pré-preenche** o valor da comissão, que
+  continua editável.
+- **A apuração não é obrigatória.** Com o MultiVendas fora do ar, a tela avisa e o operador informa o
+  valor manualmente — o documento diz que foi assim.
+
+**O relatório é gravado junto com o documento** (`sales_report`, mais `sales_login` e o período),
+e não apenas consultado: ele é anexo de um termo assinado, e o MultiVendas continua vivo — vendas
+podem ser canceladas ou corrigidas depois. Quem grava é o **servidor**, refazendo a consulta com os
+mesmos parâmetros na hora de criar a comissão; um relatório vindo do navegador seria um anexo escrito
+pelo cliente.
+
+`sales_source` não é escolhido por quem chama: é `system` quando há relatório **e** o valor
+considerado é o que ele apurou, e `manual` quando o número foi digitado ou corrigido. Corrigido com
+relatório anexo, o documento mostra as duas coisas — o Anexo I com o valor apurado e a cláusula 2
+dizendo que o CONTRATANTE ajustou.
+
+**O documento traz o relatório como `ANEXO I`**, com cabeçalho (vendedor, período, lojas), itens,
+recebimentos por forma de pagamento, totais e cancelamentos — é o que permite ao freelancer conferir
+de onde saiu o número que está assinando. Texto em `partials/sales-report-annex.blade.php` (painel) e
+em `salesAnnex()` (kiosk).
+
+**O documento** é o *Termo Aditivo de Comissão sobre Vendas*: cita o contrato original, as vendas
+apuradas, o critério, a conta demonstrada e o valor, declara que **acresce** ao contrato e que a
+comissão não descaracteriza a prestação autônoma. Texto em `partials/commission-clauses.blade.php`
+(painel) e em `commissionClauses()` (kiosk) — mudam juntos.
+
+**No financeiro** a comissão entra como linha própria, com seu valor e `total_hours = 0`: ela paga
+vendas, não horas.
+
+> **Aditivo não tem prazo de assinatura.** `isSignedAfterStart()` e `isUnsignedAfterStart()` ignoram
+> aditivos: o de horário nasce durante o turno e a comissão é assinada ao final dele. Sem isso, todo
+> aditivo apareceria como "assinatura em atraso" — e a comissão, 100% das vezes.
+
 ### Cancelamento
 - Só é possível **enquanto não houver nenhuma assinatura**.
 - Feito **apenas pelo painel**, por um **coordenador de setor** (de qualquer setor — a restrição ao
@@ -491,6 +593,30 @@ diretoria dispara na hora**. Se a gerência recusou tudo, o lote encerra em `clo
 enviado.
 
 O tablet **não tem tela de aprovação**, por decisão de processo: monta e envia, só.
+
+**Comissão de venda no lote.** Um termo de comissão entra no lote como qualquer outro documento,
+mas ele repete o **nome, a data e o período** do contrato do turno, com **outro valor** — parece
+lançamento duplicado, e não é. Por isso todas as telas por onde ele passa dizem o que ele é:
+
+| Onde | O que aparece |
+|---|---|
+| Montagem do lote (`batches/index`) | selo **Comissão de venda** ao lado do nome, com a frase "acresce ao contrato #N do mesmo turno"; o resumo do rascunho conta os termos de comissão e soma-os à parte |
+| Fila da gerência (`batches/queue`) | "Inclui N termo(s) de comissão de venda" no cartão do lote |
+| Análise (`batches/show`) | selo no cabeçalho do lote com a contagem e o total, e uma tarja verde por contrato com o critério, o login apurado no MultiVendas, o período e o aviso quando o valor de vendas foi ajustado à mão |
+| E-mail da diretoria | destaque verde antes da relação ("não são lançamentos repetidos") + selo e explicação em cada linha da tabela |
+| PDF anexo ao e-mail | mesmo destaque no topo e rótulo na coluna do freelancer |
+| Financeiro (`finance-table`, `finance-print`) | selo e frase na linha, onde a baixa de pagamento acontece |
+
+O texto dos selos vem de `FreelancerService::kindLabel()` e `kindNote()` — um único lugar, para
+que lote, aprovação, e-mail e financeiro nunca digam a mesma coisa com palavras diferentes. Na
+comissão a **duração some** das relações de pagamento: o valor não é calculado por hora, e mostrar
+"8h" ao lado dele convida a uma conta que não existe.
+
+**O número do documento (`#ID`) é visível em todo o sistema** — listagem de contratos, cadastro do
+freelancer, montagem do lote, análise, e-mail e PDF da diretoria, relação do financeiro e cartões do
+tablet. É por ele que coordenação, gerência e financeiro se referem a um contrato quando falam por
+telefone ou WhatsApp. A única exceção é o **corpo do contrato**: ali o documento é o instrumento
+firmado entre as partes, e um número interno de banco não tem o que fazer no texto.
 
 ### Aprovação da diretoria (por PIN ditado)
 O diretor **não acessa a plataforma** — a rede é interna e ele pode estar fora. Como nenhum link

@@ -156,16 +156,25 @@ class BatchController extends Controller
     {
         abort_unless($this->isManager(), 403);
 
+        // `commissions_count` avisa, já na fila, que o lote tem termos de
+        // comissão de venda — linhas do mesmo freelancer e do mesmo dia que o
+        // contrato do turno, que somam em vez de substituir.
+        $contagens = [
+            'services',
+            'services as commissions_count' => fn($query) => $query
+                ->where('amendment_type', FreelancerService::AMENDMENT_COMMISSION),
+        ];
+
         return view('freelancer.batches.queue', [
             'batches' => FreelancerServiceBatch::awaitingManager()
-                ->withCount('services')
+                ->withCount($contagens)
                 ->withSum('services', 'price')
                 ->with('createdBy')
                 ->orderBy('sent_at')
                 ->get(),
             // Já aprovados pela gerência: falta o PIN ditado pela diretoria.
             'awaitingDirector' => FreelancerServiceBatch::awaitingDirector()
-                ->withCount('services')
+                ->withCount($contagens)
                 ->withSum('services', 'price')
                 ->with(['createdBy', 'reviewedBy'])
                 ->orderBy('reviewed_at')

@@ -43,6 +43,19 @@
         .doc-sign-name{ font-size:15px; font-weight:800; margin-top:8px; font-family:var(--sans); }
         .doc-sign-role{ font-size:12.5px; color:var(--muted); font-family:var(--sans); margin-top:2px; }
         .doc-sign-note{ font-size:11px; color:var(--muted); font-family:var(--sans); margin-top:4px; }
+
+        /* Anexo I — relatório de vendas da comissão, impresso dentro do termo. */
+        .doc-annex{ margin-top:30px; border-top:1.5px solid var(--line); padding-top:16px; break-inside:auto; }
+        .doc-annex-title{ font-family:var(--sans); font-size:14px; font-weight:800; margin-bottom:4px; }
+        .doc-annex-meta{ font-size:12px !important; margin-bottom:10px !important; }
+        table.annex{ width:100%; border-collapse:collapse; font-family:var(--sans); font-size:11px; }
+        table.annex th{ text-align:left; border-bottom:1px solid var(--line); padding:5px 4px; font-size:10px;
+            text-transform:uppercase; letter-spacing:.4px; color:var(--muted); }
+        table.annex td{ padding:4px; border-bottom:1px solid rgba(0,0,0,.06); vertical-align:top; }
+        table.annex .num{ text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+        table.annex .annex-sec{ font-weight:800; padding-top:9px; background:rgba(0,0,0,.04);
+            letter-spacing:.6px; font-size:10px; }
+        @media print{ table.annex tr{ break-inside:avoid; } }
         /* O cabeçalho (thead) e o rodapé (tfoot) da tabela são repetidos pelo
            navegador em todas as páginas na impressão — sem precisar reservar
            espaço manualmente. */

@@ -126,6 +126,7 @@ class FreelancerService
                 'freelancer_id' => $base->freelancer_id,
                 'function_freelancer_id' => $base->function_freelancer_id,
                 'parent_service_id' => $base->id,
+                'amendment_type' => FreelancerServiceModel::AMENDMENT_SCHEDULE,
                 'start_date' => Carbon::parse($base->start_date)->toDateString(),
                 'location' => $data['location'],
                 'start_time' => $data['start_time'],
@@ -140,6 +141,87 @@ class FreelancerService
             ])->save();
 
             return $amendment;
+        });
+    }
+
+    /**
+     * Cria o aditivo de COMISSÃO DE VENDA do turno de $base: mesma pessoa,
+     * mesma função, mesmo dia, mesmo período e mesmo local — nada disso muda.
+     * O que este documento carrega é o valor de venda apurado, o critério e a
+     * comissão devida.
+     *
+     * Três diferenças em relação ao aditivo de horário, todas deliberadas:
+     *
+     *  - o preço NÃO passa por `withSchedule()`, que o recalcularia pelos blocos
+     *    de 15 minutos e apagaria a comissão;
+     *  - `total_hours` é zero: a comissão não paga horas, paga vendas;
+     *  - o contrato base NÃO é marcado como aditivado — a comissão acresce ao
+     *    turno, não o substitui.
+     *
+     * @throws FreelancerServiceLockedException quando o turno não aceita comissão
+     */
+    /**
+     * @param  array|null  $report  relatório do MultiVendas, gravado como anexo
+     *                              do documento (ver MultiVendasSalesReport)
+     */
+    public function createSalesCommission(
+        FreelancerServiceModel $base,
+        string $method,
+        float $salesAmount,
+        ?User $actor = null,
+        ?array $report = null,
+    ) {
+        if ($reason = $base->commissionBlockReason()) {
+            throw new FreelancerServiceLockedException($reason);
+        }
+
+        // A checagem exata, que varre a cadeia inteira do turno: o contrato
+        // pode ter recebido um aditivo de horário depois da comissão, e a
+        // comissão antiga estar pendurada no documento anterior.
+        if ($base->shiftHasCommission()) {
+            throw new FreelancerServiceLockedException('Este turno já tem uma comissão de venda.');
+        }
+
+        if (!array_key_exists($method, FreelancerServiceModel::COMMISSION_METHODS)) {
+            throw new FreelancerServiceLockedException('Critério de comissão desconhecido.');
+        }
+
+        $actorId = $actor?->id ?? auth()->id();
+
+        // A origem não é escolhida por quem chama: ela é o que os dados dizem.
+        // Só é `system` quando há relatório E o valor considerado é o que ele
+        // apurou; um número corrigido à mão volta a ser `manual`, ainda que o
+        // relatório siga anexo.
+        $fromSystem = $report !== null
+            && abs((float) ($report['base'] ?? 0) - $salesAmount) < 0.01;
+
+        return DB::transaction(function () use ($base, $method, $salesAmount, $actorId, $report, $fromSystem) {
+            return FreelancerServiceModel::create([
+                'freelancer_id' => $base->freelancer_id,
+                'function_freelancer_id' => $base->function_freelancer_id,
+                'parent_service_id' => $base->id,
+                'amendment_type' => FreelancerServiceModel::AMENDMENT_COMMISSION,
+                'location' => $base->location,
+                'start_date' => Carbon::parse($base->start_date)->toDateString(),
+                'start_time' => $base->start_time,
+                'end_date' => Carbon::parse($base->end_date)->toDateString(),
+                'end_time' => $base->end_time,
+                'total_hours' => 0,
+                'price' => FreelancerServiceModel::commissionFor($method, $salesAmount),
+                'sales_amount' => $salesAmount,
+                'commission_method' => $method,
+                'sales_source' => $fromSystem
+                    ? FreelancerServiceModel::SALES_SOURCE_SYSTEM
+                    : FreelancerServiceModel::SALES_SOURCE_MANUAL,
+                // O relatório é gravado inteiro: ele é anexo do documento
+                // assinado, e o MultiVendas continua mudando depois disso.
+                'sales_login' => $report['login'] ?? null,
+                'sales_period_start' => $report['period']['start'] ?? null,
+                'sales_period_end' => $report['period']['end'] ?? null,
+                'sales_report' => $report,
+                'created_by' => $actorId,
+                'updated_by' => $actorId,
+            ]);
         });
     }
 
@@ -271,7 +353,7 @@ class FreelancerService
                 'cancelled_by' => $user?->id,
             ])->save();
 
-            $base = $service->isAmendment() ? $service->baseService : null;
+            $base = $service->isScheduleAmendment() ? $service->baseService : null;
 
             if ($base && $base->amendment_service_id === $service->id) {
                 $base->forceFill([
@@ -297,7 +379,7 @@ class FreelancerService
         }
 
         DB::transaction(function () use ($service) {
-            $base = $service->isAmendment() ? $service->baseService : null;
+            $base = $service->isScheduleAmendment() ? $service->baseService : null;
 
             if ($base && $base->amendment_service_id === $service->id) {
                 $base->forceFill([

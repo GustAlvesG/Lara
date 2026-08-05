@@ -24,7 +24,14 @@
                     <h2 class="text-lg font-extrabold text-gray-900 dark:text-white">Lote em montagem</h2>
                     <p class="text-sm text-gray-500 dark:text-gray-400">
                         @if($draft && $draft->services->count())
+                            @php $comissoes = $draft->services->filter->isCommissionAmendment(); @endphp
                             {{ $draft->services->count() }} contrato(s) · total R$ {{ number_format($draft->services->sum('price'), 2, ',', '.') }}
+                            @if($comissoes->isNotEmpty())
+                                <span class="block text-emerald-600 dark:text-emerald-400 font-semibold">
+                                    Inclui {{ $comissoes->count() }} termo(s) de comissão de venda ·
+                                    R$ {{ number_format($comissoes->sum('price'), 2, ',', '.') }}
+                                </span>
+                            @endif
                         @else
                             Nenhum contrato incluído ainda.
                         @endif
@@ -66,7 +73,11 @@
                         <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                             @foreach($draft->services as $service)
                                 <tr class="text-sm">
-                                    <td class="px-4 py-4 font-bold text-gray-900 dark:text-white">{{ $service->freelancer->name ?? '—' }}</td>
+                                    <td class="px-4 py-4 font-bold text-gray-900 dark:text-white">
+                                        <span class="font-mono text-xs font-normal text-gray-400 dark:text-gray-500">#{{ $service->id }}</span>
+                                        {{ $service->freelancer->name ?? '—' }}
+                                        <x-freelancer-kind-badge :service="$service" :note="true" class="mt-1" />
+                                    </td>
                                     <td class="px-4 py-4 text-gray-600 dark:text-gray-300">
                                         {{ $service->functionFreelancer->name ?? '—' }}
                                         <span class="block text-xs text-gray-400">{{ $service->location }}</span>
@@ -129,7 +140,9 @@
                                                    class="rounded border-gray-300 text-[#A00001] focus:ring-[#A00001]">
                                         </td>
                                         <td class="px-4 py-4 font-bold text-gray-900 dark:text-white">
+                                            <span class="font-mono text-xs font-normal text-gray-400 dark:text-gray-500">#{{ $service->id }}</span>
                                             {{ $service->freelancer->name ?? '—' }}
+                                            <x-freelancer-kind-badge :service="$service" :note="true" class="mt-1" />
                                             @if($service->isManagerRejected())
                                                 <span class="block mt-1 text-xs font-bold text-amber-600 dark:text-amber-400">
                                                     Recusado pela gerência{{ $service->managerRejectedBy ? ' por ' . $service->managerRejectedBy->name : '' }}:

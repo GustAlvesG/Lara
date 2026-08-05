@@ -136,6 +136,35 @@ class SicoobPixPagamentoTest extends TestCase
             : true);
     }
 
+    public function test_omite_o_client_id_no_pix_quando_configurado_para_isso(): void
+    {
+        // A spec de Pix Pagamentos não declara o header `client_id` (só a de
+        // Conta Corrente declara). O flag existe para o caso de o gateway
+        // recusar por causa dele — e precisa afetar SÓ as chamadas de Pix.
+        config(['sicoob.pix.enviar_client_id' => false]);
+
+        Http::fake([
+            self::TOKEN_URL => Http::response(['access_token' => 'tok-123', 'expires_in' => 300]),
+            self::CC_URL . '/saldo*' => Http::response(['saldo' => 10000.00]),
+            self::PIX_URL . '/pagamentos' => Http::response($this->iniciacaoOk()),
+            self::PIX_URL . '/pagamentos/confirmacao' => Http::response($this->retornoPagamento('FINALIZADO')),
+        ]);
+
+        app(SicoobPixPagamentoService::class)->enviar($this->pixPayment(100.00));
+
+        // Nenhuma chamada de Pix leva o header...
+        Http::assertSent(fn($request) => !str_contains($request->url(), '/pagamentos')
+            || !$request->hasHeader('client_id'));
+
+        // ...e a de saldo continua levando, porque a spec dela exige.
+        Http::assertSent(fn($request) => !str_contains($request->url(), '/saldo')
+            || $request->hasHeader('client_id', 'client-de-teste'));
+
+        // O Authorization não é afetado pelo flag em nenhuma das duas.
+        Http::assertSent(fn($request) => str_starts_with($request->url(), self::TOKEN_URL)
+            || $request->hasHeader('Authorization', 'Bearer tok-123'));
+    }
+
     /* =====================================================================
      | Token
      |=====================================================================*/

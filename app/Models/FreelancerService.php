@@ -35,6 +35,38 @@ class FreelancerService extends Model
     /** O valor da função é cobrado por bloco de 15 minutos. */
     const BLOCK_MINUTES = 15;
 
+    /* ---------------------------------------------------------------------
+     | Comissão de venda
+     |---------------------------------------------------------------------*/
+
+    /** Tipos de aditivo (coluna `amendment_type`). */
+    const AMENDMENT_SCHEDULE = 'schedule';
+    const AMENDMENT_COMMISSION = 'commission';
+
+    /** A cada R$ 1.000,00 vendidos, paga-se R$ 50,00. */
+    const COMMISSION_BLOCK_SALES = 1000.00;
+    const COMMISSION_BLOCK_VALUE = 50.00;
+
+    /** Ou 5% do valor total vendido. */
+    const COMMISSION_PERCENT = 5.0;
+
+    /**
+     * Os dois critérios, com o texto que aparece na tela e no documento. O
+     * rótulo mora aqui junto da conta para não haver uma tela dizendo uma coisa
+     * e o cálculo fazendo outra.
+     */
+    const COMMISSION_METHODS = [
+        'block' => 'R$ 50,00 a cada R$ 1.000,00 vendidos',
+        'percent' => '5% do valor total vendido',
+    ];
+
+    /** Origem do valor de venda: digitado no tablet ou apurado no MultiVendas. */
+    const SALES_SOURCE_MANUAL = 'manual';
+    const SALES_SOURCE_SYSTEM = 'system';
+
+    /** Teto do valor vendido aceito na entrada — trava contra zero a mais. */
+    const MAX_SALES_AMOUNT = 1000000;
+
     /** Ids da tabela `status` usados por este módulo. */
     const STATUS_CANCELLED = 0;
     const STATUS_ACTIVE = 1;
@@ -73,6 +105,15 @@ class FreelancerService extends Model
         'function_freelancer_id',
         // Contrato base, quando esta linha é um aditivo (ver seção "Aditivo").
         'parent_service_id',
+        'amendment_type',
+        // Comissão de venda (ver seção "Comissão de venda").
+        'sales_amount',
+        'commission_method',
+        'sales_source',
+        'sales_login',
+        'sales_period_start',
+        'sales_period_end',
+        'sales_report',
         'location',
         // Esclarecimento livre do serviço — apenas informativo (ver migration).
         'description',
@@ -125,6 +166,10 @@ class FreelancerService extends Model
         'cancelled_at' => 'datetime',
         'weekly_limit_authorized_at' => 'datetime',
         'amended_at' => 'datetime',
+        'sales_amount' => 'decimal:2',
+        'sales_period_start' => 'datetime',
+        'sales_period_end' => 'datetime',
+        'sales_report' => 'array',
     ];
 
     public function freelancer()
@@ -439,10 +484,56 @@ class FreelancerService extends Model
             return 'Contrato Autônomo de Serviços de Freelancer';
         }
 
+        if ($this->isCommissionAmendment()) {
+            return 'Termo Aditivo de Comissão sobre Vendas';
+        }
+
+        // A numeração é dos aditivos de horário: a comissão é única por turno e
+        // não entra na contagem.
         $order = $this->amendmentOrder();
 
         return ($order > 1 ? $order . 'º ' : '')
             . 'Termo Aditivo ao Contrato Autônomo de Serviços de Freelancer';
+    }
+
+    /**
+     * O que este documento é, quando não é o contrato do turno — para as telas
+     * onde ele aparece como uma linha a pagar (lote, aprovação, financeiro,
+     * e-mail da diretoria). Null no contrato comum: nada a acrescentar.
+     *
+     * Sem isto, quem aprova vê o mesmo freelancer duas vezes no mesmo dia, com
+     * dois valores, e não tem como saber se é para pagar os dois ou se alguém
+     * duplicou o lançamento.
+     */
+    public function kindLabel(): ?string
+    {
+        return match (true) {
+            $this->isCommissionAmendment() => 'Comissão de venda',
+            $this->isAmendment() => 'Aditivo de horário',
+            $this->isAmended() => 'Aditivado',
+            default => null,
+        };
+    }
+
+    /** A frase que acompanha o rótulo e responde "então este valor soma ou substitui?". */
+    public function kindNote(): ?string
+    {
+        return match (true) {
+            $this->isCommissionAmendment() => trim(sprintf(
+                '%s — acresce ao contrato #%s do mesmo turno, que continua sendo pago à parte.',
+                $this->commissionExplanation() ?? 'Comissão sobre as vendas do turno',
+                $this->parent_service_id,
+            )),
+            $this->isAmendment() => sprintf(
+                'Substitui o contrato #%s, que foi assinado mas não é pago.',
+                $this->parent_service_id,
+            ),
+            $this->isAmended() => sprintf(
+                'O pagamento do turno é feito pelo aditivo #%s.',
+                $this->amendment_service_id,
+            ),
+            default => null,
+        };
     }
 
     public function canBeAmended(): bool
@@ -459,6 +550,9 @@ class FreelancerService extends Model
     {
         return match (true) {
             $this->isCancelled() => 'Contrato cancelado não recebe aditivo.',
+            // A comissão remunera vendas, não um período: mudar horário nela não
+            // significaria nada. O aditivo de horário se faz no contrato do turno.
+            $this->isCommissionAmendment() => 'Comissão de venda não recebe aditivo de horário.',
             // Sem assinatura o contrato ainda é editável: aditivar seria criar
             // um segundo documento onde bastava corrigir o primeiro.
             !$this->isSigned() => 'Contrato ainda não assinado: altere os dados do próprio contrato, sem aditivo.',
@@ -471,6 +565,242 @@ class FreelancerService extends Model
                 'Contrato em lote de aprovação: retire-o do lote antes de fazer o aditivo.',
             default => null,
         };
+    }
+
+    /* ---------------------------------------------------------------------
+     | Comissão de venda
+     |
+     | O segundo tipo de aditivo, exclusivo de quem tem `allows_sales_commission`
+     | na função (hoje, só o Garçom): remuneração variável sobre o que se vendeu
+     | no turno, assinada ao FINAL do expediente.
+     |
+     | Ao contrário do aditivo de horário, a comissão NÃO substitui o contrato
+     | base — ela ACRESCE. O turno continua sendo pago pelo contrato, e a
+     | comissão é paga por cima, como documento próprio. Por isso ela não marca
+     | `amended_at` em ninguém.
+     |---------------------------------------------------------------------*/
+
+    public function isScheduleAmendment(): bool
+    {
+        return $this->amendment_type === self::AMENDMENT_SCHEDULE;
+    }
+
+    public function isCommissionAmendment(): bool
+    {
+        return $this->amendment_type === self::AMENDMENT_COMMISSION;
+    }
+
+    /**
+     * Quanto se paga de comissão sobre $sales.
+     *
+     * `block` conta **blocos fechados**: R$ 50,00 a cada R$ 1.000,00
+     * integralmente vendidos, arredondando para baixo — a mesma lógica dos
+     * blocos de 15 minutos, e o que diferencia este critério do percentual (com
+     * proporcionalidade, R$ 50 por R$ 1.000 seriam os mesmos 5%, e escolher o
+     * método não mudaria nada). Ex.: R$ 1.900 pagam R$ 50, não R$ 95.
+     */
+    public static function commissionFor(string $method, float $sales): float
+    {
+        if ($sales <= 0) {
+            return 0.0;
+        }
+
+        return match ($method) {
+            'percent' => round($sales * self::COMMISSION_PERCENT / 100, 2),
+            'block' => floor($sales / self::COMMISSION_BLOCK_SALES) * self::COMMISSION_BLOCK_VALUE,
+            default => 0.0,
+        };
+    }
+
+    /**
+     * A conta demonstrada, para o freelancer conferir antes de assinar:
+     * "12 blocos de R$ 1.000,00 × R$ 50,00" ou "5% de R$ 12.400,00".
+     */
+    public static function commissionExplanationFor(string $method, float $sales): string
+    {
+        if ($method === 'percent') {
+            return self::COMMISSION_PERCENT . '% de R$ ' . number_format($sales, 2, ',', '.');
+        }
+
+        $blocks = (int) floor($sales / self::COMMISSION_BLOCK_SALES);
+
+        return $blocks . ' bloco' . ($blocks === 1 ? '' : 's') . ' de R$ '
+            . number_format(self::COMMISSION_BLOCK_SALES, 2, ',', '.')
+            . ' × R$ ' . number_format(self::COMMISSION_BLOCK_VALUE, 2, ',', '.');
+    }
+
+    /** A mesma conta, já com os dados gravados neste documento. */
+    public function commissionExplanation(): ?string
+    {
+        if (!$this->isCommissionAmendment() || $this->sales_amount === null) {
+            return null;
+        }
+
+        return self::commissionExplanationFor($this->commission_method, (float) $this->sales_amount);
+    }
+
+    /** Rótulo do critério usado, como aparece na tela e no documento. */
+    public function commissionMethodLabel(): ?string
+    {
+        return self::COMMISSION_METHODS[$this->commission_method] ?? null;
+    }
+
+    /** Tem relatório de vendas do MultiVendas anexado? */
+    public function hasSalesReport(): bool
+    {
+        return is_array($this->sales_report) && ($this->sales_report['sections'] ?? []) !== [];
+    }
+
+    /**
+     * Seções do relatório anexo, prontas para exibir.
+     *
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    public function salesReportSections(): array
+    {
+        return $this->sales_report['sections'] ?? [];
+    }
+
+    /**
+     * O valor apurado pelo sistema difere do que foi considerado na comissão?
+     * Acontece quando o operador corrige o número à mão — e o documento tem de
+     * dizer isso, já que o anexo mostra o outro valor.
+     */
+    public function salesAmountWasAdjusted(): bool
+    {
+        if (!$this->hasSalesReport() || $this->sales_amount === null) {
+            return false;
+        }
+
+        return abs((float) ($this->sales_report['base'] ?? 0) - (float) $this->sales_amount) >= 0.01;
+    }
+
+    /** Período apurado, formatado: "04/08/2026 14:00 → 04/08/2026 19:00". */
+    public function salesPeriodLabel(): ?string
+    {
+        if ($this->sales_period_start === null || $this->sales_period_end === null) {
+            return null;
+        }
+
+        return $this->sales_period_start->format('d/m/Y H:i') . ' → ' . $this->sales_period_end->format('d/m/Y H:i');
+    }
+
+    public function canReceiveCommission(): bool
+    {
+        return $this->commissionBlockReason() === null;
+    }
+
+    /**
+     * Por que este contrato não recebe comissão — null quando recebe.
+     *
+     * Repare no que NÃO bloqueia: lote enviado, aprovação da gerência ou da
+     * diretoria, e até o pagamento. É a diferença de natureza entre os dois
+     * aditivos — o de horário mexe no contrato que a gerência está analisando,
+     * enquanto a comissão nasce como documento novo, que segue sozinho para o
+     * lote seguinte. Isso importa: o valor de venda pode chegar depois, e com a
+     * captura automática vai chegar mesmo.
+     */
+    public function commissionBlockReason(): ?string
+    {
+        return match (true) {
+            $this->isCommissionAmendment() => 'Este documento já é uma comissão de venda.',
+            !$this->functionAllowsCommission() => 'A função ' . ($this->functionFreelancer?->name ?? 'deste contrato')
+                . ' não recebe comissão de venda.',
+            $this->isCancelled() => 'Contrato cancelado não recebe comissão.',
+            // A comissão acompanha um turno que aconteceu, e o que prova isso é
+            // a assinatura do freelancer no contrato.
+            $this->freelancer_signed_at === null => 'O freelancer ainda não assinou este contrato.',
+            $this->isAmended() => 'Este contrato foi substituído por um aditivo — a comissão se faz sobre o aditivo vigente.',
+            $this->hasCommissionChild() => 'Este turno já tem uma comissão de venda.',
+            default => null,
+        };
+    }
+
+    /**
+     * Já pendurei uma comissão NESTE contrato? Pergunta barata — olha só os
+     * filhos diretos, e usa a relação já carregada quando houver, porque isto é
+     * chamado uma vez por linha nas listagens.
+     *
+     * A checagem completa, que varre a cadeia inteira do turno, é
+     * `shiftHasCommission()` e roda uma vez só, na gravação: é lá que ela
+     * precisa ser exata.
+     */
+    public function hasCommissionChild(): bool
+    {
+        // Registro que ainda não existe no banco não tem filhos.
+        if (!$this->exists) {
+            return false;
+        }
+
+        if ($this->relationLoaded('amendments')) {
+            return $this->amendments
+                ->contains(fn(self $a) => $a->isCommissionAmendment() && !$a->isCancelled());
+        }
+
+        return $this->amendments()
+            ->where('amendment_type', self::AMENDMENT_COMMISSION)
+            ->where('status_id', '!=', self::STATUS_CANCELLED)
+            ->exists();
+    }
+
+    public function functionAllowsCommission(): bool
+    {
+        return (bool) ($this->functionFreelancer?->allows_sales_commission);
+    }
+
+    /**
+     * Já existe comissão para este TURNO — não só para esta linha. Com um
+     * aditivo de horário no meio, a comissão pode estar pendurada no contrato
+     * antigo, e sem varrer a cadeia o mesmo turno receberia duas. Canceladas não
+     * contam.
+     *
+     * Custa algumas consultas, então é a checagem da GRAVAÇÃO (uma vez por
+     * comissão criada). As telas usam `hasCommissionChild()`, que é barata; no
+     * caso raro em que as duas discordam, o botão aparece e o servidor recusa
+     * com o motivo.
+     */
+    public function shiftHasCommission(): bool
+    {
+        return static::whereIn('id', $this->shiftServiceIds())
+            ->where('amendment_type', self::AMENDMENT_COMMISSION)
+            ->where('status_id', '!=', self::STATUS_CANCELLED)
+            ->exists();
+    }
+
+    /**
+     * Ids de todos os documentos do mesmo turno: o contrato original e tudo o
+     * que desceu dele (aditivos de horário e a comissão).
+     *
+     * @return array<int, int>
+     */
+    public function shiftServiceIds(): array
+    {
+        // Sobe até o contrato original...
+        $root = $this;
+        $guard = 0;
+
+        while ($root->parent_service_id !== null && $guard++ < 20) {
+            $parent = $root->baseService;
+
+            if ($parent === null) {
+                break;
+            }
+
+            $root = $parent;
+        }
+
+        // ...e desce recolhendo os filhos, nível a nível. As cadeias reais têm
+        // um ou dois níveis; o teto é trava contra dado corrompido.
+        $ids = [$root->id];
+        $frontier = [$root->id];
+        $depth = 0;
+
+        while ($frontier && $depth++ < 20) {
+            $frontier = static::whereIn('parent_service_id', $frontier)->pluck('id')->all();
+            $ids = array_merge($ids, $frontier);
+        }
+
+        return array_values(array_unique(array_filter($ids)));
     }
 
     /** Ex.: "de 4h para 6h30" — o que o aditivo mudou no período. */
@@ -498,6 +828,14 @@ class FreelancerService extends Model
      */
     public function minutesFromStartToSignature(): ?int
     {
+        // Aditivo é assinado DEPOIS de o turno começar, por definição: o de
+        // horário nasce quando o turno muda, e a comissão é assinada ao final do
+        // expediente. Cobrar deles o prazo do contrato marcaria todos como
+        // atrasados e encheria a lista de falhas de ruído.
+        if ($this->isAmendment()) {
+            return null;
+        }
+
         if ($this->freelancer_signed_at === null || $this->start_date === null || blank($this->start_time)) {
             return null;
         }
@@ -536,7 +874,9 @@ class FreelancerService extends Model
      */
     public function isUnsignedAfterStart(): bool
     {
-        if ($this->isCancelled() || $this->freelancer_signed_at !== null) {
+        // Mesma razão de minutesFromStartToSignature(): o prazo do contrato não
+        // se aplica a aditivo.
+        if ($this->isAmendment() || $this->isCancelled() || $this->freelancer_signed_at !== null) {
             return false;
         }
 

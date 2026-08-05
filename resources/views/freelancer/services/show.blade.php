@@ -14,7 +14,25 @@
 
         {{-- Aditivo e contrato base andam sempre em par: quem abre um precisa
              chegar ao outro num clique, e saber qual dos dois é o que vale. --}}
-        @if($service->isAmendment())
+        @if($service->isCommissionAmendment())
+            <div class="p-4 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 rounded-lg text-sm font-medium">
+                💰 Este documento é uma <b>comissão de venda</b>, paga <b>além</b> do contrato do turno — não no lugar dele.
+                <span class="block mt-1 font-normal">
+                    Vendas apuradas: <b>R$ {{ number_format((float) $service->sales_amount, 2, ',', '.') }}</b>
+                    · Critério: {{ $service->commissionMethodLabel() }}
+                    · Conta: {{ $service->commissionExplanation() }}
+                    @if($service->sales_source === \App\Models\FreelancerService::SALES_SOURCE_MANUAL)
+                        <span class="opacity-75">(valor informado manualmente no tablet)</span>
+                    @endif
+                    @if($service->baseService)
+                        <br>Contrato do turno:
+                        <a href="{{ route('freelancer-services.show', $service->baseService) }}" class="underline font-semibold">#{{ $service->baseService->id }}</a>
+                        — {{ substr($service->baseService->start_time, 0, 5) }} às {{ substr($service->baseService->end_time, 0, 5) }}
+                        · R$ {{ number_format((float) $service->baseService->price, 2, ',', '.') }}, que continua sendo pago.
+                    @endif
+                </span>
+            </div>
+        @elseif($service->isAmendment())
             <div class="p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 text-indigo-800 dark:text-indigo-200 rounded-lg text-sm font-medium">
                 📄 Este contrato é um <b>aditivo</b>{{ $service->amendmentOrder() > 1 ? ' (' . $service->amendmentOrder() . 'º termo)' : '' }}
                 e é ele que paga o turno — o contrato original continua sendo assinado, mas não vai ao financeiro.
@@ -104,6 +122,12 @@
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                 </a>
                 <div>
+                    {{-- O número do documento primeiro: é por ele que a gerência,
+                         o financeiro e o e-mail da diretoria se referem a este
+                         contrato. --}}
+                    <p class="text-sm font-bold text-gray-400 dark:text-gray-500 font-mono">
+                        {{ $service->isAmendment() ? 'Termo aditivo' : 'Contrato' }} #{{ $service->id }}
+                    </p>
                     {{-- O nome leva ao cadastro do freelancer: é de lá que se
                          corrige um dado que o contrato apenas reproduz. --}}
                     <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">

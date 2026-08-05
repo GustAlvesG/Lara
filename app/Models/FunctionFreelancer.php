@@ -16,12 +16,17 @@ class FunctionFreelancer extends Model
         'name',
         'description',
         'price',
+        // Quem exerce esta função pode receber aditivo de comissão de venda.
+        // É uma permissão por função, e não o nome "Garçom" no código: nomes
+        // mudam, e a regra precisa acompanhar sem deploy.
+        'allows_sales_commission',
         'created_by',
         'updated_by',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
+        'allows_sales_commission' => 'boolean',
     ];
 
     public function freelancerServices()

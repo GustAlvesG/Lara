@@ -35,6 +35,11 @@
                                     {{ $batch->createdBy->name ?? 'Coordenador' }} ·
                                     aprovado por você em {{ $batch->reviewed_at?->format('d/m/Y H:i') ?? '—' }}
                                 </p>
+                                @if($batch->commissions_count)
+                                    <p class="mt-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                        Inclui {{ $batch->commissions_count }} termo(s) de comissão de venda
+                                    </p>
+                                @endif
                             </div>
                             <div class="flex items-center gap-6 shrink-0">
                                 <div class="text-right">
@@ -77,6 +82,11 @@
                                     {{ $batch->createdBy->name ?? 'Coordenador' }} ·
                                     enviado em {{ $batch->sent_at?->format('d/m/Y H:i') ?? '—' }}
                                 </p>
+                                @if($batch->commissions_count)
+                                    <p class="mt-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                        Inclui {{ $batch->commissions_count }} termo(s) de comissão de venda
+                                    </p>
+                                @endif
                             </div>
                             <div class="flex items-center gap-6 shrink-0">
                                 <div class="text-right">
