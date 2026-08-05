@@ -113,6 +113,13 @@ class FreelancerService extends Model
         'price' => 'decimal:2',
         'freelancer_signed_at' => 'datetime',
         'coordinator_signed_at' => 'datetime',
+        // Trâmite do lote. Ficaram fora do cast desde a criação e voltavam como
+        // string: o resto do código só testa `!== null`, mas quem precisa da
+        // data (a relação impressa do financeiro) não conseguia formatá-la.
+        'manager_approved_at' => 'datetime',
+        'manager_rejected_at' => 'datetime',
+        'director_approved_at' => 'datetime',
+        'director_rejected_at' => 'datetime',
         'paid' => 'boolean',
         'paid_at' => 'datetime',
         'cancelled_at' => 'datetime',

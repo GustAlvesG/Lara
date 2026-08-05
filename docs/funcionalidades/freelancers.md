@@ -375,11 +375,32 @@ corrige um dado que o contrato apenas reproduz.
 A tela **Serviços / Contratos** tem quatro abas — *Contratos*, *Lotes*, *Aprovação* e *Financeiro* —,
 descritas em *Barra de abas* logo abaixo.
 
-- A aba Financeiro (`/freelancer-services/financeiro`) lista **apenas os contratos assinados pelas
-  duas partes e aprovados pela gerência E pela diretoria**, que não foram cancelados. Contratos
-  parcialmente assinados não aparecem (é a assinatura do coordenador que confirma o serviço
-  prestado), e os aprovados só chegam aqui depois de passar por um lote com os dois avais — ver
-  *Lote de aprovação* e *Aprovação da diretoria*.
+**O lote é a unidade de pagamento.** A diretoria aprova um bloco de contratos, e é esse bloco que o
+financeiro quita — por isso a aba abre pela **lista de lotes**, não por uma lista solta de
+contratos. São cinco telas:
+
+| Tela | Rota | O que é |
+|---|---|---|
+| Lista de lotes | `/freelancer-services/financeiro` | lotes aprovados pela diretoria, separados em *Aguardando pagamento* e *Quitados* |
+| Lote | `/financeiro/lote/{batch}` | os contratos pagáveis do lote; **é aqui que a baixa acontece** |
+| Impressão | `/financeiro/lote/{batch}/impressao` | relação do lote para conferência em papel |
+| Sem lote | `/financeiro/avulsos` | contratos pagáveis fora de qualquer lote aprovado |
+| Todos | `/financeiro/todos` | a lista plana de sempre, para busca transversal |
+
+- Só entram contratos **assinados pelas duas partes e aprovados pela gerência E pela diretoria**,
+  não cancelados e não aditivados (`scopeAwaitingFinance`). Contratos parcialmente assinados não
+  aparecem — é a assinatura do coordenador que confirma o serviço prestado.
+- **O estado de pagamento do lote é derivado**, nunca gravado: *A pagar*, *Parcialmente pago* ou
+  *Quitado* saem da contagem de `paid` dos contratos (`FreelancerServiceBatch::financeStatusLabel()`).
+  Nada é denormalizado no lote de propósito — a baixa do Pix é escrita de forma assíncrona pelo job
+  e pela reconciliação, e um campo espelho ali teria duas fontes de verdade e derivaria em silêncio.
+- ⚠️ **O total do lote no financeiro pode ser menor que o que a diretoria aprovou.** O que a
+  gerência recusou continua com o `batch_id` gravado, mas não é pagável e fica de fora da tela e da
+  soma. Conferir o total contra o e-mail da diretoria sem saber disso assusta à toa.
+- **Contratos sem lote** não deveriam existir — `availableForBatch` impede que um contrato já
+  aprovado seja reloteado. A tela *Sem lote* existe como rede de segurança para dado antigo ou para
+  o caso de um lote apagado (`batch_id` é `nullOnDelete`): dinheiro nunca some da vista por não
+  estar agrupado. Um aviso na lista de lotes aponta para ela quando há algum.
 - Pendentes vêm primeiro, com os totais a pagar e já pagos no topo, e a **chave PIX** do freelancer
   na tabela (com botão de copiar).
 - O botão **Dar baixa** grava, no próprio contrato, `paid = true`, `paid_at` (data/hora) e `paid_by`
@@ -390,12 +411,23 @@ descritas em *Barra de abas* logo abaixo.
   *em processamento*, e a baixa só é gravada quando o banco confirma. Contrato com Pix em
   andamento sai da seleção e não aceita um segundo envio. Fluxo completo, estados e riscos em
   [Pix automático (Sicoob)](pix-sicoob.md).
-- **Baixa em lote:** as caixas de seleção marcam vários contratos pendentes (com total selecionado
+- **Baixa em massa:** as caixas de seleção marcam vários contratos pendentes (com total selecionado
   em tempo real) e a barra no rodapé dá baixa em todos de uma vez. Contratos que deixaram de estar
   aptos enquanto a tela estava aberta são ignorados, e o aviso informa quantos ficaram de fora.
+- **Pagar o lote inteiro:** dentro de um lote, o botão marca de uma vez todos os contratos
+  pendentes e a barra do rodapé confirma o envio. Ele **seleciona**, não dispara: a confirmação com
+  o valor total continua sendo o último passo, e com o Pix ligado sai **um Pix por contrato** — a
+  transferência é por chave do freelancer, nunca um pagamento único do lote.
+- **Imprimir relação:** abre em aba nova a relação do lote em paisagem, com uma linha por contrato
+  — nome, função, evento/local, CPF, RG, estado civil, início e fim, valor, chave PIX e as três
+  aprovações com data/hora (coordenação, gerência e diretoria) — mais o resumo geral do lote. Cada
+  linha é autossuficiente, inclusive quanto à diretoria, para que uma folha solta continue provando
+  o que aprovou aquele pagamento. A impressão dispara sozinha ao abrir.
 - **Tabela reduzida:** o interruptor no topo enxuga a lista para nome, período, chave PIX, valor e o
   botão de baixa, mostrando só os pendentes — o formato de folha de pagamento. A preferência fica
   guardada no navegador.
+- Depois da baixa, a tela volta para **o lote de onde ela partiu** (o formulário manda o id do lote,
+  nunca uma URL — o destino é resolvido no servidor).
 - A baixa também aparece na tela do contrato, junto às assinaturas.
 
 ### Barra de abas (Contratos · Lotes · Aprovação · Financeiro)
@@ -411,7 +443,12 @@ para que nenhuma aba leve a um 403:
 | Contratos | `freelancer-services.index` | `manage freelancers` |
 | Lotes | `freelancer-batches.index` | `manage freelancers` **e** coordenador de algum setor |
 | Aprovação | `freelancer-batches.queue` | `manage freelancers` **e** coordenador do setor `Gerência` |
-| Financeiro | `freelancer-services.finance` | membro do setor `Contabilidade` **ou** `Gerência` |
+| Financeiro | `freelancer-services.finance` (e `finance.*`) | membro do setor `Contabilidade` **ou** `Gerência` |
+
+A aba Financeiro cobre também as telas de lote, avulsos e lista plana (`freelancer-services.finance.*`),
+para continuar acesa ao navegar dentro do financeiro. A tela de um lote **no financeiro** é própria
+(`/financeiro/lote/{batch}`) e não a de `freelancer-batches.show`: quem está só na Contabilidade não
+é o gerente nem o criador do lote e levaria 403 lá.
 
 Consequências práticas: quem só está na Contabilidade navega no Financeiro sem ver uma aba
 Contratos quebrada; quem tem **só** `manage freelancers` e não coordena nada fica com uma aba única

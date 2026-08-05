@@ -323,8 +323,17 @@ Route::middleware('auth')->group(function () {
     // /freelancer-services/financeiro não cair na rota /{freelancerService}.
     Route::group(['middleware' => 'can:manage-freelancer-payments'], function () {
         Route::prefix('freelancer-services')->group(function () {
+            // O lote é a unidade de trabalho do financeiro: a lista abre por
+            // lote e o pagamento acontece dentro de um deles. As telas
+            // `avulsos` e `todos` existem para que nenhum contrato pagável
+            // fique invisível — declaradas antes de /lote/{batch} por clareza,
+            // já que os prefixos não colidem.
             Route::get('/financeiro', [FreelancerFinanceController::class, 'index'])->name('freelancer-services.finance');
-            // Uma rota só: a baixa individual manda `only`, a em lote manda `services[]`.
+            Route::get('/financeiro/avulsos', [FreelancerFinanceController::class, 'orphans'])->name('freelancer-services.finance.orphans');
+            Route::get('/financeiro/todos', [FreelancerFinanceController::class, 'all'])->name('freelancer-services.finance.all');
+            Route::get('/financeiro/lote/{batch}', [FreelancerFinanceController::class, 'batch'])->name('freelancer-services.finance.batch');
+            Route::get('/financeiro/lote/{batch}/impressao', [FreelancerFinanceController::class, 'print'])->name('freelancer-services.finance.print');
+            // Uma rota só: a baixa individual manda `only`, a em massa manda `services[]`.
             Route::post('/pay', [FreelancerFinanceController::class, 'pay'])->name('freelancer-services.pay');
         });
     });

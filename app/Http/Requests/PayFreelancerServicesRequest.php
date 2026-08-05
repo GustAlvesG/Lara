@@ -25,7 +25,21 @@ class PayFreelancerServicesRequest extends FormRequest
             'only' => ['nullable', 'integer', 'exists:freelancer_services,id'],
             'services' => ['array'],
             'services.*' => ['integer', 'exists:freelancer_services,id'],
+            // De qual lote a baixa partiu, para voltar para ele.
+            'batch' => ['nullable', 'integer', 'exists:freelancer_service_batches,id'],
         ];
+    }
+
+    /**
+     * Para onde voltar depois da baixa: o lote de onde ela partiu, ou a lista
+     * de lotes. Vai e volta um **id**, nunca uma URL — aceitar o destino pronto
+     * do formulário abriria redirect aberto.
+     */
+    public function returnUrl(): string
+    {
+        return $this->filled('batch')
+            ? route('freelancer-services.finance.batch', (int) $this->input('batch'))
+            : route('freelancer-services.finance');
     }
 
     /**

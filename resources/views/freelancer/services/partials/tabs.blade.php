@@ -46,7 +46,8 @@
         $tabs[] = [
             'route' => 'freelancer-services.finance',
             'label' => 'Financeiro',
-            'matches' => ['freelancer-services.finance'],
+            // A aba cobre as telas de lote, avulsos e lista plana.
+            'matches' => ['freelancer-services.finance', 'freelancer-services.finance.*'],
         ];
     }
 

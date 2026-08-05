@@ -91,6 +91,26 @@ trait CreatesFreelancerPixSchema
             $table->timestamps();
         });
 
+        // Lotes: o financeiro agrupa por eles, então os testes de agrupamento
+        // precisam da tabela. Sem FK para `users` pelo mesmo motivo das demais.
+        Schema::create('freelancer_service_batches', function (Blueprint $table) {
+            $table->id();
+            $table->string('status')->default('draft');
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->dateTime('sent_at')->nullable();
+            $table->unsignedBigInteger('reviewed_by')->nullable();
+            $table->dateTime('reviewed_at')->nullable();
+            $table->text('director_approve_pin')->nullable();
+            $table->text('director_reject_pin')->nullable();
+            $table->string('director_email')->nullable();
+            $table->dateTime('director_notified_at')->nullable();
+            $table->string('director_decision')->nullable();
+            $table->dateTime('director_decided_at')->nullable();
+            $table->unsignedBigInteger('director_decided_by')->nullable();
+            $table->text('director_note')->nullable();
+            $table->timestamps();
+        });
+
         (require base_path('database/migrations/2026_08_04_140000_create_pix_payments_table.php'))->up();
     }
 }

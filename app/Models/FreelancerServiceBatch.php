@@ -252,4 +252,64 @@ class FreelancerServiceBatch extends Model
     {
         return $query->where('status', self::STATUS_AWAITING_DIRECTOR);
     }
+
+    /* ---------------------------------------------------------------------
+     | Financeiro
+     |
+     | O lote é a unidade de pagamento: a diretoria aprovou um bloco, e é esse
+     | bloco que o financeiro quita. O estado de pagamento é SEMPRE derivado
+     | dos contratos — nada é gravado aqui. A baixa do Pix é escrita de forma
+     | assíncrona (job e reconciliação); um campo denormalizado no lote teria
+     | duas fontes de verdade e derivaria em silêncio.
+     |---------------------------------------------------------------------*/
+
+    /** Contratos do lote que o financeiro enxerga — os que a gerência recusou ficam de fora. */
+    public function payableServices()
+    {
+        return $this->services()->awaitingFinance();
+    }
+
+    /** Lotes com algo a mostrar no financeiro: aprovados pela diretoria. */
+    public function scopeApprovedForFinance($query)
+    {
+        return $query->where('status', self::STATUS_DIRECTOR_APPROVED)
+            ->whereHas('services', fn($q) => $q->awaitingFinance());
+    }
+
+    /**
+     * Depende dos agregados `payable_count` e `paid_count` carregados pela
+     * consulta do financeiro; sem eles, conta no banco.
+     */
+    public function financePaidCount(): int
+    {
+        return (int) ($this->paid_count ?? $this->payableServices()->where('paid', true)->count());
+    }
+
+    public function financePayableCount(): int
+    {
+        return (int) ($this->payable_count ?? $this->payableServices()->count());
+    }
+
+    public function isFullyPaid(): bool
+    {
+        $total = $this->financePayableCount();
+
+        return $total > 0 && $this->financePaidCount() === $total;
+    }
+
+    public function isPartiallyPaid(): bool
+    {
+        $pagos = $this->financePaidCount();
+
+        return $pagos > 0 && $pagos < $this->financePayableCount();
+    }
+
+    public function financeStatusLabel(): string
+    {
+        return match (true) {
+            $this->isFullyPaid() => 'Quitado',
+            $this->isPartiallyPaid() => 'Parcialmente pago',
+            default => 'A pagar',
+        };
+    }
 }
