@@ -2,10 +2,14 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ValidatesFunctionType;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateFunctionFreelancerRequest extends FormRequest
 {
+    /** Regras dos dois tipos de função (freelancer por bloco, cachê por faixa). */
+    use ValidatesFunctionType;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -21,11 +25,7 @@ class UpdateFunctionFreelancerRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            // Preço cobrado por bloco de 15 minutos.
-            'price' => ['required', 'numeric', 'min:0'],
+        return $this->functionTypeRules() + [
             'updated_by' => ['nullable', 'integer', 'exists:users,id'],
         ];
     }

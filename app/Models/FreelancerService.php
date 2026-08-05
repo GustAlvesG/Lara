@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\CalculatesShiftPeriod;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
@@ -11,6 +12,9 @@ class FreelancerService extends Model
 {
     /** @use HasFactory<\Database\Factories\FreelancerServiceFactory> */
     use HasFactory;
+
+    /** Virada de meia-noite e duração do turno, comuns ao cachê de funcionário. */
+    use CalculatesShiftPeriod;
 
     /** Limite recomendado de serviços por freelancer numa janela de 7 dias. */
     const WEEKLY_LIMIT = 2;
@@ -238,35 +242,11 @@ class FreelancerService extends Model
      | meia-noite e termina no dia seguinte (ex.: 22:00 -> 02:00).
      |---------------------------------------------------------------------*/
 
-    /** Uniformiza "19:00" e "19:00:00" para o formato H:i:s. */
-    public static function normalizeTime(string $time): string
-    {
-        return Carbon::createFromFormat('Y-m-d', '2000-01-01')
-            ->setTimeFromTimeString($time)
-            ->format('H:i:s');
-    }
-
-    /** O turno atravessa a meia-noite? */
-    public static function crossesMidnight(string $startTime, string $endTime): bool
-    {
-        return self::normalizeTime($endTime) <= self::normalizeTime($startTime);
-    }
-
-    /** Duração real do turno em minutos, já considerando a virada de dia. */
-    public static function minutesBetween(string $startTime, string $endTime): int
-    {
-        // Data-base fixa para o cálculo não depender do dia em que roda.
-        $base = Carbon::createFromFormat('Y-m-d', '2000-01-01')->startOfDay();
-
-        $start = $base->copy()->setTimeFromTimeString($startTime);
-        $end = $base->copy()->setTimeFromTimeString($endTime);
-
-        if ($end->lessThanOrEqualTo($start)) {
-            $end->addDay();
-        }
-
-        return $start->diffInMinutes($end);
-    }
+    /**
+     * `normalizeTime()`, `crossesMidnight()` e `minutesBetween()` vêm de
+     * CalculatesShiftPeriod — a mesma leitura do relógio que o cachê de
+     * funcionário usa. O que é só daqui é o preço por bloco, abaixo.
+     */
 
     /**
      * Blocos de 15 minutos a pagar. Arredonda para baixo: só bloco

@@ -33,6 +33,9 @@ use App\Http\Controllers\Freelancer\FunctionController as FreelancerFunctionCont
 use App\Http\Controllers\Freelancer\BatchController as FreelancerBatchController;
 use App\Http\Controllers\Freelancer\ServiceController as FreelancerServiceWebController;
 use App\Http\Controllers\Freelancer\KioskController;
+use App\Http\Controllers\Employee\CacheController as EmployeeCacheController;
+use App\Http\Controllers\Employee\CacheFinanceController as EmployeeCacheFinanceController;
+use App\Http\Controllers\Employee\CacheSignatureController as EmployeeCacheSignatureController;
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LaraChatController;
@@ -98,6 +101,22 @@ Route::prefix('kiosk')->group(function () {
         ->middleware('throttle:20,1')->name('kiosk.batch.send');
     Route::post('/service/{freelancerService}/sign-coordinator', [KioskController::class, 'signServiceAsCoordinator'])
         ->middleware('throttle:40,1')->name('kiosk.service.sign-coordinator');
+});
+
+// Assinatura do cachê pelo FUNCIONÁRIO — também fora da sessão do painel, e por
+// um motivo mais forte que o do kiosk: o funcionário não é usuário do sistema.
+// Ele se identifica por matrícula ou CPF e assina desenhando o traço; a sessão
+// guarda apenas quem se identificou. O throttle segura a tentativa de varrer
+// matrículas de terceiros.
+Route::prefix('cache/assinatura')->group(function () {
+    Route::get('/', [EmployeeCacheSignatureController::class, 'index'])->name('employee-caches.sign');
+    Route::post('/entrar', [EmployeeCacheSignatureController::class, 'identify'])
+        ->middleware('throttle:10,1')->name('employee-caches.sign.identify');
+    Route::get('/itens', [EmployeeCacheSignatureController::class, 'list'])->name('employee-caches.sign.list');
+    Route::get('/{cache}', [EmployeeCacheSignatureController::class, 'show'])->name('employee-caches.sign.show');
+    Route::post('/{cache}', [EmployeeCacheSignatureController::class, 'sign'])
+        ->middleware('throttle:20,1')->name('employee-caches.sign.store');
+    Route::post('/sair/agora', [EmployeeCacheSignatureController::class, 'logout'])->name('employee-caches.sign.logout');
 });
 
 Route::middleware('auth')->group(function () {
@@ -411,6 +430,41 @@ Route::middleware('auth')->group(function () {
             // tablet) — ver routes de /kiosk. Aqui fica apenas o cancelamento,
             // que exige ser coordenador de setor.
             Route::post('/{freelancerService}/cancel', [FreelancerServiceWebController::class, 'cancel'])->name('freelancer-services.cancel');
+        });
+    });
+
+    // Cachê de funcionários — solicitação em lote pelo coordenador, aprovação da
+    // gerência, assinatura do funcionário (rota própria, fora daqui) e a
+    // reconferência de quem teve horário divergente.
+    //
+    // Não há permissão do Spatie neste grupo: quem pode o quê é vínculo de setor
+    // (coordenador do departamento, coordenador da Gerência, Contabilidade), e a
+    // checagem fica em cada ação do controller — a mesma regra que o Banco de
+    // Horas já usa para dizer quais funcionários alguém enxerga.
+    Route::prefix('cache')->group(function () {
+        Route::get('/', [EmployeeCacheController::class, 'index'])->name('employee-caches.index');
+
+        Route::get('/solicitar', [EmployeeCacheController::class, 'create'])->name('employee-caches.create');
+        Route::post('/solicitar', [EmployeeCacheController::class, 'store'])->name('employee-caches.store');
+
+        Route::prefix('solicitacoes')->group(function () {
+            Route::get('/', [EmployeeCacheController::class, 'batches'])->name('employee-caches.batches');
+            Route::get('/{batch}', [EmployeeCacheController::class, 'show'])->name('employee-caches.batches.show');
+            Route::post('/{batch}/enviar', [EmployeeCacheController::class, 'send'])->name('employee-caches.batches.send');
+            Route::post('/{batch}/analise', [EmployeeCacheController::class, 'review'])->name('employee-caches.batches.review');
+            Route::delete('/{batch}', [EmployeeCacheController::class, 'discard'])->name('employee-caches.batches.discard');
+            Route::delete('/{batch}/itens/{cache}', [EmployeeCacheController::class, 'removeItem'])->name('employee-caches.batches.items.remove');
+        });
+
+        // Fila da gerência (1ª aprovação) e a reconferência da divergência (2ª).
+        Route::get('/aprovacao', [EmployeeCacheController::class, 'queue'])->name('employee-caches.queue');
+        Route::get('/reconferencia', [EmployeeCacheController::class, 'recheckQueue'])->name('employee-caches.recheck.queue');
+        Route::post('/reconferencia/{cache}', [EmployeeCacheController::class, 'recheck'])->name('employee-caches.recheck');
+
+        // Financeiro: vínculo de setor, como o dos freelancers.
+        Route::middleware('can:manage-employee-cache-payments')->group(function () {
+            Route::get('/financeiro', [EmployeeCacheFinanceController::class, 'index'])->name('employee-caches.finance');
+            Route::post('/financeiro/pagar', [EmployeeCacheFinanceController::class, 'pay'])->name('employee-caches.pay');
         });
     });
 

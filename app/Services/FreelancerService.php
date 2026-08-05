@@ -46,9 +46,10 @@ class FreelancerService
      | Funções
      |---------------------------------------------------------------------*/
 
+    /** Só as funções de freelancer: as de cachê pertencem ao outro fluxo. */
     public function getFunctions()
     {
-        return FunctionFreelancer::orderBy('name')->get();
+        return FunctionFreelancer::ofType(FunctionFreelancer::TYPE_FREELANCER)->orderBy('name')->get();
     }
 
     public function createFunction($data)
@@ -56,16 +57,81 @@ class FreelancerService
         $data['created_by'] = $this->actorId($data);
         $data['updated_by'] = $data['created_by'];
 
-        return FunctionFreelancer::create($data);
+        return DB::transaction(function () use ($data) {
+            $rates = $this->pullCacheRates($data);
+            $function = FunctionFreelancer::create($data);
+            $this->syncCacheRates($function, $rates);
+
+            return $function;
+        });
     }
 
     public function updateFunction(FunctionFreelancer $function, $data)
     {
         $data['updated_by'] = $this->actorId($data, 'updated_by');
 
-        $function->update($data);
+        return DB::transaction(function () use ($function, $data) {
+            $rates = $this->pullCacheRates($data);
 
-        return $function;
+            // Trocar o tipo de uma função já usada mudaria a conta de
+            // lançamentos existentes: o caminho é cadastrar outra função.
+            if (isset($data['type']) && $data['type'] !== $function->type && !$function->canChangeType()) {
+                unset($data['type']);
+            }
+
+            $function->update($data);
+            $this->syncCacheRates($function->fresh(), $rates);
+
+            return $function;
+        });
+    }
+
+    /**
+     * Separa as faixas de cachê do resto do payload — elas moram em outra
+     * tabela e não são colunas de `function_freelancers`.
+     *
+     * @return array<int, mixed>|null
+     */
+    private function pullCacheRates(array &$data): ?array
+    {
+        $rates = $data['cache_rates'] ?? null;
+        unset($data['cache_rates']);
+
+        // Função de freelancer não carrega faixa; função de cachê não tem
+        // preço por bloco. Zerar o campo do outro tipo evita que um valor
+        // esquecido na tela seja lido depois como se valesse.
+        if (($data['type'] ?? FunctionFreelancer::TYPE_FREELANCER) === FunctionFreelancer::TYPE_CACHE) {
+            $data['price'] = null;
+        } else {
+            $rates = null;
+        }
+
+        return $rates;
+    }
+
+    /** Regrava as faixas de 2h a 11h da função de cachê. */
+    private function syncCacheRates(FunctionFreelancer $function, ?array $rates): void
+    {
+        if (!$function->isCache()) {
+            $function->cacheRates()->delete();
+
+            return;
+        }
+
+        if ($rates === null) {
+            return;
+        }
+
+        foreach (FunctionFreelancer::cacheHourRange() as $hours) {
+            if (!isset($rates[$hours]) || $rates[$hours] === '') {
+                continue;
+            }
+
+            $function->cacheRates()->updateOrCreate(
+                ['hours' => $hours],
+                ['price' => $rates[$hours]],
+            );
+        }
     }
 
     /* ---------------------------------------------------------------------

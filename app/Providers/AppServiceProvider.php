@@ -42,5 +42,16 @@ class AppServiceProvider extends ServiceProvider
             'manage-freelancer-payments',
             fn (User $user) => $user->canManageFreelancerPayments(),
         );
+
+        /**
+         * Financeiro do cachê de funcionários. Mesma regra de setor do
+         * financeiro dos freelancers, e Gate próprio de propósito: as duas
+         * frentes podem passar a ter donos diferentes sem que mexer numa
+         * mova a outra.
+         */
+        Gate::define(
+            'manage-employee-cache-payments',
+            fn (User $user) => $user->canManageFreelancerPayments(),
+        );
     }
 }

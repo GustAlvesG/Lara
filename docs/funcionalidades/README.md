@@ -19,6 +19,7 @@ rotas).
 | [Sócios](socios.md) | Login, registro, foto e autenticação JWT (integração MultiClubes). |
 | [Freelancers](freelancers.md) | Cadastro de freelancers, funções e serviços prestados. |
 | [Pix automático (Sicoob)](pix-sicoob.md) | **Movimenta dinheiro real:** o "Dar baixa" do financeiro transfere o valor do contrato via Pix. |
+| [Cachê de Funcionários](cache-funcionarios.md) | Turno extra de funcionário: solicitação em lote, assinatura com o horário real e reconferência da divergência. |
 | [Banco de Horas](banco-de-horas.md) | Importação de ponto, cálculo de saldo e ajustes. |
 | [Torneios](torneios.md) | Torneios, categorias, times, inscrições e pagamentos. |
 | [Empresas e Controle de Acesso](empresas.md) | Empresas terceirizadas, trabalhadores e regras de acesso. |

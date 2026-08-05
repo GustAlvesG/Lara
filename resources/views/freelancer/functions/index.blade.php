@@ -11,7 +11,7 @@
         <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
                 <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Funções</h1>
-                <p class="text-gray-500 dark:text-gray-400 font-medium">Funções que um freelancer pode exercer, com valor por bloco de 15 minutos.</p>
+                <p class="text-gray-500 dark:text-gray-400 font-medium">Funções de freelancer (valor por bloco de 15 min) e de cachê de funcionário (valor por faixa de horas).</p>
             </div>
 
             <a href="{{ route('freelancer-functions.create') }}" class="inline-flex items-center px-6 py-3 bg-[#A00001] text-white rounded-xl font-bold shadow-lg hover:bg-[#800000] transition duration-150 transform hover:scale-[1.02]">
@@ -33,9 +33,10 @@
                         <thead class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider bg-gray-50 dark:bg-gray-900/40">
                             <tr>
                                 <th class="px-6 py-3">Nome</th>
+                                <th class="px-6 py-3">Modalidade</th>
                                 <th class="px-6 py-3">Descrição</th>
-                                <th class="px-6 py-3">Preço (15 min)</th>
-                                <th class="px-6 py-3">Serviços</th>
+                                <th class="px-6 py-3">Valor</th>
+                                <th class="px-6 py-3">Lançamentos</th>
                                 <th class="px-6 py-3 text-right">Ações</th>
                             </tr>
                         </thead>
@@ -43,9 +44,30 @@
                             @foreach($functions as $function)
                             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
                                 <td class="px-6 py-4 font-semibold text-gray-900 dark:text-white">{{ $function->name }}</td>
+                                <td class="px-6 py-4">
+                                    @if($function->isCache())
+                                        <span class="inline-flex px-2 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">Cachê</span>
+                                    @else
+                                        <span class="inline-flex px-2 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">Freelancer</span>
+                                    @endif
+                                </td>
                                 <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $function->description ?? '—' }}</td>
-                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">R$ {{ number_format($function->price, 2, ',', '.') }}</td>
-                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $function->freelancer_services_count }}</td>
+                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">
+                                    @if($function->isCache())
+                                        @php $rates = $function->ratesByHour(); @endphp
+                                        @if($function->hasCompleteCacheRates())
+                                            <span class="text-xs">2h R$ {{ number_format($rates[2] ?? 0, 2, ',', '.') }}
+                                                · 11h R$ {{ number_format($rates[11] ?? 0, 2, ',', '.') }}</span>
+                                        @else
+                                            <span class="text-xs font-bold text-amber-600 dark:text-amber-400">⚠️ faixas incompletas</span>
+                                        @endif
+                                    @else
+                                        R$ {{ number_format($function->price, 2, ',', '.') }} <span class="text-xs text-gray-400">/ 15 min</span>
+                                    @endif
+                                </td>
+                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">
+                                    {{ $function->isCache() ? $function->employee_caches_count : $function->freelancer_services_count }}
+                                </td>
                                 <td class="px-6 py-4 text-right space-x-3 whitespace-nowrap">
                                     <a href="{{ route('freelancer-functions.show', $function) }}" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium text-xs">Editar</a>
                                     <form method="POST" action="{{ route('freelancer-functions.destroy', $function) }}" class="inline"

@@ -16,7 +16,9 @@ class FunctionController extends Controller
 
     public function index()
     {
-        $functions = FunctionFreelancer::withCount('freelancerServices')
+        $functions = FunctionFreelancer::withCount(['freelancerServices', 'employeeCaches'])
+            ->with('cacheRates')
+            ->orderBy('type')
             ->orderBy('name')
             ->get();
 
@@ -38,7 +40,7 @@ class FunctionController extends Controller
 
     public function show(FunctionFreelancer $freelancerFunction)
     {
-        $freelancerFunction->load(['createdBy', 'updatedBy']);
+        $freelancerFunction->load(['createdBy', 'updatedBy', 'cacheRates']);
 
         return view('freelancer.functions.show', ['function' => $freelancerFunction]);
     }
@@ -53,9 +55,9 @@ class FunctionController extends Controller
 
     public function destroy(FunctionFreelancer $freelancerFunction)
     {
-        if ($freelancerFunction->freelancerServices()->exists()) {
+        if ($freelancerFunction->freelancerServices()->exists() || $freelancerFunction->employeeCaches()->exists()) {
             return redirect()->route('freelancer-functions.index')
-                ->with('error', 'Não é possível excluir "' . $freelancerFunction->name . '" pois possui serviços vinculados.');
+                ->with('error', 'Não é possível excluir "' . $freelancerFunction->name . '" pois possui lançamentos vinculados.');
         }
 
         $name = $freelancerFunction->name;

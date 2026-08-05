@@ -518,7 +518,9 @@ class ServiceController extends Controller
             // desabilitar) freelancers com cadastro incompleto no seletor.
             'freelancers' => Freelancer::orderBy('name')
                 ->get(array_merge(['id', 'name'], Freelancer::CONTRACT_REQUIRED_FIELDS)),
-            'functions' => FunctionFreelancer::orderBy('name')->get(['id', 'name', 'price']),
+            // Só funções de freelancer: as de cachê têm outra conta e outro fluxo.
+            'functions' => FunctionFreelancer::ofType(FunctionFreelancer::TYPE_FREELANCER)
+                ->orderBy('name')->get(['id', 'name', 'price']),
             'statuses' => Status::orderBy('status')->get(),
         ];
     }

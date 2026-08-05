@@ -222,7 +222,10 @@ class KioskController extends Controller
         $this->operatorModeOrFail();
 
         return response()->json(
-            FunctionFreelancer::orderBy('name')->get(['id', 'name', 'price'])
+            // O tablet só registra contrato de freelancer — funções de cachê
+            // são de funcionário e não aparecem aqui.
+            FunctionFreelancer::ofType(FunctionFreelancer::TYPE_FREELANCER)
+                ->orderBy('name')->get(['id', 'name', 'price'])
                 ->map(fn(FunctionFreelancer $f) => [
                     'id' => $f->id,
                     'name' => $f->name,

@@ -74,7 +74,8 @@ class FreelancerServiceImport extends SpreadsheetImport
         // preenche vê logo o formato de CPF e o nome exato de uma função.
         return [
             'cpf' => Freelancer::orderBy('name')->value('cpf') ?? '12345678901',
-            'function' => FunctionFreelancer::orderBy('name')->value('name') ?? 'Garçom',
+            'function' => FunctionFreelancer::ofType(FunctionFreelancer::TYPE_FREELANCER)
+                ->orderBy('name')->value('name') ?? 'Garçom',
             'location' => 'Festa de Confraternização - Salão Nobre',
             'start_date' => now()->format('d/m/Y'),
             'start_time' => '18:00',
@@ -187,7 +188,8 @@ class FreelancerServiceImport extends SpreadsheetImport
     /** Nome em minúsculas => id, para casar sem depender de caixa. */
     private function functions(): Collection
     {
-        return $this->functionsByName ??= FunctionFreelancer::pluck('id', 'name')
+        return $this->functionsByName ??= FunctionFreelancer::ofType(FunctionFreelancer::TYPE_FREELANCER)
+            ->pluck('id', 'name')
             ->mapWithKeys(fn($id, $name) => [mb_strtolower(trim((string) $name)) => $id]);
     }
 }
