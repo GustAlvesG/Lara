@@ -3,6 +3,10 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Support\Placar\PlacarAbilities;
+use App\Http\Controllers\Placar\Api\ModalidadeController as PlacarModalidadeController;
+use App\Http\Controllers\Placar\Api\EquipeController as PlacarEquipeController;
+use App\Http\Controllers\Placar\Api\TimeController as PlacarTimeController;
+use App\Http\Controllers\Placar\Api\JogoController as PlacarJogoController;
 use App\Http\Controllers\Auth\MemberAuthController;
 use App\Http\Controllers\Auth\LoginTokenController;
 use App\Http\Controllers\Auth\UserAuthController;
@@ -44,8 +48,9 @@ Route::get('/ping', function () {
 | NÃO a sessão/CSRF web. Rate limit generoso porque o Node manda eventos em
 | lote, não um a um. Token: `php artisan placar:token {nome}`.
 |
-| Os endpoints de leitura, escrita e scout entram nas etapas seguintes —
-| este grupo e o /ping abaixo só validam a autenticação de ponta a ponta.
+| Os endpoints de escrita (ciclo de vida do jogo, eventos, criação em
+| campo) e de scout agregado entram nas etapas seguintes. O /ping é só
+| diagnóstico, para validar a autenticação sem depender de dado nenhum.
 */
 Route::prefix('placar')
     ->middleware(['auth:sanctum', 'abilities:' . PlacarAbilities::OPERAR, 'throttle:300,1'])
@@ -56,6 +61,17 @@ Route::prefix('placar')
                 'cliente' => $request->user()?->nome,
             ]);
         })->name('api.placar.ping');
+
+        // Leitura — consumo e seleção pelo Node (modo planejado).
+        Route::get('/modalidades', [PlacarModalidadeController::class, 'index'])->name('api.placar.modalidades.index');
+
+        Route::get('/equipes', [PlacarEquipeController::class, 'index'])->name('api.placar.equipes.index');
+
+        Route::get('/times', [PlacarTimeController::class, 'index'])->name('api.placar.times.index');
+        Route::get('/times/{time}/elenco', [PlacarTimeController::class, 'elenco'])->name('api.placar.times.elenco');
+
+        Route::get('/jogos', [PlacarJogoController::class, 'index'])->name('api.placar.jogos.index');
+        Route::get('/jogos/{jogo}', [PlacarJogoController::class, 'show'])->name('api.placar.jogos.show');
     });
 
 Route::get('/test', [TestController::class, 'index'])->name('api.test');

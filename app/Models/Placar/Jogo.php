@@ -85,6 +85,35 @@ class Jogo extends Model
         return $this->hasMany(JogoEvento::class)->orderBy('sequencia');
     }
 
+    /**
+     * Elenco "operacional" de um time NESTE jogo: a escalação, se já foi
+     * feita; senão o elenco da temporada corrente do time, sem titular nem
+     * capitão marcados (a escalação é quem decide isso). Usado pelo payload
+     * completo de GET /jogos/{id} — ver JogoDetalheResource.
+     *
+     * @return \Illuminate\Support\Collection<int, array{jogador: Jogador, numero: ?string, titular: bool, capitao: bool}>
+     */
+    public function elencoOperacionalDoTime(Time $time)
+    {
+        $escalacao = $this->escalacoes()->where('time_id', $time->id)->with('jogador')->get();
+
+        if ($escalacao->isNotEmpty()) {
+            return $escalacao->map(fn (Escalacao $item) => [
+                'jogador' => $item->jogador,
+                'numero' => $item->numero,
+                'titular' => $item->titular,
+                'capitao' => $item->capitao,
+            ]);
+        }
+
+        return $time->elencoDaTemporada()->get()->map(fn (Elenco $elenco) => [
+            'jogador' => $elenco->jogador,
+            'numero' => $elenco->numero,
+            'titular' => false,
+            'capitao' => false,
+        ]);
+    }
+
     public function estaAoVivo(): bool
     {
         return $this->status === self::STATUS_AO_VIVO;
