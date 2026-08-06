@@ -83,6 +83,13 @@ Route::prefix('placar')
         Route::get('/jogos', [PlacarJogoController::class, 'index'])->name('api.placar.jogos.index');
         Route::get('/jogos/{jogo}', [PlacarJogoController::class, 'show'])->name('api.placar.jogos.show');
 
+        // Escrita — criação em campo (modo avulso): jogo não planejado,
+        // cadastro completo em até quatro chamadas. Sempre criado_em_campo = true.
+        Route::post('/equipes', [PlacarEquipeController::class, 'store'])->name('api.placar.equipes.store');
+        Route::post('/times', [PlacarTimeController::class, 'store'])->name('api.placar.times.store');
+        Route::post('/jogadores', [PlacarJogadorController::class, 'store'])->name('api.placar.jogadores.store');
+        Route::post('/jogos', [PlacarJogoController::class, 'store'])->name('api.placar.jogos.store');
+
         // Ciclo de vida do jogo + o endpoint mais importante da API (eventos).
         Route::post('/jogos/{jogo}/iniciar', [PlacarJogoController::class, 'iniciar'])->name('api.placar.jogos.iniciar');
         Route::post('/jogos/{jogo}/escalacao', [PlacarEscalacaoController::class, 'store'])->name('api.placar.jogos.escalacao');

@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Placar\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Placar\CriarJogoEmCampoRequest;
 use App\Http\Requests\Placar\EncerrarJogoRequest;
 use App\Http\Requests\Placar\IniciarJogoRequest;
 use App\Http\Resources\Placar\JogoDetalheResource;
 use App\Http\Resources\Placar\JogoResource;
 use App\Models\Placar\Jogo;
+use App\Models\Placar\Modalidade;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class JogoController extends Controller
 {
@@ -46,6 +49,33 @@ class JogoController extends Controller
     /** GET /placar/jogos/{jogo} — payload completo para o Node montar o gameState. */
     public function show(Jogo $jogo)
     {
+        $jogo->load(['modalidade', 'competicao', 'timeCasa.equipe', 'timeFora.equipe']);
+
+        return new JogoDetalheResource($jogo);
+    }
+
+    /**
+     * POST /placar/jogos — modo avulso.
+     * body: { modalidade, time_casa_id, time_fora_id, data_hora?, local?, competicao_id? }
+     * `data_hora` default = agora. Devolve o mesmo payload de GET /jogos/{id}
+     * — o Node segue direto para o jogo, sem uma segunda chamada.
+     */
+    public function store(CriarJogoEmCampoRequest $request)
+    {
+        $modalidade = Modalidade::resolver($request->input('modalidade'));
+
+        // 'status' explícito — ver o comentário equivalente em EquipeController@store.
+        $jogo = Jogo::create([
+            'modalidade_id' => $modalidade->id,
+            'time_casa_id' => $request->input('time_casa_id'),
+            'time_fora_id' => $request->input('time_fora_id'),
+            'data_hora' => $request->filled('data_hora') ? Carbon::parse($request->input('data_hora')) : now(),
+            'local' => $request->input('local'),
+            'competicao_id' => $request->input('competicao_id'),
+            'status' => Jogo::STATUS_AGENDADO,
+            'criado_em_campo' => true,
+        ]);
+
         $jogo->load(['modalidade', 'competicao', 'timeCasa.equipe', 'timeFora.equipe']);
 
         return new JogoDetalheResource($jogo);

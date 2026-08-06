@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Placar\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Placar\Api\Concerns\UploadsPlacarImagem;
+use App\Http\Requests\Placar\CriarTimeEmCampoRequest;
 use App\Http\Requests\Placar\UploadImagemRequest;
 use App\Http\Resources\Placar\TimeElencoJogadorResource;
 use App\Http\Resources\Placar\TimeResource;
+use App\Models\Placar\Equipe;
+use App\Models\Placar\Modalidade;
 use App\Models\Placar\Time;
 use App\Services\Placar\ImagemService;
 use Illuminate\Http\Request;
@@ -46,6 +49,39 @@ class TimeController extends Controller
             ->get();
 
         return TimeElencoJogadorResource::collection($elencos);
+    }
+
+    /**
+     * POST /placar/times — modo avulso. body: { equipe_id?, equipe_nome?, modalidade, categoria? }
+     * Sem equipe_id: cria a equipe junto (firstOrCreate por nome, sem marcar
+     * criado_em_campo se ela já existia). `categoria` default 'Adulto'.
+     * firstOrCreate também no time — reenviar a mesma criação não duplica.
+     */
+    public function store(CriarTimeEmCampoRequest $request)
+    {
+        if ($request->filled('equipe_id')) {
+            $equipe = Equipe::findOrFail($request->input('equipe_id'));
+        } else {
+            $equipe = Equipe::firstOrCreate(
+                ['nome' => $request->input('equipe_nome')],
+                ['criado_em_campo' => true, 'ativo' => true],
+            );
+        }
+
+        $modalidade = Modalidade::resolver($request->input('modalidade'));
+
+        // 'ativo' explícito nos atributos de criação — ver o comentário
+        // equivalente em EquipeController@store.
+        $time = Time::firstOrCreate(
+            [
+                'equipe_id' => $equipe->id,
+                'modalidade_id' => $modalidade->id,
+                'categoria' => $request->input('categoria', Time::CATEGORIA_PADRAO),
+            ],
+            ['criado_em_campo' => true, 'ativo' => true],
+        );
+
+        return new TimeResource($time->load(['equipe', 'modalidade']));
     }
 
     /** POST /placar/times/{time}/logo — multipart `arquivo` ou `arquivo_base64`. */
