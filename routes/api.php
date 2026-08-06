@@ -7,6 +7,7 @@ use App\Http\Controllers\Placar\Api\ModalidadeController as PlacarModalidadeCont
 use App\Http\Controllers\Placar\Api\EquipeController as PlacarEquipeController;
 use App\Http\Controllers\Placar\Api\TimeController as PlacarTimeController;
 use App\Http\Controllers\Placar\Api\JogoController as PlacarJogoController;
+use App\Http\Controllers\Placar\Api\JogadorController as PlacarJogadorController;
 use App\Http\Controllers\Auth\MemberAuthController;
 use App\Http\Controllers\Auth\LoginTokenController;
 use App\Http\Controllers\Auth\UserAuthController;
@@ -66,9 +67,16 @@ Route::prefix('placar')
         Route::get('/modalidades', [PlacarModalidadeController::class, 'index'])->name('api.placar.modalidades.index');
 
         Route::get('/equipes', [PlacarEquipeController::class, 'index'])->name('api.placar.equipes.index');
+        Route::post('/equipes/{equipe}/logo', [PlacarEquipeController::class, 'storeLogo'])->name('api.placar.equipes.logo.store');
+        Route::delete('/equipes/{equipe}/logo', [PlacarEquipeController::class, 'destroyLogo'])->name('api.placar.equipes.logo.destroy');
 
         Route::get('/times', [PlacarTimeController::class, 'index'])->name('api.placar.times.index');
         Route::get('/times/{time}/elenco', [PlacarTimeController::class, 'elenco'])->name('api.placar.times.elenco');
+        Route::post('/times/{time}/logo', [PlacarTimeController::class, 'storeLogo'])->name('api.placar.times.logo.store');
+        Route::delete('/times/{time}/logo', [PlacarTimeController::class, 'destroyLogo'])->name('api.placar.times.logo.destroy');
+
+        Route::post('/jogadores/{jogador}/foto', [PlacarJogadorController::class, 'storeFoto'])->name('api.placar.jogadores.foto.store');
+        Route::delete('/jogadores/{jogador}/foto', [PlacarJogadorController::class, 'destroyFoto'])->name('api.placar.jogadores.foto.destroy');
 
         Route::get('/jogos', [PlacarJogoController::class, 'index'])->name('api.placar.jogos.index');
         Route::get('/jogos/{jogo}', [PlacarJogoController::class, 'show'])->name('api.placar.jogos.show');
