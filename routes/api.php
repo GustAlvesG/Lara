@@ -10,6 +10,7 @@ use App\Http\Controllers\Placar\Api\JogoController as PlacarJogoController;
 use App\Http\Controllers\Placar\Api\JogadorController as PlacarJogadorController;
 use App\Http\Controllers\Placar\Api\EscalacaoController as PlacarEscalacaoController;
 use App\Http\Controllers\Placar\Api\JogoEventoController as PlacarJogoEventoController;
+use App\Http\Controllers\Placar\Api\ScoutController as PlacarScoutController;
 use App\Http\Controllers\Auth\MemberAuthController;
 use App\Http\Controllers\Auth\LoginTokenController;
 use App\Http\Controllers\Auth\UserAuthController;
@@ -95,6 +96,11 @@ Route::prefix('placar')
         Route::post('/jogos/{jogo}/escalacao', [PlacarEscalacaoController::class, 'store'])->name('api.placar.jogos.escalacao');
         Route::post('/jogos/{jogo}/eventos', [PlacarJogoEventoController::class, 'store'])->name('api.placar.jogos.eventos');
         Route::post('/jogos/{jogo}/encerrar', [PlacarJogoController::class, 'encerrar'])->name('api.placar.jogos.encerrar');
+
+        // Scout — leitura agregada de jogo_eventos (súmula, artilharia, perfil do jogador).
+        Route::get('/jogos/{jogo}/sumula', [PlacarScoutController::class, 'sumula'])->name('api.placar.jogos.sumula');
+        Route::get('/scout/artilharia', [PlacarScoutController::class, 'artilharia'])->name('api.placar.scout.artilharia');
+        Route::get('/scout/jogadores/{jogador}', [PlacarScoutController::class, 'jogador'])->name('api.placar.scout.jogador');
     });
 
 Route::get('/test', [TestController::class, 'index'])->name('api.test');

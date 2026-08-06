@@ -132,11 +132,7 @@ class Jogo extends Model
             ->whereIn('tipo', [JogoEvento::TIPO_PONTO, JogoEvento::TIPO_SET, JogoEvento::TIPO_ESTORNO])
             ->get();
 
-        $estornados = $eventos->where('tipo', JogoEvento::TIPO_ESTORNO)
-            ->pluck('payload')
-            ->map(fn (?array $payload) => $payload['evento_uuid'] ?? null)
-            ->filter()
-            ->flip();
+        $estornados = JogoEvento::uuidsEstornados($eventos);
 
         $placarCasa = $placarFora = $setsCasa = $setsFora = 0;
 

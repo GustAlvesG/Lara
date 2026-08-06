@@ -89,4 +89,24 @@ class JogoEvento extends Model
     {
         return $query->where('tipo', $tipo);
     }
+
+    /**
+     * Uuids dos eventos que uma coleção de eventos estorna — lidos do
+     * `payload.evento_uuid` de cada `estorno` presente na coleção. Único
+     * ponto de leitura dessa regra: usado por Jogo::calcularPlacar() e por
+     * toda a camada de scout (súmula, artilharia, perfil do jogador) para
+     * excluir pontos/sets/faltas revertidos do que é contado.
+     *
+     * @param  \Illuminate\Support\Collection<int, self>  $eventos
+     * @return array<string, true> mapa uuid => true, pronto para isset()
+     */
+    public static function uuidsEstornados($eventos): array
+    {
+        return $eventos->where('tipo', self::TIPO_ESTORNO)
+            ->pluck('payload')
+            ->map(fn (?array $payload) => $payload['evento_uuid'] ?? null)
+            ->filter()
+            ->flip()
+            ->all();
+    }
 }
