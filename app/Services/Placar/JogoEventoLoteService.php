@@ -21,18 +21,18 @@ use Illuminate\Support\Str;
  * roda em MySQL/InnoDB: uma duplicate-key error numa instrução dentro de uma
  * transação não a envenena (diferente de Postgres) — dá para continuar
  * inserindo as próximas linhas na mesma transação depois de capturar o erro.
+ *
+ * Sem limite de tamanho de lote — por decisão explícita, mesmo o enunciado
+ * original sugerindo até 200: o Node pode precisar mandar lotes maiores
+ * (reenvio de fila offline acumulada, por exemplo).
  */
 class JogoEventoLoteService
 {
-    const LIMITE_LOTE = 200;
-
     /**
      * @return array{aceitos: string[], duplicados: string[], rejeitados: array<array{uuid: ?string, motivo: string}>}
      */
     public function processar(Jogo $jogo, array $eventosBrutos): array
     {
-        $eventosBrutos = array_slice($eventosBrutos, 0, self::LIMITE_LOTE);
-
         $jogadoresValidos = $this->carregarJogadoresCitados($eventosBrutos);
 
         $aceitos = [];
