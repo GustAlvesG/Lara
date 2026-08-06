@@ -1,0 +1,564 @@
+{
+  "info": {
+    "name": "Placar Clube — API",
+    "description": "API do Node (placar eletrônico ao vivo). Autenticação Sanctum (token pessoal, ability `placar:operar`) — gere um com `php artisan placar:token {nome}` e cole em {{token}}. Veja docs/placar-clube-api.md para o detalhe de cada rota.\n\nAs pastas 1 e 2 seguem o fluxo real de uma partida planejada de ponta a ponta; a pasta 3 é o modo avulso (jogo não cadastrado antes). As requisições de cada pasta guardam os ids retornados em variáveis de coleção (aba Scripts › Post-response), então dá para rodar cada pasta em sequência com o Runner sem editar nada à mão.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "placar-clube-api-collection"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000", "type": "string" },
+    { "key": "token", "value": "", "type": "string", "description": "php artisan placar:token {nome}" },
+    { "key": "jogo_id", "value": "1", "type": "string", "description": "Preenchido por '2. Listar jogos' / '2. Carregar jogo' — id do 1º jogo do PlacarDemoSeeder (futsal)." },
+    { "key": "time_casa_id", "value": "1", "type": "string" },
+    { "key": "time_fora_id", "value": "4", "type": "string" },
+    { "key": "jogador_casa_id", "value": "1", "type": "string" },
+    { "key": "jogador_fora_id", "value": "31", "type": "string" },
+    { "key": "equipe_id", "value": "1", "type": "string" },
+    { "key": "equipe_avulsa_id", "value": "", "type": "string" },
+    { "key": "time_avulso_id", "value": "", "type": "string" },
+    { "key": "jogador_avulso_id", "value": "", "type": "string" },
+    { "key": "jogo_avulso_id", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "0. Diagnóstico",
+      "item": [
+        {
+          "name": "Ping (sem autenticação)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/ping",
+            "auth": { "type": "noauth" }
+          },
+          "response": []
+        },
+        {
+          "name": "Ping do Placar (com token)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/placar/ping"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "1. Leitura — modo planejado",
+      "item": [
+        {
+          "name": "Listar modalidades",
+          "request": { "method": "GET", "url": "{{base_url}}/api/placar/modalidades" },
+          "response": []
+        },
+        {
+          "name": "Listar equipes",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/placar/equipes?busca=&modalidade=",
+              "host": ["{{base_url}}"],
+              "path": ["api", "placar", "equipes"],
+              "query": [
+                { "key": "busca", "value": "", "description": "nome ou nome_curto" },
+                { "key": "modalidade", "value": "", "description": "slug (futsal/basquete/volei) ou id" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar times",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/placar/times?modalidade=futsal",
+              "host": ["{{base_url}}"],
+              "path": ["api", "placar", "times"],
+              "query": [
+                { "key": "modalidade", "value": "futsal" },
+                { "key": "equipe_id", "value": "", "disabled": true },
+                { "key": "categoria", "value": "", "disabled": true },
+                { "key": "busca", "value": "", "disabled": true }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Elenco de um time",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/placar/times/{{time_casa_id}}/elenco?temporada=2026",
+              "host": ["{{base_url}}"],
+              "path": ["api", "placar", "times", "{{time_casa_id}}", "elenco"],
+              "query": [{ "key": "temporada", "value": "2026" }]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Listar jogos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (Array.isArray(body?.data) && body.data.length) {",
+                  "    const jogo = body.data[0];",
+                  "    pm.collectionVariables.set('jogo_id', jogo.id);",
+                  "    pm.collectionVariables.set('time_casa_id', jogo.time_casa.id);",
+                  "    pm.collectionVariables.set('time_fora_id', jogo.time_fora.id);",
+                  "}",
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/placar/jogos?status=agendado,ao_vivo",
+              "host": ["{{base_url}}"],
+              "path": ["api", "placar", "jogos"],
+              "query": [
+                { "key": "status", "value": "agendado,ao_vivo" },
+                { "key": "data", "value": "", "disabled": true },
+                { "key": "modalidade", "value": "", "disabled": true },
+                { "key": "competicao_id", "value": "", "disabled": true }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Carregar jogo (payload completo)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body?.time_casa?.elenco?.length) {",
+                  "    pm.collectionVariables.set('jogador_casa_id', body.time_casa.elenco[0].jogador_id);",
+                  "}",
+                  "if (body?.time_fora?.elenco?.length) {",
+                  "    pm.collectionVariables.set('jogador_fora_id', body.time_fora.elenco[0].jogador_id);",
+                  "}",
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/placar/jogos/{{jogo_id}}",
+            "description": "Monta o gameState do Node de uma vez: dados do jogo + elenco operacional (escalação, senão o elenco da temporada) dos dois times, com logo_url/foto_url já absolutas."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Ciclo de vida do jogo — modo planejado",
+      "item": [
+        {
+          "name": "Definir escalação (opcional)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/jogos/{{jogo_id}}/escalacao",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"time_id\": {{time_casa_id}},\n    \"jogadores\": [\n        { \"jogador_id\": {{jogador_casa_id}}, \"numero\": \"10\", \"titular\": true, \"capitao\": true },\n        { \"jogador_id\": {{jogador_fora_id}}, \"numero\": \"7\", \"titular\": true }\n    ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Substitui por completo a escalação do time informado neste jogo (não faz merge). `time_id` precisa ser um dos dois times do jogo — o segundo jogador do exemplo é só ilustrativo, ajuste para outro atleta do MESMO time_casa antes de rodar de verdade."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Iniciar jogo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/jogos/{{jogo_id}}/iniciar",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"operador\": \"mesa-01\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Idempotente: chamar de novo com o jogo já ao_vivo só devolve o estado atual. Devolve `ultima_sequencia` para o Node retomar depois de uma queda de conexão."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Enviar lote de eventos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/jogos/{{jogo_id}}/eventos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"eventos\": [\n        {\n            \"uuid\": \"b1e6a1b1-4b8a-4b1a-9c3a-000000000001\",\n            \"sequencia\": 1,\n            \"tipo\": \"inicio_jogo\",\n            \"ocorrido_em\": \"2026-08-06 19:30:00.000\"\n        },\n        {\n            \"uuid\": \"b1e6a1b1-4b8a-4b1a-9c3a-000000000002\",\n            \"sequencia\": 2,\n            \"tipo\": \"ponto\",\n            \"time_id\": {{time_casa_id}},\n            \"jogador_id\": {{jogador_casa_id}},\n            \"valor\": 1,\n            \"periodo\": 1,\n            \"cronometro_ms\": 542000,\n            \"ocorrido_em\": \"2026-08-06 19:34:12.500\"\n        },\n        {\n            \"uuid\": \"b1e6a1b1-4b8a-4b1a-9c3a-000000000003\",\n            \"sequencia\": 3,\n            \"tipo\": \"falta\",\n            \"time_id\": {{time_fora_id}},\n            \"jogador_id\": {{jogador_fora_id}},\n            \"periodo\": 1,\n            \"cronometro_ms\": 601000,\n            \"ocorrido_em\": \"2026-08-06 19:35:01.000\"\n        },\n        {\n            \"uuid\": \"b1e6a1b1-4b8a-4b1a-9c3a-000000000004\",\n            \"sequencia\": 4,\n            \"tipo\": \"crono_pause\",\n            \"periodo\": 1,\n            \"cronometro_ms\": 601000,\n            \"ocorrido_em\": \"2026-08-06 19:35:02.000\"\n        }\n    ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Idempotente por `uuid` — reenviar o mesmo lote (ex.: retry de rede) devolve os mesmos uuids em `duplicados`, sem duplicar nada. `sequencia` e `uuid` são gerados pelo Node, nunca aqui. Sem limite de tamanho de lote."
+          },
+          "response": []
+        },
+        {
+          "name": "Reenviar o mesmo lote (idempotência)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('nada foi aceito de novo — tudo veio em duplicados', () => {",
+                  "    pm.expect(body.aceitos).to.eql([]);",
+                  "    pm.expect(body.duplicados.length).to.eql(4);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/jogos/{{jogo_id}}/eventos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"eventos\": [\n        {\n            \"uuid\": \"b1e6a1b1-4b8a-4b1a-9c3a-000000000001\",\n            \"sequencia\": 1,\n            \"tipo\": \"inicio_jogo\",\n            \"ocorrido_em\": \"2026-08-06 19:30:00.000\"\n        },\n        {\n            \"uuid\": \"b1e6a1b1-4b8a-4b1a-9c3a-000000000002\",\n            \"sequencia\": 2,\n            \"tipo\": \"ponto\",\n            \"time_id\": {{time_casa_id}},\n            \"jogador_id\": {{jogador_casa_id}},\n            \"valor\": 1,\n            \"periodo\": 1,\n            \"cronometro_ms\": 542000,\n            \"ocorrido_em\": \"2026-08-06 19:34:12.500\"\n        },\n        {\n            \"uuid\": \"b1e6a1b1-4b8a-4b1a-9c3a-000000000003\",\n            \"sequencia\": 3,\n            \"tipo\": \"falta\",\n            \"time_id\": {{time_fora_id}},\n            \"jogador_id\": {{jogador_fora_id}},\n            \"periodo\": 1,\n            \"cronometro_ms\": 601000,\n            \"ocorrido_em\": \"2026-08-06 19:35:01.000\"\n        },\n        {\n            \"uuid\": \"b1e6a1b1-4b8a-4b1a-9c3a-000000000004\",\n            \"sequencia\": 4,\n            \"tipo\": \"crono_pause\",\n            \"periodo\": 1,\n            \"cronometro_ms\": 601000,\n            \"ocorrido_em\": \"2026-08-06 19:35:02.000\"\n        }\n    ]\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Estornar um ponto lançado errado",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/jogos/{{jogo_id}}/eventos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"eventos\": [\n        {\n            \"uuid\": \"b1e6a1b1-4b8a-4b1a-9c3a-000000000005\",\n            \"sequencia\": 5,\n            \"tipo\": \"estorno\",\n            \"ocorrido_em\": \"2026-08-06 19:36:00.000\",\n            \"payload\": { \"evento_uuid\": \"b1e6a1b1-4b8a-4b1a-9c3a-000000000002\", \"motivo\": \"ponto lançado para o jogador errado\" }\n        }\n    ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Corrige sem UPDATE/DELETE: um evento novo do tipo `estorno` referenciando o uuid original em `payload.evento_uuid`. O evento estornado some do placar e dos totais, mas continua na linha do tempo da súmula, marcado."
+          },
+          "response": []
+        },
+        {
+          "name": "5. Encerrar jogo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/jogos/{{jogo_id}}/encerrar",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"placar_casa\": 0,\n    \"placar_fora\": 1,\n    \"periodos_jogados\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Idempotente: chamar de novo com o jogo já encerrado só devolve o estado atual. Se o placar enviado divergir do recalculado a partir do log de eventos, a diferença é registrada em `observacoes` — o log manda, a divergência não passa em branco. (Este exemplo manda 0x1 de propósito, DIFERENTE do que os eventos acima geram, só para ver a divergência registrada — ajuste para o placar real antes de encerrar de verdade.)"
+          },
+          "response": []
+        },
+        {
+          "name": "6. Súmula",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/placar/jogos/{{jogo_id}}/sumula",
+            "description": "Placar por período, timeline cronológica com jogador (evento estornado continua visível, marcado) e totais por jogador de cada time — tudo calculado a partir de jogo_eventos, nunca de campo denormalizado."
+          },
+          "response": []
+        },
+        {
+          "name": "Artilharia",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/placar/scout/artilharia?modalidade=futsal",
+              "host": ["{{base_url}}"],
+              "path": ["api", "placar", "scout", "artilharia"],
+              "query": [
+                { "key": "modalidade", "value": "futsal" },
+                { "key": "competicao_id", "value": "", "disabled": true },
+                { "key": "temporada", "value": "", "disabled": true },
+                { "key": "time_id", "value": "", "disabled": true }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Perfil do jogador",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/placar/scout/jogadores/{{jogador_casa_id}}?temporada=2026",
+              "host": ["{{base_url}}"],
+              "path": ["api", "placar", "scout", "jogadores", "{{jogador_casa_id}}"],
+              "query": [{ "key": "temporada", "value": "2026" }]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Modo avulso — jogo não cadastrado antes",
+      "description": "Cadastro completo em até quatro chamadas, sempre com criado_em_campo=true — alguém revisa depois pela tela web. Rode as três primeiras nesta ordem: cada uma guarda o id criado na variável de coleção usada pela próxima.",
+      "item": [
+        {
+          "name": "1. Criar equipe em campo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('equipe_avulsa_id', body.id);",
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('marcada como criada em campo', () => pm.expect(body.criado_em_campo).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/equipes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nome\": \"Time da Praça XV\",\n    \"nome_curto\": \"Praça XV\",\n    \"cidade\": \"Volta Redonda\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Criar time em campo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('time_avulso_id', body.id);",
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/times",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"equipe_id\": {{equipe_avulsa_id}},\n    \"modalidade\": \"futsal\",\n    \"categoria\": \"Adulto\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Também aceita `equipe_nome` no lugar de `equipe_id` — cria a equipe junto (firstOrCreate por nome) quando nem isso existir ainda."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Criar jogador em campo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('jogador_avulso_id', body.id);",
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/jogadores",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nome\": \"João da Silva\",\n    \"time_id\": {{time_avulso_id}},\n    \"numero\": \"9\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Com `time_id`, já cria o vínculo em elencos na mesma transação. Sem foto, data de nascimento nem documento — nada disso é essencial pra entrar em quadra."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Criar jogo em campo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('jogo_avulso_id', body.jogo.id);",
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/jogos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"modalidade\": \"futsal\",\n    \"time_casa_id\": {{time_avulso_id}},\n    \"time_fora_id\": {{time_casa_id}},\n    \"local\": \"Quadra improvisada — Bairro Retiro\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "`time_fora_id` aqui usa {{time_casa_id}} só como um time JÁ existente de exemplo — troque por um time de verdade da mesma modalidade (`futsal`) antes de rodar, senão a API rejeita por modalidade divergente. Devolve o mesmo payload de GET /jogos/{id} (jogo já pronto para o Node seguir direto, sem 2ª chamada)."
+          },
+          "response": []
+        },
+        {
+          "name": "5. Iniciar jogo avulso",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/jogos/{{jogo_avulso_id}}/iniciar",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"operador\": \"mesa-02\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Enviar eventos do jogo avulso",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/jogos/{{jogo_avulso_id}}/eventos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"eventos\": [\n        {\n            \"uuid\": \"c2f7b2c2-5c9b-4c2b-8d4b-000000000001\",\n            \"sequencia\": 1,\n            \"tipo\": \"ponto\",\n            \"time_id\": {{time_avulso_id}},\n            \"jogador_id\": {{jogador_avulso_id}},\n            \"valor\": 1,\n            \"periodo\": 1,\n            \"cronometro_ms\": 120000,\n            \"ocorrido_em\": \"2026-08-06 20:05:00.000\"\n        }\n    ]\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "7. Encerrar jogo avulso",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/jogos/{{jogo_avulso_id}}/encerrar",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"placar_casa\": 1,\n    \"placar_fora\": 0\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Imagens (logo / foto)",
+      "item": [
+        {
+          "name": "Enviar logo da equipe (multipart)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/equipes/{{equipe_id}}/logo",
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "arquivo", "type": "file", "src": [] }]
+            },
+            "description": "Aceita `arquivo` (multipart, jpg/jpeg/png/webp, até 8MB) OU `arquivo_base64` (data URL) — nunca os dois. Redimensiona proporcional até 512×512. Substituir remove o arquivo anterior do disco."
+          },
+          "response": []
+        },
+        {
+          "name": "Enviar logo da equipe (base64)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/equipes/{{equipe_id}}/logo",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"arquivo_base64\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remover logo da equipe",
+          "request": { "method": "DELETE", "url": "{{base_url}}/api/placar/equipes/{{equipe_id}}/logo" },
+          "response": []
+        },
+        {
+          "name": "Enviar logo do time (multipart)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/times/{{time_casa_id}}/logo",
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "arquivo", "type": "file", "src": [] }]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remover logo do time",
+          "request": { "method": "DELETE", "url": "{{base_url}}/api/placar/times/{{time_casa_id}}/logo" },
+          "response": []
+        },
+        {
+          "name": "Enviar foto do jogador (multipart)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/jogadores/{{jogador_casa_id}}/foto",
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "arquivo", "type": "file", "src": [] }]
+            },
+            "description": "Redimensiona para 512×512 com recorte central (crop quadrado) — diferente da logo, que só reduz proporcionalmente."
+          },
+          "response": []
+        },
+        {
+          "name": "Remover foto do jogador",
+          "request": { "method": "DELETE", "url": "{{base_url}}/api/placar/jogadores/{{jogador_casa_id}}/foto" },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
