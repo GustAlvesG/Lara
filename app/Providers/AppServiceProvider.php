@@ -64,5 +64,22 @@ class AppServiceProvider extends ServiceProvider
             'track-freelancer-batches',
             fn (User $user) => $user->canTrackFreelancerBatches(),
         );
+
+        /**
+         * Placar Clube — telas de cadastro (equipes/times/jogadores/
+         * competições/jogos/escalação) e de scout (súmula/artilharia/perfil).
+         * Mesma regra hoje (setor Esporte, qualquer papel — ver
+         * User::canAccessPlacar()), dois Gates porque cadastro escreve e
+         * scout só lê, e podem divergir depois sem precisar tocar em rota.
+         */
+        Gate::define(
+            'manage-placar-cadastro',
+            fn (User $user) => $user->canAccessPlacar(),
+        );
+
+        Gate::define(
+            'view-placar-scout',
+            fn (User $user) => $user->canAccessPlacar(),
+        );
     }
 }

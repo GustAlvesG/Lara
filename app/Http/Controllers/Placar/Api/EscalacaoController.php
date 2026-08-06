@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Placar\AtualizarEscalacaoRequest;
 use App\Models\Placar\Escalacao;
 use App\Models\Placar\Jogo;
-use Illuminate\Support\Facades\DB;
+use App\Services\Placar\EscalacaoService;
 
 class EscalacaoController extends Controller
 {
@@ -15,32 +15,15 @@ class EscalacaoController extends Controller
      * body: { time_id, jogadores: [{ jogador_id, numero, titular?, capitao? }] }
      *
      * Grava/substitui a escalação daquele time neste jogo — usado quando o
-     * operador ajusta o elenco no controle antes de começar. Substituição
-     * completa (apaga a escalação anterior do time e grava a nova), não
-     * merge: é o que "substitui" no enunciado pede.
+     * operador ajusta o elenco no controle antes de começar. A regra
+     * (substituição completa, não merge) mora em EscalacaoService,
+     * reaproveitada pela tela web equivalente.
      */
-    public function store(AtualizarEscalacaoRequest $request, Jogo $jogo)
+    public function store(AtualizarEscalacaoRequest $request, Jogo $jogo, EscalacaoService $escalacoes)
     {
         $timeId = (int) $request->input('time_id');
-        $jogadores = $request->input('jogadores');
 
-        DB::transaction(function () use ($jogo, $timeId, $jogadores) {
-            $jogo->escalacoes()->where('time_id', $timeId)->delete();
-
-            $agora = now();
-            Escalacao::insert(array_map(fn (array $item) => [
-                'jogo_id' => $jogo->id,
-                'time_id' => $timeId,
-                'jogador_id' => $item['jogador_id'],
-                'numero' => $item['numero'],
-                'titular' => $item['titular'] ?? false,
-                'capitao' => $item['capitao'] ?? false,
-                'created_at' => $agora,
-                'updated_at' => $agora,
-            ], $jogadores));
-        });
-
-        $escalacao = $jogo->escalacoes()->where('time_id', $timeId)->with('jogador')->get();
+        $escalacao = $escalacoes->substituir($jogo, $timeId, $request->input('jogadores'));
 
         return response()->json([
             'time_id' => $timeId,

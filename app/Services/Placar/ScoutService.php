@@ -5,6 +5,7 @@ namespace App\Services\Placar;
 use App\Models\Placar\Jogador;
 use App\Models\Placar\Jogo;
 use App\Models\Placar\JogoEvento;
+use App\Models\Placar\Time;
 use Illuminate\Support\Collection;
 
 /**
@@ -248,6 +249,75 @@ class ScoutService
                 ->map(fn ($pontosNoPeriodo, $periodo) => ['periodo' => $periodo, 'pontos' => $pontosNoPeriodo])
                 ->values()
                 ->all(),
+        ];
+    }
+
+    /**
+     * Painel do time: retrospecto (V/D/E) a partir dos jogos encerrados,
+     * histórico completo de confrontos e os artilheiros do próprio time
+     * (reaproveita artilharia() com o filtro time_id).
+     */
+    public function painelTime(Time $time, array $filtros = []): array
+    {
+        $jogos = Jogo::where(function ($q) use ($time) {
+            $q->where('time_casa_id', $time->id)->orWhere('time_fora_id', $time->id);
+        })
+            ->with(['modalidade', 'competicao', 'timeCasa', 'timeFora'])
+            ->orderByDesc('data_hora')
+            ->get()
+            ->map(fn (Jogo $jogo) => $this->linhaDoConfronto($jogo, $time))
+            ->values();
+
+        $retrospecto = ['vitorias' => 0, 'derrotas' => 0, 'empates' => 0];
+        foreach ($jogos as $linha) {
+            match ($linha['resultado']) {
+                'V' => $retrospecto['vitorias']++,
+                'D' => $retrospecto['derrotas']++,
+                'E' => $retrospecto['empates']++,
+                default => null,
+            };
+        }
+
+        return [
+            'time' => [
+                'id' => $time->id,
+                'nome_exibicao' => $time->nomeExibicaoResolvido(),
+                'logo_url' => $time->logoUrl(),
+            ],
+            'retrospecto' => $retrospecto,
+            'jogos' => $jogos->all(),
+            'artilheiros' => $this->artilharia(['time_id' => $time->id, ...$filtros]),
+        ];
+    }
+
+    private function linhaDoConfronto(Jogo $jogo, Time $time): array
+    {
+        $emCasa = $jogo->time_casa_id === $time->id;
+        $adversario = $emCasa ? $jogo->timeFora : $jogo->timeCasa;
+        $placarTime = $emCasa ? $jogo->placar_casa : $jogo->placar_fora;
+        $placarAdversario = $emCasa ? $jogo->placar_fora : $jogo->placar_casa;
+
+        $resultado = null;
+        if ($jogo->status === Jogo::STATUS_ENCERRADO && $placarTime !== null && $placarAdversario !== null) {
+            $resultado = match (true) {
+                $placarTime > $placarAdversario => 'V',
+                $placarTime < $placarAdversario => 'D',
+                default => 'E',
+            };
+        }
+
+        return [
+            'jogo_id' => $jogo->id,
+            'data_hora' => $jogo->data_hora?->toIso8601String(),
+            'status' => $jogo->status,
+            'mandante' => $emCasa,
+            'adversario' => [
+                'id' => $adversario->id,
+                'nome_exibicao' => $adversario->nomeExibicaoResolvido(),
+            ],
+            'placar_time' => $placarTime,
+            'placar_adversario' => $placarAdversario,
+            'resultado' => $resultado,
         ];
     }
 

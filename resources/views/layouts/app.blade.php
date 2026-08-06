@@ -105,6 +105,37 @@
                     'children' => $freelancerChildren,
                 ];
             }
+
+            // Placar Clube: cadastro (escreve) e scout (só lê) são Gates
+            // separados hoje com a mesma regra de setor (ver AppServiceProvider),
+            // por isso os dois grupos aparecem juntos sempre que algum dos
+            // dois estiver liberado — quem só acompanha o jogo também precisa
+            // achar a súmula no menu.
+            $canPlacarCadastro = auth()->user()?->can('manage-placar-cadastro');
+            $canPlacarScout = auth()->user()?->can('view-placar-scout');
+
+            if ($canPlacarCadastro || $canPlacarScout) {
+                $placarChildren = [];
+
+                if ($canPlacarCadastro) {
+                    $placarChildren[] = ['route' => 'placar.equipes.index', 'label' => 'Equipes'];
+                    $placarChildren[] = ['route' => 'placar.times.index', 'label' => 'Times'];
+                    $placarChildren[] = ['route' => 'placar.jogadores.index', 'label' => 'Jogadores'];
+                    $placarChildren[] = ['route' => 'placar.competicoes.index', 'label' => 'Competições'];
+                    $placarChildren[] = ['route' => 'placar.jogos.index', 'label' => 'Jogos'];
+                }
+
+                if ($canPlacarScout) {
+                    $placarChildren[] = ['route' => 'placar.scout.artilharia', 'label' => 'Artilharia (Scout)'];
+                }
+
+                $navLinks[] = [
+                    'route' => $placarChildren[0]['route'],
+                    'label' => 'Placar Clube',
+                    'icon' => 'M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2',
+                    'children' => $placarChildren,
+                ];
+            }
         @endphp
 
         <div

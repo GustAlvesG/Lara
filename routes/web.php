@@ -40,6 +40,15 @@ use App\Http\Controllers\HomeAssistantController;
 use App\Http\Controllers\CardIssuerController;
 use App\Http\Controllers\CardTemplateController;
 
+use App\Http\Controllers\Placar\Web\EquipeController as PlacarEquipeWebController;
+use App\Http\Controllers\Placar\Web\TimeController as PlacarTimeWebController;
+use App\Http\Controllers\Placar\Web\ElencoController as PlacarElencoWebController;
+use App\Http\Controllers\Placar\Web\JogadorController as PlacarJogadorWebController;
+use App\Http\Controllers\Placar\Web\CompeticaoController as PlacarCompeticaoWebController;
+use App\Http\Controllers\Placar\Web\JogoController as PlacarJogoWebController;
+use App\Http\Controllers\Placar\Web\EscalacaoController as PlacarEscalacaoWebController;
+use App\Http\Controllers\Placar\Web\ScoutController as PlacarScoutWebController;
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -451,6 +460,58 @@ Route::middleware('auth')->group(function () {
     Route::get('/notifications/unread-json', [NotificationController::class, 'unreadJson'])->name('notifications.unreadJson');
     Route::get('/notifications/{id}/mark-read', [NotificationController::class, 'markRead'])->name('notifications.markRead');
     Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notifications.markAllRead');
+
+    /*
+    |----------------------------------------------------------------------
+    | Placar Clube — telas de cadastro e de scout
+    |----------------------------------------------------------------------
+    |
+    | Gate de setor (Esporte, qualquer papel — ver User::canAccessPlacar()),
+    | não permissão do Spatie, pelo mesmo motivo do financeiro/acompanhamento
+    | de freelancers acima: é atribuição de setor, não nível de acesso.
+    | Cadastro e scout são Gates separados hoje com a mesma regra — podem
+    | divergir depois sem tocar em rota nenhuma.
+    */
+    Route::prefix('placar')->name('placar.')->group(function () {
+        Route::group(['middleware' => 'can:manage-placar-cadastro'], function () {
+            Route::resource('equipes', PlacarEquipeWebController::class)->except(['edit']);
+            Route::post('equipes/{equipe}/logo', [PlacarEquipeWebController::class, 'storeLogo'])->name('equipes.logo.store');
+            Route::delete('equipes/{equipe}/logo', [PlacarEquipeWebController::class, 'destroyLogo'])->name('equipes.logo.destroy');
+
+            Route::resource('times', PlacarTimeWebController::class)->except(['edit']);
+            Route::post('times/{time}/logo', [PlacarTimeWebController::class, 'storeLogo'])->name('times.logo.store');
+            Route::delete('times/{time}/logo', [PlacarTimeWebController::class, 'destroyLogo'])->name('times.logo.destroy');
+            Route::post('times/{time}/elenco', [PlacarElencoWebController::class, 'store'])->name('times.elenco.store');
+            Route::delete('times/{time}/elenco/{elenco}', [PlacarElencoWebController::class, 'destroy'])->name('times.elenco.destroy');
+            Route::post('times/{time}/elenco/copiar', [PlacarElencoWebController::class, 'copiar'])->name('times.elenco.copiar');
+
+            // ->parameters(): Str::singular('jogadores') dá 'jogadore' — o
+            // controller espera {jogador} (Jogador $jogador).
+            Route::resource('jogadores', PlacarJogadorWebController::class)->except(['edit'])
+                ->parameters(['jogadores' => 'jogador']);
+            Route::post('jogadores/{jogador}/foto', [PlacarJogadorWebController::class, 'storeFoto'])->name('jogadores.foto.store');
+            Route::delete('jogadores/{jogador}/foto', [PlacarJogadorWebController::class, 'destroyFoto'])->name('jogadores.foto.destroy');
+
+            // Str::singular('competicoes') dá 'competico' — o controller
+            // espera {competicao} (Competicao $competicao).
+            Route::resource('competicoes', PlacarCompeticaoWebController::class)->except(['edit'])
+                ->parameters(['competicoes' => 'competicao']);
+
+            // /jogos/{jogo}/escalacao antes do resource, senão "escalacao" no
+            // lugar de {jogo} seria interpretado como id pela rota de show.
+            Route::get('jogos/{jogo}/escalacao', [PlacarEscalacaoWebController::class, 'edit'])->name('jogos.escalacao.edit');
+            Route::post('jogos/{jogo}/escalacao', [PlacarEscalacaoWebController::class, 'update'])->name('jogos.escalacao.update');
+            Route::resource('jogos', PlacarJogoWebController::class)->except(['edit']);
+        });
+
+        Route::group(['middleware' => 'can:view-placar-scout'], function () {
+            Route::get('scout/jogos/{jogo}/sumula', [PlacarScoutWebController::class, 'sumula'])->name('scout.sumula');
+            Route::get('scout/jogos/{jogo}/sumula/impressao', [PlacarScoutWebController::class, 'sumulaPrint'])->name('scout.sumula.print');
+            Route::get('scout/artilharia', [PlacarScoutWebController::class, 'artilharia'])->name('scout.artilharia');
+            Route::get('scout/jogadores/{jogador}', [PlacarScoutWebController::class, 'jogador'])->name('scout.jogador');
+            Route::get('scout/times/{time}', [PlacarScoutWebController::class, 'time'])->name('scout.time');
+        });
+    });
 
 });
 
