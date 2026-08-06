@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Support\Placar\PlacarAbilities;
 use App\Http\Controllers\Auth\MemberAuthController;
 use App\Http\Controllers\Auth\LoginTokenController;
 use App\Http\Controllers\Auth\UserAuthController;
@@ -33,6 +34,29 @@ Route::get('/user', function (Request $request) {
 Route::get('/ping', function () {
     return response()->json(['message' => 'pong']);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Placar Clube — API para o Node (placar eletrônico ao vivo)
+|--------------------------------------------------------------------------
+|
+| Autenticação própria (Sanctum, token de acesso pessoal do ApiCliente),
+| NÃO a sessão/CSRF web. Rate limit generoso porque o Node manda eventos em
+| lote, não um a um. Token: `php artisan placar:token {nome}`.
+|
+| Os endpoints de leitura, escrita e scout entram nas etapas seguintes —
+| este grupo e o /ping abaixo só validam a autenticação de ponta a ponta.
+*/
+Route::prefix('placar')
+    ->middleware(['auth:sanctum', 'abilities:' . PlacarAbilities::OPERAR, 'throttle:300,1'])
+    ->group(function () {
+        Route::get('/ping', function (Request $request) {
+            return response()->json([
+                'ok' => true,
+                'cliente' => $request->user()?->nome,
+            ]);
+        })->name('api.placar.ping');
+    });
 
 Route::get('/test', [TestController::class, 'index'])->name('api.test');
 
