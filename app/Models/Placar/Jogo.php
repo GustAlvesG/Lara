@@ -114,6 +114,63 @@ class Jogo extends Model
         ]);
     }
 
+    /**
+     * Placar e sets recalculados a partir do log de eventos — a verdade é
+     * sempre aqui, nunca em placar_casa/placar_fora/sets_casa/sets_fora
+     * (esses são cache). Eventos `estorno` cancelam o `ponto`/`set` original
+     * que citam em `payload.evento_uuid`, e nunca são eles mesmos pontuados.
+     *
+     * Usado pelo endpoint de eventos (atualiza o cache a cada lote aceito),
+     * por `encerrar()` (detecta divergência com o snapshot enviado pelo
+     * Node) e, depois, pela súmula do scout.
+     *
+     * @return array{placar_casa: int, placar_fora: int, sets_casa: int, sets_fora: int}
+     */
+    public function calcularPlacar(): array
+    {
+        $eventos = $this->eventos()
+            ->whereIn('tipo', [JogoEvento::TIPO_PONTO, JogoEvento::TIPO_SET, JogoEvento::TIPO_ESTORNO])
+            ->get();
+
+        $estornados = $eventos->where('tipo', JogoEvento::TIPO_ESTORNO)
+            ->pluck('payload')
+            ->map(fn (?array $payload) => $payload['evento_uuid'] ?? null)
+            ->filter()
+            ->flip();
+
+        $placarCasa = $placarFora = $setsCasa = $setsFora = 0;
+
+        foreach ($eventos as $evento) {
+            if ($evento->tipo === JogoEvento::TIPO_ESTORNO || isset($estornados[$evento->uuid])) {
+                continue;
+            }
+
+            $doTimeCasa = $evento->time_id === $this->time_casa_id;
+            $doTimeFora = $evento->time_id === $this->time_fora_id;
+
+            if ($evento->tipo === JogoEvento::TIPO_PONTO) {
+                if ($doTimeCasa) {
+                    $placarCasa += $evento->valor ?? 1;
+                } elseif ($doTimeFora) {
+                    $placarFora += $evento->valor ?? 1;
+                }
+            } elseif ($evento->tipo === JogoEvento::TIPO_SET) {
+                if ($doTimeCasa) {
+                    $setsCasa++;
+                } elseif ($doTimeFora) {
+                    $setsFora++;
+                }
+            }
+        }
+
+        return [
+            'placar_casa' => $placarCasa,
+            'placar_fora' => $placarFora,
+            'sets_casa' => $setsCasa,
+            'sets_fora' => $setsFora,
+        ];
+    }
+
     public function estaAoVivo(): bool
     {
         return $this->status === self::STATUS_AO_VIVO;

@@ -8,6 +8,8 @@ use App\Http\Controllers\Placar\Api\EquipeController as PlacarEquipeController;
 use App\Http\Controllers\Placar\Api\TimeController as PlacarTimeController;
 use App\Http\Controllers\Placar\Api\JogoController as PlacarJogoController;
 use App\Http\Controllers\Placar\Api\JogadorController as PlacarJogadorController;
+use App\Http\Controllers\Placar\Api\EscalacaoController as PlacarEscalacaoController;
+use App\Http\Controllers\Placar\Api\JogoEventoController as PlacarJogoEventoController;
 use App\Http\Controllers\Auth\MemberAuthController;
 use App\Http\Controllers\Auth\LoginTokenController;
 use App\Http\Controllers\Auth\UserAuthController;
@@ -80,6 +82,12 @@ Route::prefix('placar')
 
         Route::get('/jogos', [PlacarJogoController::class, 'index'])->name('api.placar.jogos.index');
         Route::get('/jogos/{jogo}', [PlacarJogoController::class, 'show'])->name('api.placar.jogos.show');
+
+        // Ciclo de vida do jogo + o endpoint mais importante da API (eventos).
+        Route::post('/jogos/{jogo}/iniciar', [PlacarJogoController::class, 'iniciar'])->name('api.placar.jogos.iniciar');
+        Route::post('/jogos/{jogo}/escalacao', [PlacarEscalacaoController::class, 'store'])->name('api.placar.jogos.escalacao');
+        Route::post('/jogos/{jogo}/eventos', [PlacarJogoEventoController::class, 'store'])->name('api.placar.jogos.eventos');
+        Route::post('/jogos/{jogo}/encerrar', [PlacarJogoController::class, 'encerrar'])->name('api.placar.jogos.encerrar');
     });
 
 Route::get('/test', [TestController::class, 'index'])->name('api.test');

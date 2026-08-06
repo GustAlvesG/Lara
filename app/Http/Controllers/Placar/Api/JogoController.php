@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Placar\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Placar\EncerrarJogoRequest;
+use App\Http\Requests\Placar\IniciarJogoRequest;
 use App\Http\Resources\Placar\JogoDetalheResource;
 use App\Http\Resources\Placar\JogoResource;
 use App\Models\Placar\Jogo;
@@ -47,5 +49,83 @@ class JogoController extends Controller
         $jogo->load(['modalidade', 'competicao', 'timeCasa.equipe', 'timeFora.equipe']);
 
         return new JogoDetalheResource($jogo);
+    }
+
+    /**
+     * POST /placar/jogos/{jogo}/iniciar — body: { operador?: string }
+     * Idempotente: se já está ao_vivo, só devolve o estado atual. Devolve a
+     * última sequência registrada para o Node retomar depois de uma queda.
+     */
+    public function iniciar(IniciarJogoRequest $request, Jogo $jogo)
+    {
+        if ($jogo->status !== Jogo::STATUS_AO_VIVO) {
+            $operador = $request->input('operador');
+
+            $jogo->status = Jogo::STATUS_AO_VIVO;
+            if (filled($operador)) {
+                $linha = "Iniciado por {$operador} em " . now()->toDateTimeString() . '.';
+                $jogo->observacoes = trim(($jogo->observacoes ? $jogo->observacoes . "\n" : '') . $linha);
+            }
+            $jogo->save();
+        }
+
+        return response()->json([
+            'status' => $jogo->status,
+            'ultima_sequencia' => (int) $jogo->eventos()->max('sequencia'),
+        ]);
+    }
+
+    /**
+     * POST /placar/jogos/{jogo}/encerrar
+     * body: { placar_casa, placar_fora, sets_casa?, sets_fora?, periodos_jogados? }
+     *
+     * Idempotente: chamada repetida com o jogo já encerrado só devolve o
+     * estado atual, sem reprocessar nada. Na primeira vez, recalcula o
+     * placar a partir do log de eventos e, se divergir do snapshot enviado,
+     * registra em `observacoes` — o log manda, mas a divergência não pode
+     * passar em branco.
+     */
+    public function encerrar(EncerrarJogoRequest $request, Jogo $jogo)
+    {
+        if ($jogo->status === Jogo::STATUS_ENCERRADO) {
+            return response()->json([
+                'status' => $jogo->status,
+                'placar_casa' => $jogo->placar_casa,
+                'placar_fora' => $jogo->placar_fora,
+            ]);
+        }
+
+        $enviado = [
+            'placar_casa' => (int) $request->input('placar_casa'),
+            'placar_fora' => (int) $request->input('placar_fora'),
+        ];
+        $calculado = $jogo->calcularPlacar();
+
+        $observacoes = $jogo->observacoes;
+        if ($calculado['placar_casa'] !== $enviado['placar_casa'] || $calculado['placar_fora'] !== $enviado['placar_fora']) {
+            $divergencia = sprintf(
+                'Divergência ao encerrar em %s: placar enviado %d x %d, recalculado do log %d x %d.',
+                now()->toDateTimeString(),
+                $enviado['placar_casa'], $enviado['placar_fora'],
+                $calculado['placar_casa'], $calculado['placar_fora'],
+            );
+            $observacoes = trim(($observacoes ? $observacoes . "\n" : '') . $divergencia);
+        }
+
+        $jogo->update([
+            'status' => Jogo::STATUS_ENCERRADO,
+            'placar_casa' => $enviado['placar_casa'],
+            'placar_fora' => $enviado['placar_fora'],
+            'sets_casa' => $request->input('sets_casa', $jogo->sets_casa),
+            'sets_fora' => $request->input('sets_fora', $jogo->sets_fora),
+            'periodos_jogados' => $request->input('periodos_jogados', $jogo->periodos_jogados),
+            'observacoes' => $observacoes,
+        ]);
+
+        return response()->json([
+            'status' => $jogo->status,
+            'placar_casa' => $jogo->placar_casa,
+            'placar_fora' => $jogo->placar_fora,
+        ]);
     }
 }
