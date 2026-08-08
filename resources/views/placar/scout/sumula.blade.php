@@ -83,7 +83,10 @@
                         <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                             @foreach($sumula['totais_por_jogador'][$lado] as $totais)
                             <tr>
-                                <td class="px-4 py-2 text-gray-700 dark:text-gray-300">{{ $totais['nome_exibicao'] }}</td>
+                                <td class="px-4 py-2 text-gray-700 dark:text-gray-300">
+                                    @if($totais['numero']) <span class="text-gray-400 font-mono">#{{ $totais['numero'] }}</span> @endif
+                                    {{ $totais['nome_exibicao'] }}
+                                </td>
                                 <td class="px-4 py-2 text-right font-bold text-gray-900 dark:text-white">{{ $totais['pontos'] }} pts</td>
                                 <td class="px-4 py-2 text-right text-gray-400">{{ $totais['faltas'] }} faltas</td>
                             </tr>
@@ -106,7 +109,10 @@
                     <span class="text-xs text-gray-400 w-10 shrink-0">#{{ $evento['sequencia'] }}</span>
                     <span class="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 w-24 shrink-0">{{ $evento['tipo'] }}</span>
                     <span class="flex-1 text-gray-800 dark:text-gray-200">
-                        @if($evento['jogador']) {{ $evento['jogador']['nome_exibicao'] }} @endif
+                        @if($evento['jogador'])
+                            @if($evento['jogador']['numero']) <span class="text-gray-400 font-mono">#{{ $evento['jogador']['numero'] }}</span> @endif
+                            {{ $evento['jogador']['nome_exibicao'] }}
+                        @endif
                         @if($evento['valor']) ({{ $evento['valor'] }}) @endif
                         @if($evento['estornado']) <span class="text-red-500 font-bold">estornado</span> @endif
                     </span>

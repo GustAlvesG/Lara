@@ -68,12 +68,12 @@
         <div>
             <h2>{{ $nome }}</h2>
             <table>
-                <thead><tr><th>Jogador</th><th>Pontos</th><th>Faltas</th></tr></thead>
+                <thead><tr><th>Nº</th><th>Jogador</th><th>Pontos</th><th>Faltas</th></tr></thead>
                 <tbody>
                     @forelse($sumula['totais_por_jogador'][$lado] as $totais)
-                        <tr><td>{{ $totais['nome_exibicao'] }}</td><td>{{ $totais['pontos'] }}</td><td>{{ $totais['faltas'] }}</td></tr>
+                        <tr><td>{{ $totais['numero'] ?? '—' }}</td><td>{{ $totais['nome_exibicao'] }}</td><td>{{ $totais['pontos'] }}</td><td>{{ $totais['faltas'] }}</td></tr>
                     @empty
-                        <tr><td colspan="3">Sem pontuação registrada.</td></tr>
+                        <tr><td colspan="4">Sem pontuação registrada.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -84,12 +84,13 @@
     @if(!empty($sumula['eventos']))
     <h2>Linha do tempo</h2>
     <table>
-        <thead><tr><th>#</th><th>Tipo</th><th>Jogador</th><th>Valor</th><th>Período</th></tr></thead>
+        <thead><tr><th>#</th><th>Tipo</th><th>Nº</th><th>Jogador</th><th>Valor</th><th>Período</th></tr></thead>
         <tbody>
             @foreach($sumula['eventos'] as $evento)
             <tr class="@if($evento['estornado']) estornado @endif">
                 <td>{{ $evento['sequencia'] }}</td>
                 <td>{{ $evento['tipo'] }}</td>
+                <td>{{ $evento['jogador']['numero'] ?? '—' }}</td>
                 <td>{{ $evento['jogador']['nome_exibicao'] ?? '—' }}</td>
                 <td>{{ $evento['valor'] ?? '—' }}</td>
                 <td>{{ $evento['periodo'] ?? '—' }}</td>

@@ -2,6 +2,7 @@
 
 namespace App\Services\Placar;
 
+use App\Models\Placar\Elenco;
 use App\Models\Placar\Jogador;
 use App\Models\Placar\Jogo;
 use App\Models\Placar\JogoEvento;
@@ -27,6 +28,11 @@ class ScoutService
 
         $eventos = $jogo->eventos()->with(['jogador', 'time'])->get();
         $estornados = JogoEvento::uuidsEstornados($eventos);
+        // Número que cada jogador usa NESTE jogo — a escalação, se já foi
+        // feita; senão o elenco da temporada corrente (mesma prioridade de
+        // Jogo::elencoOperacionalDoTime()). Uma consulta para os dois times,
+        // não uma por evento.
+        $numeros = $this->numerosDoJogo($jogo);
 
         return [
             'jogo' => [
@@ -55,12 +61,29 @@ class ScoutService
                 'sets_fora' => $jogo->sets_fora,
             ],
             'placar_por_periodo' => $this->placarPorPeriodo($jogo, $eventos, $estornados),
-            'eventos' => $eventos->map(fn (JogoEvento $evento) => $this->linhaDoTempo($evento, $estornados))->values()->all(),
+            'eventos' => $eventos->map(fn (JogoEvento $evento) => $this->linhaDoTempo($evento, $estornados, $numeros))->values()->all(),
             'totais_por_jogador' => [
-                'time_casa' => $this->totaisPorJogador($jogo->time_casa_id, $eventos, $estornados),
-                'time_fora' => $this->totaisPorJogador($jogo->time_fora_id, $eventos, $estornados),
+                'time_casa' => $this->totaisPorJogador($jogo->time_casa_id, $eventos, $estornados, $numeros),
+                'time_fora' => $this->totaisPorJogador($jogo->time_fora_id, $eventos, $estornados, $numeros),
             ],
         ];
+    }
+
+    /**
+     * @return array<int, ?string> jogador_id => número, para os dois times
+     * deste jogo.
+     */
+    private function numerosDoJogo(Jogo $jogo): array
+    {
+        $numeros = [];
+
+        foreach ([$jogo->timeCasa, $jogo->timeFora] as $time) {
+            foreach ($jogo->elencoOperacionalDoTime($time) as $item) {
+                $numeros[$item['jogador']->id] = $item['numero'];
+            }
+        }
+
+        return $numeros;
     }
 
     /** @return array<int, array{periodo: int, placar_casa: int, placar_fora: int}> */
@@ -88,7 +111,7 @@ class ScoutService
         return array_values($porPeriodo);
     }
 
-    private function linhaDoTempo(JogoEvento $evento, array $estornados): array
+    private function linhaDoTempo(JogoEvento $evento, array $estornados, array $numeros): array
     {
         return [
             'sequencia' => $evento->sequencia,
@@ -96,6 +119,7 @@ class ScoutService
             'time_id' => $evento->time_id,
             'jogador' => $evento->jogador ? [
                 'id' => $evento->jogador->id,
+                'numero' => $numeros[$evento->jogador->id] ?? null,
                 'nome_exibicao' => $evento->jogador->nomeExibicaoResolvido(),
                 'foto_url' => $evento->jogador->fotoUrl(),
             ] : null,
@@ -109,8 +133,8 @@ class ScoutService
         ];
     }
 
-    /** @return array<int, array{jogador_id: int, nome_exibicao: string, pontos: int, faltas: int}> */
-    private function totaisPorJogador(?int $timeId, Collection $eventos, array $estornados): array
+    /** @return array<int, array{jogador_id: int, numero: ?string, nome_exibicao: string, pontos: int, faltas: int}> */
+    private function totaisPorJogador(?int $timeId, Collection $eventos, array $estornados, array $numeros): array
     {
         $totais = [];
 
@@ -124,6 +148,7 @@ class ScoutService
 
             $totais[$evento->jogador_id] ??= [
                 'jogador_id' => $evento->jogador_id,
+                'numero' => $numeros[$evento->jogador_id] ?? null,
                 'nome_exibicao' => $evento->jogador?->nomeExibicaoResolvido(),
                 'pontos' => 0,
                 'faltas' => 0,
@@ -170,13 +195,21 @@ class ScoutService
 
         $jogadores = Jogador::whereIn('id', $linhas->pluck('jogador_id'))->get()->keyBy('id');
 
-        return $linhas->map(function ($linha) use ($jogadores) {
+        // Número só faz sentido aqui filtrado por time_id: sem esse filtro, o
+        // mesmo jogador pode ter jogos contados de times diferentes (ainda
+        // que raro) e não haveria um número único e correto para a linha.
+        $numeros = filled($filtros['time_id'] ?? null)
+            ? $this->numerosPorTime((int) $filtros['time_id'], $linhas->pluck('jogador_id'), $filtros['temporada'] ?? null)
+            : [];
+
+        return $linhas->map(function ($linha) use ($jogadores, $numeros) {
             $jogador = $jogadores->get($linha->jogador_id);
             $pontos = (int) $linha->pontos;
             $jogos = (int) $linha->jogos;
 
             return [
                 'jogador_id' => $linha->jogador_id,
+                'numero' => $numeros[$linha->jogador_id] ?? null,
                 'nome_exibicao' => $jogador?->nomeExibicaoResolvido(),
                 'foto_url' => $jogador?->fotoUrl(),
                 'pontos' => $pontos,
@@ -184,6 +217,25 @@ class ScoutService
                 'media' => $jogos > 0 ? round($pontos / $jogos, 2) : 0.0,
             ];
         })->values()->all();
+    }
+
+    /**
+     * Número de cada jogador no elenco de um time — a temporada informada,
+     * ou a mais recente ativa se não informada.
+     *
+     * @return array<int, ?string> jogador_id => número
+     */
+    private function numerosPorTime(int $timeId, iterable $jogadorIds, ?int $temporada = null): array
+    {
+        return Elenco::where('time_id', $timeId)
+            ->whereIn('jogador_id', $jogadorIds)
+            ->where('ativo', true)
+            ->when(filled($temporada), fn ($q) => $q->where('temporada', $temporada))
+            ->orderByDesc('temporada')
+            ->get()
+            ->groupBy('jogador_id')
+            ->map(fn ($grupo) => $grupo->first()->numero)
+            ->all();
     }
 
     /**
@@ -198,8 +250,18 @@ class ScoutService
             ->pluck('jogo_id')
             ->unique();
 
+        // Número mais recente do jogador (na temporada filtrada, se houver)
+        // em qualquer time — o perfil não é por time, então não dá para
+        // garantir um único número se ele jogou por mais de um.
+        $numero = $jogador->elencos()
+            ->where('ativo', true)
+            ->when($temporada, fn ($q) => $q->where('temporada', $temporada))
+            ->orderByDesc('temporada')
+            ->value('numero');
+
         $base = [
             'jogador_id' => $jogador->id,
+            'numero' => $numero,
             'nome_exibicao' => $jogador->nomeExibicaoResolvido(),
             'foto_url' => $jogador->fotoUrl(),
             'jogos' => 0,

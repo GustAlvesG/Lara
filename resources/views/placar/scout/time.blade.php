@@ -45,7 +45,10 @@
                 <ul class="divide-y divide-gray-100 dark:divide-gray-700">
                     @foreach($painel['artilheiros'] as $linha)
                     <li class="p-4 flex items-center justify-between text-sm">
-                        <a href="{{ route('placar.scout.jogador', $linha['jogador_id']) }}" class="text-gray-800 dark:text-gray-200 hover:underline">{{ $linha['nome_exibicao'] }}</a>
+                        <a href="{{ route('placar.scout.jogador', $linha['jogador_id']) }}" class="text-gray-800 dark:text-gray-200 hover:underline">
+                            @if($linha['numero']) <span class="text-gray-400 font-mono">#{{ $linha['numero'] }}</span> @endif
+                            {{ $linha['nome_exibicao'] }}
+                        </a>
                         <span class="font-bold text-gray-900 dark:text-white">{{ $linha['pontos'] }} pts · {{ $linha['jogos'] }} jogos</span>
                     </li>
                     @endforeach

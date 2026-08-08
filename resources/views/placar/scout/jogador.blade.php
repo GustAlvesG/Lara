@@ -15,7 +15,10 @@
                 <div class="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700"></div>
             @endif
             <div>
-                <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">{{ $perfil['nome_exibicao'] }}</h1>
+                <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">
+                    @if($perfil['numero']) <span class="text-gray-400 dark:text-gray-500 font-mono">#{{ $perfil['numero'] }}</span> @endif
+                    {{ $perfil['nome_exibicao'] }}
+                </h1>
                 <a href="{{ route('placar.jogadores.show', $jogador) }}" class="text-sm font-bold text-emerald-600 dark:text-emerald-400 hover:underline">Ver cadastro →</a>
             </div>
         </div>

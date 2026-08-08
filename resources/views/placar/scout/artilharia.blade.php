@@ -52,6 +52,7 @@
                             <tr>
                                 <th class="px-6 py-3">#</th>
                                 <th class="px-6 py-3"></th>
+                                <th class="px-6 py-3">Nº</th>
                                 <th class="px-6 py-3">Jogador</th>
                                 @foreach(['pontos' => 'Pontos', 'jogos' => 'Jogos', 'media' => 'Média'] as $campo => $label)
                                 <th class="px-6 py-3">
@@ -73,6 +74,7 @@
                                         <div class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700"></div>
                                     @endif
                                 </td>
+                                <td class="px-6 py-4 text-gray-400 dark:text-gray-500 font-mono">{{ $linha['numero'] ?? '—' }}</td>
                                 <td class="px-6 py-4 font-semibold text-gray-900 dark:text-white">
                                     <a href="{{ route('placar.scout.jogador', $linha['jogador_id']) }}" class="hover:underline">{{ $linha['nome_exibicao'] ?? '—' }}</a>
                                 </td>

@@ -191,9 +191,9 @@ O evento original some do placar, dos totais e do scout, mas **continua aparecen
 
 Camada de leitura agregada — súmula, artilharia, perfil do jogador — que lê **só** de `jogo_eventos`, nunca de campo denormalizado nem de tabela de estatística. Único ponto de leitura dessas visões, reaproveitado pela API e (a partir da Etapa 11) pelas telas web.
 
-- **`GET /jogos/{jogo}/sumula`** — placar por período/set, timeline cronológica completa (com jogador, foto, e a marca `estornado`), totais de pontos/faltas por jogador de cada time.
-- **`GET /scout/artilharia?modalidade=&competicao_id=&temporada=&time_id=`** — ranking de pontos por jogador, jogos disputados e média. `time_id` filtra pelo **time de quem marcou o ponto** (o evento), não pelos jogos em que o time apareceu — senão o artilheiro do adversário entraria no "ranking do time" também.
-- **`GET /scout/jogadores/{jogador}?temporada=`** — jogos disputados (qualquer evento seu, escalação é opcional), pontos, média, faltas, distribuição de pontos por período.
+- **`GET /jogos/{jogo}/sumula`** — placar por período/set, timeline cronológica completa (com jogador, **número**, foto, e a marca `estornado`), totais de pontos/faltas por jogador de cada time (com o número de cada um). O número é o da escalação deste jogo, se já foi feita; senão o do elenco da temporada corrente — mesma prioridade de `Jogo::elencoOperacionalDoTime()`.
+- **`GET /scout/artilharia?modalidade=&competicao_id=&temporada=&time_id=`** — ranking de pontos por jogador, jogos disputados e média. `time_id` filtra pelo **time de quem marcou o ponto** (o evento), não pelos jogos em que o time apareceu — senão o artilheiro do adversário entraria no "ranking do time" também. **`numero`** só vem preenchido quando `time_id` é informado (do elenco daquele time); sem esse filtro, o mesmo jogador pode ter pontuado por times diferentes e não haveria um número único correto, então vem `null`.
+- **`GET /scout/jogadores/{jogador}?temporada=`** — jogos disputados (qualquer evento seu, escalação é opcional), pontos, média, faltas, distribuição de pontos por período. **`numero`** é o do elenco ativo mais recente do jogador (na temporada filtrada, se houver) — o perfil não é por time, então não há garantia de um único número se ele já jogou por mais de um.
 
 ## Criação em campo (modo avulso)
 
