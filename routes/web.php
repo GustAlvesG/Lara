@@ -31,6 +31,7 @@ use App\Http\Controllers\Freelancer\FinanceController as FreelancerFinanceContro
 use App\Http\Controllers\Freelancer\FreelancerController as FreelancerWebController;
 use App\Http\Controllers\Freelancer\FunctionController as FreelancerFunctionController;
 use App\Http\Controllers\Freelancer\BatchController as FreelancerBatchController;
+use App\Http\Controllers\Freelancer\TrackingController as FreelancerTrackingController;
 use App\Http\Controllers\Freelancer\ServiceController as FreelancerServiceWebController;
 use App\Http\Controllers\Freelancer\KioskController;
 
@@ -344,6 +345,16 @@ Route::middleware('auth')->group(function () {
             // Uma rota só: a baixa individual manda `only`, a em massa manda `services[]`.
             Route::post('/pay', [FreelancerFinanceController::class, 'pay'])->name('freelancer-services.pay');
         });
+    });
+
+    // Acompanhamento do trâmite — tela de leitura do setor Comercial. Gate
+    // próprio (vínculo de setor, não permissão) e fora do grupo abaixo: quem
+    // acompanha nem sempre tem `manage freelancers`. Declarado antes dele pelo
+    // mesmo motivo do financeiro — /freelancer-services/acompanhamento não pode
+    // cair na rota /{freelancerService}.
+    Route::group(['middleware' => 'can:track-freelancer-batches'], function () {
+        Route::get('/freelancer-services/acompanhamento', [FreelancerTrackingController::class, 'index'])
+            ->name('freelancer-services.tracking');
     });
 
     // Freelancers: cadastro de freelancers, funções e serviços/contratos
