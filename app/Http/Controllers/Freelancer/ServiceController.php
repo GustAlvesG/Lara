@@ -89,7 +89,7 @@ class ServiceController extends Controller
 
     /**
      * Peneira os registros com falha. Feito em memória, e não em SQL, porque as
-     * duas regras já existem em PHP: a janela de 7 dias mais cheia
+     * duas regras já existem em PHP: o limite semanal por semana de calendário
      * (`flagExcessWithinCollection`) e o prazo da assinatura com tolerância
      * (`isSignedAfterStart`). Reescrevê-las em SQL criaria uma segunda versão
      * das mesmas regras, fadada a divergir da que a tela mostra.

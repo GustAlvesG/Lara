@@ -301,8 +301,10 @@ Um serviço **assinado não pode ser excluído** (o caminho é cancelar, e cance
 não haja assinatura). Freelancers e funções com serviços vinculados também não podem ser excluídos.
 
 ### Limite semanal e liberação pelo coordenador
-Limite de **2 serviços por freelancer a cada 7 dias** (`FreelancerService::WEEKLY_LIMIT`),
-contados por `start_date`. O 3º (e cada um depois dele) **não é bloqueado**, mas só é gravado com
+Limite de **2 serviços por freelancer por semana de calendário** (`FreelancerService::WEEKLY_LIMIT`),
+contados por `start_date`. A semana é um bloco fixo de **segunda a domingo**: a segunda-feira zera a
+contagem, mesmo que o freelancer tenha trabalhado sábado/domingo anteriores. O 3º (e cada um depois
+dele) **não é bloqueado**, mas só é gravado com
 **aviso + liberação do coordenador do setor Comercial**, que informa a **própria matrícula** e o
 **próprio PIN** de 6 dígitos. Quem registra o contrato não se autoriza sozinho: no painel a
 liberação não é o login da sessão, e no tablet não é o PIN do operador.
@@ -353,9 +355,11 @@ sistema, e é isso que prova que a liberação veio de quem tem acesso à caixa 
 - O envio é **síncrono** (sem fila), como o da diretoria: falha de SMTP tem de aparecer na hora
   para quem está no balcão, e não sumir numa fila.
 
-**Janela de 7 dias.** Vale **qualquer** intervalo de 7 dias que contenha a data do serviço, não só
-os 6 dias anteriores — lançar um contrato numa data anterior a outros já registrados aperta a mesma
-semana e também exige liberação. `countInWeeklyWindow()` devolve a contagem da janela mais cheia.
+**Semana fixa, segunda a domingo.** A janela **não é** "os 7 dias anteriores ao contrato": é o bloco
+de calendário que vai da segunda-feira ao domingo daquela semana. Lançar um contrato numa data
+anterior a outros já registrados na mesma semana aperta igual — a ordem de lançamento não importa
+dentro da mesma semana —, mas um contrato de sábado/domingo **não** aperta a segunda-feira seguinte,
+que já pertence à próxima semana. `countInWeeklyWindow()` devolve a contagem dentro desse bloco.
 
 Contratos cancelados não entram nessa contagem.
 

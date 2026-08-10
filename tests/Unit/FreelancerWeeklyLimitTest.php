@@ -7,12 +7,13 @@ use Illuminate\Support\Collection;
 use Tests\TestCase;
 
 /**
- * Regra do limite de 2 serviços por freelancer a cada 7 dias.
+ * Regra do limite de 2 serviços por freelancer por semana de calendário.
  *
- * A contagem é a mesma no painel web, no tablet e nos selos das listagens, e a
- * janela vale para QUALQUER intervalo de 7 dias que contenha a data do serviço
- * — não só para os 6 dias anteriores a ela. Aqui isso é exercitado pela versão
- * em memória (`flagExcessWithinCollection`), que não toca o banco.
+ * A contagem é a mesma no painel web, no tablet e nos selos das listagens. A
+ * semana é um bloco fixo de segunda a domingo: a segunda-feira zera a
+ * contagem, mesmo que o freelancer tenha trabalhado sábado/domingo anteriores.
+ * Aqui isso é exercitado pela versão em memória (`flagExcessWithinCollection`),
+ * que não toca o banco.
  */
 class FreelancerWeeklyLimitTest extends TestCase
 {
@@ -82,11 +83,11 @@ class FreelancerWeeklyLimitTest extends TestCase
     }
 
     /**
-     * Regressão: a janela olhava só para trás. Um serviço lançado numa data
-     * ANTERIOR a outros dois já registrados aperta a mesma semana e passava
-     * despercebido — o dia 08 não era marcado, embora 08-12 tenha três.
+     * Como a semana é um bloco fixo (segunda a domingo), a ordem de lançamento
+     * não importa: um serviço lançado numa data anterior a outros dois já
+     * registrados na mesma semana aperta igual.
      */
-    public function test_janela_tambem_olha_para_frente(): void
+    public function test_lancamento_fora_de_ordem_na_mesma_semana_aperta_igual(): void
     {
         $primeiro = $this->service('2026-07-08');
         $segundo = $this->service('2026-07-10');
@@ -97,6 +98,22 @@ class FreelancerWeeklyLimitTest extends TestCase
         $this->assertTrue($flags[$primeiro->id]);
         $this->assertTrue($flags[$segundo->id]);
         $this->assertTrue($flags[$terceiro->id]);
+    }
+
+    /**
+     * Regra pedida: a segunda-feira zera a contagem. Sábado (07-11) e domingo
+     * (07-12) fecham a semana anterior; a segunda-feira seguinte (07-13) não
+     * deve contar com eles.
+     */
+    public function test_segunda_feira_nao_conta_sabado_e_domingo_anteriores(): void
+    {
+        $flags = $this->flags([
+            $this->service('2026-07-11'),
+            $this->service('2026-07-12'),
+            $this->service('2026-07-13'),
+        ]);
+
+        $this->assertFalse($flags->contains(true));
     }
 
     public function test_servicos_de_freelancers_diferentes_nao_se_somam(): void

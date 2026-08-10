@@ -123,13 +123,46 @@ class FreelancerBulkWeeklyLimitTest extends TestCase
         $this->assertSame([0], $exceeding);
     }
 
-    /** Datas gravadas depois da linha também apertam a semana dela. */
-    public function test_janela_olha_para_frente_tambem_no_lote(): void
+    /**
+     * 08/ago é sábado (fecha a semana de 03 a 09). 10 e 12/ago já são a semana
+     * seguinte (segunda a domingo seguintes) — não apertam a semana do sábado.
+     */
+    public function test_datas_da_semana_seguinte_nao_apertam_a_semana_anterior(): void
     {
         $this->withExisting([1 => ['2026-08-10', '2026-08-12']]);
 
         $exceeding = BulkTestService::rowsExceedingWeeklyLimit($this->rows([
             [1, '2026-08-08'],
+        ]));
+
+        $this->assertSame([], $exceeding);
+    }
+
+    /**
+     * Regra pedida: a segunda-feira zera a contagem, mesmo que sábado e domingo
+     * anteriores já tenham sido usados pelo freelancer.
+     */
+    public function test_segunda_feira_nao_conta_sabado_e_domingo_anteriores(): void
+    {
+        $this->withExisting([1 => ['2026-08-08', '2026-08-09']]);
+
+        $exceeding = BulkTestService::rowsExceedingWeeklyLimit($this->rows([
+            [1, '2026-08-10'],
+        ]));
+
+        $this->assertSame([], $exceeding);
+    }
+
+    /**
+     * Mas dentro da MESMA semana, lançar fora de ordem (uma data de meio de
+     * semana depois de sábado/domingo já registrados) continua apertando.
+     */
+    public function test_lancamento_fora_de_ordem_na_mesma_semana_continua_apertando(): void
+    {
+        $this->withExisting([1 => ['2026-08-08', '2026-08-09']]);
+
+        $exceeding = BulkTestService::rowsExceedingWeeklyLimit($this->rows([
+            [1, '2026-08-05'],
         ]));
 
         $this->assertSame([0], $exceeding);
@@ -150,7 +183,7 @@ class BulkTestService extends FreelancerService
     /** @var array<int, array<int, string>> freelancer_id => datas já gravadas */
     public static array $existing = [];
 
-    protected static function weeklyWindowDates(int $freelancerId, Carbon $date): Collection
+    protected static function weeklyWindowDates(int $freelancerId, Carbon $weekStart, Carbon $weekEnd): Collection
     {
         return collect(static::$existing[$freelancerId] ?? [])
             ->map(fn(string $value) => Carbon::parse($value)->startOfDay());
