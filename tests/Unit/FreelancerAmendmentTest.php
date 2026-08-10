@@ -16,6 +16,28 @@ use Tests\TestCase;
  */
 class FreelancerAmendmentTest extends TestCase
 {
+    /**
+     * Manhã seguinte ao turno destes testes.
+     *
+     * A assinatura do coordenador só é liberada às 08h do dia seguinte (ver
+     * FreelancerReleaseWindowTest), então as asserções sobre ela dependem do
+     * relógio. Congelar aqui deixa essa dependência à vista, em vez de o teste
+     * passar só porque a data de hoje já ficou longe da do turno.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Carbon::setTestNow('2026-08-02 09:00:00');
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
+
     /** Turno de 01/08/2026, 18:00 às 22:00, assinado pelo freelancer. */
     private function base(array $overrides = []): FreelancerService
     {

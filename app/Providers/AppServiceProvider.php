@@ -42,5 +42,15 @@ class AppServiceProvider extends ServiceProvider
             'manage-freelancer-payments',
             fn (User $user) => $user->canManageFreelancerPayments(),
         );
+
+        /**
+         * Acompanhamento do trâmite dos freelancers (aba só leitura). Mesmo
+         * raciocínio do Gate acima: vínculo de setor (Comercial, em qualquer
+         * papel), não permissão do Spatie — a role `admin` não dá acesso.
+         */
+        Gate::define(
+            'track-freelancer-batches',
+            fn (User $user) => $user->canTrackFreelancerBatches(),
+        );
     }
 }

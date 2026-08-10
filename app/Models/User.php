@@ -36,6 +36,14 @@ class User extends Authenticatable
      */
     public const ACCOUNTING_SECTOR = 'Contabilidade';
 
+    /**
+     * Setor que registra os contratos de freelancer e acompanha o trâmite deles
+     * até o pagamento. Coordenar o setor dá poderes extras (assinar como
+     * contraparte, liberar o limite semanal); **estar** nele, em qualquer papel,
+     * dá a tela de acompanhamento.
+     */
+    public const COMMERCIAL_SECTOR = 'Comercial';
+
     protected $fillable = [
         'name',
         'email',
@@ -61,6 +69,9 @@ class User extends Authenticatable
 
     /** Cache da requisição para canManageFreelancerPayments(). */
     private ?bool $freelancerPaymentsAccess = null;
+
+    /** Cache da requisição para canTrackFreelancerBatches(). */
+    private ?bool $freelancerTrackingAccess = null;
 
     /**
      * Get the attributes that should be cast.
@@ -194,6 +205,17 @@ class User extends Authenticatable
     {
         return $this->freelancerPaymentsAccess ??= $this->belongsToSectorNamed(self::ACCOUNTING_SECTOR)
             || $this->belongsToSectorNamed(self::MANAGEMENT_SECTOR);
+    }
+
+    /**
+     * Acompanhamento dos lotes (aba própria, só leitura): quem está no setor
+     * **Comercial**, em qualquer papel. É o setor que registra os contratos e
+     * responde ao freelancer por onde o pagamento dele parou — sem precisar,
+     * para isso, aprovar ou pagar coisa nenhuma.
+     */
+    public function canTrackFreelancerBatches(): bool
+    {
+        return $this->freelancerTrackingAccess ??= $this->belongsToSectorNamed(self::COMMERCIAL_SECTOR);
     }
 
     public function coordinatorSectors()

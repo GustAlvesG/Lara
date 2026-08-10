@@ -42,6 +42,17 @@
         ];
     }
 
+    // Acompanhamento: só leitura, para quem está no setor Comercial (Gate
+    // próprio, como o Financeiro). Não exige `manage freelancers` — quem só
+    // acompanha vê esta aba sozinha.
+    if ($user?->can('track-freelancer-batches')) {
+        $tabs[] = [
+            'route' => 'freelancer-services.tracking',
+            'label' => 'Acompanhamento',
+            'matches' => ['freelancer-services.tracking'],
+        ];
+    }
+
     if ($user?->can('manage-freelancer-payments')) {
         $tabs[] = [
             'route' => 'freelancer-services.finance',

@@ -635,6 +635,13 @@ class KioskController extends Controller
             return response()->json(['error' => 'O freelancer ainda não assinou este contrato.'], 409);
         }
 
+        // Turno do dia ainda em aberto: a fila não o mostra, mas a tela pode ter
+        // ficado aberta desde ontem. Recusado ANTES de gravar o traço — não faz
+        // sentido guardar a imagem de uma assinatura que não vai acontecer.
+        if ($motivo = $freelancerService->releaseBlockReason()) {
+            return response()->json(['error' => $motivo], 409);
+        }
+
         // Mesma trava defensiva da assinatura do freelancer: cadastro incompleto
         // não gera contrato assinado.
         if ($freelancerService->freelancer && !$freelancerService->freelancer->hasCompleteContractData()) {
