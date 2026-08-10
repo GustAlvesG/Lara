@@ -106,7 +106,13 @@
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 mb-8">
             <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
                 <h2 class="text-lg font-extrabold text-gray-900 dark:text-white">Contratos disponíveis</h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400">Assinados pelo freelancer e pelo coordenador, fora de qualquer lote em aberto.</p>
+                {{-- A regra das 08h é a razão mais comum de um contrato assinado
+                     não estar nesta lista; dizê-la aqui evita procurar defeito. --}}
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    Assinados pelo freelancer e pelo coordenador, fora de qualquer lote em aberto.
+                    Turnos de hoje entram na lista às {{ sprintf('%02dh', \App\Models\FreelancerService::RELEASE_HOUR) }}
+                    de amanhã — até lá ainda cabe aditivo neles.
+                </p>
             </div>
 
             @if($available->isEmpty())

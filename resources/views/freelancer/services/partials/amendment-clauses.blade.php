@@ -89,6 +89,8 @@
     único devido pela prestação de serviços aqui tratada, e a assinatura do presente termo serve como recibo do
     pagamento.</p>
 
+@include('freelancer.services.partials.pix-clause', ['service' => $service, 'numero' => '4.1'])
+
 <p><b>5- DA RATIFICAÇÃO:</b> Permanecem inalteradas e em pleno vigor todas as demais cláusulas e condições do
     CONTRATO ORIGINAL que não conflitem com o presente termo, em especial a natureza autônoma da prestação e a
     ausência de vínculo empregatício, nos termos dos artigos 442-B e 3º da CLT, as disposições sobre descontos, os

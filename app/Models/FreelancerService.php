@@ -122,6 +122,10 @@ class FreelancerService extends Model
         'end_date',
         'end_time',
         'price',
+        // Chave PIX conferida pelo freelancer na assinatura (ver a seção
+        // "Chave PIX do pagamento").
+        'pix_key',
+        'pix_key_confirmed_at',
         'total_hours',
         'status_id',
         'freelancer_signed_at',
@@ -154,6 +158,7 @@ class FreelancerService extends Model
         'price' => 'decimal:2',
         'freelancer_signed_at' => 'datetime',
         'coordinator_signed_at' => 'datetime',
+        'pix_key_confirmed_at' => 'datetime',
         // Trâmite do lote. Ficaram fora do cast desde a criação e voltavam como
         // string: o resto do código só testa `!== null`, mas quem precisa da
         // data (a relação impressa do financeiro) não conseguia formatá-la.
@@ -423,7 +428,99 @@ class FreelancerService extends Model
 
     public function canBeSignedByCoordinator(): bool
     {
-        return !$this->isCancelled() && $this->coordinator_signed_at === null;
+        return !$this->isCancelled()
+            && $this->coordinator_signed_at === null
+            && $this->hasBeenReleased();
+    }
+
+    /* ---------------------------------------------------------------------
+     | Liberação para a coordenação (08h do dia seguinte ao turno)
+     |
+     | O freelancer assina no COMEÇO do serviço, e o turno ainda muda depois
+     | disso: estica, encurta, troca de local, ganha comissão de venda. Cada uma
+     | dessas mudanças é um ADITIVO, e o aditivo só existe enquanto o dia corre.
+     |
+     | Por isso o contrato não segue para a contraparte no mesmo dia: ele espera
+     | até as `RELEASE_HOUR` da manhã seguinte ao dia do turno. Só então o
+     | coordenador assina e só então ele entra num lote — antes disso o dia
+     | ainda não acabou, e assinar seria fechar um documento que pode mudar.
+     |
+     | O dia de referência é `start_date`, o dia do turno em todo o módulo: um
+     | turno que vira a meia-noite pertence ao dia em que começou, e é na manhã
+     | seguinte a ESSE dia que ele é liberado.
+     |
+     | A conta vive em dois lugares — `hasBeenReleased()` decide por registro,
+     | `scopeReleased()` filtra no banco — e é de propósito que as duas sejam a
+     | mesma. A do banco compara só DATAS (ver `lastReleasedDate()`), porque
+     | somar horas em SQL muda de MySQL para SQLite, e uma tela que lista o que
+     | o servidor depois recusa é pior que a trava não existir.
+     |---------------------------------------------------------------------*/
+
+    /** Hora da manhã seguinte em que o contrato do dia anterior é liberado. */
+    const RELEASE_HOUR = 8;
+
+    /** Instante a partir do qual este contrato pode ser assinado e loteado. */
+    public function releasesAt(): ?Carbon
+    {
+        if ($this->start_date === null) {
+            return null;
+        }
+
+        return Carbon::parse($this->start_date->toDateString())
+            ->addDay()
+            ->setTime(self::RELEASE_HOUR, 0);
+    }
+
+    public function hasBeenReleased(?Carbon $moment = null): bool
+    {
+        $releasesAt = $this->releasesAt();
+
+        // Contrato sem data de turno não tem manhã seguinte a esperar; deixá-lo
+        // travado para sempre seria pior que liberá-lo.
+        return $releasesAt === null || ($moment ?? Carbon::now())->greaterThanOrEqualTo($releasesAt);
+    }
+
+    /**
+     * Por que este contrato ainda não pode ir adiante — null quando já pode. A
+     * mesma frase para o tablet, o painel e a exceção do serviço.
+     */
+    public function releaseBlockReason(?Carbon $moment = null): ?string
+    {
+        if ($this->hasBeenReleased($moment)) {
+            return null;
+        }
+
+        return 'O turno de ' . Carbon::parse($this->start_date)->format('d/m/Y')
+            . ' ainda pode receber aditivo. Este contrato é liberado para a coordenação em '
+            . $this->releasesAt()->format('d/m/Y') . ' às '
+            . $this->releasesAt()->format('H:i') . '.';
+    }
+
+    /**
+     * A maior `start_date` já liberada no instante informado — o que transforma
+     * a regra numa comparação de datas, sem aritmética de hora no SQL.
+     *
+     * Antes das 08h, a manhã de hoje ainda não chegou: o último dia liberado é
+     * o de anteontem. A partir das 08h, é o de ontem.
+     */
+    public static function lastReleasedDate(?Carbon $moment = null): Carbon
+    {
+        $moment ??= Carbon::now();
+
+        return $moment->copy()->startOfDay()
+            ->subDays($moment->hour >= self::RELEASE_HOUR ? 1 : 2);
+    }
+
+    /** Contratos cujo dia de turno já passou da manhã seguinte. */
+    public function scopeReleased($query, ?Carbon $moment = null)
+    {
+        return $query->whereDate('start_date', '<=', self::lastReleasedDate($moment));
+    }
+
+    /** O complemento: os que ainda estão maturando. */
+    public function scopeNotReleased($query, ?Carbon $moment = null)
+    {
+        return $query->whereDate('start_date', '>', self::lastReleasedDate($moment));
     }
 
     /**
@@ -433,6 +530,52 @@ class FreelancerService extends Model
     public function canBeDeleted(): bool
     {
         return !$this->isSigned();
+    }
+
+    /* ---------------------------------------------------------------------
+     | Chave PIX do pagamento
+     |
+     | O documento diz para qual chave o valor será pago, e o freelancer confere
+     | essa chave no tablet antes de assinar. O que ele confere fica COPIADO
+     | aqui (`pix_key`): o cadastro pode mudar amanhã, e um contrato assinado
+     | não pode passar a dizer outra coisa.
+     |
+     | Contratos anteriores a esta cópia — e os assinados pela API, que não têm
+     | a tela de conferência — caem no cadastro do freelancer, que é o que o
+     | documento citava antes.
+     |---------------------------------------------------------------------*/
+
+    public function pixKey(): string
+    {
+        return (string) ($this->pix_key ?: $this->freelancer?->pixKey());
+    }
+
+    public function pixKeyFormatted(): string
+    {
+        return Freelancer::formatPixKey($this->pixKey());
+    }
+
+    public function pixKeyTypeLabel(): string
+    {
+        return Freelancer::pixKeyTypeLabelFor($this->pixKey());
+    }
+
+    /** A chave foi conferida com o freelancer no momento da assinatura? */
+    public function pixKeyWasConfirmed(): bool
+    {
+        return $this->pix_key_confirmed_at !== null;
+    }
+
+    /**
+     * A chave que o freelancer conferiu deixou de ser a do cadastro — o
+     * cadastro foi alterado depois da assinatura. Não é erro: é o aviso de que
+     * o Pix vai sair para uma chave diferente da que está no documento.
+     */
+    public function pixKeyDivergesFromFreelancer(): bool
+    {
+        return $this->pix_key !== null
+            && $this->freelancer !== null
+            && $this->pix_key !== $this->freelancer->pixKey();
     }
 
     /* ---------------------------------------------------------------------
@@ -1044,6 +1187,14 @@ class FreelancerService extends Model
             return false;
         }
 
+        // O dia do turno ainda não fechou — ver "Liberação para a coordenação".
+        // Na prática esta linha raramente decide algo, porque um contrato só
+        // fica com as duas assinaturas depois de liberado; ela cobre o contrato
+        // assinado antes de a regra existir.
+        if (!$this->hasBeenReleased()) {
+            return false;
+        }
+
         if ($this->batch_id === null || $this->batch === null) {
             return true;
         }
@@ -1091,6 +1242,9 @@ class FreelancerService extends Model
             ->where('status_id', '!=', self::STATUS_CANCELLED)
             // Aditivado: quem entra no lote é o aditivo.
             ->whereNull('amended_at')
+            // O turno só entra em lote depois da manhã seguinte, quando não
+            // cabe mais aditivo — ver "Liberação para a coordenação".
+            ->released()
             ->whereNull('director_approved_at')
             ->where(function ($q) use ($encerrados, $comParecerDaGerencia) {
                 $q->whereNull('batch_id')
@@ -1246,7 +1400,11 @@ class FreelancerService extends Model
     {
         return $query->whereNotNull('freelancer_signed_at')
             ->whereNull('coordinator_signed_at')
-            ->where('status_id', '!=', self::STATUS_CANCELLED);
+            ->where('status_id', '!=', self::STATUS_CANCELLED)
+            // O contrato do turno de hoje não aparece na fila: até as 08h de
+            // amanhã ele ainda pode receber aditivo, e assinar agora fecharia
+            // um documento que vai mudar.
+            ->released();
     }
 
     /**
@@ -1261,6 +1419,153 @@ class FreelancerService extends Model
             ->whereNotNull('director_approved_at')
             ->where('status_id', '!=', self::STATUS_CANCELLED)
             ->whereNull('amended_at');
+    }
+
+    /* ---------------------------------------------------------------------
+     | Acompanhamento (a visão do Comercial)
+     |
+     | O contrato atravessa quatro etapas — assinaturas, gerência, diretoria e
+     | pagamento — e quem registrou o serviço só conseguia saber onde ele parou
+     | abrindo tela por tela. `trackingStage()` responde isso numa palavra.
+     |
+     | É a MESMA leitura que `signatureLabel()` e `approvalLabel()` fazem, mas
+     | inteira e num eixo só: aqueles dois contam metade da história cada um, e
+     | nenhum deles distingue "aprovado, esperando o dinheiro" de "pago" — que é
+     | justamente a pergunta do fim da fila. Os contadores da tela usam os
+     | escopos abaixo, escritos para casar com estes estados: contador e rótulo
+     | discordando é o jeito de a tela mentir sem ninguém perceber.
+     |---------------------------------------------------------------------*/
+
+    /** @var array<string, string> */
+    public const TRACKING_STAGES = [
+        'awaiting_signatures' => 'Aguardando assinaturas',
+        'awaiting_release' => 'Aguardando o fim do dia',
+        'awaiting_batch' => 'Aguardando entrar em lote',
+        'in_draft' => 'Em lote (rascunho)',
+        'awaiting_manager' => 'Aguardando gerência',
+        'awaiting_director' => 'Aguardando diretoria',
+        'awaiting_payment' => 'Aguardando pagamento',
+        'paying' => 'Pagamento em processamento',
+        'paid' => 'Pago',
+        'manager_rejected' => 'Recusado pela gerência',
+        'director_rejected' => 'Recusado pela diretoria',
+        'amended' => 'Substituído por aditivo',
+        'cancelled' => 'Cancelado',
+    ];
+
+    /**
+     * Onde este contrato está, agora. A ordem do `match` é a precedência: o
+     * desfecho vem antes da etapa (um contrato pago não está "aguardando
+     * pagamento"), e o que saiu do fluxo — cancelado, aditivado — vem antes de
+     * tudo, porque nele as etapas seguintes não vão acontecer.
+     */
+    public function trackingStage(): string
+    {
+        return match (true) {
+            $this->isCancelled() => 'cancelled',
+            $this->isAmended() => 'amended',
+            // Antes de "aguardando assinaturas": a assinatura que falta é a do
+            // coordenador, e ela não falta por esquecimento — o dia do turno
+            // ainda não fechou. Dizer só "aguardando assinaturas" faria o
+            // Comercial ir cobrar uma assinatura que a regra está segurando.
+            $this->awaitsRelease() => 'awaiting_release',
+            !$this->isFullySigned() => 'awaiting_signatures',
+            $this->isPaid() => 'paid',
+            // Depende de `latestPixPayment` carregada; sem ela o contrato
+            // aparece como "aguardando pagamento", que é o estado anterior e
+            // não uma informação errada.
+            $this->hasPixInProgress() => 'paying',
+            $this->isDirectorApproved() => 'awaiting_payment',
+            $this->isDirectorRejected() => 'director_rejected',
+            $this->isManagerRejected() => 'manager_rejected',
+            $this->isManagerApproved() => 'awaiting_director',
+            $this->isInOpenBatch() && $this->batch->isSent() => 'awaiting_manager',
+            $this->isInOpenBatch() => 'in_draft',
+            default => 'awaiting_batch',
+        };
+    }
+
+    public function trackingStageLabel(): string
+    {
+        return self::TRACKING_STAGES[$this->trackingStage()] ?? $this->trackingStage();
+    }
+
+    /**
+     * Contratos que o fluxo ainda não descartou: nem cancelados, nem
+     * substituídos por aditivo. Base de todos os escopos de acompanhamento —
+     * contar um contrato aditivado seria contar o mesmo turno duas vezes.
+     */
+    public function scopeInTrackingFlow($query)
+    {
+        return $query->where('status_id', '!=', self::STATUS_CANCELLED)->whereNull('amended_at');
+    }
+
+    /**
+     * O freelancer assinou e o contrato espera a manhã seguinte para ir à
+     * coordenação. Fila própria: quem está aqui não depende de ninguém, só do
+     * relógio.
+     */
+    public function awaitsRelease(?Carbon $moment = null): bool
+    {
+        return $this->freelancer_signed_at !== null
+            && $this->coordinator_signed_at === null
+            && !$this->hasBeenReleased($moment);
+    }
+
+    public function scopeAwaitingRelease($query, ?Carbon $moment = null)
+    {
+        return $query->inTrackingFlow()
+            ->whereNotNull('freelancer_signed_at')
+            ->whereNull('coordinator_signed_at')
+            ->notReleased($moment);
+    }
+
+    /**
+     * Falta a assinatura de uma das partes (ou das duas) — **menos** os que
+     * estão só esperando o relógio, que têm fila própria. A exclusão é escrita
+     * como a negação literal de `awaitingRelease`, para as duas filas não
+     * poderem se sobrepor quando uma delas mudar.
+     */
+    public function scopeAwaitingSignature($query)
+    {
+        return $query->inTrackingFlow()
+            ->where(fn($q) => $q
+                ->whereNull('freelancer_signed_at')
+                ->orWhereNull('coordinator_signed_at'))
+            ->whereNot(fn($q) => $q
+                ->whereNotNull('freelancer_signed_at')
+                ->whereNull('coordinator_signed_at')
+                ->notReleased());
+    }
+
+    /** Assinado pelas duas partes e parado num lote que a gerência ainda não analisou. */
+    public function scopeAwaitingManagerReview($query)
+    {
+        return $query->inTrackingFlow()
+            ->whereNotNull('freelancer_signed_at')
+            ->whereNotNull('coordinator_signed_at')
+            ->whereHas('batch', fn($b) => $b->where('status', FreelancerServiceBatch::STATUS_SENT));
+    }
+
+    /** Aprovado pela gerência, esperando o código que o diretor dita. */
+    public function scopeAwaitingDirectorReview($query)
+    {
+        return $query->inTrackingFlow()
+            ->whereNotNull('manager_approved_at')
+            ->whereNull('director_approved_at')
+            ->whereNull('director_rejected_at')
+            ->whereHas('batch', fn($b) => $b->where('status', FreelancerServiceBatch::STATUS_AWAITING_DIRECTOR));
+    }
+
+    /** Aprovado nos dois níveis e ainda não pago — a fila do financeiro. */
+    public function scopeAwaitingPayment($query)
+    {
+        return $query->awaitingFinance()->where('paid', false);
+    }
+
+    public function scopePaidServices($query)
+    {
+        return $query->awaitingFinance()->where('paid', true);
     }
 
     /* ---------------------------------------------------------------------

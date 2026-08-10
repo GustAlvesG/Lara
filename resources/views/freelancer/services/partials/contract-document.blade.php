@@ -78,6 +78,8 @@
             <b>R$ {{ $valor }}</b>, por dia, previamente acordado, no horário de <b>{{ $horaInicio }}</b> ás
             <b>{{ $horaFim }}</b> servindo a assinatura no presente termo, como recibo do pagamento.</p>
 
+        @include('freelancer.services.partials.pix-clause', ['service' => $service, 'numero' => '2.1'])
+
         <p><b>3- DO PRAZO DE VIGÊNCIA:</b> O presente contrato de serviços de freelancer tem a validade de 1 (Um) dia, no
             qual, ao final, o serviço do FREELANCER já deverá ter se concluído, ficando as partes compromissadas até o
             termino do contrato. O prazo terá início na data de <b>{{ $inicioBr }}</b> sendo regido por tempo determinado,

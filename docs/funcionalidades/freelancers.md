@@ -63,7 +63,7 @@ Cada serviço tem duas assinaturas independentes:
 | Assinatura | Campos | Quem registra |
 |---|---|---|
 | Freelancer | `freelancer_signed_at`, `freelancer_signed_by`, `freelancer_signature_path` | **Kiosk** (traço desenhado no tablet, com o operador identificado) ou **API** (bot do Telegram) |
-| Coordenador | `coordinator_signed_at`, `coordinator_signed_by`, `coordinator_signature_path` | **Kiosk apenas** (traço desenhado, só o coordenador do setor **Comercial**) |
+| Coordenador | `coordinator_signed_at`, `coordinator_signed_by`, `coordinator_signature_path` | **Kiosk apenas** (traço desenhado, só o coordenador do setor **Comercial**), **a partir das 08h do dia seguinte ao turno** — ver *Liberação para a coordenação* |
 
 Os campos `*_signature_path` guardam a imagem PNG do traço no disco público. O documento do
 contrato mostra o traço quando há.
@@ -82,6 +82,85 @@ contrato mostra o traço quando há.
 
 Estados possíveis (`signatureLabel()`): `Não assinado` → `Aguardando coordenador` /
 `Aguardando freelancer` → `Assinado`; ou `Cancelado`.
+
+### Liberação para a coordenação (08h do dia seguinte)
+O freelancer assina no **começo** do serviço, e o turno ainda muda depois disso: estica, encurta,
+troca de local, ganha comissão de venda. Cada uma dessas mudanças é um **aditivo**, e o aditivo só
+existe enquanto o dia corre.
+
+Por isso o contrato **não segue para a contraparte no mesmo dia**. Ele espera até as
+**08h da manhã seguinte ao dia do turno** (`FreelancerService::RELEASE_HOUR`), e só então:
+
+- pode ser **assinado pelo coordenador** — antes disso ele nem aparece na fila do tablet
+  (`scopeAwaitingCoordinator`), e uma tentativa direta é recusada com `409`;
+- pode **entrar num lote** — a lista de disponíveis não o oferece (`scopeAvailableForBatch`) e
+  `addServices()` o ignora.
+
+O que a regra **não** impede é o aditivo: é justamente para ele que a espera existe. Registrar
+contrato, assinar como freelancer, aditivar e lançar comissão continuam funcionando no dia.
+
+**O dia de referência é `start_date`**, o dia do turno em todo o módulo: um turno 22:00→02:00 do
+dia 5 pertence ao dia 5 e é liberado às 08h do dia 6 — não do dia 7. A contrapartida é o caso raro
+do turno que termina **depois** das 08h da manhã seguinte (um 20:00→10:00): ele é liberado enquanto
+ainda corre. A regra é de data, e esticá-la para cobrir esse caso exigiria comparar hora no SQL.
+
+A conta vive em dois lugares e é de propósito que sejam a mesma:
+
+| Onde | O quê |
+|---|---|
+| `hasBeenReleased()` / `releasesAt()` | decide por registro, em PHP |
+| `scopeReleased()` / `lastReleasedDate()` | filtra no banco, comparando **só datas** |
+
+A comparação do banco é por data porque somar horas em SQL muda de MySQL para SQLite — e uma tela
+que lista o que o servidor depois recusa é pior que a trava não existir. `lastReleasedDate()`
+traduz a hora para uma data: antes das 08h, o último dia liberado é o de **anteontem**; a partir
+das 08h, o de **ontem**. Um teste confere as duas implementações uma contra a outra numa matriz de
+horários e datas.
+
+Na tela de **Acompanhamento** esses contratos têm fila própria — *Aguardando o fim do dia* — com o
+horário exato da liberação em cada linha. É diferente de *Aguardando assinaturas*: aqui não falta
+ninguém assinar, falta o relógio, e não há a quem cobrar.
+
+### Conferência da chave PIX (etapa que antecede a assinatura)
+No tablet, **toda** assinatura do freelancer — contrato, aditivo de horário e comissão — passa
+antes por uma tela que mostra a chave PIX do cadastro e pergunta se é a dele. Existe porque uma
+chave errada já mandou o pagamento para a conta de outra pessoa, e porque o documento que ele
+assina em seguida **cita essa chave**.
+
+- A tela mostra o **tipo** da chave e a chave **formatada** (CPF pontuado, telefone em
+  `+55 (24) 99999-8888`). Quando a chave é igual ao CPF — o padrão de quem nunca informou outra —
+  o aviso diz isso, para o operador não confirmar no automático.
+- Dizendo que está errada, o operador abre o formulário de correção: escolhe o **tipo**
+  (CPF, telefone, e-mail ou chave aleatória) e digita a nova chave. O tipo é **escolhido, não
+  deduzido**: 11 dígitos tanto são um CPF quanto um celular com DDD, e o palpite errado manda o
+  Pix para outro domicílio bancário. `PUT /kiosk/freelancer/{id}/pix-key`; a troca fica em log com
+  autor, horário e as chaves mascaradas.
+- Validação e normalização moram no model (`Freelancer::pixKeyError()` e `normalizePixKey()`), para
+  valerem igual no tablet, no painel e na API: CPF vira só dígitos, telefone vira `+55DDNNNNNNNNN`,
+  e-mail vira minúsculas.
+- Ao assinar, o tablet **reenvia a chave conferida** junto com o PIN e o traço. Se ela não for mais
+  a do cadastro (alteração no painel, outra sessão, tela esquecida aberta), o servidor responde
+  `409` com `pix_key_changed` e a conferência recomeça — o documento à frente do freelancer citava
+  a chave antiga.
+
+**A chave é copiada para o contrato na assinatura** (`freelancer_services.pix_key` +
+`pix_key_confirmed_at`, gravados por `signAsFreelancer()`). O cadastro guarda a chave que vale
+hoje; o contrato assinado guarda a que estava à vista quando ele assinou. Sem essa cópia, editar o
+cadastro reescreveria, retroativamente, o texto de todo contrato já assinado.
+
+- Contratos anteriores a esta etapa, e os assinados pela **API** (que não tem tela de conferência),
+  ficam com `pix_key_confirmed_at` nulo. Os assinados pela API a partir de agora ganham a cópia da
+  chave, sem o carimbo de conferência; os antigos caem no cadastro do freelancer, que é o que o
+  documento citava antes.
+- **O pagamento continua saindo para a chave do cadastro**, não para a cópia do contrato: se o
+  freelancer trocou de chave depois de assinar, é a nova que ele quer receber. Quando as duas
+  divergem (`pixKeyDivergesFromFreelancer()`), a tela do contrato e a tabela do Financeiro avisam,
+  com as duas chaves à vista, antes de qualquer baixa.
+
+O documento traz a cláusula **DA FORMA DE PAGAMENTO** logo abaixo da cláusula do valor — `2.1` no
+contrato, `4.1` nos dois aditivos. É sub-item de propósito: acrescentar um item na numeração
+corrida deslocaria as cláusulas do modelo, que os outros documentos citam pelo número. O texto está
+em `services/partials/pix-clause.blade.php` e é espelhado pelo `pixClause()` do Kiosk.
 
 ### Assinatura fora do prazo
 O contrato existe para ser assinado **antes de o turno começar**, com tolerância de
@@ -532,7 +611,44 @@ contratos. São cinco telas:
   nunca uma URL — o destino é resolvido no servidor).
 - A baixa também aparece na tela do contrato, junto às assinaturas.
 
-### Barra de abas (Contratos · Lotes · Aprovação · Financeiro)
+### Acompanhamento (a tela do Comercial)
+`/freelancer-services/acompanhamento` — **só web e só leitura**. Quem registra o contrato é quem o
+freelancer procura para saber "e o meu pagamento?", e responder isso exigia abrir a aba de Lotes (só
+o coordenador vê), a de Aprovação (só a Gerência) e a de Financeiro (só a Contabilidade). Esta tela
+reúne as quatro etapas num eixo só.
+
+**Quem acessa:** vínculo com o setor **`Comercial`** em qualquer papel — colaborador ou coordenador
+—, pelo Gate `track-freelancer-batches` (`User::canTrackFreelancerBatches()`). Como o Financeiro, é
+atribuição de setor e não permissão: a role `admin` não dá acesso, e **não é preciso ter
+`manage freelancers`** — por isso a rota fica fora daquele grupo de middleware.
+
+**Nada de ação.** Não há botão que mude estado: aprovar continua sendo da Gerência e pagar, do
+Financeiro. Os links para a tela do contrato e para a do lote só são desenhados para quem passaria
+na autorização de lá — um link que dá 403 é pior que link nenhum.
+
+A tela tem três partes:
+
+1. **Resumo por etapa** — um cartão por fila (aguardando assinaturas, aguardando lote, gerência,
+   diretoria, pagamento, pago), com a contagem e o valor parado nela. Só o cartão de **pagos**
+   respeita o filtro de período: os demais são filas abertas, e uma fila não fica menos aberta por
+   ser antiga.
+2. **Lotes**, cada um com a **linha do tempo das quatro etapas** (assinaturas → gerência →
+   diretoria → pagamento), marcando o cumprido, o atual e o recusado. Abrindo o lote, a lista dos
+   contratos dele com a etapa de cada um. Lote em trâmite aparece sempre, mesmo fora do período —
+   é ele que trava a fila.
+3. **Ainda fora de lote** — o que espera assinatura e o que já está assinado esperando o
+   coordenador montar o lote. É o começo da fila, e onde um contrato costuma ficar esquecido.
+
+**Onde a etapa é decidida:** `FreelancerService::trackingStage()` e
+`FreelancerServiceBatch::trackingStage()`, sobre o vocabulário de
+`FreelancerService::TRACKING_STAGES`. É a mesma leitura de `signatureLabel()` e `approvalLabel()`,
+mas inteira e num eixo só — e é a única que distingue *aprovado, esperando o dinheiro* de *pago*.
+Os contadores usam escopos SQL espelhados (`awaitingSignature`, `awaitingManagerReview`,
+`awaitingDirectorReview`, `awaitingPayment`, `paidServices`); um teste soma as filas e cobra que
+cada contrato apareça em **uma e só uma**, porque contador e rótulo discordando é o jeito de a tela
+mentir sem ninguém perceber.
+
+### Barra de abas (Contratos · Lotes · Aprovação · Acompanhamento · Financeiro)
 As quatro frentes do fluxo dividem a mesma barra de abas
 (`resources/views/freelancer/services/partials/tabs.blade.php`), presente em todas elas e também na
 tela de um lote — de qualquer uma se chega a qualquer outra, sem voltar ao menu.
@@ -545,6 +661,7 @@ para que nenhuma aba leve a um 403:
 | Contratos | `freelancer-services.index` | `manage freelancers` |
 | Lotes | `freelancer-batches.index` | `manage freelancers` **e** coordenador de algum setor |
 | Aprovação | `freelancer-batches.queue` | `manage freelancers` **e** coordenador do setor `Gerência` |
+| Acompanhamento | `freelancer-services.tracking` | membro do setor `Comercial` (qualquer papel) |
 | Financeiro | `freelancer-services.finance` (e `finance.*`) | membro do setor `Contabilidade` **ou** `Gerência` |
 
 A aba Financeiro cobre também as telas de lote, avulsos e lista plana (`freelancer-services.finance.*`),
@@ -562,16 +679,19 @@ Depois das duas assinaturas, o contrato **não vai direto para o financeiro**: e
 por **dois níveis de aprovação**, e isso acontece em **lote**.
 
 ```
-freelancer assina → coordenador assina → coordenador monta o lote → envia
-    → coordenador da Gerência aprova (ou recusa) contrato a contrato
-        → e-mail automático à diretoria, com dois PINs
-            → diretor dita o PIN, gerência digita → financeiro paga
+freelancer assina (início do serviço) → [o dia corre: cabe aditivo]
+    → 08h do dia seguinte: o contrato é liberado
+        → coordenador assina → coordenador monta o lote → envia
+            → coordenador da Gerência aprova (ou recusa) contrato a contrato
+                → e-mail automático à diretoria, com dois PINs
+                    → diretor dita o PIN, gerência digita → financeiro paga
 ```
 
 **Montagem (coordenador, web ou tablet).** Cada coordenador mantém **um rascunho por vez**
 (`freelancer_service_batches.status = 'draft'`). Ele inclui e retira contratos à vontade e, quando
 fecha, envia. Entram no rascunho os contratos assinados pelas duas partes, não cancelados, ainda
-não aprovados e fora de qualquer lote em aberto (`FreelancerService::scopeAvailableForBatch`).
+não aprovados, **já liberados** (08h do dia seguinte ao turno — ver *Liberação para a coordenação*)
+e fora de qualquer lote em aberto (`FreelancerService::scopeAvailableForBatch`).
 Descartar o rascunho solta os contratos de volta para a fila — nada se perde.
 
 **Envio.** O lote passa a `sent` e **congela**: nem o coordenador mexe mais nele, nem os contratos
@@ -676,6 +796,8 @@ Dois modos, decididos pelo que o usuário é — quem acumula os dois papéis es
 | `operator` | permissão `manage freelancers` | localiza/cadastra freelancer, registra contrato, faz o **aditivo** quando o turno muda e colhe a assinatura do freelancer | 30 min **ou** 5 contratos |
 | `coordinator` | **coordenador do setor `Comercial`** (`user_sector.role = 'coordinator'`) | assina os contratos que aguardam a contraparte e monta/envia o lote para a gerência | 30 min (sem teto de contratos) |
 
+- Antes de **toda** assinatura do freelancer entra a tela de **conferência da chave PIX**, com a
+  opção de corrigi-la ali mesmo — ver *Conferência da chave PIX*.
 - A fila do coordenador traz os **50 mais antigos** primeiro — são os que travam o financeiro — e
   recarrega a cada assinatura.
 - O coordenador assina o **mesmo documento** que o freelancer assinou, já com o traço da outra
@@ -698,6 +820,10 @@ Dois modos, decididos pelo que o usuário é — quem acumula os dois papéis es
   - Enquanto ninguém estiver vinculado a Contabilidade nem a Gerência, **o Financeiro fica sem
     dono**: a aba não aparece para ninguém e nenhuma baixa é possível.
   - Quem está só nesses setores, sem `manage freelancers`, enxerga no menu apenas o Financeiro.
+- **Acompanhar o trâmite** (aba Acompanhamento, só leitura) é vínculo com o setor **`Comercial`**,
+  em **qualquer papel** — Gate `track-freelancer-batches`. Como o Financeiro, não é permissão e a
+  role `admin` não vale; e, ao contrário das três primeiras abas, **não exige**
+  `manage freelancers`: quem só acompanha enxerga no menu apenas essa entrada.
 - Cancelar **pelo painel** exige, além disso, ser **coordenador de algum setor**
   (`user_sector.role = 'coordinator'`) — verificado por `User::isCoordinator()`.
 - Assinar como coordenador existe **só no kiosk** e é mais restrito: só o coordenador do setor

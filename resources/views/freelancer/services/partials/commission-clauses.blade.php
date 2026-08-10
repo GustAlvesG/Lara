@@ -73,6 +73,8 @@
     cláusula 2 do CONTRATO ORIGINAL, não o substituindo, servindo a assinatura do presente termo como recibo do
     pagamento.</p>
 
+@include('freelancer.services.partials.pix-clause', ['service' => $service, 'numero' => '4.1'])
+
 <p><b>5- DA NATUREZA DA COMISSÃO:</b> O pagamento ora ajustado decorre exclusivamente do resultado das vendas
     realizadas no período e não descaracteriza a natureza autônoma da prestação de serviços, não implicando vínculo
     empregatício, subordinação ou habitualidade, nos termos dos artigos 442-B e 3º da CLT.</p>

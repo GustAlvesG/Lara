@@ -31,6 +31,7 @@ use App\Http\Controllers\Freelancer\FinanceController as FreelancerFinanceContro
 use App\Http\Controllers\Freelancer\FreelancerController as FreelancerWebController;
 use App\Http\Controllers\Freelancer\FunctionController as FreelancerFunctionController;
 use App\Http\Controllers\Freelancer\BatchController as FreelancerBatchController;
+use App\Http\Controllers\Freelancer\TrackingController as FreelancerTrackingController;
 use App\Http\Controllers\Freelancer\ServiceController as FreelancerServiceWebController;
 use App\Http\Controllers\Freelancer\KioskController;
 
@@ -74,6 +75,11 @@ Route::prefix('kiosk')->group(function () {
     Route::post('/freelancer', [KioskController::class, 'storeFreelancer'])->name('kiosk.freelancer.store');
     // Completar o cadastro no tablet destrava a geração do contrato.
     Route::put('/freelancer/{freelancer}', [KioskController::class, 'updateFreelancer'])->name('kiosk.freelancer.update');
+    // Correção da chave PIX na conferência que antecede a assinatura. Rota
+    // própria, e não parte do cadastro: mudar para onde o dinheiro vai é o ato
+    // que precisa ficar registrado sozinho.
+    Route::put('/freelancer/{freelancer}/pix-key', [KioskController::class, 'updatePixKey'])
+        ->middleware('throttle:20,1')->name('kiosk.freelancer.pix-key');
     Route::get('/freelancer/{freelancer}/services', [KioskController::class, 'services'])->name('kiosk.freelancer.services');
     Route::post('/service', [KioskController::class, 'storeService'])
         ->middleware('throttle:20,1')->name('kiosk.service.store');
@@ -353,6 +359,16 @@ Route::middleware('auth')->group(function () {
             // Uma rota só: a baixa individual manda `only`, a em massa manda `services[]`.
             Route::post('/pay', [FreelancerFinanceController::class, 'pay'])->name('freelancer-services.pay');
         });
+    });
+
+    // Acompanhamento do trâmite — tela de leitura do setor Comercial. Gate
+    // próprio (vínculo de setor, não permissão) e fora do grupo abaixo: quem
+    // acompanha nem sempre tem `manage freelancers`. Declarado antes dele pelo
+    // mesmo motivo do financeiro — /freelancer-services/acompanhamento não pode
+    // cair na rota /{freelancerService}.
+    Route::group(['middleware' => 'can:track-freelancer-batches'], function () {
+        Route::get('/freelancer-services/acompanhamento', [FreelancerTrackingController::class, 'index'])
+            ->name('freelancer-services.tracking');
     });
 
     // Freelancers: cadastro de freelancers, funções e serviços/contratos

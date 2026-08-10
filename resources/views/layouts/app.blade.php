@@ -83,8 +83,12 @@
             // com a aba Financeiro.
             $canFreelancers = auth()->user()?->can('manage freelancers');
             $canFreelancerPayments = auth()->user()?->can('manage-freelancer-payments');
+            // Acompanhamento do trâmite: vínculo com o setor Comercial. Como o
+            // Financeiro, é uma entrada que existe sozinha — quem só acompanha
+            // enxerga o menu Freelancers apenas com ela.
+            $canTrackFreelancers = auth()->user()?->can('track-freelancer-batches');
 
-            if ($canFreelancers || $canFreelancerPayments) {
+            if ($canFreelancers || $canFreelancerPayments || $canTrackFreelancers) {
                 $freelancerChildren = [];
 
                 if ($canFreelancers) {
@@ -92,6 +96,10 @@
                     $freelancerChildren[] = ['route' => 'freelancer-functions.index', 'label' => 'Funções'];
                     $freelancerChildren[] = ['route' => 'freelancer-services.index', 'label' => 'Serviços / Contratos'];
                     $freelancerChildren[] = ['route' => 'kiosk.index', 'label' => 'Assinatura (Tablet)'];
+                }
+
+                if ($canTrackFreelancers) {
+                    $freelancerChildren[] = ['route' => 'freelancer-services.tracking', 'label' => 'Acompanhamento'];
                 }
 
                 if ($canFreelancerPayments) {

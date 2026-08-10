@@ -13,6 +13,7 @@ use App\Http\Requests\StoreFreelancerRequest;
 use App\Http\Requests\StoreFreelancerServiceAmendmentRequest;
 use App\Http\Requests\StoreFreelancerServiceRequest;
 use App\Http\Requests\StoreSalesCommissionRequest;
+use App\Http\Requests\UpdateFreelancerPixKeyRequest;
 use App\Http\Requests\UpdateFreelancerRequest;
 use App\Models\Freelancer;
 use App\Models\FreelancerService;
@@ -219,6 +220,28 @@ class KioskController extends Controller
         return response()->json(['freelancer' => $this->freelancerPayload($freelancer)]);
     }
 
+    /**
+     * Corrige a chave PIX na conferência que antecede a assinatura — o caminho
+     * para quando o freelancer olha a chave no tablet e diz que não é a dele.
+     *
+     * É um endpoint separado do cadastro de propósito: mudar para onde o
+     * dinheiro vai não é a mesma coisa que corrigir um endereço, e a alteração
+     * fica registrada em log com autor e horário.
+     */
+    public function updatePixKey(UpdateFreelancerPixKeyRequest $request, Freelancer $freelancer)
+    {
+        $operator = $this->operatorModeOrFail();
+
+        $freelancer = $this->freelancerService->updatePixKey(
+            $freelancer,
+            $request->validated('pix_key_type'),
+            $request->validated('pix_key'),
+            $operator,
+        );
+
+        return response()->json(['freelancer' => $this->freelancerPayload($freelancer)]);
+    }
+
     /* ---------------------------------------------------------------------
      | Funções e serviços
      |---------------------------------------------------------------------*/
@@ -251,7 +274,9 @@ class KioskController extends Controller
             // `batch` e `baseService` entram na regra do aditivo; sem eles cada
             // linha da lista viraria duas consultas.
             // `amendments` responde "já tem comissão?" sem uma consulta por linha.
-            ->with(['functionFreelancer', 'batch', 'baseService.functionFreelancer', 'amendments'])
+            // `freelancer` entra por causa da chave PIX do payload — sem ela,
+            // cada linha da lista faria a sua própria consulta.
+            ->with(['functionFreelancer', 'freelancer', 'batch', 'baseService.functionFreelancer', 'amendments'])
             ->orderByDesc('start_date')
             ->get()
             ->filter(fn(FreelancerService $s) => $s->canBeSignedByFreelancer()
@@ -327,7 +352,7 @@ class KioskController extends Controller
         $this->bumpCount();
 
         return response()->json([
-            'service' => $this->servicePayload($service->load('functionFreelancer')),
+            'service' => $this->servicePayload($service->load(['functionFreelancer', 'freelancer'])),
             'session' => $this->sessionPayload(),
         ], 201);
     }
@@ -371,7 +396,7 @@ class KioskController extends Controller
 
         return response()->json([
             'service' => $this->servicePayload(
-                $amendment->load(['functionFreelancer', 'baseService.functionFreelancer'])
+                $amendment->load(['functionFreelancer', 'freelancer', 'baseService.functionFreelancer'])
             ),
             'session' => $this->sessionPayload(),
         ], 201);
@@ -475,7 +500,7 @@ class KioskController extends Controller
 
         return response()->json([
             'service' => $this->servicePayload(
-                $commission->load(['functionFreelancer', 'baseService.functionFreelancer'])
+                $commission->load(['functionFreelancer', 'freelancer', 'baseService.functionFreelancer'])
             ),
             'session' => $this->sessionPayload(),
         ], 201);
@@ -524,7 +549,8 @@ class KioskController extends Controller
 
     /**
      * Assinatura do freelancer: exige o PIN do operador (reconfirmado a cada
-     * assinatura) e a imagem do traço desenhado sobre o documento. É definitiva.
+     * assinatura), a chave PIX que o freelancer acabou de conferir e a imagem
+     * do traço desenhado sobre o documento. É definitiva.
      */
     public function signService(Request $request, FreelancerService $freelancerService)
     {
@@ -533,6 +559,9 @@ class KioskController extends Controller
         $request->validate([
             'pin' => ['required', 'digits:6'],
             'signature' => ['required', 'string'],
+            // A chave que estava na tela de conferência e no documento. Ver a
+            // comparação abaixo.
+            'pix_key' => ['required', 'string'],
         ]);
 
         if (!$operator->checkPin($request->input('pin'))) {
@@ -544,6 +573,21 @@ class KioskController extends Controller
         if ($freelancerService->freelancer && !$freelancerService->freelancer->hasCompleteContractData()) {
             return response()->json([
                 'error' => 'Cadastro do freelancer incompleto. Complete os dados antes de assinar o contrato.',
+            ], 409);
+        }
+
+        // A chave mudou entre a conferência e a assinatura (alteração no painel,
+        // outra sessão no tablet, tela esquecida aberta). O documento à frente
+        // do freelancer cita a chave antiga: refaz-se a conferência.
+        $chaveAtual = $freelancerService->freelancer?->pixKey();
+
+        if ($chaveAtual !== null && $request->input('pix_key') !== $chaveAtual) {
+            return response()->json([
+                'error' => 'A chave PIX do freelancer mudou desde a conferência. Confira novamente antes de assinar.',
+                'pix_key_changed' => true,
+                'freelancer' => $freelancerService->freelancer
+                    ? $this->freelancerPayload($freelancerService->freelancer)
+                    : null,
             ], 409);
         }
 
@@ -560,7 +604,9 @@ class KioskController extends Controller
         $freelancerService->forceFill(['freelancer_signature_path' => $path]);
 
         try {
-            $this->freelancerService->signAsFreelancer($freelancerService, $operator);
+            // A chave conferida pelo freelancer é copiada para o contrato pelo
+            // próprio signAsFreelancer, junto com a data e o autor.
+            $this->freelancerService->signAsFreelancer($freelancerService, $operator, pixKeyConfirmed: true);
         } catch (\Throwable $e) {
             Storage::disk('public')->delete($path);
 
@@ -572,7 +618,7 @@ class KioskController extends Controller
         }
 
         return response()->json([
-            'service' => $this->servicePayload($freelancerService->fresh()->load('functionFreelancer')),
+            'service' => $this->servicePayload($freelancerService->fresh()->load(['functionFreelancer', 'freelancer'])),
             'session' => $this->sessionPayload(),
         ]);
     }
@@ -633,6 +679,13 @@ class KioskController extends Controller
         // demais aqui também, porque a tela pode ter ficado aberta.
         if ($freelancerService->freelancer_signed_at === null) {
             return response()->json(['error' => 'O freelancer ainda não assinou este contrato.'], 409);
+        }
+
+        // Turno do dia ainda em aberto: a fila não o mostra, mas a tela pode ter
+        // ficado aberta desde ontem. Recusado ANTES de gravar o traço — não faz
+        // sentido guardar a imagem de uma assinatura que não vai acontecer.
+        if ($motivo = $freelancerService->releaseBlockReason()) {
+            return response()->json(['error' => $motivo], 409);
         }
 
         // Mesma trava defensiva da assinatura do freelancer: cadastro incompleto
@@ -942,7 +995,13 @@ class KioskController extends Controller
             'id' => $f->id,
             'name' => $f->name,
             'cpf' => $f->cpf,
-            'pix_key' => $f->pix_key ?: $f->cpf,
+            // A chave crua vai para a comparação da assinatura; a formatada e o
+            // tipo, para a tela de conferência e para o texto do documento.
+            'pix_key' => $f->pixKey(),
+            'pix_key_formatted' => $f->pixKeyFormatted(),
+            'pix_key_type' => $f->pixKeyType(),
+            'pix_key_type_label' => $f->pixKeyTypeLabel(),
+            'pix_key_is_cpf' => $f->pixKeyType() === Freelancer::PIX_KEY_CPF,
             'rg' => $f->rg,
             'nacionality' => $f->nacionality,
             'civil_status' => $f->civil_status,
@@ -1000,6 +1059,12 @@ class KioskController extends Controller
             'crosses_midnight' => ($s->start_date && $s->end_date) ? $s->start_date->ne($s->end_date) : false,
             'total_hours' => $s->total_hours,
             'price' => (float) $s->price,
+            // Chave do pagamento: a conferida na assinatura, quando já houve
+            // uma; a do cadastro enquanto o contrato não foi assinado. É ela
+            // que o documento cita.
+            'pix_key' => $s->pixKey(),
+            'pix_key_formatted' => $s->pixKeyFormatted(),
+            'pix_key_type_label' => $s->pixKeyTypeLabel(),
             // Valor do bloco de 15 min da função: é com ele que a prévia do
             // aditivo recalcula o preço na tela, sem inventar uma segunda regra.
             'block_price' => (float) ($s->functionFreelancer?->price ?? 0),

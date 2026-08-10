@@ -189,6 +189,12 @@
   .rrow.total .v{font-size:24px;font-weight:800;color:var(--brand);}
   .note{font-size:12.5px;color:var(--ink-2);margin-top:2px;}
 
+  /* Chave PIX na conferência: é o dado que a tela existe para mostrar. Fora da
+     .rrow porque um e-mail longo precisa quebrar linha, e não encolher. */
+  .pix-big{padding:16px 20px;background:var(--surface-2);border-top:1px solid var(--border);}
+  .pix-big .k{font-size:12.5px;font-weight:750;color:var(--ink-2);text-transform:uppercase;letter-spacing:.6px;}
+  .pix-big .v{font-size:22px;font-weight:800;color:var(--brand);word-break:break-word;line-height:1.3;margin-top:5px;font-variant-numeric:tabular-nums;}
+
   .banner{display:flex;gap:12px;padding:14px 16px;border-radius:var(--r);margin:16px 0 0;background:var(--warning-tint);border:1px solid color-mix(in srgb,var(--warning) 30%, var(--border));}
   .banner svg{width:22px;height:22px;flex:0 0 auto;color:var(--warning);}
   .banner b{font-size:14px;color:var(--warning);display:block;}
@@ -611,6 +617,39 @@
       </div>
     </section>
 
+    <!-- ===== CONFERÊNCIA DA CHAVE PIX (passo obrigatório antes de assinar) ===== -->
+    <section class="screen" id="s-pix">
+      <div class="screen-body">
+        <p class="eyebrow">Antes de assinar</p>
+        <h2 class="title">Confira a chave PIX</h2>
+        <p class="subtitle">É para esta chave que o pagamento deste contrato vai. Mostre ao freelancer e pergunte se é a dele.</p>
+
+        <div class="receipt" id="pixCard" style="margin-top:18px"></div>
+        <div id="pixNote"></div>
+
+        <!-- Correção da chave: só aparece quando o freelancer diz que está errada -->
+        <div id="pixForm" style="display:none">
+          <h3 class="lote-h">Nova chave PIX</h3>
+          <p class="field-label">Tipo da chave</p>
+          <div class="chipset" id="pixTypes"></div>
+          <div class="frow" style="margin-top:18px">
+            <span class="field-label" id="pixInputLabel">Chave</span>
+            <input class="txt-input" id="pixInput" autocomplete="off" autocapitalize="off" spellcheck="false">
+          </div>
+          <div class="hint" id="pixHint" style="color:var(--brand);font-size:13px;min-height:18px;margin-top:8px">&nbsp;</div>
+        </div>
+      </div>
+      <div class="screen-foot" id="pixFootView">
+        <button class="btn btn-primary" id="pixConfirm">A chave está correta</button>
+        <button class="btn btn-ghost" id="pixWrong">A chave está errada · atualizar</button>
+        <button class="btn-quiet btn" id="pixCancel">Cancelar</button>
+      </div>
+      <div class="screen-foot" id="pixFootEdit" style="display:none">
+        <button class="btn btn-primary" id="pixSave">Salvar nova chave</button>
+        <button class="btn-quiet btn" id="pixEditCancel">Manter a chave atual</button>
+      </div>
+    </section>
+
     <!-- ===== ASSINAR (documento base + assinatura posicionada) ===== -->
     <section class="screen" id="s-assinar">
       <div class="screen-body">
@@ -716,6 +755,8 @@
 
   /* ---------- State ---------- */
   const S = { operator:null, mode:null, freelancer:null, functions:[], draft:{}, aditivo:null, signing:null,
+              // Contrato que espera a conferência da chave PIX para ir à assinatura.
+              pendingSign:null,
               signature:null, pinMode:null, timer:null, remaining:1800, count:0 };
 
   /* ---------- Helpers ---------- */
@@ -749,7 +790,7 @@
   }
   $$('[data-go]').forEach(b=> b.addEventListener('click', ()=> go('s-'+b.dataset.go)));
   function updateCtx(){
-    const map={'s-mode':'Escolha o modo','s-coord':'Contratos pendentes','s-lote':'Lote de aprovação','s-cpf':'Localizar freelancer','s-cadastro':'Cadastro','s-menu':'Atendimento','s-novo':'Novo contrato','s-previa':'Prévia','s-contratos':'Contratos','s-aditivo':'Aditivo','s-adit-previa':'Prévia do aditivo','s-comissao':'Comissão de venda','s-com-previa':'Prévia da comissão','s-assinar':'Assinatura','s-pin':'Confirmação'};
+    const map={'s-mode':'Escolha o modo','s-coord':'Contratos pendentes','s-lote':'Lote de aprovação','s-cpf':'Localizar freelancer','s-cadastro':'Cadastro','s-menu':'Atendimento','s-novo':'Novo contrato','s-previa':'Prévia','s-contratos':'Contratos','s-aditivo':'Aditivo','s-adit-previa':'Prévia do aditivo','s-comissao':'Comissão de venda','s-com-previa':'Prévia da comissão','s-pix':'Conferência da chave PIX','s-assinar':'Assinatura','s-pin':'Confirmação'};
     if(S.mode==='coordinator'){ $('#ctxLine').textContent='Coordenação · '+(S.operator&&S.operator.coordinator_sector||'Comercial'); return; }
     $('#ctxLine').textContent = S.freelancer ? S.freelancer.name : (map[current]||'Sessão de atendimento');
   }
@@ -987,6 +1028,10 @@
     h+=rrow('Término', `${brFromIso(endIso)} · ${d.end}`+(r.crosses?' <span style="color:var(--warning)">(vira o dia)</span>':''));
     if(r.paidMin!==r.dur){ h+=rrow('Duração real', fmtDur(r.dur)); h+=rrow('Horas pagas', `${fmtDur(r.paidMin)} <span class="note">(${r.blocks} blocos)</span>`); }
     else h+=rrow('Duração', `${fmtDur(r.dur)} <span class="note">(${r.blocks} blocos de 15 min)</span>`);
+    // A chave aparece já aqui, antes de gravar: quem confere o contrato confere
+    // também para onde ele vai ser pago. A conferência com o freelancer, essa,
+    // acontece na tela própria antes da assinatura.
+    h+=rrow('Pagamento', `Pix · ${esc(S.freelancer.pix_key_formatted||'—')}`);
     h+=`<div class="rrow total"><span class="k">Valor a pagar</span><span class="v">${brl(r.price)}</span></div>`;
     $('#previaReceipt').innerHTML=h; $('#previaWarn').innerHTML=''; go('s-previa');
   }
@@ -1170,7 +1215,10 @@
   $('#coordReload').addEventListener('click', openCoord);
   function renderCoord(items){
     const list=$('#coordList'); list.innerHTML='';
-    if(!items.length){ list.innerHTML='<p class="subtitle" style="text-align:center;padding:30px 0">Nenhum contrato aguardando sua assinatura.</p>'; return; }
+    // O motivo mais comum de a fila estar vazia à noite é a regra das 08h, e
+    // não a falta de contratos: dizer isso evita a busca por um problema que
+    // não existe.
+    if(!items.length){ list.innerHTML='<p class="subtitle" style="text-align:center;padding:30px 0">Nenhum contrato aguardando sua assinatura.<br><span style="font-size:13px">Os turnos de hoje entram na fila às 08h de amanhã — até lá ainda cabe aditivo neles.</span></p>'; return; }
     items.forEach(c=>{
       const who = c.freelancer ? c.freelancer.name : '—';
       const el=document.createElement('div'); el.className='contract';
@@ -1240,7 +1288,7 @@
 
     const ah=$('#loteAvail'); ah.innerHTML='';
     if(!available.length){
-      ah.innerHTML='<p class="subtitle" style="text-align:center;padding:20px 0">Nenhum contrato disponível para incluir.</p>';
+      ah.innerHTML='<p class="subtitle" style="text-align:center;padding:20px 0">Nenhum contrato disponível para incluir.<br><span style="font-size:13px">Os turnos de hoje só entram em lote às 08h de amanhã.</span></p>';
     } else {
       available.forEach(c=>{
         const el=document.createElement('div'); el.className='contract pick';
@@ -1486,6 +1534,12 @@
     const nome = esc(f.name);
     const cpf = fmtCpf(f.cpf);
     const asCoord = role==='coordinator';
+    // A chave que o documento cita. Para o coordenador é a COPIADA no contrato
+    // quando o freelancer assinou; para o freelancer é a do cadastro — que
+    // pode ter sido corrigida na tela anterior, e aí a do contrato está velha.
+    const pix = asCoord
+      ? { label:c.pix_key_type_label, key:c.pix_key_formatted }
+      : { label:f.pix_key_type_label, key:f.pix_key_formatted };
     // A data do contrato é a da assinatura do freelancer (ou hoje, se ainda não assinou).
     const dataDoc = asCoord ? longFromIso(c.freelancer_signed_date) : longToday();
 
@@ -1517,9 +1571,9 @@
       </div>
       <div class="doc-title">${esc(c.document_title||'Contrato Autônomo de Serviços de Freelancer')}</div>
       <div class="doc-body">
-        ${c.is_commission ? commissionClauses(c, f, nome, cpf)
-          : c.is_amendment ? amendmentClauses(c, f, nome, cpf)
-          : originalClauses(c, f, nome, cpf)}
+        ${c.is_commission ? commissionClauses(c, f, nome, cpf, pix)
+          : c.is_amendment ? amendmentClauses(c, f, nome, cpf, pix)
+          : originalClauses(c, f, nome, cpf, pix)}
         <p class="doc-place"><b>Volta Redonda-RJ, ${dataDoc}</b></p>
         <div class="doc-signatures">
           <div class="doc-sign-block">
@@ -1539,12 +1593,25 @@
       </div>
     </div>`;
   }
+  /**
+   * Cláusula da FORMA DE PAGAMENTO — para qual chave PIX o valor vai. Entra
+   * como sub-item da cláusula do valor ("2.1" no contrato, "4.1" nos aditivos)
+   * para não deslocar a numeração do modelo, que os outros documentos citam.
+   * Mantida em sincronia com o parcial do painel
+   * (freelancer/services/partials/pix-clause.blade.php).
+   */
+  function pixClause(numero, pix){
+    return `
+        <p><b>${numero}- DA FORMA DE PAGAMENTO:</b> O valor previsto na cláusula anterior é pago exclusivamente por transferência PIX para a chave <b>${esc(pix.label||'Chave PIX')}: ${esc(pix.key||'—')}</b>, indicada pelo FREELANCER e por ele conferida neste ato. O FREELANCER declara que a chave acima corresponde a conta de sua titularidade e responsabiliza-se pela exatidão dela, ficando o CONTRATANTE desobrigado de qualquer novo pagamento na hipótese de a transferência ser efetuada para chave informada de forma incorreta. Qualquer alteração da chave deve ser comunicada ao CONTRATANTE antes do pagamento.</p>`;
+  }
+
   /** Cláusulas do contrato original — modelo do Clube dos Funcionários. */
-  function originalClauses(c, f, nome, cpf){
+  function originalClauses(c, f, nome, cpf, pix){
     return `
         <p>Por este particular instrumento contratual de serviço autônomo de freelancer, firmado entre as partes, de um lado, <b>CLUBE DOS FUNCIONARIOS DA COMPANHIA SIDERURGICA NACIONAL</b>, empresa estabelecida na Rua - General Oswaldo Pinto da Veiga, 231, Volta Redonda – RJ, a seguir denominada simplesmente CONTRATANTE, e, de outro lado <b>${nome}</b>, ${esc(f.nacionality||'—')}, ${esc(f.civil_status||'—')}, titular do CPF: ${cpf} e do RG nº ${esc(f.rg||'—')}, residente e domiciliado ${esc(f.address||'—')} a seguir denominado simplesmente FREELANCER, fica justo e acordado o contrato de serviço autônomo freelancer nos seguintes termos:</p>
         <p><b>1- DO OBJETO:</b> O objeto do presente contrato trata-se da prestação de serviços, na modalidade de trabalho autônomo, sem vínculo de emprego, pelo FREELANCER, ao CONTRATANTE, conforme artigo 442-B, da CLT. O (a) FREELANCER (a) <b>${esc(c.function||'—')}</b> com todas as atribuições que lhe são peculiares, bem como as que vierem a ser designadas por meio de instruções do CONTRATANTE.</p>
         <p><b>2- DO VALOR:</b> O CONTRATANTE paga, neste ato, ao FREELANCER, pelos serviços ora prestados, o valor de <b>R$ ${money(c.price)}</b>, por dia, previamente acordado, no horário de <b>${c.start_time}</b> ás <b>${c.end_time}</b> servindo a assinatura no presente termo, como recibo do pagamento.</p>
+        ${pixClause('2.1', pix)}
         <p><b>3- DO PRAZO DE VIGÊNCIA:</b> O presente contrato de serviços de freelancer tem a validade de 1 (Um) dia, no qual, ao final, o serviço do FREELANCER já deverá ter se concluído, ficando as partes compromissadas até o termino do contrato. O prazo terá início na data de <b>${c.start_date_br}</b> sendo regido por tempo determinado, finalizando na data de <b>${c.end_date_br}</b>.</p>
         <p><b>4- Da Ausência de Vínculo Empregatício:</b> A prestação de serviços estabelecida no presente contrato tem natureza autônoma (cível), de forma que não implica em qualquer vínculo empregatício do FREELANCER pelos serviços prestados ao CONTRATANTE, uma vez que eventuais e sem a subordinação, exigidos para caracterização do vínculo de emprego (artigo 3º da CLT).</p>
         <p><b>5- DOS DESCONTOS:</b> O CONTRATANTE poderá descontar dos haveres do FREELANCER, além dos descontos legais ou expressamente autorizados, os prejuízos por ele causados, por dolo ou culpa, sem prejuízo da penalidade que a ação ou omissão comportar.</p>
@@ -1561,7 +1628,7 @@
    * porque é isso que o sistema faz com o contrato base. Mantido em sincronia
    * com o parcial do painel (services/partials/amendment-clauses.blade.php).
    */
-  function amendmentClauses(c, f, nome, cpf){
+  function amendmentClauses(c, f, nome, cpf, pix){
     const b = c.base || {};
     const celebrado = b.signed_date_br ? ` em ${b.signed_date_br}` : '';
     const referencia = (c.amendment_order||1) > 1
@@ -1584,6 +1651,7 @@
         <p><b>2- DA ALTERAÇÃO DO PERÍODO:</b> O período de prestação dos serviços, originalmente ajustado no horário de <b>${b.start_time||'—'}</b> às <b>${b.end_time||'—'}</b>, com início em ${b.start_date_br||'—'} e término em ${b.end_date_br||'—'}, passa a vigorar no horário de <b>${c.start_time}</b> às <b>${c.end_time}</b>, com início em <b>${c.start_date_br}</b> e término em <b>${c.end_date_br}</b>, perfazendo <b>${fmtDur(c.duration_minutes||0)}</b> de prestação de serviços${mudanca}.</p>
         <p><b>3- DO LOCAL DA PRESTAÇÃO:</b> ${local}</p>
         <p><b>4- DO VALOR:</b> Em razão da alteração do período, o valor devido pelos serviços passa a ser de <b>R$ ${money(c.price)}</b>, apurado na forma da cláusula 2 do CONTRATO ORIGINAL, em substituição integral ao valor de R$ ${money(b.price||0)} ali previsto. O valor ora ajustado <b>não se soma</b> ao do CONTRATO ORIGINAL, sendo o único devido pela prestação de serviços aqui tratada, e a assinatura do presente termo serve como recibo do pagamento.</p>
+        ${pixClause('4.1', pix)}
         <p><b>5- DA RATIFICAÇÃO:</b> Permanecem inalteradas e em pleno vigor todas as demais cláusulas e condições do CONTRATO ORIGINAL que não conflitem com o presente termo, em especial a natureza autônoma da prestação e a ausência de vínculo empregatício, nos termos dos artigos 442-B e 3º da CLT, as disposições sobre descontos, os deveres de conduta do FREELANCER, o fornecimento de refeição na prestação superior a 6 (seis) horas diárias e o foro de eleição de Volta Redonda.</p>
         <p><b>6- DA VIGÊNCIA:</b> O presente termo aditivo integra o CONTRATO ORIGINAL para todos os fins de direito e produz efeitos a partir da sua assinatura, mantida a validade de 1 (um) dia do contrato aditado, ao final do qual o serviço do FREELANCER já deverá ter se concluído.</p>
         <p>E assim por estarem de pleno acordo com o contido neste instrumento, CONTRATANTE e FREELANCER o firmam consoante os ditames legais.</p>`;
@@ -1596,7 +1664,7 @@
    * confundi-los é confundir o pagamento. Mantido em sincronia com o parcial do
    * painel (services/partials/commission-clauses.blade.php).
    */
-  function commissionClauses(c, f, nome, cpf){
+  function commissionClauses(c, f, nome, cpf, pix){
     const b = c.base || {};
     const celebrado = b.signed_date_br ? ` em ${b.signed_date_br}` : '';
     const dia = b.start_date_br || c.start_date_br;
@@ -1610,6 +1678,7 @@
         <p><b>2- DA APURAÇÃO DAS VENDAS:</b> As partes reconhecem como base de cálculo o valor de <b>R$ ${money(c.sales_amount||0)}</b>, correspondente ao total das vendas realizadas pelo FREELANCER no período de prestação de serviços do dia ${dia}, das <b>${c.start_time}</b> às <b>${c.end_time}</b>, apurado no encerramento do expediente.</p>
         <p><b>3- DO CRITÉRIO:</b> A comissão é calculada segundo o critério de ${criterio}, do que resulta a apuração de ${esc(c.commission_explanation||'')}.</p>
         <p><b>4- DO VALOR DA COMISSÃO:</b> Em razão do disposto nas cláusulas anteriores, o CONTRATANTE paga ao FREELANCER, a título de comissão sobre vendas, o valor de <b>R$ ${money(c.price)}</b>. Este valor <b>acresce</b> ao previsto na cláusula 2 do CONTRATO ORIGINAL, não o substituindo, servindo a assinatura do presente termo como recibo do pagamento.</p>
+        ${pixClause('4.1', pix)}
         <p><b>5- DA NATUREZA DA COMISSÃO:</b> O pagamento ora ajustado decorre exclusivamente do resultado das vendas realizadas no período e não descaracteriza a natureza autônoma da prestação de serviços, não implicando vínculo empregatício, subordinação ou habitualidade, nos termos dos artigos 442-B e 3º da CLT.</p>
         <p><b>6- DA RATIFICAÇÃO:</b> Permanecem inalteradas e em pleno vigor todas as demais cláusulas e condições do CONTRATO ORIGINAL que não conflitem com o presente termo, inclusive o foro de eleição de Volta Redonda.</p>
         <p>E assim por estarem de pleno acordo com o contido neste instrumento, CONTRATANTE e FREELANCER o firmam consoante os ditames legais.</p>
@@ -1652,8 +1721,97 @@
       </div>`;
   }
 
-  /** Assinatura do freelancer, conduzida pelo operador. */
+  /* ---------- Conferência da chave PIX ----------
+     Passo obrigatório antes de TODA assinatura do freelancer (contrato,
+     aditivo e comissão): a chave do cadastro é mostrada e ele diz se é a dele.
+     Existe porque uma chave errada já mandou o pagamento para a conta de outra
+     pessoa — e o documento que ele assina em seguida cita essa mesma chave. */
+  const PIX_TYPES = {
+    cpf:       { label:'CPF',              hint:'Os 11 números do CPF do freelancer', ph:'000.000.000-00', mode:'numeric' },
+    telefone:  { label:'Telefone',         hint:'Com DDD, como está cadastrado no banco', ph:'(24) 99999-8888', mode:'tel' },
+    email:     { label:'E-mail',           hint:'O mesmo e-mail registrado no banco', ph:'nome@exemplo.com', mode:'email' },
+    aleatoria: { label:'Chave aleatória',  hint:'Os 32 caracteres que o banco exibe', ph:'00000000-0000-0000-0000-000000000000', mode:'text' }
+  };
+  let pixType='cpf';
+
+  /** Entrada do fluxo de assinatura: a chave primeiro, o documento depois. */
   function openSign(c){
+    S.pendingSign=c;
+    renderPixCard();
+    showPixView();
+    go('s-pix');
+  }
+  function renderPixCard(){
+    const f=S.freelancer;
+    const tipo = f.pix_key_type_label || 'Chave PIX';
+    $('#pixCard').innerHTML =
+      `<div class="head"><div class="fn">${esc(f.name)}</div><div class="fl">CPF ${fmtCpf(f.cpf)}</div></div>`
+      + rrow('Tipo da chave', esc(tipo))
+      + `<div class="pix-big"><div class="k">Chave PIX do pagamento</div>
+         <div class="v">${esc(f.pix_key_formatted || f.pix_key || '—')}</div></div>`;
+    // Chave igual ao CPF é o padrão de quem nunca informou outra: dizer isso
+    // evita o "confirmei sem olhar" de quem acha que o sistema já sabe.
+    $('#pixNote').innerHTML = f.pix_key_is_cpf
+      ? `<div class="banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>
+        <div><b>Chave igual ao CPF</b><p>É o padrão de quem nunca informou outra chave. Confirme com o freelancer que o CPF dele está mesmo cadastrado como chave PIX no banco.</p></div></div>`
+      : `<div class="banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>
+        <div><b>Leia a chave em voz alta</b><p>O pagamento vai para esta chave e o contrato assinado cita ela. Uma chave errada credita a conta de outra pessoa.</p></div></div>`;
+  }
+  function showPixView(){
+    $('#pixForm').style.display='none';
+    $('#pixCard').style.display=''; $('#pixNote').style.display='';
+    $('#pixFootView').style.display=''; $('#pixFootEdit').style.display='none';
+  }
+  function showPixEdit(){
+    // Começa no tipo que a chave atual já tem: quem só quer corrigir um dígito
+    // não precisa reescolher.
+    pixType = PIX_TYPES[S.freelancer.pix_key_type] ? S.freelancer.pix_key_type : 'cpf';
+    $('#pixInput').value=''; $('#pixHint').innerHTML='&nbsp;';
+    renderPixTypes();
+    $('#pixCard').style.display='none'; $('#pixNote').style.display='none';
+    $('#pixForm').style.display='block';
+    $('#pixFootView').style.display='none'; $('#pixFootEdit').style.display='';
+    $('#s-pix').scrollTop=0;
+  }
+  function renderPixTypes(){
+    const host=$('#pixTypes'); host.innerHTML='';
+    Object.keys(PIX_TYPES).forEach(k=>{
+      const t=PIX_TYPES[k];
+      const b=document.createElement('button');
+      b.className='opt'+(pixType===k?' sel':'');
+      b.textContent=t.label;
+      b.addEventListener('click', ()=>{ pixType=k; renderPixTypes(); $('#pixInput').focus(); });
+      host.appendChild(b);
+    });
+    const t=PIX_TYPES[pixType];
+    $('#pixInputLabel').textContent = t.label + ' — ' + t.hint;
+    $('#pixInput').placeholder=t.ph;
+    $('#pixInput').setAttribute('inputmode', t.mode);
+    $('#pixInput').type = pixType==='email' ? 'email' : 'text';
+  }
+  $('#pixWrong').addEventListener('click', showPixEdit);
+  $('#pixEditCancel').addEventListener('click', showPixView);
+  $('#pixCancel').addEventListener('click', ()=> openContratos());
+  $('#pixConfirm').addEventListener('click', ()=> openSignDocument(S.pendingSign));
+  $('#pixSave').addEventListener('click', async ()=>{
+    const valor=$('#pixInput').value.trim();
+    if(!valor){ $('#pixHint').textContent='Digite a nova chave.'; return; }
+    const btn=$('#pixSave'), label=btn.textContent; btn.disabled=true; btn.textContent='Salvando…';
+    try{
+      const r=await api('PUT',`/kiosk/freelancer/${S.freelancer.id}/pix-key`,{ pix_key_type:pixType, pix_key:valor });
+      if(r.ok){
+        S.freelancer=r.data.freelancer;
+        toast('Chave PIX atualizada.');
+        renderPixCard(); showPixView();
+        return;
+      }
+      $('#pixHint').textContent=(r.data && (firstError(r.data)||r.data.message))||'Não foi possível salvar a chave.';
+    }catch(e){ if(!e.handled) $('#pixHint').textContent='Falha de conexão.'; }
+    finally{ btn.disabled=false; btn.textContent=label; }
+  });
+
+  /** Assinatura do freelancer, conduzida pelo operador. */
+  function openSignDocument(c){
     $('#signEyebrow').textContent = c.is_commission ? 'Assinatura do freelancer · Comissão'
       : c.is_amendment ? 'Assinatura do freelancer · Aditivo' : 'Assinatura do freelancer';
     $('#signSub').textContent = c.is_commission
@@ -1796,9 +1954,17 @@
     if(S.pinMode==='sign-coord'){ await submitCoordSign(pin); return; }
     if(S.pinMode==='send-batch'){ await submitSendBatch(pin); return; }
     try{
-      const r=await api('POST',`/kiosk/service/${S.signing.id}/sign`,{ pin, signature:S.signature });
+      // A chave conferida vai junto: o servidor recusa a assinatura se ela
+      // mudou desde a conferência, porque o documento à frente do freelancer
+      // cita a chave antiga.
+      const r=await api('POST',`/kiosk/service/${S.signing.id}/sign`,
+        { pin, signature:S.signature, pix_key:S.freelancer.pix_key });
       if(r.ok){ applySession(r.data.session); showSuccess('Contrato assinado', `Assinatura de ${S.freelancer.name} registrada, auxiliada por ${S.operator.name}. O atendimento será encerrado.`); }
       else if(r.status===401){ $('#pinOpHint').textContent='PIN inválido.'; resetPinOp(); }
+      else if(r.status===409 && r.data && r.data.pix_key_changed){
+        if(r.data.freelancer) S.freelancer=r.data.freelancer;
+        toast(r.data.error,true); openSign(S.signing);
+      }
       else if(r.status===409){ toast(r.data.error||'Contrato já assinado.',true); go('s-contratos'); }
       else { toast(firstError(r.data)||'Não foi possível assinar.',true); resetPinOp(); }
     }catch(e){ if(!e.handled) toast('Falha de conexão.',true); resetPinOp(); }
@@ -1818,7 +1984,7 @@
   /* ---------- Success ---------- */
   /** `after` decide para onde a tela volta; por padrão, próximo atendimento. */
   function showSuccess(title,msg,after){ $('#successTitle').textContent=title; $('#successMsg').textContent=msg; $('#success').classList.add('show');
-    setTimeout(()=>{ $('#success').classList.remove('show'); S.freelancer=null; S.signing=null; S.signature=null;
+    setTimeout(()=>{ $('#success').classList.remove('show'); S.freelancer=null; S.signing=null; S.signature=null; S.pendingSign=null;
       if(after) after(); else { resetCpf(); go('s-cpf'); } },2800); }
 
   /* ---------- Resume session on load ---------- */

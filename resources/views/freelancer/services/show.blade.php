@@ -198,6 +198,45 @@
                 </div>
             </div>
 
+            {{-- Chave PIX do pagamento. Fica junto das assinaturas porque é isso
+                 que ela é: um dado conferido no ato de assinar, e citado no
+                 documento. Quando o cadastro muda depois, as duas chaves
+                 aparecem lado a lado — o financeiro precisa saber qual delas o
+                 Pix vai usar antes de dar a baixa. --}}
+            <div class="px-6 pb-6">
+                <div class="p-4 rounded-xl border border-gray-200 dark:border-gray-600">
+                    <p class="text-sm font-bold text-gray-700 dark:text-gray-300">Pagamento via PIX</p>
+                    <p class="mt-1 text-sm text-gray-800 dark:text-gray-200">
+                        {{ $service->pixKeyTypeLabel() }}:
+                        <span class="font-mono font-semibold">{{ $service->pixKeyFormatted() ?: '—' }}</span>
+                    </p>
+                    @if($service->pixKeyWasConfirmed())
+                        <p class="mt-1 text-xs text-green-700 dark:text-green-400">
+                            ✓ Conferida com o freelancer no tablet em
+                            {{ $service->pix_key_confirmed_at->format('d/m/Y H:i') }}, antes da assinatura.
+                        </p>
+                    @elseif($service->freelancer_signed_at)
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Contrato assinado sem a conferência da chave no tablet — é o caso dos contratos
+                            anteriores a essa etapa e dos assinados pela API.
+                        </p>
+                    @else
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Chave atual do cadastro. O freelancer a confere no tablet antes de assinar.
+                        </p>
+                    @endif
+                    @if($service->pixKeyDivergesFromFreelancer())
+                        <div class="mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-xs text-amber-800 dark:text-amber-200">
+                            <b>O cadastro mudou depois da assinatura.</b>
+                            Hoje o cadastro tem a chave
+                            <span class="font-mono">{{ $service->freelancer->pixKeyFormatted() }}</span>,
+                            e é para ela que o Pix vai — o documento assinado cita a outra. Confirme a mudança com o
+                            freelancer antes de dar a baixa.
+                        </div>
+                    @endif
+                </div>
+            </div>
+
             @if($service->isPaid())
                 <div class="px-6 pb-6">
                     <div class="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 text-sm text-emerald-800 dark:text-emerald-200">

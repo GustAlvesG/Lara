@@ -312,4 +312,97 @@ class FreelancerServiceBatch extends Model
             default => 'A pagar',
         };
     }
+
+    /* ---------------------------------------------------------------------
+     | Acompanhamento (a visão do Comercial)
+     |---------------------------------------------------------------------*/
+
+    /**
+     * Em que etapa o lote está — o mesmo vocabulário de
+     * `FreelancerService::TRACKING_STAGES`, para a tela de acompanhamento
+     * pintar lote e contrato com a mesma régua.
+     *
+     * Depois da aprovação da diretoria o estado deixa de ser do lote e passa a
+     * ser do dinheiro: aí a resposta vem dos contratos, contados por
+     * `payable_count` / `paid_count`.
+     */
+    public function trackingStage(): string
+    {
+        return match (true) {
+            $this->isDraft() => 'in_draft',
+            $this->isSent() => 'awaiting_manager',
+            $this->isAwaitingDirector() => 'awaiting_director',
+            $this->isDirectorRejected() => 'director_rejected',
+            $this->status === self::STATUS_CLOSED => 'closed',
+            // Aprovado e sem nada a pagar: ou a gerência recusou todos os
+            // contratos, ou eles saíram do lote. Não é "aguardando pagamento" —
+            // não há pagamento nenhum para esperar.
+            $this->financePayableCount() === 0 => 'empty',
+            $this->isFullyPaid() => 'paid',
+            $this->isPartiallyPaid() => 'partially_paid',
+            default => 'awaiting_payment',
+        };
+    }
+
+    /** Os dois estados que só o lote tem; o resto vem do vocabulário comum. */
+    public function trackingStageLabel(): string
+    {
+        $stage = $this->trackingStage();
+
+        return match ($stage) {
+            'closed' => 'Encerrado sem aprovação',
+            'partially_paid' => 'Parcialmente pago',
+            'empty' => 'Sem contratos a pagar',
+            default => FreelancerService::TRACKING_STAGES[$stage] ?? $stage,
+        };
+    }
+
+    /**
+     * As quatro etapas do lote, com o que já aconteceu em cada uma — é a linha
+     * do tempo que a tela de acompanhamento desenha. A assinatura já está
+     * cumprida por construção: um contrato só entra em lote assinado pelas duas
+     * partes.
+     *
+     * @return array<int, array{key: string, label: string, state: string, detail: ?string}>
+     */
+    public function trackingSteps(): array
+    {
+        $done = fn(string $key, string $label, ?string $detail) => compact('key', 'label', 'detail') + ['state' => 'done'];
+
+        $stage = $this->trackingStage();
+        $recusado = in_array($stage, ['director_rejected', 'closed'], true);
+
+        $etapa = function (string $key, string $label, bool $cumprida, bool $atual, ?string $detail) use ($recusado) {
+            return [
+                'key' => $key,
+                'label' => $label,
+                'detail' => $detail,
+                'state' => match (true) {
+                    $cumprida => 'done',
+                    $atual && $recusado => 'rejected',
+                    $atual => 'current',
+                    default => 'pending',
+                },
+            ];
+        };
+
+        $gerenciaOk = $this->isReviewed() && $stage !== 'closed';
+        $diretoriaOk = in_array($stage, ['awaiting_payment', 'partially_paid', 'paid', 'empty'], true);
+        // Lote sem nada a pagar não fica esperando dinheiro: a fila dele acabou.
+        $pagamentoOk = in_array($stage, ['paid', 'empty'], true);
+        $aPagar = $this->financePayableCount();
+
+        return [
+            $done('signatures', 'Assinaturas', $this->services_count !== null
+                ? $this->services_count . ' contrato(s) assinados pelas duas partes'
+                : null),
+            $etapa('manager', 'Gerência', $gerenciaOk, !$gerenciaOk,
+                $this->reviewed_at?->format('d/m/Y H:i')),
+            $etapa('director', 'Diretoria', $diretoriaOk, $gerenciaOk && !$diretoriaOk,
+                $this->director_decided_at?->format('d/m/Y H:i')
+                    ?? ($this->director_notified_at ? 'E-mail enviado em ' . $this->director_notified_at->format('d/m/Y H:i') : null)),
+            $etapa('payment', 'Pagamento', $pagamentoOk, $diretoriaOk && !$pagamentoOk,
+                $aPagar > 0 ? $this->financePaidCount() . ' de ' . $aPagar . ' pagos' : 'nada a pagar'),
+        ];
+    }
 }
