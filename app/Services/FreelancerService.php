@@ -315,6 +315,12 @@ class FreelancerService
             throw new FreelancerServiceLockedException('Contrato cancelado não pode ser assinado.');
         }
 
+        // Antes da recusa genérica: o motivo aqui não é "já assinado", e dizer
+        // isso mandaria o coordenador procurar uma assinatura que não existe.
+        if ($motivo = $service->releaseBlockReason()) {
+            throw new FreelancerServiceLockedException($motivo);
+        }
+
         if (!$service->canBeSignedByCoordinator()) {
             throw new FreelancerServiceLockedException('Contrato já assinado pelo coordenador.');
         }
