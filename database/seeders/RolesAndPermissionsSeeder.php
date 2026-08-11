@@ -59,6 +59,13 @@ class RolesAndPermissionsSeeder extends Seeder
             [ 'name' => 'use lara chat', 'description' => 'Permite usar o chat com a Lara (assistente de IA)'],
         ];
 
+        // Autorização de ordem de compra (integração com o Questor). Enquanto o
+        // módulo só simula a gravação, esta permissão é de fato "ver a fila e
+        // conferir a integração" — o mesmo grupo que vai aprovar de verdade.
+        $permission_questor = [
+            [ 'name' => 'authorize purchase orders', 'description' => 'Permite ver e autorizar ordens de compra do Questor'],
+        ];
+
         $allPermissions = array_merge(
             $permissions_infoclube,
             $permissions_siv,
@@ -66,7 +73,8 @@ class RolesAndPermissionsSeeder extends Seeder
             $permission_reserve,
             $permission_admin,
             $permission_home_assistant,
-            $permission_lara
+            $permission_lara,
+            $permission_questor
         );
 
         foreach ($allPermissions as $permission) {

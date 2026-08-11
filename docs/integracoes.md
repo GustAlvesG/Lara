@@ -57,6 +57,16 @@ Base externa para sócios, acessos físicos e visitantes. Duas conexões em `con
 - **Componentes:** models `Access`, `Visitor`; `MemberService::queryMember()`;
   `AccessController::queryAccess()`.
 
+### Questor — ERP de compras (`questor_sqlsrv`)
+
+Banco `FUNCSIDERURG` (SQL Server), servidor e credenciais próprios. Fornece a fila de
+ordens de compra pendentes de autorização. **Nesta versão a integração é somente de
+leitura**: aprovar/reprovar apenas simulam a gravação e mostram o `UPDATE` que seria
+enviado. Ver [Autorização de Ordem de Compra](funcionalidades/questor-autorizacao-compra.md).
+
+- **Componentes:** `App\Services\Questor\{QuestorPurchaseOrders, QuestorAuthorizationWriter, QuestorGate}`;
+  `Questor\PurchaseOrderController`; comando `questor:testar`.
+
 ---
 
 ## 11.5. E-mail (SMTP / Mailable)

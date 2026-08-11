@@ -40,6 +40,7 @@ use App\Http\Controllers\LaraChatController;
 use App\Http\Controllers\HomeAssistantController;
 use App\Http\Controllers\CardIssuerController;
 use App\Http\Controllers\CardTemplateController;
+use App\Http\Controllers\Questor\PurchaseOrderController as QuestorPurchaseOrderController;
 
 
 Route::get('/', function () {
@@ -456,6 +457,21 @@ Route::middleware('auth')->group(function () {
             ->middleware('throttle:15,1')->name('lara.ask');
         Route::post('/reiniciar', [LaraChatController::class, 'reset'])
             ->middleware('throttle:15,1')->name('lara.reset');
+    });
+
+    // Questor — autorização de Ordem de Compra.
+    // NESTA VERSÃO NÃO GRAVA NADA: as rotas de "aprovar/reprovar" apenas
+    // simulam e devolvem o UPDATE que seria enviado ao ERP. São POST mesmo
+    // assim — quando a escrita for liberada, é o mesmo endereço que passa a
+    // gravar, e um GET que muda estado seria pior de descobrir depois.
+    Route::prefix('questor/ordens-compra')->middleware('permission:authorize purchase orders')->group(function () {
+        Route::get('/', [QuestorPurchaseOrderController::class, 'index'])->name('questor.purchase-orders.index');
+        Route::get('/{ordem}', [QuestorPurchaseOrderController::class, 'show'])
+            ->where('ordem', '[0-9]+')->name('questor.purchase-orders.show');
+        Route::post('/{ordem}/simular-aprovacao', [QuestorPurchaseOrderController::class, 'simulateApproval'])
+            ->where('ordem', '[0-9]+')->name('questor.purchase-orders.simulate-approval');
+        Route::post('/{ordem}/simular-reprovacao', [QuestorPurchaseOrderController::class, 'simulateRejection'])
+            ->where('ordem', '[0-9]+')->name('questor.purchase-orders.simulate-rejection');
     });
 
     // Notificações
