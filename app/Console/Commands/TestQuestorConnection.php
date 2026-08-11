@@ -38,7 +38,10 @@ class TestQuestorConnection extends Command
 
         $this->table(['Configuração', 'Valor'], [
             ['Módulo ligado', $config['enabled'] ? 'sim' : 'NÃO (QUESTOR_ENABLED)'],
-            ['Modo', $config['dry_run'] ? 'simulação (nada é gravado)' : 'gravação SOLICITADA — ainda não liberada'],
+            ['Modo', $config['dry_run']
+                ? 'simulação (nada é gravado)'
+                : 'GRAVAÇÃO ATIVA — aprovar pela tela altera o ERP'],
+            ['Reprovação', $config['reprovacao_liberada'] ? 'grava' : 'só simulação (teste ao vivo pendente)'],
             ['Conexão', $config['connection']],
             ['Banco', $config['database']],
             ['Usuário técnico', $config['usuario_tecnico'] ?? '— não configurado —'],
@@ -139,7 +142,9 @@ class TestQuestorConnection extends Command
         $this->newLine();
         $this->info("Simulando a autorização da ordem {$ordem} — nada será gravado.");
 
-        $previa = $writer->approve($ordem);
+        // `simular: true` é obrigatório aqui: com QUESTOR_DRY_RUN desligado,
+        // `approve()` grava de verdade — e este comando promete não gravar.
+        $previa = $writer->approve($ordem, simular: true);
 
         $this->newLine();
         $this->line('SQL que seria enviado:');

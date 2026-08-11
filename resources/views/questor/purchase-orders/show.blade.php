@@ -174,33 +174,46 @@
                     As duas ações abaixo <strong>simulam</strong> a gravação: mostram o comando, os parâmetros e o
                     antes/depois, sem tocar no Questor.
                 @else
-                    A escrita não está liberada nesta versão — as ações vão recusar.
+                    Autorizar grava <strong>de verdade</strong> no Questor e não tem desfazer pela Lara — para
+                    reverter seria preciso mexer na ordem pela tela nativa do ERP.
+                    @unless($config['reprovacao_liberada'])
+                        Reprovar ainda simula.
+                    @endunless
                 @endif
             </p>
 
             @unless($naFila)
                 <p class="mt-3 text-sm text-amber-600 dark:text-amber-400">
-                    Esta ordem não está mais na fila (já foi decidida ou mudou de status no Questor). A simulação
-                    continua disponível e vai mostrar que nenhuma linha seria afetada.
+                    Esta ordem não está mais na fila (já foi decidida ou mudou de status no Questor). As proteções do
+                    comando fazem com que nenhuma linha seja afetada — nada será sobrescrito.
                 </p>
             @endunless
 
             <div class="mt-5 flex flex-wrap gap-3">
-                <form method="POST" action="{{ route('questor.purchase-orders.simulate-approval', $ordem->CD_ORDEM_COMPRA) }}">
+                {{-- A confirmação só aparece quando a gravação está ligada: pedir
+                     "tem certeza?" para uma simulação treina a pessoa a clicar
+                     em OK sem ler, justamente antes da vez em que importa. --}}
+                <form method="POST" action="{{ route('questor.purchase-orders.approve', $ordem->CD_ORDEM_COMPRA) }}"
+                      @unless($config['dry_run'])
+                          onsubmit="return confirm('Autorizar a ordem #{{ $ordem->CD_ORDEM_COMPRA }} ({{ $brl($ordem->VL_TOTAL) }}) no Questor? Esta ação grava no ERP e não tem desfazer pela Lara.')"
+                      @endunless>
                     @csrf
                     <button type="submit"
                             class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition">
-                        {{ $config['dry_run'] ? 'Simular autorização' : 'Autorizar' }}
+                        {{ $config['dry_run'] ? 'Simular autorização' : 'Autorizar no Questor' }}
                     </button>
                 </form>
 
                 <button type="button" @click="reprovando = !reprovando"
                         class="px-5 py-2.5 rounded-xl bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-sm font-bold text-red-700 dark:text-red-400 transition">
-                    {{ $config['dry_run'] ? 'Simular reprovação' : 'Reprovar' }}
+                    {{ $config['reprovacao_liberada'] ? 'Reprovar' : 'Simular reprovação' }}
                 </button>
             </div>
 
-            <form method="POST" action="{{ route('questor.purchase-orders.simulate-rejection', $ordem->CD_ORDEM_COMPRA) }}"
+            <form method="POST" action="{{ route('questor.purchase-orders.reject', $ordem->CD_ORDEM_COMPRA) }}"
+                  @if($config['reprovacao_liberada'])
+                      onsubmit="return confirm('Reprovar a ordem #{{ $ordem->CD_ORDEM_COMPRA }} no Questor? Esta ação grava no ERP.')"
+                  @endif
                   x-show="reprovando" x-cloak class="mt-4">
                 @csrf
                 <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">
@@ -224,6 +237,54 @@
 
         @if($simulacao)
             @include('questor.purchase-orders.partials.simulation', ['simulacao' => $simulacao])
+        @endif
+
+        {{-- ============ TRILHA DA LARA ============ --}}
+        @if($decisoes->isNotEmpty())
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden mt-6">
+                <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+                    <h2 class="font-extrabold text-gray-900 dark:text-white">Histórico de decisões (Lara)</h2>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                        No Questor aparece só o usuário técnico. Quem de fato decidiu está aqui.
+                    </p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-gray-50 dark:bg-gray-700/40 text-xs uppercase tracking-wider text-gray-400">
+                            <tr>
+                                <th class="px-6 py-3 text-left font-bold">Quando</th>
+                                <th class="px-6 py-3 text-left font-bold">Decisão</th>
+                                <th class="px-6 py-3 text-left font-bold">Quem</th>
+                                <th class="px-6 py-3 text-left font-bold">Motivo</th>
+                                <th class="px-6 py-3 text-right font-bold">Linhas</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                            @foreach($decisoes as $decisao)
+                                <tr>
+                                    <td class="px-6 py-3 text-gray-500 dark:text-gray-400">{{ $decisao->created_at->format('d/m/Y H:i') }}</td>
+                                    <td class="px-6 py-3">
+                                        <span class="px-2 py-0.5 rounded text-xs font-bold
+                                            {{ $decisao->action === \App\Models\QuestorOrderDecision::ACTION_APPROVE
+                                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                                : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300' }}">
+                                            {{ $decisao->action === \App\Models\QuestorOrderDecision::ACTION_APPROVE ? 'Aprovação' : 'Reprovação' }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-3 text-gray-900 dark:text-white">{{ $decisao->decided_by_name ?: '—' }}</td>
+                                    <td class="px-6 py-3 text-gray-600 dark:text-gray-300">{{ $decisao->motivo ?: '—' }}</td>
+                                    <td class="px-6 py-3 text-right tabular-nums {{ $decisao->tookEffect() ? 'text-gray-600 dark:text-gray-300' : 'text-amber-600 dark:text-amber-400 font-bold' }}">
+                                        {{ $decisao->rows_affected }}
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+                <p class="px-6 py-3 text-xs text-gray-400 border-t border-gray-100 dark:border-gray-700">
+                    Linhas = 0 significa que a gravação foi enviada mas não pegou nada: a ordem já havia saído da fila.
+                </p>
+            </div>
         @endif
 
     </div>

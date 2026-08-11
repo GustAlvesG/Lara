@@ -460,18 +460,20 @@ Route::middleware('auth')->group(function () {
     });
 
     // Questor — autorização de Ordem de Compra.
-    // NESTA VERSÃO NÃO GRAVA NADA: as rotas de "aprovar/reprovar" apenas
-    // simulam e devolvem o UPDATE que seria enviado ao ERP. São POST mesmo
-    // assim — quando a escrita for liberada, é o mesmo endereço que passa a
-    // gravar, e um GET que muda estado seria pior de descobrir depois.
+    // As duas rotas de decisão GRAVAM NO ERP DE PRODUÇÃO quando
+    // QUESTOR_DRY_RUN está desligado; com ele ligado, as mesmas rotas apenas
+    // simulam. O modo é do serviço, não do endereço — assim ligar a gravação
+    // não muda a URL nem quebra link salvo.
+    // Throttle baixo: cada requisição escreve num ERP externo, e um duplo
+    // clique repetido não é um caso que se queira exercitar contra o Questor.
     Route::prefix('questor/ordens-compra')->middleware('permission:authorize purchase orders')->group(function () {
         Route::get('/', [QuestorPurchaseOrderController::class, 'index'])->name('questor.purchase-orders.index');
         Route::get('/{ordem}', [QuestorPurchaseOrderController::class, 'show'])
             ->where('ordem', '[0-9]+')->name('questor.purchase-orders.show');
-        Route::post('/{ordem}/simular-aprovacao', [QuestorPurchaseOrderController::class, 'simulateApproval'])
-            ->where('ordem', '[0-9]+')->name('questor.purchase-orders.simulate-approval');
-        Route::post('/{ordem}/simular-reprovacao', [QuestorPurchaseOrderController::class, 'simulateRejection'])
-            ->where('ordem', '[0-9]+')->name('questor.purchase-orders.simulate-rejection');
+        Route::post('/{ordem}/aprovar', [QuestorPurchaseOrderController::class, 'approve'])
+            ->where('ordem', '[0-9]+')->middleware('throttle:20,1')->name('questor.purchase-orders.approve');
+        Route::post('/{ordem}/reprovar', [QuestorPurchaseOrderController::class, 'reject'])
+            ->where('ordem', '[0-9]+')->middleware('throttle:20,1')->name('questor.purchase-orders.reject');
     });
 
     // Notificações

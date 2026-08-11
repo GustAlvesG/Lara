@@ -42,6 +42,7 @@ class QuestorAuthorizationSimulationTest extends TestCase
         ]);
 
         $this->executado = [];
+        $this->gravado = [];
     }
 
     protected function tearDown(): void
@@ -51,11 +52,17 @@ class QuestorAuthorizationSimulationTest extends TestCase
         parent::tearDown();
     }
 
+    /** Os UPDATEs enviados à conexão do Questor. Vazio é o esperado ao simular. */
+    private array $gravado = [];
+
     /**
-     * A conexão do Questor, trocada por um duble. `$linhas` é o que o
-     * `SELECT COUNT(*)` da simulação vai devolver.
+     * A conexão do Questor, trocada por um duble.
+     *
+     * `$linhas` é o que o `SELECT COUNT(*)` devolve; `$afetadas`, o retorno do
+     * `UPDATE`. Os dois caminhos são gravados separadamente para os testes
+     * poderem afirmar não só o que foi consultado, mas que **nada foi escrito**.
      */
-    private function fakeConnection(int $linhas = 1): void
+    private function fakeConnection(int $linhas = 1, int $afetadas = 1): void
     {
         $conexao = Mockery::mock();
 
@@ -65,8 +72,13 @@ class QuestorAuthorizationSimulationTest extends TestCase
             return [(object) ['TOTAL' => $linhas]];
         });
 
-        // `update`/`statement` não são esperados: se a simulação tentar gravar,
-        // o Mockery estoura em vez de deixar passar silenciosamente.
+        $conexao->shouldReceive('update')->andReturnUsing(function ($sql, $bindings = []) use ($afetadas) {
+            $this->executado[] = ['sql' => $sql, 'bindings' => $bindings];
+            $this->gravado[] = ['sql' => $sql, 'bindings' => $bindings];
+
+            return $afetadas;
+        });
+
         DB::shouldReceive('connection')->andReturn($conexao);
     }
 
@@ -146,9 +158,9 @@ class QuestorAuthorizationSimulationTest extends TestCase
         $this->assertTrue($previa['dry_run']);
 
         // Uma única instrução foi ao banco, e é a contagem.
+        $this->assertSame([], $this->gravado);
         $this->assertCount(1, $this->executado);
         $this->assertStringStartsWith('SELECT COUNT(*)', $this->executado[0]['sql']);
-        $this->assertStringNotContainsStringIgnoringCase('update', $this->executado[0]['sql']);
     }
 
     public function test_contagem_usa_o_mesmo_predicado_do_update(): void
@@ -205,14 +217,111 @@ class QuestorAuthorizationSimulationTest extends TestCase
         $this->writer()->reject(40975, '   ');
     }
 
-    public function test_escrita_continua_bloqueada_com_o_dry_run_desligado(): void
+    public function test_com_o_dry_run_desligado_a_aprovacao_grava_de_verdade(): void
     {
         config(['questor.dry_run' => false]);
+        $this->fakeConnection(linhas: 1, afetadas: 1);
 
-        $this->expectException(QuestorException::class);
-        $this->expectExceptionMessage('ainda não foi liberada');
+        $resultado = $this->writer()->approve(40975);
 
-        $this->writer()->approve(40975);
+        $this->assertTrue($resultado['executado']);
+        $this->assertFalse($resultado['dry_run']);
+        $this->assertSame(1, $resultado['linhas_afetadas']);
+
+        // O UPDATE foi ao banco, e é o de autorização.
+        $this->assertCount(1, $this->gravado);
+        $this->assertStringContainsString('SET CD_USUARIO_AUTORIZOU = ?', $this->gravado[0]['sql']);
+        $this->assertSame([42, 40975, 1], $this->gravado[0]['bindings']);
+    }
+
+    public function test_gravacao_confirma_relendo_a_ordem_no_questor(): void
+    {
+        config(['questor.dry_run' => false]);
+        $this->fakeConnection();
+
+        $resultado = $this->writer()->approve(40975);
+
+        // A confirmação é a ordem relida — a prova do carimbo, não a suposição
+        // de que ele entrou porque o UPDATE não deu erro.
+        $this->assertNotNull($resultado['confirmacao']);
+        $this->assertArrayHasKey('CD_USUARIO_AUTORIZOU', $resultado['confirmacao']);
+    }
+
+    public function test_gravacao_que_nao_pega_nenhuma_linha_nao_e_sucesso(): void
+    {
+        config(['questor.dry_run' => false]);
+        // A contagem ainda vê a ordem na fila, mas entre a contagem e o UPDATE
+        // alguém decidiu pela tela nativa: o UPDATE pega zero.
+        $this->fakeConnection(linhas: 1, afetadas: 0);
+
+        $resultado = $this->writer()->approve(40975);
+
+        $this->assertTrue($resultado['executado']);
+        $this->assertSame(0, $resultado['linhas_afetadas']);
+    }
+
+    public function test_impedimento_recusa_a_gravacao_antes_de_chegar_ao_questor(): void
+    {
+        config(['questor.dry_run' => false]);
+        $this->fakeConnection();
+
+        try {
+            $this->writer(tecnico: (object) [
+                'CD_CODUSUARIO' => 42,
+                'DS_USUARIO' => 'Integração Lara',
+                'DS_LOGIN' => 'LARA',
+                'X_ATIVO' => 0,   // inativo
+                'X_AUTORIZA_ORDEM_COMPRA' => 1,
+                'X_REPROVA_ORDEM_COMPRA' => 1,
+            ])->approve(40975);
+
+            $this->fail('Esperava a recusa por impedimento.');
+        } catch (QuestorException $e) {
+            // Na simulação impedimentos são informativos; na gravação são a
+            // última barreira, e nada pode ter ido ao ERP.
+            $this->assertSame([], $this->gravado);
+            $this->assertStringContainsString('inativo', $e->getMessage());
+        }
+    }
+
+    public function test_reprovacao_nao_grava_sem_a_trava_propria(): void
+    {
+        config(['questor.dry_run' => false, 'questor.reprovacao_liberada' => false]);
+        $this->fakeConnection();
+
+        try {
+            $this->writer()->reject(40975, 'Fora do orçamento');
+            $this->fail('Esperava a recusa da reprovação.');
+        } catch (QuestorException $e) {
+            $this->assertSame([], $this->gravado);
+            $this->assertStringContainsString('6.2', $e->getMessage());
+        }
+    }
+
+    public function test_reprovacao_grava_quando_a_trava_propria_esta_ligada(): void
+    {
+        config(['questor.dry_run' => false, 'questor.reprovacao_liberada' => true]);
+        $this->fakeConnection();
+
+        $resultado = $this->writer()->reject(40975, 'Fora do orçamento');
+
+        $this->assertTrue($resultado['executado']);
+        $this->assertCount(1, $this->gravado);
+        $this->assertStringContainsString('SET CD_STATUS = ?', $this->gravado[0]['sql']);
+    }
+
+    public function test_simular_forcado_nao_grava_mesmo_com_a_gravacao_ligada(): void
+    {
+        config(['questor.dry_run' => false]);
+        $this->fakeConnection();
+
+        // É o que o comando `questor:testar` usa: ele promete não gravar, e a
+        // promessa não pode depender de como o .env está no dia.
+        $resultado = $this->writer()->approve(40975, simular: true);
+
+        $this->assertFalse($resultado['executado']);
+        $this->assertTrue($resultado['dry_run']);
+        $this->assertSame([], $this->gravado);
     }
 
     public function test_modulo_desligado_recusa_a_simulacao(): void

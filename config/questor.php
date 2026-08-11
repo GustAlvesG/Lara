@@ -9,9 +9,9 @@
 | de autorização não será usada: quem coleta as aprovações é a Lara, que ao
 | final carimba a ordem no Questor em nome de um usuário técnico.
 |
-| Nesta PRIMEIRA VERSÃO nada é gravado. `dry_run` está ligado e o serviço de
-| escrita apenas monta o SQL e devolve a prévia do que aconteceria — é o modo
-| de conferir a integração contra o banco real sem risco. Ver
+| Duas travas comandam o que sai daqui: `dry_run` (ligado = nada é gravado, só
+| a prévia do que aconteceria) e `reprovacao_liberada`, separada porque a
+| reprovação não tem a mesma evidência que a aprovação. Ver
 | docs/funcionalidades/questor-autorizacao-compra.md.
 |
 */
@@ -48,17 +48,36 @@ return [
     |
     | Ligado, NENHUM UPDATE é executado no Questor: o serviço de escrita monta a
     | instrução, lê o estado atual da ordem e devolve o "antes/depois" para a
-    | tela. É o padrão, e é o que esta versão entrega.
+    | tela. É o padrão.
     |
-    | Desligar isto é o passo que passa a mexer no ERP de produção. Antes disso,
-    | é preciso: (1) criar o usuário técnico no Questor e preencher
-    | QUESTOR_USUARIO_TECNICO, (2) rodar o teste ao vivo de reprovação descrito
-    | na seção 6.2 da especificação, e (3) conferir a permissão de UPDATE do
-    | login do banco.
+    | Desligado, a APROVAÇÃO passa a gravar de verdade no ERP de produção. A
+    | reprovação não vem junto: ela tem trava própria logo abaixo.
     |
     */
 
     'dry_run' => (bool) env('QUESTOR_DRY_RUN', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reprovação
+    |--------------------------------------------------------------------------
+    |
+    | Trava separada porque as duas ações não têm a mesma evidência.
+    |
+    | A aprovação foi observada ao vivo (ordem 40.975): só `CD_USUARIO_AUTORIZOU`
+    | e `DT_AUTORIZACAO` mudam. A reprovação, não — dela só existe o padrão de 28
+    | casos históricos, e três perguntas seguem sem resposta observada:
+    | `CD_STATUS_ANTERIOR` é mesmo preenchido? `DT_ATUALIZACAO` muda neste caso?
+    | Algum outro campo é tocado?
+    |
+    | Reprove uma ordem de teste pela tela nativa do Questor, compare a linha
+    | campo a campo (seção 6.2 da especificação), ajuste o UPDATE se necessário e
+    | só então ligue isto. Enquanto estiver desligado, a reprovação continua
+    | funcionando em simulação.
+    |
+    */
+
+    'reprovacao_liberada' => (bool) env('QUESTOR_REPROVACAO_LIBERADA', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -109,7 +128,7 @@ return [
     | passar disso, o filtro é que precisa melhorar.
     */
 
-    'limite_listagem' => (int) env('QUESTOR_LIMITE_LISTAGEM', 200),
+    'limite_listagem' => (int) env('QUESTOR_LIMITE_LISTAGEM', 10),
 
     /*
     |--------------------------------------------------------------------------

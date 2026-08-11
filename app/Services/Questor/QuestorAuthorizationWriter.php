@@ -3,29 +3,39 @@
 namespace App\Services\Questor;
 
 use App\Exceptions\QuestorException;
+use App\Models\QuestorOrderDecision;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
- * O carimbo de autorização no Questor — que nesta versão **só é simulado**.
+ * O carimbo de autorização no Questor.
  *
- * A gravação real é um `UPDATE` em `TBL_COMPRAS_ORDEM_COMPRA`, e ela ainda não
- * está liberada: enquanto `questor.dry_run` estiver ligado (o padrão), este
- * serviço monta a instrução exata, lê o estado atual da ordem, conta quantas
- * linhas o `WHERE` casaria hoje e devolve o antes/depois — sem executar nada.
- * Com o dry run desligado, ele recusa a operação com a lista do que falta para
- * destravar (ver {@see self::assertWritesReleased()}); é assim que o módulo
- * sobe para produção sem poder mexer no ERP no mesmo deploy.
+ * Dois modos, decididos por `questor.dry_run`:
  *
- * A contagem de linhas é a parte que dá valor à simulação: ela usa exatamente o
- * mesmo predicado do UPDATE, então responde a pergunta que importa — "se eu
- * mandasse agora, pegaria a ordem certa, ou zero linhas porque alguém já
- * autorizou pela tela nativa?".
+ *  - **simulação** (padrão): monta o `UPDATE`, lê o estado atual da ordem, conta
+ *    quantas linhas o `WHERE` casaria hoje e devolve o antes/depois. Nada é
+ *    escrito.
+ *  - **gravação**: executa o `UPDATE` no ERP de produção, relê a ordem para
+ *    conferir o carimbo e registra a decisão em `questor_order_decisions`.
+ *
+ * A contagem de linhas é o que dá valor aos dois modos: ela usa exatamente o
+ * mesmo predicado do `UPDATE`, então responde a pergunta que importa — pegaria a
+ * ordem certa, ou zero linhas porque alguém já decidiu pela tela nativa entre a
+ * abertura da tela e o clique? Uma gravação que afeta zero linhas **não é
+ * sucesso**, e é relatada como tal.
+ *
+ * Antes de gravar, os impedimentos são conferidos e a operação é **recusada** se
+ * houver algum (usuário técnico ausente, inativo ou sem a permissão do ERP para
+ * aquela ação). Na simulação eles só são listados.
  *
  * Duas assimetrias entre aprovar e reprovar, ambas confirmadas na base:
  *  - aprovar NÃO muda `CD_STATUS` (a ordem segue PENDENTE, só ganha o carimbo);
  *  - reprovar move para REPROVADO e guarda o status anterior e o motivo.
+ *
+ * E uma assimetria de maturidade: a aprovação foi observada ao vivo (ordem
+ * 40.975), a reprovação não. Por isso a reprovação só grava com
+ * `questor.reprovacao_liberada` ligado — ver {@see self::assertReleased()}.
  *
  * Nada aqui toca `VL_FRETE`, `VL_FRETEAP` ou `VL_OUTRAS` — os únicos campos com
  * trigger de recálculo de custo na tabela.
@@ -40,15 +50,17 @@ class QuestorAuthorizationWriter
     }
 
     /**
-     * Simula a autorização final de uma ordem.
+     * Autoriza uma ordem — de verdade, se o dry run estiver desligado.
      *
-     * @return array<string, mixed> prévia no formato descrito em {@see self::preview()}
+     * @param  bool  $simular  força a simulação mesmo com a gravação ligada.
+     *                         É o que mantém o `questor:testar` inofensivo.
+     * @return array<string, mixed> resultado no formato de {@see self::decide()}
      *
      * @throws QuestorException
      */
-    public function approve(int $cdOrdemCompra): array
+    public function approve(int $cdOrdemCompra, bool $simular = false): array
     {
-        $this->assertWritesReleased();
+        QuestorGate::ensureEnabled();
 
         $ordem = $this->orders->find($cdOrdemCompra);
 
@@ -68,7 +80,7 @@ class QuestorAuthorizationWriter
             $this->pendingStatus(),
         ];
 
-        return $this->preview(self::ACTION_APPROVE, $ordem, $sql, $bindings, [
+        return $this->decide(self::ACTION_APPROVE, $ordem, $sql, $bindings, [
             'CD_USUARIO_AUTORIZOU' => $this->technicalUserCode(),
             'DT_AUTORIZACAO' => 'GETDATE() — relógio do servidor do Questor',
             'CD_STATUS' => (int) $ordem->CD_STATUS . ' (inalterado: autorizar não muda o status)',
@@ -76,23 +88,24 @@ class QuestorAuthorizationWriter
             'CD_ORDEM_COMPRA = ?' => $cdOrdemCompra,
             'CD_STATUS = ?' => $this->pendingStatus(),
             'CD_USUARIO_AUTORIZOU IS NULL' => null,
-        ]);
+        ], simular: $simular);
     }
 
     /**
-     * Simula a reprovação final de uma ordem.
+     * Reprova uma ordem.
      *
      * O motivo é truncado em `questor.motivo_max` porque `DS_MOTIVO_REPROVADO`
      * é varchar(100) — sem isso o SQL Server recusaria a linha inteira. O texto
-     * completo, quando houver, é responsabilidade do histórico da Lara.
+     * completo fica na trilha da Lara.
      *
+     * @param  bool  $simular  força a simulação mesmo com a gravação ligada
      * @return array<string, mixed>
      *
      * @throws QuestorException
      */
-    public function reject(int $cdOrdemCompra, string $motivo): array
+    public function reject(int $cdOrdemCompra, string $motivo, bool $simular = false): array
     {
-        $this->assertWritesReleased();
+        QuestorGate::ensureEnabled();
 
         $motivo = trim($motivo);
 
@@ -100,6 +113,7 @@ class QuestorAuthorizationWriter
             throw new QuestorException('Informe o motivo da reprovação.');
         }
 
+        $motivoCompleto = $motivo;
         $motivo = Str::limit($motivo, (int) config('questor.motivo_max', 100), '');
 
         $ordem = $this->orders->find($cdOrdemCompra);
@@ -126,7 +140,7 @@ class QuestorAuthorizationWriter
             $this->pendingStatus(),
         ];
 
-        return $this->preview(self::ACTION_REJECT, $ordem, $sql, $bindings, [
+        return $this->decide(self::ACTION_REJECT, $ordem, $sql, $bindings, [
             'CD_STATUS' => $this->rejectedStatus() . ' (REPROVADO)',
             'CD_STATUS_ANTERIOR' => $this->pendingStatus(),
             'CD_USUARIO_REPROVOU' => $this->technicalUserCode(),
@@ -136,18 +150,17 @@ class QuestorAuthorizationWriter
             'CD_ORDEM_COMPRA = ?' => $cdOrdemCompra,
             'CD_STATUS = ?' => $this->pendingStatus(),
             'CD_USUARIO_REPROVOU IS NULL' => null,
-        ], [
-            // O caminho de reprovação ainda não foi observado ao vivo — só há o
-            // padrão de 28 casos históricos. Enquanto o teste da seção 6.2 da
-            // especificação não for feito, quem lê a simulação precisa saber.
+        ], ressalvas: [
+            // O caminho de reprovação só tem evidência histórica (28 casos). Até
+            // o teste ao vivo da seção 6.2 da especificação ser feito, quem lê o
+            // resultado precisa saber disso.
             'A reprovação foi montada a partir do padrão histórico da base; o teste ao vivo '
             . '(seção 6.2 da especificação) ainda não foi realizado.',
-        ]);
+        ], motivo: $motivoCompleto, simular: $simular);
     }
 
     /**
-     * Monta a prévia: o que existe hoje, o que a instrução mudaria, quantas
-     * linhas ela pegaria e o que ainda impede a gravação real.
+     * O caminho comum: confere, e então simula ou grava.
      *
      * @param  array<int, mixed>  $bindings
      * @param  array<string, mixed>  $depois  campos e valores que o UPDATE gravaria
@@ -157,9 +170,11 @@ class QuestorAuthorizationWriter
      *               sql: string, bindings: array<int, mixed>, antes: array<string, mixed>,
      *               depois: array<string, mixed>, linhas_afetadas: int,
      *               impedimentos: array<int, string>, ressalvas: array<int, string>,
-     *               usuario_tecnico: object|null}
+     *               usuario_tecnico: object|null, confirmacao: array<string, mixed>|null}
+     *
+     * @throws QuestorException
      */
-    private function preview(
+    private function decide(
         string $acao,
         object $ordem,
         string $sql,
@@ -167,45 +182,161 @@ class QuestorAuthorizationWriter
         array $depois,
         array $predicado,
         array $ressalvas = [],
+        ?string $motivo = null,
+        bool $simular = false,
     ): array {
-        $linhas = $this->matchingRows($predicado);
-        // Lido uma vez: `blockers()` e a prévia querem o mesmo usuário, e ele
-        // custa uma ida ao Questor.
-        $tecnico = $this->orders->technicalUser();
+        $simulando = $simular || QuestorGate::dryRun();
 
-        $previa = [
+        $tecnico = $this->orders->technicalUser();
+        $linhas = $this->matchingRows($predicado);
+        $impedimentos = $this->blockers($ordem, $acao, $linhas, $tecnico);
+
+        $resultado = [
             'acao' => $acao,
             'cd_ordem_compra' => (int) $ordem->CD_ORDEM_COMPRA,
-            // Enquanto for `false`, nada foi ao ERP. É o campo que a tela lê
-            // para dizer "simulação" em vez de "gravado".
             'executado' => false,
-            'dry_run' => QuestorGate::dryRun(),
+            'dry_run' => $simulando,
             'sql' => $sql,
             'bindings' => $bindings,
-            'antes' => [
-                'CD_STATUS' => $ordem->CD_STATUS,
-                'DS_STATUS' => $ordem->DS_STATUS ?? null,
-                'CD_USUARIO_AUTORIZOU' => $ordem->CD_USUARIO_AUTORIZOU,
-                'DT_AUTORIZACAO' => $ordem->DT_AUTORIZACAO,
-                'CD_USUARIO_REPROVOU' => $ordem->CD_USUARIO_REPROVOU,
-                'DT_REPROVACAO' => $ordem->DT_REPROVACAO,
-                'DS_MOTIVO_REPROVADO' => $ordem->DS_MOTIVO_REPROVADO,
-            ],
+            'antes' => $this->snapshot($ordem),
             'depois' => $depois,
             'linhas_afetadas' => $linhas,
-            'impedimentos' => $this->blockers($ordem, $acao, $linhas, $tecnico),
+            'impedimentos' => $impedimentos,
             'ressalvas' => $ressalvas,
             'usuario_tecnico' => $tecnico,
+            'confirmacao' => null,
         ];
 
-        Log::info('Questor: simulação de ' . $acao, [
-            'cd_ordem_compra' => $previa['cd_ordem_compra'],
-            'linhas_afetadas' => $linhas,
-            'impedimentos' => $previa['impedimentos'],
+        if ($simulando) {
+            Log::info('Questor: simulação de ' . $acao, [
+                'cd_ordem_compra' => $resultado['cd_ordem_compra'],
+                'linhas_afetadas' => $linhas,
+                'impedimentos' => $impedimentos,
+                'user_id' => auth()->id(),
+            ]);
+
+            return $resultado;
+        }
+
+        $this->assertReleased($acao);
+
+        // Um impedimento é motivo para NÃO gravar. Na simulação eles são
+        // informativos; aqui são a última barreira antes do ERP.
+        if ($impedimentos !== []) {
+            throw new QuestorException(
+                'A gravação foi recusada antes de chegar ao Questor: ' . implode(' ', $impedimentos)
+            );
+        }
+
+        return $this->execute($resultado, $ordem, $sql, $bindings, $motivo);
+    }
+
+    /**
+     * Grava no ERP, confere o resultado relendo a ordem e registra a trilha.
+     *
+     * A trilha é escrita **depois** do UPDATE e fora de qualquer transação com
+     * ele — são bancos diferentes, em servidores diferentes, e não há transação
+     * distribuída aqui. A ordem dos dois passos é deliberada: se a auditoria
+     * falhar, o log ainda guarda o que aconteceu; se fosse ao contrário, uma
+     * falha no ERP deixaria uma linha de auditoria de algo que não ocorreu.
+     *
+     * @param  array<string, mixed>  $resultado
+     * @param  array<int, mixed>  $bindings
+     * @return array<string, mixed>
+     *
+     * @throws QuestorException
+     */
+    private function execute(array $resultado, object $ordem, string $sql, array $bindings, ?string $motivo): array
+    {
+        try {
+            $afetadas = DB::connection(config('questor.connection'))->update($sql, $bindings);
+        } catch (\Throwable $e) {
+            report($e);
+
+            Log::error('Questor: falha ao gravar ' . $resultado['acao'], [
+                'cd_ordem_compra' => $resultado['cd_ordem_compra'],
+                'user_id' => auth()->id(),
+                'erro' => $e->getMessage(),
+            ]);
+
+            throw new QuestorException(
+                'A gravação no Questor falhou e a ordem não foi alterada. '
+                . 'Confira a ordem na tela nativa antes de tentar de novo.'
+            );
+        }
+
+        $resultado['executado'] = true;
+        $resultado['linhas_afetadas'] = $afetadas;
+
+        // Relê a ordem: é a prova de que o carimbo entrou, e não a suposição de
+        // que entrou porque o UPDATE não deu erro.
+        try {
+            $resultado['confirmacao'] = $this->snapshot($this->orders->find($resultado['cd_ordem_compra']));
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
+        Log::warning('Questor: gravação efetiva de ' . $resultado['acao'], [
+            'cd_ordem_compra' => $resultado['cd_ordem_compra'],
+            'linhas_afetadas' => $afetadas,
+            'questor_user' => $this->technicalUserCode(),
             'user_id' => auth()->id(),
         ]);
 
-        return $previa;
+        $this->record($resultado, $ordem, $motivo);
+
+        return $resultado;
+    }
+
+    /**
+     * A linha de auditoria. Falhar aqui não desfaz o que já foi gravado no ERP,
+     * então o erro é reportado e engolido: negar o resultado ao usuário faria
+     * ele tentar de novo uma operação que já aconteceu.
+     *
+     * @param  array<string, mixed>  $resultado
+     */
+    private function record(array $resultado, object $ordem, ?string $motivo): void
+    {
+        try {
+            QuestorOrderDecision::create([
+                'cd_ordem_compra' => $resultado['cd_ordem_compra'],
+                'cd_filial' => $ordem->CD_FILIAL ?? null,
+                'action' => $resultado['acao'],
+                'questor_user' => $this->technicalUserCode(),
+                'decided_by' => auth()->id(),
+                'decided_by_name' => auth()->user()?->name,
+                'motivo' => $motivo,
+                'vl_total' => $ordem->VL_TOTAL ?? null,
+                'rows_affected' => $resultado['linhas_afetadas'],
+                'executed' => true,
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            Log::error('Questor: decisão gravada no ERP mas NÃO registrada na trilha', [
+                'cd_ordem_compra' => $resultado['cd_ordem_compra'],
+                'acao' => $resultado['acao'],
+                'user_id' => auth()->id(),
+            ]);
+        }
+    }
+
+    /**
+     * Os campos de decisão da ordem, do jeito que estão agora.
+     *
+     * @return array<string, mixed>
+     */
+    private function snapshot(object $ordem): array
+    {
+        return [
+            'CD_STATUS' => $ordem->CD_STATUS,
+            'DS_STATUS' => $ordem->DS_STATUS ?? null,
+            'CD_USUARIO_AUTORIZOU' => $ordem->CD_USUARIO_AUTORIZOU,
+            'DT_AUTORIZACAO' => $ordem->DT_AUTORIZACAO,
+            'CD_USUARIO_REPROVOU' => $ordem->CD_USUARIO_REPROVOU,
+            'DT_REPROVACAO' => $ordem->DT_REPROVACAO,
+            'DS_MOTIVO_REPROVADO' => $ordem->DS_MOTIVO_REPROVADO,
+        ];
     }
 
     /**
@@ -217,6 +348,8 @@ class QuestorAuthorizationWriter
      * a abertura da tela e o clique.
      *
      * @param  array<string, mixed>  $predicado
+     *
+     * @throws QuestorException
      */
     private function matchingRows(array $predicado): int
     {
@@ -243,7 +376,7 @@ class QuestorAuthorizationWriter
             report($e);
 
             throw new QuestorException(
-                'Não foi possível conferir a ordem no Questor antes de simular a gravação.'
+                'Não foi possível conferir a ordem no Questor antes de gravar.'
             );
         }
 
@@ -251,11 +384,9 @@ class QuestorAuthorizationWriter
     }
 
     /**
-     * O que impediria a gravação real de acontecer — a lista que precisa estar
-     * vazia antes de se cogitar desligar o dry run.
+     * O que impede a gravação de acontecer.
      *
-     * São impedimentos, não exceções: a simulação continua útil (e a tela
-     * continua mostrando o SQL) mesmo com o usuário técnico ainda por criar.
+     * Na simulação viram uma lista informativa; na gravação, uma recusa.
      *
      * @return array<int, string>
      */
@@ -301,25 +432,29 @@ class QuestorAuthorizationWriter
     }
 
     /**
-     * A trava de escrita.
+     * A trava por ação.
      *
-     * Esta versão do módulo é de leitura e simulação: desligar `dry_run` sozinho
-     * não libera a gravação, e é isso que esta exceção diz. Quando o `UPDATE`
-     * real for implementado, é aqui que ele passa a ser permitido — depois de
-     * cumpridos os itens listados na mensagem.
+     * A **aprovação** está liberada: o comportamento dela foi observado ao vivo
+     * na base (ordem 40.975 — só `CD_USUARIO_AUTORIZOU` e `DT_AUTORIZACAO`
+     * mudaram, nem status nem `DT_ATUALIZACAO`).
+     *
+     * A **reprovação** não foi. O que existe dela é o padrão de 28 casos
+     * históricos, e três perguntas continuam sem resposta observada:
+     * `CD_STATUS_ANTERIOR` é mesmo preenchido? `DT_ATUALIZACAO` muda neste caso?
+     * Algum outro campo é tocado? Enquanto o teste da seção 6.2 não for feito,
+     * ela só grava com `QUESTOR_REPROVACAO_LIBERADA=true` — uma decisão
+     * consciente, não um efeito colateral de desligar o dry run.
      *
      * @throws QuestorException
      */
-    private function assertWritesReleased(): void
+    private function assertReleased(string $acao): void
     {
-        QuestorGate::ensureEnabled();
-
-        if (!QuestorGate::dryRun()) {
+        if ($acao === self::ACTION_REJECT && !config('questor.reprovacao_liberada', false)) {
             throw new QuestorException(
-                'A gravação no Questor ainda não foi liberada nesta versão do módulo — ela só simula. '
-                . 'Mantenha QUESTOR_DRY_RUN=true. Para destravar a escrita é preciso, antes: criar o usuário '
-                . 'técnico no Questor, rodar o teste ao vivo de reprovação (seção 6.2 da especificação) e '
-                . 'conceder UPDATE em TBL_COMPRAS_ORDEM_COMPRA ao login da Lara.'
+                'A gravação de reprovação ainda não foi liberada: o comportamento dela no Questor não foi '
+                . 'observado ao vivo (seção 6.2 da especificação). Reprove uma ordem de teste pela tela nativa, '
+                . 'compare a linha campo a campo e então ligue QUESTOR_REPROVACAO_LIBERADA=true. '
+                . 'Enquanto isso, a reprovação continua disponível em simulação.'
             );
         }
     }

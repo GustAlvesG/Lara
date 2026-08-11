@@ -1,9 +1,11 @@
 # Autorização de Ordem de Compra (Questor)
 
-> **Estado atual: leitura e simulação.** Esta versão do módulo **não altera nenhum
-> registro** no Questor. Ela lista a fila de ordens pendentes, abre o detalhe com os itens
-> e, no lugar de aprovar, mostra o comando que *seria* enviado ao ERP com o antes/depois e
-> a contagem de linhas que ele pegaria. A gravação real é a próxima versão.
+> ⚠️ **A aprovação grava no ERP de produção.** Com `QUESTOR_DRY_RUN=false`, clicar em
+> *Autorizar no Questor* carimba a ordem de verdade e **não há desfazer pela Lara** — para
+> reverter é preciso mexer na ordem pela tela nativa do Questor.
+>
+> A **reprovação** tem trava separada (`QUESTOR_REPROVACAO_LIBERADA`) e continua em
+> simulação até o teste ao vivo dela ser feito. Ver [Reprovação](#reprovação).
 
 ## O que é
 
@@ -26,6 +28,7 @@ resultado final.
 | Leitura | [QuestorPurchaseOrders.php](../../app/Services/Questor/QuestorPurchaseOrders.php) |
 | Simulação da escrita | [QuestorAuthorizationWriter.php](../../app/Services/Questor/QuestorAuthorizationWriter.php) |
 | Travas | [QuestorGate.php](../../app/Services/Questor/QuestorGate.php) |
+| Trilha de auditoria | [QuestorOrderDecision.php](../../app/Models/QuestorOrderDecision.php) · tabela `questor_order_decisions` |
 | Configuração | [config/questor.php](../../config/questor.php) |
 | Conexão | `questor_sqlsrv` em [config/database.php](../../config/database.php) |
 | Diagnóstico | `php artisan questor:testar` |
@@ -41,15 +44,16 @@ DB_QUESTOR_DATABASE=FUNCSIDERURG
 DB_QUESTOR_USERNAME=
 DB_QUESTOR_PASSWORD=
 
-QUESTOR_ENABLED=false        # ligue depois de conferir a conexão
-QUESTOR_DRY_RUN=true         # NÃO desligue: a escrita não está implementada
-QUESTOR_USUARIO_TECNICO=     # CD_CODUSUARIO do usuário técnico no Questor
-QUESTOR_FILIAIS=             # ex.: 1,3 — vazio = todas
-QUESTOR_ORDENS_DESDE=        # ex.: 2026-01-01 — vazio = todo o histórico
+QUESTOR_ENABLED=false            # ligue depois de conferir a conexão
+QUESTOR_DRY_RUN=true             # false = a APROVAÇÃO passa a gravar no ERP
+QUESTOR_REPROVACAO_LIBERADA=false # trava separada da reprovação
+QUESTOR_USUARIO_TECNICO=         # CD_CODUSUARIO do usuário técnico no Questor
+QUESTOR_FILIAIS=                 # ex.: 1,3 — vazio = todas
+QUESTOR_ORDENS_DESDE=            # ex.: 2026-01-01 — vazio = todo o histórico
 ```
 
-Enquanto o módulo estiver em simulação, o login do banco **só precisa de `SELECT`**. Dar
-`UPDATE` agora não traz benefício e aumenta o estrago possível de um erro.
+Enquanto o módulo estiver em simulação, o login do banco **só precisa de `SELECT`**. O
+`UPDATE` em `TBL_COMPRAS_ORDEM_COMPRA` só é necessário ao desligar o dry run.
 
 `QUESTOR_ORDENS_DESDE` existe por um motivo prático: há ~2.292 ordens paradas em PENDENTE
 há anos, que nunca passaram por aprovação nenhuma. Sem uma data de corte, a tela abre com
@@ -85,9 +89,34 @@ filtrar só por `CD_STATUS = 1` traz de volta tudo o que já foi aprovado.
 A sincronização incremental (quando existir) usa `DT_CADASTRO` para achar ordens novas; não
 há CDC nem fila de eventos no banco, então é polling.
 
-## O que a simulação mostra
+## Os dois modos
 
-Ao clicar em *Simular autorização* ou *Simular reprovação*, a tela devolve:
+O mesmo botão e a mesma rota servem os dois — quem decide é a configuração, e a tela diz em
+qual está com uma faixa no topo (amarela = simulação, vermelha = gravação ativa).
+
+| | `QUESTOR_DRY_RUN=true` | `QUESTOR_DRY_RUN=false` |
+|---|---|---|
+| Aprovação | simula | **grava no ERP** |
+| Reprovação | simula | simula, a menos que `QUESTOR_REPROVACAO_LIBERADA=true` |
+| Trilha em `questor_order_decisions` | não escreve | uma linha por gravação |
+
+Na gravação, os impedimentos deixam de ser informativos e viram **recusa**: se o usuário
+técnico estiver inativo, sem a permissão do ERP para aquela ação, ou se a ordem já tiver
+saído da fila, nada é enviado ao Questor.
+
+E há uma pergunta que a tela responde de propósito com aviso amarelo, não verde: **um
+`UPDATE` que afeta zero linhas não é sucesso.** Ele não dá erro nenhum — simplesmente não
+encontrou a ordem no estado esperado, quase sempre porque alguém decidiu pela tela nativa
+entre a abertura da página e o clique. Tratar isso como "aprovado" seria o erro mais caro
+possível nesta integração.
+
+Depois de gravar, o serviço **relê a ordem no Questor** e mostra o resultado como
+confirmação. É a prova de que o carimbo entrou, em vez da suposição de que entrou porque o
+comando não deu erro.
+
+## O que o resultado mostra
+
+Ao clicar em *Autorizar* ou *Reprovar*, a tela devolve:
 
 - **O SQL exato** que seria enviado, com os parâmetros na ordem dos `?`.
 - **Antes / depois** dos campos que o comando tocaria. Os demais ficam intactos.
@@ -127,11 +156,15 @@ UPDATE FUNCSIDERURG.dbo.TBL_COMPRAS_ORDEM_COMPRA
    AND CD_USUARIO_REPROVOU IS NULL;
 ```
 
-> ⚠️ Este caminho foi montado a partir do padrão de 28 casos históricos, **sem teste ao
-> vivo**. Antes de liberar a gravação de reprovação é preciso reprovar uma ordem de teste
-> pela tela nativa do Questor e comparar a linha campo a campo, atrás de três coisas:
-> `CD_STATUS_ANTERIOR` é mesmo preenchido? `DT_ATUALIZACAO` muda neste caso (diferente da
-> autorização)? Algum outro campo é tocado? A simulação exibe essa ressalva na tela.
+> ⚠️ **Bloqueada por padrão.** Este caminho foi montado a partir do padrão de 28 casos
+> históricos, **sem teste ao vivo** — por isso desligar `QUESTOR_DRY_RUN` não a libera:
+> ela tem a trava própria `QUESTOR_REPROVACAO_LIBERADA`.
+>
+> Para liberar: reprove uma ordem de teste pela tela nativa do Questor e compare a linha
+> campo a campo, atrás de três coisas — `CD_STATUS_ANTERIOR` é mesmo preenchido?
+> `DT_ATUALIZACAO` muda neste caso (diferente da autorização)? Algum outro campo é tocado?
+> Ajuste o `UPDATE` conforme o resultado e só então ligue a trava. Até lá a reprovação
+> continua funcionando em simulação, exibindo essa ressalva na tela.
 
 ## O que o módulo nunca toca
 
@@ -165,18 +198,37 @@ Ninguém loga como ele — é um carimbo de sistema. Ponha o `CD_CODUSUARIO` em
 Não tente casar usuários do Questor por e-mail: `DS_EMAIL` não é único nesta base (vários
 setores compartilham caixa).
 
+## A trilha de auditoria
+
+Tabela `questor_order_decisions`, uma linha por gravação efetiva. Ela existe porque o
+Questor **não tem onde guardar isso**: lá cabe um autorizador só, que é sempre o usuário
+técnico. Se três pessoas diferentes aprovarem três ordens, as três aparecem no ERP com o
+mesmo login — quem de fato decidiu só existe aqui.
+
+Guarda: ordem, filial, ação, `CD_CODUSUARIO` usado no carimbo, usuário da Lara que clicou
+(id **e** nome, como retrato), motivo, valor da ordem no momento e `rows_affected`. Nada é
+sobrescrito; uma segunda tentativa na mesma ordem é uma segunda linha. O histórico aparece
+no rodapé do detalhe da ordem.
+
+`rows_affected = 0` é a linha que mais importa ler: a gravação foi enviada e não pegou
+nada.
+
+A escrita da trilha acontece **depois** do `UPDATE` e fora de qualquer transação com ele —
+são bancos diferentes, em servidores diferentes, sem transação distribuída. Se a trilha
+falhar, o log de erro registra o ocorrido e o usuário ainda vê o resultado real: negar o
+sucesso faria ele repetir uma operação que já aconteceu.
+
 ## O que ainda falta (próximas versões)
 
-1. **O fluxo de aprovação da Lara** — níveis, alçada por valor, quem aprova o quê. Não há
-   nada para herdar do Questor: a autorização praticamente nunca foi usada lá, e
-   `TBL_USUARIOS.VL_ORDEM_COMPRA` está zerado em quase todos os aprovadores.
-2. **A trilha de auditoria** — tabela própria com ordem, etapa, quem decidiu, quando,
-   decisão e justificativa. É a Lara que passa a ser a fonte de verdade disso; o Questor só
-   mostra o usuário técnico.
-3. **A gravação de verdade** — hoje bloqueada em
-   `QuestorAuthorizationWriter::assertWritesReleased()`. Desligar `QUESTOR_DRY_RUN` sozinho
-   **não** libera nada: o serviço recusa e explica o que falta. Para destravar: usuário
-   técnico criado, teste ao vivo de reprovação feito, `UPDATE` concedido ao login do banco.
+1. **O fluxo de aprovação em vários níveis** — alçada por valor, quem aprova o quê. Hoje
+   uma decisão na tela é a decisão final. Não há nada para herdar do Questor: a autorização
+   praticamente nunca foi usada lá, e `TBL_USUARIOS.VL_ORDEM_COMPRA` está zerado em quase
+   todos os aprovadores.
+2. **A gravação de reprovação** — bloqueada até o teste ao vivo da seção 6.2.
+3. **Um usuário técnico dedicado.** Se `QUESTOR_USUARIO_TECNICO` apontar para o login de
+   uma pessoa real, toda aprovação da Lara aparece no ERP como se aquela pessoa tivesse
+   autorizado — inclusive as que outra pessoa clicou. O `LARA`/`APROVACAO_LARA` da
+   especificação existe para separar essas duas coisas.
 4. **Polling de ordens novas** por `DT_CADASTRO`.
 5. **A política das ordens antigas** — as ~2.292 pendentes entram retroativamente no fluxo
    ou só valem as novas a partir de uma data? Hoje isso é `QUESTOR_ORDENS_DESDE`, mas a
@@ -187,7 +239,13 @@ setores compartilham caixa).
 - [QuestorPendingOrdersQueryTest](../../tests/Unit/QuestorPendingOrdersQueryTest.php) — a
   consulta da fila: as três condições, a qualificação das tabelas, os filtros e o escopo.
 - [QuestorAuthorizationSimulationTest](../../tests/Unit/QuestorAuthorizationSimulationTest.php)
-  — o comando montado para cada decisão e, principalmente, que **nenhum `UPDATE` chega ao
-  banco**: a única instrução executada na simulação é o `SELECT COUNT(*)`.
+  — o comando montado para cada decisão, que **nenhum `UPDATE` sai em simulação**, que a
+  gravação real sai com os parâmetros certos, que um impedimento recusa antes de chegar ao
+  ERP e que a reprovação não escapa da trava própria.
 
-Ambos rodam sem banco — a conexão do Questor é substituída por um duble.
+Ambos rodam sem banco — a conexão do Questor é substituída por um duble que registra
+consultas e gravações separadamente.
+
+> A persistência da linha de auditoria em si não tem teste automatizado: ela exigiria
+> `RefreshDatabase`, que está fora de uso neste projeto. A escrita é defensiva (falha vira
+> log, não erro ao usuário) e foi conferida manualmente.

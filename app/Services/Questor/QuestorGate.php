@@ -32,6 +32,15 @@ class QuestorGate
     }
 
     /**
+     * A reprovação pode gravar? Tem trava própria: o comportamento dela no ERP
+     * não foi observado ao vivo, só inferido do histórico.
+     */
+    public static function rejectionReleased(): bool
+    {
+        return !self::dryRun() && (bool) config('questor.reprovacao_liberada', false);
+    }
+
+    /**
      * @throws QuestorException quando o módulo está desligado
      */
     public static function ensureEnabled(): void
@@ -48,14 +57,16 @@ class QuestorGate
      * Retrato da configuração, para a tela e para o comando de diagnóstico
      * dizerem em que pé está a integração sem cada um remontar isso do config.
      *
-     * @return array{enabled: bool, dry_run: bool, connection: string, database: string,
-     *               usuario_tecnico: int|null, filiais: array<int, int>, desde: string|null}
+     * @return array{enabled: bool, dry_run: bool, reprovacao_liberada: bool, connection: string,
+     *               database: string, usuario_tecnico: int|null, filiais: array<int, int>,
+     *               desde: string|null}
      */
     public static function summary(): array
     {
         return [
             'enabled' => self::enabled(),
             'dry_run' => self::dryRun(),
+            'reprovacao_liberada' => self::rejectionReleased(),
             'connection' => (string) config('questor.connection'),
             'database' => (string) config('questor.database'),
             'usuario_tecnico' => config('questor.usuario_tecnico'),
