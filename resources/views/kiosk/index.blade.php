@@ -11,8 +11,8 @@
     headerImg: @json(asset('images/freelancer/cabecalho.png')),
     footerImg: @json(asset('images/freelancer/rodape.png')),
     // Tamanho mínimo da justificativa da alteração do valor apurado. Vem da
-    // constante do model porque o script roda dentro de @verbatim, e um 10
-    // digitado à mão aqui divergiria em silêncio da regra do servidor.
+    // constante do model porque o script roda em bloco literal (sem Blade), e
+    // um 10 digitado à mão aqui divergiria em silêncio da regra do servidor.
     salesReasonMin: {{ \App\Models\FreelancerService::SALES_ADJUSTMENT_REASON_MIN }},
   };</script>
 @verbatim
