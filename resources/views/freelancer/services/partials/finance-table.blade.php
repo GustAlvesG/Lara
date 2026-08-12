@@ -169,6 +169,15 @@
                                             <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                                         </button>
                                     @endif
+                                    {{-- O contrato assinado guarda a chave que o freelancer conferiu. Se o
+                                         cadastro mudou depois, o Pix sai para a chave de cima e o documento
+                                         cita outra — quem paga tem de ver isso antes de clicar. --}}
+                                    @if($service->pixKeyDivergesFromFreelancer())
+                                        <span class="block mt-1 text-xs font-semibold text-amber-600 dark:text-amber-400"
+                                              title="No contrato assinado: {{ $service->pixKeyFormatted() }}">
+                                            ⚠ Diferente da chave assinada
+                                        </span>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-4 font-semibold text-gray-900 dark:text-white whitespace-nowrap">R$ {{ number_format($service->price, 2, ',', '.') }}</td>
                                 <td class="px-4 py-4 whitespace-nowrap" x-show="!compact">
