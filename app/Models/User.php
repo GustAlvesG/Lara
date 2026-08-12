@@ -215,7 +215,8 @@ class User extends Authenticatable
      */
     public function canTrackFreelancerBatches(): bool
     {
-        return $this->freelancerTrackingAccess ??= $this->belongsToSectorNamed(self::COMMERCIAL_SECTOR);
+        return $this->freelancerTrackingAccess ??= $this->belongsToSectorNamed(self::COMMERCIAL_SECTOR)
+            || $this->canManageFreelancerPayments();
     }
 
     public function coordinatorSectors()

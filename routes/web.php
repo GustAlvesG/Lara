@@ -67,6 +67,11 @@ Route::prefix('kiosk')->group(function () {
     Route::post('/freelancer', [KioskController::class, 'storeFreelancer'])->name('kiosk.freelancer.store');
     // Completar o cadastro no tablet destrava a geração do contrato.
     Route::put('/freelancer/{freelancer}', [KioskController::class, 'updateFreelancer'])->name('kiosk.freelancer.update');
+    // Correção da chave PIX na conferência que antecede a assinatura. Rota
+    // própria, e não parte do cadastro: mudar para onde o dinheiro vai é o ato
+    // que precisa ficar registrado sozinho.
+    Route::put('/freelancer/{freelancer}/pix-key', [KioskController::class, 'updatePixKey'])
+        ->middleware('throttle:20,1')->name('kiosk.freelancer.pix-key');
     Route::get('/freelancer/{freelancer}/services', [KioskController::class, 'services'])->name('kiosk.freelancer.services');
     Route::post('/service', [KioskController::class, 'storeService'])
         ->middleware('throttle:20,1')->name('kiosk.service.store');
