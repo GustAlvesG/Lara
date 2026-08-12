@@ -1,13 +1,16 @@
 @php
     /**
      * Corpo do TERMO ADITIVO DE COMISSÃO SOBRE VENDAS. Recebe $service (a
-     * comissão), $f (freelancer) e $cpf já formatado.
+     * comissão), $party (a qualificação do freelancer como o documento a cita) e
+     * $cpf já formatado.
      *
      * O oposto do aditivo de horário na cláusula do valor: aqui a comissão
      * ACRESCE ao contrato do turno, e o texto diz isso com todas as letras. Os
      * dois documentos existem lado a lado, e confundi-los é confundir o
-     * pagamento. Mantido em sincronia com o commissionClauses() do Kiosk
-     * (resources/views/kiosk/index.blade.php).
+     * pagamento.
+     *
+     * REDAÇÃO 1 — CONGELADA. Para revisar, copie a pasta `v1` para `v2` e edite
+     * lá; alterar este arquivo mudaria termos já assinados.
      */
     use Illuminate\Support\Carbon;
     use App\Models\FreelancerService;
@@ -40,12 +43,13 @@
 <p>Por este particular instrumento, firmado entre as partes, de um lado,
     <b>CLUBE DOS FUNCIONARIOS DA COMPANHIA SIDERURGICA NACIONAL</b>, empresa estabelecida na Rua - General Oswaldo
     Pinto da Veiga, 231, Volta Redonda – RJ, a seguir denominada simplesmente CONTRATANTE, e, de outro lado
-    <b>{{ $f->name }}</b>, {{ $f->nacionality ?: '—' }}, {{ $f->civil_status ?: '—' }}, titular do CPF: {{ $cpf }}
-    e do RG nº {{ $f->rg ?: '—' }}, residente e domiciliado {{ $f->address ?: '—' }}, a seguir denominado
-    simplesmente FREELANCER, fica justo e acordado o presente <b>TERMO ADITIVO DE COMISSÃO SOBRE VENDAS</b> ao
-    Contrato Autônomo de Serviços de Freelancer celebrado entre as partes{{ $celebradoEm ? ' em ' . $celebradoEm : '' }},
-    para a prestação de serviços na função de <b>{{ $service->functionFreelancer->name ?? '—' }}</b> no dia
-    {{ $dia }}, a seguir denominado simplesmente CONTRATO ORIGINAL, nos seguintes termos:</p>
+    <b>{{ $party['name'] }}</b>, {{ $party['nacionality'] ?: '—' }}, {{ $party['civil_status'] ?: '—' }}, titular do
+    CPF: {{ $cpf }} e do RG nº {{ $party['rg'] ?: '—' }}, residente e domiciliado {{ $party['address'] ?: '—' }}, a
+    seguir denominado simplesmente FREELANCER, fica justo e acordado o presente
+    <b>TERMO ADITIVO DE COMISSÃO SOBRE VENDAS</b> ao Contrato Autônomo de Serviços de Freelancer celebrado entre as
+    partes{{ $celebradoEm ? ' em ' . $celebradoEm : '' }}, para a prestação de serviços na função de
+    <b>{{ $service->contractFunctionName() ?: '—' }}</b> no dia {{ $dia }}, a seguir denominado simplesmente
+    CONTRATO ORIGINAL, nos seguintes termos:</p>
 
 <p><b>1- DO OBJETO:</b> O presente termo tem por objeto a remuneração variável, a título de comissão, devida ao
     FREELANCER em razão das vendas por ele realizadas durante a prestação de serviços objeto do CONTRATO ORIGINAL,
@@ -75,7 +79,7 @@
     cláusula 2 do CONTRATO ORIGINAL, não o substituindo, servindo a assinatura do presente termo como recibo do
     pagamento.</p>
 
-@include('freelancer.services.partials.pix-clause', ['service' => $service, 'numero' => '4.1'])
+@include('freelancer.services.partials.contract.v1.pix-clause', ['service' => $service, 'numero' => '4.1'])
 
 <p><b>5- DA NATUREZA DA COMISSÃO:</b> O pagamento ora ajustado decorre exclusivamente do resultado das vendas
     realizadas no período e não descaracteriza a natureza autônoma da prestação de serviços, não implicando vínculo

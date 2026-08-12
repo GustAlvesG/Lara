@@ -1,60 +1,76 @@
 @php
     /**
-     * Documento base do contrato (Clube dos Funcionários da CSN) preenchido com
-     * os dados do serviço. As variáveis ((...)) do modelo original viram os
-     * campos abaixo. Mantido em sincronia com o buildDocument() do Kiosk
-     * (resources/views/kiosk/index.blade.php).
+     * Moldura do documento — cabeçalho, título, corpo, local/data e o bloco das
+     * assinaturas. As CLÁUSULAS não estão aqui: vêm da pasta da redação que este
+     * contrato firmou (`contract/v1`, `contract/v2`…), escolhida por
+     * `contractViewNamespace()`.
+     *
+     * É a ÚNICA montagem do documento no sistema. O tablet não monta mais o seu
+     * em JavaScript: ele busca este HTML por `kiosk.service.document`. Com o
+     * texto em dois lugares, cada revisão do jurídico teria de ser escrita duas
+     * vezes — e no dia em que as duas divergissem, o freelancer assinaria no
+     * tablet um texto diferente do que o painel imprime.
+     *
+     * Parâmetros:
+     *   $service      — contrato, termo aditivo ou termo de comissão
+     *   $layout       — 'print' (painel e impressão, padrão) ou 'tablet' (kiosk)
+     *   $signing      — null | 'freelancer' | 'coordinator': quem vai assinar
+     *                   AGORA, e portanto qual dos dois campos recebe o canvas
+     *   $operatorName — quem assina como CONTRATANTE, no tablet
      */
     use Illuminate\Support\Carbon;
 
-    $f = $service->freelancer;
+    $layout = $layout ?? 'print';
+    $signing = $signing ?? null;
+    $operatorName = $operatorName ?? null;
+    $tablet = $layout === 'tablet';
+
+    // A qualificação vem congelada quando o contrato já foi assinado: o cadastro
+    // muda, o documento firmado não. Ver FreelancerService::contractParty().
+    $party = $service->contractParty();
+
     $meses = [1=>'janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 
-    $cpf = preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', str_pad((string) $f->cpf, 11, '0', STR_PAD_LEFT));
-    $valor = number_format((float) $service->price, 2, ',', '.');
-    $inicioBr = $service->start_date ? Carbon::parse($service->start_date)->format('d/m/Y') : '—';
-    $fimBr = $service->end_date ? Carbon::parse($service->end_date)->format('d/m/Y') : '—';
-
-    // O contrato ajusta DIA e VALOR. O horário do turno não entra no texto: ele
-    // é controle interno (registro de horas, cálculo do valor, portaria), e no
-    // corpo do instrumento sugeria uma contratação por hora que não é a deste
-    // ajuste. `start_time`/`end_time` seguem gravados e usados fora do documento.
-    //
-    // A chave PIX do pagamento sai na cláusula 2.1 — sub-item do valor, no
-    // parcial `pix-clause`, que é o mesmo texto do tablet.
+    $cpf = preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', str_pad((string) $party['cpf'], 11, '0', STR_PAD_LEFT));
 
     // Data do contrato: a assinatura do freelancer, ou hoje se ainda não assinado.
     $dataRef = $service->freelancer_signed_at ?? now();
     $dataExtenso = $dataRef->day . ' de ' . $meses[(int) $dataRef->month] . ' de ' . $dataRef->year;
 
-    // As imagens vêm por rota autenticada, não pelo disco público.
-    $signatureUrl = $service->freelancer_signature_path
-        ? route('freelancer-services.signature', ['freelancerService' => $service->id, 'party' => 'freelancer'])
-        : null;
+    // As imagens vêm por rota autenticada, não pelo disco público — cada frente
+    // pela sua, porque a sessão do tablet não é a do painel.
+    $signatureRoute = $tablet ? 'kiosk.service.signature' : 'freelancer-services.signature';
 
-    // O coordenador assina desenhando no tablet, então há traço. A marca
-    // eletrônica abaixo só aparece em contratos antigos, assinados pelo painel
-    // antes de essa opção ser retirada.
-    $coordinatorSignatureUrl = $service->coordinator_signature_path
-        ? route('freelancer-services.signature', ['freelancerService' => $service->id, 'party' => 'coordinator'])
-        : null;
+    $signatureUrl = fn(string $party) => route($signatureRoute, [
+        'freelancerService' => $service->id,
+        'party' => $party,
+    ]);
+
+    $freelancerSignatureUrl = $service->freelancer_signature_path ? $signatureUrl('freelancer') : null;
+    $coordinatorSignatureUrl = $service->coordinator_signature_path ? $signatureUrl('coordinator') : null;
+
+    // O campo que recebe o traço desenhado no tablet. O canvas é preso pelo JS
+    // do kiosk por estes ids.
+    $sigSlot = '<div class="sig-slot" id="sigSlot"><canvas id="sigCanvas"></canvas><div class="sig-ph" id="sigPh">Assine aqui com o dedo</div></div>';
 @endphp
 
-<div class="doc">
-    {{-- Cabeçalho no thead e rodapé no tfoot: o navegador repete os dois em
-         todas as páginas na impressão. O conteúdo fica no tbody. --}}
+@php
+    // O corpo é o mesmo nos dois layouts; só a moldura difere. Na impressão ele
+    // vai dentro de uma tabela, cujo thead/tfoot o navegador repete em todas as
+    // páginas; no tablet, que rola numa tela só, divs bastam.
+    $cabecalho = '<div class="doc-header-img"><img src="' . e(asset('images/freelancer/cabecalho.png')) . '" alt="Clube dos Funcionários"></div>';
+    $rodape = '<div class="doc-footer-img"><img src="' . e(asset('images/freelancer/rodape.png')) . '" alt="Endereços e contatos do Clube dos Funcionários"></div>';
+@endphp
+
+<div class="doc" id="docSheet">
+    @if($tablet)
+        {!! $cabecalho !!}
+    @else
     <table class="doc-table">
-    <thead><tr><td>
-        <div class="doc-header-img">
-            <img src="{{ asset('images/freelancer/cabecalho.png') }}" alt="Clube dos Funcionários">
-        </div>
-    </td></tr></thead>
-    <tfoot><tr><td>
-        <div class="doc-footer-img">
-            <img src="{{ asset('images/freelancer/rodape.png') }}" alt="Endereços e contatos do Clube dos Funcionários">
-        </div>
-    </td></tr></tfoot>
+    <thead><tr><td>{!! $cabecalho !!}</td></tr></thead>
+    <tfoot><tr><td>{!! $rodape !!}</td></tr></tfoot>
     <tbody><tr><td>
+    @endif
 
     <div class="doc-title">{{ $service->documentTitle() }}</div>
 
@@ -62,64 +78,22 @@
         @if($service->isCommissionAmendment())
             {{-- Comissão de venda: remunera as vendas do turno e ACRESCE ao
                  contrato, sem alterar nenhuma outra condição dele. --}}
-            @include('freelancer.services.partials.commission-clauses', ['service' => $service, 'f' => $f, 'cpf' => $cpf])
+            @include($service->contractViewNamespace() . '.commission-clauses', ['service' => $service, 'party' => $party, 'cpf' => $cpf])
         @elseif($service->isAmendment())
             {{-- O aditivo não repete o contrato: cita o que estava valendo e diz
                  o que passa a valer, ratificando o resto. --}}
-            @include('freelancer.services.partials.amendment-clauses', ['service' => $service, 'f' => $f, 'cpf' => $cpf])
+            @include($service->contractViewNamespace() . '.amendment-clauses', ['service' => $service, 'party' => $party, 'cpf' => $cpf])
         @else
-        <p>Por este particular instrumento contratual de serviço autônomo de freelancer, firmado entre as partes, de um lado,
-            <b>CLUBE DOS FUNCIONARIOS DA COMPANHIA SIDERURGICA NACIONAL</b>, empresa estabelecida na Rua - General Oswaldo
-            Pinto da Veiga, 231, Volta Redonda – RJ, a seguir denominada simplesmente CONTRATANTE, e, de outro lado
-            <b>{{ $f->name }}</b>, {{ $f->nacionality ?: '—' }}, {{ $f->civil_status ?: '—' }}, titular do CPF: {{ $cpf }}
-            e do RG nº {{ $f->rg ?: '—' }}, residente e domiciliado {{ $f->address ?: '—' }} a seguir denominado
-            simplesmente FREELANCER, fica justo e acordado o contrato de serviço autônomo freelancer nos seguintes termos:</p>
-
-        <p><b>1- DO OBJETO:</b> O objeto do presente contrato trata-se da prestação de serviços, na modalidade de trabalho
-            autônomo, sem vínculo de emprego, pelo FREELANCER, ao CONTRATANTE, conforme artigo 442-B, da CLT. O (a)
-            FREELANCER (a) <b>{{ $service->functionFreelancer->name ?? '—' }}</b> com todas as atribuições que lhe são
-            peculiares, bem como as que vierem a ser designadas por meio de instruções do CONTRATANTE.</p>
-
-        <p><b>2- DO VALOR:</b> O CONTRATANTE paga, neste ato, ao FREELANCER, pelos serviços ora prestados, o valor de
-            <b>R$ {{ $valor }}</b>, por dia, previamente acordado, servindo a assinatura no presente termo, como
-            recibo do pagamento.</p>
-
-        @include('freelancer.services.partials.pix-clause', ['service' => $service, 'numero' => '2.1'])
-
-        <p><b>3- DO PRAZO DE VIGÊNCIA:</b> O presente contrato de serviços de freelancer tem a validade de 1 (Um) dia, no
-            qual, ao final, o serviço do FREELANCER já deverá ter se concluído, ficando as partes compromissadas até o
-            termino do contrato. O prazo terá início na data de <b>{{ $inicioBr }}</b> sendo regido por tempo determinado,
-            finalizando na data de <b>{{ $fimBr }}</b>.</p>
-
-        <p><b>4- Da Ausência de Vínculo Empregatício:</b> A prestação de serviços estabelecida no presente contrato tem
-            natureza autônoma (cível), de forma que não implica em qualquer vínculo empregatício do FREELANCER pelos
-            serviços prestados ao CONTRATANTE, uma vez que eventuais e sem a subordinação, exigidos para caracterização do
-            vínculo de emprego (artigo 3º da CLT).</p>
-
-        <p><b>5- DOS DESCONTOS:</b> O CONTRATANTE poderá descontar dos haveres do FREELANCER, além dos descontos legais ou
-            expressamente autorizados, os prejuízos por ele causados, por dolo ou culpa, sem prejuízo da penalidade que a
-            ação ou omissão comportar.</p>
-
-        <p><b>6-</b> O FREELANCER deve se portar de forma adequada quando da prestação dos serviços, respeitando as
-            orientações quanto ao uso do celular no horário de prestação dos serviços, atrasos, indisciplinas, devendo
-            respeitar o contido nos seus regimentos internos e ao senso comum de educação e urbanidade.</p>
-
-        <p><b>7-</b> Em caso de o FREELANCER exercer o serviço contratado por período superior a 6 (Seis) horas diárias, o
-            CONTRATANTE, por livre e espontânea vontade, fornecerá ao FREELANCER uma refeição diária, sem que haja desconto
-            do valor previsto na cláusula 2.</p>
-
-        <p><b>8- DO FORO DE ELEIÇÃO:</b> As partes elegem o foro de Volta Redonda, como único competente para dirimir
-            quaisquer litígios oriundos do presente contrato.</p>
-
-        <p>E assim por estarem de pleno acordo com o contido neste instrumento, CONTRATANTE e FREELANCER o firmam consoante
-            os ditames legais.</p>
+            @include($service->contractViewNamespace() . '.original-clauses', ['service' => $service, 'party' => $party, 'cpf' => $cpf])
         @endif
 
         <p class="doc-place"><b>Volta Redonda-RJ, {{ $dataExtenso }}</b></p>
 
         <div class="doc-signatures">
             <div class="doc-sign-block">
-                @if($coordinatorSignatureUrl)
+                @if($signing === 'coordinator')
+                    {!! $sigSlot !!}
+                @elseif($coordinatorSignatureUrl)
                     <div class="doc-sign-img"><img src="{{ $coordinatorSignatureUrl }}" alt="Assinatura do coordenador"></div>
                 @elseif($service->coordinator_signed_at)
                     {{-- Legado: contratos assinados pelo painel antes de a assinatura passar a ser só no tablet. --}}
@@ -129,28 +103,44 @@
                 @endif
                 <div class="doc-sign-line"></div>
                 <div class="doc-sign-name">CLUBE DOS FUNCIONARIOS DA CSN</div>
-                <div class="doc-sign-role">CONTRATANTE</div>
-                @if($coordinatorSignatureUrl && $service->coordinator_signed_at)
+                <div class="doc-sign-role">
+                    @if($signing === 'coordinator')
+                        CONTRATANTE{{ $operatorName ? ' · ' . $operatorName : '' }}
+                    @elseif($signing === 'freelancer')
+                        CONTRATANTE — assinatura do coordenador (pendente)
+                    @else
+                        CONTRATANTE
+                    @endif
+                </div>
+                @if($coordinatorSignatureUrl && $service->coordinator_signed_at && $signing !== 'coordinator')
                     <div class="doc-sign-note">Assinado em {{ $service->coordinator_signed_at->format('d/m/Y H:i') }}{{ $service->coordinatorSignedBy ? ' · ' . $service->coordinatorSignedBy->name : '' }}</div>
                 @endif
             </div>
 
             <div class="doc-sign-block">
-                @if($signatureUrl)
-                    <div class="doc-sign-img"><img src="{{ $signatureUrl }}" alt="Assinatura do freelancer"></div>
+                @if($signing === 'freelancer')
+                    {!! $sigSlot !!}
+                @elseif($freelancerSignatureUrl)
+                    <div class="doc-sign-img"><img src="{{ $freelancerSignatureUrl }}" alt="Assinatura do freelancer"></div>
                 @else
                     <div class="doc-sign-empty"></div>
                 @endif
                 <div class="doc-sign-line"></div>
-                <div class="doc-sign-name">{{ $f->name }}</div>
+                <div class="doc-sign-name">{{ $party['name'] }}</div>
                 <div class="doc-sign-role">FREELANCER · CPF {{ $cpf }}</div>
-                @if($service->freelancer_signed_at)
-                    <div class="doc-sign-note">Assinado em {{ $service->freelancer_signed_at->format('d/m/Y H:i') }}{{ $service->freelancerSignedBy ? ' · atendimento por ' . $service->freelancerSignedBy->name : '' }}</div>
+                @if($service->freelancer_signed_at && $signing !== 'freelancer')
+                    {{-- Contratos assinados pelo bot (antes do kiosk) não têm traço: o
+                         aviso evita que o coordenador ache que a assinatura se perdeu. --}}
+                    <div class="doc-sign-note">Assinado em {{ $service->freelancer_signed_at->format('d/m/Y H:i') }}{{ $service->freelancerSignedBy ? ' · atendimento por ' . $service->freelancerSignedBy->name : '' }}{{ $freelancerSignatureUrl ? '' : ' · registrado sem desenho' }}</div>
                 @endif
             </div>
         </div>
     </div>
 
+    @if($tablet)
+        {!! $rodape !!}
+    @else
     </td></tr></tbody>
     </table>
+    @endif
 </div>

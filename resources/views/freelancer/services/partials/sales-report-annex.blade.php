@@ -5,7 +5,10 @@
      *
      * Vem do que foi GRAVADO na comissão, não de uma consulta nova: o
      * MultiVendas segue mudando, e o anexo tem de continuar mostrando o que as
-     * partes assinaram. Mantido em sincronia com salesAnnex() do Kiosk.
+     * partes assinaram.
+     *
+     * Fica FORA da pasta das redações (`contract/vN`) de propósito: é anexo de
+     * dados apurados, não redação jurídica — não é texto que o jurídico revise.
      */
     $rep = $service->sales_report;
     $sections = $service->salesReportSections();

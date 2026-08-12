@@ -125,6 +125,20 @@
                     </select>
                 </div>
 
+                {{-- A redação das cláusulas que o contrato firmou. O jurídico
+                     revisa o texto de tempos em tempos, e é por aqui que se
+                     varre quem foi assinado sob a redação antiga. --}}
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Redação</label>
+                    <select name="contract_version"
+                            class="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        <option value="">Qualquer</option>
+                        @foreach($contractVersionFilters as $value => $label)
+                            <option value="{{ $value }}" @selected($filters['contract_version'] === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
                 <div>
                     <label class="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Período · de</label>
                     <input type="date" name="from" value="{{ $filters['from'] }}"

@@ -62,6 +62,87 @@ Duas exceções deliberadas:
   horário não descreve a contratação: é o recorte que define quais vendas entraram na conta que o
   freelancer está conferindo, e sem ele o anexo deixa de ser verificável.
 
+### O documento é congelado na assinatura
+
+O corpo do contrato é montado na hora de exibi-lo: a **redação** vem dos templates e os **dados das
+partes**, do cadastro. As duas coisas mudam depois de o contrato ser assinado — o jurídico reavalia
+uma cláusula, o freelancer corrige o endereço, alguém renomeia uma função. Sem congelá-las, revisar
+um texto reescreveria, retroativamente, **todo contrato já assinado**, inclusive os pagos e
+arquivados — e uma varredura feita depois leria o texto novo em documentos firmados sob o antigo.
+
+Por isso a **primeira assinatura**, de qualquer das partes, fecha o documento:
+
+| O que congela | Onde fica | O que garante |
+|---|---|---|
+| A redação das cláusulas | `freelancer_services.contract_version` | o contrato continua sendo impresso com o texto que as partes leram |
+| A qualificação do freelancer e o nome da função | `freelancer_services.signed_snapshot` (JSON) | o preâmbulo continua citando quem ele era no dia — nome, CPF, RG, nacionalidade, estado civil e endereço |
+| A chave PIX do pagamento | `freelancer_services.pix_key` | ver *Conferência da chave PIX* |
+
+Enquanto **ninguém assinou**, o contrato acompanha a redação vigente e o cadastro vivo — é o que ele
+vai assinar. A partir da assinatura, `contractParty()` e `contractFunctionName()` param de olhar o
+cadastro. O bloco é tomado **inteiro**, e não campo a campo: misturar um RG congelado com um endereço
+vivo produziria uma qualificação que nunca existiu.
+
+**A redação é versionada em arquivo, não copiada para o banco.** O texto de cada versão mora em
+`resources/views/freelancer/services/partials/contract/vN/` — quatro parciais: `original-clauses`,
+`amendment-clauses`, `commission-clauses` e `pix-clause`. Guardar o HTML renderizado de cada contrato
+seria fiel, mas não responderia à pergunta da varredura ("quais contratos estão na redação antiga?"),
+nem deixaria o jurídico comparar duas redações por diff. Com a versão em arquivo, a varredura é uma
+consulta por uma coluna indexada, e o histórico está no git.
+
+O **Anexo I** do termo de comissão fica **fora** do versionamento: ele imprime o `sales_report` já
+gravado, é anexo de dados apurados e não redação jurídica.
+
+#### Revisar uma cláusula: cria-se a redação seguinte
+
+| Passo | O quê |
+|---|---|
+| 1 | copie `contract/vN` para `contract/vN+1` e edite o texto — **nunca** edite uma versão em uso |
+| 2 | acrescente a entrada em `FreelancerService::CONTRACT_VERSIONS` (rótulo, vigência, o que mudou) e suba `CONTRACT_VERSION_CURRENT` |
+| 3 | registre o sha256 dos arquivos da vN em `tests/Unit/FreelancerContractVersionTest.php` |
+
+O passo 3 é o **lacre**: um teste confere o hash de cada arquivo das redações já em uso e quebra o
+build se algum mudar. Sem ele, a regra "não edite a versão antiga" seria só um comentário — e o jeito
+mais provável de a garantia se perder é alguém "corrigindo" uma vírgula na v1.
+
+Contratos assinados **antes** destas colunas ficam com `signed_snapshot` nulo e caem no cadastro do
+freelancer — que é exatamente o que o documento deles citava antes. Mesma decisão tomada para a
+`pix_key` legada. Os assinados ganham `contract_version = 1` na migration: a redação 1 é a única que
+existiu até aqui.
+
+Na tela do contrato aparece qual redação ele firmou e se a qualificação é a congelada. Quando o
+cadastro muda depois da assinatura (`contractPartyDivergesFromFreelancer()`), a tela avisa — o
+documento cita o dado antigo, que é o **correto**, e sem o aviso pareceria erro. Na listagem, o
+filtro **Redação** varre por versão, com a opção *ainda não congelada* para os que ninguém assinou.
+
+#### O documento é montado num lugar só
+
+O texto vivia em **dois** lugares: os parciais Blade do painel e funções JavaScript que o tablet usava
+para montar o documento na tela. Com o versionamento, cada revisão teria de ser escrita duas vezes — e
+no dia em que as duas divergissem, o freelancer assinaria no tablet um texto diferente do que o painel
+imprime, sendo o do tablet o que ele de fato leu.
+
+O tablet **não monta mais o documento**. Ele o busca pronto em
+`GET /kiosk/service/{id}/document?role=freelancer|coordinator`, que renderiza o mesmo
+`partials/contract-document.blade.php` do painel. O parcial recebe:
+
+- `layout` — `print` (painel: cabeçalho e rodapé em `thead`/`tfoot`, que o navegador repete a cada
+  página impressa) ou `tablet` (rola numa tela só);
+- `signing` — `freelancer`, `coordinator` ou nulo: **qual dos dois campos recebe o canvas** da
+  assinatura. O painel não assina, então passa nulo e nenhum campo tem canvas.
+
+Saíram do JavaScript do kiosk `buildDocument()`, `originalClauses()`, `amendmentClauses()`,
+`commissionClauses()`, `pixClause()` e `salesAnnex()` — e, com elas, os campos do payload que só
+existiam para alimentá-las (texto das cláusulas, dados do contrato aditado, chave citada e o
+relatório do Anexo I).
+
+**Corrida entre ler e assinar.** O documento chega com a redação que exibe, e o tablet a reenvia na
+assinatura. Publicada uma redação nova enquanto a tela estava aberta, o servidor responde `409` com
+`contract_version_changed` e o documento é recarregado — o mesmo desenho do `pix_key_changed`. O
+campo é **opcional**: uma tela aberta desde antes do deploy não o envia, e recusar a assinatura por
+isso seria pior que a corrida que ele protege. A trava só existe na assinatura do **freelancer**: o
+coordenador sempre assina um contrato que o freelancer já assinou, e portanto de redação já congelada.
+
 ### Conferência da chave PIX (etapa que antecede a assinatura)
 No tablet, **toda** assinatura do freelancer — contrato, aditivo de horário e comissão — passa
 antes por uma tela que mostra a chave PIX do cadastro e pergunta se é a dele. Existe porque uma
@@ -101,7 +182,8 @@ cadastro reescreveria, retroativamente, o texto de todo contrato já assinado.
 O documento traz a cláusula **DA FORMA DE PAGAMENTO** logo abaixo da cláusula do valor — `2.1` no
 contrato, `4.1` nos dois aditivos. É sub-item de propósito: acrescentar um item na numeração
 corrida deslocaria as cláusulas do modelo, que os outros documentos citam pelo número. O texto está
-em `services/partials/pix-clause.blade.php` e é espelhado pelo `pixClause()` do Kiosk.
+em `services/partials/contract/vN/pix-clause.blade.php`, um lugar só — ver *O documento é congelado
+na assinatura*.
 
 ### Período trabalhado, duração e preço
 
@@ -298,8 +380,8 @@ foro — e traz a própria cláusula da forma de pagamento (`4.1`). **O horário
 (ver *O que o contrato diz*):
 quem conta a história é a cláusula do valor, que diz "R$ X em substituição a R$ Y" — ou, quando o
 valor não muda, que ele **permanece**.
-O texto vive em `partials/amendment-clauses.blade.php` (painel) e em `amendmentClauses()`
-(kiosk) — os dois precisam mudar juntos, como já acontece com o contrato original.
+O texto vive em `partials/contract/vN/amendment-clauses.blade.php`, num lugar só — o tablet exibe o
+mesmo documento que o painel imprime (ver *O documento é congelado na assinatura*).
 
 ### Comissão de venda (o segundo tipo de aditivo)
 Há **dois tipos de aditivo**, distinguidos por `freelancer_services.amendment_type`, e eles fazem
@@ -414,14 +496,14 @@ gerência** — é o que permite julgar o ajuste sem abrir o PDF.
 
 **O documento traz o relatório como `ANEXO I`**, com cabeçalho (vendedor, período, lojas), itens,
 recebimentos por forma de pagamento, totais e cancelamentos — é o que permite ao freelancer conferir
-de onde saiu o número que está assinando. Texto em `partials/sales-report-annex.blade.php` (painel) e
-em `salesAnnex()` (kiosk).
+de onde saiu o número que está assinando. Texto em `partials/sales-report-annex.blade.php` — fora da
+pasta das redações de propósito: é anexo de dados apurados, não redação jurídica.
 
 **O documento** é o *Termo Aditivo de Comissão sobre Vendas*: cita o contrato original, o dia da
 prestação, as vendas apuradas (com o login e o Anexo I, mais a justificativa quando o valor foi
 alterado), o critério, a conta demonstrada e o valor, declara que **acresce** ao contrato, que a
 comissão não descaracteriza a prestação autônoma e ratifica a forma de pagamento por PIX. Texto em
-`partials/commission-clauses.blade.php` (painel) e em `commissionClauses()` (kiosk) — mudam juntos.
+`partials/contract/vN/commission-clauses.blade.php`, num lugar só.
 
 **No financeiro** a comissão entra como linha própria, com seu valor e `total_hours = 0`: ela paga
 vendas, não horas.
@@ -1104,9 +1186,20 @@ guardam qual coordenador do Comercial liberou e quando — sem isso a autorizaç
   `pixKeyDivergesFromFreelancer()` (a cópia congelada no contrato),
   `App\Http\Requests\UpdateFreelancerPixKeyRequest` + `KioskController::updatePixKey()` +
   `App\Services\FreelancerService::updatePixKey()` (a correção no tablet, com log mascarado), e a
-  cláusula em `services/partials/pix-clause.blade.php` / `pixClause()` do kiosk. Colunas em
+  cláusula em `services/partials/contract/vN/pix-clause.blade.php`. Colunas em
   `2026_08_05_120000_add_pix_key_to_freelancer_services_table`. Testes em
   `tests/Unit/FreelancerPixKeyTest.php`.
+- **Congelamento do documento:** `FreelancerService::CONTRACT_VERSION_CURRENT` / `CONTRACT_VERSIONS`
+  (o histórico das redações), `contractVersion()` / `contractIsFrozen()` / `contractViewNamespace()`
+  (qual texto imprimir), `contractParty()` / `contractFunctionName()` / `buildContractSnapshot()` /
+  `contractPartyDivergesFromFreelancer()` (a qualificação congelada), `contractFreezeAttributes()`
+  (o que gravar na assinatura, consumido por `signAsFreelancer()` e `signAsCoordinator()`) e
+  `contractVersionFilters()` / `scopeContractVersionFilter()` (a varredura). O documento, num lugar
+  só, em `services/partials/contract-document.blade.php` + a pasta da redação
+  `services/partials/contract/vN/`; servido ao tablet por `KioskController::document()`
+  (`GET /kiosk/service/{id}/document`), com a trava de redação em `signService()`. Colunas em
+  `2026_08_12_140000_add_contract_freeze_to_freelancer_services_table`. Testes — inclusive o **lacre**
+  dos arquivos de cada redação — em `tests/Unit/FreelancerContractVersionTest.php`.
 - **Justificativa da alteração do valor apurado:** `FreelancerService::salesAdjustmentIsRequired()` /
   `SALES_ADJUSTMENT_REASON_MIN` (regra), `App\Services\FreelancerService::createSalesCommission()`
   (invariante na gravação), `KioskController::storeCommission()` (o `422` com o campo) e

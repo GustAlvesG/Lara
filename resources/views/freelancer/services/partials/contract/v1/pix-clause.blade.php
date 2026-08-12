@@ -10,8 +10,10 @@
      *
      * A chave é a do próprio contrato quando ele já foi assinado (cópia
      * congelada na assinatura) e a do cadastro enquanto não foi — ver
-     * FreelancerService::pixKey(). Mantido em sincronia com o pixClause() do
-     * Kiosk (resources/views/kiosk/index.blade.php).
+     * FreelancerService::pixKey().
+     *
+     * REDAÇÃO 1 — CONGELADA. Para revisar, copie a pasta `v1` para `v2` e edite
+     * lá; alterar este arquivo mudaria contratos já assinados.
      */
 @endphp
 

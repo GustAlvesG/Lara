@@ -293,6 +293,39 @@
                 </a>
             </div>
 
+            {{-- Redação das cláusulas. O texto do instrumento é revisado pelo
+                 jurídico de tempos em tempos; um contrato assinado guarda a
+                 redação que firmou e continua sendo impresso com ela. --}}
+            <div class="px-6 pb-6">
+                <div class="p-4 rounded-xl border border-gray-200 dark:border-gray-600">
+                    <p class="text-sm font-bold text-gray-700 dark:text-gray-300">{{ $service->contractVersionLabel() }}</p>
+                    @if($service->contractIsFrozen())
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Congelada na assinatura: este documento continua sendo impresso com o texto que as partes
+                            firmaram, ainda que o modelo mude depois.
+                            @if($service->contractPartyIsFrozen())
+                                A qualificação do freelancer citada no documento também é a do dia da assinatura.
+                            @else
+                                A qualificação do freelancer vem do cadastro — este contrato é anterior à cópia dos
+                                dados das partes.
+                            @endif
+                        </p>
+                        @if($service->contractPartyDivergesFromFreelancer())
+                            <div class="mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-xs text-amber-800 dark:text-amber-200">
+                                <b>O cadastro do freelancer mudou depois da assinatura.</b>
+                                O documento cita os dados de quando foi assinado, e não os de hoje — é assim que
+                                deve ser: o instrumento firmado não se reescreve.
+                            </div>
+                        @endif
+                    @else
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Ainda não congelada. Sem assinatura, o documento acompanha a redação vigente e o cadastro
+                            atual do freelancer — congela na primeira assinatura.
+                        </p>
+                    @endif
+                </div>
+            </div>
+
             @if($service->freelancer_signature_path)
                 <div class="px-6 pb-6">
                     <p class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Assinatura do freelancer</p>

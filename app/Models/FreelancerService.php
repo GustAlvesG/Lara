@@ -98,6 +98,36 @@ class FreelancerService extends Model
         'unsigned_late' => 'Sem assinatura, turno já começou',
     ];
 
+    /**
+     * Redação vigente das cláusulas — a que um contrato novo assina.
+     *
+     * O texto do instrumento é revisado pelo jurídico de tempos em tempos, e
+     * cada revisão é uma REDAÇÃO NOVA, nunca uma edição da anterior: contrato
+     * assinado tem de continuar dizendo o que dizia. Ver `CONTRACT_VERSIONS`.
+     */
+    const CONTRACT_VERSION_CURRENT = 1;
+
+    /**
+     * As redações já existentes, com a data em que entraram em vigor e o que
+     * mudou. Serve à varredura (o filtro da listagem lê daqui) e é o histórico
+     * que o jurídico consulta sem precisar abrir o git.
+     *
+     * Para criar uma redação nova:
+     *   1. copie `resources/views/freelancer/services/partials/contract/vN`
+     *      para `vN+1` e edite o texto — NUNCA edite uma versão já em uso;
+     *   2. acrescente a entrada aqui e suba `CONTRACT_VERSION_CURRENT`;
+     *   3. registre o sha256 dos arquivos da vN em
+     *      `tests/Unit/FreelancerContractVersionTest.php`, que é o lacre que
+     *      impede a redação antiga de ser alterada depois.
+     */
+    const CONTRACT_VERSIONS = [
+        1 => [
+            'label' => 'Redação original',
+            'from' => '2026-07-22',
+            'summary' => 'Modelo do Clube dos Funcionários, com a cláusula da forma de pagamento por PIX e o texto por dia (sem horário no corpo do instrumento).',
+        ],
+    ];
+
     protected $table = 'freelancer_services';
 
     protected $fillable = [
@@ -128,6 +158,10 @@ class FreelancerService extends Model
         // "Chave PIX do pagamento").
         'pix_key',
         'pix_key_confirmed_at',
+        // Redação das cláusulas e dados das partes congelados na assinatura
+        // (ver a seção "Congelamento do documento").
+        'contract_version',
+        'signed_snapshot',
         'total_hours',
         'status_id',
         'freelancer_signed_at',
@@ -161,6 +195,8 @@ class FreelancerService extends Model
         'freelancer_signed_at' => 'datetime',
         'coordinator_signed_at' => 'datetime',
         'pix_key_confirmed_at' => 'datetime',
+        'contract_version' => 'integer',
+        'signed_snapshot' => 'array',
         // Trâmite do lote. Ficaram fora do cast desde a criação e voltavam como
         // string: o resto do código só testa `!== null`, mas quem precisa da
         // data (a relação impressa do financeiro) não conseguia formatá-la.
@@ -532,6 +568,184 @@ class FreelancerService extends Model
     public function canBeDeleted(): bool
     {
         return !$this->isSigned();
+    }
+
+    /* ---------------------------------------------------------------------
+     | Congelamento do documento
+     |
+     | O corpo do contrato é montado ao vivo: a redação vem dos templates e os
+     | dados das partes, do cadastro. As duas coisas mudam depois da assinatura
+     | — o jurídico revisa uma cláusula, o freelancer corrige o endereço —, e
+     | sem congelá-las um contrato já firmado passaria a dizer outra coisa.
+     |
+     | Congela-se na PRIMEIRA assinatura, de qualquer das partes: é o ato que
+     | fecha o documento. Enquanto ninguém assinou, o contrato acompanha a
+     | redação vigente e o cadastro vivo — é o que ele vai assinar.
+     |---------------------------------------------------------------------*/
+
+    /**
+     * Opções do filtro de redação na listagem — a varredura: "quais contratos
+     * foram assinados sob o texto antigo?".
+     *
+     * `unfrozen` são os que ainda não têm redação congelada porque ninguém
+     * assinou: eles acompanham a vigente e mudam de texto se o jurídico
+     * publicar outra, e por isso não pertencem a nenhuma redação.
+     *
+     * @return array<string, string>
+     */
+    public static function contractVersionFilters(): array
+    {
+        $filters = [];
+
+        foreach (self::CONTRACT_VERSIONS as $number => $info) {
+            $filters[(string) $number] = 'Redação ' . $number . ' · ' . $info['label'];
+        }
+
+        $filters['unfrozen'] = 'Ainda não congelada (sem assinatura)';
+
+        return $filters;
+    }
+
+    /** Aplica o filtro de redação da listagem. */
+    public function scopeContractVersionFilter($query, ?string $filter)
+    {
+        if ($filter === null || !array_key_exists($filter, self::contractVersionFilters())) {
+            return $query;
+        }
+
+        return $filter === 'unfrozen'
+            ? $query->whereNull('contract_version')
+            : $query->where('contract_version', (int) $filter);
+    }
+
+    /** A redação firmada, ou a vigente enquanto o contrato não foi assinado. */
+    public function contractVersion(): int
+    {
+        return $this->contract_version ?? self::CONTRACT_VERSION_CURRENT;
+    }
+
+    /** O documento já está fechado: nem a redação nem os dados mudam mais. */
+    public function contractIsFrozen(): bool
+    {
+        return $this->contract_version !== null;
+    }
+
+    /**
+     * Prefixo das views da redação deste contrato. Não existindo a pasta, o
+     * Laravel falha ao renderizar — e é o que se quer: melhor um erro visível
+     * que imprimir, em silêncio, um texto diferente do que foi assinado.
+     */
+    public function contractViewNamespace(): string
+    {
+        return 'freelancer.services.partials.contract.v' . $this->contractVersion();
+    }
+
+    /** @return array{label: string, from: string, summary: string}|null */
+    public function contractVersionInfo(): ?array
+    {
+        return self::CONTRACT_VERSIONS[$this->contractVersion()] ?? null;
+    }
+
+    /** "Redação 1 · Redação original" — o rótulo das telas e da varredura. */
+    public function contractVersionLabel(): string
+    {
+        $info = $this->contractVersionInfo();
+
+        return 'Redação ' . $this->contractVersion() . ($info ? ' · ' . $info['label'] : '');
+    }
+
+    /**
+     * O que gravar no ato da assinatura. Já congelado, devolve o que está lá:
+     * a segunda assinatura não reescreve o que a primeira firmou.
+     */
+    public function contractFreezeAttributes(): array
+    {
+        if ($this->contractIsFrozen()) {
+            return [];
+        }
+
+        return [
+            'contract_version' => self::CONTRACT_VERSION_CURRENT,
+            'signed_snapshot' => $this->buildContractSnapshot(),
+        ];
+    }
+
+    /** Os dados que o texto do instrumento cita, como estão agora. */
+    public function buildContractSnapshot(): array
+    {
+        $f = $this->freelancer;
+
+        return [
+            'freelancer' => [
+                'name' => $f?->name,
+                'cpf' => $f?->cpf,
+                'rg' => $f?->rg,
+                'nacionality' => $f?->nacionality,
+                'civil_status' => $f?->civil_status,
+                'address' => $f?->address,
+            ],
+            'function' => [
+                'name' => $this->functionFreelancer?->name,
+            ],
+        ];
+    }
+
+    /**
+     * A qualificação do FREELANCER como o documento a cita: a congelada quando
+     * há, o cadastro enquanto não há.
+     *
+     * O bloco é tomado inteiro, e não campo a campo: misturar um RG congelado
+     * com um endereço vivo produziria uma qualificação que nunca existiu.
+     * Contratos anteriores a esta cópia ficam sem snapshot e caem no cadastro —
+     * que é o que eles citavam antes, a mesma decisão tomada para a `pix_key`.
+     *
+     * @return array{name: ?string, cpf: ?string, rg: ?string, nacionality: ?string, civil_status: ?string, address: ?string}
+     */
+    public function contractParty(): array
+    {
+        $snapshot = $this->signed_snapshot['freelancer'] ?? null;
+
+        if (!is_array($snapshot)) {
+            return $this->buildContractSnapshot()['freelancer'];
+        }
+
+        return [
+            'name' => $snapshot['name'] ?? null,
+            'cpf' => $snapshot['cpf'] ?? null,
+            'rg' => $snapshot['rg'] ?? null,
+            'nacionality' => $snapshot['nacionality'] ?? null,
+            'civil_status' => $snapshot['civil_status'] ?? null,
+            'address' => $snapshot['address'] ?? null,
+        ];
+    }
+
+    /**
+     * A função como o documento a nomeia. Congelada junto com o resto: nomes de
+     * função são editáveis no cadastro, e renomear "Garçom" mudaria a cláusula
+     * 1 de todo contrato de garçom já assinado.
+     */
+    public function contractFunctionName(): ?string
+    {
+        $snapshot = $this->signed_snapshot['function']['name'] ?? null;
+
+        return $snapshot ?? $this->functionFreelancer?->name;
+    }
+
+    /** A qualificação exibida veio do congelamento, e não do cadastro vivo? */
+    public function contractPartyIsFrozen(): bool
+    {
+        return is_array($this->signed_snapshot['freelancer'] ?? null);
+    }
+
+    /**
+     * O cadastro do freelancer mudou depois da assinatura — o documento cita a
+     * qualificação antiga, que é a correta, e a tela avisa para ninguém achar
+     * que o contrato está com dado errado. Mesmo aviso que a chave PIX dá.
+     */
+    public function contractPartyDivergesFromFreelancer(): bool
+    {
+        return $this->contractPartyIsFrozen()
+            && $this->contractParty() !== $this->buildContractSnapshot()['freelancer'];
     }
 
     /* ---------------------------------------------------------------------

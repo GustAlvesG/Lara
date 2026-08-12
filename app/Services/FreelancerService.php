@@ -326,7 +326,11 @@ class FreelancerService
             'freelancer_signed_by' => $assistedBy?->id,
             'pix_key' => $service->freelancer?->pixKey(),
             'pix_key_confirmed_at' => $pixKeyConfirmed ? now() : null,
-        ])->save();
+            // A redação das cláusulas e a qualificação das partes ficam
+            // congeladas neste mesmo save, pelo mesmo motivo da chave PIX: o
+            // documento assinado não pode passar a dizer outra coisa porque o
+            // jurídico revisou um texto ou alguém corrigiu o cadastro.
+        ] + $service->contractFreezeAttributes())->save();
 
         return $service;
     }
@@ -399,7 +403,11 @@ class FreelancerService
         $service->forceFill([
             'coordinator_signed_at' => now(),
             'coordinator_signed_by' => $user->id,
-        ])->save();
+            // Congela o documento se ninguém tiver assinado antes. Na prática o
+            // freelancer sempre assina primeiro (a fila do coordenador só mostra
+            // o que ele já assinou), e aí não há nada a congelar aqui — mas a
+            // garantia é da primeira assinatura, não de qual das duas.
+        ] + $service->contractFreezeAttributes())->save();
 
         return $service;
     }
