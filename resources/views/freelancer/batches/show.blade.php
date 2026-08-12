@@ -214,6 +214,9 @@
                                                 @if($service->salesAmountWasAdjusted())
                                                     <b>O valor de vendas foi ajustado à mão</b> em relação ao apurado
                                                     (R$ {{ number_format((float) ($service->sales_report['base'] ?? 0), 2, ',', '.') }}).
+                                                    {{-- A justificativa do operador é o que a gerência precisa para
+                                                         julgar o ajuste; ela consta do termo assinado. --}}
+                                                    Justificativa: <b>{{ $service->sales_adjustment_reason ?: 'não informada' }}</b>.
                                                 @endif
                                             @elseif($service->isCommissionAmendment())
                                                 Vendas informadas manualmente no encerramento do expediente, sem relatório do MultiVendas.

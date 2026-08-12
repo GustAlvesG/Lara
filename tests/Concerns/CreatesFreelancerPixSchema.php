@@ -61,6 +61,9 @@ trait CreatesFreelancerPixSchema
             $table->date('end_date');
             $table->time('end_time');
             $table->decimal('price', 8, 2);
+            // Chave PIX conferida pelo freelancer na assinatura.
+            $table->string('pix_key')->nullable();
+            $table->dateTime('pix_key_confirmed_at')->nullable();
             $table->decimal('total_hours', 8, 2);
             $table->integer('status_id')->default(1);
 
