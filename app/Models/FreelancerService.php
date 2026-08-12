@@ -114,6 +114,8 @@ class FreelancerService extends Model
         'sales_period_start',
         'sales_period_end',
         'sales_report',
+        // Por que o valor apurado no relatório foi alterado (ver migration).
+        'sales_adjustment_reason',
         'location',
         // Esclarecimento livre do serviço — apenas informativo (ver migration).
         'description',
@@ -122,6 +124,10 @@ class FreelancerService extends Model
         'end_date',
         'end_time',
         'price',
+        // Chave PIX conferida pelo freelancer na assinatura (ver a seção
+        // "Chave PIX do pagamento").
+        'pix_key',
+        'pix_key_confirmed_at',
         'total_hours',
         'status_id',
         'freelancer_signed_at',
@@ -154,6 +160,7 @@ class FreelancerService extends Model
         'price' => 'decimal:2',
         'freelancer_signed_at' => 'datetime',
         'coordinator_signed_at' => 'datetime',
+        'pix_key_confirmed_at' => 'datetime',
         // Trâmite do lote. Ficaram fora do cast desde a criação e voltavam como
         // string: o resto do código só testa `!== null`, mas quem precisa da
         // data (a relação impressa do financeiro) não conseguia formatá-la.
@@ -528,6 +535,52 @@ class FreelancerService extends Model
     }
 
     /* ---------------------------------------------------------------------
+     | Chave PIX do pagamento
+     |
+     | O documento diz para qual chave o valor será pago, e o freelancer confere
+     | essa chave no tablet antes de assinar. O que ele confere fica COPIADO
+     | aqui (`pix_key`): o cadastro pode mudar amanhã, e um contrato assinado
+     | não pode passar a dizer outra coisa.
+     |
+     | Contratos anteriores a esta cópia — e os assinados pela API, que não têm
+     | a tela de conferência — caem no cadastro do freelancer, que é o que o
+     | documento citava antes.
+     |---------------------------------------------------------------------*/
+
+    public function pixKey(): string
+    {
+        return (string) ($this->pix_key ?: $this->freelancer?->pixKey());
+    }
+
+    public function pixKeyFormatted(): string
+    {
+        return Freelancer::formatPixKey($this->pixKey());
+    }
+
+    public function pixKeyTypeLabel(): string
+    {
+        return Freelancer::pixKeyTypeLabelFor($this->pixKey());
+    }
+
+    /** A chave foi conferida com o freelancer no momento da assinatura? */
+    public function pixKeyWasConfirmed(): bool
+    {
+        return $this->pix_key_confirmed_at !== null;
+    }
+
+    /**
+     * A chave que o freelancer conferiu deixou de ser a do cadastro — o
+     * cadastro foi alterado depois da assinatura. Não é erro: é o aviso de que
+     * o Pix vai sair para uma chave diferente da que está no documento.
+     */
+    public function pixKeyDivergesFromFreelancer(): bool
+    {
+        return $this->pix_key !== null
+            && $this->freelancer !== null
+            && $this->pix_key !== $this->freelancer->pixKey();
+    }
+
+    /* ---------------------------------------------------------------------
      | Aditivo
      |
      | O turno muda depois de o contrato estar assinado: o serviço é esticado,
@@ -765,6 +818,27 @@ class FreelancerService extends Model
         }
 
         return abs((float) ($this->sales_report['base'] ?? 0) - (float) $this->sales_amount) >= 0.01;
+    }
+
+    /**
+     * O valor apurado só pode ser alterado com justificativa do operador.
+     *
+     * A pergunta é sobre o relatório: sem ele não existe valor de origem a
+     * alterar, e o documento já diz que o número foi informado pelo CONTRATANTE.
+     * Com relatório e número diferente, a justificativa é parte do termo — quem
+     * assina lê a diferença e o motivo dela, lado a lado com o Anexo I.
+     *
+     * O tamanho mínimo é proposital: "ajuste" ou "ok" não explicam nada, e uma
+     * justificativa que não explica é pior que nenhuma, porque dá a aparência de
+     * controle.
+     */
+    public const SALES_ADJUSTMENT_REASON_MIN = 10;
+
+    public static function salesAdjustmentIsRequired(?array $report, float $salesAmount): bool
+    {
+        return $report !== null
+            && ($report['sections'] ?? []) !== []
+            && abs((float) ($report['base'] ?? 0) - $salesAmount) >= 0.01;
     }
 
     /** Período apurado, formatado: "04/08/2026 14:00 → 04/08/2026 19:00". */

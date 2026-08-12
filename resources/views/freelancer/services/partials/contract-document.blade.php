@@ -14,8 +14,14 @@
     $valor = number_format((float) $service->price, 2, ',', '.');
     $inicioBr = $service->start_date ? Carbon::parse($service->start_date)->format('d/m/Y') : '—';
     $fimBr = $service->end_date ? Carbon::parse($service->end_date)->format('d/m/Y') : '—';
-    $horaInicio = substr((string) $service->start_time, 0, 5);
-    $horaFim = substr((string) $service->end_time, 0, 5);
+
+    // O contrato ajusta DIA e VALOR. O horário do turno não entra no texto: ele
+    // é controle interno (registro de horas, cálculo do valor, portaria), e no
+    // corpo do instrumento sugeria uma contratação por hora que não é a deste
+    // ajuste. `start_time`/`end_time` seguem gravados e usados fora do documento.
+    //
+    // A chave PIX do pagamento sai na cláusula 2.1 — sub-item do valor, no
+    // parcial `pix-clause`, que é o mesmo texto do tablet.
 
     // Data do contrato: a assinatura do freelancer, ou hoje se ainda não assinado.
     $dataRef = $service->freelancer_signed_at ?? now();
@@ -75,8 +81,10 @@
             peculiares, bem como as que vierem a ser designadas por meio de instruções do CONTRATANTE.</p>
 
         <p><b>2- DO VALOR:</b> O CONTRATANTE paga, neste ato, ao FREELANCER, pelos serviços ora prestados, o valor de
-            <b>R$ {{ $valor }}</b>, por dia, previamente acordado, no horário de <b>{{ $horaInicio }}</b> ás
-            <b>{{ $horaFim }}</b> servindo a assinatura no presente termo, como recibo do pagamento.</p>
+            <b>R$ {{ $valor }}</b>, por dia, previamente acordado, servindo a assinatura no presente termo, como
+            recibo do pagamento.</p>
+
+        @include('freelancer.services.partials.pix-clause', ['service' => $service, 'numero' => '2.1'])
 
         <p><b>3- DO PRAZO DE VIGÊNCIA:</b> O presente contrato de serviços de freelancer tem a validade de 1 (Um) dia, no
             qual, ao final, o serviço do FREELANCER já deverá ter se concluído, ficando as partes compromissadas até o

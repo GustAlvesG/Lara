@@ -166,7 +166,11 @@ Em ordem de execução:
 2. **Sem Pix em andamento** — `pixBlockReason()` faz `lockForUpdate` no contrato e recusa se
    já houver pagamento em estado bloqueante. É o que impede duplo clique, duas abas e F5 no
    POST de virarem duas transferências.
-3. **Chave PIX presente** no cadastro do freelancer.
+3. **Chave PIX presente** no cadastro do freelancer — gravada já **normalizada** (CPF em 11 dígitos,
+   telefone em `+55DDNNNNNNNNN`, e-mail em minúsculas) e **conferida com ele no tablet** antes da
+   assinatura do contrato. O pagamento sai para a chave do **cadastro**; quando ela difere da que o
+   contrato assinado cita, a tela do contrato e a tabela do Financeiro avisam antes da baixa. Ver
+   [Freelancers → Conferência da chave PIX](freelancers.md#conferência-da-chave-pix-etapa-que-antecede-a-assinatura).
 4. **Valor** positivo, com no máximo 2 casas decimais e **≤ `SICOOB_PIX_MAX_AMOUNT`**.
    Um preço digitado errado (R$ 25.000 no lugar de R$ 250,00) para aqui, não no extrato.
 5. **Saldo** — pré-checagem via `GET /saldo` da API Conta Corrente. Se a consulta falhar, o

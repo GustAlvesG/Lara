@@ -163,6 +163,9 @@ class FreelancerService
     /**
      * @param  array|null  $report  relatório do MultiVendas, gravado como anexo
      *                              do documento (ver MultiVendasSalesReport)
+     * @param  string|null  $adjustmentReason  por que o valor apurado no relatório
+     *                              foi alterado — obrigatório justamente nesse
+     *                              caso, e ignorado quando não houve alteração
      */
     public function createSalesCommission(
         FreelancerServiceModel $base,
@@ -170,6 +173,7 @@ class FreelancerService
         float $salesAmount,
         ?User $actor = null,
         ?array $report = null,
+        ?string $adjustmentReason = null,
     ) {
         if ($reason = $base->commissionBlockReason()) {
             throw new FreelancerServiceLockedException($reason);
@@ -195,7 +199,20 @@ class FreelancerService
         $fromSystem = $report !== null
             && abs((float) ($report['base'] ?? 0) - $salesAmount) < 0.01;
 
-        return DB::transaction(function () use ($base, $method, $salesAmount, $actorId, $report, $fromSystem) {
+        // Alterar o valor apurado exige justificativa, e a trava mora aqui — não
+        // só no controller — porque é daqui que sai o documento assinado. O termo
+        // declara uma diferença em relação ao seu próprio anexo; sem o motivo, o
+        // freelancer assina um número que ninguém explicou.
+        $adjusted = FreelancerServiceModel::salesAdjustmentIsRequired($report, $salesAmount);
+        $adjustmentReason = $adjusted ? trim((string) $adjustmentReason) : null;
+
+        if ($adjusted && mb_strlen((string) $adjustmentReason) < FreelancerServiceModel::SALES_ADJUSTMENT_REASON_MIN) {
+            throw new FreelancerServiceLockedException(
+                'Informe a justificativa da alteração do valor apurado no relatório de vendas.'
+            );
+        }
+
+        return DB::transaction(function () use ($base, $method, $salesAmount, $actorId, $report, $fromSystem, $adjustmentReason) {
             return FreelancerServiceModel::create([
                 'freelancer_id' => $base->freelancer_id,
                 'function_freelancer_id' => $base->function_freelancer_id,
@@ -219,6 +236,7 @@ class FreelancerService
                 'sales_period_start' => $report['period']['start'] ?? null,
                 'sales_period_end' => $report['period']['end'] ?? null,
                 'sales_report' => $report,
+                'sales_adjustment_reason' => $adjustmentReason,
                 'created_by' => $actorId,
                 'updated_by' => $actorId,
             ]);
@@ -277,13 +295,22 @@ class FreelancerService
      |---------------------------------------------------------------------*/
 
     /**
-     * Assinatura do freelancer — feita pela API (bot do Telegram), sempre com
-     * um usuário do sistema acompanhando ($assistedBy).
+     * Assinatura do freelancer — pelo tablet (kiosk) ou pela API (bot do
+     * Telegram), sempre com um usuário do sistema acompanhando ($assistedBy).
+     *
+     * A chave PIX é COPIADA para o contrato neste ato: o documento que está
+     * sendo assinado diz para qual chave o valor será pago, e essa frase não
+     * pode mudar depois porque alguém editou o cadastro. `$pixKeyConfirmed`
+     * distingue os dois caminhos — no tablet o freelancer confere a chave numa
+     * tela antes de assinar; pela API não há conferência, e aí fica só a cópia.
      *
      * @throws FreelancerServiceLockedException
      */
-    public function signAsFreelancer(FreelancerServiceModel $service, ?User $assistedBy = null)
-    {
+    public function signAsFreelancer(
+        FreelancerServiceModel $service,
+        ?User $assistedBy = null,
+        bool $pixKeyConfirmed = false,
+    ) {
         if ($service->isCancelled()) {
             throw new FreelancerServiceLockedException('Contrato cancelado não pode ser assinado.');
         }
@@ -297,9 +324,53 @@ class FreelancerService
             // Quem assina é o freelancer; guardamos o login que conduziu o
             // atendimento e reconfirmou a senha no momento da assinatura.
             'freelancer_signed_by' => $assistedBy?->id,
+            'pix_key' => $service->freelancer?->pixKey(),
+            'pix_key_confirmed_at' => $pixKeyConfirmed ? now() : null,
         ])->save();
 
         return $service;
+    }
+
+    /**
+     * Troca a chave PIX do freelancer — o caminho de correção que o tablet
+     * abre quando ele diz, na conferência, que a chave não é a dele.
+     *
+     * O registro em log não é zelo excessivo: quando um Pix cai na conta
+     * errada, a primeira pergunta é quem mudou a chave e quando. A chave vai
+     * mascarada, pelo mesmo motivo que o serviço do Sicoob a mascara — é dado
+     * pessoal, e o log não é o lugar dele.
+     */
+    public function updatePixKey(Freelancer $freelancer, string $type, string $key, ?User $actor = null): Freelancer
+    {
+        $anterior = $freelancer->pixKey();
+
+        $freelancer->forceFill([
+            'pix_key' => Freelancer::normalizePixKey($type, $key),
+            'updated_by' => $actor?->id ?? $freelancer->updated_by,
+        ])->save();
+
+        Log::info('Chave PIX de freelancer alterada', [
+            'freelancer_id' => $freelancer->id,
+            'tipo' => $type,
+            'anterior' => $this->maskPixKey($anterior),
+            'nova' => $this->maskPixKey($freelancer->pix_key),
+            'alterada_por' => $actor?->id,
+        ]);
+
+        return $freelancer;
+    }
+
+    /** "12345678901" → "12*******01". Mesma regra do log do Sicoob. */
+    private function maskPixKey(?string $key): string
+    {
+        $key = trim((string) $key);
+        $size = mb_strlen($key);
+
+        if ($size <= 4) {
+            return str_repeat('*', $size);
+        }
+
+        return mb_substr($key, 0, 2) . str_repeat('*', $size - 4) . mb_substr($key, -2);
     }
 
     /**

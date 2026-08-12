@@ -11,6 +11,12 @@ use Illuminate\Validation\Rule;
  *
  * Nada mais é aceito — freelancer, função, dia, período e local vêm do contrato
  * base, e a comissão em si é calculada no servidor a partir destes dois campos.
+ *
+ * A **justificativa** é o terceiro campo com peso: ela é exigida quando o valor
+ * informado difere do que o relatório apurou. Quem sabe se ele difere é o
+ * servidor, que refaz a consulta na hora de gravar — por isso a obrigatoriedade
+ * é conferida no controller (e no serviço, como invariante), e aqui ficam só o
+ * formato e o tamanho.
  */
 class StoreSalesCommissionRequest extends FormRequest
 {
@@ -35,6 +41,14 @@ class StoreSalesCommissionRequest extends FormRequest
             'login' => ['nullable', 'string', 'max:100', 'required_with:from,to'],
             'from' => ['nullable', 'date', 'required_with:login'],
             'to' => ['nullable', 'date', 'required_with:login', 'after:from'],
+            // Motivo da alteração do valor apurado. Vai para o corpo do termo, ao
+            // lado do Anexo I — é cláusula, não log.
+            'sales_adjustment_reason' => [
+                'nullable',
+                'string',
+                'min:' . FreelancerService::SALES_ADJUSTMENT_REASON_MIN,
+                'max:500',
+            ],
         ];
     }
 
@@ -46,6 +60,7 @@ class StoreSalesCommissionRequest extends FormRequest
             'login' => 'login do vendedor',
             'from' => 'início do período apurado',
             'to' => 'fim do período apurado',
+            'sales_adjustment_reason' => 'justificativa da alteração',
         ];
     }
 
@@ -54,6 +69,7 @@ class StoreSalesCommissionRequest extends FormRequest
         return [
             'sales_amount.max' => 'O valor vendido parece alto demais. Confira antes de gerar a comissão.',
             'sales_amount.min' => 'Informe o valor vendido no turno.',
+            'sales_adjustment_reason.min' => 'Explique a alteração do valor apurado — a justificativa entra no termo assinado.',
         ];
     }
 }
