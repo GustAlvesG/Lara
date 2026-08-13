@@ -13,6 +13,8 @@ use App\Services\Questor\PurchaseOrderApprovalService;
 use App\Services\Questor\QuestorPurchaseOrders;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 
 /**
  * API de aprovação para o site externo (Next.js em DMZ).
@@ -40,8 +42,20 @@ class PurchaseApprovalController extends Controller
     ) {
     }
 
+    /** Tentativas de login por matrícula, por minuto. */
+    private const LOGIN_ATTEMPTS = 5;
+
     /**
      * POST /api/aprovacao/login — matrícula + senha de aprovação → token.
+     *
+     * O limite é por **matrícula**, não por IP, e a diferença aqui não é
+     * teórica: todas as requisições chegam do servidor do site em DMZ, então o
+     * IP é o mesmo para todos os aprovadores. Um throttle por IP faria o erro
+     * de digitação de um diretor trancar os outros — e o bloqueio apareceria
+     * como "tente mais tarde" para quem não errou nada.
+     *
+     * Segue o mesmo desenho do `LoginRequest` do painel: contar, bloquear,
+     * limpar no acerto.
      */
     public function login(Request $request, JwtService $jwt)
     {
@@ -50,6 +64,15 @@ class PurchaseApprovalController extends Controller
             'senha' => ['required', 'string'],
         ]);
 
+        $chave = 'aprovacao-login:' . Str::lower($dados['matricula']);
+
+        if (RateLimiter::tooManyAttempts($chave, self::LOGIN_ATTEMPTS)) {
+            return response()->json([
+                'error' => 'Muitas tentativas para esta matrícula. Tente novamente em '
+                    . RateLimiter::availableIn($chave) . ' segundos.',
+            ], 429);
+        }
+
         $user = User::where('matricula', $dados['matricula'])->first();
 
         // Uma resposta só para "não existe", "inativo" e "senha errada": separar
@@ -57,6 +80,8 @@ class PurchaseApprovalController extends Controller
         $recusa = response()->json(['error' => 'Matrícula ou senha inválida.'], 401);
 
         if (!$user || (int) $user->status_id !== 1 || !$user->checkApprovalPassword($dados['senha'])) {
+            RateLimiter::hit($chave);
+
             Log::warning('Aprovação de compras: login recusado', [
                 'matricula' => $dados['matricula'],
                 'ip' => $request->ip(),
@@ -64,6 +89,8 @@ class PurchaseApprovalController extends Controller
 
             return $recusa;
         }
+
+        RateLimiter::clear($chave);
 
         if (!$user->isDirector()) {
             return response()->json(['error' => 'Usuário sem acesso à aprovação de compras.'], 403);
@@ -106,19 +133,40 @@ class PurchaseApprovalController extends Controller
             ->limit(100)
             ->get();
 
+        // O fornecedor não está na Lara — mas uma fila sem ele não dá para
+        // priorizar. Uma consulta ao Questor para a página inteira; se ele
+        // estiver fora do ar, a fila ainda aparece, sem os nomes.
+        try {
+            $doQuestor = $this->orders->summaryFor(
+                $passos->pluck('approval.cd_ordem_compra')->all()
+            );
+        } catch (QuestorException $e) {
+            report($e);
+            $doQuestor = collect();
+        }
+
         return response()->json([
-            'ordens' => $passos->map(fn(PurchaseOrderApprovalStep $passo) => [
-                'cd_ordem_compra' => $passo->approval->cd_ordem_compra,
-                'processo_id' => $passo->approval->id,
-                'vl_total' => (float) $passo->approval->vl_total,
-                'nr_itens' => $passo->approval->nr_itens,
-                'centros_custo' => $passo->approval->cost_centers,
-                'sem_centro_custo' => $passo->approval->sem_centro_custo,
-                'aguardando_desde' => $passo->approval->updated_at?->toIso8601String(),
-                'escolhido_por' => $passo->source === PurchaseOrderApprovalStep::SOURCE_MANUAL
-                    ? 'gerente'
-                    : 'centro de custo',
-            ])->values(),
+            'ordens' => $passos->map(function (PurchaseOrderApprovalStep $passo) use ($doQuestor) {
+                $ordem = $doQuestor[$passo->approval->cd_ordem_compra] ?? null;
+
+                return [
+                    'cd_ordem_compra' => $passo->approval->cd_ordem_compra,
+                    'processo_id' => $passo->approval->id,
+                    'fornecedor' => $ordem?->FORNECEDOR_FANTASIA ?: ($ordem?->FORNECEDOR_RAZAO_SOCIAL ?: null),
+                    'departamento' => $ordem?->DS_DEPARTAMENTO,
+                    'solicitante' => $ordem?->DS_SOLICITANTE,
+                    'vl_total' => (float) $passo->approval->vl_total,
+                    'nr_itens' => $passo->approval->nr_itens,
+                    'centros_custo' => $passo->approval->cost_centers,
+                    'sem_centro_custo' => $passo->approval->sem_centro_custo,
+                    // Desde quando a ordem está NESTE nível — o processo é
+                    // tocado a cada avanço, não desde que foi criado.
+                    'aguardando_desde' => $passo->approval->updated_at?->toIso8601String(),
+                    'escolhido_por' => $passo->source === PurchaseOrderApprovalStep::SOURCE_MANUAL
+                        ? 'gerente'
+                        : 'centro de custo',
+                ];
+            })->values(),
         ]);
     }
 

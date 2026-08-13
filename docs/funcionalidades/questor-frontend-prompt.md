@@ -74,7 +74,13 @@ interna. Todos os endpoints abaixo são relativos a ela.
 
 #### `POST /api/aprovacao/login`
 
-Sem autenticação. Limitado a 5 tentativas por minuto por IP.
+Sem autenticação. A senha vai em **texto puro** no corpo — a comparação é
+bcrypt do lado da Lara. Não aplique SHA256 nem qualquer outro hash: o front de
+sócio hasheia porque a chamada nasce no navegador; esta nasce no servidor.
+
+Limite: **5 tentativas por minuto por matrícula** (não por IP — como todas as
+chamadas saem do mesmo servidor em DMZ, um limite por IP faria um aprovador
+trancar os outros). Estourando, vem `429` com a mensagem pronta para exibir.
 
 ```json
 { "matricula": "11882", "senha": "..." }
@@ -94,6 +100,7 @@ Resposta `200`:
   propósito; **não invente** uma mensagem mais específica).
 - `403` — usuário existe, mas não é da diretoria.
 - `422` — campos faltando (formato de validação do Laravel).
+- `429` — muitas tentativas para aquela matrícula; `error` já traz os segundos.
 
 O token vale **8 horas**. Guarde-o em cookie `httpOnly` com expiração alinhada a
 `expira_em`. Não há refresh: expirou, loga de novo.
@@ -109,6 +116,9 @@ ordens em que ele tem decisão pendente.
     {
       "cd_ordem_compra": 7,
       "processo_id": 1,
+      "fornecedor": "ATACADAO MADUREIRA DOCES FESTAS E EMBALAGENS",
+      "departamento": null,
+      "solicitante": null,
       "vl_total": 383.2,
       "nr_itens": 3,
       "centros_custo": [75],
@@ -123,6 +133,13 @@ ordens em que ele tem decisão pendente.
 `escolhido_por` é `"centro de custo"` ou `"gerente"` — diz se aquele aprovador
 entrou pelo cadastro ou por escolha manual da gerência. Vale mostrar discreto;
 não é destaque.
+
+`fornecedor`, `departamento` e `solicitante` vêm do ERP e podem ser `null`: se o
+Questor não responder, a fila ainda é devolvida, sem esses campos. Trate `null`
+como "—", não como erro — a fila sem nome de fornecedor ainda é utilizável.
+
+`aguardando_desde` é desde quando a ordem está **neste nível**, não desde que
+foi criada. Rotule como "aguardando você desde", não "aberta em".
 
 #### `GET /api/aprovacao/ordens/{cd_ordem_compra}`
 

@@ -130,6 +130,46 @@ class QuestorPurchaseOrders
     }
 
     /**
+     * Fornecedor e departamento de várias ordens de uma vez, indexados pelo
+     * código da ordem.
+     *
+     * A fila do aprovador nasce da Lara (dos passos pendentes dele), então ela
+     * sabe números e valores mas não sabe de quem é a compra. Uma lista de
+     * "#7 — R$ 383,20" não dá para decidir nem para priorizar. Isto resolve com
+     * **uma** consulta para a página inteira, em vez de uma por linha.
+     *
+     * @param  array<int, int>  $ids
+     * @return Collection<int, object> indexada por CD_ORDEM_COMPRA
+     */
+    public function summaryFor(array $ids): Collection
+    {
+        $ids = collect($ids)->filter()->map(fn($i) => (int) $i)->unique()->values();
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        $sql = sprintf(
+            'SELECT oc.CD_ORDEM_COMPRA,
+                    ent.DS_ENTIDADE  AS FORNECEDOR_RAZAO_SOCIAL,
+                    ent.DS_FANTASIA  AS FORNECEDOR_FANTASIA,
+                    dep.DS_DEPARTAMENTO,
+                    oc.DS_SOLICITANTE,
+                    oc.DT_CADASTRO
+             FROM %s oc
+             LEFT JOIN %s ent ON ent.CD_ENTIDADE = oc.CD_ENTIDADE
+             LEFT JOIN %s dep ON dep.CD_DEPARTAMENTO = oc.CD_DEPARTAMENTO
+             WHERE oc.CD_ORDEM_COMPRA IN (%s)',
+            $this->table('TBL_COMPRAS_ORDEM_COMPRA'),
+            $this->table('TBL_ENTIDADES'),
+            $this->table('TBL_DEPARTAMENTOS'),
+            implode(', ', array_fill(0, $ids->count(), '?')),
+        );
+
+        return collect($this->select($sql, $ids->all()))->keyBy('CD_ORDEM_COMPRA');
+    }
+
+    /**
      * Itens da ordem.
      *
      * @return Collection<int, object>

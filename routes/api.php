@@ -69,8 +69,11 @@ Route::prefix('company-access')->group(function () {
 |
 */
 Route::prefix('aprovacao')->group(function () {
+    // O limite fino é POR MATRÍCULA, dentro do controller: as requisições
+    // chegam todas do mesmo IP (o servidor em DMZ), e um throttle por IP faria
+    // um aprovador trancar os outros. Este aqui é só o teto de inundação.
     Route::post('/login', [PurchaseApprovalController::class, 'login'])
-        ->middleware('throttle:5,1')->name('api.aprovacao.login');
+        ->middleware('throttle:60,1')->name('api.aprovacao.login');
 
     Route::middleware(['approval_token', 'throttle:60,1'])->group(function () {
         Route::get('/ordens', [PurchaseApprovalController::class, 'index'])->name('api.aprovacao.index');
