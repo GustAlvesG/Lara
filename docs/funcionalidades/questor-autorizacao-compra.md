@@ -32,6 +32,7 @@ resultado final.
 | Configuração | [config/questor.php](../../config/questor.php) |
 | Conexão | `questor_sqlsrv` em [config/database.php](../../config/database.php) |
 | Diagnóstico | `php artisan questor:testar` |
+| Senha do aprovador externo | `php artisan questor:senha-aprovacao` |
 
 ## Configuração
 
@@ -68,6 +69,20 @@ php artisan questor:testar --simular=40975  # simula a autorização — não gr
 ```
 
 O comando é todo `SELECT`. `--simular` chama o mesmo serviço da tela.
+
+### Senha do aprovador externo
+
+```bash
+php artisan questor:senha-aprovacao --listar   # quem já pode entrar, e quem falta
+php artisan questor:senha-aprovacao 11882      # pede a senha sem ecoar na tela
+```
+
+Confere antes de gravar que a pessoa está ativa e é do setor Diretoria — sem
+isso a senha é aceita e o login recusa depois, sem dizer por quê. Prefira o modo
+interativo a `--senha=`: a opção deixa a senha no histórico do shell.
+
+**Não há recuperação de senha no site externo**, de propósito: um e-mail de
+reset vale a conta inteira, enquanto isto aqui exige acesso ao servidor.
 
 ## Como a fila é definida
 
