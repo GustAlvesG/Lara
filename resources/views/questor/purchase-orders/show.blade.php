@@ -1,9 +1,9 @@
 {{--
-    Detalhe da ordem de compra + simulação da autorização.
+    Detalhe da ordem de compra + o painel de decisão do fluxo de três níveis.
 
-    Os dois botões do rodapé NÃO decidem nada no ERP nesta versão: eles rodam a
-    simulação e trazem de volta o bloco "O que seria enviado ao Questor", com o
-    SQL, os parâmetros, o antes/depois e quantas linhas o comando pegaria agora.
+    A decisão que os botões tomam é a do nível em que a ordem está — o painel
+    resolve isso sozinho. O Questor só é tocado quando o terceiro nível fecha;
+    até lá nada sai daqui para o ERP.
 --}}
 @php
     $brl = fn($v) => 'R$ ' . number_format((float) $v, 2, ',', '.');
@@ -165,77 +165,10 @@
             </div>
         </div>
 
-        {{-- ============ AÇÕES (SIMULADAS) ============ --}}
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6 mb-6"
-             x-data="{ reprovando: false }">
-            <h2 class="font-extrabold text-gray-900 dark:text-white">Decisão</h2>
-            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                @if($config['dry_run'])
-                    As duas ações abaixo <strong>simulam</strong> a gravação: mostram o comando, os parâmetros e o
-                    antes/depois, sem tocar no Questor.
-                @else
-                    Autorizar grava <strong>de verdade</strong> no Questor e não tem desfazer pela Lara — para
-                    reverter seria preciso mexer na ordem pela tela nativa do ERP.
-                    @unless($config['reprovacao_liberada'])
-                        Reprovar ainda simula.
-                    @endunless
-                @endif
-            </p>
+        {{-- ============ DECISÃO ============ --}}
+        @include('questor.purchase-orders.partials.decision-panel')
 
-            @unless($naFila)
-                <p class="mt-3 text-sm text-amber-600 dark:text-amber-400">
-                    Esta ordem não está mais na fila (já foi decidida ou mudou de status no Questor). As proteções do
-                    comando fazem com que nenhuma linha seja afetada — nada será sobrescrito.
-                </p>
-            @endunless
-
-            <div class="mt-5 flex flex-wrap gap-3">
-                {{-- A confirmação só aparece quando a gravação está ligada: pedir
-                     "tem certeza?" para uma simulação treina a pessoa a clicar
-                     em OK sem ler, justamente antes da vez em que importa. --}}
-                <form method="POST" action="{{ route('questor.purchase-orders.approve', $ordem->CD_ORDEM_COMPRA) }}"
-                      @unless($config['dry_run'])
-                          onsubmit="return confirm('Autorizar a ordem #{{ $ordem->CD_ORDEM_COMPRA }} ({{ $brl($ordem->VL_TOTAL) }}) no Questor? Esta ação grava no ERP e não tem desfazer pela Lara.')"
-                      @endunless>
-                    @csrf
-                    <button type="submit"
-                            class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition">
-                        {{ $config['dry_run'] ? 'Simular autorização' : 'Autorizar no Questor' }}
-                    </button>
-                </form>
-
-                <button type="button" @click="reprovando = !reprovando"
-                        class="px-5 py-2.5 rounded-xl bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-sm font-bold text-red-700 dark:text-red-400 transition">
-                    {{ $config['reprovacao_liberada'] ? 'Reprovar' : 'Simular reprovação' }}
-                </button>
-            </div>
-
-            <form method="POST" action="{{ route('questor.purchase-orders.reject', $ordem->CD_ORDEM_COMPRA) }}"
-                  @if($config['reprovacao_liberada'])
-                      onsubmit="return confirm('Reprovar a ordem #{{ $ordem->CD_ORDEM_COMPRA }} no Questor? Esta ação grava no ERP.')"
-                  @endif
-                  x-show="reprovando" x-cloak class="mt-4">
-                @csrf
-                <label class="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1">
-                    Motivo da reprovação
-                </label>
-                <input type="text" name="motivo" maxlength="255" required value="{{ old('motivo') }}"
-                       class="w-full rounded-xl border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white text-sm"
-                       placeholder="Ex.: fora do orçamento do departamento">
-                <p class="text-xs text-gray-400 mt-1">
-                    O Questor guarda no máximo {{ config('questor.motivo_max', 100) }} caracteres
-                    (DS_MOTIVO_REPROVADO) — o texto é truncado nesse tamanho.
-                </p>
-                @error('motivo')
-                    <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                @enderror
-                <button type="submit" class="mt-3 px-5 py-2.5 rounded-xl bg-red-700 hover:bg-red-800 text-white text-sm font-bold transition">
-                    Confirmar
-                </button>
-            </form>
-        </div>
-
-        @if($simulacao)
+        @if($simulacao ?? null)
             @include('questor.purchase-orders.partials.simulation', ['simulacao' => $simulacao])
         @endif
 

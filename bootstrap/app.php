@@ -14,6 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'api_token' => \App\Http\Middleware\APIToken::class,
+            // Aprovador externo de ordem de compra (site em DMZ). JWT com
+            // escopo próprio — não confunde com o token de sócio.
+            'approval_token' => \App\Http\Middleware\ApprovalToken::class,
             'login_token' => \App\Http\Middleware\JwtMiddleware::class,
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,

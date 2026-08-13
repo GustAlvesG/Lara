@@ -111,6 +111,7 @@
                             <th class="px-6 py-3 text-left font-bold">Solicitante</th>
                             <th class="px-6 py-3 text-right font-bold">Itens</th>
                             <th class="px-6 py-3 text-right font-bold">Valor</th>
+                            <th class="px-6 py-3 text-left font-bold">Aprovação</th>
                             <th class="px-6 py-3 text-left font-bold">Cadastro</th>
                         </tr>
                     </thead>
@@ -135,11 +136,21 @@
                                 <td class="px-6 py-4 text-gray-600 dark:text-gray-300">{{ $ordem->DS_SOLICITANTE ?: '—' }}</td>
                                 <td class="px-6 py-4 text-right tabular-nums text-gray-600 dark:text-gray-300">{{ $ordem->NR_ITENS }}</td>
                                 <td class="px-6 py-4 text-right tabular-nums font-bold text-gray-900 dark:text-white">{{ $brl($ordem->VL_TOTAL) }}</td>
+                                <td class="px-6 py-4">
+                                    @php $processo = $processos[$ordem->CD_ORDEM_COMPRA] ?? null; @endphp
+                                    @if($processo)
+                                        <span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                                            {{ $processo->current_level }}/3 · {{ $processo->currentLevelLabel() }}
+                                        </span>
+                                    @else
+                                        <span class="text-xs text-gray-400">não iniciada</span>
+                                    @endif
+                                </td>
                                 <td class="px-6 py-4 text-gray-500 dark:text-gray-400">{{ $data($ordem->DT_CADASTRO) }}</td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-6 py-12 text-center text-gray-400">
+                                <td colspan="8" class="px-6 py-12 text-center text-gray-400">
                                     {{ $erro ? 'Não foi possível carregar a fila.' : 'Nenhuma ordem pendente de autorização.' }}
                                 </td>
                             </tr>

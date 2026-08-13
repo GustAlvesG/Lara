@@ -476,10 +476,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [QuestorPurchaseOrderController::class, 'index'])->name('questor.purchase-orders.index');
         Route::get('/{ordem}', [QuestorPurchaseOrderController::class, 'show'])
             ->where('ordem', '[0-9]+')->name('questor.purchase-orders.show');
-        Route::post('/{ordem}/aprovar', [QuestorPurchaseOrderController::class, 'approve'])
-            ->where('ordem', '[0-9]+')->middleware('throttle:20,1')->name('questor.purchase-orders.approve');
-        Route::post('/{ordem}/reprovar', [QuestorPurchaseOrderController::class, 'reject'])
-            ->where('ordem', '[0-9]+')->middleware('throttle:20,1')->name('questor.purchase-orders.reject');
+        // Uma rota para os três níveis: o serviço decide qual está em jogo a
+        // partir do processo e dos cargos de quem clicou. Só a aprovação do
+        // terceiro nível chega ao ERP.
+        Route::post('/{ordem}/decidir', [QuestorPurchaseOrderController::class, 'decideLevel'])
+            ->where('ordem', '[0-9]+')->middleware('throttle:20,1')->name('questor.purchase-orders.decide');
     });
 
     // Relação centro de custo → diretores: define quem vem SUGERIDO no último

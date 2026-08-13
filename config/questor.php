@@ -158,4 +158,28 @@ return [
 
     'motivo_max' => 100,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Fluxo de aprovação
+    |--------------------------------------------------------------------------
+    |
+    | `quorum_diretoria` decide o último nível quando o gerente escolhe mais de
+    | um diretor:
+    |
+    |   'todos'    — todos os escolhidos precisam aprovar (padrão). O gerente
+    |                escolhe a dedo quem decide aquela ordem, então escolher
+    |                três pessoas se lê como "estas três precisam aprovar".
+    |   'qualquer' — o primeiro que aprovar fecha o nível. Mais rápido, e o
+    |                caminho quando a operação estiver esperando o diretor mais
+    |                ocupado.
+    |
+    | Vale só para a aprovação: qualquer reprovação encerra o processo nos dois
+    | modos.
+    |
+    */
+
+    'aprovacao' => [
+        'quorum_diretoria' => env('QUESTOR_QUORUM_DIRETORIA', 'todos'),
+    ],
+
 ];

@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Questor;
 
 use App\Exceptions\QuestorException;
 use App\Http\Controllers\Controller;
+use App\Models\PurchaseOrderApproval;
 use App\Models\QuestorOrderDecision;
-use App\Services\Questor\QuestorAuthorizationWriter;
+use App\Models\User;
+use App\Services\Questor\PurchaseOrderApprovalService;
 use App\Services\Questor\QuestorGate;
 use App\Services\Questor\QuestorPurchaseOrders;
 use Illuminate\Http\Request;
@@ -14,15 +16,14 @@ use Illuminate\Support\Collection;
 /**
  * Autorização de Ordem de Compra — a fila que vem do Questor.
  *
- * Lista as ordens pendentes, abre o detalhe com os itens e grava a decisão. Se
- * a gravação está ligada ou se a ação apenas simula é decisão da configuração
- * (`questor.dry_run`), não da rota: os mesmos endereços servem os dois modos, e
- * a tela diz em qual está.
+ * Lista as ordens pendentes, abre o detalhe com os itens e conduz o fluxo de
+ * três níveis: Contabilidade → Gerência → Diretoria. O Questor só é tocado
+ * quando o terceiro fecha; até lá, todo o estado é da Lara.
  *
- * O fluxo de aprovação em vários níveis (alçadas, quem aprova o quê) ainda não
- * existe — hoje uma decisão na tela é a decisão final. O que já existe é a
- * trilha: cada gravação vira uma linha em `questor_order_decisions`, porque no
- * Questor só cabe um autorizador e ele é sempre o usuário técnico.
+ * Os níveis 1 e 2 são decididos aqui, no painel interno. O nível 3 é da
+ * Diretoria, que decide pelo site externo (ver a API em `routes/api.php`) —
+ * mas um diretor que também tem acesso ao painel decide por aqui igual, pela
+ * mesma rota. Quem pode o quê é o serviço quem sabe.
  *
  * Erros de integração viram mensagem na tela em vez de 500: quem abre isto está
  * tentando destravar uma compra, e "o Questor não respondeu" é uma resposta
@@ -32,7 +33,7 @@ class PurchaseOrderController extends Controller
 {
     public function __construct(
         private readonly QuestorPurchaseOrders $orders,
-        private readonly QuestorAuthorizationWriter $writer,
+        private readonly PurchaseOrderApprovalService $flow,
     ) {
     }
 
@@ -53,6 +54,7 @@ class PurchaseOrderController extends Controller
             'resumo' => ['quantidade' => 0, 'valor' => 0.0],
             'filiais' => new Collection,
             'usuarioTecnico' => null,
+            'processos' => collect(),
             'erro' => null,
         ];
 
@@ -61,6 +63,13 @@ class PurchaseOrderController extends Controller
             $dados['resumo'] = $this->orders->pendingSummary();
             $dados['filiais'] = $this->orders->pendingBranches();
             $dados['usuarioTecnico'] = $this->orders->technicalUser();
+
+            // Em que nível está cada ordem da página — numa consulta só. Sem
+            // isto, a coluna de estado faria uma consulta por linha.
+            $dados['processos'] = PurchaseOrderApproval::open()
+                ->whereIn('cd_ordem_compra', $dados['ordens']->pluck('CD_ORDEM_COMPRA')->all())
+                ->get()
+                ->keyBy('cd_ordem_compra');
         } catch (QuestorException $e) {
             $dados['erro'] = $e->getMessage();
         }
@@ -69,18 +78,31 @@ class PurchaseOrderController extends Controller
     }
 
     /**
-     * Detalhe da ordem: cabeçalho, fornecedor e itens.
+     * Detalhe da ordem: cabeçalho, fornecedor, itens e o painel de decisão.
      */
-    public function show(int $ordem)
+    public function show(Request $request, int $ordem)
     {
         try {
+            $processo = $this->flow->current($ordem);
+
             return view('questor.purchase-orders.show', [
                 'config' => QuestorGate::summary(),
                 'ordem' => $this->orders->find($ordem),
                 'itens' => $this->orders->items($ordem),
                 'usuarioTecnico' => $this->orders->technicalUser(),
-                'simulacao' => session('questor_simulacao'),
-                // Quem decidiu na Lara — o Questor mostra só o usuário técnico.
+                'processo' => $processo,
+                // O passo que ESTE usuário pode decidir agora — é o que decide
+                // se a tela mostra botões ou só o andamento.
+                'meuPasso' => $processo?->stepFor($request->user()),
+                // Só carregado quando é a vez da Gerência: é a tela dela que
+                // escolhe a Diretoria.
+                'diretores' => $processo?->current_level === PurchaseOrderApproval::LEVEL_MANAGEMENT
+                    ? User::directors()->get()
+                    : collect(),
+                'sugeridos' => $processo?->current_level === PurchaseOrderApproval::LEVEL_MANAGEMENT
+                    ? $this->flow->suggestedDirectors($ordem)->pluck('id')->all()
+                    : [],
+                'ehContabilidade' => $request->user()->isAccountingCoordinator(),
                 'decisoes' => QuestorOrderDecision::where('cd_ordem_compra', $ordem)
                     ->orderByDesc('id')
                     ->get(),
@@ -91,71 +113,72 @@ class PurchaseOrderController extends Controller
     }
 
     /**
-     * Autoriza a ordem — de verdade quando a gravação está ligada, em simulação
-     * caso contrário. Quem decide é a configuração, não a rota.
+     * Decide o nível em que a ordem está.
+     *
+     * Uma rota só para os três níveis: quem pode decidir o quê é o serviço que
+     * sabe, a partir do processo e dos cargos do usuário. Uma rota por nível
+     * obrigaria a tela a adivinhar o estado antes de montar o formulário — e a
+     * errar quando outra pessoa decidisse no meio.
      */
-    public function approve(int $ordem)
-    {
-        return $this->decide(fn() => $this->writer->approve($ordem), $ordem);
-    }
-
-    /**
-     * Reprova a ordem, com o motivo que vai para `DS_MOTIVO_REPROVADO`.
-     */
-    public function reject(Request $request, int $ordem)
+    public function decideLevel(Request $request, int $ordem)
     {
         $dados = $request->validate([
-            'motivo' => ['required', 'string', 'max:255'],
-        ], [], ['motivo' => 'motivo da reprovação']);
+            'decisao' => ['required', 'in:aprovar,reprovar'],
+            'observacao' => ['nullable', 'string', 'max:1000'],
+            'diretores' => ['array'],
+            'diretores.*' => ['integer'],
+        ], [], ['decisao' => 'decisão']);
 
-        return $this->decide(fn() => $this->writer->reject($ordem, $dados['motivo']), $ordem);
-    }
+        $aprovar = $dados['decisao'] === 'aprovar';
+        $user = $request->user();
+        $nota = $dados['observacao'] ?? null;
+        $ip = $request->ip();
 
-    /**
-     * O caminho comum das duas decisões.
-     *
-     * A regra do aviso é a que interessa: **só é "sucesso" quando a gravação
-     * aconteceu e pegou alguma linha**. Um UPDATE que afeta zero linhas não deu
-     * erro nenhum, e é exatamente o caso que seria lido como "aprovei" quando na
-     * verdade a ordem já tinha saído da fila.
-     */
-    private function decide(callable $acao, int $ordem)
-    {
         try {
-            $resultado = $acao();
+            $processo = $this->flow->current($ordem);
+
+            $processo = match (true) {
+                $processo === null => $this->flow->decideAccounting($ordem, $user, $aprovar, $nota, $ip),
+                $processo->current_level === PurchaseOrderApproval::LEVEL_MANAGEMENT
+                    => $this->flow->decideManagement($ordem, $user, $aprovar, $dados['diretores'] ?? [], $nota, $ip),
+                default => $this->flow->decideDirector($ordem, $user, $aprovar, $nota, $ip),
+            };
         } catch (QuestorException $e) {
             return redirect()
                 ->route('questor.purchase-orders.show', $ordem)
                 ->with('error', $e->getMessage());
         }
 
-        $rota = redirect()
-            ->route('questor.purchase-orders.show', $ordem)
-            ->with('questor_simulacao', $resultado);
+        [$tipo, $mensagem] = $this->outcome($processo, $ordem);
 
-        $verbo = $resultado['acao'] === QuestorAuthorizationWriter::ACTION_APPROVE
-            ? 'autorizada'
-            : 'reprovada';
+        return redirect()->route('questor.purchase-orders.show', $ordem)->with($tipo, $mensagem);
+    }
 
-        if (!$resultado['executado']) {
-            return $resultado['impedimentos'] === []
-                ? $rota->with('success', 'Simulação concluída — nada foi gravado no Questor. A instrução pegaria '
-                    . $resultado['linhas_afetadas'] . ' linha(s).')
-                : $rota->with('warning', 'Simulação concluída — nada foi gravado. A gravação real esbarraria em: '
-                    . implode(' ', $resultado['impedimentos']));
+    /**
+     * A mensagem de retorno.
+     *
+     * Aprovar um nível intermediário não é "ordem aprovada", e confundir os
+     * dois é o que faz alguém achar que a compra saiu quando ela ainda espera a
+     * Diretoria. Por isso cada estado tem sua frase.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function outcome(PurchaseOrderApproval $processo, int $ordem): array
+    {
+        if ($processo->isRejected()) {
+            return ['warning', "Ordem #{$ordem} reprovada. O processo foi encerrado."];
         }
 
-        if ($resultado['linhas_afetadas'] === 0) {
-            return $rota->with(
-                'warning',
-                "A gravação foi enviada ao Questor mas não alterou nenhuma linha — a ordem #{$ordem} "
-                . 'já havia saído da fila. Nada mudou; confira o estado atual acima.'
-            );
+        if ($processo->isApproved()) {
+            return ['success', "Ordem #{$ordem} aprovada em todos os níveis e autorizada no Questor."];
         }
 
-        return $rota->with(
-            'success',
-            "Ordem #{$ordem} {$verbo} no Questor."
-        );
+        $faltam = $processo->pendingSteps()->count();
+
+        if ($processo->current_level === PurchaseOrderApproval::LEVEL_DIRECTORS && $faltam > 0) {
+            return ['success', "Aprovação registrada. A ordem aguarda {$faltam} diretor(es)."];
+        }
+
+        return ['success', "Aprovação registrada. A ordem está agora em {$processo->currentLevelLabel()}."];
     }
 }

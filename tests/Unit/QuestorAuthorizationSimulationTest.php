@@ -148,6 +148,33 @@ class QuestorAuthorizationSimulationTest extends TestCase
         $this->assertSame([42, 40975, 1], $previa['bindings']);
     }
 
+    public function test_carimbo_em_ds_obs_acrescenta_sem_substituir(): void
+    {
+        $this->fakeConnection();
+
+        $previa = $this->writer()->approve(40975, observacao: "\n[LARA #7] Autorizado pelo Lara.");
+
+        // COALESCE + concatenação: acrescenta ao que já está lá. Um
+        // `DS_OBS = ?` apagaria a anotação do comprador.
+        $this->assertStringContainsString("DS_OBS = LEFT(COALESCE(DS_OBS, '') + ?, 5000)", $previa['sql']);
+
+        // Os bindings do SET vêm antes dos do WHERE.
+        $this->assertSame(
+            [42, "\n[LARA #7] Autorizado pelo Lara.", 40975, 1],
+            $previa['bindings']
+        );
+    }
+
+    public function test_sem_observacao_o_update_nao_toca_em_ds_obs(): void
+    {
+        $this->fakeConnection();
+
+        $previa = $this->writer()->approve(40975);
+
+        $this->assertStringNotContainsString('DS_OBS', $previa['sql']);
+        $this->assertSame([42, 40975, 1], $previa['bindings']);
+    }
+
     public function test_simulacao_nao_executa_nenhum_update(): void
     {
         $this->fakeConnection();

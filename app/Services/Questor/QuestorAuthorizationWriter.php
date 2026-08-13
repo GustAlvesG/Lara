@@ -58,33 +58,58 @@ class QuestorAuthorizationWriter
      *
      * @throws QuestorException
      */
-    public function approve(int $cdOrdemCompra, bool $simular = false): array
+    public function approve(int $cdOrdemCompra, ?string $observacao = null, bool $simular = false): array
     {
         QuestorGate::ensureEnabled();
 
         $ordem = $this->orders->find($cdOrdemCompra);
 
+        /*
+         | O carimbo em DS_OBS entra na MESMA instrução, e não num UPDATE à
+         | parte, por três motivos:
+         |
+         |  - acrescenta em vez de substituir: DS_OBS é campo de trabalho do
+         |    comprador, e sobrescrever apagaria a anotação de outra pessoa;
+         |  - concatenar dentro do próprio UPDATE dispensa ler antes — um
+         |    SELECT seguido de UPDATE perderia texto se alguém editasse a ordem
+         |    na tela nativa no meio;
+         |  - o mesmo WHERE que protege a autorização protege a observação: se a
+         |    ordem saiu da fila, nem uma nem outra é gravada.
+         |
+         | LEFT(..., 5000) é obrigatório: a coluna é varchar(5000) e estourar
+         | faria o SQL Server recusar a linha inteira — a compra deixaria de ser
+         | autorizada por causa de um texto.
+         */
+        $carimbo = filled($observacao);
+
         $sql = sprintf(
             'UPDATE %s
                 SET CD_USUARIO_AUTORIZOU = ?,
-                    DT_AUTORIZACAO = GETDATE()
+                    DT_AUTORIZACAO = GETDATE()%s
               WHERE CD_ORDEM_COMPRA = ?
                 AND CD_STATUS = ?
                 AND CD_USUARIO_AUTORIZOU IS NULL',
-            $this->table()
+            $this->table(),
+            $carimbo ? ',' . PHP_EOL . '                    DS_OBS = LEFT(COALESCE(DS_OBS, \'\') + ?, 5000)' : ''
         );
 
-        $bindings = [
-            $this->technicalUserCode(),
-            $cdOrdemCompra,
-            $this->pendingStatus(),
-        ];
+        // Os bindings do SET vêm antes dos do WHERE — é a ordem em que o SQL
+        // Server encontra os `?`.
+        $bindings = $carimbo
+            ? [$this->technicalUserCode(), $observacao, $cdOrdemCompra, $this->pendingStatus()]
+            : [$this->technicalUserCode(), $cdOrdemCompra, $this->pendingStatus()];
 
-        return $this->decide(self::ACTION_APPROVE, $ordem, $sql, $bindings, [
+        $depois = [
             'CD_USUARIO_AUTORIZOU' => $this->technicalUserCode(),
             'DT_AUTORIZACAO' => 'GETDATE() — relógio do servidor do Questor',
             'CD_STATUS' => (int) $ordem->CD_STATUS . ' (inalterado: autorizar não muda o status)',
-        ], [
+        ];
+
+        if ($carimbo) {
+            $depois['DS_OBS'] = 'texto atual + ' . trim($observacao);
+        }
+
+        return $this->decide(self::ACTION_APPROVE, $ordem, $sql, $bindings, $depois, [
             'CD_ORDEM_COMPRA = ?' => $cdOrdemCompra,
             'CD_STATUS = ?' => $this->pendingStatus(),
             'CD_USUARIO_AUTORIZOU IS NULL' => null,
@@ -283,7 +308,9 @@ class QuestorAuthorizationWriter
             'user_id' => auth()->id(),
         ]);
 
-        $this->record($resultado, $ordem, $motivo);
+        // O id da trilha volta no resultado: é por ele que o processo de
+        // aprovação liga o que decidiu ao que foi gravado.
+        $resultado['decision_id'] = $this->record($resultado, $ordem, $motivo);
 
         return $resultado;
     }
@@ -295,10 +322,10 @@ class QuestorAuthorizationWriter
      *
      * @param  array<string, mixed>  $resultado
      */
-    private function record(array $resultado, object $ordem, ?string $motivo): void
+    private function record(array $resultado, object $ordem, ?string $motivo): ?int
     {
         try {
-            QuestorOrderDecision::create([
+            return QuestorOrderDecision::create([
                 'cd_ordem_compra' => $resultado['cd_ordem_compra'],
                 'cd_filial' => $ordem->CD_FILIAL ?? null,
                 'action' => $resultado['acao'],
@@ -309,7 +336,7 @@ class QuestorAuthorizationWriter
                 'vl_total' => $ordem->VL_TOTAL ?? null,
                 'rows_affected' => $resultado['linhas_afetadas'],
                 'executed' => true,
-            ]);
+            ])->id;
         } catch (\Throwable $e) {
             report($e);
 
@@ -318,6 +345,8 @@ class QuestorAuthorizationWriter
                 'acao' => $resultado['acao'],
                 'user_id' => auth()->id(),
             ]);
+
+            return null;
         }
     }
 
