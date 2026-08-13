@@ -41,6 +41,7 @@ use App\Http\Controllers\HomeAssistantController;
 use App\Http\Controllers\CardIssuerController;
 use App\Http\Controllers\CardTemplateController;
 use App\Http\Controllers\Questor\PurchaseOrderController as QuestorPurchaseOrderController;
+use App\Http\Controllers\Questor\CostCenterApproverController as QuestorCostCenterController;
 
 
 Route::get('/', function () {
@@ -479,6 +480,15 @@ Route::middleware('auth')->group(function () {
             ->where('ordem', '[0-9]+')->middleware('throttle:20,1')->name('questor.purchase-orders.approve');
         Route::post('/{ordem}/reprovar', [QuestorPurchaseOrderController::class, 'reject'])
             ->where('ordem', '[0-9]+')->middleware('throttle:20,1')->name('questor.purchase-orders.reject');
+    });
+
+    // Relação centro de custo → diretores: define quem vem SUGERIDO no último
+    // nível da aprovação. Mesma permissão da fila — quem edita aqui muda quem
+    // costuma decidir o quê.
+    Route::prefix('questor/centros-custo')->middleware('permission:authorize purchase orders')->group(function () {
+        Route::get('/', [QuestorCostCenterController::class, 'index'])->name('questor.cost-centers.index');
+        Route::put('/{centroCusto}', [QuestorCostCenterController::class, 'update'])
+            ->where('centroCusto', '[0-9]+')->name('questor.cost-centers.update');
     });
 
     // Notificações

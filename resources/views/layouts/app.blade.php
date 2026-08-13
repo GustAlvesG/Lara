@@ -69,11 +69,14 @@
                 ['route' => 'lara.index', 'label' => 'Lara (IA)', 'icon' => 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z',
                     'permission' => 'use lara chat',
                 ],
-                ['route' => 'questor.purchase-orders.index', 'label' => 'Ordens de Compra', 'icon' => 'M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12A1.125 1.125 0 0 1 19.75 21.75H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z',
+                ['route' => 'questor.purchase-orders.index', 'label' => 'Compras', 'icon' => 'M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12A1.125 1.125 0 0 1 19.75 21.75H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z',
                     'permission' => 'authorize purchase orders',
-                    // `active` porque o detalhe da ordem é outra rota: sem isto,
-                    // abrir uma ordem apagaria o destaque do menu.
-                    'active' => 'questor.purchase-orders.*',
+                    'children' => [
+                        // `active` com curinga porque o detalhe da ordem é outra
+                        // rota: sem ele, abrir uma ordem apagaria o destaque.
+                        ['route' => 'questor.purchase-orders.index', 'label' => 'Ordens de Compra', 'active' => 'questor.purchase-orders.*'],
+                        ['route' => 'questor.cost-centers.index', 'label' => 'Centros de Custo'],
+                    ],
                 ],
                 ['route' => 'id-cards.issue', 'label' => 'Carteirinhas', 'icon' => 'M12 4.5v15m7.5-7.5h-15',
                     'permission' => 'manage id cards',

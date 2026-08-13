@@ -44,6 +44,14 @@ class User extends Authenticatable
      */
     public const COMMERCIAL_SECTOR = 'Comercial';
 
+    /**
+     * Setor do terceiro nível da aprovação de ordem de compra. Estar nele não
+     * dá poder de aprovar nada sozinho: quem decide uma ordem são os membros
+     * ligados ao centro de custo dela, ou os que a Gerência escolher.
+     * Criado pela migration `create_diretoria_sector`.
+     */
+    public const DIRECTORS_SECTOR = 'Diretoria';
+
     protected $fillable = [
         'name',
         'email',
@@ -51,6 +59,7 @@ class User extends Authenticatable
         'pin',
         'cpf',
         'matricula',
+        'phone',
         'last_login_at',
         'status_id',
     ];
@@ -64,6 +73,9 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'pin',
+        // Nunca serializar a senha de aprovação — ela atravessa a DMZ na ida,
+        // e o que volta para o Next é sempre um usuário serializado.
+        'approval_password',
         'remember_token',
     ];
 
@@ -84,6 +96,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'pin' => 'hashed',
+            'approval_password' => 'hashed',
             'last_login_at' => 'datetime', // Isso permite usar Carbon no campo
         ];
     }
@@ -98,6 +111,58 @@ class User extends Authenticatable
     public function checkPin(?string $pin): bool
     {
         return $this->hasPin() && filled($pin) && \Illuminate\Support\Facades\Hash::check($pin, $this->pin);
+    }
+
+    /**
+     * O usuário definiu a senha de aprovação de ordem de compra?
+     *
+     * É outra senha, não a do painel — ver a migration
+     * `add_approval_password_and_phone_to_users_table`. Sem ela definida, o
+     * aprovador não entra no site externo, mesmo tendo login aqui dentro.
+     */
+    public function hasApprovalPassword(): bool
+    {
+        return filled($this->approval_password);
+    }
+
+    /** Confere a senha de aprovação informada contra o hash guardado. */
+    public function checkApprovalPassword(?string $password): bool
+    {
+        return $this->hasApprovalPassword()
+            && filled($password)
+            && \Illuminate\Support\Facades\Hash::check($password, $this->approval_password);
+    }
+
+    /** Membro do setor Diretoria, em qualquer papel. */
+    public function isDirector(): bool
+    {
+        return $this->belongsToSectorNamed(self::DIRECTORS_SECTOR);
+    }
+
+    /**
+     * Coordenador da Contabilidade — o primeiro nível da aprovação de ordem de
+     * compra. Como no caso da Gerência, é um cargo e não um nível de acesso: a
+     * role `admin` não substitui.
+     */
+    public function isAccountingCoordinator(): bool
+    {
+        return $this->isCoordinatorOfSectorNamed(self::ACCOUNTING_SECTOR);
+    }
+
+    /**
+     * Os membros do setor Diretoria — o universo de quem pode ser escolhido
+     * como aprovador de um centro de custo. Ordenado por nome porque o destino
+     * é sempre uma lista de seleção.
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<self>
+     */
+    public static function directors()
+    {
+        return self::query()
+            ->whereHas('sectors', fn($q) => $q->whereRaw('LOWER(sectors.name) = ?', [
+                mb_strtolower(self::DIRECTORS_SECTOR),
+            ]))
+            ->orderBy('name');
     }
 
     //Relacionamento de um para muitos with data_info

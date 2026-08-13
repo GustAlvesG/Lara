@@ -49,7 +49,7 @@
                 if ($permission && !auth()->user()->can($permission)) continue;
                 $children = $link['children'] ?? null;
                 $isActive = $children
-                    ? collect($children)->contains(fn($c) => request()->routeIs($c['route']))
+                    ? collect($children)->contains(fn($c) => request()->routeIs($c['active'] ?? $c['route']))
                     : request()->routeIs($link['active'] ?? $link['route']);
                 $activeClasses   = 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400 font-semibold';
                 $inactiveClasses = 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white';
@@ -91,7 +91,7 @@
                     {{-- Expanded: children indented --}}
                     <div x-show="dropOpen && !collapsed" x-transition class="mt-0.5 ml-8 space-y-0.5">
                         @foreach($children as $child)
-                            @php $childActive = request()->routeIs($child['route']); @endphp
+                            @php $childActive = request()->routeIs($child['active'] ?? $child['route']); @endphp
                             <a href="{{ route($child['route']) }}"
                                 class="block px-3 py-2 rounded-lg text-sm transition {{ $childActive ? 'text-red-800 dark:text-red-400 font-semibold bg-red-50/60 dark:bg-red-900/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white' }}">
                                 {{ __($child['label']) }}
@@ -112,7 +112,7 @@
                                     {{ __($link['label']) }}
                                 </div>
                                 @foreach($children as $child)
-                                    @php $childActive = request()->routeIs($child['route']); @endphp
+                                    @php $childActive = request()->routeIs($child['active'] ?? $child['route']); @endphp
                                     <a href="{{ route($child['route']) }}"
                                         class="block px-4 py-2 text-sm transition {{ $childActive ? 'text-red-800 dark:text-red-400 font-semibold bg-red-50/60 dark:bg-red-900/10' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white' }}">
                                         {{ __($child['label']) }}

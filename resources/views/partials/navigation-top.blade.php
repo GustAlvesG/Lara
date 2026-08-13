@@ -18,7 +18,7 @@
                             if ($permission && !auth()->user()->can($permission)) continue;
                             $children = $link['children'] ?? null;
                             $isActive = $children
-                                ? collect($children)->contains(fn($c) => request()->routeIs($c['route']))
+                                ? collect($children)->contains(fn($c) => request()->routeIs($c['active'] ?? $c['route']))
                                 : request()->routeIs($link['active'] ?? $link['route']);
                             $baseClasses     = 'inline-flex items-center px-3 py-2 border-b-2 text-sm font-medium leading-5 transition duration-150 ease-in-out rounded-t-md';
                             $activeClasses   = 'border-red-800 dark:border-red-400 text-red-800 dark:text-red-400 bg-red-50/50 dark:bg-red-900/20';
@@ -42,7 +42,7 @@
                                     class="absolute top-full left-0 mt-1 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black/5 dark:ring-white/10 py-1 z-50"
                                     style="display: none;">
                                     @foreach($children as $child)
-                                        @php $childActive = request()->routeIs($child['route']); @endphp
+                                        @php $childActive = request()->routeIs($child['active'] ?? $child['route']); @endphp
                                         <a href="{{ route($child['route']) }}"
                                             class="block px-4 py-2 text-sm {{ $childActive ? 'text-red-800 dark:text-red-400 bg-red-50 dark:bg-red-900/20 font-semibold' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700' }}">
                                             {{ __($child['label']) }}
@@ -119,7 +119,7 @@
                 @if($children)
                     <div class="px-4 pt-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{{ __($link['label']) }}</div>
                     @foreach($children as $child)
-                        <x-responsive-nav-link :href="route($child['route'])" :active="request()->routeIs($child['route'])">
+                        <x-responsive-nav-link :href="route($child['route'])" :active="request()->routeIs($child['active'] ?? $child['route'])">
                             {{ __($child['label']) }}
                         </x-responsive-nav-link>
                     @endforeach
