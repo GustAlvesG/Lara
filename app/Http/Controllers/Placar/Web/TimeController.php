@@ -9,6 +9,7 @@ use App\Models\Placar\Equipe;
 use App\Models\Placar\Jogador;
 use App\Models\Placar\Modalidade;
 use App\Models\Placar\Time;
+use App\Services\Placar\CategoriaService;
 use App\Services\Placar\ImagemService;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
@@ -44,8 +45,9 @@ class TimeController extends Controller
     {
         $equipes = Equipe::ativas()->orderBy('nome')->get();
         $modalidades = Modalidade::ativas()->orderBy('nome')->get();
+        $categorias = CategoriaService::existentes();
 
-        return view('placar.times.create', compact('equipes', 'modalidades'));
+        return view('placar.times.create', compact('equipes', 'modalidades', 'categorias'));
     }
 
     public function store(Request $request)
@@ -56,6 +58,21 @@ class TimeController extends Controller
             'categoria' => ['required', 'string', 'max:255'],
             'nome_exibicao' => ['nullable', 'string', 'max:255'],
         ]);
+
+        // Casa com a categoria já cadastrada quando equivalente, senão
+        // canoniza — é o que impede "Sub 15" e "Sub-15" de virarem dois
+        // times diferentes da mesma equipe.
+        $data['categoria'] = CategoriaService::resolver($data['categoria']);
+
+        $jaExiste = Time::where('equipe_id', $data['equipe_id'])
+            ->where('modalidade_id', $data['modalidade_id'])
+            ->where('categoria', $data['categoria'])
+            ->first();
+
+        if ($jaExiste) {
+            return redirect()->route('placar.times.show', $jaExiste)
+                ->with('warning', "Esta equipe já tem um time de \"{$data['categoria']}\" nesta modalidade — abrimos o que já existe.");
+        }
 
         $time = Time::create([
             ...$data,
@@ -70,6 +87,7 @@ class TimeController extends Controller
     public function show(Request $request, Time $time)
     {
         $time->load(['equipe', 'modalidade']);
+        $categorias = CategoriaService::existentes();
 
         $temporada = now()->year;
         $elenco = $time->elencoDaTemporada($temporada)->orderBy('numero')->get();
@@ -87,7 +105,7 @@ class TimeController extends Controller
             ->get();
 
         return view('placar.times.show', compact(
-            'time', 'elenco', 'temporada', 'temporadaAnteriorTemElenco', 'jogadoresDisponiveis',
+            'time', 'elenco', 'temporada', 'temporadaAnteriorTemElenco', 'jogadoresDisponiveis', 'categorias',
         ));
     }
 
@@ -100,7 +118,7 @@ class TimeController extends Controller
         ]);
 
         $time->update([
-            'categoria' => $data['categoria'],
+            'categoria' => CategoriaService::resolver($data['categoria']),
             'nome_exibicao' => $data['nome_exibicao'] ?? null,
             'ativo' => $request->boolean('ativo'),
         ]);

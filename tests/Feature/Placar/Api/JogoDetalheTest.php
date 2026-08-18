@@ -74,7 +74,8 @@ class JogoDetalheTest extends TestCase
         $futsal = Modalidade::create(['nome' => 'Futsal', 'slug' => 'futsal', 'ativo' => true]);
         $equipe = Equipe::create(['nome' => 'Sem Logo', 'ativo' => true]);
         $timeCasa = Time::create(['equipe_id' => $equipe->id, 'modalidade_id' => $futsal->id, 'categoria' => 'Adulto', 'ativo' => true]);
-        $timeFora = Time::create(['equipe_id' => $equipe->id, 'modalidade_id' => $futsal->id, 'categoria' => 'Sub-15', 'ativo' => true]);
+        $outraEquipe = Equipe::create(['nome' => 'Sem Logo II', 'ativo' => true]);
+        $timeFora = Time::create(['equipe_id' => $outraEquipe->id, 'modalidade_id' => $futsal->id, 'categoria' => 'Adulto', 'ativo' => true]);
 
         $jogo = Jogo::create([
             'modalidade_id' => $futsal->id, 'time_casa_id' => $timeCasa->id, 'time_fora_id' => $timeFora->id,

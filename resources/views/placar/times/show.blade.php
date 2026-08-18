@@ -66,7 +66,9 @@
                     <div>
                         <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Categoria <span class="text-red-500">*</span></label>
                         <input type="text" name="categoria" value="{{ old('categoria', $time->categoria) }}" required
+                            list="categorias-existentes" autocomplete="off"
                             class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
+                        @include('placar.times.partials.categorias-datalist')
                         @error('categoria')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>

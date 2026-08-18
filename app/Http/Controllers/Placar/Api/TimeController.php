@@ -11,6 +11,7 @@ use App\Http\Resources\Placar\TimeResource;
 use App\Models\Placar\Equipe;
 use App\Models\Placar\Modalidade;
 use App\Models\Placar\Time;
+use App\Services\Placar\CategoriaService;
 use App\Services\Placar\ImagemService;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
@@ -70,13 +71,19 @@ class TimeController extends Controller
 
         $modalidade = Modalidade::resolver($request->input('modalidade'));
 
+        // Reaproveita a grafia de categoria já cadastrada quando houver
+        // equivalente ("Sub 15" digitado em campo cai no "Sub-15" que já
+        // existe), senão canoniza. Sem isso, cada variação furava o UNIQUE
+        // (equipe, modalidade, categoria) e criava um time duplicado.
+        $categoria = CategoriaService::resolver($request->input('categoria'));
+
         // 'ativo' explícito nos atributos de criação — ver o comentário
         // equivalente em EquipeController@store.
         $time = Time::firstOrCreate(
             [
                 'equipe_id' => $equipe->id,
                 'modalidade_id' => $modalidade->id,
-                'categoria' => $request->input('categoria', Time::CATEGORIA_PADRAO),
+                'categoria' => $categoria,
             ],
             ['criado_em_campo' => true, 'ativo' => true],
         );

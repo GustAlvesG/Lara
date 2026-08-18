@@ -7,6 +7,7 @@ use App\Models\Placar\Competicao;
 use App\Models\Placar\Jogo;
 use App\Models\Placar\Modalidade;
 use App\Models\Placar\Time;
+use App\Services\Placar\CategoriaService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -56,11 +57,26 @@ class JogoController extends Controller
             'local' => ['nullable', 'string', 'max:255'],
         ]);
 
+        $times = [];
+
         foreach (['time_casa_id', 'time_fora_id'] as $campo) {
             $time = Time::find($data[$campo]);
+            $times[$campo] = $time;
+
             if ($time && $time->modalidade_id !== (int) $data['modalidade_id']) {
                 return back()->withInput()->withErrors([$campo => 'Este time não é da modalidade informada.']);
             }
+        }
+
+        [$casa, $fora] = [$times['time_casa_id'], $times['time_fora_id']];
+
+        // Sub-15 não joga contra Adulto. Comparado pela chave normalizada
+        // para não barrar dados antigos que gravaram "Sub 15" de um lado e
+        // "Sub-15" do outro — são a mesma categoria.
+        if ($casa && $fora && CategoriaService::chave($casa->categoria) !== CategoriaService::chave($fora->categoria)) {
+            return back()->withInput()->withErrors([
+                'time_fora_id' => "Os dois times precisam ser da mesma categoria: {$casa->categoria} x {$fora->categoria}.",
+            ]);
         }
 
         $jogo = Jogo::create([
