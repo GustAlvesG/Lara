@@ -72,7 +72,7 @@
                 <ul class="divide-y divide-gray-100 dark:divide-gray-700">
                     @foreach($equipe->times as $time)
                     <li class="p-4 flex items-center justify-between">
-                        <span class="text-sm text-gray-800 dark:text-gray-200">{{ $time->nomeExibicaoResolvido() }} <span class="text-xs text-gray-400">({{ $time->modalidade->nome }})</span></span>
+                        <span class="text-sm text-gray-800 dark:text-gray-200">{{ $time->nomeExibicaoResolvido() }} <span class="text-xs text-gray-400">({{ $time->modalidade->nome }} - {{ $time->categoria }})</span></span>
                         <a href="{{ route('placar.times.show', $time) }}" class="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline">Ver</a>
                     </li>
                     @endforeach
