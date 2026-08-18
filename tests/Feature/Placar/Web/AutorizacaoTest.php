@@ -32,7 +32,7 @@ class AutorizacaoTest extends TestCase
     public function test_quem_nao_esta_no_setor_esporte_recebe_403_no_scout(): void
     {
         $this->actingAs($this->usuarioDoSetorEsporte(false))
-            ->get(route('placar.scout.artilharia'))
+            ->get(route('placar.scout.jogos'))
             ->assertForbidden();
     }
 
@@ -46,7 +46,7 @@ class AutorizacaoTest extends TestCase
     public function test_quem_esta_no_setor_esporte_acessa_o_scout(): void
     {
         $this->actingAs($this->usuarioDoSetorEsporte(true))
-            ->get(route('placar.scout.artilharia'))
+            ->get(route('placar.scout.jogos'))
             ->assertOk();
     }
 

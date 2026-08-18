@@ -134,7 +134,7 @@
                 }
 
                 if ($canPlacarScout) {
-                    $placarChildren[] = ['route' => 'placar.scout.artilharia', 'label' => 'Artilharia (Scout)'];
+                    $placarChildren[] = ['route' => 'placar.scout.jogos', 'label' => 'Súmulas (Scout)'];
                 }
 
                 $navLinks[] = [

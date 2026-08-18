@@ -84,11 +84,11 @@
     @if(!empty($sumula['eventos']))
     <h2>Linha do tempo</h2>
     <table>
-        <thead><tr><th>#</th><th>Tipo</th><th>Nº</th><th>Jogador</th><th>Valor</th><th>Período</th></tr></thead>
+        <thead><tr><th>Minuto</th><th>Tipo</th><th>Nº</th><th>Jogador</th><th>Valor</th><th>Período</th></tr></thead>
         <tbody>
             @foreach($sumula['eventos'] as $evento)
             <tr class="@if($evento['estornado']) estornado @endif">
-                <td>{{ $evento['sequencia'] }}</td>
+                <td>{{ $evento['minuto'] ?? '—' }}</td>
                 <td>{{ $evento['tipo'] }}</td>
                 <td>{{ $evento['jogador']['numero'] ?? '—' }}</td>
                 <td>{{ $evento['jogador']['nome_exibicao'] ?? '—' }}</td>

@@ -162,6 +162,22 @@ class JogoEventoLoteService
             }
         }
 
+        // Minutagem obrigatória no que compõe a ficha de atuação: sem o
+        // instante da partida, o lance não é aproveitável pelo scout. Só
+        // ponto e falta exigem — evento de cronômetro/timeout/substituição
+        // segue opcional.
+        if (in_array($tipo, JogoEvento::TIPOS_COM_MINUTAGEM, true)) {
+            $cronometro = $bruto['cronometro_ms'] ?? null;
+
+            if (!is_int($cronometro) && !(is_string($cronometro) && ctype_digit($cronometro))) {
+                return "'{$tipo}' exige cronometro_ms (minutagem na partida)";
+            }
+
+            if ((int) $cronometro < 0) {
+                return 'cronometro_ms não pode ser negativo';
+            }
+        }
+
         return null;
     }
 

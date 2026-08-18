@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Placar\Web;
 
 use App\Http\Controllers\Controller;
-use App\Models\Placar\Competicao;
 use App\Models\Placar\Jogador;
 use App\Models\Placar\Jogo;
 use App\Models\Placar\Modalidade;
@@ -17,6 +16,28 @@ use Illuminate\Http\Request;
  */
 class ScoutController extends Controller
 {
+    /**
+     * GET /placar/scout/jogos — porta de entrada do scout: as partidas, da
+     * mais recente para a mais antiga, de onde se chega à súmula. Fica sob
+     * o Gate de scout (a listagem de cadastro exige o Gate de cadastro, que
+     * quem só acompanha jogo não tem).
+     */
+    public function jogos(Request $request)
+    {
+        $jogos = Jogo::query()
+            ->with(['modalidade', 'competicao', 'timeCasa.equipe', 'timeFora.equipe'])
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->query('status')))
+            ->daModalidade($request->query('modalidade'))
+            ->orderByDesc('data_hora')
+            ->paginate(20)
+            ->withQueryString();
+
+        return view('placar.scout.jogos', [
+            'jogos' => $jogos,
+            'modalidades' => Modalidade::ativas()->orderBy('nome')->get(),
+        ]);
+    }
+
     /** GET /placar/scout/jogos/{jogo}/sumula */
     public function sumula(Jogo $jogo, ScoutService $scout)
     {
@@ -33,32 +54,18 @@ class ScoutController extends Controller
         return view('placar.scout.sumula-print', ['jogo' => $jogo, 'sumula' => $sumula]);
     }
 
-    /** GET /placar/scout/artilharia?modalidade=&competicao_id=&temporada=&time_id= */
-    public function artilharia(Request $request, ScoutService $scout)
+    /**
+     * GET /placar/scout/jogos/{jogo}/jogadores/{jogador}
+     * Ficha de atuação minutada do jogador nesta partida.
+     */
+    public function atuacao(Jogo $jogo, Jogador $jogador, ScoutService $scout)
     {
-        $filtros = [
-            'modalidade' => $request->query('modalidade'),
-            'competicao_id' => $request->query('competicao_id'),
-            'temporada' => $request->query('temporada'),
-            'time_id' => $request->query('time_id'),
-        ];
+        $atuacao = $scout->atuacaoNaPartida($jogo, $jogador);
 
-        $artilharia = $scout->artilharia($filtros);
-
-        // Ordenação da tabela (a agregação já vem por pontos desc; aqui é só
-        // reordenar a lista pronta — não vale outra query por coluna).
-        $ordenar = in_array($request->query('ordenar'), ['pontos', 'jogos', 'media'], true)
-            ? $request->query('ordenar')
-            : 'pontos';
-        usort($artilharia, fn ($a, $b) => $b[$ordenar] <=> $a[$ordenar]);
-
-        return view('placar.scout.artilharia', [
-            'artilharia' => $artilharia,
-            'filtros' => $filtros,
-            'ordenar' => $ordenar,
-            'modalidades' => Modalidade::ativas()->orderBy('nome')->get(),
-            'competicoes' => Competicao::ativas()->orderBy('nome')->get(),
-            'times' => Time::ativos()->with('equipe')->orderBy('categoria')->get(),
+        return view('placar.scout.atuacao', [
+            'jogo' => $jogo,
+            'jogador' => $jogador,
+            'atuacao' => $atuacao,
         ]);
     }
 
@@ -66,7 +73,7 @@ class ScoutController extends Controller
     public function jogador(Request $request, Jogador $jogador, ScoutService $scout)
     {
         $temporada = $request->filled('temporada') ? (int) $request->query('temporada') : null;
-        $perfil = $scout->perfilJogador($jogador, $temporada);
+        $perfil = $scout->partidasDoJogador($jogador, $temporada);
 
         return view('placar.scout.jogador', ['jogador' => $jogador, 'perfil' => $perfil, 'temporada' => $temporada]);
     }

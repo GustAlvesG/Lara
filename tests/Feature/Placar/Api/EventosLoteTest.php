@@ -50,7 +50,7 @@ class EventosLoteTest extends TestCase
         $lote = ['eventos' => [[
             'uuid' => $uuid, 'sequencia' => 1, 'tipo' => JogoEvento::TIPO_PONTO,
             'time_id' => $this->jogo->time_casa_id, 'valor' => 1, 'periodo' => 1,
-            'ocorrido_em' => now()->toDateTimeString(),
+            'cronometro_ms' => 60_000, 'ocorrido_em' => now()->toDateTimeString(),
         ]]];
 
         $primeiro = $this->postJson("/api/placar/jogos/{$this->jogo->id}/eventos", $lote);
@@ -73,7 +73,7 @@ class EventosLoteTest extends TestCase
             [
                 'uuid' => $uuidValido1, 'sequencia' => 1, 'tipo' => JogoEvento::TIPO_PONTO,
                 'time_id' => $this->jogo->time_casa_id, 'valor' => 1, 'periodo' => 1,
-                'ocorrido_em' => now()->toDateTimeString(),
+                'cronometro_ms' => 60_000, 'ocorrido_em' => now()->toDateTimeString(),
             ],
             [
                 // tipo inexistente — deve ser rejeitado, mas não pode
@@ -84,7 +84,7 @@ class EventosLoteTest extends TestCase
             [
                 'uuid' => $uuidValido2, 'sequencia' => 3, 'tipo' => JogoEvento::TIPO_PONTO,
                 'time_id' => $this->jogo->time_fora_id, 'valor' => 1, 'periodo' => 1,
-                'ocorrido_em' => now()->toDateTimeString(),
+                'cronometro_ms' => 90_000, 'ocorrido_em' => now()->toDateTimeString(),
             ],
         ]]);
 
@@ -103,9 +103,51 @@ class EventosLoteTest extends TestCase
         $resposta = $this->postJson("/api/placar/jogos/{$this->jogo->id}/eventos", ['eventos' => [[
             'uuid' => (string) Str::uuid(), 'sequencia' => 1, 'tipo' => JogoEvento::TIPO_PONTO,
             'time_id' => $this->jogo->time_casa_id, 'valor' => 3, 'periodo' => 1,
-            'ocorrido_em' => now()->toDateTimeString(),
+            'cronometro_ms' => 60_000, 'ocorrido_em' => now()->toDateTimeString(),
         ]]]);
 
         $resposta->assertOk()->assertJsonCount(1, 'rejeitados')->assertJsonCount(0, 'aceitos');
+    }
+
+    /**
+     * A minutagem é o que torna o lance aproveitável pelo scout: sem ela
+     * não dá para dizer em que momento da partida o ponto/falta aconteceu.
+     */
+    public function test_ponto_sem_minutagem_e_rejeitado(): void
+    {
+        $resposta = $this->postJson("/api/placar/jogos/{$this->jogo->id}/eventos", ['eventos' => [[
+            'uuid' => (string) Str::uuid(), 'sequencia' => 1, 'tipo' => JogoEvento::TIPO_PONTO,
+            'time_id' => $this->jogo->time_casa_id, 'valor' => 1, 'periodo' => 1,
+            'ocorrido_em' => now()->toDateTimeString(),
+        ]]]);
+
+        $resposta->assertOk()->assertJsonCount(0, 'aceitos')->assertJsonCount(1, 'rejeitados');
+        $this->assertStringContainsString('cronometro_ms', $resposta->json('rejeitados.0.motivo'));
+        $this->assertSame(0, JogoEvento::count());
+    }
+
+    public function test_falta_sem_minutagem_e_rejeitada(): void
+    {
+        $resposta = $this->postJson("/api/placar/jogos/{$this->jogo->id}/eventos", ['eventos' => [[
+            'uuid' => (string) Str::uuid(), 'sequencia' => 1, 'tipo' => JogoEvento::TIPO_FALTA,
+            'time_id' => $this->jogo->time_casa_id, 'periodo' => 1,
+            'ocorrido_em' => now()->toDateTimeString(),
+        ]]]);
+
+        $resposta->assertOk()->assertJsonCount(0, 'aceitos')->assertJsonCount(1, 'rejeitados');
+    }
+
+    /**
+     * Só ponto e falta exigem minutagem — evento de cronômetro, timeout e
+     * afins continua entrando sem ela.
+     */
+    public function test_evento_de_cronometro_continua_aceito_sem_minutagem(): void
+    {
+        $uuid = (string) Str::uuid();
+
+        $this->postJson("/api/placar/jogos/{$this->jogo->id}/eventos", ['eventos' => [[
+            'uuid' => $uuid, 'sequencia' => 1, 'tipo' => JogoEvento::TIPO_CRONO_PAUSE,
+            'ocorrido_em' => now()->toDateTimeString(),
+        ]]])->assertOk()->assertJson(['aceitos' => [$uuid], 'rejeitados' => []]);
     }
 }

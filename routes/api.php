@@ -80,6 +80,8 @@ Route::prefix('placar')
 
         Route::post('/jogadores/{jogador}/foto', [PlacarJogadorController::class, 'storeFoto'])->name('api.placar.jogadores.foto.store');
         Route::delete('/jogadores/{jogador}/foto', [PlacarJogadorController::class, 'destroyFoto'])->name('api.placar.jogadores.foto.destroy');
+        Route::post('/jogadores/{jogador}/video', [PlacarJogadorController::class, 'storeVideo'])->name('api.placar.jogadores.video.store');
+        Route::delete('/jogadores/{jogador}/video', [PlacarJogadorController::class, 'destroyVideo'])->name('api.placar.jogadores.video.destroy');
 
         Route::get('/jogos', [PlacarJogoController::class, 'index'])->name('api.placar.jogos.index');
         Route::get('/jogos/{jogo}', [PlacarJogoController::class, 'show'])->name('api.placar.jogos.show');
@@ -97,9 +99,11 @@ Route::prefix('placar')
         Route::post('/jogos/{jogo}/eventos', [PlacarJogoEventoController::class, 'store'])->name('api.placar.jogos.eventos');
         Route::post('/jogos/{jogo}/encerrar', [PlacarJogoController::class, 'encerrar'])->name('api.placar.jogos.encerrar');
 
-        // Scout — leitura agregada de jogo_eventos (súmula, artilharia, perfil do jogador).
+        // Scout — leitura de jogo_eventos, sempre com a partida como unidade:
+        // súmula do jogo, ficha minutada de um jogador nele, e as partidas
+        // em que um jogador atuou. Não há ranking de artilharia.
         Route::get('/jogos/{jogo}/sumula', [PlacarScoutController::class, 'sumula'])->name('api.placar.jogos.sumula');
-        Route::get('/scout/artilharia', [PlacarScoutController::class, 'artilharia'])->name('api.placar.scout.artilharia');
+        Route::get('/jogos/{jogo}/jogadores/{jogador}/atuacao', [PlacarScoutController::class, 'atuacao'])->name('api.placar.jogos.atuacao');
         Route::get('/scout/jogadores/{jogador}', [PlacarScoutController::class, 'jogador'])->name('api.placar.scout.jogador');
     });
 

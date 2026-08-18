@@ -507,6 +507,8 @@ Route::middleware('auth')->group(function () {
                 ->parameters(['jogadores' => 'jogador']);
             Route::post('jogadores/{jogador}/foto', [PlacarJogadorWebController::class, 'storeFoto'])->name('jogadores.foto.store');
             Route::delete('jogadores/{jogador}/foto', [PlacarJogadorWebController::class, 'destroyFoto'])->name('jogadores.foto.destroy');
+            Route::post('jogadores/{jogador}/video', [PlacarJogadorWebController::class, 'storeVideo'])->name('jogadores.video.store');
+            Route::delete('jogadores/{jogador}/video', [PlacarJogadorWebController::class, 'destroyVideo'])->name('jogadores.video.destroy');
 
             // Str::singular('competicoes') dá 'competico' — o controller
             // espera {competicao} (Competicao $competicao).
@@ -521,9 +523,10 @@ Route::middleware('auth')->group(function () {
         });
 
         Route::group(['middleware' => 'can:view-placar-scout'], function () {
+            Route::get('scout/jogos', [PlacarScoutWebController::class, 'jogos'])->name('scout.jogos');
             Route::get('scout/jogos/{jogo}/sumula', [PlacarScoutWebController::class, 'sumula'])->name('scout.sumula');
             Route::get('scout/jogos/{jogo}/sumula/impressao', [PlacarScoutWebController::class, 'sumulaPrint'])->name('scout.sumula.print');
-            Route::get('scout/artilharia', [PlacarScoutWebController::class, 'artilharia'])->name('scout.artilharia');
+            Route::get('scout/jogos/{jogo}/jogadores/{jogador}', [PlacarScoutWebController::class, 'atuacao'])->name('scout.atuacao');
             Route::get('scout/jogadores/{jogador}', [PlacarScoutWebController::class, 'jogador'])->name('scout.jogador');
             Route::get('scout/times/{time}', [PlacarScoutWebController::class, 'time'])->name('scout.time');
         });

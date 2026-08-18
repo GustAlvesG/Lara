@@ -37,27 +37,6 @@
 
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
             <div class="p-6 border-b border-gray-50 dark:border-gray-700">
-                <h2 class="text-lg font-bold text-gray-800 dark:text-white">Artilheiros do time</h2>
-            </div>
-            @if(empty($painel['artilheiros']))
-                <div class="p-6 text-sm text-gray-500 dark:text-gray-400">Nenhum ponto registrado ainda.</div>
-            @else
-                <ul class="divide-y divide-gray-100 dark:divide-gray-700">
-                    @foreach($painel['artilheiros'] as $linha)
-                    <li class="p-4 flex items-center justify-between text-sm">
-                        <a href="{{ route('placar.scout.jogador', $linha['jogador_id']) }}" class="text-gray-800 dark:text-gray-200 hover:underline">
-                            @if($linha['numero']) <span class="text-gray-400 font-mono">#{{ $linha['numero'] }}</span> @endif
-                            {{ $linha['nome_exibicao'] }}
-                        </a>
-                        <span class="font-bold text-gray-900 dark:text-white">{{ $linha['pontos'] }} pts · {{ $linha['jogos'] }} jogos</span>
-                    </li>
-                    @endforeach
-                </ul>
-            @endif
-        </div>
-
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-            <div class="p-6 border-b border-gray-50 dark:border-gray-700">
                 <h2 class="text-lg font-bold text-gray-800 dark:text-white">Jogos</h2>
             </div>
             @if(empty($painel['jogos']))

@@ -84,8 +84,10 @@
                             @foreach($sumula['totais_por_jogador'][$lado] as $totais)
                             <tr>
                                 <td class="px-4 py-2 text-gray-700 dark:text-gray-300">
-                                    @if($totais['numero']) <span class="text-gray-400 font-mono">#{{ $totais['numero'] }}</span> @endif
-                                    {{ $totais['nome_exibicao'] }}
+                                    <a href="{{ route('placar.scout.atuacao', [$jogo, $totais['jogador_id']]) }}" class="hover:underline">
+                                        @if($totais['numero']) <span class="text-gray-400 font-mono">#{{ $totais['numero'] }}</span> @endif
+                                        {{ $totais['nome_exibicao'] }}
+                                    </a>
                                 </td>
                                 <td class="px-4 py-2 text-right font-bold text-gray-900 dark:text-white">{{ $totais['pontos'] }} pts</td>
                                 <td class="px-4 py-2 text-right text-gray-400">{{ $totais['faltas'] }} faltas</td>
@@ -106,7 +108,7 @@
             <ul class="divide-y divide-gray-100 dark:divide-gray-700 max-h-[32rem] overflow-y-auto">
                 @foreach($sumula['eventos'] as $evento)
                 <li class="p-3 flex items-center gap-3 text-sm @if($evento['estornado']) opacity-40 @endif">
-                    <span class="text-xs text-gray-400 w-10 shrink-0">#{{ $evento['sequencia'] }}</span>
+                    <span class="text-xs font-mono font-bold text-gray-500 dark:text-gray-400 w-12 shrink-0">{{ $evento['minuto'] ?? '—' }}</span>
                     <span class="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 w-24 shrink-0">{{ $evento['tipo'] }}</span>
                     <span class="flex-1 text-gray-800 dark:text-gray-200">
                         @if($evento['jogador'])

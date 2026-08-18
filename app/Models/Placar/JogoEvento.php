@@ -48,6 +48,16 @@ class JogoEvento extends Model
         self::TIPO_ESTORNO,
     ];
 
+    /**
+     * Tipos que compõem a ficha de atuação do jogador e por isso exigem
+     * `cronometro_ms`: sem o instante da partida, o lance não serve ao
+     * scout. Validado em JogoEventoLoteService::validar().
+     */
+    const TIPOS_COM_MINUTAGEM = [
+        self::TIPO_PONTO,
+        self::TIPO_FALTA,
+    ];
+
     protected $fillable = [
         'uuid',
         'jogo_id',
@@ -88,6 +98,30 @@ class JogoEvento extends Model
     public function scopeDoTipo($query, string $tipo)
     {
         return $query->where('tipo', $tipo);
+    }
+
+    /**
+     * Minutagem do lance na partida, "MM:SS", a partir do cronômetro do
+     * jogo — não do relógio de parede. Null quando o tipo de evento não
+     * carrega cronômetro (ver TIPOS_COM_MINUTAGEM).
+     *
+     * Formatado aqui, e não em cada view/consumidor, para que a súmula, a
+     * ficha de atuação e o Node mostrem o mesmo minuto do mesmo jeito.
+     */
+    public static function formatarMinuto(?int $cronometroMs): ?string
+    {
+        if ($cronometroMs === null) {
+            return null;
+        }
+
+        $segundos = intdiv(max(0, $cronometroMs), 1000);
+
+        return sprintf('%02d:%02d', intdiv($segundos, 60), $segundos % 60);
+    }
+
+    public function minuto(): ?string
+    {
+        return self::formatarMinuto($this->cronometro_ms);
     }
 
     /**
