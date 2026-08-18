@@ -2,10 +2,10 @@
 
 namespace App\Models\Placar;
 
+use App\Services\Placar\ImagemService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
 
 class Equipe extends Model
 {
@@ -42,7 +42,7 @@ class Equipe extends Model
      */
     public function logoUrl(): ?string
     {
-        return $this->logo_path ? Storage::disk('public')->url($this->logo_path) : null;
+        return ImagemService::url($this->logo_path);
     }
 
     public function scopeAtivas($query)

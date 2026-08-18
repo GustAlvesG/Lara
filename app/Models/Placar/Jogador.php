@@ -2,10 +2,10 @@
 
 namespace App\Models\Placar;
 
+use App\Services\Placar\ImagemService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
 
 class Jogador extends Model
 {
@@ -61,7 +61,7 @@ class Jogador extends Model
 
     public function fotoUrl(): ?string
     {
-        return $this->foto_path ? Storage::disk('public')->url($this->foto_path) : null;
+        return ImagemService::url($this->foto_path);
     }
 
     public function scopeAtivos($query)

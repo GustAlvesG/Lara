@@ -2,10 +2,10 @@
 
 namespace App\Models\Placar;
 
+use App\Services\Placar\ImagemService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Storage;
 
 class Time extends Model
 {
@@ -97,7 +97,7 @@ class Time extends Model
     public function logoUrl(): ?string
     {
         if ($this->logo_path) {
-            return Storage::disk('public')->url($this->logo_path);
+            return ImagemService::url($this->logo_path);
         }
 
         return $this->equipe->logoUrl();

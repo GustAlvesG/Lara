@@ -19,6 +19,13 @@ use InvalidArgumentException;
  */
 class ImagemService
 {
+    /**
+     * Disco de toda a mídia do Placar — ver a justificativa em
+     * config/filesystems.php. Escrita e remoção passam por aqui; a URL
+     * pública sai de `url()`, nunca de `Storage::url()`.
+     */
+    const DISCO = 'placar';
+
     const MIME_EXTENSOES = [
         'image/jpeg' => 'jpg',
         'image/png' => 'png',
@@ -175,17 +182,34 @@ class ImagemService
     }
 
     /**
-     * Grava em `$caminho` (disco `public`), apagando `$caminhoAnterior` se
-     * for diferente — cobre o caso de troca de extensão (era .jpg, virou
-     * .png) sem deixar arquivo órfão.
+     * URL pública de um caminho de mídia do Placar — ponto único de verdade,
+     * usado por Equipe::logoUrl(), Time::logoUrl(), Jogador::fotoUrl() e
+     * Jogador::videoUrl().
+     *
+     * Usa `asset()` (e não `Storage::url()`) porque o disco `public` do
+     * Laravel monta a URL a partir de `APP_URL` fixo no .env: com o app
+     * servido em qualquer outro host/porta que não o configurado, todo link
+     * sairia apontando para o lugar errado. `asset()` resolve a partir da
+     * request em curso, então funciona igual em local, homologação e
+     * produção sem depender de APP_URL estar certo.
+     */
+    public static function url(?string $caminho): ?string
+    {
+        return $caminho ? asset('storage/' . ltrim($caminho, '/')) : null;
+    }
+
+    /**
+     * Grava em `$caminho`, apagando `$caminhoAnterior` se for diferente —
+     * cobre o caso de troca de extensão (era .jpg, virou .png) sem deixar
+     * arquivo órfão.
      */
     public function salvar(string $binario, string $caminho, ?string $caminhoAnterior): string
     {
         if ($caminhoAnterior && $caminhoAnterior !== $caminho) {
-            Storage::disk('public')->delete($caminhoAnterior);
+            Storage::disk(self::DISCO)->delete($caminhoAnterior);
         }
 
-        Storage::disk('public')->put($caminho, $binario);
+        Storage::disk(self::DISCO)->put($caminho, $binario);
 
         return $caminho;
     }
@@ -193,7 +217,7 @@ class ImagemService
     public function remover(?string $caminho): void
     {
         if ($caminho) {
-            Storage::disk('public')->delete($caminho);
+            Storage::disk(self::DISCO)->delete($caminho);
         }
     }
 }
