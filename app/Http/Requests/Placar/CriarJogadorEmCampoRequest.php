@@ -11,8 +11,8 @@ use Illuminate\Foundation\Http\FormRequest;
  * POST /placar/jogadores — modo avulso.
  * body: { nome, nome_exibicao?, time_id?, equipe_id?, modalidade?, numero?, temporada? }
  *
- * Sem foto, sem data de nascimento, sem documento — nada disso é essencial
- * para o jogador entrar em quadra.
+ * Sem foto e sem data de nascimento — nada disso é essencial para o jogador
+ * entrar em quadra.
  *
  * O jogador pertence a UMA equipe e UMA modalidade. Com `time_id`, as duas
  * são herdadas do time (o caminho normal em campo: cria o jogador já

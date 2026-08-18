@@ -12,8 +12,8 @@
 
 ## 1. O que mudou agora — ações necessárias no Node
 
-Quatro mudanças no backend. Duas exigem alteração no Node **antes** do próximo jogo;
-duas são novidades que o Node passa a poder usar.
+Sete mudanças no backend. As marcadas ⚠️ exigem alteração no Node **antes** do próximo
+jogo; as demais são correções e novidades que o Node passa a poder usar.
 
 ### 1.1 `cronometro_ms` virou obrigatório em `ponto` e `falta` ⚠️ QUEBRA
 
@@ -117,7 +117,27 @@ ou modalidade.
 Se o Node cria jogador avulso sem saber o time (ex.: cadastro rápido antes de montar o
 elenco), passe a coletar a equipe na UI — ou crie o time primeiro e use `time_id`.
 
-### 1.6 Categoria e criação de partida 📋 REGRA NOVA
+### 1.6 `documento` saiu do jogador; entrou `idade` ⚠️ QUEBRA (se o Node lê esse campo)
+
+**O que mudou:** o cadastro do jogador guarda como dado pessoal apenas **nome e data de
+nascimento**. A coluna `documento` foi apagada do banco, sumiu do cadastro web e da
+planilha de importação, e **não vem mais no payload** do jogador. No lugar dela, o
+Resource passou a devolver `idade` (anos completos, ou `null` se a data de nascimento não
+foi informada) — já calculada no servidor.
+
+```js
+// antes
+{ id: 1, nome: 'Carlos Souza', data_nascimento: '2004-03-15', documento: 'MG1234567', ... }
+
+// agora
+{ id: 1, nome: 'Carlos Souza', data_nascimento: '2004-03-15', idade: 22, ... }
+```
+
+**O que fazer:** remova qualquer leitura de `documento` (ela virá `undefined`). Se alguma
+tela do telão mostra idade, use `idade` direto em vez de calcular a partir de
+`data_nascimento`. `POST /jogadores` nunca aceitou `documento`, então nada muda no envio.
+
+### 1.7 Categoria e criação de partida 📋 REGRA NOVA
 
 Se o Node cria times/jogos em campo (modo avulso):
 
@@ -166,8 +186,10 @@ inventar um formato de payload diferente do que a API espera.
 
 ### Jogador
 - **Tabela:** `jogadores`
-- **`$fillable`:** **`equipe_id`**, **`modalidade_id`**, `nome`, `nome_exibicao`, `foto_path`, **`video_path`**, `data_nascimento`, `documento`, `criado_em_campo`, `ativo`
+- **`$fillable`:** **`equipe_id`**, **`modalidade_id`**, `nome`, `nome_exibicao`, `foto_path`, **`video_path`**, `data_nascimento`, `criado_em_campo`, `ativo`
 - `fotoUrl()`/`videoUrl()`: URL absoluta ou `null`. Foto e vídeo são independentes.
+- `idade()`: anos completos a partir de `data_nascimento`, ou `null` se ela não foi
+  informada. Vai pronta no payload (`idade`) — o Node não faz essa conta.
 - **Pertence a UMA equipe e UMA modalidade.** Pode estar em vários times daquela equipe
   (Sub-15 e Adulto), nunca em time de outra equipe ou modalidade.
 
@@ -401,7 +423,7 @@ O evento original sai do placar e dos totais, mas **continua na súmula/timeline
 
 1. **`POST /equipes`** — `{ nome, nome_curto?, cidade? }`.
 2. **`POST /times`** — `{ equipe_id? | equipe_nome?, modalidade, categoria? }`. `categoria`
-   default `"Adulto"` e **normalizada** (ver 1.5): `201` se criou, `200` se reaproveitou.
+   default `"Adulto"` e **normalizada** (ver 1.7): `201` se criou, `200` se reaproveitou.
 3. **`POST /jogadores`** — `{ nome, nome_exibicao?, time_id?, equipe_id?, modalidade?, numero?, temporada? }`.
    Com `time_id`, equipe e modalidade vêm do time. **Sem `time_id`, `equipe_id` e
    `modalidade` são obrigatórios** (ver 1.5).
@@ -479,3 +501,5 @@ A API Laravel não sabe nada de WebSocket — é o Node que:
 - [ ] `200` em `POST /times` tratado como sucesso (não como erro)
 - [ ] seleção de times filtrada por categoria ao criar jogo
 - [ ] `POST /jogadores` sem `time_id` passou a mandar `equipe_id` + `modalidade`
+- [ ] leituras de `jogador.documento` removidas (o campo não existe mais)
+- [ ] idade lida de `jogador.idade`, sem calcular a partir de `data_nascimento`

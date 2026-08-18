@@ -31,9 +31,6 @@ class JogadorImport extends SpreadsheetImport
     private array $cacheEquipes = [];
     private array $cacheModalidades = [];
 
-    /** "documento" já visto no arquivo => linha em que apareceu. */
-    private array $documentosVistos = [];
-
     public function columns(): array
     {
         return [
@@ -42,7 +39,6 @@ class JogadorImport extends SpreadsheetImport
             'modalidade' => 'Modalidade *',
             'nome_exibicao' => 'Nome no telão',
             'data_nascimento' => 'Data de nascimento',
-            'documento' => 'Documento',
             'categoria' => 'Categoria do time',
             'numero' => 'Número da camisa',
             'posicao' => 'Posição',
@@ -64,9 +60,6 @@ class JogadorImport extends SpreadsheetImport
             'data_de_nascimento' => 'data_nascimento',
             'data_nascimento' => 'data_nascimento',
             'nascimento' => 'data_nascimento',
-            'documento' => 'documento',
-            'rg' => 'documento',
-            'cpf' => 'documento',
             'categoria_do_time' => 'categoria',
             'categoria' => 'categoria',
             'time' => 'categoria',
@@ -87,7 +80,6 @@ class JogadorImport extends SpreadsheetImport
             'modalidade' => 'futsal',
             'nome_exibicao' => 'Carlinhos',
             'data_nascimento' => '15/03/2004',
-            'documento' => 'MG1234567',
             'categoria' => 'Adulto',
             'numero' => '10',
             'posicao' => 'Ala',
@@ -102,9 +94,9 @@ class JogadorImport extends SpreadsheetImport
 
     protected function textColumns(): array
     {
-        // Número da camisa é texto: "07" não pode virar 7, e documento
-        // perderia zeros à esquerda se o Excel tratasse como número.
-        return ['documento', 'numero', 'temporada'];
+        // Número da camisa é texto: "07" não pode virar 7 se o Excel
+        // tratar a célula como número.
+        return ['numero', 'temporada'];
     }
 
     protected function rules(): array
@@ -115,7 +107,6 @@ class JogadorImport extends SpreadsheetImport
             'modalidade_id' => ['required', 'integer', 'exists:modalidades,id'],
             'nome_exibicao' => ['nullable', 'string', 'max:255'],
             'data_nascimento' => ['nullable', 'date'],
-            'documento' => ['nullable', 'string', 'max:255'],
             'categoria' => ['nullable', 'string', 'max:255'],
             'numero' => ['nullable', 'string', 'max:10'],
             'posicao' => ['nullable', 'string', 'max:255'],
@@ -161,21 +152,6 @@ class JogadorImport extends SpreadsheetImport
             throw new ImportRowException("Modalidade \"{$modalidade}\" não existe — use futsal, basquete ou volei.");
         }
 
-        $documento = trim((string) ($row['documento'] ?? ''));
-
-        // `unique` no banco não pega repetição dentro do próprio arquivo.
-        if ($documento !== '') {
-            $chave = mb_strtolower($documento);
-
-            if (isset($this->documentosVistos[$chave])) {
-                throw new ImportRowException(
-                    "Documento {$documento} repetido (já informado na linha {$this->documentosVistos[$chave]})."
-                );
-            }
-
-            $this->documentosVistos[$chave] = $line;
-        }
-
         $nascimento = ImportValues::date((string) ($row['data_nascimento'] ?? ''), 'data de nascimento');
 
         return [
@@ -184,7 +160,6 @@ class JogadorImport extends SpreadsheetImport
             'modalidade_id' => $modalidadeResolvida->id,
             'nome_exibicao' => blank($row['nome_exibicao'] ?? '') ? null : trim((string) $row['nome_exibicao']),
             'data_nascimento' => $nascimento === '' ? null : $nascimento,
-            'documento' => $documento === '' ? null : $documento,
             'categoria' => blank($row['categoria'] ?? '') ? null : trim((string) $row['categoria']),
             'numero' => blank($row['numero'] ?? '') ? null : trim((string) $row['numero']),
             'posicao' => blank($row['posicao'] ?? '') ? null : trim((string) $row['posicao']),
@@ -219,7 +194,6 @@ class JogadorImport extends SpreadsheetImport
             'nome' => $data['nome'],
             'nome_exibicao' => $data['nome_exibicao'],
             'data_nascimento' => $data['data_nascimento'],
-            'documento' => $data['documento'],
             'criado_em_campo' => false,
             'ativo' => true,
         ]);

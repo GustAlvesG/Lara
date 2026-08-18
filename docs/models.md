@@ -288,7 +288,7 @@ próprio de cadastro — consome esta API. Ver `docs/placar-clube-api.md`.
 
 ### Jogador
 - **Tabela:** `jogadores` · **SoftDeletes** · índice `(equipe_id, modalidade_id)`
-- **`$fillable`:** `equipe_id`, `modalidade_id`, `nome`, `nome_exibicao`, `foto_path`, `video_path`, `data_nascimento`, `documento`, `criado_em_campo`, `ativo`
+- **`$fillable`:** `equipe_id`, `modalidade_id`, `nome`, `nome_exibicao`, `foto_path`, `video_path`, `data_nascimento`, `criado_em_campo`, `ativo`
 - **`$casts`:** `data_nascimento` → `date`
 - **Relacionamentos:** `equipe()` belongsTo Equipe · `modalidade()` belongsTo Modalidade ·
   `elencos()` hasMany Elenco · `escalacoes()` hasMany Escalacao ·
@@ -302,6 +302,10 @@ próprio de cadastro — consome esta API. Ver `docs/placar-clube-api.md`.
   jogadores) mas obrigatórias na aplicação. `precisaDeRevisao()` marca quem ficou sem, e a
   listagem tem filtro "só pendentes de revisão".
 - **`nomeExibicaoResolvido()`**: nome curto do telão, ou `nome`. **`fotoUrl()`**/**`videoUrl()`**: URL absoluta ou `null`.
+- **Como dado pessoal, o cadastro guarda só nome e data de nascimento** — `documento` foi
+  removido (não era usado em lugar nenhum do módulo). **`idade()`** devolve os anos
+  completos, ou `null` sem data de nascimento: é o que a montagem do elenco mostra para
+  conferir a categoria do time, e o que a API entrega em `idade`.
 - Foto e vídeo são independentes e usados em momentos diferentes pelo telão (foto na
   escalação/súmula, vídeo na entrada em quadra). Ambos vivem em
   `public/storage/placar/jogadores/{id}/` — arquivo estático, ver `ImagemService`/`VideoService`.

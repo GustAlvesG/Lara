@@ -24,9 +24,9 @@ class JogadorController extends Controller
     /**
      * POST /placar/jogadores — modo avulso.
      * body: { nome, nome_exibicao?, time_id?, numero?, temporada? }
-     * Sem foto, data de nascimento nem documento — nada disso é essencial
-     * pra entrar em quadra. Com time_id, já cria o vínculo em elencos na
-     * mesma transação.
+     * Sem foto nem data de nascimento — nada disso é essencial pra entrar
+     * em quadra. Com time_id, já cria o vínculo em elencos na mesma
+     * transação.
      */
     public function store(CriarJogadorEmCampoRequest $request)
     {

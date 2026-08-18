@@ -222,7 +222,7 @@ Quatro chamadas, cada uma tolerante (validação mínima) e sempre `criado_em_ca
 2. **`POST /times`** — `{ equipe_id? | equipe_nome?, modalidade, categoria? }`. Um dos dois (`equipe_id` OU `equipe_nome`) é obrigatório; sem `equipe_id`, a equipe é criada junto (`firstOrCreate` por nome — não marca `criado_em_campo` se ela já existia). `categoria` default `"Adulto"`. `firstOrCreate` também no time: reenviar a mesma criação não duplica.
 
    **A categoria é normalizada** (`CategoriaService`): `"Sub 15"`, `"sub15"` e `"SUB-15"` caem no time que já existe como `"Sub-15"` em vez de criar duplicatas — a grafia **já cadastrada vence**, e só categoria realmente nova recebe a grafia canônica. Sem isso, cada variação furava o `UNIQUE (equipe_id, modalidade_id, categoria)`. Resposta é `201` quando cria e `200` quando reaproveita.
-3. **`POST /jogadores`** — `{ nome, nome_exibicao?, time_id?, equipe_id?, modalidade?, numero?, temporada? }`. Sem foto, data de nascimento ou documento — nada disso é essencial para entrar em quadra. Com `time_id`, já cria o vínculo em `elencos` na mesma transação.
+3. **`POST /jogadores`** — `{ nome, nome_exibicao?, time_id?, equipe_id?, modalidade?, numero?, temporada? }`. Sem foto nem data de nascimento — nada disso é essencial para entrar em quadra. Com `time_id`, já cria o vínculo em `elencos` na mesma transação.
 
    **O jogador pertence a uma equipe e uma modalidade.** Com `time_id`, as duas são herdadas do time (o caminho normal em campo). Sem `time_id`, **`equipe_id` e `modalidade` passam a ser obrigatórios** (`422` se faltarem) — senão o cadastro nasceria incompleto e o jogador não poderia entrar em time nenhum. Informar `equipe_id`/`modalidade` divergentes do `time_id` também é `422`, em vez de escolher um dos dois em silêncio.
 4. **`POST /jogos`** — `{ modalidade, time_casa_id, time_fora_id, data_hora?, local?, competicao_id? }`. `data_hora` default agora. Devolve o mesmo payload de `GET /jogos/{id}` — o Node segue direto para o jogo, sem chamada extra.
@@ -299,8 +299,7 @@ Em **Placar Clube → Jogadores → Novo Jogador**, o bloco "Importar por planil
 | Equipe | sim | pelo **nome** ou nome curto; precisa já estar cadastrada |
 | Modalidade | sim | `futsal`, `basquete` ou `volei` (aceita o nome também) |
 | Nome no telão | não | se vazio, usa o nome completo |
-| Data de nascimento | não | `dd/mm/aaaa` ou `aaaa-mm-dd` |
-| Documento | não | não pode repetir dentro do arquivo |
+| Data de nascimento | não | `dd/mm/aaaa` ou `aaaa-mm-dd`; é o que vira a **idade** exibida ao montar o elenco |
 | Categoria do time | não | **preenchida, já coloca o jogador no elenco** desse time |
 | Número da camisa | não | exige "Categoria do time" preenchida |
 | Posição | não | exige "Categoria do time" preenchida |

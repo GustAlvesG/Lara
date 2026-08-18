@@ -23,7 +23,7 @@
         @include('partials.alerts')
 
         <form method="GET" class="mb-6 flex flex-wrap items-center gap-3">
-            <input type="text" name="busca" value="{{ request('busca') }}" placeholder="Buscar por nome ou documento..."
+            <input type="text" name="busca" value="{{ request('busca') }}" placeholder="Buscar por nome..."
                 class="px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
             <select name="equipe_id" class="px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
                 <option value="">Todas as equipes</option>
@@ -64,7 +64,7 @@
                                 <th class="px-6 py-3">Nome</th>
                                 <th class="px-6 py-3">Equipe</th>
                                 <th class="px-6 py-3">Modalidade</th>
-                                <th class="px-6 py-3">Documento</th>
+                                <th class="px-6 py-3">Idade</th>
                                 <th class="px-6 py-3">Situação</th>
                                 <th class="px-6 py-3 text-right">Ações</th>
                             </tr>
@@ -90,7 +90,7 @@
                                 </td>
                                 <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $jogador->equipe?->nome ?? '—' }}</td>
                                 <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $jogador->modalidade?->nome ?? '—' }}</td>
-                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $jogador->documento ?? '—' }}</td>
+                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $jogador->idade() !== null ? $jogador->idade() . ' anos' : '—' }}</td>
                                 <td class="px-6 py-4">
                                     @if($jogador->ativo)
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">Ativo</span>

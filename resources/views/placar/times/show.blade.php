@@ -122,7 +122,11 @@
                                 <a href="{{ route('placar.jogadores.show', $vinculo->jogador) }}" class="text-sm font-semibold text-gray-800 dark:text-gray-200 hover:underline">
                                     {{ $vinculo->jogador->nomeExibicaoResolvido() }}
                                 </a>
-                                <p class="text-xs text-gray-400">nº {{ $vinculo->numero ?? '—' }} @if($vinculo->posicao) · {{ $vinculo->posicao }} @endif</p>
+                                <p class="text-xs text-gray-400">
+                                    nº {{ $vinculo->numero ?? '—' }}
+                                    @if($vinculo->posicao) · {{ $vinculo->posicao }} @endif
+                                    @if($vinculo->jogador->idade() !== null) · {{ $vinculo->jogador->idade() }} anos @endif
+                                </p>
                             </div>
                         </div>
                         <form action="{{ route('placar.times.elenco.destroy', [$time, $vinculo]) }}" method="POST"
@@ -150,7 +154,7 @@
                     // [id, texto pesquisável] — alimenta o filtro e o "marcar todos".
                     $indice = $jogadoresDisponiveis->map(fn ($j) => [
                         (string) $j->id,
-                        trim($j->nomeExibicaoResolvido() . ' ' . $j->nome . ' ' . $j->documento),
+                        trim($j->nomeExibicaoResolvido() . ' ' . $j->nome),
                     ])->values();
                 @endphp
 
@@ -219,7 +223,7 @@
                         </div>
                     </div>
 
-                    <input type="text" x-model="busca" placeholder="Filtrar por nome ou documento — filtra enquanto você digita"
+                    <input type="text" x-model="busca" placeholder="Filtrar por nome — filtra enquanto você digita"
                         class="w-full mb-4 px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm">
 
                     <form action="{{ route('placar.times.elenco.store', $time) }}" method="POST">
@@ -227,7 +231,7 @@
 
                         <div class="max-h-96 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
                             @foreach($jogadoresDisponiveis as $jogador)
-                            @php $busca = trim($jogador->nomeExibicaoResolvido() . ' ' . $jogador->nome . ' ' . $jogador->documento); @endphp
+                            @php $busca = trim($jogador->nomeExibicaoResolvido() . ' ' . $jogador->nome); @endphp
                             <label x-show="combina(@js($busca))"
                                    class="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 transition"
                                    :class="marcados[{{ $jogador->id }}] && 'bg-emerald-50 dark:bg-emerald-900/20'">
@@ -246,10 +250,18 @@
                                     <div class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 shrink-0"></div>
                                 @endif
 
+                                {{-- A idade fica ao lado do nome porque é por
+                                     ela que se confere se o jogador cabe na
+                                     categoria do time (Sub-15, Sub-17…). --}}
                                 <span class="flex-1 min-w-0">
                                     <span class="block text-sm text-gray-800 dark:text-gray-200 truncate">{{ $jogador->nomeExibicaoResolvido() }}</span>
-                                    @if($jogador->documento)
-                                        <span class="block text-xs text-gray-400 truncate">{{ $jogador->documento }}</span>
+                                    @if($jogador->idade() !== null)
+                                        <span class="block text-xs text-gray-500 dark:text-gray-400 truncate">
+                                            {{ $jogador->idade() }} anos
+                                            <span class="text-gray-400 dark:text-gray-500">· {{ $jogador->data_nascimento->format('d/m/Y') }}</span>
+                                        </span>
+                                    @else
+                                        <span class="block text-xs text-gray-400 dark:text-gray-500 truncate">idade não informada</span>
                                     @endif
                                 </span>
 

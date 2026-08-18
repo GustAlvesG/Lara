@@ -68,17 +68,17 @@ class ImportacaoJogadoresTest extends TestCase
         return $caminho;
     }
 
-    /** Ordem das colunas do modelo: nome, equipe, modalidade, exibicao, nasc, doc, categoria, numero, posicao, temporada */
+    /** Ordem das colunas do modelo: nome, equipe, modalidade, exibicao, nasc, categoria, numero, posicao, temporada */
     private function linha(array $valores): array
     {
-        return array_replace(array_fill(0, 10, ''), $valores);
+        return array_replace(array_fill(0, 9, ''), $valores);
     }
 
     public function test_importa_cadastro_e_ja_vincula_ao_elenco(): void
     {
         $arquivo = $this->planilha([
             $this->linha([0 => 'Carlos Souza', 1 => 'Clube dos Funcionários', 2 => 'futsal',
-                3 => 'Carlinhos', 4 => '15/03/2004', 5 => 'MG123', 6 => 'Adulto', 7 => '10', 8 => 'Ala', 9 => '2026']),
+                3 => 'Carlinhos', 4 => '15/03/2004', 5 => 'Adulto', 6 => '10', 7 => 'Ala', 8 => '2026']),
         ]);
 
         $resultado = (new JogadorImport())->import($arquivo);
@@ -118,9 +118,9 @@ class ImportacaoJogadoresTest extends TestCase
     public function test_varios_jogadores_do_mesmo_time_caem_no_mesmo_elenco(): void
     {
         $arquivo = $this->planilha([
-            $this->linha([0 => 'Jogador Um', 1 => 'Clube dos Funcionários', 2 => 'futsal', 6 => 'Adulto', 7 => '1']),
-            $this->linha([0 => 'Jogador Dois', 1 => 'Clube dos Funcionários', 2 => 'futsal', 6 => 'Adulto', 7 => '2']),
-            $this->linha([0 => 'Jogador Três', 1 => 'Clube dos Funcionários', 2 => 'futsal', 6 => 'Adulto', 7 => '3']),
+            $this->linha([0 => 'Jogador Um', 1 => 'Clube dos Funcionários', 2 => 'futsal', 5 => 'Adulto', 6 => '1']),
+            $this->linha([0 => 'Jogador Dois', 1 => 'Clube dos Funcionários', 2 => 'futsal', 5 => 'Adulto', 6 => '2']),
+            $this->linha([0 => 'Jogador Três', 1 => 'Clube dos Funcionários', 2 => 'futsal', 5 => 'Adulto', 6 => '3']),
         ]);
 
         $resultado = (new JogadorImport())->import($arquivo);
@@ -141,7 +141,7 @@ class ImportacaoJogadoresTest extends TestCase
         ]);
 
         $arquivo = $this->planilha([
-            $this->linha([0 => 'Da Base', 1 => 'Clube dos Funcionários', 2 => 'futsal', 6 => 'Sub 15']),
+            $this->linha([0 => 'Da Base', 1 => 'Clube dos Funcionários', 2 => 'futsal', 5 => 'Sub 15']),
         ]);
 
         (new JogadorImport())->import($arquivo);
@@ -190,24 +190,23 @@ class ImportacaoJogadoresTest extends TestCase
         $this->assertStringContainsString('handebol', $resultado['errors'][0]);
     }
 
-    public function test_documento_repetido_dentro_do_arquivo_e_recusado(): void
+    /**
+     * O modelo pede só nome e data de nascimento como dado pessoal —
+     * documento saiu do cadastro e não pode voltar por planilha.
+     */
+    public function test_o_modelo_nao_tem_mais_a_coluna_documento(): void
     {
-        $arquivo = $this->planilha([
-            $this->linha([0 => 'Primeiro', 1 => 'Clube dos Funcionários', 2 => 'futsal', 5 => 'MG999']),
-            $this->linha([0 => 'Segundo', 1 => 'Clube dos Funcionários', 2 => 'futsal', 5 => 'MG999']),
-        ]);
+        $colunas = (new JogadorImport())->columns();
 
-        $resultado = (new JogadorImport())->import($arquivo);
-
-        $this->assertSame(0, $resultado['imported']);
-        $this->assertStringContainsString('repetido', $resultado['errors'][0]);
+        $this->assertArrayNotHasKey('documento', $colunas);
+        $this->assertNotContains('Documento', array_values($colunas));
     }
 
     /** Número sem categoria seria descartado em silêncio — melhor avisar. */
     public function test_numero_sem_categoria_do_time_e_recusado(): void
     {
         $arquivo = $this->planilha([
-            $this->linha([0 => 'Sem Time', 1 => 'Clube dos Funcionários', 2 => 'futsal', 7 => '10']),
+            $this->linha([0 => 'Sem Time', 1 => 'Clube dos Funcionários', 2 => 'futsal', 6 => '10']),
         ]);
 
         $resultado = (new JogadorImport())->import($arquivo);

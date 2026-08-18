@@ -409,7 +409,7 @@
               "raw": "{\n    \"nome\": \"João da Silva\",\n    \"time_id\": {{time_avulso_id}},\n    \"numero\": \"9\"\n}",
               "options": { "raw": { "language": "json" } }
             },
-            "description": "Com `time_id`, já cria o vínculo em elencos na mesma transação. Sem foto, data de nascimento nem documento — nada disso é essencial pra entrar em quadra."
+            "description": "Com `time_id`, já cria o vínculo em elencos na mesma transação. Sem foto nem data de nascimento — nada disso é essencial pra entrar em quadra."
           },
           "response": []
         },

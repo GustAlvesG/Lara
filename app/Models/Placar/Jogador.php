@@ -21,7 +21,6 @@ class Jogador extends Model
         'foto_path',
         'video_path',
         'data_nascimento',
-        'documento',
         'criado_em_campo',
         'ativo',
     ];
@@ -75,6 +74,19 @@ class Jogador extends Model
     public function nomeExibicaoResolvido(): string
     {
         return $this->nome_exibicao ?: $this->nome;
+    }
+
+    /**
+     * Idade em anos completos, ou null quando a data de nascimento não foi
+     * informada — o cadastro não a exige.
+     *
+     * É o que aparece ao montar o elenco: quem escala precisa saber se o
+     * jogador cabe na categoria do time (Sub-15, Sub-17…), e conferir isso
+     * de cabeça a partir da data de nascimento é onde o erro acontece.
+     */
+    public function idade(): ?int
+    {
+        return $this->data_nascimento?->age;
     }
 
     public function fotoUrl(): ?string
@@ -154,8 +166,7 @@ class Jogador extends Model
 
         return $query->where(function ($q) use ($termo) {
             $q->where('nome', 'like', "%{$termo}%")
-              ->orWhere('nome_exibicao', 'like', "%{$termo}%")
-              ->orWhere('documento', 'like', "%{$termo}%");
+              ->orWhere('nome_exibicao', 'like', "%{$termo}%");
         });
     }
 }

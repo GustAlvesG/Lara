@@ -140,7 +140,6 @@ class JogadorController extends Controller
             'nome' => ['required', 'string', 'max:255'],
             'nome_exibicao' => ['nullable', 'string', 'max:255'],
             'data_nascimento' => ['nullable', 'date'],
-            'documento' => ['nullable', 'string', 'max:255'],
         ];
     }
 
