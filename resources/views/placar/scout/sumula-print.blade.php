@@ -43,6 +43,13 @@
 
         .estornado { text-decoration: line-through; color: #999; }
 
+        /* Resumo por parcial: cada bloco tenta não quebrar no meio da
+           página — uma parcial partida em duas folhas é ilegível. */
+        .parcial { margin-bottom: 12px; page-break-inside: avoid; }
+        .parcial h3 { font-size: 11px; margin: 0 0 4px; padding-bottom: 2px; border-bottom: 1px solid #ddd; }
+        .parcial table { margin-bottom: 4px; }
+        .parcial .quem { font-size: 9px; color: #555; margin: 0 0 2px; }
+
         @media print {
             .no-print { display: none; }
         }
@@ -118,6 +125,63 @@
         </div>
         @endforeach
     </div>
+
+    @if(!empty($sumula['resumo_por_periodo']))
+    {{-- No papel não há aba para clicar e ver o 3º quarter: o documento
+         precisa trazer as parciais abertas. --}}
+    <h2>Resumo por {{ $vocab['periodo'] }}</h2>
+
+    @foreach($sumula['resumo_por_periodo'] as $parcial)
+    @php
+        $times = [
+            'time_casa' => $j['time_casa']['nome_exibicao'],
+            'time_fora' => $j['time_fora']['nome_exibicao'],
+        ];
+    @endphp
+    <div class="parcial">
+        <h3>
+            {{ $nomeDoPeriodo }} {{ $parcial['periodo'] }} —
+            {{ $parcial['time_casa']['pontos'] }} x {{ $parcial['time_fora']['pontos'] }}
+        </h3>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>{{ ucfirst($vocab['pontos']) }}</th>
+                    @if($vocab['tem_falta'])<th>Faltas</th>@endif
+                    <th>Tempos</th>
+                    <th>Trocas</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($times as $lado => $nome)
+                <tr>
+                    <td>{{ $nome }}</td>
+                    <td>{{ $parcial[$lado]['pontos'] }}</td>
+                    @if($vocab['tem_falta'])<td>{{ $parcial[$lado]['faltas'] }}</td>@endif
+                    <td>{{ $parcial[$lado]['timeouts'] }}</td>
+                    <td>{{ $parcial[$lado]['substituicoes'] }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+
+        {{-- Quem produziu na parcial: é o que a soma do jogo esconde. --}}
+        @foreach($times as $lado => $nome)
+            @if($parcial[$lado]['jogadores'])
+            <p class="quem">
+                <b>{{ $nome }}:</b>
+                @foreach($parcial[$lado]['jogadores'] as $jogador)
+                    {{ $jogador['numero'] ? '#' . $jogador['numero'] . ' ' : '' }}{{ $jogador['nome_exibicao'] }}
+                    ({{ $jogador['pontos'] }}@if($vocab['tem_falta'] && $jogador['faltas']), {{ $jogador['faltas'] }} falta{{ $jogador['faltas'] > 1 ? 's' : '' }}@endif){{ !$loop->last ? ' · ' : '' }}
+                @endforeach
+            </p>
+            @endif
+        @endforeach
+    </div>
+    @endforeach
+    @endif
 
     @if(!empty($sumula['eventos']))
     <h2>Linha do tempo</h2>

@@ -289,6 +289,20 @@ Use `periodos_disponiveis` para montar as abas: jogo interrompido no 2º quarter
 oferecer 3º e 4º. Parcial sem lance nenhum devolve listas vazias (não é erro); `periodo` que
 não seja inteiro ≥ 1 é `422`.
 
+**`resumo_por_periodo`** vem junto, com as parciais já abertas — pontos, faltas, tempos
+técnicos, substituições e os jogadores de cada time em cada parcial:
+
+```js
+sumula.resumo_por_periodo[0]
+// { periodo: 1,
+//   time_casa: { pontos: 25, faltas: 0, timeouts: 0, substituicoes: 0, jogadores: [...] },
+//   time_fora: { ... } }
+```
+
+Serve para uma tela de "resumo do jogo" sem N chamadas com `?periodo=`. Segue os mesmos
+recortes: com `time_id`, o adversário mantém os números e vem sem `jogadores`; com
+`periodo`, só a parcial pedida aparece na lista.
+
 > Ajuste de nomenclatura: `nome_do_periodo` em `/situacao` passou a devolver **`período`**
 > (era `tempo`) e **`quarter`** (era `quarto`), alinhado a esta tabela.
 

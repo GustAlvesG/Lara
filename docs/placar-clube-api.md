@@ -284,6 +284,21 @@ Camada de leitura que lê **só** de `jogo_eventos`, nunca de campo denormalizad
   ```
 
   O mesmo `rotulo` e o mesmo bloco `vocabulario` vão na ficha de atuação (`/jogadores/{jogador}/atuacao`).
+
+  **`resumo_por_periodo`** abre parcial a parcial o que cada time produziu — pontos, faltas, tempos técnicos, substituições e os jogadores que apareceram. É o que a **súmula impressa** traz e a tela não precisa: no papel não há aba para clicar e ver o 3º quarter. Respeita os dois recortes (com `periodo`, só aquela parcial; com `time_id`, o adversário mantém os números mas vem sem a lista de jogadores) e ignora o que foi estornado.
+
+  ```json
+  "resumo_por_periodo": [
+      {
+          "periodo": 1,
+          "time_casa": {
+              "pontos": 25, "faltas": 0, "timeouts": 0, "substituicoes": 0,
+              "jogadores": [ { "jogador_id": 2, "numero": "9", "nome_exibicao": "Diego", "pontos": 7, "faltas": 0 } ]
+          },
+          "time_fora": { "…": "…" }
+      }
+  ]
+  ```
 - **`GET /jogos/{jogo}/jogadores/{jogador}/atuacao`** — **a visão central do scout**: a ficha do jogador nesta partida. Traz `totais` (`pontos`, `faltas`, `lances`) e a lista `lances`, cada um com `minuto` ("MM:SS"), `cronometro_ms` cru, `periodo`, `valor` e `estornado`. Lance estornado **continua na ficha**, marcado, mas fora dos totais.
 
   ```json

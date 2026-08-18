@@ -103,11 +103,81 @@ class ScoutService
             // Para a tela montar as abas sem varrer os eventos.
             'periodos_disponiveis' => $this->periodosDisponiveis($eventos),
             'placar_por_periodo' => $this->placarPorPeriodo($jogo, $eventos, $estornados),
+            'resumo_por_periodo' => $this->resumoPorPeriodo($jogo, $eventos, $estornados, $numeros, $lado, $periodo),
             'eventos' => $daLinhaDoTempo->map(fn (JogoEvento $evento) => $this->linhaDoTempo($evento, $estornados, $numeros, $trocas, $slug))->values()->all(),
             'totais_por_jogador' => [
                 'time_casa' => $lado === 'fora' ? [] : $this->totaisPorJogador($jogo->time_casa_id, $doPeriodo, $estornados, $numeros),
                 'time_fora' => $lado === 'casa' ? [] : $this->totaisPorJogador($jogo->time_fora_id, $doPeriodo, $estornados, $numeros),
             ],
+        ];
+    }
+
+    /**
+     * Parcial a parcial: o que cada time produziu em cada set/quarter/
+     * período — pontos, faltas, tempos técnicos, substituições e os
+     * jogadores que apareceram.
+     *
+     * É o que a súmula impressa precisa e a tela não: no papel não há como
+     * clicar numa aba para ver o 3º quarter, então o documento tem de
+     * trazer as parciais abertas. Sai da mesma apuração de sempre — só
+     * reorganizada por período.
+     *
+     * Respeita os dois recortes: com filtro de período, só ele aparece;
+     * com recorte de time, o lado de fora vem sem a lista de jogadores
+     * (mas mantém o resumo numérico, que é o placar da parcial).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function resumoPorPeriodo(
+        Jogo $jogo,
+        Collection $eventos,
+        array $estornados,
+        array $numeros,
+        ?string $lado,
+        ?int $periodoFiltrado,
+    ): array {
+        $periodos = $this->periodosDisponiveis($eventos);
+
+        if ($periodoFiltrado !== null) {
+            $periodos = array_values(array_filter($periodos, fn (int $p) => $p === $periodoFiltrado));
+        }
+
+        return array_map(function (int $numero) use ($jogo, $eventos, $estornados, $numeros, $lado) {
+            $daParcial = $eventos->where('periodo', $numero);
+
+            return [
+                'periodo' => $numero,
+                'time_casa' => $this->resumoDoTimeNaParcial(
+                    $jogo->time_casa_id, $daParcial, $estornados, $numeros, comJogadores: $lado !== 'fora',
+                ),
+                'time_fora' => $this->resumoDoTimeNaParcial(
+                    $jogo->time_fora_id, $daParcial, $estornados, $numeros, comJogadores: $lado !== 'casa',
+                ),
+            ];
+        }, $periodos);
+    }
+
+    /** @return array<string, mixed> */
+    private function resumoDoTimeNaParcial(
+        ?int $timeId,
+        Collection $daParcial,
+        array $estornados,
+        array $numeros,
+        bool $comJogadores,
+    ): array {
+        // Estornado não conta em lugar nenhum do resumo — nem o ponto, nem
+        // a falta, nem o tempo pedido.
+        $doTime = $daParcial->where('time_id', $timeId)
+            ->reject(fn (JogoEvento $evento) => isset($estornados[$evento->uuid]));
+
+        return [
+            'pontos' => $doTime->where('tipo', JogoEvento::TIPO_PONTO)->sum(fn (JogoEvento $e) => $e->valor ?? 1),
+            'faltas' => $doTime->where('tipo', JogoEvento::TIPO_FALTA)->count(),
+            'timeouts' => $doTime->where('tipo', JogoEvento::TIPO_TIMEOUT)->count(),
+            'substituicoes' => $doTime->where('tipo', JogoEvento::TIPO_SUBSTITUICAO)->count(),
+            'jogadores' => $comJogadores
+                ? $this->totaisPorJogador($timeId, $daParcial, $estornados, $numeros)
+                : [],
         ];
     }
 
