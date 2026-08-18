@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Placar\Web;
 
 use App\Http\Controllers\Controller;
 use App\Models\Placar\Elenco;
+use App\Models\Placar\Jogador;
 use App\Models\Placar\Time;
 use Illuminate\Http\Request;
 
@@ -21,6 +22,21 @@ class ElencoController extends Controller
             'numero' => ['nullable', 'string', 'max:10'],
             'posicao' => ['nullable', 'string', 'max:255'],
         ]);
+
+        $jogador = Jogador::findOrFail($data['jogador_id']);
+
+        // Jogador é de uma única equipe e uma única modalidade: só entra em
+        // time que case com as duas.
+        if (!$jogador->podeJogarPor($time)) {
+            return back()->with('error', sprintf(
+                '%s é da equipe %s / %s e não pode entrar num time de %s / %s.',
+                $jogador->nomeExibicaoResolvido(),
+                $jogador->equipe?->nome ?? '—',
+                $jogador->modalidade?->nome ?? '—',
+                $time->equipe->nome,
+                $time->modalidade->nome,
+            ));
+        }
 
         $temporada = now()->year;
 

@@ -287,11 +287,20 @@ próprio de cadastro — consome esta API. Ver `docs/placar-clube-api.md`.
   `equipe.nome_curto ?: equipe.nome` + `categoria`. **`logoUrl()`**: própria, senão herda da equipe.
 
 ### Jogador
-- **Tabela:** `jogadores` · **SoftDeletes**
-- **`$fillable`:** `nome`, `nome_exibicao`, `foto_path`, `video_path`, `data_nascimento`, `documento`, `criado_em_campo`, `ativo`
+- **Tabela:** `jogadores` · **SoftDeletes** · índice `(equipe_id, modalidade_id)`
+- **`$fillable`:** `equipe_id`, `modalidade_id`, `nome`, `nome_exibicao`, `foto_path`, `video_path`, `data_nascimento`, `documento`, `criado_em_campo`, `ativo`
 - **`$casts`:** `data_nascimento` → `date`
-- **Relacionamentos:** `elencos()` hasMany Elenco · `escalacoes()` hasMany Escalacao ·
+- **Relacionamentos:** `equipe()` belongsTo Equipe · `modalidade()` belongsTo Modalidade ·
+  `elencos()` hasMany Elenco · `escalacoes()` hasMany Escalacao ·
   `eventos()` hasMany JogoEvento · `times()` belongsToMany Time (pivô `elencos`, com `temporada`/`numero`/`posicao`/`ativo`)
+- **O jogador pertence a UMA equipe e UMA modalidade.** Pode estar em vários times daquela
+  equipe (Sub-15 e Adulto, por exemplo), nunca em time de outra equipe ou modalidade.
+  `podeJogarPor(Time)` é o ponto único da regra; o scope `elegiveisPara(Time)` filtra os
+  candidatos ao elenco. Trocar equipe/modalidade só é possível enquanto o jogador não
+  estiver em elenco nenhum — os vínculos existentes ficariam inválidos.
+- As colunas são nullable no schema (para a migration não abortar em base que já tinha
+  jogadores) mas obrigatórias na aplicação. `precisaDeRevisao()` marca quem ficou sem, e a
+  listagem tem filtro "só pendentes de revisão".
 - **`nomeExibicaoResolvido()`**: nome curto do telão, ou `nome`. **`fotoUrl()`**/**`videoUrl()`**: URL absoluta ou `null`.
 - Foto e vídeo são independentes e usados em momentos diferentes pelo telão (foto na
   escalação/súmula, vídeo na entrada em quadra). Ambos vivem em

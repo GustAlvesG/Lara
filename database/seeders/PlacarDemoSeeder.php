@@ -97,9 +97,16 @@ class PlacarDemoSeeder extends Seeder
         for ($numero = 1; $numero <= 10; $numero++) {
             $nome = fake('pt_BR')->name();
 
+            // Jogador é de uma equipe e uma modalidade só — as do próprio
+            // time, que é o recorte da equipe naquela modalidade.
             $jogador = Jogador::firstOrCreate(
                 ['nome' => $nome],
-                ['criado_em_campo' => false, 'ativo' => true],
+                [
+                    'equipe_id' => $time->equipe_id,
+                    'modalidade_id' => $time->modalidade_id,
+                    'criado_em_campo' => false,
+                    'ativo' => true,
+                ],
             );
 
             Elenco::firstOrCreate(

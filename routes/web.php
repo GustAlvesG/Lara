@@ -501,10 +501,17 @@ Route::middleware('auth')->group(function () {
             Route::delete('times/{time}/elenco/{elenco}', [PlacarElencoWebController::class, 'destroy'])->name('times.elenco.destroy');
             Route::post('times/{time}/elenco/copiar', [PlacarElencoWebController::class, 'copiar'])->name('times.elenco.copiar');
 
+            // Declaradas ANTES do resource: `jogadores/import` casaria com
+            // `jogadores/{jogador}` e o route-model-binding tentaria achar um
+            // jogador chamado "import" — 404 em vez da importação.
+            Route::get('jogadores/import/template', [PlacarJogadorWebController::class, 'importTemplate'])->name('jogadores.import.template');
+            Route::post('jogadores/import', [PlacarJogadorWebController::class, 'import'])->name('jogadores.import');
+
             // ->parameters(): Str::singular('jogadores') dá 'jogadore' — o
             // controller espera {jogador} (Jogador $jogador).
             Route::resource('jogadores', PlacarJogadorWebController::class)->except(['edit'])
                 ->parameters(['jogadores' => 'jogador']);
+
             Route::post('jogadores/{jogador}/foto', [PlacarJogadorWebController::class, 'storeFoto'])->name('jogadores.foto.store');
             Route::delete('jogadores/{jogador}/foto', [PlacarJogadorWebController::class, 'destroyFoto'])->name('jogadores.foto.destroy');
             Route::post('jogadores/{jogador}/video', [PlacarJogadorWebController::class, 'storeVideo'])->name('jogadores.video.store');

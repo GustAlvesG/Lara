@@ -10,6 +10,15 @@
 
         @include('partials.alerts')
 
+        {{-- Bloco genérico de importação, o mesmo usado pelo cadastro de
+             freelancers — não vale duplicar 90 linhas de markup. --}}
+        @include('freelancer.partials.import-card', [
+            'action' => route('placar.jogadores.import'),
+            'templateRoute' => route('placar.jogadores.import.template'),
+            'columns' => $importColumns,
+            'hint' => 'A equipe precisa já estar cadastrada, e é escrita pelo nome (não pelo id). Preenchendo "Categoria do time", o jogador já entra no elenco daquele time — que é criado se ainda não existir.',
+        ])
+
         <form action="{{ route('placar.jogadores.store') }}" method="POST">
             @csrf
             @include('placar.jogadores.partials.form')

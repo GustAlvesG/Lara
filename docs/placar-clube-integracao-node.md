@@ -89,7 +89,35 @@ jogador não tem vídeo — **sempre trate esse caso**, a maioria não terá.
 O arquivo é servido estaticamente, com *range request* nativo: dá para dar seek
 normalmente num `<video>`, sem baixar tudo antes.
 
-### 1.5 Categoria e criação de partida 📋 REGRA NOVA
+### 1.5 Jogador agora tem equipe e modalidade ⚠️ QUEBRA (se cria jogador sem `time_id`)
+
+**O que mudou:** o jogador passou a pertencer a **uma equipe e uma modalidade**. Ele pode
+estar em vários times daquela equipe (Sub-15 e Adulto), mas nunca em time de outra equipe
+ou modalidade.
+
+**Efeito no Node, em `POST /placar/jogadores`:**
+
+- **Com `time_id`** (o caminho normal em campo): nada muda. Equipe e modalidade são
+  herdadas do time automaticamente.
+- **Sem `time_id`**: `equipe_id` e `modalidade` viraram **obrigatórios**. Sem eles, `422`.
+- Mandar `equipe_id`/`modalidade` que **divirjam** do `time_id` agora é `422`, em vez de
+  a API escolher um dos dois em silêncio.
+
+```js
+// continua funcionando — equipe e modalidade vêm do time
+{ nome: 'Carlos', time_id: 12, numero: '10' }
+
+// antes funcionava, agora dá 422
+{ nome: 'Carlos' }
+
+// forma correta sem time
+{ nome: 'Carlos', equipe_id: 3, modalidade: 'futsal' }
+```
+
+Se o Node cria jogador avulso sem saber o time (ex.: cadastro rápido antes de montar o
+elenco), passe a coletar a equipe na UI — ou crie o time primeiro e use `time_id`.
+
+### 1.6 Categoria e criação de partida 📋 REGRA NOVA
 
 Se o Node cria times/jogos em campo (modo avulso):
 
@@ -138,8 +166,10 @@ inventar um formato de payload diferente do que a API espera.
 
 ### Jogador
 - **Tabela:** `jogadores`
-- **`$fillable`:** `nome`, `nome_exibicao`, `foto_path`, **`video_path`**, `data_nascimento`, `documento`, `criado_em_campo`, `ativo`
+- **`$fillable`:** **`equipe_id`**, **`modalidade_id`**, `nome`, `nome_exibicao`, `foto_path`, **`video_path`**, `data_nascimento`, `documento`, `criado_em_campo`, `ativo`
 - `fotoUrl()`/`videoUrl()`: URL absoluta ou `null`. Foto e vídeo são independentes.
+- **Pertence a UMA equipe e UMA modalidade.** Pode estar em vários times daquela equipe
+  (Sub-15 e Adulto), nunca em time de outra equipe ou modalidade.
 
 ### Elenco
 - **Tabela:** `elencos` — vínculo jogador ↔ time por temporada · `UNIQUE (time_id, jogador_id, temporada)`
@@ -372,7 +402,9 @@ O evento original sai do placar e dos totais, mas **continua na súmula/timeline
 1. **`POST /equipes`** — `{ nome, nome_curto?, cidade? }`.
 2. **`POST /times`** — `{ equipe_id? | equipe_nome?, modalidade, categoria? }`. `categoria`
    default `"Adulto"` e **normalizada** (ver 1.5): `201` se criou, `200` se reaproveitou.
-3. **`POST /jogadores`** — `{ nome, nome_exibicao?, time_id?, numero?, temporada? }`.
+3. **`POST /jogadores`** — `{ nome, nome_exibicao?, time_id?, equipe_id?, modalidade?, numero?, temporada? }`.
+   Com `time_id`, equipe e modalidade vêm do time. **Sem `time_id`, `equipe_id` e
+   `modalidade` são obrigatórios** (ver 1.5).
 4. **`POST /jogos`** — `{ modalidade, time_casa_id, time_fora_id, data_hora?, local?,
    competicao_id? }`. Valida modalidade **e categoria** iguais nos dois times (`422`).
 
@@ -446,3 +478,4 @@ A API Laravel não sabe nada de WebSocket — é o Node que:
 - [ ] `video_url` consumido, com fallback para `null`
 - [ ] `200` em `POST /times` tratado como sucesso (não como erro)
 - [ ] seleção de times filtrada por categoria ao criar jogo
+- [ ] `POST /jogadores` sem `time_id` passou a mandar `equipe_id` + `modalidade`

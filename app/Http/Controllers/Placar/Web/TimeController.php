@@ -93,11 +93,13 @@ class TimeController extends Controller
         $elenco = $time->elencoDaTemporada($temporada)->orderBy('numero')->get();
         $temporadaAnteriorTemElenco = $time->elencos()->where('temporada', $temporada - 1)->exists();
 
-        // Candidatos para adicionar ao elenco: jogadores ativos que ainda não
-        // estão nele nesta temporada, filtráveis por nome/documento — a
-        // busca fica no mesmo GET da ficha, não numa tela separada.
+        // Candidatos para adicionar ao elenco: jogadores ativos DA MESMA
+        // equipe e modalidade do time (jogador pertence a uma só de cada),
+        // que ainda não estão nele nesta temporada. A busca fica no mesmo
+        // GET da ficha, não numa tela separada.
         $jaNoElenco = $elenco->pluck('jogador_id');
         $jogadoresDisponiveis = Jogador::ativos()
+            ->elegiveisPara($time)
             ->whereNotIn('id', $jaNoElenco)
             ->busca($request->query('jogador_busca'))
             ->orderBy('nome')

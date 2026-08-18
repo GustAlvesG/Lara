@@ -9,6 +9,8 @@ use App\Http\Requests\Placar\UploadImagemRequest;
 use App\Http\Resources\Placar\JogadorResource;
 use App\Models\Placar\Elenco;
 use App\Models\Placar\Jogador;
+use App\Models\Placar\Modalidade;
+use App\Models\Placar\Time;
 use App\Services\Placar\ImagemService;
 use App\Services\Placar\VideoService;
 use Illuminate\Http\Request;
@@ -29,17 +31,26 @@ class JogadorController extends Controller
     public function store(CriarJogadorEmCampoRequest $request)
     {
         $jogador = DB::transaction(function () use ($request) {
+            // Com time_id, equipe e modalidade vêm do time — é o caminho
+            // normal em campo. Sem ele, vêm explícitas (o Request garante).
+            $time = $request->filled('time_id') ? Time::find($request->input('time_id')) : null;
+
+            $equipeId = $time?->equipe_id ?? $request->input('equipe_id');
+            $modalidadeId = $time?->modalidade_id ?? Modalidade::resolver($request->input('modalidade'))?->id;
+
             // 'ativo' explícito — ver o comentário equivalente em EquipeController@store.
             $jogador = Jogador::create([
+                'equipe_id' => $equipeId,
+                'modalidade_id' => $modalidadeId,
                 'nome' => $request->input('nome'),
                 'nome_exibicao' => $request->input('nome_exibicao'),
                 'criado_em_campo' => true,
                 'ativo' => true,
             ]);
 
-            if ($request->filled('time_id')) {
+            if ($time) {
                 Elenco::create([
-                    'time_id' => $request->input('time_id'),
+                    'time_id' => $time->id,
                     'jogador_id' => $jogador->id,
                     'temporada' => $request->input('temporada', now()->year),
                     'numero' => $request->input('numero'),
