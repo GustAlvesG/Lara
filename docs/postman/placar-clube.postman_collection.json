@@ -304,25 +304,16 @@
           "response": []
         },
         {
-          "name": "Artilharia",
+          "name": "7. Atuação do jogador na partida",
           "request": {
             "method": "GET",
-            "url": {
-              "raw": "{{base_url}}/api/placar/scout/artilharia?modalidade=futsal",
-              "host": ["{{base_url}}"],
-              "path": ["api", "placar", "scout", "artilharia"],
-              "query": [
-                { "key": "modalidade", "value": "futsal" },
-                { "key": "competicao_id", "value": "", "disabled": true },
-                { "key": "temporada", "value": "", "disabled": true },
-                { "key": "time_id", "value": "", "disabled": true }
-              ]
-            }
+            "url": "{{base_url}}/api/placar/jogos/{{jogo_id}}/jogadores/{{jogador_casa_id}}/atuacao",
+            "description": "A visão central do scout: a ficha minutada do jogador NESTA partida — cada lance com o minuto ('MM:SS') do cronômetro do jogo, mais os totais de pontos e faltas. Lance estornado continua na lista, marcado, mas fora dos totais. Não existe artilharia: o scout mede atuação por partida, não ranking entre partidas."
           },
           "response": []
         },
         {
-          "name": "Perfil do jogador",
+          "name": "Partidas do jogador",
           "request": {
             "method": "GET",
             "url": {
@@ -330,7 +321,8 @@
               "host": ["{{base_url}}"],
               "path": ["api", "placar", "scout", "jogadores", "{{jogador_casa_id}}"],
               "query": [{ "key": "temporada", "value": "2026" }]
-            }
+            },
+            "description": "Partidas em que o jogador atuou, da mais recente para a mais antiga, com pontos e faltas em cada uma. É a porta para a ficha minutada acima."
           },
           "response": []
         }

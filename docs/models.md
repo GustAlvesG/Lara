@@ -278,16 +278,24 @@ próprio de cadastro — consome esta API. Ver `docs/placar-clube-api.md`.
 - Recorte de uma equipe por modalidade + categoria — não confundir com Equipe. Um mesmo
   jogador pode estar em times diferentes da mesma equipe (ex.: Sub-17 → Adulto), com número de
   camisa próprio em cada um (ver Elenco).
+- **`categoria` passa por `CategoriaService::resolver()`** nas duas portas de entrada (cadastro
+  web e criação em campo da API): "Sub 15"/"sub15"/"SUB-15" caem na grafia já cadastrada em vez
+  de furar o UNIQUE e duplicar o time. Um jogo só pode ser criado entre times da **mesma**
+  categoria, comparada por `CategoriaService::chave()` (sem caixa/acento/separador, para não
+  barrar grafias legadas divergentes).
 - **`nomeExibicaoResolvido()`**: se `nome_exibicao` for nulo, monta a partir de
   `equipe.nome_curto ?: equipe.nome` + `categoria`. **`logoUrl()`**: própria, senão herda da equipe.
 
 ### Jogador
 - **Tabela:** `jogadores` · **SoftDeletes**
-- **`$fillable`:** `nome`, `nome_exibicao`, `foto_path`, `data_nascimento`, `documento`, `criado_em_campo`, `ativo`
+- **`$fillable`:** `nome`, `nome_exibicao`, `foto_path`, `video_path`, `data_nascimento`, `documento`, `criado_em_campo`, `ativo`
 - **`$casts`:** `data_nascimento` → `date`
 - **Relacionamentos:** `elencos()` hasMany Elenco · `escalacoes()` hasMany Escalacao ·
   `eventos()` hasMany JogoEvento · `times()` belongsToMany Time (pivô `elencos`, com `temporada`/`numero`/`posicao`/`ativo`)
-- **`nomeExibicaoResolvido()`**: nome curto do telão, ou `nome`. **`fotoUrl()`**: URL absoluta ou `null`.
+- **`nomeExibicaoResolvido()`**: nome curto do telão, ou `nome`. **`fotoUrl()`**/**`videoUrl()`**: URL absoluta ou `null`.
+- Foto e vídeo são independentes e usados em momentos diferentes pelo telão (foto na
+  escalação/súmula, vídeo na entrada em quadra). Ambos vivem em
+  `public/storage/placar/jogadores/{id}/` — arquivo estático, ver `ImagemService`/`VideoService`.
 
 ### Elenco
 - **Tabela:** `elencos` — vínculo jogador ↔ time por temporada · `UNIQUE (time_id, jogador_id, temporada)`
@@ -331,3 +339,7 @@ próprio de cadastro — consome esta API. Ver `docs/placar-clube-api.md`.
   `payload`. `tipo` ∈ const `TIPOS` (`inicio_jogo`, `fim_jogo`, `ponto`, `falta`, `set`,
   `periodo`, `crono_play`, `crono_pause`, `crono_set`, `substituicao`, `timeout`, `cartao`,
   `estorno`).
+- **`TIPOS_COM_MINUTAGEM`** (`ponto`, `falta`) exigem `cronometro_ms`: o scout mede atuação
+  numa partida, e sem o instante do lance a ficha não serve. Evento sem minutagem é rejeitado
+  individualmente, sem derrubar o lote. `formatarMinuto()`/`minuto()` convertem para "MM:SS"
+  num ponto só, para súmula, ficha de atuação e Node exibirem igual.

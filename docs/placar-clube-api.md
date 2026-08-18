@@ -32,7 +32,8 @@ Sem token, ou token sem a ability `placar:operar` → `401`/`403`. Rate limit: *
 
 - Todas as rotas ficam sob `/api/placar` (prefixo `api` vem do `bootstrap/app.php`, `placar` do grupo de rotas).
 - Resposta sem envelope `{"data": ...}` — `JsonResource::withoutWrapping()` está ativo globalmente (`AppServiceProvider::boot()`). O que os exemplos abaixo mostram é o corpo exato da resposta.
-- `logo_url` e `foto_url` são **sempre URLs absolutas**, resolvidas no servidor (`Storage::disk('public')->url(...)`) — nunca base64, nunca path relativo. Um time sem logo própria herda a da equipe (`Time::logoUrl()`); se nenhuma existir, o campo vem `null`.
+- `logo_url`, `foto_url` e `video_url` são **sempre URLs absolutas**, resolvidas no servidor (`ImagemService::url()`) — nunca base64, nunca path relativo. Um time sem logo própria herda a da equipe (`Time::logoUrl()`); se nenhuma existir, o campo vem `null`.
+- Toda a mídia é **arquivo estático** em `public/storage/placar/…`, servido pelo próprio servidor web sem passar por PHP. Isso importa para o telão: além de ser mais rápido, dá *range request* nativo, que é o que permite buscar/seekar o vídeo do jogador. Ver "Mídia" no fim deste documento.
 - `criado_em_campo` (boolean) marca todo registro criado pelo modo avulso — é o que a tela web usa para destacar "revisar depois".
 - Datas de entrada/saída em ISO 8601 (`data_hora`, `ocorrido_em` nas respostas) ou `"Y-m-d H:i:s.v"` (`ocorrido_em` nos eventos enviados, com milissegundo).
 - Modalidades são 3 linhas fixas: `futsal`, `basquete`, `volei` (`Modalidade::FUTSAL/BASQUETE/VOLEI`). Qualquer campo `modalidade` na entrada aceita o **slug ou o id** (`Modalidade::resolver()`).
@@ -68,8 +69,10 @@ Sem token, ou token sem a ability `placar:operar` → `401`/`403`. Rate limit: *
 | POST | `/placar/jogos/{jogo}/eventos` | **O endpoint mais importante** — lote de eventos, idempotente |
 | POST | `/placar/jogos/{jogo}/encerrar` | Marca `encerrado`, recalcula e fecha o placar (idempotente) |
 | GET | `/placar/jogos/{jogo}/sumula` | Súmula agregada do jogo |
-| GET | `/placar/scout/artilharia` | Ranking de pontos (`modalidade`, `competicao_id`, `temporada`, `time_id`) |
-| GET | `/placar/scout/jogadores/{jogador}` | Perfil agregado do jogador (`temporada`) |
+| GET | `/placar/jogos/{jogo}/jogadores/{jogador}/atuacao` | Ficha minutada do jogador nesta partida |
+| GET | `/placar/scout/jogadores/{jogador}` | Partidas em que o jogador atuou (`temporada`) |
+| POST | `/placar/jogadores/{jogador}/video` | Envia/substitui o vídeo de apresentação |
+| DELETE | `/placar/jogadores/{jogador}/video` | Remove o vídeo |
 
 ## `GET /placar/jogos/{jogo}` — exemplo completo
 
@@ -148,11 +151,13 @@ O Node monta a tela do placar com uma chamada só: dados do jogo + elenco operac
 | `jogador_id` | opcional | precisa existir |
 | `valor` | obrigatório em `ponto` | `1` em futsal/vôlei; `1`, `2` ou `3` em basquete (`ModalidadeRegras::valorValidoDePonto()`) |
 | `periodo` | opcional | tempo/quarto/set em jogo, conforme a modalidade |
-| `cronometro_ms` | opcional | tempo do **cronômetro da partida**, não o relógio de parede |
+| `cronometro_ms` | **obrigatório em `ponto` e `falta`**, opcional nos demais | tempo do **cronômetro da partida**, não o relógio de parede |
 | `ocorrido_em` | obrigatório | qualquer formato que `Carbon::parse()` aceite |
 | `payload` | opcional, livre | usado por `estorno` (ver abaixo) |
 
 **Regras por modalidade** (`ModalidadeRegras`, único ponto de verdade): `set` só é válido em vôlei; `falta` não existe em vôlei; o valor de `ponto` varia conforme a tabela acima.
+
+**Minutagem obrigatória** (`JogoEvento::TIPOS_COM_MINUTAGEM`): `ponto` e `falta` **exigem `cronometro_ms`** — sem o instante da partida o lance não é aproveitável pelo scout, que mede atuação por partida. Evento sem minutagem entra em `rejeitados` com o motivo (`"'ponto' exige cronometro_ms (minutagem na partida)"`) e **não derruba o resto do lote**. Valor negativo também é rejeitado. Os demais tipos (`crono_play`, `timeout`, `substituicao`, …) seguem sem exigir o campo.
 
 **Resposta:**
 
@@ -189,11 +194,25 @@ O evento original some do placar, dos totais e do scout, mas **continua aparecen
 
 ## Scout (`ScoutService`)
 
-Camada de leitura agregada — súmula, artilharia, perfil do jogador — que lê **só** de `jogo_eventos`, nunca de campo denormalizado nem de tabela de estatística. Único ponto de leitura dessas visões, reaproveitado pela API e (a partir da Etapa 11) pelas telas web.
+Camada de leitura que lê **só** de `jogo_eventos`, nunca de campo denormalizado nem de tabela de estatística. Único ponto de leitura dessas visões, reaproveitado pela API e pelas telas web.
+
+> **A unidade do scout é a partida, não o ranking entre partidas.** Não existe endpoint de artilharia — `GET /scout/artilharia` foi **removido**. O que se mede é a atuação de um jogador num jogo específico, e por isso **todo `ponto` e toda `falta` exigem `cronometro_ms`** (ver a seção de eventos).
 
 - **`GET /jogos/{jogo}/sumula`** — placar por período/set, timeline cronológica completa (com jogador, **número**, foto, e a marca `estornado`), totais de pontos/faltas por jogador de cada time (com o número de cada um). O número é o da escalação deste jogo, se já foi feita; senão o do elenco da temporada corrente — mesma prioridade de `Jogo::elencoOperacionalDoTime()`.
-- **`GET /scout/artilharia?modalidade=&competicao_id=&temporada=&time_id=`** — ranking de pontos por jogador, jogos disputados e média. `time_id` filtra pelo **time de quem marcou o ponto** (o evento), não pelos jogos em que o time apareceu — senão o artilheiro do adversário entraria no "ranking do time" também. **`numero`** só vem preenchido quando `time_id` é informado (do elenco daquele time); sem esse filtro, o mesmo jogador pode ter pontuado por times diferentes e não haveria um número único correto, então vem `null`.
-- **`GET /scout/jogadores/{jogador}?temporada=`** — jogos disputados (qualquer evento seu, escalação é opcional), pontos, média, faltas, distribuição de pontos por período. **`numero`** é o do elenco ativo mais recente do jogador (na temporada filtrada, se houver) — o perfil não é por time, então não há garantia de um único número se ele já jogou por mais de um.
+- **`GET /jogos/{jogo}/jogadores/{jogador}/atuacao`** — **a visão central do scout**: a ficha do jogador nesta partida. Traz `totais` (`pontos`, `faltas`, `lances`) e a lista `lances`, cada um com `minuto` ("MM:SS"), `cronometro_ms` cru, `periodo`, `valor` e `estornado`. Lance estornado **continua na ficha**, marcado, mas fora dos totais.
+
+  ```json
+  {
+      "jogo": { "id": 12, "esporte": "futsal", "placar_casa": 3, "placar_fora": 1, "...": "..." },
+      "jogador": { "id": 1, "numero": "10", "nome_exibicao": "Carlos Souza", "foto_url": "...", "time_id": 1 },
+      "totais": { "pontos": 2, "faltas": 1, "lances": 3 },
+      "lances": [
+          { "sequencia": 2, "tipo": "ponto", "valor": 1, "periodo": 1, "cronometro_ms": 754000, "minuto": "12:34", "ocorrido_em": "...", "estornado": false }
+      ]
+  }
+  ```
+
+- **`GET /scout/jogadores/{jogador}?temporada=`** — as partidas em que o jogador atuou, da mais recente para a mais antiga, com `pontos` e `faltas` dele em cada uma. É a porta para a ficha minutada acima, não um ranking. Sem lances, `partidas` vem `[]`.
 
 ## Criação em campo (modo avulso)
 
@@ -201,8 +220,44 @@ Quatro chamadas, cada uma tolerante (validação mínima) e sempre `criado_em_ca
 
 1. **`POST /equipes`** — `{ nome, nome_curto?, cidade? }`.
 2. **`POST /times`** — `{ equipe_id? | equipe_nome?, modalidade, categoria? }`. Um dos dois (`equipe_id` OU `equipe_nome`) é obrigatório; sem `equipe_id`, a equipe é criada junto (`firstOrCreate` por nome — não marca `criado_em_campo` se ela já existia). `categoria` default `"Adulto"`. `firstOrCreate` também no time: reenviar a mesma criação não duplica.
+
+   **A categoria é normalizada** (`CategoriaService`): `"Sub 15"`, `"sub15"` e `"SUB-15"` caem no time que já existe como `"Sub-15"` em vez de criar duplicatas — a grafia **já cadastrada vence**, e só categoria realmente nova recebe a grafia canônica. Sem isso, cada variação furava o `UNIQUE (equipe_id, modalidade_id, categoria)`. Resposta é `201` quando cria e `200` quando reaproveita.
 3. **`POST /jogadores`** — `{ nome, nome_exibicao?, time_id?, numero?, temporada? }`. Sem foto, data de nascimento ou documento — nada disso é essencial para entrar em quadra. Com `time_id`, já cria o vínculo em `elencos` na mesma transação.
-4. **`POST /jogos`** — `{ modalidade, time_casa_id, time_fora_id, data_hora?, local?, competicao_id? }`. `data_hora` default agora. A modalidade do jogo precisa bater com a dos dois times (validado antes de gravar). Devolve o mesmo payload de `GET /jogos/{id}` — o Node segue direto para o jogo, sem chamada extra.
+4. **`POST /jogos`** — `{ modalidade, time_casa_id, time_fora_id, data_hora?, local?, competicao_id? }`. `data_hora` default agora. Devolve o mesmo payload de `GET /jogos/{id}` — o Node segue direto para o jogo, sem chamada extra.
+
+   Duas validações de cruzamento, ambas `422`:
+   - a modalidade do jogo precisa bater com a dos **dois** times;
+   - os dois times precisam ser da **mesma categoria** — Sub-15 não joga contra Adulto. Comparado pela chave normalizada, então um `"Sub 15"` legado de um lado e `"Sub-15"` do outro **não** são bloqueados (são a mesma categoria).
+
+## Mídia (onde os arquivos ficam)
+
+Toda a mídia do Placar vive em **`public/storage/placar/…`** e é servida como arquivo estático pelo servidor web.
+
+Isso **não** usa o `storage:link` do Laravel, de propósito: neste projeto `public/storage` já é um diretório real com arquivos de outras áreas do sistema, e o symlink nunca existiu — rodar `storage:link --force` apagaria esse conteúdo. Enquanto o Placar gravava em `storage/app/public` (disco `public`), toda logo e foto ia para um lugar que nenhuma URL alcançava e **o link quebrava**. O disco `placar` (`config/filesystems.php`) resolve isso apontando para dentro de `public/`.
+
+Duas consequências que interessam ao telão: a mídia não passa por PHP a cada requisição, e o servidor web responde *range request* nativamente — que é o que permite o vídeo do jogador ser buscado/seekado.
+
+A URL é montada por `ImagemService::url()` com `asset()`, e **não** com `Storage::url()`: o disco `public` monta a URL a partir de `APP_URL` fixo no `.env`; servido em qualquer outro host/porta, todo link sairia errado. `asset()` resolve pela request em curso.
+
+Se algum ambiente já recebeu upload antes dessa correção, rode uma vez:
+
+```
+php artisan placar:migrar-midia          # --dry-run para só listar
+```
+
+Idempotente, nunca sobrescreve arquivo existente no destino e só apaga a origem depois de confirmar a cópia.
+
+## Vídeo do jogador
+
+`POST /placar/jogadores/{jogador}/video`, multipart no campo **`video`**. O telão usa foto e vídeo em momentos diferentes (foto na escalação/súmula, vídeo na entrada em quadra), então os dois convivem e `video_url` vem junto de `foto_url` no payload do jogo — sem segunda chamada.
+
+- **mp4 ou webm**, até **28MB**.
+- Não há transcodificação (exigiria ffmpeg, que o projeto não tem): por isso o formato é restrito ao que todo navegador toca nativamente.
+- O tipo é detectado pelos **bytes reais** do container (box `ftyp` do ISO BMFF; magic EBML do Matroska) — nunca pela extensão do nome nem pelo `Content-Type`. Um `.mp4` que não seja vídeo é recusado com `422`.
+- **Não aceita base64** (ao contrário das imagens): base64 infla ~33% e estouraria o `post_max_size` (30M) bem antes do limite útil.
+- Enviar outro vídeo substitui o anterior, inclusive trocando de formato, sem deixar arquivo órfão. `DELETE /placar/jogadores/{jogador}/video` remove sem substituir — e não mexe na foto.
+
+Para aceitar vídeos maiores é preciso subir `upload_max_filesize` e `post_max_size` no `php.ini` do servidor (hoje ambos em 30M) e, depois, `VideoService::TAMANHO_MAXIMO_BYTES`.
 
 ## Imagens (logo / foto)
 
