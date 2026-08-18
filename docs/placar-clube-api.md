@@ -68,7 +68,7 @@ Sem token, ou token sem a ability `placar:operar` → `401`/`403`. Rate limit: *
 | POST | `/placar/jogos/{jogo}/escalacao` | Substitui a escalação de um time neste jogo |
 | POST | `/placar/jogos/{jogo}/eventos` | **O endpoint mais importante** — lote de eventos, idempotente |
 | POST | `/placar/jogos/{jogo}/encerrar` | Marca `encerrado`, recalcula e fecha o placar (idempotente) |
-| GET | `/placar/jogos/{jogo}/sumula` | Súmula agregada do jogo |
+| GET | `/placar/jogos/{jogo}/sumula?time_id=` | Súmula do jogo — completa ou recortada em um time |
 | GET | `/placar/jogos/{jogo}/jogadores/{jogador}/atuacao` | Ficha minutada do jogador nesta partida |
 | GET | `/placar/scout/jogadores/{jogador}` | Partidas em que o jogador atuou (`temporada`) |
 | POST | `/placar/jogadores/{jogador}/video` | Envia/substitui o vídeo de apresentação |
@@ -198,7 +198,18 @@ Camada de leitura que lê **só** de `jogo_eventos`, nunca de campo denormalizad
 
 > **A unidade do scout é a partida, não o ranking entre partidas.** Não existe endpoint de artilharia — `GET /scout/artilharia` foi **removido**. O que se mede é a atuação de um jogador num jogo específico, e por isso **todo `ponto` e toda `falta` exigem `cronometro_ms`** (ver a seção de eventos).
 
-- **`GET /jogos/{jogo}/sumula`** — placar por período/set, timeline cronológica completa (com jogador, **número**, foto, e a marca `estornado`), totais de pontos/faltas por jogador de cada time (com o número de cada um). O número é o da escalação deste jogo, se já foi feita; senão o do elenco da temporada corrente — mesma prioridade de `Jogo::elencoOperacionalDoTime()`.
+- **`GET /jogos/{jogo}/sumula?time_id=`** — placar por período/set, timeline cronológica completa (com jogador, **número**, foto, e a marca `estornado`), totais de pontos/faltas por jogador de cada time (com o número de cada um). O número é o da escalação deste jogo, se já foi feita; senão o do elenco da temporada corrente — mesma prioridade de `Jogo::elencoOperacionalDoTime()`.
+
+  **A súmula sai completa ou recortada em um dos times** — cada equipe costuma querer só a sua. Com `time_id`, é a *mesma* súmula recortada, não outro relatório:
+
+  | | sem `time_id` | com `time_id` |
+  |---|---|---|
+  | `recorte` | `null` | `{ time_id, lado: "casa"\|"fora", nome_exibicao }` |
+  | `eventos` | tudo | só os lances daquele time **+ os marcos sem time** (`inicio_jogo`, `fim_jogo`, `periodo`, `set`) — sem eles a linha do tempo perde a referência de quando cada coisa aconteceu |
+  | `totais_por_jogador` | os dois lados | o lado de fora do recorte vem `[]` (a chave continua existindo) |
+  | `placar_por_periodo` e `jogo` | completos | **completos também** — uma súmula que não diz contra quem se jogou e como ficou não serve |
+
+  `estornado` é apurado **antes** do recorte: o evento de `estorno` não pertence a time nenhum, e filtrar primeiro faria um lance revertido voltar a valer na súmula individual. `time_id` que não é de nenhum dos dois times do jogo responde **`422`**, não a súmula completa em silêncio.
 - **`GET /jogos/{jogo}/jogadores/{jogador}/atuacao`** — **a visão central do scout**: a ficha do jogador nesta partida. Traz `totais` (`pontos`, `faltas`, `lances`) e a lista `lances`, cada um com `minuto` ("MM:SS"), `cronometro_ms` cru, `periodo`, `valor` e `estornado`. Lance estornado **continua na ficha**, marcado, mas fora dos totais.
 
   ```json

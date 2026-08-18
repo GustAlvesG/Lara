@@ -1,11 +1,21 @@
 @php
     $j = $sumula['jogo'];
+    $recorte = $sumula['recorte'];
+    $confronto = $j['time_casa']['nome_exibicao'] . ' x ' . $j['time_fora']['nome_exibicao'];
+    // Sem isto, a linha do tempo da súmula completa não diz de quem foi
+    // cada lance — o documento impresso fica ambíguo.
+    $nomeDoTime = [
+        $j['time_casa']['id'] => $j['time_casa']['nome_exibicao'],
+        $j['time_fora']['id'] => $j['time_fora']['nome_exibicao'],
+    ];
 @endphp
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="utf-8">
-    <title>Súmula — {{ $j['time_casa']['nome_exibicao'] }} x {{ $j['time_fora']['nome_exibicao'] }}</title>
+    {{-- O título vira o nome do arquivo quando se imprime em PDF: com o
+         recorte no nome, duas súmulas do mesmo jogo não se confundem. --}}
+    <title>Súmula{{ $recorte ? ' ' . $recorte['nome_exibicao'] : '' }} — {{ $confronto }}</title>
     <style>
         @page { size: A4; margin: 14mm; }
         * { box-sizing: border-box; }
@@ -39,6 +49,9 @@
 
     <div class="head">
         <h1>Súmula do Jogo</h1>
+        @if($recorte)
+            <p><b>Recorte: {{ $recorte['nome_exibicao'] }}</b> — lances e totais deste time; o placar é o da partida.</p>
+        @endif
         <p>
             {{ ucfirst($j['esporte']) }} · {{ \Illuminate\Support\Carbon::parse($j['data_hora'])->format('d/m/Y H:i') }}
             @if($j['competicao']) · {{ $j['competicao']['nome'] }} @endif
@@ -48,7 +61,7 @@
     </div>
 
     <div class="placar">
-        <div class="times">{{ $j['time_casa']['nome_exibicao'] }} x {{ $j['time_fora']['nome_exibicao'] }}</div>
+        <div class="times">{{ $confronto }}</div>
         <div class="resultado">{{ $j['placar_casa'] ?? 0 }} x {{ $j['placar_fora'] ?? 0 }}</div>
     </div>
 
@@ -64,7 +77,7 @@
     @endif
 
     <div class="cols">
-        @foreach(['time_casa' => $j['time_casa']['nome_exibicao'], 'time_fora' => $j['time_fora']['nome_exibicao']] as $lado => $nome)
+        @foreach($lados as $lado => $nome)
         <div>
             <h2>{{ $nome }}</h2>
             <table>
@@ -84,12 +97,13 @@
     @if(!empty($sumula['eventos']))
     <h2>Linha do tempo</h2>
     <table>
-        <thead><tr><th>Minuto</th><th>Tipo</th><th>Nº</th><th>Jogador</th><th>Valor</th><th>Período</th></tr></thead>
+        <thead><tr><th>Minuto</th><th>Tipo</th><th>Time</th><th>Nº</th><th>Jogador</th><th>Valor</th><th>Período</th></tr></thead>
         <tbody>
             @foreach($sumula['eventos'] as $evento)
             <tr class="@if($evento['estornado']) estornado @endif">
                 <td>{{ $evento['minuto'] ?? '—' }}</td>
                 <td>{{ $evento['tipo'] }}</td>
+                <td>{{ $nomeDoTime[$evento['time_id']] ?? '—' }}</td>
                 <td>{{ $evento['jogador']['numero'] ?? '—' }}</td>
                 <td>{{ $evento['jogador']['nome_exibicao'] ?? '—' }}</td>
                 <td>{{ $evento['valor'] ?? '—' }}</td>

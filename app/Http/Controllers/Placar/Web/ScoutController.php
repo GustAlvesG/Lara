@@ -38,20 +38,72 @@ class ScoutController extends Controller
         ]);
     }
 
-    /** GET /placar/scout/jogos/{jogo}/sumula */
-    public function sumula(Jogo $jogo, ScoutService $scout)
+    /** GET /placar/scout/jogos/{jogo}/sumula?time_id= */
+    public function sumula(Request $request, Jogo $jogo, ScoutService $scout)
     {
-        $sumula = $scout->sumula($jogo);
+        $sumula = $scout->sumula($jogo, $this->recorte($request, $jogo));
 
-        return view('placar.scout.sumula', ['jogo' => $jogo, 'sumula' => $sumula]);
+        return view('placar.scout.sumula', [
+            'jogo' => $jogo,
+            'sumula' => $sumula,
+            'lados' => $this->ladosExibidos($sumula),
+        ]);
     }
 
-    /** GET /placar/scout/jogos/{jogo}/sumula/impressao — versão para impressão/PDF pelo navegador. */
-    public function sumulaPrint(Jogo $jogo, ScoutService $scout)
+    /**
+     * GET /placar/scout/jogos/{jogo}/sumula/impressao?time_id=
+     * Versão para impressão/PDF pelo navegador — é por aqui que sai a
+     * súmula completa ou a de um time só.
+     */
+    public function sumulaPrint(Request $request, Jogo $jogo, ScoutService $scout)
     {
-        $sumula = $scout->sumula($jogo);
+        $sumula = $scout->sumula($jogo, $this->recorte($request, $jogo));
 
-        return view('placar.scout.sumula-print', ['jogo' => $jogo, 'sumula' => $sumula]);
+        return view('placar.scout.sumula-print', [
+            'jogo' => $jogo,
+            'sumula' => $sumula,
+            'lados' => $this->ladosExibidos($sumula),
+        ]);
+    }
+
+    /**
+     * `?time_id=` recorta a súmula em um dos dois times. Id que não é de
+     * nenhum deles é 404: devolver a súmula completa em silêncio faria ela
+     * passar por recortada na hora de imprimir.
+     */
+    private function recorte(Request $request, Jogo $jogo): ?int
+    {
+        if (!$request->filled('time_id')) {
+            return null;
+        }
+
+        $timeId = (int) $request->query('time_id');
+        abort_if($jogo->ladoDoTime($timeId) === null, 404);
+
+        return $timeId;
+    }
+
+    /**
+     * Quais blocos de totais a tela desenha: os dois na súmula completa, só
+     * um na recortada. Vem do controller, e não de cada view, porque as
+     * duas (tela e impressão) precisam da mesma decisão.
+     *
+     * @return array<string, string> chave em `totais_por_jogador` => nome do time
+     */
+    private function ladosExibidos(array $sumula): array
+    {
+        $lados = [
+            'time_casa' => $sumula['jogo']['time_casa']['nome_exibicao'],
+            'time_fora' => $sumula['jogo']['time_fora']['nome_exibicao'],
+        ];
+
+        if (!$sumula['recorte']) {
+            return $lados;
+        }
+
+        $chave = 'time_' . $sumula['recorte']['lado'];
+
+        return [$chave => $lados[$chave]];
     }
 
     /**

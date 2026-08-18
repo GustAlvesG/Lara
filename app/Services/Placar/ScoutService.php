@@ -25,26 +25,58 @@ class ScoutService
     /**
      * Súmula de um jogo: placar por período/set, timeline cronológica com
      * jogador e minutagem, e totais por jogador de cada time.
+     *
+     * Com `$timeId`, sai a súmula **daquele time** — é a mesma súmula,
+     * recortada, não um relatório diferente: cada equipe costuma querer só
+     * a sua para arquivar ou entregar ao técnico. O que muda:
+     *
+     * - `eventos` traz só os lances do time, mais os marcos que não são de
+     *   time nenhum (início/fim de jogo, virada de período/set) — sem eles
+     *   a linha do tempo perde a referência de quando cada coisa aconteceu.
+     * - `totais_por_jogador` vem vazio do lado de fora do recorte.
+     * - `placar_por_periodo` e o cabeçalho continuam **completos**: uma
+     *   súmula que não diz contra quem se jogou e como ficou o placar não
+     *   serve para nada.
+     *
+     * `recorte` é null na súmula completa, e identifica o time quando há.
+     * Quem chama é responsável por recusar id de time que não é do jogo
+     * (ver Jogo::ladoDoTime()).
      */
-    public function sumula(Jogo $jogo): array
+    public function sumula(Jogo $jogo, ?int $timeId = null): array
     {
         $jogo->loadMissing(['modalidade', 'competicao', 'timeCasa.equipe', 'timeFora.equipe']);
 
+        $lado = $jogo->ladoDoTime($timeId);
         $eventos = $jogo->eventos()->with(['jogador', 'time'])->get();
+
+        // Os estornos são apurados sobre TODOS os eventos, antes de
+        // qualquer recorte: o evento de estorno não pertence a time nenhum,
+        // e filtrar primeiro faria um lance estornado voltar a valer na
+        // súmula individual.
         $estornados = JogoEvento::uuidsEstornados($eventos);
+
         // Número que cada jogador usa NESTE jogo — a escalação, se já foi
         // feita; senão o elenco da temporada corrente (mesma prioridade de
         // Jogo::elencoOperacionalDoTime()). Uma consulta para os dois times,
         // não uma por evento.
         $numeros = $this->numerosDoJogo($jogo);
 
+        $daLinhaDoTempo = $lado === null
+            ? $eventos
+            : $eventos->filter(fn (JogoEvento $evento) => $evento->time_id === $timeId || $evento->time_id === null);
+
         return [
             'jogo' => $this->cabecalhoDoJogo($jogo),
+            'recorte' => $lado === null ? null : [
+                'time_id' => $timeId,
+                'lado' => $lado,
+                'nome_exibicao' => ($lado === 'casa' ? $jogo->timeCasa : $jogo->timeFora)->nomeExibicaoResolvido(),
+            ],
             'placar_por_periodo' => $this->placarPorPeriodo($jogo, $eventos, $estornados),
-            'eventos' => $eventos->map(fn (JogoEvento $evento) => $this->linhaDoTempo($evento, $estornados, $numeros))->values()->all(),
+            'eventos' => $daLinhaDoTempo->map(fn (JogoEvento $evento) => $this->linhaDoTempo($evento, $estornados, $numeros))->values()->all(),
             'totais_por_jogador' => [
-                'time_casa' => $this->totaisPorJogador($jogo->time_casa_id, $eventos, $estornados, $numeros),
-                'time_fora' => $this->totaisPorJogador($jogo->time_fora_id, $eventos, $estornados, $numeros),
+                'time_casa' => $lado === 'fora' ? [] : $this->totaisPorJogador($jogo->time_casa_id, $eventos, $estornados, $numeros),
+                'time_fora' => $lado === 'casa' ? [] : $this->totaisPorJogador($jogo->time_fora_id, $eventos, $estornados, $numeros),
             ],
         ];
     }

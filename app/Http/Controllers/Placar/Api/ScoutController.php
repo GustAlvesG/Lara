@@ -18,10 +18,27 @@ use Illuminate\Http\Request;
  */
 class ScoutController extends Controller
 {
-    /** GET /placar/jogos/{jogo}/sumula */
-    public function sumula(Jogo $jogo, ScoutService $scout)
+    /**
+     * GET /placar/jogos/{jogo}/sumula?time_id=
+     *
+     * Sem `time_id`, a súmula completa. Com ele, a mesma súmula recortada
+     * naquele time (`recorte` no corpo diz qual) — é o que cada equipe
+     * leva embora. `time_id` que não é de nenhum dos dois times do jogo é
+     * `422`: devolver a completa em silêncio faria ela passar por
+     * recortada.
+     */
+    public function sumula(Request $request, Jogo $jogo, ScoutService $scout)
     {
-        return response()->json($scout->sumula($jogo));
+        $timeId = $request->filled('time_id') ? (int) $request->query('time_id') : null;
+
+        if ($timeId !== null && $jogo->ladoDoTime($timeId) === null) {
+            return response()->json([
+                'message' => 'O time informado não joga esta partida.',
+                'errors' => ['time_id' => ['O time informado não joga esta partida.']],
+            ], 422);
+        }
+
+        return response()->json($scout->sumula($jogo, $timeId));
     }
 
     /**

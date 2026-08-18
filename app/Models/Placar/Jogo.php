@@ -167,6 +167,23 @@ class Jogo extends Model
         ];
     }
 
+    /**
+     * De que lado do jogo este time está: `casa`, `fora`, ou null se o id
+     * não for de nenhum dos dois (ou vier nulo).
+     *
+     * É o que valida o recorte da súmula por time: id de fora do jogo não
+     * pode devolver a súmula completa em silêncio, passando por recortada.
+     */
+    public function ladoDoTime(?int $timeId): ?string
+    {
+        return match ($timeId) {
+            null => null,
+            $this->time_casa_id => 'casa',
+            $this->time_fora_id => 'fora',
+            default => null,
+        };
+    }
+
     public function estaAoVivo(): bool
     {
         return $this->status === self::STATUS_AO_VIVO;

@@ -299,7 +299,23 @@
           "request": {
             "method": "GET",
             "url": "{{base_url}}/api/placar/jogos/{{jogo_id}}/sumula",
-            "description": "Placar por período, timeline cronológica com jogador (evento estornado continua visível, marcado) e totais por jogador de cada time — tudo calculado a partir de jogo_eventos, nunca de campo denormalizado."
+            "description": "Placar por período, timeline cronológica com jogador (evento estornado continua visível, marcado) e totais por jogador de cada time — tudo calculado a partir de jogo_eventos, nunca de campo denormalizado. `recorte` vem null: esta é a súmula completa."
+          },
+          "response": []
+        },
+        {
+          "name": "6b. Súmula de um time só",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/placar/jogos/{{jogo_id}}/sumula?time_id={{time_casa_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "placar", "jogos", "{{jogo_id}}", "sumula"],
+              "query": [
+                { "key": "time_id", "value": "{{time_casa_id}}", "description": "Um dos dois times do jogo. Outro id responde 422." }
+              ]
+            },
+            "description": "A MESMA súmula, recortada no time — é o que cada equipe leva embora. `eventos` traz só os lances dele mais os marcos que não são de time nenhum (inicio_jogo, fim_jogo, periodo, set); em `totais_por_jogador` o lado de fora do recorte vem []. Placar e cabeçalho continuam completos: uma súmula que não diz contra quem se jogou não serve. `estornado` é apurado antes do recorte, então lance revertido não volta a valer."
           },
           "response": []
         },

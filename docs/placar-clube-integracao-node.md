@@ -12,7 +12,7 @@
 
 ## 1. O que mudou agora — ações necessárias no Node
 
-Sete mudanças no backend. As marcadas ⚠️ exigem alteração no Node **antes** do próximo
+Oito mudanças no backend. As marcadas ⚠️ exigem alteração no Node **antes** do próximo
 jogo; as demais são correções e novidades que o Node passa a poder usar.
 
 ### 1.1 `cronometro_ms` virou obrigatório em `ponto` e `falta` ⚠️ QUEBRA
@@ -137,7 +137,33 @@ foi informada) — já calculada no servidor.
 tela do telão mostra idade, use `idade` direto em vez de calcular a partir de
 `data_nascimento`. `POST /jogadores` nunca aceitou `documento`, então nada muda no envio.
 
-### 1.7 Categoria e criação de partida 📋 REGRA NOVA
+### 1.7 Súmula por time ✨ NOVO
+
+**O que mudou:** `GET /jogos/{jogo}/sumula` passou a aceitar **`?time_id=`**. Sem ele, nada
+muda — a resposta é a súmula completa de sempre, agora com `recorte: null`. Com ele, a
+**mesma** súmula recortada naquele time, que é o que cada equipe leva embora:
+
+```js
+const completa = await api.get(`/jogos/${jogoId}/sumula`)
+const daCasa   = await api.get(`/jogos/${jogoId}/sumula`, { params: { time_id: timeCasaId } })
+
+daCasa.recorte            // { time_id: 7, lado: 'casa', nome_exibicao: 'CF Adulto' }
+daCasa.eventos            // só os lances desse time + os marcos sem time
+daCasa.totais_por_jogador // { time_casa: [...], time_fora: [] }
+daCasa.placar_por_periodo // completo — é o placar da partida, não do recorte
+```
+
+Detalhes que importam: os **marcos sem time** (`inicio_jogo`, `fim_jogo`, `periodo`, `set`)
+continuam na linha recortada, senão ela perde a referência de quando cada coisa aconteceu;
+a chave do lado excluído continua existindo em `totais_por_jogador`, vazia, então não é
+preciso testar se ela existe; e `estornado` é apurado antes do recorte, então um lance
+revertido não volta a valer na súmula individual. `time_id` de um time que não joga a
+partida responde **`422`**, nunca a súmula completa em silêncio.
+
+**O que fazer:** nada é obrigatório. Se o Node exporta/exibe súmula, passe a oferecer as
+três saídas (completa, mandante, visitante) — é exatamente o que a tela web do Laravel faz.
+
+### 1.8 Categoria e criação de partida 📋 REGRA NOVA
 
 Se o Node cria times/jogos em campo (modo avulso):
 
@@ -275,7 +301,7 @@ Base: `{{LARAVEL_BASE_URL}}/api/placar` (configure em env, não hardcode).
 | POST | `/placar/jogos/{jogo}/escalacao` | Substitui a escalação de um time |
 | POST | `/placar/jogos/{jogo}/eventos` | **O endpoint mais importante** — lote, idempotente |
 | POST | `/placar/jogos/{jogo}/encerrar` | Marca `encerrado` (idempotente) |
-| GET | `/placar/jogos/{jogo}/sumula` | Súmula agregada do jogo |
+| GET | `/placar/jogos/{jogo}/sumula?time_id=` | Súmula do jogo — completa ou recortada em um time |
 | GET | `/placar/jogos/{jogo}/jogadores/{jogador}/atuacao` | **Ficha minutada do jogador na partida** |
 | GET | `/placar/scout/jogadores/{jogador}` | Partidas em que o jogador atuou |
 
@@ -400,8 +426,11 @@ O evento original sai do placar e dos totais, mas **continua na súmula/timeline
 
 ### Scout — sempre por partida
 
-- **`GET /jogos/{jogo}/sumula`** — placar por período/set, timeline completa (com jogador,
-  número, **`minuto`** e a marca `estornado`) e totais por jogador de cada time.
+- **`GET /jogos/{jogo}/sumula?time_id=`** — placar por período/set, timeline completa (com
+  jogador, número, **`minuto`** e a marca `estornado`) e totais por jogador de cada time.
+  Com `time_id`, a mesma súmula recortada naquele time (ver 1.7): `recorte` identifica
+  qual, `eventos` traz só os lances dele mais os marcos sem time, e o lado de fora do
+  recorte vem `[]` em `totais_por_jogador`. Placar e cabeçalho continuam completos.
 - **`GET /jogos/{jogo}/jogadores/{jogador}/atuacao`** — a ficha do jogador nesta partida:
 
 ```json
@@ -423,7 +452,7 @@ O evento original sai do placar e dos totais, mas **continua na súmula/timeline
 
 1. **`POST /equipes`** — `{ nome, nome_curto?, cidade? }`.
 2. **`POST /times`** — `{ equipe_id? | equipe_nome?, modalidade, categoria? }`. `categoria`
-   default `"Adulto"` e **normalizada** (ver 1.7): `201` se criou, `200` se reaproveitou.
+   default `"Adulto"` e **normalizada** (ver 1.8): `201` se criou, `200` se reaproveitou.
 3. **`POST /jogadores`** — `{ nome, nome_exibicao?, time_id?, equipe_id?, modalidade?, numero?, temporada? }`.
    Com `time_id`, equipe e modalidade vêm do time. **Sem `time_id`, `equipe_id` e
    `modalidade` são obrigatórios** (ver 1.5).
@@ -503,3 +532,4 @@ A API Laravel não sabe nada de WebSocket — é o Node que:
 - [ ] `POST /jogadores` sem `time_id` passou a mandar `equipe_id` + `modalidade`
 - [ ] leituras de `jogador.documento` removidas (o campo não existe mais)
 - [ ] idade lida de `jogador.idade`, sem calcular a partir de `data_nascimento`
+- [ ] súmula oferecida nas três saídas (completa, mandante, visitante) via `?time_id=`

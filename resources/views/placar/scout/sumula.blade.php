@@ -1,5 +1,12 @@
 @php
     $j = $sumula['jogo'];
+    $recorte = $sumula['recorte'];
+    // A impressão sai do mesmo recorte que está na tela.
+    $paramsImpressao = $recorte ? [$jogo, 'time_id' => $recorte['time_id']] : [$jogo];
+    $nomeDoTime = [
+        $j['time_casa']['id'] => $j['time_casa']['nome_exibicao'],
+        $j['time_fora']['id'] => $j['time_fora']['nome_exibicao'],
+    ];
 @endphp
 <x-app-layout>
     <x-slot name="header">
@@ -19,7 +26,12 @@
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                 </a>
                 <div>
-                    <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white leading-tight">Súmula</h1>
+                    <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white leading-tight">
+                        Súmula
+                        @if($recorte)
+                            <span class="text-base font-bold text-indigo-600 dark:text-indigo-400">· {{ $recorte['nome_exibicao'] }}</span>
+                        @endif
+                    </h1>
                     <p class="text-gray-500 dark:text-gray-400 font-medium text-sm">
                         {{ $j['esporte'] }} · {{ \Illuminate\Support\Carbon::parse($j['data_hora'])->format('d/m/Y H:i') }}
                         @if($j['competicao']) · {{ $j['competicao']['nome'] }} @endif
@@ -27,9 +39,30 @@
                     </p>
                 </div>
             </div>
-            <a href="{{ route('placar.scout.sumula.print', $jogo) }}" target="_blank" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-xl font-bold shadow hover:bg-gray-900 transition text-sm">
-                Imprimir / PDF
-            </a>
+
+            {{-- Recorte: a súmula sai completa ou de um time só — cada
+                 equipe costuma querer só a sua para arquivar. --}}
+            <div class="flex flex-col items-stretch sm:items-end gap-2">
+                <div class="inline-flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 text-xs font-bold">
+                    @php
+                        $opcoes = [
+                            ['rotulo' => 'Completa', 'params' => [$jogo], 'ativo' => !$recorte],
+                            ['rotulo' => $j['time_casa']['nome_exibicao'], 'params' => [$jogo, 'time_id' => $j['time_casa']['id']], 'ativo' => $recorte && $recorte['lado'] === 'casa'],
+                            ['rotulo' => $j['time_fora']['nome_exibicao'], 'params' => [$jogo, 'time_id' => $j['time_fora']['id']], 'ativo' => $recorte && $recorte['lado'] === 'fora'],
+                        ];
+                    @endphp
+                    @foreach($opcoes as $opcao)
+                        <a href="{{ route('placar.scout.sumula', $opcao['params']) }}"
+                           class="px-3 py-2 transition {{ $opcao['ativo'] ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                            {{ $opcao['rotulo'] }}
+                        </a>
+                    @endforeach
+                </div>
+                <a href="{{ route('placar.scout.sumula.print', $paramsImpressao) }}" target="_blank" class="inline-flex items-center justify-center px-4 py-2 bg-gray-800 text-white rounded-xl font-bold shadow hover:bg-gray-900 transition text-sm">
+                    Imprimir / PDF
+                </a>
+                <p class="text-xs text-gray-400 dark:text-gray-500">Imprime o recorte selecionado.</p>
+            </div>
         </div>
 
         {{-- Placar --}}
@@ -67,11 +100,17 @@
 
         @if(empty($sumula['eventos']))
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-12 text-center">
-                <p class="text-gray-500 dark:text-gray-400">Nenhum evento registrado para este jogo ainda.</p>
+                <p class="text-gray-500 dark:text-gray-400">
+                    @if($recorte)
+                        Nenhum evento registrado para {{ $recorte['nome_exibicao'] }} neste jogo.
+                    @else
+                        Nenhum evento registrado para este jogo ainda.
+                    @endif
+                </p>
             </div>
         @else
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            @foreach(['time_casa' => $j['time_casa']['nome_exibicao'], 'time_fora' => $j['time_fora']['nome_exibicao']] as $lado => $nome)
+        <div class="grid grid-cols-1 {{ count($lados) > 1 ? 'md:grid-cols-2' : '' }} gap-6">
+            @foreach($lados as $lado => $nome)
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
                 <div class="p-4 border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50">
                     <h2 class="text-sm font-bold text-gray-800 dark:text-white">{{ $nome }}</h2>
@@ -118,6 +157,9 @@
                         @if($evento['valor']) ({{ $evento['valor'] }}) @endif
                         @if($evento['estornado']) <span class="text-red-500 font-bold">estornado</span> @endif
                     </span>
+                    {{-- De quem foi o lance: na súmula completa a linha do
+                         tempo mistura os dois times. --}}
+                    <span class="text-xs text-gray-400 truncate max-w-[10rem] hidden sm:inline">{{ $nomeDoTime[$evento['time_id']] ?? '' }}</span>
                     <span class="text-xs text-gray-400">{{ $evento['periodo'] ? "P{$evento['periodo']}" : '' }}</span>
                 </li>
                 @endforeach
