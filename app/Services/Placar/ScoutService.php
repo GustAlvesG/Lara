@@ -65,6 +65,11 @@ class ScoutService
             ? $eventos
             : $eventos->filter(fn (JogoEvento $evento) => $evento->time_id === $timeId || $evento->time_id === null);
 
+        // Quem sai e quem entra vive no payload da substituição, por id — a
+        // súmula precisa dos nomes, senão a linha diz "substituição" e mais
+        // nada.
+        $trocas = $this->jogadoresDasTrocas($eventos);
+
         return [
             'jogo' => $this->cabecalhoDoJogo($jogo),
             'recorte' => $lado === null ? null : [
@@ -73,7 +78,7 @@ class ScoutService
                 'nome_exibicao' => ($lado === 'casa' ? $jogo->timeCasa : $jogo->timeFora)->nomeExibicaoResolvido(),
             ],
             'placar_por_periodo' => $this->placarPorPeriodo($jogo, $eventos, $estornados),
-            'eventos' => $daLinhaDoTempo->map(fn (JogoEvento $evento) => $this->linhaDoTempo($evento, $estornados, $numeros))->values()->all(),
+            'eventos' => $daLinhaDoTempo->map(fn (JogoEvento $evento) => $this->linhaDoTempo($evento, $estornados, $numeros, $trocas))->values()->all(),
             'totais_por_jogador' => [
                 'time_casa' => $lado === 'fora' ? [] : $this->totaisPorJogador($jogo->time_casa_id, $eventos, $estornados, $numeros),
                 'time_fora' => $lado === 'casa' ? [] : $this->totaisPorJogador($jogo->time_fora_id, $eventos, $estornados, $numeros),
@@ -340,9 +345,30 @@ class ScoutService
         return array_values($porPeriodo);
     }
 
-    private function linhaDoTempo(JogoEvento $evento, array $estornados, array $numeros): array
+    /**
+     * Jogadores citados nas substituições do jogo (quem sai e quem entra),
+     * numa consulta só — vazio quando não houve troca nenhuma.
+     *
+     * @return \Illuminate\Support\Collection<int, Jogador>
+     */
+    private function jogadoresDasTrocas(Collection $eventos): Collection
     {
-        return [
+        $ids = $eventos->where('tipo', JogoEvento::TIPO_SUBSTITUICAO)
+            ->flatMap(fn (JogoEvento $evento) => [
+                data_get($evento->payload, 'sai_jogador_id'),
+                data_get($evento->payload, 'entra_jogador_id'),
+            ])
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $ids->isEmpty() ? collect() : Jogador::whereIn('id', $ids)->get()->keyBy('id');
+    }
+
+    /** @param \Illuminate\Support\Collection<int, Jogador> $trocas */
+    private function linhaDoTempo(JogoEvento $evento, array $estornados, array $numeros, Collection $trocas): array
+    {
+        $linha = [
             'sequencia' => $evento->sequencia,
             'tipo' => $evento->tipo,
             'time_id' => $evento->time_id,
@@ -361,6 +387,32 @@ class ScoutService
             // some do placar e dos totais, nunca da linha do tempo.
             'estornado' => isset($estornados[$evento->uuid]),
         ];
+
+        // Só na substituição, e como chave própria: a linha precisa dizer
+        // quem saiu e quem entrou, não apenas "substituição".
+        if ($evento->tipo === JogoEvento::TIPO_SUBSTITUICAO) {
+            $linha['substituicao'] = [
+                'sai' => $this->ladoDaTroca(data_get($evento->payload, 'sai_jogador_id'), $trocas, $numeros),
+                'entra' => $this->ladoDaTroca(data_get($evento->payload, 'entra_jogador_id'), $trocas, $numeros),
+            ];
+        }
+
+        return $linha;
+    }
+
+    /**
+     * @param  \Illuminate\Support\Collection<int, Jogador>  $trocas
+     * @return array{jogador_id: int, numero: ?string, nome_exibicao: string}|null
+     */
+    private function ladoDaTroca(mixed $jogadorId, Collection $trocas, array $numeros): ?array
+    {
+        $jogador = $jogadorId ? $trocas->get((int) $jogadorId) : null;
+
+        return $jogador ? [
+            'jogador_id' => $jogador->id,
+            'numero' => $numeros[$jogador->id] ?? null,
+            'nome_exibicao' => $jogador->nomeExibicaoResolvido(),
+        ] : null;
     }
 
     /** @return array<int, array{jogador_id: int, numero: ?string, nome_exibicao: string, pontos: int, faltas: int}> */

@@ -10,6 +10,7 @@ use App\Http\Resources\Placar\JogoDetalheResource;
 use App\Http\Resources\Placar\JogoResource;
 use App\Models\Placar\Jogo;
 use App\Models\Placar\Modalidade;
+use App\Services\Placar\SituacaoDaPartidaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
@@ -21,7 +22,9 @@ class JogoController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Jogo::query()->with(['modalidade', 'competicao', 'timeCasa', 'timeFora']);
+        // `.equipe` junto: o item da lista traz equipe e categoria de cada
+        // time, e sem o eager load seriam duas consultas por jogo.
+        $query = Jogo::query()->with(['modalidade', 'competicao', 'timeCasa.equipe', 'timeFora.equipe']);
 
         if ($request->filled('status')) {
             $query->statusEntre(explode(',', $request->query('status')));
@@ -52,6 +55,20 @@ class JogoController extends Controller
         $jogo->load(['modalidade', 'competicao', 'timeCasa.equipe', 'timeFora.equipe']);
 
         return new JogoDetalheResource($jogo);
+    }
+
+    /**
+     * GET /placar/jogos/{jogo}/situacao — estado de quadra agora: quem está
+     * jogando, quem está no banco, e quantos tempos técnicos e substituições
+     * cada time ainda tem no período.
+     *
+     * Existe para o placar não derivar isso sozinho a partir do log — é a
+     * mesma conta para todos os clientes, e refazê-la em cada um é como
+     * duas telas passam a discordar sobre quem está em quadra.
+     */
+    public function situacao(Jogo $jogo, SituacaoDaPartidaService $situacao)
+    {
+        return response()->json($situacao->situacao($jogo));
     }
 
     /**

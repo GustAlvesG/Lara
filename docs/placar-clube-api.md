@@ -61,8 +61,9 @@ Sem token, ou token sem a ability `placar:operar` → `401`/`403`. Rate limit: *
 | POST | `/placar/jogadores` | Cria jogador em campo (avulso) |
 | POST | `/placar/jogadores/{jogador}/foto` | Envia/substitui a foto |
 | DELETE | `/placar/jogadores/{jogador}/foto` | Remove a foto |
-| GET | `/placar/jogos` | Lista jogos (`status`, `data`, `modalidade`, `competicao_id`) |
+| GET | `/placar/jogos` | Lista jogos (`status`, `data`, `modalidade`, `competicao_id`) — cada time com **equipe e categoria** |
 | GET | `/placar/jogos/{jogo}` | Payload completo — gameState do Node |
+| GET | `/placar/jogos/{jogo}/situacao` | **Estado de quadra agora** — em quadra/banco, tempos e substituições restantes |
 | POST | `/placar/jogos` | Cria jogo em campo (avulso) |
 | POST | `/placar/jogos/{jogo}/iniciar` | Marca `ao_vivo` (idempotente) |
 | POST | `/placar/jogos/{jogo}/escalacao` | Substitui a escalação de um time neste jogo |
@@ -91,6 +92,8 @@ O Node monta a tela do placar com uma chamada só: dados do jogo + elenco operac
     "time_casa": {
         "id": 1,
         "nome_exibicao": "Clube dos Funcionários Adulto",
+        "categoria": "Adulto",
+        "equipe": { "id": 1, "nome": "Clube dos Funcionários", "nome_curto": "CF" },
         "logo_url": "http://localhost:8000/storage/placar/equipes/1/logo.webp",
         "elenco": [
             {
@@ -106,6 +109,8 @@ O Node monta a tela do placar com uma chamada só: dados do jogo + elenco operac
     "time_fora": {
         "id": 4,
         "nome_exibicao": "Associação Vila Nova Adulto",
+        "categoria": "Adulto",
+        "equipe": { "id": 4, "nome": "Associação Vila Nova", "nome_curto": "Vila Nova" },
         "logo_url": null,
         "elenco": []
     }
@@ -113,6 +118,8 @@ O Node monta a tela do placar com uma chamada só: dados do jogo + elenco operac
 ```
 
 `POST /placar/jogos` (criação em campo) devolve exatamente este mesmo formato — o Node segue direto para o jogo recém-criado, sem uma segunda chamada.
+
+**`equipe` e `categoria` vêm nos dois payloads** — na lista (`GET /jogos`) e no detalhe. Dois times da mesma equipe (`CF Adulto` e `CF Sub-15`) só se distinguem por eles, e o operador precisa acertar o jogo antes de começar; `nome_exibicao` sozinho é ambíguo quando a equipe cadastrou nome de exibição próprio.
 
 ## Ciclo de vida do jogo
 
@@ -147,13 +154,13 @@ O Node monta a tela do placar com uma chamada só: dados do jogo + elenco operac
 | `uuid` | **gerado pelo Node** | chave de idempotência — nunca gerado aqui |
 | `sequencia` | **gerado pelo Node** | contador incremental do jogo; garante ordem mesmo com relógios divergentes entre dispositivos |
 | `tipo` | um de `JogoEvento::TIPOS` | `inicio_jogo`, `fim_jogo`, `ponto`, `falta`, `set`, `periodo`, `crono_play`, `crono_pause`, `crono_set`, `substituicao`, `timeout`, `cartao`, `estorno` |
-| `time_id` | opcional | precisa ser um dos dois times do jogo |
+| `time_id` | opcional, **obrigatório em `timeout` e `substituicao`** | precisa ser um dos dois times do jogo |
 | `jogador_id` | opcional | precisa existir |
 | `valor` | obrigatório em `ponto` | `1` em futsal/vôlei; `1`, `2` ou `3` em basquete (`ModalidadeRegras::valorValidoDePonto()`) |
-| `periodo` | opcional | tempo/quarto/set em jogo, conforme a modalidade |
+| `periodo` | opcional, **obrigatório em `timeout` e `substituicao`** | tempo/quarto/set em jogo, conforme a modalidade |
 | `cronometro_ms` | **obrigatório em `ponto` e `falta`**, opcional nos demais | tempo do **cronômetro da partida**, não o relógio de parede |
 | `ocorrido_em` | obrigatório | qualquer formato que `Carbon::parse()` aceite |
-| `payload` | opcional, livre | usado por `estorno` (ver abaixo) |
+| `payload` | opcional, livre | **obrigatório em `substituicao`** (`sai_jogador_id`/`entra_jogador_id`) e em `estorno` (`evento_uuid`) |
 
 **Regras por modalidade** (`ModalidadeRegras`, único ponto de verdade): `set` só é válido em vôlei; `falta` não existe em vôlei; o valor de `ponto` varia conforme a tabela acima.
 
@@ -175,6 +182,51 @@ O Node monta a tela do placar com uma chamada só: dados do jogo + elenco operac
 - **Um evento inválido não derruba o lote**: cada evento é validado individualmente; o que falhar entra em `rejeitados` com o motivo, os demais seguem normalmente.
 - **Sem limite de tamanho de lote** — decisão explícita, mesmo a especificação original sugerindo até 200: o Node pode precisar mandar lotes maiores (reenvio de fila offline acumulada, por exemplo).
 - Um lote com `ponto`/`set`/`estorno` aceito recalcula e grava o cache `placar_casa`/`placar_fora`/`sets_casa`/`sets_fora` em `jogos` (lotes só com `crono_play`/`timeout`/etc. não tocam nesse cache).
+
+### Substituição e tempo técnico (controle de quadra)
+
+Os dois são eventos **de um time dentro de um período** — é essa a exigência que o contrato faz, e é o que permite ao placar mostrar *quem está em quadra* e *quantos tempos restam*:
+
+```json
+{
+    "uuid": "…", "sequencia": 18, "tipo": "substituicao",
+    "time_id": 1, "periodo": 2,
+    "jogador_id": 7,
+    "ocorrido_em": "2026-08-06 20:11:03.000",
+    "payload": { "sai_jogador_id": 3, "entra_jogador_id": 7 }
+}
+```
+
+| Regra | Motivo |
+|---|---|
+| `timeout` e `substituicao` exigem `time_id` | sem ele não se sabe de quem foi o tempo, nem qual quadra mudou |
+| os dois exigem `periodo` | o contador de "restantes no período" depende dele |
+| `substituicao` exige `payload.sai_jogador_id` e `payload.entra_jogador_id`, distintos e existentes | uma troca que não diz quem sai e quem entra não muda quadra nenhuma, só ocupa a timeline |
+
+Convenção: `jogador_id` do evento é **quem entra** (é ele que aparece na linha do tempo); os dois lados ficam no `payload`. A súmula devolve a troca resolvida com nome e número em `evento.substituicao.sai` / `.entra` — a linha não pode dizer só "substituição".
+
+### `GET /jogos/{jogo}/situacao` — estado de quadra agora
+
+```json
+{
+    "jogo_id": 12, "esporte": "volei", "status": "ao_vivo",
+    "periodo_atual": 2, "nome_do_periodo": "set",
+    "time_casa": {
+        "id": 1, "nome_exibicao": "CF Adulto", "categoria": "Adulto",
+        "escalacao_definida": true,
+        "em_quadra": [ { "jogador_id": 1, "numero": "1", "nome_exibicao": "Rafa", "foto_url": "…", "capitao": true } ],
+        "no_banco":  [ { "jogador_id": 8, "numero": "8", "nome_exibicao": "Leandro", "foto_url": null, "capitao": false } ],
+        "timeouts":       { "limite_por_periodo": 2, "usados_no_periodo": 1, "restantes_no_periodo": 1, "usados_no_jogo": 3 },
+        "substituicoes":  { "limite_por_periodo": 6, "usados_no_periodo": 2, "restantes_no_periodo": 4, "usados_no_jogo": 5 }
+    },
+    "time_fora": { "…": "…" }
+}
+```
+
+- **Quem está em quadra** = titulares da escalação, aplicando cada `substituicao` na ordem do log. Existe aqui, e não em cada cliente, porque refazer essa conta em dois lugares é como duas telas passam a discordar sobre quem está jogando.
+- **`escalacao_definida: false`** → `em_quadra` vem `[]` e todo mundo aparece em `no_banco`: sem escalação não há titular, e o Node precisa mandar `POST /jogos/{jogo}/escalacao` antes.
+- **Estorno desfaz**: troca estornada devolve quem tinha saído; tempo estornado volta para a conta.
+- **Os limites são informativos** (`ModalidadeRegras`): vôlei 2 tempos e 6 substituições por set, basquete 2 tempos por quarto, futsal 1 tempo por tempo e substituição livre (`limite_por_periodo: null` → `restantes_no_periodo: null`, que **não é zero**). A API **não recusa** o evento que passar do limite: regulamento de torneio muda esses números, e travar aqui pararia um jogo real por causa de uma tabela nossa.
 
 ### Corrigindo um evento (`estorno`)
 

@@ -85,6 +85,9 @@ Route::prefix('placar')
 
         Route::get('/jogos', [PlacarJogoController::class, 'index'])->name('api.placar.jogos.index');
         Route::get('/jogos/{jogo}', [PlacarJogoController::class, 'show'])->name('api.placar.jogos.show');
+        // Estado de quadra ao vivo: em quadra/banco, tempos técnicos e
+        // substituições restantes no período.
+        Route::get('/jogos/{jogo}/situacao', [PlacarJogoController::class, 'situacao'])->name('api.placar.jogos.situacao');
 
         // Escrita — criação em campo (modo avulso): jogo não planejado,
         // cadastro completo em até quatro chamadas. Sempre criado_em_campo = true.

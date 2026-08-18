@@ -105,7 +105,14 @@
                 <td>{{ $evento['tipo'] }}</td>
                 <td>{{ $nomeDoTime[$evento['time_id']] ?? '—' }}</td>
                 <td>{{ $evento['jogador']['numero'] ?? '—' }}</td>
-                <td>{{ $evento['jogador']['nome_exibicao'] ?? '—' }}</td>
+                <td>
+                    @if(isset($evento['substituicao']))
+                        sai {{ $evento['substituicao']['sai']['nome_exibicao'] ?? '—' }},
+                        entra {{ $evento['substituicao']['entra']['nome_exibicao'] ?? '—' }}
+                    @else
+                        {{ $evento['jogador']['nome_exibicao'] ?? '—' }}
+                    @endif
+                </td>
                 <td>{{ $evento['valor'] ?? '—' }}</td>
                 <td>{{ $evento['periodo'] ?? '—' }}</td>
             </tr>

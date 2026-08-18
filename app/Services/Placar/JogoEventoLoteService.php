@@ -100,7 +100,13 @@ class JogoEventoLoteService
     {
         $ids = collect($eventosBrutos)
             ->filter(fn ($e) => is_array($e))
-            ->pluck('jogador_id')
+            // A substituição cita quem sai e quem entra dentro do payload —
+            // os dois precisam existir, e entram na mesma consulta.
+            ->flatMap(fn (array $e) => [
+                $e['jogador_id'] ?? null,
+                data_get($e, 'payload.sai_jogador_id'),
+                data_get($e, 'payload.entra_jogador_id'),
+            ])
             ->filter()
             ->unique()
             ->values();
@@ -175,6 +181,56 @@ class JogoEventoLoteService
 
             if ((int) $cronometro < 0) {
                 return 'cronometro_ms não pode ser negativo';
+            }
+        }
+
+        if (in_array($tipo, [JogoEvento::TIPO_TIMEOUT, JogoEvento::TIPO_SUBSTITUICAO], true)) {
+            if ($motivo = $this->validarControleDeQuadra($tipo, $bruto, $timeId, $jogadoresValidos)) {
+                return $motivo;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Tempo técnico e substituição são eventos DE UM TIME DENTRO DE UM
+     * PERÍODO: é assim que o placar mostra "restam 2 tempos neste set" e
+     * quem está em quadra (ver SituacaoDaPartidaService). Sem `time_id` não
+     * se sabe de quem foi; sem `periodo` o contador do período não fecha.
+     *
+     * A substituição ainda precisa dizer quem sai e quem entra — um evento
+     * que não diz isso não muda quadra nenhuma, só ocupa a timeline.
+     */
+    private function validarControleDeQuadra(string $tipo, array $bruto, mixed $timeId, $jogadoresValidos): ?string
+    {
+        if ($timeId === null) {
+            return "'{$tipo}' exige time_id (de qual time foi)";
+        }
+
+        $periodo = $bruto['periodo'] ?? null;
+        if (!is_int($periodo) && !(is_string($periodo) && ctype_digit($periodo))) {
+            return "'{$tipo}' exige periodo (o contador do período depende dele)";
+        }
+
+        if ($tipo !== JogoEvento::TIPO_SUBSTITUICAO) {
+            return null;
+        }
+
+        $sai = data_get($bruto, 'payload.sai_jogador_id');
+        $entra = data_get($bruto, 'payload.entra_jogador_id');
+
+        if (!is_numeric($sai) || !is_numeric($entra)) {
+            return "'substituicao' exige payload com sai_jogador_id e entra_jogador_id";
+        }
+
+        if ((int) $sai === (int) $entra) {
+            return 'sai_jogador_id e entra_jogador_id não podem ser o mesmo jogador';
+        }
+
+        foreach ([$sai, $entra] as $jogadorDaTroca) {
+            if (!isset($jogadoresValidos[(int) $jogadorDaTroca])) {
+                return 'jogador da substituição inexistente';
             }
         }
 

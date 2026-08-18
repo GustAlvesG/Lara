@@ -12,8 +12,9 @@
 
 ## 1. O que mudou agora — ações necessárias no Node
 
-Oito mudanças no backend. As marcadas ⚠️ exigem alteração no Node **antes** do próximo
-jogo; as demais são correções e novidades que o Node passa a poder usar.
+Dez mudanças no backend. As marcadas ⚠️ exigem alteração no Node **antes** do próximo
+jogo; 📋 são contratos/regras novas a respeitar quando o recurso for usado; ✨ são
+novidades que o Node passa a poder usar.
 
 ### 1.1 `cronometro_ms` virou obrigatório em `ponto` e `falta` ⚠️ QUEBRA
 
@@ -174,6 +175,81 @@ Se o Node cria times/jogos em campo (modo avulso):
   responde `422` com erro em `time_fora_id`. Se a UI do Node deixa escolher os dois
   times livremente, filtre pela categoria do primeiro escolhido.
 
+### 1.9 Lista de jogos com equipe e categoria ✨ NOVO
+
+Cada time em `GET /jogos` (e em `GET /jogos/{jogo}`) passou a trazer `categoria` e o objeto
+`equipe`:
+
+```json
+"time_casa": {
+    "id": 1,
+    "nome_exibicao": "Clube dos Funcionários Adulto",
+    "categoria": "Adulto",
+    "equipe": { "id": 1, "nome": "Clube dos Funcionários", "nome_curto": "CF" },
+    "logo_url": "…"
+}
+```
+
+**Por que importa:** na tela de seleção, dois jogos do mesmo clube no mesmo dia só se
+distinguem pela categoria, e `nome_exibicao` pode ter sido customizado no cadastro (o
+fallback monta `nome_curto + categoria`, mas quem preenche `nome_exibicao` manda). Use
+`equipe.nome_curto` para o telão e `categoria` como qualificador — assim o operador não
+abre o Sub-15 achando que é o Adulto. Nenhum campo antigo mudou.
+
+### 1.10 Substituição e tempo técnico 📋 CONTRATO NOVO + ✨ endpoint de situação
+
+Os dois tipos de evento já existiam e aceitavam qualquer coisa. Agora têm contrato, porque
+são a base do controle de quadra:
+
+| Evento | Passa a exigir |
+|---|---|
+| `timeout` | `time_id` e `periodo` |
+| `substituicao` | `time_id`, `periodo` e `payload: { sai_jogador_id, entra_jogador_id }` — distintos e existentes |
+
+Quem não cumprir entra em `rejeitados` com o motivo, **sem derrubar o resto do lote** (como
+qualquer outra rejeição). Convenção: o `jogador_id` do evento é **quem entra**; os dois
+lados ficam no payload.
+
+```js
+{
+  uuid, sequencia, tipo: 'substituicao',
+  time_id: 1, periodo: 2, jogador_id: 7,
+  ocorrido_em: '2026-08-06 20:11:03.000',
+  payload: { sai_jogador_id: 3, entra_jogador_id: 7 },
+}
+```
+
+E, para o placar não ter de derivar estado do log, **`GET /jogos/{jogo}/situacao`**:
+
+```js
+const s = await api.get(`/jogos/${jogoId}/situacao`)
+
+s.periodo_atual                              // 2
+s.nome_do_periodo                            // 'set' | 'quarto' | 'tempo'
+s.time_casa.em_quadra                        // [{ jogador_id, numero, nome_exibicao, foto_url, capitao }]
+s.time_casa.no_banco                         // idem — é a lista do diálogo de substituição
+s.time_casa.timeouts.restantes_no_periodo    // 1  → botão "Tempo (1)"
+s.time_casa.substituicoes.restantes_no_periodo // 4, ou null quando a modalidade não limita
+```
+
+Detalhes que evitam bug:
+
+- **`em_quadra` é derivado**: titulares da escalação + quem entrou − quem saiu, na ordem do
+  log. Não recalcule no Node a partir dos eventos: é assim que duas telas passam a
+  discordar sobre quem está jogando. Chame o endpoint depois de cada lote com troca.
+- **`escalacao_definida: false`** → `em_quadra` vem `[]` e todos aparecem em `no_banco`.
+  Mande a escalação (`POST /jogos/{jogo}/escalacao`) antes de oferecer substituição.
+- **`restantes_no_periodo: null` não é zero** — é "sem limite" (futsal e basquete trocam à
+  vontade). Trate `null` como ilimitado na UI.
+- **Estorno desfaz**: troca estornada devolve quem tinha saído, tempo estornado volta para a
+  conta. Nada disso exige chamada especial: é só reler a situação.
+- **Os limites são informativos** (vôlei 2 tempos e 6 trocas por set, basquete 2 tempos por
+  quarto, futsal 1 tempo por tempo). A API **não bloqueia** quem passar do limite — o
+  regulamento do torneio manda, e travar no servidor pararia um jogo real. Se o placar
+  quiser impedir, impeça na UI.
+- A súmula devolve a troca resolvida em `evento.substituicao.sai` / `.entra` (com nome e
+  número), então a linha do tempo não precisa cruzar ids.
+
 ---
 
 ## 2. Contexto e responsabilidade
@@ -294,8 +370,9 @@ Base: `{{LARAVEL_BASE_URL}}/api/placar` (configure em env, não hardcode).
 | POST | `/placar/jogadores` | Cria jogador em campo |
 | POST/DELETE | `/placar/jogadores/{jogador}/foto` | Envia/remove a foto |
 | POST/DELETE | `/placar/jogadores/{jogador}/video` | **Envia/remove o vídeo** |
-| GET | `/placar/jogos` | Lista jogos (`status`, `data`, `modalidade`, `competicao_id`) |
+| GET | `/placar/jogos` | Lista jogos (`status`, `data`, `modalidade`, `competicao_id`) — com equipe e categoria |
 | GET | `/placar/jogos/{jogo}` | **Payload completo — gameState do Node** |
+| GET | `/placar/jogos/{jogo}/situacao` | **Estado de quadra agora** — em quadra/banco, tempos e trocas restantes |
 | POST | `/placar/jogos` | Cria jogo em campo |
 | POST | `/placar/jogos/{jogo}/iniciar` | Marca `ao_vivo` (idempotente) |
 | POST | `/placar/jogos/{jogo}/escalacao` | Substitui a escalação de um time |
@@ -325,6 +402,8 @@ se já foi feita; senão o elenco da temporada corrente).
     "time_casa": {
         "id": 1,
         "nome_exibicao": "Clube dos Funcionários Adulto",
+        "categoria": "Adulto",
+        "equipe": { "id": 1, "nome": "Clube dos Funcionários", "nome_curto": "CF" },
         "logo_url": "http://servidor/storage/placar/equipes/1/logo.webp",
         "elenco": [
             {
@@ -338,11 +417,16 @@ se já foi feita; senão o elenco da temporada corrente).
             }
         ]
     },
-    "time_fora": { "id": 4, "nome_exibicao": "Vila Nova Adulto", "logo_url": null, "elenco": [] }
+    "time_fora": {
+        "id": 4, "nome_exibicao": "Vila Nova Adulto", "categoria": "Adulto",
+        "equipe": { "id": 4, "nome": "Associação Vila Nova", "nome_curto": "Vila Nova" },
+        "logo_url": null, "elenco": []
+    }
 }
 ```
 
-`POST /placar/jogos` devolve exatamente este mesmo formato.
+`POST /placar/jogos` devolve exatamente este mesmo formato. `equipe` e `categoria` também
+vêm em cada item de `GET /jogos` — ver 1.9.
 
 ### Ciclo de vida do jogo
 
@@ -383,16 +467,20 @@ se já foi feita; senão o elenco da temporada corrente).
 | `uuid` | **gerado pelo Node** | chave de idempotência — nunca gerado no backend |
 | `sequencia` | **gerado pelo Node** | contador incremental do jogo |
 | `tipo` | lista acima | |
-| `time_id` | opcional | precisa ser um dos dois times do jogo |
-| `jogador_id` | opcional | precisa existir |
+| `time_id` | opcional; **obrigatório em `timeout` e `substituicao`** | precisa ser um dos dois times do jogo |
+| `jogador_id` | opcional | precisa existir; em `substituicao`, é **quem entra** |
 | `valor` | obrigatório em `ponto` | `1` em futsal/vôlei; `1`, `2` ou `3` em basquete |
-| `periodo` | opcional | tempo/quarto/set |
+| `periodo` | opcional; **obrigatório em `timeout` e `substituicao`** | tempo/quarto/set |
 | `cronometro_ms` | **obrigatório em `ponto` e `falta`** | cronômetro da **partida**, em ms, ≥ 0 |
 | `ocorrido_em` | obrigatório | |
-| `payload` | opcional | usado por `estorno` |
+| `payload` | opcional | **obrigatório em `substituicao`** (`sai_jogador_id`/`entra_jogador_id`) e em `estorno` (`evento_uuid`) |
 
 **Regras por modalidade:** `set` só em vôlei; `falta` não existe em vôlei; valor de `ponto`
 conforme a tabela.
+
+**Controle de quadra:** `timeout` e `substituicao` são eventos de um time dentro de um
+período — ver 1.10 e `GET /jogos/{jogo}/situacao`, que devolve quem está em quadra e
+quantos tempos/trocas restam.
 
 **Resposta:**
 
@@ -533,3 +621,7 @@ A API Laravel não sabe nada de WebSocket — é o Node que:
 - [ ] leituras de `jogador.documento` removidas (o campo não existe mais)
 - [ ] idade lida de `jogador.idade`, sem calcular a partir de `data_nascimento`
 - [ ] súmula oferecida nas três saídas (completa, mandante, visitante) via `?time_id=`
+- [ ] `timeout` enviado com `time_id` + `periodo`
+- [ ] `substituicao` enviada com `time_id` + `periodo` + `payload.sai_jogador_id`/`entra_jogador_id`
+- [ ] quem está em quadra lido de `/jogos/{jogo}/situacao`, não recalculado no Node
+- [ ] `restantes_no_periodo: null` tratado como "sem limite", não como zero

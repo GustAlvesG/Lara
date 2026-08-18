@@ -150,7 +150,13 @@
                     <span class="text-xs font-mono font-bold text-gray-500 dark:text-gray-400 w-12 shrink-0">{{ $evento['minuto'] ?? '—' }}</span>
                     <span class="text-xs font-bold uppercase text-gray-500 dark:text-gray-400 w-24 shrink-0">{{ $evento['tipo'] }}</span>
                     <span class="flex-1 text-gray-800 dark:text-gray-200">
-                        @if($evento['jogador'])
+                        @if(isset($evento['substituicao']))
+                            {{-- Uma substituição são duas pessoas: dizer só
+                                 quem entrou deixa a linha pela metade. --}}
+                            @php $troca = $evento['substituicao']; @endphp
+                            <span class="text-red-600 dark:text-red-400">↓ {{ $troca['sai']['nome_exibicao'] ?? '—' }}</span>
+                            <span class="text-emerald-600 dark:text-emerald-400">↑ {{ $troca['entra']['nome_exibicao'] ?? '—' }}</span>
+                        @elseif($evento['jogador'])
                             @if($evento['jogador']['numero']) <span class="text-gray-400 font-mono">#{{ $evento['jogador']['numero'] }}</span> @endif
                             {{ $evento['jogador']['nome_exibicao'] }}
                         @endif

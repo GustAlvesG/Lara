@@ -230,6 +230,29 @@
           "response": []
         },
         {
+          "name": "4b. Tempo técnico e substituição",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/placar/jogos/{{jogo_id}}/eventos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"eventos\": [\n        {\n            \"uuid\": \"b1e6a1b1-4b8a-4b1a-9c3a-000000000010\",\n            \"sequencia\": 10,\n            \"tipo\": \"timeout\",\n            \"time_id\": {{time_casa_id}},\n            \"periodo\": 1,\n            \"ocorrido_em\": \"2026-08-06 19:41:00.000\"\n        },\n        {\n            \"uuid\": \"b1e6a1b1-4b8a-4b1a-9c3a-000000000011\",\n            \"sequencia\": 11,\n            \"tipo\": \"substituicao\",\n            \"time_id\": {{time_casa_id}},\n            \"periodo\": 1,\n            \"jogador_id\": {{jogador_fora_id}},\n            \"ocorrido_em\": \"2026-08-06 19:41:30.000\",\n            \"payload\": {\n                \"sai_jogador_id\": {{jogador_casa_id}},\n                \"entra_jogador_id\": {{jogador_fora_id}}\n            }\n        }\n    ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Controle de quadra. Os dois exigem `time_id` E `periodo` — sem eles não se sabe de quem foi o tempo nem em que período, e o contador de 'restantes' não fecha. A substituição ainda exige `payload.sai_jogador_id` e `payload.entra_jogador_id`, distintos e existentes; `jogador_id` do evento é quem ENTRA. Quem não cumprir entra em `rejeitados` sem derrubar o resto do lote. (Este exemplo usa o jogador de fora como quem entra só porque a collection tem esses dois ids à mão — num jogo real seriam dois jogadores do mesmo time.) Depois de enviar, veja o efeito em 'Situação da partida'."
+          },
+          "response": []
+        },
+        {
+          "name": "4c. Situação da partida (quadra, tempos, trocas)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/placar/jogos/{{jogo_id}}/situacao",
+            "description": "Estado de quadra agora: `em_quadra` (titulares da escalação + quem entrou − quem saiu, na ordem do log), `no_banco`, e os contadores `timeouts`/`substituicoes` com limite, usados e restantes NO PERÍODO. Existe para o placar não refazer essa conta a partir do log — é assim que duas telas passam a discordar sobre quem está jogando. `escalacao_definida: false` significa que ninguém foi escalado ainda: `em_quadra` vem [] e todos aparecem no banco. `restantes_no_periodo: null` é SEM LIMITE (futsal e basquete), não zero. Os limites são informativos: a API não recusa o evento que passar deles."
+          },
+          "response": []
+        },
+        {
           "name": "Reenviar o mesmo lote (idempotência)",
           "event": [
             {

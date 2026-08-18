@@ -38,6 +38,14 @@ class JogoDetalheResource extends JsonResource
         return [
             'id' => $time->id,
             'nome_exibicao' => $time->nomeExibicaoResolvido(),
+            // Equipe e categoria explícitas, como na lista de jogos: é o que
+            // distingue "CF Adulto" de "CF Sub-15" no telão.
+            'categoria' => $time->categoria,
+            'equipe' => [
+                'id' => $time->equipe->id,
+                'nome' => $time->equipe->nome,
+                'nome_curto' => $time->equipe->nome_curto,
+            ],
             'logo_url' => $time->logoUrl(),
             'elenco' => $this->resource->elencoOperacionalDoTime($time)
                 ->map(fn (array $item) => [
