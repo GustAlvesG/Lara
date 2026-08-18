@@ -1950,4 +1950,44 @@ class FreelancerService extends Model
             return [$service->id => $count > self::WEEKLY_LIMIT];
         });
     }
+
+    /* ---------------------------------------------------------------------
+     | Funções já exercidas
+     |---------------------------------------------------------------------*/
+
+    /**
+     * Em que funções cada freelancer já atuou e quantas vezes — o que a
+     * listagem mostra em forma de tag ("Garçom - 4").
+     *
+     * As exclusões são as mesmas de weeklyWindowDates(): contrato cancelado
+     * não foi trabalhado, e aditivo apenas remenda um turno que o contrato
+     * base já conta. Sem elas a tag diria que o freelancer atuou mais vezes
+     * do que de fato pegou serviço.
+     *
+     * Uma consulta agregada para a listagem inteira, e não uma por card.
+     *
+     * @param  array<int, int>  $freelancerIds
+     * @return Collection<int, array<string, int>>  id do freelancer => [função => total], do mais atuado ao menos
+     */
+    public static function functionCountsFor(array $freelancerIds): Collection
+    {
+        if ($freelancerIds === []) {
+            return collect();
+        }
+
+        return static::query()
+            ->join('function_freelancers', 'function_freelancers.id', '=', 'freelancer_services.function_freelancer_id')
+            ->whereIn('freelancer_services.freelancer_id', $freelancerIds)
+            ->where('freelancer_services.status_id', '!=', self::STATUS_CANCELLED)
+            ->whereNull('freelancer_services.parent_service_id')
+            ->groupBy('freelancer_services.freelancer_id', 'function_freelancers.name')
+            ->select('freelancer_services.freelancer_id', 'function_freelancers.name as function_name')
+            ->selectRaw('COUNT(*) as total')
+            ->get()
+            ->groupBy('freelancer_id')
+            ->map(fn(Collection $rows) => $rows
+                ->sortBy([['total', 'desc'], ['function_name', 'asc']])
+                ->mapWithKeys(fn($row) => [$row->function_name => (int) $row->total])
+                ->all());
+    }
 }

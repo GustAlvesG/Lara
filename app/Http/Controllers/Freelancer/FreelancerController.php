@@ -24,7 +24,7 @@ class FreelancerController extends Controller
         $search = $request->query('q');
 
         $freelancers = Freelancer::withCount('freelancerServices')
-            ->with('freelancerServices:id,freelancer_id,start_date,status_id')
+            ->with('freelancerServices:id,freelancer_id,start_date,status_id,parent_service_id')
             ->when($search, fn($query) => $query->where(fn($q) => $q
                 ->where('name', 'like', "%{$search}%")
                 ->orWhere('cpf', 'like', "%{$search}%")))
@@ -35,9 +35,14 @@ class FreelancerController extends Controller
             $freelancers->flatMap->freelancerServices
         );
 
+        $functionCounts = FreelancerService::functionCountsFor($freelancers->modelKeys());
+
         foreach ($freelancers as $freelancer) {
             $freelancer->exceeds_weekly_limit = $freelancer->freelancerServices
                 ->contains(fn($service) => $excessFlags[$service->id] ?? false);
+
+            // Em que funções já atuou, para as tags do card.
+            $freelancer->function_counts = $functionCounts[$freelancer->id] ?? [];
         }
 
         return view('freelancer.freelancers.index', compact('freelancers', 'search'));

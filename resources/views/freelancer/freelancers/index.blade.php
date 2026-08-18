@@ -80,6 +80,19 @@
                             </form>
                         </div>
                     </div>
+                    {{-- Funções em que o freelancer já atuou. Cancelados e aditivos
+                         ficam de fora da conta - ver FreelancerService::functionCountsFor(). --}}
+                    @if(!empty($freelancer->function_counts))
+                        <div class="px-6 pt-4 flex flex-wrap gap-1.5">
+                            @foreach($freelancer->function_counts as $functionName => $total)
+                                <span title="{{ $total }} serviço(s) como {{ $functionName }}"
+                                      class="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                                    {{ $functionName }} - {{ $total }}
+                                </span>
+                            @endforeach
+                        </div>
+                    @endif
+
                     <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
                         <span class="text-xs font-medium text-gray-500 dark:text-gray-500">ID: #{{ $freelancer->id }}</span>
                         <span class="text-xs font-medium text-gray-400 dark:text-gray-600">{{ $freelancer->freelancer_services_count }} serviço(s)</span>
