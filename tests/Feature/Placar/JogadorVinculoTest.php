@@ -92,7 +92,9 @@ class JogadorVinculoTest extends TestCase
         $timeDeOutraEquipe = $this->time($this->outraEquipe, $this->futsal, 'Adulto');
 
         $this->actingAs($this->usuarioDoSetorEsporte())
-            ->post(route('placar.times.elenco.store', $timeDeOutraEquipe), ['jogador_id' => $jogador->id])
+            ->post(route('placar.times.elenco.store', $timeDeOutraEquipe), [
+                'jogadores' => [$jogador->id => ['selecionado' => '1']],
+            ])
             ->assertRedirect();
 
         $this->assertSame(0, Elenco::count());
@@ -104,7 +106,9 @@ class JogadorVinculoTest extends TestCase
         $time = $this->time($this->equipe, $this->futsal, 'Adulto');
 
         $this->actingAs($this->usuarioDoSetorEsporte())
-            ->post(route('placar.times.elenco.store', $time), ['jogador_id' => $jogador->id, 'numero' => '10'])
+            ->post(route('placar.times.elenco.store', $time), [
+                'jogadores' => [$jogador->id => ['selecionado' => '1', 'numero' => '10']],
+            ])
             ->assertRedirect();
 
         $this->assertDatabaseHas('elencos', [

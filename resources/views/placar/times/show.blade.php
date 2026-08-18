@@ -136,34 +136,157 @@
                 </ul>
             @endif
 
-            {{-- Adicionar jogador --}}
+            {{-- Adicionar jogadores: marca vários e salva de uma vez --}}
             <div class="p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/30">
-                <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Adicionar jogador ao elenco</h3>
-
-                <form method="GET" class="flex items-center gap-2 mb-4">
-                    <input type="text" name="jogador_busca" value="{{ request('jogador_busca') }}" placeholder="Buscar jogador por nome ou documento..."
-                        class="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm">
-                    <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-bold hover:bg-gray-900 transition">Buscar</button>
-                </form>
-
                 @if($jogadoresDisponiveis->isEmpty())
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Adicionar ao elenco</h3>
                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                        Nenhum jogador disponível encontrado.
-                        <a href="{{ route('placar.jogadores.create') }}" class="font-bold text-emerald-600 dark:text-emerald-400 hover:underline">Cadastrar um novo</a>.
+                        Não há jogador disponível de {{ $time->equipe->nome }} / {{ $time->modalidade->nome }} fora deste elenco.
+                        <a href="{{ route('placar.jogadores.create') }}" class="font-bold text-emerald-600 dark:text-emerald-400 hover:underline">Cadastrar um novo</a>
+                        ou importar por planilha.
                     </p>
                 @else
-                    <div class="space-y-2">
-                        @foreach($jogadoresDisponiveis as $jogador)
-                        <form action="{{ route('placar.times.elenco.store', $time) }}" method="POST" class="flex items-center gap-2">
-                            @csrf
-                            <input type="hidden" name="jogador_id" value="{{ $jogador->id }}">
-                            <span class="flex-1 text-sm text-gray-800 dark:text-gray-200">{{ $jogador->nomeExibicaoResolvido() }}</span>
-                            <input type="text" name="numero" placeholder="nº" class="w-16 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm">
-                            <input type="text" name="posicao" placeholder="posição" class="w-28 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm">
-                            <button type="submit" class="px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition">Adicionar</button>
-                        </form>
-                        @endforeach
+                @php
+                    // [id, texto pesquisável] — alimenta o filtro e o "marcar todos".
+                    $indice = $jogadoresDisponiveis->map(fn ($j) => [
+                        (string) $j->id,
+                        trim($j->nomeExibicaoResolvido() . ' ' . $j->nome . ' ' . $j->documento),
+                    ])->values();
+                @endphp
+
+                <div x-data="{
+                        busca: '',
+                        marcados: {},
+                        numeros: {},
+                        posicoes: {},
+                        emUso: {{ Illuminate\Support\Js::from($numerosEmUso) }},
+                        indice: {{ Illuminate\Support\Js::from($indice) }},
+
+                        combina(texto) {
+                            const termo = this.busca.trim().toLowerCase();
+                            return termo === '' || texto.toLowerCase().includes(termo);
+                        },
+                        get total() {
+                            return Object.values(this.marcados).filter(Boolean).length;
+                        },
+                        get nenhumVisivel() {
+                            return !this.indice.some(([, nome]) => this.combina(nome));
+                        },
+                        /* Menor camisa livre, contando as já no elenco e as
+                           que estão sendo atribuídas agora nesta mesma tela. */
+                        proximoNumero() {
+                            const ocupados = new Set([
+                                ...this.emUso.map(String),
+                                ...Object.entries(this.numeros)
+                                    .filter(([id]) => this.marcados[id])
+                                    .map(([, n]) => String(n))
+                                    .filter(n => n !== ''),
+                            ]);
+                            let n = 1;
+                            while (ocupados.has(String(n))) n++;
+                            return String(n);
+                        },
+                        /* Sugere a camisa ao marcar, sem sobrescrever o que a
+                           pessoa já tiver digitado. */
+                        sugerir(id) {
+                            if (this.marcados[id] && !this.numeros[id]) {
+                                this.numeros[id] = this.proximoNumero();
+                            }
+                        },
+                        marcarVisiveis() {
+                            this.indice.forEach(([id, nome]) => {
+                                if (this.combina(nome) && !this.marcados[id]) {
+                                    this.marcados[id] = true;
+                                    this.sugerir(id);
+                                }
+                            });
+                        },
+                        limpar() {
+                            this.marcados = {};
+                        },
+                     }">
+
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                        <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300">
+                            Adicionar ao elenco
+                            <span class="font-normal text-gray-400">({{ $jogadoresDisponiveis->count() }} disponíve{{ $jogadoresDisponiveis->count() === 1 ? 'l' : 'is' }})</span>
+                        </h3>
+                        <div class="flex items-center gap-3 text-xs font-bold">
+                            <button type="button" @click="marcarVisiveis()"
+                                    class="text-emerald-600 dark:text-emerald-400 hover:underline">Marcar todos</button>
+                            <button type="button" @click="limpar()" x-show="total > 0" x-cloak
+                                    class="text-gray-500 dark:text-gray-400 hover:underline">Limpar seleção</button>
+                        </div>
                     </div>
+
+                    <input type="text" x-model="busca" placeholder="Filtrar por nome ou documento — filtra enquanto você digita"
+                        class="w-full mb-4 px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm">
+
+                    <form action="{{ route('placar.times.elenco.store', $time) }}" method="POST">
+                        @csrf
+
+                        <div class="max-h-96 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
+                            @foreach($jogadoresDisponiveis as $jogador)
+                            @php $busca = trim($jogador->nomeExibicaoResolvido() . ' ' . $jogador->nome . ' ' . $jogador->documento); @endphp
+                            <label x-show="combina(@js($busca))"
+                                   class="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 transition"
+                                   :class="marcados[{{ $jogador->id }}] && 'bg-emerald-50 dark:bg-emerald-900/20'">
+
+                                {{-- x-model (e não :checked + click.prevent): o
+                                     checkbox precisa alternar nativamente, senão
+                                     não é enviado no POST. --}}
+                                <input type="checkbox" name="jogadores[{{ $jogador->id }}][selecionado]" value="1"
+                                       x-model="marcados[{{ $jogador->id }}]"
+                                       @change="sugerir({{ $jogador->id }})"
+                                       class="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 shrink-0">
+
+                                @if($jogador->fotoUrl())
+                                    <img src="{{ $jogador->fotoUrl() }}" class="w-8 h-8 rounded-full object-cover shrink-0">
+                                @else
+                                    <div class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 shrink-0"></div>
+                                @endif
+
+                                <span class="flex-1 min-w-0">
+                                    <span class="block text-sm text-gray-800 dark:text-gray-200 truncate">{{ $jogador->nomeExibicaoResolvido() }}</span>
+                                    @if($jogador->documento)
+                                        <span class="block text-xs text-gray-400 truncate">{{ $jogador->documento }}</span>
+                                    @endif
+                                </span>
+
+                                {{-- Só habilitados quando marcado: campo editável
+                                     em linha não selecionada não seria enviado. --}}
+                                <input type="text" name="jogadores[{{ $jogador->id }}][numero]" placeholder="nº"
+                                       x-model="numeros[{{ $jogador->id }}]"
+                                       :disabled="!marcados[{{ $jogador->id }}]"
+                                       @click.stop
+                                       class="w-16 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm disabled:opacity-40 shrink-0">
+
+                                <input type="text" name="jogadores[{{ $jogador->id }}][posicao]" placeholder="posição"
+                                       x-model="posicoes[{{ $jogador->id }}]"
+                                       :disabled="!marcados[{{ $jogador->id }}]"
+                                       @click.stop
+                                       class="w-28 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm disabled:opacity-40 shrink-0">
+                            </label>
+                            @endforeach
+
+                            <p x-show="nenhumVisivel" x-cloak
+                               class="p-4 text-sm text-gray-500 dark:text-gray-400">
+                                Nenhum jogador disponível com esse filtro.
+                            </p>
+                        </div>
+
+                        <div class="mt-4 flex items-center justify-between gap-4">
+                            <p class="text-xs text-gray-500 dark:text-gray-400" x-show="total > 0" x-cloak>
+                                <span x-text="total"></span> selecionado(s) — a camisa é sugerida automaticamente e pode ser trocada.
+                            </p>
+                            <button type="submit" :disabled="total === 0"
+                                class="ml-auto px-5 py-2 bg-emerald-600 text-white rounded-xl font-bold shadow hover:bg-emerald-700 transition text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                                <span x-show="total === 0">Adicionar ao elenco</span>
+                                <span x-show="total > 0" x-cloak>Adicionar <span x-text="total"></span> ao elenco</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
                 @endif
             </div>
         </div>

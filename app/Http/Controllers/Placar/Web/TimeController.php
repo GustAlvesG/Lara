@@ -95,19 +95,26 @@ class TimeController extends Controller
 
         // Candidatos para adicionar ao elenco: jogadores ativos DA MESMA
         // equipe e modalidade do time (jogador pertence a uma só de cada),
-        // que ainda não estão nele nesta temporada. A busca fica no mesmo
-        // GET da ficha, não numa tela separada.
+        // que ainda não estão nele nesta temporada.
+        //
+        // Carregados de uma vez, sem paginar nem buscar no servidor: o
+        // recorte equipe+modalidade já é estreito, e a tela filtra na
+        // digitação — montar um elenco é marcar vários de enfiada, não
+        // recarregar a página a cada nome.
         $jaNoElenco = $elenco->pluck('jogador_id');
         $jogadoresDisponiveis = Jogador::ativos()
             ->elegiveisPara($time)
             ->whereNotIn('id', $jaNoElenco)
-            ->busca($request->query('jogador_busca'))
             ->orderBy('nome')
-            ->limit(50)
             ->get();
 
+        // Alimenta a sugestão de camisa: ao marcar um jogador, a tela
+        // propõe o menor número ainda livre.
+        $numerosEmUso = $elenco->pluck('numero')->filter()->values();
+
         return view('placar.times.show', compact(
-            'time', 'elenco', 'temporada', 'temporadaAnteriorTemElenco', 'jogadoresDisponiveis', 'categorias',
+            'time', 'elenco', 'temporada', 'temporadaAnteriorTemElenco',
+            'jogadoresDisponiveis', 'categorias', 'numerosEmUso',
         ));
     }
 
