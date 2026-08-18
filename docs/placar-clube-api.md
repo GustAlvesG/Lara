@@ -69,7 +69,7 @@ Sem token, ou token sem a ability `placar:operar` → `401`/`403`. Rate limit: *
 | POST | `/placar/jogos/{jogo}/escalacao` | Substitui a escalação de um time neste jogo |
 | POST | `/placar/jogos/{jogo}/eventos` | **O endpoint mais importante** — lote de eventos, idempotente |
 | POST | `/placar/jogos/{jogo}/encerrar` | Marca `encerrado`, recalcula e fecha o placar (idempotente) |
-| GET | `/placar/jogos/{jogo}/sumula?time_id=` | Súmula do jogo — completa ou recortada em um time |
+| GET | `/placar/jogos/{jogo}/sumula?time_id=&periodo=` | Súmula do jogo — completa, de um time, ou de uma parcial |
 | GET | `/placar/jogos/{jogo}/jogadores/{jogador}/atuacao` | Ficha minutada do jogador nesta partida |
 | GET | `/placar/scout/jogadores/{jogador}` | Partidas em que o jogador atuou (`temporada`) |
 | POST | `/placar/jogadores/{jogador}/video` | Envia/substitui o vídeo de apresentação |
@@ -250,7 +250,7 @@ Camada de leitura que lê **só** de `jogo_eventos`, nunca de campo denormalizad
 
 > **A unidade do scout é a partida, não o ranking entre partidas.** Não existe endpoint de artilharia — `GET /scout/artilharia` foi **removido**. O que se mede é a atuação de um jogador num jogo específico, e por isso **todo `ponto` e toda `falta` exigem `cronometro_ms`** (ver a seção de eventos).
 
-- **`GET /jogos/{jogo}/sumula?time_id=`** — placar por período/set, timeline cronológica completa (com jogador, **número**, foto, e a marca `estornado`), totais de pontos/faltas por jogador de cada time (com o número de cada um). O número é o da escalação deste jogo, se já foi feita; senão o do elenco da temporada corrente — mesma prioridade de `Jogo::elencoOperacionalDoTime()`.
+- **`GET /jogos/{jogo}/sumula?time_id=&periodo=`** — placar por período/set, timeline cronológica completa (com jogador, **número**, foto, e a marca `estornado`), totais de pontos/faltas por jogador de cada time (com o número de cada um). O número é o da escalação deste jogo, se já foi feita; senão o do elenco da temporada corrente — mesma prioridade de `Jogo::elencoOperacionalDoTime()`.
 
   **A súmula sai completa ou recortada em um dos times** — cada equipe costuma querer só a sua. Com `time_id`, é a *mesma* súmula recortada, não outro relatório:
 
@@ -262,6 +262,28 @@ Camada de leitura que lê **só** de `jogo_eventos`, nunca de campo denormalizad
   | `placar_por_periodo` e `jogo` | completos | **completos também** — uma súmula que não diz contra quem se jogou e como ficou não serve |
 
   `estornado` é apurado **antes** do recorte: o evento de `estorno` não pertence a time nenhum, e filtrar primeiro faria um lance revertido voltar a valer na súmula individual. `time_id` que não é de nenhum dos dois times do jogo responde **`422`**, não a súmula completa em silêncio.
+
+  **`periodo` recorta na parcial** (set/quarter/período): `eventos` e `totais_por_jogador` passam a ser só daquela — "quem produziu no 3º quarter" não se responde olhando a soma do jogo. `placar_por_periodo` e o cabeçalho seguem completos, e `periodos_disponiveis` lista as parciais que a partida realmente teve (o que está no log, não o que a modalidade prevê: jogo interrompido no 2º quarter não oferece 3º e 4º). Parcial sem lance nenhum é resposta vazia, não erro; `periodo` que não é inteiro ≥ 1 é `422`. Os dois recortes se **combinam**: `?time_id=7&periodo=2` responde "o que o meu time fez no 2º set".
+
+  **A súmula fala a língua do esporte** (`Vocabulario`, ponto único dos rótulos). Cada evento vem com `rotulo` já resolvido, e o payload traz um bloco `vocabulario` para o telão rotular igual sem repetir a tabela:
+
+  | | futsal | basquete | vôlei |
+  |---|---|---|---|
+  | ponto | **Gol** | **Cesta de 2** / **Cesta de 3** (o valor faz parte do nome) | **Ponto** |
+  | total | gols | pontos | pontos |
+  | período | período | **quarter** | **set** |
+  | falta | sim | sim | **não existe** (`tem_falta: false` — a coluna nem aparece) |
+
+  ```json
+  "vocabulario": { "ponto": "Cesta", "pontos": "pontos", "periodo": "quarter", "tem_falta": true },
+  "periodo": 3,
+  "periodos_disponiveis": [1, 2, 3, 4],
+  "eventos": [
+      { "sequencia": 12, "tipo": "ponto", "rotulo": "Cesta de 3", "valor": 3, "periodo": 3, "…": "…" }
+  ]
+  ```
+
+  O mesmo `rotulo` e o mesmo bloco `vocabulario` vão na ficha de atuação (`/jogadores/{jogador}/atuacao`).
 - **`GET /jogos/{jogo}/jogadores/{jogador}/atuacao`** — **a visão central do scout**: a ficha do jogador nesta partida. Traz `totais` (`pontos`, `faltas`, `lances`) e a lista `lances`, cada um com `minuto` ("MM:SS"), `cronometro_ms` cru, `periodo`, `valor` e `estornado`. Lance estornado **continua na ficha**, marcado, mas fora dos totais.
 
   ```json

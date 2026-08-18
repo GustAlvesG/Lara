@@ -38,10 +38,10 @@ class ScoutController extends Controller
         ]);
     }
 
-    /** GET /placar/scout/jogos/{jogo}/sumula?time_id= */
+    /** GET /placar/scout/jogos/{jogo}/sumula?time_id=&periodo= */
     public function sumula(Request $request, Jogo $jogo, ScoutService $scout)
     {
-        $sumula = $scout->sumula($jogo, $this->recorte($request, $jogo));
+        $sumula = $scout->sumula($jogo, $this->recorte($request, $jogo), $this->periodo($request));
 
         return view('placar.scout.sumula', [
             'jogo' => $jogo,
@@ -51,19 +51,36 @@ class ScoutController extends Controller
     }
 
     /**
-     * GET /placar/scout/jogos/{jogo}/sumula/impressao?time_id=
+     * GET /placar/scout/jogos/{jogo}/sumula/impressao?time_id=&periodo=
      * Versão para impressão/PDF pelo navegador — é por aqui que sai a
-     * súmula completa ou a de um time só.
+     * súmula completa, a de um time só ou a de uma parcial.
      */
     public function sumulaPrint(Request $request, Jogo $jogo, ScoutService $scout)
     {
-        $sumula = $scout->sumula($jogo, $this->recorte($request, $jogo));
+        $sumula = $scout->sumula($jogo, $this->recorte($request, $jogo), $this->periodo($request));
 
         return view('placar.scout.sumula-print', [
             'jogo' => $jogo,
             'sumula' => $sumula,
             'lados' => $this->ladosExibidos($sumula),
         ]);
+    }
+
+    /**
+     * `?periodo=` recorta a súmula em um set/quarter/período. Valor que não
+     * é número inteiro a partir de 1 é 404 — período inexistente na partida
+     * é apenas uma parcial vazia, mas lixo no lugar do número não é.
+     */
+    private function periodo(Request $request): ?int
+    {
+        if (!$request->filled('periodo')) {
+            return null;
+        }
+
+        $periodo = (string) $request->query('periodo');
+        abort_if(!ctype_digit($periodo) || (int) $periodo < 1, 404);
+
+        return (int) $periodo;
     }
 
     /**

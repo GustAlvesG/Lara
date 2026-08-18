@@ -47,7 +47,9 @@ class SituacaoDaPartidaService
             'esporte' => $slug,
             'status' => $jogo->status,
             'periodo_atual' => $periodo,
-            'nome_do_periodo' => ModalidadeRegras::nomeDoPeriodo($slug),
+            // Como o esporte chama o período — o telão pede "2 tempos
+            // restantes NESTE SET", não "neste período" (ver Vocabulario).
+            'nome_do_periodo' => Vocabulario::periodo($slug),
             'time_casa' => $this->doTime($jogo, $jogo->timeCasa, $validos, $periodo, $slug),
             'time_fora' => $this->doTime($jogo, $jogo->timeFora, $validos, $periodo, $slug),
         ];

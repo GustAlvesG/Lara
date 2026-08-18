@@ -19,13 +19,16 @@ use Illuminate\Http\Request;
 class ScoutController extends Controller
 {
     /**
-     * GET /placar/jogos/{jogo}/sumula?time_id=
+     * GET /placar/jogos/{jogo}/sumula?time_id=&periodo=
      *
-     * Sem `time_id`, a súmula completa. Com ele, a mesma súmula recortada
-     * naquele time (`recorte` no corpo diz qual) — é o que cada equipe
-     * leva embora. `time_id` que não é de nenhum dos dois times do jogo é
-     * `422`: devolver a completa em silêncio faria ela passar por
-     * recortada.
+     * Sem filtro, a súmula completa. Com `time_id`, a mesma súmula
+     * recortada naquele time (`recorte` no corpo diz qual) — é o que cada
+     * equipe leva embora. Com `periodo`, a da parcial (set/quarter/período):
+     * linha do tempo e totais só do que aconteceu nela. Os dois se
+     * combinam.
+     *
+     * `time_id` que não é de nenhum dos dois times do jogo é `422`:
+     * devolver a completa em silêncio faria ela passar por recortada.
      */
     public function sumula(Request $request, Jogo $jogo, ScoutService $scout)
     {
@@ -38,7 +41,18 @@ class ScoutController extends Controller
             ], 422);
         }
 
-        return response()->json($scout->sumula($jogo, $timeId));
+        $periodo = $request->query('periodo');
+
+        // Período inexistente na partida não é erro (parcial vazia é uma
+        // resposta legítima), mas lixo no lugar do número é.
+        if (filled($periodo) && (!ctype_digit((string) $periodo) || (int) $periodo < 1)) {
+            return response()->json([
+                'message' => 'O período precisa ser um número inteiro a partir de 1.',
+                'errors' => ['periodo' => ['O período precisa ser um número inteiro a partir de 1.']],
+            ], 422);
+        }
+
+        return response()->json($scout->sumula($jogo, $timeId, filled($periodo) ? (int) $periodo : null));
     }
 
     /**

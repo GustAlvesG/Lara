@@ -37,19 +37,6 @@ class ModalidadeRegras
     }
 
     /**
-     * Como se chama o período nesta modalidade — o telão pede "2 tempos
-     * restantes NESTE SET", não "neste período".
-     */
-    public static function nomeDoPeriodo(string $modalidadeSlug): string
-    {
-        return match ($modalidadeSlug) {
-            Modalidade::VOLEI => 'set',
-            Modalidade::BASQUETE => 'quarto',
-            default => 'tempo',
-        };
-    }
-
-    /**
      * Tempos técnicos por time, por período.
      *
      * São os limites usuais de cada modalidade e servem para o placar

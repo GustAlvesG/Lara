@@ -343,6 +343,23 @@
           "response": []
         },
         {
+          "name": "6c. Súmula de uma parcial (set/quarter/período)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/placar/jogos/{{jogo_id}}/sumula?periodo=1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "placar", "jogos", "{{jogo_id}}", "sumula"],
+              "query": [
+                { "key": "periodo", "value": "1", "description": "Inteiro a partir de 1. Fora disso, 422." },
+                { "key": "time_id", "value": "{{time_casa_id}}", "disabled": true, "description": "Combina com o recorte por time." }
+              ]
+            },
+            "description": "`eventos` e `totais_por_jogador` passam a ser so daquela parcial — 'quem produziu no 3o quarter' nao se responde olhando a soma do jogo. `placar_por_periodo` e o cabecalho seguem completos (referencia de onde a parcial se encaixa), e `periodos_disponiveis` lista as parciais que a partida REALMENTE teve: jogo interrompido no 2o quarter nao oferece 3o e 4o. Parcial sem lance nenhum devolve listas vazias, nao erro. Combina com time_id. A resposta tambem traz `vocabulario` (gol/cesta/ponto, periodo/quarter/set, tem_falta) e `rotulo` em cada evento, ja resolvidos — o telao nao precisa da tabela de nomes."
+          },
+          "response": []
+        },
+        {
           "name": "7. Atuação do jogador na partida",
           "request": {
             "method": "GET",

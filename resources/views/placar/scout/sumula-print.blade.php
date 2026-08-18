@@ -1,6 +1,10 @@
 @php
     $j = $sumula['jogo'];
     $recorte = $sumula['recorte'];
+    $periodoAtivo = $sumula['periodo'];
+    // Cada esporte chama as coisas do seu jeito — ver Vocabulario.
+    $vocab = $sumula['vocabulario'];
+    $nomeDoPeriodo = ucfirst($vocab['periodo']);
     $confronto = $j['time_casa']['nome_exibicao'] . ' x ' . $j['time_fora']['nome_exibicao'];
     // Sem isto, a linha do tempo da súmula completa não diz de quem foi
     // cada lance — o documento impresso fica ambíguo.
@@ -15,7 +19,7 @@
     <meta charset="utf-8">
     {{-- O título vira o nome do arquivo quando se imprime em PDF: com o
          recorte no nome, duas súmulas do mesmo jogo não se confundem. --}}
-    <title>Súmula{{ $recorte ? ' ' . $recorte['nome_exibicao'] : '' }} — {{ $confronto }}</title>
+    <title>Súmula{{ $recorte ? ' ' . $recorte['nome_exibicao'] : '' }}{{ $periodoAtivo ? ' ' . $nomeDoPeriodo . ' ' . $periodoAtivo : '' }} — {{ $confronto }}</title>
     <style>
         @page { size: A4; margin: 14mm; }
         * { box-sizing: border-box; }
@@ -49,8 +53,12 @@
 
     <div class="head">
         <h1>Súmula do Jogo</h1>
-        @if($recorte)
-            <p><b>Recorte: {{ $recorte['nome_exibicao'] }}</b> — lances e totais deste time; o placar é o da partida.</p>
+        @if($recorte || $periodoAtivo)
+            <p>
+                <b>Recorte:
+                    {{ $recorte['nome_exibicao'] ?? 'os dois times' }}@if($periodoAtivo), {{ $nomeDoPeriodo }} {{ $periodoAtivo }}@endif</b>
+                — lances e totais só deste recorte; o placar é o da partida inteira.
+            </p>
         @endif
         <p>
             {{ ucfirst($j['esporte']) }} · {{ \Illuminate\Support\Carbon::parse($j['data_hora'])->format('d/m/Y H:i') }}
@@ -67,10 +75,16 @@
 
     @if(!empty($sumula['placar_por_periodo']))
     <table>
-        <thead><tr><th>Período</th><th>{{ $j['time_casa']['nome_exibicao'] }}</th><th>{{ $j['time_fora']['nome_exibicao'] }}</th></tr></thead>
+        <thead><tr><th>{{ $nomeDoPeriodo }}</th><th>{{ $j['time_casa']['nome_exibicao'] }}</th><th>{{ $j['time_fora']['nome_exibicao'] }}</th></tr></thead>
         <tbody>
-            @foreach($sumula['placar_por_periodo'] as $periodo)
-            <tr><td>{{ $periodo['periodo'] }}º</td><td>{{ $periodo['placar_casa'] }}</td><td>{{ $periodo['placar_fora'] }}</td></tr>
+            {{-- As parciais são sempre do jogo inteiro, mesmo com filtro:
+                 são a referência de onde a parcial escolhida se encaixa. --}}
+            @foreach($sumula['placar_por_periodo'] as $parcial)
+            <tr @if($periodoAtivo === $parcial['periodo']) style="font-weight:bold" @endif>
+                <td>{{ $nomeDoPeriodo }} {{ $parcial['periodo'] }}</td>
+                <td>{{ $parcial['placar_casa'] }}</td>
+                <td>{{ $parcial['placar_fora'] }}</td>
+            </tr>
             @endforeach
         </tbody>
     </table>
@@ -79,14 +93,25 @@
     <div class="cols">
         @foreach($lados as $lado => $nome)
         <div>
-            <h2>{{ $nome }}</h2>
+            <h2>{{ $nome }} <small>({{ $periodoAtivo ? $nomeDoPeriodo . ' ' . $periodoAtivo : 'jogo todo' }})</small></h2>
             <table>
-                <thead><tr><th>Nº</th><th>Jogador</th><th>Pontos</th><th>Faltas</th></tr></thead>
+                <thead>
+                    <tr>
+                        <th>Nº</th><th>Jogador</th><th>{{ ucfirst($vocab['pontos']) }}</th>
+                        {{-- Vôlei não tem falta: a coluna sairia sempre zerada. --}}
+                        @if($vocab['tem_falta'])<th>Faltas</th>@endif
+                    </tr>
+                </thead>
                 <tbody>
                     @forelse($sumula['totais_por_jogador'][$lado] as $totais)
-                        <tr><td>{{ $totais['numero'] ?? '—' }}</td><td>{{ $totais['nome_exibicao'] }}</td><td>{{ $totais['pontos'] }}</td><td>{{ $totais['faltas'] }}</td></tr>
+                        <tr>
+                            <td>{{ $totais['numero'] ?? '—' }}</td>
+                            <td>{{ $totais['nome_exibicao'] }}</td>
+                            <td>{{ $totais['pontos'] }}</td>
+                            @if($vocab['tem_falta'])<td>{{ $totais['faltas'] }}</td>@endif
+                        </tr>
                     @empty
-                        <tr><td colspan="4">Sem pontuação registrada.</td></tr>
+                        <tr><td colspan="{{ $vocab['tem_falta'] ? 4 : 3 }}">Sem {{ $vocab['pontos'] }} neste recorte.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -97,12 +122,14 @@
     @if(!empty($sumula['eventos']))
     <h2>Linha do tempo</h2>
     <table>
-        <thead><tr><th>Minuto</th><th>Tipo</th><th>Time</th><th>Nº</th><th>Jogador</th><th>Valor</th><th>Período</th></tr></thead>
+        <thead><tr><th>Minuto</th><th>Lance</th><th>Time</th><th>Nº</th><th>Jogador</th><th>{{ $nomeDoPeriodo }}</th></tr></thead>
         <tbody>
             @foreach($sumula['eventos'] as $evento)
             <tr class="@if($evento['estornado']) estornado @endif">
                 <td>{{ $evento['minuto'] ?? '—' }}</td>
-                <td>{{ $evento['tipo'] }}</td>
+                {{-- O nome do lance no esporte: gol, cesta de 3, ponto. O
+                     valor já está dentro dele, então não tem coluna própria. --}}
+                <td>{{ $evento['rotulo'] }}</td>
                 <td>{{ $nomeDoTime[$evento['time_id']] ?? '—' }}</td>
                 <td>{{ $evento['jogador']['numero'] ?? '—' }}</td>
                 <td>
@@ -113,7 +140,6 @@
                         {{ $evento['jogador']['nome_exibicao'] ?? '—' }}
                     @endif
                 </td>
-                <td>{{ $evento['valor'] ?? '—' }}</td>
                 <td>{{ $evento['periodo'] ?? '—' }}</td>
             </tr>
             @endforeach

@@ -41,8 +41,18 @@ class ScoutService
      * `recorte` é null na súmula completa, e identifica o time quando há.
      * Quem chama é responsável por recusar id de time que não é do jogo
      * (ver Jogo::ladoDoTime()).
+     *
+     * Com `$periodo`, a súmula é a **daquela parcial** (set/quarter/período):
+     * a linha do tempo e os totais por jogador consideram só o que
+     * aconteceu nela. Um técnico querendo saber quem apagou no terceiro
+     * quarter não tem como ver isso na soma do jogo inteiro. O placar por
+     * período e o cabeçalho, de novo, continuam completos — são a
+     * referência de onde a parcial se encaixa.
+     *
+     * Os dois recortes se combinam: time + período responde "o que o meu
+     * time fez no 2º set".
      */
-    public function sumula(Jogo $jogo, ?int $timeId = null): array
+    public function sumula(Jogo $jogo, ?int $timeId = null, ?int $periodo = null): array
     {
         $jogo->loadMissing(['modalidade', 'competicao', 'timeCasa.equipe', 'timeFora.equipe']);
 
@@ -61,29 +71,61 @@ class ScoutService
         // não uma por evento.
         $numeros = $this->numerosDoJogo($jogo);
 
-        $daLinhaDoTempo = $lado === null
+        // O recorte de período vale para os totais também — é a pergunta
+        // "quem produziu NESTA parcial", não "no jogo".
+        $doPeriodo = $periodo === null
             ? $eventos
-            : $eventos->filter(fn (JogoEvento $evento) => $evento->time_id === $timeId || $evento->time_id === null);
+            : $eventos->filter(fn (JogoEvento $evento) => $evento->periodo === $periodo);
+
+        $daLinhaDoTempo = $lado === null
+            ? $doPeriodo
+            // Sem filtro de período, os marcos que não são de time nenhum
+            // (início/fim de jogo) ficam na linha do time — são a referência
+            // de tempo. Com filtro de período eles já saíram: não pertencem
+            // a parcial nenhuma.
+            : $doPeriodo->filter(fn (JogoEvento $evento) => $evento->time_id === $timeId || $evento->time_id === null);
 
         // Quem sai e quem entra vive no payload da substituição, por id — a
         // súmula precisa dos nomes, senão a linha diz "substituição" e mais
         // nada.
         $trocas = $this->jogadoresDasTrocas($eventos);
+        $slug = $jogo->modalidade->slug;
 
         return [
             'jogo' => $this->cabecalhoDoJogo($jogo),
+            'vocabulario' => Vocabulario::daModalidade($slug),
             'recorte' => $lado === null ? null : [
                 'time_id' => $timeId,
                 'lado' => $lado,
                 'nome_exibicao' => ($lado === 'casa' ? $jogo->timeCasa : $jogo->timeFora)->nomeExibicaoResolvido(),
             ],
+            'periodo' => $periodo,
+            // Para a tela montar as abas sem varrer os eventos.
+            'periodos_disponiveis' => $this->periodosDisponiveis($eventos),
             'placar_por_periodo' => $this->placarPorPeriodo($jogo, $eventos, $estornados),
-            'eventos' => $daLinhaDoTempo->map(fn (JogoEvento $evento) => $this->linhaDoTempo($evento, $estornados, $numeros, $trocas))->values()->all(),
+            'eventos' => $daLinhaDoTempo->map(fn (JogoEvento $evento) => $this->linhaDoTempo($evento, $estornados, $numeros, $trocas, $slug))->values()->all(),
             'totais_por_jogador' => [
-                'time_casa' => $lado === 'fora' ? [] : $this->totaisPorJogador($jogo->time_casa_id, $eventos, $estornados, $numeros),
-                'time_fora' => $lado === 'casa' ? [] : $this->totaisPorJogador($jogo->time_fora_id, $eventos, $estornados, $numeros),
+                'time_casa' => $lado === 'fora' ? [] : $this->totaisPorJogador($jogo->time_casa_id, $doPeriodo, $estornados, $numeros),
+                'time_fora' => $lado === 'casa' ? [] : $this->totaisPorJogador($jogo->time_fora_id, $doPeriodo, $estornados, $numeros),
             ],
         ];
+    }
+
+    /**
+     * Períodos que a partida realmente teve, em ordem — o que existe no
+     * log, não o que a modalidade prevê: jogo interrompido no 2º quarter
+     * não pode oferecer aba de 3º e 4º.
+     *
+     * @return list<int>
+     */
+    private function periodosDisponiveis(Collection $eventos): array
+    {
+        return $eventos->pluck('periodo')
+            ->filter(fn (?int $periodo) => $periodo !== null && $periodo > 0)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 
     /**
@@ -120,6 +162,7 @@ class ScoutService
             $lances[] = [
                 'sequencia' => $evento->sequencia,
                 'tipo' => $evento->tipo,
+                'rotulo' => Vocabulario::evento($jogo->modalidade->slug, $evento->tipo, $evento->valor),
                 'valor' => $evento->valor,
                 'periodo' => $evento->periodo,
                 'cronometro_ms' => $evento->cronometro_ms,
@@ -131,6 +174,7 @@ class ScoutService
 
         return [
             'jogo' => $this->cabecalhoDoJogo($jogo),
+            'vocabulario' => Vocabulario::daModalidade($jogo->modalidade->slug),
             'jogador' => [
                 'id' => $jogador->id,
                 'numero' => $numeros[$jogador->id] ?? null,
@@ -366,11 +410,14 @@ class ScoutService
     }
 
     /** @param \Illuminate\Support\Collection<int, Jogador> $trocas */
-    private function linhaDoTempo(JogoEvento $evento, array $estornados, array $numeros, Collection $trocas): array
+    private function linhaDoTempo(JogoEvento $evento, array $estornados, array $numeros, Collection $trocas, string $slug): array
     {
         $linha = [
             'sequencia' => $evento->sequencia,
             'tipo' => $evento->tipo,
+            // O nome que o esporte dá ao lance: gol, cesta de 3, ponto…
+            // Resolvido aqui para telão, tela e impressão escreverem igual.
+            'rotulo' => Vocabulario::evento($slug, $evento->tipo, $evento->valor),
             'time_id' => $evento->time_id,
             'jogador' => $evento->jogador ? [
                 'id' => $evento->jogador->id,

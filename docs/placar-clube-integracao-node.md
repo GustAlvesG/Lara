@@ -12,7 +12,7 @@
 
 ## 1. O que mudou agora — ações necessárias no Node
 
-Dez mudanças no backend. As marcadas ⚠️ exigem alteração no Node **antes** do próximo
+Onze mudanças no backend. As marcadas ⚠️ exigem alteração no Node **antes** do próximo
 jogo; 📋 são contratos/regras novas a respeitar quando o recurso for usado; ✨ são
 novidades que o Node passa a poder usar.
 
@@ -225,7 +225,7 @@ E, para o placar não ter de derivar estado do log, **`GET /jogos/{jogo}/situaca
 const s = await api.get(`/jogos/${jogoId}/situacao`)
 
 s.periodo_atual                              // 2
-s.nome_do_periodo                            // 'set' | 'quarto' | 'tempo'
+s.nome_do_periodo                            // 'set' | 'quarter' | 'período'
 s.time_casa.em_quadra                        // [{ jogador_id, numero, nome_exibicao, foto_url, capitao }]
 s.time_casa.no_banco                         // idem — é a lista do diálogo de substituição
 s.time_casa.timeouts.restantes_no_periodo    // 1  → botão "Tempo (1)"
@@ -249,6 +249,48 @@ Detalhes que evitam bug:
   quiser impedir, impeça na UI.
 - A súmula devolve a troca resolvida em `evento.substituicao.sai` / `.entra` (com nome e
   número), então a linha do tempo não precisa cruzar ids.
+
+### 1.11 A súmula fala a língua do esporte e recorta por parcial ✨ NOVO
+
+Duas adições em `GET /jogos/{jogo}/sumula` (e, no que cabe, na ficha de atuação).
+
+**Rótulos por modalidade.** Cada evento passa a trazer `rotulo` já resolvido, e a resposta
+traz um bloco `vocabulario` — pare de montar essa tabela do lado do Node:
+
+| | futsal | basquete | vôlei |
+|---|---|---|---|
+| ponto | **Gol** | **Cesta de 2** / **Cesta de 3** | **Ponto** |
+| total | gols | pontos | pontos |
+| período | período | **quarter** | **set** |
+| falta | sim | sim | **não existe** (`tem_falta: false`) |
+
+```js
+sumula.vocabulario     // { ponto: 'Cesta', pontos: 'pontos', periodo: 'quarter', tem_falta: true }
+sumula.eventos[0]      // { tipo: 'ponto', rotulo: 'Cesta de 3', valor: 3, ... }
+```
+
+No basquete o **valor faz parte do nome** ("cesta de 3"), então não repita `valor` ao lado do
+rótulo. Onde `tem_falta` é `false`, não desenhe a coluna: ela sairia sempre zerada.
+
+**Filtro por parcial.** `?periodo=3` recorta `eventos` **e** `totais_por_jogador` naquele
+set/quarter/período — é a pergunta "quem produziu nesta parcial", que a soma do jogo não
+responde. Combina com `time_id`.
+
+```js
+const q3   = await api.get(`/jogos/${id}/sumula`, { params: { periodo: 3 } })
+const meu2 = await api.get(`/jogos/${id}/sumula`, { params: { time_id: timeId, periodo: 2 } })
+
+q3.periodo                 // 3
+q3.periodos_disponiveis    // [1, 2, 3, 4] — só as parciais que a partida teve
+q3.placar_por_periodo      // completo, sempre: é a referência de onde a parcial se encaixa
+```
+
+Use `periodos_disponiveis` para montar as abas: jogo interrompido no 2º quarter não pode
+oferecer 3º e 4º. Parcial sem lance nenhum devolve listas vazias (não é erro); `periodo` que
+não seja inteiro ≥ 1 é `422`.
+
+> Ajuste de nomenclatura: `nome_do_periodo` em `/situacao` passou a devolver **`período`**
+> (era `tempo`) e **`quarter`** (era `quarto`), alinhado a esta tabela.
 
 ---
 
@@ -378,7 +420,7 @@ Base: `{{LARAVEL_BASE_URL}}/api/placar` (configure em env, não hardcode).
 | POST | `/placar/jogos/{jogo}/escalacao` | Substitui a escalação de um time |
 | POST | `/placar/jogos/{jogo}/eventos` | **O endpoint mais importante** — lote, idempotente |
 | POST | `/placar/jogos/{jogo}/encerrar` | Marca `encerrado` (idempotente) |
-| GET | `/placar/jogos/{jogo}/sumula?time_id=` | Súmula do jogo — completa ou recortada em um time |
+| GET | `/placar/jogos/{jogo}/sumula?time_id=&periodo=` | Súmula do jogo — completa, de um time, ou de uma parcial |
 | GET | `/placar/jogos/{jogo}/jogadores/{jogador}/atuacao` | **Ficha minutada do jogador na partida** |
 | GET | `/placar/scout/jogadores/{jogador}` | Partidas em que o jogador atuou |
 
@@ -514,8 +556,9 @@ O evento original sai do placar e dos totais, mas **continua na súmula/timeline
 
 ### Scout — sempre por partida
 
-- **`GET /jogos/{jogo}/sumula?time_id=`** — placar por período/set, timeline completa (com
-  jogador, número, **`minuto`** e a marca `estornado`) e totais por jogador de cada time.
+- **`GET /jogos/{jogo}/sumula?time_id=&periodo=`** — placar por período/set, timeline completa
+  (com jogador, número, **`minuto`**, `rotulo` e a marca `estornado`) e totais por jogador de
+  cada time. `periodo` recorta na parcial e `vocabulario` traz os nomes do esporte (ver 1.11).
   Com `time_id`, a mesma súmula recortada naquele time (ver 1.7): `recorte` identifica
   qual, `eventos` traz só os lances dele mais os marcos sem time, e o lado de fora do
   recorte vem `[]` em `totais_por_jogador`. Placar e cabeçalho continuam completos.
@@ -625,3 +668,5 @@ A API Laravel não sabe nada de WebSocket — é o Node que:
 - [ ] `substituicao` enviada com `time_id` + `periodo` + `payload.sai_jogador_id`/`entra_jogador_id`
 - [ ] quem está em quadra lido de `/jogos/{jogo}/situacao`, não recalculado no Node
 - [ ] `restantes_no_periodo: null` tratado como "sem limite", não como zero
+- [ ] rótulos de lance lidos de `evento.rotulo`/`vocabulario`, sem tabela própria no Node
+- [ ] abas de parcial montadas com `periodos_disponiveis` + `?periodo=`

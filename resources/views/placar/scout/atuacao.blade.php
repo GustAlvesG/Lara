@@ -36,8 +36,19 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-3 gap-4">
-            @foreach(['pontos' => 'Pontos', 'faltas' => 'Faltas', 'lances' => 'Lances'] as $campo => $label)
+        @php
+            $vocab = $atuacao['vocabulario'];
+            $nomeDoPeriodo = ucfirst($vocab['periodo']);
+            // Vôlei não tem falta: o quadro sairia sempre zerado.
+            $quadros = $vocab['tem_falta']
+                ? ['pontos' => ucfirst($vocab['pontos']), 'faltas' => 'Faltas', 'lances' => 'Lances']
+                : ['pontos' => ucfirst($vocab['pontos']), 'lances' => 'Lances'];
+        @endphp
+
+        {{-- Classe literal: o Tailwind varre o fonte e não veria
+             "grid-cols-{n}" montado em tempo de execução. --}}
+        <div class="grid {{ count($quadros) === 3 ? 'grid-cols-3' : 'grid-cols-2' }} gap-4">
+            @foreach($quadros as $campo => $label)
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6 text-center">
                 <p class="text-3xl font-extrabold text-gray-900 dark:text-white">{{ $atuacao['totais'][$campo] }}</p>
                 <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mt-1">{{ $label }}</p>
@@ -61,23 +72,23 @@
                         <thead class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider bg-gray-50 dark:bg-gray-900/40">
                             <tr>
                                 <th class="px-6 py-3">Minuto</th>
-                                <th class="px-6 py-3">Período</th>
+                                <th class="px-6 py-3">{{ $nomeDoPeriodo }}</th>
                                 <th class="px-6 py-3">Lance</th>
-                                <th class="px-6 py-3 text-right">Valor</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                             @foreach($atuacao['lances'] as $lance)
                             <tr class="@if($lance['estornado']) opacity-40 @endif">
                                 <td class="px-6 py-3 font-mono font-bold text-gray-900 dark:text-white">{{ $lance['minuto'] ?? '—' }}</td>
-                                <td class="px-6 py-3 text-gray-500 dark:text-gray-400">{{ $lance['periodo'] ? $lance['periodo'] . 'º' : '—' }}</td>
+                                <td class="px-6 py-3 text-gray-500 dark:text-gray-400">{{ $lance['periodo'] ? $nomeDoPeriodo . ' ' . $lance['periodo'] : '—' }}</td>
                                 <td class="px-6 py-3">
-                                    <span class="text-xs font-bold uppercase text-gray-600 dark:text-gray-300">{{ $lance['tipo'] }}</span>
+                                    {{-- "Cesta de 3" já carrega o valor: por
+                                         isso não há coluna Valor. --}}
+                                    <span class="text-xs font-bold text-gray-600 dark:text-gray-300">{{ $lance['rotulo'] }}</span>
                                     @if($lance['estornado'])
                                         <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">estornado</span>
                                     @endif
                                 </td>
-                                <td class="px-6 py-3 text-right text-gray-700 dark:text-gray-300">{{ $lance['valor'] ?? '—' }}</td>
                             </tr>
                             @endforeach
                         </tbody>
