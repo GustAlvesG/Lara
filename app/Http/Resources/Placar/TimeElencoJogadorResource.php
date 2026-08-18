@@ -20,6 +20,7 @@ class TimeElencoJogadorResource extends JsonResource
             'numero' => $this->numero,
             'posicao' => $this->posicao,
             'foto_url' => $this->jogador->fotoUrl(),
+            'video_url' => $this->jogador->videoUrl(),
         ];
     }
 }

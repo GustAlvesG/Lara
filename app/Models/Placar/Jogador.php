@@ -17,6 +17,7 @@ class Jogador extends Model
         'nome',
         'nome_exibicao',
         'foto_path',
+        'video_path',
         'data_nascimento',
         'documento',
         'criado_em_campo',
@@ -62,6 +63,16 @@ class Jogador extends Model
     public function fotoUrl(): ?string
     {
         return ImagemService::url($this->foto_path);
+    }
+
+    /**
+     * Vídeo curto de apresentação — o telão usa foto e vídeo em momentos
+     * diferentes, então os dois convivem e cada um pode ser null por conta
+     * própria.
+     */
+    public function videoUrl(): ?string
+    {
+        return ImagemService::url($this->video_path);
     }
 
     public function scopeAtivos($query)

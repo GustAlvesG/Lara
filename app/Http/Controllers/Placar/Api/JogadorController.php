@@ -10,6 +10,8 @@ use App\Http\Resources\Placar\JogadorResource;
 use App\Models\Placar\Elenco;
 use App\Models\Placar\Jogador;
 use App\Services\Placar\ImagemService;
+use App\Services\Placar\VideoService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -72,6 +74,33 @@ class JogadorController extends Controller
     {
         $imagens->remover($jogador->foto_path);
         $jogador->update(['foto_path' => null]);
+
+        return new JogadorResource($jogador);
+    }
+
+    /**
+     * POST /placar/jogadores/{jogador}/video — multipart `video`, mp4/webm.
+     * Sem base64 aqui de propósito: um vídeo em base64 inflaria ~33% e
+     * estouraria o limite de POST do servidor bem antes do limite útil.
+     */
+    public function storeVideo(Request $request, Jogador $jogador, VideoService $videos)
+    {
+        try {
+            $caminho = $videos->salvar($request, "placar/jogadores/{$jogador->id}", $jogador->video_path);
+        } catch (InvalidArgumentException $e) {
+            return $this->respostaErroImagem($e);
+        }
+
+        $jogador->update(['video_path' => $caminho]);
+
+        return new JogadorResource($jogador);
+    }
+
+    /** DELETE /placar/jogadores/{jogador}/video */
+    public function destroyVideo(Jogador $jogador, VideoService $videos)
+    {
+        $videos->remover($jogador->video_path);
+        $jogador->update(['video_path' => null]);
 
         return new JogadorResource($jogador);
     }

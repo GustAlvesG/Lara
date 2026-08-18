@@ -45,6 +45,10 @@ class JogoDetalheResource extends JsonResource
                     'numero' => $item['numero'],
                     'nome_exibicao' => $item['jogador']->nomeExibicaoResolvido(),
                     'foto_url' => $item['jogador']->fotoUrl(),
+                    // O telão usa foto e vídeo em momentos diferentes —
+                    // ambos vêm no mesmo payload para não exigir uma
+                    // segunda chamada na hora da entrada em quadra.
+                    'video_url' => $item['jogador']->videoUrl(),
                     'titular' => (bool) $item['titular'],
                     'capitao' => (bool) $item['capitao'],
                 ])

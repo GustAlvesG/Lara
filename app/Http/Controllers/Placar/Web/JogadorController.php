@@ -7,6 +7,7 @@ use App\Http\Controllers\Placar\Api\Concerns\UploadsPlacarImagem;
 use App\Http\Requests\Placar\UploadImagemRequest;
 use App\Models\Placar\Jogador;
 use App\Services\Placar\ImagemService;
+use App\Services\Placar\VideoService;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
 
@@ -111,5 +112,26 @@ class JogadorController extends Controller
         $jogador->update(['foto_path' => null]);
 
         return back()->with('success', 'Foto removida com sucesso.');
+    }
+
+    public function storeVideo(Request $request, Jogador $jogador, VideoService $videos)
+    {
+        try {
+            $caminho = $videos->salvar($request, "placar/jogadores/{$jogador->id}", $jogador->video_path);
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $jogador->update(['video_path' => $caminho]);
+
+        return back()->with('success', 'Vídeo atualizado com sucesso.');
+    }
+
+    public function destroyVideo(Jogador $jogador, VideoService $videos)
+    {
+        $videos->remover($jogador->video_path);
+        $jogador->update(['video_path' => null]);
+
+        return back()->with('success', 'Vídeo removido com sucesso.');
     }
 }

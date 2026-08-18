@@ -14,6 +14,7 @@ class JogadorResource extends JsonResource
             'nome' => $this->nome,
             'nome_exibicao' => $this->nomeExibicaoResolvido(),
             'foto_url' => $this->fotoUrl(),
+            'video_url' => $this->videoUrl(),
             'data_nascimento' => $this->data_nascimento?->toDateString(),
             'documento' => $this->documento,
             'criado_em_campo' => (bool) $this->criado_em_campo,

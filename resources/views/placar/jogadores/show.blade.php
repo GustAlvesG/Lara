@@ -53,6 +53,37 @@
             </div>
         </div>
 
+        {{-- Vídeo de apresentação --}}
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6">
+            <h2 class="text-lg font-bold text-gray-800 dark:text-white mb-1">Vídeo de apresentação</h2>
+            <p class="text-xs text-gray-400 dark:text-gray-500 mb-4">
+                Usado pelo telão na entrada em quadra (a foto é usada na escalação e na súmula).
+                mp4 ou webm, até 28MB.
+            </p>
+            <div class="flex flex-col sm:flex-row sm:items-start gap-6">
+                @if($jogador->videoUrl())
+                    <video src="{{ $jogador->videoUrl() }}" controls preload="metadata"
+                           class="w-64 rounded-xl border border-gray-200 dark:border-gray-600 bg-black"></video>
+                @else
+                    <div class="w-64 h-36 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs text-gray-400">sem vídeo</div>
+                @endif
+                <div class="flex flex-col gap-2">
+                    <form action="{{ route('placar.jogadores.video.store', $jogador) }}" method="POST" enctype="multipart/form-data" class="flex items-center gap-2">
+                        @csrf
+                        <input type="file" name="video" accept="video/mp4,video/webm" required class="text-sm">
+                        <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition">Enviar</button>
+                    </form>
+                    @if($jogador->video_path)
+                    <form action="{{ route('placar.jogadores.video.destroy', $jogador) }}" method="POST" onsubmit="return confirm('Remover o vídeo?')">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="text-xs font-bold text-red-600 dark:text-red-400 hover:underline">Remover vídeo</button>
+                    </form>
+                    @endif
+                </div>
+            </div>
+        </div>
+
         <form action="{{ route('placar.jogadores.update', $jogador) }}" method="POST">
             @csrf
             @method('PUT')

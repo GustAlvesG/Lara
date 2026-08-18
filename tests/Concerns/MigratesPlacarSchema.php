@@ -34,6 +34,7 @@ trait MigratesPlacarSchema
             'database/migrations/2026_08_06_090008_create_jogo_eventos_table.php',
             'database/migrations/2026_08_06_114625_create_personal_access_tokens_table.php',
             'database/migrations/2026_08_06_114700_create_placar_api_clientes_table.php',
+            'database/migrations/2026_08_18_100000_add_video_path_to_jogadores_table.php',
         ]]);
     }
 }
