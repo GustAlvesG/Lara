@@ -1,13 +1,16 @@
 @php
     /**
      * Corpo do TERMO ADITIVO DE COMISSÃO SOBRE VENDAS. Recebe $service (a
-     * comissão), $f (freelancer) e $cpf já formatado.
+     * comissão), $party (a qualificação do freelancer como o documento a cita) e
+     * $cpf já formatado.
      *
      * O oposto do aditivo de horário na cláusula do valor: aqui a comissão
      * ACRESCE ao contrato do turno, e o texto diz isso com todas as letras. Os
      * dois documentos existem lado a lado, e confundi-los é confundir o
-     * pagamento. Mantido em sincronia com o commissionClauses() do Kiosk
-     * (resources/views/kiosk/index.blade.php).
+     * pagamento.
+     *
+     * REDAÇÃO 1 — CONGELADA. Para revisar, copie a pasta `v1` para `v2` e edite
+     * lá; alterar este arquivo mudaria termos já assinados.
      */
     use Illuminate\Support\Carbon;
     use App\Models\FreelancerService;
@@ -17,8 +20,10 @@
     $valor = number_format((float) $service->price, 2, ',', '.');
     $vendas = number_format((float) $service->sales_amount, 2, ',', '.');
 
-    $horaInicio = substr((string) $service->start_time, 0, 5);
-    $horaFim = substr((string) $service->end_time, 0, 5);
+    // Como o contrato e o aditivo de horário, o termo cita DIA e VALOR — o
+    // horário do turno não entra no texto. O período da APURAÇÃO continua no
+    // Anexo I: lá ele não descreve a contratação, e sim quais vendas entraram na
+    // conta que o freelancer está conferindo.
     $dia = $base && $base->start_date
         ? Carbon::parse($base->start_date)->format('d/m/Y')
         : ($service->start_date ? Carbon::parse($service->start_date)->format('d/m/Y') : '—');
@@ -38,12 +43,13 @@
 <p>Por este particular instrumento, firmado entre as partes, de um lado,
     <b>CLUBE DOS FUNCIONARIOS DA COMPANHIA SIDERURGICA NACIONAL</b>, empresa estabelecida na Rua - General Oswaldo
     Pinto da Veiga, 231, Volta Redonda – RJ, a seguir denominada simplesmente CONTRATANTE, e, de outro lado
-    <b>{{ $f->name }}</b>, {{ $f->nacionality ?: '—' }}, {{ $f->civil_status ?: '—' }}, titular do CPF: {{ $cpf }}
-    e do RG nº {{ $f->rg ?: '—' }}, residente e domiciliado {{ $f->address ?: '—' }}, a seguir denominado
-    simplesmente FREELANCER, fica justo e acordado o presente <b>TERMO ADITIVO DE COMISSÃO SOBRE VENDAS</b> ao
-    Contrato Autônomo de Serviços de Freelancer celebrado entre as partes{{ $celebradoEm ? ' em ' . $celebradoEm : '' }},
-    para a prestação de serviços na função de <b>{{ $service->functionFreelancer->name ?? '—' }}</b> no dia
-    {{ $dia }}, a seguir denominado simplesmente CONTRATO ORIGINAL, nos seguintes termos:</p>
+    <b>{{ $party['name'] }}</b>, {{ $party['nacionality'] ?: '—' }}, {{ $party['civil_status'] ?: '—' }}, titular do
+    CPF: {{ $cpf }} e do RG nº {{ $party['rg'] ?: '—' }}, residente e domiciliado {{ $party['address'] ?: '—' }}, a
+    seguir denominado simplesmente FREELANCER, fica justo e acordado o presente
+    <b>TERMO ADITIVO DE COMISSÃO SOBRE VENDAS</b> ao Contrato Autônomo de Serviços de Freelancer celebrado entre as
+    partes{{ $celebradoEm ? ' em ' . $celebradoEm : '' }}, para a prestação de serviços na função de
+    <b>{{ $service->contractFunctionName() ?: '—' }}</b> no dia {{ $dia }}, a seguir denominado simplesmente
+    CONTRATO ORIGINAL, nos seguintes termos:</p>
 
 <p><b>1- DO OBJETO:</b> O presente termo tem por objeto a remuneração variável, a título de comissão, devida ao
     FREELANCER em razão das vendas por ele realizadas durante a prestação de serviços objeto do CONTRATO ORIGINAL,
@@ -51,14 +57,14 @@
     prestação.</p>
 
 <p><b>2- DA APURAÇÃO DAS VENDAS:</b> As partes reconhecem como base de cálculo o valor de <b>R$ {{ $vendas }}</b>,
-    correspondente ao total das vendas realizadas pelo FREELANCER no período de prestação de serviços do dia
-    {{ $dia }}, das <b>{{ $horaInicio }}</b> às <b>{{ $horaFim }}</b>,
+    correspondente ao total das vendas realizadas pelo FREELANCER na prestação de serviços do dia {{ $dia }},
     @if($service->hasSalesReport())
-        apurado no sistema de vendas do CONTRATANTE sob o login <b>{{ $service->sales_login }}</b> no período de
-        {{ $service->salesPeriodLabel() }}, conforme relatório que integra este termo como <b>Anexo I</b>.
+        apurado no sistema de vendas do CONTRATANTE sob o login <b>{{ $service->sales_login }}</b>, conforme
+        relatório que integra este termo como <b>Anexo I</b>.
         @if($service->salesAmountWasAdjusted())
             O valor acima foi ajustado pelo CONTRATANTE em relação ao total constante do Anexo I
-            (R$ {{ number_format((float) ($service->sales_report['base'] ?? 0), 2, ',', '.') }}).
+            (R$ {{ number_format((float) ($service->sales_report['base'] ?? 0), 2, ',', '.') }}), pela seguinte
+            justificativa: <b>{{ $service->sales_adjustment_reason ?: 'não informada' }}</b>.
         @endif
     @else
         apurado e informado pelo CONTRATANTE no encerramento do expediente.
@@ -73,7 +79,7 @@
     cláusula 2 do CONTRATO ORIGINAL, não o substituindo, servindo a assinatura do presente termo como recibo do
     pagamento.</p>
 
-@include('freelancer.services.partials.pix-clause', ['service' => $service, 'numero' => '4.1'])
+@include('freelancer.services.partials.contract.v1.pix-clause', ['service' => $service, 'numero' => '4.1'])
 
 <p><b>5- DA NATUREZA DA COMISSÃO:</b> O pagamento ora ajustado decorre exclusivamente do resultado das vendas
     realizadas no período e não descaracteriza a natureza autônoma da prestação de serviços, não implicando vínculo

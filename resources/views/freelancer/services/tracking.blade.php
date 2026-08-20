@@ -1,7 +1,8 @@
 {{--
-    Acompanhamento do trâmite — a tela do setor Comercial (Gate
-    `track-freelancer-batches`). SÓ LEITURA: aprovar é da Gerência, pagar é do
-    Financeiro, e nenhuma das duas ações existe aqui.
+    Acompanhamento do trâmite — a tela do setor Comercial e de quem responde
+    pelo financeiro dos freelancers (Gate `track-freelancer-batches`). SÓ
+    LEITURA: aprovar é da Gerência, pagar é do Financeiro, e nenhuma das duas
+    ações existe aqui.
 
     A pergunta que a tela responde é "onde parou o contrato de fulano?", e a
     resposta tem quatro etapas: assinaturas → gerência → diretoria → pagamento.

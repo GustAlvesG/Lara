@@ -55,10 +55,9 @@ class AppServiceProvider extends ServiceProvider
         );
 
         /**
-         * Acompanhamento dos lotes — tela de leitura do setor Comercial, que
-         * registra os contratos e responde ao freelancer por onde o pagamento
-         * dele parou. Vínculo de setor em qualquer papel, pela mesma razão do
-         * Gate acima: não é nível de acesso, é de quem é a atribuição.
+         * Acompanhamento do trâmite dos freelancers (aba só leitura). Mesmo
+         * raciocínio do Gate acima: vínculo de setor (Comercial, em qualquer
+         * papel), não permissão do Spatie — a role `admin` não dá acesso.
          */
         Gate::define(
             'track-freelancer-batches',

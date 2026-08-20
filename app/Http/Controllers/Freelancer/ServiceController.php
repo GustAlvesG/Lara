@@ -53,6 +53,7 @@ class ServiceController extends Controller
         $query = FreelancerService::with(['freelancer', 'functionFreelancer', 'status'])
             ->search($filters['q'])
             ->signatureStatus($filters['signature'])
+            ->contractVersionFilter($filters['contract_version'])
             ->when($filters['freelancer_id'], fn($q, $id) => $q->where('freelancer_id', $id))
             ->when($filters['function_id'], fn($q, $id) => $q->where('function_freelancer_id', $id))
             // O período filtra pelo DIA do turno, que é como se procura um
@@ -84,12 +85,13 @@ class ServiceController extends Controller
             'filters' => $filters,
             'signatureFilters' => FreelancerService::SIGNATURE_FILTERS,
             'issueFilters' => FreelancerService::ISSUE_FILTERS,
+            'contractVersionFilters' => FreelancerService::contractVersionFilters(),
         ]));
     }
 
     /**
      * Peneira os registros com falha. Feito em memória, e não em SQL, porque as
-     * duas regras já existem em PHP: a janela de 7 dias mais cheia
+     * duas regras já existem em PHP: o limite semanal por semana de calendário
      * (`flagExcessWithinCollection`) e o prazo da assinatura com tolerância
      * (`isSignedAfterStart`). Reescrevê-las em SQL criaria uma segunda versão
      * das mesmas regras, fadada a divergir da que a tela mostra.
@@ -158,6 +160,12 @@ class ServiceController extends Controller
             'issue' => array_key_exists((string) $request->query('issue'), FreelancerService::ISSUE_FILTERS)
                 ? $request->query('issue')
                 : null,
+            // A redação das cláusulas que o contrato firmou — a varredura de
+            // quem foi assinado sob o texto antigo.
+            'contract_version' => array_key_exists(
+                (string) $request->query('contract_version'),
+                FreelancerService::contractVersionFilters()
+            ) ? (string) $request->query('contract_version') : null,
             'sort' => $sort,
             // Sem direção escolhida, cada ordenação tem a sua natural: data do
             // mais recente para o mais antigo, nome de A a Z.

@@ -27,6 +27,6 @@ class Tag extends Model
      */
     public static function normalize(string $name): string
     {
-        return trim(mb_strtolower($name));
+        return trim(mb_strtolower(str_replace('#', '', $name)));
     }
 }

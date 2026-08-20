@@ -170,6 +170,67 @@ class FreelancerSalesCommissionTest extends TestCase
         $this->assertNull($service->commissionBlockReason());
     }
 
+    /* ---------------------------------------------------------------------
+     | Alteração do valor apurado exige justificativa
+     |---------------------------------------------------------------------*/
+
+    /** @return array<string, mixed> */
+    private function report(float $base): array
+    {
+        return [
+            'login' => '12345678901',
+            'base' => $base,
+            'period' => ['start' => '01/08/2026 14:00', 'end' => '01/08/2026 19:00'],
+            'sections' => ['TOTAIS' => [['descricao' => 'Sales.Total', 'valor' => $base]]],
+        ];
+    }
+
+    /** Valor igual ao apurado: nada a justificar. */
+    public function test_valor_igual_ao_apurado_nao_pede_justificativa(): void
+    {
+        $this->assertFalse(FreelancerService::salesAdjustmentIsRequired($this->report(5000), 5000.0));
+        // Centavos de diferença de arredondamento não contam como alteração.
+        $this->assertFalse(FreelancerService::salesAdjustmentIsRequired($this->report(5000), 5000.009));
+    }
+
+    public function test_valor_diferente_do_apurado_pede_justificativa(): void
+    {
+        $this->assertTrue(FreelancerService::salesAdjustmentIsRequired($this->report(5000), 4200.0));
+        $this->assertTrue(FreelancerService::salesAdjustmentIsRequired($this->report(5000), 5100.0));
+    }
+
+    /**
+     * Sem relatório não existe valor de origem a alterar — o documento já diz que
+     * o número foi informado pelo CONTRATANTE. Exigir justificativa aqui seria
+     * pedir explicação para o único caminho possível quando o MultiVendas cai.
+     */
+    public function test_sem_relatorio_nao_ha_o_que_justificar(): void
+    {
+        $this->assertFalse(FreelancerService::salesAdjustmentIsRequired(null, 4200.0));
+        $this->assertFalse(FreelancerService::salesAdjustmentIsRequired(['base' => 5000, 'sections' => []], 4200.0));
+    }
+
+    /**
+     * A leitura do documento gravado tem de coincidir com a da gravação: o termo
+     * declara a diferença em relação ao seu próprio Anexo I, e é essa diferença
+     * que a justificativa explica.
+     */
+    public function test_documento_gravado_reconhece_o_ajuste(): void
+    {
+        $commission = $this->contract();
+        $commission->parent_service_id = 10;
+        $commission->amendment_type = FreelancerService::AMENDMENT_COMMISSION;
+        $commission->sales_report = $this->report(5000);
+        $commission->sales_amount = 4200;
+
+        $this->assertTrue($commission->salesAmountWasAdjusted());
+        $this->assertTrue(FreelancerService::salesAdjustmentIsRequired($commission->sales_report, 4200.0));
+
+        $commission->sales_amount = 5000;
+
+        $this->assertFalse($commission->salesAmountWasAdjusted());
+    }
+
     public function test_titulo_do_documento(): void
     {
         $commission = $this->contract();

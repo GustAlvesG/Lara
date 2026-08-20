@@ -10,6 +10,10 @@
     csrf: @json(csrf_token()),
     headerImg: @json(asset('images/freelancer/cabecalho.png')),
     footerImg: @json(asset('images/freelancer/rodape.png')),
+    // Tamanho mínimo da justificativa da alteração do valor apurado. Vem da
+    // constante do model porque o script roda em bloco literal (sem Blade), e
+    // um 10 digitado à mão aqui divergiria em silêncio da regra do servidor.
+    salesReasonMin: {{ \App\Models\FreelancerService::SALES_ADJUSTMENT_REASON_MIN }},
   };</script>
 @verbatim
   <style>
@@ -203,6 +207,9 @@
   /* ---------- Documento base do contrato ---------- */
   .doc{background:var(--paper);color:var(--paper-ink);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;margin-top:16px;font-family:var(--serif);}
   .doc-header-img img{display:block;width:100%;height:auto;}
+  /* O documento vem do servidor: há um instante de espera antes de ele chegar. */
+  .doc-loading{margin-top:16px;padding:38px 22px;text-align:center;color:var(--ink-2);font-family:var(--sans);font-size:14px;
+    border:1px dashed var(--border);border-radius:12px;}
   .doc-title{text-align:center;font-size:16px;font-weight:800;margin:18px 22px 6px;font-family:var(--sans);}
   .doc-body{padding:6px 26px 4px;}
   .doc-body p{margin:0 0 12px;font-size:14px;text-align:justify;line-height:1.62;}
@@ -610,6 +617,19 @@
         <p class="subtitle">A comissão é paga <b>além</b> do contrato do turno, não no lugar dele.</p>
         <div class="receipt" id="comReceipt" style="margin-top:18px"></div>
         <div id="comWarn"></div>
+        {{-- Alterou o valor que o MultiVendas apurou? Diga por quê. A justificativa
+             não é log: ela é impressa na cláusula 2 do termo, ao lado do Anexo I
+             com o relatório original, e é o que o freelancer lê antes de assinar
+             um número diferente do apurado. --}}
+        <div id="comReasonBox" style="display:none;margin-top:18px">
+          <div class="frow">
+            <span class="field-label">Justificativa da alteração *</span>
+            <textarea class="txt-input" id="comReason" rows="3"
+              style="min-height:110px;padding:14px 18px;line-height:1.45;resize:none"
+              placeholder="Ex.: venda cancelada após o fechamento do caixa, conferida com a coordenação."></textarea>
+            <span class="hint" id="comReasonHint" style="font-size:13px;color:var(--ink-2);margin-top:7px">&nbsp;</span>
+          </div>
+        </div>
       </div>
       <div class="screen-foot">
         <button class="btn btn-primary" id="comRegistrar">Gerar comissão</button>
@@ -757,6 +777,9 @@
   const S = { operator:null, mode:null, freelancer:null, functions:[], draft:{}, aditivo:null, signing:null,
               // Contrato que espera a conferência da chave PIX para ir à assinatura.
               pendingSign:null,
+              // Redação das cláusulas do documento em tela, reenviada na
+              // assinatura para o servidor conferir que é a mesma.
+              contractVersion:null,
               signature:null, pinMode:null, timer:null, remaining:1800, count:0 };
 
   /* ---------- Helpers ---------- */
@@ -1215,10 +1238,7 @@
   $('#coordReload').addEventListener('click', openCoord);
   function renderCoord(items){
     const list=$('#coordList'); list.innerHTML='';
-    // O motivo mais comum de a fila estar vazia à noite é a regra das 08h, e
-    // não a falta de contratos: dizer isso evita a busca por um problema que
-    // não existe.
-    if(!items.length){ list.innerHTML='<p class="subtitle" style="text-align:center;padding:30px 0">Nenhum contrato aguardando sua assinatura.<br><span style="font-size:13px">Os turnos de hoje entram na fila às 08h de amanhã — até lá ainda cabe aditivo neles.</span></p>'; return; }
+    if(!items.length){ list.innerHTML='<p class="subtitle" style="text-align:center;padding:30px 0">Nenhum contrato aguardando sua assinatura.</p>'; return; }
     items.forEach(c=>{
       const who = c.freelancer ? c.freelancer.name : '—';
       const el=document.createElement('div'); el.className='contract';
@@ -1288,7 +1308,7 @@
 
     const ah=$('#loteAvail'); ah.innerHTML='';
     if(!available.length){
-      ah.innerHTML='<p class="subtitle" style="text-align:center;padding:20px 0">Nenhum contrato disponível para incluir.<br><span style="font-size:13px">Os turnos de hoje só entram em lote às 08h de amanhã.</span></p>';
+      ah.innerHTML='<p class="subtitle" style="text-align:center;padding:20px 0">Nenhum contrato disponível para incluir.</p>';
     } else {
       available.forEach(c=>{
         const el=document.createElement('div'); el.className='contract pick';
@@ -1346,6 +1366,8 @@
     block:   { label:'R$ 50,00 a cada R$ 1.000,00 vendidos', hint:'Só blocos fechados de R$ 1.000 contam' },
     percent: { label:'5% do valor total vendido',            hint:'Percentual sobre o total, sem arredondar para baixo' }
   };
+  // Alterar o valor apurado exige justificativa, e ela vai para o corpo do termo.
+  const COM_REASON_MIN = KIOSK.salesReasonMin || 10;
   let cstep=0, comCents=0, comReport=null;
   function comCalc(method, sales){
     if(!(sales>0)) return 0;
@@ -1365,6 +1387,9 @@
   function startComissao(c){
     S.comissao={ base:c, method:null, sales:0 };
     comCents=0; cstep=0; comReport=null;
+    // Justificativa é de uma comissão só: texto da anterior não acompanha a
+    // próxima, senão o motivo de um turno explicaria o ajuste de outro.
+    showComReason(false, 0);
     $('#comBase').innerHTML=`<b>Turno · ${esc(c.function||'—')}</b>
       <span>${c.start_date_br} · ${c.start_time}–${c.end_time} · contrato ${brl(c.price)}</span>
       <span>${esc(c.location||'—')}</span>`;
@@ -1488,7 +1513,20 @@
     $('#comWarn').innerHTML = valor>0 ? '' :
       `<div class="banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>
         <div><b>Comissão de R$ 0,00</b><p>As vendas não fecharam um bloco inteiro de R$ 1.000,00. Confira o valor ou o critério antes de gerar.</p></div></div>`;
+    // A justificativa só é pedida quando existe valor de origem E ele foi
+    // alterado: sem relatório não há o que justificar, e o termo já diz que o
+    // número foi informado pelo CONTRATANTE.
+    showComReason(comReport && !apurado, comReport ? (comReport.base||0) : 0);
     go('s-com-previa');
+  }
+
+  /** Campo da justificativa: aparece só quando o valor apurado foi alterado. */
+  function showComReason(required, apuradoBase){
+    $('#comReasonBox').style.display = required ? 'block' : 'none';
+    $('#comReasonHint').textContent = required
+      ? `O termo vai declarar a diferença em relação ao Anexo I (apurado: ${brl(apuradoBase)}). Explique em pelo menos ${COM_REASON_MIN} caracteres.`
+      : ' ';
+    if(!required) $('#comReason').value='';
   }
 
   $('#comRegistrar').addEventListener('click', async ()=>{
@@ -1498,6 +1536,17 @@
       // grava o anexo, em vez de aceitar um relatório vindo do navegador.
       const payload={ method:c.method, sales_amount:c.sales };
       if(comReport){ payload.login=comReport.login; payload.from=comReport.period.start; payload.to=comReport.period.end; }
+      // Valor alterado em relação ao apurado: a justificativa é obrigatória, e é
+      // conferida também no servidor — que refaz a consulta e sabe se o número
+      // realmente difere.
+      if($('#comReasonBox').style.display!=='none'){
+        const motivo=$('#comReason').value.trim();
+        if(motivo.length<COM_REASON_MIN){
+          toast('Explique a alteração do valor apurado — a justificativa entra no termo assinado.',true);
+          $('#comReason').focus(); btn.disabled=false; return;
+        }
+        payload.sales_adjustment_reason=motivo;
+      }
       const r=await api('POST',`/kiosk/service/${c.base.id}/commission`, payload);
       if(r.status===201){
         applySession(r.data.session);
@@ -1506,220 +1555,20 @@
         return;
       }
       if(r.status===422 && r.data && r.data.incomplete_freelancer){ S.freelancer=r.data.freelancer; toast(r.data.error||'Cadastro incompleto.',true); openCompletar(); return; }
+      // O servidor viu diferença que a tela não viu (relatório refeito na
+      // gravação): abre o campo em vez de deixar o operador adivinhando.
+      if(r.status===422 && r.data && r.data.requires_adjustment_reason){
+        showComReason(true, r.data.report_base||0);
+        toast(r.data.error||'Justifique a alteração do valor apurado.',true);
+        $('#comReason').focus();
+        return;
+      }
       if(r.status===409){ toast(r.data.error||'Este turno não aceita comissão.',true); openContratos(); return; }
       toast((r.data && (r.data.message||firstError(r.data)))||'Não foi possível gerar a comissão.',true);
     }catch(e){ if(!e.handled) toast('Falha de conexão.',true); }
     finally{ btn.disabled=false; }
   });
 
-  /* ---------- Documento base + assinatura posicionada ---------- */
-  const MESES=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-  function money(n){ return Number(n).toFixed(2).replace('.',','); }
-  function longToday(){ const t=new Date(); return `${t.getDate()} de ${MESES[t.getMonth()]} de ${t.getFullYear()}`; }
-  function longFromIso(iso){ if(!iso) return longToday(); const [y,m,d]=iso.split('-').map(Number); return `${d} de ${MESES[m-1]} de ${y}`; }
-
-  const SIG_SLOT = `<div class="sig-slot" id="sigSlot"><canvas id="sigCanvas"></canvas><div class="sig-ph" id="sigPh">Assine aqui com o dedo</div></div>`;
-
-  /**
-   * Documento base = modelo do "Contrato Autônomo de Serviços de Freelancer"
-   * do Clube dos Funcionários da CSN. As variáveis ((...)) do modelo são
-   * preenchidas com os dados do freelancer (f) e do serviço (c).
-   *
-   * `role` diz qual dos dois campos recebe o canvas: 'freelancer' assina no
-   * campo do CONTRATADO; 'coordinator' assina no do CONTRATANTE e já vê o
-   * traço do freelancer no campo de baixo. Mantido em sincronia com o parcial
-   * do painel (freelancer/services/partials/contract-document.blade.php).
-   */
-  function buildDocument(c, f, role){
-    const nome = esc(f.name);
-    const cpf = fmtCpf(f.cpf);
-    const asCoord = role==='coordinator';
-    // A chave que o documento cita. Para o coordenador é a COPIADA no contrato
-    // quando o freelancer assinou; para o freelancer é a do cadastro — que
-    // pode ter sido corrigida na tela anterior, e aí a do contrato está velha.
-    const pix = asCoord
-      ? { label:c.pix_key_type_label, key:c.pix_key_formatted }
-      : { label:f.pix_key_type_label, key:f.pix_key_formatted };
-    // A data do contrato é a da assinatura do freelancer (ou hoje, se ainda não assinou).
-    const dataDoc = asCoord ? longFromIso(c.freelancer_signed_date) : longToday();
-
-    const blocoContratante = asCoord
-      ? `${SIG_SLOT}
-            <div class="doc-sign-line"></div>
-            <div class="doc-sign-name">CLUBE DOS FUNCIONARIOS DA CSN</div>
-            <div class="doc-sign-role">CONTRATANTE · ${esc(S.operator?S.operator.name:'')}</div>`
-      : `<div class="doc-sign-empty"></div>
-            <div class="doc-sign-line"></div>
-            <div class="doc-sign-name">CLUBE DOS FUNCIONARIOS DA CSN</div>
-            <div class="doc-sign-role">CONTRATANTE — assinatura do coordenador (pendente)</div>`;
-
-    const marcaFreelancer = asCoord
-      ? (c.freelancer_signature_url
-          ? `<div class="doc-sign-img"><img src="${esc(c.freelancer_signature_url)}" alt="Assinatura do freelancer"></div>`
-          : `<div class="doc-sign-empty"></div>`)
-      : SIG_SLOT;
-    // Contratos assinados pelo bot (antes do kiosk) não têm traço: o aviso evita
-    // que o coordenador ache que a assinatura se perdeu.
-    const notaFreelancer = (asCoord && c.freelancer_signed_at_br)
-      ? `<div class="doc-sign-note">Assinado em ${esc(c.freelancer_signed_at_br)}${c.freelancer_signature_url?'':' · registrado sem desenho'}</div>`
-      : '';
-
-    return `
-    <div class="doc" id="docSheet">
-      <div class="doc-header-img">
-        <img src="${KIOSK.headerImg}" alt="Clube dos Funcionários">
-      </div>
-      <div class="doc-title">${esc(c.document_title||'Contrato Autônomo de Serviços de Freelancer')}</div>
-      <div class="doc-body">
-        ${c.is_commission ? commissionClauses(c, f, nome, cpf, pix)
-          : c.is_amendment ? amendmentClauses(c, f, nome, cpf, pix)
-          : originalClauses(c, f, nome, cpf, pix)}
-        <p class="doc-place"><b>Volta Redonda-RJ, ${dataDoc}</b></p>
-        <div class="doc-signatures">
-          <div class="doc-sign-block">
-            ${blocoContratante}
-          </div>
-          <div class="doc-sign-block">
-            ${marcaFreelancer}
-            <div class="doc-sign-line"></div>
-            <div class="doc-sign-name">${nome}</div>
-            <div class="doc-sign-role">FREELANCER · CPF ${cpf}</div>
-            ${notaFreelancer}
-          </div>
-        </div>
-      </div>
-      <div class="doc-footer-img">
-        <img src="${KIOSK.footerImg}" alt="Endereços e contatos do Clube dos Funcionários">
-      </div>
-    </div>`;
-  }
-  /**
-   * Cláusula da FORMA DE PAGAMENTO — para qual chave PIX o valor vai. Entra
-   * como sub-item da cláusula do valor ("2.1" no contrato, "4.1" nos aditivos)
-   * para não deslocar a numeração do modelo, que os outros documentos citam.
-   * Mantida em sincronia com o parcial do painel
-   * (freelancer/services/partials/pix-clause.blade.php).
-   */
-  function pixClause(numero, pix){
-    return `
-        <p><b>${numero}- DA FORMA DE PAGAMENTO:</b> O valor previsto na cláusula anterior é pago exclusivamente por transferência PIX para a chave <b>${esc(pix.label||'Chave PIX')}: ${esc(pix.key||'—')}</b>, indicada pelo FREELANCER e por ele conferida neste ato. O FREELANCER declara que a chave acima corresponde a conta de sua titularidade e responsabiliza-se pela exatidão dela, ficando o CONTRATANTE desobrigado de qualquer novo pagamento na hipótese de a transferência ser efetuada para chave informada de forma incorreta. Qualquer alteração da chave deve ser comunicada ao CONTRATANTE antes do pagamento.</p>`;
-  }
-
-  /** Cláusulas do contrato original — modelo do Clube dos Funcionários. */
-  function originalClauses(c, f, nome, cpf, pix){
-    return `
-        <p>Por este particular instrumento contratual de serviço autônomo de freelancer, firmado entre as partes, de um lado, <b>CLUBE DOS FUNCIONARIOS DA COMPANHIA SIDERURGICA NACIONAL</b>, empresa estabelecida na Rua - General Oswaldo Pinto da Veiga, 231, Volta Redonda – RJ, a seguir denominada simplesmente CONTRATANTE, e, de outro lado <b>${nome}</b>, ${esc(f.nacionality||'—')}, ${esc(f.civil_status||'—')}, titular do CPF: ${cpf} e do RG nº ${esc(f.rg||'—')}, residente e domiciliado ${esc(f.address||'—')} a seguir denominado simplesmente FREELANCER, fica justo e acordado o contrato de serviço autônomo freelancer nos seguintes termos:</p>
-        <p><b>1- DO OBJETO:</b> O objeto do presente contrato trata-se da prestação de serviços, na modalidade de trabalho autônomo, sem vínculo de emprego, pelo FREELANCER, ao CONTRATANTE, conforme artigo 442-B, da CLT. O (a) FREELANCER (a) <b>${esc(c.function||'—')}</b> com todas as atribuições que lhe são peculiares, bem como as que vierem a ser designadas por meio de instruções do CONTRATANTE.</p>
-        <p><b>2- DO VALOR:</b> O CONTRATANTE paga, neste ato, ao FREELANCER, pelos serviços ora prestados, o valor de <b>R$ ${money(c.price)}</b>, por dia, previamente acordado, no horário de <b>${c.start_time}</b> ás <b>${c.end_time}</b> servindo a assinatura no presente termo, como recibo do pagamento.</p>
-        ${pixClause('2.1', pix)}
-        <p><b>3- DO PRAZO DE VIGÊNCIA:</b> O presente contrato de serviços de freelancer tem a validade de 1 (Um) dia, no qual, ao final, o serviço do FREELANCER já deverá ter se concluído, ficando as partes compromissadas até o termino do contrato. O prazo terá início na data de <b>${c.start_date_br}</b> sendo regido por tempo determinado, finalizando na data de <b>${c.end_date_br}</b>.</p>
-        <p><b>4- Da Ausência de Vínculo Empregatício:</b> A prestação de serviços estabelecida no presente contrato tem natureza autônoma (cível), de forma que não implica em qualquer vínculo empregatício do FREELANCER pelos serviços prestados ao CONTRATANTE, uma vez que eventuais e sem a subordinação, exigidos para caracterização do vínculo de emprego (artigo 3º da CLT).</p>
-        <p><b>5- DOS DESCONTOS:</b> O CONTRATANTE poderá descontar dos haveres do FREELANCER, além dos descontos legais ou expressamente autorizados, os prejuízos por ele causados, por dolo ou culpa, sem prejuízo da penalidade que a ação ou omissão comportar.</p>
-        <p><b>6-</b> O FREELANCER deve se portar de forma adequada quando da prestação dos serviços, respeitando as orientações quanto ao uso do celular no horário de prestação dos serviços, atrasos, indisciplinas, devendo respeitar o contido nos seus regimentos internos e ao senso comum de educação e urbanidade.</p>
-        <p><b>7-</b> Em caso de o FREELANCER exercer o serviço contratado por período superior a 6 (Seis) horas diárias, o CONTRATANTE, por livre e espontânea vontade, fornecerá ao FREELANCER uma refeição diária, sem que haja desconto do valor previsto na cláusula 2.</p>
-        <p><b>8- DO FORO DE ELEIÇÃO:</b> As partes elegem o foro de Volta Redonda, como único competente para dirimir quaisquer litígios oriundos do presente contrato.</p>
-        <p>E assim por estarem de pleno acordo com o contido neste instrumento, CONTRATANTE e FREELANCER o firmam consoante os ditames legais.</p>`;
-  }
-
-  /**
-   * Cláusulas do TERMO ADITIVO. O aditivo não repete o contrato: cita o que
-   * estava valendo, diz o que passa a valer e ratifica o resto. A cláusula do
-   * valor é explícita quanto a substituir — e não somar — o valor original,
-   * porque é isso que o sistema faz com o contrato base. Mantido em sincronia
-   * com o parcial do painel (services/partials/amendment-clauses.blade.php).
-   */
-  function amendmentClauses(c, f, nome, cpf, pix){
-    const b = c.base || {};
-    const celebrado = b.signed_date_br ? ` em ${b.signed_date_br}` : '';
-    const referencia = (c.amendment_order||1) > 1
-      ? 'CONTRATO ORIGINAL, já alterado por termo(s) aditivo(s) anterior(es),'
-      : 'CONTRATO ORIGINAL';
-
-    // Acréscimo, redução ou mesma duração: o que motivou o aditivo.
-    const delta = (c.duration_minutes||0) - (b.duration_minutes||0);
-    const mudanca = delta>0 ? `, com acréscimo de ${fmtDur(delta)} em relação ao originalmente ajustado`
-                  : delta<0 ? `, com redução de ${fmtDur(-delta)} em relação ao originalmente ajustado`
-                  : ', mantida a duração originalmente ajustada';
-
-    const local = (b.location && b.location!==c.location)
-      ? `O local da prestação dos serviços, originalmente ${esc(b.location)}, passa a ser <b>${esc(c.location)}</b>.`
-      : `Permanece inalterado o local da prestação dos serviços, <b>${esc(c.location)}</b>.`;
-
-    return `
-        <p>Por este particular instrumento, firmado entre as partes, de um lado, <b>CLUBE DOS FUNCIONARIOS DA COMPANHIA SIDERURGICA NACIONAL</b>, empresa estabelecida na Rua - General Oswaldo Pinto da Veiga, 231, Volta Redonda – RJ, a seguir denominada simplesmente CONTRATANTE, e, de outro lado <b>${nome}</b>, ${esc(f.nacionality||'—')}, ${esc(f.civil_status||'—')}, titular do CPF: ${cpf} e do RG nº ${esc(f.rg||'—')}, residente e domiciliado ${esc(f.address||'—')}, a seguir denominado simplesmente FREELANCER, fica justo e acordado o presente <b>TERMO ADITIVO</b> ao Contrato Autônomo de Serviços de Freelancer celebrado entre as partes${celebrado}, para a prestação de serviços na função de <b>${esc(c.function||'—')}</b> no dia ${b.start_date_br||c.start_date_br}, a seguir denominado simplesmente CONTRATO ORIGINAL, nos seguintes termos:</p>
-        <p><b>1- DO OBJETO DO ADITAMENTO:</b> O presente termo tem por objeto, exclusivamente, alterar o horário e o local da prestação dos serviços ajustados no ${referencia} em razão de alteração superveniente na necessidade do CONTRATANTE, permanecendo a prestação vinculada à mesma função e ao mesmo dia ali previstos.</p>
-        <p><b>2- DA ALTERAÇÃO DO PERÍODO:</b> O período de prestação dos serviços, originalmente ajustado no horário de <b>${b.start_time||'—'}</b> às <b>${b.end_time||'—'}</b>, com início em ${b.start_date_br||'—'} e término em ${b.end_date_br||'—'}, passa a vigorar no horário de <b>${c.start_time}</b> às <b>${c.end_time}</b>, com início em <b>${c.start_date_br}</b> e término em <b>${c.end_date_br}</b>, perfazendo <b>${fmtDur(c.duration_minutes||0)}</b> de prestação de serviços${mudanca}.</p>
-        <p><b>3- DO LOCAL DA PRESTAÇÃO:</b> ${local}</p>
-        <p><b>4- DO VALOR:</b> Em razão da alteração do período, o valor devido pelos serviços passa a ser de <b>R$ ${money(c.price)}</b>, apurado na forma da cláusula 2 do CONTRATO ORIGINAL, em substituição integral ao valor de R$ ${money(b.price||0)} ali previsto. O valor ora ajustado <b>não se soma</b> ao do CONTRATO ORIGINAL, sendo o único devido pela prestação de serviços aqui tratada, e a assinatura do presente termo serve como recibo do pagamento.</p>
-        ${pixClause('4.1', pix)}
-        <p><b>5- DA RATIFICAÇÃO:</b> Permanecem inalteradas e em pleno vigor todas as demais cláusulas e condições do CONTRATO ORIGINAL que não conflitem com o presente termo, em especial a natureza autônoma da prestação e a ausência de vínculo empregatício, nos termos dos artigos 442-B e 3º da CLT, as disposições sobre descontos, os deveres de conduta do FREELANCER, o fornecimento de refeição na prestação superior a 6 (seis) horas diárias e o foro de eleição de Volta Redonda.</p>
-        <p><b>6- DA VIGÊNCIA:</b> O presente termo aditivo integra o CONTRATO ORIGINAL para todos os fins de direito e produz efeitos a partir da sua assinatura, mantida a validade de 1 (um) dia do contrato aditado, ao final do qual o serviço do FREELANCER já deverá ter se concluído.</p>
-        <p>E assim por estarem de pleno acordo com o contido neste instrumento, CONTRATANTE e FREELANCER o firmam consoante os ditames legais.</p>`;
-  }
-
-  /**
-   * Cláusulas do TERMO ADITIVO DE COMISSÃO SOBRE VENDAS. O oposto do aditivo de
-   * horário na cláusula do valor: aqui a comissão ACRESCE ao contrato, e o texto
-   * diz isso com todas as letras — os dois documentos existem lado a lado, e
-   * confundi-los é confundir o pagamento. Mantido em sincronia com o parcial do
-   * painel (services/partials/commission-clauses.blade.php).
-   */
-  function commissionClauses(c, f, nome, cpf, pix){
-    const b = c.base || {};
-    const celebrado = b.signed_date_br ? ` em ${b.signed_date_br}` : '';
-    const dia = b.start_date_br || c.start_date_br;
-    const criterio = c.commission_method==='percent'
-      ? `${esc(c.commission_method_label||'')}, aplicado sobre o total apurado`
-      : `${esc(c.commission_method_label||'')}, considerados apenas os blocos de R$ 1.000,00 integralmente atingidos e desprezada a fração inferior`;
-
-    return `
-        <p>Por este particular instrumento, firmado entre as partes, de um lado, <b>CLUBE DOS FUNCIONARIOS DA COMPANHIA SIDERURGICA NACIONAL</b>, empresa estabelecida na Rua - General Oswaldo Pinto da Veiga, 231, Volta Redonda – RJ, a seguir denominada simplesmente CONTRATANTE, e, de outro lado <b>${nome}</b>, ${esc(f.nacionality||'—')}, ${esc(f.civil_status||'—')}, titular do CPF: ${cpf} e do RG nº ${esc(f.rg||'—')}, residente e domiciliado ${esc(f.address||'—')}, a seguir denominado simplesmente FREELANCER, fica justo e acordado o presente <b>TERMO ADITIVO DE COMISSÃO SOBRE VENDAS</b> ao Contrato Autônomo de Serviços de Freelancer celebrado entre as partes${celebrado}, para a prestação de serviços na função de <b>${esc(c.function||'—')}</b> no dia ${dia}, a seguir denominado simplesmente CONTRATO ORIGINAL, nos seguintes termos:</p>
-        <p><b>1- DO OBJETO:</b> O presente termo tem por objeto a remuneração variável, a título de comissão, devida ao FREELANCER em razão das vendas por ele realizadas durante a prestação de serviços objeto do CONTRATO ORIGINAL, sem alteração de qualquer outra condição ali ajustada — em especial a função, o local, o período e o valor da prestação.</p>
-        <p><b>2- DA APURAÇÃO DAS VENDAS:</b> As partes reconhecem como base de cálculo o valor de <b>R$ ${money(c.sales_amount||0)}</b>, correspondente ao total das vendas realizadas pelo FREELANCER no período de prestação de serviços do dia ${dia}, das <b>${c.start_time}</b> às <b>${c.end_time}</b>, apurado no encerramento do expediente.</p>
-        <p><b>3- DO CRITÉRIO:</b> A comissão é calculada segundo o critério de ${criterio}, do que resulta a apuração de ${esc(c.commission_explanation||'')}.</p>
-        <p><b>4- DO VALOR DA COMISSÃO:</b> Em razão do disposto nas cláusulas anteriores, o CONTRATANTE paga ao FREELANCER, a título de comissão sobre vendas, o valor de <b>R$ ${money(c.price)}</b>. Este valor <b>acresce</b> ao previsto na cláusula 2 do CONTRATO ORIGINAL, não o substituindo, servindo a assinatura do presente termo como recibo do pagamento.</p>
-        ${pixClause('4.1', pix)}
-        <p><b>5- DA NATUREZA DA COMISSÃO:</b> O pagamento ora ajustado decorre exclusivamente do resultado das vendas realizadas no período e não descaracteriza a natureza autônoma da prestação de serviços, não implicando vínculo empregatício, subordinação ou habitualidade, nos termos dos artigos 442-B e 3º da CLT.</p>
-        <p><b>6- DA RATIFICAÇÃO:</b> Permanecem inalteradas e em pleno vigor todas as demais cláusulas e condições do CONTRATO ORIGINAL que não conflitem com o presente termo, inclusive o foro de eleição de Volta Redonda.</p>
-        <p>E assim por estarem de pleno acordo com o contido neste instrumento, CONTRATANTE e FREELANCER o firmam consoante os ditames legais.</p>
-        ${salesAnnex(c)}`;
-  }
-
-  /**
-   * ANEXO I — o relatório de fechamento que apurou as vendas, impresso dentro
-   * do próprio termo. É o que permite ao freelancer conferir de onde saiu o
-   * número que ele está assinando. Mantido em sincronia com o parcial do painel
-   * (services/partials/sales-report-annex.blade.php).
-   */
-  function salesAnnex(c){
-    const rep = c.sales_report;
-    if(!rep || !rep.sections) return '';
-
-    const secao = (nome) => {
-      const linhas = rep.sections[nome] || [];
-      if(!linhas.length) return '';
-      return `<tr><td colspan="4" class="annex-sec">${esc(nome)}</td></tr>` + linhas.map(l=>`
-        <tr>
-          <td>${esc(l.descricao)}</td>
-          <td class="num">${l.qtde==null?'':Number(l.qtde).toLocaleString('pt-BR',{maximumFractionDigits:3})}${l.un?' '+esc(l.un):''}</td>
-          <td class="num">${l.valor_unit==null?'':money(l.valor_unit)}</td>
-          <td class="num">${l.valor==null?'':money(l.valor)}</td>
-        </tr>`).join('');
-    };
-
-    return `
-      <div class="doc-annex">
-        <div class="doc-annex-title">ANEXO I — Relatório de vendas do período</div>
-        <p class="doc-annex-meta">Vendedor: <b>${esc(rep.login)}</b> · Período: ${esc(rep.period.start)} a ${esc(rep.period.end)}
-          · Apurado em ${esc(rep.generated_at||'')} no sistema MultiVendas.</p>
-        <table class="annex">
-          <thead><tr><th>Descrição</th><th class="num">Qtde</th><th class="num">Unit.</th><th class="num">Valor</th></tr></thead>
-          <tbody>
-            ${secao('CABEÇALHO')}${secao('ITENS')}${secao('RECEBIMENTOS')}${secao('TOTAIS')}${secao('CANCELAMENTOS')}
-          </tbody>
-        </table>
-      </div>`;
-  }
 
   /* ---------- Conferência da chave PIX ----------
      Passo obrigatório antes de TODA assinatura do freelancer (contrato,
@@ -1819,7 +1668,7 @@
       : c.is_amendment
       ? 'Este termo aditivo substitui o contrato original. Role o documento e assine no campo do Contratado.'
       : 'Role o contrato e assine no campo do Contratado. A assinatura é definitiva.';
-    openDocument(c, S.freelancer, 'freelancer');
+    openDocument(c, 'freelancer');
   }
 
   /** Assinatura do coordenador, sobre um contrato que o freelancer já assinou. */
@@ -1827,18 +1676,43 @@
     $('#signEyebrow').textContent = c.is_commission ? 'Assinatura do coordenador · Comissão'
       : c.is_amendment ? 'Assinatura do coordenador · Aditivo' : 'Assinatura do coordenador';
     $('#signSub').textContent='Confira os dados e assine no campo do Contratante. A assinatura é definitiva e libera o contrato para entrar num lote de aprovação.';
-    openDocument(c, c.freelancer, 'coordinator');
+    openDocument(c, 'coordinator');
   }
 
-  function openDocument(c, f, role){
-    S.signing=c; S.signature=null;
-    $('#docHost').innerHTML=buildDocument(c, f, role);
+  /* O documento NÃO é montado aqui. Ele vem pronto do servidor, do mesmo Blade
+     que o painel imprime (services/partials/contract-document.blade.php), com o
+     campo da assinatura já no lugar de quem vai assinar.
+
+     Montá-lo no tablet significava manter o texto do contrato em dois lugares:
+     cada revisão do jurídico teria de ser escrita duas vezes, e no dia em que as
+     duas divergissem o freelancer assinaria aqui um texto diferente do que o
+     painel imprime. */
+  async function openDocument(c, role){
+    S.signing=c; S.signature=null; S.contractVersion=null;
     $('#sigConfirm').disabled=true;
-    bindCanvas();
+    $('#docHost').innerHTML='<div class="doc-loading">Montando o documento…</div>';
     go('s-assinar');
-    requestAnimationFrame(()=>{ sizeCanvas(); });
+
+    try{
+      const r=await api('GET',`/kiosk/service/${c.id}/document?role=${role}`);
+      if(!r.ok){
+        toast((r.data && r.data.error)||'Não foi possível abrir o documento.',true);
+        leaveDocument(); return;
+      }
+      $('#docHost').innerHTML=r.data.html;
+      // A redação exibida volta junto com a assinatura: publicada outra enquanto
+      // esta tela estava aberta, o servidor recusa e o documento é recarregado.
+      S.contractVersion=r.data.contract_version;
+      bindCanvas();
+      requestAnimationFrame(()=>{ sizeCanvas(); });
+    }catch(e){
+      if(!e.handled) toast('Falha de conexão.',true);
+      leaveDocument();
+    }
   }
-  $('#sigCancel').addEventListener('click', ()=> go(S.mode==='coordinator' ? 's-coord' : 's-contratos'));
+
+  function leaveDocument(){ go(S.mode==='coordinator' ? 's-coord' : 's-contratos'); }
+  $('#sigCancel').addEventListener('click', leaveDocument);
 
   /* ---------- Signature canvas ---------- */
   let canvas=null, ctx=null, drawing=false, hasInk=false, last=null;
@@ -1958,12 +1832,17 @@
       // mudou desde a conferência, porque o documento à frente do freelancer
       // cita a chave antiga.
       const r=await api('POST',`/kiosk/service/${S.signing.id}/sign`,
-        { pin, signature:S.signature, pix_key:S.freelancer.pix_key });
+        { pin, signature:S.signature, pix_key:S.freelancer.pix_key, contract_version:S.contractVersion });
       if(r.ok){ applySession(r.data.session); showSuccess('Contrato assinado', `Assinatura de ${S.freelancer.name} registrada, auxiliada por ${S.operator.name}. O atendimento será encerrado.`); }
       else if(r.status===401){ $('#pinOpHint').textContent='PIN inválido.'; resetPinOp(); }
       else if(r.status===409 && r.data && r.data.pix_key_changed){
         if(r.data.freelancer) S.freelancer=r.data.freelancer;
         toast(r.data.error,true); openSign(S.signing);
+      }
+      // A redação das cláusulas mudou entre abrir e assinar: o documento à
+      // frente do freelancer não é mais o que ele assinaria. Recarrega-se.
+      else if(r.status===409 && r.data && r.data.contract_version_changed){
+        toast(r.data.error,true); openSignDocument(S.signing);
       }
       else if(r.status===409){ toast(r.data.error||'Contrato já assinado.',true); go('s-contratos'); }
       else { toast(firstError(r.data)||'Não foi possível assinar.',true); resetPinOp(); }

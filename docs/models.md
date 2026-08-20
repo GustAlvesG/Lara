@@ -68,11 +68,13 @@ deletes, scopes globais, etc.).
 
 ### Freelancer
 - **Tabela:** `freelancers`
-- **`$fillable`:** `name`, `cpf`, `pix_key`, `rg`, `email`, `nacionality`, `civil_status`, `address`, `telephone`, `created_by`, `updated_by`
+- **`$fillable`:** `name`, `cpf`, `pix_key`, `rg`, `email`, `nacionality`, `civil_status`, `address`, `telephone`
 - **Relacionamentos:** `freelancerServices()` hasMany FreelancerService
-- **Chave PIX:** sem `pix_key` informada, a chave é o CPF (`pixKey()`). O model é a fonte única do
-  tipo, da formatação e da normalização da chave — `pixKeyTypeFor()`, `formatPixKey()`,
-  `normalizePixKey()` e `pixKeyError()` —, usada pelo painel, pelo tablet e pela API.
+- **Chave PIX:** `pixKey()` (sem chave informada, é o CPF), `pixKeyTypeFor()` / `pixKeyTypeLabel()`,
+  `formatPixKey()`, `normalizePixKey()` e `pixKeyError()`. O **tipo é lido da chave já
+  normalizada** — o `+55` do telefone é o que o separa de um CPF de 11 dígitos —, e é escolhido pelo
+  operador na hora de gravar, nunca adivinhado. Ver
+  [Freelancers → Conferência da chave PIX](funcionalidades/freelancers.md#conferência-da-chave-pix-etapa-que-antecede-a-assinatura).
 
 ### FunctionFreelancer
 - **Tabela:** `function_freelancers`
@@ -81,7 +83,11 @@ deletes, scopes globais, etc.).
 
 ### FreelancerService
 - **Tabela:** `freelancer_services`
-- **`$fillable`:** `freelancer_id`, `function_freelancer_id`, `start_date`, `end_date`, `price`, `total_hours`, `status_id`
+- **`$fillable`:** `freelancer_id`, `function_freelancer_id`, `start_date`, `end_date`, `price`, `pix_key`, `pix_key_confirmed_at`, `total_hours`, `status_id`
+- **Chave PIX do contrato:** `pix_key` é a **cópia congelada** na assinatura do freelancer — o
+  documento assinado não pode passar a citar outra chave porque o cadastro mudou. `pixKey()` cai no
+  cadastro quando a cópia não existe (contratos antigos e assinaturas pela API);
+  `pixKeyDivergesFromFreelancer()` é o aviso de que o Pix sairá para chave diferente da do documento.
 - **Relacionamentos:** `freelancer()` belongsTo Freelancer · `functionFreelancer()` belongsTo FunctionFreelancer · `status()` belongsTo Status · `pixPayments()` hasMany PixPayment · `latestPixPayment()` hasOne PixPayment (`latestOfMany`)
 - **Estado do Pix:** `hasPixInProgress()` e `canRequestPix()` — leitura da tela. Quem decide de
   fato é `FreelancerService::pixBlockReason()` no servidor, com lock.

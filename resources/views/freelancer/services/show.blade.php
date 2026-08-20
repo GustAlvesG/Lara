@@ -24,6 +24,13 @@
                     @if($service->sales_source === \App\Models\FreelancerService::SALES_SOURCE_MANUAL)
                         <span class="opacity-75">(valor informado manualmente no tablet)</span>
                     @endif
+                    {{-- Valor alterado em relação ao relatório: o motivo consta do
+                         termo assinado, e aqui também — é onde se confere o documento. --}}
+                    @if($service->salesAmountWasAdjusted())
+                        <br>Valor ajustado em relação ao apurado
+                        (R$ {{ number_format((float) ($service->sales_report['base'] ?? 0), 2, ',', '.') }}).
+                        Justificativa: <b>{{ $service->sales_adjustment_reason ?: 'não informada' }}</b>
+                    @endif
                     @if($service->baseService)
                         <br>Contrato do turno:
                         <a href="{{ route('freelancer-services.show', $service->baseService) }}" class="underline font-semibold">#{{ $service->baseService->id }}</a>
@@ -284,6 +291,39 @@
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                     Abrir documento
                 </a>
+            </div>
+
+            {{-- Redação das cláusulas. O texto do instrumento é revisado pelo
+                 jurídico de tempos em tempos; um contrato assinado guarda a
+                 redação que firmou e continua sendo impresso com ela. --}}
+            <div class="px-6 pb-6">
+                <div class="p-4 rounded-xl border border-gray-200 dark:border-gray-600">
+                    <p class="text-sm font-bold text-gray-700 dark:text-gray-300">{{ $service->contractVersionLabel() }}</p>
+                    @if($service->contractIsFrozen())
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Congelada na assinatura: este documento continua sendo impresso com o texto que as partes
+                            firmaram, ainda que o modelo mude depois.
+                            @if($service->contractPartyIsFrozen())
+                                A qualificação do freelancer citada no documento também é a do dia da assinatura.
+                            @else
+                                A qualificação do freelancer vem do cadastro — este contrato é anterior à cópia dos
+                                dados das partes.
+                            @endif
+                        </p>
+                        @if($service->contractPartyDivergesFromFreelancer())
+                            <div class="mt-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-xs text-amber-800 dark:text-amber-200">
+                                <b>O cadastro do freelancer mudou depois da assinatura.</b>
+                                O documento cita os dados de quando foi assinado, e não os de hoje — é assim que
+                                deve ser: o instrumento firmado não se reescreve.
+                            </div>
+                        @endif
+                    @else
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Ainda não congelada. Sem assinatura, o documento acompanha a redação vigente e o cadastro
+                            atual do freelancer — congela na primeira assinatura.
+                        </p>
+                    @endif
+                </div>
             </div>
 
             @if($service->freelancer_signature_path)

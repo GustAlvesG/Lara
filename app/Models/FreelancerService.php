@@ -12,10 +12,10 @@ class FreelancerService extends Model
     /** @use HasFactory<\Database\Factories\FreelancerServiceFactory> */
     use HasFactory;
 
-    /** Limite recomendado de serviços por freelancer numa janela de 7 dias. */
+    /** Limite recomendado de serviços por freelancer, por semana de calendário. */
     const WEEKLY_LIMIT = 2;
 
-    /** Tamanho da janela do limite, em dias. */
+    /** Tamanho da semana de calendário, em dias. A semana sempre começa na segunda-feira. */
     const WEEKLY_WINDOW_DAYS = 7;
 
     /**
@@ -98,6 +98,36 @@ class FreelancerService extends Model
         'unsigned_late' => 'Sem assinatura, turno já começou',
     ];
 
+    /**
+     * Redação vigente das cláusulas — a que um contrato novo assina.
+     *
+     * O texto do instrumento é revisado pelo jurídico de tempos em tempos, e
+     * cada revisão é uma REDAÇÃO NOVA, nunca uma edição da anterior: contrato
+     * assinado tem de continuar dizendo o que dizia. Ver `CONTRACT_VERSIONS`.
+     */
+    const CONTRACT_VERSION_CURRENT = 1;
+
+    /**
+     * As redações já existentes, com a data em que entraram em vigor e o que
+     * mudou. Serve à varredura (o filtro da listagem lê daqui) e é o histórico
+     * que o jurídico consulta sem precisar abrir o git.
+     *
+     * Para criar uma redação nova:
+     *   1. copie `resources/views/freelancer/services/partials/contract/vN`
+     *      para `vN+1` e edite o texto — NUNCA edite uma versão já em uso;
+     *   2. acrescente a entrada aqui e suba `CONTRACT_VERSION_CURRENT`;
+     *   3. registre o sha256 dos arquivos da vN em
+     *      `tests/Unit/FreelancerContractVersionTest.php`, que é o lacre que
+     *      impede a redação antiga de ser alterada depois.
+     */
+    const CONTRACT_VERSIONS = [
+        1 => [
+            'label' => 'Redação original',
+            'from' => '2026-07-22',
+            'summary' => 'Modelo do Clube dos Funcionários, com a cláusula da forma de pagamento por PIX e o texto por dia (sem horário no corpo do instrumento).',
+        ],
+    ];
+
     protected $table = 'freelancer_services';
 
     protected $fillable = [
@@ -114,6 +144,8 @@ class FreelancerService extends Model
         'sales_period_start',
         'sales_period_end',
         'sales_report',
+        // Por que o valor apurado no relatório foi alterado (ver migration).
+        'sales_adjustment_reason',
         'location',
         // Esclarecimento livre do serviço — apenas informativo (ver migration).
         'description',
@@ -126,6 +158,10 @@ class FreelancerService extends Model
         // "Chave PIX do pagamento").
         'pix_key',
         'pix_key_confirmed_at',
+        // Redação das cláusulas e dados das partes congelados na assinatura
+        // (ver a seção "Congelamento do documento").
+        'contract_version',
+        'signed_snapshot',
         'total_hours',
         'status_id',
         'freelancer_signed_at',
@@ -159,6 +195,8 @@ class FreelancerService extends Model
         'freelancer_signed_at' => 'datetime',
         'coordinator_signed_at' => 'datetime',
         'pix_key_confirmed_at' => 'datetime',
+        'contract_version' => 'integer',
+        'signed_snapshot' => 'array',
         // Trâmite do lote. Ficaram fora do cast desde a criação e voltavam como
         // string: o resto do código só testa `!== null`, mas quem precisa da
         // data (a relação impressa do financeiro) não conseguia formatá-la.
@@ -533,6 +571,184 @@ class FreelancerService extends Model
     }
 
     /* ---------------------------------------------------------------------
+     | Congelamento do documento
+     |
+     | O corpo do contrato é montado ao vivo: a redação vem dos templates e os
+     | dados das partes, do cadastro. As duas coisas mudam depois da assinatura
+     | — o jurídico revisa uma cláusula, o freelancer corrige o endereço —, e
+     | sem congelá-las um contrato já firmado passaria a dizer outra coisa.
+     |
+     | Congela-se na PRIMEIRA assinatura, de qualquer das partes: é o ato que
+     | fecha o documento. Enquanto ninguém assinou, o contrato acompanha a
+     | redação vigente e o cadastro vivo — é o que ele vai assinar.
+     |---------------------------------------------------------------------*/
+
+    /**
+     * Opções do filtro de redação na listagem — a varredura: "quais contratos
+     * foram assinados sob o texto antigo?".
+     *
+     * `unfrozen` são os que ainda não têm redação congelada porque ninguém
+     * assinou: eles acompanham a vigente e mudam de texto se o jurídico
+     * publicar outra, e por isso não pertencem a nenhuma redação.
+     *
+     * @return array<string, string>
+     */
+    public static function contractVersionFilters(): array
+    {
+        $filters = [];
+
+        foreach (self::CONTRACT_VERSIONS as $number => $info) {
+            $filters[(string) $number] = 'Redação ' . $number . ' · ' . $info['label'];
+        }
+
+        $filters['unfrozen'] = 'Ainda não congelada (sem assinatura)';
+
+        return $filters;
+    }
+
+    /** Aplica o filtro de redação da listagem. */
+    public function scopeContractVersionFilter($query, ?string $filter)
+    {
+        if ($filter === null || !array_key_exists($filter, self::contractVersionFilters())) {
+            return $query;
+        }
+
+        return $filter === 'unfrozen'
+            ? $query->whereNull('contract_version')
+            : $query->where('contract_version', (int) $filter);
+    }
+
+    /** A redação firmada, ou a vigente enquanto o contrato não foi assinado. */
+    public function contractVersion(): int
+    {
+        return $this->contract_version ?? self::CONTRACT_VERSION_CURRENT;
+    }
+
+    /** O documento já está fechado: nem a redação nem os dados mudam mais. */
+    public function contractIsFrozen(): bool
+    {
+        return $this->contract_version !== null;
+    }
+
+    /**
+     * Prefixo das views da redação deste contrato. Não existindo a pasta, o
+     * Laravel falha ao renderizar — e é o que se quer: melhor um erro visível
+     * que imprimir, em silêncio, um texto diferente do que foi assinado.
+     */
+    public function contractViewNamespace(): string
+    {
+        return 'freelancer.services.partials.contract.v' . $this->contractVersion();
+    }
+
+    /** @return array{label: string, from: string, summary: string}|null */
+    public function contractVersionInfo(): ?array
+    {
+        return self::CONTRACT_VERSIONS[$this->contractVersion()] ?? null;
+    }
+
+    /** "Redação 1 · Redação original" — o rótulo das telas e da varredura. */
+    public function contractVersionLabel(): string
+    {
+        $info = $this->contractVersionInfo();
+
+        return 'Redação ' . $this->contractVersion() . ($info ? ' · ' . $info['label'] : '');
+    }
+
+    /**
+     * O que gravar no ato da assinatura. Já congelado, devolve o que está lá:
+     * a segunda assinatura não reescreve o que a primeira firmou.
+     */
+    public function contractFreezeAttributes(): array
+    {
+        if ($this->contractIsFrozen()) {
+            return [];
+        }
+
+        return [
+            'contract_version' => self::CONTRACT_VERSION_CURRENT,
+            'signed_snapshot' => $this->buildContractSnapshot(),
+        ];
+    }
+
+    /** Os dados que o texto do instrumento cita, como estão agora. */
+    public function buildContractSnapshot(): array
+    {
+        $f = $this->freelancer;
+
+        return [
+            'freelancer' => [
+                'name' => $f?->name,
+                'cpf' => $f?->cpf,
+                'rg' => $f?->rg,
+                'nacionality' => $f?->nacionality,
+                'civil_status' => $f?->civil_status,
+                'address' => $f?->address,
+            ],
+            'function' => [
+                'name' => $this->functionFreelancer?->name,
+            ],
+        ];
+    }
+
+    /**
+     * A qualificação do FREELANCER como o documento a cita: a congelada quando
+     * há, o cadastro enquanto não há.
+     *
+     * O bloco é tomado inteiro, e não campo a campo: misturar um RG congelado
+     * com um endereço vivo produziria uma qualificação que nunca existiu.
+     * Contratos anteriores a esta cópia ficam sem snapshot e caem no cadastro —
+     * que é o que eles citavam antes, a mesma decisão tomada para a `pix_key`.
+     *
+     * @return array{name: ?string, cpf: ?string, rg: ?string, nacionality: ?string, civil_status: ?string, address: ?string}
+     */
+    public function contractParty(): array
+    {
+        $snapshot = $this->signed_snapshot['freelancer'] ?? null;
+
+        if (!is_array($snapshot)) {
+            return $this->buildContractSnapshot()['freelancer'];
+        }
+
+        return [
+            'name' => $snapshot['name'] ?? null,
+            'cpf' => $snapshot['cpf'] ?? null,
+            'rg' => $snapshot['rg'] ?? null,
+            'nacionality' => $snapshot['nacionality'] ?? null,
+            'civil_status' => $snapshot['civil_status'] ?? null,
+            'address' => $snapshot['address'] ?? null,
+        ];
+    }
+
+    /**
+     * A função como o documento a nomeia. Congelada junto com o resto: nomes de
+     * função são editáveis no cadastro, e renomear "Garçom" mudaria a cláusula
+     * 1 de todo contrato de garçom já assinado.
+     */
+    public function contractFunctionName(): ?string
+    {
+        $snapshot = $this->signed_snapshot['function']['name'] ?? null;
+
+        return $snapshot ?? $this->functionFreelancer?->name;
+    }
+
+    /** A qualificação exibida veio do congelamento, e não do cadastro vivo? */
+    public function contractPartyIsFrozen(): bool
+    {
+        return is_array($this->signed_snapshot['freelancer'] ?? null);
+    }
+
+    /**
+     * O cadastro do freelancer mudou depois da assinatura — o documento cita a
+     * qualificação antiga, que é a correta, e a tela avisa para ninguém achar
+     * que o contrato está com dado errado. Mesmo aviso que a chave PIX dá.
+     */
+    public function contractPartyDivergesFromFreelancer(): bool
+    {
+        return $this->contractPartyIsFrozen()
+            && $this->contractParty() !== $this->buildContractSnapshot()['freelancer'];
+    }
+
+    /* ---------------------------------------------------------------------
      | Chave PIX do pagamento
      |
      | O documento diz para qual chave o valor será pago, e o freelancer confere
@@ -816,6 +1032,27 @@ class FreelancerService extends Model
         }
 
         return abs((float) ($this->sales_report['base'] ?? 0) - (float) $this->sales_amount) >= 0.01;
+    }
+
+    /**
+     * O valor apurado só pode ser alterado com justificativa do operador.
+     *
+     * A pergunta é sobre o relatório: sem ele não existe valor de origem a
+     * alterar, e o documento já diz que o número foi informado pelo CONTRATANTE.
+     * Com relatório e número diferente, a justificativa é parte do termo — quem
+     * assina lê a diferença e o motivo dela, lado a lado com o Anexo I.
+     *
+     * O tamanho mínimo é proposital: "ajuste" ou "ok" não explicam nada, e uma
+     * justificativa que não explica é pior que nenhuma, porque dá a aparência de
+     * controle.
+     */
+    public const SALES_ADJUSTMENT_REASON_MIN = 10;
+
+    public static function salesAdjustmentIsRequired(?array $report, float $salesAmount): bool
+    {
+        return $report !== null
+            && ($report['sections'] ?? []) !== []
+            && abs((float) ($report['base'] ?? 0) - $salesAmount) >= 0.01;
     }
 
     /** Período apurado, formatado: "04/08/2026 14:00 → 04/08/2026 19:00". */
@@ -1573,8 +1810,8 @@ class FreelancerService extends Model
      |---------------------------------------------------------------------*/
 
     /**
-     * Verifica se este serviço faz parte de uma janela de 7 dias (baseada em
-     * start_date) em que o freelancer acumula mais serviços que o limite
+     * Verifica se este serviço faz parte de uma semana de calendário (segunda a
+     * domingo) em que o freelancer acumula mais serviços que o limite
      * recomendado. Contratos cancelados não entram na conta.
      */
     public function exceedsWeeklyLimit(): bool
@@ -1583,11 +1820,26 @@ class FreelancerService extends Model
     }
 
     /**
-     * Serviços já registrados para o freelancer na janela de 7 dias MAIS CHEIA
-     * que contenha $startDate. A janela não é só "os 6 dias anteriores": lançar
-     * um contrato numa data ANTERIOR a outros já registrados também aperta a
-     * mesma semana, e olhar só para trás deixava esse caso passar sem aviso.
-     * Contratos cancelados não entram na conta.
+     * Início e fim (segunda 00:00 a domingo 23:59:59) da semana de calendário
+     * que contém $date. A semana é um bloco fixo: contratos de sábado/domingo
+     * ficam na semana que já começou na segunda anterior, nunca na seguinte —
+     * por isso a segunda-feira sempre "zera" a contagem.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private static function weekBounds(Carbon $date): array
+    {
+        $start = $date->copy()->startOfWeek(Carbon::MONDAY)->startOfDay();
+        $end = $start->copy()->addDays(self::WEEKLY_WINDOW_DAYS - 1)->endOfDay();
+
+        return [$start, $end];
+    }
+
+    /**
+     * Serviços já registrados para o freelancer na semana de calendário (segunda
+     * a domingo) que contém $startDate. Por ser um bloco fixo, não importa a
+     * ordem de lançamento: qualquer contrato com start_date na mesma semana
+     * conta junto. Contratos cancelados não entram na conta.
      *
      * `$extraDates` soma datas que ainda não estão no banco — é assim que o
      * registro em massa faz as linhas do próprio lote contarem umas com as
@@ -1598,15 +1850,16 @@ class FreelancerService extends Model
     public static function countInWeeklyWindow(int $freelancerId, $startDate, array $extraDates = []): int
     {
         $date = Carbon::parse($startDate)->startOfDay();
+        [$weekStart, $weekEnd] = self::weekBounds($date);
 
-        $dates = static::weeklyWindowDates($freelancerId, $date)
+        $dates = static::weeklyWindowDates($freelancerId, $weekStart, $weekEnd)
             ->concat(collect($extraDates)->map(fn($value) => Carbon::parse($value)->startOfDay()));
 
-        return self::fullestWindowCount($date, $dates);
+        return $dates->filter(fn(Carbon $other) => $other->between($weekStart, $weekEnd))->count();
     }
 
     /**
-     * Datas já gravadas que podem cair numa janela de 7 dias contendo $date.
+     * Datas já gravadas que podem cair na semana [$weekStart, $weekEnd].
      * Isolado do resto do cálculo para que a regra possa ser exercitada nos
      * testes sem banco.
      *
@@ -1616,17 +1869,12 @@ class FreelancerService extends Model
      *
      * @return Collection<int, Carbon>
      */
-    protected static function weeklyWindowDates(int $freelancerId, Carbon $date): Collection
+    protected static function weeklyWindowDates(int $freelancerId, Carbon $weekStart, Carbon $weekEnd): Collection
     {
-        $reach = self::WEEKLY_WINDOW_DAYS - 1;
-
         return static::where('freelancer_id', $freelancerId)
             ->where('status_id', '!=', self::STATUS_CANCELLED)
             ->whereNull('parent_service_id')
-            ->whereBetween('start_date', [
-                $date->copy()->subDays($reach)->startOfDay(),
-                $date->copy()->addDays($reach)->endOfDay(),
-            ])
+            ->whereBetween('start_date', [$weekStart, $weekEnd])
             ->pluck('start_date')
             ->map(fn($value) => Carbon::parse($value)->startOfDay());
     }
@@ -1663,26 +1911,6 @@ class FreelancerService extends Model
     }
 
     /**
-     * Maior número de datas que cabem numa janela de 7 dias que também contenha
-     * $date — testa as 7 posições possíveis dessa janela.
-     *
-     * @param  Collection<int, Carbon>  $dates
-     */
-    private static function fullestWindowCount(Carbon $date, Collection $dates): int
-    {
-        $counts = [];
-
-        for ($back = 0; $back < self::WEEKLY_WINDOW_DAYS; $back++) {
-            $start = $date->copy()->subDays($back);
-            $end = $start->copy()->addDays(self::WEEKLY_WINDOW_DAYS - 1);
-
-            $counts[] = $dates->filter(fn(Carbon $other) => $other->between($start, $end))->count();
-        }
-
-        return max($counts);
-    }
-
-    /**
      * Um novo serviço nessa data ultrapassaria o limite? Usado para avisar antes
      * de gravar, e não depois.
      *
@@ -1696,7 +1924,7 @@ class FreelancerService extends Model
     /**
      * Dado um conjunto de serviços já carregado em memória (sem novas queries),
      * retorna um mapa [service_id => excede_limite_semanal], usando a mesma
-     * regra de janela de 7 dias por freelancer.
+     * regra de semana de calendário (segunda a domingo) por freelancer.
      */
     public static function flagExcessWithinCollection(Collection $services): Collection
     {
@@ -1709,16 +1937,15 @@ class FreelancerService extends Model
                 return [$service->id => false];
             }
 
-            // Mesma regra de countInWeeklyWindow (janela mais cheia), só que
-            // sobre o que já está em memória.
-            $dates = $considered
-                ->filter(fn($other) => $other->freelancer_id === $service->freelancer_id)
-                ->map(fn($other) => Carbon::parse($other->start_date)->startOfDay());
+            [$weekStart, $weekEnd] = self::weekBounds(Carbon::parse($service->start_date)->startOfDay());
 
-            $count = self::fullestWindowCount(
-                Carbon::parse($service->start_date)->startOfDay(),
-                $dates->values()
-            );
+            // Mesma regra de countInWeeklyWindow (bloco fixo da semana), só que
+            // sobre o que já está em memória.
+            $count = $considered
+                ->filter(fn($other) => $other->freelancer_id === $service->freelancer_id)
+                ->map(fn($other) => Carbon::parse($other->start_date)->startOfDay())
+                ->filter(fn(Carbon $other) => $other->between($weekStart, $weekEnd))
+                ->count();
 
             return [$service->id => $count > self::WEEKLY_LIMIT];
         });

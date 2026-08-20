@@ -15,7 +15,8 @@ O módulo tem duas frentes:
 
 ## Entidades
 
-1. **Freelancer** (`freelancers`) — a pessoa. CPF é único; `pix_key` assume o CPF quando não informada.
+1. **Freelancer** (`freelancers`) — a pessoa. CPF é único; `pix_key` assume o CPF quando não
+   informada, e o **tipo** dela é lido da própria chave já normalizada (ver *Conferência da chave PIX*).
 2. **Função** (`function_freelancers`) — catálogo de funções (garçom, segurança...), com **preço
    por bloco de 15 minutos**.
 3. **Serviço / Contrato** (`freelancer_services`) — um trabalho de um freelancer numa função, num
@@ -30,6 +31,159 @@ O módulo tem duas frentes:
    com `parent_service_id` apontando para o contrato que alteram (ver *Aditivo*).
 
 ## Regras de negócio
+
+### O que o contrato diz: dia e valor (e não o horário)
+
+O corpo do contrato ajusta **dia** e **valor**. O horário do turno **não aparece em documento
+nenhum** — nem no contrato, nem no termo aditivo, nem no termo de comissão.
+
+**Internamente nada mudou:** `start_time`, `end_time`, `total_hours` e os blocos de 15 minutos
+continuam gravados e são eles que calculam o valor, abrem a janela da portaria, alimentam as telas
+de operação (listagens, montagem de lote, aprovação, financeiro e a prévia do aditivo no tablet) e
+as relações impressas. O que saiu foi a **menção ao período de horas no texto do instrumento**, que
+descrevia como contratação por hora um ajuste que é por dia.
+
+Onde isso apareceu, e como ficou:
+
+| Documento | Antes | Agora |
+|---|---|---|
+| Contrato (cláusula 2) | "R$ X, por dia, no horário de 19:00 ás 22:00" | "R$ X, por dia, previamente acordado" |
+| Termo aditivo (cláusula 2) | horário antigo → horário novo, duração e "acréscimo de 3h" | o período foi alterado (datas só quando mudam); a repercussão é no valor, cláusula 4 |
+| Termo aditivo (cláusula 4) | sempre "passa a ser R$ X" | diz **permanece** quando o valor não muda |
+| Termo de comissão (cláusula 2) | "no período do dia 05/08, das 14:00 às 22:00" | "na prestação de serviços do dia 05/08" |
+
+Duas exceções deliberadas:
+
+- a **cláusula 7** do contrato (refeição na prestação superior a 6 horas) continua como está: é a
+  condição de um benefício que o clube concede, não a descrição do período contratado. O aditivo
+  passou a citá-la por número ("o fornecimento de refeição previsto na cláusula 7") em vez de
+  repetir as 6 horas;
+- o **Anexo I** do termo de comissão continua trazendo o período da **apuração** das vendas. Ali o
+  horário não descreve a contratação: é o recorte que define quais vendas entraram na conta que o
+  freelancer está conferindo, e sem ele o anexo deixa de ser verificável.
+
+### O documento é congelado na assinatura
+
+O corpo do contrato é montado na hora de exibi-lo: a **redação** vem dos templates e os **dados das
+partes**, do cadastro. As duas coisas mudam depois de o contrato ser assinado — o jurídico reavalia
+uma cláusula, o freelancer corrige o endereço, alguém renomeia uma função. Sem congelá-las, revisar
+um texto reescreveria, retroativamente, **todo contrato já assinado**, inclusive os pagos e
+arquivados — e uma varredura feita depois leria o texto novo em documentos firmados sob o antigo.
+
+Por isso a **primeira assinatura**, de qualquer das partes, fecha o documento:
+
+| O que congela | Onde fica | O que garante |
+|---|---|---|
+| A redação das cláusulas | `freelancer_services.contract_version` | o contrato continua sendo impresso com o texto que as partes leram |
+| A qualificação do freelancer e o nome da função | `freelancer_services.signed_snapshot` (JSON) | o preâmbulo continua citando quem ele era no dia — nome, CPF, RG, nacionalidade, estado civil e endereço |
+| A chave PIX do pagamento | `freelancer_services.pix_key` | ver *Conferência da chave PIX* |
+
+Enquanto **ninguém assinou**, o contrato acompanha a redação vigente e o cadastro vivo — é o que ele
+vai assinar. A partir da assinatura, `contractParty()` e `contractFunctionName()` param de olhar o
+cadastro. O bloco é tomado **inteiro**, e não campo a campo: misturar um RG congelado com um endereço
+vivo produziria uma qualificação que nunca existiu.
+
+**A redação é versionada em arquivo, não copiada para o banco.** O texto de cada versão mora em
+`resources/views/freelancer/services/partials/contract/vN/` — quatro parciais: `original-clauses`,
+`amendment-clauses`, `commission-clauses` e `pix-clause`. Guardar o HTML renderizado de cada contrato
+seria fiel, mas não responderia à pergunta da varredura ("quais contratos estão na redação antiga?"),
+nem deixaria o jurídico comparar duas redações por diff. Com a versão em arquivo, a varredura é uma
+consulta por uma coluna indexada, e o histórico está no git.
+
+O **Anexo I** do termo de comissão fica **fora** do versionamento: ele imprime o `sales_report` já
+gravado, é anexo de dados apurados e não redação jurídica.
+
+#### Revisar uma cláusula: cria-se a redação seguinte
+
+| Passo | O quê |
+|---|---|
+| 1 | copie `contract/vN` para `contract/vN+1` e edite o texto — **nunca** edite uma versão em uso |
+| 2 | acrescente a entrada em `FreelancerService::CONTRACT_VERSIONS` (rótulo, vigência, o que mudou) e suba `CONTRACT_VERSION_CURRENT` |
+| 3 | registre o sha256 dos arquivos da vN em `tests/Unit/FreelancerContractVersionTest.php` |
+
+O passo 3 é o **lacre**: um teste confere o hash de cada arquivo das redações já em uso e quebra o
+build se algum mudar. Sem ele, a regra "não edite a versão antiga" seria só um comentário — e o jeito
+mais provável de a garantia se perder é alguém "corrigindo" uma vírgula na v1.
+
+Contratos assinados **antes** destas colunas ficam com `signed_snapshot` nulo e caem no cadastro do
+freelancer — que é exatamente o que o documento deles citava antes. Mesma decisão tomada para a
+`pix_key` legada. Os assinados ganham `contract_version = 1` na migration: a redação 1 é a única que
+existiu até aqui.
+
+Na tela do contrato aparece qual redação ele firmou e se a qualificação é a congelada. Quando o
+cadastro muda depois da assinatura (`contractPartyDivergesFromFreelancer()`), a tela avisa — o
+documento cita o dado antigo, que é o **correto**, e sem o aviso pareceria erro. Na listagem, o
+filtro **Redação** varre por versão, com a opção *ainda não congelada* para os que ninguém assinou.
+
+#### O documento é montado num lugar só
+
+O texto vivia em **dois** lugares: os parciais Blade do painel e funções JavaScript que o tablet usava
+para montar o documento na tela. Com o versionamento, cada revisão teria de ser escrita duas vezes — e
+no dia em que as duas divergissem, o freelancer assinaria no tablet um texto diferente do que o painel
+imprime, sendo o do tablet o que ele de fato leu.
+
+O tablet **não monta mais o documento**. Ele o busca pronto em
+`GET /kiosk/service/{id}/document?role=freelancer|coordinator`, que renderiza o mesmo
+`partials/contract-document.blade.php` do painel. O parcial recebe:
+
+- `layout` — `print` (painel: cabeçalho e rodapé em `thead`/`tfoot`, que o navegador repete a cada
+  página impressa) ou `tablet` (rola numa tela só);
+- `signing` — `freelancer`, `coordinator` ou nulo: **qual dos dois campos recebe o canvas** da
+  assinatura. O painel não assina, então passa nulo e nenhum campo tem canvas.
+
+Saíram do JavaScript do kiosk `buildDocument()`, `originalClauses()`, `amendmentClauses()`,
+`commissionClauses()`, `pixClause()` e `salesAnnex()` — e, com elas, os campos do payload que só
+existiam para alimentá-las (texto das cláusulas, dados do contrato aditado, chave citada e o
+relatório do Anexo I).
+
+**Corrida entre ler e assinar.** O documento chega com a redação que exibe, e o tablet a reenvia na
+assinatura. Publicada uma redação nova enquanto a tela estava aberta, o servidor responde `409` com
+`contract_version_changed` e o documento é recarregado — o mesmo desenho do `pix_key_changed`. O
+campo é **opcional**: uma tela aberta desde antes do deploy não o envia, e recusar a assinatura por
+isso seria pior que a corrida que ele protege. A trava só existe na assinatura do **freelancer**: o
+coordenador sempre assina um contrato que o freelancer já assinou, e portanto de redação já congelada.
+
+### Conferência da chave PIX (etapa que antecede a assinatura)
+No tablet, **toda** assinatura do freelancer — contrato, aditivo de horário e comissão — passa
+antes por uma tela que mostra a chave PIX do cadastro e pergunta se é a dele. Existe porque uma
+chave errada já mandou o pagamento para a conta de outra pessoa, e porque o documento que ele
+assina em seguida **cita essa chave**.
+
+- A tela mostra o **tipo** da chave e a chave **formatada** (CPF pontuado, telefone em
+  `+55 (24) 99999-8888`). Quando a chave é igual ao CPF — o padrão de quem nunca informou outra —
+  o aviso diz isso, para o operador não confirmar no automático.
+- Dizendo que está errada, o operador abre o formulário de correção: escolhe o **tipo**
+  (CPF, telefone, e-mail ou chave aleatória) e digita a nova chave. O tipo é **escolhido, não
+  deduzido**: 11 dígitos tanto são um CPF quanto um celular com DDD, e o palpite errado manda o
+  Pix para outro domicílio bancário. `PUT /kiosk/freelancer/{id}/pix-key`; a troca fica em log com
+  autor, horário e as chaves mascaradas.
+- Validação e normalização moram no model (`Freelancer::pixKeyError()` e `normalizePixKey()`), para
+  valerem igual no tablet, no painel e na API: CPF vira só dígitos, telefone vira `+55DDNNNNNNNNN`,
+  e-mail vira minúsculas.
+- Ao assinar, o tablet **reenvia a chave conferida** junto com o PIN e o traço. Se ela não for mais
+  a do cadastro (alteração no painel, outra sessão, tela esquecida aberta), o servidor responde
+  `409` com `pix_key_changed` e a conferência recomeça — o documento à frente do freelancer citava
+  a chave antiga.
+
+**A chave é copiada para o contrato na assinatura** (`freelancer_services.pix_key` +
+`pix_key_confirmed_at`, gravados por `signAsFreelancer()`). O cadastro guarda a chave que vale
+hoje; o contrato assinado guarda a que estava à vista quando ele assinou. Sem essa cópia, editar o
+cadastro reescreveria, retroativamente, o texto de todo contrato já assinado.
+
+- Contratos anteriores a esta etapa, e os assinados pela **API** (que não tem tela de conferência),
+  ficam com `pix_key_confirmed_at` nulo. Os assinados pela API a partir de agora ganham a cópia da
+  chave, sem o carimbo de conferência; os antigos caem no cadastro do freelancer, que é o que o
+  documento citava antes.
+- **O pagamento continua saindo para a chave do cadastro**, não para a cópia do contrato: se o
+  freelancer trocou de chave depois de assinar, é a nova que ele quer receber. Quando as duas
+  divergem (`pixKeyDivergesFromFreelancer()`), a tela do contrato e a tabela do Financeiro avisam,
+  com as duas chaves à vista, antes de qualquer baixa.
+
+O documento traz a cláusula **DA FORMA DE PAGAMENTO** logo abaixo da cláusula do valor — `2.1` no
+contrato, `4.1` nos dois aditivos. É sub-item de propósito: acrescentar um item na numeração
+corrida deslocaria as cláusulas do modelo, que os outros documentos citam pelo número. O texto está
+em `services/partials/contract/vN/pix-clause.blade.php`, um lugar só — ver *O documento é congelado
+na assinatura*.
 
 ### Período trabalhado, duração e preço
 
@@ -120,47 +274,6 @@ horários e datas.
 Na tela de **Acompanhamento** esses contratos têm fila própria — *Aguardando o fim do dia* — com o
 horário exato da liberação em cada linha. É diferente de *Aguardando assinaturas*: aqui não falta
 ninguém assinar, falta o relógio, e não há a quem cobrar.
-
-### Conferência da chave PIX (etapa que antecede a assinatura)
-No tablet, **toda** assinatura do freelancer — contrato, aditivo de horário e comissão — passa
-antes por uma tela que mostra a chave PIX do cadastro e pergunta se é a dele. Existe porque uma
-chave errada já mandou o pagamento para a conta de outra pessoa, e porque o documento que ele
-assina em seguida **cita essa chave**.
-
-- A tela mostra o **tipo** da chave e a chave **formatada** (CPF pontuado, telefone em
-  `+55 (24) 99999-8888`). Quando a chave é igual ao CPF — o padrão de quem nunca informou outra —
-  o aviso diz isso, para o operador não confirmar no automático.
-- Dizendo que está errada, o operador abre o formulário de correção: escolhe o **tipo**
-  (CPF, telefone, e-mail ou chave aleatória) e digita a nova chave. O tipo é **escolhido, não
-  deduzido**: 11 dígitos tanto são um CPF quanto um celular com DDD, e o palpite errado manda o
-  Pix para outro domicílio bancário. `PUT /kiosk/freelancer/{id}/pix-key`; a troca fica em log com
-  autor, horário e as chaves mascaradas.
-- Validação e normalização moram no model (`Freelancer::pixKeyError()` e `normalizePixKey()`), para
-  valerem igual no tablet, no painel e na API: CPF vira só dígitos, telefone vira `+55DDNNNNNNNNN`,
-  e-mail vira minúsculas.
-- Ao assinar, o tablet **reenvia a chave conferida** junto com o PIN e o traço. Se ela não for mais
-  a do cadastro (alteração no painel, outra sessão, tela esquecida aberta), o servidor responde
-  `409` com `pix_key_changed` e a conferência recomeça — o documento à frente do freelancer citava
-  a chave antiga.
-
-**A chave é copiada para o contrato na assinatura** (`freelancer_services.pix_key` +
-`pix_key_confirmed_at`, gravados por `signAsFreelancer()`). O cadastro guarda a chave que vale
-hoje; o contrato assinado guarda a que estava à vista quando ele assinou. Sem essa cópia, editar o
-cadastro reescreveria, retroativamente, o texto de todo contrato já assinado.
-
-- Contratos anteriores a esta etapa, e os assinados pela **API** (que não tem tela de conferência),
-  ficam com `pix_key_confirmed_at` nulo. Os assinados pela API a partir de agora ganham a cópia da
-  chave, sem o carimbo de conferência; os antigos caem no cadastro do freelancer, que é o que o
-  documento citava antes.
-- **O pagamento continua saindo para a chave do cadastro**, não para a cópia do contrato: se o
-  freelancer trocou de chave depois de assinar, é a nova que ele quer receber. Quando as duas
-  divergem (`pixKeyDivergesFromFreelancer()`), a tela do contrato e a tabela do Financeiro avisam,
-  com as duas chaves à vista, antes de qualquer baixa.
-
-O documento traz a cláusula **DA FORMA DE PAGAMENTO** logo abaixo da cláusula do valor — `2.1` no
-contrato, `4.1` nos dois aditivos. É sub-item de propósito: acrescentar um item na numeração
-corrida deslocaria as cláusulas do modelo, que os outros documentos citam pelo número. O texto está
-em `services/partials/pix-clause.blade.php` e é espelhado pelo `pixClause()` do Kiosk.
 
 ### Assinatura fora do prazo
 O contrato existe para ser assinado **antes de o turno começar**, com tolerância de
@@ -260,11 +373,15 @@ como *Aditivo* e *Aditivado · pago no aditivo*. Os **documentos continuam separ
 seu PDF e suas assinaturas —, ligados pelos atalhos nas duas telas.
 
 **O documento** é um **Termo Aditivo**, não uma segunda via do contrato: cita o contrato original e
-a data em que foi firmado, diz o horário e o local que estavam valendo e os que passam a valer,
-declara que o novo valor **substitui** o anterior (e não se soma a ele) e ratifica todas as demais
-cláusulas — natureza autônoma, ausência de vínculo, descontos, refeição acima de 6 horas e foro.
-O texto vive em `partials/amendment-clauses.blade.php` (painel) e em `amendmentClauses()`
-(kiosk) — os dois precisam mudar juntos, como já acontece com o contrato original.
+a data em que foi firmado, diz que o período foi alterado e qual o local que passa a valer, declara
+que o novo valor **substitui** o anterior (e não se soma a ele) e ratifica todas as demais
+cláusulas — natureza autônoma, ausência de vínculo, descontos, refeição (cláusula 7), forma de
+foro — e traz a própria cláusula da forma de pagamento (`4.1`). **O horário não entra no texto**
+(ver *O que o contrato diz*):
+quem conta a história é a cláusula do valor, que diz "R$ X em substituição a R$ Y" — ou, quando o
+valor não muda, que ele **permanece**.
+O texto vive em `partials/contract/vN/amendment-clauses.blade.php`, num lugar só — o tablet exibe o
+mesmo documento que o painel imprime (ver *O documento é congelado na assinatura*).
 
 ### Comissão de venda (o segundo tipo de aditivo)
 Há **dois tipos de aditivo**, distinguidos por `freelancer_services.amendment_type`, e eles fazem
@@ -351,15 +468,42 @@ considerado é o que ele apurou, e `manual` quando o número foi digitado ou cor
 relatório anexo, o documento mostra as duas coisas — o Anexo I com o valor apurado e a cláusula 2
 dizendo que o CONTRATANTE ajustou.
 
+##### Alterar o valor apurado exige justificativa
+
+O valor apurado **continua editável** — e tem de continuar: o caixa pode ter fechado fora do horário
+do contrato, e uma venda pode ter sido cancelada depois. O que passou a existir é a contrapartida:
+quem muda o número do relatório de origem **diz por quê** (`sales_adjustment_reason`).
+
+**Não é log de auditoria, é cláusula.** O texto é impresso na **cláusula 2** do termo, logo depois da
+diferença que ele explica ("ajustado em relação ao total constante do Anexo I (R$ X), pela seguinte
+justificativa: …"), e ao lado do próprio Anexo I. O documento declara uma divergência em relação ao
+seu próprio anexo; sem o motivo ali, o freelancer assina um número que ninguém explicou.
+
+| Aspecto | Como é |
+|---|---|
+| Quando é exigida | há relatório **e** o valor considerado difere dele (`FreelancerService::salesAdjustmentIsRequired()`) — o mesmo critério que faz `sales_source` voltar a `manual` |
+| Quando **não** é | sem relatório (MultiVendas fora do ar): não existe valor de origem a alterar, e o termo já diz que o número foi informado pelo CONTRATANTE |
+| Tamanho mínimo | `SALES_ADJUSTMENT_REASON_MIN` = **10 caracteres** — "ajuste" e "ok" não explicam nada, e uma justificativa que não explica é pior que nenhuma, porque dá aparência de controle |
+| Quem confere | o **servidor**, com o relatório que ele mesmo acabou de refazer na gravação; a tela pede o campo no momento da edição, mas quem sabe se o número realmente difere não pode ser o navegador |
+| Onde a trava mora | `FreelancerService::createSalesCommission()` (invariante, `409`) **e** `KioskController::storeCommission()` (`422` com o campo em `errors`, porque ali é campo a preencher numa tela aberta) |
+
+**No tablet** o campo aparece na **prévia da comissão**, junto do aviso "corrigido; apurado: R$ X" —
+o momento em que o operador confirma o que vai gerar. Ele é limpo a cada nova comissão: o motivo de
+um turno não explica o ajuste de outro.
+
+Além do documento, a justificativa aparece na tela do contrato e no **cartão da análise da
+gerência** — é o que permite julgar o ajuste sem abrir o PDF.
+
 **O documento traz o relatório como `ANEXO I`**, com cabeçalho (vendedor, período, lojas), itens,
 recebimentos por forma de pagamento, totais e cancelamentos — é o que permite ao freelancer conferir
-de onde saiu o número que está assinando. Texto em `partials/sales-report-annex.blade.php` (painel) e
-em `salesAnnex()` (kiosk).
+de onde saiu o número que está assinando. Texto em `partials/sales-report-annex.blade.php` — fora da
+pasta das redações de propósito: é anexo de dados apurados, não redação jurídica.
 
-**O documento** é o *Termo Aditivo de Comissão sobre Vendas*: cita o contrato original, as vendas
-apuradas, o critério, a conta demonstrada e o valor, declara que **acresce** ao contrato e que a
-comissão não descaracteriza a prestação autônoma. Texto em `partials/commission-clauses.blade.php`
-(painel) e em `commissionClauses()` (kiosk) — mudam juntos.
+**O documento** é o *Termo Aditivo de Comissão sobre Vendas*: cita o contrato original, o dia da
+prestação, as vendas apuradas (com o login e o Anexo I, mais a justificativa quando o valor foi
+alterado), o critério, a conta demonstrada e o valor, declara que **acresce** ao contrato, que a
+comissão não descaracteriza a prestação autônoma e ratifica a forma de pagamento por PIX. Texto em
+`partials/contract/vN/commission-clauses.blade.php`, num lugar só.
 
 **No financeiro** a comissão entra como linha própria, com seu valor e `total_hours = 0`: ela paga
 vendas, não horas.
@@ -380,8 +524,10 @@ Um serviço **assinado não pode ser excluído** (o caminho é cancelar, e cance
 não haja assinatura). Freelancers e funções com serviços vinculados também não podem ser excluídos.
 
 ### Limite semanal e liberação pelo coordenador
-Limite de **2 serviços por freelancer a cada 7 dias** (`FreelancerService::WEEKLY_LIMIT`),
-contados por `start_date`. O 3º (e cada um depois dele) **não é bloqueado**, mas só é gravado com
+Limite de **2 serviços por freelancer por semana de calendário** (`FreelancerService::WEEKLY_LIMIT`),
+contados por `start_date`. A semana é um bloco fixo de **segunda a domingo**: a segunda-feira zera a
+contagem, mesmo que o freelancer tenha trabalhado sábado/domingo anteriores. O 3º (e cada um depois
+dele) **não é bloqueado**, mas só é gravado com
 **aviso + liberação do coordenador do setor Comercial**, que informa a **própria matrícula** e o
 **próprio PIN** de 6 dígitos. Quem registra o contrato não se autoriza sozinho: no painel a
 liberação não é o login da sessão, e no tablet não é o PIN do operador.
@@ -432,9 +578,11 @@ sistema, e é isso que prova que a liberação veio de quem tem acesso à caixa 
 - O envio é **síncrono** (sem fila), como o da diretoria: falha de SMTP tem de aparecer na hora
   para quem está no balcão, e não sumir numa fila.
 
-**Janela de 7 dias.** Vale **qualquer** intervalo de 7 dias que contenha a data do serviço, não só
-os 6 dias anteriores — lançar um contrato numa data anterior a outros já registrados aperta a mesma
-semana e também exige liberação. `countInWeeklyWindow()` devolve a contagem da janela mais cheia.
+**Semana fixa, segunda a domingo.** A janela **não é** "os 7 dias anteriores ao contrato": é o bloco
+de calendário que vai da segunda-feira ao domingo daquela semana. Lançar um contrato numa data
+anterior a outros já registrados na mesma semana aperta igual — a ordem de lançamento não importa
+dentro da mesma semana —, mas um contrato de sábado/domingo **não** aperta a segunda-feira seguinte,
+que já pertence à próxima semana. `countInWeeklyWindow()` devolve a contagem dentro desse bloco.
 
 Contratos cancelados não entram nessa contagem.
 
@@ -618,9 +766,16 @@ o coordenador vê), a de Aprovação (só a Gerência) e a de Financeiro (só a 
 reúne as quatro etapas num eixo só.
 
 **Quem acessa:** vínculo com o setor **`Comercial`** em qualquer papel — colaborador ou coordenador
-—, pelo Gate `track-freelancer-batches` (`User::canTrackFreelancerBatches()`). Como o Financeiro, é
-atribuição de setor e não permissão: a role `admin` não dá acesso, e **não é preciso ter
-`manage freelancers`** — por isso a rota fica fora daquele grupo de middleware.
+— **ou** quem responde pelo financeiro dos freelancers (`Contabilidade` ou `Gerência`), pelo Gate
+`track-freelancer-batches` (`User::canTrackFreelancerBatches()`). Como o Financeiro, é atribuição de
+setor e não permissão: a role `admin` não dá acesso, e **não é preciso ter `manage freelancers`** —
+por isso a rota fica fora daquele grupo de middleware.
+
+> **Por que o Financeiro também acompanha.** Quem paga é perguntado pelo mesmo motivo que o
+> Comercial: "e o contrato #N?". A regra reaproveita `canManageFreelancerPayments()` em vez de
+> repetir os nomes dos setores, para que "quem é o Financeiro" continue definido num lugar só — se
+> um terceiro setor entrar no financeiro, o acompanhamento acompanha. A tela continua **só leitura**,
+> então isso não dá a ninguém o poder de aprovar nem de pagar.
 
 **Nada de ação.** Não há botão que mude estado: aprovar continua sendo da Gerência e pagar, do
 Financeiro. Os links para a tela do contrato e para a do lote só são desenhados para quem passaria
@@ -649,7 +804,7 @@ cada contrato apareça em **uma e só uma**, porque contador e rótulo discordan
 mentir sem ninguém perceber.
 
 ### Barra de abas (Contratos · Lotes · Aprovação · Acompanhamento · Financeiro)
-As quatro frentes do fluxo dividem a mesma barra de abas
+As cinco frentes do fluxo dividem a mesma barra de abas
 (`resources/views/freelancer/services/partials/tabs.blade.php`), presente em todas elas e também na
 tela de um lote — de qualquer uma se chega a qualquer outra, sem voltar ao menu.
 
@@ -661,7 +816,7 @@ para que nenhuma aba leve a um 403:
 | Contratos | `freelancer-services.index` | `manage freelancers` |
 | Lotes | `freelancer-batches.index` | `manage freelancers` **e** coordenador de algum setor |
 | Aprovação | `freelancer-batches.queue` | `manage freelancers` **e** coordenador do setor `Gerência` |
-| Acompanhamento | `freelancer-services.tracking` | membro do setor `Comercial` (qualquer papel) |
+| Acompanhamento | `freelancer-services.tracking` | membro do setor `Comercial`, `Contabilidade` ou `Gerência` (qualquer papel) |
 | Financeiro | `freelancer-services.finance` (e `finance.*`) | membro do setor `Contabilidade` **ou** `Gerência` |
 
 A aba Financeiro cobre também as telas de lote, avulsos e lista plana (`freelancer-services.finance.*`),
@@ -820,10 +975,12 @@ Dois modos, decididos pelo que o usuário é — quem acumula os dois papéis es
   - Enquanto ninguém estiver vinculado a Contabilidade nem a Gerência, **o Financeiro fica sem
     dono**: a aba não aparece para ninguém e nenhuma baixa é possível.
   - Quem está só nesses setores, sem `manage freelancers`, enxerga no menu apenas o Financeiro.
-- **Acompanhar o trâmite** (aba Acompanhamento, só leitura) é vínculo com o setor **`Comercial`**,
-  em **qualquer papel** — Gate `track-freelancer-batches`. Como o Financeiro, não é permissão e a
-  role `admin` não vale; e, ao contrário das três primeiras abas, **não exige**
-  `manage freelancers`: quem só acompanha enxerga no menu apenas essa entrada.
+- **Acompanhar o trâmite** (aba Acompanhamento, só leitura) é vínculo com o setor **`Comercial`**
+  em **qualquer papel**, **ou** o mesmo vínculo que dá o Financeiro (`Contabilidade` / `Gerência`) —
+  Gate `track-freelancer-batches`, que delega a segunda metade para
+  `canManageFreelancerPayments()`. Como o Financeiro, não é permissão e a role `admin` não vale; e,
+  ao contrário das três primeiras abas, **não exige** `manage freelancers`: quem só acompanha
+  enxerga no menu apenas essa entrada.
 - Cancelar **pelo painel** exige, além disso, ser **coordenador de algum setor**
   (`user_sector.role = 'coordinator'`) — verificado por `User::isCoordinator()`.
 - Assinar como coordenador existe **só no kiosk** e é mais restrito: só o coordenador do setor
@@ -1020,9 +1177,35 @@ guardam qual coordenador do Comercial liberou e quando — sem isso a autorizaç
 - **Service:** `app/Services/FreelancerService.php` — concentra cálculo de preço, assinaturas,
   cancelamento e auditoria; é o mesmo objeto usado pelo painel e pela API, então as regras não
   divergem entre as duas frentes.
-- **Models:** `Freelancer` (default do PIX), `FunctionFreelancer`, `FreelancerService`
+- **Models:** `Freelancer` (default e tipo do PIX), `FunctionFreelancer`, `FreelancerService`
   (`isSigned()`, `canBeUpdated()`, `canBeCancelled()`, `canBeDeleted()`, `signatureLabel()`,
   `exceedsWeeklyLimit()`, `flagExcessWithinCollection()`), `User::isCoordinator()`.
+- **Chave PIX:** `Freelancer::PIX_KEY_TYPE_LABELS` / `PIX_KEY_INPUT_TYPES` / `pixKey()` /
+  `pixKeyTypeFor()` / `formatPixKey()` / `normalizePixKey()` / `pixKeyError()` (regra, formatação e
+  validação, num lugar só), `FreelancerService::pixKey()` / `pixKeyWasConfirmed()` /
+  `pixKeyDivergesFromFreelancer()` (a cópia congelada no contrato),
+  `App\Http\Requests\UpdateFreelancerPixKeyRequest` + `KioskController::updatePixKey()` +
+  `App\Services\FreelancerService::updatePixKey()` (a correção no tablet, com log mascarado), e a
+  cláusula em `services/partials/contract/vN/pix-clause.blade.php`. Colunas em
+  `2026_08_05_120000_add_pix_key_to_freelancer_services_table`. Testes em
+  `tests/Unit/FreelancerPixKeyTest.php`.
+- **Congelamento do documento:** `FreelancerService::CONTRACT_VERSION_CURRENT` / `CONTRACT_VERSIONS`
+  (o histórico das redações), `contractVersion()` / `contractIsFrozen()` / `contractViewNamespace()`
+  (qual texto imprimir), `contractParty()` / `contractFunctionName()` / `buildContractSnapshot()` /
+  `contractPartyDivergesFromFreelancer()` (a qualificação congelada), `contractFreezeAttributes()`
+  (o que gravar na assinatura, consumido por `signAsFreelancer()` e `signAsCoordinator()`) e
+  `contractVersionFilters()` / `scopeContractVersionFilter()` (a varredura). O documento, num lugar
+  só, em `services/partials/contract-document.blade.php` + a pasta da redação
+  `services/partials/contract/vN/`; servido ao tablet por `KioskController::document()`
+  (`GET /kiosk/service/{id}/document`), com a trava de redação em `signService()`. Colunas em
+  `2026_08_12_140000_add_contract_freeze_to_freelancer_services_table`. Testes — inclusive o **lacre**
+  dos arquivos de cada redação — em `tests/Unit/FreelancerContractVersionTest.php`.
+- **Justificativa da alteração do valor apurado:** `FreelancerService::salesAdjustmentIsRequired()` /
+  `SALES_ADJUSTMENT_REASON_MIN` (regra), `App\Services\FreelancerService::createSalesCommission()`
+  (invariante na gravação), `KioskController::storeCommission()` (o `422` com o campo) e
+  `StoreSalesCommissionRequest` (formato). Coluna em
+  `2026_08_12_093000_add_sales_adjustment_reason_to_freelancer_services_table`. Testes em
+  `tests/Unit/FreelancerSalesCommissionTest.php`.
 - **Aditivo:** `FreelancerService::canBeAmended()` / `amendmentBlockReason()` / `isAmended()` /
   `amendmentOrder()` / `documentTitle()` (regra), `App\Services\FreelancerService::createAmendment()`
   (criação + marcação do base, em transação) e `deleteService()` / `cancelService()` (desfazer),

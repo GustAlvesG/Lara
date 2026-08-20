@@ -163,6 +163,9 @@ class FreelancerService
     /**
      * @param  array|null  $report  relatório do MultiVendas, gravado como anexo
      *                              do documento (ver MultiVendasSalesReport)
+     * @param  string|null  $adjustmentReason  por que o valor apurado no relatório
+     *                              foi alterado — obrigatório justamente nesse
+     *                              caso, e ignorado quando não houve alteração
      */
     public function createSalesCommission(
         FreelancerServiceModel $base,
@@ -170,6 +173,7 @@ class FreelancerService
         float $salesAmount,
         ?User $actor = null,
         ?array $report = null,
+        ?string $adjustmentReason = null,
     ) {
         if ($reason = $base->commissionBlockReason()) {
             throw new FreelancerServiceLockedException($reason);
@@ -195,7 +199,20 @@ class FreelancerService
         $fromSystem = $report !== null
             && abs((float) ($report['base'] ?? 0) - $salesAmount) < 0.01;
 
-        return DB::transaction(function () use ($base, $method, $salesAmount, $actorId, $report, $fromSystem) {
+        // Alterar o valor apurado exige justificativa, e a trava mora aqui — não
+        // só no controller — porque é daqui que sai o documento assinado. O termo
+        // declara uma diferença em relação ao seu próprio anexo; sem o motivo, o
+        // freelancer assina um número que ninguém explicou.
+        $adjusted = FreelancerServiceModel::salesAdjustmentIsRequired($report, $salesAmount);
+        $adjustmentReason = $adjusted ? trim((string) $adjustmentReason) : null;
+
+        if ($adjusted && mb_strlen((string) $adjustmentReason) < FreelancerServiceModel::SALES_ADJUSTMENT_REASON_MIN) {
+            throw new FreelancerServiceLockedException(
+                'Informe a justificativa da alteração do valor apurado no relatório de vendas.'
+            );
+        }
+
+        return DB::transaction(function () use ($base, $method, $salesAmount, $actorId, $report, $fromSystem, $adjustmentReason) {
             return FreelancerServiceModel::create([
                 'freelancer_id' => $base->freelancer_id,
                 'function_freelancer_id' => $base->function_freelancer_id,
@@ -219,6 +236,7 @@ class FreelancerService
                 'sales_period_start' => $report['period']['start'] ?? null,
                 'sales_period_end' => $report['period']['end'] ?? null,
                 'sales_report' => $report,
+                'sales_adjustment_reason' => $adjustmentReason,
                 'created_by' => $actorId,
                 'updated_by' => $actorId,
             ]);
@@ -308,7 +326,11 @@ class FreelancerService
             'freelancer_signed_by' => $assistedBy?->id,
             'pix_key' => $service->freelancer?->pixKey(),
             'pix_key_confirmed_at' => $pixKeyConfirmed ? now() : null,
-        ])->save();
+            // A redação das cláusulas e a qualificação das partes ficam
+            // congeladas neste mesmo save, pelo mesmo motivo da chave PIX: o
+            // documento assinado não pode passar a dizer outra coisa porque o
+            // jurídico revisou um texto ou alguém corrigiu o cadastro.
+        ] + $service->contractFreezeAttributes())->save();
 
         return $service;
     }
@@ -381,7 +403,11 @@ class FreelancerService
         $service->forceFill([
             'coordinator_signed_at' => now(),
             'coordinator_signed_by' => $user->id,
-        ])->save();
+            // Congela o documento se ninguém tiver assinado antes. Na prática o
+            // freelancer sempre assina primeiro (a fila do coordenador só mostra
+            // o que ele já assinou), e aí não há nada a congelar aqui — mas a
+            // garantia é da primeira assinatura, não de qual das duas.
+        ] + $service->contractFreezeAttributes())->save();
 
         return $service;
     }

@@ -102,6 +102,12 @@ Route::prefix('kiosk')->group(function () {
     Route::post('/service/{freelancerService}/sign', [KioskController::class, 'signService'])
         ->middleware('throttle:20,1')->name('kiosk.service.sign');
 
+    // O documento é montado pelo SERVIDOR, pelo mesmo Blade que o painel
+    // imprime — o tablet apenas o exibe. Com o texto do contrato em dois
+    // lugares, cada revisão do jurídico teria de ser escrita duas vezes.
+    Route::get('/service/{freelancerService}/document', [KioskController::class, 'document'])
+        ->name('kiosk.service.document');
+
     // Imagem da assinatura — servida por rota (e não pelo disco público) porque é
     // dado pessoal e porque o link public/storage nem sempre existe no ambiente.
     Route::get('/service/{freelancerService}/signature/{party}', [KioskController::class, 'signatureImage'])
