@@ -52,6 +52,27 @@ return [
             'throw' => false,
         ],
 
+        /*
+         * Mídia do Placar Clube (logos, fotos e vídeos de jogador).
+         *
+         * Aponta para dentro de `public/` de propósito, e não para
+         * `storage/app/public` + `storage:link`: este projeto nunca usou o
+         * symlink do Laravel (`public/storage` já é um diretório real, com
+         * arquivos de outras áreas), e o telão precisa que a mídia seja
+         * servida como arquivo estático pelo servidor web — sem passar por
+         * PHP a cada imagem, e com suporte nativo a range request, que é o
+         * que permite buscar/seekar o vídeo do jogador.
+         *
+         * Grava por aqui; a URL sai por ImagemService::url().
+         */
+        'placar' => [
+            'driver' => 'local',
+            'root' => public_path('storage'),
+            'url' => '/storage',
+            'visibility' => 'public',
+            'throw' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

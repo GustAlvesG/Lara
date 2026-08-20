@@ -9,6 +9,7 @@
         "barryvdh/laravel-dompdf": "^3.1",
         "firebase/php-jwt": "^6.11",
         "laravel/framework": "^11.0",
+        "laravel/sanctum": "^4.3",
         "laravel/tinker": "^2.9",
         "league/flysystem-ftp": "^3.27",
         "phpoffice/phpspreadsheet": "^5.8",
