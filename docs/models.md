@@ -91,6 +91,18 @@ deletes, scopes globais, etc.).
 - **Relacionamentos:** `freelancer()` belongsTo Freelancer · `functionFreelancer()` belongsTo FunctionFreelancer · `status()` belongsTo Status · `pixPayments()` hasMany PixPayment · `latestPixPayment()` hasOne PixPayment (`latestOfMany`)
 - **Estado do Pix:** `hasPixInProgress()` e `canRequestPix()` — leitura da tela. Quem decide de
   fato é `FreelancerService::pixBlockReason()` no servidor, com lock.
+- **Liberação para a coordenação:** `releasesAt()` / `hasBeenReleased()` / `releaseBlockReason()` e
+  o escopo `released()` (com `lastReleasedDate()`) — o contrato só é assinado pelo coordenador e
+  entra em lote às **08h do dia seguinte ao turno** (`RELEASE_HOUR`), porque até lá ainda cabe
+  aditivo. Ver [Freelancers](funcionalidades/freelancers.md).
+- **Etapa do trâmite:** `trackingStage()` / `trackingStageLabel()` sobre `TRACKING_STAGES` — a
+  leitura única das quatro etapas (assinaturas, gerência, diretoria, pagamento) que a tela de
+  Acompanhamento usa. Os escopos `awaitingSignature`, `awaitingManagerReview`,
+  `awaitingDirectorReview`, `awaitingPayment` e `paidServices` são a mesma regra em SQL.
+- **Chave PIX do documento:** `pix_key` + `pix_key_confirmed_at` guardam a chave que o freelancer
+  conferiu no tablet ao assinar — é ela que o contrato cita (`pixKey()`, com queda para o cadastro
+  nos contratos antigos). `pixKeyDivergesFromFreelancer()` acusa o cadastro alterado depois da
+  assinatura. Ver [Freelancers](funcionalidades/freelancers.md).
 
 ### PixPayment
 - **Tabela:** `pix_payments` — **trilha de auditoria de dinheiro real.** Uma linha por
@@ -243,3 +255,110 @@ deletes, scopes globais, etc.).
 
 ### MediaAttachment
 - **`$fillable`:** `message_id`, `whatsapp_media_id`, `file_type`, `mime_type`, `file_path`, `file_name`
+
+---
+
+## Placar Clube (`app/Models/Placar/`)
+
+API + telas para o placar eletrônico do Node (futsal, basquete, vôlei). O Node não tem banco
+próprio de cadastro — consome esta API. Ver `docs/placar-clube-api.md`.
+
+### Modalidade
+- **Tabela:** `modalidades` — referência fixa (3 linhas, seed em `ModalidadeSeeder`)
+- **`$fillable`:** `nome`, `slug`, `ativo` · **`$casts`:** `ativo` → `boolean`
+- **Relacionamentos:** `times()` hasMany Time · `competicoes()` hasMany Competicao · `jogos()` hasMany Jogo
+- `slug` (`futsal`/`basquete`/`volei`) é o que o Node usa no campo `esporte` do gameState.
+
+### Equipe
+- **Tabela:** `equipes` · **SoftDeletes**
+- **`$fillable`:** `nome`, `nome_curto`, `logo_path`, `cidade`, `criado_em_campo`, `ativo`
+- **Relacionamentos:** `times()` hasMany Time
+- **`logoUrl()`** resolve a URL absoluta da logo própria (ou `null`) — é o fallback de `Time::logoUrl()`.
+
+### Time
+- **Tabela:** `times` · **SoftDeletes** · `UNIQUE (equipe_id, modalidade_id, categoria)`
+- **`$fillable`:** `equipe_id`, `modalidade_id`, `categoria`, `nome_exibicao`, `logo_path`, `criado_em_campo`, `ativo`
+- **Relacionamentos:** `equipe()` belongsTo Equipe · `modalidade()` belongsTo Modalidade ·
+  `elencos()` hasMany Elenco · `escalacoes()` hasMany Escalacao · `jogosEmCasa()`/`jogosFora()`
+  hasMany Jogo (`time_casa_id`/`time_fora_id`)
+- Recorte de uma equipe por modalidade + categoria — não confundir com Equipe. Um mesmo
+  jogador pode estar em times diferentes da mesma equipe (ex.: Sub-17 → Adulto), com número de
+  camisa próprio em cada um (ver Elenco).
+- **`categoria` passa por `CategoriaService::resolver()`** nas duas portas de entrada (cadastro
+  web e criação em campo da API): "Sub 15"/"sub15"/"SUB-15" caem na grafia já cadastrada em vez
+  de furar o UNIQUE e duplicar o time. Um jogo só pode ser criado entre times da **mesma**
+  categoria, comparada por `CategoriaService::chave()` (sem caixa/acento/separador, para não
+  barrar grafias legadas divergentes).
+- **`nomeExibicaoResolvido()`**: se `nome_exibicao` for nulo, monta a partir de
+  `equipe.nome_curto ?: equipe.nome` + `categoria`. **`logoUrl()`**: própria, senão herda da equipe.
+
+### Jogador
+- **Tabela:** `jogadores` · **SoftDeletes** · índice `(equipe_id, modalidade_id)`
+- **`$fillable`:** `equipe_id`, `modalidade_id`, `nome`, `nome_exibicao`, `foto_path`, `video_path`, `data_nascimento`, `criado_em_campo`, `ativo`
+- **`$casts`:** `data_nascimento` → `date`
+- **Relacionamentos:** `equipe()` belongsTo Equipe · `modalidade()` belongsTo Modalidade ·
+  `elencos()` hasMany Elenco · `escalacoes()` hasMany Escalacao ·
+  `eventos()` hasMany JogoEvento · `times()` belongsToMany Time (pivô `elencos`, com `temporada`/`numero`/`posicao`/`ativo`)
+- **O jogador pertence a UMA equipe e UMA modalidade.** Pode estar em vários times daquela
+  equipe (Sub-15 e Adulto, por exemplo), nunca em time de outra equipe ou modalidade.
+  `podeJogarPor(Time)` é o ponto único da regra; o scope `elegiveisPara(Time)` filtra os
+  candidatos ao elenco. Trocar equipe/modalidade só é possível enquanto o jogador não
+  estiver em elenco nenhum — os vínculos existentes ficariam inválidos.
+- As colunas são nullable no schema (para a migration não abortar em base que já tinha
+  jogadores) mas obrigatórias na aplicação. `precisaDeRevisao()` marca quem ficou sem, e a
+  listagem tem filtro "só pendentes de revisão".
+- **`nomeExibicaoResolvido()`**: nome curto do telão, ou `nome`. **`fotoUrl()`**/**`videoUrl()`**: URL absoluta ou `null`.
+- **Como dado pessoal, o cadastro guarda só nome e data de nascimento** — `documento` foi
+  removido (não era usado em lugar nenhum do módulo). **`idade()`** devolve os anos
+  completos, ou `null` sem data de nascimento: é o que a montagem do elenco mostra para
+  conferir a categoria do time, e o que a API entrega em `idade`.
+- Foto e vídeo são independentes e usados em momentos diferentes pelo telão (foto na
+  escalação/súmula, vídeo na entrada em quadra). Ambos vivem em
+  `public/storage/placar/jogadores/{id}/` — arquivo estático, ver `ImagemService`/`VideoService`.
+
+### Elenco
+- **Tabela:** `elencos` — vínculo jogador ↔ time por temporada · `UNIQUE (time_id, jogador_id, temporada)`
+- **`$fillable`:** `time_id`, `jogador_id`, `temporada`, `numero`, `posicao`, `ativo`
+- **Relacionamentos:** `time()` belongsTo Time · `jogador()` belongsTo Jogador
+
+### Competicao
+- **Tabela:** `competicoes`
+- **`$fillable`:** `nome`, `modalidade_id`, `temporada`, `ativo`
+- **Relacionamentos:** `modalidade()` belongsTo Modalidade · `jogos()` hasMany Jogo
+
+### Jogo
+- **Tabela:** `jogos` · **SoftDeletes**
+- **`$fillable`:** `competicao_id`, `modalidade_id`, `time_casa_id`, `time_fora_id`, `data_hora`,
+  `local`, `status`, `placar_casa`, `placar_fora`, `sets_casa`, `sets_fora`, `periodos_jogados`,
+  `criado_em_campo`, `observacoes`
+- **`$casts`:** `data_hora` → `datetime`
+- **Relacionamentos:** `competicao()` belongsTo Competicao (nullable) · `modalidade()` belongsTo
+  Modalidade · `timeCasa()`/`timeFora()` belongsTo Time · `escalacoes()` hasMany Escalacao ·
+  `eventos()` hasMany JogoEvento (ordenado por `sequencia`)
+- **`status`**: `agendado` | `ao_vivo` | `encerrado` | `cancelado` (const `STATUSES`).
+  `placar_casa`/`placar_fora`/`sets_*` são **cache** derivado de `jogo_eventos` — a verdade é
+  sempre o log de eventos.
+
+### Escalacao
+- **Tabela:** `escalacoes` — quem foi relacionado NESTE jogo (distinto do elenco da temporada) ·
+  `UNIQUE (jogo_id, jogador_id)`
+- **`$fillable`:** `jogo_id`, `time_id`, `jogador_id`, `numero`, `titular`, `capitao`
+- **Relacionamentos:** `jogo()` belongsTo Jogo · `time()` belongsTo Time · `jogador()` belongsTo Jogador
+
+### JogoEvento
+- **Tabela:** `jogo_eventos` — **log append-only, o coração do scout.** `UPDATED_AT = null`.
+  `UNIQUE (jogo_id, sequencia)` · índices em `jogador_id` e `tipo`
+- **`$fillable`:** `uuid`, `jogo_id`, `sequencia`, `tipo`, `time_id`, `jogador_id`, `valor`,
+  `periodo`, `cronometro_ms`, `ocorrido_em`, `payload`
+- **`$casts`:** `ocorrido_em` → `datetime:Y-m-d H:i:s.v` (precisão de ms) · `payload` → `array`
+- **Relacionamentos:** `jogo()` belongsTo Jogo · `time()`/`jogador()` belongsTo (nullable)
+- **Nunca sofre UPDATE nem DELETE pela API.** `uuid` é gerado pelo Node (idempotência contra
+  reenvio de fila offline); `sequencia` é o contador incremental do jogo, também gerado pelo
+  Node. Correção de um evento é um evento novo `estorno` referenciando o `uuid` original no
+  `payload`. `tipo` ∈ const `TIPOS` (`inicio_jogo`, `fim_jogo`, `ponto`, `falta`, `set`,
+  `periodo`, `crono_play`, `crono_pause`, `crono_set`, `substituicao`, `timeout`, `cartao`,
+  `estorno`).
+- **`TIPOS_COM_MINUTAGEM`** (`ponto`, `falta`) exigem `cronometro_ms`: o scout mede atuação
+  numa partida, e sem o instante do lance a ficha não serve. Evento sem minutagem é rejeitado
+  individualmente, sem derrubar o lote. `formatarMinuto()`/`minuto()` convertem para "MM:SS"
+  num ponto só, para súmula, ficha de atuação e Node exibirem igual.

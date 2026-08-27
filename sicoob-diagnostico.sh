@@ -326,6 +326,64 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Sondagem: o bloqueio é por PRODUTO?
+#
+# `POST /conta-corrente/v4/transferencias` vive no produto Conta Corrente, que
+# já responde 200 no /saldo. Se ele passar da camada de segurança, fica provado
+# que a autorização é por produto — e que o Pix está barrado por não estar
+# assinado, não por credencial, header ou certificado.
+#
+# SEGURANÇA: o corpo enviado é `{}` — vazio. Sem conta de origem, conta de
+# destino nem valor, não existe transferência a executar: a API só pode recusar
+# por validação. Um 400/422 aqui é a resposta que queremos, e ela NÃO move
+# dinheiro. Nenhum payload de transferência válido é montado em lugar nenhum
+# deste script.
+# ---------------------------------------------------------------------------
+titulo "O bloqueio é por produto? (corpo VAZIO — não há transferência a executar)"
+
+if [ -n "$TOKEN_CC" ]; then
+    TOKEN_CC_TRANSF=$(pedir_token "cco_transferencias")
+
+    if [ -n "$TOKEN_CC_TRANSF" ]; then
+        info "escopo cco_transferencias concedido: $(escopos_do_token "$TOKEN_CC_TRANSF")"
+    else
+        aviso "o SSO não emitiu token para cco_transferencias"
+        TOKEN_CC_TRANSF="$TOKEN_CC"
+    fi
+
+    CORPO="{}"
+    chamar "POST /conta-corrente/v4/transferencias  [corpo vazio]" POST "$CC_URL/transferencias" \
+        "Authorization: Bearer $TOKEN_CC_TRANSF" "client_id: $CLIENT_ID" \
+        "x-idempotency-key: 00000000-0000-4000-8000-000000000000"
+    CORPO=""
+
+    info ""
+    info "Leitura: 400/422/404 => a camada de segurança PASSOU (o bloqueio do Pix é"
+    info "         por produto). 401 => o mesmo bloqueio, e aí é credencial/gateway."
+else
+    aviso "sem token de Conta Corrente — sondagem pulada"
+fi
+
+# O `id_token` que as APIs de transferência exigem não é emitido por
+# client_credentials puro. Vale conferir se o SSO devolve algum, porque a
+# ausência dele inviabiliza TED e transferência entre contas por este fluxo.
+titulo "O SSO emite id_token? (necessário para TED e transferência entre contas)"
+
+for ESC in "cco_transferencias" "openid cco_transferencias"; do
+    RESP=$(curl "${CURL_MTLS[@]}" -X POST "$TOKEN_URL" \
+        -H 'Content-Type: application/x-www-form-urlencoded' \
+        --data-urlencode "grant_type=client_credentials" \
+        --data-urlencode "client_id=$CLIENT_ID" \
+        --data-urlencode "scope=$ESC" 2>/dev/null)
+
+    if printf '%s' "$RESP" | grep -q '"id_token"'; then
+        ok "escopo \"$ESC\" devolveu id_token"
+    else
+        info "escopo \"$ESC\": sem id_token na resposta"
+    fi
+done
+
+# ---------------------------------------------------------------------------
 # Leitura do resultado
 # ---------------------------------------------------------------------------
 titulo "Resumo"
