@@ -16,7 +16,14 @@ use Illuminate\Support\Str;
 class UberAccessRequestFlow
 {
     private const TRIGGER_TEXT = 'Carro de Aplicativo';
-    private const SESSION_TIMEOUT_MINUTES = 30;
+
+    /**
+     * Tempo máximo sem resposta do associado durante a coleta. Estourado o
+     * prazo o pedido vira "expirado" e as respostas atrasadas são ignoradas —
+     * só um novo gatilho recomeça o fluxo, do zero.
+     */
+    public const SESSION_TIMEOUT_SECONDS = 200;
+
     private const ACCESS_VALIDITY_MINUTES = 30;
     private const PLATE_PATTERN = '/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/';
 
@@ -41,13 +48,25 @@ class UberAccessRequestFlow
             : $this->maybeStartSession($message);
     }
 
+    /**
+     * Só a fase de coleta expira por inatividade. Um pedido já em
+     * "aguardando_acesso" está completo e vive até `expires_at` — aplicar o
+     * timeout de resposta ali mataria o pedido antes de o motorista chegar.
+     */
     private function isExpired(UberAccessRequest $request): bool
     {
+        if (!in_array($request->status, UberAccessRequest::CAPTURE_STATUSES, true)) {
+            return false;
+        }
+
         if (!$request->last_message_at) {
             return false;
         }
 
-        return $request->last_message_at->diffInMinutes(now()) > self::SESSION_TIMEOUT_MINUTES;
+        return $request->last_message_at
+            ->copy()
+            ->addSeconds(self::SESSION_TIMEOUT_SECONDS)
+            ->isPast();
     }
 
     private function maybeStartSession(ParsedPoliMessage $message): ?UberAccessRequest

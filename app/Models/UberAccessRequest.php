@@ -30,6 +30,19 @@ class UberAccessRequest extends Model
         self::STATUS_EXPIRADO,
     ];
 
+    /**
+     * Etapas em que o fluxo ainda está coletando respostas no WhatsApp. São as
+     * únicas sujeitas ao timeout de inatividade: depois de "aguardando_acesso"
+     * o associado já respondeu tudo e quem manda é a validade (expires_at).
+     */
+    public const CAPTURE_STATUSES = [
+        self::STATUS_AGUARDANDO_MATRICULA,
+        self::STATUS_AGUARDANDO_NOME,
+        self::STATUS_AGUARDANDO_LOCAL,
+        self::STATUS_AGUARDANDO_PLACA,
+        self::STATUS_AGUARDANDO_PRINT,
+    ];
+
     public const STATUS_LABELS = [
         self::STATUS_AGUARDANDO_MATRICULA => 'Aguardando matrícula',
         self::STATUS_AGUARDANDO_NOME      => 'Aguardando nome',

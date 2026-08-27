@@ -4,12 +4,22 @@ namespace Tests\Feature;
 
 use App\Models\UberAccessRequest;
 use App\Models\UberAccessRequestMessage;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
+/**
+ * Sem RefreshDatabase pelo mesmo motivo registrado em LaraMessageHistoryTest:
+ * a cadeia completa de migrations falha hoje em `add_columns_member` x
+ * `tourments`. Aqui só as migrations desta feature são aplicadas.
+ */
 class PruneUberAccessRequestMessagesTest extends TestCase
 {
-    use DatabaseTransactions;
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        (require base_path('database/migrations/2026_07_20_150000_create_uber_access_requests_tables.php'))->up();
+        (require base_path('database/migrations/2026_07_21_120000_add_matricula_to_uber_access_requests.php'))->up();
+    }
 
     private function makeMessage(string $poliMessageId, ?int $requestId, $createdAt): UberAccessRequestMessage
     {
