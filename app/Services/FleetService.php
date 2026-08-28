@@ -77,7 +77,7 @@ class FleetService
             'active'           => $vehicle->active,
             'current_odometer' => $vehicle->current_odometer,
             'status'           => $openTrip ? 'out' : 'available',
-            'status_label'     => $openTrip ? 'Em rota' : 'Na garagem',
+            'status_label'     => $openTrip ? 'Em rota' : 'No Clube',
             'open_trip'        => $openTrip?->toApiArray(),
         ];
     }

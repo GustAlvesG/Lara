@@ -103,7 +103,7 @@
                                 </div>
                                 <span class="px-3 py-1 rounded-full text-xs font-bold
                                     {{ $trip ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' }}">
-                                    {{ $trip ? 'Em rota' : 'Na garagem' }}
+                                    {{ $trip ? 'Em rota' : 'No Clube' }}
                                 </span>
                             </div>
 

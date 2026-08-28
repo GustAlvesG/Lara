@@ -12,7 +12,7 @@ return [
     | aviso e passa quando o operador confirma com `force`.
     |
     */
-    'max_trip_km' => (int) env('FLEET_MAX_TRIP_KM', 1500),
+    'max_trip_km' => (int) env('FLEET_MAX_TRIP_KM', 9999999),
 
     /*
     |--------------------------------------------------------------------------
