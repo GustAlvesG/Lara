@@ -126,6 +126,7 @@ Prefixo `/api`. Legenda de middleware: **T** = `api_token`, **L** = `login_token
 | POST | `/api/company-access/register-worker-access` | CompanyAccessRulesController@registerWorkerAccess |
 | POST | `/api/company-access/register-freelancer-access` | CompanyAccessRulesController@registerFreelancerAccess |
 | GET | `/api/schedule/home-assistant/automation` | ScheduleController@homeAssistantAutomation |
+| GET | `/api/freelancer/dinners` | Freelancer\DinnerApiController@index (jantar dos freelancers, lida pela cozinha) |
 
 ### Com `api_token` (T)
 | Método | URI | Ação |

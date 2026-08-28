@@ -102,6 +102,10 @@ Route::prefix('kiosk')->group(function () {
         ->middleware('throttle:20,1')->name('kiosk.service.sales-report');
     Route::post('/service/{freelancerService}/sign', [KioskController::class, 'signService'])
         ->middleware('throttle:20,1')->name('kiosk.service.sign');
+    // Jantar do turno noturno: a pergunta que o tablet faz logo depois da
+    // assinatura, para a cozinha saber quantos pratos preparar.
+    Route::post('/service/{freelancerService}/dinner', [KioskController::class, 'dinnerAnswer'])
+        ->middleware('throttle:20,1')->name('kiosk.service.dinner');
 
     // O documento é montado pelo SERVIDOR, pelo mesmo Blade que o painel
     // imprime — o tablet apenas o exibe. Com o texto do contrato em dois

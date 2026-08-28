@@ -99,6 +99,13 @@ deletes, scopes globais, etc.).
   leitura única das quatro etapas (assinaturas, gerência, diretoria, pagamento) que a tela de
   Acompanhamento usa. Os escopos `awaitingSignature`, `awaitingManagerReview`,
   `awaitingDirectorReview`, `awaitingPayment` e `paidServices` são a mesma regra em SQL.
+- **Jantar do turno noturno:** `isDinnerEligible()` (6h ou mais, estar em serviço em algum momento
+  da janela de 17:30 às 18:30 — meia janta é janta — e o dia ser igual ou posterior a
+  `DINNER_STARTS_ON`, **31/08/2026**, quando a cozinha passa a servir), `dinnerDate()` (o dia em que
+  ele janta — que no turno virando a
+  meia-noite **não** é `start_date`), `needsDinnerAnswer()` e o escopo `dinnerConfirmedOn($date)`,
+  que é a consulta da cozinha. As colunas são `dinner_wanted`, `dinner_date`, `dinner_answered_at` e
+  `dinner_answered_by`. Ver [Freelancers](funcionalidades/freelancers.md).
 - **Chave PIX do documento:** `pix_key` + `pix_key_confirmed_at` guardam a chave que o freelancer
   conferiu no tablet ao assinar — é ela que o contrato cita (`pixKey()`, com queda para o cadastro
   nos contratos antigos). `pixKeyDivergesFromFreelancer()` acusa o cadastro alterado depois da

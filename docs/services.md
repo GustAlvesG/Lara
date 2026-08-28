@@ -101,6 +101,7 @@ banco e integrações externas. Os controllers delegam a essas classes.
 | `requestPixForMany` | `requestPixForMany(array $ids, User $user): array` | **Move dinheiro.** Cria um `PixPayment` e enfileira um `SendFreelancerPixPayment` por contrato. Retorna `{queued, skipped, problems}`. **Não** marca `paid` — a baixa vem depois, do banco. |
 | `pixBlockReason` | `pixBlockReason(FreelancerService $service): ?string` | Por que o contrato não pode receber Pix agora (sem chave, sem valor, acima do teto, ou já com pagamento em andamento). `null` quando pode. É a trava contra pagamento em dobro. |
 | `markAsPaidFromPix` | `markAsPaidFromPix(PixPayment $payment): ?FreelancerService` | Grava a baixa a partir de um Pix `FINALIZADO`. Idempotente — job e reconciliação podem chamar para o mesmo pagamento. |
+| `recordDinnerAnswer` | `recordDinnerAnswer(FreelancerService $service, bool $wantsDinner, ?User $assistedBy = null)` | Grava a resposta do jantar, perguntada no tablet depois da assinatura. Registra `dinner_date` junto — é por ela que a cozinha consulta. Lança `FreelancerServiceLockedException` no contrato cancelado, não assinado, sem direito ou **já respondido**: a resposta vale uma vez só. |
 
 ---
 

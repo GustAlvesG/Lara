@@ -28,6 +28,7 @@ use App\Http\Controllers\TelegramContactController;
 use App\Http\Controllers\FreelancerController;
 use App\Http\Controllers\FunctionFreelancerController;
 use App\Http\Controllers\FreelancerServiceController;
+use App\Http\Controllers\Freelancer\DinnerApiController as FreelancerDinnerApiController;
 use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\UberAccessRequestWebhookController;
 use App\Http\Controllers\InformationSearchController;
@@ -127,6 +128,26 @@ Route::prefix('company-access')->group(function () {
     Route::post('/register-access', [CompanyAccessRulesController::class, 'registerAccess'])->name('company_access.register');
     Route::post('/register-worker-access', [CompanyAccessRulesController::class, 'registerWorkerAccess'])->name('company_access.register_worker');
     Route::post('/register-freelancer-access', [CompanyAccessRulesController::class, 'registerFreelancerAccess'])->name('company_access.register_freelancer');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Freelancers — jantar do turno noturno
+|--------------------------------------------------------------------------
+|
+| Consumida pela COZINHA, para dimensionar quantos pratos preparar. Traz só
+| quem respondeu SIM à pergunta feita no tablet depois da assinatura, e pela
+| data do JANTAR — que no turno que vira a meia-noite não é a data de início
+| do contrato.
+|
+| SEM `api_token`, por decisão de quem opera: o painel da cozinha consulta sem
+| carregar o token. Por isso o CPF NÃO vai no payload — a lista é aberta, e
+| identificar quem janta pelo nome basta para servir o prato. Ver
+| `DinnerApiController`.
+*/
+Route::prefix('freelancer')->group(function () {
+    Route::get('/dinners', [FreelancerDinnerApiController::class, 'index'])
+        ->name('api.freelancer.dinners');
 });
 
 Route::middleware('api_token')->group(function () {

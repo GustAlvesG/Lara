@@ -740,6 +740,29 @@
       </div>
     </section>
 
+    <!-- ===== JANTAR (perguntado logo depois da assinatura) =====
+         Turno de 6h ou mais que alcança a janela do jantar dá direito à refeição.
+         Quem decide se esta tela aparece é o servidor (`needs_dinner_answer`);
+         aqui só se registra o que o freelancer responder. -->
+    <section class="screen" id="s-janta">
+      <div class="screen-body" style="display:flex;flex-direction:column;justify-content:center;min-height:100%">
+        <div style="text-align:center">
+          <p class="eyebrow" style="text-align:center">Contrato assinado</p>
+          <h2 class="title" style="text-align:center">Vai jantar?</h2>
+          <p class="subtitle" style="text-align:center" id="jantarSub">Este turno dá direito à refeição. Pergunte ao freelancer: a cozinha prepara os pratos por esta resposta.</p>
+        </div>
+        <div class="receipt" id="jantarCard" style="margin-top:18px"></div>
+        <div class="hint" id="jantarHint" style="text-align:center;color:var(--brand);font-size:13px;min-height:18px;margin-top:10px">&nbsp;</div>
+      </div>
+      <div class="screen-foot">
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-ghost" id="jantarNao" style="flex:1">Não vai jantar</button>
+          <button class="btn btn-primary" id="jantarSim" style="flex:1">Sim, vai jantar</button>
+        </div>
+        <button class="btn-quiet btn" id="jantarDepois">Responder depois</button>
+      </div>
+    </section>
+
   </div>
 
   <div class="success" id="success">
@@ -780,6 +803,8 @@
               // Redação das cláusulas do documento em tela, reenviada na
               // assinatura para o servidor conferir que é a mesma.
               contractVersion:null,
+              // Contrato cuja pergunta do jantar está na tela.
+              janta:null,
               signature:null, pinMode:null, timer:null, remaining:1800, count:0 };
 
   /* ---------- Helpers ---------- */
@@ -813,7 +838,7 @@
   }
   $$('[data-go]').forEach(b=> b.addEventListener('click', ()=> go('s-'+b.dataset.go)));
   function updateCtx(){
-    const map={'s-mode':'Escolha o modo','s-coord':'Contratos pendentes','s-lote':'Lote de aprovação','s-cpf':'Localizar freelancer','s-cadastro':'Cadastro','s-menu':'Atendimento','s-novo':'Novo contrato','s-previa':'Prévia','s-contratos':'Contratos','s-aditivo':'Aditivo','s-adit-previa':'Prévia do aditivo','s-comissao':'Comissão de venda','s-com-previa':'Prévia da comissão','s-pix':'Conferência da chave PIX','s-assinar':'Assinatura','s-pin':'Confirmação'};
+    const map={'s-mode':'Escolha o modo','s-coord':'Contratos pendentes','s-lote':'Lote de aprovação','s-cpf':'Localizar freelancer','s-cadastro':'Cadastro','s-menu':'Atendimento','s-novo':'Novo contrato','s-previa':'Prévia','s-contratos':'Contratos','s-aditivo':'Aditivo','s-adit-previa':'Prévia do aditivo','s-comissao':'Comissão de venda','s-com-previa':'Prévia da comissão','s-pix':'Conferência da chave PIX','s-assinar':'Assinatura','s-pin':'Confirmação','s-janta':'Jantar'};
     if(S.mode==='coordinator'){ $('#ctxLine').textContent='Coordenação · '+(S.operator&&S.operator.coordinator_sector||'Comercial'); return; }
     $('#ctxLine').textContent = S.freelancer ? S.freelancer.name : (map[current]||'Sessão de atendimento');
   }
@@ -1116,6 +1141,7 @@
                      : c.is_amendment ? '<span class="chip adit">Aditivo</span>'
                      : (c.is_amended ? '<span class="chip unsigned">Aditivado</span>' : '');
       const acts = (c.can_be_signed ? '<button class="btn btn-primary" data-sign>Assinar</button>' : '')
+                 + (c.needs_dinner_answer ? '<button class="btn btn-ghost" data-janta>Jantar</button>' : '')
                  + (c.can_be_amended ? '<button class="btn btn-ghost" data-adit>Fazer aditivo</button>' : '')
                  + (c.can_receive_commission ? '<button class="btn btn-ghost" data-com>Comissão de venda</button>' : '');
       const el=document.createElement('div'); el.className='contract';
@@ -1127,6 +1153,7 @@
       const sign=el.querySelector('[data-sign]'); if(sign) sign.addEventListener('click', ()=> openSign(c));
       const adit=el.querySelector('[data-adit]'); if(adit) adit.addEventListener('click', ()=> startAditivo(c));
       const com=el.querySelector('[data-com]'); if(com) com.addEventListener('click', ()=> startComissao(c));
+      const jnt=el.querySelector('[data-janta]'); if(jnt) jnt.addEventListener('click', ()=> openJantar(c, true));
       list.appendChild(el);
     });
   }
@@ -1833,7 +1860,14 @@
       // cita a chave antiga.
       const r=await api('POST',`/kiosk/service/${S.signing.id}/sign`,
         { pin, signature:S.signature, pix_key:S.freelancer.pix_key, contract_version:S.contractVersion });
-      if(r.ok){ applySession(r.data.session); showSuccess('Contrato assinado', `Assinatura de ${S.freelancer.name} registrada, auxiliada por ${S.operator.name}. O atendimento será encerrado.`); }
+      if(r.ok){
+        applySession(r.data.session);
+        // Turno com direito à refeição: a pergunta do jantar vem antes de
+        // encerrar o atendimento — é agora que o freelancer está aqui para
+        // responder, e é desta resposta que a cozinha tira o número de pratos.
+        if(r.data.service && r.data.service.needs_dinner_answer){ openJantar(r.data.service); return; }
+        showSuccess('Contrato assinado', `Assinatura de ${S.freelancer.name} registrada, auxiliada por ${S.operator.name}. O atendimento será encerrado.`);
+      }
       else if(r.status===401){ $('#pinOpHint').textContent='PIN inválido.'; resetPinOp(); }
       else if(r.status===409 && r.data && r.data.pix_key_changed){
         if(r.data.freelancer) S.freelancer=r.data.freelancer;
@@ -1860,10 +1894,72 @@
     }catch(e){ if(!e.handled) toast('Falha de conexão.',true); resetPinOp(); }
   }
 
+  /* ---------- Jantar ----------
+     Turno de 6h ou mais que alcança a janela do jantar (17:30 às 18:30) dá
+     direito à refeição — meia janta é janta, quem sai 18:00 come.
+     A pergunta é feita aqui, logo depois da assinatura,
+     porque é a única hora em que o freelancer está na frente do tablet — e a
+     cozinha precisa do número de pratos antes do fim da tarde, não depois. */
+  function openJantar(c, fromList){
+    S.janta=c;
+    // Respondido a partir da lista, o atendimento continua: volta-se aos
+    // contratos daquele freelancer, não à tela do próximo CPF.
+    S.jantaFromList=!!fromList;
+    $('#jantarCard').innerHTML =
+      `<div class="head"><div class="fn">${esc(S.freelancer ? S.freelancer.name : '')}</div><div class="fl">${esc(c.function||'—')}</div></div>`
+      + rrow('Turno', `${c.start_date_br} · ${c.start_time}–${c.end_time}`)
+      + rrow('Jantar servido', esc(c.dinner_window||'17:30 às 18:30'));
+    $('#jantarHint').innerHTML='&nbsp;';
+    setJantarBusy(false);
+    go('s-janta');
+  }
+  function setJantarBusy(busy){
+    $('#jantarSim').disabled=busy; $('#jantarNao').disabled=busy; $('#jantarDepois').disabled=busy;
+  }
+  async function submitJanta(wants){
+    if(!S.janta) return;
+    // Respondido a partir da lista, o atendimento continua e a tela de sucesso
+    // não entra: ela encerra o atendimento (zera S.freelancer), e a lista de
+    // contratos precisa do freelancer para recarregar.
+    const daLista = S.jantaFromList;
+    setJantarBusy(true);
+    try{
+      const r=await api('POST',`/kiosk/service/${S.janta.id}/dinner`,{ wants_dinner: wants });
+      if(r.ok){
+        applySession(r.data.session);
+        if(daLista){ toast(wants ? 'Jantar confirmado.' : 'Registrado: não vai jantar.'); openContratos(); return; }
+        showSuccess(wants ? 'Jantar confirmado' : 'Jantar dispensado',
+          wants ? 'A cozinha já conta com este prato. O atendimento será encerrado.'
+                : 'Registrado que não vai jantar. O atendimento será encerrado.');
+        return;
+      }
+      // 409: o contrato foi cancelado, aditivado ou já respondido em outra
+      // sessão enquanto esta tela estava aberta. Não há o que reperguntar.
+      if(r.status===409){
+        toast((r.data && r.data.error)||'Não foi possível registrar o jantar.',true);
+        if(daLista){ openContratos(); return; }
+        showSuccess('Contrato assinado','Assinatura registrada. O atendimento será encerrado.');
+        return;
+      }
+      $('#jantarHint').textContent=(r.data && (firstError(r.data)||r.data.error))||'Não foi possível registrar a resposta.';
+      setJantarBusy(false);
+    }catch(e){
+      if(!e.handled) $('#jantarHint').textContent='Falha de conexão.';
+      setJantarBusy(false);
+    }
+  }
+  $('#jantarSim').addEventListener('click', ()=> submitJanta(true));
+  $('#jantarNao').addEventListener('click', ()=> submitJanta(false));
+  // Sem resposta o contrato continua na lista do freelancer, com o botão
+  // "Jantar" — a pergunta não se perde por o atendimento ter sido encerrado.
+  $('#jantarDepois').addEventListener('click', ()=> S.jantaFromList
+    ? openContratos()
+    : showSuccess('Contrato assinado','Assinatura registrada. O jantar continua para responder na lista de contratos.'));
+
   /* ---------- Success ---------- */
   /** `after` decide para onde a tela volta; por padrão, próximo atendimento. */
   function showSuccess(title,msg,after){ $('#successTitle').textContent=title; $('#successMsg').textContent=msg; $('#success').classList.add('show');
-    setTimeout(()=>{ $('#success').classList.remove('show'); S.freelancer=null; S.signing=null; S.signature=null; S.pendingSign=null;
+    setTimeout(()=>{ $('#success').classList.remove('show'); S.freelancer=null; S.signing=null; S.signature=null; S.pendingSign=null; S.janta=null;
       if(after) after(); else { resetCpf(); go('s-cpf'); } },2800); }
 
   /* ---------- Resume session on load ---------- */

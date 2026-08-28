@@ -158,6 +158,12 @@ class FreelancerService extends Model
         // "Chave PIX do pagamento").
         'pix_key',
         'pix_key_confirmed_at',
+        // Resposta do freelancer à pergunta do jantar, feita logo após a
+        // assinatura (ver a seção "Jantar do turno noturno").
+        'dinner_wanted',
+        'dinner_date',
+        'dinner_answered_at',
+        'dinner_answered_by',
         // Redação das cláusulas e dados das partes congelados na assinatura
         // (ver a seção "Congelamento do documento").
         'contract_version',
@@ -195,6 +201,9 @@ class FreelancerService extends Model
         'freelancer_signed_at' => 'datetime',
         'coordinator_signed_at' => 'datetime',
         'pix_key_confirmed_at' => 'datetime',
+        'dinner_wanted' => 'boolean',
+        'dinner_date' => 'date',
+        'dinner_answered_at' => 'datetime',
         'contract_version' => 'integer',
         'signed_snapshot' => 'array',
         // Trâmite do lote. Ficaram fora do cast desde a criação e voltavam como
@@ -257,6 +266,12 @@ class FreelancerService extends Model
     public function coordinatorSignedBy()
     {
         return $this->belongsTo(User::class, 'coordinator_signed_by');
+    }
+
+    /** Operador do tablet que conduziu a pergunta do jantar. */
+    public function dinnerAnsweredBy()
+    {
+        return $this->belongsTo(User::class, 'dinner_answered_by');
     }
 
     /** Coordenador do Comercial que liberou o registro acima do limite de 7 dias. */
@@ -416,6 +431,214 @@ class FreelancerService extends Model
         $rest = $minutes % 60;
 
         return $rest === 0 ? "{$hours}h" : sprintf('%dh%02d', $hours, $rest);
+    }
+
+    /* ---------------------------------------------------------------------
+     | Jantar do turno noturno
+     |
+     | O freelancer que cumpre 6 horas ou mais e está em serviço durante a janela
+     | do jantar tem direito à refeição. A cozinha precisa saber, com
+     | antecedência, quantos pratos preparar — por isso o direito não basta: logo
+     | depois de assinar, o tablet pergunta ao freelancer se ele vai jantar, e é
+     | a RESPOSTA que fica registrada.
+     |
+     | São dois critérios, e os dois valem ao mesmo tempo:
+     |
+     |   1. duração de `DINNER_MIN_MINUTES` ou mais;
+     |   2. estar em serviço em ALGUM momento da janela (17:30 → 18:30).
+     |
+     | Meia janta é janta: quem sai 18:00 pegou meia hora de jantar e come. Não
+     | se exige a janela inteira dentro do turno — basta cruzá-la. O que não
+     | conta é encostar na borda: sair exatamente 17:30 (ou entrar exatamente
+     | 18:30) é não ter estado ali em minuto nenhum do jantar.
+     |
+     | Exemplos que definiram a regra:
+     |
+     |   14:00 → 20:00  pergunta      (6h, atravessa a janela)
+     |   16:00 → 22:00  pergunta      (6h, atravessa a janela)
+     |   12:00 → 18:00  pergunta      (6h, pega meia janta)
+     |   16:00 → 20:00  não pergunta  (4h — menos de 6h)
+     |   19:00 → 03:00  não pergunta  (8h, mas entrou depois das 18:30)
+     |
+     | O dia do jantar não é sempre `start_date`: um turno que vira a meia-noite
+     | e é longo o bastante pode alcançar a janela do dia SEGUINTE. Quem responde
+     | pela data é `dinnerDate()`, e é ela que a cozinha consulta — nunca a data
+     | de início do contrato.
+     |
+     | Nada disso vale antes de `DINNER_STARTS_ON`: é a data em que a cozinha
+     | passa a servir o jantar.
+     |---------------------------------------------------------------------*/
+
+    /** Janela em que o jantar é servido. Estar em serviço em parte dela basta. */
+    const DINNER_START = '17:30';
+    const DINNER_END = '18:30';
+
+    /** Jornada mínima para o direito à refeição. */
+    const DINNER_MIN_MINUTES = 360;
+
+    /**
+     * Primeiro dia em que o jantar é servido. Antes dele não há refeição para
+     * oferecer, e perguntar seria prometer prato que a cozinha não faz.
+     *
+     * O corte é pelo DIA DO JANTAR (`dinnerDate()`), não pela data da
+     * assinatura: um turno do dia 30 assinado no dia 31 continua sem jantar —
+     * o que não existiu foi a refeição daquele dia, e não o contrato.
+     */
+    const DINNER_STARTS_ON = '2026-08-31';
+
+    /** A data acima como instante, para comparar com o dia do jantar. */
+    public static function dinnerStartsOn(): Carbon
+    {
+        return Carbon::parse(self::DINNER_STARTS_ON)->startOfDay();
+    }
+
+    /** O jantar já é servido no dia (ou hoje, quando o dia não é informado)? */
+    public static function dinnerIsBeingServed($date = null): bool
+    {
+        $day = $date === null ? Carbon::today() : Carbon::parse($date)->startOfDay();
+
+        return $day->greaterThanOrEqualTo(self::dinnerStartsOn());
+    }
+
+    /**
+     * O dia cujo jantar este turno alcança, ou null quando não alcança nenhum.
+     *
+     * Compara instantes de verdade (data + hora), e não só horários: é o que
+     * faz a virada da meia-noite cair certa. Testa o dia de início e o de
+     * término porque um turno longo pode alcançar a janela do dia seguinte.
+     */
+    public function dinnerDate(): ?Carbon
+    {
+        if ($this->start_date === null || $this->end_date === null) {
+            return null;
+        }
+
+        $inicio = $this->startsAt();
+        $fim = $this->endsAt();
+
+        $dias = [$inicio->copy()->startOfDay(), $fim->copy()->startOfDay()];
+
+        foreach ($dias as $dia) {
+            $jantarInicio = $dia->copy()->setTimeFromTimeString(self::DINNER_START);
+            $jantarFim = $dia->copy()->setTimeFromTimeString(self::DINNER_END);
+
+            // Basta cruzar a janela: quem sai 18:00 pegou meia hora de jantar e
+            // come. A comparação é ESTRITA nas duas pontas de propósito — sair
+            // exatamente 17:30, ou entrar exatamente 18:30, é não ter estado ali
+            // em minuto nenhum do jantar, e encostar na borda não é meia janta.
+            if ($inicio->lessThan($jantarFim) && $fim->greaterThan($jantarInicio)) {
+                return $dia;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Cumpre os dois critérios: jornada mínima e janela do jantar alcançada —
+     * e o jantar já é servido no dia em que ele cairia.
+     *
+     * A comissão de venda fica de fora ainda que copie o horário do turno: ela
+     * não é um período trabalhado (`total_hours` é zero), é o pagamento das
+     * vendas daquele mesmo turno. Sem esta linha, o turno do garçom pediria dois
+     * jantares — um pelo contrato, outro pela comissão.
+     */
+    public function isDinnerEligible(): bool
+    {
+        $diaDoJantar = $this->dinnerDate();
+
+        return !$this->isCommissionAmendment()
+            && $this->durationInMinutes() >= self::DINNER_MIN_MINUTES
+            && $diaDoJantar !== null
+            && self::dinnerIsBeingServed($diaDoJantar);
+    }
+
+    /**
+     * Por que este contrato não dá direito ao jantar. Null quando dá — é o
+     * texto que o tablet e o painel exibem, para a recusa não parecer defeito.
+     */
+    public function dinnerBlockReason(): ?string
+    {
+        if ($this->isCommissionAmendment()) {
+            return 'A comissão de venda não é um turno: o jantar é do contrato do turno.';
+        }
+
+        if ($this->durationInMinutes() < self::DINNER_MIN_MINUTES) {
+            return 'O jantar é do turno de ' . intdiv(self::DINNER_MIN_MINUTES, 60)
+                . ' horas ou mais. Este turno tem ' . $this->formattedDuration() . '.';
+        }
+
+        $diaDoJantar = $this->dinnerDate();
+
+        if ($diaDoJantar === null) {
+            return 'O turno não alcança o horário do jantar ('
+                . self::DINNER_START . ' às ' . self::DINNER_END . ').';
+        }
+
+        // Antes da estreia não há prato a oferecer. A recusa é datada de
+        // propósito: o operador precisa saber que é questão de calendário, e não
+        // de o turno estar errado.
+        if (!self::dinnerIsBeingServed($diaDoJantar)) {
+            return 'O jantar passa a ser servido em '
+                . self::dinnerStartsOn()->format('d/m/Y') . '.';
+        }
+
+        return null;
+    }
+
+    /** A pergunta ainda está de pé: tem direito, já assinou e não respondeu. */
+    public function needsDinnerAnswer(): bool
+    {
+        return !$this->isCancelled()
+            && $this->freelancer_signed_at !== null
+            && $this->dinner_wanted === null
+            && $this->isDinnerEligible();
+    }
+
+    /** Respondeu — seja sim, seja não. */
+    public function dinnerWasAnswered(): bool
+    {
+        return $this->dinner_wanted !== null;
+    }
+
+    /** Disse que vai jantar. É este o registro que a cozinha consulta. */
+    public function wantsDinner(): bool
+    {
+        return $this->dinner_wanted === true;
+    }
+
+    /** "Sim" · "Não" · "Não respondeu" · "Sem direito". */
+    public function dinnerLabel(): string
+    {
+        if ($this->dinner_wanted !== null) {
+            return $this->dinner_wanted ? 'Sim' : 'Não';
+        }
+
+        return $this->isDinnerEligible() ? 'Não respondeu' : 'Sem direito';
+    }
+
+    /** Ex.: "17:30 às 18:30". */
+    public static function dinnerWindowLabel(): string
+    {
+        return self::DINNER_START . ' às ' . self::DINNER_END;
+    }
+
+    /**
+     * Quem confirmou o jantar de um dia. A consulta da cozinha, e a mesma que a
+     * API expõe: filtra pela data DO JANTAR (`dinner_date`), não pela data de
+     * início do contrato — as duas divergem no turno que vira a meia-noite.
+     *
+     * Contrato cancelado sai da lista, e contrato ADITIVADO também: o turno dele
+     * mudou de horário depois da assinatura, quem responde por aquele turno é o
+     * aditivo, e é o aditivo que traz a resposta válida — a antiga foi dada
+     * sobre um horário que não existe mais.
+     */
+    public function scopeDinnerConfirmedOn($query, $date)
+    {
+        return $query->where('dinner_wanted', true)
+            ->whereDate('dinner_date', Carbon::parse($date)->toDateString())
+            ->where('status_id', self::STATUS_ACTIVE)
+            ->whereNull('amendment_service_id');
     }
 
     /* ---------------------------------------------------------------------

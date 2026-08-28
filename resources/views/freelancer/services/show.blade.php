@@ -244,6 +244,38 @@
                 </div>
             </div>
 
+            {{-- Jantar do turno noturno. Aparece só onde a regra alcança: turno de
+                 6h ou mais que alcança a janela de 17:30 às 18:30. O painel não
+                 responde nem corrige a resposta — quem responde é o freelancer,
+                 no tablet; aqui se confere o que a cozinha vai receber. --}}
+            @if($service->isDinnerEligible())
+                <div class="px-6 pb-6">
+                    <div class="p-4 rounded-xl border border-gray-200 dark:border-gray-600">
+                        <p class="text-sm font-bold text-gray-700 dark:text-gray-300">
+                            Jantar ({{ \App\Models\FreelancerService::dinnerWindowLabel() }})
+                        </p>
+                        @if($service->dinnerWasAnswered())
+                            <p class="mt-1 text-sm {{ $service->wantsDinner() ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-gray-700 dark:text-gray-300' }}">
+                                {{ $service->wantsDinner() ? '🍽️ Vai jantar' : 'Não vai jantar' }}
+                                @if($service->dinner_date)
+                                    · jantar de {{ $service->dinner_date->format('d/m/Y') }}
+                                @endif
+                            </p>
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Respondido no tablet
+                                @if($service->dinner_answered_at) em {{ $service->dinner_answered_at->format('d/m/Y H:i') }} @endif
+                                @if($service->dinnerAnsweredBy) · atendimento conduzido por {{ $service->dinnerAnsweredBy->name }} @endif.
+                            </p>
+                        @else
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                Ainda não respondido. A pergunta é feita no tablet logo depois da assinatura, e
+                                continua disponível na lista de contratos do freelancer.
+                            </p>
+                        @endif
+                    </div>
+                </div>
+            @endif
+
             @if($service->isPaid())
                 <div class="px-6 pb-6">
                     <div class="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 text-sm text-emerald-800 dark:text-emerald-200">

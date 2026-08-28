@@ -38,4 +38,19 @@ return [
     */
     'open_trip_alert_hours' => (int) env('FLEET_OPEN_TRIP_ALERT_HOURS', 12),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Validade sintética na lista da cancela
+    |--------------------------------------------------------------------------
+    |
+    | Carro da frota não tem validade — a autorização dele é ser da empresa.
+    | Mas a lista que a câmera baixa para operar offline tem uma coluna de
+    | validade, e mudar o formato quebraria o cliente. Então a frota entra com
+    | esta folga em anos, recalculada a cada consulta: enquanto a câmera
+    | atualizar a lista, a data nunca chega. Quem tira o carro da liberação é a
+    | desativação no cadastro, não o calendário.
+    |
+    */
+    'gate_validity_years' => (int) env('FLEET_GATE_VALIDITY_YEARS', 10),
+
 ];

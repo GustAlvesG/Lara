@@ -88,6 +88,30 @@ veículo.
   km.
 - **Veículo com viagem não é excluído**, apenas desativado.
 
+## Acesso à cancela da diretoria
+
+Todo veículo **ativo** da frota com placa cadastrada abre a cancela, sem depender da lista
+de placas da diretoria. A autorização dele é **ser da empresa**, não uma validade que
+alguém precisa lembrar de renovar — por isso a frota é verificada antes da lista, e sem
+conferir data.
+
+- `POST /api/parking/check` e `GET /api/parking/check/{placa}` respondem
+  `{"valid": true, "name": "<nome do veículo>", "reason": "fleet_vehicle", "expiration_date": null}`.
+  O `reason` também vai para o log de acesso (`logAccessAttempt`), separando nos registros
+  quem entrou pela frota e quem entrou pela lista da diretoria.
+- `GET /api/parking/authorized` — a lista que a câmera baixa para decidir **com a API fora
+  do ar** — soma as placas da frota às da diretoria. Como aquele formato tem coluna de
+  validade e mudá-lo quebraria o cliente, a frota entra com uma data sintética de
+  `fleet.gate_validity_years` (10 anos), recalculada a cada consulta: enquanto a câmera
+  atualizar a lista, a data nunca chega.
+- Placa presente nas duas origens aparece **uma vez só** na lista, com o registro da
+  diretoria.
+- **Desativar o veículo tira a liberação** — é o caminho para o carro vendido ou fora de
+  uso, e vale nas duas pontas (consulta e lista offline).
+
+A comparação é feita na placa normalizada dos dois lados, então `ABC-1D23` e `abc1d23`
+encontram o mesmo veículo.
+
 ## Mensagens / erros da API
 
 Toda recusa volta com `ok: false` e um `error` estável — é por ele que o cliente decide o
@@ -198,9 +222,10 @@ acabariam produzindo dois hodômetros diferentes para o mesmo carro.
 | Camada | Arquivo |
 |---|---|
 | Serviço | `app/Services/FleetService.php` |
+| Cancela | `app/Services/ParkingAuthorizationService.php` (`checkPlate`, `findFleetVehicleByPlate`, `getValidAuthorizations`) |
 | Controllers | `app/Http/Controllers/Fleet/FleetApiController.php`, `FleetController.php` |
 | Models | `app/Models/Fleet/FleetVehicle.php`, `FleetTrip.php` |
 | Migrations | `database/migrations/2026_08_28_100000_create_fleet_tables.php` |
-| Config | `config/fleet.php` (`max_trip_km`, `clock_skew_minutes`, `open_trip_alert_hours`) |
+| Config | `config/fleet.php` (`max_trip_km`, `clock_skew_minutes`, `open_trip_alert_hours`, `gate_validity_years`) |
 | Seeder | `database/seeders/FleetVehicleSeeder.php` |
-| Testes | `tests/Feature/FleetMileageTest.php`, `tests/Feature/FleetApiEndpointsTest.php` |
+| Testes | `tests/Feature/FleetMileageTest.php`, `tests/Feature/FleetApiEndpointsTest.php`, `tests/Feature/ParkingFleetAccessTest.php` |

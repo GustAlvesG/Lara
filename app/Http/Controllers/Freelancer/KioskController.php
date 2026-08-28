@@ -279,8 +279,13 @@ class KioskController extends Controller
             ->with(['functionFreelancer', 'freelancer', 'batch', 'baseService.functionFreelancer', 'amendments'])
             ->orderByDesc('start_date')
             ->get()
+            // O jantar entra na lista pelo mesmo motivo dos demais: é coisa que
+            // ainda falta fazer neste contrato. Cobre o freelancer que assinou e
+            // saiu antes de responder — sem isso, a pergunta não teria segunda
+            // chance, e a cozinha ficaria sem o prato dele.
             ->filter(fn(FreelancerService $s) => $s->canBeSignedByFreelancer()
                 || $s->canBeAmended()
+                || $s->needsDinnerAnswer()
                 || ($s->canReceiveCommission() && $this->withinCommissionWindow($s)))
             ->values()
             ->map(fn(FreelancerService $s) => $this->servicePayload($s));
@@ -699,6 +704,43 @@ class KioskController extends Controller
             }
 
             throw $e;
+        }
+
+        return response()->json([
+            'service' => $this->servicePayload($freelancerService->fresh()->load(['functionFreelancer', 'freelancer'])),
+            'session' => $this->sessionPayload(),
+        ]);
+    }
+
+    /**
+     * Resposta do jantar, perguntada na tela seguinte à da assinatura.
+     *
+     * Não pede o PIN de novo, de propósito: quem responde é o freelancer, sobre
+     * a própria refeição, e o PIN do operador acabou de ser conferido na
+     * assinatura. Exigi-lo aqui só faria o operador digitar seis dígitos para
+     * registrar um "sim" — e transformaria em obstáculo justamente a pergunta
+     * que precisa ser rápida.
+     *
+     * Quem decide se a pergunta cabe é o servidor (`needsDinnerAnswer`), não a
+     * tela: o tablet só exibe o que o payload da assinatura mandou perguntar, e
+     * a regra é reconferida aqui antes de gravar.
+     */
+    public function dinnerAnswer(Request $request, FreelancerService $freelancerService)
+    {
+        $operator = $this->operatorModeOrFail();
+
+        $request->validate([
+            'wants_dinner' => ['required', 'boolean'],
+        ]);
+
+        try {
+            $this->freelancerService->recordDinnerAnswer(
+                $freelancerService,
+                $request->boolean('wants_dinner'),
+                $operator,
+            );
+        } catch (FreelancerServiceLockedException $e) {
+            return response()->json(['error' => $e->getMessage()], 409);
         }
 
         return response()->json([
@@ -1141,6 +1183,11 @@ class KioskController extends Controller
             'block_price' => (float) ($s->functionFreelancer?->price ?? 0),
             'duration_minutes' => $s->durationInMinutes(),
             'status_label' => $s->signatureLabel(),
+            // Jantar do turno noturno: é `needs_dinner_answer` que faz a tela
+            // abrir a pergunta depois da assinatura. Quem decide é o servidor.
+            'needs_dinner_answer' => $s->needsDinnerAnswer(),
+            'dinner_wanted' => $s->dinner_wanted,
+            'dinner_window' => FreelancerService::dinnerWindowLabel(),
         ];
     }
 
