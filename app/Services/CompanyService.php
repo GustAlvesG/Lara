@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Jobs\SendPoliTextMessage;
 use App\Models\Company\Company;
 use App\Models\Company\CompanyWorker;
 use App\Models\Company\CompanyAccessRule;
@@ -425,6 +427,9 @@ class CompanyService
                 'vehicle_plate'  => $request->vehicle_plate,
                 'screenshot_url' => $request->screenshot_url,
                 'expires_at'     => optional($request->expires_at)->toIso8601String(),
+                'member_validation'       => $request->member_validation,
+                'member_validation_label' => $request->memberValidationLabel(),
+                'member_validation_name'  => $request->member_validation_name,
             ],
             'workers'    => [[
                 'id'        => $request->id,
@@ -448,12 +453,17 @@ class CompanyService
         if ($result['found']) {
             // Acesso validado: conclui o pedido e vence a validade no mesmo
             // instante, impedindo que a mesma placa seja reutilizada.
-            UberAccessRequest::where('id', $result['uber']['id'])
-                ->update([
+            $request = UberAccessRequest::find($result['uber']['id']);
+
+            if ($request) {
+                $request->update([
                     'status'      => UberAccessRequest::STATUS_CONCLUIDO,
                     'accessed_at' => now(),
                     'expires_at'  => now(),
                 ]);
+
+                $this->notifyUberArrival($request);
+            }
         }
 
         CompanyAccessLog::create([
@@ -468,6 +478,60 @@ class CompanyService
         ]);
 
         return $result;
+    }
+
+    /**
+     * Avisa o associado, pelo WhatsApp, que o carro dele chegou.
+     *
+     * Enfileira e volta: o porteiro não espera a Poli responder, e a Poli fora
+     * do ar não segura a liberação do acesso — que a esta altura já está
+     * gravada. O aviso é o último passo, e o mais dispensável dos três.
+     *
+     * Vai em TODO acesso concluído, inclusive quando o MultiClubes não
+     * confirmou o par nome/matrícula: a mensagem informa a chegada do veículo,
+     * não atesta a validação do sócio — e o carro chegou de qualquer forma.
+     */
+    private function notifyUberArrival(UberAccessRequest $request): void
+    {
+        if (blank($request->contact_phone)) {
+            Log::info('Uber: acesso concluído sem telefone para avisar', [
+                'uber_access_request_id' => $request->id,
+            ]);
+
+            return;
+        }
+
+        SendPoliTextMessage::dispatch(
+            phone: $request->contact_phone,
+            text: $this->uberArrivalMessage($request),
+            contactUuid: $request->contact_uuid,
+            uberAccessRequestId: $request->id,
+        );
+    }
+
+    /**
+     * Os dados vêm de texto livre digitado no WhatsApp, então cada frase é
+     * condicional: sem nome vira uma saudação seca, sem local a última frase
+     * não entra. O primeiro nome basta — o WhatsApp costuma devolver o nome do
+     * contato com sufixos ("Gustavo Coordenador de TI|Gustavo").
+     */
+    private function uberArrivalMessage(UberAccessRequest $request): string
+    {
+        $textos = config('poli.messages.uber_arrival');
+        $nome = Str::of((string) $request->requester_name)->trim()->before(' ')->value();
+        $frases = [];
+
+        if ($nome !== '') {
+            $frases[] = str_replace(':nome', $nome, $textos['saudacao']);
+        }
+
+        $frases[] = str_replace(':placa', (string) $request->vehicle_plate, $textos['corpo']);
+
+        if (filled($request->club_location)) {
+            $frases[] = str_replace(':local', trim($request->club_location), $textos['local']);
+        }
+
+        return implode(' ', $frases);
     }
 
     /* ---------------------------------------------------------------------

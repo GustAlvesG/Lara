@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\UberAccessRequest;
 use App\Models\UberAccessRequestMessage;
+use App\Services\MultiClubes\TitleMemberLookup;
 use App\Services\UberAccessRequestFlow;
 use Tests\TestCase;
 
@@ -28,6 +29,33 @@ class UberAccessRequestWebhookTest extends TestCase
 
         (require base_path('database/migrations/2026_07_20_150000_create_uber_access_requests_tables.php'))->up();
         (require base_path('database/migrations/2026_07_21_120000_add_matricula_to_uber_access_requests.php'))->up();
+        (require base_path('database/migrations/2026_08_27_170000_add_member_validation_to_uber_access_requests.php'))->up();
+
+        // Sem SQL Server nos testes: por padrão o título não devolve ninguém.
+        // Cada teste que precisa sobrescreve com fakeTitleMembers().
+        $this->fakeTitleMembers([]);
+    }
+
+    /**
+     * Substitui a consulta ao MultiClubes. Passar um Throwable simula o
+     * SQL Server fora do ar.
+     *
+     * @param  string[]|\Throwable  $names
+     */
+    private function fakeTitleMembers(array|\Throwable $names): void
+    {
+        $this->app->instance(TitleMemberLookup::class, new class($names) extends TitleMemberLookup {
+            public function __construct(private array|\Throwable $names) {}
+
+            public function namesForTitle(string $matricula): array
+            {
+                if ($this->names instanceof \Throwable) {
+                    throw $this->names;
+                }
+
+                return $this->names;
+            }
+        });
     }
 
     private function endpoint(): string
@@ -167,6 +195,65 @@ class UberAccessRequestWebhookTest extends TestCase
             $request->expires_at->timestamp,
             1
         );
+    }
+
+    /** Roda o fluxo inteiro até a imagem, deixando o pedido completo. */
+    private function completeFlow(string $name = 'Gustavo Alves', string $matricula = '987654'): UberAccessRequest
+    {
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: $matricula), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: $name), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: 'Portaria 2'), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: 'ABC1D23'), $this->authHeaders())->assertOk();
+        $this->postJson(
+            $this->endpoint(),
+            $this->payload(mediaUrl: 'https://poli.example/media/print.jpg'),
+            $this->authHeaders()
+        )->assertOk();
+
+        return UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
+    }
+
+    public function test_member_is_validated_when_name_belongs_to_the_title(): void
+    {
+        $this->fakeTitleMembers(['Maria Souza', 'Gustavo Alves']);
+
+        $request = $this->completeFlow(name: 'Gustavo Alves');
+
+        $this->assertSame(UberAccessRequest::MEMBER_VALIDATION_VALIDADO, $request->member_validation);
+        $this->assertSame('Gustavo Alves', $request->member_validation_name);
+        $this->assertNotNull($request->member_validated_at);
+    }
+
+    public function test_member_validation_fails_when_name_is_not_on_the_title(): void
+    {
+        $this->fakeTitleMembers(['Maria Souza', 'Joana Lima']);
+
+        $request = $this->completeFlow(name: 'Gustavo Alves');
+
+        $this->assertSame(UberAccessRequest::MEMBER_VALIDATION_NAO_ENCONTRADO, $request->member_validation);
+        $this->assertNull($request->member_validation_name);
+    }
+
+    public function test_member_validation_fails_when_title_has_nobody(): void
+    {
+        $this->fakeTitleMembers([]);
+
+        $request = $this->completeFlow();
+
+        $this->assertSame(UberAccessRequest::MEMBER_VALIDATION_NAO_ENCONTRADO, $request->member_validation);
+    }
+
+    public function test_multiclubes_outage_marks_validation_unavailable_without_blocking(): void
+    {
+        $this->fakeTitleMembers(new \RuntimeException('SQLSTATE[08001] sql server unreachable'));
+
+        $request = $this->completeFlow();
+
+        // O pedido tem de continuar utilizável na portaria mesmo sem conferência.
+        $this->assertSame(UberAccessRequest::MEMBER_VALIDATION_INDISPONIVEL, $request->member_validation);
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_ACESSO, $request->status);
+        $this->assertNotNull($request->expires_at);
     }
 
     public function test_media_out_of_order_does_not_advance_state(): void

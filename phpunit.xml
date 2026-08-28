@@ -39,6 +39,16 @@
         <env name="DB_CONNECTION" value="sqlite"/>
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="MAIL_MAILER" value="array"/>
+        <!--
+            NÃO REMOVA.
+
+            A fila em testes é `sync`: um Job despachado roda na hora, dentro
+            do teste. Sem este override, o .env de verdade (POLI_ENABLED=true)
+            faria a suíte MANDAR WhatsApp para associados a cada acesso de
+            Uber registrado em teste. Os testes de envio ligam a integração
+            por config() dentro do próprio caso, com Http::fake() no ar.
+        -->
+        <env name="POLI_ENABLED" value="false"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
