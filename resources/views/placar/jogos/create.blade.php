@@ -40,7 +40,7 @@
                             <option value="">Selecione</option>
                             @foreach($times as $time)
                                 <option value="{{ $time->id }}" x-show="!modalidadeId || modalidadeId == {{ $time->modalidade_id }}" @selected((string) old('time_casa_id') === (string) $time->id)>
-                                    {{ $time->nomeExibicaoResolvido() }} ({{ $time->equipe->nome }})
+                                    {{ $time->nomeExibicaoResolvido() }} ({{ $time->equipe->nome }} · {{ $time->modalidade->nome }})
                                 </option>
                             @endforeach
                         </select>
@@ -53,7 +53,7 @@
                             <option value="">Selecione</option>
                             @foreach($times as $time)
                                 <option value="{{ $time->id }}" x-show="!modalidadeId || modalidadeId == {{ $time->modalidade_id }}" @selected((string) old('time_fora_id') === (string) $time->id)>
-                                    {{ $time->nomeExibicaoResolvido() }} ({{ $time->equipe->nome }})
+                                    {{ $time->nomeExibicaoResolvido() }} ({{ $time->equipe->nome }} · {{ $time->modalidade->nome }})
                                 </option>
                             @endforeach
                         </select>

@@ -9,6 +9,7 @@ use App\Models\Placar\Modalidade;
 use App\Models\Placar\Time;
 use App\Services\Placar\CategoriaService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
@@ -40,10 +41,34 @@ class JogoController extends Controller
     public function create()
     {
         $modalidades = Modalidade::ativas()->orderBy('nome')->get();
-        $times = Time::ativos()->with('equipe')->orderBy('categoria')->get();
         $competicoes = Competicao::ativas()->orderBy('nome')->get();
 
+        // Em ordem alfabética pelo nome que aparece na lista, não por
+        // categoria: quem cadastra o jogo procura o time pelo nome, e
+        // ordenar por categoria jogava "CF Adulto" e "CF Sub-15" para
+        // pontas opostas do select.
+        //
+        // A ordenação é em PHP porque o nome exibido é resolvido no modelo
+        // (`nome_exibicao` próprio, ou o da equipe + categoria) — não é
+        // coluna que o banco possa ordenar. `modalidade` no eager load
+        // porque cada opção mostra a dela.
+        $times = Time::ativos()
+            ->with(['equipe', 'modalidade'])
+            ->get()
+            ->sortBy(fn (Time $time) => $this->chaveAlfabetica($time->nomeExibicaoResolvido()))
+            ->values();
+
         return view('placar.jogos.create', compact('modalidades', 'times', 'competicoes'));
+    }
+
+    /**
+     * Chave de ordenação alfabética: sem acento e em minúsculas, para
+     * "Ática" cair entre "Atibaia" e "Atlético" em vez de ir para o fim da
+     * lista — que é onde uma comparação byte a byte a colocaria.
+     */
+    private function chaveAlfabetica(string $nome): string
+    {
+        return Str::lower(Str::ascii($nome));
     }
 
     public function store(Request $request)
