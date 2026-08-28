@@ -31,6 +31,7 @@ use App\Http\Controllers\FreelancerServiceController;
 use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\UberAccessRequestWebhookController;
 use App\Http\Controllers\InformationSearchController;
+use App\Http\Controllers\Fleet\FleetApiController;
 
 
 Route::get('/user', function (Request $request) {
@@ -143,6 +144,26 @@ Route::middleware('api_token')->group(function () {
         //Busca por palavra-chave em name, description e category do data_info
         Route::get('/search', [InformationSearchController::class, 'index'])
             ->name('api.information.search');
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | Frota — quilometragem dos veículos da empresa
+    |----------------------------------------------------------------------
+    |
+    | Consumida pelo mesmo sistema da portaria que já registra os acessos.
+    | Saída e retorno são as duas metades de uma viagem só: a saída abre o
+    | registro e o retorno o fecha, resolvido pelo veículo — o cliente não
+    | precisa guardar o id entre as duas chamadas.
+    */
+    Route::prefix('fleet')->group(function () {
+        Route::get('/vehicles', [FleetApiController::class, 'vehicles'])->name('api.fleet.vehicles');
+        Route::get('/trips/open', [FleetApiController::class, 'openTrips'])->name('api.fleet.trips.open');
+        Route::get('/trips', [FleetApiController::class, 'trips'])->name('api.fleet.trips');
+        Route::get('/drivers', [FleetApiController::class, 'drivers'])->name('api.fleet.drivers');
+        Route::post('/departure', [FleetApiController::class, 'departure'])->name('api.fleet.departure');
+        Route::post('/return', [FleetApiController::class, 'returnTrip'])->name('api.fleet.return');
+        Route::post('/trips/{trip}/cancel', [FleetApiController::class, 'cancel'])->name('api.fleet.trips.cancel');
     });
 
     Route::prefix('webhooks')->group(function () {

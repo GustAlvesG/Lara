@@ -22,6 +22,7 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\SectorController;
 use App\Http\Controllers\CompTimeController;
 use App\Http\Controllers\ParkingAuthorizationController;
+use App\Http\Controllers\Fleet\FleetController;
 use App\Http\Controllers\DocumentationController;
 use App\Http\Controllers\EmailController;
 
@@ -325,6 +326,23 @@ Route::middleware('auth')->group(function () {
         Route::post('/confirm-import/{uuid}', [CompTimeController::class, 'confirmImport'])->name('comp-time.confirm-import');
     });
 
+
+    // Frota: painel de saída/retorno, histórico de quilometragem e cadastro
+    // dos veículos. O registro daqui usa o mesmo serviço da API da portaria.
+    Route::group(['prefix' => 'fleet', 'middleware' => 'permission:manage fleet'], function () {
+        Route::get('/', [FleetController::class, 'index'])->name('fleet.index');
+        Route::post('/departure', [FleetController::class, 'storeDeparture'])->name('fleet.departure');
+        Route::post('/return', [FleetController::class, 'storeReturn'])->name('fleet.return');
+        Route::get('/trips', [FleetController::class, 'trips'])->name('fleet.trips');
+        Route::post('/trips/{trip}/cancel', [FleetController::class, 'cancelTrip'])->name('fleet.trips.cancel');
+
+        Route::get('/vehicles', [FleetController::class, 'vehicles'])->name('fleet.vehicles');
+        Route::get('/vehicles/create', [FleetController::class, 'createVehicle'])->name('fleet.vehicles.create');
+        Route::post('/vehicles', [FleetController::class, 'storeVehicle'])->name('fleet.vehicles.store');
+        Route::get('/vehicles/{vehicle}/edit', [FleetController::class, 'editVehicle'])->name('fleet.vehicles.edit');
+        Route::put('/vehicles/{vehicle}', [FleetController::class, 'updateVehicle'])->name('fleet.vehicles.update');
+        Route::delete('/vehicles/{vehicle}', [FleetController::class, 'destroyVehicle'])->name('fleet.vehicles.destroy');
+    });
 
     Route::resource('parking-authorizations', ParkingAuthorizationController::class);
 

@@ -59,6 +59,12 @@ class RolesAndPermissionsSeeder extends Seeder
             [ 'name' => 'use lara chat', 'description' => 'Permite usar o chat com a Lara (assistente de IA)'],
         ];
 
+        // A portaria registra a quilometragem pela API (token próprio); esta
+        // permissão é para as telas: painel, histórico e cadastro de veículos.
+        $permission_fleet = [
+            [ 'name' => 'manage fleet', 'description' => 'Permite gerenciar a frota e a quilometragem dos veículos'],
+        ];
+
         $allPermissions = array_merge(
             $permissions_infoclube,
             $permissions_siv,
@@ -66,7 +72,8 @@ class RolesAndPermissionsSeeder extends Seeder
             $permission_reserve,
             $permission_admin,
             $permission_home_assistant,
-            $permission_lara
+            $permission_lara,
+            $permission_fleet
         );
 
         foreach ($allPermissions as $permission) {

@@ -80,6 +80,17 @@ Todas, salvo `/`, `/members` e `/dashboard`, estão sob o middleware `auth`.
 | POST | `/comp-time/details` | CompTimeController@showDetails | comp-time.show.details | auth |
 | POST | `/comp-time/details/day` | CompTimeController@showDayDetails | comp-time.show.day.details | auth |
 | GET | `/comp-time/recalculate` | CompTimeController@recalculateBalances | comp-time.recalculate | auth |
+| GET | `/fleet` | Fleet\FleetController@index | fleet.index | auth, permission:manage fleet |
+| POST | `/fleet/departure` | Fleet\FleetController@storeDeparture | fleet.departure | auth, permission:manage fleet |
+| POST | `/fleet/return` | Fleet\FleetController@storeReturn | fleet.return | auth, permission:manage fleet |
+| GET | `/fleet/trips` | Fleet\FleetController@trips | fleet.trips | auth, permission:manage fleet |
+| POST | `/fleet/trips/{trip}/cancel` | Fleet\FleetController@cancelTrip | fleet.trips.cancel | auth, permission:manage fleet |
+| GET | `/fleet/vehicles` | Fleet\FleetController@vehicles | fleet.vehicles | auth, permission:manage fleet |
+| GET | `/fleet/vehicles/create` | Fleet\FleetController@createVehicle | fleet.vehicles.create | auth, permission:manage fleet |
+| POST | `/fleet/vehicles` | Fleet\FleetController@storeVehicle | fleet.vehicles.store | auth, permission:manage fleet |
+| GET | `/fleet/vehicles/{vehicle}/edit` | Fleet\FleetController@editVehicle | fleet.vehicles.edit | auth, permission:manage fleet |
+| PUT | `/fleet/vehicles/{vehicle}` | Fleet\FleetController@updateVehicle | fleet.vehicles.update | auth, permission:manage fleet |
+| DELETE | `/fleet/vehicles/{vehicle}` | Fleet\FleetController@destroyVehicle | fleet.vehicles.destroy | auth, permission:manage fleet |
 | GET | `/tournaments` | TournamentController@index | tournaments.index | auth |
 | GET | `/tournaments/create` | TournamentController@create | tournaments.create | auth |
 | POST | `/tournaments` | TournamentController@store | tournaments.store | auth |
@@ -119,6 +130,13 @@ Prefixo `/api`. Legenda de middleware: **T** = `api_token`, **L** = `login_token
 ### Com `api_token` (T)
 | Método | URI | Ação |
 |--------|-----|------|
+| GET | `/api/fleet/vehicles` | FleetApiController@vehicles |
+| GET | `/api/fleet/trips/open` | FleetApiController@openTrips |
+| GET | `/api/fleet/trips` | FleetApiController@trips |
+| GET | `/api/fleet/drivers` | FleetApiController@drivers |
+| POST | `/api/fleet/departure` | FleetApiController@departure |
+| POST | `/api/fleet/return` | FleetApiController@returnTrip |
+| POST | `/api/fleet/trips/{trip}/cancel` | FleetApiController@cancel |
 | POST | `/api/telegram/get-contacts` | TelegramContactController@find |
 | POST | `/api/telegram/contacts` | TelegramContactController@store |
 | PUT | `/api/telegram/contacts/{id}` | TelegramContactController@update |
