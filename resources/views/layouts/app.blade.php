@@ -81,6 +81,7 @@
                         ['route' => 'company.index', 'label' => 'Empresas'],
                         ['route' => 'company.access.monitor', 'label' => 'Monitor de Acesso'],
                         ['route' => 'company.access.logs', 'label' => 'Histórico'],
+                        ['route' => 'company.uber.requests', 'label' => 'Carros de Aplicativo'],
                     ],
                 ],
                 ['route' => 'lara.index', 'label' => 'Lara (IA)', 'icon' => 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z',
@@ -159,6 +160,31 @@
                     'label' => 'Placar Clube',
                     'icon' => 'M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2',
                     'children' => $placarChildren,
+                ];
+            }
+
+            // Banco de Horas. A consulta tem três públicos: o RH (vê todos),
+            // o coordenador (vê o próprio setor) e o colaborador com matrícula
+            // (vê a própria ficha) — ver CompTimeService::accessFor(). Quem não
+            // se encaixa em nenhum dos três não tem o que abrir, e o menu não
+            // aparece. A aba de cadastro é só do RH.
+            $canManageCompTime = auth()->user()?->can('manage-comp-time');
+            $canViewCompTime = auth()->user()?->can('view-comp-time');
+
+            if ($canViewCompTime) {
+                $compTimeChildren = [
+                    ['route' => 'comp-time.index', 'label' => 'Consulta'],
+                ];
+
+                if ($canManageCompTime) {
+                    $compTimeChildren[] = ['route' => 'comp-time.employees.index', 'label' => 'Funcionários'];
+                }
+
+                $navLinks[] = [
+                    'route' => 'comp-time.index',
+                    'label' => 'Banco de Horas',
+                    'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+                    'children' => $compTimeChildren,
                 ];
             }
         @endphp
