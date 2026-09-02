@@ -51,6 +51,18 @@ class User extends Authenticatable
      */
     public const SPORT_SECTOR = 'Esporte';
 
+    /**
+     * Setor que responde pelo Banco de Horas: importa o espelho de ponto,
+     * enxerga todos os funcionários e administra o cadastro (férias,
+     * afastamento, rescisão) — ver canManageCompTime().
+     *
+     * Antes esta regra eram os nomes 'RH' e 'TI' escritos dentro do
+     * CompTimeController. O TI saiu junto com a mudança: administrar o
+     * servidor e responder pelo banco de horas de todo mundo são coisas
+     * diferentes, e a segunda tem dono.
+     */
+    public const HR_SECTOR = 'RH';
+
     protected $fillable = [
         'name',
         'email',
@@ -82,6 +94,12 @@ class User extends Authenticatable
 
     /** Cache da requisição para canAccessPlacar(). */
     private ?bool $placarAccess = null;
+
+    /** Cache da requisição para canManageCompTime(). */
+    private ?bool $compTimeAccess = null;
+
+    /** Cache da requisição para canViewCompTime(). */
+    private ?bool $compTimeVisibility = null;
 
     /**
      * Get the attributes that should be cast.
@@ -240,6 +258,78 @@ class User extends Authenticatable
     public function canAccessPlacar(): bool
     {
         return $this->placarAccess ??= $this->belongsToSectorNamed(self::SPORT_SECTOR);
+    }
+
+    /**
+     * Banco de Horas em modo administrador: importar o espelho de ponto, ver
+     * **todos** os funcionários e mexer no cadastro (férias, afastamento,
+     * rescisão).
+     *
+     * Duas portas, de propósito. A de rotina é o **vínculo com o setor RH**,
+     * em qualquer papel — quem entra no RH passa a administrar o banco de
+     * horas sem ninguém precisar mexer em permissão. A outra é a permissão
+     * `import comp time`, para o caso nominal: dar o acesso a uma pessoa
+     * específica que não está no RH.
+     *
+     * Repare que não há atalho por role: `admin` só entra aqui porque a
+     * migration deu a permissão à role, e tirá-la de lá corta o acesso. É o
+     * mesmo desenho dos outros acessos por setor deste app
+     * (canManageFreelancerPayments, canAccessPlacar).
+     *
+     * Memorizado por instância porque o menu, a tela e o middleware perguntam
+     * a mesma coisa na mesma requisição.
+     */
+    public function canManageCompTime(): bool
+    {
+        return $this->compTimeAccess ??= $this->belongsToSectorNamed(self::HR_SECTOR)
+            || $this->hasCompTimePermission();
+    }
+
+    /**
+     * Tem alguma coisa para ver no Banco de Horas.
+     *
+     * São três públicos e basta um: o RH (vê todos), o coordenador de qualquer
+     * setor (vê a equipe dele) e quem tem matrícula (vê a própria ficha). Quem
+     * não é nada disso abriria a tela vazia — ver
+     * CompTimeService::accessFor(), que faz o recorte de verdade.
+     *
+     * Serve ao menu. Existe como método (e Gate) em vez de a navegação
+     * perguntar `isCoordinator()` e `matricula` direto ao model porque a
+     * navegação é renderizada por praticamente toda tela do app: se ela
+     * chamar métodos que consultam o banco, cada tela do sistema passa a
+     * depender das tabelas de setor.
+     */
+    public function canViewCompTime(): bool
+    {
+        return $this->compTimeVisibility ??= $this->canManageCompTime()
+            || $this->isCoordinator()
+            || filled($this->matricula);
+    }
+
+    /**
+     * `hasPermissionTo()` estoura PermissionDoesNotExist quando a permissão
+     * ainda não foi criada — o que acontece em qualquer ambiente onde a
+     * migration não rodou, inclusive na suíte. Aqui a ausência da permissão é
+     * uma resposta ("não tem"), não um erro.
+     */
+    private function hasCompTimePermission(): bool
+    {
+        try {
+            return $this->hasPermissionTo('import comp time');
+        } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist) {
+            return false;
+        }
+    }
+
+    /**
+     * Funcionário do Banco de Horas correspondente a este usuário, casado pela
+     * matrícula. É o vínculo que faz o colaborador comum enxergar o próprio
+     * cartão de ponto — ver Employee::user() para o outro lado e para a
+     * ressalva do `varchar(5)`.
+     */
+    public function employee()
+    {
+        return $this->belongsTo(Employee::class, 'matricula', 'employee_code');
     }
 
     public function coordinatorSectors()

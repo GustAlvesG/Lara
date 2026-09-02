@@ -7,7 +7,10 @@
             </h2>
         </div>
         
-        @if($isCoordinator ?? false)
+        {{-- Importar, recalcular e administrar o cadastro é do RH; ver o Gate
+             `manage-comp-time`. Coordenador de setor e colaborador continuam
+             enxergando a consulta abaixo, mas não estes botões. --}}
+        @if($canImport ?? false)
         <div class="div">
 
             <div class="flex items-center">
@@ -20,6 +23,15 @@
                 <input id="arquivo" name="arquivo" type="file" class="hidden" accept=".html,.xls,.txt" onchange="fileSelected(this)">
 
                 <div class="flex items-center gap-3 w-full justify-center">
+
+                    <!-- Cadastro de funcionários: férias, afastamento, rescisão -->
+                    <a href="{{ route('comp-time.employees.index') }}"
+                        class="flex items-center justify-center py-2 px-6 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-200">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Funcionários
+                    </a>
 
                     <!-- Recalcular Horas - abre modal de confirmação -->
                     <button type="button" onclick="document.getElementById('modal-recalculate').classList.remove('hidden')"
@@ -71,7 +83,7 @@
             </x-slot>
 
             <x-slot name="body">
-                @include('compTime.partials.search', ['structures' => $structures])
+                @include('compTime.partials.search', ['sectors' => $sectors])
             </x-slot>
 
         </x-accordion>
@@ -254,7 +266,7 @@
         <script src="{{ asset('js/accordion.js') }}"></script>
         @endif
          <script>
-        @if($isCoordinator ?? false)
+        @if($canImport ?? false)
         const fileInput = document.getElementById('arquivo');
         const mainBtn = document.getElementById('mainBtn');
         const btnText = document.getElementById('btnText');
@@ -313,7 +325,7 @@
     </x-slot>
 
 
-    @if($isCoordinator ?? false)
+    @if($canImport ?? false)
     <!-- Modal de Confirmação - Recalcular Horas -->
     <div id="modal-recalculate" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
         <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">

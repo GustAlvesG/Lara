@@ -9,7 +9,7 @@
 
     <x-slot name="slot">
         <div class="max-w-2xl mx-auto py-16 px-4 sm:px-6 lg:px-8"
-             x-data="importPoller('{{ $import->uuid }}', '{{ route('comp-time.import-status.api', $import->uuid) }}', '{{ route('comp-time.index') }}')"
+             x-data="importPoller('{{ route('comp-time.import-status.api', $import->uuid) }}', '{{ route('comp-time.import-complete', $import->uuid) }}', '{{ route('comp-time.import-preview', $import->uuid) }}')"
              x-init="start()">
 
             {{-- Carregando --}}
@@ -27,10 +27,26 @@
                         Isso pode levar alguns instantes. Não feche esta aba.
                     </p>
                 </div>
+
+                {{-- Fila parada. A importação roda em job na conexão `database`,
+                     que só anda com um `queue:work` vivo. Sem worker o registro
+                     nunca sai de `pending` — antes a tela girava para sempre
+                     sem dizer por quê. --}}
+                <div x-show="stalled" x-cloak
+                     class="text-left bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-xl p-4">
+                    <p class="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                        O arquivo ainda não começou a ser processado.
+                    </p>
+                    <p class="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                        A importação depende da fila de tarefas. Se isso não sair do lugar,
+                        verifique se o processo <code class="font-mono">queue:work</code> está rodando no servidor.
+                        O arquivo enviado continua guardado — nada foi perdido.
+                    </p>
+                </div>
             </div>
 
-            {{-- Concluído (sem duplicatas / após confirmar) --}}
-            <div x-show="status === 'completed' && (phase === 'importing' || phase === 'confirming')"
+            {{-- Concluído --}}
+            <div x-show="status === 'completed'"
                  x-cloak
                  class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg px-8 py-12 text-center space-y-5">
                 <div class="flex justify-center">
@@ -72,15 +88,16 @@
 </x-app-layout>
 
 <script>
-function importPoller(uuid, apiUrl, redirectUrl) {
+function importPoller(apiUrl, completeUrl, previewUrl) {
     return {
         status: '{{ $import->status }}',
         phase:  '{{ $import->phase }}',
         error:  null,
+        stalled: {{ $import->looksStalled() ? 'true' : 'false' }},
         message: 'Analisando arquivo...',
 
         start() {
-            if (this.status === 'completed' || this.status === 'failed') {
+            if (this.status === 'completed' || this.status === 'failed' || this.status === 'awaiting_review') {
                 this.handleCompleted({ status: this.status, phase: this.phase });
             } else {
                 this.poll();
@@ -92,9 +109,10 @@ function importPoller(uuid, apiUrl, redirectUrl) {
                 const res  = await fetch(apiUrl);
                 const data = await res.json();
 
-                this.status = data.status;
-                this.phase  = data.phase;
-                this.error  = data.error ?? null;
+                this.status  = data.status;
+                this.phase   = data.phase;
+                this.error   = data.error ?? null;
+                this.stalled = data.stalled ?? false;
 
                 if (data.status === 'processing') {
                     this.message = data.phase === 'confirming'
@@ -102,7 +120,7 @@ function importPoller(uuid, apiUrl, redirectUrl) {
                         : 'Analisando arquivo...';
                 }
 
-                if (data.status === 'failed' || data.status === 'completed') {
+                if (data.status === 'failed' || data.status === 'completed' || data.status === 'awaiting_review') {
                     this.handleCompleted(data);
                     return;
                 }
@@ -116,13 +134,14 @@ function importPoller(uuid, apiUrl, redirectUrl) {
         handleCompleted(data) {
             if (data.status === 'failed') return;
 
-            if (data.phase === 'detecting' && data.has_duplicates) {
-                window.location.href = data.preview_url;
+            // Parada para decisão humana: há duplicatas para revisar.
+            if (data.status === 'awaiting_review') {
+                window.location.href = data.preview_url ?? previewUrl;
                 return;
             }
 
-            // importing ou confirming: redireciona via rota que seta flash
-            setTimeout(() => { window.location.href = data.redirect_url; }, 1200);
+            // Concluída: a rota de destino é quem monta o resumo em flash.
+            setTimeout(() => { window.location.href = data.redirect_url ?? completeUrl; }, 1200);
         }
     };
 }

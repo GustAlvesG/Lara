@@ -84,6 +84,36 @@ class AppServiceProvider extends ServiceProvider
         );
 
         /**
+         * Banco de Horas em modo administrador — importar o espelho de ponto,
+         * recalcular saldos e mexer no cadastro dos funcionários (férias,
+         * afastamento, rescisão).
+         *
+         * Meio Gate de setor, meio permissão: libera quem está no setor **RH**
+         * (qualquer papel) ou quem tem a permissão `import comp time` — ver
+         * User::canManageCompTime(). O acesso de leitura NÃO passa por aqui:
+         * coordenador enxerga o próprio setor e colaborador enxerga a própria
+         * ficha, e isso é decidido em CompTimeService::accessFor().
+         */
+        Gate::define(
+            'manage-comp-time',
+            fn (User $user) => $user->canManageCompTime(),
+        );
+
+        /**
+         * Tem alguma coisa para ver no Banco de Horas — RH, coordenador de
+         * algum setor, ou qualquer um com matrícula. Só decide se o menu
+         * aparece; o recorte do que a pessoa enxerga é de
+         * CompTimeService::accessFor().
+         *
+         * Existe para que a navegação pergunte por Gate e não chame métodos do
+         * model direto: ela é renderizada em quase toda tela do app.
+         */
+        Gate::define(
+            'view-comp-time',
+            fn (User $user) => $user->canViewCompTime(),
+        );
+
+        /**
          * Teto de envio da Poli Digital: 60 requisições por minuto por
          * APLICAÇÃO. Um limitador só, sem chave por destinatário, porque a
          * cota é da conta inteira — qualquer outro fluxo que passe a enviar

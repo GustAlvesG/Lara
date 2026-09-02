@@ -17,4 +17,14 @@ class Sector extends Model
             ->withPivot('role')
             ->withTimestamps();
     }
+
+    /**
+     * Funcionários do Banco de Horas lotados neste setor. É o outro lado de
+     * Employee::sector() — o vínculo que substituiu a comparação por texto
+     * entre `employees.department` e `sectors.name`.
+     */
+    public function employees()
+    {
+        return $this->hasMany(Employee::class);
+    }
 }

@@ -21,6 +21,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\SectorController;
 use App\Http\Controllers\CompTimeController;
+use App\Http\Controllers\CompTimeEmployeeController;
 use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\Fleet\FleetController;
 use App\Http\Controllers\DocumentationController;
@@ -314,20 +315,35 @@ Route::middleware('auth')->group(function () {
         });
     });
 
+    // Banco de Horas. A leitura é aberta a qualquer autenticado e o recorte é
+    // feito dentro do controller (CompTimeService::accessFor): RH vê todos,
+    // coordenador vê o próprio setor, colaborador vê a própria ficha, quem não
+    // tem matrícula não vê nada.
     Route::group(['prefix' => 'comp-time'], function () {
         Route::get('/upload', [CompTimeController::class, 'index'])->name('comp-time.index');
-        Route::post('/upload', [CompTimeController::class, 'store'])->name('comp-time.store');
         Route::post('/filter', [CompTimeController::class, 'indexFilter'])->name('comp-time.index.filter');
         Route::post('/details', [CompTimeController::class, 'showDetails'])->name('comp-time.show.details');
         Route::post('/details/day', [CompTimeController::class, 'showDayDetails'])->name('comp-time.show.day.details');
-        Route::post('/recalculate', [CompTimeController::class, 'recalculateBalances'])->name('comp-time.recalculate');
         Route::post('/write-off', [CompTimeController::class, 'writeOff'])->name('comp-time.write-off');
         Route::post('/undo-write-off', [CompTimeController::class, 'undoWriteOff'])->name('comp-time.undo-write-off');
-        Route::get('/import-status/{uuid}', [CompTimeController::class, 'importStatus'])->name('comp-time.import-status');
-        Route::get('/import-status/{uuid}/api', [CompTimeController::class, 'importStatusApi'])->name('comp-time.import-status.api');
-        Route::get('/import-status/{uuid}/complete', [CompTimeController::class, 'importComplete'])->name('comp-time.import-complete');
-        Route::get('/import-preview/{uuid}', [CompTimeController::class, 'showImportPreview'])->name('comp-time.import-preview');
-        Route::post('/confirm-import/{uuid}', [CompTimeController::class, 'confirmImport'])->name('comp-time.confirm-import');
+
+        // Importação e cadastro são do RH — setor RH ou permissão
+        // `import comp time`, ver o Gate em AppServiceProvider.
+        Route::group(['middleware' => 'can:manage-comp-time'], function () {
+            Route::post('/upload', [CompTimeController::class, 'store'])->name('comp-time.store');
+            Route::post('/recalculate', [CompTimeController::class, 'recalculateBalances'])->name('comp-time.recalculate');
+            Route::get('/import-status/{uuid}', [CompTimeController::class, 'importStatus'])->name('comp-time.import-status');
+            Route::get('/import-status/{uuid}/api', [CompTimeController::class, 'importStatusApi'])->name('comp-time.import-status.api');
+            Route::get('/import-status/{uuid}/complete', [CompTimeController::class, 'importComplete'])->name('comp-time.import-complete');
+            Route::get('/import-preview/{uuid}', [CompTimeController::class, 'showImportPreview'])->name('comp-time.import-preview');
+            Route::post('/confirm-import/{uuid}', [CompTimeController::class, 'confirmImport'])->name('comp-time.confirm-import');
+
+            Route::get('/employees', [CompTimeEmployeeController::class, 'index'])->name('comp-time.employees.index');
+            Route::get('/employees/{employee}', [CompTimeEmployeeController::class, 'show'])->name('comp-time.employees.show');
+            Route::put('/employees/{employee}', [CompTimeEmployeeController::class, 'update'])->name('comp-time.employees.update');
+            Route::post('/employees/{employee}/absences', [CompTimeEmployeeController::class, 'storeAbsence'])->name('comp-time.employees.absences.store');
+            Route::delete('/employees/{employee}/absences/{absence}', [CompTimeEmployeeController::class, 'destroyAbsence'])->name('comp-time.employees.absences.destroy');
+        });
     });
 
 

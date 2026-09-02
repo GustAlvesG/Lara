@@ -182,6 +182,15 @@ tela — o trabalho ficou parado na fila.
   o código está certo no servidor e o comportamento continua o antigo.
 - Componentes assíncronos: `app/Jobs/`, `app/Notifications/`, `app/Console/Commands/`.
   Ver [jobs-listeners-notifications.md](jobs-listeners-notifications.md).
+- **Na máquina local não há Supervisor.** `php artisan serve` não processa fila — são dois
+  processos separados, e quem só subiu o `serve` fica com toda a fila parada. Suba o worker
+  num terminal à parte:
+  `php -d memory_limit=1G artisan queue:work --tries=1 --sleep=2`
+  (o `memory_limit` é por causa da importação do Banco de Horas, que carrega um HTML de
+  alguns MB — ver [banco-de-horas.md](funcionalidades/banco-de-horas.md#rodando-o-worker-da-fila)).
+- Para separar "worker ausente" de "job travado": `php artisan tinker --execute="echo
+  DB::table('jobs')->count();"`. Job com `attempts = 0` e `created_at` antigo nunca foi
+  encostado por worker nenhum; `attempts > 0` é job que começou e morreu.
 
 ---
 

@@ -24,7 +24,9 @@
                     return $sign . sprintf('%02d:%02d', intdiv($abs, 60), $abs % 60);
                 };
                 $totalDuplicates = count($duplicates);
-                $totalNew        = count($newEntries);
+                // Antes chegava um array vazio criado só para ser contado
+                // (array_fill com N posições em branco); agora vem o número.
+                $totalNew        = $newCount;
             @endphp
 
             {{-- Aviso de duplicatas --}}
