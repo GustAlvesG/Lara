@@ -40,6 +40,7 @@ A aplicação trabalha com **múltiplas conexões**:
 | `mysql` | MySQL | Banco principal da aplicação (agendamentos, espaços, usuários, etc.). |
 | `mc_sqlsrv` | SQL Server | Base externa MultiClubes (sócios, acessos, visitantes — leitura). |
 | `mc_sqlsrv_image` | SQL Server | Base externa configurada, sem uso no momento. |
+| `questor_sqlsrv` | SQL Server | ERP de compras Questor (`FUNCSIDERURG`) — ordens de compra. Somente leitura nesta versão (ver [Autorização de Ordem de Compra](funcionalidades/questor-autorizacao-compra.md)). |
 
 Os models que apontam para o SQL Server definem `protected $connection`:
 - `Access` → `mc_sqlsrv` (tabela `Analytics.RealizedAccesses`)

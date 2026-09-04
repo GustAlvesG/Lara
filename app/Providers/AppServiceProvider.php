@@ -67,6 +67,24 @@ class AppServiceProvider extends ServiceProvider
         );
 
         /**
+         * Mapa de cotação. Mesmo raciocínio dos dois acima: o acesso ao módulo
+         * é vínculo com o setor **Contabilidade**, não permissão do Spatie — a
+         * role `admin` não dá acesso.
+         *
+         * É a PORTA do módulo, não o que se faz dentro dele: as permissões
+         * `cotacao.*` continuam separando ver, cotar, decidir e exportar. A
+         * policy exige as duas coisas.
+         *
+         * Existe como Gate também por causa do menu: o layout renderiza em toda
+         * tela, e `can()` funciona com o usuário mockado dos testes, enquanto
+         * chamar o método do model direto na view iria ao banco.
+         */
+        Gate::define(
+            'acessar-cotacao',
+            fn (User $user) => $user->canAccessCotacao(),
+        );
+
+        /**
          * Placar Clube — telas de cadastro (equipes/times/jogadores/
          * competições/jogos/escalação) e de scout (súmula/artilharia/perfil).
          * Mesma regra hoje (setor Esporte, qualquer papel — ver

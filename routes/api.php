@@ -32,6 +32,7 @@ use App\Http\Controllers\Freelancer\DinnerApiController as FreelancerDinnerApiCo
 use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\UberAccessRequestWebhookController;
 use App\Http\Controllers\InformationSearchController;
+use App\Http\Controllers\Api\PurchaseApprovalController;
 use App\Http\Controllers\Fleet\FleetApiController;
 
 
@@ -128,6 +129,37 @@ Route::prefix('company-access')->group(function () {
     Route::post('/register-access', [CompanyAccessRulesController::class, 'registerAccess'])->name('company_access.register');
     Route::post('/register-worker-access', [CompanyAccessRulesController::class, 'registerWorkerAccess'])->name('company_access.register_worker');
     Route::post('/register-freelancer-access', [CompanyAccessRulesController::class, 'registerFreelancerAccess'])->name('company_access.register_freelancer');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Aprovação de Ordem de Compra — site externo (Next.js em DMZ)
+|--------------------------------------------------------------------------
+|
+| Autenticação PRÓPRIA: matrícula + senha de aprovação devolvem um JWT com
+| escopo `purchase-approval`. Deliberadamente fora do grupo `api_token` — o
+| token estático é compartilhado por todas as integrações, e emprestá-lo para
+| aprovar compras faria um vazamento em qualquer uma delas virar aprovação de
+| ordem de compra.
+|
+| O login é o único endpoint aberto do grupo, com throttle apertado: são poucos
+| usuários e nenhum deles entra dez vezes por minuto.
+|
+*/
+Route::prefix('aprovacao')->group(function () {
+    // O limite fino é POR MATRÍCULA, dentro do controller: as requisições
+    // chegam todas do mesmo IP (o servidor em DMZ), e um throttle por IP faria
+    // um aprovador trancar os outros. Este aqui é só o teto de inundação.
+    Route::post('/login', [PurchaseApprovalController::class, 'login'])
+        ->middleware('throttle:60,1')->name('api.aprovacao.login');
+
+    Route::middleware(['approval_token', 'throttle:60,1'])->group(function () {
+        Route::get('/ordens', [PurchaseApprovalController::class, 'index'])->name('api.aprovacao.index');
+        Route::get('/ordens/{ordem}', [PurchaseApprovalController::class, 'show'])
+            ->where('ordem', '[0-9]+')->name('api.aprovacao.show');
+        Route::post('/ordens/{ordem}/decidir', [PurchaseApprovalController::class, 'decide'])
+            ->where('ordem', '[0-9]+')->name('api.aprovacao.decide');
+    });
 });
 
 /*

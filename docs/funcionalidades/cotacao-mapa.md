@@ -1,0 +1,427 @@
+# Mapa de Cotação (Questor)
+
+## O que é
+
+Substitui a planilha de Excel que a compra usa hoje para cotar preço com vários
+fornecedores. O mapa nasce de uma **Solicitação de Compra (SC) do Questor**: os
+itens viram linhas, os fornecedores viram colunas, e o comprador digita preço,
+frete, prazo e condição de pagamento célula a célula.
+
+O arquivo exportado sai no **mesmo layout da planilha em uso** — porque ela é
+impressa, assinada e arquivada, e mudar a posição das linhas quebraria um hábito
+que funciona.
+
+## A regra inegociável
+
+> **O banco do Questor (`FUNCSIDERURG`) é SOMENTE LEITURA neste módulo.**
+> Nada é gravado, alterado ou apagado lá. Nem com `QUESTOR_DRY_RUN` desligado —
+> aquela trava é do módulo de *autorização de ordem de compra*, que é outro.
+
+Toda a cotação digitada vive no banco próprio da Lara (tabelas `cotacao_*`).
+
+Três camadas sustentam isso, nesta ordem de importância:
+
+1. **Permissão de banco.** O login usado pela conexão `questor_sqlsrv` deve ter
+   apenas `SELECT`. Isto é com o DBA — código não é permissão de banco.
+2. **Caminho de acesso único.** Os repositórios de cotação herdam de
+   [`QuestorReadRepository`](../../app/Services/Questor/QuestorReadRepository.php),
+   que expõe só `table()`, `select()` e `selectCached()`. Não há `insert`,
+   `update`, `statement` nem acesso ao objeto de conexão.
+3. **Trava de instrução.** `select()` recusa qualquer SQL que não comece por
+   `SELECT` ou `WITH`, antes de tocar na conexão e independentemente de o módulo
+   estar ligado. Coberto por
+   [`QuestorSomenteLeituraTest`](../../tests/Feature/Cotacao/QuestorSomenteLeituraTest.php).
+
+Além disso: **todo parâmetro entra por binding.** Nenhum valor de tela — nem
+`CD_SOLICITACAO`, nem termo de busca — é concatenado na string do SQL.
+
+---
+
+## As três armadilhas do schema
+
+São as três coisas que fazem um mapa de cotação errar em silêncio. Cada uma está
+tratada no código, com o comentário no ponto em que ela aparece.
+
+### 1. `CD_MATERIAL` é NULL-able na solicitação
+
+`TBL_COMPRAS_SOLICITACAO_ITENS.CD_MATERIAL` aceita `NULL`. O solicitante pode ter
+digitado o item como texto livre em `DS_MATERIAL`, sem cadastro em
+`TBL_MATERIAIS`.
+
+Esse item **existe, é comprado, e não tem histórico por código**.
+
+| Onde | O que o código faz |
+|------|--------------------|
+| `SolicitacaoItemDTO::semCadastro()` | A pergunta fica no DTO, e não espalhada como `=== null` em cinco lugares. |
+| `MapaImportService` | A linha entra no mapa normalmente, com os campos `ult_compra_*` nulos. |
+| `MapaController::historicoItem()` | Devolve o modal com a mensagem *"item sem cadastro — sem histórico"* **sem consultar o ERP**. |
+| Grade e prévia | Etiqueta "sem cadastro" ao lado da descrição. |
+| Aba "Histórico" do XLSX | Escreve o texto na coluna da última compra, em vez de deixar a linha em branco e parecer erro de exportação. |
+
+**Nunca deixar isso quebrar a tela.** É o comportamento normal de uma SC, não um
+defeito.
+
+### 2. `CD_STATUS` da NF de entrada não tem FK
+
+`TBL_COMPRAS_NOTAFISCAL_ENTRADA.CD_STATUS` é `DEFAULT 2` e **não tem foreign key
+declarada**. Duas consequências:
+
+- **Todo join com `TBL_STATUS` é `LEFT JOIN`.** Com `INNER`, uma nota cujo status
+  não está cadastrado sumiria do histórico sem aviso — o pior jeito de errar um
+  preço.
+- **O código de "cancelada" não pode ser hardcoded.** Não há nada no schema que
+  diga qual número é esse.
+
+Descubra rodando:
+
+```bash
+php artisan cotacao:descobrir-config
+```
+
+O comando roda as consultas de descoberta (`0.1b` e `0.2`), imprime a tabela e
+sugere o valor para o `.env`:
+
+```
+QUESTOR_STATUS_NF_CANCELADA=
+```
+
+**Deixar a chave vazia é uma resposta legítima.** Sem ela, nenhuma nota é
+descartada por status. Incluir uma nota cancelada de vez em quando é menos grave
+do que esconder compras boas do histórico por causa de um chute errado.
+
+#### Resultado na base de produção (04/09/2026)
+
+| `CD_STATUS` | `DS_STATUS` | Notas | Período |
+|---|---|---:|---|
+| 2 | FATURADO | 15.936 | 20/07/2022 – 03/09/2026 |
+| 1 | PENDENTE | 57 | 01/08/2022 – 23/07/2026 |
+| 4 | CANCELADO | 15 | 15/08/2024 – 23/07/2026 |
+
+Ou seja: **`QUESTOR_STATUS_NF_CANCELADA=4`**. Só três status aparecem, e nenhum
+deles é órfão de `TBL_STATUS` — o `LEFT JOIN` continua obrigatório de qualquer
+forma, porque nada no schema garante que siga assim.
+
+### 3. O que conta como "compra" é `X_ATUALIZA_DT_ULTIMA_COMPRA`
+
+`TBL_CME.X_ATUALIZA_DT_ULTIMA_COMPRA` (bit, default 1) é **o próprio flag que o
+Questor usa** para dizer "esta operação conta como compra".
+
+Filtrar por ele exclui devolução, transferência, remessa e industrialização sem
+ninguém precisar manter uma lista de CFOP à mão. Todas as consultas de histórico
+usam `ISNULL(cme.X_ATUALIZA_DT_ULTIMA_COMPRA, 1) = 1` — o `ISNULL` mantém a
+entrada cujo CME não está cadastrado, porque na dúvida ela é compra (é o default
+da coluna no ERP).
+
+A segunda tabela do `cotacao:descobrir-config` lista os CME em uso e quais contam
+como compra. **Confira antes de fechar o filtro.** Se uma compra de verdade
+estiver de fora, o cadastro do CME no Questor é que precisa ser corrigido — não
+o filtro.
+
+#### Resultado na base de produção (04/09/2026) — e a ressalva
+
+**As 14 operações em uso têm `X_ATUALIZA_DT_ULTIMA_COMPRA = 1`.** Nenhuma está
+marcada como "não conta como compra".
+
+Isso quer dizer que, **nesta base, o flag não discrimina nada** — provavelmente
+o default 1 nunca foi ajustado no cadastro de CME. O filtro continua sendo o
+certo (é o critério do próprio ERP, e passa a valer sozinho no dia em que alguém
+corrigir o cadastro), mas hoje ele não exclui as operações que, pelo nome, não
+são compra negociada:
+
+| `CD_CME` | `DS_CME` | Itens |
+|---:|---|---:|
+| 24 | ENTRADA - BONIFICAÇÃO, DOAÇÃO OU BRINDE | 41 |
+| 36 | SAÍDA - TRANSF. DE MERC. ADQ. DE TERCEIROS | 24 |
+| 25 | ENTRADA - AMOSTRA GRÁTIS | 1 |
+| 26 | ENTRADA - RETORNO DE MERC. REMETIDA P/ CONSERTO | 1 |
+| 41 | SAÍDA - ANULAÇÃO DE VALOR RELATIVO A ENERGIA | 1 |
+
+São 68 itens em ~44.500 — irrelevante no agregado, **mas não para um material
+específico**: se a bonificação foi a última entrada daquele item, ela vira a
+"última compra" do mapa e a comparação de preço sai errada para aquela linha.
+
+**Isto é decisão de operação, não de código, e por isso não foi resolvido por
+conta própria.** Dois caminhos, nesta ordem de preferência:
+
+1. **Corrigir no Questor**: zerar `X_ATUALIZA_DT_ULTIMA_COMPRA` nos CME que não
+   são compra. Conserta o mapa e todo o resto do ERP que usa o mesmo flag.
+2. **Excluir por código no filtro da Lara**: exige uma chave de configuração
+   nova (`cotacao.cme_excluidos`) e um `NOT IN` nas consultas de histórico.
+   Não implementado — peça se for o caminho escolhido.
+
+---
+
+## Configuração
+
+Tudo em `config/questor.php`, chave `cotacao`. No `.env`:
+
+| Chave | Padrão | Para que serve |
+|-------|--------|----------------|
+| `QUESTOR_STATUS_NF_CANCELADA` | *(vazio)* | Código de NF cancelada. Ver armadilha 2. |
+| `QUESTOR_COTACAO_MESMA_FILIAL` | `false` | Restringir a última compra à filial da SC. Desligado por padrão: o preço de uma tinta não muda por ela ter entrado noutra filial. |
+| `QUESTOR_COTACAO_MESES_HISTORICO` | `24` | Janela do drill-down do item. |
+| `QUESTOR_COTACAO_LIMITE_HISTORICO` | `20` | Quantas entradas o drill-down lista. |
+| `QUESTOR_COTACAO_CACHE_TTL` | `900` | Cache do histórico, em segundos. `0` desliga. |
+| `QUESTOR_COTACAO_MAX_FORNECEDORES` | `10` | Teto de colunas por mapa (o XLSX modelo vai de E a N). |
+
+O módulo respeita `QUESTOR_ENABLED`: desligado, os mapas já criados continuam
+abrindo e editáveis — só a criação de mapa novo e o histórico dependem do ERP.
+
+## Acesso
+
+Três perguntas se cruzam, e nenhuma delas sozinha decide.
+
+### 1. O setor é a porta — Contabilidade
+
+**O módulo é do setor Contabilidade.** O vínculo com o setor, em qualquer papel
+(colaborador ou coordenador), é condição de toda ação — inclusive só olhar.
+
+É um **Gate** (`acessar-cotacao`), não uma permissão do Spatie, pelo mesmo
+raciocínio do financeiro dos freelancers: é atribuição de setor, não nível de
+acesso. Consequência importante e deliberada:
+
+> **A role `admin` não abre esta porta.** Quem administra o sistema não cota
+> compra por consequência disso; entra no setor quem de fato cota.
+
+O Gate mora em `AppServiceProvider` e pergunta a `User::canAccessCotacao()`, que
+é memorizado por instância — menu, policy e cada ação da grade perguntam a mesma
+coisa na mesma requisição. Cada requisição reconfere, então tirar o vínculo no
+painel corta o acesso na hora.
+
+Vincular alguém: **Setores → Contabilidade → adicionar usuário**.
+
+### 2. A permissão separa o que se faz lá dentro
+
+| Permissão | O que libera |
+|-----------|--------------|
+| `cotacao.visualizar` | Ver a lista e abrir um mapa. |
+| `cotacao.criar` | Buscar SC, gerar mapa, gerenciar itens e colunas. |
+| `cotacao.editar_precos` | Digitar preço na grade. |
+| `cotacao.definir_vencedor` | Escolher o fornecedor de cada item e fechar o mapa. |
+| `cotacao.exportar` | Baixar o XLSX. |
+| `cotacao.reabrir` | Reabrir um mapa fechado. |
+
+São separadas de propósito: quem monta o mapa nem sempre é quem liga para os
+fornecedores, e decidir de quem comprar não é a mesma coisa que anotar o preço
+que o fornecedor falou.
+
+**O setor é necessário, a permissão também.** Estar na Contabilidade sem
+`cotacao.editar_precos` deixa a pessoa ver o mapa e não digitar nele.
+
+### 3. O estado do mapa
+
+Um **mapa fechado é somente leitura para todo mundo** — é ele que sustenta a
+decisão de compra, e um preço corrigido depois do fechamento, sem trilha,
+transformaria o documento em rascunho. Reabrir tem permissão própria e fica no
+log.
+
+A composição das três está em
+[`CotacaoMapaPolicy`](../../app/Policies/CotacaoMapaPolicy.php) e coberta por
+[`CotacaoMapaPolicyTest`](../../tests/Unit/Cotacao/CotacaoMapaPolicyTest.php).
+
+### No menu
+
+O módulo é submenu de **Compras**, ao lado de Ordens de Compra e Centros de
+Custo — é a mesma área do ERP.
+
+O item pai tem uma sutileza: as duas metades têm donos diferentes (Ordens de
+Compra pede a permissão `authorize purchase orders`; Cotação pede o setor). Os
+partials do menu só sabem filtrar pela permissão do item **pai**, então a
+filtragem por filho é feita em `layouts/app.blade.php`, e o pai "Compras" só
+aparece se sobrar algum filho — mesmo arranjo do menu Freelancers.
+
+## Fluxo
+
+1. **Buscar a SC** — por número, ou por período e texto (a busca procura também
+   na descrição dos itens: quem pede a cotação lembra "as tintas do parquinho",
+   não o número).
+2. **Prévia** — cabeçalho, itens, última compra de cada um e a lista de
+   fornecedores que já venderam aqueles itens. Se já existir mapa não cancelado
+   para a mesma SC, a tela oferece abrir o existente em vez de duplicar o
+   trabalho.
+3. **Gerar** — o comprador marca quais fornecedores viram coluna. **Nenhum é
+   marcado automaticamente**, senão o mapa nasce com vinte colunas.
+4. **Cotar** — a grade salva **por célula**, a cada pausa de digitação. Não há
+   botão "salvar tudo": cotação é feita ao telefone ao longo de dias, e um
+   formulário que só grava no fim perde tudo quando o navegador fecha.
+5. **Decidir** — vencedor por item (a compra pode ser dividida).
+6. **Exportar / fechar.**
+
+### Acrescentar fornecedores dentro da Lara
+
+O comprador pode acrescentar fornecedores à cotação **a qualquer momento**,
+inclusive quem **não existe no cadastro do Questor** (nesse caso
+`questor_cd_entidade` fica nulo e a coluna vive só pelo nome). A sugestão
+automática é ponto de partida, não limite — a boa proposta frequentemente vem de
+quem nunca vendeu para a empresa.
+
+`frete`, `prazo_entrega` e `condicao_pagamento` são **texto livre, não FK**: o
+mapa em uso hoje tem "CONFIRMAR", "3DU" e "Á VISTA", que não existem em
+`TBL_PRAZO_ENTREGA` nem em `TBL_FINANCEIRO_FORMAS_PAGAMENTO`. As tabelas do
+Questor entram como autocomplete (`datalist`), não como restrição.
+
+## As contas
+
+Todas em [`MapaCalculoService`](../../app/Services/Cotacao/MapaCalculoService.php),
+que é **puro** — nenhum I/O, nem banco, nem cache, nem relógio. É de propósito:
+estas contas decidem para onde vai dinheiro, e uma conta que só dá para
+exercitar com banco montado é uma conta que ninguém testa.
+
+**A regra que atravessa tudo: célula vazia nunca vira zero.** Nem em subtotal,
+nem em menor preço, nem em média, nem em economia. A planilha em Excel erra
+exatamente aí — `SUMPRODUCT` trata vazio como zero, e quem não cotou nada aparece
+com o menor total.
+
+Daí a distinção entre as três situações de célula:
+
+| Situação | No papel | Nas somas | Na cobertura |
+|----------|----------|-----------|--------------|
+| `cotado` | o valor | entra | conta |
+| `nao_trabalha` | `NT` | **fora** | não penaliza — ele não vende o item |
+| `sem_resposta` | *(vazio)* | **fora** | conta contra |
+
+### O que o módulo mostra e a planilha não
+
+- **Menor preço** de cada linha destacado, com o segundo menor mais discreto.
+  Empate marca as duas colunas (escolher uma por sorteio esconderia do comprador
+  que há dois preços iguais). O "segundo menor" é o segundo **valor distinto**,
+  não a segunda célula.
+- **Variação % vs. última compra** por célula — verde abaixo, vermelho acima.
+- **Economia projetada**: `(última compra × qtd) − (melhor cotação × qtd)`, só
+  nos itens que têm os dois lados. **Negativa é resultado legítimo** e aparece.
+- **Cobertura**: "cotou 4 de 6 itens".
+- **Dois totais por fornecedor**: `total` (só o que ele cotou — o número honesto)
+  e `total_cheio`, que **só existe quando ele cotou tudo**. É o único caso em que
+  comparar total contra total faz sentido. Na planilha de hoje essa distinção não
+  existe, e quem cotou 2 de 6 itens parece o mais barato.
+- **Duas estratégias lado a lado**: `melhor_combinacao` (compra dividida, item a
+  item) contra `melhor_fornecedor_unico` (compra concentrada, só entre quem
+  cobriu o mapa inteiro). A diferença entre elas é o que o comprador está de fato
+  decidindo — por isso também existe `melhor_combinacao_com_frete`, já que
+  dividir costuma perder parte da vantagem no frete.
+- **Trilha completa** (`cotacao_mapa_logs`): quem criou, importou, mudou qual
+  preço, escolheu qual vencedor e exportou. É boa parte da razão de o módulo
+  existir — a planilha não responde "quem mudou este preço, e quando?".
+
+## Exportação XLSX
+
+Layout idêntico ao modelo (`A1` COTAÇÃO DE COMPRAS · `C3` DATA · `C4` SC ·
+linhas 5/6/7 com frete, prazo e pagamento · linha 8 com o cabeçalho · itens a
+partir da 9 · rodapé FRETE/SUBTOTAL/TOTAL/TOTAL GERAL DO PEDIDO).
+
+Duas coisas que o arquivo gerado faz e o atual não:
+
+1. **Os totais são fórmula, não número.** `SUBTOTAL` é
+   `=SUMPRODUCT($D$9:$D$14,E9:E14)` e `TOTAL` é `=E16+E15`. Quem corrigir um
+   preço no Excel vê o total mudar. Uma exportação "com valores" quebra isso em
+   silêncio — e é justamente o que
+   [`MapaExportServiceTest`](../../tests/Feature/Cotacao/MapaExportServiceTest.php)
+   protege, reabrindo o arquivo do disco e conferindo o tipo da célula.
+2. **O menor preço é formatação condicional**, não cor fixa: editado o preço, o
+   destaque acompanha.
+
+Detalhes:
+
+- `nao_trabalha` sai como o **texto** `NT` (explicitamente string, para o Excel
+  não tentar interpretá-lo); `sem_resposta` sai em branco. `SUMPRODUCT` e `MIN`
+  ignoram os dois.
+- O `TOTAL GERAL DO PEDIDO` usa uma **coluna auxiliar oculta** logo depois dos
+  fornecedores, com `=IF(COUNT(...)=0,0,MIN(...)*$D$n)`. É o preço a pagar por
+  manter o total recalculável: o Excel não soma "o mínimo de cada linha" numa
+  fórmula só sem matricial.
+- **Aba 2 "Histórico"** — item, última compra (data, fornecedor, NF, valor),
+  melhor cotação, variação % e economia. Ali os valores vão calculados, e não
+  como fórmula: são um retrato do momento da exportação, e a última compra veio
+  do Questor, não está na planilha para o Excel recalcular.
+- Nome do arquivo: `COTACAO_<slug do título>_<SC>_<dd_mm_aaaa>.xlsx`.
+
+## O retrato da última compra
+
+Os campos `ult_compra_*` de `cotacao_mapa_itens` são gravados **na importação** e
+ficam congelados. O mapa precisa ser reproduzível meses depois, mesmo que notas
+novas entrem no Questor no meio da cotação.
+
+Quem quiser o dado de hoje usa o botão **"Atualizar histórico"**, que regrava o
+retrato de propósito e deixa registro no log — é uma ação que muda a base de
+comparação de um mapa que talvez já tenha preços digitados.
+
+## Estrutura
+
+```
+app/
+  Console/Commands/DescobrirConfigCotacao.php   -> cotacao:descobrir-config (0.1b e 0.2)
+  Exceptions/CotacaoException.php
+  Http/Controllers/Cotacao/{Mapa,Preco,Fornecedor}Controller.php
+  Http/Requests/{ImportarMapa,SalvarPreco,StoreCotacaoFornecedor,
+                 StoreCotacaoItem,DefinirVencedor}*Request.php
+  Models/Cotacao{Mapa,MapaItem,MapaFornecedor,Preco,MapaLog}.php
+  Policies/CotacaoMapaPolicy.php
+  Services/Cotacao/
+    MapaImportService.php    -> SC + retrato da última compra  (queries 1, 2, 3, 5.c)
+    MapaCalculoService.php   -> puro: menor preço, totais, cobertura, economia
+    MapaExportService.php    -> XLSX
+  Services/Questor/
+    QuestorReadRepository.php        -> base somente-leitura
+    QuestorSolicitacaoRepository.php -> queries 1, 1.b, 2
+    QuestorCompraRepository.php      -> queries 3, 4, 5.b, 5.c, 6, 7.b, 8
+    QuestorCadastroRepository.php    -> queries 9.a-9.e + descoberta 0.1b e 0.2
+    DTO/{Solicitacao,SolicitacaoItem,UltimaCompra,FornecedorHistorico}DTO.php
+```
+
+As consultas ao Questor estão numeradas em
+[`docs/sql/mapa_cotacao_questor_queries.sql`](../sql/mapa_cotacao_questor_queries.sql)
+— é a numeração que os comentários dos repositórios citam ("query 5.c", "query
+0.1b"). O arquivo é versionado por uma exceção no `.gitignore`, que ignora
+`*.sql` para não deixar dump entrar no repositório.
+
+Tabelas: `cotacao_mapas`, `cotacao_mapa_fornecedores`, `cotacao_mapa_itens`,
+`cotacao_precos`, `cotacao_mapa_logs`.
+
+**Nenhuma delas tem foreign key para `users`** — o model `User` fixa a conexão
+`mysql` enquanto estas seguem a conexão padrão, pelo mesmo motivo de
+`questor_order_decisions`. O nome do autor vai junto como retrato.
+
+**Um mapa aberto por solicitação** é validado na aplicação
+(`MapaImportService::mapaAbertoDe`), e não por índice único: a regra real é "um
+mapa **não cancelado** por SC", que é um índice parcial — coisa que o MySQL não
+tem. Cancelado não ocupa a solicitação: o comprador precisa poder recomeçar
+depois de descartar uma cotação.
+
+## Testes
+
+```bash
+php -d memory_limit=1G vendor/bin/phpunit tests/Unit/Cotacao tests/Feature/Cotacao
+```
+
+- `MapaCalculoServiceTest` — **PHPUnit puro, sem aplicação**: empate, coluna
+  vazia, `NT` misturado com sem resposta, frete zerado, quantidade fracionada,
+  economia negativa, cobertura parcial.
+- `MapaImportServiceTest` — Questor por mock: SC inexistente, SC sem itens, item
+  com `CD_MATERIAL` nulo, SC que já tem mapa, mapa cancelado que libera nova
+  importação, atualizar histórico, teto de colunas, fornecedor fora do ERP.
+- `SalvarPrecoEscopoTest` — a trava de IDOR: item ou fornecedor de outro mapa é
+  recusado na **autorização** (403), não na validação.
+- `MapaExportServiceTest` — layout, `NT` como texto, e as fórmulas conferidas
+  **no arquivo reaberto do disco**.
+- `CotacaoMapaPolicyTest` — o acesso: setor obrigatório (a role `admin` sozinha
+  não entra), permissão por ação, mapa fechado somente leitura.
+- `QuestorQueriesSqlTest` — a forma das 18 consultas ao ERP, interceptando o
+  `select()`: nenhum `%s` solto, `?` batendo com bindings, todo `FROM`/`JOIN`
+  apontando para tabela qualificada e `TBL_STATUS` só por `LEFT JOIN`.
+- `QuestorSomenteLeituraTest` — a trava de escrita.
+
+Os testes usam
+[`Tests\Concerns\CreatesCotacaoSchema`](../../tests/Concerns/CreatesCotacaoSchema.php),
+que aplica **as migrations de verdade** (não uma cópia do schema) sobre o SQLite
+da suíte. Não há `RefreshDatabase` pelo motivo já registrado no repositório: a
+cadeia completa de migrations não roda hoje, e várias dependem de `users`.
+
+## Fora de escopo
+
+Não implementado, e não deve ser sem nova conversa:
+
+- Gravar cotação ou ordem de compra de volta no Questor.
+- Envio automático de e-mail de cotação a fornecedor.
+- Portal do fornecedor para autopreenchimento.
+- Aprovação / alçada de compra (isso é o outro módulo:
+  [Autorização de Ordem de Compra](questor-autorizacao-compra.md)).

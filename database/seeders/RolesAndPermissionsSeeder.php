@@ -59,6 +59,33 @@ class RolesAndPermissionsSeeder extends Seeder
             [ 'name' => 'use lara chat', 'description' => 'Permite usar o chat com a Lara (assistente de IA)'],
         ];
 
+        // Autorização de ordem de compra (integração com o Questor). Enquanto o
+        // módulo só simula a gravação, esta permissão é de fato "ver a fila e
+        // conferir a integração" — o mesmo grupo que vai aprovar de verdade.
+        $permission_questor = [
+            [ 'name' => 'authorize purchase orders', 'description' => 'Permite ver e autorizar ordens de compra do Questor'],
+        ];
+
+        // Mapa de cotação. As ações são separadas de propósito: quem monta o
+        // mapa nem sempre é quem liga para os fornecedores, e decidir de quem
+        // comprar não é a mesma coisa que anotar o preço que o fornecedor
+        // falou. `reabrir` tem permissão própria porque devolve à edição um
+        // documento que já fundamentou uma compra.
+        //
+        // ATENÇÃO: estas permissões NÃO bastam para entrar no módulo. O acesso
+        // é do setor **Contabilidade**, conferido pelo Gate `acessar-cotacao`
+        // (ver App\Policies\CotacaoMapaPolicy) — inclusive para a role `admin`,
+        // que recebe todas as permissões logo abaixo e mesmo assim não entra
+        // sem o vínculo de setor.
+        $permission_cotacao = [
+            [ 'name' => 'cotacao.visualizar', 'description' => 'Permite ver os mapas de cotação'],
+            [ 'name' => 'cotacao.criar', 'description' => 'Permite gerar mapa a partir de uma solicitação e gerenciar itens e colunas'],
+            [ 'name' => 'cotacao.editar_precos', 'description' => 'Permite digitar preços na grade do mapa de cotação'],
+            [ 'name' => 'cotacao.definir_vencedor', 'description' => 'Permite escolher o fornecedor vencedor de cada item e fechar o mapa'],
+            [ 'name' => 'cotacao.exportar', 'description' => 'Permite exportar o mapa de cotação em XLSX'],
+            [ 'name' => 'cotacao.reabrir', 'description' => 'Permite reabrir um mapa de cotação já fechado'],
+        ];
+
         // A portaria registra a quilometragem pela API (token próprio); esta
         // permissão é para as telas: painel, histórico e cadastro de veículos.
         $permission_fleet = [
@@ -73,6 +100,8 @@ class RolesAndPermissionsSeeder extends Seeder
             $permission_admin,
             $permission_home_assistant,
             $permission_lara,
+            $permission_questor,
+            $permission_cotacao,
             $permission_fleet
         );
 

@@ -118,6 +118,30 @@ return [
             'trust_server_certificate' => 'true',
         ],
 
+        /*
+         * Questor (FUNCSIDERURG) — o ERP de compras. É de lá que saem as ordens
+         * de compra pendentes de autorização (ver config/questor.php e
+         * App\Services\Questor). Servidor e credenciais são próprios: não
+         * reaproveitam os do MultiClubes.
+         *
+         * O usuário do banco só precisa de SELECT nas tabelas de leitura; o
+         * UPDATE de autorização só entra em cena quando `questor.dry_run` for
+         * desligado, o que ainda não aconteceu nesta versão.
+         */
+        'questor_sqlsrv' => [
+            'driver' => 'sqlsrv',
+            'host' => env('DB_QUESTOR_HOST', '127.0.0.1'),
+            'port' => env('DB_QUESTOR_PORT', '1433'),
+            'database' => env('DB_QUESTOR_DATABASE', 'FUNCSIDERURG'),
+            'username' => env('DB_QUESTOR_USERNAME'),
+            'password' => env('DB_QUESTOR_PASSWORD'),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'sslmode' => 'None',
+            'trust_server_certificate' => 'true',
+        ],
+
         'mc_sqlsrv_image' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),

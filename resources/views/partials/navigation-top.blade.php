@@ -161,7 +161,7 @@
                         @php
                             $children = $link['children'] ?? null;
                             $isActive = $children
-                                ? collect($children)->contains(fn($c) => request()->routeIs($c['route']))
+                                ? collect($children)->contains(fn($c) => request()->routeIs($c['active'] ?? $c['route']))
                                 : request()->routeIs($link['active'] ?? $link['route']);
                             $baseClasses     = 'inline-flex items-center whitespace-nowrap px-2.5 py-2 border-b-2 text-sm font-medium leading-5 transition duration-150 ease-in-out rounded-t-md';
                             $activeClasses   = 'border-red-800 dark:border-red-400 text-red-800 dark:text-red-400 bg-red-50/50 dark:bg-red-900/20';
@@ -211,7 +211,7 @@
                                                 {{ __($link['label']) }}
                                             </div>
                                             @foreach($children as $child)
-                                                @php $childActive = request()->routeIs($child['route']); @endphp
+                                                @php $childActive = request()->routeIs($child['active'] ?? $child['route']); @endphp
                                                 <div class="group flex items-center">
                                                     <a href="{{ route($child['route']) }}"
                                                         class="block min-w-0 flex-1 truncate px-4 py-2 text-sm transition {{ $childActive ? 'bg-red-50 font-semibold text-red-800 dark:bg-red-900/20 dark:text-red-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700' }}">
@@ -278,7 +278,7 @@
                                                 {{ __($link['label']) }}
                                             </div>
                                             @foreach($children as $child)
-                                                @php $childActive = request()->routeIs($child['route']); @endphp
+                                                @php $childActive = request()->routeIs($child['active'] ?? $child['route']); @endphp
                                                 <div class="group flex items-center">
                                                     <a href="{{ route($child['route']) }}"
                                                         class="block min-w-0 flex-1 truncate px-4 py-2 text-sm transition {{ $childActive ? 'bg-red-50 font-semibold text-red-800 dark:bg-red-900/20 dark:text-red-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700' }}">
@@ -417,7 +417,7 @@
                     @if($children)
                         <div class="px-4 pt-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{{ __($link['label']) }}</div>
                         @foreach($children as $child)
-                            <x-responsive-nav-link :href="route($child['route'])" :active="request()->routeIs($child['route'])">
+                            <x-responsive-nav-link :href="route($child['route'])" :active="request()->routeIs($child['active'] ?? $child['route'])">
                                 {{ __($child['label']) }}
                             </x-responsive-nav-link>
                         @endforeach

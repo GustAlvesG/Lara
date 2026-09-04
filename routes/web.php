@@ -41,6 +41,11 @@ use App\Http\Controllers\LaraChatController;
 use App\Http\Controllers\HomeAssistantController;
 use App\Http\Controllers\CardIssuerController;
 use App\Http\Controllers\CardTemplateController;
+use App\Http\Controllers\Questor\PurchaseOrderController as QuestorPurchaseOrderController;
+use App\Http\Controllers\Questor\CostCenterApproverController as QuestorCostCenterController;
+use App\Http\Controllers\Cotacao\MapaController as CotacaoMapaController;
+use App\Http\Controllers\Cotacao\PrecoController as CotacaoPrecoController;
+use App\Http\Controllers\Cotacao\FornecedorController as CotacaoFornecedorController;
 
 use App\Http\Controllers\Placar\Web\EquipeController as PlacarEquipeWebController;
 use App\Http\Controllers\Placar\Web\TimeController as PlacarTimeWebController;
@@ -498,6 +503,95 @@ Route::middleware('auth')->group(function () {
             ->middleware('throttle:15,1')->name('lara.ask');
         Route::post('/reiniciar', [LaraChatController::class, 'reset'])
             ->middleware('throttle:15,1')->name('lara.reset');
+    });
+
+    // Questor — autorização de Ordem de Compra.
+    // As duas rotas de decisão GRAVAM NO ERP DE PRODUÇÃO quando
+    // QUESTOR_DRY_RUN está desligado; com ele ligado, as mesmas rotas apenas
+    // simulam. O modo é do serviço, não do endereço — assim ligar a gravação
+    // não muda a URL nem quebra link salvo.
+    // Throttle baixo: cada requisição escreve num ERP externo, e um duplo
+    // clique repetido não é um caso que se queira exercitar contra o Questor.
+    Route::prefix('questor/ordens-compra')->middleware('permission:authorize purchase orders')->group(function () {
+        Route::get('/', [QuestorPurchaseOrderController::class, 'index'])->name('questor.purchase-orders.index');
+        Route::get('/{ordem}', [QuestorPurchaseOrderController::class, 'show'])
+            ->where('ordem', '[0-9]+')->name('questor.purchase-orders.show');
+        // Uma rota para os três níveis: o serviço decide qual está em jogo a
+        // partir do processo e dos cargos de quem clicou. Só a aprovação do
+        // terceiro nível chega ao ERP.
+        Route::post('/{ordem}/decidir', [QuestorPurchaseOrderController::class, 'decideLevel'])
+            ->where('ordem', '[0-9]+')->middleware('throttle:20,1')->name('questor.purchase-orders.decide');
+    });
+
+    // Relação centro de custo → diretores: define quem vem SUGERIDO no último
+    // nível da aprovação. Mesma permissão da fila — quem edita aqui muda quem
+    // costuma decidir o quê.
+    Route::prefix('questor/centros-custo')->middleware('permission:authorize purchase orders')->group(function () {
+        Route::get('/', [QuestorCostCenterController::class, 'index'])->name('questor.cost-centers.index');
+        Route::put('/{centroCusto}', [QuestorCostCenterController::class, 'update'])
+            ->where('centroCusto', '[0-9]+')->name('questor.cost-centers.update');
+    });
+
+    /*
+    |------------------------------------------------------------------------
+    | Mapa de cotação (Questor — SOMENTE LEITURA do ERP)
+    |------------------------------------------------------------------------
+    |
+    | Diferente das rotas de autorização de ordem de compra logo acima: aqui
+    | NADA é gravado no Questor, nem com `dry_run` desligado. A solicitação e o
+    | histórico de compras são lidos; a cotação inteira vive no banco da Lara.
+    |
+    | O controle de acesso é por policy (App\Policies\CotacaoMapaPolicy), não
+    | por middleware de permissão: as ações têm permissões diferentes
+    | (visualizar, criar, editar preços, definir vencedor, exportar) e o estado
+    | do mapa — fechado é somente leitura — entra na decisão junto.
+    |
+    | As rotas fixas vêm ANTES de `/{mapa}`: sem isso, "previa" seria lido como
+    | um id de mapa.
+    */
+    Route::prefix('cotacao/mapas')->name('cotacao.mapas.')->group(function () {
+        Route::get('/', [CotacaoMapaController::class, 'index'])->name('index');
+
+        // Consulta o ERP a cada carregamento; o throttle protege o Questor de
+        // um F5 insistente na busca de solicitação.
+        Route::get('/previa', [CotacaoMapaController::class, 'previa'])
+            ->middleware('throttle:60,1')->name('previa');
+
+        Route::get('/fornecedores/buscar', [CotacaoFornecedorController::class, 'buscar'])
+            ->middleware('throttle:60,1')->name('fornecedores.buscar');
+        Route::get('/fornecedores/condicoes', [CotacaoFornecedorController::class, 'condicoes'])
+            ->middleware('throttle:60,1')->name('fornecedores.condicoes');
+
+        Route::post('/', [CotacaoMapaController::class, 'store'])->name('store');
+
+        Route::prefix('/{mapa}')->whereNumber('mapa')->group(function () {
+            Route::get('/', [CotacaoMapaController::class, 'show'])->name('show');
+            Route::patch('/', [CotacaoMapaController::class, 'update'])->name('update');
+            Route::delete('/', [CotacaoMapaController::class, 'destroy'])->name('destroy');
+
+            Route::get('/exportar', [CotacaoMapaController::class, 'exportar'])->name('exportar');
+            Route::post('/atualizar-historico', [CotacaoMapaController::class, 'atualizarHistorico'])
+                ->name('atualizar-historico');
+
+            // A grade salva por célula, a cada pausa de digitação: o teto é bem
+            // mais alto que o das outras rotas de propósito.
+            Route::post('/precos', [CotacaoPrecoController::class, 'salvar'])
+                ->middleware('throttle:240,1')->name('precos.salvar');
+
+            Route::post('/vencedor', [CotacaoMapaController::class, 'definirVencedor'])->name('vencedor');
+
+            Route::post('/itens', [CotacaoMapaController::class, 'storeItem'])->name('itens.store');
+            Route::delete('/itens/{item}', [CotacaoMapaController::class, 'destroyItem'])
+                ->whereNumber('item')->name('itens.destroy');
+            Route::get('/itens/{item}/historico', [CotacaoMapaController::class, 'historicoItem'])
+                ->whereNumber('item')->name('itens.historico');
+
+            Route::post('/fornecedores', [CotacaoFornecedorController::class, 'store'])->name('fornecedores.store');
+            Route::patch('/fornecedores/{fornecedor}', [CotacaoFornecedorController::class, 'update'])
+                ->whereNumber('fornecedor')->name('fornecedores.update');
+            Route::delete('/fornecedores/{fornecedor}', [CotacaoFornecedorController::class, 'destroy'])
+                ->whereNumber('fornecedor')->name('fornecedores.destroy');
+        });
     });
 
     // Notificações
