@@ -182,4 +182,69 @@ return [
         'quorum_diretoria' => env('QUESTOR_QUORUM_DIRETORIA', 'todos'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Mapa de cotação
+    |--------------------------------------------------------------------------
+    |
+    | O módulo de mapa de cotação lê a Solicitação de Compra e o histórico de
+    | compras do Questor; tudo o que o comprador digita fica na Lara. Nada aqui
+    | habilita escrita no ERP — o mapa é 100% leitura do lado do Questor.
+    |
+    */
+
+    'cotacao' => [
+
+        /*
+        | CD_STATUS que marca uma NF de entrada CANCELADA. NÃO TEM FK no
+        | Questor (TBL_COMPRAS_NOTAFISCAL_ENTRADA.CD_STATUS é DEFAULT 2 e
+        | ninguém garante que exista em TBL_STATUS), então não dá para deduzir:
+        | rode `php artisan cotacao:descobrir-config` e ponha o número no .env.
+        |
+        | Nulo = nenhuma nota é excluída por status. É o padrão deliberado:
+        | chutar um código faria o histórico esconder compras boas em silêncio,
+        | que é pior do que incluir uma nota cancelada de vez em quando.
+        */
+
+        'status_nf_entrada_cancelada' => filled(env('QUESTOR_STATUS_NF_CANCELADA'))
+            ? (int) env('QUESTOR_STATUS_NF_CANCELADA')
+            : null,
+
+        /*
+        | Restringir o histórico à filial da solicitação? Desligado (padrão), a
+        | última compra vem de qualquer filial da mesma empresa — o preço de uma
+        | tinta não muda por ter entrado noutra filial, e limitar demais faz o
+        | mapa nascer sem referência nenhuma.
+        */
+
+        'somente_mesma_filial' => (bool) env('QUESTOR_COTACAO_MESMA_FILIAL', false),
+
+        /*
+        | Janela do drill-down de histórico do item (query 4), em meses.
+        */
+
+        'meses_historico' => (int) env('QUESTOR_COTACAO_MESES_HISTORICO', 24),
+
+        /*
+        | Quantas entradas o drill-down lista por item.
+        */
+
+        'limite_historico' => (int) env('QUESTOR_COTACAO_LIMITE_HISTORICO', 20),
+
+        /*
+        | TTL do cache dos fornecedores históricos, em segundos. O histórico de
+        | compras não muda durante uma cotação; reconsultá-lo a cada abertura de
+        | modal só castiga o ERP. Zero desliga o cache.
+        */
+
+        'cache_ttl' => (int) env('QUESTOR_COTACAO_CACHE_TTL', 900),
+
+        /*
+        | Teto de colunas de fornecedor por mapa. O XLSX modelo vai de E até N;
+        | acima disso a grade deixa de caber na tela e no papel.
+        */
+
+        'max_fornecedores' => (int) env('QUESTOR_COTACAO_MAX_FORNECEDORES', 10),
+    ],
+
 ];

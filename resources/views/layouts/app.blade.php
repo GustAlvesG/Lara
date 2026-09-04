@@ -27,6 +27,40 @@
     </head>
     <body class="font-sans antialiased">
         @php
+            /*
+             | Menu "Compras" (Questor). Montado antes do $navLinks porque as
+             | duas metades têm donos diferentes:
+             |
+             |   Ordens de Compra / Centros de Custo -> permissão `authorize purchase orders`
+             |   Mapas de Cotação                    -> vínculo com o setor Contabilidade
+             |
+             | Os partials do menu só sabem filtrar pela permissão do item PAI,
+             | então a filtragem por filho acontece aqui — e o pai só existe se
+             | sobrar algum filho. É o mesmo arranjo do menu Freelancers, logo
+             | abaixo.
+             |
+             | `can()` e não o método do model: o layout renderiza em toda tela,
+             | e uma consulta ao banco daqui quebraria as telas cujos testes
+             | montam o usuário na mão.
+             */
+            $canAuthorizeOrders = auth()->user()?->can('authorize purchase orders');
+            $canCotacao = auth()->user()?->can('acessar-cotacao')
+                && auth()->user()?->can('cotacao.visualizar');
+
+            $comprasChildren = [];
+
+            if ($canAuthorizeOrders) {
+                // `active` com curinga porque o detalhe da ordem é outra rota:
+                // sem ele, abrir uma ordem apagaria o destaque.
+                $comprasChildren[] = ['route' => 'questor.purchase-orders.index', 'label' => 'Ordens de Compra', 'active' => 'questor.purchase-orders.*'];
+                $comprasChildren[] = ['route' => 'questor.cost-centers.index', 'label' => 'Centros de Custo'];
+            }
+
+            if ($canCotacao) {
+                $comprasChildren[] = ['route' => 'cotacao.mapas.index', 'label' => 'Mapas de Cotação', 'active' => 'cotacao.mapas.index'];
+                $comprasChildren[] = ['route' => 'cotacao.mapas.previa', 'label' => 'Nova Cotação (buscar SC)', 'active' => 'cotacao.mapas.previa'];
+            }
+
             $navLinks = [
                 ['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6'],
                 ['route' => 'information.index', 'label' => 'InfoClube', 'icon' => 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
@@ -69,15 +103,16 @@
                 ['route' => 'lara.index', 'label' => 'Lara (IA)', 'icon' => 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z',
                     'permission' => 'use lara chat',
                 ],
-                ['route' => 'questor.purchase-orders.index', 'label' => 'Compras', 'icon' => 'M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12A1.125 1.125 0 0 1 19.75 21.75H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z',
-                    'permission' => 'authorize purchase orders',
-                    'children' => [
-                        // `active` com curinga porque o detalhe da ordem é outra
-                        // rota: sem ele, abrir uma ordem apagaria o destaque.
-                        ['route' => 'questor.purchase-orders.index', 'label' => 'Ordens de Compra', 'active' => 'questor.purchase-orders.*'],
-                        ['route' => 'questor.cost-centers.index', 'label' => 'Centros de Custo'],
-                    ],
-                ],
+                // Compras (Questor): Ordens de Compra, Centros de Custo e Mapas
+                // de Cotação. Some inteiro quando o usuário não alcança nenhum
+                // dos filhos — daí o spread condicional, e não uma `permission`
+                // de pai, que só saberia gatilhar por uma das duas regras.
+                ...($comprasChildren === [] ? [] : [[
+                    'route' => $comprasChildren[0]['route'],
+                    'label' => 'Compras',
+                    'icon' => 'M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12A1.125 1.125 0 0 1 19.75 21.75H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z',
+                    'children' => $comprasChildren,
+                ]]),
                 ['route' => 'id-cards.issue', 'label' => 'Carteirinhas', 'icon' => 'M12 4.5v15m7.5-7.5h-15',
                     'permission' => 'manage id cards',
                     'children' => [

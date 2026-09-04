@@ -85,6 +85,9 @@ class User extends Authenticatable
     /** Cache da requisição para canTrackFreelancerBatches(). */
     private ?bool $freelancerTrackingAccess = null;
 
+    /** Cache da requisição para canAccessCotacao(). */
+    private ?bool $cotacaoAccess = null;
+
     /**
      * Get the attributes that should be cast.
      *
@@ -282,6 +285,25 @@ class User extends Authenticatable
     {
         return $this->freelancerTrackingAccess ??= $this->belongsToSectorNamed(self::COMMERCIAL_SECTOR)
             || $this->canManageFreelancerPayments();
+    }
+
+    /**
+     * Mapa de cotação: quem está no setor **Contabilidade**, em qualquer papel.
+     *
+     * Como o financeiro dos freelancers, é atribuição de setor e não nível de
+     * acesso — **a role `admin` não vale aqui**. Quem administra o sistema não
+     * cota compra por consequência disso; entra no setor quem de fato cota.
+     *
+     * O setor é a porta; o que cada um faz lá dentro (digitar preço, escolher
+     * vencedor, exportar) continua sendo decidido pelas permissões `cotacao.*`.
+     *
+     * Memorizado por instância porque o menu, a policy e cada ação da grade
+     * perguntam a mesma coisa na mesma requisição. Cada requisição reconfere,
+     * então tirar o vínculo no painel corta o acesso na hora.
+     */
+    public function canAccessCotacao(): bool
+    {
+        return $this->cotacaoAccess ??= $this->belongsToSectorNamed(self::ACCOUNTING_SECTOR);
     }
 
     public function coordinatorSectors()
