@@ -58,7 +58,10 @@ class MapaExportServiceTest extends TestCase
 
         $this->assertSame('COTAÇÃO DE COMPRAS', $aba->getCell('A1')->getValue());
         $this->assertSame($mapa->titulo, $aba->getCell('C1')->getValue());
-        $this->assertSame('SOLICITANTE', $aba->getCell('A3')->getValue());
+        // Rótulo em sigla: a coluna A tem 9 de largura por causa de "ITEM SC"
+        // na grade, e o nome inteiro disputava a faixa de transbordo com o
+        // departamento da linha 4.
+        $this->assertSame('SOLIC.', $aba->getCell('A3')->getValue());
         $this->assertStringStartsWith('DATA: ', $aba->getCell('C3')->getValue());
         $this->assertSame('MANUTENÇÃO', $aba->getCell('A4')->getValue());
         $this->assertSame('SC: 34334', $aba->getCell('C4')->getValue());
@@ -70,7 +73,7 @@ class MapaExportServiceTest extends TestCase
 
         // Linha 8: cabeçalho da grade.
         $this->assertSame('ITEM SC', $aba->getCell('A8')->getValue());
-        $this->assertSame('UND MED', $aba->getCell('B8')->getValue());
+        $this->assertSame('UND', $aba->getCell('B8')->getValue());
         $this->assertSame('DESCRIÇÃO', $aba->getCell('C8')->getValue());
         $this->assertSame('QNT.', $aba->getCell('D8')->getValue());
         $this->assertSame('D C DE ALMEIDA', $aba->getCell('E8')->getValue());
@@ -195,6 +198,64 @@ class MapaExportServiceTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+
+    /**
+     * O CABEÇALHO CABE SEM ALARGAR A GRADE.
+     *
+     * As colunas A e B são estreitas (9 e 10) porque abaixo delas moram "ITEM
+     * SC" e "UND" — a planilha é impressa nessa proporção. Mas o cabeçalho
+     * escreve nas MESMAS colunas, e no Excel um texto só transborda até achar
+     * célula ocupada: a C do bloco da direita. Um departamento com nome
+     * comprido aparecia pela metade.
+     *
+     * A correção mescla A:B e encaixa o texto na caixa. O que este teste
+     * protege é a tentação de "resolver" alargando a coluna A, que consertaria
+     * o cabeçalho e estragaria a grade inteira.
+     */
+    public function test_o_cabecalho_cabe_por_mesclagem_e_nao_por_largura_de_coluna(): void
+    {
+        $mapa = $this->mapaDeExemplo();
+        $mapa->update(['departamento' => 'MANUTENCAO E CONSERVACAO PREDIAL DA SEDE']);
+
+        $aba = $this->servico()->montar($mapa->fresh())->getSheet(0);
+
+        $mesclagens = $aba->getMergeCells();
+
+        foreach (['A1:B1', 'A3:B3', 'A4:B4'] as $caixa) {
+            $this->assertArrayHasKey($caixa, $mesclagens, "O cabeçalho precisa da caixa {$caixa}.");
+            $this->assertTrue(
+                $aba->getStyle(explode(':', $caixa)[0])->getAlignment()->getShrinkToFit(),
+                "O texto de {$caixa} tem de encaixar na caixa — mesclada não ganha altura automática."
+            );
+        }
+
+        // As larguras da grade continuam exatamente as do papel.
+        $this->assertEqualsWithDelta(9, $aba->getColumnDimension('A')->getWidth(), 0.01);
+        $this->assertEqualsWithDelta(10, $aba->getColumnDimension('B')->getWidth(), 0.01);
+    }
+
+    /**
+     * Condição de pagamento real é comprida ("50% ENTRADA + 50% EM 30 DIAS") e
+     * a coluna do fornecedor tem 16.
+     *
+     * Aqui a quebra de linha é a escolha certa, e não o encaixe do cabeçalho:
+     * estas células NÃO são mescladas, então o Excel cresce a altura sozinho e
+     * o texto sai inteiro no tamanho normal. A altura da linha fica automática
+     * de propósito — fixá-la reintroduziria o corte.
+     */
+    public function test_condicao_comprida_quebra_linha_em_vez_de_ser_cortada(): void
+    {
+        $mapa = $this->mapaDeExemplo();
+        $mapa->fornecedores()->first()->update(['condicao_pagamento' => '50% + 50% EM 30 DIAS']);
+
+        $aba = $this->servico()->montar($mapa->fresh())->getSheet(0);
+
+        $this->assertTrue($aba->getStyle('E7')->getAlignment()->getWrapText());
+        $this->assertFalse($aba->getStyle('E7')->getAlignment()->getShrinkToFit());
+
+        // -1 = sem altura fixa: é o que deixa o Excel calcular.
+        $this->assertSame(-1.0, (float) $aba->getRowDimension(7)->getRowHeight());
+    }
 
     /* ---------------------------------------------------------------------
      | A fachada: qual layout sai, e com que nome

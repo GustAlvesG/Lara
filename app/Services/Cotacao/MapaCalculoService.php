@@ -153,15 +153,19 @@ class MapaCalculoService
     /**
      * As colunas: subtotal, frete, total, cobertura.
      *
-     * DOIS TOTAIS POR FORNECEDOR, e é a melhoria mais importante sobre a
+     * QUATRO NÚMEROS POR FORNECEDOR, e é a melhoria mais importante sobre a
      * planilha atual:
      *
-     *   `total`       — só os itens que ele cotou. É o número honesto.
-     *   `total_cheio` — só existe quando ele cotou TODOS os itens; é o único
-     *                   caso em que comparar total contra total faz sentido.
+     *   `subtotal`      — tudo o que ele cotou, à quantidade pedida.
+     *   `total`         — o subtotal com frete e desconto. É o número honesto.
+     *   `total_cheio`   — só existe quando ele cotou TODOS os itens; é o único
+     *                     caso em que comparar total contra total faz sentido.
+     *   `total_vencidos`— só os itens em que ele ganhou: quanto se compra dele
+     *                     de fato, dada a decisão já registrada.
      *
-     * Na planilha de hoje essa distinção não existe: quem cotou 2 de 6 itens
-     * aparece com o menor total da linha e parece o mais barato.
+     * Na planilha de hoje essas distinções não existem: quem cotou 2 de 6 itens
+     * aparece com o menor total da linha e parece o mais barato, e não há
+     * nenhum lugar que responda "quanto vai sair o pedido desta loja".
      *
      * @param  Collection<int, CotacaoMapaFornecedor>  $fornecedores
      * @param  Collection<int, CotacaoMapaItem>  $itens
@@ -229,7 +233,21 @@ class MapaCalculoService
                 // conseguir compará-lo como se cobrisse.
                 'total_cheio' => ($totalItens > 0 && $cotados === $totalItens) ? $total : null,
                 'itens_vencidos' => $vencidos,
-                'total_vencidos' => $totalVencidos,
+                // O SUBTOTAL DOS ESCOLHIDOS: só os itens em que este fornecedor
+                // ganhou. É o que de fato se vai comprar dele — enquanto
+                // `subtotal` acima é o que ele cotaria se levasse tudo o que
+                // cotou. Os dois juntos é que respondem "quanto compro aqui?".
+                //
+                // Nulo, e não zero, quando ele não ganhou nada: zero seria uma
+                // compra de R$ 0,00 nesta loja, e é a mesma regra da célula
+                // vazia que atravessa a classe.
+                'total_vencidos' => $vencidos > 0 ? $totalVencidos : null,
+                // O pedido inteiro a esta loja: frete e desconto entram uma vez
+                // só, porque o frete não é por item. Sem item escolhido não há
+                // pedido — logo não há frete a pagar aqui.
+                'total_vencidos_com_frete' => $vencidos > 0
+                    ? $totalVencidos + $frete - $desconto
+                    : null,
             ];
         }
 
@@ -300,6 +318,20 @@ class MapaCalculoService
             $freteDaCombinacao += $colunas[$id]['frete'] ?? 0.0;
         }
 
+        // Frete e desconto da decisão JÁ REGISTRADA — uma vez por loja em que
+        // se comprou algo, não por item. Dividir a compra entre três lojas paga
+        // três fretes, e é exatamente esse número que costuma virar a compra
+        // dividida do avesso.
+        $freteDecidido = 0.0;
+        $lojasDecididas = 0;
+
+        foreach ($colunas as $coluna) {
+            if ($coluna['itens_vencidos'] > 0) {
+                $lojasDecididas++;
+                $freteDecidido += $coluna['frete'] - $coluna['desconto'];
+            }
+        }
+
         // Só quem cotou o mapa inteiro pode ser comparado como fornecedor
         // único: quem não cobre tudo não é uma alternativa de compra concentrada.
         $completos = array_filter($colunas, fn (array $c) => $c['cobertura_completa']);
@@ -334,7 +366,15 @@ class MapaCalculoService
             'fornecedores_total' => $fornecedores->count(),
 
             'total_decidido' => $itensDecididos > 0 ? $totalDecidido : null,
+            'total_decidido_com_frete' => $itensDecididos > 0
+                ? $totalDecidido + $freteDecidido
+                : null,
+            'total_decidido_frete' => $freteDecidido,
             'itens_decididos' => $itensDecididos,
+            // Em quantas lojas a decisão atual manda comprar. É o custo
+            // escondido da compra dividida: cada loja é um pedido, um frete e
+            // uma nota a conferir.
+            'lojas_decididas' => $lojasDecididas,
 
             'base_ultima_compra' => $itensComparaveis > 0 ? $baseUltimaCompra : null,
             'melhor_comparavel' => $itensComparaveis > 0 ? $melhorComparavel : null,

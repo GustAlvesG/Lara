@@ -587,6 +587,13 @@ Route::middleware('auth')->group(function () {
                 ->whereNumber('item')->name('itens.historico');
 
             Route::post('/fornecedores', [CotacaoFornecedorController::class, 'store'])->name('fornecedores.store');
+
+            // O "salvar geral" das condições: um POST para todas as colunas.
+            // Vem ANTES da rota de uma coluna só porque `/fornecedores` sem id
+            // não pode ser lido como `/fornecedores/{fornecedor}`.
+            Route::patch('/fornecedores', [CotacaoFornecedorController::class, 'atualizarCondicoes'])
+                ->name('fornecedores.condicoes-lote');
+
             Route::patch('/fornecedores/{fornecedor}', [CotacaoFornecedorController::class, 'update'])
                 ->whereNumber('fornecedor')->name('fornecedores.update');
             Route::delete('/fornecedores/{fornecedor}', [CotacaoFornecedorController::class, 'destroy'])

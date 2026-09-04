@@ -258,10 +258,52 @@ aparece se sobrar algum filho — mesmo arranjo do menu Freelancers.
 3. **Gerar** — o comprador marca quais fornecedores viram coluna. **Nenhum é
    marcado automaticamente**, senão o mapa nasce com vinte colunas.
 4. **Cotar** — a grade salva **por célula**, a cada pausa de digitação. Não há
-   botão "salvar tudo": cotação é feita ao telefone ao longo de dias, e um
-   formulário que só grava no fim perde tudo quando o navegador fecha.
+   botão "salvar tudo" para os preços: cotação é feita ao telefone ao longo de
+   dias, e um formulário que só grava no fim perde tudo quando o navegador fecha.
 5. **Decidir** — vencedor por item (a compra pode ser dividida).
 6. **Exportar / fechar.**
+
+### O teclado anda pela grade
+
+Cotação é digitação em série, e as duas leituras da grade existem na prática: ou
+se está ao telefone com uma loja descendo a lista de itens, ou se tem a folha de
+um item e se percorrem as lojas. Por isso as duas teclas fazem coisas diferentes:
+
+| Tecla | Vai para |
+|-------|----------|
+| **Enter** | mesma loja, **item de baixo** (desce a coluna) |
+| **Tab** | mesmo item, **próxima loja** (anda a linha) |
+| **Tab** na última loja | **primeira loja do item seguinte** — a volta natural da leitura |
+| **Shift+Tab** | o mesmo caminho ao contrário |
+
+O `Enter` no último item **fica parado**: voltar ao topo faria o comprador
+redigitar preço já digitado sem perceber.
+
+As duas teclas cancelam o comportamento padrão do navegador, e é isso que tira o
+seletor de situação (`R$ / NT / —`) do caminho — ele continua acessível pelo
+mouse, mas não interrompe mais a digitação a cada célula. **Nenhuma tecla salva
+por si**: mudar o foco dispara o `change` do campo, que é quem grava. Uma tecla
+que gravasse por conta própria teria de repetir a regra de situação da célula.
+
+### Salvar as condições de todas as colunas de uma vez
+
+Frete, prazo e pagamento têm um **salvar geral** — um formulário só para as N
+colunas (`PATCH cotacao/mapas/{mapa}/fornecedores`). O botão por linha obrigava o
+comprador a lembrar de clicar em todos, e esquecer um deixava o mapa com uma
+condição velha sem nada na tela avisando — **frete e desconto entram no TOTAL**,
+ou seja, a decisão de compra saía errada em silêncio.
+
+Três decisões que vão junto:
+
+- **Um id de outra cotação derruba o lote inteiro** (guarda de escopo em
+  [`AtualizarCondicoesCotacaoRequest::authorize()`](../../app/Http/Requests/AtualizarCondicoesCotacaoRequest.php),
+  403 e não 422). Salvar 4 de 5 colunas e responder "salvo" seria pior que
+  recusar: o comprador não teria como saber qual ficou de fora.
+- **Um evento na trilha por ato**, não um por coluna — foi um clique só, e é
+  assim que ele vai procurar depois. Clicar sem mudar nada **não registra nada**:
+  com um botão único, ele vai ser clicado por hábito.
+- **Remover coluna fica fora daquele formulário** (por `form=`, que é HTML
+  válido). Remover é irreversível e não pode viajar de carona num "salvar tudo".
 
 ### Acrescentar fornecedores dentro da Lara
 
@@ -310,6 +352,24 @@ Daí a distinção entre as três situações de célula:
   e `total_cheio`, que **só existe quando ele cotou tudo**. É o único caso em que
   comparar total contra total faz sentido. Na planilha de hoje essa distinção não
   existe, e quem cotou 2 de 6 itens parece o mais barato.
+- **O que se compra de fato em cada loja**, que é uma pergunta diferente da
+  anterior. A proposta e a decisão são duas coisas:
+
+  | Campo | O que responde |
+  |-------|----------------|
+  | `subtotal` | tudo o que a loja cotou, à quantidade pedida, sem frete |
+  | `total` | o subtotal com frete e desconto |
+  | `total_vencidos` | **só os itens em que ela ganhou** — o subtotal dos escolhidos |
+  | `total_vencidos_com_frete` | o pedido a esta loja: escolhidos + frete − desconto |
+
+  A distinção importa porque quase nunca se compra tudo de um só: a loja pode ter
+  o maior subtotal do mapa e a compra nela ser pequena. `total_vencidos` é **nulo,
+  não zero**, quando ela não ganhou nada — zero se leria como um pedido de R$ 0,00.
+- **O custo escondido da compra dividida.** `total_decidido_com_frete` soma
+  frete e desconto **uma vez por loja em que se comprou algo**, e
+  `lojas_decididas` diz em quantas. Dividir entre três lojas paga três fretes, e
+  é esse número que costuma virar a compra dividida do avesso — a planilha em
+  Excel não o mostra em lugar nenhum.
 - **Duas estratégias lado a lado**: `melhor_combinacao` (compra dividida, item a
   item) contra `melhor_fornecedor_unico` (compra concentrada, só entre quem
   cobriu o mapa inteiro). A diferença entre elas é o que o comprador está de fato
@@ -352,6 +412,33 @@ sem ele o segundo sobrescreveria o primeiro em silêncio.
 3. **Célula vazia não vira zero.** `nao_trabalha` sai como o **texto** `NT`
    (string explícita, para o Excel não interpretá-lo) e `sem_resposta` sai em
    branco; `SUMPRODUCT`, `MIN` e `COUNT` ignoram os dois.
+4. **O texto do cabeçalho cabe por mesclagem, nunca por largura de coluna.**
+   Esta é a armadilha de layout dos dois arquivos, e vale escrever por extenso.
+
+   As colunas fixas são estreitas porque abaixo delas mora a grade (`A` = 8 ou 9
+   por causa de "ITEM", `B` = 7 ou 10 por causa de "UND"). O cabeçalho, porém,
+   escreve **nas mesmas colunas** — e no Excel um texto só transborda até achar
+   célula ocupada, que é justamente o rótulo do bloco vizinho. Resultado: o nome
+   do solicitante caía numa caixa de 8 e aparecia pela metade.
+
+   A correção **mescla** (`A:B` para o rótulo, `C` inteira ou `F:G` para o valor)
+   e usa `shrinkToFit`. Mesclar não mexe em largura de coluna nenhuma, então a
+   grade abaixo continua exatamente como era. **A tentação a evitar é alargar a
+   coluna `A`**: consertaria o cabeçalho e estragaria a grade inteira, que é
+   impressa e assinada nessa proporção — há teste guardando as larguras.
+
+   `shrinkToFit` e **não** `wrapText` nas células mescladas: célula mesclada não
+   ganha altura automática no Excel, e quebrar linha ali esconderia a segunda —
+   trocaria um corte por outro. Nas células **não** mescladas (as condições por
+   fornecedor) é o contrário: `wrapText` com altura automática, que mostra o
+   texto inteiro no tamanho normal em vez de encolhido.
+5. **Rótulo é sigla** (`SOLIC.`, `COMPR.`, `DEPTO`, `SIT.`, `FRETE`, `PRAZO`,
+   `PAGTO`). O nome por extenso ocupava a caixa de que o **valor** precisa, e o
+   valor é o que se lê.
+6. **A altura do cabeçalho da grade sai do nome mais comprido**, não de um número
+   fixo. As células do cabeçalho quebram linha, mas altura fixa impede o Excel de
+   crescer sozinho — e "COMERCIAL DE TINTAS E FERRAGENS SÃO JOSÉ LTDA" numa
+   coluna de 14 precisa de três linhas.
 
 ### `classico` — a planilha impressa
 

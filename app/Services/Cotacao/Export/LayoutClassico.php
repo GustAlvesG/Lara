@@ -26,12 +26,18 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * refazer um hábito que funciona.
  *
  *   A1  COTAÇÃO DE COMPRAS            C1  <título>
- *   A3  SOLICITANTE                   C3  DATA: dd/mm/aaaa
+ *   A3  SOLIC.                        C3  DATA: dd/mm/aaaa
  *   A4  <departamento>                C4  SC: <número>
  *   L5  E..N  frete (CIF/FOB)
  *   L6  E..N  prazo de entrega
  *   L7  E..N  condição de pagamento
- *   L8  A ITEM SC | B UND MED | C DESCRIÇÃO | D QNT. | E..N <fornecedores>
+ *   L8  A ITEM SC | B UND | C DESCRIÇÃO | D QNT. | E..N <fornecedores>
+ *
+ * Os rótulos são SIGLAS e as células de cabeçalho são MESCLADAS (A:B) com o
+ * texto encaixado na caixa. As colunas A e B são estreitas porque a grade
+ * abaixo é impressa nessa proporção — e texto em A só transborda até achar
+ * célula ocupada, que é a C do bloco da direita. Alargar A resolveria o corte
+ * e estragaria a grade; mesclar resolve sem tocar em largura nenhuma.
  *   L9+ itens
  *   ... FRETE | SUBTOTAL | TOTAL | TOTAL GERAL DO PEDIDO
  *
@@ -147,11 +153,44 @@ class LayoutClassico implements LayoutExportacao
         $aba->getStyle('A1')->getFont()->setBold(true)->setSize(12);
         $aba->getStyle('C1')->getFont()->setBold(true);
 
-        $aba->setCellValue('A3', 'SOLICITANTE');
+        // Sigla, como no resto do arquivo: a coluna A tem 9 de largura porque
+        // abaixo dela mora "ITEM SC", e o rótulo inteiro disputava com o
+        // departamento a mesma faixa de transbordo.
+        $aba->setCellValue('A3', 'SOLIC.');
         $aba->setCellValue('C3', 'DATA: ' . ($mapa->data_mapa ?? Carbon::today())->format('d/m/Y'));
         $aba->setCellValue('A4', $mapa->departamento ?: $mapa->solicitante);
         $aba->setCellValue('C4', 'SC: ' . $mapa->questor_solicitacao);
         $aba->getStyle('A3')->getFont()->setBold(true);
+
+        /*
+         | O TEXTO DO CABEÇALHO CABE AQUI, E NÃO NA LARGURA DAS COLUNAS.
+         |
+         | A coluna A tem 9 de largura porque abaixo dela mora "ITEM SC"; a B
+         | tem 10 por causa de "UND MED". O cabeçalho, porém, escreve nas mesmas
+         | colunas — e um texto em A só transborda até encontrar célula ocupada,
+         | que é justamente a C do bloco da direita. Resultado: "COTAÇÃO DE
+         | COMPRAS" saía cortada, e um departamento com nome comprido também.
+         |
+         | A saída é mesclar A:B no cabeçalho e encaixar o texto na caixa
+         | (`shrinkToFit`), NUNCA alargar A ou B: alargá-las estragaria a grade
+         | inteira abaixo, que é impressa e assinada nessa proporção.
+         |
+         | `shrinkToFit` em vez de `wrapText` de propósito: célula MESCLADA não
+         | ganha altura automática no Excel, então quebrar linha ali esconderia
+         | a segunda metade do texto — trocaria um corte por outro.
+         */
+        foreach (['A1', 'A3', 'A4'] as $celula) {
+            $aba->mergeCells($celula . ':B' . substr($celula, 1));
+            $aba->getStyle($celula)->getAlignment()
+                ->setHorizontal(Alignment::HORIZONTAL_LEFT)
+                ->setVertical(Alignment::VERTICAL_CENTER)
+                ->setShrinkToFit(true);
+        }
+
+        // A coluna C tem 58 e a D está vazia nestas linhas: o texto da direita
+        // transborda pelas colunas de fornecedor e aparece inteiro sem mesclar.
+        // Mesclar aqui só limitaria o espaço de um título comprido.
+        $aba->getStyle('C1:C4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
 
         // --- Linhas 5, 6 e 7: condições por fornecedor ----------------------
 
@@ -167,13 +206,22 @@ class LayoutClassico implements LayoutExportacao
             $coluna++;
         }
 
-        $aba->getStyle("{$colIni}5:{$colFim}7")
-            ->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        // Condição de pagamento vira texto comprido na vida real ("50% ENTRADA
+        // + 50% EM 30 DIAS") e a coluna do fornecedor tem 16 de largura.
+        //
+        // Aqui a quebra de linha é melhor que o `shrinkToFit` do cabeçalho:
+        // estas células NÃO são mescladas, e o Excel cresce a altura da linha
+        // sozinho — o texto aparece inteiro e no tamanho normal, em vez de
+        // encolhido a ponto de não se ler.
+        $aba->getStyle("{$colIni}5:{$colFim}7")->getAlignment()
+            ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+            ->setVertical(Alignment::VERTICAL_CENTER)
+            ->setWrapText(true);
 
         // --- Linha 8: cabeçalho da grade ------------------------------------
 
         $aba->setCellValue('A8', 'ITEM SC');
-        $aba->setCellValue('B8', 'UND MED');
+        $aba->setCellValue('B8', 'UND');
         $aba->setCellValue('C8', 'DESCRIÇÃO');
         $aba->setCellValue('D8', 'QNT.');
 

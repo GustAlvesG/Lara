@@ -187,34 +187,92 @@ class LayoutCompleto implements LayoutExportacao
 
         // ---------- Identificação ----------
 
+        /*
+         | O TEXTO DA IDENTIFICAÇÃO CABE EM CAIXAS MESCLADAS, E NÃO NA LARGURA
+         | DAS COLUNAS.
+         |
+         | As larguras aqui são da GRADE: A tem 8 porque abaixo dela mora
+         | "ITEM", B tem 7 por "UND", D tem 8 por "QNT.". O bloco de
+         | identificação escreve nas mesmas colunas, e texto só transborda até
+         | achar célula ocupada — que é o rótulo do par vizinho. O nome do
+         | solicitante caía numa caixa de 8 e aparecia pela metade.
+         |
+         | A correção é mesclar: rótulo em A:B (ou D:E) e VALOR na C inteira
+         | (52 de largura) ou em F:G. Mesclar não mexe em largura de coluna
+         | nenhuma, então a grade abaixo continua exatamente como era — e é essa
+         | a diferença entre resolver isto e alargar A, que estragaria a grade.
+         |
+         | Dois pares por linha, três linhas (4 a 6), no lugar dos três pares
+         | apertados em duas linhas de antes.
+         */
+        // RÓTULO EM SIGLA. O nome inteiro ("DEPARTAMENTO", "SOLICITANTE") ocupava
+        // a caixa que o VALOR precisa, e o valor é o que interessa ler. A sigla
+        // é a mesma que a compra usa no papel.
         $identificacao = [
-            4 => [['SC', (string) $mapa->questor_solicitacao], ['SOLICITANTE', $mapa->solicitante ?: '—'], ['DEPARTAMENTO', $mapa->departamento ?: '—']],
-            5 => [['DATA', ($mapa->data_mapa ?? Carbon::today())->format('d/m/Y')], ['COMPRADOR', $mapa->comprador ?: '—'], ['SITUAÇÃO', $mapa->statusLabel()]],
+            4 => [
+                ['SC', (string) $mapa->questor_solicitacao],
+                ['DATA', ($mapa->data_mapa ?? Carbon::today())->format('d/m/Y')],
+            ],
+            5 => [
+                ['SOLIC.', $mapa->solicitante ?: '—'],
+                ['COMPR.', $mapa->comprador ?: '—'],
+            ],
+            6 => [
+                ['DEPTO', $mapa->departamento ?: '—'],
+                ['SIT.', $mapa->statusLabel()],
+            ],
         ];
 
-        foreach ($identificacao as $linha => $pares) {
-            $coluna = 1;
+        // Par 1: rótulo A:B, valor na C. Par 2: rótulo D:E, valor F:G.
+        $caixas = [['A', 'B', 'C', 'C'], ['D', 'E', 'F', 'G']];
 
-            foreach ($pares as [$rotulo, $valor]) {
-                $celRotulo = Coordinate::stringFromColumnIndex($coluna) . $linha;
-                $celValor = Coordinate::stringFromColumnIndex($coluna + 1) . $linha;
+        foreach ($identificacao as $linha => $pares) {
+            foreach ($pares as $i => [$rotulo, $valor]) {
+                [$rotIni, $rotFim, $valIni, $valFim] = $caixas[$i];
+
+                $celRotulo = $rotIni . $linha;
+                $celValor = $valIni . $linha;
 
                 $aba->setCellValue($celRotulo, $rotulo);
                 $aba->setCellValueExplicit($celValor, $valor, DataType::TYPE_STRING);
+
+                $aba->mergeCells("{$rotIni}{$linha}:{$rotFim}{$linha}");
+
+                if ($valIni !== $valFim) {
+                    $aba->mergeCells("{$valIni}{$linha}:{$valFim}{$linha}");
+                }
 
                 $aba->getStyle($celRotulo)->getFont()->setBold(true)->setSize(9)
                     ->getColor()->setARGB('FF6B7280');
                 $aba->getStyle($celRotulo)->getFill()
                     ->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB(self::COR_ROTULO);
-                $aba->getStyle($celRotulo)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                $aba->getStyle($celRotulo)->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_RIGHT)
+                    ->setVertical(Alignment::VERTICAL_CENTER)
+                    ->setShrinkToFit(true);
 
-                $coluna += 2;
+                // `shrinkToFit` e não `wrapText`: célula MESCLADA não ganha
+                // altura automática no Excel, e quebrar linha esconderia a
+                // segunda — seria trocar um corte por outro.
+                $aba->getStyle($celValor)->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_LEFT)
+                    ->setVertical(Alignment::VERTICAL_CENTER)
+                    ->setShrinkToFit(true);
+                $aba->getStyle($celValor)->getFont()->setSize(9);
             }
         }
 
+        // A linha 6 fecha o bloco: sem ela a identificação encostaria nas
+        // condições, que antes tinham uma linha em branco de separação.
+        $aba->getStyle("A6:{$colFinal}6")->getBorders()->getBottom()
+            ->setBorderStyle(Border::BORDER_THIN)
+            ->getColor()->setARGB(self::COR_BORDA);
+
         // ---------- Condições por fornecedor (linhas 7 a 9) ----------
 
-        $condicoes = [7 => ['Frete', 'frete'], 8 => ['Prazo de entrega', 'prazo_entrega'], 9 => ['Condição de pagamento', 'condicao_pagamento']];
+        // Siglas também aqui: "Condição de pagamento" enchia a caixa D:E e
+        // sobrava menos para a condição em si, que é o dado.
+        $condicoes = [7 => ['FRETE', 'frete'], 8 => ['PRAZO', 'prazo_entrega'], 9 => ['PAGTO', 'condicao_pagamento']];
 
         foreach ($condicoes as $linha => [$rotulo, $campo]) {
             $aba->setCellValue('D' . $linha, $rotulo);
@@ -228,7 +286,15 @@ class LayoutCompleto implements LayoutExportacao
             foreach ($fornecedores as $fornecedor) {
                 $celula = Coordinate::stringFromColumnIndex($coluna) . $linha;
                 $aba->setCellValueExplicit($celula, (string) ($fornecedor->{$campo} ?: '—'), DataType::TYPE_STRING);
-                $aba->getStyle($celula)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                // Condição de pagamento real é comprida ("50% ENTRADA + 50% EM
+                // 30 DIAS") e a coluna tem 14 de largura. Aqui a quebra de
+                // linha ganha do `shrinkToFit` da identificação: estas células
+                // NÃO são mescladas, e o Excel cresce a altura sozinho — texto
+                // inteiro e no tamanho normal.
+                $aba->getStyle($celula)->getAlignment()
+                    ->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                    ->setVertical(Alignment::VERTICAL_CENTER)
+                    ->setWrapText(true);
                 $aba->getStyle($celula)->getFont()->setSize(9);
                 $coluna++;
             }
@@ -267,7 +333,24 @@ class LayoutCompleto implements LayoutExportacao
             ->setHorizontal(Alignment::HORIZONTAL_CENTER)
             ->setVertical(Alignment::VERTICAL_CENTER)
             ->setWrapText(true);
-        $aba->getRowDimension(self::LINHA_CABECALHO)->setRowHeight(32);
+        /*
+         | A ALTURA DO CABEÇALHO SAI DO NOME MAIS COMPRIDO, não de um número
+         | fixo. As células do cabeçalho não são mescladas e quebram linha, mas
+         | uma altura fixa (eram 32) IMPEDE o Excel de crescer sozinho — e
+         | "COMERCIAL DE TINTAS E FERRAGENS LTDA" numa coluna de 14 precisa de
+         | três linhas para aparecer inteiro.
+         |
+         | ~13 caracteres por linha na coluna de 14, tamanho 9.
+         */
+        $maiorNome = 0;
+
+        foreach ($fornecedores as $fornecedor) {
+            $maiorNome = max($maiorNome, mb_strlen((string) $fornecedor->nome));
+        }
+
+        $linhasNecessarias = max(2, min(4, (int) ceil($maiorNome / 13)));
+
+        $aba->getRowDimension(self::LINHA_CABECALHO)->setRowHeight(6 + $linhasNecessarias * 13);
 
         // ---------- Itens ----------
 

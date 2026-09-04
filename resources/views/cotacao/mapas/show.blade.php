@@ -15,6 +15,10 @@
 
     - Célula vazia nunca vira zero. `sem_resposta` fica em branco e `NT` mostra
       o texto; nenhuma das duas entra em soma alguma.
+
+    - O teclado anda pela grade: ENTER desce a coluna (mesma loja, item de
+      baixo) e TAB anda a linha (mesmo item, próxima loja), virando para a
+      primeira loja do item seguinte no fim. Ver `andar()` no fim do arquivo.
 --}}
 @php
     $brl = fn($v) => $v === null ? '—' : 'R$ ' . number_format((float) $v, 2, ',', '.');
@@ -24,6 +28,24 @@
     $podeEditarPrecos = auth()->user()->can('editarPrecos', $mapa);
     $podeDecidir = auth()->user()->can('definirVencedor', $mapa);
     $podeGerenciar = auth()->user()->can('update', $mapa);
+
+    /*
+     | Separador vertical das colunas de fornecedor.
+     |
+     | A grade tem uma coluna por loja consultada e o olho perde a linha entre
+     | uma e outra — daí a borda ser de 2px, e não a de 1px do resto da tabela.
+     | A PRIMEIRA coluna ganha 4px porque é ali que o mapa deixa de descrever o
+     | que se compra e passa a comparar de quem: é a divisão que mais importa.
+     */
+    $sep = fn (int $i) => $i === 0
+        ? 'border-l-4 border-gray-300 dark:border-gray-600'
+        : 'border-l-2 border-gray-200 dark:border-gray-700';
+
+    // Zebra bem discreta. Forte demais competiria com o verde do menor preço,
+    // que é o único destaque que precisa ser visto de longe.
+    $zebra = fn (int $i) => $i % 2 === 1
+        ? 'bg-gray-50/60 dark:bg-gray-900/20'
+        : 'bg-white dark:bg-gray-800';
 
     // Preços indexados para a grade não fazer uma busca por célula.
     $precos = [];
@@ -49,6 +71,9 @@
         urlHistorico: '{{ url('cotacao/mapas/'.$mapa->id.'/itens') }}',
         podeEditar: {{ $podeEditarPrecos ? 'true' : 'false' }},
         nomes: @js($mapa->fornecedores->pluck('nome', 'id')),
+        {{-- A ordem da grade, para o teclado andar por ela sem ler o DOM. --}}
+        ordemItens: @js($mapa->itens->pluck('id')->map(fn ($id) => (int) $id)->values()),
+        ordemFornecedores: @js($mapa->fornecedores->pluck('id')->map(fn ($id) => (int) $id)->values()),
      })">
     <div class="max-w-[110rem] mx-auto px-4 sm:px-6 lg:px-8">
 
@@ -82,17 +107,26 @@
                          é o papel da reunião, o completo é o arquivo de análise.
                          Menu em vez de dois botões soltos porque a diferença
                          entre eles precisa de uma frase para ser entendida. --}}
-                    <div class="relative" x-data="{ aberto: false }" @click.outside="aberto = false">
+                    {{-- z-[70]: o menu do sistema é `sticky z-40` (topo) ou
+                         `fixed z-40` (lateral), e os submenus dele vão a z-[60].
+                         Qualquer valor abaixo disso faz o nav passar por cima
+                         deste painel assim que a página rola — foi o que
+                         acontecia com z-30. --}}
+                    <div class="relative" x-data="{ aberto: false }"
+                         @click.outside="aberto = false"
+                         @keydown.escape.window="aberto = false">
                         <button type="button" @click="aberto = !aberto"
+                                :aria-expanded="aberto ? 'true' : 'false'"
                                 class="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-bold shadow transition">
                             Exportar XLSX
-                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <svg class="w-4 h-4 transition-transform duration-200" :class="aberto && 'rotate-180'"
+                                 fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
                             </svg>
                         </button>
 
                         <div x-show="aberto" x-cloak x-transition
-                             class="absolute right-0 z-30 mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+                             class="absolute right-0 top-full z-[70] mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 rounded-xl shadow-2xl ring-1 ring-black/5 border border-gray-100 dark:border-gray-700 overflow-hidden">
                             @foreach($layouts as $chave => $layout)
                                 <a href="{{ route('cotacao.mapas.exportar', [$mapa, 'layout' => $chave]) }}"
                                    @click="aberto = false"
@@ -198,10 +232,19 @@
 
             <div class="bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 p-4">
                 <p class="text-xs font-bold uppercase tracking-wider text-gray-400">Decisão registrada</p>
-                <p class="mt-1 text-xl font-extrabold text-gray-900 dark:text-white tabular-nums" x-text="moeda(calculo.totais.total_decidido)"></p>
+                <p class="mt-1 text-xl font-extrabold text-gray-900 dark:text-white tabular-nums" x-text="moeda(calculo.totais.total_decidido_com_frete)"></p>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
                     <span x-text="calculo.totais.itens_decididos"></span> de
                     <span x-text="calculo.totais.itens_total"></span> itens com vencedor
+                </p>
+                {{-- Mercadoria e frete separados: o frete é o que a compra
+                     dividida cobra por fora, e some do total se a decisão se
+                     concentrar numa loja só. --}}
+                <p class="text-xs text-gray-400 mt-1" x-show="calculo.totais.itens_decididos">
+                    mercadoria <span class="font-semibold" x-text="moeda(calculo.totais.total_decidido)"></span>
+                    · frete/desc. <span class="font-semibold" x-text="moeda(calculo.totais.total_decidido_frete)"></span>
+                    <span x-show="calculo.totais.lojas_decididas > 1"
+                          x-text="` em ${calculo.totais.lojas_decididas} lojas`"></span>
                 </p>
             </div>
         </div>
@@ -223,19 +266,19 @@
                         <tr class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50">
                             <th colspan="5" class="px-3 py-1.5 text-right font-semibold">Frete</th>
                             @foreach($mapa->fornecedores as $f)
-                                <th class="px-3 py-1.5 text-center font-semibold whitespace-nowrap">{{ $f->frete ?: '—' }}</th>
+                                <th class="px-3 py-1.5 text-center font-semibold whitespace-nowrap {{ $sep($loop->index) }}">{{ $f->frete ?: '—' }}</th>
                             @endforeach
                         </tr>
                         <tr class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50">
                             <th colspan="5" class="px-3 py-1.5 text-right font-semibold">Prazo de entrega</th>
                             @foreach($mapa->fornecedores as $f)
-                                <th class="px-3 py-1.5 text-center font-semibold whitespace-nowrap">{{ $f->prazo_entrega ?: '—' }}</th>
+                                <th class="px-3 py-1.5 text-center font-semibold whitespace-nowrap {{ $sep($loop->index) }}">{{ $f->prazo_entrega ?: '—' }}</th>
                             @endforeach
                         </tr>
                         <tr class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
                             <th colspan="5" class="px-3 py-1.5 text-right font-semibold">Condição de pagamento</th>
                             @foreach($mapa->fornecedores as $f)
-                                <th class="px-3 py-1.5 text-center font-semibold whitespace-nowrap">{{ $f->condicao_pagamento ?: '—' }}</th>
+                                <th class="px-3 py-1.5 text-center font-semibold whitespace-nowrap {{ $sep($loop->index) }}">{{ $f->condicao_pagamento ?: '—' }}</th>
                             @endforeach
                         </tr>
 
@@ -248,7 +291,7 @@
                             {{-- Coluna nova, que a planilha não tem. --}}
                             <th class="px-3 py-3 text-right font-extrabold">Últ. compra</th>
                             @foreach($mapa->fornecedores as $f)
-                                <th class="px-3 py-3 text-center font-extrabold min-w-[9rem]">
+                                <th class="px-3 py-3 text-center font-extrabold min-w-[9rem] {{ $sep($loop->index) }}">
                                     {{ mb_strtoupper($f->nome) }}
                                     <span class="block text-[10px] font-normal normal-case text-gray-400"
                                           x-text="cobertura({{ $f->id }})"></span>
@@ -259,7 +302,7 @@
 
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                         @foreach($mapa->itens as $item)
-                            <tr class="hover:bg-gray-50/60 dark:hover:bg-gray-700/30">
+                            <tr class="{{ $zebra($loop->index) }} hover:bg-red-50/40 dark:hover:bg-red-900/10 transition-colors">
                                 <td class="px-3 py-2 tabular-nums text-gray-600 dark:text-gray-400">
                                     {{ $item->questor_cd_item ?? '—' }}
                                 </td>
@@ -289,15 +332,22 @@
 
                                 @foreach($mapa->fornecedores as $f)
                                     @php $p = $precos[$item->id][$f->id] ?? null; @endphp
-                                    <td class="px-2 py-1.5 align-top transition-colors"
+                                    <td class="px-2 py-1.5 align-top transition-colors {{ $sep($loop->index) }}"
                                         :class="classeCelula({{ $item->id }}, {{ $f->id }})">
                                         <div class="flex items-center gap-1">
+                                            {{-- Os `data-` são o endereço da célula na grade: é por eles
+                                                 que Enter e Tab encontram a célula vizinha. --}}
                                             <input type="text" inputmode="decimal"
+                                                   data-preco
+                                                   data-item="{{ $item->id }}"
+                                                   data-fornecedor="{{ $f->id }}"
                                                    value="{{ $p && $p->temPreco() ? number_format((float) $p->valor_unitario, 2, ',', '.') : '' }}"
                                                    @if(!$podeEditarPrecos) disabled @endif
                                                    @input.debounce.700ms="salvarPreco({{ $item->id }}, {{ $f->id }}, $event.target.value, null)"
                                                    @change="salvarPreco({{ $item->id }}, {{ $f->id }}, $event.target.value, null)"
-                                                   class="w-full text-right tabular-nums text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-800 px-2 py-1"
+                                                   @keydown.enter.prevent="andar({{ $item->id }}, {{ $f->id }}, 'baixo')"
+                                                   @keydown.tab.prevent="andar({{ $item->id }}, {{ $f->id }}, $event.shiftKey ? 'tras' : 'frente')"
+                                                   class="w-full text-right tabular-nums text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-800 px-2 py-1 focus:ring-2 focus:ring-red-700 focus:border-red-700"
                                                    placeholder="—">
                                             <select @if(!$podeEditarPrecos) disabled @endif
                                                     @change="salvarPreco({{ $item->id }}, {{ $f->id }}, null, $event.target.value)"
@@ -338,20 +388,23 @@
                         <tr>
                             <td colspan="5" class="px-3 py-2 text-right font-bold text-gray-600 dark:text-gray-300">FRETE</td>
                             @foreach($mapa->fornecedores as $f)
-                                <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{{ $brl($f->valor_frete) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300 {{ $sep($loop->index) }}">{{ $brl($f->valor_frete) }}</td>
                             @endforeach
                         </tr>
                         <tr>
-                            <td colspan="5" class="px-3 py-2 text-right font-bold text-gray-600 dark:text-gray-300">SUBTOTAL</td>
+                            <td colspan="5" class="px-3 py-2 text-right font-bold text-gray-600 dark:text-gray-300">
+                                SUBTOTAL DA LOJA
+                                <span class="block text-[10px] font-normal text-gray-400">tudo o que ela cotou, sem frete</span>
+                            </td>
                             @foreach($mapa->fornecedores as $f)
-                                <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300"
+                                <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300 {{ $sep($loop->index) }}"
                                     x-text="moeda(calculo.fornecedores[{{ $f->id }}]?.subtotal)"></td>
                             @endforeach
                         </tr>
                         <tr class="border-t-2 border-gray-300 dark:border-gray-600">
                             <td colspan="5" class="px-3 py-2 text-right font-extrabold text-gray-800 dark:text-gray-100">TOTAL</td>
                             @foreach($mapa->fornecedores as $f)
-                                <td class="px-3 py-2 text-right tabular-nums font-extrabold"
+                                <td class="px-3 py-2 text-right tabular-nums font-extrabold {{ $sep($loop->index) }}"
                                     :class="calculo.fornecedores[{{ $f->id }}]?.cobertura_completa
                                         ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'"
                                     :title="calculo.fornecedores[{{ $f->id }}]?.cobertura_completa
@@ -360,7 +413,40 @@
                                     x-text="moeda(calculo.fornecedores[{{ $f->id }}]?.total)"></td>
                             @endforeach
                         </tr>
-                        <tr>
+
+                        {{-- ---- O QUE SE COMPRA DE FATO EM CADA LOJA ----
+                             As duas linhas acima falam da PROPOSTA; estas duas
+                             falam da DECISÃO. A diferença importa porque quase
+                             nunca se compra tudo de um só: o subtotal da loja
+                             pode ser alto e a compra nela, pequena. Nulo quando
+                             a loja não ganhou nada — zero seria "comprei R$ 0,00
+                             aqui", que é outra coisa. --}}
+                        <tr class="border-t-2 border-red-200 dark:border-red-900/40 bg-red-50/40 dark:bg-red-900/10">
+                            <td colspan="5" class="px-3 py-2 text-right font-bold text-gray-700 dark:text-gray-200">
+                                SUBTOTAL DOS ESCOLHIDOS
+                                <span class="block text-[10px] font-normal text-gray-400">só os itens em que esta loja ganhou · sem frete</span>
+                            </td>
+                            @foreach($mapa->fornecedores as $f)
+                                <td class="px-3 py-2 text-right tabular-nums font-bold text-red-800 dark:text-red-400 {{ $sep($loop->index) }}">
+                                    <span x-text="moeda(calculo.fornecedores[{{ $f->id }}]?.total_vencidos)"></span>
+                                    <span class="block text-[10px] font-normal text-gray-400"
+                                          x-text="escolhidos({{ $f->id }})"></span>
+                                </td>
+                            @endforeach
+                        </tr>
+                        <tr class="bg-red-50/40 dark:bg-red-900/10">
+                            <td colspan="5" class="px-3 py-2 text-right font-extrabold text-gray-800 dark:text-gray-100">
+                                PEDIDO A ESTA LOJA
+                                <span class="block text-[10px] font-normal text-gray-400">escolhidos + frete − desconto · é o valor do pedido</span>
+                            </td>
+                            @foreach($mapa->fornecedores as $f)
+                                <td class="px-3 py-2 text-right tabular-nums font-extrabold text-red-800 dark:text-red-400 {{ $sep($loop->index) }}"
+                                    title="Frete e desconto entram uma vez só, não por item: é um pedido."
+                                    x-text="moeda(calculo.fornecedores[{{ $f->id }}]?.total_vencidos_com_frete)"></td>
+                            @endforeach
+                        </tr>
+
+                        <tr class="border-t-2 border-gray-300 dark:border-gray-600">
                             <td colspan="5" class="px-3 py-2 text-right font-extrabold text-gray-800 dark:text-gray-100">
                                 TOTAL GERAL DO PEDIDO
                                 <span class="block text-[10px] font-normal text-gray-400">melhor preço item a item (compra dividida)</span>
@@ -368,6 +454,21 @@
                             <td colspan="{{ max($mapa->fornecedores->count(), 1) }}"
                                 class="px-3 py-2 text-right tabular-nums font-extrabold text-red-800 dark:text-red-400"
                                 x-text="moeda(calculo.totais.melhor_combinacao)"></td>
+                        </tr>
+
+                        {{-- A soma da linha "PEDIDO A ESTA LOJA". Fica ao lado
+                             do total teórico de propósito: é a diferença entre
+                             o que dava para gastar e o que a decisão registrada
+                             vai gastar. --}}
+                        <tr class="bg-red-50/40 dark:bg-red-900/10">
+                            <td colspan="5" class="px-3 py-2 text-right font-extrabold text-gray-800 dark:text-gray-100">
+                                TOTAL DECIDIDO
+                                <span class="block text-[10px] font-normal text-gray-400"
+                                      x-text="resumoDecisao()"></span>
+                            </td>
+                            <td colspan="{{ max($mapa->fornecedores->count(), 1) }}"
+                                class="px-3 py-2 text-right tabular-nums font-extrabold text-red-800 dark:text-red-400"
+                                x-text="moeda(calculo.totais.total_decidido_com_frete)"></td>
                         </tr>
                     </tfoot>
                 </table>
@@ -462,6 +563,113 @@ function mapaGrade(config) {
             // "Não trabalha" aparece separado de propósito: quem não vende o
             // item não pode ser lido como quem ignorou a cotação.
             if (f.itens_nao_trabalha > 0) texto += ` · ${f.itens_nao_trabalha} NT`;
+            return texto;
+        },
+
+        /* -----------------------------------------------------------------
+         | Andar pela grade pelo teclado
+         |
+         | Cotação é digitação em série: o comprador está ao telefone com uma
+         | loja e vai descendo a lista de itens, ou tem a folha de um item e
+         | percorre as lojas. As duas leituras existem, e por isso as duas
+         | teclas fazem coisas diferentes:
+         |
+         |   ENTER → mesma LOJA, item de baixo   (desce a coluna)
+         |   TAB   → mesmo ITEM, próxima loja    (anda a linha)
+         |
+         | No fim da linha, o Tab desce para a PRIMEIRA loja do item seguinte:
+         | é a volta natural da leitura, e sem ela o comprador teria de pegar o
+         | mouse a cada item. Shift+Tab faz o caminho de volta.
+         |
+         | O `.prevent` nos dois é o que tira o `<select>` de situação do
+         | caminho — ele continua acessível pelo mouse, mas não interrompe mais
+         | a digitação de preço a cada célula.
+         |
+         | Nada disso salva nada por si: mudar o foco dispara o `change` do
+         | campo, que é quem grava. Uma tecla que salvasse por conta própria
+         | teria de repetir a regra de situação da célula.
+         |----------------------------------------------------------------- */
+
+        andar(itemId, fornecedorId, direcao) {
+            const itens = config.ordemItens ?? [];
+            const lojas = config.ordemFornecedores ?? [];
+
+            const i = itens.indexOf(itemId);
+            const f = lojas.indexOf(fornecedorId);
+
+            if (i < 0 || f < 0) return;
+
+            if (direcao === 'baixo') {
+                // Último item da coluna: fica onde está. Voltar ao topo faria
+                // o comprador redigitar preço já digitado sem perceber.
+                if (i + 1 < itens.length) this.focarCelula(itens[i + 1], fornecedorId);
+                return;
+            }
+
+            if (direcao === 'frente') {
+                if (f + 1 < lojas.length) {
+                    this.focarCelula(itemId, lojas[f + 1]);
+                } else if (i + 1 < itens.length) {
+                    this.focarCelula(itens[i + 1], lojas[0]);
+                }
+
+                return;
+            }
+
+            // Shift+Tab: o mesmo caminho ao contrário.
+            if (f - 1 >= 0) {
+                this.focarCelula(itemId, lojas[f - 1]);
+            } else if (i - 1 >= 0) {
+                this.focarCelula(itens[i - 1], lojas[lojas.length - 1]);
+            }
+        },
+
+        /**
+         * Põe o foco na célula e SELECIONA o conteúdo: quem chega numa célula
+         * já preenchida quase sempre vai substituir o número, não emendar
+         * dígitos no fim dele.
+         */
+        focarCelula(itemId, fornecedorId) {
+            const campo = document.querySelector(
+                `input[data-preco][data-item="${itemId}"][data-fornecedor="${fornecedorId}"]`
+            );
+
+            if (! campo || campo.disabled) return;
+
+            campo.focus();
+            campo.select();
+
+            // A grade rola na horizontal: sem isto, o Tab levaria o foco para
+            // uma coluna fora da vista.
+            campo.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        },
+
+        /**
+         * Quantos itens esta loja ganhou — a legenda do subtotal dos
+         * escolhidos. Vazio quando não ganhou nenhum: a linha já mostra "—" e
+         * repetir "0 itens" só ocuparia espaço.
+         */
+        escolhidos(fornecedorId) {
+            const f = this.calculo.fornecedores?.[fornecedorId];
+            if (!f || !f.itens_vencidos) return '';
+            return f.itens_vencidos === 1 ? '1 item escolhido' : `${f.itens_vencidos} itens escolhidos`;
+        },
+
+        /**
+         * O custo escondido da compra dividida: cada loja é um pedido e um
+         * frete. Por isso o número de lojas aparece junto do total decidido.
+         */
+        resumoDecisao() {
+            const t = this.calculo.totais;
+            if (!t.itens_decididos) return 'nenhum item escolhido ainda';
+
+            let texto = `${t.itens_decididos} de ${t.itens_total} itens`;
+            texto += t.lojas_decididas === 1 ? ' · 1 loja' : ` · ${t.lojas_decididas} lojas`;
+
+            if (t.total_decidido_frete) {
+                texto += ` · frete/desc. ${this.moeda(t.total_decidido_frete)}`;
+            }
+
             return texto;
         },
 

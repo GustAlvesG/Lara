@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Cotacao;
 use App\Exceptions\CotacaoException;
 use App\Exceptions\QuestorException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\AtualizarCondicoesCotacaoRequest;
 use App\Http\Requests\StoreCotacaoFornecedorRequest;
 use App\Models\CotacaoMapa;
 use App\Models\CotacaoMapaFornecedor;
@@ -102,6 +103,86 @@ class FornecedorController extends Controller
         });
 
         return back()->with('success', 'Coluna atualizada.');
+    }
+
+    /**
+     * Salva as condições de TODAS as colunas de uma vez.
+     *
+     * É o "salvar geral" da tela. Cotação se anota de uma vez: o comprador
+     * volta do telefone com frete, prazo e pagamento de vários fornecedores, e
+     * um botão por linha fazia dele o responsável por lembrar de clicar em
+     * todos — esquecer um deixava o mapa com uma condição velha sem nada avisar.
+     *
+     * TUDO NUMA TRANSAÇÃO, e um id de outro mapa reprova o lote inteiro (a
+     * guarda está no request): salvar metade das colunas e responder "salvo"
+     * seria pior do que recusar.
+     *
+     * A trilha registra UM evento com todas as mudanças, e não um por coluna:
+     * foi um ato só do comprador, e é assim que ele vai procurar depois.
+     */
+    public function atualizarCondicoes(AtualizarCondicoesCotacaoRequest $request, CotacaoMapa $mapa)
+    {
+        $this->authorize('update', $mapa);
+
+        $lote = $request->paraGravacao();
+
+        $campos = ['nome', 'frete', 'prazo_entrega', 'condicao_pagamento', 'valor_frete', 'desconto'];
+
+        $alteradas = DB::transaction(function () use ($request, $mapa, $lote, $campos) {
+            // Uma consulta só, já restrita ao mapa: a guarda de escopo do
+            // request confere os ids, e o `whereKey` aqui é a segunda tranca.
+            $colunas = $mapa->fornecedores()->whereKey(array_keys($lote))->get()->keyBy('id');
+
+            $mudancas = [];
+
+            foreach ($lote as $id => $dados) {
+                $fornecedor = $colunas->get($id);
+
+                if ($fornecedor === null) {
+                    continue;
+                }
+
+                $anterior = $fornecedor->only($campos);
+
+                $fornecedor->fill($dados);
+
+                // `isDirty` em vez de comparar tudo: sem isso a trilha ganharia
+                // um registro a cada clique no botão, inclusive quando nada
+                // mudou, e o histórico do mapa viraria ruído.
+                if (! $fornecedor->isDirty()) {
+                    continue;
+                }
+
+                $fornecedor->save();
+
+                $depois = array_intersect_key($fornecedor->only($campos), $fornecedor->getChanges());
+
+                $mudancas[] = [
+                    'fornecedor_id' => (int) $id,
+                    'nome' => $fornecedor->nome,
+                    'de' => array_intersect_key($anterior, $depois),
+                    'para' => $depois,
+                ];
+            }
+
+            if ($mudancas !== []) {
+                CotacaoMapaLog::registrar($mapa, CotacaoMapaLog::ACAO_FORNECEDOR, [
+                    'evento' => 'condicoes_em_lote',
+                    'colunas_alteradas' => count($mudancas),
+                    'mudancas' => $mudancas,
+                ], $request->user());
+            }
+
+            return count($mudancas);
+        });
+
+        if ($alteradas === 0) {
+            return back()->with('success', 'Nada mudou nas condições — nenhum registro novo no histórico.');
+        }
+
+        return back()->with('success', $alteradas === 1
+            ? 'Condições salvas: 1 coluna alterada.'
+            : "Condições salvas: {$alteradas} colunas alteradas.");
     }
 
     /**

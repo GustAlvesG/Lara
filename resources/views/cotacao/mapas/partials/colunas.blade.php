@@ -93,90 +93,138 @@
 
     {{-- ============ COLUNAS EXISTENTES ============ --}}
     <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 p-6">
-        <h3 class="font-extrabold text-gray-900 dark:text-white">Condições por fornecedor</h3>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-4">
-            Linhas 5, 6 e 7 do mapa impresso. Frete em reais e desconto entram no TOTAL, não no SUBTOTAL.
-        </p>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <h3 class="font-extrabold text-gray-900 dark:text-white">Condições por fornecedor</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Linhas 5, 6 e 7 do mapa impresso. Frete em reais e desconto entram no TOTAL, não no SUBTOTAL.
+                </p>
+            </div>
+
+            @unless($mapa->fornecedores->isEmpty())
+                {{-- O SALVAR GERAL. Um botão por linha obrigava o comprador a
+                     lembrar de clicar em todos — e esquecer um deixava o mapa
+                     com uma condição velha, sem nada na tela avisando. Agora é
+                     um formulário só, e o aviso de "não salvo" cobre o resto. --}}
+                <button type="submit" form="condicoes-em-lote"
+                        class="px-4 py-2 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold shadow transition whitespace-nowrap">
+                    Salvar todas as condições
+                </button>
+            @endunless
+        </div>
 
         @if($mapa->fornecedores->isEmpty())
-            <p class="text-sm text-gray-400 italic">Nenhuma coluna ainda.</p>
+            <p class="text-sm text-gray-400 italic mt-4">Nenhuma coluna ainda.</p>
         @else
-            <div class="space-y-3">
-                @foreach($mapa->fornecedores as $f)
-                    <div class="p-3 rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700">
-                    {{-- Duas ações independentes (salvar e remover) e por isso
-                         dois formulários irmãos: aninhar `<form>` é inválido e
-                         faz o navegador descartar o de dentro em silêncio. O
-                         botão "Remover" mora no formulário de exclusão e é
-                         posicionado por CSS. --}}
-                    <form method="POST" action="{{ route('cotacao.mapas.fornecedores.update', [$mapa, $f]) }}"
-                          class="grid gap-2 md:grid-cols-12 items-end">
-                        @csrf @method('PATCH')
+            {{-- UM formulário para as {{ $mapa->fornecedores->count() }} colunas.
+                 Os botões "Remover" NÃO moram aqui: `<form>` aninhado é inválido
+                 e o navegador descarta o de dentro em silêncio. Eles usam o
+                 atributo `form=`, apontando para os formulários de exclusão
+                 declarados depois — HTML válido e sem JavaScript no meio. --}}
+            <form method="POST" id="condicoes-em-lote"
+                  action="{{ route('cotacao.mapas.fornecedores.condicoes-lote', $mapa) }}"
+                  x-data="{ sujo: false }"
+                  @input="sujo = true" @change="sujo = true"
+                  @submit="sujo = false"
+                  class="mt-4">
+                @csrf @method('PATCH')
 
-                        <div class="md:col-span-3">
-                            <label class="block text-[10px] font-bold uppercase text-gray-400">Fornecedor</label>
-                            <input type="text" name="nome" value="{{ $f->nome }}" maxlength="150" required
-                                   class="w-full text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
-                            @if($f->questor_cd_entidade)
-                                <span class="text-[10px] text-gray-400">Questor #{{ $f->questor_cd_entidade }}</span>
-                            @else
-                                <span class="text-[10px] text-amber-600 dark:text-amber-400">fora do cadastro do ERP</span>
-                            @endif
+                <div class="space-y-3">
+                    @foreach($mapa->fornecedores as $f)
+                        <div class="p-3 rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700">
+                            <div class="grid gap-2 md:grid-cols-12 items-end">
+                                <div class="md:col-span-3">
+                                    <label class="block text-[10px] font-bold uppercase text-gray-400">Fornecedor</label>
+                                    <input type="text" name="fornecedores[{{ $f->id }}][nome]" value="{{ old("fornecedores.{$f->id}.nome", $f->nome) }}"
+                                           maxlength="150" required
+                                           class="w-full text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
+                                    @if($f->questor_cd_entidade)
+                                        <span class="text-[10px] text-gray-400">Questor #{{ $f->questor_cd_entidade }}</span>
+                                    @else
+                                        <span class="text-[10px] text-amber-600 dark:text-amber-400">fora do cadastro do ERP</span>
+                                    @endif
+                                    @error("fornecedores.{$f->id}.nome")<p class="text-[10px] text-red-600">{{ $message }}</p>@enderror
+                                </div>
+
+                                <div class="md:col-span-1">
+                                    <label class="block text-[10px] font-bold uppercase text-gray-400">Frete</label>
+                                    <input type="text" name="fornecedores[{{ $f->id }}][frete]" value="{{ old("fornecedores.{$f->id}.frete", $f->frete) }}"
+                                           maxlength="20" list="lista-fretes" placeholder="CIF"
+                                           class="w-full text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
+                                </div>
+
+                                <div class="md:col-span-2">
+                                    <label class="block text-[10px] font-bold uppercase text-gray-400">Prazo</label>
+                                    <input type="text" name="fornecedores[{{ $f->id }}][prazo_entrega]" value="{{ old("fornecedores.{$f->id}.prazo_entrega", $f->prazo_entrega) }}"
+                                           maxlength="30" list="lista-prazos" placeholder="3DU / CONFIRMAR"
+                                           class="w-full text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
+                                </div>
+
+                                <div class="md:col-span-2">
+                                    <label class="block text-[10px] font-bold uppercase text-gray-400">Pagamento</label>
+                                    <input type="text" name="fornecedores[{{ $f->id }}][condicao_pagamento]" value="{{ old("fornecedores.{$f->id}.condicao_pagamento", $f->condicao_pagamento) }}"
+                                           maxlength="30" list="lista-pagamentos" placeholder="Á VISTA / 28 D"
+                                           class="w-full text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
+                                </div>
+
+                                <div class="md:col-span-1">
+                                    <label class="block text-[10px] font-bold uppercase text-gray-400">Frete R$</label>
+                                    <input type="text" name="fornecedores[{{ $f->id }}][valor_frete]" value="{{ old("fornecedores.{$f->id}.valor_frete", $brl2($f->valor_frete)) }}"
+                                           inputmode="decimal"
+                                           class="w-full text-sm text-right tabular-nums rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
+                                    @error("fornecedores.{$f->id}.valor_frete")<p class="text-[10px] text-red-600">{{ $message }}</p>@enderror
+                                </div>
+
+                                <div class="md:col-span-1">
+                                    <label class="block text-[10px] font-bold uppercase text-gray-400">Desc. R$</label>
+                                    <input type="text" name="fornecedores[{{ $f->id }}][desconto]" value="{{ old("fornecedores.{$f->id}.desconto", $brl2($f->desconto)) }}"
+                                           inputmode="decimal"
+                                           class="w-full text-sm text-right tabular-nums rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
+                                    @error("fornecedores.{$f->id}.desconto")<p class="text-[10px] text-red-600">{{ $message }}</p>@enderror
+                                </div>
+
+                                {{-- Fora do formulário de condições, por `form=`:
+                                     remover é irreversível e não pode viajar de
+                                     carona num "salvar tudo". --}}
+                                <div class="md:col-span-2">
+                                    <button type="submit" form="remover-fornecedor-{{ $f->id }}"
+                                            class="w-full px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/40 transition">
+                                        Remover coluna
+                                    </button>
+                                </div>
+                            </div>
                         </div>
+                    @endforeach
+                </div>
 
-                        <div class="md:col-span-1">
-                            <label class="block text-[10px] font-bold uppercase text-gray-400">Frete</label>
-                            <input type="text" name="frete" value="{{ $f->frete }}" maxlength="20" list="lista-fretes"
-                                   placeholder="CIF"
-                                   class="w-full text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
-                        </div>
+                {{-- O aviso é o que o botão por linha dava de graça: com um
+                     salvar só, é ele que impede o comprador de sair da tela
+                     achando que as condições já estavam gravadas. --}}
+                <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <p class="text-xs font-bold text-amber-600 dark:text-amber-400" x-show="sujo" x-cloak>
+                        Há alterações não salvas nas condições.
+                    </p>
+                    <p class="text-xs text-gray-400" x-show="!sujo">
+                        Um clique salva as {{ $mapa->fornecedores->count() }} colunas de uma vez.
+                    </p>
 
-                        <div class="md:col-span-2">
-                            <label class="block text-[10px] font-bold uppercase text-gray-400">Prazo</label>
-                            <input type="text" name="prazo_entrega" value="{{ $f->prazo_entrega }}" maxlength="30" list="lista-prazos"
-                                   placeholder="3DU / CONFIRMAR"
-                                   class="w-full text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
-                        </div>
+                    <button type="submit"
+                            class="px-5 py-2.5 rounded-xl text-white text-sm font-bold shadow transition"
+                            :class="sujo ? 'bg-red-800 hover:bg-red-900' : 'bg-gray-800 dark:bg-gray-700 hover:bg-gray-900'">
+                        Salvar todas as condições
+                    </button>
+                </div>
+            </form>
 
-                        <div class="md:col-span-2">
-                            <label class="block text-[10px] font-bold uppercase text-gray-400">Pagamento</label>
-                            <input type="text" name="condicao_pagamento" value="{{ $f->condicao_pagamento }}" maxlength="30" list="lista-pagamentos"
-                                   placeholder="Á VISTA / 28 D"
-                                   class="w-full text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
-                        </div>
-
-                        <div class="md:col-span-1">
-                            <label class="block text-[10px] font-bold uppercase text-gray-400">Frete R$</label>
-                            <input type="text" name="valor_frete" value="{{ $brl2($f->valor_frete) }}" inputmode="decimal"
-                                   class="w-full text-sm text-right tabular-nums rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
-                        </div>
-
-                        <div class="md:col-span-1">
-                            <label class="block text-[10px] font-bold uppercase text-gray-400">Desc. R$</label>
-                            <input type="text" name="desconto" value="{{ $brl2($f->desconto) }}" inputmode="decimal"
-                                   class="w-full text-sm text-right tabular-nums rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
-                        </div>
-
-                        <div class="md:col-span-1">
-                            <button type="submit"
-                                    class="w-full px-3 py-1.5 rounded-lg bg-gray-800 dark:bg-gray-700 hover:bg-gray-900 text-white text-xs font-bold transition">
-                                Salvar
-                            </button>
-                        </div>
-                    </form>
-
-                    <form method="POST" action="{{ route('cotacao.mapas.fornecedores.destroy', [$mapa, $f]) }}"
-                          class="mt-2 flex justify-end"
-                          onsubmit="return confirm('Remover a coluna {{ addslashes($f->nome) }}? Os preços já digitados nela vão junto.')">
-                        @csrf @method('DELETE')
-                        <button type="submit"
-                                class="px-3 py-1 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-xs font-bold hover:bg-red-100 transition">
-                            Remover coluna
-                        </button>
-                    </form>
-                    </div>
-                @endforeach
-            </div>
+            {{-- Os formulários de exclusão, irmãos e escondidos: cada botão
+                 "Remover coluna" acima aponta para o seu por `form=`. --}}
+            @foreach($mapa->fornecedores as $f)
+                <form id="remover-fornecedor-{{ $f->id }}" method="POST" class="hidden"
+                      action="{{ route('cotacao.mapas.fornecedores.destroy', [$mapa, $f]) }}"
+                      onsubmit="return confirm('Remover a coluna {{ addslashes($f->nome) }}? Os preços já digitados nela vão junto.')">
+                    @csrf @method('DELETE')
+                </form>
+            @endforeach
 
             {{-- Autocomplete das condições (queries 9.a–9.c). São sugestões:
                  `datalist` não impede texto livre, que é exatamente o que o

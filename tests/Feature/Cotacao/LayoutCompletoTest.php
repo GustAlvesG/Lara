@@ -107,11 +107,31 @@ class LayoutCompletoTest extends TestCase
     {
         $aba = $this->mapa();
 
+        // Rótulo em SIGLA e em caixa MESCLADA: A:B para o rótulo, a C inteira
+        // para o valor. O nome do solicitante caía antes numa caixa de 8 de
+        // largura — a da coluna "QNT." da grade — e aparecia pela metade.
         $this->assertSame('SC', $aba->getCell('A4')->getValue());
-        $this->assertSame('34334', $aba->getCell('B4')->getValue());
-        $this->assertSame('SOLICITANTE', $aba->getCell('C4')->getValue());
-        $this->assertSame('MANUTENCAO JOAO', $aba->getCell('D4')->getValue());
-        $this->assertSame('COMPRADOR', $aba->getCell('C5')->getValue());
+        $this->assertSame('34334', $aba->getCell('C4')->getValue());
+        $this->assertSame('DATA', $aba->getCell('D4')->getValue());
+
+        $this->assertSame('SOLIC.', $aba->getCell('A5')->getValue());
+        $this->assertSame('MANUTENCAO JOAO', $aba->getCell('C5')->getValue());
+        $this->assertSame('COMPR.', $aba->getCell('D5')->getValue());
+
+        $this->assertSame('DEPTO', $aba->getCell('A6')->getValue());
+        $this->assertSame('SIT.', $aba->getCell('D6')->getValue());
+
+        // As mesclagens são o que dá espaço ao texto SEM alargar coluna
+        // nenhuma: alargar A ou D estragaria a grade abaixo.
+        $mesclagens = $aba->getMergeCells();
+
+        $this->assertArrayHasKey('A5:B5', $mesclagens, 'O rótulo precisa da caixa A:B.');
+        $this->assertArrayHasKey('F5:G5', $mesclagens, 'O valor da direita precisa da caixa F:G.');
+
+        // Rótulo das condições em sigla, na mesma caixa D:E.
+        $this->assertSame('FRETE', $aba->getCell('D7')->getValue());
+        $this->assertSame('PRAZO', $aba->getCell('D8')->getValue());
+        $this->assertSame('PAGTO', $aba->getCell('D9')->getValue());
 
         // Linhas 7, 8 e 9: as condições, por coluna de fornecedor.
         $this->assertSame('CIF', $aba->getCell('F7')->getValue());
@@ -119,6 +139,35 @@ class LayoutCompletoTest extends TestCase
         $this->assertSame('14D', $aba->getCell('F9')->getValue());
         $this->assertSame('3DU', $aba->getCell('G8')->getValue());
         $this->assertSame('Á VISTA', $aba->getCell('G9')->getValue());
+    }
+
+    /**
+     * O NOME DO FORNECEDOR APARECE INTEIRO NO CABEÇALHO DA GRADE.
+     *
+     * As células do cabeçalho quebram linha, mas uma altura FIXA impede o Excel
+     * de crescer sozinho — e era isso que cortava "COMERCIAL DE TINTAS E
+     * FERRAGENS SAO JOSE LTDA" numa coluna de 14 de largura. A altura agora sai
+     * do nome mais comprido.
+     */
+    public function test_altura_do_cabecalho_acompanha_o_nome_mais_comprido(): void
+    {
+        $curto = $this->mapa()->getRowDimension(self::LINHA_CABECALHO)->getRowHeight();
+
+        $mapa = $this->mapaDeExemplo();
+        $mapa->fornecedores()->first()->update([
+            'nome' => 'COMERCIAL DE TINTAS E FERRAGENS SAO JOSE LTDA',
+        ]);
+
+        $comprido = $this->servico()
+            ->montar($mapa->fresh(), MapaExportService::LAYOUT_COMPLETO)
+            ->getSheetByName('Mapa')
+            ->getRowDimension(self::LINHA_CABECALHO)->getRowHeight();
+
+        $this->assertGreaterThan(
+            $curto,
+            $comprido,
+            'Nome comprido tem de crescer a linha do cabeçalho, senão sai cortado.'
+        );
     }
 
     public function test_menor_e_economia_sao_formulas_que_ignoram_celula_vazia(): void

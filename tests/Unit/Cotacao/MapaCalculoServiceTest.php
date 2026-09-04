@@ -306,6 +306,152 @@ class MapaCalculoServiceTest extends TestCase
     }
 
     /**
+     * O "subtotal da loja somente dos escolhidos": quanto se compra DE FATO em
+     * cada uma, dada a decisão registrada.
+     *
+     * A distinção contra `subtotal` é o ponto: a loja pode ter cotado tudo (e
+     * ter o maior subtotal do mapa) e a compra nela ser pequena. Quem monta o
+     * pedido precisa do segundo número, não do primeiro.
+     */
+    public function test_subtotal_dos_escolhidos_separa_o_que_a_loja_cotou_do_que_ela_vendeu(): void
+    {
+        $i1 = $this->item(1, quantidade: 2);
+        $i2 = $this->item(2, quantidade: 3);
+        $a = $this->fornecedor(10, frete: 50.0);
+        $b = $this->fornecedor(20, frete: 30.0);
+
+        // A ganha o item 1; B ganha o item 2. Os dois cotaram os dois itens.
+        $i1->forceFill(['vencedor_id' => 10]);
+        $i2->forceFill(['vencedor_id' => 20]);
+
+        $resultado = $this->servico->calcular(
+            collect([$i1, $i2]),
+            collect([$a, $b]),
+            collect([
+                $this->preco($i1, $a, 100.0),   // 2 × 100 = 200 (escolhido)
+                $this->preco($i1, $b, 120.0),
+                $this->preco($i2, $a, 40.0),
+                $this->preco($i2, $b, 30.0),    // 3 ×  30 =  90 (escolhido)
+            ])
+        );
+
+        // Subtotal da loja: tudo o que ela cotou.
+        $this->assertSame(320.0, $resultado['fornecedores'][10]['subtotal']);
+        $this->assertSame(330.0, $resultado['fornecedores'][20]['subtotal']);
+
+        // Subtotal da loja SOMENTE DOS ESCOLHIDOS: bem menor, e é o que vira
+        // pedido.
+        $this->assertSame(200.0, $resultado['fornecedores'][10]['total_vencidos']);
+        $this->assertSame(90.0, $resultado['fornecedores'][20]['total_vencidos']);
+
+        // O pedido a cada loja soma o frete UMA VEZ — não por item.
+        $this->assertSame(250.0, $resultado['fornecedores'][10]['total_vencidos_com_frete']);
+        $this->assertSame(120.0, $resultado['fornecedores'][20]['total_vencidos_com_frete']);
+    }
+
+    /**
+     * Loja sem nenhum item escolhido não compra R$ 0,00: não compra nada. Zero
+     * ali apareceria na tela como um pedido de zero real, e o frete dela
+     * entraria numa soma que não existe.
+     */
+    public function test_loja_sem_item_escolhido_tem_subtotal_dos_escolhidos_nulo_e_nao_zero(): void
+    {
+        $item = $this->item(1);
+        $escolhida = $this->fornecedor(10, frete: 50.0);
+        $preterida = $this->fornecedor(20, frete: 999.0);
+
+        $item->forceFill(['vencedor_id' => 10]);
+
+        $resultado = $this->servico->calcular(
+            collect([$item]),
+            collect([$escolhida, $preterida]),
+            collect([
+                $this->preco($item, $escolhida, 100.0),
+                $this->preco($item, $preterida, 90.0),
+            ])
+        );
+
+        $this->assertNull($resultado['fornecedores'][20]['total_vencidos']);
+        $this->assertNull($resultado['fornecedores'][20]['total_vencidos_com_frete']);
+        $this->assertSame(0, $resultado['fornecedores'][20]['itens_vencidos']);
+
+        // E o frete dos 999 da loja preterida não contamina o total decidido.
+        $this->assertSame(150.0, $resultado['totais']['total_decidido_com_frete']);
+        $this->assertSame(50.0, $resultado['totais']['total_decidido_frete']);
+        $this->assertSame(1, $resultado['totais']['lojas_decididas']);
+    }
+
+    /**
+     * O CUSTO ESCONDIDO DA COMPRA DIVIDIDA: cada loja é um pedido e um frete.
+     * Dividir entre duas lojas pode economizar na mercadoria e perder no frete,
+     * e é esse número que a planilha em Excel não mostra em lugar nenhum.
+     */
+    public function test_total_decidido_cobra_o_frete_de_cada_loja_em_que_se_comprou(): void
+    {
+        $i1 = $this->item(1);
+        $i2 = $this->item(2);
+        $a = $this->fornecedor(10, frete: 80.0);
+        $b = $this->fornecedor(20, frete: 80.0, desconto: 10.0);
+
+        $i1->forceFill(['vencedor_id' => 10]);
+        $i2->forceFill(['vencedor_id' => 20]);
+
+        $dividido = $this->servico->calcular(
+            collect([$i1, $i2]),
+            collect([$a, $b]),
+            collect([
+                $this->preco($i1, $a, 100.0),
+                $this->preco($i2, $b, 100.0),
+            ])
+        );
+
+        $this->assertSame(200.0, $dividido['totais']['total_decidido']);
+        // 80 de A + (80 − 10) de B = 150 só de frete/desconto.
+        $this->assertSame(150.0, $dividido['totais']['total_decidido_frete']);
+        $this->assertSame(350.0, $dividido['totais']['total_decidido_com_frete']);
+        $this->assertSame(2, $dividido['totais']['lojas_decididas']);
+
+        // Concentrar tudo em A paga um frete só: 200 + 80 = 280, mais barato
+        // que os 350 da divisão mesmo com a mercadoria pelo mesmo preço.
+        $i2->forceFill(['vencedor_id' => 10]);
+
+        $concentrado = $this->servico->calcular(
+            collect([$i1, $i2]),
+            collect([$a, $b]),
+            collect([
+                $this->preco($i1, $a, 100.0),
+                $this->preco($i2, $a, 100.0),
+            ])
+        );
+
+        $this->assertSame(80.0, $concentrado['totais']['total_decidido_frete']);
+        $this->assertSame(280.0, $concentrado['totais']['total_decidido_com_frete']);
+        $this->assertSame(1, $concentrado['totais']['lojas_decididas']);
+    }
+
+    /**
+     * Sem decisão nenhuma, os totais da decisão são nulos — não zero. A tela
+     * mostra travessão, e não "R$ 0,00", que se leria como "decidido: nada a
+     * pagar".
+     */
+    public function test_mapa_sem_vencedor_tem_totais_da_decisao_nulos(): void
+    {
+        $item = $this->item(1);
+        $f = $this->fornecedor(10, frete: 50.0);
+
+        $resultado = $this->servico->calcular(
+            collect([$item]),
+            collect([$f]),
+            collect([$this->preco($item, $f, 100.0)])
+        );
+
+        $this->assertNull($resultado['totais']['total_decidido']);
+        $this->assertNull($resultado['totais']['total_decidido_com_frete']);
+        $this->assertSame(0, $resultado['totais']['lojas_decididas']);
+        $this->assertNull($resultado['fornecedores'][10]['total_vencidos']);
+    }
+
+    /**
      * Cobertura parcial não é comparável com cobertura total — e o campo que a
      * tela usa para comparar (`total_cheio`) fica nulo justamente para impedir
      * a comparação errada.
