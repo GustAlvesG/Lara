@@ -28,6 +28,13 @@ class TimeEntry extends Model
 
     protected $casts = [
         'written_off' => 'boolean',
+        // Sem estes casts o Eloquent grava o Carbon com hora ('2026-06-01
+        // 00:00:00') em bancos que não tipam a coluna, e um
+        // `whereBetween('entry_date', ['2026-06-01', '2026-06-01'])` deixa de
+        // encontrar o próprio dia — foi assim que a detecção de duplicatas
+        // perdia colisões em arquivos de um dia só.
+        'entry_date'  => 'date',
+        'due_date'    => 'date',
     ];
 
     public function employee()
