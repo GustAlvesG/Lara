@@ -30,6 +30,43 @@ class UberAccessRequest extends Model
         self::STATUS_EXPIRADO,
     ];
 
+    /**
+     * Conferência do par (nome, matrícula) contra o MultiClubes, feita quando
+     * o pedido se completa. "indisponivel" é diferente de "nao_encontrado": o
+     * primeiro é o MultiClubes fora do ar, o segundo é divergência real.
+     */
+    public const MEMBER_VALIDATION_VALIDADO = 'validado';
+    public const MEMBER_VALIDATION_NAO_ENCONTRADO = 'nao_encontrado';
+    public const MEMBER_VALIDATION_INDISPONIVEL = 'indisponivel';
+
+    public const MEMBER_VALIDATION_LABELS = [
+        self::MEMBER_VALIDATION_VALIDADO        => 'Sócio confere',
+        self::MEMBER_VALIDATION_NAO_ENCONTRADO  => 'Nome/matrícula não confere',
+        self::MEMBER_VALIDATION_INDISPONIVEL    => 'Não foi possível conferir',
+    ];
+
+    public function memberValidationLabel(): ?string
+    {
+        if ($this->member_validation === null) {
+            return null;
+        }
+
+        return self::MEMBER_VALIDATION_LABELS[$this->member_validation] ?? $this->member_validation;
+    }
+
+    /**
+     * Etapas em que o fluxo ainda está coletando respostas no WhatsApp. São as
+     * únicas sujeitas ao timeout de inatividade: depois de "aguardando_acesso"
+     * o associado já respondeu tudo e quem manda é a validade (expires_at).
+     */
+    public const CAPTURE_STATUSES = [
+        self::STATUS_AGUARDANDO_MATRICULA,
+        self::STATUS_AGUARDANDO_NOME,
+        self::STATUS_AGUARDANDO_LOCAL,
+        self::STATUS_AGUARDANDO_PLACA,
+        self::STATUS_AGUARDANDO_PRINT,
+    ];
+
     public const STATUS_LABELS = [
         self::STATUS_AGUARDANDO_MATRICULA => 'Aguardando matrícula',
         self::STATUS_AGUARDANDO_NOME      => 'Aguardando nome',
@@ -57,6 +94,9 @@ class UberAccessRequest extends Model
         'club_location',
         'vehicle_plate',
         'screenshot_url',
+        'member_validation',
+        'member_validation_name',
+        'member_validated_at',
         'completed_at',
         'expires_at',
         'accessed_at',
@@ -64,6 +104,7 @@ class UberAccessRequest extends Model
     ];
 
     protected $casts = [
+        'member_validated_at' => 'datetime',
         'completed_at' => 'datetime',
         'expires_at' => 'datetime',
         'accessed_at' => 'datetime',

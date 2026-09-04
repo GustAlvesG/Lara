@@ -22,6 +22,7 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\SectorController;
 use App\Http\Controllers\CompTimeController;
 use App\Http\Controllers\ParkingAuthorizationController;
+use App\Http\Controllers\Fleet\FleetController;
 use App\Http\Controllers\DocumentationController;
 use App\Http\Controllers\EmailController;
 
@@ -45,6 +46,15 @@ use App\Http\Controllers\Questor\CostCenterApproverController as QuestorCostCent
 use App\Http\Controllers\Cotacao\MapaController as CotacaoMapaController;
 use App\Http\Controllers\Cotacao\PrecoController as CotacaoPrecoController;
 use App\Http\Controllers\Cotacao\FornecedorController as CotacaoFornecedorController;
+
+use App\Http\Controllers\Placar\Web\EquipeController as PlacarEquipeWebController;
+use App\Http\Controllers\Placar\Web\TimeController as PlacarTimeWebController;
+use App\Http\Controllers\Placar\Web\ElencoController as PlacarElencoWebController;
+use App\Http\Controllers\Placar\Web\JogadorController as PlacarJogadorWebController;
+use App\Http\Controllers\Placar\Web\CompeticaoController as PlacarCompeticaoWebController;
+use App\Http\Controllers\Placar\Web\JogoController as PlacarJogoWebController;
+use App\Http\Controllers\Placar\Web\EscalacaoController as PlacarEscalacaoWebController;
+use App\Http\Controllers\Placar\Web\ScoutController as PlacarScoutWebController;
 
 
 Route::get('/', function () {
@@ -97,6 +107,16 @@ Route::prefix('kiosk')->group(function () {
         ->middleware('throttle:20,1')->name('kiosk.service.sales-report');
     Route::post('/service/{freelancerService}/sign', [KioskController::class, 'signService'])
         ->middleware('throttle:20,1')->name('kiosk.service.sign');
+    // Jantar do turno noturno: a pergunta que o tablet faz logo depois da
+    // assinatura, para a cozinha saber quantos pratos preparar.
+    Route::post('/service/{freelancerService}/dinner', [KioskController::class, 'dinnerAnswer'])
+        ->middleware('throttle:20,1')->name('kiosk.service.dinner');
+
+    // O documento é montado pelo SERVIDOR, pelo mesmo Blade que o painel
+    // imprime — o tablet apenas o exibe. Com o texto do contrato em dois
+    // lugares, cada revisão do jurídico teria de ser escrita duas vezes.
+    Route::get('/service/{freelancerService}/document', [KioskController::class, 'document'])
+        ->name('kiosk.service.document');
 
     // Imagem da assinatura — servida por rota (e não pelo disco público) porque é
     // dado pessoal e porque o link public/storage nem sempre existe no ambiente.
@@ -315,6 +335,23 @@ Route::middleware('auth')->group(function () {
         Route::post('/confirm-import/{uuid}', [CompTimeController::class, 'confirmImport'])->name('comp-time.confirm-import');
     });
 
+
+    // Frota: painel de saída/retorno, histórico de quilometragem e cadastro
+    // dos veículos. O registro daqui usa o mesmo serviço da API da portaria.
+    Route::group(['prefix' => 'fleet', 'middleware' => 'permission:manage fleet'], function () {
+        Route::get('/', [FleetController::class, 'index'])->name('fleet.index');
+        Route::post('/departure', [FleetController::class, 'storeDeparture'])->name('fleet.departure');
+        Route::post('/return', [FleetController::class, 'storeReturn'])->name('fleet.return');
+        Route::get('/trips', [FleetController::class, 'trips'])->name('fleet.trips');
+        Route::post('/trips/{trip}/cancel', [FleetController::class, 'cancelTrip'])->name('fleet.trips.cancel');
+
+        Route::get('/vehicles', [FleetController::class, 'vehicles'])->name('fleet.vehicles');
+        Route::get('/vehicles/create', [FleetController::class, 'createVehicle'])->name('fleet.vehicles.create');
+        Route::post('/vehicles', [FleetController::class, 'storeVehicle'])->name('fleet.vehicles.store');
+        Route::get('/vehicles/{vehicle}/edit', [FleetController::class, 'editVehicle'])->name('fleet.vehicles.edit');
+        Route::put('/vehicles/{vehicle}', [FleetController::class, 'updateVehicle'])->name('fleet.vehicles.update');
+        Route::delete('/vehicles/{vehicle}', [FleetController::class, 'destroyVehicle'])->name('fleet.vehicles.destroy');
+    });
 
     Route::resource('parking-authorizations', ParkingAuthorizationController::class);
 
@@ -561,6 +598,68 @@ Route::middleware('auth')->group(function () {
     Route::get('/notifications/unread-json', [NotificationController::class, 'unreadJson'])->name('notifications.unreadJson');
     Route::get('/notifications/{id}/mark-read', [NotificationController::class, 'markRead'])->name('notifications.markRead');
     Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notifications.markAllRead');
+
+    /*
+    |----------------------------------------------------------------------
+    | Placar Clube — telas de cadastro e de scout
+    |----------------------------------------------------------------------
+    |
+    | Gate de setor (Esporte, qualquer papel — ver User::canAccessPlacar()),
+    | não permissão do Spatie, pelo mesmo motivo do financeiro/acompanhamento
+    | de freelancers acima: é atribuição de setor, não nível de acesso.
+    | Cadastro e scout são Gates separados hoje com a mesma regra — podem
+    | divergir depois sem tocar em rota nenhuma.
+    */
+    Route::prefix('placar')->name('placar.')->group(function () {
+        Route::group(['middleware' => 'can:manage-placar-cadastro'], function () {
+            Route::resource('equipes', PlacarEquipeWebController::class)->except(['edit']);
+            Route::post('equipes/{equipe}/logo', [PlacarEquipeWebController::class, 'storeLogo'])->name('equipes.logo.store');
+            Route::delete('equipes/{equipe}/logo', [PlacarEquipeWebController::class, 'destroyLogo'])->name('equipes.logo.destroy');
+
+            Route::resource('times', PlacarTimeWebController::class)->except(['edit']);
+            Route::post('times/{time}/logo', [PlacarTimeWebController::class, 'storeLogo'])->name('times.logo.store');
+            Route::delete('times/{time}/logo', [PlacarTimeWebController::class, 'destroyLogo'])->name('times.logo.destroy');
+            Route::post('times/{time}/elenco', [PlacarElencoWebController::class, 'store'])->name('times.elenco.store');
+            Route::delete('times/{time}/elenco/{elenco}', [PlacarElencoWebController::class, 'destroy'])->name('times.elenco.destroy');
+            Route::post('times/{time}/elenco/copiar', [PlacarElencoWebController::class, 'copiar'])->name('times.elenco.copiar');
+
+            // Declaradas ANTES do resource: `jogadores/import` casaria com
+            // `jogadores/{jogador}` e o route-model-binding tentaria achar um
+            // jogador chamado "import" — 404 em vez da importação.
+            Route::get('jogadores/import/template', [PlacarJogadorWebController::class, 'importTemplate'])->name('jogadores.import.template');
+            Route::post('jogadores/import', [PlacarJogadorWebController::class, 'import'])->name('jogadores.import');
+
+            // ->parameters(): Str::singular('jogadores') dá 'jogadore' — o
+            // controller espera {jogador} (Jogador $jogador).
+            Route::resource('jogadores', PlacarJogadorWebController::class)->except(['edit'])
+                ->parameters(['jogadores' => 'jogador']);
+
+            Route::post('jogadores/{jogador}/foto', [PlacarJogadorWebController::class, 'storeFoto'])->name('jogadores.foto.store');
+            Route::delete('jogadores/{jogador}/foto', [PlacarJogadorWebController::class, 'destroyFoto'])->name('jogadores.foto.destroy');
+            Route::post('jogadores/{jogador}/video', [PlacarJogadorWebController::class, 'storeVideo'])->name('jogadores.video.store');
+            Route::delete('jogadores/{jogador}/video', [PlacarJogadorWebController::class, 'destroyVideo'])->name('jogadores.video.destroy');
+
+            // Str::singular('competicoes') dá 'competico' — o controller
+            // espera {competicao} (Competicao $competicao).
+            Route::resource('competicoes', PlacarCompeticaoWebController::class)->except(['edit'])
+                ->parameters(['competicoes' => 'competicao']);
+
+            // /jogos/{jogo}/escalacao antes do resource, senão "escalacao" no
+            // lugar de {jogo} seria interpretado como id pela rota de show.
+            Route::get('jogos/{jogo}/escalacao', [PlacarEscalacaoWebController::class, 'edit'])->name('jogos.escalacao.edit');
+            Route::post('jogos/{jogo}/escalacao', [PlacarEscalacaoWebController::class, 'update'])->name('jogos.escalacao.update');
+            Route::resource('jogos', PlacarJogoWebController::class)->except(['edit']);
+        });
+
+        Route::group(['middleware' => 'can:view-placar-scout'], function () {
+            Route::get('scout/jogos', [PlacarScoutWebController::class, 'jogos'])->name('scout.jogos');
+            Route::get('scout/jogos/{jogo}/sumula', [PlacarScoutWebController::class, 'sumula'])->name('scout.sumula');
+            Route::get('scout/jogos/{jogo}/sumula/impressao', [PlacarScoutWebController::class, 'sumulaPrint'])->name('scout.sumula.print');
+            Route::get('scout/jogos/{jogo}/jogadores/{jogador}', [PlacarScoutWebController::class, 'atuacao'])->name('scout.atuacao');
+            Route::get('scout/jogadores/{jogador}', [PlacarScoutWebController::class, 'jogador'])->name('scout.jogador');
+            Route::get('scout/times/{time}', [PlacarScoutWebController::class, 'time'])->name('scout.time');
+        });
+    });
 
 });
 

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\UberAccessRequest;
+use App\Services\MultiClubes\MemberTitleValidator;
 use App\Services\Poli\ParsedPoliMessage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -15,10 +16,19 @@ use Illuminate\Support\Str;
  */
 class UberAccessRequestFlow
 {
-    private const TRIGGER_TEXT = 'Pedi um Uber/99/Taxi';
-    private const SESSION_TIMEOUT_MINUTES = 30;
+    private const TRIGGER_TEXT = 'Carro de Aplicativo';
+
+    /**
+     * Tempo máximo sem resposta do associado durante a coleta. Estourado o
+     * prazo o pedido vira "expirado" e as respostas atrasadas são ignoradas —
+     * só um novo gatilho recomeça o fluxo, do zero.
+     */
+    public const SESSION_TIMEOUT_SECONDS = 200;
+
     private const ACCESS_VALIDITY_MINUTES = 30;
     private const PLATE_PATTERN = '/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/';
+
+    public function __construct(private readonly MemberTitleValidator $memberValidator) {}
 
     public function handle(ParsedPoliMessage $message): ?UberAccessRequest
     {
@@ -41,13 +51,25 @@ class UberAccessRequestFlow
             : $this->maybeStartSession($message);
     }
 
+    /**
+     * Só a fase de coleta expira por inatividade. Um pedido já em
+     * "aguardando_acesso" está completo e vive até `expires_at` — aplicar o
+     * timeout de resposta ali mataria o pedido antes de o motorista chegar.
+     */
     private function isExpired(UberAccessRequest $request): bool
     {
+        if (!in_array($request->status, UberAccessRequest::CAPTURE_STATUSES, true)) {
+            return false;
+        }
+
         if (!$request->last_message_at) {
             return false;
         }
 
-        return $request->last_message_at->diffInMinutes(now()) > self::SESSION_TIMEOUT_MINUTES;
+        return $request->last_message_at
+            ->copy()
+            ->addSeconds(self::SESSION_TIMEOUT_SECONDS)
+            ->isPast();
     }
 
     private function maybeStartSession(ParsedPoliMessage $message): ?UberAccessRequest
@@ -150,16 +172,31 @@ class UberAccessRequestFlow
 
         $completedAt = now();
 
+        // Com todos os dados em mãos, confere nome + matrícula no MultiClubes.
+        // O resultado é registrado para a portaria ver; não bloqueia o pedido.
+        $validation = $this->memberValidator->validate($request->matricula, $request->requester_name);
+
         // O pedido está completo, mas o acesso ainda não aconteceu: fica
         // "aguardando acesso do motorista" até ele chegar na portaria (quando
         // vira "concluido") ou a validade vencer (quando vira "expirado").
         $request->update([
             'screenshot_url' => $message->mediaUrl,
             'status' => UberAccessRequest::STATUS_AGUARDANDO_ACESSO,
+            'member_validation' => $validation->status,
+            'member_validation_name' => $validation->matchedName,
+            'member_validated_at' => $completedAt,
             'completed_at' => $completedAt,
             'expires_at' => $completedAt->copy()->addMinutes(self::ACCESS_VALIDITY_MINUTES),
             'last_message_at' => $completedAt,
         ]);
+
+        if ($validation->status !== UberAccessRequest::MEMBER_VALIDATION_VALIDADO) {
+            Log::info('UberAccessRequestFlow: pedido concluído sem confirmar o sócio', [
+                'uber_access_request_id' => $request->id,
+                'member_validation' => $validation->status,
+                'matricula' => $request->matricula,
+            ]);
+        }
 
         return $request;
     }

@@ -4,18 +4,59 @@ namespace Tests\Feature;
 
 use App\Models\UberAccessRequest;
 use App\Models\UberAccessRequestMessage;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use App\Services\MultiClubes\TitleMemberLookup;
+use App\Services\UberAccessRequestFlow;
 use Tests\TestCase;
 
+/**
+ * Sem RefreshDatabase pelo mesmo motivo registrado em LaraMessageHistoryTest:
+ * a cadeia completa de migrations falha hoje em `add_columns_member` x
+ * `tourments` (as duas criam `members.title`). Aqui só as migrations desta
+ * feature são aplicadas, no SQLite :memory: que o phpunit.xml configura, e
+ * cada teste recebe um banco novo.
+ */
 class UberAccessRequestWebhookTest extends TestCase
 {
-    use DatabaseTransactions;
-
     private const CONTACT_UUID = 'd5e8a972-6360-11f1-9d75-06799772b1cd';
     private const CONTACT_PHONE = '5524992542363';
-    private const TRIGGER = 'Pedi um Uber/99/Taxi';
+    private const TRIGGER = 'Carro de Aplicativo';
 
     private int $messageCounter = 0;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        (require base_path('database/migrations/2026_07_20_150000_create_uber_access_requests_tables.php'))->up();
+        (require base_path('database/migrations/2026_07_21_120000_add_matricula_to_uber_access_requests.php'))->up();
+        (require base_path('database/migrations/2026_08_27_170000_add_member_validation_to_uber_access_requests.php'))->up();
+
+        // Sem SQL Server nos testes: por padrão o título não devolve ninguém.
+        // Cada teste que precisa sobrescreve com fakeTitleMembers().
+        $this->fakeTitleMembers([]);
+    }
+
+    /**
+     * Substitui a consulta ao MultiClubes. Passar um Throwable simula o
+     * SQL Server fora do ar.
+     *
+     * @param  string[]|\Throwable  $names
+     */
+    private function fakeTitleMembers(array|\Throwable $names): void
+    {
+        $this->app->instance(TitleMemberLookup::class, new class($names) extends TitleMemberLookup {
+            public function __construct(private array|\Throwable $names) {}
+
+            public function namesForTitle(string $matricula): array
+            {
+                if ($this->names instanceof \Throwable) {
+                    throw $this->names;
+                }
+
+                return $this->names;
+            }
+        });
+    }
 
     private function endpoint(): string
     {
@@ -156,6 +197,65 @@ class UberAccessRequestWebhookTest extends TestCase
         );
     }
 
+    /** Roda o fluxo inteiro até a imagem, deixando o pedido completo. */
+    private function completeFlow(string $name = 'Gustavo Alves', string $matricula = '987654'): UberAccessRequest
+    {
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: $matricula), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: $name), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: 'Portaria 2'), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: 'ABC1D23'), $this->authHeaders())->assertOk();
+        $this->postJson(
+            $this->endpoint(),
+            $this->payload(mediaUrl: 'https://poli.example/media/print.jpg'),
+            $this->authHeaders()
+        )->assertOk();
+
+        return UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
+    }
+
+    public function test_member_is_validated_when_name_belongs_to_the_title(): void
+    {
+        $this->fakeTitleMembers(['Maria Souza', 'Gustavo Alves']);
+
+        $request = $this->completeFlow(name: 'Gustavo Alves');
+
+        $this->assertSame(UberAccessRequest::MEMBER_VALIDATION_VALIDADO, $request->member_validation);
+        $this->assertSame('Gustavo Alves', $request->member_validation_name);
+        $this->assertNotNull($request->member_validated_at);
+    }
+
+    public function test_member_validation_fails_when_name_is_not_on_the_title(): void
+    {
+        $this->fakeTitleMembers(['Maria Souza', 'Joana Lima']);
+
+        $request = $this->completeFlow(name: 'Gustavo Alves');
+
+        $this->assertSame(UberAccessRequest::MEMBER_VALIDATION_NAO_ENCONTRADO, $request->member_validation);
+        $this->assertNull($request->member_validation_name);
+    }
+
+    public function test_member_validation_fails_when_title_has_nobody(): void
+    {
+        $this->fakeTitleMembers([]);
+
+        $request = $this->completeFlow();
+
+        $this->assertSame(UberAccessRequest::MEMBER_VALIDATION_NAO_ENCONTRADO, $request->member_validation);
+    }
+
+    public function test_multiclubes_outage_marks_validation_unavailable_without_blocking(): void
+    {
+        $this->fakeTitleMembers(new \RuntimeException('SQLSTATE[08001] sql server unreachable'));
+
+        $request = $this->completeFlow();
+
+        // O pedido tem de continuar utilizável na portaria mesmo sem conferência.
+        $this->assertSame(UberAccessRequest::MEMBER_VALIDATION_INDISPONIVEL, $request->member_validation);
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_ACESSO, $request->status);
+        $this->assertNotNull($request->expires_at);
+    }
+
     public function test_media_out_of_order_does_not_advance_state(): void
     {
         $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
@@ -187,7 +287,9 @@ class UberAccessRequestWebhookTest extends TestCase
         $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
 
         $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
-        $request->update(['last_message_at' => now()->subMinutes(31)]);
+        $request->update([
+            'last_message_at' => now()->subSeconds(UberAccessRequestFlow::SESSION_TIMEOUT_SECONDS + 1),
+        ]);
 
         $this->postJson($this->endpoint(), $this->payload(text: 'Gustavo Alves'), $this->authHeaders())->assertOk();
 
@@ -196,6 +298,73 @@ class UberAccessRequestWebhookTest extends TestCase
         $this->assertNull($request->requester_name);
         $this->assertDatabaseCount('uber_access_requests', 1);
 
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+
+        $this->assertDatabaseCount('uber_access_requests', 2);
+        $this->assertDatabaseHas('uber_access_requests', [
+            'contact_uuid' => self::CONTACT_UUID,
+            'status' => UberAccessRequest::STATUS_AGUARDANDO_MATRICULA,
+        ]);
+    }
+
+    public function test_answer_just_within_the_timeout_is_still_accepted(): void
+    {
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+
+        $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
+        $request->update([
+            'last_message_at' => now()->subSeconds(UberAccessRequestFlow::SESSION_TIMEOUT_SECONDS - 20),
+        ]);
+
+        $this->postJson($this->endpoint(), $this->payload(text: '987654'), $this->authHeaders())->assertOk();
+
+        $request->refresh();
+        $this->assertSame('987654', $request->matricula);
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_NOME, $request->status);
+    }
+
+    public function test_completed_request_is_not_killed_by_the_response_timeout(): void
+    {
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: '987654'), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: 'Gustavo Alves'), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: 'Portaria 2'), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: 'ABC1D23'), $this->authHeaders())->assertOk();
+        $this->postJson(
+            $this->endpoint(),
+            $this->payload(mediaUrl: 'https://poli.example/media/print.jpg'),
+            $this->authHeaders()
+        )->assertOk();
+
+        // O motorista tem até `expires_at` (30 min) para chegar: ficar mais de
+        // 200s sem mensagem nova não pode cancelar um pedido já completo.
+        $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
+        $request->update([
+            'last_message_at' => now()->subSeconds(UberAccessRequestFlow::SESSION_TIMEOUT_SECONDS + 60),
+        ]);
+
+        $this->artisan('app:expire-uber-access-requests')->assertSuccessful();
+
+        $request->refresh();
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_ACESSO, $request->status);
+    }
+
+    public function test_scheduled_command_cancels_abandoned_capture(): void
+    {
+        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->postJson($this->endpoint(), $this->payload(text: '987654'), $this->authHeaders())->assertOk();
+
+        $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
+        $request->update([
+            'last_message_at' => now()->subSeconds(UberAccessRequestFlow::SESSION_TIMEOUT_SECONDS + 1),
+        ]);
+
+        $this->artisan('app:expire-uber-access-requests')->assertSuccessful();
+
+        $request->refresh();
+        $this->assertSame(UberAccessRequest::STATUS_EXPIRADO, $request->status);
+
+        // Cancelado de forma proativa, o gatilho seguinte abre um pedido novo.
         $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
 
         $this->assertDatabaseCount('uber_access_requests', 2);

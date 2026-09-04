@@ -2,6 +2,15 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Support\Placar\PlacarAbilities;
+use App\Http\Controllers\Placar\Api\ModalidadeController as PlacarModalidadeController;
+use App\Http\Controllers\Placar\Api\EquipeController as PlacarEquipeController;
+use App\Http\Controllers\Placar\Api\TimeController as PlacarTimeController;
+use App\Http\Controllers\Placar\Api\JogoController as PlacarJogoController;
+use App\Http\Controllers\Placar\Api\JogadorController as PlacarJogadorController;
+use App\Http\Controllers\Placar\Api\EscalacaoController as PlacarEscalacaoController;
+use App\Http\Controllers\Placar\Api\JogoEventoController as PlacarJogoEventoController;
+use App\Http\Controllers\Placar\Api\ScoutController as PlacarScoutController;
 use App\Http\Controllers\Auth\MemberAuthController;
 use App\Http\Controllers\Auth\LoginTokenController;
 use App\Http\Controllers\Auth\UserAuthController;
@@ -19,10 +28,12 @@ use App\Http\Controllers\TelegramContactController;
 use App\Http\Controllers\FreelancerController;
 use App\Http\Controllers\FunctionFreelancerController;
 use App\Http\Controllers\FreelancerServiceController;
+use App\Http\Controllers\Freelancer\DinnerApiController as FreelancerDinnerApiController;
 use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\UberAccessRequestWebhookController;
 use App\Http\Controllers\InformationSearchController;
 use App\Http\Controllers\Api\PurchaseApprovalController;
+use App\Http\Controllers\Fleet\FleetApiController;
 
 
 Route::get('/user', function (Request $request) {
@@ -34,6 +45,73 @@ Route::get('/user', function (Request $request) {
 Route::get('/ping', function () {
     return response()->json(['message' => 'pong']);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Placar Clube — API para o Node (placar eletrônico ao vivo)
+|--------------------------------------------------------------------------
+|
+| Autenticação própria (Sanctum, token de acesso pessoal do ApiCliente),
+| NÃO a sessão/CSRF web. Rate limit generoso porque o Node manda eventos em
+| lote, não um a um. Token: `php artisan placar:token {nome}`.
+|
+| Os endpoints de escrita (ciclo de vida do jogo, eventos, criação em
+| campo) e de scout agregado entram nas etapas seguintes. O /ping é só
+| diagnóstico, para validar a autenticação sem depender de dado nenhum.
+*/
+Route::prefix('placar')
+    ->middleware(['auth:sanctum', 'abilities:' . PlacarAbilities::OPERAR, 'throttle:300,1'])
+    ->group(function () {
+        Route::get('/ping', function (Request $request) {
+            return response()->json([
+                'ok' => true,
+                'cliente' => $request->user()?->nome,
+            ]);
+        })->name('api.placar.ping');
+
+        // Leitura — consumo e seleção pelo Node (modo planejado).
+        Route::get('/modalidades', [PlacarModalidadeController::class, 'index'])->name('api.placar.modalidades.index');
+
+        Route::get('/equipes', [PlacarEquipeController::class, 'index'])->name('api.placar.equipes.index');
+        Route::post('/equipes/{equipe}/logo', [PlacarEquipeController::class, 'storeLogo'])->name('api.placar.equipes.logo.store');
+        Route::delete('/equipes/{equipe}/logo', [PlacarEquipeController::class, 'destroyLogo'])->name('api.placar.equipes.logo.destroy');
+
+        Route::get('/times', [PlacarTimeController::class, 'index'])->name('api.placar.times.index');
+        Route::get('/times/{time}/elenco', [PlacarTimeController::class, 'elenco'])->name('api.placar.times.elenco');
+        Route::post('/times/{time}/logo', [PlacarTimeController::class, 'storeLogo'])->name('api.placar.times.logo.store');
+        Route::delete('/times/{time}/logo', [PlacarTimeController::class, 'destroyLogo'])->name('api.placar.times.logo.destroy');
+
+        Route::post('/jogadores/{jogador}/foto', [PlacarJogadorController::class, 'storeFoto'])->name('api.placar.jogadores.foto.store');
+        Route::delete('/jogadores/{jogador}/foto', [PlacarJogadorController::class, 'destroyFoto'])->name('api.placar.jogadores.foto.destroy');
+        Route::post('/jogadores/{jogador}/video', [PlacarJogadorController::class, 'storeVideo'])->name('api.placar.jogadores.video.store');
+        Route::delete('/jogadores/{jogador}/video', [PlacarJogadorController::class, 'destroyVideo'])->name('api.placar.jogadores.video.destroy');
+
+        Route::get('/jogos', [PlacarJogoController::class, 'index'])->name('api.placar.jogos.index');
+        Route::get('/jogos/{jogo}', [PlacarJogoController::class, 'show'])->name('api.placar.jogos.show');
+        // Estado de quadra ao vivo: em quadra/banco, tempos técnicos e
+        // substituições restantes no período.
+        Route::get('/jogos/{jogo}/situacao', [PlacarJogoController::class, 'situacao'])->name('api.placar.jogos.situacao');
+
+        // Escrita — criação em campo (modo avulso): jogo não planejado,
+        // cadastro completo em até quatro chamadas. Sempre criado_em_campo = true.
+        Route::post('/equipes', [PlacarEquipeController::class, 'store'])->name('api.placar.equipes.store');
+        Route::post('/times', [PlacarTimeController::class, 'store'])->name('api.placar.times.store');
+        Route::post('/jogadores', [PlacarJogadorController::class, 'store'])->name('api.placar.jogadores.store');
+        Route::post('/jogos', [PlacarJogoController::class, 'store'])->name('api.placar.jogos.store');
+
+        // Ciclo de vida do jogo + o endpoint mais importante da API (eventos).
+        Route::post('/jogos/{jogo}/iniciar', [PlacarJogoController::class, 'iniciar'])->name('api.placar.jogos.iniciar');
+        Route::post('/jogos/{jogo}/escalacao', [PlacarEscalacaoController::class, 'store'])->name('api.placar.jogos.escalacao');
+        Route::post('/jogos/{jogo}/eventos', [PlacarJogoEventoController::class, 'store'])->name('api.placar.jogos.eventos');
+        Route::post('/jogos/{jogo}/encerrar', [PlacarJogoController::class, 'encerrar'])->name('api.placar.jogos.encerrar');
+
+        // Scout — leitura de jogo_eventos, sempre com a partida como unidade:
+        // súmula do jogo, ficha minutada de um jogador nele, e as partidas
+        // em que um jogador atuou. Não há ranking de artilharia.
+        Route::get('/jogos/{jogo}/sumula', [PlacarScoutController::class, 'sumula'])->name('api.placar.jogos.sumula');
+        Route::get('/jogos/{jogo}/jogadores/{jogador}/atuacao', [PlacarScoutController::class, 'atuacao'])->name('api.placar.jogos.atuacao');
+        Route::get('/scout/jogadores/{jogador}', [PlacarScoutController::class, 'jogador'])->name('api.placar.scout.jogador');
+    });
 
 Route::get('/test', [TestController::class, 'index'])->name('api.test');
 
@@ -84,6 +162,26 @@ Route::prefix('aprovacao')->group(function () {
     });
 });
 
+/*
+|--------------------------------------------------------------------------
+| Freelancers — jantar do turno noturno
+|--------------------------------------------------------------------------
+|
+| Consumida pela COZINHA, para dimensionar quantos pratos preparar. Traz só
+| quem respondeu SIM à pergunta feita no tablet depois da assinatura, e pela
+| data do JANTAR — que no turno que vira a meia-noite não é a data de início
+| do contrato.
+|
+| SEM `api_token`, por decisão de quem opera: o painel da cozinha consulta sem
+| carregar o token. Por isso o CPF NÃO vai no payload — a lista é aberta, e
+| identificar quem janta pelo nome basta para servir o prato. Ver
+| `DinnerApiController`.
+*/
+Route::prefix('freelancer')->group(function () {
+    Route::get('/dinners', [FreelancerDinnerApiController::class, 'index'])
+        ->name('api.freelancer.dinners');
+});
+
 Route::middleware('api_token')->group(function () {
 
     Route::post('/parking/check', [ParkingAuthorizationController::class, 'checkPlateFromCamera'])
@@ -99,6 +197,26 @@ Route::middleware('api_token')->group(function () {
         //Busca por palavra-chave em name, description e category do data_info
         Route::get('/search', [InformationSearchController::class, 'index'])
             ->name('api.information.search');
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | Frota — quilometragem dos veículos da empresa
+    |----------------------------------------------------------------------
+    |
+    | Consumida pelo mesmo sistema da portaria que já registra os acessos.
+    | Saída e retorno são as duas metades de uma viagem só: a saída abre o
+    | registro e o retorno o fecha, resolvido pelo veículo — o cliente não
+    | precisa guardar o id entre as duas chamadas.
+    */
+    Route::prefix('fleet')->group(function () {
+        Route::get('/vehicles', [FleetApiController::class, 'vehicles'])->name('api.fleet.vehicles');
+        Route::get('/trips/open', [FleetApiController::class, 'openTrips'])->name('api.fleet.trips.open');
+        Route::get('/trips', [FleetApiController::class, 'trips'])->name('api.fleet.trips');
+        Route::get('/drivers', [FleetApiController::class, 'drivers'])->name('api.fleet.drivers');
+        Route::post('/departure', [FleetApiController::class, 'departure'])->name('api.fleet.departure');
+        Route::post('/return', [FleetApiController::class, 'returnTrip'])->name('api.fleet.return');
+        Route::post('/trips/{trip}/cancel', [FleetApiController::class, 'cancel'])->name('api.fleet.trips.cancel');
     });
 
     Route::prefix('webhooks')->group(function () {

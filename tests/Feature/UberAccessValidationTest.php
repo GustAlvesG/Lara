@@ -2,14 +2,43 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SendPoliTextMessage;
 use App\Models\UberAccessRequest;
 use App\Services\CompanyService;
-use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
+/**
+ * Sem RefreshDatabase pelo mesmo motivo registrado em LaraMessageHistoryTest:
+ * a cadeia completa de migrations falha hoje em `add_columns_member` x
+ * `tourments`. Aqui só as migrations desta feature são aplicadas, no SQLite
+ * :memory: do phpunit.xml — cada teste recebe um banco novo.
+ */
 class UberAccessValidationTest extends TestCase
 {
-    use DatabaseTransactions;
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Sem FKs: company_access_logs referencia empresas/trabalhadores que
+        // não têm papel no acesso de Uber, e exigi-las arrastaria meia dúzia
+        // de migrations sem relação com o que está sendo testado aqui.
+        Schema::withoutForeignKeyConstraints(function () {
+            (require base_path('database/migrations/2026_07_20_150000_create_uber_access_requests_tables.php'))->up();
+            (require base_path('database/migrations/2026_07_21_120000_add_matricula_to_uber_access_requests.php'))->up();
+            (require base_path('database/migrations/2026_08_27_170000_add_member_validation_to_uber_access_requests.php'))->up();
+
+            // registerUberAccess grava no histórico unificado de acessos, cujo
+            // schema referencia as tabelas de empresa/trabalhador.
+            (require base_path('database/migrations/2026_01_14_151220_create_companies_table.php'))->up();
+            (require base_path('database/migrations/2026_01_14_151348_create_company_workers_table.php'))->up();
+            (require base_path('database/migrations/2026_06_02_100000_create_company_access_logs_table.php'))->up();
+            (require base_path('database/migrations/2026_06_10_000000_create_app_drivers_table.php'))->up();
+            (require base_path('database/migrations/2026_06_10_000100_add_app_driver_to_company_access_logs.php'))->up();
+            (require base_path('database/migrations/2026_07_21_000000_add_uber_fields_to_company_access_logs.php'))->up();
+        });
+    }
 
     /**
      * Placa Mercosul aleatória por teste. Como a suíte roda no mesmo banco de
@@ -130,6 +159,60 @@ class UberAccessValidationTest extends TestCase
 
         // Segunda tentativa com a mesma placa não é mais liberada.
         $this->assertFalse($this->service()->validateTryToAccess(['target' => $plate])['found']);
+    }
+
+    /**
+     * O aviso de chegada sai do mesmo ato que libera o acesso, mas por fila:
+     * o porteiro não espera a Poli responder.
+     */
+    public function test_register_enfileira_o_aviso_de_chegada(): void
+    {
+        Queue::fake();
+
+        $plate = $this->uniquePlate();
+        $request = $this->makeRequest($plate, now()->addMinutes(10));
+
+        $this->service()->registerAccess(['target' => $plate]);
+
+        Queue::assertPushed(
+            SendPoliTextMessage::class,
+            fn (SendPoliTextMessage $job) => $job->phone === '5524999990000'
+                && $job->contactUuid === 'uuid-' . $plate
+                && $job->uberAccessRequestId === $request->id
+                && $job->text === 'Olá, Fulano! Seu carro de aplicativo, placa ' . $plate
+                    . ', chegou à portaria e o acesso foi liberado. Ele está a caminho de Sede.'
+        );
+    }
+
+    /**
+     * Placa não encontrada não avisa ninguém — não há a quem avisar.
+     */
+    public function test_placa_desconhecida_nao_enfileira_aviso(): void
+    {
+        Queue::fake();
+
+        $this->service()->registerAccess(['target' => $this->uniquePlate()]);
+
+        Queue::assertNotPushed(SendPoliTextMessage::class);
+    }
+
+    /**
+     * Pedido sem telefone gravado: o acesso é liberado igual, só não há aviso.
+     * A coluna é NOT NULL, então "sem telefone" na prática é string vazia.
+     */
+    public function test_pedido_sem_telefone_libera_acesso_sem_aviso(): void
+    {
+        Queue::fake();
+
+        $plate = $this->uniquePlate();
+        $request = $this->makeRequest($plate, now()->addMinutes(10));
+        $request->update(['contact_phone' => '']);
+
+        $result = $this->service()->registerAccess(['target' => $plate]);
+
+        $this->assertTrue($result['found']);
+        $this->assertSame(UberAccessRequest::STATUS_CONCLUIDO, $request->fresh()->status);
+        Queue::assertNotPushed(SendPoliTextMessage::class);
     }
 
     public function test_expire_command_marks_unaccessed_as_expired(): void

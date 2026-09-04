@@ -279,8 +279,13 @@ class KioskController extends Controller
             ->with(['functionFreelancer', 'freelancer', 'batch', 'baseService.functionFreelancer', 'amendments'])
             ->orderByDesc('start_date')
             ->get()
+            // O jantar entra na lista pelo mesmo motivo dos demais: é coisa que
+            // ainda falta fazer neste contrato. Cobre o freelancer que assinou e
+            // saiu antes de responder — sem isso, a pergunta não teria segunda
+            // chance, e a cozinha ficaria sem o prato dele.
             ->filter(fn(FreelancerService $s) => $s->canBeSignedByFreelancer()
                 || $s->canBeAmended()
+                || $s->needsDinnerAnswer()
                 || ($s->canReceiveCommission() && $this->withinCommissionWindow($s)))
             ->values()
             ->map(fn(FreelancerService $s) => $this->servicePayload($s));
@@ -570,6 +575,49 @@ class KioskController extends Controller
     }
 
     /**
+     * O documento que o tablet exibe — montado AQUI, pelo mesmo Blade que o
+     * painel imprime, e não em JavaScript no tablet.
+     *
+     * O texto do instrumento é revisado pelo jurídico de tempos em tempos.
+     * Mantê-lo em dois lugares obrigaria a escrever cada revisão duas vezes, e
+     * no dia em que as duas divergissem o freelancer assinaria no tablet um
+     * texto diferente do que o painel imprime — sendo o do tablet o que ele de
+     * fato leu e assinou.
+     *
+     * `role` diz qual dos dois campos recebe o canvas da assinatura.
+     */
+    public function document(Request $request, FreelancerService $freelancerService)
+    {
+        // A mesma autorização da imagem da assinatura: qualquer operador do
+        // tablet pode ver o documento. Quem pode ASSINÁ-LO é decidido no
+        // endpoint da assinatura, que é onde o ato acontece.
+        $operator = $this->operatorOrFail();
+
+        $role = $request->query('role') === 'coordinator' ? 'coordinator' : 'freelancer';
+
+        $freelancerService->load([
+            'freelancer',
+            'functionFreelancer',
+            // O documento do aditivo cita o contrato que ele altera.
+            'baseService.functionFreelancer',
+            'freelancerSignedBy',
+            'coordinatorSignedBy',
+        ]);
+
+        return response()->json([
+            'html' => view('freelancer.services.partials.contract-document', [
+                'service' => $freelancerService,
+                'layout' => 'tablet',
+                'signing' => $role,
+                'operatorName' => $operator->name,
+            ])->render(),
+            // A redação exibida volta com o documento e é reenviada na
+            // assinatura — ver a trava em signService().
+            'contract_version' => $freelancerService->contractVersion(),
+        ]);
+    }
+
+    /**
      * Assinatura do freelancer: exige o PIN do operador (reconfirmado a cada
      * assinatura), a chave PIX que o freelancer acabou de conferir e a imagem
      * do traço desenhado sobre o documento. É definitiva.
@@ -584,6 +632,10 @@ class KioskController extends Controller
             // A chave que estava na tela de conferência e no documento. Ver a
             // comparação abaixo.
             'pix_key' => ['required', 'string'],
+            // A redação que o tablet exibiu. Opcional de propósito: uma tela
+            // aberta desde antes do deploy não a envia, e recusar a assinatura
+            // por isso seria pior do que a corrida que ela protege.
+            'contract_version' => ['nullable', 'integer'],
         ]);
 
         if (!$operator->checkPin($request->input('pin'))) {
@@ -613,6 +665,21 @@ class KioskController extends Controller
             ], 409);
         }
 
+        // Mesma ideia, para o TEXTO: o jurídico publicou uma redação nova
+        // enquanto o documento estava aberto na tela. O que o freelancer leu não
+        // é mais o que ele assinaria — recarrega-se antes de gravar.
+        //
+        // Só cabe aqui: o coordenador sempre assina um contrato que o freelancer
+        // já assinou, e portanto de redação já congelada, que não muda mais.
+        $versaoExibida = $request->input('contract_version');
+
+        if ($versaoExibida !== null && (int) $versaoExibida !== $freelancerService->contractVersion()) {
+            return response()->json([
+                'error' => 'O texto do contrato foi atualizado desde que este documento foi aberto. Confira o novo texto com o freelancer antes de assinar.',
+                'contract_version_changed' => true,
+            ], 409);
+        }
+
         try {
             $path = $this->storeSignatureImage($freelancerService, $request->input('signature'), 'freelancer');
         } catch (\Throwable $e) {
@@ -637,6 +704,43 @@ class KioskController extends Controller
             }
 
             throw $e;
+        }
+
+        return response()->json([
+            'service' => $this->servicePayload($freelancerService->fresh()->load(['functionFreelancer', 'freelancer'])),
+            'session' => $this->sessionPayload(),
+        ]);
+    }
+
+    /**
+     * Resposta do jantar, perguntada na tela seguinte à da assinatura.
+     *
+     * Não pede o PIN de novo, de propósito: quem responde é o freelancer, sobre
+     * a própria refeição, e o PIN do operador acabou de ser conferido na
+     * assinatura. Exigi-lo aqui só faria o operador digitar seis dígitos para
+     * registrar um "sim" — e transformaria em obstáculo justamente a pergunta
+     * que precisa ser rápida.
+     *
+     * Quem decide se a pergunta cabe é o servidor (`needsDinnerAnswer`), não a
+     * tela: o tablet só exibe o que o payload da assinatura mandou perguntar, e
+     * a regra é reconferida aqui antes de gravar.
+     */
+    public function dinnerAnswer(Request $request, FreelancerService $freelancerService)
+    {
+        $operator = $this->operatorModeOrFail();
+
+        $request->validate([
+            'wants_dinner' => ['required', 'boolean'],
+        ]);
+
+        try {
+            $this->freelancerService->recordDinnerAnswer(
+                $freelancerService,
+                $request->boolean('wants_dinner'),
+                $operator,
+            );
+        } catch (FreelancerServiceLockedException $e) {
+            return response()->json(['error' => $e->getMessage()], 409);
         }
 
         return response()->json([
@@ -1038,6 +1142,16 @@ class KioskController extends Controller
         ];
     }
 
+    /**
+     * O contrato como as TELAS do tablet precisam dele — listagem, prévia do
+     * aditivo, prévia da comissão.
+     *
+     * O que alimentava o documento (texto das cláusulas, qualificação das
+     * partes, dados do contrato aditado, chave PIX citada, relatório do Anexo I)
+     * saiu daqui: o documento é montado no servidor e chega pronto por
+     * `document()`. Repetir esses campos aqui só voltaria a permitir que alguém
+     * montasse um segundo documento no cliente.
+     */
     private function servicePayload(FreelancerService $s): array
     {
         return [
@@ -1052,30 +1166,8 @@ class KioskController extends Controller
             'is_commission' => $s->isCommissionAmendment(),
             'can_receive_commission' => $s->canReceiveCommission() && $this->withinCommissionWindow($s),
             'commission_block_reason' => $s->commissionBlockReason(),
-            // Dados da comissão, quando esta linha é uma.
-            'sales_amount' => $s->sales_amount === null ? null : (float) $s->sales_amount,
-            'commission_method' => $s->commission_method,
-            'commission_method_label' => $s->commissionMethodLabel(),
-            'commission_explanation' => $s->commissionExplanation(),
-            // Relatório de vendas anexo, para o documento montar o anexo.
-            'sales_report' => $s->hasSalesReport() ? $s->sales_report : null,
-            'sales_period_label' => $s->salesPeriodLabel(),
-            'sales_source' => $s->sales_source,
-            'sales_login' => $s->sales_login,
-            'sales_adjusted' => $s->salesAmountWasAdjusted(),
-            // A justificativa da alteração é cláusula do termo, então vai para o
-            // documento que o tablet monta — não só para as telas do painel.
-            'sales_adjustment_reason' => $s->sales_adjustment_reason,
-            'sales_report_base' => $s->hasSalesReport() ? (float) ($s->sales_report['base'] ?? 0) : null,
             // Recebeu aditivo: continua sendo assinado, mas quem paga é o outro.
             'is_amended' => $s->isAmended(),
-            'amendment_order' => $s->amendmentOrder(),
-            'document_title' => $s->documentTitle(),
-            // Dados do contrato alterado — o documento do aditivo cita o que
-            // estava valendo antes.
-            'base' => $s->isAmendment() && $s->baseService
-                ? $this->amendmentBasePayload($s->baseService)
-                : null,
             'function_id' => $s->function_freelancer_id,
             'location' => $s->location,
             'start_date' => $s->start_date?->toDateString(),
@@ -1086,58 +1178,29 @@ class KioskController extends Controller
             'crosses_midnight' => ($s->start_date && $s->end_date) ? $s->start_date->ne($s->end_date) : false,
             'total_hours' => $s->total_hours,
             'price' => (float) $s->price,
-            // Chave do pagamento: a conferida na assinatura, quando já houve
-            // uma; a do cadastro enquanto o contrato não foi assinado. É ela
-            // que o documento cita.
-            'pix_key' => $s->pixKey(),
-            'pix_key_formatted' => $s->pixKeyFormatted(),
-            'pix_key_type_label' => $s->pixKeyTypeLabel(),
             // Valor do bloco de 15 min da função: é com ele que a prévia do
             // aditivo recalcula o preço na tela, sem inventar uma segunda regra.
             'block_price' => (float) ($s->functionFreelancer?->price ?? 0),
             'duration_minutes' => $s->durationInMinutes(),
             'status_label' => $s->signatureLabel(),
+            // Jantar do turno noturno: é `needs_dinner_answer` que faz a tela
+            // abrir a pergunta depois da assinatura. Quem decide é o servidor.
+            'needs_dinner_answer' => $s->needsDinnerAnswer(),
+            'dinner_wanted' => $s->dinner_wanted,
+            'dinner_window' => FreelancerService::dinnerWindowLabel(),
         ];
     }
 
     /**
-     * O contrato que o aditivo altera, resumido: é o que o documento cita ao
-     * dizer o que estava valendo e o que passa a valer.
-     */
-    private function amendmentBasePayload(FreelancerService $base): array
-    {
-        return [
-            'id' => $base->id,
-            'location' => $base->location,
-            'function' => $base->functionFreelancer?->name,
-            'start_date_br' => $base->start_date ? Carbon::parse($base->start_date)->format('d/m/Y') : null,
-            'start_time' => substr((string) $base->start_time, 0, 5),
-            'end_date_br' => $base->end_date ? Carbon::parse($base->end_date)->format('d/m/Y') : null,
-            'end_time' => substr((string) $base->end_time, 0, 5),
-            'price' => (float) $base->price,
-            'duration_minutes' => $base->durationInMinutes(),
-            'is_amendment' => $base->isAmendment(),
-            // Data em que o contrato alterado foi firmado — a da assinatura do
-            // freelancer, que é o ato que o fechou.
-            'signed_date_br' => $base->freelancer_signed_at?->format('d/m/Y'),
-        ];
-    }
-
-    /**
-     * Contrato na fila do coordenador. Carrega junto os dados do freelancer e a
-     * imagem da assinatura dele — o coordenador assina o mesmo documento, já com
-     * o traço da outra parte à vista.
+     * Contrato na fila do coordenador. Traz os dados do freelancer, que a fila
+     * exibe; o traço da outra parte já vem desenhado dentro do documento que o
+     * servidor monta.
      */
     private function coordinatorServicePayload(FreelancerService $s): array
     {
         return $this->servicePayload($s) + [
             'freelancer' => $s->freelancer ? $this->freelancerPayload($s->freelancer) : null,
             'freelancer_signed_at_br' => $s->freelancer_signed_at?->format('d/m/Y H:i'),
-            // Data por extenso do documento: a do aceite do freelancer.
-            'freelancer_signed_date' => $s->freelancer_signed_at?->toDateString(),
-            'freelancer_signature_url' => $s->freelancer_signature_path
-                ? route('kiosk.service.signature', ['freelancerService' => $s->id, 'party' => 'freelancer'])
-                : null,
         ];
     }
 

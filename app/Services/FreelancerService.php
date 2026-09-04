@@ -326,6 +326,68 @@ class FreelancerService
             'freelancer_signed_by' => $assistedBy?->id,
             'pix_key' => $service->freelancer?->pixKey(),
             'pix_key_confirmed_at' => $pixKeyConfirmed ? now() : null,
+            // A redação das cláusulas e a qualificação das partes ficam
+            // congeladas neste mesmo save, pelo mesmo motivo da chave PIX: o
+            // documento assinado não pode passar a dizer outra coisa porque o
+            // jurídico revisou um texto ou alguém corrigiu o cadastro.
+        ] + $service->contractFreezeAttributes())->save();
+
+        return $service;
+    }
+
+    /* ---------------------------------------------------------------------
+     | Jantar do turno noturno
+     |---------------------------------------------------------------------*/
+
+    /**
+     * Grava a resposta do freelancer à pergunta do jantar, feita no tablet logo
+     * depois da assinatura.
+     *
+     * A resposta é registrada uma vez só. Não por rigor formal: a cozinha
+     * dimensiona os pratos a partir dela, e uma resposta que vai e volta
+     * durante a tarde é um prato a mais ou a menos sem que ninguém saiba. Mudou
+     * de ideia depois de responder, resolve-se com a cozinha, não pelo tablet.
+     *
+     * `dinner_date` é gravada junto porque é por ela que a cozinha consulta —
+     * ver a seção "Jantar do turno noturno" no model, sobre o turno que vira a
+     * meia-noite.
+     *
+     * @throws FreelancerServiceLockedException
+     */
+    public function recordDinnerAnswer(
+        FreelancerServiceModel $service,
+        bool $wantsDinner,
+        ?User $assistedBy = null,
+    ): FreelancerServiceModel {
+        if ($service->isCancelled()) {
+            throw new FreelancerServiceLockedException('Contrato cancelado não tem direito ao jantar.');
+        }
+
+        // A pergunta vem DEPOIS da assinatura: antes dela o turno ainda pode ser
+        // corrigido, e uma resposta dada sobre horário que mudou não vale nada.
+        if ($service->freelancer_signed_at === null) {
+            throw new FreelancerServiceLockedException(
+                'A pergunta do jantar só é feita depois da assinatura do freelancer.'
+            );
+        }
+
+        if (!$service->isDinnerEligible()) {
+            throw new FreelancerServiceLockedException(
+                $service->dinnerBlockReason() ?? 'Este contrato não dá direito ao jantar.'
+            );
+        }
+
+        if ($service->dinnerWasAnswered()) {
+            throw new FreelancerServiceLockedException('O jantar deste contrato já foi respondido.');
+        }
+
+        $service->forceFill([
+            'dinner_wanted' => $wantsDinner,
+            'dinner_date' => $service->dinnerDate()?->toDateString(),
+            'dinner_answered_at' => now(),
+            // Quem responde é o freelancer; guardamos o operador que conduziu,
+            // pelo mesmo motivo de `freelancer_signed_by`.
+            'dinner_answered_by' => $assistedBy?->id,
         ])->save();
 
         return $service;
@@ -399,7 +461,11 @@ class FreelancerService
         $service->forceFill([
             'coordinator_signed_at' => now(),
             'coordinator_signed_by' => $user->id,
-        ])->save();
+            // Congela o documento se ninguém tiver assinado antes. Na prática o
+            // freelancer sempre assina primeiro (a fila do coordenador só mostra
+            // o que ele já assinou), e aí não há nada a congelar aqui — mas a
+            // garantia é da primeira assinatura, não de qual das duas.
+        ] + $service->contractFreezeAttributes())->save();
 
         return $service;
     }

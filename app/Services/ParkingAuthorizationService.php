@@ -4,7 +4,9 @@ namespace App\Services;
 
 use Carbon\Carbon;
 use App\Models\ParkingAuthorization;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use App\Models\Fleet\FleetVehicle;
 
 class ParkingAuthorizationService
 {
@@ -49,11 +51,44 @@ class ParkingAuthorizationService
             ->exists();
     }
 
-    public function getValidAuthorizations()
+    /**
+     * A lista que a câmera baixa para continuar decidindo com a API fora do ar.
+     * Vai no formato final (placa, nome, validade em Y-m-d) porque as duas
+     * origens — lista da diretoria e frota — não são o mesmo model.
+     *
+     * O carro da frota não tem validade: ele entra com uma data sintética
+     * bem à frente, recalculada a cada consulta, para não mudar o formato que
+     * o cliente já lê. Enquanto a câmera atualizar a lista, a data nunca
+     * chega; quem tira o carro da liberação é a desativação no cadastro.
+     */
+    public function getValidAuthorizations(): Collection
     {
-        return ParkingAuthorization::where('expiration_date', '>=', Carbon::today())
+        $authorizations = ParkingAuthorization::where('expiration_date', '>=', Carbon::today())
             ->orderBy('plate')
-            ->get(['plate', 'name', 'expiration_date']);
+            ->get(['plate', 'name', 'expiration_date'])
+            ->map(fn (ParkingAuthorization $item) => [
+                'plate'           => $item->plate,
+                'name'            => $item->name,
+                'expiration_date' => $item->expiration_date->toDateString(),
+            ]);
+
+        $syntheticExpiration = Carbon::today()
+            ->addYears((int) config('fleet.gate_validity_years', 10))
+            ->toDateString();
+
+        $fleet = FleetVehicle::active()
+            ->whereNotNull('plate')
+            ->orderBy('plate')
+            ->get(['plate', 'name'])
+            ->map(fn (FleetVehicle $vehicle) => [
+                'plate'           => $this->normalizePlate($vehicle->plate),
+                'name'            => $vehicle->name,
+                'expiration_date' => $syntheticExpiration,
+            ]);
+
+        // A placa da frota que também está na lista da diretoria aparece uma
+        // vez só: a câmera casa por placa, e duas linhas iguais só confundem.
+        return $authorizations->concat($fleet)->unique('plate')->values();
     }
 
     public function checkPlate(string $plate): array
@@ -62,6 +97,18 @@ class ParkingAuthorizationService
 
         if ($normalized === '') {
             return ['valid' => false, 'reason' => 'invalid_plate'];
+        }
+
+        // Carro da frota entra sempre: a autorização dele é ser da empresa, e
+        // não uma validade que alguém precisa lembrar de renovar. Vem antes da
+        // lista da diretoria justamente porque não tem data para conferir.
+        if ($vehicle = $this->findFleetVehicleByPlate($normalized)) {
+            return [
+                'valid'           => true,
+                'name'            => $vehicle->name,
+                'reason'          => 'fleet_vehicle',
+                'expiration_date' => null,
+            ];
         }
 
         $authorization = $this->findByPlate($normalized);
@@ -146,5 +193,27 @@ class ParkingAuthorizationService
             "UPPER(REPLACE(REPLACE(REPLACE(plate, '-', ''), ' ', ''), '.', '')) = ?",
             [$normalizedPlate]
         )->first();
+    }
+
+    /**
+     * O veículo ativo da frota com esta placa. A comparação é na forma
+     * normalizada dos dois lados: o cadastro grava sem separador, mas um
+     * registro feito por seeder ou tinker pode ter escapado com hífen.
+     *
+     * Inativo não entra — veículo desativado saiu da frota, e a liberação da
+     * cancela sai junto.
+     */
+    private function findFleetVehicleByPlate(string $normalizedPlate): ?FleetVehicle
+    {
+        return FleetVehicle::active()
+            ->whereNotNull('plate')
+            ->where(function ($query) use ($normalizedPlate) {
+                $query->where('plate', $normalizedPlate)
+                    ->orWhereRaw(
+                        "UPPER(REPLACE(REPLACE(REPLACE(plate, '-', ''), ' ', ''), '.', '')) = ?",
+                        [$normalizedPlate]
+                    );
+            })
+            ->first();
     }
 }

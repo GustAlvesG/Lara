@@ -25,6 +25,7 @@ rotas).
 | [Autorização de Ordem de Compra (Questor)](questor-autorizacao-compra.md) | Fila de ordens de compra do ERP Questor, com fluxo de aprovação em três níveis. |
 | [Front-end da aprovação (Next.js)](questor-frontend-prompt.md) | Contrato da API de aprovação externa e o prompt de implementação do site em DMZ. |
 | [Mapa de Cotação (Questor)](cotacao-mapa.md) | Comparação de preço entre fornecedores a partir de uma solicitação de compra. **Somente leitura no ERP.** |
+| [Frota — Quilometragem](frota.md) | Saída e retorno dos veículos da empresa: motorista, destino e hodômetro, registrados pela portaria. |
 | [Lara — Assistente de IA](lara-ia.md) | Chat interno de pergunta e resposta sobre o estatuto, ligado à VM da IA. |
 | [WhatsApp](whatsapp.md) | Webhook, envio de mensagens e gestão de conversas/mídia. |
 | [Telegram](telegram.md) | Cadastro e consulta de contatos do Telegram. |

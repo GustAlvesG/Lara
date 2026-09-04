@@ -131,14 +131,12 @@ class ParkingAuthorizationController extends Controller
     {
         $authorizations = $this->service->getValidAuthorizations();
 
+        // O serviço já entrega no formato final: a lista soma a autorização da
+        // diretoria com os carros da frota, que não são o mesmo model.
         return response()->json([
             'checked_at' => now()->toDateTimeString(),
             'total'      => $authorizations->count(),
-            'plates'     => $authorizations->map(fn (ParkingAuthorization $item) => [
-                'plate'           => $item->plate,
-                'name'            => $item->name,
-                'expiration_date' => $item->expiration_date->toDateString(),
-            ]),
+            'plates'     => $authorizations,
         ]);
     }
 }

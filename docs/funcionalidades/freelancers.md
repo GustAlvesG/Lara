@@ -62,6 +62,87 @@ Duas exceções deliberadas:
   horário não descreve a contratação: é o recorte que define quais vendas entraram na conta que o
   freelancer está conferindo, e sem ele o anexo deixa de ser verificável.
 
+### O documento é congelado na assinatura
+
+O corpo do contrato é montado na hora de exibi-lo: a **redação** vem dos templates e os **dados das
+partes**, do cadastro. As duas coisas mudam depois de o contrato ser assinado — o jurídico reavalia
+uma cláusula, o freelancer corrige o endereço, alguém renomeia uma função. Sem congelá-las, revisar
+um texto reescreveria, retroativamente, **todo contrato já assinado**, inclusive os pagos e
+arquivados — e uma varredura feita depois leria o texto novo em documentos firmados sob o antigo.
+
+Por isso a **primeira assinatura**, de qualquer das partes, fecha o documento:
+
+| O que congela | Onde fica | O que garante |
+|---|---|---|
+| A redação das cláusulas | `freelancer_services.contract_version` | o contrato continua sendo impresso com o texto que as partes leram |
+| A qualificação do freelancer e o nome da função | `freelancer_services.signed_snapshot` (JSON) | o preâmbulo continua citando quem ele era no dia — nome, CPF, RG, nacionalidade, estado civil e endereço |
+| A chave PIX do pagamento | `freelancer_services.pix_key` | ver *Conferência da chave PIX* |
+
+Enquanto **ninguém assinou**, o contrato acompanha a redação vigente e o cadastro vivo — é o que ele
+vai assinar. A partir da assinatura, `contractParty()` e `contractFunctionName()` param de olhar o
+cadastro. O bloco é tomado **inteiro**, e não campo a campo: misturar um RG congelado com um endereço
+vivo produziria uma qualificação que nunca existiu.
+
+**A redação é versionada em arquivo, não copiada para o banco.** O texto de cada versão mora em
+`resources/views/freelancer/services/partials/contract/vN/` — quatro parciais: `original-clauses`,
+`amendment-clauses`, `commission-clauses` e `pix-clause`. Guardar o HTML renderizado de cada contrato
+seria fiel, mas não responderia à pergunta da varredura ("quais contratos estão na redação antiga?"),
+nem deixaria o jurídico comparar duas redações por diff. Com a versão em arquivo, a varredura é uma
+consulta por uma coluna indexada, e o histórico está no git.
+
+O **Anexo I** do termo de comissão fica **fora** do versionamento: ele imprime o `sales_report` já
+gravado, é anexo de dados apurados e não redação jurídica.
+
+#### Revisar uma cláusula: cria-se a redação seguinte
+
+| Passo | O quê |
+|---|---|
+| 1 | copie `contract/vN` para `contract/vN+1` e edite o texto — **nunca** edite uma versão em uso |
+| 2 | acrescente a entrada em `FreelancerService::CONTRACT_VERSIONS` (rótulo, vigência, o que mudou) e suba `CONTRACT_VERSION_CURRENT` |
+| 3 | registre o sha256 dos arquivos da vN em `tests/Unit/FreelancerContractVersionTest.php` |
+
+O passo 3 é o **lacre**: um teste confere o hash de cada arquivo das redações já em uso e quebra o
+build se algum mudar. Sem ele, a regra "não edite a versão antiga" seria só um comentário — e o jeito
+mais provável de a garantia se perder é alguém "corrigindo" uma vírgula na v1.
+
+Contratos assinados **antes** destas colunas ficam com `signed_snapshot` nulo e caem no cadastro do
+freelancer — que é exatamente o que o documento deles citava antes. Mesma decisão tomada para a
+`pix_key` legada. Os assinados ganham `contract_version = 1` na migration: a redação 1 é a única que
+existiu até aqui.
+
+Na tela do contrato aparece qual redação ele firmou e se a qualificação é a congelada. Quando o
+cadastro muda depois da assinatura (`contractPartyDivergesFromFreelancer()`), a tela avisa — o
+documento cita o dado antigo, que é o **correto**, e sem o aviso pareceria erro. Na listagem, o
+filtro **Redação** varre por versão, com a opção *ainda não congelada* para os que ninguém assinou.
+
+#### O documento é montado num lugar só
+
+O texto vivia em **dois** lugares: os parciais Blade do painel e funções JavaScript que o tablet usava
+para montar o documento na tela. Com o versionamento, cada revisão teria de ser escrita duas vezes — e
+no dia em que as duas divergissem, o freelancer assinaria no tablet um texto diferente do que o painel
+imprime, sendo o do tablet o que ele de fato leu.
+
+O tablet **não monta mais o documento**. Ele o busca pronto em
+`GET /kiosk/service/{id}/document?role=freelancer|coordinator`, que renderiza o mesmo
+`partials/contract-document.blade.php` do painel. O parcial recebe:
+
+- `layout` — `print` (painel: cabeçalho e rodapé em `thead`/`tfoot`, que o navegador repete a cada
+  página impressa) ou `tablet` (rola numa tela só);
+- `signing` — `freelancer`, `coordinator` ou nulo: **qual dos dois campos recebe o canvas** da
+  assinatura. O painel não assina, então passa nulo e nenhum campo tem canvas.
+
+Saíram do JavaScript do kiosk `buildDocument()`, `originalClauses()`, `amendmentClauses()`,
+`commissionClauses()`, `pixClause()` e `salesAnnex()` — e, com elas, os campos do payload que só
+existiam para alimentá-las (texto das cláusulas, dados do contrato aditado, chave citada e o
+relatório do Anexo I).
+
+**Corrida entre ler e assinar.** O documento chega com a redação que exibe, e o tablet a reenvia na
+assinatura. Publicada uma redação nova enquanto a tela estava aberta, o servidor responde `409` com
+`contract_version_changed` e o documento é recarregado — o mesmo desenho do `pix_key_changed`. O
+campo é **opcional**: uma tela aberta desde antes do deploy não o envia, e recusar a assinatura por
+isso seria pior que a corrida que ele protege. A trava só existe na assinatura do **freelancer**: o
+coordenador sempre assina um contrato que o freelancer já assinou, e portanto de redação já congelada.
+
 ### Conferência da chave PIX (etapa que antecede a assinatura)
 No tablet, **toda** assinatura do freelancer — contrato, aditivo de horário e comissão — passa
 antes por uma tela que mostra a chave PIX do cadastro e pergunta se é a dele. Existe porque uma
@@ -101,7 +182,8 @@ cadastro reescreveria, retroativamente, o texto de todo contrato já assinado.
 O documento traz a cláusula **DA FORMA DE PAGAMENTO** logo abaixo da cláusula do valor — `2.1` no
 contrato, `4.1` nos dois aditivos. É sub-item de propósito: acrescentar um item na numeração
 corrida deslocaria as cláusulas do modelo, que os outros documentos citam pelo número. O texto está
-em `services/partials/pix-clause.blade.php` e é espelhado pelo `pixClause()` do Kiosk.
+em `services/partials/contract/vN/pix-clause.blade.php`, um lugar só — ver *O documento é congelado
+na assinatura*.
 
 ### Período trabalhado, duração e preço
 
@@ -231,6 +313,73 @@ fecha no **horário de término** do contrato — serviço às 08:00 entra a par
 - Regra em `FreelancerService::allowsAccessAt()` / `accessOpensAt()` / `scopeAroundAccessWindow()`;
   a consulta e o registro ficam em `App\Services\CompanyService`.
 
+### Jantar do turno noturno
+O freelancer que cumpre **6 horas ou mais** e está em serviço em **algum momento da janela do
+jantar** (**17:30 às 18:30**) tem direito à refeição. O direito vem da regra; o que o sistema guarda
+é a **resposta** do freelancer — a cozinha dimensiona quantos pratos preparar por ela, e um direito
+que ninguém confirmou não vira prato.
+
+São **dois critérios, e valem juntos**:
+
+1. duração do turno de **360 minutos ou mais** (`FreelancerService::DINNER_MIN_MINUTES`);
+2. **cruzar a janela do jantar** — não é preciso cobri-la inteira. **Meia janta é janta:** quem sai
+   às 18:00 pegou meia hora de jantar e come, e o mesmo vale para quem entra às 18:00.
+
+O que **não** conta é encostar na borda: sair às **17:30 em ponto** é sair quando o jantar começa, e
+entrar às **18:30 em ponto** é chegar quando ele acabou — nenhum dos dois esteve ali em minuto
+nenhum da janela.
+
+**A partir de 31/08/2026** (`FreelancerService::DINNER_STARTS_ON`) — é o dia em que a cozinha passa
+a servir o jantar. Antes disso nenhum turno dá direito, por mais que cumpra os dois critérios: não
+havia refeição para oferecer, e perguntar seria prometer prato que a cozinha não faz. O corte é pelo
+**dia do jantar**, não pela data da assinatura: um turno do dia 30 assinado no dia 31 continua sem
+jantar, e um turno que entra 22:00 do dia 30 e sai no dia 31 **tem** — ele janta no dia 31.
+
+| Turno | Pergunta? | Por quê |
+|---|---|---|
+| 14:00 → 20:00 | **Sim** | 6h e atravessa a janela |
+| 16:00 → 22:00 | **Sim** | 6h e atravessa a janela |
+| 12:00 → 18:00 | **Sim** | 6h e pega meia janta (17:30 → 18:00) |
+| 18:00 → 00:30 | **Sim** | 6h30 e pega meia janta (18:00 → 18:30) |
+| 16:00 → 20:00 | Não | 4h — menos de 6h |
+| 19:00 → 03:00 | Não | 8h, mas entrou depois das 18:30 |
+| 11:30 → 17:30 | Não | sai no minuto em que o jantar começa |
+| 14:00 → 20:00 **em 30/08/2026** | Não | antes da estreia do jantar |
+
+**Quando a pergunta é feita.** No tablet, na tela **imediatamente seguinte à da assinatura** —
+"Vai jantar?", com **Sim** e **Não**. Antes da assinatura não se pergunta: o turno ainda pode ser
+corrigido, e resposta dada sobre horário que mudou não vale nada. O PIN **não** é pedido de novo:
+quem responde é o freelancer, sobre a própria refeição, e o PIN do operador acabou de ser conferido
+na assinatura.
+
+Quem decide se a pergunta aparece é o **servidor** (`needsDinnerAnswer()`), não a tela. Se o
+freelancer sair antes de responder, o contrato continua na lista de contratos dele com o botão
+**Jantar** — a pergunta não se perde por o atendimento ter sido encerrado.
+
+**A resposta é registrada uma vez só.** Mudou de ideia depois de responder, resolve-se com a
+cozinha: uma resposta que vai e volta durante a tarde é um prato a mais ou a menos sem que ninguém
+saiba.
+
+**O dia do jantar não é sempre `start_date`.** Um turno que vira a meia-noite pode alcançar a janela
+do dia **seguinte** (22:00 → 20:00 janta no dia seguinte), e é nesse dia que a cozinha precisa vê-lo.
+Por isso a resposta grava `dinner_date`, e é por ela — nunca pela data de início do contrato — que a
+[API da cozinha](#get-apifreelancerdinners) consulta.
+
+**Fora da regra:**
+
+- **Comissão de venda** não pede jantar, ainda que copie o horário do turno: ela não é período
+  trabalhado (`total_hours` é zero), é o pagamento das vendas daquele mesmo turno. Sem essa
+  exclusão, o turno do garçom pediria dois jantares.
+- **Cancelado** e **aditivado** saem da lista da cozinha. No aditivado, quem responde pelo turno é o
+  aditivo — e é ele que recebe a pergunta quando for assinado; a resposta antiga foi dada sobre um
+  horário que não existe mais.
+
+**Onde fica:** regra em `FreelancerService::isDinnerEligible()` / `dinnerDate()` /
+`needsDinnerAnswer()` / `scopeDinnerConfirmedOn()`; gravação em
+`App\Services\FreelancerService::recordDinnerAnswer()`; colunas `dinner_wanted`, `dinner_date`,
+`dinner_answered_at` e `dinner_answered_by` em `freelancer_services`. O painel mostra a resposta na
+tela do contrato, sem poder alterá-la.
+
 ### Aditivo (o turno mudou depois da assinatura)
 Contrato tem curso: o turno é esticado, encurtado ou muda de local depois de o
 freelancer já ter assinado. Como **contrato assinado não pode ser alterado**, o caminho é o
@@ -298,8 +447,8 @@ foro — e traz a própria cláusula da forma de pagamento (`4.1`). **O horário
 (ver *O que o contrato diz*):
 quem conta a história é a cláusula do valor, que diz "R$ X em substituição a R$ Y" — ou, quando o
 valor não muda, que ele **permanece**.
-O texto vive em `partials/amendment-clauses.blade.php` (painel) e em `amendmentClauses()`
-(kiosk) — os dois precisam mudar juntos, como já acontece com o contrato original.
+O texto vive em `partials/contract/vN/amendment-clauses.blade.php`, num lugar só — o tablet exibe o
+mesmo documento que o painel imprime (ver *O documento é congelado na assinatura*).
 
 ### Comissão de venda (o segundo tipo de aditivo)
 Há **dois tipos de aditivo**, distinguidos por `freelancer_services.amendment_type`, e eles fazem
@@ -414,14 +563,14 @@ gerência** — é o que permite julgar o ajuste sem abrir o PDF.
 
 **O documento traz o relatório como `ANEXO I`**, com cabeçalho (vendedor, período, lojas), itens,
 recebimentos por forma de pagamento, totais e cancelamentos — é o que permite ao freelancer conferir
-de onde saiu o número que está assinando. Texto em `partials/sales-report-annex.blade.php` (painel) e
-em `salesAnnex()` (kiosk).
+de onde saiu o número que está assinando. Texto em `partials/sales-report-annex.blade.php` — fora da
+pasta das redações de propósito: é anexo de dados apurados, não redação jurídica.
 
 **O documento** é o *Termo Aditivo de Comissão sobre Vendas*: cita o contrato original, o dia da
 prestação, as vendas apuradas (com o login e o Anexo I, mais a justificativa quando o valor foi
 alterado), o critério, a conta demonstrada e o valor, declara que **acresce** ao contrato, que a
 comissão não descaracteriza a prestação autônoma e ratifica a forma de pagamento por PIX. Texto em
-`partials/commission-clauses.blade.php` (painel) e em `commissionClauses()` (kiosk) — mudam juntos.
+`partials/contract/vN/commission-clauses.blade.php`, num lugar só.
 
 **No financeiro** a comissão entra como linha própria, com seu valor e `total_hours = 0`: ela paga
 vendas, não horas.
@@ -871,6 +1020,8 @@ Dois modos, decididos pelo que o usuário é — quem acumula os dois papéis es
 
 - Antes de **toda** assinatura do freelancer entra a tela de **conferência da chave PIX**, com a
   opção de corrigi-la ali mesmo — ver *Conferência da chave PIX*.
+- **Depois** da assinatura, quando o turno dá direito à refeição, entra a pergunta **"Vai jantar?"**
+  (Sim / Não) — ver *Jantar do turno noturno*. Sem direito, a tela nem aparece.
 - A fila do coordenador traz os **50 mais antigos** primeiro — são os que travam o financeiro — e
   recarrega a cada assinatura.
 - O coordenador assina o **mesmo documento** que o freelancer assinou, já com o traço da outra
@@ -922,8 +1073,8 @@ Dois modos, decididos pelo que o usuário é — quem acumula os dois papéis es
 
 ## API
 
-Todas as rotas exigem o header `Authorization: Bearer <API_TOKEN>` (valor de `API_TOKEN` no
-`.env`). Sem ele: `401`.
+As rotas exigem o header `Authorization: Bearer <API_TOKEN>` (valor de `API_TOKEN` no `.env`). Sem
+ele: `401`. **A exceção é `GET /api/freelancer/dinners`**, que é aberta — ver a seção da rota.
 
 | Método | Rota | Ação |
 |--------|------|------|
@@ -935,6 +1086,7 @@ Todas as rotas exigem o header `Authorization: Bearer <API_TOKEN>` (valor de `AP
 | `POST` | `/api/telegram/freelancer/service` | Registra serviço |
 | `PUT` | `/api/telegram/freelancer/service/{id}` | Atualiza serviço |
 | `POST` | `/api/telegram/freelancer/service/{id}/sign` | Assinatura do freelancer |
+| `GET` | `/api/freelancer/dinners` | Confirmações de jantar de um dia (cozinha) — **sem token** |
 
 ### Fluxo típico do bot
 
@@ -1067,6 +1219,102 @@ Registra a assinatura do freelancer. Exige a reconfirmação da senha do usuári
 assinado pelo freelancer ou se o contrato estiver cancelado. O usuário confirmado fica gravado em
 `freelancer_signed_by`.
 
+### `GET /api/freelancer/dinners`
+
+**Para que serve.** Responder à cozinha uma pergunta só: **quem confirmou o jantar de um
+determinado dia**. É a lista que dimensiona quantos pratos preparar. Ver a regra em
+[Jantar do turno noturno](#jantar-do-turno-noturno).
+
+**Autenticação: nenhuma.** É a exceção do módulo — a rota fica **fora** do grupo `api_token`, por
+decisão de quem opera: o painel da cozinha consulta sem carregar o token. Por isso o **CPF não vai
+no payload**: para servir o prato basta o nome, e uma lista aberta não é lugar de documento de
+ninguém. Quem precisar cruzar com o cadastro usa o `freelancer_id`, que só serve dentro do sistema.
+
+**Parâmetros (query string)**
+
+| Campo | Regras |
+|---|---|
+| `date` | opcional, data (`YYYY-MM-DD`). Omitida, assume **hoje** |
+
+A data consultada é a do **jantar** (`dinner_date`), **não** a de início do contrato: um turno que
+entra 22:00 e sai 20:00 do dia seguinte janta no dia seguinte, e é nesse dia que ele aparece.
+
+Datas anteriores a **31/08/2026** — a estreia do jantar — voltam sempre `total: 0`: não havia
+refeição servida, e portanto ninguém a confirmar.
+
+**O que entra na lista.** Só os **"sim"**. Quem respondeu "não" e quem ainda não foi perguntado não
+viram prato — uma lista que misturasse os três obrigaria a cozinha a filtrar o que já é resposta.
+Ficam de fora, também, os contratos **cancelados** e os **aditivados** (o turno mudou de horário
+depois da assinatura; quem responde por ele é o aditivo). A ordenação é por **nome**, porque a
+lista é lida em voz alta na cozinha, conferindo quem chega.
+
+**Exemplo**
+
+```
+GET /api/freelancer/dinners?date=2026-09-03
+```
+
+```json
+{
+  "ok": true,
+  "date": "2026-09-03",
+  "window": "17:30 às 18:30",
+  "total": 2,
+  "dinners": [
+    {
+      "service_id": 412,
+      "freelancer_id": 87,
+      "name": "Ana Souza",
+      "function": "Garçom",
+      "location": "Salão de festas",
+      "shift_date": "2026-09-03",
+      "start_time": "14:00",
+      "end_time": "20:00",
+      "crosses_midnight": false,
+      "duration": "6h",
+      "duration_minutes": 360,
+      "answered_at": "2026-09-03T14:07:22-03:00"
+    },
+    {
+      "service_id": 415,
+      "freelancer_id": 91,
+      "name": "Bruno Lima",
+      "function": "Garçom",
+      "location": "Churrasqueira",
+      "shift_date": "2026-09-03",
+      "start_time": "16:00",
+      "end_time": "22:00",
+      "crosses_midnight": false,
+      "duration": "6h",
+      "duration_minutes": 360,
+      "answered_at": "2026-09-03T16:04:10-03:00"
+    }
+  ]
+}
+```
+
+**Campos da resposta**
+
+| Campo | O que é |
+|---|---|
+| `date` | o dia consultado, normalizado (`YYYY-MM-DD`) |
+| `window` | a janela do jantar vigente — hoje, `17:30 às 18:30` |
+| `total` | quantos confirmaram; é o número de pratos |
+| `dinners[].service_id` | id do contrato, para conferência no painel |
+| `dinners[].name` | quem vai jantar |
+| `dinners[].freelancer_id` | id do cadastro, para cruzar com o painel |
+| `dinners[].function` / `location` | função e local do turno |
+| `dinners[].shift_date` | dia de **início do turno** — difere de `date` quando o turno vira a meia-noite |
+| `dinners[].start_time` / `end_time` | horário do turno (`HH:MM`) |
+| `dinners[].crosses_midnight` | `true` quando o término é no dia seguinte |
+| `dinners[].duration` / `duration_minutes` | duração do turno, formatada e em minutos |
+| `dinners[].answered_at` | quando a resposta foi registrada no tablet (ISO-8601) |
+
+**Respostas:** `200` sempre que a consulta é válida — dia sem ninguém volta `total: 0` e
+`dinners: []`, e não `404` · `422` quando `date` não é uma data. Não há `401`: a rota é aberta.
+
+**Controller:** `app/Http/Controllers/Freelancer/DinnerApiController.php`.
+
 ## Auditoria (`created_by` / `updated_by`)
 
 As três entidades guardam quem criou e quem alterou por último (FK nullable para `users`):
@@ -1090,8 +1338,8 @@ guardam qual coordenador do Comercial liberou e quando — sem isso a autorizaç
 - **Rotas:** `routes/web.php` (grupo `permission:manage freelancers`) e `routes/api.php`
   (grupo `api_token`, prefixo `telegram`).
 - **Controllers do painel:** `app/Http/Controllers/Freelancer/{FreelancerController,FunctionController,ServiceController}`.
-- **Controllers da API:** `app/Http/Controllers/{FreelancerController,FreelancerServiceController,FunctionFreelancerController}`
-  e `Auth/UserAuthController`.
+- **Controllers da API:** `app/Http/Controllers/{FreelancerController,FreelancerServiceController,FunctionFreelancerController}`,
+  `Freelancer/DinnerApiController` (jantar, consumida pela cozinha) e `Auth/UserAuthController`.
 - **Service:** `app/Services/FreelancerService.php` — concentra cálculo de preço, assinaturas,
   cancelamento e auditoria; é o mesmo objeto usado pelo painel e pela API, então as regras não
   divergem entre as duas frentes.
@@ -1104,9 +1352,20 @@ guardam qual coordenador do Comercial liberou e quando — sem isso a autorizaç
   `pixKeyDivergesFromFreelancer()` (a cópia congelada no contrato),
   `App\Http\Requests\UpdateFreelancerPixKeyRequest` + `KioskController::updatePixKey()` +
   `App\Services\FreelancerService::updatePixKey()` (a correção no tablet, com log mascarado), e a
-  cláusula em `services/partials/pix-clause.blade.php` / `pixClause()` do kiosk. Colunas em
+  cláusula em `services/partials/contract/vN/pix-clause.blade.php`. Colunas em
   `2026_08_05_120000_add_pix_key_to_freelancer_services_table`. Testes em
   `tests/Unit/FreelancerPixKeyTest.php`.
+- **Congelamento do documento:** `FreelancerService::CONTRACT_VERSION_CURRENT` / `CONTRACT_VERSIONS`
+  (o histórico das redações), `contractVersion()` / `contractIsFrozen()` / `contractViewNamespace()`
+  (qual texto imprimir), `contractParty()` / `contractFunctionName()` / `buildContractSnapshot()` /
+  `contractPartyDivergesFromFreelancer()` (a qualificação congelada), `contractFreezeAttributes()`
+  (o que gravar na assinatura, consumido por `signAsFreelancer()` e `signAsCoordinator()`) e
+  `contractVersionFilters()` / `scopeContractVersionFilter()` (a varredura). O documento, num lugar
+  só, em `services/partials/contract-document.blade.php` + a pasta da redação
+  `services/partials/contract/vN/`; servido ao tablet por `KioskController::document()`
+  (`GET /kiosk/service/{id}/document`), com a trava de redação em `signService()`. Colunas em
+  `2026_08_12_140000_add_contract_freeze_to_freelancer_services_table`. Testes — inclusive o **lacre**
+  dos arquivos de cada redação — em `tests/Unit/FreelancerContractVersionTest.php`.
 - **Justificativa da alteração do valor apurado:** `FreelancerService::salesAdjustmentIsRequired()` /
   `SALES_ADJUSTMENT_REASON_MIN` (regra), `App\Services\FreelancerService::createSalesCommission()`
   (invariante na gravação), `KioskController::storeCommission()` (o `422` com o campo) e

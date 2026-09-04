@@ -52,6 +52,13 @@ class User extends Authenticatable
      */
     public const DIRECTORS_SECTOR = 'Diretoria';
 
+    /**
+     * Setor do módulo Placar Clube (cadastro e scout) — ver
+     * AppServiceProvider::boot() para os Gates `manage-placar-cadastro` e
+     * `view-placar-scout`.
+     */
+    public const SPORT_SECTOR = 'Esporte';
+
     protected $fillable = [
         'name',
         'email',
@@ -87,6 +94,9 @@ class User extends Authenticatable
 
     /** Cache da requisição para canAccessCotacao(). */
     private ?bool $cotacaoAccess = null;
+
+    /** Cache da requisição para canAccessPlacar(). */
+    private ?bool $placarAccess = null;
 
     /**
      * Get the attributes that should be cast.
@@ -304,6 +314,19 @@ class User extends Authenticatable
     public function canAccessCotacao(): bool
     {
         return $this->cotacaoAccess ??= $this->belongsToSectorNamed(self::ACCOUNTING_SECTOR);
+    }
+
+    /**
+     * Placar Clube (telas de cadastro e de scout): quem está no setor
+     * **Esporte**, em qualquer papel — colaborador ou coordenador. Um Gate
+     * só, reaproveitado pelos dois (`manage-placar-cadastro`,
+     * `view-placar-scout`), pela mesma razão de cache das outras checagens
+     * de setor acima: a barra de navegação e o middleware perguntam a mesma
+     * coisa na mesma requisição.
+     */
+    public function canAccessPlacar(): bool
+    {
+        return $this->placarAccess ??= $this->belongsToSectorNamed(self::SPORT_SECTOR);
     }
 
     public function coordinatorSectors()

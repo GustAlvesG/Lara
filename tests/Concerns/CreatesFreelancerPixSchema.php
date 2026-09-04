@@ -115,5 +115,10 @@ trait CreatesFreelancerPixSchema
         });
 
         (require base_path('database/migrations/2026_08_04_140000_create_pix_payments_table.php'))->up();
+
+        // As colunas do jantar vêm da migration DE VERDADE, e não copiadas
+        // acima, pelo mesmo motivo de `pix_payments`: é ela que a API da cozinha
+        // consulta, e uma cópia aqui deixaria de acusar uma divergência.
+        (require base_path('database/migrations/2026_08_28_160000_add_dinner_to_freelancer_services_table.php'))->up();
     }
 }

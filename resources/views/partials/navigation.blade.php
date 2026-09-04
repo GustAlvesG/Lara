@@ -41,12 +41,64 @@
         </button>
     </div>
 
-    {{-- Nav links --}}
-    <nav class="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-        @foreach($navLinks as $link)
+    {{-- Busca: com muitos módulos, digitar o nome é mais rápido do que caçar
+         o item na lista. O atalho global está registrado no shell. --}}
+    <div class="shrink-0 px-2 pt-3">
+        <button type="button" @click="openPalette()"
+            class="w-full flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-400 hover:border-gray-300 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+            :class="collapsed ? 'justify-center' : ''"
+            title="Buscar módulo (Ctrl+K)">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" />
+            </svg>
+            <span x-show="!collapsed" class="flex-1 text-left">Buscar...</span>
+            <kbd x-show="!collapsed" class="shrink-0 rounded border border-gray-200 dark:border-gray-600 px-1.5 py-0.5 text-[10px] font-medium">Ctrl K</kbd>
+        </button>
+    </div>
+
+    {{-- Nav links.
+
+         É flex-col porque a ordem dos grupos é escolhida por quem usa: cada
+         item recebe um `order` do flexbox, o que reordena sem precisar mexer
+         no DOM que o Blade montou. Por isso `gap` no lugar de `space-y`, que
+         calcula margem pela ordem do DOM e sairia errado. --}}
+    <nav class="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 py-3">
+        {{-- Favoritos: montados no cliente a partir do índice, porque a lista
+             vive no localStorage de cada pessoa. --}}
+        <div x-show="favItems.length" x-cloak class="order-first mb-2 space-y-0.5 border-b border-gray-100 pb-2 dark:border-gray-700">
+            <div x-show="!collapsed" class="flex items-center justify-between px-3 pb-1">
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Favoritos</p>
+                <button type="button" @click="organizerOpen = true" title="Organizar menu"
+                    class="rounded p-0.5 text-gray-300 transition hover:text-gray-500 dark:text-gray-600 dark:hover:text-gray-400">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7M17 20l3-3-3-3" />
+                    </svg>
+                </button>
+            </div>
+
+            <template x-for="item in favItems" :key="item.key">
+                <div class="group flex items-center gap-0.5">
+                    <a :href="item.url" :title="item.label"
+                        class="flex min-w-0 flex-1 items-center gap-3 px-3 py-2 rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition"
+                        :class="collapsed ? 'justify-center' : ''">
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="item.icon" />
+                        </svg>
+                        <span x-show="!collapsed" class="truncate" x-text="item.label"></span>
+                    </a>
+                    <button type="button" x-show="!collapsed" @click="toggleFav(item.key)"
+                        title="Remover dos favoritos"
+                        class="shrink-0 p-1.5 rounded-lg text-amber-400 opacity-0 group-hover:opacity-100 focus:opacity-100 transition">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M11.48 3.5a.56.56 0 011.04 0l2.12 4.7 5.11.6c.47.05.66.64.31.96l-3.8 3.45 1.03 5.05c.09.46-.4.82-.81.59L12 16.3l-4.48 2.55c-.41.23-.9-.13-.81-.59l1.03-5.05-3.8-3.45c-.35-.32-.16-.91.31-.96l5.11-.6 2.12-4.7z" />
+                        </svg>
+                    </button>
+                </div>
+            </template>
+        </div>
+
+        @foreach($visibleNavLinks as $link)
             @php
-                $permission = $link['permission'] ?? null;
-                if ($permission && !auth()->user()->can($permission)) continue;
                 $children = $link['children'] ?? null;
                 $isActive = $children
                     ? collect($children)->contains(fn($c) => request()->routeIs($c['active'] ?? $c['route']))
@@ -71,6 +123,7 @@
                         keepOpen() { clearTimeout(this.closeTimer); }
                     }"
                     class="relative"
+                    :style="{ order: navRank('{{ $link['key'] }}') }"
                 >
                     <button @click="collapsed ? (flyOpen ? flyOpen = false : openFly($event)) : (dropOpen = !dropOpen)"
                         @mouseenter="if (collapsed) openFly($event)"
@@ -92,10 +145,13 @@
                     <div x-show="dropOpen && !collapsed" x-transition class="mt-0.5 ml-8 space-y-0.5">
                         @foreach($children as $child)
                             @php $childActive = request()->routeIs($child['active'] ?? $child['route']); @endphp
-                            <a href="{{ route($child['route']) }}"
-                                class="block px-3 py-2 rounded-lg text-sm transition {{ $childActive ? 'text-red-800 dark:text-red-400 font-semibold bg-red-50/60 dark:bg-red-900/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white' }}">
-                                {{ __($child['label']) }}
-                            </a>
+                            <div class="group flex items-center gap-0.5">
+                                <a href="{{ route($child['route']) }}"
+                                    class="block min-w-0 flex-1 truncate px-3 py-2 rounded-lg text-sm transition {{ $childActive ? 'text-red-800 dark:text-red-400 font-semibold bg-red-50/60 dark:bg-red-900/10' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white' }}">
+                                    {{ __($child['label']) }}
+                                </a>
+                                <x-nav-fav-star :route-key="$child['route']" />
+                            </div>
                         @endforeach
                     </div>
 
@@ -105,7 +161,7 @@
                             @click.outside="flyOpen = false"
                             @mouseenter="keepOpen()" @mouseleave="scheduleClose()"
                             class="fixed z-[60] pl-2"
-                            :style="`top: ${flyTop}px; left: ${flyLeft}px;`"
+                            :style="{ top: flyTop + 'px', left: flyLeft + 'px' }"
                             style="display: none;">
                             <div class="w-52 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 py-2">
                                 <div class="px-4 pb-1.5 mb-1 border-b border-gray-100 dark:border-gray-700 text-xs font-semibold uppercase tracking-wide text-gray-400">
@@ -113,26 +169,34 @@
                                 </div>
                                 @foreach($children as $child)
                                     @php $childActive = request()->routeIs($child['active'] ?? $child['route']); @endphp
-                                    <a href="{{ route($child['route']) }}"
-                                        class="block px-4 py-2 text-sm transition {{ $childActive ? 'text-red-800 dark:text-red-400 font-semibold bg-red-50/60 dark:bg-red-900/10' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white' }}">
-                                        {{ __($child['label']) }}
-                                    </a>
+                                    <div class="group flex items-center">
+                                        <a href="{{ route($child['route']) }}"
+                                            class="block min-w-0 flex-1 truncate px-4 py-2 text-sm transition {{ $childActive ? 'text-red-800 dark:text-red-400 font-semibold bg-red-50/60 dark:bg-red-900/10' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white' }}">
+                                            {{ __($child['label']) }}
+                                        </a>
+                                        <x-nav-fav-star :route-key="$child['route']" class="mr-1.5" />
+                                    </div>
                                 @endforeach
                             </div>
                         </div>
                     </template>
                 </div>
             @else
-                <a href="{{ route($link['route']) }}"
-                    class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition {{ $isActive ? $activeClasses : $inactiveClasses }}"
-                    :class="collapsed ? 'justify-center' : ''"
-                    title="{{ $link['label'] }}"
-                >
-                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $link['icon'] }}"></path>
-                    </svg>
-                    <span x-show="!collapsed" class="truncate">{{ __($link['label']) }}</span>
-                </a>
+                <div class="group flex items-center gap-0.5" :style="{ order: navRank('{{ $link['key'] }}') }">
+                    <a href="{{ route($link['route']) }}"
+                        class="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition {{ $isActive ? $activeClasses : $inactiveClasses }}"
+                        :class="collapsed ? 'justify-center' : ''"
+                        title="{{ $link['label'] }}"
+                    >
+                        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $link['icon'] }}"></path>
+                        </svg>
+                        <span x-show="!collapsed" class="truncate">{{ __($link['label']) }}</span>
+                    </a>
+                    <div x-show="!collapsed">
+                        <x-nav-fav-star :route-key="$link['route']" />
+                    </div>
+                </div>
             @endif
         @endforeach
     </nav>
@@ -173,16 +237,7 @@
             <div x-show="userOpen && !collapsed" x-transition
                 class="absolute bottom-full left-0 mb-1 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden z-50"
                 style="display: none;">
-                <a href="{{ route('profile.edit') }}" class="block px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">Perfil</a>
-                <a href="{{ route('docs.index') }}" class="block px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">Documentação</a>
-                @role('admin')
-                <a href="{{ route('users.index') }}" class="block px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">Usuários</a>
-                @endrole
-                <x-nav-mode-toggle />
-                <form method="POST" action="{{ route('logout') }}" class="border-t border-gray-100 dark:border-gray-700">
-                    @csrf
-                    <button type="submit" class="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition">Sair</button>
-                </form>
+                <x-nav-account-links />
             </div>
 
             {{-- Collapsed: flyout teleported to body, opens to the right --}}
@@ -191,19 +246,10 @@
                     @click.outside="userOpen = false"
                     @mouseenter="keepOpen()" @mouseleave="scheduleClose()"
                     class="fixed z-[60] pl-2"
-                    :style="`bottom: ${flyBottom}px; left: ${flyLeft}px;`"
+                    :style="{ bottom: flyBottom + 'px', left: flyLeft + 'px' }"
                     style="display: none;">
                     <div class="w-56 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-                        <a href="{{ route('profile.edit') }}" class="block px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">Perfil</a>
-                        <a href="{{ route('docs.index') }}" class="block px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">Documentação</a>
-                        @role('admin')
-                        <a href="{{ route('users.index') }}" class="block px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">Usuários</a>
-                        @endrole
-                        <x-nav-mode-toggle />
-                        <form method="POST" action="{{ route('logout') }}" class="border-t border-gray-100 dark:border-gray-700">
-                            @csrf
-                            <button type="submit" class="w-full text-left px-4 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition">Sair</button>
-                        </form>
+                        <x-nav-account-links />
                     </div>
                 </div>
             </template>

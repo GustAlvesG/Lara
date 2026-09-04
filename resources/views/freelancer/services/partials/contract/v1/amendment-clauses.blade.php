@@ -1,15 +1,18 @@
 @php
     /**
-     * Corpo do TERMO ADITIVO. Recebe $service (o aditivo), $f (freelancer) e
-     * $cpf já formatado, e cita o contrato que ele altera ($base).
+     * Corpo do TERMO ADITIVO. Recebe $service (o aditivo), $party (a
+     * qualificação do freelancer como o documento a cita) e $cpf já formatado, e
+     * cita o contrato que ele altera ($base).
      *
      * O texto parte de uma premissa do desenho: o aditivo SUBSTITUI o contrato
      * base, não se soma a ele — por isso a cláusula do valor diz, com todas as
-     * letras, que o valor aqui ajustado é o único devido. Mantido em sincronia
-     * com o amendmentClauses() do Kiosk (resources/views/kiosk/index.blade.php).
+     * letras, que o valor aqui ajustado é o único devido.
      *
      * Como o contrato original, o termo ajusta DIA e VALOR: horário e duração não
      * entram no texto (seguem no registro interno).
+     *
+     * REDAÇÃO 1 — CONGELADA. Para revisar, copie a pasta `v1` para `v2` e edite
+     * lá; alterar este arquivo mudaria termos já assinados.
      */
     use Illuminate\Support\Carbon;
 
@@ -52,12 +55,12 @@
 <p>Por este particular instrumento, firmado entre as partes, de um lado,
     <b>CLUBE DOS FUNCIONARIOS DA COMPANHIA SIDERURGICA NACIONAL</b>, empresa estabelecida na Rua - General Oswaldo
     Pinto da Veiga, 231, Volta Redonda – RJ, a seguir denominada simplesmente CONTRATANTE, e, de outro lado
-    <b>{{ $f->name }}</b>, {{ $f->nacionality ?: '—' }}, {{ $f->civil_status ?: '—' }}, titular do CPF: {{ $cpf }}
-    e do RG nº {{ $f->rg ?: '—' }}, residente e domiciliado {{ $f->address ?: '—' }}, a seguir denominado
-    simplesmente FREELANCER, fica justo e acordado o presente <b>TERMO ADITIVO</b> ao Contrato Autônomo de Serviços
-    de Freelancer celebrado entre as partes{{ $celebradoEm ? ' em ' . $celebradoEm : '' }}, para a prestação de
-    serviços na função de <b>{{ $service->functionFreelancer->name ?? '—' }}</b> no dia {{ $inicioBaseBr }}, a
-    seguir denominado simplesmente CONTRATO ORIGINAL, nos seguintes termos:</p>
+    <b>{{ $party['name'] }}</b>, {{ $party['nacionality'] ?: '—' }}, {{ $party['civil_status'] ?: '—' }}, titular do
+    CPF: {{ $cpf }} e do RG nº {{ $party['rg'] ?: '—' }}, residente e domiciliado {{ $party['address'] ?: '—' }}, a
+    seguir denominado simplesmente FREELANCER, fica justo e acordado o presente <b>TERMO ADITIVO</b> ao Contrato
+    Autônomo de Serviços de Freelancer celebrado entre as partes{{ $celebradoEm ? ' em ' . $celebradoEm : '' }},
+    para a prestação de serviços na função de <b>{{ $service->contractFunctionName() ?: '—' }}</b> no dia
+    {{ $inicioBaseBr }}, a seguir denominado simplesmente CONTRATO ORIGINAL, nos seguintes termos:</p>
 
 <p><b>1- DO OBJETO DO ADITAMENTO:</b> O presente termo tem por objeto, exclusivamente, alterar o período e o local
     da prestação dos serviços ajustados no {{ $referencia }} em razão de alteração superveniente na necessidade do
@@ -95,7 +98,7 @@
     O valor ora ajustado <b>não se soma</b> ao do CONTRATO ORIGINAL, sendo o único devido pela prestação de
     serviços aqui tratada, e a assinatura do presente termo serve como recibo do pagamento.</p>
 
-@include('freelancer.services.partials.pix-clause', ['service' => $service, 'numero' => '4.1'])
+@include('freelancer.services.partials.contract.v1.pix-clause', ['service' => $service, 'numero' => '4.1'])
 
 <p><b>5- DA RATIFICAÇÃO:</b> Permanecem inalteradas e em pleno vigor todas as demais cláusulas e condições do
     CONTRATO ORIGINAL que não conflitem com o presente termo, em especial a natureza autônoma da prestação e a
