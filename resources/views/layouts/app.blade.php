@@ -52,8 +52,8 @@
             if ($canAuthorizeOrders) {
                 // `active` com curinga porque o detalhe da ordem é outra rota:
                 // sem ele, abrir uma ordem apagaria o destaque.
-                $comprasChildren[] = ['route' => 'questor.purchase-orders.index', 'label' => 'Ordens de Compra', 'active' => 'questor.purchase-orders.*'];
-                $comprasChildren[] = ['route' => 'questor.cost-centers.index', 'label' => 'Centros de Custo'];
+                #$comprasChildren[] = ['route' => 'questor.purchase-orders.index', 'label' => 'Ordens de Compra', 'active' => 'questor.purchase-orders.*'];
+                #$comprasChildren[] = ['route' => 'questor.cost-centers.index', 'label' => 'Centros de Custo'];
             }
 
             if ($canCotacao) {
