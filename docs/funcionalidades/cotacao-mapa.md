@@ -169,55 +169,71 @@ abrindo e editáveis — só a criação de mapa novo e o histórico dependem do
 
 ## Acesso
 
-Três perguntas se cruzam, e nenhuma delas sozinha decide.
+**O módulo é do setor Contabilidade.** Estar no setor — em **qualquer papel,
+colaborador ou coordenador** — dá acesso à aba e ao trabalho todo: ver, montar o
+mapa, digitar preço, escolher vencedor, fechar e exportar.
 
-### 1. O setor é a porta — Contabilidade
+Vincular alguém: **Setores → Contabilidade → adicionar usuário**. Não há mais
+nada a configurar; tirar do setor corta o acesso na hora (é uma consulta por
+requisição, memorizada só dentro dela).
 
-**O módulo é do setor Contabilidade.** O vínculo com o setor, em qualquer papel
-(colaborador ou coordenador), é condição de toda ação — inclusive só olhar.
+### Não há permissão do Spatie no caminho — de propósito
 
-É um **Gate** (`acessar-cotacao`), não uma permissão do Spatie, pelo mesmo
-raciocínio do financeiro dos freelancers: é atribuição de setor, não nível de
-acesso. Consequência importante e deliberada:
+É o mesmo arranjo do financeiro dos freelancers (`manage-freelancer-payments`):
+quando o acesso é atribuição de setor, exigir **também** uma permissão cria uma
+segunda porta que ninguém lembra de abrir. O efeito prático é o pior possível —
+o funcionário entra no setor, continua levando 403, e ninguém sabe por quê.
 
-> **A role `admin` não abre esta porta.** Quem administra o sistema não cota
+O acesso passa pelo Gate `acessar-cotacao`, definido em `AppServiceProvider` e
+respondido por `User::canAccessCotacao()`, que usa `belongsToSectorNamed()` (o
+vínculo em qualquer papel) e **não** `isCoordinatorOfSectorNamed()`.
+
+Duas consequências que valem ser ditas em voz alta:
+
+> **A role `admin` não abre este módulo.** Quem administra o sistema não cota
 > compra por consequência disso; entra no setor quem de fato cota.
 
-O Gate mora em `AppServiceProvider` e pergunta a `User::canAccessCotacao()`, que
-é memorizado por instância — menu, policy e cada ação da grade perguntam a mesma
-coisa na mesma requisição. Cada requisição reconfere, então tirar o vínculo no
-painel corta o acesso na hora.
+> **Nenhuma permissão do Spatie pode se chamar `acessar-cotacao`.** O Spatie
+> registra um `Gate::before` que consulta as permissões do usuário para
+> qualquer habilidade — uma permissão com esse nome exato passaria por cima da
+> checagem de setor, e o `admin` (que recebe `Permission::all()`) entraria sem
+> estar na Contabilidade. O projeto se protege por nomenclatura: **Gates com
+> hífen, permissões com espaço ou ponto**. Há um teste vigiando isso.
 
-Vincular alguém: **Setores → Contabilidade → adicionar usuário**.
+### A única exceção: reabrir
 
-### 2. A permissão separa o que se faz lá dentro
+Reabrir um mapa **fechado** é do **coordenador** da Contabilidade, não de
+qualquer membro: devolve à edição um documento que já fundamentou uma compra,
+possivelmente já assinado e arquivado. Fica no log de qualquer forma.
 
-| Permissão | O que libera |
-|-----------|--------------|
-| `cotacao.visualizar` | Ver a lista e abrir um mapa. |
-| `cotacao.criar` | Buscar SC, gerar mapa, gerenciar itens e colunas. |
-| `cotacao.editar_precos` | Digitar preço na grade. |
-| `cotacao.definir_vencedor` | Escolher o fornecedor de cada item e fechar o mapa. |
-| `cotacao.exportar` | Baixar o XLSX. |
-| `cotacao.reabrir` | Reabrir um mapa fechado. |
+Coordenação em vez de permissão pelo mesmo motivo do resto: é um cargo que o
+painel de setores já mantém, não uma caixinha que alguém precisa lembrar de
+marcar. Mesmo critério do primeiro nível da aprovação de ordem de compra
+(`User::isAccountingCoordinator()`).
 
-São separadas de propósito: quem monta o mapa nem sempre é quem liga para os
-fornecedores, e decidir de quem comprar não é a mesma coisa que anotar o preço
-que o fornecedor falou.
+### O estado do mapa
 
-**O setor é necessário, a permissão também.** Estar na Contabilidade sem
-`cotacao.editar_precos` deixa a pessoa ver o mapa e não digitar nele.
+Cruza com o setor em toda ação de escrita. Um **mapa fechado ou cancelado é
+somente leitura para todo mundo**, inclusive para o coordenador — é ele que
+sustenta a decisão de compra, e um preço corrigido depois do fechamento, sem
+trilha, transformaria o documento em rascunho.
 
-### 3. O estado do mapa
+| | fora do setor | membro | coordenador |
+|---|---|---|---|
+| Ver a aba e os mapas | — | sim | sim |
+| Gerar mapa, itens, colunas | — | sim | sim |
+| Digitar preço | — | sim¹ | sim¹ |
+| Escolher vencedor, fechar | — | sim¹ | sim¹ |
+| Exportar | — | sim | sim |
+| Reabrir mapa fechado | — | — | sim |
 
-Um **mapa fechado é somente leitura para todo mundo** — é ele que sustenta a
-decisão de compra, e um preço corrigido depois do fechamento, sem trilha,
-transformaria o documento em rascunho. Reabrir tem permissão própria e fica no
-log.
+¹ só enquanto o mapa está em rascunho ou em cotação.
 
-A composição das três está em
+A composição está em
 [`CotacaoMapaPolicy`](../../app/Policies/CotacaoMapaPolicy.php) e coberta por
-[`CotacaoMapaPolicyTest`](../../tests/Unit/Cotacao/CotacaoMapaPolicyTest.php).
+[`CotacaoMapaPolicyTest`](../../tests/Unit/Cotacao/CotacaoMapaPolicyTest.php) —
+inclusive o caso que motivou a regra: colaborador do setor, sem permissão
+nenhuma, trabalhando no mapa inteiro.
 
 ### No menu
 
@@ -486,8 +502,10 @@ php -d memory_limit=1G vendor/bin/phpunit tests/Unit/Cotacao tests/Feature/Cotac
   desconhecido e o sufixo no nome do arquivo.
 - `LayoutCompletoTest` — as quatro abas, as colunas de análise, o rodapé em
   fórmula e o cruzamento das fórmulas do Excel contra o `MapaCalculoService`.
-- `CotacaoMapaPolicyTest` — o acesso: setor obrigatório (a role `admin` sozinha
-  não entra), permissão por ação, mapa fechado somente leitura.
+- `CotacaoMapaPolicyTest` — o acesso: colaborador do setor faz tudo sem
+  permissão nenhuma, a role `admin` sozinha não entra, reabrir é do coordenador,
+  mapa fechado é somente leitura — e a convenção de nome que impede uma
+  permissão do Spatie de passar por cima do Gate de setor.
 - `QuestorQueriesSqlTest` — a forma das 18 consultas ao ERP, interceptando o
   `select()`: nenhum `%s` solto, `?` batendo com bindings, todo `FROM`/`JOIN`
   apontando para tabela qualificada e `TBL_STATUS` só por `LEFT JOIN`.

@@ -44,8 +44,9 @@
              | montam o usuário na mão.
              */
             $canAuthorizeOrders = auth()->user()?->can('authorize purchase orders');
-            $canCotacao = auth()->user()?->can('acessar-cotacao')
-                && auth()->user()?->can('cotacao.visualizar');
+            // Só o setor: estar na Contabilidade, em qualquer papel, já mostra a
+            // aba. Sem permissão do Spatie no caminho — ver CotacaoMapaPolicy.
+            $canCotacao = auth()->user()?->can('acessar-cotacao');
 
             $comprasChildren = [];
 

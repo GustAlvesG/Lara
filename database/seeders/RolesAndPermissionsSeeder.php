@@ -66,25 +66,14 @@ class RolesAndPermissionsSeeder extends Seeder
             [ 'name' => 'authorize purchase orders', 'description' => 'Permite ver e autorizar ordens de compra do Questor'],
         ];
 
-        // Mapa de cotação. As ações são separadas de propósito: quem monta o
-        // mapa nem sempre é quem liga para os fornecedores, e decidir de quem
-        // comprar não é a mesma coisa que anotar o preço que o fornecedor
-        // falou. `reabrir` tem permissão própria porque devolve à edição um
-        // documento que já fundamentou uma compra.
+        // Mapa de cotação NÃO tem permissão aqui, de propósito. O acesso é
+        // vínculo com o setor **Contabilidade** (em qualquer papel), conferido
+        // pelo Gate `acessar-cotacao` — mesmo arranjo do financeiro dos
+        // freelancers. Exigir também uma permissão criaria uma segunda porta
+        // que ninguém lembra de abrir: o funcionário entra no setor, continua
+        // levando 403, e ninguém sabe por quê. Ver App\Policies\CotacaoMapaPolicy.
         //
-        // ATENÇÃO: estas permissões NÃO bastam para entrar no módulo. O acesso
-        // é do setor **Contabilidade**, conferido pelo Gate `acessar-cotacao`
-        // (ver App\Policies\CotacaoMapaPolicy) — inclusive para a role `admin`,
-        // que recebe todas as permissões logo abaixo e mesmo assim não entra
-        // sem o vínculo de setor.
-        $permission_cotacao = [
-            [ 'name' => 'cotacao.visualizar', 'description' => 'Permite ver os mapas de cotação'],
-            [ 'name' => 'cotacao.criar', 'description' => 'Permite gerar mapa a partir de uma solicitação e gerenciar itens e colunas'],
-            [ 'name' => 'cotacao.editar_precos', 'description' => 'Permite digitar preços na grade do mapa de cotação'],
-            [ 'name' => 'cotacao.definir_vencedor', 'description' => 'Permite escolher o fornecedor vencedor de cada item e fechar o mapa'],
-            [ 'name' => 'cotacao.exportar', 'description' => 'Permite exportar o mapa de cotação em XLSX'],
-            [ 'name' => 'cotacao.reabrir', 'description' => 'Permite reabrir um mapa de cotação já fechado'],
-        ];
+        // Reabrir mapa fechado é do COORDENADOR do setor, também sem permissão.
 
         // A portaria registra a quilometragem pela API (token próprio); esta
         // permissão é para as telas: painel, histórico e cadastro de veículos.
@@ -101,7 +90,6 @@ class RolesAndPermissionsSeeder extends Seeder
             $permission_home_assistant,
             $permission_lara,
             $permission_questor,
-            $permission_cotacao,
             $permission_fleet
         );
 
