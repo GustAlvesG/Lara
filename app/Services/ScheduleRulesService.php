@@ -11,12 +11,20 @@ use App\Models\ScheduleRules;
 use App\Models\Place;
 use App\Models\PlaceGroup;
 use App\Services\RuleValidationService as RuleCheckService;
+use App\Services\SchedulePricingService;
 use App\Services\SchedulesService;
 
 
 class ScheduleRulesService
 {
-    
+    protected SchedulePricingService $pricing;
+
+    public function __construct(?SchedulePricingService $pricing = null)
+    {
+        $this->pricing = $pricing ?: new SchedulePricingService();
+    }
+
+
     public function store(Request $request){
 
         $validated = $request->all();
@@ -78,7 +86,8 @@ class ScheduleRulesService
         $today = Carbon::now()->format('Y-m-d');
             
 
-        $place_group = Place::find($place_id)->group;
+        $place = Place::find($place_id);
+        $place_group = $place->group;
 
         //Check if date is in the weekdays of place group
         if ($place_group->weekdays && !$place_group->weekdays->contains('id', $weekday)) {
@@ -155,22 +164,44 @@ class ScheduleRulesService
             }
         }
 
-        if ($today > $date){
-            foreach ($timeOptions as $key => $option) {
+        // Disponibilidade e preço de cada horário.
+        //
+        // Um horário que já começou continua na grade: só sai quando não dá
+        // mais para pagá-lo antes do fim (SchedulePricingService::isBookable).
+        // Enquanto está em andamento, vale proporcional ao tempo que resta —
+        // por isso a grade devolve o preço de AGORA (`price`), e não só o
+        // preço cheio do espaço (`full_price`).
+        $isToday = $today == $date;
+        $isPast = $today > $date;
+        $dateString = Carbon::parse($date)->toDateString();
+        $basePrice = (float) ($place->price ?? 0);
+
+        foreach ($timeOptions as $key => $option) {
+            $slotStart = Carbon::parse($dateString . ' ' . $option['start_time']);
+            $slotEnd = Carbon::parse($dateString . ' ' . $option['end_time']);
+
+            if ($isToday && !$this->pricing->isBookable($slotStart, $slotEnd, $now)) {
+                unset($timeOptions[$key]);
+                continue;
+            }
+
+            if ($isPast) {
                 $timeOptions[$key]['past_date'] = true;
             }
-        } else if ($today == $date){
-            $currentTime = Carbon::now();
-            foreach ($timeOptions as $key => $option) {
-                $optionStartTime = Carbon::createFromFormat('H:i', $option['start_time']);
-                if ($currentTime->gt($optionStartTime)){
-                    unset($timeOptions[$key]);
-                }
-            }
-            $timeOptions = array_values($timeOptions);
+
+            // Fora de hoje não existe "tempo restante": data futura (e a passada,
+            // que é só exibição) mostra o preço cheio.
+            $reference = $isToday ? $now : $slotStart;
+            $factor = $this->pricing->factor($slotStart, $slotEnd, $reference);
+
+            $timeOptions[$key]['full_price'] = round($basePrice, 2);
+            $timeOptions[$key]['price'] = $this->pricing->price($basePrice, $slotStart, $slotEnd, $reference);
+            $timeOptions[$key]['price_factor'] = round($factor, 4);
+            $timeOptions[$key]['remaining_minutes'] = $this->pricing->remainingMinutes($slotStart, $slotEnd, $reference);
+            $timeOptions[$key]['in_progress'] = $factor < 1.0;
         }
 
-
+        $timeOptions = array_values($timeOptions);
 
         return $timeOptions;
     }

@@ -78,10 +78,38 @@
 
             <div class="flex flex-wrap items-center gap-2">
                 @can('exportar', $mapa)
-                    <a href="{{ route('cotacao.mapas.exportar', $mapa) }}"
-                       class="px-4 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-bold shadow transition">
-                        Exportar XLSX
-                    </a>
+                    {{-- Dois layouts, e a escolha é de quem exporta: o clássico
+                         é o papel da reunião, o completo é o arquivo de análise.
+                         Menu em vez de dois botões soltos porque a diferença
+                         entre eles precisa de uma frase para ser entendida. --}}
+                    <div class="relative" x-data="{ aberto: false }" @click.outside="aberto = false">
+                        <button type="button" @click="aberto = !aberto"
+                                class="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-bold shadow transition">
+                            Exportar XLSX
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+                            </svg>
+                        </button>
+
+                        <div x-show="aberto" x-cloak x-transition
+                             class="absolute right-0 z-30 mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+                            @foreach($layouts as $chave => $layout)
+                                <a href="{{ route('cotacao.mapas.exportar', [$mapa, 'layout' => $chave]) }}"
+                                   @click="aberto = false"
+                                   class="block px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-50 dark:border-gray-700 last:border-0 transition">
+                                    <span class="block text-sm font-bold text-gray-900 dark:text-white">
+                                        {{ $layout['nome'] }}
+                                        @if($chave === \App\Services\Cotacao\MapaExportService::LAYOUT_PADRAO)
+                                            <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">padrão</span>
+                                        @endif
+                                    </span>
+                                    <span class="block text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">
+                                        {{ $layout['descricao'] }}
+                                    </span>
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
                 @endcan
 
                 @if($podeGerenciar)

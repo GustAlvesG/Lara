@@ -2,6 +2,11 @@
     $isBlocked = $slot['excluded_by_rule'] ?? false;
     $isBooked = isset($slot['colided_member']) && $slot['colided_member'] !== null;
     $isPast = isset($slot['past_date']) && $slot['past_date'] === true;
+    // Horário que já começou e ainda está à venda: vale proporcional ao tempo
+    // restante, então o card precisa mostrar o valor de agora, não o cheio.
+    $inProgress = ($slot['in_progress'] ?? false) === true;
+    $slotPrice = $slot['price'] ?? null;
+    $slotPercent = isset($slot['price_factor']) ? round($slot['price_factor'] * 100) : null;
 @endphp
 {{-- {{ Array to string }} --}}
 @if($isBooked)
@@ -76,7 +81,8 @@
     <input value="{{ $slot['start_time']}} - {{ $slot['end_time'] }}" class="hidden" type="checkbox" name="selected_slots[]" id="">
     <button type="button"
         onclick="toggleSlot(this, '{{ $place['id'] }}', '{{ $slot['start_time'] }}')"
-        class="slot-button bg-white dark:bg-gray-700 border-2 border-dashed border-gray-100 dark:border-gray-600 rounded-xl p-3 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition duration-200 flex flex-col justify-between min-h-[80px] text-left">
+        data-price="{{ $slotPrice ?? ($place['price'] ?? 0) }}"
+        class="slot-button bg-white dark:bg-gray-700 border-2 border-dashed {{ $inProgress ? 'border-amber-300 dark:border-amber-600' : 'border-gray-100 dark:border-gray-600' }} rounded-xl p-3 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition duration-200 flex flex-col justify-between min-h-[80px] text-left">
         <div class="flex justify-between items-start w-full">
             <span class="text-sm font-black text-gray-400 dark:text-gray-500">{{ $slot['start_time'] }} - {{ $slot['end_time'] }}</span>
             <div class="h-6 w-6 rounded-full bg-gray-50 dark:bg-gray-600 flex items-center justify-center icon-container transition-colors">
@@ -85,6 +91,17 @@
                 </svg>
             </div>
         </div>
+        @if($inProgress)
+            {{-- Fora da .status-text de propósito: o JS reescreve aquele texto ao
+                 selecionar/limpar o slot e apagaria o valor proporcional. --}}
+            <p class="text-[9px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-tighter leading-tight">
+                Em andamento · resta {{ $slot['remaining_minutes'] ?? 0 }} min
+            </p>
+            <p class="text-[10px] font-black text-green-600 leading-none">
+                R$ {{ number_format((float) $slotPrice, 2, ',', '.') }}
+                <span class="text-gray-400 dark:text-gray-500">({{ $slotPercent }}%)</span>
+            </p>
+        @endif
         <p class="text-[9px] font-black text-gray-300 dark:text-gray-500 uppercase tracking-widest status-text">Livre</p>
     </button>
 @endif

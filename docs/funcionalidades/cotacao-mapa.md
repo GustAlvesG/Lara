@@ -303,37 +303,117 @@ Daí a distinção entre as três situações de célula:
   preço, escolheu qual vencedor e exportou. É boa parte da razão de o módulo
   existir — a planilha não responde "quem mudou este preço, e quando?".
 
-## Exportação XLSX
+## Exportação XLSX — dois layouts
 
-Layout idêntico ao modelo (`A1` COTAÇÃO DE COMPRAS · `C3` DATA · `C4` SC ·
-linhas 5/6/7 com frete, prazo e pagamento · linha 8 com o cabeçalho · itens a
-partir da 9 · rodapé FRETE/SUBTOTAL/TOTAL/TOTAL GERAL DO PEDIDO).
+O comprador **escolhe na hora de exportar**, num menu ao lado do botão. São dois
+porque servem a momentos diferentes do mesmo trabalho:
 
-Duas coisas que o arquivo gerado faz e o atual não:
+| Layout | Para que serve |
+|--------|----------------|
+| `classico` *(padrão)* | O papel da reunião. Reproduz a planilha que a compra já imprime, assina e arquiva. |
+| `completo` | O arquivo de análise, para decidir na tela. Quatro abas. |
 
-1. **Os totais são fórmula, não número.** `SUBTOTAL` é
-   `=SUMPRODUCT($D$9:$D$14,E9:E14)` e `TOTAL` é `=E16+E15`. Quem corrigir um
-   preço no Excel vê o total mudar. Uma exportação "com valores" quebra isso em
-   silêncio — e é justamente o que
-   [`MapaExportServiceTest`](../../tests/Feature/Cotacao/MapaExportServiceTest.php)
-   protege, reabrindo o arquivo do disco e conferindo o tipo da célula.
-2. **O menor preço é formatação condicional**, não cor fixa: editado o preço, o
+O clássico segue como padrão de propósito: quem pede "exportar" sem pensar quer
+o de sempre, e o dia em que o completo virar padrão é decisão de quem usa — não
+consequência de alguém ter escrito o novo. Um `?layout=` ausente ou escrito
+errado cai no clássico em vez de dar erro: link velho no meio de uma cotação
+tem de entregar planilha, não página de erro.
+
+A trilha registra qual layout saiu (`payload.layout`). Os dois arquivos
+circulam, e depois alguém pergunta de qual deles veio o número da reunião.
+
+Nomes de arquivo: `COTACAO_<slug>_<SC>_<dd_mm_aaaa>.xlsx` e o mesmo com sufixo
+`_COMPLETO`. O sufixo não é enfeite — os dois convivem na pasta de downloads, e
+sem ele o segundo sobrescreveria o primeiro em silêncio.
+
+### O que valem para os dois
+
+1. **Todo total é FÓRMULA, não número.** Quem corrigir um preço no Excel vê o
+   total mudar. Uma exportação "com valores" quebraria isso em silêncio, e o
+   teste reabre o arquivo do disco conferindo o **tipo** da célula.
+2. **Os destaques são formatação condicional**, não cor fixa: editado o preço, o
    destaque acompanha.
+3. **Célula vazia não vira zero.** `nao_trabalha` sai como o **texto** `NT`
+   (string explícita, para o Excel não interpretá-lo) e `sem_resposta` sai em
+   branco; `SUMPRODUCT`, `MIN` e `COUNT` ignoram os dois.
 
-Detalhes:
+### `classico` — a planilha impressa
 
-- `nao_trabalha` sai como o **texto** `NT` (explicitamente string, para o Excel
-  não tentar interpretá-lo); `sem_resposta` sai em branco. `SUMPRODUCT` e `MIN`
-  ignoram os dois.
+Layout idêntico ao modelo: `A1` COTAÇÃO DE COMPRAS · `C3` DATA · `C4` SC ·
+linhas 5/6/7 com frete, prazo e pagamento · linha 8 com o cabeçalho · itens a
+partir da 9 · rodapé FRETE/SUBTOTAL/TOTAL/TOTAL GERAL DO PEDIDO.
+
+- `SUBTOTAL` é `=SUMPRODUCT($D$9:$D$14,E9:E14)`; `TOTAL` é `=E16+E15`.
 - O `TOTAL GERAL DO PEDIDO` usa uma **coluna auxiliar oculta** logo depois dos
   fornecedores, com `=IF(COUNT(...)=0,0,MIN(...)*$D$n)`. É o preço a pagar por
-  manter o total recalculável: o Excel não soma "o mínimo de cada linha" numa
-  fórmula só sem matricial.
-- **Aba 2 "Histórico"** — item, última compra (data, fornecedor, NF, valor),
-  melhor cotação, variação % e economia. Ali os valores vão calculados, e não
-  como fórmula: são um retrato do momento da exportação, e a última compra veio
-  do Questor, não está na planilha para o Excel recalcular.
-- Nome do arquivo: `COTACAO_<slug do título>_<SC>_<dd_mm_aaaa>.xlsx`.
+  manter o total recalculável sem sair do layout do papel: o Excel não soma "o
+  mínimo de cada linha" numa fórmula só sem matricial.
+- Aba 2 **"Histórico"** — item, última compra, melhor cotação, variação %.
+
+**Este layout não ganha coluna nova.** É o que garante que ele continue sendo o
+papel que a compra reconhece; tudo o que não cabe ali vai para o completo.
+
+### `completo` — o arquivo de análise
+
+Quatro abas, e a coluna auxiliar do clássico deixa de ser gambiarra escondida
+para virar conteúdo visível:
+
+**Mapa** — a grade. Colunas fixas `ITEM · UND · DESCRIÇÃO · QNT. · ÚLT. COMPRA`,
+os fornecedores, e depois **MENOR** e **ECONOMIA** por item. Cabeçalho
+congelado junto com as colunas fixas (rolar para a direita continua mostrando
+qual item é), autofiltro, zebra, e três destaques condicionais: menor preço da
+linha em verde, `NT` apagado (não é proposta cara, é não-proposta) e economia
+negativa em vermelho. Rodapé com `FRETE · DESCONTO · SUBTOTAL · TOTAL · ITENS
+COTADOS`, todos fórmula — a cobertura é `=COUNT(...)`, que é a distinção do
+módulo inteira em uma função. O `TOTAL` é
+`=IF(cobertura=0,0,subtotal+frete-desconto)`: quem não respondeu nada não pode
+aparecer devendo frete. Impressão em paisagem, ajustada à largura, com a linha
+de cabeçalho repetida e o número de página no pé.
+
+**Resumo** — a página que responde "o que eu compro?". As duas estratégias lado
+a lado (comprar dividido × comprar de um só, com a **diferença** entre elas),
+a economia contra a última compra, e o quadro de cobertura por fornecedor com
+uma coluna **COMPARÁVEL?** que diz, com todas as letras, quem cotou só parte.
+Os números **apontam para a aba Mapa por fórmula** em vez de recalcular: se as
+duas abas fizessem a própria conta, uma edição na grade faria as duas
+discordarem — e a discordância apareceria tarde.
+
+**Histórico** — item a item contra a última compra, com variação % colorida.
+Aqui os valores vão calculados: a última compra veio do Questor e não está na
+planilha para o Excel recalcular. O cabeçalho da aba diz isso.
+
+**Decisão** — o que ficou escolhido, item a item, com fornecedor e total. Existe
+porque a compra pode ser **dividida**: o mapa não termina num fornecedor,
+termina numa lista de "este item, deste fornecedor". Sem a aba, essa lista só
+existiria na cabeça de quem decidiu. Quando falta item por decidir, o arquivo
+avisa que o total é parcial.
+
+### Estrutura
+
+```
+app/Services/Cotacao/
+  MapaExportService.php          -> fachada: escolhe o layout, grava e nomeia
+  Export/
+    LayoutExportacao.php         -> o contrato (nome, descrição, montar)
+    LayoutClassico.php           -> a planilha impressa
+    LayoutCompleto.php           -> o arquivo de análise
+```
+
+Gravar em disco e nomear o arquivo mora na fachada, não nos layouts: é igual nos
+dois, e duplicar daria dois lugares para o caminho divergir. Acrescentar um
+terceiro layout é uma classe nova e uma entrada em `layouts()` — a tela monta o
+menu a partir dela e não precisa mudar.
+
+### O teste que mais importa
+
+[`LayoutCompletoTest::test_as_formulas_do_excel_dao_o_mesmo_numero_que_o_servico_de_calculo`](../../tests/Feature/Cotacao/LayoutCompletoTest.php)
+grava o arquivo, reabre do disco, **manda o Excel calcular** e compara com o
+`MapaCalculoService`, coluna a coluna.
+
+São duas implementações da mesma regra — uma em PHP, que manda na tela, e outra
+em fórmula, que manda depois que o arquivo sai daqui. É o par que costuma
+divergir em silêncio, e a divergência só apareceria numa reunião, com o
+comprador defendendo um número que a tela não mostra.
 
 ## O retrato da última compra
 
@@ -401,8 +481,11 @@ php -d memory_limit=1G vendor/bin/phpunit tests/Unit/Cotacao tests/Feature/Cotac
   importação, atualizar histórico, teto de colunas, fornecedor fora do ERP.
 - `SalvarPrecoEscopoTest` — a trava de IDOR: item ou fornecedor de outro mapa é
   recusado na **autorização** (403), não na validação.
-- `MapaExportServiceTest` — layout, `NT` como texto, e as fórmulas conferidas
-  **no arquivo reaberto do disco**.
+- `MapaExportServiceTest` — o layout clássico (posição de cada linha, `NT` como
+  texto) e a fachada: quais layouts existem, o padrão, o fallback de um layout
+  desconhecido e o sufixo no nome do arquivo.
+- `LayoutCompletoTest` — as quatro abas, as colunas de análise, o rodapé em
+  fórmula e o cruzamento das fórmulas do Excel contra o `MapaCalculoService`.
 - `CotacaoMapaPolicyTest` — o acesso: setor obrigatório (a role `admin` sozinha
   não entra), permissão por ação, mapa fechado somente leitura.
 - `QuestorQueriesSqlTest` — a forma das 18 consultas ao ERP, interceptando o

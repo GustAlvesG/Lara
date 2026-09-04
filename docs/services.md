@@ -33,9 +33,24 @@ banco e integrações externas. Os controllers delegam a essas classes.
 |--------|-----------|-----------|
 | `store` | `store(Request $request)` | Cria regra com associação a espaços e dias da semana. |
 | `getFilteredRulesByPlaceGroup` | `getFilteredRulesByPlaceGroup($placeGroup)` | Regras aplicáveis a um grupo de espaços. |
-| `getTimeOptions` | `getTimeOptions($place_id, $date, $member_id = null)` | Calcula horários disponíveis (colisão + exclusões de regras). |
+| `getTimeOptions` | `getTimeOptions($place_id, $date, $member_id = null)` | Calcula horários disponíveis (colisão + exclusões de regras) e o preço de cada um. |
 | `getLimit` | `getLimit($place_id, $member_id, $date)` | Limite restante de agendamentos do sócio para a data. |
 | `isBetweenOrGreaterDates` | `isBetweenOrGreaterDates($currentDate, $startDate, $endDate = null)` | Valida intervalo de datas. |
+
+---
+
+## SchedulePricingService
+
+`app/Services/SchedulePricingService.php` — preço e janela de venda do horário em andamento
+(ver [Agendamento](funcionalidades/agendamento.md#horário-em-andamento-e-valor-proporcional)).
+
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `factor` | `factor($start, $end, $now = null)` | Fração do preço cheio que o horário vale agora (minutos restantes / duração). |
+| `price` | `price($basePrice, $start, $end, $now = null)` | Preço a cobrar, em reais, arredondado a 2 casas. |
+| `remainingMinutes` | `remainingMinutes($start, $end, $now = null)` | Minutos que ainda restam do horário. |
+| `bookingDeadline` | `bookingDeadline($end)` | Último instante vendável: `fim - ExpirePendingSchedules::HOLD_MINUTES`. |
+| `isBookable` | `isBookable($start, $end, $now = null)` | Se o horário ainda pode ser reservado neste instante. |
 
 ---
 

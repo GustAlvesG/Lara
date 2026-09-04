@@ -11,6 +11,7 @@ use App\Services\Cotacao\MapaExportService;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\Concerns\CreatesCotacaoSchema;
+use Tests\Concerns\CriaMapaDeCotacao;
 use Tests\TestCase;
 
 /**
@@ -29,6 +30,7 @@ use Tests\TestCase;
 class MapaExportServiceTest extends TestCase
 {
     use CreatesCotacaoSchema;
+    use CriaMapaDeCotacao;
 
     private string $arquivo = '';
 
@@ -50,7 +52,7 @@ class MapaExportServiceTest extends TestCase
 
     public function test_o_cabecalho_segue_o_layout_da_planilha_em_uso(): void
     {
-        $mapa = $this->mapaCompleto();
+        $mapa = $this->mapaDeExemplo();
 
         $aba = $this->servico()->montar($mapa)->getSheet(0);
 
@@ -82,7 +84,7 @@ class MapaExportServiceTest extends TestCase
 
     public function test_subtotal_e_total_sao_formulas_de_verdade_no_arquivo_gravado(): void
     {
-        $mapa = $this->mapaCompleto();
+        $mapa = $this->mapaDeExemplo();
 
         $this->arquivo = $this->servico()->gerar($mapa);
 
@@ -124,7 +126,7 @@ class MapaExportServiceTest extends TestCase
      */
     public function test_nao_trabalha_sai_como_texto_nt_e_sem_resposta_sai_vazio(): void
     {
-        $mapa = $this->mapaCompleto();
+        $mapa = $this->mapaDeExemplo();
 
         $aba = $this->servico()->montar($mapa)->getSheet(0);
 
@@ -144,7 +146,7 @@ class MapaExportServiceTest extends TestCase
 
     public function test_a_aba_de_historico_compara_a_melhor_cotacao_com_a_ultima_compra(): void
     {
-        $mapa = $this->mapaCompleto();
+        $mapa = $this->mapaDeExemplo();
 
         $planilha = $this->servico()->montar($mapa);
         $aba = $planilha->getSheet(1);
@@ -168,7 +170,7 @@ class MapaExportServiceTest extends TestCase
 
     public function test_nome_do_arquivo_carrega_titulo_sc_e_data(): void
     {
-        $mapa = $this->mapaCompleto();
+        $mapa = $this->mapaDeExemplo();
 
         $nome = $this->servico()->nomeArquivo($mapa);
 
@@ -194,107 +196,78 @@ class MapaExportServiceTest extends TestCase
 
     // ------------------------------------------------------------------
 
+    /* ---------------------------------------------------------------------
+     | A fachada: qual layout sai, e com que nome
+     |---------------------------------------------------------------------*/
+
+    public function test_os_dois_layouts_aparecem_no_menu_de_exportacao(): void
+    {
+        $layouts = $this->servico()->layouts();
+
+        $this->assertSame(
+            [MapaExportService::LAYOUT_CLASSICO, MapaExportService::LAYOUT_COMPLETO],
+            array_keys($layouts)
+        );
+
+        foreach ($layouts as $layout) {
+            $this->assertNotEmpty($layout['nome']);
+            $this->assertNotEmpty($layout['descricao']);
+        }
+    }
+
+    /**
+     * O clássico é o padrão de propósito: quem pede "exportar" sem pensar quer
+     * o de sempre. O dia em que o completo virar padrão é decisão de quem usa.
+     */
+    public function test_o_classico_e_o_padrao_e_um_layout_desconhecido_cai_nele(): void
+    {
+        $servico = $this->servico();
+
+        $this->assertSame(MapaExportService::LAYOUT_CLASSICO, MapaExportService::LAYOUT_PADRAO);
+        $this->assertSame(MapaExportService::LAYOUT_CLASSICO, $servico->normalizar('inexistente'));
+        $this->assertSame(MapaExportService::LAYOUT_CLASSICO, $servico->normalizar(''));
+        $this->assertSame(MapaExportService::LAYOUT_COMPLETO, $servico->normalizar('completo'));
+    }
+
+    /**
+     * Um link velho no meio de uma cotação tem de entregar a planilha de
+     * sempre, não uma página de erro.
+     */
+    public function test_layout_invalido_gera_o_classico_sem_estourar(): void
+    {
+        $planilha = $this->servico()->montar($this->mapaDeExemplo(), 'nao-existe');
+
+        // Assinatura do clássico: A1 é a faixa da planilha impressa.
+        $this->assertSame('COTAÇÃO DE COMPRAS', $planilha->getSheet(0)->getCell('A1')->getValue());
+        $this->assertCount(2, $planilha->getSheetNames());
+
+        $planilha->disconnectWorksheets();
+    }
+
+    /**
+     * Os dois arquivos convivem na pasta de downloads do comprador; sem o
+     * sufixo, o segundo sobrescreveria o primeiro sem avisar.
+     */
+    public function test_o_nome_do_arquivo_distingue_os_dois_layouts(): void
+    {
+        $mapa = $this->mapaDeExemplo();
+        $servico = $this->servico();
+
+        $classico = $servico->nomeArquivo($mapa, MapaExportService::LAYOUT_CLASSICO);
+        $completo = $servico->nomeArquivo($mapa, MapaExportService::LAYOUT_COMPLETO);
+
+        $this->assertStringEndsWith('.xlsx', $classico);
+        $this->assertStringNotContainsString('_COMPLETO', $classico);
+        $this->assertStringContainsString('_COMPLETO.xlsx', $completo);
+        $this->assertNotSame($classico, $completo);
+
+        // O resto do nome é o mesmo: título, SC e data.
+        $this->assertSame($classico, str_replace('_COMPLETO', '', $completo));
+    }
+
     private function servico(): MapaExportService
     {
         return new MapaExportService(new MapaCalculoService);
     }
 
-    /**
-     * Um mapa com a mesma forma do modelo real: dois fornecedores, três itens,
-     * e as três situações de célula representadas.
-     */
-    private function mapaCompleto(): CotacaoMapa
-    {
-        $mapa = CotacaoMapa::factory()->emCotacao()->create([
-            'questor_solicitacao' => 34334,
-            'titulo' => 'MATERIAL PARA PINTURA DA CERCA DO PARQUINHO',
-            'departamento' => 'MANUTENÇÃO',
-            'solicitante' => 'MANUTENCAO JOAO',
-        ]);
-
-        $almeida = CotacaoMapaFornecedor::factory()->create([
-            'cotacao_mapa_id' => $mapa->id,
-            'nome' => 'D C DE ALMEIDA',
-            'frete' => 'CIF',
-            'prazo_entrega' => '1 DU',
-            'condicao_pagamento' => '14D',
-            'valor_frete' => 50.00,
-            'ordem' => 1,
-        ]);
-
-        $barra = CotacaoMapaFornecedor::factory()->create([
-            'cotacao_mapa_id' => $mapa->id,
-            'nome' => 'BARRA COR',
-            'frete' => 'CIF',
-            'prazo_entrega' => '3DU',
-            'condicao_pagamento' => 'Á VISTA',
-            'valor_frete' => 0,
-            'ordem' => 2,
-        ]);
-
-        $i1 = CotacaoMapaItem::factory()->create([
-            'cotacao_mapa_id' => $mapa->id,
-            'questor_cd_item' => 1,
-            'questor_cd_material' => 5001,
-            'descricao' => 'TINTA ESMALTE AZUL 3,6L',
-            'unidade' => 'UN',
-            'quantidade' => 2,
-            'ordem' => 1,
-            'ult_compra_valor' => 200.00,
-            'ult_compra_data' => '2026-05-12',
-            'ult_compra_fornecedor_nome' => 'BARRA COR',
-            'ult_compra_nf' => '55123',
-        ]);
-
-        $i2 = CotacaoMapaItem::factory()->create([
-            'cotacao_mapa_id' => $mapa->id,
-            'questor_cd_item' => 2,
-            'questor_cd_material' => 5002,
-            'descricao' => 'VERNIZ BASE SOLVENTE IMBUIA 3,6L',
-            'unidade' => 'UN',
-            'quantidade' => 1,
-            'ordem' => 2,
-        ]);
-
-        $i3 = CotacaoMapaItem::factory()->semCadastro()->create([
-            'cotacao_mapa_id' => $mapa->id,
-            'questor_cd_item' => 3,
-            'descricao' => 'PARAFUSO ESPECIAL SOB MEDIDA',
-            'unidade' => 'UN',
-            'quantidade' => 4,
-            'ordem' => 3,
-        ]);
-
-        CotacaoPreco::factory()->create([
-            'cotacao_mapa_item_id' => $i1->id,
-            'cotacao_mapa_fornecedor_id' => $almeida->id,
-            'valor_unitario' => 180.00,
-        ]);
-
-        CotacaoPreco::factory()->create([
-            'cotacao_mapa_item_id' => $i1->id,
-            'cotacao_mapa_fornecedor_id' => $barra->id,
-            'valor_unitario' => 189.43,
-        ]);
-
-        CotacaoPreco::factory()->create([
-            'cotacao_mapa_item_id' => $i2->id,
-            'cotacao_mapa_fornecedor_id' => $almeida->id,
-            'valor_unitario' => 161.86,
-        ]);
-
-        // O "NT" da planilha: BARRA COR não vende o verniz.
-        CotacaoPreco::factory()->naoTrabalha()->create([
-            'cotacao_mapa_item_id' => $i2->id,
-            'cotacao_mapa_fornecedor_id' => $barra->id,
-        ]);
-
-        // Item 3: consultado e sem resposta de um, sem linha nenhuma do outro.
-        CotacaoPreco::factory()->semResposta()->create([
-            'cotacao_mapa_item_id' => $i3->id,
-            'cotacao_mapa_fornecedor_id' => $barra->id,
-        ]);
-
-        return $mapa->fresh();
-    }
 }

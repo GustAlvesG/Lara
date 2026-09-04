@@ -165,6 +165,9 @@
                                         </div>
                                         <p class="mt-3 text-[10px] text-gray-400 dark:text-gray-500 font-medium italic">
                                             Reserva para: <span id="display-slots-{{ $place['id'] }}" class="font-bold text-green-600"></span>
+                                            <span id="display-total-wrapper-{{ $place['id'] }}" class="hidden">
+                                                &middot; Total: <span id="display-total-{{ $place['id'] }}" class="font-bold text-green-600"></span>
+                                            </span>
                                         </p>
                                     </div>
 
@@ -211,14 +214,30 @@
             const formContainer = document.getElementById(`form-container-${courtId}`);
             const inputHidden = document.getElementById(`selected-slots-input-${courtId}`);
             const displaySpan = document.getElementById(`display-slots-${courtId}`);
+            const totalWrapper = document.getElementById(`display-total-wrapper-${courtId}`);
+            const totalSpan = document.getElementById(`display-total-${courtId}`);
 
             if (selectedSlots.length > 0) {
                 formContainer.classList.remove('hidden');
                 selectedSlots.sort();
-                inputHidden.value = JSON.stringify(selectedSlots);
+                // O input JSON é opcional: os horários já vão no POST pelos
+                // checkboxes selected_slots[]. Sem a guarda, o erro aqui abortava
+                // o resto da função e o resumo da reserva nunca era preenchido.
+                if (inputHidden) {
+                    inputHidden.value = JSON.stringify(selectedSlots);
+                }
                 displaySpan.innerText = selectedSlots.join(', ');
+
+                // Total do que será cobrado: cada botão carrega o preço já
+                // proporcional ao tempo restante do seu horário (data-price).
+                const card = document.querySelector(`.court-card[data-court-id="${courtId}"]`);
+                const total = Array.from(card.querySelectorAll('.slot-button.slot-selected'))
+                    .reduce((sum, btn) => sum + (parseFloat(btn.dataset.price) || 0), 0);
+                totalSpan.innerText = total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                totalWrapper.classList.remove('hidden');
             } else {
                 formContainer.classList.add('hidden');
+                totalWrapper.classList.add('hidden');
                 clearMemberSelection(courtId);
                 currentCourtId = null;
             }
@@ -328,9 +347,10 @@
             form.querySelector('input[name="cpf"]').value = cpf;
             form.querySelector('input[name="birthDate"]').value = birthDate;
 
-            //Calculo do preço = número de horários selecionados * preço da quadra
+            // Preço BASE da quadra (por horário). O valor final de cada horário é
+            // calculado no servidor: horário já em andamento é cobrado proporcional
+            // ao tempo restante, então não dá para fechar o preço aqui.
             const pricePerHour = {{ $place['price'] ?? 0 }};
-            // const totalPrice = selectedSlots.length * pricePerHour;
             form.querySelector('input[name="price"]').value = pricePerHour
 
            

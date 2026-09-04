@@ -220,7 +220,10 @@
                     ['route' => 'comp-time.index', 'label' => 'Consulta'],
                 ];
 
-                if ($canManageCompTime) {
+                // Route::has porque este layout renderiza em TODA tela: um nome de
+                // rota que não existe (tela ainda não mesclada, cache de rotas
+                // velho) derruba o sistema inteiro com 500, e não só este item.
+                if ($canManageCompTime && \Illuminate\Support\Facades\Route::has('comp-time.employees.index')) {
                     $compTimeChildren[] = ['route' => 'comp-time.employees.index', 'label' => 'Funcionários'];
                 }
 

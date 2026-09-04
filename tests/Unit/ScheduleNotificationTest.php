@@ -113,8 +113,14 @@ class ScheduleNotificationTest extends TestCase
         $this->assertStringContainsString('aguardando pagamento', $mailable->data['subject']);
 
         // O prazo informado tem de ser o mesmo que a rotina de expiração aplica.
+        // Derivado da constante, e não escrito à mão: a data fixa aqui continuou
+        // valendo 30 minutos depois de o hold cair para 10.
+        $holdDeadline = Carbon::parse('2026-08-03 14:20:00')
+            ->addMinutes(ExpirePendingSchedules::HOLD_MINUTES)
+            ->format('d/m/Y H:i');
+
         $this->assertSame(ExpirePendingSchedules::HOLD_MINUTES, $mailable->data['hold_minutes']);
-        $this->assertStringContainsString('03/08/2026 14:50', $body);
+        $this->assertStringContainsString($holdDeadline, $body);
         $this->assertStringContainsString('R$ 60,00', $body);
     }
 

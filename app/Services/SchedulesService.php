@@ -23,6 +23,7 @@ use App\Services\ScheduleRulesService;
 use App\Services\MemberService;
 use App\Services\EmailService;
 use App\Services\RedeItauService;
+use App\Services\SchedulePricingService;
 
 
 class SchedulesService
@@ -32,6 +33,7 @@ class SchedulesService
     protected $memberService;
     protected $emailService;
     protected $redeItauService;
+    protected $schedulePricing;
 
     public function __construct()
     {
@@ -39,6 +41,7 @@ class SchedulesService
         $this->memberService = new MemberService();
         $this->emailService = new EmailService();
         $this->redeItauService = new RedeItauService();
+        $this->schedulePricing = new SchedulePricingService();
     }
 
     public function getShedulesByPlace($place_id, $date = null){
@@ -177,6 +180,15 @@ class SchedulesService
         $schedules = [];
         $createdSchedules = [];
 
+        // Preço base do espaço, resolvido uma vez só: é sobre ele que incide a
+        // proporção de cada horário. String vazia (campo hidden que o painel
+        // manda em branco) não é preço — cai no cadastro do Place.
+        $place = Place::find($request['place_id']);
+        $requestedPrice = $request['price'];
+        $basePrice = ($requestedPrice === null || $requestedPrice === '')
+            ? optional($place)->price
+            : $requestedPrice;
+
         foreach ($request->input('selected_slots') as $slot) {
             $time_start = explode(" - ", $slot)[0];
             $time_end = explode(" - ", $slot)[1];
@@ -190,15 +202,21 @@ class SchedulesService
                 $request['created_by_user'] = Auth()->user()->id;
             }
 
+            $start_schedule = $request->input('date') . ' ' . $time_start;
+            $end_schedule = $request->input('date') . ' ' . $time_end;
+
             $schedule = $this->persistSchedule([
                 'place_id' => $request['place_id'],
                 'member_id' => $request['member_id'],
-                'start_schedule' => $request->input('date') . ' ' . $time_start,
-                'end_schedule' => $request->input('date') . ' ' . $time_end,
+                'start_schedule' => $start_schedule,
+                'end_schedule' => $end_schedule,
                 'status_id' => $request->input('status_id') ?? 1,
-                // Se nenhum preço foi enviado explicitamente, usa o preço real do Place —
-                // nunca confia em um preço de cliente sem contrapartida no cadastro.
-                'price' => $request['price'] ?? optional(Place::find($request['place_id']))->price,
+                // O preço é sempre recalculado aqui, no instante em que a reserva
+                // é gravada: um horário já em andamento vale proporcional ao tempo
+                // que ainda resta, e o que a tela mostrou minutos atrás não vale
+                // como preço. A base continua sendo o cadastro do Place — nunca um
+                // valor de cliente sem contrapartida.
+                'price' => $this->schedulePricing->price($basePrice, $start_schedule, $end_schedule),
                 'created_by_user' => $request['created_by_user'] ?? null,
             ]);
 

@@ -30,7 +30,11 @@ O serviço `ScheduleRulesService::getTimeOptions()` monta a grade assim:
 4. **Antecedência:** só permite datas entre hoje + `minimum_antecedence` e hoje + `maximum_antecedence`.
 5. **Inclusões/Exclusões:** regras `type=include` adicionam horários; `type=exclude` bloqueiam.
 6. **Colisão:** marca horários já reservados (ver `checkColide`).
-7. **Passados:** remove horários que já ocorreram quando a data é hoje.
+7. **Encerrados:** quando a data é hoje, remove os horários que já não dá tempo de pagar
+   (ver [Horário em andamento](#horário-em-andamento-e-valor-proporcional)). O horário que
+   apenas *começou* continua na grade.
+8. **Preço:** cada horário sai com `full_price` (preço cheio do espaço) e `price` (o que
+   custa agora), mais `price_factor`, `remaining_minutes` e `in_progress`.
 
 Cada horário retorna se está livre, bloqueado por regra, em conflito ou no passado.
 
@@ -44,8 +48,38 @@ O app busca o sócio por nome/matrícula (`POST /api/member/by-title`) e associa
 - **Valida colisão** (`checkColide`) — com outros sócios e com o próprio sócio;
 - **Valida o horário** recalculando `getTimeOptions` (garante que o slot ainda é válido);
 - **Verifica o limite diário** do sócio no grupo (`countMemberSchedulesInPlaceGroupOnDate`);
+- **Calcula o preço** do horário no instante da gravação (proporcional, se já começou);
 - **Cria o agendamento** com status confirmado (1) ou pendente (3);
 - **Envia e-mail** de confirmação ou de pendência de pagamento.
+
+## Horário em andamento e valor proporcional
+
+Um horário permanece à venda **depois de ter começado**, cobrado proporcionalmente ao tempo
+que ainda resta. No horário das 20:00 às 21:00 de uma quadra de R$ 100:
+
+| Momento da reserva | Tempo restante | Valor |
+|--------------------|----------------|-------|
+| até 20:00 | 60 min | R$ 100,00 |
+| 20:15 | 45 min | R$ 75,00 |
+| 20:30 | 30 min | R$ 50,00 |
+| 20:37 | 23 min | R$ 38,33 |
+| 20:49 | 11 min | R$ 18,33 |
+| 20:50 em diante | — | fora da grade |
+
+A proporção é **minuto a minuto** (`minutos restantes / duração`), sem piso, arredondada a
+duas casas; os segundos não entram na conta — às 20:30:47 ainda são 50%.
+
+A venda fecha em **`fim - ExpirePendingSchedules::HOLD_MINUTES`** (hoje 10 minutos, logo
+20:49 é o último minuto vendável). O motivo é o hold: a reserva nasce pendente e só libera o
+horário quando expira — vender às 20:55 criaria um pendente vivo até 21:05, depois do fim do
+próprio horário. Mudar o hold move a janela de venda junto, sem tocar nesta regra.
+
+Quem calcula é o [`SchedulePricingService`](../services.md#schedulepricingservice), e o preço
+é **sempre recalculado no servidor no instante em que a reserva é gravada** —
+`SchedulesService::createSchedule()` aplica a proporção sobre o preço cadastrado no `Place`,
+tanto no app do sócio quanto no painel. O valor que a tela mostrou minutos antes não vale como
+preço; o `Schedule.price` gravado é o que deve ser cobrado (o app deve somar os `price` que
+vêm na resposta da criação, não recalcular `nº de horários × preço da quadra`).
 
 ## Detecção de colisão (`checkColide`)
 

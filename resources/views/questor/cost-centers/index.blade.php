@@ -45,7 +45,7 @@
                 <p class="font-extrabold text-amber-800 dark:text-amber-300">O setor Diretoria está vazio</p>
                 <p class="text-sm text-amber-700 dark:text-amber-200/80 mt-0.5">
                     Sem ninguém vinculado ao setor, não há quem escolher aqui e nenhuma ordem chega ao último
-                    nível. Vincule os diretores em <a href="{{ route('sector.index') }}" class="underline font-semibold">Setores</a>,
+                    nível. Vincule os diretores em <a href="{{ route('sectors.index') }}" class="underline font-semibold">Setores</a>,
                     marcando o presidente como coordenador.
                 </p>
             </div>

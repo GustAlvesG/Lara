@@ -182,7 +182,7 @@ class MapaController extends Controller
     /**
      * A grade: itens nas linhas, fornecedores nas colunas.
      */
-    public function show(CotacaoMapa $mapa)
+    public function show(CotacaoMapa $mapa, MapaExportService $exportacao)
     {
         $this->authorize('view', $mapa);
 
@@ -194,6 +194,9 @@ class MapaController extends Controller
             'mapa' => $mapa,
             'calculo' => $this->calculo->calcular($mapa->itens, $mapa->fornecedores, $precos),
             'config' => QuestorGate::summary(),
+            // O menu de exportação se monta a partir daqui: acrescentar um
+            // layout novo não pede alteração na view.
+            'layouts' => $exportacao->layouts(),
         ]);
     }
 
@@ -385,21 +388,31 @@ class MapaController extends Controller
     }
 
     /**
-     * Baixa o XLSX no layout da planilha em uso.
+     * Baixa o XLSX, no layout que o comprador escolheu.
+     *
+     * São dois: `classico` (a planilha que a compra imprime e assina) e
+     * `completo` (o arquivo de análise, com resumo e decisão). O parâmetro é
+     * opcional e cai no clássico quando vem ausente ou errado — um link velho
+     * no meio de uma cotação deve entregar a planilha de sempre, não um erro.
      */
     public function exportar(Request $request, CotacaoMapa $mapa, MapaExportService $exportacao)
     {
         $this->authorize('exportar', $mapa);
 
-        $caminho = $exportacao->gerar($mapa);
+        $layout = $exportacao->normalizar((string) $request->query('layout', MapaExportService::LAYOUT_PADRAO));
+
+        $caminho = $exportacao->gerar($mapa, $layout);
+        $nome = $exportacao->nomeArquivo($mapa, $layout);
 
         CotacaoMapaLog::registrar($mapa, CotacaoMapaLog::ACAO_EXPORTACAO, [
-            'arquivo' => basename($caminho),
+            'arquivo' => $nome,
+            // Qual layout saiu importa na trilha: os dois arquivos circulam, e
+            // depois alguém pergunta de qual deles veio o número da reunião.
+            'layout' => $layout,
         ], $request->user());
 
         // O arquivo é anexo de uso único: sai com a resposta e some do disco.
-        return response()->download($caminho, $exportacao->nomeArquivo($mapa))
-            ->deleteFileAfterSend();
+        return response()->download($caminho, $nome)->deleteFileAfterSend();
     }
 
     /**
