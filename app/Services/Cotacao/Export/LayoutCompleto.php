@@ -563,6 +563,7 @@ class LayoutCompleto implements LayoutExportacao
             'lTotal' => $lTotal,
             'lCobertura' => $lCobertura,
             'lFrete' => $lFrete,
+            'lDesconto' => $lDesconto,
             'temGrade' => $qtdItens > 0 && $qtdFornecedores > 0,
         ];
     }
@@ -1052,24 +1053,61 @@ class LayoutCompleto implements LayoutExportacao
         }
 
         $ultima = $linha - 1;
-        $lTotal = $linha + 1;
 
-        $aba->setCellValue('E' . $lTotal, 'TOTAL DECIDIDO');
-        $aba->setCellValue('F' . $lTotal, "=SUM(F4:F{$ultima})");
-        $aba->getStyle("E{$lTotal}:F{$lTotal}")->getFont()->setBold(true)->setSize(12);
-        $aba->getStyle("E{$lTotal}:F{$lTotal}")->getBorders()->getTop()->setBorderStyle(Border::BORDER_MEDIUM);
-        $aba->getStyle('E' . $lTotal)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+        /*
+         | TRÊS LINHAS, E NÃO UMA.
+         |
+         | A soma das linhas acima é só MERCADORIA: preço unitário × quantidade,
+         | item a item. Frete e desconto não estão ali porque não são por item —
+         | são por PEDIDO, uma vez em cada loja de que se compra.
+         |
+         | Uma linha só chamada "TOTAL DECIDIDO" escondia exatamente isso, e o
+         | número divergia do que a tela mostra com o mesmo rótulo. Num mapa
+         | dividido entre três lojas são três fretes, e é essa conta que às vezes
+         | desfaz a vantagem de dividir.
+         */
+        $lMercadoria = $linha + 1;
+        $lEncargos = $lMercadoria + 1;
+        $lPedido = $lEncargos + 1;
+
+        $aba->setCellValue('E' . $lMercadoria, 'MERCADORIA');
+        $aba->setCellValue('F' . $lMercadoria, "=SUM(F4:F{$ultima})");
+
+        // Frete menos desconto de CADA loja em que se comprou, uma vez só.
+        // Continua fórmula, apontando para o rodapé do Mapa: corrigido o frete
+        // lá, este total acompanha.
+        $partes = [];
+
+        foreach ($decididos->pluck('vencedor_id')->unique()->values() as $lojaId) {
+            $col = $colunaNoMapa[(int) $lojaId] ?? null;
+
+            if ($col !== null) {
+                $partes[] = "Mapa!{$col}{$ref['lFrete']}-Mapa!{$col}{$ref['lDesconto']}";
+            }
+        }
+
+        $aba->setCellValue('E' . $lEncargos, 'FRETE − DESCONTO (uma vez por loja)');
+        $aba->setCellValue('F' . $lEncargos, $partes === [] ? 0 : '=' . implode('+', $partes));
+
+        $aba->setCellValue('E' . $lPedido, 'TOTAL DO PEDIDO');
+        $aba->setCellValue('F' . $lPedido, "=F{$lMercadoria}+F{$lEncargos}");
+
+        $aba->getStyle("E{$lMercadoria}:F{$lEncargos}")->getFont()->setBold(true)->setSize(10);
+        $aba->getStyle("E{$lPedido}:F{$lPedido}")->getFont()->setBold(true)->setSize(12);
+        $aba->getStyle("E{$lMercadoria}:F{$lMercadoria}")->getBorders()->getTop()->setBorderStyle(Border::BORDER_MEDIUM);
+        $aba->getStyle("E{$lPedido}:F{$lPedido}")->getBorders()->getTop()->setBorderStyle(Border::BORDER_MEDIUM);
+        $aba->getStyle("E{$lMercadoria}:E{$lPedido}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
         $pendentes = $itens->count() - $decididos->count();
 
         if ($pendentes > 0) {
-            $aba->setCellValue('A' . ($lTotal + 2), "Atenção: {$pendentes} item(ns) ainda sem fornecedor escolhido — este total é parcial.");
-            $aba->mergeCells('A' . ($lTotal + 2) . ':F' . ($lTotal + 2));
-            $aba->getStyle('A' . ($lTotal + 2))->getFont()->setBold(true)->setSize(9)->getColor()->setARGB('FFB45309');
+            $aba->setCellValue('A' . ($lPedido + 2), "Atenção: {$pendentes} item(ns) ainda sem fornecedor escolhido — este total é parcial.");
+            $aba->mergeCells('A' . ($lPedido + 2) . ':F' . ($lPedido + 2));
+            $aba->getStyle('A' . ($lPedido + 2))->getFont()->setBold(true)->setSize(9)->getColor()->setARGB('FFB45309');
         }
 
         $aba->getStyle("D4:D{$ultima}")->getNumberFormat()->setFormatCode(self::QTD);
-        $aba->getStyle("F4:F{$lTotal}")->getNumberFormat()->setFormatCode(self::MOEDA_SIMPLES);
+        $aba->getStyle("F4:F{$lPedido}")->getNumberFormat()->setFormatCode(self::MOEDA_SIMPLES);
         $aba->getStyle("B4:B{$ultima}")->getAlignment()->setWrapText(true);
         $aba->getStyle("A3:F{$ultima}")->getBorders()->getAllBorders()
             ->setBorderStyle(Border::BORDER_THIN)->getColor()->setARGB(self::COR_BORDA);

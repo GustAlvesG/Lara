@@ -260,7 +260,37 @@ aparece se sobrar algum filho — mesmo arranjo do menu Freelancers.
 4. **Cotar** — a grade salva **por célula**, a cada pausa de digitação. Não há
    botão "salvar tudo" para os preços: cotação é feita ao telefone ao longo de
    dias, e um formulário que só grava no fim perde tudo quando o navegador fecha.
-5. **Decidir** — vencedor por item (a compra pode ser dividida).
+5. **Decidir** — vencedor por item (a compra pode ser dividida), **sem recarregar
+   a página**. A resposta traz a matriz recalculada pelo servidor, igual à do
+   salvamento de preço: as contas seguem num lugar só, e a tela não perde a
+   rolagem nem o foco a cada item decidido — num mapa de trinta itens era isso
+   que tornava a decisão penosa.
+
+   O que o reload dava de graça e agora é explícito: **o rádio já foi marcado
+   pelo navegador antes da requisição**, então uma falha deixaria a tela
+   afirmando uma decisão que não foi gravada. `reporVencedor()` devolve a linha
+   ao estado do banco quando o gravamento falha — inclusive desmarcando tudo,
+   quando o item ainda não tinha decisão.
+
+   [`DecisaoSemReloadTest`](../../tests/Feature/Cotacao/DecisaoSemReloadTest.php)
+   existe por causa de um modo de falha silencioso: enxugar a resposta para só
+   `{ok, vencedor_id}` faria a tela parar de atualizar **sem erro nenhum** — o
+   rodapé seguiria mostrando o total da decisão anterior.
+
+   **Desfazer**: clicar de novo na loja já escolhida limpa a decisão do item
+   (`fornecedor_id: null`, que o endpoint sempre aceitou). Um rádio não desmarca
+   sozinho, e sem isso um item decidido por engano ficava decidido para sempre —
+   a única saída era escolher outra loja, que é uma decisão diferente de "ainda
+   não decidi". A diferença aparece no rodapé: item sem vencedor não entra no
+   total decidido nem cobra o frete daquela loja. O rótulo da célula escolhida
+   vira `escolhido ✕`, porque um gesto sem affordance é um gesto que ninguém
+   descobre.
+
+   O `@click` só age quando a célula **já** era a vencedora; nos demais casos
+   quem grava é o `@change`, que é também o que cobre a seta do teclado. Como
+   clicar num rádio já marcado não muda nada, o `change` não dispara ali e os
+   dois não se atropelam. **A ressalva**: desfazer é só por clique — nenhum
+   grupo de rádios se desmarca pelo teclado.
 6. **Exportar / fechar.**
 
 ### O teclado anda pela grade
@@ -344,6 +374,26 @@ Daí a distinção entre as três situações de célula:
   Empate marca as duas colunas (escolher uma por sorteio esconderia do comprador
   que há dois preços iguais). O "segundo menor" é o segundo **valor distinto**,
   não a segunda célula.
+- **No empate, o verde é de quem foi escolhido.** Duas células verdes estão certas
+  enquanto ninguém decidiu — é a informação de que há empate. Depois de escolher,
+  viram uma pergunta em aberto na tela: quem olha o mapa depois não sabe de qual
+  das duas lojas se comprou. Então o escolhido fica com o verde forte e anel duplo,
+  e o empatado preterido **cai para o verde fraco, não para o neutro** — o preço
+  dele é o menor, e some só o anel, que é o que se lê como "esta é a escolha".
+  Há `title` nas duas células explicando, porque a pergunta natural de quem vê é
+  "por que este não está verde, se o preço é o mesmo?".
+
+  Quando o escolhido **não** está entre os menores — o comprador preferiu pagar
+  mais por prazo, frete ou relação — o verde fica no preço mais baixo. O verde é
+  do preço, não da decisão. Regra em `classeCelula()`/`empateResolvido()` em
+  [`show.blade.php`](../../resources/views/cotacao/mapas/show.blade.php), com os
+  cinco cenários (empate aberto, resolvido, empate triplo, sem empate, escolhido
+  mais caro) exercitados à mão.
+
+  **No XLSX isto não vale**: lá o verde é formatação condicional sobre `MIN()`,
+  que não conhece o vencedor, e os dois empatados saem verdes. É de propósito —
+  o destaque acompanha a edição de preço no Excel, e trocá-lo por cor fixa por
+  célula quebraria essa propriedade. Quem decidiu o quê está na aba `Decisão`.
 - **Variação % vs. última compra** por célula — verde abaixo, vermelho acima.
 - **Economia projetada**: `(última compra × qtd) − (melhor cotação × qtd)`, só
   nos itens que têm os dois lados. **Negativa é resultado legítimo** e aparece.
@@ -412,7 +462,29 @@ sem ele o segundo sobrescreveria o primeiro em silêncio.
 3. **Célula vazia não vira zero.** `nao_trabalha` sai como o **texto** `NT`
    (string explícita, para o Excel não interpretá-lo) e `sem_resposta` sai em
    branco; `SUMPRODUCT`, `MIN` e `COUNT` ignoram os dois.
-4. **O texto do cabeçalho cabe por mesclagem, nunca por largura de coluna.**
+4. **O TOTAL do XLSX é conferido contra o `MapaCalculoService`.** O Excel avalia
+   a fórmula do arquivo gerado e o número é comparado com o da tela, nos dois
+   layouts. Não é zelo: o clássico somava `SUBTOTAL + FRETE` e **ignorava o
+   desconto do fornecedor** — não tinha linha nem fórmula para ele — enquanto a
+   tela e o completo subtraíam. A planilha impressa e a tela mostravam totais
+   diferentes para o mesmo mapa, e nada na planilha denunciava a diferença.
+
+   A mesma checagem cobre a aba `Decisão`, que fechava só com a mercadoria sob o
+   rótulo "TOTAL DECIDIDO" — o mesmo rótulo que a tela usa para o valor **com**
+   frete e desconto. Ela agora fecha em três linhas: `MERCADORIA`,
+   `FRETE − DESCONTO (uma vez por loja)` e `TOTAL DO PEDIDO`.
+
+   No clássico, a linha `DESCONTO` **só aparece quando algum fornecedor deu
+   desconto**: o arquivo é impresso e assinado, e uma linha de zeros em toda
+   cotação seria ruído permanente por um caso ocasional. Quando ela existe, o
+   TOTAL a abate — e mostrar o valor não é enfeite: um total que não fecha com
+   as linhas acima dele é pior que um total errado, porque ninguém consegue
+   conferir.
+
+   Na mesma correção entrou o `IF(COUNT(...)=0,0,...)` do TOTAL do clássico: sem
+   ele, um fornecedor que não respondeu **nada** aparecia no rodapé devendo o
+   frete, como se tivesse cotado.
+5. **O texto do cabeçalho cabe por mesclagem, nunca por largura de coluna.**
    Esta é a armadilha de layout dos dois arquivos, e vale escrever por extenso.
 
    As colunas fixas são estreitas porque abaixo delas mora a grade (`A` = 8 ou 9
@@ -432,10 +504,10 @@ sem ele o segundo sobrescreveria o primeiro em silêncio.
    trocaria um corte por outro. Nas células **não** mescladas (as condições por
    fornecedor) é o contrário: `wrapText` com altura automática, que mostra o
    texto inteiro no tamanho normal em vez de encolhido.
-5. **Rótulo é sigla** (`SOLIC.`, `COMPR.`, `DEPTO`, `SIT.`, `FRETE`, `PRAZO`,
+6. **Rótulo é sigla** (`SOLIC.`, `COMPR.`, `DEPTO`, `SIT.`, `FRETE`, `PRAZO`,
    `PAGTO`). O nome por extenso ocupava a caixa de que o **valor** precisa, e o
    valor é o que se lê.
-6. **A altura do cabeçalho da grade sai do nome mais comprido**, não de um número
+7. **A altura do cabeçalho da grade sai do nome mais comprido**, não de um número
    fixo. As células do cabeçalho quebram linha, mas altura fixa impede o Excel de
    crescer sozinho — e "COMERCIAL DE TINTAS E FERRAGENS SÃO JOSÉ LTDA" numa
    coluna de 14 precisa de três linhas.

@@ -39,7 +39,12 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * célula ocupada, que é a C do bloco da direita. Alargar A resolveria o corte
  * e estragaria a grade; mesclar resolve sem tocar em largura nenhuma.
  *   L9+ itens
- *   ... FRETE | SUBTOTAL | TOTAL | TOTAL GERAL DO PEDIDO
+ *   ... FRETE | [DESCONTO] | SUBTOTAL | TOTAL | TOTAL GERAL DO PEDIDO
+ *
+ * A linha DESCONTO só sai quando algum fornecedor deu desconto: o arquivo é
+ * impresso e assinado, e uma linha de zeros em toda cotação seria ruído
+ * permanente por um caso ocasional. Quando ela existe, o TOTAL a abate — e é
+ * ela que permite conferir o total à mão.
  *
  * DUAS COISAS QUE O ARQUIVO GERADO FAZ E A PLANILHA ATUAL NÃO:
  *
@@ -281,10 +286,31 @@ class LayoutClassico implements LayoutExportacao
         $aba->getStyle("{$colIni}{$primeiraLinha}:{$colFim}{$ultimaLinha}")
             ->getNumberFormat()->setFormatCode(self::FORMATO_MOEDA);
 
-        // --- Rodapé: FRETE / SUBTOTAL / TOTAL / TOTAL GERAL -----------------
+        // --- Rodapé: FRETE / [DESCONTO] / SUBTOTAL / TOTAL / TOTAL GERAL ----
+
+        /*
+         | O DESCONTO ENTRA NO TOTAL — e por muito tempo não entrava aqui.
+         |
+         | Este layout somava só `SUBTOTAL + FRETE`, sem nenhuma linha de
+         | desconto. O resultado era o pior tipo de defeito num documento de
+         | compra: a planilha IMPRESSA e a TELA mostravam totais diferentes para
+         | o mesmo mapa, e nada na planilha denunciava a diferença. O layout
+         | completo sempre subtraiu; era só este que divergia.
+         |
+         | A LINHA SÓ APARECE QUANDO ALGUÉM DEU DESCONTO. Este arquivo é
+         | impresso, assinado e arquivado, e uma linha de zeros em toda cotação
+         | seria ruído permanente por um caso ocasional. Quando não há desconto,
+         | o rodapé sai exatamente como sempre saiu.
+         |
+         | Mostrar a linha não é enfeite: um TOTAL que não fecha com as linhas
+         | acima dele é pior que um total errado, porque ninguém consegue
+         | conferir. Se o desconto abate, ele tem de estar visível.
+         */
+        $temDesconto = $fornecedores->contains(fn (CotacaoMapaFornecedor $f) => (float) $f->desconto > 0);
 
         $lFrete = $ultimaLinha + 1;
-        $lSubtotal = $lFrete + 1;
+        $lDesconto = $temDesconto ? $lFrete + 1 : null;
+        $lSubtotal = ($lDesconto ?? $lFrete) + 1;
         $lTotal = $lSubtotal + 1;
         $lGeral = $lTotal + 1;
 
@@ -292,6 +318,10 @@ class LayoutClassico implements LayoutExportacao
         $aba->setCellValue('C' . $lSubtotal, 'SUBTOTAL');
         $aba->setCellValue('C' . $lTotal, 'TOTAL');
         $aba->setCellValue('C' . $lGeral, 'TOTAL GERAL DO PEDIDO');
+
+        if ($temDesconto) {
+            $aba->setCellValue('C' . $lDesconto, 'DESCONTO');
+        }
 
         $aba->getStyle("C{$lFrete}:C{$lGeral}")->getFont()->setBold(true);
 
@@ -301,6 +331,10 @@ class LayoutClassico implements LayoutExportacao
             $letra = Coordinate::stringFromColumnIndex($coluna);
 
             $aba->setCellValue($letra . $lFrete, (float) $fornecedor->valor_frete);
+
+            if ($temDesconto) {
+                $aba->setCellValue($letra . $lDesconto, (float) $fornecedor->desconto);
+            }
 
             if ($qtdItens > 0) {
                 // SUMPRODUCT ignora texto ("NT") e vazio, então quem não cotou
@@ -313,7 +347,17 @@ class LayoutClassico implements LayoutExportacao
                 $aba->setCellValue($letra . $lSubtotal, 0);
             }
 
-            $aba->setCellValue($letra . $lTotal, "={$letra}{$lSubtotal}+{$letra}{$lFrete}");
+            $abate = $temDesconto ? "-{$letra}{$lDesconto}" : '';
+
+            // O `IF(COUNT(...)=0,0,...)` é a segunda correção da mesma fórmula:
+            // sem ele, um fornecedor que não respondeu NADA aparecia no rodapé
+            // devendo o frete, como se tivesse cotado. É a mesma regra do
+            // cálculo da tela — frete e desconto só entram se houve cotação.
+            $aba->setCellValue(
+                $letra . $lTotal,
+                "=IF(COUNT({$letra}{$primeiraLinha}:{$letra}{$ultimaLinha})=0,0,"
+                    . "{$letra}{$lSubtotal}+{$letra}{$lFrete}{$abate})"
+            );
 
             $coluna++;
         }

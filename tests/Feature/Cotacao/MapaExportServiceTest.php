@@ -106,7 +106,11 @@ class MapaExportServiceTest extends TestCase
         $this->assertSame('=SUMPRODUCT($D$9:$D$11,E9:E11)', $subtotal->getValue());
 
         $this->assertSame(DataType::TYPE_FORMULA, $total->getDataType());
-        $this->assertSame('=E13+E12', $total->getValue());
+
+        // Sem desconto no mapa, o rodapé fica com as quatro linhas de sempre e
+        // o TOTAL é subtotal + frete. O `IF(COUNT(...)=0,0,...)` existe para o
+        // fornecedor que não respondeu NADA não aparecer devendo o frete.
+        $this->assertSame('=IF(COUNT(E9:E11)=0,0,E13+E12)', $total->getValue());
 
         // O TOTAL GERAL DO PEDIDO também recalcula: soma a coluna auxiliar de
         // "menor da linha × quantidade".
@@ -198,6 +202,90 @@ class MapaExportServiceTest extends TestCase
     }
 
     // ------------------------------------------------------------------
+
+    /**
+     * O DESCONTO DO FORNECEDOR ABATE O TOTAL — e por muito tempo não abatia.
+     *
+     * Este layout somava só `SUBTOTAL + FRETE`, sem linha nem fórmula de
+     * desconto, enquanto a tela e o layout completo subtraíam. O efeito era o
+     * pior tipo de defeito num documento de compra: a planilha impressa e a
+     * tela mostravam totais diferentes para o mesmo mapa, e nada na planilha
+     * denunciava a diferença.
+     */
+    public function test_o_desconto_do_fornecedor_abate_o_total(): void
+    {
+        $mapa = $this->mapaDeExemplo();
+        $mapa->fornecedores()->first()->update(['desconto' => 35.90]);
+
+        $aba = $this->servico()->montar($mapa->fresh())->getSheet(0);
+
+        // 3 itens (9 a 11) → FRETE 12, DESCONTO 13, SUBTOTAL 14, TOTAL 15.
+        $this->assertSame('FRETE', $aba->getCell('C12')->getValue());
+        $this->assertSame('DESCONTO', $aba->getCell('C13')->getValue());
+        $this->assertSame('SUBTOTAL', $aba->getCell('C14')->getValue());
+        $this->assertSame('TOTAL', $aba->getCell('C15')->getValue());
+
+        $this->assertEqualsWithDelta(35.90, $aba->getCell('E13')->getValue(), 0.0001);
+
+        // O valor tem de estar VISÍVEL e a fórmula tem de abatê-lo: um total
+        // que não fecha com as linhas acima é pior que um total errado, porque
+        // ninguém consegue conferir.
+        $this->assertSame(
+            '=IF(COUNT(E9:E11)=0,0,E14+E12-E13)',
+            $aba->getCell('E15')->getValue()
+        );
+    }
+
+    /**
+     * A linha só aparece quando alguém deu desconto: a planilha é impressa e
+     * assinada, e uma linha de zeros em toda cotação seria ruído permanente por
+     * um caso ocasional.
+     */
+    public function test_sem_desconto_o_rodape_fica_com_as_linhas_de_sempre(): void
+    {
+        $aba = $this->servico()->montar($this->mapaDeExemplo())->getSheet(0);
+
+        $this->assertSame('FRETE', $aba->getCell('C12')->getValue());
+        $this->assertSame('SUBTOTAL', $aba->getCell('C13')->getValue());
+        $this->assertSame('TOTAL', $aba->getCell('C14')->getValue());
+        $this->assertSame('TOTAL GERAL DO PEDIDO', $aba->getCell('C15')->getValue());
+    }
+
+    /**
+     * O número que sai no papel é o mesmo que o comprador viu na tela.
+     *
+     * Esta é a asserção que faltava: o Excel avalia a fórmula do arquivo e o
+     * resultado é comparado com `MapaCalculoService`, que é quem manda no
+     * rodapé da grade. Foi por não existir que a divergência do desconto passou.
+     */
+    public function test_o_total_da_planilha_bate_com_o_total_da_tela(): void
+    {
+        $mapa = $this->mapaDeExemplo();
+        $mapa->fornecedores()->first()->update(['desconto' => 35.90]);
+        $mapa = $mapa->fresh();
+
+        $calculado = (new MapaCalculoService)->calcular(
+            $mapa->itens,
+            $mapa->fornecedores,
+            $mapa->itens->flatMap(fn ($i) => $i->precos)
+        );
+
+        $this->arquivo = $this->servico()->gerar($mapa);
+
+        $planilha = IOFactory::createReader('Xlsx')->load($this->arquivo);
+        $aba = $planilha->getSheet(0);
+
+        $primeiro = $mapa->fornecedores->first();
+
+        $this->assertEqualsWithDelta(
+            $calculado['fornecedores'][$primeiro->id]['total'],
+            (float) $aba->getCell('E15')->getCalculatedValue(),
+            0.0001,
+            'O TOTAL do XLSX divergiu do TOTAL da tela — é o mesmo mapa.'
+        );
+
+        $planilha->disconnectWorksheets();
+    }
 
     /**
      * O CABEÇALHO CABE SEM ALARGAR A GRADE.

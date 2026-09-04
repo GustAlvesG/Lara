@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Cotacao;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Cotacao\Concerns\RecalculaMapa;
 use App\Http\Requests\SalvarPrecoCotacaoRequest;
 use App\Models\CotacaoMapa;
 use App\Models\CotacaoMapaLog;
@@ -34,6 +35,7 @@ class PrecoController extends Controller
      | controller, e não no base, para não mudar o comportamento das outras.
      */
     use AuthorizesRequests;
+    use RecalculaMapa;
 
     public function __construct(private readonly MapaCalculoService $calculo)
     {
@@ -87,13 +89,7 @@ class PrecoController extends Controller
             return $preco;
         });
 
-        $mapa->load(['itens.precos', 'fornecedores']);
-
-        $calculado = $this->calculo->calcular(
-            $mapa->itens,
-            $mapa->fornecedores,
-            $mapa->itens->flatMap(fn ($i) => $i->precos)
-        );
+        $calculado = $this->recalcular($mapa, $this->calculo);
 
         if ($request->expectsJson()) {
             return response()->json([

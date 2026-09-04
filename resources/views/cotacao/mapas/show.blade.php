@@ -41,10 +41,17 @@
         ? 'border-l-4 border-gray-300 dark:border-gray-600'
         : 'border-l-2 border-gray-200 dark:border-gray-700';
 
-    // Zebra bem discreta. Forte demais competiria com o verde do menor preço,
-    // que é o único destaque que precisa ser visto de longe.
+    /*
+     | Zebra das linhas.
+     |
+     | `bg-gray-100` opaco, e NÃO `bg-gray-100/120`: a escala de opacidade do
+     | Tailwind vai até 100, e um modificador fora dela não gera classe alguma —
+     | a linha ficava transparente e a zebra não aparecia no modo claro. Acima
+     | de 100% o alpha seria truncado para opaco de qualquer forma, que é
+     | exatamente este valor.
+     */
     $zebra = fn (int $i) => $i % 2 === 1
-        ? 'bg-gray-50/60 dark:bg-gray-900/20'
+        ? 'bg-gray-100 dark:bg-gray-900/40'
         : 'bg-white dark:bg-gray-800';
 
     // Preços indexados para a grade não fazer uma busca por célula.
@@ -302,7 +309,10 @@
 
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
                         @foreach($mapa->itens as $item)
-                            <tr class="{{ $zebra($loop->index) }} hover:bg-red-50/40 dark:hover:bg-red-900/10 transition-colors">
+                            {{-- Hover marcante de propósito: a grade é larga e o
+                                 comprador precisa saber em que ITEM está antes
+                                 de digitar preço na coluna certa. --}}
+                            <tr class="{{ $zebra($loop->index) }} hover:bg-red-100/70 dark:hover:bg-red-900/30 transition-colors">
                                 <td class="px-3 py-2 tabular-nums text-gray-600 dark:text-gray-400">
                                     {{ $item->questor_cd_item ?? '—' }}
                                 </td>
@@ -333,7 +343,8 @@
                                 @foreach($mapa->fornecedores as $f)
                                     @php $p = $precos[$item->id][$f->id] ?? null; @endphp
                                     <td class="px-2 py-1.5 align-top transition-colors {{ $sep($loop->index) }}"
-                                        :class="classeCelula({{ $item->id }}, {{ $f->id }})">
+                                        :class="classeCelula({{ $item->id }}, {{ $f->id }})"
+                                        :title="dicaCelula({{ $item->id }}, {{ $f->id }})">
                                         <div class="flex items-center gap-1">
                                             {{-- Os `data-` são o endereço da célula na grade: é por eles
                                                  que Enter e Tab encontram a célula vizinha. --}}
@@ -367,12 +378,30 @@
                                            x-text="percentual(variacao({{ $item->id }}, {{ $f->id }}))"></p>
 
                                         @if($podeDecidir)
-                                            <label class="flex items-center justify-end gap-1 mt-1 text-[10px] text-gray-400 cursor-pointer">
+                                            {{-- Clicar de novo no escolhido DESFAZ a escolha. Rádio
+                                                 não desmarca sozinho, e sem isto um item decidido por
+                                                 engano ficava decidido para sempre — a única saída era
+                                                 escolher outra loja, que é uma decisão diferente de
+                                                 "ainda não decidi".
+
+                                                 O `@click` só age quando a célula JÁ é a vencedora;
+                                                 nos demais casos ele não faz nada e quem grava é o
+                                                 `@change`, que também cobre a seta do teclado. Como
+                                                 clicar no rádio já marcado não muda nada, o `change`
+                                                 não dispara ali — os dois não se atropelam. --}}
+                                            <label class="flex items-center justify-end gap-1 mt-1 text-[10px] cursor-pointer"
+                                                   :class="ehVencedor({{ $item->id }}, {{ $f->id }})
+                                                        ? 'text-red-800 dark:text-red-400 font-bold'
+                                                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'"
+                                                   :title="ehVencedor({{ $item->id }}, {{ $f->id }})
+                                                        ? 'Clique para desfazer — o item volta a ficar sem decisão.'
+                                                        : 'Comprar este item desta loja.'">
                                                 <input type="radio" name="vencedor_{{ $item->id }}" value="{{ $f->id }}"
                                                        @checked($item->vencedor_id === $f->id)
                                                        @change="definirVencedor({{ $item->id }}, {{ $f->id }})"
+                                                       @click="desfazerSeJaEscolhido($event, {{ $item->id }}, {{ $f->id }})"
                                                        class="text-red-800 focus:ring-red-700">
-                                                escolher
+                                                <span x-text="ehVencedor({{ $item->id }}, {{ $f->id }}) ? 'escolhido ✕' : 'escolher'">escolher</span>
                                             </label>
                                         @elseif($item->vencedor_id === $f->id)
                                             <p class="text-[10px] text-right mt-1 font-bold text-red-800 dark:text-red-400">escolhido</p>
@@ -548,11 +577,74 @@ function mapaGrade(config) {
             return this.calculo.itens?.[itemId]?.celulas?.[fornecedorId]?.variacao_vs_ultima ?? null;
         },
 
+        /**
+         * O verde do menor preço — e o desempate.
+         *
+         * NO EMPATE, O VERDE É DE QUEM FOI ESCOLHIDO. Dois preços iguais deixam
+         * duas células verdes, o que está certo enquanto ninguém decidiu: o
+         * comprador precisa ver que há empate. Mas depois de escolher, duas
+         * células verdes viram uma pergunta em aberto na tela — quem olha o mapa
+         * depois não sabe de qual das duas lojas se comprou.
+         *
+         * A empatada preterida não perde o destaque por completo: ela continua
+         * com o verde fraco do segundo menor, porque o preço dela É o menor.
+         * Some só o anel, que é o que lê como "esta é a escolha".
+         *
+         * Quando o escolhido NÃO está entre os menores — o comprador preferiu
+         * pagar mais por prazo, frete ou relação — o verde fica onde está, no
+         * preço mais baixo. O verde é do preço; a escolha tem a marcação
+         * própria dela na célula.
+         */
         classeCelula(itemId, fornecedorId) {
-            const c = this.calculo.itens?.[itemId]?.celulas?.[fornecedorId];
+            const linha = this.calculo.itens?.[itemId];
+            const c = linha?.celulas?.[fornecedorId];
+
             if (!c) return '';
-            if (c.menor) return 'bg-green-50 dark:bg-green-900/20 ring-1 ring-inset ring-green-300 dark:ring-green-800';
-            if (c.segundo) return 'bg-green-50/40 dark:bg-green-900/10';
+
+            const VENCEDOR = 'bg-green-100 dark:bg-green-900/30 ring-2 ring-inset ring-green-500 dark:ring-green-600';
+            const MENOR = 'bg-green-50 dark:bg-green-900/20 ring-1 ring-inset ring-green-300 dark:ring-green-800';
+            const FRACO = 'bg-green-50/40 dark:bg-green-900/10';
+
+            if (this.empateResolvido(linha)) {
+                if (fornecedorId === linha.vencedor_id) return VENCEDOR;
+                if (c.menor) return FRACO;
+            }
+
+            if (c.menor) return MENOR;
+            if (c.segundo) return FRACO;
+
+            return '';
+        },
+
+        /**
+         * Houve empate no menor preço E o comprador escolheu um dos empatados?
+         */
+        empateResolvido(linha) {
+            return !! linha
+                && linha.empate
+                && linha.vencedor_id !== null
+                && (linha.menor_preco_fornecedores ?? []).includes(linha.vencedor_id);
+        },
+
+        /**
+         * A explicação da célula, no `title`. Só onde ela não é óbvia: a
+         * empatada preterida é o caso em que o comprador olha e pensa "por que
+         * este não está verde, se o preço é o mesmo?".
+         */
+        dicaCelula(itemId, fornecedorId) {
+            const linha = this.calculo.itens?.[itemId];
+            const c = linha?.celulas?.[fornecedorId];
+
+            if (!c || !this.empateResolvido(linha)) return '';
+
+            if (fornecedorId === linha.vencedor_id) {
+                return 'Menor preço, empatado — e é esta a loja escolhida.';
+            }
+
+            if (c.menor) {
+                return 'Empatou no menor preço, mas a compra foi decidida na outra loja.';
+            }
+
             return '';
         },
 
@@ -743,7 +835,26 @@ function mapaGrade(config) {
             }
         },
 
+        /**
+         * Registra de quem se compra este item.
+         *
+         * SEM RECARREGAR A PÁGINA. Antes recarregava para o rodapé ficar
+         * coerente; agora o servidor devolve a matriz recalculada junto com a
+         * decisão — mesma coisa que o salvamento de preço já fazia. As contas
+         * continuam num lugar só (`MapaCalculoService`), e a tela não perde a
+         * rolagem nem o foco a cada item decidido, que num mapa de trinta itens
+         * era o que tornava a decisão penosa.
+         *
+         * O CUIDADO NOVO É O ERRO. Com o reload, uma falha de rede se corrigia
+         * sozinha: a página voltava do banco e o rádio aparecia como estava de
+         * verdade. Sem ele, o rádio já foi marcado pelo navegador ANTES da
+         * requisição, e uma falha deixaria a tela afirmando uma decisão que não
+         * foi gravada — num documento que fundamenta compra. Por isso a marca
+         * anterior é guardada e reposta quando dá errado.
+         */
         async definirVencedor(itemId, fornecedorId) {
+            const anterior = this.calculo.itens?.[itemId]?.vencedor_id ?? null;
+
             try {
                 const res = await fetch(config.urlVencedor, {
                     method: 'POST',
@@ -757,16 +868,72 @@ function mapaGrade(config) {
                 });
 
                 if (!res.ok) {
-                    alert('Não foi possível registrar a decisão.');
+                    this.reporVencedor(itemId, anterior);
+                    alert('Não foi possível registrar a decisão. A escolha anterior foi mantida.');
+
                     return;
                 }
 
-                // O total decidido muda: recarrega para o rodapé ficar coerente
-                // sem duplicar aqui a conta que o servidor já sabe fazer.
-                window.location.reload();
+                const dados = await res.json();
+
+                // Escolher mexe no subtotal dos escolhidos, no pedido de cada
+                // loja, no frete da compra dividida e no verde do empate. Tudo
+                // isso vem recalculado do servidor.
+                this.calculo = dados.calculo;
             } catch (e) {
-                alert('Falha de rede ao registrar a decisão.');
+                this.reporVencedor(itemId, anterior);
+                alert('Falha de rede ao registrar a decisão. A escolha anterior foi mantida.');
             }
+        },
+
+        /**
+         * Esta célula é a loja escolhida para o item?
+         *
+         * Sai do `calculo`, e não do que o servidor renderizou, porque a
+         * decisão muda sem recarregar a página.
+         */
+        ehVencedor(itemId, fornecedorId) {
+            return this.calculo.itens?.[itemId]?.vencedor_id === fornecedorId;
+        },
+
+        /**
+         * Clicar de novo na loja já escolhida DESFAZ a escolha.
+         *
+         * Um rádio não desmarca sozinho, e sem isto um item decidido por engano
+         * ficava decidido para sempre: a única saída era escolher outra loja —
+         * que é uma decisão diferente de "ainda não decidi". A diferença aparece
+         * no rodapé, porque item sem vencedor não entra no total decidido nem
+         * cobra o frete daquela loja.
+         *
+         * Só age quando a célula JÁ era a vencedora. Nos demais casos devolve
+         * sem fazer nada e quem grava é o `@change` — que também é o que cobre
+         * a seta do teclado, já que ela move o rádio sem gerar clique.
+         *
+         * `vencedor_id` aqui ainda é o valor ANTERIOR: o clique acontece antes
+         * de a resposta do servidor chegar. É justamente disso que a comparação
+         * precisa.
+         */
+        desfazerSeJaEscolhido(evento, itemId, fornecedorId) {
+            if (! this.ehVencedor(itemId, fornecedorId)) return;
+
+            // O navegador mantém o rádio marcado no clique; desmarcar aqui não
+            // dispara `change`, então não há gravação em duplicidade.
+            evento.target.checked = false;
+
+            this.definirVencedor(itemId, null);
+        },
+
+        /**
+         * Devolve os rádios da linha ao estado que o BANCO tem.
+         *
+         * `null` desmarca todos: é o caso do item que ainda não tinha decisão e
+         * cuja primeira escolha falhou — deixar a marca ali seria a tela
+         * mentindo sobre o que está gravado.
+         */
+        reporVencedor(itemId, vencedorId) {
+            document.getElementsByName('vencedor_' + itemId).forEach((radio) => {
+                radio.checked = vencedorId !== null && Number(radio.value) === Number(vencedorId);
+            });
         },
 
         async abrirHistorico(itemId) {

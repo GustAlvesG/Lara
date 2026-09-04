@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Cotacao;
 use App\Exceptions\CotacaoException;
 use App\Exceptions\QuestorException;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Cotacao\Concerns\RecalculaMapa;
 use App\Http\Requests\DefinirVencedorCotacaoRequest;
 use App\Http\Requests\ImportarMapaCotacaoRequest;
 use App\Http\Requests\StoreCotacaoItemRequest;
@@ -39,6 +40,7 @@ class MapaController extends Controller
      | controller, e não no base, para não mudar o comportamento das outras.
      */
     use AuthorizesRequests;
+    use RecalculaMapa;
 
     public function __construct(
         private readonly QuestorSolicitacaoRepository $solicitacoes,
@@ -381,7 +383,17 @@ class MapaController extends Controller
         });
 
         if ($request->expectsJson()) {
-            return response()->json(['ok' => true, 'vencedor_id' => $item->vencedor_id]);
+            // Os totais vêm junto com a decisão, e é isso que dispensa o reload
+            // da página: escolher um vencedor mexe no subtotal dos escolhidos,
+            // no pedido de cada loja, no frete da compra dividida e no verde do
+            // empate. A tela recebe tudo recalculado PELO SERVIDOR — refazer
+            // essas contas em JavaScript seria uma segunda implementação, com a
+            // agravante de poder divergir da que gera o XLSX.
+            return response()->json([
+                'ok' => true,
+                'vencedor_id' => $item->vencedor_id,
+                'calculo' => $this->recalcular($mapa, $this->calculo),
+            ]);
         }
 
         return back()->with('success', 'Decisão registrada.');

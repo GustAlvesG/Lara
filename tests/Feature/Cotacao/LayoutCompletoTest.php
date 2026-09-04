@@ -142,6 +142,89 @@ class LayoutCompletoTest extends TestCase
     }
 
     /**
+     * O TOTAL DESTE LAYOUT BATE COM O DA TELA, DESCONTO INCLUÍDO.
+     *
+     * O layout clássico divergia exatamente aqui — somava `SUBTOTAL + FRETE` e
+     * ignorava o desconto, então a planilha impressa e a tela mostravam números
+     * diferentes para o mesmo mapa, sem nada denunciar. Este teste existe para
+     * que a mesma coisa não passe despercebida no arquivo de análise: o Excel
+     * avalia a fórmula do arquivo e o resultado é comparado com
+     * `MapaCalculoService`, que é quem manda no rodapé da grade.
+     */
+    public function test_o_total_bate_com_o_da_tela_com_frete_e_desconto(): void
+    {
+        $mapa = $this->mapaDeExemplo();
+        $mapa->fornecedores()->first()->update(['valor_frete' => 120.00, 'desconto' => 35.90]);
+        $mapa = $mapa->fresh();
+
+        $calculado = (new MapaCalculoService)->calcular(
+            $mapa->itens,
+            $mapa->fornecedores,
+            $mapa->itens->flatMap(fn ($i) => $i->precos)
+        );
+
+        $aba = $this->servico()
+            ->montar($mapa, MapaExportService::LAYOUT_COMPLETO)
+            ->getSheetByName('Mapa');
+
+        $linhaTotal = $this->linhaComRotulo($aba, 'E', 'TOTAL', self::LINHA_CABECALHO);
+
+        $this->assertNotNull($linhaTotal, 'O rodapé precisa ter a linha TOTAL.');
+
+        $primeiro = $mapa->fornecedores->first();
+
+        $this->assertEqualsWithDelta(
+            $calculado['fornecedores'][$primeiro->id]['total'],
+            (float) $aba->getCell('F' . $linhaTotal)->getCalculatedValue(),
+            0.0001,
+            'O TOTAL do XLSX divergiu do TOTAL da tela — é o mesmo mapa.'
+        );
+    }
+
+    /**
+     * O TOTAL DO PEDIDO da aba `Decisão` bate com o da tela.
+     *
+     * Mesma família do teste acima, no outro extremo do arquivo. A aba fechava
+     * só com a mercadoria sob o rótulo "TOTAL DECIDIDO" — o mesmo rótulo que a
+     * tela usa para o valor COM frete e desconto. Dois documentos do mesmo
+     * mapa, mesmo nome, números diferentes.
+     */
+    public function test_o_total_do_pedido_da_decisao_bate_com_o_da_tela(): void
+    {
+        $mapa = $this->mapaDeExemplo();
+        $mapa->fornecedores()->first()->update(['valor_frete' => 120.00, 'desconto' => 35.90]);
+
+        // Sem nenhum item decidido a aba não tem rodapé — ela diz que ninguém
+        // escolheu ainda, que é o outro teste.
+        $item = $mapa->itens->firstWhere('questor_cd_item', 1);
+        $item->update(['vencedor_id' => $mapa->fornecedores->first()->id]);
+
+        $mapa = $mapa->fresh();
+
+        $calculado = (new MapaCalculoService)->calcular(
+            $mapa->itens,
+            $mapa->fornecedores,
+            $mapa->itens->flatMap(fn ($i) => $i->precos)
+        );
+
+        $planilha = $this->servico()->montar($mapa, MapaExportService::LAYOUT_COMPLETO);
+        $aba = $planilha->getSheetByName('Decisão');
+
+        $linha = $this->linhaComRotulo($aba, 'E', 'TOTAL DO PEDIDO', 4);
+
+        $this->assertNotNull($linha, 'A aba Decisão precisa fechar com o TOTAL DO PEDIDO.');
+
+        $this->assertEqualsWithDelta(
+            $calculado['totais']['total_decidido_com_frete'],
+            (float) $aba->getCell('F' . $linha)->getCalculatedValue(),
+            0.0001,
+            'O total da aba Decisão divergiu do total decidido da tela.'
+        );
+
+        $planilha->disconnectWorksheets();
+    }
+
+    /**
      * O NOME DO FORNECEDOR APARECE INTEIRO NO CABEÇALHO DA GRADE.
      *
      * As células do cabeçalho quebram linha, mas uma altura FIXA impede o Excel
@@ -370,11 +453,27 @@ class LayoutCompletoTest extends TestCase
         // 180,00 x 2 unidades.
         $this->assertEqualsWithDelta(360.0, (float) $total->getCalculatedValue(), 0.0001);
 
-        $this->assertSame('TOTAL DECIDIDO', $aba->getCell('E6')->getValue());
+        /*
+         | TRÊS LINHAS, E NÃO UMA. A soma das linhas de item é só MERCADORIA:
+         | frete e desconto não são por item, são por PEDIDO — uma vez em cada
+         | loja de que se compra. Uma linha só, chamada "TOTAL DECIDIDO",
+         | escondia isso e divergia do número que a TELA mostra com o mesmo
+         | rótulo. Num mapa dividido entre três lojas são três fretes, e é essa
+         | conta que às vezes desfaz a vantagem de dividir.
+         */
+        $this->assertSame('MERCADORIA', $aba->getCell('E6')->getValue());
         $this->assertSame('=SUM(F4:F4)', $aba->getCell('F6')->getValue());
 
+        // Aponta para o rodapé do Mapa, e não para um valor congelado:
+        // corrigido o frete lá, este total acompanha.
+        $this->assertSame('FRETE − DESCONTO (uma vez por loja)', $aba->getCell('E7')->getValue());
+        $this->assertSame('=Mapa!F14-Mapa!F15', $aba->getCell('F7')->getValue());
+
+        $this->assertSame('TOTAL DO PEDIDO', $aba->getCell('E8')->getValue());
+        $this->assertSame('=F6+F7', $aba->getCell('F8')->getValue());
+
         // O total é PARCIAL enquanto houver item sem escolha, e o arquivo diz.
-        $this->assertStringContainsString('2 item(ns) ainda sem fornecedor', $aba->getCell('A8')->getValue());
+        $this->assertStringContainsString('2 item(ns) ainda sem fornecedor', $aba->getCell('A10')->getValue());
 
         $planilha->disconnectWorksheets();
     }
@@ -505,6 +604,21 @@ class LayoutCompletoTest extends TestCase
         return $this->servico()
             ->montar($this->mapaDeExemplo(), MapaExportService::LAYOUT_COMPLETO)
             ->getSheetByName('Mapa');
+    }
+
+    /**
+     * Acha a linha do rodapé pelo RÓTULO, e não contando linhas: assim o teste
+     * não quebra só porque a grade ganhou ou perdeu um item.
+     */
+    private function linhaComRotulo($aba, string $coluna, string $rotulo, int $de): ?int
+    {
+        for ($l = $de; $l <= $de + 40; $l++) {
+            if ($aba->getCell($coluna . $l)->getValue() === $rotulo) {
+                return $l;
+            }
+        }
+
+        return null;
     }
 
     private function servico(): MapaExportService
