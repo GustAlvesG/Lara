@@ -3,14 +3,15 @@
         @csrf
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
 
-            <!-- Estrutura -->
+            {{-- Setor: o filtro passou a mandar o id, e não mais o texto do
+                 departamento — ver CompTimeService::getSectors(). --}}
             <div>
-                <label for="search_structure" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Setor</label>
-                <select id="search_structure" name="structure"
+                <label for="search_sector" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Setor</label>
+                <select id="search_sector" name="sector_id"
                         class="mt-1 block w-full py-2 px-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                     <option value="">-- Todos os Setores --</option>
-                    @foreach($structures as $structure)
-                        <option value="{{ $structure }}" {{ ($filters['structure'] ?? '') === $structure ? 'selected' : '' }}>{{ $structure }}</option>
+                    @foreach($sectors as $sectorId => $sectorName)
+                        <option value="{{ $sectorId }}" {{ (string) ($filters['sector_id'] ?? '') === (string) $sectorId ? 'selected' : '' }}>{{ $sectorName }}</option>
                     @endforeach
                 </select>
             </div>

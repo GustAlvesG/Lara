@@ -16,6 +16,10 @@ use Mockery;
  * `canAccessPlacar()`: renderizar o layout completo (`x-app-layout`) também
  * chama `canManageFreelancerPayments()`/`hasRole()`/`unreadNotifications()`
  * em toda página, e essas três precisam ficar inofensivas também.
+ *
+ * `isCoordinator()` entrou na lista pelo mesmo motivo: o menu do Banco de
+ * Horas pergunta se a pessoa coordena algum setor, e essa é a única checagem
+ * de setor do layout que não passa por `belongsToSectorNamed`.
  */
 trait MocksPlacarUser
 {
@@ -27,6 +31,7 @@ trait MocksPlacarUser
             ->andReturnUsing(fn (string $nome) => $temAcesso && $nome === User::SPORT_SECTOR);
 
         $user->shouldReceive('hasRole')->andReturn(false);
+        $user->shouldReceive('isCoordinator')->andReturn(false);
 
         $semNotificacoes = Mockery::mock();
         $semNotificacoes->shouldReceive('latest')->andReturnSelf();
