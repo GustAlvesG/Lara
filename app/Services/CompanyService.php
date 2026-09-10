@@ -430,6 +430,7 @@ class CompanyService
                 'member_validation'       => $request->member_validation,
                 'member_validation_label' => $request->memberValidationLabel(),
                 'member_validation_name'  => $request->member_validation_name,
+                'member_validation_type'  => $request->member_validation_type,
             ],
             'workers'    => [[
                 'id'        => $request->id,

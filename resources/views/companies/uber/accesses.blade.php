@@ -112,7 +112,7 @@
                                         <p class="font-semibold text-gray-700 dark:text-gray-300">{{ $log->uberRequest->requester_name ?? '—' }}</p>
                                         <div class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
                                             @if($log->uberRequest->matricula)
-                                                <span>Matrícula {{ $log->uberRequest->matricula }}</span>
+                                                <span>Matrícula/CPF {{ $log->uberRequest->matricula }}</span>
                                             @endif
                                             @if($log->uberRequest->contact_phone)
                                                 <span class="font-mono">{{ $log->uberRequest->contact_phone }}</span>

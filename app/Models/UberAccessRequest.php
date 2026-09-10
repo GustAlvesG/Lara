@@ -31,17 +31,22 @@ class UberAccessRequest extends Model
     ];
 
     /**
-     * Conferência do par (nome, matrícula) contra o MultiClubes, feita quando
-     * o pedido se completa. "indisponivel" é diferente de "nao_encontrado": o
-     * primeiro é o MultiClubes fora do ar, o segundo é divergência real.
+     * Conferência do par (nome, matrícula/CPF) contra sócios (MultiClubes) e
+     * funcionários (tabela employees), feita quando o pedido se completa.
+     * "indisponivel" é diferente de "nao_encontrado": o primeiro é o
+     * MultiClubes fora do ar, o segundo é divergência real.
      */
     public const MEMBER_VALIDATION_VALIDADO = 'validado';
     public const MEMBER_VALIDATION_NAO_ENCONTRADO = 'nao_encontrado';
     public const MEMBER_VALIDATION_INDISPONIVEL = 'indisponivel';
 
+    /** Quem conferiu, quando member_validation é "validado". */
+    public const MEMBER_TYPE_SOCIO = 'socio';
+    public const MEMBER_TYPE_FUNCIONARIO = 'funcionario';
+
     public const MEMBER_VALIDATION_LABELS = [
         self::MEMBER_VALIDATION_VALIDADO        => 'Sócio confere',
-        self::MEMBER_VALIDATION_NAO_ENCONTRADO  => 'Nome/matrícula não confere',
+        self::MEMBER_VALIDATION_NAO_ENCONTRADO  => 'Nome/matrícula/CPF não confere',
         self::MEMBER_VALIDATION_INDISPONIVEL    => 'Não foi possível conferir',
     ];
 
@@ -49,6 +54,11 @@ class UberAccessRequest extends Model
     {
         if ($this->member_validation === null) {
             return null;
+        }
+
+        if ($this->member_validation === self::MEMBER_VALIDATION_VALIDADO
+            && $this->member_validation_type === self::MEMBER_TYPE_FUNCIONARIO) {
+            return 'Funcionário confere';
         }
 
         return self::MEMBER_VALIDATION_LABELS[$this->member_validation] ?? $this->member_validation;
@@ -68,7 +78,7 @@ class UberAccessRequest extends Model
     ];
 
     public const STATUS_LABELS = [
-        self::STATUS_AGUARDANDO_MATRICULA => 'Aguardando matrícula',
+        self::STATUS_AGUARDANDO_MATRICULA => 'Aguardando matrícula/CPF',
         self::STATUS_AGUARDANDO_NOME      => 'Aguardando nome',
         self::STATUS_AGUARDANDO_LOCAL     => 'Aguardando local',
         self::STATUS_AGUARDANDO_PLACA     => 'Aguardando placa',
@@ -96,6 +106,7 @@ class UberAccessRequest extends Model
         'screenshot_url',
         'member_validation',
         'member_validation_name',
+        'member_validation_type',
         'member_validated_at',
         'completed_at',
         'expires_at',

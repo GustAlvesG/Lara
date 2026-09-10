@@ -28,6 +28,7 @@ class UberAccessValidationTest extends TestCase
             (require base_path('database/migrations/2026_07_20_150000_create_uber_access_requests_tables.php'))->up();
             (require base_path('database/migrations/2026_07_21_120000_add_matricula_to_uber_access_requests.php'))->up();
             (require base_path('database/migrations/2026_08_27_170000_add_member_validation_to_uber_access_requests.php'))->up();
+            (require base_path('database/migrations/2026_09_10_100000_add_member_validation_type_to_uber_access_requests.php'))->up();
 
             // registerUberAccess grava no histórico unificado de acessos, cujo
             // schema referencia as tabelas de empresa/trabalhador.
@@ -96,6 +97,31 @@ class UberAccessValidationTest extends TestCase
         $this->assertSame('987654', $result['uber']['matricula']);
         $this->assertSame('987654', $result['workers'][0]['matricula']);
         $this->assertTrue($result['workers'][0]['allowed']);
+    }
+
+    public function test_exposes_who_the_requester_was_validated_as(): void
+    {
+        $cases = [
+            [UberAccessRequest::MEMBER_VALIDATION_VALIDADO, UberAccessRequest::MEMBER_TYPE_SOCIO, 'Sócio confere'],
+            [UberAccessRequest::MEMBER_VALIDATION_VALIDADO, UberAccessRequest::MEMBER_TYPE_FUNCIONARIO, 'Funcionário confere'],
+            [UberAccessRequest::MEMBER_VALIDATION_NAO_ENCONTRADO, null, 'Nome/matrícula/CPF não confere'],
+            [UberAccessRequest::MEMBER_VALIDATION_INDISPONIVEL, null, 'Não foi possível conferir'],
+            [null, null, null], // pedido anterior à conferência
+        ];
+
+        foreach ($cases as [$validation, $type, $label]) {
+            $plate = $this->uniquePlate();
+            $this->makeRequest($plate, now()->addMinutes(10))->update([
+                'member_validation'      => $validation,
+                'member_validation_type' => $type,
+            ]);
+
+            $uber = $this->service()->validateTryToAccess(['target' => $plate])['uber'];
+
+            $this->assertSame($validation, $uber['member_validation']);
+            $this->assertSame($type, $uber['member_validation_type']);
+            $this->assertSame($label, $uber['member_validation_label']);
+        }
     }
 
     public function test_denies_access_when_expired(): void

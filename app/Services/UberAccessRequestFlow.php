@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\UberAccessRequest;
-use App\Services\MultiClubes\MemberTitleValidator;
+use App\Services\MemberValidation\MemberValidator;
 use App\Services\Poli\ParsedPoliMessage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -28,7 +28,7 @@ class UberAccessRequestFlow
     private const ACCESS_VALIDITY_MINUTES = 30;
     private const PLATE_PATTERN = '/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/';
 
-    public function __construct(private readonly MemberTitleValidator $memberValidator) {}
+    public function __construct(private readonly MemberValidator $memberValidator) {}
 
     public function handle(ParsedPoliMessage $message): ?UberAccessRequest
     {
@@ -172,8 +172,9 @@ class UberAccessRequestFlow
 
         $completedAt = now();
 
-        // Com todos os dados em mãos, confere nome + matrícula no MultiClubes.
-        // O resultado é registrado para a portaria ver; não bloqueia o pedido.
+        // Com todos os dados em mãos, confere nome + matrícula/CPF contra
+        // sócios e funcionários. O resultado é registrado para a portaria ver;
+        // não bloqueia o pedido.
         $validation = $this->memberValidator->validate($request->matricula, $request->requester_name);
 
         // O pedido está completo, mas o acesso ainda não aconteceu: fica
@@ -184,6 +185,7 @@ class UberAccessRequestFlow
             'status' => UberAccessRequest::STATUS_AGUARDANDO_ACESSO,
             'member_validation' => $validation->status,
             'member_validation_name' => $validation->matchedName,
+            'member_validation_type' => $validation->type,
             'member_validated_at' => $completedAt,
             'completed_at' => $completedAt,
             'expires_at' => $completedAt->copy()->addMinutes(self::ACCESS_VALIDITY_MINUTES),
@@ -191,7 +193,7 @@ class UberAccessRequestFlow
         ]);
 
         if ($validation->status !== UberAccessRequest::MEMBER_VALIDATION_VALIDADO) {
-            Log::info('UberAccessRequestFlow: pedido concluído sem confirmar o sócio', [
+            Log::info('UberAccessRequestFlow: pedido concluído sem confirmar sócio/funcionário', [
                 'uber_access_request_id' => $request->id,
                 'member_validation' => $validation->status,
                 'matricula' => $request->matricula,

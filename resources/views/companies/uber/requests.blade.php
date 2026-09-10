@@ -125,7 +125,7 @@
                                     <p class="font-semibold text-gray-700 dark:text-gray-300">{{ $req->requester_name ?? '—' }}</p>
                                     <div class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
                                         @if($req->matricula)
-                                            <span>Matrícula {{ $req->matricula }}</span>
+                                            <span>Matrícula/CPF {{ $req->matricula }}</span>
                                         @endif
                                         @if($req->contact_phone)
                                             <span class="font-mono">{{ $req->contact_phone }}</span>

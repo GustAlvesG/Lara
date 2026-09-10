@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Employee;
 use App\Models\UberAccessRequest;
 use App\Models\UberAccessRequestMessage;
 use App\Services\MultiClubes\TitleMemberLookup;
@@ -30,6 +31,11 @@ class UberAccessRequestWebhookTest extends TestCase
         (require base_path('database/migrations/2026_07_20_150000_create_uber_access_requests_tables.php'))->up();
         (require base_path('database/migrations/2026_07_21_120000_add_matricula_to_uber_access_requests.php'))->up();
         (require base_path('database/migrations/2026_08_27_170000_add_member_validation_to_uber_access_requests.php'))->up();
+        (require base_path('database/migrations/2026_09_10_100000_add_member_validation_type_to_uber_access_requests.php'))->up();
+
+        // Funcionários também podem pedir: a conferência consulta a tabela
+        // employees de verdade (é banco local), só o MultiClubes é falso.
+        (require base_path('database/migrations/2026_01_05_141304_banco_de_horas.php'))->up();
 
         // Sem SQL Server nos testes: por padrão o título não devolve ninguém.
         // Cada teste que precisa sobrescreve com fakeTitleMembers().
@@ -222,6 +228,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
         $this->assertSame(UberAccessRequest::MEMBER_VALIDATION_VALIDADO, $request->member_validation);
         $this->assertSame('Gustavo Alves', $request->member_validation_name);
+        $this->assertSame(UberAccessRequest::MEMBER_TYPE_SOCIO, $request->member_validation_type);
         $this->assertNotNull($request->member_validated_at);
     }
 
@@ -254,6 +261,68 @@ class UberAccessRequestWebhookTest extends TestCase
         $this->assertSame(UberAccessRequest::MEMBER_VALIDATION_INDISPONIVEL, $request->member_validation);
         $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_ACESSO, $request->status);
         $this->assertNotNull($request->expires_at);
+    }
+
+    private function makeEmployee(string $code, string $cpf, string $name): Employee
+    {
+        return Employee::create([
+            'employee_code'  => $code,
+            'name'           => $name,
+            'cpf'            => $cpf,
+            'admission_date' => '2024-01-01',
+            'position'       => 'Recepcionista',
+            'department'     => 'Portaria',
+        ]);
+    }
+
+    public function test_employee_is_validated_by_code(): void
+    {
+        $this->makeEmployee('12152', '121.983.027-56', 'DANIELLE TRINDADE BERION');
+
+        $request = $this->completeFlow(name: 'Danielle', matricula: '12152');
+
+        $this->assertSame(UberAccessRequest::MEMBER_VALIDATION_VALIDADO, $request->member_validation);
+        $this->assertSame(UberAccessRequest::MEMBER_TYPE_FUNCIONARIO, $request->member_validation_type);
+        $this->assertSame('DANIELLE TRINDADE BERION', $request->member_validation_name);
+        $this->assertSame('Funcionário confere', $request->memberValidationLabel());
+    }
+
+    public function test_employee_is_validated_by_cpf_regardless_of_how_either_side_is_formatted(): void
+    {
+        // O banco tem CPF gravado com e sem máscara; o funcionário digita dos
+        // dois jeitos também.
+        $this->makeEmployee('12152', '121.983.027-56', 'DANIELLE TRINDADE BERION');
+        $this->makeEmployee('12206', '20613169727', 'NATALIA MARLENE IVA RODRIGUES DA SILVA');
+
+        $cases = [
+            ['12198302756', 'Danielle', 'DANIELLE TRINDADE BERION'],
+            ['206.131.697-27', 'Natália', 'NATALIA MARLENE IVA RODRIGUES DA SILVA'],
+        ];
+
+        foreach ($cases as $i => [$cpf, $name, $official]) {
+            $contact = 'employee-cpf-' . $i;
+            $send = fn (array $payload) => $this->postJson($this->endpoint(), $payload, $this->authHeaders())->assertOk();
+
+            foreach ([self::TRIGGER, $cpf, $name, 'Portaria 2', 'ABC1D23'] as $text) {
+                $send($this->payload(text: $text, contactUuid: $contact));
+            }
+            $send($this->payload(mediaUrl: 'https://poli.example/media/print.jpg', contactUuid: $contact));
+
+            $request = UberAccessRequest::where('contact_uuid', $contact)->firstOrFail();
+
+            $this->assertSame(UberAccessRequest::MEMBER_TYPE_FUNCIONARIO, $request->member_validation_type, $cpf);
+            $this->assertSame($official, $request->member_validation_name, $cpf);
+        }
+    }
+
+    public function test_dismissed_employee_is_not_validated(): void
+    {
+        $this->makeEmployee('12152', '121.983.027-56', 'DANIELLE TRINDADE BERION')->delete();
+
+        $request = $this->completeFlow(name: 'Danielle', matricula: '12152');
+
+        $this->assertSame(UberAccessRequest::MEMBER_VALIDATION_NAO_ENCONTRADO, $request->member_validation);
+        $this->assertNull($request->member_validation_type);
     }
 
     public function test_media_out_of_order_does_not_advance_state(): void

@@ -216,25 +216,25 @@
             $canManageCompTime = auth()->user()?->can('manage-comp-time');
             $canViewCompTime = auth()->user()?->can('view-comp-time');
 
-            if ($canViewCompTime) {
-                $compTimeChildren = [
-                    ['route' => 'comp-time.index', 'label' => 'Consulta'],
-                ];
+            // if ($canViewCompTime) {
+            //     $compTimeChildren = [
+            //         ['route' => 'comp-time.index', 'label' => 'Consulta'],
+            //     ];
 
-                // Route::has porque este layout renderiza em TODA tela: um nome de
-                // rota que não existe (tela ainda não mesclada, cache de rotas
-                // velho) derruba o sistema inteiro com 500, e não só este item.
-                if ($canManageCompTime && \Illuminate\Support\Facades\Route::has('comp-time.employees.index')) {
-                    $compTimeChildren[] = ['route' => 'comp-time.employees.index', 'label' => 'Funcionários'];
-                }
+            //     // Route::has porque este layout renderiza em TODA tela: um nome de
+            //     // rota que não existe (tela ainda não mesclada, cache de rotas
+            //     // velho) derruba o sistema inteiro com 500, e não só este item.
+            //     if ($canManageCompTime && \Illuminate\Support\Facades\Route::has('comp-time.employees.index')) {
+            //         $compTimeChildren[] = ['route' => 'comp-time.employees.index', 'label' => 'Funcionários'];
+            //     }
 
-                $navLinks[] = [
-                    'route' => 'comp-time.index',
-                    'label' => 'Banco de Horas',
-                    'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
-                    'children' => $compTimeChildren,
-                ];
-            }
+            //     $navLinks[] = [
+            //         'route' => 'comp-time.index',
+            //         'label' => 'Banco de Horas',
+            //         'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+            //         'children' => $compTimeChildren,
+            //     ];
+            // }
 
             // Permissao do nivel de cima resolvida uma vez so: as duas barras e
             // o indice de busca consomem a mesma lista ja filtrada, em vez de
