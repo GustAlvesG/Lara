@@ -9,6 +9,7 @@ use App\Http\Controllers\InformationController;
 use App\Http\Controllers\Company\CompanyController;
 use App\Http\Controllers\Company\CompanyWorkerController as WorkerController;
 use App\Http\Controllers\Company\CompanyAccessRulesController as CompanyRulesController;
+use App\Http\Controllers\Company\OneOffAccessController;
 use App\Http\Controllers\Tournament\TournamentController;
 
 use App\Http\Controllers\VideoWallController;
@@ -196,6 +197,12 @@ Route::middleware('auth')->group(function () {
         Route::get('/access-logs', [CompanyRulesController::class, 'accessLogs'])->name('company.access.logs');
         Route::get('/uber-requests', [CompanyRulesController::class, 'uberRequests'])->name('company.uber.requests');
         Route::get('/uber-accesses', [CompanyRulesController::class, 'uberAccesses'])->name('company.uber.accesses');
+        // Liberação pontual — acima do `/{company}`, que engoliria o segmento.
+        // Sem permissão própria: é a mesma régua do cadastro de terceirizado.
+        Route::get('/one-off-accesses', [OneOffAccessController::class, 'index'])->name('company.one-off.index');
+        Route::get('/one-off-accesses/create', [OneOffAccessController::class, 'create'])->name('company.one-off.create');
+        Route::post('/one-off-accesses', [OneOffAccessController::class, 'store'])->name('company.one-off.store');
+        Route::patch('/one-off-accesses/{oneOffAccess}/cancel', [OneOffAccessController::class, 'cancel'])->name('company.one-off.cancel');
         Route::get('/workers/search', [WorkerController::class, 'search'])->name('company.worker.search');
         Route::get('/workers/quick-create', [WorkerController::class, 'quickCreate'])->name('company.worker.quick.create');
         Route::post('/workers/quick-create', [WorkerController::class, 'store'])->name('company.worker.quick.store');

@@ -13,6 +13,7 @@ class CompanyAccessLog extends Model
         'uber_access_request_id',
         'freelancer_id',
         'freelancer_service_id',
+        'one_off_access_id',
         'target',
         'obs',
         'screenshot_url',
@@ -54,6 +55,12 @@ class CompanyAccessLog extends Model
     public function freelancerService()
     {
         return $this->belongsTo(\App\Models\FreelancerService::class, 'freelancer_service_id');
+    }
+
+    /** A liberação pontual consultada — gravada também quando já tinha sido usada. */
+    public function oneOffAccess()
+    {
+        return $this->belongsTo(OneOffAccess::class, 'one_off_access_id');
     }
 
     /**

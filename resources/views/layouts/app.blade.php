@@ -115,6 +115,7 @@
                     'children' => [
                         ['route' => 'company.index', 'label' => 'Empresas'],
                         ['route' => 'company.access.monitor', 'label' => 'Monitor de Acesso'],
+                        ['route' => 'company.one-off.index', 'label' => 'Liberação Pontual'],
                         ['route' => 'company.access.logs', 'label' => 'Histórico'],
                         ['route' => 'company.uber.requests', 'label' => 'Carros de Aplicativo'],
                     ],

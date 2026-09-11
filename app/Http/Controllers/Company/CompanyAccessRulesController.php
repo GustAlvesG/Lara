@@ -98,7 +98,7 @@ class CompanyAccessRulesController extends Controller
     {
         $type = $request->input('type') === 'app' ? 'app' : 'all';
 
-        $query = CompanyAccessLog::with('company', 'worker', 'appDriver', 'uberRequest', 'freelancer', 'freelancerService')->latest();
+        $query = CompanyAccessLog::with('company', 'worker', 'appDriver', 'uberRequest', 'freelancer', 'freelancerService', 'oneOffAccess.creator')->latest();
 
         // Aba separada: apenas acessos de carros de aplicativo (Uber e motoristas de app).
         if ($type === 'app') {
@@ -244,6 +244,16 @@ class CompanyAccessRulesController extends Controller
         $request->validate(['freelancer_id' => 'required|integer|exists:freelancers,id']);
 
         $result = $this->companyService->registerFreelancerAccess($request->integer('freelancer_id'));
+
+        return response()->json($result, $result['found'] ? 200 : 404);
+    }
+
+    /** O mesmo, para a linha de liberação pontual: registrar queima a entrada. */
+    public function registerOneOffAccess(Request $request)
+    {
+        $request->validate(['one_off_access_id' => 'required|integer|exists:one_off_accesses,id']);
+
+        $result = $this->companyService->registerOneOffAccess($request->integer('one_off_access_id'));
 
         return response()->json($result, $result['found'] ? 200 : 404);
     }

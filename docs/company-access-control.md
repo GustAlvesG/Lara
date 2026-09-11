@@ -13,6 +13,7 @@ Sistema para validar e registrar acessos de funcionários de empresas terceiriza
   - [Regras de Acesso](#regras-de-acesso)
 - [Interface Web](#interface-web)
   - [Monitor de Acesso](#monitor-de-acesso)
+  - [Liberação Pontual](#liberação-pontual)
   - [Histórico de Acessos](#histórico-de-acessos)
 ---
 
@@ -27,6 +28,8 @@ O módulo funciona é bem simples
 A validação sempre verifica as **regras de acesso** cadastradas para a empresa e/ou o funcionário específico antes de liberar ou negar.
 
 A consulta por CPF atende também os **freelancers**, que não têm regra de acesso: quem os autoriza é o contrato de serviço. Ver [Freelancer](#freelancer).
+
+E a **liberação pontual**: uma entrada, no dia, para quem não tem vínculo nenhum — nem empresa, nem Uber, nem contrato. Ver [Liberação Pontual](#liberação-pontual).
 
 ---
 
@@ -302,6 +305,55 @@ No rodapé da página, as últimas 10 consultas da sessão atual são exibidas e
 
 ---
 
+### Liberação Pontual
+
+**URL:** `lara.clubedosfuncionarios.com.br/company/one-off-accesses`  
+**Navegação:** Externos → Liberação Pontual (ou o botão "Liberação Pontual" do Monitor)
+
+Para o caso extraordinário: alguém precisa entrar agora e não há tempo de fazer o cadastro formal de terceirizado. A liberação **não vincula a pessoa a nenhuma empresa** e é estreita de propósito:
+
+| Regra | Como funciona |
+|---|---|
+| Uma entrada | O primeiro **registro** no Monitor gasta a liberação. *Consultar* não gasta. |
+| Só no dia | Vale no dia em que foi criada. Virou o dia, ela vence sozinha (sem job). |
+| Uma aberta por CPF | Não se cria outra para o mesmo CPF enquanto houver uma disponível hoje. Depois de usada, uma nova pode ser criada — é outra autorização, com o próprio motivo. |
+| Quem cria | Quem pode cadastrar terceirizado — hoje, qualquer usuário logado. Quem criou fica gravado como "autorizada por". |
+
+#### Criar
+
+| Campo | Obrigatório | Descrição |
+|---|---|---|
+| Nome | Sim | Nome completo |
+| CPF | Sim | Validado pelos dígitos verificadores. É por ele que a portaria encontra a liberação. |
+| Motivo | Sim | Aparece para a portaria e fica no histórico |
+| Foto | Não | Câmera ou importação, a mesma captura do cadastro de freelancer |
+
+Quando o Monitor responde *Não encontrado* para um CPF — ou todas as linhas vêm negadas —, aparece o atalho **Criar liberação pontual**, que abre o formulário com o CPF preenchido.
+
+#### Na portaria
+
+Nada muda: digita-se o CPF. A liberação entra na mesma soma de terceirizado e freelancer, com a tag âmbar `Liberação Pontual`, o motivo e quem autorizou.
+
+| Situação | Resultado |
+|---|---|
+| Liberação disponível hoje | ✓ Permitido — "Uma entrada, válida só hoje." |
+| Já usada hoje | ✗ Negado — "Já utilizada às HH:MM." |
+| Cancelada, ou de outro dia | Não aparece |
+
+O consumo é atômico (`UPDATE … WHERE used_at IS NULL`): dois registros simultâneos não passam os dois. Se a liberação foi gasta entre a consulta e o registro, o segundo é gravado — e mostrado — como negado.
+
+#### Listagem e cancelamento
+
+A tela lista as liberações do dia (com filtro por data): status (*Disponível*, *Utilizada*, *Cancelada*, *Vencida*), motivo, quem autorizou e a hora da entrada. Só a liberação **ainda não usada** pode ser cancelada; a usada é o registro de uma entrada que aconteceu.
+
+#### Armazenamento
+
+- **`one_off_accesses`**: `cpf` (só dígitos), `name`, `reason`, `image`, `access_date`, `used_at`, `canceled_at`/`canceled_by_user`, `created_by_user`.
+- **`company_access_logs.one_off_access_id`**: o acesso entra no mesmo histórico, com `company_id` nulo.
+- O registro pelo botão do monitor usa `POST /api/company-access/register-one-off-access` com `one_off_access_id`.
+
+---
+
 ### Histórico de Acessos
 
 **URL:** `lara.clubedosfuncionarios.com.br/company/access-logs`  
@@ -350,6 +402,10 @@ Ao aplicar filtros, o botão `✕` aparece para limpar todos de uma vez.
 | `app_driver_access` | Motorista de aplicativo |
 | `freelancer_access_granted` | Liberado pelo contrato de freelancer |
 | `freelancer_no_service` | Freelancer sem serviço no horário |
+| `one_off_access_granted` | Liberação pontual |
+| `one_off_access_used` | Liberação pontual já utilizada |
+| `one_off_access_canceled` | Liberação pontual cancelada |
+| `one_off_access_expired` | Liberação pontual vencida |
 
 Acessos de **motorista de aplicativo** aparecem nesta mesma tabela: a coluna *Empresa* exibe a tag `Motorista de App`, a coluna *Funcionário* mostra o nome do motorista, e a *Obs* (quando informada) aparece abaixo do motivo.
 
@@ -365,7 +421,7 @@ Endpoint único usado por integrações (câmera/LPR, totem etc.) para registrar
 
 | Formato do `target` | Detecção | Tipo de registro |
 |---|---|---|
-| CPF (ex: `123.456.789-09`) | regex de CPF (11 dígitos) | **Terceirizado** — funcionário da empresa parceira — **e/ou Freelancer**, pelo contrato |
+| CPF (ex: `123.456.789-09`) | regex de CPF (11 dígitos) | **Terceirizado** — funcionário da empresa parceira — **e/ou Freelancer**, pelo contrato, **e/ou Liberação Pontual** do dia (o registro a gasta) |
 | `PLACA.Nome.Obs` (ex: `ABC1D23.João Silva.Entrega`) | 1º segmento é placa válida (Mercosul `ABC1D23` ou antiga `ABC1234`) + há nome | **Motorista de aplicativo** |
 | Texto livre (ex: `Acme Serviços`) | qualquer outro caso | **Empresa** — todos os funcionários da empresa |
 
