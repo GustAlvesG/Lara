@@ -231,6 +231,47 @@ class Freelancer extends Model
         return "+55 ({$m[1]}) {$m[2]}-{$m[3]}";
     }
 
+    /* ---------------------------------------------------------------------
+     | Telefone — só para exibição
+     |
+     | O cadastro guarda o telefone como foi digitado (com ou sem máscara, com
+     | ou sem o 55). Aqui ele é lido para ser mostrado e discado, sem mexer no
+     | que está gravado.
+     |---------------------------------------------------------------------*/
+
+    /** "24999998888" → "(24) 99999-8888". Fora do padrão, devolve o que está gravado. */
+    public function phoneFormatted(): ?string
+    {
+        $raw = trim((string) $this->telephone);
+
+        if ($raw === '') {
+            return null;
+        }
+
+        $digits = $this->phoneDigits();
+
+        if (!preg_match('/^(\d{2})(\d{4,5})(\d{4})$/', (string) $digits, $m)) {
+            return $raw;
+        }
+
+        return "({$m[1]}) {$m[2]}-{$m[3]}";
+    }
+
+    /**
+     * Os dígitos para discar (`tel:`), sem o 55 do país quando ele veio junto.
+     * Null quando não há número que se possa discar.
+     */
+    public function phoneDigits(): ?string
+    {
+        $digits = self::digits((string) $this->telephone);
+
+        if (strlen($digits) >= 12 && str_starts_with($digits, '55')) {
+            $digits = substr($digits, 2);
+        }
+
+        return strlen($digits) >= 8 ? $digits : null;
+    }
+
     /**
      * A chave como o DICT a espera, a partir do que foi digitado: CPF só
      * dígitos, telefone em `+55DDNNNNNNNNN`, e-mail em minúsculas.

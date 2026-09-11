@@ -156,10 +156,19 @@ class FreelancerAmendmentTest extends TestCase
      */
     public function test_contrato_aditivado_continua_sendo_assinado(): void
     {
-        $service = $this->base(['amended_at' => Carbon::parse('2026-08-01 22:10')]);
+        // Redação 1: o coordenador assina no tablet.
+        $service = $this->base(['amended_at' => Carbon::parse('2026-08-01 22:10'), 'contract_version' => 1]);
 
         $this->assertTrue($service->canBeSignedByCoordinator());
         $this->assertSame('Aguardando coordenador', $service->signatureLabel());
+
+        // Redação 2: o mesmo passo é a validação pela web — e o aditivado
+        // continua passando por ele, como passava pela assinatura.
+        $redacao2 = $this->base(['amended_at' => Carbon::parse('2026-08-01 22:10'), 'contract_version' => 2]);
+
+        $this->assertFalse($redacao2->canBeSignedByCoordinator());
+        $this->assertTrue($redacao2->canBeValidatedByCoordinator(Carbon::parse('2026-08-02 08:00')));
+        $this->assertSame('Aguardando validação da coordenação', $redacao2->signatureLabel());
 
         $semAssinatura = $this->base(['amended_at' => Carbon::parse('2026-08-01 22:10')]);
         $semAssinatura->freelancer_signed_at = null;
@@ -195,6 +204,15 @@ class FreelancerAmendmentTest extends TestCase
         $amendment = $this->amendment($this->base());
 
         $this->assertTrue($amendment->canBeSignedByFreelancer());
+
+        // Sem assinatura ele segue a redação vigente (2): o passo da
+        // coordenação é a validação pela web, que espera o freelancer assinar.
+        $this->assertFalse($amendment->canBeSignedByCoordinator());
+        $this->assertSame('O freelancer ainda não assinou este contrato.', $amendment->coordinatorValidationBlockReason());
+
+        // Firmado sob a redação 1, o coordenador assina no tablet como sempre.
+        $amendment->contract_version = 1;
+
         $this->assertTrue($amendment->canBeSignedByCoordinator());
     }
 

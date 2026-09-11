@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\FreelancerBatchException;
 use App\Mail\DirectorBatchApprovalMail;
+use App\Models\FreelancerDirector;
 use App\Models\FreelancerService as FreelancerServiceModel;
 use App\Models\FreelancerServiceBatch;
 use App\Models\User;
@@ -210,8 +211,13 @@ class FreelancerBatchService
      * invisível e o lote travaria sem ninguém perceber. Aqui a exceção sobe e
      * a tela mostra o que aconteceu.
      *
-     * @throws FreelancerBatchException  quando o lote não está no ponto ou não
-     *                                   há destinatário configurado
+     * O destinatário é o cadastro vigente da diretoria (tela Diretoria), e o
+     * lote guarda para qual cadastro foi: é a assinatura DESSE diretor que vai
+     * aos contratos da redação 2 quando ele aprovar.
+     *
+     * @throws FreelancerBatchException  quando o lote não está no ponto, não há
+     *                                   diretor cadastrado ou falta a imagem da
+     *                                   assinatura que os contratos precisam
      */
     public function notifyDirector(FreelancerServiceBatch $batch): void
     {
@@ -221,35 +227,55 @@ class FreelancerBatchService
             );
         }
 
-        $email = config('freelancers.director.email');
+        $director = FreelancerDirector::current();
 
-        if (blank($email)) {
+        if ($director === null || blank($director->email)) {
             throw new FreelancerBatchException(
-                'Nenhum e-mail de diretoria configurado (FREELANCER_DIRECTOR_EMAIL no .env).'
+                'Nenhum diretor cadastrado. Cadastre nome, e-mail e assinatura em Serviços / Contratos → Diretoria.'
+            );
+        }
+
+        $batch->load(['services.freelancer', 'services.functionFreelancer', 'createdBy', 'reviewedBy']);
+
+        // Sem a imagem, a aprovação não teria o que aplicar aos contratos da
+        // redação 2 — e eles ficariam aprovados com o CONTRATANTE em branco.
+        // Melhor não enviar do que colher uma aprovação que não assina nada.
+        if ($this->signedByDirector($batch)->isNotEmpty() && !$director->hasSignature()) {
+            throw new FreelancerBatchException(
+                'Este lote tem contratos da redação 2, assinados pela diretoria, e o cadastro da diretoria está sem '
+                . 'a imagem da assinatura. Envie-a em Serviços / Contratos → Diretoria antes de enviar o lote.'
             );
         }
 
         $batch->ensureDirectorPins();
-        $batch->load(['services.freelancer', 'services.functionFreelancer', 'createdBy', 'reviewedBy']);
 
         $mail = new DirectorBatchApprovalMail(
             $batch,
+            $director,
             (string) $batch->director_approve_pin,
             (string) $batch->director_reject_pin,
         );
 
-        $pending = Mail::to($email);
-
-        if ($cc = config('freelancers.director.cc')) {
-            $pending->cc($cc);
-        }
-
-        $pending->send($mail);
+        Mail::to($director->email)->send($mail);
 
         $batch->forceFill([
-            'director_email' => $email,
+            'director_email' => $director->email,
+            'freelancer_director_id' => $director->id,
             'director_notified_at' => now(),
         ])->save();
+    }
+
+    /**
+     * Contratos do lote que a diretoria assina ao aprovar: os que a gerência
+     * aprovou e que são da redação 2.
+     *
+     * @return \Illuminate\Support\Collection<int, FreelancerServiceModel>
+     */
+    public function signedByDirector(FreelancerServiceBatch $batch)
+    {
+        return $batch->services
+            ->filter(fn(FreelancerServiceModel $s) => $s->isManagerApproved() && $s->usesDirectorSignature())
+            ->values();
     }
 
     /**
@@ -295,11 +321,23 @@ class FreelancerBatchService
                 ->lockForUpdate()
                 ->get();
 
+            // A assinatura aplicada é a de quem RECEBEU o e-mail (gravado no
+            // envio), não a do cadastro de hoje. O cadastro vigente só entra
+            // para lote enviado antes de o lote guardar o destinatário — e
+            // esses são todos da redação 1, que nem recebe a assinatura.
+            $directorId = $approved
+                ? ($batch->freelancer_director_id ?? FreelancerDirector::current()?->id)
+                : null;
+
             foreach ($services as $service) {
                 $service->forceFill($approved
                     ? ['director_approved_at' => now(), 'director_rejected_at' => null]
                     : ['director_rejected_at' => now(), 'director_approved_at' => null]
                 )->save();
+
+                if ($directorId !== null) {
+                    $this->applyDirectorSignature($service, $directorId);
+                }
             }
 
             $batch->forceFill([
@@ -345,6 +383,31 @@ class FreelancerBatchService
         }
 
         return $result;
+    }
+
+    /**
+     * Aplica a assinatura da diretoria ao documento aprovado e aos que ele
+     * substituiu — o contrato base de um aditivo de horário não vai a lote, e
+     * é pela aprovação do aditivo que ele recebe a assinatura do CONTRATANTE.
+     *
+     * Só a redação 2 recebe (`awaitsDirectorSignature()`): na redação 1 quem
+     * assina pelo CONTRATANTE é o coordenador, e o documento já está completo.
+     * Documento já assinado não é reassinado.
+     */
+    private function applyDirectorSignature(FreelancerServiceModel $service, int $directorId): void
+    {
+        $signedAt = now();
+
+        foreach ([$service, ...$service->documentsReplacedByThis()] as $document) {
+            if (!$document->awaitsDirectorSignature()) {
+                continue;
+            }
+
+            $document->forceFill([
+                'freelancer_director_id' => $directorId,
+                'director_signed_at' => $signedAt,
+            ])->save();
+        }
     }
 
     /**

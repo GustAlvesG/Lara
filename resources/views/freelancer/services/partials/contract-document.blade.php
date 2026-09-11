@@ -15,7 +15,10 @@
      *   $service      — contrato, termo aditivo ou termo de comissão
      *   $layout       — 'print' (painel e impressão, padrão) ou 'tablet' (kiosk)
      *   $signing      — null | 'freelancer' | 'coordinator': quem vai assinar
-     *                   AGORA, e portanto qual dos dois campos recebe o canvas
+     *                   AGORA, e portanto qual dos dois campos recebe o canvas.
+     *                   Da redação 2 em diante o campo do CONTRATANTE nunca
+     *                   recebe canvas: quem assina ali é o diretor, com a
+     *                   imagem cadastrada, na aprovação do lote
      *   $operatorName — quem assina como CONTRATANTE, no tablet
      */
     use Illuminate\Support\Carbon;
@@ -48,6 +51,15 @@
 
     $freelancerSignatureUrl = $service->freelancer_signature_path ? $signatureUrl('freelancer') : null;
     $coordinatorSignatureUrl = $service->coordinator_signature_path ? $signatureUrl('coordinator') : null;
+
+    // Quem assina pelo CONTRATANTE vem da redação do contrato: na 1, o
+    // coordenador desenha no tablet; da 2 em diante, assina o diretor na
+    // aprovação do lote. A imagem vai embutida (data URI) — o mesmo HTML é
+    // impresso pelo painel, exibido no tablet e convertido em PDF, e a
+    // assinatura do diretor não tem URL pública.
+    $directorSigns = $service->usesDirectorSignature();
+    $directorSigned = $directorSigns && $service->hasDirectorSignature();
+    $directorSignatureUri = $directorSigned ? $service->director?->signatureDataUri() : null;
 
     // O campo que recebe o traço desenhado no tablet. O canvas é preso pelo JS
     // do kiosk por estes ids.
@@ -91,7 +103,25 @@
 
         <div class="doc-signatures">
             <div class="doc-sign-block">
-                @if($signing === 'coordinator')
+                @if($directorSigns)
+                    {{-- Redação 2: pelo CONTRATANTE assina o DIRETOR, com a imagem do
+                         cadastro da diretoria, quando aprova o lote. A coordenação só
+                         valida pela web e não aparece no documento. Nunca há canvas
+                         aqui: ninguém desenha a assinatura do CONTRATANTE. --}}
+                    @if($directorSignatureUri)
+                        <div class="doc-sign-img"><img src="{{ $directorSignatureUri }}" alt="Assinatura da diretoria"></div>
+                    @else
+                        <div class="doc-sign-empty"></div>
+                    @endif
+                    <div class="doc-sign-line"></div>
+                    <div class="doc-sign-name">CLUBE DOS FUNCIONARIOS DA CSN</div>
+                    <div class="doc-sign-role">
+                        CONTRATANTE{{ $directorSigned ? '' : ' — assinatura da diretoria (pendente)' }}
+                    </div>
+                    @if($directorSigned)
+                        <div class="doc-sign-note">Assinado digitalmente por {{ $service->director?->name ?? 'Diretoria' }} em {{ $service->director_signed_at->format('d/m/Y \à\s H:i') }}</div>
+                    @endif
+                @elseif($signing === 'coordinator')
                     {!! $sigSlot !!}
                 @elseif($coordinatorSignatureUrl)
                     <div class="doc-sign-img"><img src="{{ $coordinatorSignatureUrl }}" alt="Assinatura do coordenador"></div>
@@ -101,20 +131,22 @@
                 @else
                     <div class="doc-sign-empty"></div>
                 @endif
-                <div class="doc-sign-line"></div>
-                <div class="doc-sign-name">CLUBE DOS FUNCIONARIOS DA CSN</div>
-                <div class="doc-sign-role">
-                    @if($signing === 'coordinator')
-                        CONTRATANTE{{ $operatorName ? ' · ' . $operatorName : '' }}
-                    @elseif($signing === 'freelancer')
-                        CONTRATANTE — assinatura do coordenador (pendente)
-                    @else
-                        CONTRATANTE
+                @unless($directorSigns)
+                    <div class="doc-sign-line"></div>
+                    <div class="doc-sign-name">CLUBE DOS FUNCIONARIOS DA CSN</div>
+                    <div class="doc-sign-role">
+                        @if($signing === 'coordinator')
+                            CONTRATANTE{{ $operatorName ? ' · ' . $operatorName : '' }}
+                        @elseif($signing === 'freelancer')
+                            CONTRATANTE — assinatura do coordenador (pendente)
+                        @else
+                            CONTRATANTE
+                        @endif
+                    </div>
+                    @if($coordinatorSignatureUrl && $service->coordinator_signed_at && $signing !== 'coordinator')
+                        <div class="doc-sign-note">Assinado em {{ $service->coordinator_signed_at->format('d/m/Y H:i') }}{{ $service->coordinatorSignedBy ? ' · ' . $service->coordinatorSignedBy->name : '' }}</div>
                     @endif
-                </div>
-                @if($coordinatorSignatureUrl && $service->coordinator_signed_at && $signing !== 'coordinator')
-                    <div class="doc-sign-note">Assinado em {{ $service->coordinator_signed_at->format('d/m/Y H:i') }}{{ $service->coordinatorSignedBy ? ' · ' . $service->coordinatorSignedBy->name : '' }}</div>
-                @endif
+                @endunless
             </div>
 
             <div class="doc-sign-block">

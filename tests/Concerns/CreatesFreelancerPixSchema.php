@@ -51,6 +51,9 @@ trait CreatesFreelancerPixSchema
             $table->unsignedBigInteger('freelancer_id');
             $table->unsignedBigInteger('function_freelancer_id');
             $table->unsignedBigInteger('parent_service_id')->nullable();
+            // `schedule` ou `commission` — é o que diz se o aditivo substitui o
+            // contrato base (e por isso o assina junto na aprovação da diretoria).
+            $table->string('amendment_type', 20)->nullable();
             $table->unsignedBigInteger('amendment_service_id')->nullable();
             $table->unsignedBigInteger('batch_id')->nullable();
             $table->string('location')->nullable();
@@ -120,5 +123,16 @@ trait CreatesFreelancerPixSchema
         // acima, pelo mesmo motivo de `pix_payments`: é ela que a API da cozinha
         // consulta, e uma cópia aqui deixaria de acusar uma divergência.
         (require base_path('database/migrations/2026_08_28_160000_add_dinner_to_freelancer_services_table.php'))->up();
+
+        // A redação congelada decide quem assina pelo CONTRATANTE — e, com
+        // isso, em que fila da coordenação o contrato cai (tablet ou web).
+        // Migrations de verdade, pelo mesmo motivo das anteriores.
+        (require base_path('database/migrations/2026_08_12_140000_add_contract_freeze_to_freelancer_services_table.php'))->up();
+        (require base_path('database/migrations/2026_09_11_100000_create_freelancer_directors_table.php'))->up();
+        (require base_path('database/migrations/2026_09_11_100100_add_director_signature_to_freelancer_services_table.php'))->up();
+
+        // A migration da diretoria importa o destinatário do `.env` de quem roda
+        // a suíte. O teste começa sem diretor; quem precisa de um, cria.
+        \Illuminate\Support\Facades\DB::table('freelancer_directors')->delete();
     }
 }

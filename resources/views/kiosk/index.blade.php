@@ -252,6 +252,19 @@
   .success h2{font-size:24px;margin:6px 0 0;font-weight:750;}
   .success p{font-size:15px;color:var(--ink-2);margin:4px 0 0;max-width:340px;line-height:1.45;}
 
+  /* Busca por função: quem já atuou, com o telefone à mão para chamar. */
+  .found{display:flex;align-items:center;flex-wrap:wrap;gap:12px 14px;padding:16px 18px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface);box-shadow:var(--shadow);}
+  .found .avatar{width:46px;height:46px;font-size:17px;}
+  .found .info{flex:1 1 180px;min-width:0;}
+  .found .nm{font-size:16.5px;font-weight:700;display:block;overflow:hidden;text-overflow:ellipsis;}
+  .found .meta{font-size:13px;color:var(--ink-2);margin-top:3px;line-height:1.4;font-variant-numeric:tabular-nums;}
+  .found .call{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;min-height:52px;padding:0 16px;border-radius:var(--r);background:var(--brand);color:var(--on-brand);font-weight:750;font-size:16px;text-decoration:none;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .found .call svg{width:18px;height:18px;}
+  .found .nophone{font-size:13px;color:var(--ink-3);white-space:nowrap;}
+  /* Bloqueado: aparece para ninguém achar que o cadastro sumiu, mas sem telefone. */
+  .found.blocked{opacity:.62;box-shadow:none;background:var(--surface-2);}
+  .chip.block{color:var(--brand);background:var(--brand-tint);margin-left:0;}
+
   .toast{position:absolute;left:50%;bottom:24px;transform:translate(-50%,20px);background:var(--ink);color:var(--surface);padding:13px 20px;border-radius:999px;font-size:14px;font-weight:600;box-shadow:var(--shadow-lg);z-index:30;opacity:0;transition:.3s var(--ease);pointer-events:none;max-width:88%;text-align:center;}
   .toast.show{opacity:1;transform:translate(-50%,0);}
   .toast.err{background:var(--brand);color:#fff;}
@@ -375,6 +388,43 @@
       </div>
       <div class="screen-foot">
         <button class="btn btn-primary" id="cpfNext" disabled>Buscar freelancer</button>
+        <button class="btn btn-ghost" id="cpfBusca">Precisa chamar alguém? Buscar por função</button>
+      </div>
+    </section>
+
+    <!-- ===== BUSCA POR FUNÇÃO: escolha ===== -->
+    <section class="screen" id="s-busca">
+      <div class="screen-body">
+        <p class="eyebrow">Buscar freelancer</p>
+        <h2 class="title">Qual função você precisa?</h2>
+        <p class="subtitle">Aparecem os freelancers que já atuaram na função, dos que mais atuaram para os que menos.</p>
+        <p class="field-label" style="margin-top:22px">Para quando</p>
+        <div class="chipset" id="buscaDays">
+          <button class="opt sel" data-busca-day="0">Hoje</button>
+          <button class="opt" data-busca-day="1">Amanhã</button>
+        </div>
+        <p class="field-label" style="margin-top:22px">Função</p>
+        <div class="chipset" id="buscaFnList" style="flex-direction:column"></div>
+      </div>
+      <div class="screen-foot">
+        <button class="btn-quiet btn" data-go="cpf">Voltar ao atendimento</button>
+      </div>
+    </section>
+
+    <!-- ===== BUSCA POR FUNÇÃO: resultado ===== -->
+    <section class="screen" id="s-busca-lista">
+      <div class="screen-body">
+        <p class="eyebrow">Buscar freelancer · <span id="buscaDayLabel">hoje</span></p>
+        <h2 class="title" id="buscaFnName">—</h2>
+        <p class="subtitle" id="buscaResumo"></p>
+        <div class="clist" id="buscaList" style="margin-top:18px"></div>
+        <h3 class="lote-h" id="buscaBlockedH" style="display:none">Bloqueados · limite semanal</h3>
+        <p class="subtitle" id="buscaBlockedSub" style="display:none;margin:-4px 0 12px"></p>
+        <div class="clist" id="buscaBlocked"></div>
+      </div>
+      <div class="screen-foot">
+        <button class="btn btn-ghost" id="buscaTrocar">Trocar função</button>
+        <button class="btn-quiet btn" data-go="cpf">Voltar ao atendimento</button>
       </div>
     </section>
 
@@ -838,9 +888,12 @@
   }
   $$('[data-go]').forEach(b=> b.addEventListener('click', ()=> go('s-'+b.dataset.go)));
   function updateCtx(){
-    const map={'s-mode':'Escolha o modo','s-coord':'Contratos pendentes','s-lote':'Lote de aprovação','s-cpf':'Localizar freelancer','s-cadastro':'Cadastro','s-menu':'Atendimento','s-novo':'Novo contrato','s-previa':'Prévia','s-contratos':'Contratos','s-aditivo':'Aditivo','s-adit-previa':'Prévia do aditivo','s-comissao':'Comissão de venda','s-com-previa':'Prévia da comissão','s-pix':'Conferência da chave PIX','s-assinar':'Assinatura','s-pin':'Confirmação','s-janta':'Jantar'};
+    const map={'s-mode':'Escolha o modo','s-coord':'Contratos pendentes','s-lote':'Lote de aprovação','s-cpf':'Localizar freelancer','s-busca':'Buscar por função','s-busca-lista':'Buscar por função','s-cadastro':'Cadastro','s-menu':'Atendimento','s-novo':'Novo contrato','s-previa':'Prévia','s-contratos':'Contratos','s-aditivo':'Aditivo','s-adit-previa':'Prévia do aditivo','s-comissao':'Comissão de venda','s-com-previa':'Prévia da comissão','s-pix':'Conferência da chave PIX','s-assinar':'Assinatura','s-pin':'Confirmação','s-janta':'Jantar'};
     if(S.mode==='coordinator'){ $('#ctxLine').textContent='Coordenação · '+(S.operator&&S.operator.coordinator_sector||'Comercial'); return; }
-    $('#ctxLine').textContent = S.freelancer ? S.freelancer.name : (map[current]||'Sessão de atendimento');
+    // A busca não é atendimento de ninguém: mesmo com um freelancer ainda em
+    // memória, o topo diz o que a tela está fazendo.
+    const busca = current==='s-busca' || current==='s-busca-lista';
+    $('#ctxLine').textContent = (S.freelancer && !busca) ? S.freelancer.name : (map[current]||'Sessão de atendimento');
   }
 
   /* ---------- Toast ---------- */
@@ -953,6 +1006,66 @@
       else { openCadastro(cpfBuf); }
     }catch(e){ if(!e.handled) toast('Falha de conexão.',true); }
   });
+
+  /* ---------- Busca por função ---------- */
+  /**
+   * O fim de semana é quando falta gente e ninguém sabe quem chamar. A busca
+   * lista quem já atuou na função, dos que mais atuaram para os que menos, com
+   * o telefone à mão. Quem já está no limite semanal vem bloqueado — e sem
+   * telefone: o bloqueio é do servidor, a tela só mostra.
+   *
+   * "Para quando" muda só a semana do limite: chamar no domingo para a
+   * segunda é chamar para a semana seguinte.
+   */
+  const B = { dayOffset:0, fn:null };
+  async function openBusca(){
+    if(!S.functions.length){ try{ const r=await api('GET','/kiosk/functions'); if(r.ok) S.functions=r.data; }catch(e){ if(e.handled) return; } }
+    renderBuscaDays(); renderBuscaFns(); go('s-busca');
+  }
+  function renderBuscaDays(){ $$('#buscaDays [data-busca-day]').forEach(b=> b.classList.toggle('sel', +b.dataset.buscaDay===B.dayOffset)); }
+  $$('#buscaDays [data-busca-day]').forEach(b=> b.addEventListener('click', ()=>{ B.dayOffset=+b.dataset.buscaDay; renderBuscaDays(); }));
+  function renderBuscaFns(){ const c=$('#buscaFnList'); c.innerHTML='';
+    if(!S.functions.length){ c.innerHTML='<p class="subtitle">Nenhuma função cadastrada.</p>'; return; }
+    S.functions.forEach(f=>{ const b=document.createElement('button'); b.className='opt fn-opt';
+      b.innerHTML=`<span>${esc(f.name)}</span><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>`;
+      b.addEventListener('click', ()=> runBusca(f)); c.appendChild(b); }); }
+  async function runBusca(fn){
+    B.fn=fn;
+    try{
+      const r=await api('GET',`/kiosk/functions/${fn.id}/freelancers?date=${isoLocal(B.dayOffset)}`);
+      if(!r.ok){ toast((r.data&&r.data.error)||'Não foi possível buscar.',true); return; }
+      renderBusca(r.data); go('s-busca-lista');
+    }catch(e){ if(!e.handled) toast('Falha de conexão.',true); }
+  }
+  const PHONE_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 0 1 2-2h3.28a1 1 0 0 1 .95.68l1.5 4.49a1 1 0 0 1-.5 1.21l-2.26 1.13a11 11 0 0 0 5.52 5.52l1.13-2.26a1 1 0 0 1 1.21-.5l4.49 1.5a1 1 0 0 1 .68.95V19a2 2 0 0 1-2 2h-1C9.72 21 3 14.28 3 6V5z"/></svg>';
+  function buscaCard(f, fnName){
+    const vezes = f.services_in_function===1 ? '1 vez' : `${f.services_in_function} vezes`;
+    const meta = `${vezes} como ${esc(fnName)} · último serviço em ${esc(f.last_service_label)}`;
+    let right;
+    if(f.blocked) right=`<span class="chip block">${f.services_in_week} serviços na semana</span>`;
+    else if(f.phone_dial) right=`<a class="call" href="tel:${esc(f.phone_dial)}">${PHONE_ICON}${esc(f.phone)}</a>`;
+    else right=`<span class="nophone">${f.phone ? esc(f.phone) : 'Sem telefone no cadastro'}</span>`;
+    return `<div class="found${f.blocked?' blocked':''}"><div class="avatar">${esc(initials(f.name).toUpperCase())}</div>
+      <div class="info"><span class="nm">${esc(f.name)}</span><div class="meta">${meta}</div></div>${right}</div>`;
+  }
+  function renderBusca(d){
+    $('#buscaFnName').textContent=d.function.name;
+    $('#buscaDayLabel').textContent=(B.dayOffset===0?'hoje, ':'amanhã, ')+brFromIso(d.date);
+    const total=d.available.length+d.blocked.length;
+    $('#buscaResumo').textContent = total
+      ? `${d.available.length} disponível(is) de ${total} que já atuaram · semana de ${d.week_start} a ${d.week_end}`
+      : '';
+    $('#buscaList').innerHTML = d.available.length
+      ? d.available.map(f=>buscaCard(f,d.function.name)).join('')
+      : `<p class="subtitle">${total ? 'Todos os que já atuaram nesta função estão no limite semanal.' : 'Ninguém atuou nesta função até hoje.'}</p>`;
+    const temBloqueado=d.blocked.length>0;
+    $('#buscaBlockedH').style.display=temBloqueado?'block':'none';
+    $('#buscaBlockedSub').style.display=temBloqueado?'block':'none';
+    $('#buscaBlockedSub').textContent=`Já têm ${d.weekly_limit} serviços na semana de ${d.week_start} a ${d.week_end}. Um novo contrato para eles só com a liberação do coordenador do Comercial.`;
+    $('#buscaBlocked').innerHTML=d.blocked.map(f=>buscaCard(f,d.function.name)).join('');
+  }
+  $('#cpfBusca').addEventListener('click', openBusca);
+  $('#buscaTrocar').addEventListener('click', ()=> go('s-busca'));
 
   /* ---------- Cadastro ---------- */
   function openCadastro(cpf){ S.newCpf=cpf; $$('#cadForm [data-f]').forEach(i=>{ if(i.dataset.f!=='nacionality') i.value=''; }); go('s-cadastro'); }

@@ -430,6 +430,7 @@ class ServiceController extends Controller
             'weeklyLimitAuthorizedBy',
             'baseService.functionFreelancer',
             'activeAmendment',
+            'director',
         ]);
 
         return view('freelancer.services.show', array_merge($this->formOptions(), [
@@ -453,6 +454,8 @@ class ServiceController extends Controller
             'functionFreelancer',
             'freelancerSignedBy',
             'coordinatorSignedBy',
+            // Redação 2: a assinatura da diretoria aplicada ao documento.
+            'director',
             // O documento do aditivo cita o contrato que ele altera.
             'baseService.functionFreelancer',
         ]);

@@ -1,5 +1,6 @@
 {{--
-    Abas de Serviços / Contratos: Contratos, Lotes, Aprovação e Financeiro.
+    Abas de Serviços / Contratos: Contratos, Validação, Lotes, Aprovação,
+    Diretoria, Acompanhamento e Financeiro.
 
     Cada aba aparece só para quem a opera, e a condição aqui é a **mesma** que a
     rota exige — sem isso a aba viraria um link para um 403. As três primeiras
@@ -24,6 +25,16 @@
         ];
     }
 
+    // Validação dos contratos da redação 2: coordenador do Comercial. Vem antes
+    // de Lotes porque é o passo anterior — só o validado entra em lote.
+    if ($canFreelancers && $user?->can('validate-freelancer-contracts')) {
+        $tabs[] = [
+            'route' => 'freelancer-validation.index',
+            'label' => 'Validação',
+            'matches' => ['freelancer-validation.*'],
+        ];
+    }
+
     // Montar lote é atribuição de coordenador de setor.
     if ($canFreelancers && $user?->isCoordinator()) {
         $tabs[] = [
@@ -39,6 +50,16 @@
             'route' => 'freelancer-batches.queue',
             'label' => 'Aprovação',
             'matches' => ['freelancer-batches.queue'],
+        ];
+    }
+
+    // Diretoria: cadastro de quem recebe os códigos e assina os contratos da
+    // redação 2. Também só o coordenador da Gerência.
+    if ($canFreelancers && $user?->can('manage-freelancer-director')) {
+        $tabs[] = [
+            'route' => 'freelancer-director.edit',
+            'label' => 'Diretoria',
+            'matches' => ['freelancer-director.*'],
         ];
     }
 

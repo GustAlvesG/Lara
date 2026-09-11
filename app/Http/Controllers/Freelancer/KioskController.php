@@ -261,6 +261,27 @@ class KioskController extends Controller
     }
 
     /**
+     * Busca por função: quem já atuou nela, para a operação achar um freelancer
+     * às pressas — o caso do fim de semana, quando falta gente e ninguém sabe
+     * quem chamar. A regra (ordem, bloqueio pelo limite semanal, o que vai no
+     * payload) mora em `FreelancerService::searchByFunction()`.
+     *
+     * `date` é o dia para o qual se está chamando: muda só a semana do limite.
+     */
+    public function searchByFunction(Request $request, FunctionFreelancer $functionFreelancer)
+    {
+        $this->operatorModeOrFail();
+
+        $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+        ]);
+
+        $day = $request->filled('date') ? Carbon::parse($request->input('date'))->startOfDay() : today();
+
+        return response()->json($this->freelancerService->searchByFunction($functionFreelancer, $day));
+    }
+
+    /**
      * O que o freelancer ainda tem a fazer no tablet: contratos esperando a
      * assinatura dele e contratos já assinados cujo turno pode ter mudado — é
      * neles que se faz o aditivo. O payload diz, por contrato, qual das duas
@@ -595,6 +616,15 @@ class KioskController extends Controller
 
         $role = $request->query('role') === 'coordinator' ? 'coordinator' : 'freelancer';
 
+        // Na redação 2 o campo do CONTRATANTE não recebe traço: a coordenação
+        // valida pela web. Abrir o documento "para assinar como coordenador"
+        // mostraria um canvas que não leva a lugar nenhum.
+        if ($role === 'coordinator' && $freelancerService->usesDirectorSignature()) {
+            return response()->json([
+                'error' => 'Este contrato é validado pela coordenação na web, sem assinatura no tablet.',
+            ], 409);
+        }
+
         $freelancerService->load([
             'freelancer',
             'functionFreelancer',
@@ -812,6 +842,16 @@ class KioskController extends Controller
         // sentido guardar a imagem de uma assinatura que não vai acontecer.
         if ($motivo = $freelancerService->releaseBlockReason()) {
             return response()->json(['error' => $motivo], 409);
+        }
+
+        // Redação 2: a coordenação valida pela web e quem assina pelo
+        // CONTRATANTE é o diretor. A fila do tablet nem mostra estes contratos;
+        // a trava cobre a tela aberta desde antes do deploy.
+        if ($freelancerService->usesDirectorSignature()) {
+            return response()->json([
+                'error' => 'Este contrato é da redação ' . $freelancerService->contractVersion()
+                    . ': a coordenação o valida pela web (Serviços / Contratos → Validação), sem assinatura no tablet.',
+            ], 409);
         }
 
         // Mesma trava defensiva da assinatura do freelancer: cadastro incompleto

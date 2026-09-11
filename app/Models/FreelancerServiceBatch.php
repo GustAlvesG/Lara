@@ -82,6 +82,16 @@ class FreelancerServiceBatch extends Model
         return $this->belongsTo(User::class, 'director_decided_by');
     }
 
+    /**
+     * O cadastro da diretoria para o qual o e-mail com os códigos foi enviado.
+     * É a assinatura DELE que vai aos contratos da redação 2 quando o lote é
+     * aprovado — ainda que o cadastro vigente tenha mudado depois do envio.
+     */
+    public function director()
+    {
+        return $this->belongsTo(FreelancerDirector::class, 'freelancer_director_id');
+    }
+
     /* ---------------------------------------------------------------------
      | Estado
      |---------------------------------------------------------------------*/

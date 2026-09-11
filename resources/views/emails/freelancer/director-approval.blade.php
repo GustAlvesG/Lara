@@ -28,7 +28,7 @@
     <tr>
         <td style="padding:26px 28px 8px;">
             <p style="margin:0 0 14px;font-size:15px;line-height:1.55;">
-                Prezado(a) {{ config('freelancers.director.name') }},
+                Prezado(a) {{ $director->name }},
             </p>
             <p style="margin:0 0 14px;font-size:15px;line-height:1.55;">
                 O <strong>Lote #{{ $batch->id }}</strong> foi conferido e aprovado pela gerência
@@ -108,6 +108,16 @@
                 A decisão vale para o lote inteiro e é definitiva. Se recusado, os contratos voltam
                 para o coordenador refazer o trâmite.
             </p>
+            {{-- Na redação 2 o código de aprovação também ASSINA: a imagem do
+                 cadastro da diretoria vai para o documento. Quem dita o código
+                 precisa saber disso antes de ditar. --}}
+            @if($signedByDirector->isNotEmpty())
+                <p style="margin:10px 0 0;font-size:13px;line-height:1.5;color:#6d6062;">
+                    <strong>Assinatura:</strong> ao aprovar, sua assinatura digital é aplicada, pelo CONTRATANTE,
+                    a {{ $signedByDirector->count() }} {{ $signedByDirector->count() === 1 ? 'documento' : 'documentos' }}
+                    deste lote, com a indicação "Assinado digitalmente por {{ $director->name }}".
+                </p>
+            @endif
         </td>
     </tr>
 
