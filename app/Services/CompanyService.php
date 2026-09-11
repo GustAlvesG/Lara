@@ -11,6 +11,7 @@ use App\Models\Company\Company;
 use App\Models\Company\CompanyWorker;
 use App\Models\Company\CompanyAccessRule;
 use App\Models\Company\CompanyAccessLog;
+use App\Models\Company\OneOffAccess;
 use App\Models\AppDriver;
 use App\Models\Freelancer;
 use App\Models\FreelancerService;
@@ -26,6 +27,17 @@ class CompanyService
      * contrato.
      */
     public const FREELANCER_LABEL = 'Freelancer';
+
+    /** O mesmo, para quem entra por liberação pontual: não há empresa a nomear. */
+    public const ONE_OFF_LABEL = 'Liberação Pontual';
+
+    private OneOffAccessService $oneOffAccessService;
+
+    // Opcional porque o CompanyController instancia o serviço com `new`.
+    public function __construct(?OneOffAccessService $oneOffAccessService = null)
+    {
+        $this->oneOffAccessService = $oneOffAccessService ?? new OneOffAccessService();
+    }
 
     public function getAllCompanies()
     {
@@ -226,10 +238,13 @@ class CompanyService
             // terceirizado de empresa parceira e freelancer com contrato. Quem
             // está na portaria digita um CPF e quer saber se AQUELA pessoa
             // entra — venha a autorização de onde vier —, então os dois
-            // caminhos são consultados e o resultado é somado.
+            // caminhos são consultados e o resultado é somado. A liberação
+            // pontual é o terceiro caminho, e entra na mesma soma.
             $freelancerEntries = $this->freelancerAccessEntries($target);
+            $oneOffEntries = $this->oneOffAccessEntries($target);
+            $otherEntries = array_merge($freelancerEntries, $oneOffEntries);
 
-            if ($matchedWorkers->isEmpty() && $freelancerEntries === []) {
+            if ($matchedWorkers->isEmpty() && $otherEntries === []) {
                 return ['found' => false, 'reason' => 'worker_not_found', 'workers' => []];
             }
 
@@ -251,12 +266,13 @@ class CompanyService
             $first = $matchedWorkers->first();
             return [
                 'found'      => true,
-                // Sem terceirizado no resultado, o cabeçalho da consulta é o do
-                // freelancer: não há empresa parceira a nomear.
-                'type'       => $first ? 'worker' : 'freelancer',
+                // Sem terceirizado no resultado, o cabeçalho da consulta é o da
+                // primeira outra linha (freelancer ou liberação pontual): não
+                // há empresa parceira a nomear.
+                'type'       => $first ? 'worker' : $otherEntries[0]['type'],
                 'company_id' => $first?->company->id,
-                'company'    => $first ? $first->company->name : self::FREELANCER_LABEL,
-                'workers'    => array_merge($response, $freelancerEntries),
+                'company'    => $first ? $first->company->name : $otherEntries[0]['company'],
+                'workers'    => array_merge($response, $otherEntries),
             ];
         }
 
@@ -319,11 +335,18 @@ class CompanyService
             return $result;
         }
 
-        foreach ($result['workers'] as $worker) {
+        foreach ($result['workers'] as $index => $worker) {
             // O `id` de uma linha de freelancer é de outra tabela: gravá-lo em
             // company_worker_id apontaria para o terceirizado errado.
             if (($worker['type'] ?? 'worker') === 'freelancer') {
                 $this->logFreelancerAccess($worker, $data['target']);
+                continue;
+            }
+
+            // Registrar QUEIMA a liberação pontual. A linha volta atualizada:
+            // se outro registro a queimou no meio do caminho, ela vira negada.
+            if (($worker['type'] ?? 'worker') === 'one_off') {
+                $result['workers'][$index] = $this->logOneOffAccess($worker, $data['target']);
                 continue;
             }
 
@@ -644,6 +667,114 @@ class CompanyService
             'allowed'               => $entry['allowed'],
             'reason'                => $entry['reason'],
         ]);
+    }
+
+    /* ---------------------------------------------------------------------
+     | Liberação pontual
+     |
+     | A exceção da portaria: alguém sem empresa, Uber ou contrato, liberado
+     | para UMA entrada no dia em que a liberação foi criada. A chave é o CPF,
+     | então a consulta da portaria não muda.
+     |---------------------------------------------------------------------*/
+
+    /**
+     * No máximo uma linha: a liberação disponível hoje ou, se não houver, a
+     * última já usada hoje — negada, para a portaria saber que a pessoa já
+     * entrou com ela e por que não entra de novo. Liberação cancelada ou de
+     * outro dia não aparece: para a portaria, ela não existe.
+     *
+     * @return array<int, array>
+     */
+    private function oneOffAccessEntries(string $cpf): array
+    {
+        $today = OneOffAccess::forCpf($cpf)->onDate(today())->whereNull('canceled_at');
+
+        $access = (clone $today)->whereNull('used_at')->latest('id')->first()
+            ?? (clone $today)->whereNotNull('used_at')->latest('used_at')->first();
+
+        return $access ? [$this->oneOffAccessEntry($access)] : [];
+    }
+
+    private function oneOffAccessEntry(OneOffAccess $access): array
+    {
+        $status = $access->status();
+
+        return [
+            'id'         => $access->id,
+            'type'       => 'one_off',
+            'name'       => $access->name,
+            'allowed'    => $status === OneOffAccess::STATUS_AVAILABLE,
+            'image'      => $access->imageUrl(),
+            'company_id' => null,
+            'company'    => self::ONE_OFF_LABEL,
+            'reason'     => 'one_off_access_' . match ($status) {
+                OneOffAccess::STATUS_AVAILABLE => 'granted',
+                default                        => $status,
+            },
+            'one_off'    => [
+                'reason'        => $access->reason,
+                // Lazy de propósito: sem autor gravado, o belongsTo nem
+                // consulta a tabela de usuários.
+                'authorized_by' => $access->creator?->name,
+                'created_at'    => $access->created_at?->format('H:i'),
+                'used_at'       => $access->used_at?->format('H:i'),
+            ],
+        ];
+    }
+
+    /**
+     * Registra o acesso de uma liberação pontual já identificada — o caminho
+     * do botão "Registrar" do monitor.
+     */
+    public function registerOneOffAccess(int $oneOffAccessId): array
+    {
+        $access = OneOffAccess::find($oneOffAccessId);
+
+        if (!$access) {
+            return ['found' => false, 'reason' => 'one_off_access_not_found', 'workers' => []];
+        }
+
+        $entry = $this->logOneOffAccess($this->oneOffAccessEntry($access), $access->cpf);
+
+        return [
+            'found'      => true,
+            'type'       => 'one_off',
+            'company_id' => null,
+            'company'    => self::ONE_OFF_LABEL,
+            'workers'    => [$entry],
+        ];
+    }
+
+    /**
+     * Queima a liberação e grava no histórico. Quem valida e quem registra
+     * são dois momentos: se entre eles outro registro já usou a liberação (ou
+     * ela foi cancelada, ou o dia virou), o consumo falha e a linha é gravada
+     * — e devolvida — com o estado real, negada.
+     */
+    private function logOneOffAccess(array $entry, string $target): array
+    {
+        if ($entry['allowed']) {
+            $access = OneOffAccess::find($entry['id']);
+
+            if ($access && $this->oneOffAccessService->consume($access)) {
+                $entry['one_off']['used_at'] = $access->used_at->format('H:i');
+            } else {
+                $entry = $access
+                    ? $this->oneOffAccessEntry($access->fresh())
+                    : array_merge($entry, ['allowed' => false, 'reason' => 'one_off_access_not_found']);
+            }
+        }
+
+        CompanyAccessLog::create([
+            'company_id'        => null,
+            'company_worker_id' => null,
+            'one_off_access_id' => $entry['id'],
+            'target'            => $target,
+            'allowed'           => $entry['allowed'],
+            'reason'            => $entry['reason'],
+        ]);
+
+        return $entry;
     }
 
     public function registerWorkerAccess(int $workerId): array

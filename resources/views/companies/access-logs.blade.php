@@ -185,6 +185,9 @@
                                     @elseif($log->freelancer_id)
                                         {{-- Freelancer não pertence a empresa parceira: quem o autoriza é o contrato. --}}
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 rounded-full text-[11px] font-black uppercase">Freelancer</span>
+                                    @elseif($log->one_off_access_id)
+                                        {{-- Liberação pontual: sem empresa, autorizada para uma entrada no dia. --}}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded-full text-[11px] font-black uppercase">Liberação Pontual</span>
                                     @else
                                         <span class="text-gray-400 dark:text-gray-500">—</span>
                                     @endif
@@ -250,6 +253,28 @@
                                                 @endif
                                             </div>
                                         </div>
+                                    @elseif($log->oneOffAccess)
+                                        <div class="flex items-center gap-2">
+                                            @if($log->oneOffAccess->imageUrl())
+                                                <img src="{{ $log->oneOffAccess->imageUrl() }}" class="w-7 h-7 rounded-full object-cover shrink-0" alt="">
+                                            @else
+                                                <div class="w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 flex items-center justify-center text-xs font-black shrink-0">
+                                                    {{ mb_strtoupper(mb_substr($log->oneOffAccess->name, 0, 1)) }}
+                                                </div>
+                                            @endif
+                                            <div>
+                                                <a href="{{ route('company.one-off.index', ['date' => $log->oneOffAccess->access_date->toDateString()]) }}"
+                                                   class="font-semibold text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline">
+                                                    {{ $log->oneOffAccess->name }}
+                                                </a>
+                                                <p class="text-xs text-gray-400 dark:text-gray-500 max-w-xs truncate" title="{{ $log->oneOffAccess->reason }}">
+                                                    {{ $log->oneOffAccess->reason }}
+                                                    @if($log->oneOffAccess->creator)
+                                                        &middot; por {{ $log->oneOffAccess->creator->name }}
+                                                    @endif
+                                                </p>
+                                            </div>
+                                        </div>
                                     @else
                                         <span class="text-gray-400 dark:text-gray-500">—</span>
                                     @endif
@@ -296,6 +321,10 @@
                                             'uber_not_found'      => 'App não encontrado ou expirado',
                                             'freelancer_access_granted' => 'Liberado pelo contrato de freelancer',
                                             'freelancer_no_service'     => 'Freelancer sem serviço no horário',
+                                            'one_off_access_granted'    => 'Liberação pontual',
+                                            'one_off_access_used'       => 'Liberação pontual já utilizada',
+                                            'one_off_access_canceled'   => 'Liberação pontual cancelada',
+                                            'one_off_access_expired'    => 'Liberação pontual vencida',
                                         ];
                                     @endphp
                                     <span class="text-xs text-gray-500 dark:text-gray-400">{{ $reasonMap[$log->reason] ?? $log->reason ?? '—' }}</span>

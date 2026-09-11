@@ -41,6 +41,8 @@ class FreelancerPhotoTest extends TestCase
         Schema::withoutForeignKeyConstraints(function () {
             (require base_path('database/migrations/2026_01_14_151220_create_companies_table.php'))->up();
             (require base_path('database/migrations/2026_01_14_151348_create_company_workers_table.php'))->up();
+            // A consulta por CPF da portaria também procura a liberação pontual do dia.
+            (require base_path('database/migrations/2026_09_11_140000_create_one_off_accesses_table.php'))->up();
         });
 
         $this->publico = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'lpr-freelancer-photo-' . uniqid();

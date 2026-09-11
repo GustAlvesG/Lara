@@ -22,10 +22,16 @@
                     <p class="text-sm text-gray-500 dark:text-gray-400">Consulte ou registre acessos de Externos terceirizados e freelancers.</p>
                 </div>
             </div>
-            <a href="{{ route('company.access.logs') }}"
-               class="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                Ver Histórico
-            </a>
+            <div class="flex gap-2">
+                <a href="{{ route('company.one-off.index') }}"
+                   class="px-4 py-2 bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 rounded-lg font-bold text-sm shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/30 transition">
+                    Liberação Pontual
+                </a>
+                <a href="{{ route('company.access.logs') }}"
+                   class="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                    Ver Histórico
+                </a>
+            </div>
         </div>
 
         <!-- Input Card -->
@@ -52,6 +58,9 @@
             </p>
             <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
                 O CPF também consulta o contrato do freelancer: ele entra a partir de 30 min antes do início do serviço, até o término.
+            </p>
+            <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                E a <span class="font-semibold">liberação pontual</span> do dia: vale para uma única entrada, gasta ao registrar.
             </p>
         </div>
 
@@ -83,7 +92,10 @@
         const REGISTER_ENDPOINT = {
             worker:     { url: '/api/company-access/register-worker-access',     key: 'worker_id' },
             freelancer: { url: '/api/company-access/register-freelancer-access', key: 'freelancer_id' },
+            one_off:    { url: '/api/company-access/register-one-off-access',    key: 'one_off_access_id' },
         };
+
+        const ONE_OFF_CREATE_URL = @json(route('company.one-off.create'));
 
         function registerRequest(entry) {
             const endpoint = REGISTER_ENDPOINT[entry.type ?? 'worker'] ?? REGISTER_ENDPOINT.worker;
@@ -122,8 +134,14 @@
 
                 if (register && data.found) {
                     if (data.workers.length === 1) {
-                        // Single result (CPF search) → register immediately
-                        await registerRequest(data.workers[0]);
+                        // Single result (CPF search) → register immediately.
+                        // Mostra a linha que o registro devolveu: a liberação
+                        // pontual pode ter sido gasta entre a consulta e o
+                        // registro, e aí o que vale é o "negado" gravado.
+                        const reg = await registerRequest(data.workers[0]).then(r => r.json()).catch(() => null);
+                        if (data.workers[0].type === 'one_off' && reg && reg.found && reg.workers && reg.workers[0]) {
+                            data.workers[0] = { ...data.workers[0], ...reg.workers[0] };
+                        }
                         renderResult(data, 'registered', target);
                         sessionLog.unshift({ target, data, register: true, time: new Date() });
                     } else {
@@ -175,7 +193,7 @@
 
         function reasonLabel(reason) {
             const map = {
-                worker_not_found:  'CPF não encontrado como terceirizado nem como freelancer.',
+                worker_not_found:  'CPF não encontrado como terceirizado, freelancer nem liberação pontual de hoje.',
                 company_not_found: 'Empresa não encontrada no sistema.',
             };
             return map[reason] ?? reason ?? 'Não encontrado.';
@@ -187,6 +205,10 @@
          * freelancer, e o cabeçalho só cabe um nome de empresa.
          */
         function entryDetail(w) {
+            if (w.type === 'one_off') {
+                return oneOffDetail(w);
+            }
+
             if ((w.type ?? 'worker') !== 'freelancer') {
                 return '';
             }
@@ -210,6 +232,46 @@
                     ${place ? `<p class="text-xs text-gray-400 mt-0.5">${place}</p>` : ''}`;
         }
 
+        /**
+         * Liberação pontual: sempre com o motivo e quem autorizou à vista —
+         * é exceção, e o porteiro precisa saber de onde ela veio.
+         */
+        function oneOffDetail(w) {
+            const o = w.one_off ?? {};
+            const tag = `<span class="text-[10px] font-black uppercase tracking-wide bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Liberação Pontual</span>`;
+
+            let status;
+            if (w.allowed) {
+                status = 'Uma entrada, válida só hoje.';
+            } else if (w.reason === 'one_off_access_used') {
+                status = o.used_at ? `Já utilizada às ${escHtml(o.used_at)}.` : 'Já utilizada.';
+            } else {
+                status = 'Não está mais disponível.';
+            }
+
+            const by = [o.authorized_by ? `Autorizada por ${escHtml(o.authorized_by)}` : 'Autorizada', o.created_at ? `às ${escHtml(o.created_at)}` : null]
+                .filter(Boolean).join(' ');
+
+            return `<div class="flex items-center gap-2 mt-1">${tag}
+                        <span class="text-xs text-gray-500">${status}</span>
+                    </div>
+                    ${o.reason ? `<p class="text-xs text-gray-600 mt-1 whitespace-pre-line">${escHtml(o.reason)}</p>` : ''}
+                    <p class="text-xs text-gray-400 mt-0.5">${by}</p>`;
+        }
+
+        /** Atalho do "não encontrado" para a liberação pontual, já com o CPF. */
+        function oneOffShortcut(target) {
+            const digits = String(target).replace(/\D/g, '');
+            if (digits.length !== 11) {
+                return '';
+            }
+
+            return `<a href="${ONE_OFF_CREATE_URL}?cpf=${digits}"
+                       class="ml-auto shrink-0 px-4 py-2 bg-amber-500 text-white rounded-xl font-bold text-sm shadow-sm hover:bg-amber-600 transition">
+                        Criar liberação pontual
+                    </a>`;
+        }
+
         // mode: 'registered' | 'pending' | 'consulta'
         function renderResult(data, mode, target) {
             const area = document.getElementById('result-area');
@@ -229,6 +291,7 @@
                                 <p class="text-sm text-gray-500 mt-0.5">${reasonLabel(data.reason)}</p>
                                 <p class="text-xs text-gray-400 mt-1">Alvo: <span class="font-mono font-bold">${escHtml(target)}</span></p>
                             </div>
+                            ${data.reason === 'worker_not_found' ? oneOffShortcut(target) : ''}
                         </div>
                     </div>`;
                 return;
@@ -282,7 +345,10 @@
                             <p class="font-black text-gray-900 text-lg">${escHtml(data.company)}</p>
                             <p class="text-xs text-gray-400 mt-0.5">${new Date().toLocaleTimeString('pt-BR')} &nbsp;·&nbsp; ${data.workers.length} resultado(s)</p>
                         </div>
-                        ${tagMap[mode] ?? ''}
+                        <div class="flex items-center gap-3">
+                            ${!anyAllowed && !data.workers.some(w => w.type === 'one_off') ? oneOffShortcut(target) : ''}
+                            ${tagMap[mode] ?? ''}
+                        </div>
                     </div>
                     <div class="p-5 space-y-3">${workersHtml}</div>
                 </div>`;
