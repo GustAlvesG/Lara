@@ -89,6 +89,7 @@ class Freelancer extends Model
         'civil_status',
         'address',
         'telephone',
+        'image',
         'created_by',
         'updated_by',
     ];
@@ -330,6 +331,16 @@ class Freelancer extends Model
     private static function digits(string $value): string
     {
         return preg_replace('/\D/', '', $value) ?? '';
+    }
+
+    /**
+     * Endereço da foto de identificação. O arquivo mora em `public/images`,
+     * junto das fotos dos terceirizados — não em `Storage::disk('public')`,
+     * que neste projeto grava onde nenhuma URL alcança.
+     */
+    public function imageUrl(): ?string
+    {
+        return filled($this->image) ? asset('images/' . $this->image) : null;
     }
 
     public function freelancerServices()

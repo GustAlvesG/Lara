@@ -17,6 +17,7 @@ O módulo tem duas frentes:
 
 1. **Freelancer** (`freelancers`) — a pessoa. CPF é único; `pix_key` assume o CPF quando não
    informada, e o **tipo** dela é lido da própria chave já normalizada (ver *Conferência da chave PIX*).
+   Tem **foto de identificação** (`image`) — ver *Foto de identificação*.
 2. **Função** (`function_freelancers`) — catálogo de funções (garçom, segurança...), com **preço
    por bloco de 15 minutos**.
 3. **Serviço / Contrato** (`freelancer_services`) — um trabalho de um freelancer numa função, num
@@ -396,6 +397,43 @@ fecha no **horário de término** do contrato — serviço às 08:00 entra a par
   já ter passado pela portaria. Exigi-la aqui deixaria todo freelancer do lado de fora.
 - Regra em `FreelancerService::allowsAccessAt()` / `accessOpensAt()` / `scopeAroundAccessWindow()`;
   a consulta e o registro ficam em `App\Services\CompanyService`.
+- A linha do freelancer mostra a **foto de identificação** dele, como a do terceirizado; sem foto,
+  a inicial do nome.
+
+### Foto de identificação
+Capturada no cadastro do freelancer (novo e edição), com a mesma câmera/importação do cadastro de
+terceirizado. Existe para o porteiro reconhecer quem está entrando — é a foto que o Monitor de Acesso
+exibe.
+
+- Toda foto sai do navegador **quadrada, 600px, em JPEG**: a importada é recortada no centro, para
+  uma foto crua de celular não subir com vários MB.
+- Gravada como arquivo em `public/images/freelancer_<uuid>.<ext>` (coluna `freelancers.image`
+  guarda só o nome), no mesmo lugar das fotos de terceirizado. O tipo é conferido pelos **bytes**, e
+  não pelo cabeçalho do data URL — conteúdo que não é imagem é recusado.
+- **Salvar sem foto nova mantém a atual.** A foto anterior não é apagada do disco: a migrada é o
+  mesmo arquivo do cadastro de terceirizado.
+- Conversão em `FreelancerService::withStoredImage()` — vale para o painel, o tablet e a API do bot,
+  que passam todos por `create()` / `updateFreelancer()`.
+
+**Fotos que já existiam.** Antes deste campo, quem precisava ser reconhecido na portaria era
+cadastrado também como terceirizado, e é lá que as fotos estavam. O comando abaixo aponta cada
+freelancer para a foto do terceirizado de **mesmo CPF** (comparado só pelos dígitos — há documento
+de terceirizado gravado com máscara):
+
+```
+php artisan migrate
+php artisan freelancers:migrar-fotos --dry-run   # confere a lista, não grava
+php artisan freelancers:migrar-fotos
+```
+
+- Freelancer que **já tem foto não é tocado** (a menos de `--sobrescrever`) — rodar de novo não
+  desfaz uma foto tirada depois pelo formulário.
+- Mesmo CPF em mais de um terceirizado: vale o cadastro **ativo** antes do excluído e o **mais
+  recente** entre eles; o comando lista esses casos. Terceirizado excluído ainda serve quando é o
+  único — a foto continua sendo da pessoa.
+- Foto cujo **arquivo não está** em `public/images` não é gravada (seria imagem quebrada na
+  portaria) e sai listada.
+- Grava direto na tabela, sem mexer em `updated_at`/`updated_by`: ninguém editou o cadastro.
 
 ### Jantar do turno noturno
 O freelancer que cumpre **6 horas ou mais** e está em serviço em **algum momento da janela do

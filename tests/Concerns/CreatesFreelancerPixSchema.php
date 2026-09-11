@@ -38,6 +38,10 @@ trait CreatesFreelancerPixSchema
             $table->timestamps();
         });
 
+        // Foto de identificação — migration de verdade, pelo mesmo motivo das
+        // de `pix_payments` e do jantar, mais abaixo.
+        (require base_path('database/migrations/2026_09_11_120000_add_image_to_freelancers_table.php'))->up();
+
         Schema::create('function_freelancers', function (Blueprint $table) {
             $table->id();
             $table->string('name');

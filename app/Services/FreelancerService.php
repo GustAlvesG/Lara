@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use App\Models\Freelancer;
 use App\Models\FunctionFreelancer;
 use App\Models\FreelancerService as FreelancerServiceModel;
@@ -24,6 +25,7 @@ class FreelancerService
     {
         $data['created_by'] = $this->actorId($data);
         $data['updated_by'] = $data['created_by'];
+        $data = $this->withStoredImage($data);
 
         return Freelancer::create($data);
     }
@@ -36,10 +38,56 @@ class FreelancerService
     public function updateFreelancer(Freelancer $freelancer, $data)
     {
         $data['updated_by'] = $this->actorId($data, 'updated_by');
+        $data = $this->withStoredImage($data);
 
         $freelancer->update($data);
 
         return $freelancer;
+    }
+
+    /**
+     * Troca a foto em data URL pelo nome do arquivo gravado em `public/images`.
+     *
+     * Sem foto nova, a chave sai dos dados: o formulário manda o campo vazio
+     * quando ninguém mexeu na câmera, e gravar esse vazio apagaria a foto que
+     * o freelancer já tem.
+     *
+     * O arquivo anterior não é apagado: a foto migrada do cadastro de
+     * terceirizado é o MESMO arquivo que o terceirizado usa.
+     */
+    private function withStoredImage(array $data): array
+    {
+        if (blank($data['image'] ?? null)) {
+            unset($data['image']);
+
+            return $data;
+        }
+
+        // O tipo é lido dos bytes, não do cabeçalho do data URL: é o arquivo
+        // que o navegador vai abrir.
+        [, $encoded] = array_pad(explode(',', $data['image'], 2), 2, '');
+        $bytes = base64_decode($encoded, true);
+        $info = $bytes !== false ? @getimagesizefromstring($bytes) : false;
+
+        $extension = match ($info['mime'] ?? null) {
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            default => null,
+        };
+
+        if ($extension === null) {
+            throw ValidationException::withMessages([
+                'image' => 'A foto enviada não é uma imagem válida. Tire a foto de novo ou importe outro arquivo.',
+            ]);
+        }
+
+        $name = 'freelancer_' . Str::uuid() . '.' . $extension;
+        file_put_contents(public_path('images/' . $name), $bytes);
+
+        $data['image'] = $name;
+
+        return $data;
     }
 
     /* ---------------------------------------------------------------------

@@ -587,7 +587,7 @@ class CompanyService
             'type'       => 'freelancer',
             'name'       => $freelancer->name,
             'allowed'    => $service !== null,
-            'image'      => null,
+            'image'      => $freelancer->imageUrl(),
             'company_id' => null,
             'company'    => self::FREELANCER_LABEL,
             'reason'     => $service ? 'freelancer_access_granted' : 'freelancer_no_service',

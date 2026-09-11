@@ -36,6 +36,9 @@ class StoreFreelancerRequest extends FormRequest
             'civil_status' => ['nullable', 'string'],
             'address' => ['nullable', 'string'],
             'telephone' => ['nullable', 'string'],
+            // Foto de identificação em data URL (câmera ou importação do
+            // formulário). Vira arquivo em FreelancerService::create().
+            'image' => ['nullable', 'string', 'max:3000000', 'regex:/^data:image\/(jpeg|png|webp);base64,/'],
             'created_by' => ['nullable', 'integer', 'exists:users,id'],
         ];
     }
