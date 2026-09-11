@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Freelancer;
 use App\Exceptions\FreelancerBatchException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ReviewFreelancerBatchRequest;
+use App\Models\FreelancerDirector;
 use App\Models\FreelancerService;
 use App\Models\FreelancerServiceBatch;
 use App\Services\FreelancerBatchService;
@@ -198,13 +199,21 @@ class BatchController extends Controller
             'reviewedBy',
         ]);
 
+        // O destinatário do e-mail é o cadastro vigente da diretoria (aba
+        // Diretoria). Sem a imagem da assinatura, lote com contrato da redação 2
+        // não segue — a aprovação não teria o que aplicar ao documento.
+        $director = FreelancerDirector::current();
+
         return view('freelancer.batches.show', [
             'batch' => $batch,
             'isManager' => $isManager,
             'canReview' => $isManager && $batch->canBeReviewed(),
             // A gerência é quem digita o PIN que o diretor ditou.
             'canRecordDirector' => $isManager && $batch->isAwaitingDirector(),
-            'directorEmail' => config('freelancers.director.email'),
+            'director' => $director,
+            'directorSignatureMissing' => $batch->isAwaitingDirector()
+                && $this->batches->signedByDirector($batch)->isNotEmpty()
+                && !($director?->hasSignature() ?? false),
         ]);
     }
 

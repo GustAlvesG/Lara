@@ -3,27 +3,13 @@
 return [
 
     /*
-    |--------------------------------------------------------------------------
-    | Diretoria
-    |--------------------------------------------------------------------------
-    |
-    | O diretor não acessa a plataforma: a rede é interna e ele pode estar fora.
-    | Ao aprovar um lote, a gerência dispara um e-mail para cá com dois PINs —
-    | um aprova, outro recusa o lote inteiro. O diretor dita o PIN escolhido
-    | para a gerência, que o digita no sistema.
-    |
-    | `cc` aceita vários endereços separados por vírgula (secretaria, cópia).
-    |
+    | A diretoria (nome, e-mail que recebe os códigos do lote e a imagem da
+    | assinatura) NÃO mora mais aqui: é cadastrada pela gerência na tela
+    | Serviços / Contratos → Diretoria, tabela `freelancer_directors`. As
+    | variáveis FREELANCER_DIRECTOR_* do `.env` só foram lidas uma vez, pela
+    | migration que criou a tabela, para o destinatário de hoje continuar
+    | recebendo no dia do deploy.
     */
-
-    'director' => [
-        'name' => env('FREELANCER_DIRECTOR_NAME', 'Diretoria'),
-        'email' => env('FREELANCER_DIRECTOR_EMAIL'),
-        'cc' => array_values(array_filter(array_map(
-            'trim',
-            explode(',', (string) env('FREELANCER_DIRECTOR_CC', ''))
-        ))),
-    ],
 
     /*
     |--------------------------------------------------------------------------

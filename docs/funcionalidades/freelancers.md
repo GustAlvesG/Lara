@@ -17,6 +17,7 @@ O módulo tem duas frentes:
 
 1. **Freelancer** (`freelancers`) — a pessoa. CPF é único; `pix_key` assume o CPF quando não
    informada, e o **tipo** dela é lido da própria chave já normalizada (ver *Conferência da chave PIX*).
+   Tem **foto de identificação** (`image`) — ver *Foto de identificação*.
 2. **Função** (`function_freelancers`) — catálogo de funções (garçom, segurança...), com **preço
    por bloco de 15 minutos**.
 3. **Serviço / Contrato** (`freelancer_services`) — um trabalho de um freelancer numa função, num
@@ -211,13 +212,97 @@ Consequências dessa regra, validadas na entrada:
 `total_hours`, `end_date` e `price` **não são aceitos como entrada** — se enviados, são ignorados
 e recalculados. Isso vale para o painel e para a API.
 
+### Redação 2: a coordenação valida, a diretoria assina
+
+A partir da **redação 2** do contrato (`FreelancerService::CONTRACT_VERSIONS[2]`), quem assina o
+documento pelo **CONTRATANTE** é o **diretor**, e não mais o coordenador:
+
+```
+freelancer assina no tablet → [08h do dia seguinte] → coordenador do Comercial VALIDA pela web
+    → lote → gerência aprova → e-mail à diretoria → diretor dita o código de aprovação
+        → a assinatura do diretor (imagem cadastrada) entra no documento
+```
+
+| | Redação 1 | Redação 2 |
+|---|---|---|
+| Passo da coordenação | assinatura desenhada **no tablet** | **validação pela web**, com PIN, contrato a contrato |
+| Quem assina pelo CONTRATANTE no documento | o coordenador (traço) | o diretor (imagem do cadastro + "Assinado digitalmente por {nome} em {data}") |
+| Quando o CONTRATANTE fica assinado | na assinatura do coordenador | na aprovação do lote pela diretoria |
+
+**Quem decide o fluxo é a redação congelada, não a data de hoje.** A redação é gravada na primeira
+assinatura do freelancer (ver *O documento é congelado na assinatura*), e cada entrada de
+`CONTRACT_VERSIONS` diz quem assina pelo CONTRATANTE (`contractor_signature`: `coordinator` ou
+`director`, lido por `usesDirectorSignature()`). Por isso os dois fluxos convivem na transição: o que o
+freelancer assinou sob a redação 1 termina como começou, com o traço do coordenador no tablet; o que
+ele assina depois do deploy segue a redação 2. A fila do tablet (`scopeAwaitingCoordinator`) passou a
+mostrar só a redação 1 e se esvazia sozinha.
+
+**A validação grava as mesmas colunas da assinatura** (`coordinator_signed_at` / `_by`). Nas duas
+redações elas registram o mesmo fato — a coordenação confirmou o serviço — e é por elas que lote,
+financeiro e acompanhamento andam; criar colunas novas obrigaria a mexer em todas essas travas e
+deixaria duas fontes para a mesma coisa. Na redação 2 nada disso vai ao documento:
+`coordinator_signature_path` fica vazio e a marca "assinado eletronicamente" dos contratos antigos não
+aparece. O que muda são os rótulos: "Aguardando validação da coordenação", "Validado por…".
+
+#### Validação pela web (um contrato por vez)
+
+Aba **Validação** (`/freelancer-services/validacao`), só do **coordenador do setor Comercial** (Gate
+`validate-freelancer-contracts`) — o mesmo cargo que assinava no tablet.
+
+- A **fila** traz os contratos da redação 2 assinados pelo freelancer, já liberados (08h do dia
+  seguinte ao turno, a mesma espera da assinatura no tablet) e sem validação
+  (`scopeAwaitingCoordinatorValidation`), os mais antigos primeiro. **Não tem seleção nem ação em
+  massa**: cada linha só abre o contrato.
+- A **tela do contrato** mostra o documento inteiro — o mesmo parcial e o mesmo CSS da impressão
+  (`partials/contract-document-styles.blade.php`) — e, ao pé dele, o bloco da validação: PIN (o
+  `users.pin`, o mesmo do tablet) e o botão **Validar contrato**. O bloco chega **travado** e só é
+  liberado quando a rolagem alcança o fim do documento.
+- **No servidor**, o POST recebe **um** contrato, pela rota, e exige a **marca de abertura** que a tela
+  gravou na sessão para aquele contrato — nova a cada abertura, consumida na tentativa (acertando ou
+  errando o PIN). Validar em série sem abrir as páginas esbarra nela.
+- A rolagem até o fim é conferida no navegador; o servidor não tem como prová-la. O que ele garante é
+  que cada validação passou pela tela daquele contrato, um de cada vez, com o PIN digitado.
+- Validado, o contrato fica disponível para a montagem de lote. Não há "recusar": o que não estiver
+  certo se resolve como hoje (aditivo, cancelamento antes da assinatura).
+- Regra em `FreelancerService::coordinatorValidationBlockReason()` (cancelado, redação 1, freelancer
+  sem assinar, já validado, turno não liberado) e em
+  `App\Services\FreelancerService::validateAsCoordinator()` (mais a trava de cadastro incompleto).
+  `signAsCoordinator()` e o tablet recusam a redação 2 com `409`.
+
+#### A assinatura do diretor
+
+- É aplicada por `FreelancerBatchService::applyDirectorPin()` quando o código ditado é o de
+  **aprovação**, e só nos documentos da redação 2 (`awaitsDirectorSignature()`). Grava
+  `freelancer_services.freelancer_director_id` e `director_signed_at` — colunas próprias, e não
+  `director_approved_at` (ver o contrato base, abaixo).
+- **É a assinatura de quem recebeu o e-mail.** O envio grava no lote o cadastro do destinatário
+  (`freelancer_service_batches.freelancer_director_id`); se a gerência mudar o cadastro entre o envio e
+  a digitação do código, o documento continua levando a assinatura de quem de fato decidiu.
+- **Vale para contrato, aditivo e comissão.** Comissão e aditivo vão a lote e são assinados na
+  aprovação dele. O **contrato base que ganhou aditivo de horário** não vai a lote — quem paga é o
+  aditivo —, então é assinado **pela aprovação do aditivo que o substituiu**
+  (`documentsReplacedByThis()`, que sobe a cadeia inclusive no aditivo do aditivo). Por isso a
+  assinatura não usa `director_approved_at`: marcar o base como aprovado o faria parecer pagável. A
+  comissão **não** sobe a cadeia: o contrato do turno continua indo a lote e é assinado na aprovação
+  dele.
+- **Sem a imagem, o lote não segue.** `notifyDirector()` recusa enviar um lote que tenha contrato da
+  redação 2 aprovado pela gerência enquanto o cadastro da diretoria estiver sem a imagem da
+  assinatura — senão a aprovação não teria o que aplicar, e os contratos ficariam aprovados com o
+  CONTRATANTE em branco. Lote só com redação 1 segue sem imagem.
+- O e-mail avisa o diretor de que o código de aprovação também **assina**, e quantos documentos.
+- No documento, a imagem entra como **data URI** (`FreelancerDirector::signatureDataUri()`): o mesmo
+  HTML é impresso pelo painel, exibido no tablet e convertido em PDF, e a assinatura de uma pessoa não
+  tem URL pública. O arquivo mora no disco **privado** (`local`).
+
 ### Assinaturas
-Cada serviço tem duas assinaturas independentes:
+Cada serviço tem duas assinaturas independentes (na redação 2, o passo do coordenador é a
+**validação** pela web, gravada nas mesmas colunas — ver a seção anterior):
 
 | Assinatura | Campos | Quem registra |
 |---|---|---|
 | Freelancer | `freelancer_signed_at`, `freelancer_signed_by`, `freelancer_signature_path` | **Kiosk** (traço desenhado no tablet, com o operador identificado) ou **API** (bot do Telegram) |
-| Coordenador | `coordinator_signed_at`, `coordinator_signed_by`, `coordinator_signature_path` | **Kiosk apenas** (traço desenhado, só o coordenador do setor **Comercial**), **a partir das 08h do dia seguinte ao turno** — ver *Liberação para a coordenação* |
+| Coordenador | `coordinator_signed_at`, `coordinator_signed_by`, `coordinator_signature_path` | Redação 1: **kiosk apenas** (traço desenhado, só o coordenador do setor **Comercial**). Redação 2: **validação pela web**, sem traço (`coordinator_signature_path` vazio). Nas duas, **a partir das 08h do dia seguinte ao turno** — ver *Liberação para a coordenação* |
+| Diretoria (redação 2) | `freelancer_director_id`, `director_signed_at` | Aplicada na aprovação do lote pela diretoria — ver *Redação 2* |
 
 Os campos `*_signature_path` guardam a imagem PNG do traço no disco público. O documento do
 contrato mostra o traço quando há.
@@ -312,6 +397,43 @@ fecha no **horário de término** do contrato — serviço às 08:00 entra a par
   já ter passado pela portaria. Exigi-la aqui deixaria todo freelancer do lado de fora.
 - Regra em `FreelancerService::allowsAccessAt()` / `accessOpensAt()` / `scopeAroundAccessWindow()`;
   a consulta e o registro ficam em `App\Services\CompanyService`.
+- A linha do freelancer mostra a **foto de identificação** dele, como a do terceirizado; sem foto,
+  a inicial do nome.
+
+### Foto de identificação
+Capturada no cadastro do freelancer (novo e edição), com a mesma câmera/importação do cadastro de
+terceirizado. Existe para o porteiro reconhecer quem está entrando — é a foto que o Monitor de Acesso
+exibe.
+
+- Toda foto sai do navegador **quadrada, 600px, em JPEG**: a importada é recortada no centro, para
+  uma foto crua de celular não subir com vários MB.
+- Gravada como arquivo em `public/images/freelancer_<uuid>.<ext>` (coluna `freelancers.image`
+  guarda só o nome), no mesmo lugar das fotos de terceirizado. O tipo é conferido pelos **bytes**, e
+  não pelo cabeçalho do data URL — conteúdo que não é imagem é recusado.
+- **Salvar sem foto nova mantém a atual.** A foto anterior não é apagada do disco: a migrada é o
+  mesmo arquivo do cadastro de terceirizado.
+- Conversão em `FreelancerService::withStoredImage()` — vale para o painel, o tablet e a API do bot,
+  que passam todos por `create()` / `updateFreelancer()`.
+
+**Fotos que já existiam.** Antes deste campo, quem precisava ser reconhecido na portaria era
+cadastrado também como terceirizado, e é lá que as fotos estavam. O comando abaixo aponta cada
+freelancer para a foto do terceirizado de **mesmo CPF** (comparado só pelos dígitos — há documento
+de terceirizado gravado com máscara):
+
+```
+php artisan migrate
+php artisan freelancers:migrar-fotos --dry-run   # confere a lista, não grava
+php artisan freelancers:migrar-fotos
+```
+
+- Freelancer que **já tem foto não é tocado** (a menos de `--sobrescrever`) — rodar de novo não
+  desfaz uma foto tirada depois pelo formulário.
+- Mesmo CPF em mais de um terceirizado: vale o cadastro **ativo** antes do excluído e o **mais
+  recente** entre eles; o comando lista esses casos. Terceirizado excluído ainda serve quando é o
+  único — a foto continua sendo da pessoa.
+- Foto cujo **arquivo não está** em `public/images` não é gravada (seria imagem quebrada na
+  portaria) e sai listada.
+- Grava direto na tabela, sem mexer em `updated_at`/`updated_by`: ninguém editou o cadastro.
 
 ### Jantar do turno noturno
 O freelancer que cumpre **6 horas ou mais** e está em serviço em **algum momento da janela do
@@ -881,8 +1003,10 @@ para que nenhuma aba leve a um 403:
 | Aba | Rota | Quem vê |
 |---|---|---|
 | Contratos | `freelancer-services.index` | `manage freelancers` |
+| Validação | `freelancer-validation.index` | `manage freelancers` **e** coordenador do setor `Comercial` (Gate `validate-freelancer-contracts`) |
 | Lotes | `freelancer-batches.index` | `manage freelancers` **e** coordenador de algum setor |
 | Aprovação | `freelancer-batches.queue` | `manage freelancers` **e** coordenador do setor `Gerência` |
+| Diretoria | `freelancer-director.edit` | `manage freelancers` **e** coordenador do setor `Gerência` (Gate `manage-freelancer-director`) |
 | Acompanhamento | `freelancer-services.tracking` | membro do setor `Comercial`, `Contabilidade` ou `Gerência` (qualquer papel) |
 | Financeiro | `freelancer-services.finance` (e `finance.*`) | membro do setor `Contabilidade` **ou** `Gerência` |
 
@@ -903,10 +1027,13 @@ por **dois níveis de aprovação**, e isso acontece em **lote**.
 ```
 freelancer assina (início do serviço) → [o dia corre: cabe aditivo]
     → 08h do dia seguinte: o contrato é liberado
-        → coordenador assina → coordenador monta o lote → envia
-            → coordenador da Gerência aprova (ou recusa) contrato a contrato
-                → e-mail automático à diretoria, com dois PINs
-                    → diretor dita o PIN, gerência digita → financeiro paga
+        → coordenador assina no tablet (redação 1) ou valida pela web (redação 2)
+            → coordenador monta o lote → envia
+                → coordenador da Gerência aprova (ou recusa) contrato a contrato
+                    → e-mail automático à diretoria, com dois PINs
+                        → diretor dita o PIN, gerência digita
+                            (redação 2: a assinatura do diretor entra no documento)
+                                → financeiro paga
 ```
 
 **Montagem (coordenador, web ou tablet).** Cada coordenador mantém **um rascunho por vez**
@@ -996,15 +1123,20 @@ e-mail a mensagem foi, e uma observação livre ("informado por telefone em 24/0
 travaria em silêncio. Aqui, se o e-mail não sai, a aprovação da gerência **é gravada assim mesmo**,
 a tela avisa o erro e oferece **"Reenviar à diretoria"**.
 
-Destinatário em `config/freelancers.php`, via `.env`:
+**Cadastro da diretoria (aba Diretoria).** O destinatário não mora mais no `.env`: o **coordenador da
+Gerência** (Gate `manage-freelancer-director`) cadastra em `/freelancer-services/diretoria` o **nome** do
+diretor, o **e-mail** que recebe os códigos e a **imagem da assinatura** (PNG, disco privado). Um
+diretor só, sem cópia.
 
-```
-FREELANCER_DIRECTOR_NAME="Diretoria"
-FREELANCER_DIRECTOR_EMAIL=diretor@clubedosfuncionarios.com.br
-FREELANCER_DIRECTOR_CC=secretaria@clubedosfuncionarios.com.br
-```
-
-Sem `FREELANCER_DIRECTOR_EMAIL` a tela avisa que falta configurar e desabilita o envio.
+- **Os registros não são editados** (`freelancer_directors`): cada gravação cria uma linha nova, e vale
+  a mais recente (`FreelancerDirector::current()`). Trocar só o e-mail repete a imagem anterior. É a
+  mesma razão do versionamento da redação — contratos aprovados apontam para a linha que os assinou, e
+  editar no lugar reescreveria a assinatura de todo documento já aprovado. A tela mostra o histórico.
+- A migration `create_freelancer_directors_table` importou o `FREELANCER_DIRECTOR_NAME` /
+  `FREELANCER_DIRECTOR_EMAIL` do `.env` para o primeiro registro, **sem imagem**, para o destinatário de
+  hoje continuar recebendo no dia do deploy. Depois disso as variáveis não são mais lidas.
+- Sem diretor cadastrado o envio é recusado; sem a imagem, é recusado para lote com contrato da
+  redação 2 — a tela do lote avisa e aponta para a aba Diretoria.
 
 ### Kiosk (tablet)
 `/kiosk` é uma tela de toque **fora da sessão web**: entra-se com **matrícula + PIN de 6 dígitos**
@@ -1027,8 +1159,43 @@ Dois modos, decididos pelo que o usuário é — quem acumula os dois papéis es
 - O coordenador assina o **mesmo documento** que o freelancer assinou, já com o traço da outra
   parte à vista, no campo do CONTRATANTE. A assinatura é definitiva e libera o contrato para a
   aba Financeiro.
+- **Só a redação 1 é assinada no tablet.** A fila do coordenador não mostra a redação 2, e a
+  assinatura (e o documento aberto com `role=coordinator`) de um contrato da redação 2 responde `409`:
+  ele é validado pela web e assinado pela diretoria — ver *Redação 2*. Montar e enviar lote continua
+  no tablet como antes.
 - O papel é **reconferido a cada requisição**: retirar a permissão ou o vínculo de coordenação no
   painel derruba na hora a sessão aberta no tablet.
+
+#### Buscar freelancer por função (modo atendimento)
+
+Existe para o fim de semana, quando falta gente e quem está na operação não sabe quem chamar. Na tela
+de localizar freelancer, o botão **Buscar por função** leva a duas perguntas — **para quando** (hoje ou
+amanhã) e **qual função** — e a uma lista de quem já atuou nela
+(`GET /kiosk/functions/{função}/freelancers?date=`).
+
+| Aspecto | Como é |
+|---|---|
+| Quem aparece | freelancers com ao menos um turno **já trabalhado** na função: não cancelado, não aditivo, com `start_date` até hoje. Turno marcado para depois ainda não é experiência de ninguém |
+| Ordem | mais atuações na função primeiro; no empate, quem trabalhou por último |
+| O que mostra | nome, telefone (toque para discar), quantas vezes atuou na função e a data do último serviço nela |
+| Bloqueio | quem já tem `WEEKLY_LIMIT` (2) serviços na semana do dia escolhido vai para a seção **Bloqueados · limite semanal**, **sem o telefone** |
+
+- **O bloqueio é do servidor.** O telefone do bloqueado não sai no payload — esconder só na tela
+  deixaria o número a um "inspecionar" de distância. Ele continua na lista para ninguém achar que o
+  cadastro sumiu.
+- **A semana é a do dia para o qual se está chamando**, e é a semana fixa de segunda a domingo do resto
+  do módulo, com a mesma conta de `countInWeeklyWindow()` (cancelado e aditivo não contam, qualquer
+  função conta). Por isso a pergunta "para quando": no domingo, chamar para a segunda é chamar para a
+  semana seguinte. O histórico não muda com o dia — conta sempre até hoje.
+- **Bloquear na busca não proíbe o contrato.** Um terceiro serviço na semana continua possível pelo
+  caminho de sempre, com a liberação do coordenador do Comercial no registro; a busca é que não sugere
+  esse freelancer.
+- O telefone é texto livre no cadastro: `Freelancer::phoneFormatted()` formata o que tem DDD e número
+  (tirando o 55 quando veio junto) e mostra o resto como foi gravado; `phoneDigits()` dá o número do
+  `tel:`.
+- Regra em `App\Services\FreelancerService::searchByFunction()`, sobre
+  `FreelancerService::functionHistory()` e `weeklyCountsFor()` (uma consulta agregada cada, e não uma
+  por freelancer). Testes em `tests/Feature/FreelancerFunctionSearchTest.php`.
 
 ### Permissões
 - Todo o painel exige a permissão `manage freelancers`.
@@ -1053,7 +1220,11 @@ Dois modos, decididos pelo que o usuário é — quem acumula os dois papéis es
 - Cancelar **pelo painel** exige, além disso, ser **coordenador de algum setor**
   (`user_sector.role = 'coordinator'`) — verificado por `User::isCoordinator()`.
 - Assinar como coordenador existe **só no kiosk** e é mais restrito: só o coordenador do setor
-  **Comercial** (`User::isCoordinatorOfSectorNamed('Comercial')`). Não há rota web equivalente.
+  **Comercial** (`User::isCoordinatorOfSectorNamed('Comercial')`). Não há rota web equivalente. Vale
+  para a redação 1; na redação 2 o mesmo coordenador **valida pela web** (Gate
+  `validate-freelancer-contracts`, aba Validação).
+- **Cadastrar a diretoria** (nome, e-mail dos códigos e imagem da assinatura) é do **coordenador da
+  Gerência** (Gate `manage-freelancer-director`, aba Diretoria) — o mesmo que envia o lote ao diretor.
 - **Liberar um serviço acima do limite de 7 dias** (painel e kiosk) também é exclusivo do
   coordenador do setor **Comercial** — por matrícula + PIN dele, ou pelo código enviado a todos os
   coordenadores do setor —, nunca pela sessão de quem registra.
@@ -1366,6 +1537,19 @@ guardam qual coordenador do Comercial liberou e quando — sem isso a autorizaç
   (`GET /kiosk/service/{id}/document`), com a trava de redação em `signService()`. Colunas em
   `2026_08_12_140000_add_contract_freeze_to_freelancer_services_table`. Testes — inclusive o **lacre**
   dos arquivos de cada redação — em `tests/Unit/FreelancerContractVersionTest.php`.
+- **Redação 2 (validação web + assinatura da diretoria):** `FreelancerService::CONTRACTOR_SIGNS_*` /
+  `contractorSignature()` / `usesDirectorSignature()` / `versionsSignedBy()` / `scopeContractorSignedBy()`
+  (quem assina pelo CONTRATANTE, por redação), `scopeAwaitingCoordinatorValidation()` e
+  `coordinatorValidationBlockReason()` (a validação), `hasDirectorSignature()` /
+  `awaitsDirectorSignature()` / `documentsReplacedByThis()` (a assinatura do diretor);
+  `App\Services\FreelancerService::validateAsCoordinator()`; `FreelancerBatchService::notifyDirector()` /
+  `applyDirectorPin()` / `signedByDirector()`; `Freelancer\ValidationController` (fila e tela da
+  validação, com a marca de abertura na sessão) e `Freelancer\DirectorController` +
+  `App\Services\FreelancerDirectorService` + `App\Models\FreelancerDirector` (cadastro da diretoria).
+  Views em `freelancer/validation/` e `freelancer/director/`. Colunas em
+  `2026_09_11_100000_create_freelancer_directors_table` e
+  `2026_09_11_100100_add_director_signature_to_freelancer_services_table`. Testes em
+  `tests/Feature/FreelancerDirectorSignatureFlowTest.php` e `tests/Unit/FreelancerContractVersionTest.php`.
 - **Justificativa da alteração do valor apurado:** `FreelancerService::salesAdjustmentIsRequired()` /
   `SALES_ADJUSTMENT_REASON_MIN` (regra), `App\Services\FreelancerService::createSalesCommission()`
   (invariante na gravação), `KioskController::storeCommission()` (o `422` com o campo) e

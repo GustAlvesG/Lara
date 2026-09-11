@@ -67,6 +67,26 @@ class AppServiceProvider extends ServiceProvider
         );
 
         /**
+         * Validação dos contratos da redação 2 pela web — o que substituiu, para
+         * esses contratos, a assinatura do coordenador desenhada no tablet. É do
+         * mesmo cargo que assinava: o coordenador do setor Comercial.
+         */
+        Gate::define(
+            'validate-freelancer-contracts',
+            fn (User $user) => $user->isCoordinatorOfSectorNamed(User::COMMERCIAL_SECTOR),
+        );
+
+        /**
+         * Cadastro da diretoria (nome, e-mail que recebe os códigos e a imagem
+         * da assinatura). Só o coordenador da Gerência: é ele quem envia o lote
+         * ao diretor e digita o código ditado — o destinatário é dele.
+         */
+        Gate::define(
+            'manage-freelancer-director',
+            fn (User $user) => $user->isManagementCoordinator(),
+        );
+
+        /**
          * Mapa de cotação. Mesmo raciocínio dos dois acima: o acesso ao módulo
          * é vínculo com o setor **Contabilidade**, não permissão do Spatie — a
          * role `admin` não dá acesso.

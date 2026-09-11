@@ -74,7 +74,10 @@ class FreelancerReleaseWindowTest extends TestCase
         $service = $this->service();
 
         $this->assertFalse($service->hasBeenReleased());
-        $this->assertFalse($service->canBeSignedByCoordinator());
+        // A espera vale para as duas redações: assinatura no tablet (1) e
+        // validação pela web (2).
+        $this->assertFalse($this->service(['contract_version' => 1])->canBeSignedByCoordinator());
+        $this->assertFalse($this->service(['contract_version' => 2])->canBeValidatedByCoordinator());
         $this->assertFalse($service->canBeBatched());
         $this->assertNotNull($service->releaseBlockReason());
         $this->assertStringContainsString('06/08/2026', $service->releaseBlockReason());
@@ -87,7 +90,8 @@ class FreelancerReleaseWindowTest extends TestCase
         $service = $this->service();
 
         $this->assertTrue($service->hasBeenReleased());
-        $this->assertTrue($service->canBeSignedByCoordinator());
+        $this->assertTrue($this->service(['contract_version' => 1])->canBeSignedByCoordinator());
+        $this->assertTrue($this->service(['contract_version' => 2])->canBeValidatedByCoordinator());
         $this->assertNull($service->releaseBlockReason());
     }
 

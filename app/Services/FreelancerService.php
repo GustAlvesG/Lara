@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use App\Models\Freelancer;
 use App\Models\FunctionFreelancer;
 use App\Models\FreelancerService as FreelancerServiceModel;
@@ -24,6 +25,7 @@ class FreelancerService
     {
         $data['created_by'] = $this->actorId($data);
         $data['updated_by'] = $data['created_by'];
+        $data = $this->withStoredImage($data);
 
         return Freelancer::create($data);
     }
@@ -36,10 +38,56 @@ class FreelancerService
     public function updateFreelancer(Freelancer $freelancer, $data)
     {
         $data['updated_by'] = $this->actorId($data, 'updated_by');
+        $data = $this->withStoredImage($data);
 
         $freelancer->update($data);
 
         return $freelancer;
+    }
+
+    /**
+     * Troca a foto em data URL pelo nome do arquivo gravado em `public/images`.
+     *
+     * Sem foto nova, a chave sai dos dados: o formulário manda o campo vazio
+     * quando ninguém mexeu na câmera, e gravar esse vazio apagaria a foto que
+     * o freelancer já tem.
+     *
+     * O arquivo anterior não é apagado: a foto migrada do cadastro de
+     * terceirizado é o MESMO arquivo que o terceirizado usa.
+     */
+    private function withStoredImage(array $data): array
+    {
+        if (blank($data['image'] ?? null)) {
+            unset($data['image']);
+
+            return $data;
+        }
+
+        // O tipo é lido dos bytes, não do cabeçalho do data URL: é o arquivo
+        // que o navegador vai abrir.
+        [, $encoded] = array_pad(explode(',', $data['image'], 2), 2, '');
+        $bytes = base64_decode($encoded, true);
+        $info = $bytes !== false ? @getimagesizefromstring($bytes) : false;
+
+        $extension = match ($info['mime'] ?? null) {
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            default => null,
+        };
+
+        if ($extension === null) {
+            throw ValidationException::withMessages([
+                'image' => 'A foto enviada não é uma imagem válida. Tire a foto de novo ou importe outro arquivo.',
+            ]);
+        }
+
+        $name = 'freelancer_' . Str::uuid() . '.' . $extension;
+        file_put_contents(public_path('images/' . $name), $bytes);
+
+        $data['image'] = $name;
+
+        return $data;
     }
 
     /* ---------------------------------------------------------------------
@@ -393,6 +441,79 @@ class FreelancerService
         return $service;
     }
 
+    /* ---------------------------------------------------------------------
+     | Busca por função (tablet)
+     |---------------------------------------------------------------------*/
+
+    /**
+     * Quem já atuou numa função, para a operação achar um freelancer às
+     * pressas — o caso do fim de semana, quando falta gente e ninguém sabe
+     * quem chamar.
+     *
+     * - Ordem: mais atuações primeiro; no empate, quem trabalhou por último.
+     * - O histórico conta só o que já aconteceu (turnos até hoje), qualquer que
+     *   seja $day. $day é o dia para o qual se está chamando e muda apenas a
+     *   semana do limite: chamar no domingo para a segunda é chamar para a
+     *   semana seguinte.
+     * - Quem já tem `WEEKLY_LIMIT` serviços naquela semana volta BLOQUEADO:
+     *   continua na lista, para ninguém achar que o cadastro sumiu, mas SEM o
+     *   telefone — o bloqueio é daqui, não só da tela. Um contrato a mais segue
+     *   possível pelo caminho de sempre (liberação do coordenador no registro);
+     *   a busca é que não o sugere.
+     *
+     * @return array<string, mixed>
+     */
+    public function searchByFunction(FunctionFreelancer $function, Carbon $day): array
+    {
+        [$weekStart, $weekEnd] = FreelancerServiceModel::weekBoundsFor($day);
+
+        $history = FreelancerServiceModel::functionHistory($function->id, today());
+        $ids = $history->pluck('freelancer_id')->map(fn($id) => (int) $id)->all();
+
+        $freelancers = Freelancer::whereIn('id', $ids)->get(['id', 'name', 'telephone'])->keyBy('id');
+        $weekly = FreelancerServiceModel::weeklyCountsFor($ids, $day);
+
+        $rows = $history
+            ->map(function ($row) use ($freelancers, $weekly) {
+                $freelancer = $freelancers->get((int) $row->freelancer_id);
+
+                if ($freelancer === null) {
+                    return null;
+                }
+
+                $inWeek = (int) $weekly->get($freelancer->id, 0);
+                $blocked = $inWeek >= FreelancerServiceModel::WEEKLY_LIMIT;
+                $last = Carbon::parse($row->last_date);
+
+                return [
+                    'id' => $freelancer->id,
+                    'name' => $freelancer->name,
+                    // Bloqueado não leva o telefone: a lista não serve para chamá-lo.
+                    'phone' => $blocked ? null : $freelancer->phoneFormatted(),
+                    'phone_dial' => $blocked ? null : $freelancer->phoneDigits(),
+                    'services_in_function' => (int) $row->total,
+                    'last_service_date' => $last->toDateString(),
+                    'last_service_label' => $last->format('d/m/Y'),
+                    'services_in_week' => $inWeek,
+                    'blocked' => $blocked,
+                ];
+            })
+            ->filter()
+            ->values();
+
+        return [
+            'function' => ['id' => $function->id, 'name' => $function->name],
+            'date' => $day->toDateString(),
+            'week_start' => $weekStart->format('d/m'),
+            'week_end' => $weekEnd->format('d/m'),
+            'weekly_limit' => FreelancerServiceModel::WEEKLY_LIMIT,
+            // Disponíveis primeiro, na ordem de atuações; os bloqueados depois,
+            // na mesma ordem entre si.
+            'available' => $rows->where('blocked', false)->values()->all(),
+            'blocked' => $rows->where('blocked', true)->values()->all(),
+        ];
+    }
+
     /**
      * Troca a chave PIX do freelancer — o caminho de correção que o tablet
      * abre quando ele diz, na conferência, que a chave não é a dele.
@@ -454,6 +575,16 @@ class FreelancerService
             throw new FreelancerServiceLockedException($motivo);
         }
 
+        // Redação 2: o CONTRATANTE é assinado pelo diretor, e a coordenação só
+        // valida pela web. Um traço aqui iria para um documento que não tem
+        // mais onde recebê-lo.
+        if ($service->usesDirectorSignature()) {
+            throw new FreelancerServiceLockedException(
+                'Este contrato é da redação ' . $service->contractVersion()
+                . ': a coordenação o valida pela web (Serviços / Contratos → Validação), sem assinatura no tablet.'
+            );
+        }
+
         if (!$service->canBeSignedByCoordinator()) {
             throw new FreelancerServiceLockedException('Contrato já assinado pelo coordenador.');
         }
@@ -465,6 +596,42 @@ class FreelancerService
             // freelancer sempre assina primeiro (a fila do coordenador só mostra
             // o que ele já assinou), e aí não há nada a congelar aqui — mas a
             // garantia é da primeira assinatura, não de qual das duas.
+        ] + $service->contractFreezeAttributes())->save();
+
+        return $service;
+    }
+
+    /**
+     * Validação da coordenação — o passo do coordenador do Comercial na
+     * redação 2, feito pela web, um contrato por vez, depois de lê-lo até o fim
+     * e reconfirmar o PIN (quem confere o PIN e a leitura é o controller).
+     *
+     * Grava as mesmas colunas da assinatura no tablet: nas duas redações é o
+     * registro de que a coordenação confirmou o serviço, e é por ele que o
+     * contrato fica disponível para o lote. Nada disso vai ao documento — pelo
+     * CONTRATANTE, na redação 2, assina o diretor.
+     *
+     * @throws FreelancerServiceLockedException
+     */
+    public function validateAsCoordinator(FreelancerServiceModel $service, User $user): FreelancerServiceModel
+    {
+        if ($motivo = $service->coordinatorValidationBlockReason()) {
+            throw new FreelancerServiceLockedException($motivo);
+        }
+
+        // Mesma trava da assinatura no tablet: cadastro incompleto não gera
+        // contrato validado.
+        if ($service->freelancer && !$service->freelancer->hasCompleteContractData()) {
+            throw new FreelancerServiceLockedException(
+                'Cadastro do freelancer incompleto. Complete os dados antes de validar o contrato.'
+            );
+        }
+
+        $service->forceFill([
+            'coordinator_signed_at' => now(),
+            'coordinator_signed_by' => $user->id,
+            // O freelancer já congelou o documento ao assinar; a linha fica pela
+            // mesma garantia de `signAsCoordinator()` — é da primeira assinatura.
         ] + $service->contractFreezeAttributes())->save();
 
         return $service;

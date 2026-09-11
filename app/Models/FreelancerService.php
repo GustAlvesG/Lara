@@ -78,7 +78,9 @@ class FreelancerService extends Model
      */
     const SIGNATURE_FILTERS = [
         'unsigned' => 'Não assinado',
-        'awaiting_coordinator' => 'Aguardando coordenador',
+        // Na redação 2 o rótulo da linha é "Aguardando validação da
+        // coordenação"; o filtro reúne as duas, que são o mesmo passo.
+        'awaiting_coordinator' => 'Aguardando coordenador (assinatura ou validação)',
         'awaiting_freelancer' => 'Aguardando freelancer',
         'signed' => 'Assinado',
         'cancelled' => 'Cancelado',
@@ -105,7 +107,20 @@ class FreelancerService extends Model
      * cada revisão é uma REDAÇÃO NOVA, nunca uma edição da anterior: contrato
      * assinado tem de continuar dizendo o que dizia. Ver `CONTRACT_VERSIONS`.
      */
-    const CONTRACT_VERSION_CURRENT = 1;
+    const CONTRACT_VERSION_CURRENT = 2;
+
+    /**
+     * Quem assina o documento pelo CONTRATANTE — decidido pela redação que o
+     * contrato firmou, e não pela data de hoje. É o que deixa os dois fluxos
+     * conviverem na transição: o que o freelancer assinou sob a redação 1
+     * termina como começou, com o traço do coordenador no tablet.
+     *
+     *   coordinator  o coordenador do Comercial desenha a assinatura no tablet
+     *   director     o coordenador só VALIDA pela web; quem assina é o diretor,
+     *                com a imagem cadastrada, quando aprova o lote
+     */
+    const CONTRACTOR_SIGNS_COORDINATOR = 'coordinator';
+    const CONTRACTOR_SIGNS_DIRECTOR = 'director';
 
     /**
      * As redações já existentes, com a data em que entraram em vigor e o que
@@ -125,6 +140,13 @@ class FreelancerService extends Model
             'label' => 'Redação original',
             'from' => '2026-07-22',
             'summary' => 'Modelo do Clube dos Funcionários, com a cláusula da forma de pagamento por PIX e o texto por dia (sem horário no corpo do instrumento).',
+            'contractor_signature' => self::CONTRACTOR_SIGNS_COORDINATOR,
+        ],
+        2 => [
+            'label' => 'Assinatura da diretoria',
+            'from' => '2026-09-11',
+            'summary' => 'Mesmas cláusulas da redação 1. Pelo CONTRATANTE assina o diretor, digitalmente, na aprovação do lote; a coordenação passa a só validar o contrato pela web.',
+            'contractor_signature' => self::CONTRACTOR_SIGNS_DIRECTOR,
         ],
     ];
 
@@ -213,6 +235,8 @@ class FreelancerService extends Model
         'manager_rejected_at' => 'datetime',
         'director_approved_at' => 'datetime',
         'director_rejected_at' => 'datetime',
+        // Assinatura da diretoria aplicada ao documento (redação 2).
+        'director_signed_at' => 'datetime',
         'paid' => 'boolean',
         'paid_at' => 'datetime',
         'cancelled_at' => 'datetime',
@@ -263,9 +287,20 @@ class FreelancerService extends Model
         return $this->belongsTo(User::class, 'freelancer_signed_by');
     }
 
+    /**
+     * O coordenador que assinou (redação 1, no tablet) ou validou (redação 2,
+     * pela web) o contrato. A coluna é a mesma: nas duas redações ela registra
+     * que a coordenação confirmou o serviço — ver `validateAsCoordinator()`.
+     */
     public function coordinatorSignedBy()
     {
         return $this->belongsTo(User::class, 'coordinator_signed_by');
+    }
+
+    /** O cadastro da diretoria cuja assinatura foi aplicada ao documento. */
+    public function director()
+    {
+        return $this->belongsTo(FreelancerDirector::class, 'freelancer_director_id');
     }
 
     /** Operador do tablet que conduziu a pergunta do jantar. */
@@ -687,11 +722,41 @@ class FreelancerService extends Model
         return !$this->isCancelled() && $this->freelancer_signed_at === null;
     }
 
+    /** Assinatura desenhada no tablet — só da redação 1. */
     public function canBeSignedByCoordinator(): bool
     {
         return !$this->isCancelled()
+            && !$this->usesDirectorSignature()
             && $this->coordinator_signed_at === null
             && $this->hasBeenReleased();
+    }
+
+    /**
+     * Validação pela web — o passo da coordenação na redação 2. Grava as
+     * mesmas colunas da assinatura (`coordinator_signed_at` / `_by`): nas duas
+     * redações é o registro de que a coordenação confirmou o serviço, e é por
+     * ele que lote, financeiro e acompanhamento andam. O que muda é que na
+     * redação 2 nada disso vai para o documento.
+     */
+    public function canBeValidatedByCoordinator(?Carbon $moment = null): bool
+    {
+        return $this->coordinatorValidationBlockReason($moment) === null;
+    }
+
+    /** Por que a coordenação não pode validar este contrato — null quando pode. */
+    public function coordinatorValidationBlockReason(?Carbon $moment = null): ?string
+    {
+        return match (true) {
+            $this->isCancelled() => 'Contrato cancelado não pode ser validado.',
+            !$this->usesDirectorSignature() => 'Este contrato é da redação ' . $this->contractVersion()
+                . ': a coordenação o assina no tablet, e não pela web.',
+            $this->freelancer_signed_at === null => 'O freelancer ainda não assinou este contrato.',
+            $this->coordinator_signed_at !== null => 'Este contrato já foi validado pela coordenação.',
+            // Mesma espera da assinatura no tablet: até a manhã seguinte o turno
+            // ainda pode receber aditivo.
+            !$this->hasBeenReleased($moment) => $this->releaseBlockReason($moment),
+            default => null,
+        };
     }
 
     /* ---------------------------------------------------------------------
@@ -875,6 +940,56 @@ class FreelancerService extends Model
         $info = $this->contractVersionInfo();
 
         return 'Redação ' . $this->contractVersion() . ($info ? ' · ' . $info['label'] : '');
+    }
+
+    /** Quem assina pelo CONTRATANTE na redação deste contrato. */
+    public function contractorSignature(): string
+    {
+        return $this->contractVersionInfo()['contractor_signature'] ?? self::CONTRACTOR_SIGNS_COORDINATOR;
+    }
+
+    /**
+     * Redação 2 em diante: a coordenação valida pela web e o diretor assina o
+     * documento na aprovação do lote. Contrato ainda sem assinatura segue a
+     * redação vigente — é nela que ele vai ser firmado.
+     */
+    public function usesDirectorSignature(): bool
+    {
+        return $this->contractorSignature() === self::CONTRACTOR_SIGNS_DIRECTOR;
+    }
+
+    /**
+     * As redações em que o CONTRATANTE assina de um jeito ou de outro.
+     *
+     * @return array<int, int>
+     */
+    public static function versionsSignedBy(string $signer): array
+    {
+        return array_keys(array_filter(
+            self::CONTRACT_VERSIONS,
+            fn(array $info) => ($info['contractor_signature'] ?? self::CONTRACTOR_SIGNS_COORDINATOR) === $signer,
+        ));
+    }
+
+    /**
+     * Filtra pelo fluxo de assinatura do CONTRATANTE — a mesma leitura de
+     * `usesDirectorSignature()`, em SQL: contrato sem redação congelada segue a
+     * vigente, e por isso entra junto com as redações do fluxo vigente.
+     */
+    public function scopeContractorSignedBy($query, string $signer)
+    {
+        $versions = self::versionsSignedBy($signer);
+        $vigenteEntra = in_array(self::CONTRACT_VERSION_CURRENT, $versions, true);
+
+        return $query->where(function ($q) use ($versions, $vigenteEntra) {
+            // `[0]` quando não há redação no fluxo: nenhuma redação é a 0, e
+            // `whereIn` com lista vazia muda de sentido entre os bancos.
+            $q->whereIn('contract_version', $versions ?: [0]);
+
+            if ($vigenteEntra) {
+                $q->orWhereNull('contract_version');
+            }
+        });
     }
 
     /**
@@ -1522,6 +1637,9 @@ class FreelancerService extends Model
         return match (true) {
             $this->isCancelled() => 'Cancelado',
             $this->isFullySigned() => 'Assinado',
+            // Redação 2: o que falta é a validação pela web, não um traço no
+            // tablet — dizer "coordenador" mandaria alguém ao kiosk à toa.
+            $this->freelancer_signed_at !== null && $this->usesDirectorSignature() => 'Aguardando validação da coordenação',
             $this->freelancer_signed_at !== null => 'Aguardando coordenador',
             $this->coordinator_signed_at !== null => 'Aguardando freelancer',
             default => 'Não assinado',
@@ -1625,6 +1743,66 @@ class FreelancerService extends Model
     public function isDirectorRejected(): bool
     {
         return $this->director_rejected_at !== null && !$this->isDirectorApproved();
+    }
+
+    /* ---------------------------------------------------------------------
+     | Assinatura da diretoria (redação 2)
+     |
+     | Na redação 2 quem assina pelo CONTRATANTE é o diretor: a imagem do
+     | cadastro da diretoria entra no documento quando ele aprova o lote. Vale
+     | para os três documentos do turno — contrato, aditivo e comissão.
+     |
+     | Colunas próprias (`freelancer_director_id`, `director_signed_at`), e não
+     | `director_approved_at`: o contrato base que ganhou aditivo não vai a
+     | lote, e recebe a assinatura pela aprovação do aditivo que o substituiu.
+     | Marcá-lo como "aprovado pela diretoria" o faria parecer pagável.
+     |---------------------------------------------------------------------*/
+
+    public function hasDirectorSignature(): bool
+    {
+        return $this->director_signed_at !== null && $this->freelancer_director_id !== null;
+    }
+
+    /** Redação 2, vivo e ainda sem a assinatura do diretor. */
+    public function awaitsDirectorSignature(): bool
+    {
+        return $this->usesDirectorSignature()
+            && !$this->isCancelled()
+            && !$this->hasDirectorSignature();
+    }
+
+    /**
+     * Os documentos que este substituiu e que, por isso, nunca passam por lote:
+     * o contrato base de um aditivo de horário — e o aditivo anterior, quando é
+     * aditivo de aditivo. É pela aprovação DESTE documento que eles recebem a
+     * assinatura da diretoria; sem isso, o contrato base ficaria para sempre
+     * sem a assinatura do CONTRATANTE.
+     *
+     * A comissão NÃO sobe na cadeia: ela acresce ao contrato do turno, que
+     * continua indo a lote e é assinado na aprovação dele.
+     *
+     * @return array<int, self>
+     */
+    public function documentsReplacedByThis(): array
+    {
+        $replaced = [];
+        $current = $this;
+        $guard = 0;
+
+        while ($current->isScheduleAmendment() && $guard++ < 20) {
+            $base = $current->baseService;
+
+            // Só sobe enquanto o base aponta de volta: um aditivo cancelado e
+            // refeito deixa o base apontando para o aditivo novo.
+            if ($base === null || (int) $base->amendment_service_id !== (int) $current->id) {
+                break;
+            }
+
+            $replaced[] = $base;
+            $current = $base;
+        }
+
+        return $replaced;
     }
 
     /** Está num lote que ainda está tramitando (rascunho, gerência ou diretoria). */
@@ -1855,8 +2033,31 @@ class FreelancerService extends Model
      * Contrato que recebeu aditivo CONTINUA aqui: ele é um documento firmado e
      * precisa da assinatura das duas partes. O aditivo aparece ao lado, e é ele
      * que seguirá para o lote.
+     *
+     * Só a redação 1: é a única em que o coordenador assina no tablet. Os da
+     * redação 2 estão em `awaitingCoordinatorValidation`, na web — com a
+     * mudança, esta fila se esvazia sozinha à medida que os antigos são
+     * assinados.
      */
     public function scopeAwaitingCoordinator($query)
+    {
+        return $query->pendingCoordinator()
+            ->contractorSignedBy(self::CONTRACTOR_SIGNS_COORDINATOR);
+    }
+
+    /**
+     * Fila da validação pela web (redação 2): o freelancer assinou, o turno já
+     * foi liberado e falta a coordenação confirmar. Os mesmos filtros da fila
+     * do tablet, do outro lado da redação.
+     */
+    public function scopeAwaitingCoordinatorValidation($query)
+    {
+        return $query->pendingCoordinator()
+            ->contractorSignedBy(self::CONTRACTOR_SIGNS_DIRECTOR);
+    }
+
+    /** O que as duas filas da coordenação têm em comum. */
+    public function scopePendingCoordinator($query)
     {
         return $query->whereNotNull('freelancer_signed_at')
             ->whereNull('coordinator_signed_at')
@@ -2174,9 +2375,77 @@ class FreelancerService extends Model
         });
     }
 
+    /**
+     * Serviços de cada freelancer na semana de calendário (segunda a domingo)
+     * que contém $date — a mesma conta de `countInWeeklyWindow()`, com as
+     * mesmas exclusões (cancelado não conta, aditivo não é dia novo), mas numa
+     * consulta só para vários freelancers. É o que a busca por função do
+     * tablet usa para bloquear quem já está no limite.
+     *
+     * @param  array<int, int>  $freelancerIds
+     * @return Collection<int, int>  id do freelancer => serviços na semana
+     */
+    public static function weeklyCountsFor(array $freelancerIds, $date): Collection
+    {
+        if ($freelancerIds === []) {
+            return collect();
+        }
+
+        [$weekStart, $weekEnd] = self::weekBounds(Carbon::parse($date)->startOfDay());
+
+        return static::query()
+            ->whereIn('freelancer_id', $freelancerIds)
+            ->where('status_id', '!=', self::STATUS_CANCELLED)
+            ->whereNull('parent_service_id')
+            ->whereBetween('start_date', [$weekStart, $weekEnd])
+            ->groupBy('freelancer_id')
+            ->selectRaw('freelancer_id, COUNT(*) as total')
+            ->pluck('total', 'freelancer_id')
+            ->map(fn($total) => (int) $total);
+    }
+
+    /**
+     * Segunda e domingo da semana de calendário que contém $date.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    public static function weekBoundsFor($date): array
+    {
+        return self::weekBounds(Carbon::parse($date)->startOfDay());
+    }
+
     /* ---------------------------------------------------------------------
      | Funções já exercidas
      |---------------------------------------------------------------------*/
+
+    /**
+     * Quem já atuou numa função, com quantas vezes e quando foi a última — a
+     * lista que o tablet mostra para achar um freelancer às pressas.
+     *
+     * Conta só o que já aconteceu (turno até $until): um serviço agendado para
+     * a semana que vem não é atuação. As exclusões são as de sempre — contrato
+     * cancelado não foi trabalhado, e aditivo remenda um turno que o contrato
+     * base já conta.
+     *
+     * Mais atuações primeiro; no empate, quem trabalhou mais recentemente.
+     *
+     * @return Collection<int, object{freelancer_id: int, total: int, last_date: string}>
+     */
+    public static function functionHistory(int $functionId, $until): Collection
+    {
+        return static::query()
+            ->where('function_freelancer_id', $functionId)
+            ->where('status_id', '!=', self::STATUS_CANCELLED)
+            ->whereNull('parent_service_id')
+            ->whereDate('start_date', '<=', Carbon::parse($until)->toDateString())
+            ->groupBy('freelancer_id')
+            ->select('freelancer_id')
+            ->selectRaw('COUNT(*) as total, MAX(start_date) as last_date')
+            ->orderByDesc('total')
+            ->orderByDesc('last_date')
+            ->toBase()
+            ->get();
+    }
 
     /**
      * Em que funções cada freelancer já atuou e quantas vezes — o que a

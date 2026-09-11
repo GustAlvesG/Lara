@@ -36,6 +36,8 @@ use App\Http\Controllers\Freelancer\BatchController as FreelancerBatchController
 use App\Http\Controllers\Freelancer\TrackingController as FreelancerTrackingController;
 use App\Http\Controllers\Freelancer\ServiceController as FreelancerServiceWebController;
 use App\Http\Controllers\Freelancer\KioskController;
+use App\Http\Controllers\Freelancer\DirectorController as FreelancerDirectorController;
+use App\Http\Controllers\Freelancer\ValidationController as FreelancerValidationController;
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LaraChatController;
@@ -77,6 +79,9 @@ Route::prefix('kiosk')->group(function () {
     Route::post('/mode', [KioskController::class, 'mode'])->name('kiosk.mode');
     Route::post('/logout', [KioskController::class, 'logout'])->name('kiosk.logout');
     Route::get('/functions', [KioskController::class, 'functions'])->name('kiosk.functions');
+    // Busca por função: quem já atuou nela, bloqueando quem está no limite semanal.
+    Route::get('/functions/{functionFreelancer}/freelancers', [KioskController::class, 'searchByFunction'])
+        ->name('kiosk.functions.freelancers');
     Route::get('/freelancer/{cpf}', [KioskController::class, 'findFreelancer'])
         ->where('cpf', '[0-9]{11}')->name('kiosk.freelancer.find');
     Route::post('/freelancer', [KioskController::class, 'storeFreelancer'])->name('kiosk.freelancer.store');
@@ -466,6 +471,30 @@ Route::middleware('auth')->group(function () {
             Route::post('/{batch}/diretoria', [FreelancerBatchController::class, 'directorDecision'])
                 ->middleware('throttle:10,1')->name('freelancer-batches.director.decision');
         });
+
+        // Validação dos contratos da redação 2 pelo coordenador do Comercial —
+        // um contrato por vez, lido até o fim e confirmado com o PIN. Não há
+        // rota que receba vários: a validação é do documento, não de uma lista.
+        // Declaradas antes de /freelancer-services/{freelancerService}.
+        Route::prefix('freelancer-services/validacao')
+            ->middleware('can:validate-freelancer-contracts')
+            ->group(function () {
+                Route::get('/', [FreelancerValidationController::class, 'index'])->name('freelancer-validation.index');
+                Route::get('/{freelancerService}', [FreelancerValidationController::class, 'show'])->name('freelancer-validation.show');
+                Route::post('/{freelancerService}', [FreelancerValidationController::class, 'store'])
+                    ->middleware('throttle:30,1')->name('freelancer-validation.store');
+            });
+
+        // Cadastro da diretoria (nome, e-mail dos códigos e assinatura) — só o
+        // coordenador da Gerência. Substitui as variáveis FREELANCER_DIRECTOR_*.
+        Route::prefix('freelancer-services/diretoria')
+            ->middleware('can:manage-freelancer-director')
+            ->group(function () {
+                Route::get('/', [FreelancerDirectorController::class, 'edit'])->name('freelancer-director.edit');
+                Route::post('/', [FreelancerDirectorController::class, 'update'])->name('freelancer-director.update');
+                Route::get('/{director}/assinatura', [FreelancerDirectorController::class, 'signatureImage'])
+                    ->name('freelancer-director.signature');
+            });
 
         Route::prefix('freelancer-services')->group(function () {
             Route::get('/', [FreelancerServiceWebController::class, 'index'])->name('freelancer-services.index');

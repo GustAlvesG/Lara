@@ -248,8 +248,12 @@ class FreelancerTrackingTest extends TestCase
     {
         Carbon::setTestNow('2026-08-06 22:00:00');
 
+        // Redação 1: a fila do tablet só tem os contratos que o coordenador
+        // assina com o traço. A da redação 2 (validação pela web) segue a mesma
+        // regra de horário — ver FreelancerCoordinatorValidationTest.
         $hoje = $this->contrato(100.00, null, [
             'start_date' => '2026-08-06',
+            'contract_version' => 1,
             'coordinator_signed_at' => null,
             'manager_approved_at' => null,
             'director_approved_at' => null,
@@ -257,6 +261,7 @@ class FreelancerTrackingTest extends TestCase
 
         $ontem = $this->contrato(100.00, null, [
             'start_date' => '2026-08-05',
+            'contract_version' => 1,
             'coordinator_signed_at' => null,
             'manager_approved_at' => null,
             'director_approved_at' => null,
@@ -286,6 +291,7 @@ class FreelancerTrackingTest extends TestCase
 
         $contrato = $this->contrato(100.00, null, [
             'start_date' => '2026-08-06',
+            'contract_version' => 1,
             'coordinator_signed_at' => null,
             'manager_approved_at' => null,
             'director_approved_at' => null,

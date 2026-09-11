@@ -33,6 +33,8 @@ class UpdateFreelancerRequest extends FormRequest
             'civil_status' => ['nullable', 'string'],
             'address' => ['nullable', 'string'],
             'telephone' => ['nullable', 'string'],
+            // Vazio mantém a foto atual — ver FreelancerService::updateFreelancer().
+            'image' => ['nullable', 'string', 'max:3000000', 'regex:/^data:image\/(jpeg|png|webp);base64,/'],
             'updated_by' => ['nullable', 'integer', 'exists:users,id'],
         ];
     }

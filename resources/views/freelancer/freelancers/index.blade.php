@@ -43,8 +43,15 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 @foreach($freelancers as $freelancer)
                 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border {{ $freelancer->exceeds_weekly_limit ? 'border-amber-300 dark:border-amber-700' : 'border-gray-100 dark:border-gray-700' }} overflow-hidden">
-                    <div class="p-6 border-b border-gray-50 dark:border-gray-700 flex items-start justify-between bg-gray-50/50 dark:bg-gray-700/50">
-                        <div>
+                    <div class="p-6 border-b border-gray-50 dark:border-gray-700 flex items-start justify-between gap-4 bg-gray-50/50 dark:bg-gray-700/50">
+                        @if($freelancer->imageUrl())
+                            <img src="{{ $freelancer->imageUrl() }}" alt="" class="w-14 h-14 rounded-full object-cover border-2 border-white dark:border-gray-800 shadow shrink-0">
+                        @else
+                            <div class="w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 flex items-center justify-center font-black text-xl shrink-0">
+                                {{ mb_strtoupper(mb_substr($freelancer->name, 0, 1)) }}
+                            </div>
+                        @endif
+                        <div class="flex-1 min-w-0">
                             <h2 class="text-xl font-extrabold text-gray-900 dark:text-white flex items-center gap-2 flex-wrap">
                                 {{ $freelancer->name }}
                                 @if($freelancer->exceeds_weekly_limit)

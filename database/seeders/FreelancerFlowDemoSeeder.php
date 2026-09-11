@@ -96,7 +96,7 @@ class FreelancerFlowDemoSeeder extends Seeder
             'sent_at' => now()->subDays(2),
             'reviewed_by' => $manager->id,
             'reviewed_at' => now()->subDay(),
-            'director_email' => config('freelancers.director.email') ?: 'diretoria@exemplo.com.br',
+            'director_email' => \App\Models\FreelancerDirector::current()?->email ?: 'diretoria@exemplo.com.br',
             'director_notified_at' => now()->subDay(),
         ]);
         $awaiting->ensureDirectorPins();
@@ -117,7 +117,7 @@ class FreelancerFlowDemoSeeder extends Seeder
             'sent_at' => now()->subDays(4),
             'reviewed_by' => $manager->id,
             'reviewed_at' => now()->subDays(3),
-            'director_email' => config('freelancers.director.email') ?: 'diretoria@exemplo.com.br',
+            'director_email' => \App\Models\FreelancerDirector::current()?->email ?: 'diretoria@exemplo.com.br',
             'director_notified_at' => now()->subDays(3),
             'director_decision' => FreelancerServiceBatch::DECISION_APPROVED,
             'director_decided_at' => now()->subDays(2),

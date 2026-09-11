@@ -113,12 +113,16 @@
 </table>
 
 <div class="sign">
-    <div class="line">{{ config('freelancers.director.name') }} — Diretoria</div>
+    {{-- Quem recebe este PDF é o diretor do cadastro para o qual o lote foi
+         enviado — o mesmo cuja assinatura vai aos contratos da redação 2. --}}
+    <div class="line">{{ ($batch->director ?? \App\Models\FreelancerDirector::current())?->name ?? 'Diretoria' }} — Diretoria</div>
 </div>
 
 <div class="foot">
-    Todos os contratos desta relação estão assinados pelo freelancer e pelo coordenador, e foram
-    conferidos individualmente pela gerência. O número da coluna "Nº" é o do documento no sistema.
+    Todos os contratos desta relação estão assinados pelo freelancer e assinados ou validados pela
+    coordenação, e foram conferidos individualmente pela gerência. Nos contratos da redação 2, a
+    aprovação da diretoria aplica ao documento a assinatura digital do diretor.
+    O número da coluna "Nº" é o do documento no sistema.
     A aprovação da diretoria é registrada no sistema pelo
     código informado no e-mail que acompanha esta relação.<br>
     Clube dos Funcionários da CSN · Rua General Oswaldo Pinto da Veiga, 231 — Volta Redonda/RJ

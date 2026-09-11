@@ -184,17 +184,32 @@
                     @endif
                 </div>
 
+                @php $validaPelaWeb = $service->usesDirectorSignature(); @endphp
                 <div class="p-4 rounded-xl border {{ $service->coordinator_signed_at ? 'border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-600' }}">
-                    <p class="text-sm font-bold text-gray-700 dark:text-gray-300">Coordenador</p>
+                    <p class="text-sm font-bold text-gray-700 dark:text-gray-300">
+                        {{ $validaPelaWeb ? 'Validação da coordenação' : 'Coordenador' }}
+                    </p>
                     @if($service->coordinator_signed_at)
                         <p class="text-sm text-green-700 dark:text-green-400 font-semibold mt-1">
-                            ✓ Assinado por {{ $service->coordinatorSignedBy?->name ?? '—' }}
+                            ✓ {{ $validaPelaWeb ? 'Validado' : 'Assinado' }} por {{ $service->coordinatorSignedBy?->name ?? '—' }}
                             em {{ $service->coordinator_signed_at->format('d/m/Y H:i') }}
                         </p>
+                        @if($validaPelaWeb)
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Validação pela web, com PIN. Não entra no documento — pelo CONTRATANTE assina a diretoria.
+                            </p>
+                        @endif
                     @else
                         <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
                             @if($service->isCancelled())
                                 Contrato cancelado.
+                            @elseif($validaPelaWeb)
+                                {{-- Redação 2: a coordenação valida pela web, contrato a contrato. --}}
+                                Aguardando a validação do coordenador do setor Comercial,
+                                feita <b>pela web</b> (Serviços / Contratos → Validação).
+                                @if($service->awaitsRelease())
+                                    Entra na fila em {{ $service->releasesAt()->format('d/m/Y \à\s H:i') }}.
+                                @endif
                             @else
                                 {{-- A assinatura do coordenador é sempre desenhada; o painel só acompanha. --}}
                                 Aguardando assinatura do coordenador do setor Comercial,
@@ -203,6 +218,32 @@
                         </p>
                     @endif
                 </div>
+
+                {{-- Redação 2: pelo CONTRATANTE assina a diretoria, com a imagem do
+                     cadastro, quando aprova o lote — ou, no contrato que ganhou
+                     aditivo, quando aprova o aditivo que o substituiu. --}}
+                @if($validaPelaWeb)
+                    <div class="md:col-span-2 p-4 rounded-xl border {{ $service->hasDirectorSignature() ? 'border-green-200 dark:border-green-700 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-600' }}">
+                        <p class="text-sm font-bold text-gray-700 dark:text-gray-300">Diretoria (assina pelo CONTRATANTE)</p>
+                        @if($service->hasDirectorSignature())
+                            <p class="text-sm text-green-700 dark:text-green-400 font-semibold mt-1">
+                                ✓ Assinado digitalmente por {{ $service->director?->name ?? 'Diretoria' }}
+                                em {{ $service->director_signed_at->format('d/m/Y H:i') }}
+                            </p>
+                        @elseif($service->isCancelled())
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Contrato cancelado.</p>
+                        @elseif($service->isAmended())
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                Este contrato não vai a lote: recebe a assinatura da diretoria quando o aditivo que o
+                                substituiu for aprovado.
+                            </p>
+                        @else
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                Aplicada ao documento quando a diretoria aprovar o lote deste contrato.
+                            </p>
+                        @endif
+                    </div>
+                @endif
             </div>
 
             {{-- Chave PIX do pagamento. Fica junto das assinaturas porque é isso

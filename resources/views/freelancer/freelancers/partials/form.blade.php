@@ -8,6 +8,8 @@
     </div>
 
     <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+        @include('freelancer.freelancers.partials.photo')
+
         <div>
             <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Nome <span class="text-red-500">*</span></label>
             <input type="text" name="name" value="{{ old('name', $freelancer?->name) }}" required

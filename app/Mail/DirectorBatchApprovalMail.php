@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Models\FreelancerDirector;
 use App\Models\FreelancerServiceBatch;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Mail\Mailable;
@@ -27,6 +28,7 @@ class DirectorBatchApprovalMail extends Mailable
 
     public function __construct(
         public FreelancerServiceBatch $batch,
+        public FreelancerDirector $director,
         public string $approvePin,
         public string $rejectPin,
     ) {
@@ -45,8 +47,13 @@ class DirectorBatchApprovalMail extends Mailable
             view: 'emails.freelancer.director-approval',
             with: [
                 'batch' => $this->batch,
+                'director' => $this->director,
                 'services' => $this->batch->services,
                 'total' => $this->batch->services->sum('price'),
+                // Os documentos em que a aprovação aplica a assinatura dele: o
+                // diretor precisa saber que o código também assina, e o quê.
+                'signedByDirector' => $this->batch->services
+                    ->filter(fn($s) => $s->isManagerApproved() && $s->usesDirectorSignature()),
                 'approvePin' => $this->approvePin,
                 'rejectPin' => $this->rejectPin,
             ],

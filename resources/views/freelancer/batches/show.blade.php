@@ -123,17 +123,29 @@
                     @else
                         <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
                             A diretoria ainda <b>não foi avisada</b> deste lote.
-                            @if($directorEmail)
-                                O e-mail com os códigos de aprovação vai para <b>{{ $directorEmail }}</b>.
+                            @if($director)
+                                O e-mail com os códigos de aprovação vai para <b>{{ $director->name }}</b>
+                                (<b>{{ $director->email }}</b>).
                             @else
                                 <span class="text-[#A00001] dark:text-red-400">
-                                    Nenhum e-mail de diretoria configurado — defina <code>FREELANCER_DIRECTOR_EMAIL</code> no .env.
+                                    Nenhum diretor cadastrado — cadastre nome, e-mail e assinatura na aba
+                                    <a href="{{ route('freelancer-director.edit') }}" class="underline font-bold">Diretoria</a>.
                                 </span>
                             @endif
                         </p>
+                        {{-- Contratos da redação 2 são assinados pela diretoria na
+                             aprovação: sem a imagem cadastrada não há o que aplicar. --}}
+                        @if($directorSignatureMissing)
+                            <p class="text-sm text-[#A00001] dark:text-red-400 mb-4">
+                                Este lote tem contratos assinados pela diretoria (redação 2), e o cadastro está sem a
+                                imagem da assinatura. Envie-a na aba
+                                <a href="{{ route('freelancer-director.edit') }}" class="underline font-bold">Diretoria</a>
+                                antes de enviar o lote.
+                            </p>
+                        @endif
                         <form action="{{ route('freelancer-batches.director.notify', $batch) }}" method="POST">
                             @csrf
-                            <button type="submit" @disabled(!$directorEmail)
+                            <button type="submit" @disabled(!$director || $directorSignatureMissing)
                                     class="px-6 py-3 rounded-xl text-sm font-bold text-white bg-[#A00001] hover:bg-[#7c0001] shadow transition
                                            disabled:opacity-40 disabled:cursor-not-allowed">
                                 Enviar à diretoria
