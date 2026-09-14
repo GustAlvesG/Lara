@@ -83,10 +83,10 @@ enviado. Ver [Autorização de Ordem de Compra](funcionalidades/questor-autoriza
 
 ## 11.6. Home Assistant (automação de iluminação)
 
-- **Endpoint:** `GET /api/schedule/home-assistant/automation` (público, sem tokens).
-- **Componente:** `ScheduleController@homeAssistantAutomation` → `SchedulesService::homeAssistantAutomation()`.
-- **Função:** retorna o estado dos contatores (com base nos agendamentos ativos) para que
-  o Home Assistant ligue/desligue a iluminação dos espaços.
+- **Endpoint:** `GET /api/schedule/home-assistant/automation`, com `Authorization: Bearer <API_TOKEN>` (middleware `api_token`).
+- **Componente:** `ScheduleController@homeAssistantAutomation` → `SchedulesService::homeAssistantAutomation()` → `HomeAssistant\ContactorStateResolver`.
+- **Função:** retorna `{"contactors": {"<entity_id>": bool}}`, com o estado decidido por controle manual,
+  agendamentos do painel e reservas confirmadas. Ver [Automação Home Assistant](funcionalidades/automacao-home-assistant.md).
 
 ---
 

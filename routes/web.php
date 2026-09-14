@@ -239,7 +239,8 @@ Route::middleware('auth')->group(function () {
     
     Route::get('/videowall', [VideoWallController::class, 'index'])->name('videowall.index');
 
-    Route::group(['prefix' => 'home-assistant'], function () {
+    // A permissão precisa estar na rota: esconder o menu não impede um POST direto.
+    Route::group(['prefix' => 'home-assistant', 'middleware' => 'permission:manage home assistant'], function () {
         Route::get('/', [HomeAssistantController::class, 'index'])->name('home-assistant.index');
 
         // Contactors

@@ -1,150 +1,140 @@
+{{--
+    Cartão de um contator: estado agora, motivo, linha do tempo e controle.
+    Parâmetros:
+      $contactor  Contactor
+      $state      App\Services\HomeAssistant\ContactorState
+      $timeline   array
+      $now        Carbon
+--}}
 @php
-    $now       = now();
-    $effective = $contactor->effectiveOverride($now);
-    $quick     = $contactor->overrides->first(fn ($o) => $o->is_active && $o->is_quick);
-    $state     = $effective?->resolvedState($now);
-
-    [$dot, $statusLabel, $statusClass] = match(true) {
-        $effective && $state === true  => ['bg-green-500', 'Ligado',   'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'],
-        $effective && $state === false => ['bg-red-500',   'Desligado','bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'],
-        default                        => ['bg-gray-300',  'Padrão',   'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'],
+    [$badgeLabel, $badgeClass] = match ($state->source) {
+        \App\Services\HomeAssistant\ContactorState::SOURCE_QUICK       => ['Manual',      'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300'],
+        \App\Services\HomeAssistant\ContactorState::SOURCE_OVERRIDE    => ['Agendamento', 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'],
+        \App\Services\HomeAssistant\ContactorState::SOURCE_RESERVATION => ['Reserva',     'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'],
+        default                            => ['Automático',  'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'],
     };
 
-    $linkedSchedules = $contactor->overrides->filter(fn ($o) => $o->is_active && ! $o->is_quick);
+    $schedulesCount = $contactor->overrides->filter(fn ($o) => ! $o->is_quick && $o->is_active && ! $o->is_expired)->count();
+
+    // Controle: automático (sem ação rápida), ligado ou desligado manualmente
+    $control = $state->isManual() ? ($state->on ? 'on' : 'off') : 'auto';
 @endphp
 
-<div x-data="{ open: false }" class="bg-white dark:bg-gray-800 shadow sm:rounded-2xl p-5 flex flex-col gap-4 border border-gray-100 dark:border-gray-700">
+<article class="group bg-white dark:bg-gray-800 rounded-2xl shadow-sm border transition
+    {{ $state->on ? 'border-amber-200 dark:border-amber-800/60' : 'border-gray-100 dark:border-gray-700' }}">
 
-    {{-- Cabeçalho --}}
-    <div class="flex items-center justify-between gap-2">
-        <div class="flex items-center gap-2 min-w-0">
-            <span class="w-2.5 h-2.5 rounded-full {{ $dot }} shrink-0"></span>
-            <h3 class="font-bold text-gray-900 dark:text-white text-base truncate">{{ $contactor->name }}</h3>
-        </div>
-        <span class="text-xs px-2 py-1 rounded-full font-medium shrink-0 {{ $statusClass }}">{{ $statusLabel }}</span>
-    </div>
-
-    {{-- Ações rápidas --}}
-    <div class="flex flex-wrap gap-2">
-        <form method="POST" action="{{ route('home-assistant.quick', $contactor) }}">
-            @csrf
-            <input type="hidden" name="state" value="on">
-            <button type="submit"
-                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 hover:bg-green-700 text-white transition">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                Ligar
-            </button>
-        </form>
-
-        <form method="POST" action="{{ route('home-assistant.quick', $contactor) }}">
-            @csrf
-            <input type="hidden" name="state" value="off">
-            <button type="submit"
-                class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-red-600 hover:bg-red-700 text-white transition">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                Desligar
-            </button>
-        </form>
-
-        @if($quick)
-            <form method="POST" action="{{ route('home-assistant.quick.clear', $contactor) }}">
-                @csrf
-                <button type="submit"
-                    class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 transition">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582M20 20v-5h-.581M4.582 9A7.5 7.5 0 0112 4.5c2.7 0 5.08 1.43 6.418 3.5M19.418 15A7.5 7.5 0 0112 19.5a7.47 7.47 0 01-6.418-3.5"/></svg>
-                    Padrão
-                </button>
-            </form>
-        @endif
-
-        <button @click="open = !open"
-            class="ml-auto inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
-            Detalhes
-            <svg class="w-3.5 h-3.5 transition-transform" :class="open && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </button>
-    </div>
-
-    {{-- Detalhes (expansível) --}}
-    <div x-show="open" x-cloak x-transition class="space-y-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-
-        {{-- Entity ID --}}
-        <p class="text-xs text-gray-400 dark:text-gray-500 font-mono break-all">{{ $contactor->entity_id }}</p>
-
-        {{-- Locais vinculados --}}
-        @if($contactor->places->isNotEmpty())
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-                <span class="font-medium text-gray-600 dark:text-gray-300">Locais: </span>
-                {{ $contactor->places->pluck('name')->join(', ') }}
+    <div class="p-5 space-y-4">
+        {{-- Cabeçalho --}}
+        <div class="flex items-start gap-3">
+            <div class="relative w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition
+                {{ $state->on
+                    ? 'bg-amber-400 text-white shadow-[0_0_18px_rgba(251,191,36,.55)]'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500' }}">
+                <svg class="w-6 h-6" fill="{{ $state->on ? 'currentColor' : 'none' }}" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="{{ $state->on ? '1' : '2' }}" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
             </div>
-        @endif
 
-        {{-- Override vigente --}}
-        @if($effective)
-            <div class="rounded-lg px-3 py-2 text-xs border
-                {{ $effective->is_quick
-                    ? 'bg-gray-50 dark:bg-gray-700/40 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'
-                    : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-300' }}">
-                <div class="flex items-center gap-1 font-semibold">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                    {{ $effective->is_quick ? 'Ação rápida' : 'Sob agendamento' }}: {{ $effective->name }}
+            <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                    <h4 class="font-bold text-gray-900 dark:text-white truncate" title="{{ $contactor->name }}">{{ $contactor->name }}</h4>
+                </div>
+                <p class="text-xs text-gray-400 dark:text-gray-500 font-mono truncate" title="{{ $contactor->entity_id }}">{{ $contactor->entity_id }}</p>
+            </div>
+
+            {{-- Menu --}}
+            <div class="relative shrink-0" x-data="{ menu: false, copied: false }" @click.outside="menu = false" @keydown.escape="menu = false">
+                <button type="button" @click="menu = !menu" :aria-expanded="menu" aria-label="Mais ações"
+                    class="p-1.5 -mr-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>
+                </button>
+                <div x-show="menu" x-cloak x-transition.origin.top.right
+                    class="absolute right-0 mt-1 w-48 z-20 py-1 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 text-sm">
+                    <button type="button" @click="menu = false; $dispatch('open-modal', 'contactor-{{ $contactor->id }}')"
+                        class="w-full text-left px-3 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        Editar
+                    </button>
+                    <button type="button"
+                        @click="navigator.clipboard?.writeText(@js($contactor->entity_id)); copied = true; setTimeout(() => { copied = false; menu = false }, 900)"
+                        class="w-full text-left px-3 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <span x-text="copied ? 'Copiado!' : 'Copiar entity_id'"></span>
+                    </button>
+                    <form method="POST" action="{{ route('home-assistant.destroy', $contactor) }}"
+                        onsubmit="return confirm(@js('Remover o contator “' . $contactor->name . '”? Os espaços vinculados ficam sem contator e ele sai dos agendamentos.'))">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="w-full text-left px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
+                            Remover
+                        </button>
+                    </form>
                 </div>
             </div>
-        @endif
+        </div>
 
-        {{-- Agendamentos vinculados --}}
-        @if($linkedSchedules->isNotEmpty())
-            <div class="text-xs text-gray-500 dark:text-gray-400">
-                <span class="font-medium text-gray-600 dark:text-gray-300">Agendamentos: </span>
-                {{ $linkedSchedules->pluck('name')->join(', ') }}
-            </div>
-        @endif
+        {{-- Estado + motivo --}}
+        <div class="flex items-center gap-2 min-w-0">
+            <span class="inline-flex items-center gap-1.5 text-sm font-bold {{ $state->on ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400' }}">
+                <span class="relative flex w-2 h-2">
+                    @if($state->on)
+                        <span class="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75 animate-ping"></span>
+                    @endif
+                    <span class="relative inline-flex w-2 h-2 rounded-full {{ $state->on ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600' }}"></span>
+                </span>
+                {{ $state->on ? 'Ligado' : 'Desligado' }}
+            </span>
+            <span class="px-2 py-0.5 rounded-md text-[11px] font-semibold shrink-0 {{ $badgeClass }}">{{ $badgeLabel }}</span>
+        </div>
+        <p class="-mt-2 text-xs text-gray-500 dark:text-gray-400 truncate" title="{{ $state->reason() }}">{{ $state->reason() }}</p>
 
-        {{-- Editar / remover --}}
-        <div class="flex justify-end gap-2 pt-1">
-            <button onclick="document.getElementById('modal-edit-{{ $contactor->id }}').classList.remove('hidden')"
-                class="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition">
-                Editar contator
-            </button>
-            <form method="POST" action="{{ route('home-assistant.destroy', $contactor) }}"
-                onsubmit="return confirm('Remover este contator?')">
-                @csrf @method('DELETE')
-                <button type="submit" class="text-xs text-red-500 hover:text-red-700 transition">Remover</button>
-            </form>
+        {{-- Linha do tempo --}}
+        @include('home-assistant.partials.timeline', ['timeline' => $timeline, 'now' => $now])
+
+        {{-- Espaços e agendamentos --}}
+        <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+            @forelse($contactor->places as $place)
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600 font-medium text-gray-600 dark:text-gray-300">
+                    <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                    {{ $place->name }}
+                </span>
+            @empty
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 font-medium"
+                    title="Vincule o contator a um espaço na tela de edição do espaço">
+                    Nenhum espaço vinculado: reservas não acendem este contator
+                </span>
+            @endforelse
+            @if($schedulesCount)
+                <button type="button" @click="go('schedules')"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/30 font-medium transition">
+                    {{ $schedulesCount }} {{ $schedulesCount === 1 ? 'agendamento' : 'agendamentos' }} →
+                </button>
+            @endif
         </div>
     </div>
-</div>
 
-{{-- Modal: editar contator --}}
-<div id="modal-edit-{{ $contactor->id }}" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-sm">
-        <div class="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700">
-            <h3 class="text-base font-semibold text-gray-900 dark:text-white">Editar Contator</h3>
-            <button onclick="document.getElementById('modal-edit-{{ $contactor->id }}').classList.add('hidden')"
-                class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    {{-- Controle --}}
+    <form method="POST" action="{{ route('home-assistant.quick', $contactor) }}"
+        class="px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/20 rounded-b-2xl">
+        @csrf
+        <div class="grid grid-cols-3 p-1 gap-1 rounded-xl bg-gray-200/70 dark:bg-gray-700/60 text-xs font-semibold" role="group" aria-label="Controle do contator">
+            <button type="submit" formaction="{{ route('home-assistant.quick.clear', $contactor) }}"
+                @disabled($control === 'auto')
+                title="Segue agendamentos e reservas"
+                class="inline-flex items-center justify-center gap-1.5 py-2 rounded-lg transition
+                    {{ $control === 'auto' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm cursor-default' : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200' }}">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Automático
+            </button>
+            <button type="submit" name="state" value="on"
+                @disabled($control === 'on')
+                title="Liga agora e mantém ligado até o fim do dia"
+                class="inline-flex items-center justify-center gap-1.5 py-2 rounded-lg transition
+                    {{ $control === 'on' ? 'bg-violet-600 text-white shadow-sm cursor-default' : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200' }}">
+                Ligado
+            </button>
+            <button type="submit" name="state" value="off"
+                @disabled($control === 'off')
+                title="Desliga agora e mantém desligado até o fim do dia, mesmo com reserva"
+                class="inline-flex items-center justify-center gap-1.5 py-2 rounded-lg transition
+                    {{ $control === 'off' ? 'bg-gray-700 dark:bg-gray-900 text-white shadow-sm cursor-default' : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200' }}">
+                Desligado
             </button>
         </div>
-        <form method="POST" action="{{ route('home-assistant.update', $contactor) }}" class="p-5 space-y-4">
-            @csrf @method('PUT')
-            <div>
-                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Nome</label>
-                <input type="text" name="name" required value="{{ $contactor->name }}"
-                    class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-800 focus:border-transparent">
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Entity ID</label>
-                <input type="text" name="entity_id" required value="{{ $contactor->entity_id }}"
-                    class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-800 focus:border-transparent">
-            </div>
-            <div class="flex justify-end gap-3 pt-1">
-                <button type="button" onclick="document.getElementById('modal-edit-{{ $contactor->id }}').classList.add('hidden')"
-                    class="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
-                    Cancelar
-                </button>
-                <button type="submit" class="px-4 py-2 text-sm bg-red-800 hover:bg-red-700 text-white rounded-lg font-medium">
-                    Salvar
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
+    </form>
+</article>

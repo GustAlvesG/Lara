@@ -32,8 +32,9 @@ class Contactor extends Model
     }
 
     /**
-     * Agendamento vencedor para o instante informado (maior prioridade que esteja vigente).
-     * Retorna null se nenhum se aplica → cai no agendamento padrão (reservas).
+     * Agendamento que decide o estado no instante informado: o de maior prioridade
+     * que se pronuncia (ver HomeAssistantOverride::stateAt). Retorna null se nenhum
+     * se pronuncia → cai no agendamento padrão (reservas).
      */
     public function effectiveOverride(?Carbon $moment = null): ?HomeAssistantOverride
     {
@@ -41,8 +42,7 @@ class Contactor extends Model
 
         return $this->overrides
             ->where('is_active', true)
-            ->filter(fn ($override) => $override->appliesOn($moment))
-            ->sortByDesc(fn ($override) => [$override->priority, $override->id])
-            ->first();
+            ->sortBy([['priority', 'desc'], ['id', 'desc']])
+            ->first(fn ($override) => $override->stateAt($moment) !== null);
     }
 }

@@ -79,35 +79,66 @@ class HomeAssistantOverride extends Model
     }
 
     /**
-     * Estado resultante do agendamento neste instante: true (ligar), false (desligar).
-     * Pressupõe que appliesOn($moment) já é verdadeiro.
+     * O que este agendamento manda fazer neste instante: true (ligar), false (desligar)
+     * ou null quando ele não se pronuncia — e aí vale o próximo agendamento ou as reservas.
+     *
+     * No modo "Por horário", fora de todas as janelas o agendamento fica em silêncio.
+     * Antes ele forçava "desligado" o dia inteiro, apagando a luz de quadras reservadas.
+     *
+     * Janelas são meio-abertas [início, fim): 18:00–20:00 e 20:00–22:00 não se sobrepõem.
+     * A parte depois da meia-noite de uma janela 22:00–02:00 pertence ao dia anterior:
+     * uma regra só de sexta cobre a madrugada de sábado, não a de sexta.
      */
-    public function resolvedState(Carbon $moment): bool
+    public function stateAt(Carbon $moment): ?bool
     {
-        if ($this->mode === 'manual_on') {
-            return true;
+        if (! $this->is_active) {
+            return null;
         }
 
-        if ($this->mode === 'manual_off') {
-            return false;
+        if ($this->mode === 'manual_on' || $this->mode === 'manual_off') {
+            return $this->appliesOn($moment) ? $this->mode === 'manual_on' : null;
         }
 
-        // schedule_override: retorna o estado da primeira janela que contém o instante atual
         foreach ($this->windows as $window) {
             $start = $moment->copy()->setTimeFromTimeString($window->turn_on_at);
             $end   = $moment->copy()->setTimeFromTimeString($window->turn_off_at);
 
-            // Janela que vira a meia-noite (ex.: 22:00 -> 02:00)
-            $matches = $end->lessThanOrEqualTo($start)
-                ? ($moment->greaterThanOrEqualTo($start) || $moment->lessThanOrEqualTo($end))
-                : $moment->between($start, $end);
+            if ($end->lessThanOrEqualTo($start)) {
+                $matches = ($moment->greaterThanOrEqualTo($start) && $this->appliesOn($moment))
+                    || ($moment->lessThan($end) && $this->appliesOn($moment->copy()->subDay()));
+            } else {
+                $matches = $moment->greaterThanOrEqualTo($start)
+                    && $moment->lessThan($end)
+                    && $this->appliesOn($moment);
+            }
 
             if ($matches) {
-                return $window->state === 'on';
+                return ($window->state ?? 'on') === 'on';
             }
         }
 
-        return false;
+        return null;
+    }
+
+    /** Frase curta do que o agendamento faz, para listas e resumos. */
+    public function getSummaryAttribute(): string
+    {
+        if ($this->mode === 'manual_on') {
+            return 'Mantém ligado o dia todo';
+        }
+
+        if ($this->mode === 'manual_off') {
+            return 'Mantém desligado o dia todo';
+        }
+
+        if ($this->windows->isEmpty()) {
+            return 'Sem janelas de horário';
+        }
+
+        return $this->windows
+            ->map(fn ($w) => (($w->state ?? 'on') === 'on' ? 'Liga' : 'Desliga')
+                . ' ' . substr($w->turn_on_at, 0, 5) . '–' . substr($w->turn_off_at, 0, 5))
+            ->join(' · ');
     }
 
     /** Agendamento já passou da data final? */

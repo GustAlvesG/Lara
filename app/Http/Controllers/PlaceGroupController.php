@@ -341,7 +341,7 @@ class PlaceGroupController extends Controller
 
         $place = Place::create([
             'name'           => $validated['name'],
-            'contactor_id'   => ($validated['contactor_id'] ?? null) ?: null,
+            'contactor_id'   => $this->contactorIdFor($request),
             'place_group_id' => $validated['place_group_id'],
             'image'          => $validated['image'] ?? null,
             'price'          => $validated['price'],
@@ -358,6 +358,22 @@ class PlaceGroupController extends Controller
         }
 
         return redirect()->route('place-group.show', ['place_group' => $validated['place_group_id']]);
+    }
+
+    /**
+     * Contator do espaço depois do envio do formulário.
+     *
+     * Só quem gerencia o Home Assistant troca o contator. O select desabilitado no
+     * formulário não impede que o campo chegue num POST montado à mão, então quem
+     * não tem a permissão mantém o valor atual (nenhum, ao criar).
+     */
+    protected function contactorIdFor(Request $request, ?Place $place = null): ?int
+    {
+        if (! $request->user()?->can('manage home assistant') || ! $request->has('contactor_id')) {
+            return $place?->contactor_id;
+        }
+
+        return $request->input('contactor_id') ? (int) $request->input('contactor_id') : null;
     }
 
     public function editPlace($place_id)
@@ -398,9 +414,7 @@ class PlaceGroupController extends Controller
 
         $place->update([
             'name'         => $validated['name'],
-            'contactor_id' => array_key_exists('contactor_id', $validated)
-                                ? (($validated['contactor_id'] ?: null))
-                                : $place->contactor_id,
+            'contactor_id' => $this->contactorIdFor($request, $place),
             'price'        => $validated['price'],
             'status_id'    => $validated['status_id'],
             'image'        => $validated['image'] ?? null,

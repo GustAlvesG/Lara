@@ -43,7 +43,7 @@ indicados como _stub_.
 | `updateStatus` | `updateStatus(Request $request)` | Atualiza apenas o status, podendo estornar pagamento. → JSON |
 | `destroyPending` | `destroyPending(Request $request)` | Remove um agendamento pendente. → JSON (`200`/`404`) |
 | `generateDailySchedulePDF` | `generateDailySchedulePDF()` | Gera o PDF da agenda do dia (DomPDF). | Rota `GET /api/schedule/generate-pdf` |
-| `homeAssistantAutomation` | `homeAssistantAutomation()` | Retorna o estado dos contatores (iluminação) para automação. → JSON | Rota pública (sem tokens) |
+| `homeAssistantAutomation` | `homeAssistantAutomation()` | Retorna o estado dos contatores (iluminação) para automação. → JSON | `api_token` (sem `login_token`) |
 
 ---
 

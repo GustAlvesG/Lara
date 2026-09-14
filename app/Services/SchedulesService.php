@@ -12,7 +12,7 @@ use App\Models\SchedulePayment;
 use App\Models\Place;
 use App\Models\Member;
 use App\Models\ScheduleRules;
-use App\Models\Contactor;
+use App\Services\HomeAssistant\ContactorStateResolver;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -550,46 +550,20 @@ class SchedulesService
         return $response;
     }
 
-    public function homeAssistantAutomation(){
-
+    /**
+     * Estado que o Home Assistant deve aplicar em cada contator, indexado pelo entity_id.
+     * A decisão mora em ContactorStateResolver — a mesma que o painel e o dashboard mostram.
+     */
+    public function homeAssistantAutomation()
+    {
         $now = Carbon::now();
-
-        $schedules = Schedule::where('status_id', 1)
-            ->whereDate('start_schedule', $now->toDateString())
-            ->get();
-
-        $places_schedules = [];
-
-        foreach ($schedules as $schedule) {
-            $schedule->lights_on  = $schedule->start_schedule->copy()->subMinutes(5);
-            $schedule->lights_off = $schedule->end_schedule->copy()->addMinutes(5);
-
-            if ($now->between($schedule->lights_on, $schedule->lights_off)) {
-                $places_schedules[] = $schedule->place_id;
-            }
-        }
-
-        $places_schedules = array_unique($places_schedules);
-
-        $contactors_list = Contactor::with([
-            'places',
-            'overrides' => fn ($q) => $q->where('is_active', true)->with(['weekdays', 'windows']),
-        ])->get();
+        $resolver = new ContactorStateResolver();
+        $schedules = $resolver->schedulesBetween($now, $now);
 
         $contactors = [];
 
-        foreach ($contactors_list as $contactor) {
-            // Agendamento vigente de maior prioridade (manual ou por horário)
-            $override = $contactor->effectiveOverride($now);
-
-            if ($override) {
-                $contactors[$contactor->entity_id] = $override->resolvedState($now);
-                continue;
-            }
-
-            // Sem override: usa lógica padrão — verifica se algum place do contator tem reserva ativa
-            $hasActiveSchedule = $contactor->places->contains(fn($place) => in_array($place->id, $places_schedules));
-            $contactors[$contactor->entity_id] = $hasActiveSchedule;
+        foreach ($resolver->contactors() as $contactor) {
+            $contactors[$contactor->entity_id] = $resolver->resolve($contactor, $now, $schedules)->on;
         }
 
         return response()->json(['contactors' => $contactors], 200);

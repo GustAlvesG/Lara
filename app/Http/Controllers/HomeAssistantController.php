@@ -5,20 +5,34 @@ namespace App\Http\Controllers;
 use App\Models\Contactor;
 use App\Models\HomeAssistantOverride;
 use App\Models\Weekday;
+use App\Services\HomeAssistant\ContactorState;
+use App\Services\HomeAssistant\ContactorStateResolver;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class HomeAssistantController extends Controller
 {
-    public function index()
+    public function index(ContactorStateResolver $resolver)
     {
-        $contactors = Contactor::with([
-            'places',
-            'overrides' => fn ($q) => $q->with(['weekdays', 'windows']),
-        ])->orderBy('name')->get();
+        $now = Carbon::now();
+        $contactors = $resolver->contactors();
 
+        // Uma consulta só: as reservas do dia servem ao estado de agora e à linha do tempo.
+        $daySchedules = $resolver->schedulesBetween($now->copy()->startOfDay(), $now->copy()->endOfDay());
+
+        $states = $contactors->mapWithKeys(fn ($c) => [$c->id => $resolver->resolve($c, $now, $daySchedules)]);
+        $timelines = $contactors->mapWithKeys(fn ($c) => [$c->id => $resolver->timeline($c, $now, $daySchedules)]);
+
+        // Agendamentos (não ações rápidas) decidindo o estado de algum contator neste instante
+        $inEffectIds = $states
+            ->filter(fn ($state) => $state->source === ContactorState::SOURCE_OVERRIDE)
+            ->map(fn ($state) => $state->override->id)
+            ->unique()->values()->all();
+
+        // Ações rápidas aparecem no cartão do contator, não na lista de agendamentos
         $overrides = HomeAssistantOverride::with(['contactors', 'weekdays', 'windows', 'creator'])
+            ->where('is_quick', false)
             ->orderByDesc('priority')
             ->orderByDesc('id')
             ->get();
@@ -30,7 +44,10 @@ class HomeAssistantController extends Controller
 
         $weekdays = Weekday::orderBy('id')->get();
 
-        return view('home-assistant.index', compact('contactors', 'activeOverrides', 'archivedOverrides', 'weekdays'));
+        return view('home-assistant.index', compact(
+            'now', 'contactors', 'states', 'timelines', 'inEffectIds',
+            'activeOverrides', 'archivedOverrides', 'weekdays'
+        ));
     }
 
     /* ───────────────────────────── Contactors ───────────────────────────── */
@@ -96,7 +113,7 @@ class HomeAssistantController extends Controller
     public function clearQuick(Contactor $contactor)
     {
         $this->clearQuickFor($contactor);
-        return redirect()->back()->with('success', 'Voltando ao agendamento padrão.');
+        return redirect()->back()->with('success', 'Contator de volta ao automático.');
     }
 
     private function clearQuickFor(Contactor $contactor): void
@@ -128,7 +145,7 @@ class HomeAssistantController extends Controller
             $this->syncRelations($override, $data);
         });
 
-        return redirect()->route('home-assistant.index')->with('success', 'Agendamento criado com sucesso!');
+        return redirect()->to(route('home-assistant.index') . '#schedules')->with('success', 'Agendamento criado com sucesso!');
     }
 
     public function updateOverride(Request $request, HomeAssistantOverride $override)
@@ -149,20 +166,20 @@ class HomeAssistantController extends Controller
             $this->syncRelations($override, $data);
         });
 
-        return redirect()->route('home-assistant.index')->with('success', 'Agendamento atualizado!');
+        return redirect()->to(route('home-assistant.index') . '#schedules')->with('success', 'Agendamento atualizado!');
     }
 
     public function toggleOverride(HomeAssistantOverride $override)
     {
         $override->update(['is_active' => ! $override->is_active]);
         $estado = $override->is_active ? 'ativado' : 'pausado';
-        return redirect()->route('home-assistant.index')->with('success', "Agendamento {$estado}.");
+        return redirect()->to(route('home-assistant.index') . '#schedules')->with('success', "Agendamento {$estado}.");
     }
 
     public function destroyOverride(HomeAssistantOverride $override)
     {
         $override->delete();
-        return redirect()->route('home-assistant.index')->with('success', 'Agendamento removido!');
+        return redirect()->to(route('home-assistant.index') . '#schedules')->with('success', 'Agendamento removido!');
     }
 
     /* ───────────────────────────── Helpers ───────────────────────────── */
@@ -179,12 +196,14 @@ class HomeAssistantController extends Controller
             'contactors.*'  => 'exists:contactors,id',
             'weekdays'      => 'nullable|array',
             'weekdays.*'    => 'exists:weekdays,id',
-            'windows'              => 'nullable|array',
+            'windows'              => 'nullable|array|required_if:mode,schedule_override',
             'windows.*.turn_on_at' => 'required_with:windows|date_format:H:i',
-            'windows.*.turn_off_at'=> 'required_with:windows|date_format:H:i',
+            'windows.*.turn_off_at'=> 'required_with:windows|date_format:H:i|different:windows.*.turn_on_at',
             'windows.*.state'      => 'nullable|in:on,off',
         ], [
-            'contactors.required' => 'Selecione ao menos um local.',
+            'contactors.required'          => 'Selecione ao menos um contator.',
+            'windows.required_if'          => 'Adicione ao menos uma faixa de horário.',
+            'windows.*.turn_off_at.different' => 'O horário final de uma faixa precisa ser diferente do inicial.',
         ]);
     }
 

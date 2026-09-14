@@ -241,9 +241,11 @@ class ScheduleController extends Controller
         try {
             $response = $this->schedulesService->homeAssistantAutomation();
             return $response;
-        }catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+        } catch (\Exception $e) {
+            // A mensagem da exceção pode carregar SQL e nomes de tabela; fica só no log.
+            \Illuminate\Support\Facades\Log::error('Home Assistant: falha ao calcular o estado dos contatores', ['exception' => $e]);
+
+            return response()->json(['error' => 'Falha ao calcular o estado dos contatores.'], 500);
         }
-        
     }
 }

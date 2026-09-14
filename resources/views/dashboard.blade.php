@@ -53,7 +53,7 @@
                     @else
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             @foreach($homeAssistant['contactors'] as $contactor)
-                                <x-dashboard.ha-switch :contactor="$contactor" />
+                                <x-dashboard.ha-switch :contactor="$contactor" :state="$homeAssistant['states'][$contactor->id]" />
                             @endforeach
                         </div>
                     @endif

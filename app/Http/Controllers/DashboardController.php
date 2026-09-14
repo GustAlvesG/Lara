@@ -13,7 +13,7 @@ use App\Models\DataInfo;
 use App\Models\Company\Company;
 use App\Models\Company\CompanyWorker;
 use App\Models\Company\CompanyAccessLog;
-use App\Models\Contactor;
+use App\Services\HomeAssistant\ContactorStateResolver;
 use App\Models\Aviso;
 
 class DashboardController extends Controller
@@ -143,11 +143,12 @@ class DashboardController extends Controller
 
         // Home Assistant (interruptores / contatores) -------------------------
         if ($user->can('manage home assistant')) {
+            $resolver = new ContactorStateResolver();
+            $contactors = $resolver->contactors();
+
             $data['homeAssistant'] = [
-                'contactors' => Contactor::with([
-                    'places',
-                    'overrides' => fn ($q) => $q->with(['weekdays', 'windows']),
-                ])->orderBy('name')->get(),
+                'contactors' => $contactors,
+                'states'     => $resolver->resolveAll($contactors),
             ];
         }
 
