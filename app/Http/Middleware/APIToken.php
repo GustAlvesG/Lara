@@ -15,12 +15,18 @@ class APIToken
      */
     public function handle(Request $request, Closure $next): Response
     {
-	$apitoken = "Bearer " . config('services.api.token');
+	$token = (string) config('services.api.token');
 	if ($request->getMethod() === 'OPTIONS') {
         	return $next($request);
 	}
-        if ($request->header('Authorization') !== $apitoken) {
-            return response()->json(['message' => 'Invalid API Token', 'token' => $request->header('Authorization')], 401);
+        // Sem token configurado nada passa: senão um "Bearer " puro seria aceito.
+        if ($token === '') {
+            return response()->json(['message' => 'Invalid API Token'], 401);
+        }
+        // hash_equals: comparação de tempo constante, e o header recebido nunca
+        // volta no corpo da resposta (vazava o token para log de proxy).
+        if (! hash_equals("Bearer " . $token, (string) $request->header('Authorization'))) {
+            return response()->json(['message' => 'Invalid API Token'], 401);
         }
         return $next($request);
     }

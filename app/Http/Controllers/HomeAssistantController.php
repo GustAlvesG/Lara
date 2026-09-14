@@ -7,12 +7,17 @@ use App\Models\HomeAssistantOverride;
 use App\Models\Weekday;
 use App\Services\HomeAssistant\ContactorState;
 use App\Services\HomeAssistant\ContactorStateResolver;
+use App\Services\HomeAssistant\ManualCommandService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class HomeAssistantController extends Controller
 {
+    public function __construct(private ManualCommandService $commands)
+    {
+    }
+
     public function index(ContactorStateResolver $resolver)
     {
         $now = Carbon::now();
@@ -84,26 +89,23 @@ class HomeAssistantController extends Controller
 
     /* ─────────────────────── Ações rápidas (por contator) ─────────────────────── */
 
-    /** Liga/desliga um contator imediatamente até o fim do dia (override de alta prioridade). */
+    /**
+     * Liga/desliga um contator imediatamente até o fim do dia.
+     *
+     * Sem duração: o botão do painel vale até a meia-noite. Comando com prazo
+     * é coisa da API (ver HomeAssistantApiController).
+     */
     public function quickAction(Request $request, Contactor $contactor)
     {
         $request->validate(['state' => 'required|in:on,off']);
 
-        // Remove ações rápidas anteriores deste contator
-        $this->clearQuickFor($contactor);
-
-        $override = HomeAssistantOverride::create([
-            'name'       => $request->state === 'on' ? 'Ligado manualmente' : 'Desligado manualmente',
-            'mode'       => $request->state === 'on' ? 'manual_on' : 'manual_off',
-            'priority'   => 1000, // ações rápidas têm precedência sobre agendamentos
-            'start_date' => Carbon::today(),
-            'end_date'   => Carbon::today(),
-            'is_active'  => true,
-            'is_quick'   => true,
-            'created_by' => auth()->id(),
-        ]);
-
-        $override->contactors()->attach($contactor->id);
+        $this->commands->apply(
+            contactor: $contactor,
+            state: $request->state,
+            minutes: null,
+            origin: 'Painel',
+            userId: auth()->id(),
+        );
 
         $msg = $request->state === 'on' ? 'Contator ligado até o fim do dia.' : 'Contator desligado até o fim do dia.';
         return redirect()->back()->with('success', $msg);
@@ -112,16 +114,8 @@ class HomeAssistantController extends Controller
     /** Remove a ação rápida do contator, voltando ao agendamento/padrão. */
     public function clearQuick(Contactor $contactor)
     {
-        $this->clearQuickFor($contactor);
+        $this->commands->clear($contactor);
         return redirect()->back()->with('success', 'Contator de volta ao automático.');
-    }
-
-    private function clearQuickFor(Contactor $contactor): void
-    {
-        $ids = $contactor->overrides()->where('is_quick', true)->pluck('home_assistant_overrides.id');
-        if ($ids->isNotEmpty()) {
-            HomeAssistantOverride::whereIn('id', $ids)->delete(); // pivots/windows caem por cascade
-        }
     }
 
     /* ─────────────────────────── Agendamentos (CRUD) ─────────────────────────── */

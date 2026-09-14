@@ -87,6 +87,9 @@ enviado. Ver [Autorização de Ordem de Compra](funcionalidades/questor-autoriza
 - **Componente:** `ScheduleController@homeAssistantAutomation` → `SchedulesService::homeAssistantAutomation()` → `HomeAssistant\ContactorStateResolver`.
 - **Função:** retorna `{"contactors": {"<entity_id>": bool}}`, com o estado decidido por controle manual,
   agendamentos do painel e reservas confirmadas. Ver [Automação Home Assistant](funcionalidades/automacao-home-assistant.md).
+- **Escrita:** `POST /api/schedule/home-assistant/contactors/{entity_id}/manual` (mesmo token,
+  `throttle:30,1`) grava um comando manual com prazo — é por onde o Telegram, via HA, aciona a
+  iluminação sem acionar o switch direto.
 
 ---
 

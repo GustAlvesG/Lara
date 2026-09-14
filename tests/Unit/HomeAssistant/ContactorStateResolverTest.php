@@ -170,6 +170,54 @@ class ContactorStateResolverTest extends TestCase
         $this->assertSame(ContactorState::SOURCE_IDLE, $this->at('2026-09-04 10:00:00', $contactor)->source);
     }
 
+    /* ───────────── expires_at ───────────── */
+
+    /**
+     * Toda linha criada antes da migration 2026_09_14_150000 tem `expires_at`
+     * nulo. Nulo é "não expira": quem descarta essas linhas continua sendo o
+     * filtro de datas, nunca a coluna nova.
+     */
+    public function test_override_sem_expires_at_nao_vence(): void
+    {
+        $contactor = $this->contactor([
+            $this->override('manual_on', ['expires_at' => null, 'start_date' => null, 'end_date' => null]),
+        ]);
+
+        $this->assertTrue($this->at('2026-09-04 00:00:00', $contactor)->on);
+        $this->assertTrue($this->at('2026-09-04 12:00:00', $contactor)->on);
+        $this->assertTrue($this->at('2026-09-04 23:59:59', $contactor)->on);
+        // Outro dia, outro ano: sem data e sem expires_at, segue valendo
+        $this->assertTrue($this->at('2027-03-20 08:00:00', $contactor)->on);
+    }
+
+    /** Ação rápida de ontem (expires_at nulo, como as linhas antigas): quem descarta é a data. */
+    public function test_acao_rapida_antiga_sem_expires_at_e_descartada_pela_data(): void
+    {
+        $contactor = $this->contactor([
+            $this->override('manual_on', [
+                'priority'   => 1000,
+                'is_quick'   => true,
+                'start_date' => '2026-08-28',
+                'end_date'   => '2026-08-28',
+                'expires_at' => null,
+            ]),
+        ]);
+
+        $this->assertSame(ContactorState::SOURCE_IDLE, $this->at('2026-09-04 10:00:00', $contactor)->source);
+        // No próprio dia dela, continuava valendo
+        $this->assertTrue($this->at('2026-08-28 10:00:00', $contactor)->on);
+    }
+
+    public function test_expires_at_encerra_o_comando_no_instante_exato(): void
+    {
+        $contactor = $this->contactor([
+            $this->override('manual_on', ['expires_at' => '2026-09-04 16:30:00']),
+        ]);
+
+        $this->assertTrue($this->at('2026-09-04 16:29:59', $contactor)->on);
+        $this->assertSame(ContactorState::SOURCE_IDLE, $this->at('2026-09-04 16:30:00', $contactor)->source);
+    }
+
     /* ───────────── Faixas de horário ───────────── */
 
     public function test_fora_das_faixas_o_agendamento_devolve_a_decisao_as_reservas(): void

@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\HomeAssistantApiController;
 use App\Support\Placar\PlacarAbilities;
 use App\Http\Controllers\Placar\Api\ModalidadeController as PlacarModalidadeController;
 use App\Http\Controllers\Placar\Api\EquipeController as PlacarEquipeController;
@@ -218,6 +219,21 @@ Route::middleware('api_token')->group(function () {
         Route::post('/departure', [FleetApiController::class, 'departure'])->name('api.fleet.departure');
         Route::post('/return', [FleetApiController::class, 'returnTrip'])->name('api.fleet.return');
         Route::post('/trips/{trip}/cancel', [FleetApiController::class, 'cancel'])->name('api.fleet.trips.cancel');
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | Home Assistant — comando manual de iluminação
+    |----------------------------------------------------------------------
+    |
+    | Contraparte de escrita do GET /schedule/home-assistant/automation, que o
+    | HA consulta a cada 30s. Fica fora do grupo `login_token`: quem chama é a
+    | automação, com o token de integração, e não um sócio logado.
+    */
+    Route::prefix('schedule/home-assistant')->group(function () {
+        Route::post('/contactors/{entity_id}/manual', [HomeAssistantApiController::class, 'manual'])
+            ->middleware('throttle:30,1')
+            ->name('api.home-assistant.manual');
     });
 
     Route::prefix('webhooks')->group(function () {

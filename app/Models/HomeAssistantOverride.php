@@ -13,14 +13,17 @@ class HomeAssistantOverride extends Model
         'priority',
         'start_date',
         'end_date',
+        'expires_at',
         'is_active',
         'is_quick',
         'created_by',
+        'origin',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date'   => 'date',
+        'expires_at' => 'datetime',
         'is_active'  => 'boolean',
         'is_quick'   => 'boolean',
         'priority'   => 'integer',
@@ -95,6 +98,12 @@ class HomeAssistantOverride extends Model
             return null;
         }
 
+        // Comando manual com hora marcada: vencido, cala-se e a decisão volta
+        // para agendamentos e reservas.
+        if ($this->expires_at && $moment->greaterThanOrEqualTo($this->expires_at)) {
+            return null;
+        }
+
         if ($this->mode === 'manual_on' || $this->mode === 'manual_off') {
             return $this->appliesOn($moment) ? $this->mode === 'manual_on' : null;
         }
@@ -141,10 +150,14 @@ class HomeAssistantOverride extends Model
             ->join(' · ');
     }
 
-    /** Agendamento já passou da data final? */
+    /** Agendamento já passou da data final (ou da hora, no comando manual)? */
     public function getIsExpiredAttribute(): bool
     {
-        return $this->end_date && $this->end_date->copy()->startOfDay()->lt(now()->startOfDay());
+        if ($this->expires_at && $this->expires_at->isPast()) {
+            return true;
+        }
+
+        return (bool) ($this->end_date && $this->end_date->copy()->startOfDay()->lt(now()->startOfDay()));
     }
 
     /** Rótulo legível do modo. */
