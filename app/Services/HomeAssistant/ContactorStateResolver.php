@@ -25,7 +25,7 @@ use Illuminate\Support\Collection;
 class ContactorStateResolver
 {
     /** A luz acende antes do início e apaga depois do fim da reserva. */
-    public const MARGIN_MINUTES = 5;
+    public const MARGIN_MINUTES = 10;
 
     /** Contatores com o que resolve() precisa já carregado. */
     public function contactors(): Collection
