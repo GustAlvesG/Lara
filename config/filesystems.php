@@ -73,6 +73,31 @@ return [
             'throw' => false,
         ],
 
+        /*
+         * Mídia do Replay (logomarcas, overlays compostos e os clipes das
+         * quadras).
+         *
+         * Mesma decisão do disco `placar`, e pelos mesmos dois motivos: este
+         * projeto nunca usou o `storage:link` (o `public/storage` já é um
+         * diretório real, com arquivos de outras áreas), e o clipe precisa ser
+         * servido como arquivo estático pelo servidor web — sem PHP no caminho
+         * e com *range request* nativo, que é o que permite ao sócio avançar o
+         * vídeo no player em vez de só assistir do começo.
+         *
+         * Disco separado do `placar` apesar da raiz igual: são módulos
+         * diferentes, e um `replay:prune` distraído nunca deve alcançar a
+         * mídia do Placar.
+         *
+         * Grava por aqui; a URL sai por MediaService::url().
+         */
+        'replay' => [
+            'driver' => 'local',
+            'root' => public_path('storage'),
+            'url' => '/storage',
+            'visibility' => 'public',
+            'throw' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

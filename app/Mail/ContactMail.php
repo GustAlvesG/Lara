@@ -33,7 +33,7 @@ class ContactMail extends Mailable implements ShouldQueue
         // Os e-mails de agendamento já montam um assunto completo (situação,
         // local, dia e hora); prefixá-los só repetiria a informação.
         $subjectPrefix = match ($this->type) {
-            'schedule.confirm', 'schedule.pending', 'schedule.cancel' => '',
+            'schedule.confirm', 'schedule.pending', 'schedule.cancel', 'replay.available' => '',
             default => '[Contato] ',
         };
 
@@ -52,6 +52,7 @@ class ContactMail extends Mailable implements ShouldQueue
             'schedule.confirm'   => 'emails.schedule.confirm',   // resources/views/emails/confirm_schedule.blade.php
             'schedule.pending' => 'emails.schedule.pending', // resources/views/emails/pending_schedule.blade.php
             'schedule.cancel' => 'emails.schedule.cancel',   // resources/views/emails/schedule/cancel.blade.php
+            'replay.available' => 'emails.replay.available', // vídeos do Replay prontos para o sócio
             'job'     => 'emails.hr_template',      // resources/views/emails/hr_template.blade.php
             default   => 'emails.general_contact',  // template padrão
         };

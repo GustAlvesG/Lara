@@ -30,6 +30,7 @@ rotas).
 | [WhatsApp](whatsapp.md) | Webhook, envio de mensagens e gestão de conversas/mídia. |
 | [Telegram](telegram.md) | Cadastro e consulta de contatos do Telegram. |
 | [Usuários e Permissões](usuarios-e-permissoes.md) | Administração de usuários, papéis e permissões. |
+| [Replay — Vídeos das Quadras](replay.md) | Configuração das câmeras, layouts de logomarca e o repositório dos clipes gravados pelo botão da quadra. |
 | [Automação Home Assistant](automacao-home-assistant.md) | Iluminação automática a partir de reservas, agendamentos e controle manual. |
 
 ## Perfis de usuário

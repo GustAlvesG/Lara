@@ -178,6 +178,32 @@
                 ];
             }
 
+            /*
+             | Replay — vídeos das quadras. Permissão do Spatie (`manage
+             | replay`), concedida a Marketing e TI na tela de Permissões.
+             |
+             | `can()` e não método de model, como no resto deste bloco: o
+             | layout renderiza em TODA tela, e uma consulta ao banco daqui
+             | quebraria os testes que montam o usuário na mão.
+             |
+             | `Route::has` no primeiro item porque é ele que vira o destino
+             | do grupo: um nome de rota que não resolve (cache de rotas
+             | velho) derrubaria o sistema inteiro com 500, não só este item.
+             */
+            if (auth()->user()?->can('manage replay') && \Illuminate\Support\Facades\Route::has('replay.settings.index')) {
+                $navLinks[] = [
+                    'route' => 'replay.settings.index',
+                    'label' => 'Replay',
+                    'icon' => 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z',
+                    'children' => [
+                        ['route' => 'replay.settings.index', 'label' => 'Configuração de Vídeo'],
+                        ['route' => 'replay.layouts.index', 'label' => 'Layouts de Logomarca'],
+                        ['route' => 'replay.cameras.index', 'label' => 'Câmeras'],
+                        ['route' => 'replay.videos.index', 'label' => 'Vídeos'],
+                    ],
+                ];
+            }
+
             // Placar Clube: cadastro (escreve) e scout (só lê) são Gates
             // separados hoje com a mesma regra de setor (ver AppServiceProvider),
             // por isso os dois grupos aparecem juntos sempre que algum dos

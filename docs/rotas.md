@@ -105,6 +105,33 @@ Todas, salvo `/`, `/members` e `/dashboard`, estão sob o middleware `auth`.
 | PUT | `/tournaments/categories/{id}` | TournamentController@updateCategory | categories.update | auth |
 | DELETE | `/tournaments/categories/{id}` | TournamentController@destroyCategory | categories.destroy | auth |
 
+### Replay — vídeos das quadras (`permission:manage replay`)
+
+Quatro telas, quatro etapas do mesmo trabalho: formato, layout, câmera, vídeos gravados.
+
+| Método | URI | Ação | Nome |
+|--------|-----|------|------|
+| GET | `/replay` | redirect | replay.index |
+| GET | `/replay/configuracoes` | Replay\Web\SettingController@index | replay.settings.index |
+| POST | `/replay/configuracoes` | Replay\Web\SettingController@store | replay.settings.store |
+| DELETE | `/replay/configuracoes/{setting}` | Replay\Web\SettingController@destroy | replay.settings.destroy |
+| GET | `/replay/layouts` | Replay\Web\LayoutController@index | replay.layouts.index |
+| GET | `/replay/layouts/create` | Replay\Web\LayoutController@create | replay.layouts.create |
+| POST | `/replay/layouts` | Replay\Web\LayoutController@store | replay.layouts.store |
+| GET | `/replay/layouts/{layout}/edit` | Replay\Web\LayoutController@edit | replay.layouts.edit |
+| PUT | `/replay/layouts/{layout}` | Replay\Web\LayoutController@update | replay.layouts.update |
+| DELETE | `/replay/layouts/{layout}` | Replay\Web\LayoutController@destroy | replay.layouts.destroy |
+| POST | `/replay/layouts/{layout}/logos` | Replay\Web\LayoutController@storeLogo | replay.layouts.logos.store |
+| PUT | `/replay/layouts/{layout}/itens` | Replay\Web\LayoutController@updateItems | replay.layouts.items.update |
+| DELETE | `/replay/layouts/{layout}/itens/{item}` | Replay\Web\LayoutController@destroyItem | replay.layouts.items.destroy |
+| POST | `/replay/layouts/{layout}/render` | Replay\Web\LayoutController@rerender | replay.layouts.rerender |
+| GET | `/replay/cameras` | Replay\Web\CameraController@index | replay.cameras.index |
+| POST | `/replay/cameras` | Replay\Web\CameraController@store | replay.cameras.store |
+| PUT | `/replay/cameras/{camera}` | Replay\Web\CameraController@update | replay.cameras.update |
+| DELETE | `/replay/cameras/{camera}` | Replay\Web\CameraController@destroy | replay.cameras.destroy |
+| GET | `/replay/videos` | Replay\Web\VideoController@index | replay.videos.index |
+| DELETE | `/replay/videos/{video}` | Replay\Web\VideoController@destroy | replay.videos.destroy |
+
 ---
 
 ## 8.2. Rotas da API (`routes/api.php`)
@@ -128,6 +155,32 @@ Prefixo `/api`. Legenda de middleware: **T** = `api_token`, **L** = `login_token
 | GET | `/api/schedule/home-assistant/automation` | ScheduleController@homeAssistantAutomation |
 | POST | `/api/schedule/home-assistant/contactors/{entity_id}/manual` | HomeAssistantApiController@manual (comando manual, `throttle:30,1`) |
 | GET | `/api/freelancer/dinners` | Freelancer\DinnerApiController@index (jantar dos freelancers, lida pela cozinha) |
+
+### Replay — sistema de captura (Sanctum, ability `replay:operate`)
+
+Integração por **pull**: o sistema de captura consulta; o Lara nunca chama o outro lado.
+Token: `php artisan replay:token {nome}`. Contrato completo em
+[docs/replay-api.md](replay-api.md).
+
+| Método | URI | Ação | Limite |
+|--------|-----|------|--------|
+| GET | `/api/replay/ping` | closure — diagnóstico de token | 60/min |
+| GET | `/api/replay/cameras` | Replay\Api\CameraController@index | 120/min |
+| GET | `/api/replay/cameras/{external_id}` | Replay\Api\CameraController@show | 120/min |
+| POST | `/api/replay/cameras/{external_id}/heartbeat` | Replay\Api\CameraController@heartbeat | 120/min |
+| POST | `/api/replay/cameras/{external_id}/videos` | Replay\Api\VideoController@store | 300/min |
+
+### Replay — site de locação
+
+| Método | URI | Ação | Middleware |
+|--------|-----|------|------------|
+| GET | `/api/replay/places` | Replay\Api\PortalController@places | T |
+| GET | `/api/replay/places/{place}/videos` | Replay\Api\PortalController@placeVideos | T |
+| GET | `/api/replay/my-videos` | Replay\Api\PortalController@myVideos | T + L |
+
+A galeria por quadra é **aberta a qualquer visitante do site** e nunca revela quem é o sócio da
+reserva (só o booleano `has_member`). `my-videos` resolve o sócio pelo **próprio JWT** — não há
+id na URL, para que trocar um número não dê acesso aos vídeos de outro.
 
 ### Com `api_token` (T)
 | Método | URI | Ação |

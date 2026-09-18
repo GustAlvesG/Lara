@@ -35,6 +35,27 @@ processo no meio de uma confirmação.
 
 Disparado por `FreelancerService::requestPixForMany()` (botão "Dar baixa" do financeiro).
 
+### SendReplayVideosMail
+
+`implements ShouldQueue` — avisa o sócio que os vídeos da reserva dele estão prontos.
+Ver [Replay](funcionalidades/replay.md).
+
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `__construct` | `__construct(int $notificationId)` | Recebe o id da linha em `replay_member_notifications`. |
+| `handle` | `handle(EmailService $emails): void` | Junta os vídeos ainda disponíveis da reserva e manda **um** e-mail com a contagem e o link do portal. Reserva sem vídeo disponível (fila atrasada) não gera envio. |
+
+**Um e-mail por reserva, não por clipe:** uma hora de quadra rende dezenas de apertos no
+botão. A trava é o `UNIQUE (schedule_id)` da tabela, criado no primeiro clipe pelo
+`VideoIntakeService` — é ele que impede que os outros dezenove agendem outros dezenove avisos.
+
+O e-mail **não leva o arquivo nem link direto**: leva ao login do site de locação
+(`REPLAY_PORTAL_URL`). Falha de envio marca `sent_at` do mesmo jeito e registra o motivo no
+log — insistir renderia uma fila de retentativas atrás de um endereço que continua inválido, e
+a ausência do aviso não esconde o vídeo, que está no portal de qualquer forma.
+
+Agendado pelo `VideoIntakeService` para 5 minutos depois do fim da reserva.
+
 ---
 
 ## 10.1.1. Comandos agendados relacionados
@@ -110,8 +131,9 @@ Notificação de redefinição de senha (canal e-mail), em Português.
 
 Enviado por `EmailService::processContactForm()` (formulário de contato → endereço
 administrativo) e por `EmailService::sendScheduleMail()` (agendamento → e-mail do sócio). O
-campo `type` dos dados escolhe a view: `schedule.confirm`, `schedule.pending`, `schedule.cancel`
-ou o template de contato.
+campo `type` dos dados escolhe a view: `schedule.confirm`, `schedule.pending`, `schedule.cancel`,
+`replay.available` (vídeos do Replay prontos, enviado pelo Job `SendReplayVideosMail`) ou o
+template de contato. Os tipos transacionais não levam o prefixo `[Contato]` no assunto.
 
 ---
 
@@ -132,3 +154,35 @@ ou o template de contato.
 ### View Components (`app/View/Components/`)
 - `AppLayout` e `GuestLayout` — componentes Blade de layout (Breeze), renderizam
   `layouts.app` e `layouts.guest`.
+
+---
+
+### `replay:prune`
+
+`app/Console/Commands/PruneReplayVideos.php` — agendado diariamente às 03:30
+(`routes/console.php`, com `withoutOverlapping`).
+
+Apaga os clipes que passaram dos **7 dias contados da gravação**. Não há vídeo isento: material
+para campanha se baixa pela galeria antes do prazo, e foi assim que se decidiu para que o disco
+tenha um teto conhecido.
+
+Roda de madrugada porque apaga arquivo em disco — o mesmo disco que serve os vídeos que os
+sócios estão assistindo. Aceita `--dry-run`.
+
+### `replay:token {nome}`
+
+`app/Console/Commands/ReplayTokenCommand.php` — não é agendado. Emite o token Sanctum (ability
+`replay:operate`) do sistema de captura. O nome identifica o cliente, não o token: rodar de novo
+com o mesmo nome emite um token novo **sem revogar o anterior**, que é como se troca a chave sem
+derrubar a gravação no meio do expediente.
+
+### `replay:demo-videos`
+
+`app/Console/Commands/SeedReplayDemoVideos.php` — não é agendado. Ferramenta de
+**desenvolvimento**: popula a galeria com clipes gerados pelo ffmpeg (2 por quadra, por padrão)
+para que o site de locação possa ser desenvolvido e testado sem câmera.
+
+Respeita a orientação configurada de cada quadra e amarra o vídeo a uma reserva paga se houver
+uma cobrindo o horário — mas **nunca dispara e-mail nem cria reserva**. Tudo que ele gera tem
+`external_id` prefixado por `demo-`, que é o alcance do `--only-clear`. Em produção exige
+`--force`.

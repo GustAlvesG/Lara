@@ -59,6 +59,10 @@ use App\Http\Controllers\Placar\Web\CompeticaoController as PlacarCompeticaoWebC
 use App\Http\Controllers\Placar\Web\JogoController as PlacarJogoWebController;
 use App\Http\Controllers\Placar\Web\EscalacaoController as PlacarEscalacaoWebController;
 use App\Http\Controllers\Placar\Web\ScoutController as PlacarScoutWebController;
+use App\Http\Controllers\Replay\Web\SettingController as ReplaySettingController;
+use App\Http\Controllers\Replay\Web\LayoutController as ReplayLayoutController;
+use App\Http\Controllers\Replay\Web\CameraController as ReplayCameraController;
+use App\Http\Controllers\Replay\Web\VideoController as ReplayVideoWebController;
 
 
 Route::get('/', function () {
@@ -719,6 +723,46 @@ Route::middleware('auth')->group(function () {
             Route::get('scout/jogadores/{jogador}', [PlacarScoutWebController::class, 'jogador'])->name('scout.jogador');
             Route::get('scout/times/{time}', [PlacarScoutWebController::class, 'time'])->name('scout.time');
         });
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | Replay — vídeos das quadras
+    |----------------------------------------------------------------------
+    |
+    | Permissão do Spatie (`manage replay`), e não Gate de setor: quem
+    | configura são Marketing e TI, dois setores diferentes, e a lista de quem
+    | entra muda na tela de Permissões sem passar por deploy.
+    |
+    | As quatro telas são as quatro etapas do mesmo trabalho: definir o
+    | formato, desenhar o layout, ligar a câmera e conferir o que foi gravado.
+    */
+    Route::prefix('replay')->name('replay.')->middleware('permission:manage replay')->group(function () {
+        Route::get('/', fn () => redirect()->route('replay.settings.index'))->name('index');
+
+        Route::get('configuracoes', [ReplaySettingController::class, 'index'])->name('settings.index');
+        Route::post('configuracoes', [ReplaySettingController::class, 'store'])->name('settings.store');
+        Route::delete('configuracoes/{setting}', [ReplaySettingController::class, 'destroy'])->name('settings.destroy');
+
+        Route::get('layouts', [ReplayLayoutController::class, 'index'])->name('layouts.index');
+        Route::get('layouts/create', [ReplayLayoutController::class, 'create'])->name('layouts.create');
+        Route::post('layouts', [ReplayLayoutController::class, 'store'])->name('layouts.store');
+        Route::get('layouts/{layout}/edit', [ReplayLayoutController::class, 'edit'])->name('layouts.edit');
+        Route::put('layouts/{layout}', [ReplayLayoutController::class, 'update'])->name('layouts.update');
+        Route::delete('layouts/{layout}', [ReplayLayoutController::class, 'destroy'])->name('layouts.destroy');
+        Route::post('layouts/{layout}/logos', [ReplayLayoutController::class, 'storeLogo'])->name('layouts.logos.store');
+        // PUT com JSON: é o editor salvando as posições sem recarregar a tela.
+        Route::put('layouts/{layout}/itens', [ReplayLayoutController::class, 'updateItems'])->name('layouts.items.update');
+        Route::delete('layouts/{layout}/itens/{item}', [ReplayLayoutController::class, 'destroyItem'])->name('layouts.items.destroy');
+        Route::post('layouts/{layout}/render', [ReplayLayoutController::class, 'rerender'])->name('layouts.rerender');
+
+        Route::get('cameras', [ReplayCameraController::class, 'index'])->name('cameras.index');
+        Route::post('cameras', [ReplayCameraController::class, 'store'])->name('cameras.store');
+        Route::put('cameras/{camera}', [ReplayCameraController::class, 'update'])->name('cameras.update');
+        Route::delete('cameras/{camera}', [ReplayCameraController::class, 'destroy'])->name('cameras.destroy');
+
+        Route::get('videos', [ReplayVideoWebController::class, 'index'])->name('videos.index');
+        Route::delete('videos/{video}', [ReplayVideoWebController::class, 'destroy'])->name('videos.destroy');
     });
 
 });

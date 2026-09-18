@@ -408,3 +408,62 @@ Em `app/Http/Controllers/Auth/`, gerados pelo Laravel Breeze (sessão web). Rota
 | `EmailVerificationPromptController` | `__invoke(Request): RedirectResponse\|View` | Aviso de verificação de e-mail. |
 | `EmailVerificationNotificationController` | `store(Request): RedirectResponse` | Reenvio do e-mail de verificação. |
 | `VerifyEmailController` | `__invoke(EmailVerificationRequest): RedirectResponse` | Confirma o e-mail. |
+
+---
+
+## Replay (`app/Http/Controllers/Replay/`)
+
+Vídeos das quadras. Telas em `Web/` (permissão `manage replay`), integração em `Api/`.
+Contrato completo em [replay-api.md](replay-api.md).
+
+### Web\SettingController
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `index` | `index()` | Esportes com as quadras aninhadas, mostrando a configuração **efetiva** e sua origem (`própria`/`herdado do esporte`/`padrão`). Usa o `ReplayResolver` — a tela nunca reimplementa a herança. |
+| `store` | `store(Request): RedirectResponse` | Grava a configuração do esporte ou da quadra (`updateOrCreate` pela chave do dono). Valida orientação e duração de 5 a 60s. |
+| `destroy` | `destroy(Setting): RedirectResponse` | Remove a configuração **própria** da quadra — ela volta a herdar do esporte. Não desliga o Replay. |
+
+### Web\LayoutController
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `index` | `index()` | Lista os layouts e avisa se falta ffmpeg (GIF animado sairia parado). |
+| `create` / `store` | | Cria o layout (dono + orientação + nome). Layout já existente para o mesmo par abre para edição em vez de estourar o UNIQUE. |
+| `edit` | `edit(Layout)` | Editor visual: arrastar, redimensionar, opacidade e ordem. |
+| `update` | `update(Request, Layout)` | Nome e situação. **Orientação não se edita** — é metade da chave única e define a tela em que tudo foi posicionado. |
+| `storeLogo` | `storeLogo(Request, Layout)` | Sobe PNG/GIF e cria a peça no canto superior esquerdo, preservando a proporção original. |
+| `updateItems` | `updateItems(Request, Layout): JsonResponse` | Recebe as posições do editor (JSON) e re-renderiza. Só aceita ids que pertencem ao layout — eles vêm do navegador. |
+| `destroyItem` / `destroy` / `rerender` | | Remove peça, remove layout (com arquivos) e força nova composição. |
+
+Toda alteração que muda o pixel final termina em `OverlayRenderer::render()` — o arquivo
+publicado nunca fica atrasado em relação à tela.
+
+### Web\CameraController
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `index` | `index()` | Câmeras com quadra, último contato e **como cada uma está gravando** (orientação, duração e layout em vigor). |
+| `store` / `update` / `destroy` | | CRUD. `external_id` é único em todo o clube; máximo de 2 câmeras por quadra (`Camera::MAX_PER_PLACE`). Excluir a câmera **não** apaga os vídeos: o clipe pertence à quadra, não ao equipamento. |
+
+### Web\VideoController
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `index` | `index(Request)` | Galeria interna com filtros (esporte, quadra, data, com/sem reserva) e dias restantes. |
+| `destroy` | `destroy(Video)` | Exclusão manual — apaga arquivo e registro juntos. |
+
+### Api\CameraController
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `index` | `index(): JsonResponse` | Todas as câmeras ativas com a configuração **já resolvida**, mais o `config_hash`. O sistema de captura só reprocessa quando o hash muda. |
+| `show` | `show(string $externalId)` | Idem, para uma câmera. 404 se inativa ou inexistente. |
+| `heartbeat` | `heartbeat(string $externalId)` | Sinal de vida. Grava com `timestamps = false`: o `updated_at` da câmera entra no `config_hash`, e um heartbeat por minuto faria o parque inteiro reprocessar. |
+
+### Api\VideoController
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `store` | `store(StoreVideoRequest, string $externalId)` | Recebe o clipe (multipart). `201` para clipe novo, `200` com `duplicated: true` no reenvio do mesmo `external_id`. |
+
+### Api\PortalController
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `places` | `places()` | Quadras que têm vídeo disponível agora. |
+| `placeVideos` | `placeVideos(Request, Place)` | Galeria pública da quadra, paginada, filtro por data. Marca `has_member` **sem revelar quem**. |
+| `myVideos` | `myVideos(Request)` | Vídeos do sócio logado. O sócio sai do **próprio JWT** (o `username` é o CPF), nunca de um id na URL. |

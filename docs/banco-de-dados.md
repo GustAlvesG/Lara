@@ -25,6 +25,7 @@ Visão geral do esquema: migrações, seeders e factories. Os detalhes de cada e
 | **WhatsApp** | `contacts`, `conversations`, `messages`, `media_attachments`, `templates`, `webhook_logs` |
 | **Telegram** | `contact_telegram` |
 | **Conteúdo** | `information`, `data_infos`, `general_settings` |
+| **Replay** | `replay_settings`, `replay_layouts`, `replay_layout_items`, `replay_cameras`, `replay_videos`, `replay_member_notifications`, `replay_api_clients` |
 | **Outros** | `parkings`, `visitors`, `cache`, `jobs` |
 
 > As tabelas `access`, `visitors` e dados de sócios também existem na base externa SQL
@@ -44,6 +45,8 @@ incremental do esquema (criação de tabelas + diversos `add_column`/`fix`). Des
 - `2026_01_14_*` — empresas, trabalhadores e regras de acesso.
 - `2026_02_23_*` — torneios.
 - `2026_05_19_*` — freelancers, funções e serviços.
+- `2026_09_17_*` — Replay: configuração de vídeo, layouts de logomarca, câmeras, clipes e a
+  permissão `manage replay`.
 
 Para o estado completo, rode `php artisan migrate:status`.
 

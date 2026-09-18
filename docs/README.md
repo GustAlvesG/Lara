@@ -14,7 +14,7 @@ Documentação de cada funcionalidade do ponto de vista de uso (o que faz, passo
 campos e regras). Comece por aqui se quer entender **o que o sistema faz**:
 [**Índice dos guias funcionais**](funcionalidades/README.md) — Informações, Placas de
 carro/Estacionamento, Agendamento, Espaços, Sócios, Freelancers, Banco de Horas, Torneios,
-Empresas, WhatsApp, Telegram, Usuários/Permissões e Home Assistant.
+Empresas, WhatsApp, Telegram, Usuários/Permissões, Home Assistant e Replay.
 
 > ⚠️ **[Pix automático (Sicoob)](funcionalidades/pix-sicoob.md)** — única funcionalidade que
 > movimenta dinheiro real. Instalação em
@@ -35,6 +35,13 @@ Empresas, WhatsApp, Telegram, Usuários/Permissões e Home Assistant.
 10. [Jobs, Listeners, Notifications e Providers](jobs-listeners-notifications.md) — componentes assíncronos e de bootstrap.
 11. [Integrações Externas](integracoes.md) — WhatsApp, Telegram, RedeItau, **Sicoob (Pix)**, e-mail, Home Assistant, SQL Server.
 12. [Banco de Dados](banco-de-dados.md) — migrações, seeders e factories.
+
+### Integrações com sistemas irmãos
+- [Placar Clube — API](placar-clube-api.md) · [integração com o Node](placar-clube-integracao-node.md)
+- [Replay — API](replay-api.md) — vídeos das quadras: configuração que o sistema de captura
+  consome e o repositório dos clipes. Prompts prontos para os agents dos dois sistemas que a
+  consomem: [sistema de captura](replay-prompt-captura.md) e
+  [site de locação](replay-prompt-site-locacao.md).
 
 ### Dinheiro
 - [Pix automático (Sicoob)](funcionalidades/pix-sicoob.md) — como o pagamento de freelancers

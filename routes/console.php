@@ -13,6 +13,11 @@ Schedule::command('app:expire-pending-schedules')->everyMinute();
 Schedule::command('app:expire-uber-access-requests')->everyMinute();
 Schedule::command('app:prune-uber-access-request-messages')->dailyAt('03:00');
 
+// Replay: os clipes valem 7 dias contados da gravação. Roda de madrugada,
+// fora do horário das quadras, porque apaga arquivo em disco e o mesmo disco
+// serve os vídeos que os sócios estão assistindo.
+Schedule::command('replay:prune')->dailyAt('03:30')->withoutOverlapping();
+
 // Confere no Sicoob o desfecho dos Pix em processamento e dá a baixa dos que
 // finalizaram. Só CONSULTA — nunca envia —, por isso pode rodar a cada minuto.
 // É o que fecha o ciclo do Job, que de propósito não tem retry.

@@ -35,6 +35,10 @@ use App\Http\Controllers\UberAccessRequestWebhookController;
 use App\Http\Controllers\InformationSearchController;
 use App\Http\Controllers\Api\PurchaseApprovalController;
 use App\Http\Controllers\Fleet\FleetApiController;
+use App\Http\Controllers\Replay\Api\CameraController as ReplayApiCameraController;
+use App\Http\Controllers\Replay\Api\VideoController as ReplayApiVideoController;
+use App\Http\Controllers\Replay\Api\PortalController as ReplayPortalController;
+use App\Support\Replay\ReplayAbilities;
 
 
 Route::get('/user', function (Request $request) {
@@ -113,6 +117,67 @@ Route::prefix('placar')
         Route::get('/jogos/{jogo}/jogadores/{jogador}/atuacao', [PlacarScoutController::class, 'atuacao'])->name('api.placar.jogos.atuacao');
         Route::get('/scout/jogadores/{jogador}', [PlacarScoutController::class, 'jogador'])->name('api.placar.scout.jogador');
     });
+
+/*
+|--------------------------------------------------------------------------
+| Replay — sistema de captura das quadras
+|--------------------------------------------------------------------------
+|
+| Integração por PULL: o sistema de captura consulta a configuração quando
+| quer e envia os clipes quando o botão é apertado. O Lara nunca chama o
+| outro lado — um push dependeria de o servidor das quadras estar de pé no
+| exato momento em que alguém salva uma configuração, e a mudança perdida só
+| apareceria no vídeo, depois do jogo.
+|
+| Autenticação própria (Sanctum, token pessoal do ApiClient), NÃO o
+| `api_token` estático: aqui há upload de arquivo, e o token estático é
+| compartilhado por todas as integrações da casa. Uma ability só,
+| `replay:operate` — é sempre o mesmo sistema falando.
+| Token: `php artisan replay:token {nome}`.
+|
+| Throttle folgado no envio: o botão é apertado em rajada durante um jogo, e
+| a fila do outro lado despeja o acumulado de uma vez quando a rede volta.
+*/
+Route::prefix('replay')
+    ->middleware(['auth:sanctum', 'abilities:' . ReplayAbilities::OPERATE])
+    ->group(function () {
+        Route::get('/ping', function (Request $request) {
+            return response()->json([
+                'ok' => true,
+                'cliente' => $request->user()?->name,
+            ]);
+        })->middleware('throttle:60,1')->name('api.replay.ping');
+
+        // Leitura da configuração — o que a câmera precisa saber para gravar.
+        Route::get('/cameras', [ReplayApiCameraController::class, 'index'])
+            ->middleware('throttle:120,1')->name('api.replay.cameras.index');
+        Route::get('/cameras/{external_id}', [ReplayApiCameraController::class, 'show'])
+            ->middleware('throttle:120,1')->name('api.replay.cameras.show');
+        Route::post('/cameras/{external_id}/heartbeat', [ReplayApiCameraController::class, 'heartbeat'])
+            ->middleware('throttle:120,1')->name('api.replay.cameras.heartbeat');
+
+        // Envio do clipe.
+        Route::post('/cameras/{external_id}/videos', [ReplayApiVideoController::class, 'store'])
+            ->middleware('throttle:300,1')->name('api.replay.videos.store');
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Replay — site de locação de espaços
+|--------------------------------------------------------------------------
+|
+| A galeria por quadra é ABERTA a qualquer visitante do site (decisão de quem
+| opera: o replay é do jogo, e o jogo aconteceu em espaço coletivo). Nenhum
+| dado do sócio sai nessa listagem — só a marca de que o vídeo pertence a uma
+| reserva.
+|
+| `my-videos` é o destino do link do e-mail e exige o login do sócio: fica
+| dentro do grupo `login_token` lá embaixo, junto com o resto do portal.
+*/
+Route::prefix('replay')->middleware('api_token')->group(function () {
+    Route::get('/places', [ReplayPortalController::class, 'places'])->name('api.replay.places');
+    Route::get('/places/{place}/videos', [ReplayPortalController::class, 'placeVideos'])->name('api.replay.places.videos');
+});
 
 Route::get('/test', [TestController::class, 'index'])->name('api.test');
 
@@ -294,6 +359,13 @@ Route::middleware('api_token')->group(function () {
         Route::prefix('place')->group(function () {
             Route::get('/{id}', [PlaceController::class, 'show']);
         });
+
+        /*
+        | Replay do sócio logado — destino do link do e-mail. O sócio sai do
+        | próprio token (o `username` do JWT é o CPF): com id na URL, trocar o
+        | número daria acesso aos vídeos de outro sócio.
+        */
+        Route::get('/replay/my-videos', [ReplayPortalController::class, 'myVideos'])->name('api.replay.my-videos');
 
         Route::prefix('schedule')->group(function () {
 

@@ -369,3 +369,80 @@ próprio de cadastro — consome esta API. Ver `docs/placar-clube-api.md`.
   numa partida, e sem o instante do lance a ficha não serve. Evento sem minutagem é rejeitado
   individualmente, sem derrubar o lote. `formatarMinuto()`/`minuto()` convertem para "MM:SS"
   num ponto só, para súmula, ficha de atuação e Node exibirem igual.
+
+---
+
+## Replay (`app/Models/Replay/`)
+
+Vídeos das quadras: configuração que o sistema de captura obedece e o repositório dos clipes.
+Ver `docs/replay-api.md` e `docs/funcionalidades/replay.md`.
+
+Regra comum a `Setting` e `Layout`: **exatamente um** entre `place_group_id` e `place_id` é
+preenchido — a configuração vale por esporte OU por quadra. Quem resolve qual das duas vale é
+o `ReplayResolver`; os models não sabem nada de herança.
+
+### Setting
+- **Tabela:** `replay_settings` · `UNIQUE (place_group_id)` e `UNIQUE (place_id)`
+- **`$fillable`:** `place_group_id`, `place_id`, `orientation`, `clip_seconds`, `active`
+- **`$casts`:** `active` → `boolean` · `clip_seconds` → `integer`
+- **Relacionamentos:** `group()` belongsTo PlaceGroup · `place()` belongsTo Place
+- `orientation` é `vertical`/`horizontal` — só a orientação; resolução e FPS ficam na câmera.
+  `clip_seconds` são sempre os segundos **anteriores** ao botão (5 a 60, sem pós-roll).
+
+### Layout
+- **Tabela:** `replay_layouts` · `UNIQUE (place_group_id, orientation)` e `UNIQUE (place_id, orientation)`
+- **`$fillable`:** dono, `orientation`, `name`, `active`, `overlay_path`, `overlay_animated_path`,
+  `overlay_hash`, `overlay_rendered_at`
+- **Relacionamentos:** `items()` hasMany LayoutItem (ordenado por `z_index`) · `group()` · `place()`
+- Amarrado à orientação porque uma composição de 9:16 não serve para 16:9.
+- **`overlayUrl()` / `animatedOverlayUrl()`**: URLs absolutas do que o sistema de captura
+  consome. O `overlay_hash` entra no nome do arquivo — URL nova a cada alteração, o que
+  dispensa invalidação de cache do outro lado.
+
+### LayoutItem
+- **Tabela:** `replay_layout_items`
+- **`$fillable`:** `replay_layout_id`, `image_path`, `animated`, `x`, `y`, `width`, `height`,
+  `opacity`, `z_index`
+- Geometria em **percentual do frame** (0 a 100), nunca em pixels: a resolução é decisão da
+  câmera e pode mudar. `animated` marca GIF com mais de um quadro — é o que faz o
+  `OverlayRenderer` gerar também a versão WebM com alpha.
+
+### Camera
+- **Tabela:** `replay_cameras` · `UNIQUE (external_id)`
+- **`$fillable`:** `place_id`, `external_id`, `name`, `position`, `active`, `last_seen_at`
+- **Relacionamentos:** `place()` belongsTo Place · `videos()` hasMany Video
+- `external_id` é o identificador do equipamento **no sistema de captura** — é por ele que toda
+  a API endereça a câmera, nunca pelo id interno. `MAX_PER_PLACE = 2` (campo de futebol usa uma
+  câmera por metade); o limite é validado no controller, não no banco.
+- **`isSilent()`**: sem heartbeat há mais de uma hora.
+
+### Video
+- **Tabela:** `replay_videos` · `UNIQUE (uuid)`, `UNIQUE (external_id)`
+- **`$fillable`:** `uuid`, `place_id`, `place_group_id`, `replay_camera_id`, `schedule_id`,
+  `member_id`, `external_id`, `recorded_at`, `duration_seconds`, `orientation`, `file_path`,
+  `size_bytes`, `expires_at`, `download_count`
+- **Relacionamentos:** `place()` · `group()` · `camera()` · `member()` · `schedule()`
+  (**`withoutGlobalScopes()`** — Schedule esconde os expirados por padrão, e a reserva do vídeo
+  já terminou)
+- `uuid` é a identidade pública: o arquivo é servido estaticamente, e um id sequencial deixaria
+  a galeria enumerável. `external_id` é o id do clipe no sistema de captura — é ele que torna o
+  envio idempotente.
+- `place_group_id` é **denormalizado**: a quadra pode ser remanejada de grupo, e o vídeo precisa
+  continuar dizendo em que esporte foi gravado.
+- `schedule_id`/`member_id` só são preenchidos quando havia reserva **paga** (`status_id = 1`)
+  no instante da gravação.
+- **`RETENTION_DAYS = 7`**, contados da **gravação**. Scopes `available()` e `expired()`;
+  **`daysLeft()`** alimenta a tela.
+
+### MemberNotification
+- **Tabela:** `replay_member_notifications` · `UNIQUE (schedule_id)`
+- **`$fillable`:** `schedule_id`, `member_id`, `videos_count`, `sent_at`
+- A trava que garante **um e-mail por reserva** — não por clipe. O `unique` é do banco de
+  propósito: dois clipes simultâneos colidem na inserção em vez de mandarem dois avisos.
+
+### ApiClient
+- **Tabela:** `replay_api_clients`
+- **`$fillable`:** `name`, `active`
+- Dono dos tokens Sanctum do sistema de captura. Não é usuário do sistema — implementa
+  `AuthenticatableContract` só para o guard `sanctum` aceitar o tokenable. Tabela separada da do
+  Placar: são integrações diferentes, e um vazamento de uma não pode virar acesso à outra.

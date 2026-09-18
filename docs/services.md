@@ -280,3 +280,52 @@ Lança `SicoobCertificateException` (arquivo ausente/ilegível, senha errada, ha
 ## JwtService
 
 `app/Providers/Services/JwtService.php`. Ver [Autenticação e Permissões](04-autenticacao-e-permissoes.md) (seção *JwtService*).
+
+---
+
+## Replay (`app/Services/Replay/`)
+
+### ReplayResolver
+A cascata de herança em um lugar só: **quadra > esporte > padrão**. Telas e API consomem o
+mesmo objeto — é o que garante que o preview mostrado ao Marketing é o que a câmera recebe.
+
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `settingFor` | `settingFor(Place): array` | Orientação e duração efetivas + `source` (`place`/`group`/`default`). Contém a duração à faixa de 5–60s mesmo se o banco tiver valor fora dela. |
+| `layoutFor` | `layoutFor(Place, string $orientation): array` | Layout efetivo para a orientação, ou `null` (vídeo limpo). |
+| `resolveFor` | `resolveFor(Place): array` | As duas coisas juntas — o que a API entrega. |
+| `configHash` | `configHash(): string` | Impressão digital de toda a configuração publicada. O sistema de captura só reprocessa quando ela muda. |
+
+As tabelas são pequenas (uma linha por esporte/quadra), então tudo é carregado de uma vez e
+resolvido em memória — evita o N+1 no endpoint mais chamado da API.
+
+### OverlayRenderer
+Compõe as logomarcas no arquivo que o sistema de captura queima sobre o vídeo: **PNG
+transparente sempre**, e **WebM com canal alpha** quando há GIF animado e ffmpeg no servidor.
+
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `render` | `render(Layout): Layout` | Compõe, grava com o hash no nome e atualiza o layout. Layout sem peças não gera arquivo (vídeo limpo é escolha válida). |
+
+Sem ffmpeg o módulo funciona inteiro — o problema vai para o log e o PNG continua valendo.
+Overlay parado é problema de estética; overlay nenhum é problema de operação.
+
+### MediaService
+Ponto único sobre a mídia do Replay: disco, URL e o que é um arquivo aceitável.
+
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `url` | `url(?string): ?string` (estático) | URL pública. Usa `asset()` e não `Storage::url()`, pela mesma razão do `ImagemService`: o APP_URL fixo sairia errado em outro host/porta. |
+| `absolutePath` | `absolutePath(string): string` (estático) | Caminho em disco — o ffmpeg precisa dele. |
+| `storeLogo` | `storeLogo(UploadedFile): array` | Valida (PNG/GIF, 8MB), detecta GIF animado pela contagem de blocos de controle, normaliza o PNG e grava. |
+| `remove` | `remove(?string): void` | Apaga do disco. |
+
+O tipo sai sempre dos **bytes reais**, nunca do `Content-Type` ou da extensão do nome.
+
+### VideoIntakeService
+Recebe o clipe, arquiva e amarra a quem for de direito.
+
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `store` | `store(Camera, UploadedFile, Carbon, int, ?string): array` | Idempotente pelo `external_id`. Grava em stream, resolve a reserva **paga** que cobria o instante, define a expiração a partir da **gravação** e agenda o aviso único da reserva. |
+| `prune` | `prune(): array` | Apaga arquivo e registro dos vencidos — arquivo primeiro: registro órfão alguém vê, arquivo órfão ocupa disco em silêncio. |
