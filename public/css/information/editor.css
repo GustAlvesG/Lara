@@ -127,3 +127,52 @@
         color: #d1d5db;
     }
 }
+
+/* Tela cheia: o editor sai do fluxo da pagina e ocupa a viewport inteira. */
+
+/* Empurra o botao de tela cheia pra ponta direita da barra. */
+.rich-editor-btn-fullscreen {
+    margin-left: auto;
+}
+
+.rich-editor-icon-collapse {
+    display: none;
+}
+
+.rich-editor.is-fullscreen .rich-editor-icon-expand {
+    display: none;
+}
+
+.rich-editor.is-fullscreen .rich-editor-icon-collapse {
+    display: inline-block;
+}
+
+.rich-editor.is-fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+}
+
+.rich-editor.is-fullscreen [role="toolbar"] {
+    flex: 0 0 auto;
+}
+
+/* Anula o min-h/max-h do componente pra area editavel esticar ate o rodape. */
+.rich-editor.is-fullscreen .rich-editor-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+}
+
+body.rich-editor-fullscreen-open {
+    overflow: hidden;
+}
