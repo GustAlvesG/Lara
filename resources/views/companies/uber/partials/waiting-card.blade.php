@@ -6,18 +6,10 @@
      * e o motorista parados na frente dele.
      */
     $expirado = $expirado ?? false;
-    $busca = Str::lower(collect([
-        $req->requester_name,
-        $req->matricula,
-        $req->vehicle_plate,
-        $req->contact_phone,
-        $req->contact_name_whatsapp,
-        $req->club_location,
-        $req->member_validation_name,
-    ])->filter()->implode(' '));
 @endphp
 
-<div data-row data-search="{{ $busca }}"
+{{-- data-row é o gancho do botão "Liberar", que marca o card depois da resposta. --}}
+<div data-row
      class="fade-in bg-white dark:bg-gray-800 rounded-2xl shadow-sm border {{ $expirado ? 'border-red-200 dark:border-red-900/50' : 'border-gray-100 dark:border-gray-700' }} overflow-hidden">
 
     <div class="w-full h-1 {{ $expirado ? 'bg-red-400' : 'bg-indigo-500' }}"></div>

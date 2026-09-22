@@ -18,7 +18,7 @@
                 <div>
                     <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white">Aguardando Acesso do Motorista</h1>
                     <p class="text-sm text-gray-500 dark:text-gray-400">
-                        Pedidos prontos, esperando o carro chegar na portaria. Ache pelo nome, placa ou print e libere direto — sem depender da placa digitada no WhatsApp.
+                        Todos os pedidos prontos, esperando o carro chegar na portaria. Confira com o motorista à sua frente e libere direto — sem depender da placa digitada no WhatsApp.
                     </p>
                 </div>
             </div>
@@ -37,22 +37,24 @@
 
         @include('companies.uber.partials.tabs', ['active' => 'waiting'])
 
-        <!-- Busca instantânea -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 mb-6">
-            <label class="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Procurar na fila</label>
-            <input type="text" id="filter-input" autofocus autocomplete="off"
-                   placeholder="Nome, placa, matrícula/CPF, telefone ou local — filtra enquanto você digita"
-                   class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl text-base font-medium outline-none focus:ring-2 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white dark:placeholder-gray-500">
-            <div class="flex flex-wrap items-center gap-4 mt-3 text-xs font-semibold">
-                <span class="text-indigo-600 dark:text-indigo-400">{{ $validos->count() }} na validade</span>
-                @if($expirados->isNotEmpty())
-                    <span class="text-red-600 dark:text-red-400">{{ $expirados->count() }} com validade vencida</span>
-                @endif
-                @if($emPreenchimento->isNotEmpty())
-                    <span class="text-amber-600 dark:text-amber-400">{{ $emPreenchimento->count() }} ainda preenchendo no WhatsApp</span>
-                @endif
-                <span id="filter-count" class="ml-auto text-gray-400 dark:text-gray-500 hidden"></span>
-            </div>
+        <!-- Resumo da fila -->
+        <div class="flex flex-wrap items-center gap-4 mb-6 text-xs font-bold">
+            <span class="px-3 py-1.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400">
+                {{ $validos->count() }} na validade
+            </span>
+            @if($expirados->isNotEmpty())
+                <span class="px-3 py-1.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">
+                    {{ $expirados->count() }} com validade vencida
+                </span>
+            @endif
+            @if($emPreenchimento->isNotEmpty())
+                <span class="px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                    {{ $emPreenchimento->count() }} ainda preenchendo no WhatsApp
+                </span>
+            @endif
+            <span class="ml-auto font-semibold text-gray-400 dark:text-gray-500">
+                Atualizado às {{ now()->format('H:i:s') }}
+            </span>
         </div>
 
         @php
@@ -70,7 +72,7 @@
         @endif
 
         @if($validos->isNotEmpty())
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8" data-group>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
                 @foreach($validos as $req)
                     @include('companies.uber.partials.waiting-card', ['req' => $req, 'expirado' => false, 'validationColors' => $validationColors])
                 @endforeach
@@ -78,13 +80,13 @@
         @endif
 
         @if($expirados->isNotEmpty())
-            <div class="mb-3 flex items-center gap-3 flex-wrap" data-group-header>
+            <div class="mb-3 flex items-center gap-3 flex-wrap">
                 <h2 class="text-sm font-black text-red-600 dark:text-red-400 uppercase tracking-wider">Validade vencida</h2>
                 <p class="text-xs text-gray-400 dark:text-gray-500">
                     Passaram dos 30 minutos e o sistema ainda não fechou. Dá para liberar — o histórico registra que foi fora do prazo.
                 </p>
             </div>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8" data-group>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
                 @foreach($expirados as $req)
                     @include('companies.uber.partials.waiting-card', ['req' => $req, 'expirado' => true, 'validationColors' => $validationColors])
                 @endforeach
@@ -92,13 +94,13 @@
         @endif
 
         @if($emPreenchimento->isNotEmpty())
-            <div class="mb-3 flex items-center gap-3 flex-wrap" data-group-header>
+            <div class="mb-3 flex items-center gap-3 flex-wrap">
                 <h2 class="text-sm font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider">Preenchendo agora no WhatsApp</h2>
                 <p class="text-xs text-gray-400 dark:text-gray-500">
                     O associado começou o pedido e ainda não terminou. Aparece só para consulta; liberar, só quando o pedido ficar pronto.
                 </p>
             </div>
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-amber-100 dark:border-amber-900/40 overflow-hidden mb-8" data-group>
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-amber-100 dark:border-amber-900/40 overflow-hidden mb-8">
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[700px] text-sm">
                         <thead>
@@ -111,7 +113,7 @@
                         </thead>
                         <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
                             @foreach($emPreenchimento as $req)
-                                <tr data-row data-search="{{ Str::lower(collect([$req->requester_name, $req->matricula, $req->vehicle_plate, $req->contact_phone, $req->contact_name_whatsapp, $req->club_location])->filter()->implode(' ')) }}">
+                                <tr>
                                     <td class="px-5 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400">{{ $req->created_at->format('H:i:s') }}</td>
                                     <td class="px-5 py-3">
                                         <p class="font-semibold text-gray-700 dark:text-gray-300">{{ $req->requester_name ?: ($req->contact_name_whatsapp ?: '—') }}</p>
@@ -137,58 +139,11 @@
             </div>
         @endif
 
-        <div id="empty-filter" class="hidden bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 py-12 text-center">
-            <p class="text-gray-400 dark:text-gray-500 font-medium">Nada na fila corresponde a essa busca.</p>
-        </div>
-
     </div>
 
     <script>
         const REGISTER_URL = @json(route('company_access.register_uber_request'));
         const PLATE_URL    = @json(route('company_access.uber_request_plate'));
-
-        // ------------------------------------------------------------------
-        // Busca instantânea. A fila é curta (30 min de validade) e já veio
-        // inteira no HTML, então filtrar aqui é mais rápido — e mais honesto —
-        // do que ida e volta ao servidor a cada tecla.
-        // ------------------------------------------------------------------
-        const filterInput = document.getElementById('filter-input');
-
-        function applyFilter() {
-            const term = filterInput.value.trim().toLowerCase();
-            const compact = term.replace(/[^a-z0-9]/g, '');
-            let visible = 0;
-
-            document.querySelectorAll('[data-row]').forEach(row => {
-                const haystack = row.dataset.search || '';
-                const hit = term === ''
-                    || haystack.includes(term)
-                    || (compact !== '' && haystack.replace(/[^a-z0-9]/g, '').includes(compact));
-
-                row.classList.toggle('hidden', !hit);
-                if (hit) visible++;
-            });
-
-            // Um bloco sem nenhuma linha visível some junto com o seu título.
-            document.querySelectorAll('[data-group]').forEach(group => {
-                const anyVisible = group.querySelectorAll('[data-row]:not(.hidden)').length > 0;
-                group.classList.toggle('hidden', !anyVisible);
-
-                const header = group.previousElementSibling;
-                if (header && header.hasAttribute('data-group-header')) {
-                    header.classList.toggle('hidden', !anyVisible);
-                }
-            });
-
-            const count = document.getElementById('filter-count');
-            count.textContent = term === '' ? '' : visible + ' resultado(s)';
-            count.classList.toggle('hidden', term === '');
-
-            const total = document.querySelectorAll('[data-row]').length;
-            document.getElementById('empty-filter').classList.toggle('hidden', !(term !== '' && visible === 0 && total > 0));
-        }
-
-        filterInput.addEventListener('input', applyFilter);
 
         // ------------------------------------------------------------------
         // Liberar pelo id do pedido. É o ponto da tela: quem escolheu ESTA
@@ -296,13 +251,13 @@
         setInterval(tickCountdowns, 1000);
 
         // ------------------------------------------------------------------
-        // Auto-refresh. Não recarrega enquanto o porteiro está digitando na
-        // busca ou no meio de uma liberação — perder o que ele escreveu é pior
-        // do que a tela ficar 30s velha.
+        // Auto-refresh: a fila muda sozinha (pedido novo chegando, cron
+        // expirando o vencido), e o porteiro não deveria ter de lembrar de
+        // apertar F5. Não recarrega no meio de uma liberação, para o resultado
+        // não sumir da tela antes de ser lido.
         // ------------------------------------------------------------------
         setInterval(function () {
-            const on = document.getElementById('auto-refresh').checked;
-            if (on && !acting && filterInput.value.trim() === '' && document.activeElement !== filterInput) {
+            if (document.getElementById('auto-refresh').checked && !acting) {
                 window.location.reload();
             }
         }, 30000);
