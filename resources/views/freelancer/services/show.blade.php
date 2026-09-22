@@ -330,9 +330,15 @@
             @if($service->isCancelled())
                 <div class="px-6 pb-6">
                     <div class="p-4 rounded-xl bg-gray-100 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300">
-                        Contrato cancelado
+                        {{-- A falta é um cancelamento com outro motivo: o dia não foi
+                             trabalhado e a vaga voltou para a semana do freelancer. Quem
+                             lê aqui precisa saber qual das duas coisas aconteceu. --}}
+                        {{ $service->isNoShow() ? 'Falta do freelancer — turno não cumprido, registrado' : 'Contrato cancelado' }}
                         @if($service->cancelled_at) em {{ $service->cancelled_at->format('d/m/Y H:i') }} @endif
                         @if($service->cancelledBy) por {{ $service->cancelledBy->name }} @endif.
+                        @if($service->isNoShow())
+                            Este dia deixou de ocupar vaga no limite semanal.
+                        @endif
                     </div>
                 </div>
             @elseif($locked)

@@ -72,6 +72,17 @@ class FreelancerService extends Model
     const STATUS_ACTIVE = 1;
 
     /**
+     * Motivos de baixa (coluna `cancel_reason`). A falta é um cancelamento com
+     * outro motivo, e não um estado novo: assim ela já sai da contagem semanal,
+     * do lote e do financeiro pelas regras que o cancelamento sempre teve.
+     *
+     * Contrato cancelado antes da coluna existir tem motivo nulo e é lido como
+     * cancelamento comum.
+     */
+    const CANCEL_REASON_ADMIN = 'admin';
+    const CANCEL_REASON_NO_SHOW = 'no_show';
+
+    /**
      * Estados de assinatura pelos quais a listagem pode ser filtrada, com o
      * rótulo que aparece na tela. São os mesmos de `signatureLabel()`: um lugar
      * só, para o filtro não passar a oferecer um estado que a coluna não mostra.
@@ -84,6 +95,10 @@ class FreelancerService extends Model
         'awaiting_freelancer' => 'Aguardando freelancer',
         'signed' => 'Assinado',
         'cancelled' => 'Cancelado',
+        // Subconjunto de "Cancelado": as baixas que o tablet registrou como
+        // falta. Ficam nos dois filtros de propósito — quem procura o que saiu
+        // da semana não precisa saber por qual porta saiu.
+        'no_show' => 'Falta do freelancer',
     ];
 
     /**
@@ -201,6 +216,7 @@ class FreelancerService extends Model
         'paid_by',
         'cancelled_at',
         'cancelled_by',
+        'cancel_reason',
         'created_by',
         'updated_by',
         'weekly_limit_authorized_at',
@@ -710,6 +726,37 @@ class FreelancerService extends Model
     public function canBeCancelled(): bool
     {
         return !$this->isSigned() && !$this->isCancelled();
+    }
+
+    /** Baixado como falta do freelancer, e não como cancelamento comum. */
+    public function isNoShow(): bool
+    {
+        return $this->isCancelled() && $this->cancel_reason === self::CANCEL_REASON_NO_SHOW;
+    }
+
+    /**
+     * Pode ser baixado como FALTA no tablet? É a única baixa que o operador do
+     * balcão dá sozinho, sem coordenador, então as travas são mais estreitas
+     * que as do cancelamento comum:
+     *
+     *  - sem nenhuma assinatura (a mesma do cancelamento): contrato assinado é
+     *    documento firmado, e ninguém que assinou faltou;
+     *  - o dia já chegou. Declarar falta de um turno que ainda não aconteceu
+     *    seria esvaziar a agenda da semana para furar o limite. Hoje vale —
+     *    o freelancer que não apareceu para o turno da manhã é caso de falta
+     *    ainda no mesmo dia;
+     *  - contrato original, não aditivo: aditivo não ocupa vaga na semana nem
+     *    é um dia de trabalho próprio — se o dia não foi trabalhado, quem se
+     *    baixa é o contrato base.
+     */
+    public function canBeMarkedNoShow(?Carbon $today = null): bool
+    {
+        if (!$this->canBeCancelled() || $this->isAmendment() || $this->start_date === null) {
+            return false;
+        }
+
+        return Carbon::parse($this->start_date)->startOfDay()
+            ->lessThanOrEqualTo(($today ?? Carbon::today())->copy()->startOfDay());
     }
 
     /**
@@ -1635,6 +1682,10 @@ class FreelancerService extends Model
         // base é assinado até o fim. Quem conta a história do aditivo é o
         // approvalLabel(), porque o que muda é o pagamento.
         return match (true) {
+            // Antes de "Cancelado": as duas baixam o contrato, mas quem lê a
+            // listagem precisa distinguir o que a empresa desmarcou do que o
+            // freelancer não cumpriu.
+            $this->isNoShow() => 'Falta',
             $this->isCancelled() => 'Cancelado',
             $this->isFullySigned() => 'Assinado',
             // Redação 2: o que falta é a validação pela web, não um traço no
@@ -1943,6 +1994,8 @@ class FreelancerService extends Model
 
         return match ($status) {
             'cancelled' => $query->where('status_id', self::STATUS_CANCELLED),
+            'no_show' => $query->where('status_id', self::STATUS_CANCELLED)
+                ->where('cancel_reason', self::CANCEL_REASON_NO_SHOW),
             'unsigned' => $active($query)->whereNull('freelancer_signed_at')->whereNull('coordinator_signed_at'),
             'awaiting_coordinator' => $active($query)->whereNotNull('freelancer_signed_at')->whereNull('coordinator_signed_at'),
             'awaiting_freelancer' => $active($query)->whereNotNull('coordinator_signed_at')->whereNull('freelancer_signed_at'),
@@ -2296,11 +2349,46 @@ class FreelancerService extends Model
     protected static function weeklyWindowDates(int $freelancerId, Carbon $weekStart, Carbon $weekEnd): Collection
     {
         return static::where('freelancer_id', $freelancerId)
-            ->where('status_id', '!=', self::STATUS_CANCELLED)
-            ->whereNull('parent_service_id')
+            ->countsTowardWeeklyLimit()
             ->whereBetween('start_date', [$weekStart, $weekEnd])
             ->pluck('start_date')
             ->map(fn($value) => Carbon::parse($value)->startOfDay());
+    }
+
+    /**
+     * As duas exclusões da contagem semanal, num lugar só: contrato baixado
+     * (cancelado ou falta) não ocupa vaga, e aditivo não é dia novo de trabalho.
+     * Toda consulta que conta a semana passa por aqui — é o que garante que a
+     * falta suma da conta sem cada regra ter de saber que ela existe.
+     */
+    public function scopeCountsTowardWeeklyLimit($query)
+    {
+        return $query->where('status_id', '!=', self::STATUS_CANCELLED)
+            ->whereNull('parent_service_id');
+    }
+
+    /**
+     * Os contratos que ocupam as vagas da semana de $date — os mesmos que
+     * `countInWeeklyWindow()` conta, só que em vez do número devolve quais são.
+     * É o que o tablet mostra quando o limite bate: para o operador apontar
+     * qual daqueles dias não foi trabalhado.
+     *
+     * @return Collection<int, static>
+     */
+    public static function weeklyWindowServices(int $freelancerId, $date): Collection
+    {
+        [$weekStart, $weekEnd] = self::weekBounds(Carbon::parse($date)->startOfDay());
+
+        return static::where('freelancer_id', $freelancerId)
+            ->countsTowardWeeklyLimit()
+            ->whereBetween('start_date', [$weekStart, $weekEnd])
+            // As mesmas relações da lista de contratos do tablet: sem elas, cada
+            // linha do payload faz as próprias consultas para responder o que
+            // ainda cabe fazer no contrato.
+            ->with(['freelancer', 'functionFreelancer', 'batch', 'baseService.functionFreelancer', 'amendments'])
+            ->orderBy('start_date')
+            ->orderBy('start_time')
+            ->get();
     }
 
     /**
@@ -2395,8 +2483,7 @@ class FreelancerService extends Model
 
         return static::query()
             ->whereIn('freelancer_id', $freelancerIds)
-            ->where('status_id', '!=', self::STATUS_CANCELLED)
-            ->whereNull('parent_service_id')
+            ->countsTowardWeeklyLimit()
             ->whereBetween('start_date', [$weekStart, $weekEnd])
             ->groupBy('freelancer_id')
             ->selectRaw('freelancer_id, COUNT(*) as total')

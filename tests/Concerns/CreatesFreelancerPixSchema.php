@@ -93,6 +93,8 @@ trait CreatesFreelancerPixSchema
             $table->dateTime('amended_at')->nullable();
             $table->dateTime('cancelled_at')->nullable();
             $table->unsignedBigInteger('cancelled_by')->nullable();
+            // Motivo da baixa: cancelamento comum ou falta do freelancer.
+            $table->string('cancel_reason', 20)->nullable();
             $table->dateTime('weekly_limit_authorized_at')->nullable();
             $table->unsignedBigInteger('weekly_limit_authorized_by')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();

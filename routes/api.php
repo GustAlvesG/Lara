@@ -131,6 +131,10 @@ Route::prefix('company-access')->group(function () {
     Route::post('/register-worker-access', [CompanyAccessRulesController::class, 'registerWorkerAccess'])->name('company_access.register_worker');
     Route::post('/register-freelancer-access', [CompanyAccessRulesController::class, 'registerFreelancerAccess'])->name('company_access.register_freelancer');
     Route::post('/register-one-off-access', [CompanyAccessRulesController::class, 'registerOneOffAccess'])->name('company_access.register_one_off');
+    // Tela "Aguardando acesso do motorista": libera e corrige pelo id do
+    // pedido, contornando a placa errada digitada no WhatsApp.
+    Route::post('/register-uber-request-access', [CompanyAccessRulesController::class, 'registerUberRequestAccess'])->name('company_access.register_uber_request');
+    Route::post('/uber-request-plate', [CompanyAccessRulesController::class, 'updateUberRequestPlate'])->name('company_access.uber_request_plate');
 });
 
 /*

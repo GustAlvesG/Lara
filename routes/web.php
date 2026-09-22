@@ -94,12 +94,20 @@ Route::prefix('kiosk')->group(function () {
     Route::put('/freelancer/{freelancer}/pix-key', [KioskController::class, 'updatePixKey'])
         ->middleware('throttle:20,1')->name('kiosk.freelancer.pix-key');
     Route::get('/freelancer/{freelancer}/services', [KioskController::class, 'services'])->name('kiosk.freelancer.services');
+    // Contratos de um dia, de todos os freelancers — a conferência de quem
+    // estava escalado e quem não apareceu. Só de hoje para trás.
+    Route::get('/services/day', [KioskController::class, 'dayServices'])->name('kiosk.services.day');
     Route::post('/service', [KioskController::class, 'storeService'])
         ->middleware('throttle:20,1')->name('kiosk.service.store');
     // Código de liberação do limite semanal por e-mail. Throttle baixo: é um
     // e-mail para uma caixa de terceiro, não um endpoint de consulta.
     Route::post('/service/weekly-limit-code', [KioskController::class, 'weeklyLimitCode'])
         ->middleware('throttle:6,1')->name('kiosk.service.weekly-limit-code');
+    // Falta do freelancer: o turno não foi cumprido. Baixa o contrato e devolve
+    // a vaga da semana — é a saída para quem faltou num dia e veio em outro,
+    // sem gastar a liberação do coordenador com um problema de cadastro.
+    Route::post('/service/{freelancerService}/no-show', [KioskController::class, 'markNoShow'])
+        ->middleware('throttle:20,1')->name('kiosk.service.no-show');
     // Aditivo: o turno mudou depois da assinatura. Gera um contrato novo preso
     // ao base, que passa a ser o documento válido daquele turno.
     Route::post('/service/{freelancerService}/amendment', [KioskController::class, 'storeAmendment'])
@@ -197,6 +205,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/access-logs', [CompanyRulesController::class, 'accessLogs'])->name('company.access.logs');
         Route::get('/uber-requests', [CompanyRulesController::class, 'uberRequests'])->name('company.uber.requests');
         Route::get('/uber-accesses', [CompanyRulesController::class, 'uberAccesses'])->name('company.uber.accesses');
+        // Painel da portaria: a fila de pedidos esperando o motorista chegar.
+        Route::get('/uber-waiting', [CompanyRulesController::class, 'uberWaiting'])->name('company.uber.waiting');
         // Liberação pontual — acima do `/{company}`, que engoliria o segmento.
         // Sem permissão própria: é a mesma régua do cadastro de terceirizado.
         Route::get('/one-off-accesses', [OneOffAccessController::class, 'index'])->name('company.one-off.index');

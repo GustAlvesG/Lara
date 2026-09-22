@@ -436,6 +436,19 @@ class CompanyService
             ];
         }
 
+        return $this->uberAccessPayload($request, $plate);
+    }
+
+    /**
+     * Formato único de resposta de um pedido de Uber encontrado. Vive separado
+     * porque duas portas chegam ao mesmo pedido: a placa digitada no monitor e
+     * o clique na linha da tela de "aguardando acesso" — e o JS do monitor
+     * renderiza as duas com o mesmo código.
+     */
+    private function uberAccessPayload(UberAccessRequest $request, ?string $plate = null): array
+    {
+        $plate = $plate ?: (string) $request->vehicle_plate;
+
         return [
             'found'      => true,
             'type'       => 'uber',
@@ -502,6 +515,100 @@ class CompanyService
         ]);
 
         return $result;
+    }
+
+    /**
+     * Registra o acesso de um pedido escolhido na tela de "Aguardando acesso
+     * do motorista" — pelo id do pedido, não pela placa.
+     *
+     * É a saída para o erro de preenchimento no WhatsApp: quando o associado
+     * digita a placa errada, nenhuma consulta por placa acha o pedido, mas o
+     * porteiro tem o carro na frente dele e o print da corrida na tela. Quem
+     * confere aqui é a pessoa, e o que ela escolheu é um pedido específico.
+     *
+     * A validade vencida NÃO bloqueia: o pedido continua "aguardando acesso"
+     * até o cron passar, e segurar o motorista por causa de um atraso de
+     * minutos só empurraria o porteiro para fora do sistema. O log registra a
+     * diferença no `reason`.
+     */
+    public function registerUberAccessById(int $requestId): array
+    {
+        $request = UberAccessRequest::find($requestId);
+
+        if (!$request || $request->status !== UberAccessRequest::STATUS_AGUARDANDO_ACESSO) {
+            return [
+                'found'   => false,
+                'reason'  => $request ? 'uber_request_not_waiting' : 'uber_request_not_found',
+                'type'    => 'uber',
+                'plate'   => (string) ($request->vehicle_plate ?? ''),
+                'status'  => $request->status ?? null,
+                'workers' => [],
+            ];
+        }
+
+        $expired = $request->expires_at !== null && $request->expires_at->isPast();
+
+        $request->update([
+            'status'      => UberAccessRequest::STATUS_CONCLUIDO,
+            'accessed_at' => now(),
+            'expires_at'  => now(),
+        ]);
+
+        $this->notifyUberArrival($request);
+
+        $result = $this->uberAccessPayload($request);
+
+        CompanyAccessLog::create([
+            'company_id'             => null,
+            'company_worker_id'      => null,
+            'uber_access_request_id' => $request->id,
+            'target'                 => $result['plate'],
+            'screenshot_url'         => $request->screenshot_url,
+            'allowed'                => true,
+            // Liberado fora da validade continua sendo liberado, mas o
+            // histórico precisa distinguir um do outro.
+            'reason'                 => $expired ? 'uber_access_granted_expired' : 'uber_access_granted_manual',
+        ]);
+
+        return $result;
+    }
+
+    /**
+     * Corrige a placa de um pedido ainda aguardando o motorista.
+     *
+     * A placa é o único campo do fluxo que o porteiro consegue conferir com o
+     * carro à vista, e é o que mais chega errado. Corrigir aqui devolve o
+     * pedido ao caminho normal (a consulta por placa volta a achá-lo) e evita
+     * que o histórico guarde a placa de um carro que nunca entrou.
+     */
+    public function updateUberRequestPlate(int $requestId, string $plate): array
+    {
+        $request = UberAccessRequest::find($requestId);
+
+        if (!$request || $request->status !== UberAccessRequest::STATUS_AGUARDANDO_ACESSO) {
+            return [
+                'found'  => false,
+                'reason' => $request ? 'uber_request_not_waiting' : 'uber_request_not_found',
+            ];
+        }
+
+        $normalized = $this->normalizePlate($plate);
+
+        if (!$this->isPlate($normalized)) {
+            return ['found' => false, 'reason' => 'invalid_plate', 'plate' => $normalized];
+        }
+
+        $previous = $request->vehicle_plate;
+        $request->update(['vehicle_plate' => $normalized]);
+
+        Log::info('Uber: placa corrigida na portaria', [
+            'uber_access_request_id' => $request->id,
+            'de'                     => $previous,
+            'para'                   => $normalized,
+            'user_id'                => auth()->id(),
+        ]);
+
+        return ['found' => true, 'plate' => $normalized, 'previous_plate' => $previous];
     }
 
     /**

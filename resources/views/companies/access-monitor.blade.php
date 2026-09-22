@@ -23,6 +23,10 @@
                 </div>
             </div>
             <div class="flex gap-2">
+                <a href="{{ route('company.uber.waiting') }}"
+                   class="px-4 py-2 bg-white dark:bg-gray-800 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-400 rounded-lg font-bold text-sm shadow-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition">
+                    Aguardando Motorista
+                </a>
                 <a href="{{ route('company.one-off.index') }}"
                    class="px-4 py-2 bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 rounded-lg font-bold text-sm shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/30 transition">
                     Liberação Pontual

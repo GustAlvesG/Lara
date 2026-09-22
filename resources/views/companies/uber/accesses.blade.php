@@ -150,8 +150,10 @@
                                 <td class="px-5 py-3.5">
                                     @php
                                         $reasonMap = [
-                                            'uber_access_granted' => 'Acesso de app liberado',
-                                            'uber_not_found'      => 'App não encontrado ou expirado',
+                                            'uber_access_granted'          => 'Acesso de app liberado',
+                                            'uber_not_found'               => 'App não encontrado ou expirado',
+                                            'uber_access_granted_manual'   => 'Liberado na fila da portaria',
+                                            'uber_access_granted_expired'  => 'Liberado na fila, fora do prazo',
                                         ];
                                     @endphp
                                     <span class="text-xs text-gray-500 dark:text-gray-400">{{ $reasonMap[$log->reason] ?? $log->reason ?? '—' }}</span>

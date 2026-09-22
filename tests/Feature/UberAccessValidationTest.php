@@ -250,4 +250,137 @@ class UberAccessValidationTest extends TestCase
 
         $this->assertSame(UberAccessRequest::STATUS_EXPIRADO, $request->fresh()->status);
     }
+
+    /**
+     * Liberação pelo id, a partir da fila da portaria: é o caminho que existe
+     * justamente para quando a placa digitada no WhatsApp está errada, então
+     * consultar por placa ali não pode ser pré-requisito de nada.
+     */
+    public function test_libera_pelo_id_do_pedido_mesmo_com_placa_divergente(): void
+    {
+        Queue::fake();
+
+        $plate = $this->uniquePlate();
+        $request = $this->makeRequest($plate, now()->addMinutes(10));
+
+        $result = $this->service()->registerUberAccessById($request->id);
+
+        $this->assertTrue($result['found']);
+        $this->assertSame('uber', $result['type']);
+        $this->assertSame($plate, $result['plate']);
+
+        $fresh = $request->fresh();
+        $this->assertSame(UberAccessRequest::STATUS_CONCLUIDO, $fresh->status);
+        $this->assertNotNull($fresh->accessed_at);
+        $this->assertTrue($fresh->expires_at->lessThanOrEqualTo(now()));
+
+        $this->assertDatabaseHas('company_access_logs', [
+            'uber_access_request_id' => $request->id,
+            'target'                 => $plate,
+            'allowed'                => true,
+            'reason'                 => 'uber_access_granted_manual',
+        ]);
+
+        Queue::assertPushed(SendPoliTextMessage::class);
+    }
+
+    /**
+     * Validade vencida não trava a liberação pela fila — o cron ainda não
+     * passou e o motorista está na portaria. O que muda é o `reason`, para o
+     * histórico distinguir um caso do outro.
+     */
+    public function test_libera_pelo_id_fora_da_validade_marcando_no_historico(): void
+    {
+        Queue::fake();
+
+        $plate = $this->uniquePlate();
+        $request = $this->makeRequest($plate, now()->subMinutes(2));
+
+        $result = $this->service()->registerUberAccessById($request->id);
+
+        $this->assertTrue($result['found']);
+        $this->assertSame(UberAccessRequest::STATUS_CONCLUIDO, $request->fresh()->status);
+
+        $this->assertDatabaseHas('company_access_logs', [
+            'uber_access_request_id' => $request->id,
+            'allowed'                => true,
+            'reason'                 => 'uber_access_granted_expired',
+        ]);
+    }
+
+    /**
+     * O pedido que já saiu da fila (liberado por outro porteiro, ou expirado
+     * pelo cron) não pode ser liberado de novo pelo clique atrasado na tela.
+     */
+    public function test_nao_libera_pelo_id_quando_o_pedido_saiu_da_fila(): void
+    {
+        Queue::fake();
+
+        $plate = $this->uniquePlate();
+        $request = $this->makeRequest($plate, now()->addMinutes(10), UberAccessRequest::STATUS_CONCLUIDO);
+
+        $result = $this->service()->registerUberAccessById($request->id);
+
+        $this->assertFalse($result['found']);
+        $this->assertSame('uber_request_not_waiting', $result['reason']);
+        $this->assertDatabaseMissing('company_access_logs', ['uber_access_request_id' => $request->id]);
+        Queue::assertNotPushed(SendPoliTextMessage::class);
+    }
+
+    public function test_nao_libera_pelo_id_inexistente(): void
+    {
+        $result = $this->service()->registerUberAccessById(0);
+
+        $this->assertFalse($result['found']);
+        $this->assertSame('uber_request_not_found', $result['reason']);
+    }
+
+    /**
+     * Corrigida a placa, o pedido volta a ser achável pela consulta normal da
+     * portaria — que é o ponto da correção.
+     */
+    public function test_corrige_a_placa_e_a_consulta_por_placa_volta_a_achar(): void
+    {
+        $errada = $this->uniquePlate();
+        $certa = $this->uniquePlate();
+        $request = $this->makeRequest($errada, now()->addMinutes(10));
+
+        // Vai com máscara e minúsculas: a normalização é a mesma da consulta.
+        $result = $this->service()->updateUberRequestPlate(
+            $request->id,
+            strtolower(substr($certa, 0, 3) . '-' . substr($certa, 3))
+        );
+
+        $this->assertTrue($result['found']);
+        $this->assertSame($certa, $result['plate']);
+        $this->assertSame($errada, $result['previous_plate']);
+        $this->assertSame($certa, $request->fresh()->vehicle_plate);
+
+        $this->assertTrue($this->service()->validateTryToAccess(['target' => $certa])['found']);
+        $this->assertFalse($this->service()->validateTryToAccess(['target' => $errada])['found']);
+    }
+
+    public function test_recusa_placa_fora_do_formato(): void
+    {
+        $plate = $this->uniquePlate();
+        $request = $this->makeRequest($plate, now()->addMinutes(10));
+
+        $result = $this->service()->updateUberRequestPlate($request->id, 'ABC');
+
+        $this->assertFalse($result['found']);
+        $this->assertSame('invalid_plate', $result['reason']);
+        $this->assertSame($plate, $request->fresh()->vehicle_plate);
+    }
+
+    public function test_nao_corrige_placa_de_pedido_fora_da_fila(): void
+    {
+        $plate = $this->uniquePlate();
+        $request = $this->makeRequest($plate, now()->addMinutes(10), UberAccessRequest::STATUS_CONCLUIDO);
+
+        $result = $this->service()->updateUberRequestPlate($request->id, $this->uniquePlate());
+
+        $this->assertFalse($result['found']);
+        $this->assertSame('uber_request_not_waiting', $result['reason']);
+        $this->assertSame($plate, $request->fresh()->vehicle_plate);
+    }
 }

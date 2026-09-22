@@ -319,6 +319,8 @@
                                             'app_driver_access'   => 'Motorista de aplicativo',
                                             'uber_access_granted' => 'Acesso de app liberado',
                                             'uber_not_found'      => 'App não encontrado ou expirado',
+                                            'uber_access_granted_manual'  => 'Liberado na fila da portaria',
+                                            'uber_access_granted_expired' => 'Liberado na fila, fora do prazo',
                                             'freelancer_access_granted' => 'Liberado pelo contrato de freelancer',
                                             'freelancer_no_service'     => 'Freelancer sem serviço no horário',
                                             'one_off_access_granted'    => 'Liberação pontual',

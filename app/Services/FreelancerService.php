@@ -644,10 +644,16 @@ class FreelancerService
      * estar aditivado e volta ao lote e ao financeiro. Sem isso, um aditivo
      * criado por engano deixaria o turno sem nenhum contrato pagável.
      *
+     * `$reason` separa o cancelamento comum da falta do freelancer. As duas
+     * baixam o contrato do mesmo jeito — o motivo é para quem lê depois.
+     *
      * @throws FreelancerServiceLockedException
      */
-    public function cancelService(FreelancerServiceModel $service, ?User $user = null)
-    {
+    public function cancelService(
+        FreelancerServiceModel $service,
+        ?User $user = null,
+        string $reason = FreelancerServiceModel::CANCEL_REASON_ADMIN,
+    ) {
         if ($service->isCancelled()) {
             throw new FreelancerServiceLockedException('Contrato já está cancelado.');
         }
@@ -656,11 +662,12 @@ class FreelancerService
             throw new FreelancerServiceLockedException('Contrato já assinado não pode ser cancelado.');
         }
 
-        return DB::transaction(function () use ($service, $user) {
+        return DB::transaction(function () use ($service, $user, $reason) {
             $service->forceFill([
                 'status_id' => FreelancerServiceModel::STATUS_CANCELLED,
                 'cancelled_at' => now(),
                 'cancelled_by' => $user?->id,
+                'cancel_reason' => $reason,
             ])->save();
 
             $base = $service->isScheduleAmendment() ? $service->baseService : null;
@@ -674,6 +681,50 @@ class FreelancerService
 
             return $service;
         });
+    }
+
+    /**
+     * Registra que o freelancer NÃO cumpriu o turno. É um cancelamento com
+     * motivo próprio: o contrato sai da contagem semanal pela mesma regra que
+     * sempre excluiu o cancelado, e o dia volta a ficar disponível.
+     *
+     * É a porta que o tablet abre para o caso do freelancer que faltou na
+     * quarta e apareceu no sábado: sem ela, o contrato de quarta continuaria
+     * ocupando vaga na semana e o sábado precisaria da liberação de um
+     * coordenador — gastando a exceção com um problema de cadastro.
+     *
+     * As travas são as de `canBeMarkedNoShow()`, mais estreitas que as do
+     * cancelamento comum, porque aqui quem dá a baixa é o operador do balcão.
+     *
+     * @throws FreelancerServiceLockedException
+     */
+    public function markNoShow(FreelancerServiceModel $service, ?User $user = null)
+    {
+        if ($service->isCancelled()) {
+            throw new FreelancerServiceLockedException(
+                $service->isNoShow() ? 'Contrato já está marcado como falta.' : 'Contrato já está cancelado.'
+            );
+        }
+
+        if ($service->isSigned()) {
+            throw new FreelancerServiceLockedException(
+                'Contrato assinado não pode ser marcado como falta. Quem assinou compareceu.'
+            );
+        }
+
+        if ($service->isAmendment()) {
+            throw new FreelancerServiceLockedException(
+                'Aditivo não é um dia de trabalho próprio. Marque a falta no contrato original.'
+            );
+        }
+
+        if (!$service->canBeMarkedNoShow()) {
+            throw new FreelancerServiceLockedException(
+                'Só é possível marcar falta de um turno cujo dia já chegou.'
+            );
+        }
+
+        return $this->cancelService($service, $user, FreelancerServiceModel::CANCEL_REASON_NO_SHOW);
     }
 
     /**
