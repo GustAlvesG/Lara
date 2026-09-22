@@ -61,11 +61,40 @@ class SignatureEvidence extends Model
 
     /**
      * Quantos pontos o traço tem. É por aqui que se recusa a "assinatura" de
-     * um toque só — ver SignatureCaptureService.
+     * um toque só — ver SignatureCaptureService, que chama o mesmo método
+     * ANTES de gravar.
+     *
+     * A contagem mora aqui, e não nos dois lugares, porque já estava escrita
+     * duas vezes com regras diferentes: uma entendia `[{points: [...]}]` e a
+     * outra contava os traços em vez dos pontos. O teste flagrou 1 onde eram
+     * 60 — e, num traço de verdade, as duas contas aprovariam a assinatura,
+     * então a divergência só apareceria no dia em que importasse.
      */
     public function strokePoints(): int
     {
-        return collect($this->strokes ?? [])
-            ->sum(fn($stroke) => is_array($stroke) ? count($stroke) : 0);
+        return self::countPoints($this->strokes);
+    }
+
+    /**
+     * Aceita as duas formas que o tablet pode mandar: uma lista de traços, e
+     * cada traço como `{points: [...]}` ou como a própria lista de pontos.
+     *
+     * @param  array<mixed>|null  $strokes
+     */
+    public static function countPoints(?array $strokes): int
+    {
+        $total = 0;
+
+        foreach ($strokes ?? [] as $stroke) {
+            if (!is_array($stroke)) {
+                continue;
+            }
+
+            $total += isset($stroke['points']) && is_array($stroke['points'])
+                ? count($stroke['points'])
+                : count($stroke);
+        }
+
+        return $total;
     }
 }

@@ -9,6 +9,7 @@ use App\Models\SignatureAuditEvent;
 use App\Models\SignatureDocument;
 use App\Models\SignatureRequest;
 use App\Models\SignatureSigner;
+use App\Services\Signature\SignatureCaptureService;
 use App\Services\Signature\SignatureRequestService;
 use App\Services\Signature\SignatureStateMachine;
 use Illuminate\Http\Request;
@@ -32,6 +33,7 @@ class QuiosqueController extends Controller
     public function __construct(
         private SignatureRequestService $requests,
         private SignatureStateMachine $states,
+        private SignatureCaptureService $capture,
     ) {
     }
 
@@ -140,6 +142,80 @@ class QuiosqueController extends Controller
         ]);
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Conferência de identidade.
+     *
+     * O que a pessoa digita vai para o servidor; o CPF cadastrado não vem para
+     * a tela em hipótese nenhuma. A resposta de erro diz só que não conferiu —
+     * apontar qual dígito falhou transformaria a etapa num formulário de
+     * adivinhação.
+     */
+    public function identity(Request $request, SignatureDocument $signatureDocument)
+    {
+        $solicitacao = $this->current($request);
+
+        $dados = $request->validate([
+            'cpf' => ['required', 'string', 'max:20'],
+        ]);
+
+        try {
+            $this->capture->confirmIdentity($solicitacao, $dados['cpf'], [
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+        } catch (SignatureSessionException $e) {
+            return response()->json(['error' => $e->getMessage()], $e->status);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * A assinatura. Uma requisição, uma transação, um resultado.
+     *
+     * O tablet manda tudo de uma vez — traço, traços vetoriais, foto, aceite e
+     * tempo de leitura — porque é assim que a gravação cabe numa transação só.
+     * Mandar por partes deixaria o atendimento "meio assinado" quando a rede
+     * caísse no meio, e assinatura não se repete.
+     */
+    public function sign(Request $request, SignatureDocument $signatureDocument)
+    {
+        $solicitacao = $this->current($request);
+
+        $dados = $request->validate([
+            'signature' => ['required', 'string'],
+            'strokes' => ['nullable', 'array'],
+            'photo' => ['nullable', 'string'],
+            'accepted' => ['required', 'accepted'],
+            'read_seconds' => ['nullable', 'integer', 'min:0', 'max:86400'],
+            'scrolled_to_end' => ['nullable', 'boolean'],
+            'viewport' => ['nullable', 'array'],
+        ]);
+
+        try {
+            $this->capture->capture($solicitacao, [
+                'signature' => $dados['signature'],
+                'strokes' => $dados['strokes'] ?? null,
+                'photo' => $dados['photo'] ?? null,
+                'accepted' => true,
+                'read_seconds' => $dados['read_seconds'] ?? null,
+                'scrolled_to_end' => (bool) ($dados['scrolled_to_end'] ?? false),
+                'viewport' => $dados['viewport'] ?? null,
+            ], [
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+        } catch (SignatureSessionException $e) {
+            return response()->json(['error' => $e->getMessage()], $e->status);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Assinatura registrada.',
+            'signed_at' => now()->format('d/m/Y H:i:s'),
+        ])->withCookie($this->forgetCookie());
     }
 
     /**

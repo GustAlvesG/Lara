@@ -109,6 +109,17 @@ Route::prefix('quiosque')->name('quiosque.')->group(function () {
             Route::get('/pdf', [QuiosqueController::class, 'pdf'])->name('pdf');
             Route::post('/visualizado', [QuiosqueController::class, 'viewed'])
                 ->middleware('throttle:60,1')->name('viewed');
+
+            // Teto baixo: no modo parcial a conferência é de quatro dígitos, e
+            // o contador por solicitação (identity_attempts) fecha a sessão
+            // antes disso. As duas travas existem porque o throttle é por IP —
+            // e o tablet inteiro divide um IP só.
+            Route::post('/identidade', [QuiosqueController::class, 'identity'])
+                ->middleware('throttle:10,1')->name('identity');
+
+            Route::post('/assinar', [QuiosqueController::class, 'sign'])
+                ->middleware('throttle:10,1')->name('sign');
+
             Route::post('/recusar', [QuiosqueController::class, 'refuse'])
                 ->middleware('throttle:20,1')->name('refuse');
         });

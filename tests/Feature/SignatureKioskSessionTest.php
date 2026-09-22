@@ -88,6 +88,48 @@ class SignatureKioskSessionTest extends TestCase
             ->withCookie(EnsureSignatureKioskSession::COOKIE, $cookie);
     }
 
+    /**
+     * A tela do tablet renderiza inteira.
+     *
+     * Não há navegador headless nesta máquina, então conferir que o Blade
+     * monta — com o prefixo do QR, o leitor e o PDF.js no lugar — é o que
+     * substitui abrir a página. Um `@verbatim` mal fechado, que é o erro mais
+     * fácil de cometer num arquivo com JavaScript e CSS inline, apareceria
+     * aqui como diretiva crua no HTML.
+     */
+    public function test_tela_do_tablet_renderiza(): void
+    {
+        $resposta = $this->get(route('quiosque.index'));
+
+        $resposta->assertOk()
+            ->assertSee('Aponte a câmera para o QR Code', false)
+            ->assertSee('LARA-SIGN:v1:', false)
+            ->assertSee('html5-qrcode', false)
+            ->assertSee('pdf.min.js', false)
+            ->assertSee('Li e concordo com os termos deste documento', false);
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/@(verbatim|endverbatim|csrf)\b/',
+            $resposta->getContent(),
+            'Sobrou diretiva Blade crua no HTML da tela do tablet.',
+        );
+    }
+
+    /** O tablet não guarda nada: é o aparelho do balcão, compartilhado. */
+    public function test_tela_do_tablet_nao_usa_armazenamento_local(): void
+    {
+        $html = $this->get(route('quiosque.index'))->getContent();
+
+        // Procura USO (`localStorage.setItem`, `indexedDB.open`), e não a
+        // palavra: os comentários do arquivo explicam justamente por que esses
+        // armazenamentos não são usados.
+        $this->assertDoesNotMatchRegularExpression(
+            '/\b(localStorage|sessionStorage|indexedDB)\s*[.\[]/i',
+            $html,
+            'A tela do tablet não pode guardar dados no aparelho.',
+        );
+    }
+
     public function test_leitura_do_qr_abre_a_sessao_e_devolve_o_documento(): void
     {
         ['token' => $token, 'document' => $documento] = $this->comQrGerado();

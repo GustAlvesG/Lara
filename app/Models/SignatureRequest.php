@@ -49,6 +49,8 @@ class SignatureRequest extends Model
         'session_expires_at',
         'consumed_ip',
         'consumed_user_agent',
+        'identity_confirmed_at',
+        'identity_attempts',
         'status',
         'created_by',
     ];
@@ -67,6 +69,8 @@ class SignatureRequest extends Model
         'expires_at' => 'datetime',
         'consumed_at' => 'datetime',
         'session_expires_at' => 'datetime',
+        'identity_confirmed_at' => 'datetime',
+        'identity_attempts' => 'integer',
         'created_by' => 'integer',
     ];
 

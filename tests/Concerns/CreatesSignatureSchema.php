@@ -34,6 +34,7 @@ trait CreatesSignatureSchema
             '2026_09_22_120300_create_signature_requests_table.php',
             '2026_09_22_120400_create_signature_evidences_table.php',
             '2026_09_22_120500_create_signature_audit_events_table.php',
+            '2026_09_22_120700_add_identity_check_to_signature_requests.php',
         ];
 
         foreach ($migrations as $arquivo) {
