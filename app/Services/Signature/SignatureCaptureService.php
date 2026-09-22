@@ -113,6 +113,7 @@ class SignatureCaptureService
      *     strokes?: array<mixed>|null,
      *     photo?: string|null,
      *     accepted: bool,
+     *     wants_copy?: bool,
      *     read_seconds?: int|null,
      *     scrolled_to_end?: bool,
      *     viewport?: array<string, mixed>|null,
@@ -230,7 +231,14 @@ class SignatureCaptureService
                     $signer,
                     SignatureSigner::STATUS_SIGNED,
                     SignatureAuditEvent::EVENT_SIGNED,
-                    ['signed_at' => now()],
+                    [
+                        'signed_at' => now(),
+                        // Pedido da via, marcado na tela de aceite. Chega junto
+                        // com a assinatura porque a sessão do tablet morre no
+                        // instante em que ela entra — perguntar depois exigiria
+                        // manter viva uma sessão que já não tem o que fazer.
+                        'wants_copy' => (bool) ($payload['wants_copy'] ?? false) && $signer->email !== null,
+                    ],
                     [
                         'request' => $request->id,
                         'actor_type' => SignatureAuditEvent::ACTOR_KIOSK,

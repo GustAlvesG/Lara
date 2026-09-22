@@ -871,6 +871,12 @@ Route::middleware('auth')->group(function () {
                 ->whereNumber('signatureSigner')
                 ->middleware('throttle:30,1')->name('release');
 
+            // Reenvio da via assinada — e-mail falha, e o documento já está
+            // guardado: o que falta é a entrega.
+            Route::post('/signatarios/{signatureSigner}/via', [SignatureReleaseController::class, 'resend'])
+                ->whereNumber('signatureSigner')
+                ->middleware('throttle:10,1')->name('resend-copy');
+
             Route::delete('/liberacoes/{signatureRequest}', [SignatureReleaseController::class, 'destroy'])
                 ->whereNumber('signatureRequest')
                 ->middleware('throttle:30,1')->name('release.cancel');

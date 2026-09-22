@@ -115,6 +115,16 @@ class FinalizeSignatureDocument implements ShouldQueue
                 ],
             ],
         );
+
+        /*
+         | A via só é enviada a quem PEDIU no tablet e tem e-mail cadastrado.
+         | Vai em job próprio: e-mail é a parte mais frágil do caminho, e uma
+         | falha de SMTP não pode desfazer a finalização de um documento que já
+         | está assinado e guardado.
+         */
+        foreach ($document->signers()->where('wants_copy', true)->whereNotNull('email')->get() as $signer) {
+            SendSignatureCopy::dispatch($signer->id);
+        }
     }
 
     /**

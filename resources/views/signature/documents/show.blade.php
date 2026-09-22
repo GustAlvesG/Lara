@@ -180,6 +180,29 @@
                                         @if($signer->refusal_reason) — {{ $signer->refusal_reason }} @endif
                                     </div>
                                 @endif
+
+                                @if($document->status === \App\Models\SignatureDocument::STATUS_FINALIZED && $signer->email)
+                                    <div class="mt-3 flex items-center justify-between gap-2">
+                                        <span class="text-[11px] text-gray-500 dark:text-gray-400">
+                                            @if($signer->copy_sent_at)
+                                                Via enviada em {{ $signer->copy_sent_at->format('d/m/Y H:i') }}
+                                            @elseif($signer->wants_copy)
+                                                Via pedida, ainda não enviada
+                                            @else
+                                                Via não solicitada
+                                            @endif
+                                        </span>
+
+                                        @can('release', $document)
+                                            <form method="POST" action="{{ route('signature-documents.resend-copy', [$document, $signer]) }}">
+                                                @csrf
+                                                <button type="submit" class="text-[11px] font-bold text-[#A00001] hover:underline">
+                                                    {{ $signer->copy_sent_at ? 'Reenviar' : 'Enviar via' }}
+                                                </button>
+                                            </form>
+                                        @endcan
+                                    </div>
+                                @endif
                             </li>
                         @endforeach
                     </ol>

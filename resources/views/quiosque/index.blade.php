@@ -223,6 +223,11 @@
           <span>Li e concordo com os termos deste documento.</span>
         </label>
 
+        <label class="accept hidden" id="viaBox" style="margin-top:14px;">
+          <input type="checkbox" id="viaCheck">
+          <span>Quero receber uma via assinada no meu e-mail cadastrado.</span>
+        </label>
+
         <div class="note note-info" id="avisoFoto" style="margin-top:18px;">
           Ao confirmar a assinatura, sua foto será registrada pela câmera frontal do tablet,
           junto com data, hora e local do atendimento. Esses dados ficam guardados como prova
@@ -345,6 +350,7 @@
       assinaturaPng: null,
       fotoJpeg: null,
       aceitou: false,
+      querVia: false,
       sessao: { restante: 0, aviso: 60 },
     };
   }
@@ -539,6 +545,10 @@
 
     $('#avisoFoto').classList.toggle('hidden', !S.regras.requires_photo);
 
+    // A via por e-mail só é oferecida a quem tem e-mail cadastrado. O tablet
+    // sabe SE existe, nunca QUAL é.
+    $('#viaBox').classList.toggle('hidden', !S.signatario.has_email);
+
     iniciaContagem();
     iniciaBatimento();
 
@@ -559,6 +569,9 @@
     $('#cpfInput').value = '';
     $('#aceiteCheck').checked = false;
     $('#aceiteBox').classList.remove('on');
+    $('#viaCheck').checked = false;
+    $('#viaBox').classList.remove('on');
+    $('#viaBox').classList.add('hidden');
     $('#btnAceite').disabled = true;
     $('#btnIdentidade').disabled = true;
     $('#btnLido').disabled = true;
@@ -859,6 +872,16 @@
     }
   });
 
+  $('#viaCheck').addEventListener('change', function () {
+    var marcado = $('#viaCheck').checked;
+
+    $('#viaBox').classList.toggle('on', marcado);
+
+    if (S) {
+      S.querVia = marcado;
+    }
+  });
+
   $('#btnAceite').addEventListener('click', function () {
     mostra('tela-assinatura');
     preparaCanvas();
@@ -1096,6 +1119,7 @@
       strokes: S.tracos,
       photo: S.fotoJpeg,
       accepted: true,
+      wants_copy: S.querVia,
       read_seconds: S.leitura.segundos,
       scrolled_to_end: S.leitura.ateOFim,
       viewport: {
@@ -1107,6 +1131,10 @@
       .then(function (dados) {
         $('#sucessoDetalhe').textContent = 'Assinado em ' + dados.signed_at
           + '. Você pode devolver o tablet ao atendente.';
+
+        $('#sucessoVia').textContent = S.querVia
+          ? 'A via assinada será enviada ao seu e-mail cadastrado em alguns instantes.'
+          : 'A via assinada fica disponível com o atendente.';
 
         pararContagem();
         pararBatimento();

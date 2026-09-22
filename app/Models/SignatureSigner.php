@@ -56,6 +56,8 @@ class SignatureSigner extends Model
         'member_id',
         'email',
         'phone',
+        'wants_copy',
+        'copy_sent_at',
         'role',
         'position',
         'status',
@@ -79,6 +81,8 @@ class SignatureSigner extends Model
         'signature_document_id' => 'integer',
         'member_id' => 'integer',
         'position' => 'integer',
+        'wants_copy' => 'boolean',
+        'copy_sent_at' => 'datetime',
         'signed_at' => 'datetime',
         'refused_at' => 'datetime',
     ];

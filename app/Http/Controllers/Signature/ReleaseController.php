@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Signature;
 use App\Exceptions\SignatureDocumentLockedException;
 use App\Exceptions\SignatureSessionException;
 use App\Http\Controllers\Controller;
+use App\Jobs\SendSignatureCopy;
 use App\Models\SignatureDocument;
 use App\Models\SignatureRequest;
 use App\Models\SignatureSigner;
@@ -80,6 +81,37 @@ class ReleaseController extends Controller
         }
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Reenvia a via assinada ao signatário, a pedido do atendente.
+     *
+     * Existe porque e-mail falha: caixa cheia, endereço errado corrigido
+     * depois, SMTP fora do ar. O documento já está assinado e guardado — o que
+     * falta é a entrega, e ela pode ser repetida.
+     *
+     * Reenviar zera o `copy_sent_at` de propósito: o job se recusa a mandar
+     * duas vezes, e sem isso o botão não faria nada.
+     */
+    public function resend(SignatureDocument $signatureDocument, SignatureSigner $signatureSigner)
+    {
+        $this->authorize('release', $signatureDocument);
+
+        abort_if($signatureSigner->signature_document_id !== $signatureDocument->id, 404);
+
+        if ($signatureDocument->status !== SignatureDocument::STATUS_FINALIZED) {
+            return back()->with('error', 'A via só pode ser enviada depois que o documento é finalizado.');
+        }
+
+        if (!$signatureSigner->email) {
+            return back()->with('error', 'Este signatário não tem e-mail cadastrado.');
+        }
+
+        $signatureSigner->forceFill(['wants_copy' => true, 'copy_sent_at' => null])->save();
+
+        SendSignatureCopy::dispatch($signatureSigner->id);
+
+        return back()->with('success', 'Envio da via colocado na fila para ' . $signatureSigner->name . '.');
     }
 
     /**

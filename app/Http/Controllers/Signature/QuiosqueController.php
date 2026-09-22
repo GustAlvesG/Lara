@@ -189,6 +189,7 @@ class QuiosqueController extends Controller
             'strokes' => ['nullable', 'array'],
             'photo' => ['nullable', 'string'],
             'accepted' => ['required', 'accepted'],
+            'wants_copy' => ['nullable', 'boolean'],
             'read_seconds' => ['nullable', 'integer', 'min:0', 'max:86400'],
             'scrolled_to_end' => ['nullable', 'boolean'],
             'viewport' => ['nullable', 'array'],
@@ -200,6 +201,7 @@ class QuiosqueController extends Controller
                 'strokes' => $dados['strokes'] ?? null,
                 'photo' => $dados['photo'] ?? null,
                 'accepted' => true,
+                'wants_copy' => (bool) ($dados['wants_copy'] ?? false),
                 'read_seconds' => $dados['read_seconds'] ?? null,
                 'scrolled_to_end' => (bool) ($dados['scrolled_to_end'] ?? false),
                 'viewport' => $dados['viewport'] ?? null,
@@ -319,6 +321,13 @@ class QuiosqueController extends Controller
             'signer' => [
                 'name' => $signatario->name,
                 'role' => $signatario->roleLabel(),
+                /*
+                 | Só se HÁ e-mail, nunca QUAL. A tela usa isto para decidir se
+                 | oferece a via por e-mail; mostrar o endereço seria expor
+                 | dado de contato num tablet de balcão, que qualquer um
+                 | olhando de lado enxerga.
+                 */
+                'has_email' => $signatario->email !== null && $signatario->email !== '',
             ],
             'rules' => [
                 'identity_check' => $modelo->identity_check,

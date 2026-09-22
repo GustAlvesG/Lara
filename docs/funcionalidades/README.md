@@ -31,6 +31,7 @@ rotas).
 | [Telegram](telegram.md) | Cadastro e consulta de contatos do Telegram. |
 | [Usuários e Permissões](usuarios-e-permissoes.md) | Administração de usuários, papéis e permissões. |
 | [Automação Home Assistant](automacao-home-assistant.md) | Iluminação automática a partir de reservas, agendamentos e controle manual. |
+| [Assinatura Eletrônica Presencial](assinatura-eletronica.md) | Termos e contratos assinados no tablet do balcão, liberados por QR Code de uso único. |
 
 ## Perfis de usuário
 
