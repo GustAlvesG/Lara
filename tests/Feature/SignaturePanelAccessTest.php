@@ -186,6 +186,82 @@ class SignaturePanelAccessTest extends TestCase
             ->assertSee('Congele o documento para liberar');
     }
 
+    /**
+     * O acompanhamento da tela do atendente.
+     *
+     * É polling porque este projeto não tem broadcasting (BROADCAST_CONNECTION
+     * = log). O `last_event` é o que dá granularidade ao estado: "tablet
+     * conectado" cobre desde a leitura do QR até a assinatura, e é justamente
+     * essa diferença que o atendente acompanha.
+     */
+    public function test_status_traz_o_estado_e_o_ultimo_evento_de_cada_signatario(): void
+    {
+        $documento = $this->criaDocumentoDeAssinatura();
+
+        $usuario = $this->usuarioComPermissoes(['manage signature documents']);
+        $this->actingAs($usuario)->post(route('signature-documents.freeze', $documento));
+
+        $signatario = $documento->signers()->first();
+
+        $this->actingAs($usuario)
+            ->postJson(route('signature-documents.release', [$documento, $signatario]))
+            ->assertCreated()
+            ->assertJsonPath('signer.name', 'Maria de Souza');
+
+        $this->actingAs($usuario)
+            ->getJson(route('signature-documents.status', $documento))
+            ->assertOk()
+            ->assertJsonPath('status', \App\Models\SignatureDocument::STATUS_AWAITING_SIGNATURE)
+            ->assertJsonPath('signers.0.request.status', \App\Models\SignatureRequest::STATUS_PENDING)
+            ->assertJsonPath('signers.0.last_event.event', \App\Models\SignatureAuditEvent::EVENT_QR_ISSUED);
+    }
+
+    /** O token do QR não pode aparecer no acompanhamento. */
+    public function test_status_nao_devolve_token(): void
+    {
+        $documento = $this->criaDocumentoDeAssinatura();
+
+        $usuario = $this->usuarioComPermissoes(['manage signature documents']);
+        $this->actingAs($usuario)->post(route('signature-documents.freeze', $documento));
+
+        $liberacao = $this->actingAs($usuario)
+            ->postJson(route('signature-documents.release', [$documento, $documento->signers()->first()]));
+
+        $token = str_replace('LARA-SIGN:v1:', '', $liberacao->json('qr_payload'));
+
+        $status = $this->actingAs($usuario)->getJson(route('signature-documents.status', $documento));
+
+        $this->assertStringNotContainsString($token, $status->getContent());
+        $this->assertStringNotContainsString(hash('sha256', $token), $status->getContent());
+    }
+
+    public function test_liberar_exige_permissao_de_operacao(): void
+    {
+        $documento = $this->criaDocumentoDeAssinatura();
+
+        $this->actingAs($this->usuarioComPermissoes(['manage signature documents']))
+            ->post(route('signature-documents.freeze', $documento));
+
+        $this->actingAs($this->usuarioComPermissoes(['view signed documents']))
+            ->postJson(route('signature-documents.release', [$documento, $documento->signers()->first()]))
+            ->assertForbidden();
+    }
+
+    /** Signatário de outro documento não é liberado pela rota deste. */
+    public function test_liberar_signatario_de_outro_documento_responde_404(): void
+    {
+        $meu = $this->criaDocumentoDeAssinatura();
+        $alheio = $this->criaDocumentoDeAssinatura();
+
+        $usuario = $this->usuarioComPermissoes(['manage signature documents']);
+        $this->actingAs($usuario)->post(route('signature-documents.freeze', $meu));
+        $this->actingAs($usuario)->post(route('signature-documents.freeze', $alheio));
+
+        $this->actingAs($usuario)
+            ->postJson(route('signature-documents.release', [$meu, $alheio->signers()->first()]))
+            ->assertNotFound();
+    }
+
     public function test_editar_documento_congelado_e_recusado_pela_policy(): void
     {
         $documento = $this->criaDocumentoDeAssinatura();

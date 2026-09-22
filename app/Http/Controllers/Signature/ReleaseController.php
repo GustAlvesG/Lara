@@ -95,12 +95,28 @@ class ReleaseController extends Controller
 
         $signatureDocument->load(['signers.requests']);
 
+        /*
+         | O último evento de cada signatário é o que dá à tela a granularidade
+         | que o status sozinho não tem: "tablet conectado" é o mesmo estado de
+         | "visualizando" e de "identidade confirmada", e é justamente essa
+         | diferença que o atendente acompanha enquanto a pessoa lê.
+         |
+         | Uma consulta só para o documento inteiro, agrupada em memória: uma
+         | por signatário multiplicaria o custo do polling pelo tamanho da fila.
+         */
+        $ultimosEventos = $signatureDocument->auditEvents()
+            ->whereNotNull('signature_signer_id')
+            ->get()
+            ->groupBy('signature_signer_id')
+            ->map(fn($eventos) => $eventos->last());
+
         return response()->json([
             'status' => $signatureDocument->status,
             'status_label' => $signatureDocument->statusLabel(),
             'finalized' => $signatureDocument->status === SignatureDocument::STATUS_FINALIZED,
-            'signers' => $signatureDocument->signers->map(function (SignatureSigner $signer) {
+            'signers' => $signatureDocument->signers->map(function (SignatureSigner $signer) use ($ultimosEventos) {
                 $ultima = $signer->requests->first();
+                $evento = $ultimosEventos->get($signer->id);
 
                 return [
                     'id' => $signer->id,
@@ -109,6 +125,11 @@ class ReleaseController extends Controller
                     'status' => $signer->status,
                     'status_label' => $signer->statusLabel(),
                     'signed_at' => $signer->signed_at?->format('d/m/Y H:i:s'),
+                    'last_event' => $evento ? [
+                        'event' => $evento->event,
+                        'label' => $evento->label(),
+                        'at' => $evento->occurred_at?->format('H:i:s'),
+                    ] : null,
                     'request' => $ultima ? [
                         'id' => $ultima->id,
                         'status' => $ultima->status,

@@ -82,13 +82,24 @@
 
 @if($proximo)
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+@endif
+
+@if($proximo || $document->status === \App\Models\SignatureDocument::STATUS_SIGNED)
 <script>
 (function () {
     var box = document.querySelector('[data-release-box]');
 
-    if (!box || typeof QRCode === 'undefined') {
+    if (!box) {
         return;
     }
+
+    /*
+     * A tela tem duas partes independentes: gerar o QR (só quando há alguém a
+     * liberar) e ACOMPANHAR o atendimento (que segue valendo depois da última
+     * assinatura, enquanto o PDF final é montado). Por isso os elementos do QR
+     * são opcionais daqui para baixo.
+     */
+    var temQr = typeof QRCode !== 'undefined' && box.querySelector('[data-qr-area]') !== null;
 
     var area = box.querySelector('[data-qr-area]');
     var alvo = box.querySelector('[data-qr]');
@@ -101,12 +112,18 @@
     var timer = null;
 
     function mostraErro(mensagem) {
+        if (!erro) {
+            return;
+        }
+
         erro.textContent = mensagem;
         erro.classList.remove('hidden');
     }
 
     function limpaErro() {
-        erro.classList.add('hidden');
+        if (erro) {
+            erro.classList.add('hidden');
+        }
     }
 
     function desenha(payload) {
@@ -148,6 +165,10 @@
     }
 
     function libera(signerId) {
+        if (!temQr) {
+            return;
+        }
+
         limpaErro();
 
         fetch(box.dataset.releaseUrl.replace('__SIGNER__', signerId), {
@@ -193,6 +214,108 @@
             }
         });
     }
+
+    /*
+     * Acompanhamento ao vivo.
+     *
+     * É polling, e não broadcasting: este projeto tem BROADCAST_CONNECTION=log
+     * — não há canal em tempo real para usar, e subir um só para esta tela
+     * seria mais infraestrutura do que o problema pede. Três segundos é o
+     * ritmo do balcão: a pessoa leva minutos lendo o documento.
+     *
+     * A consulta só roda com a aba visível. Uma tela esquecida aberta a noite
+     * inteira consultaria o servidor 28 mil vezes sem ninguém olhando.
+     */
+    var ultimoEstado = null;
+
+    function acompanha() {
+        if (document.hidden) {
+            return;
+        }
+
+        fetch(box.dataset.statusUrl, {
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+        })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (dados) {
+                if (!dados) {
+                    return;
+                }
+
+                dados.signers.forEach(function (signatario) {
+                    var cartao = document.querySelector('[data-signer-card="' + signatario.id + '"]');
+
+                    if (!cartao) {
+                        return;
+                    }
+
+                    var rotulo = cartao.querySelector('[data-signer-status]');
+
+                    if (rotulo) {
+                        rotulo.textContent = signatario.status_label;
+                    }
+
+                    var vivo = cartao.querySelector('[data-signer-live]');
+
+                    if (vivo) {
+                        var linha = '';
+
+                        if (signatario.request && signatario.request.status === 'consumed') {
+                            linha = 'Tablet conectado';
+
+                            if (signatario.last_event) {
+                                linha += ' · ' + signatario.last_event.label + ' às ' + signatario.last_event.at;
+                            }
+
+                            if (signatario.request.session_remaining > 0) {
+                                linha += ' · ' + signatario.request.session_remaining + 's restantes';
+                            }
+                        } else if (signatario.request && signatario.request.status === 'pending') {
+                            linha = 'Aguardando leitura do QR Code';
+                        } else if (signatario.last_event) {
+                            linha = signatario.last_event.label + ' às ' + signatario.last_event.at;
+                        }
+
+                        vivo.textContent = linha;
+                        vivo.classList.toggle('hidden', linha === '');
+                    }
+
+                    // O tablet leu o QR: o código na tela já não serve para
+                    // mais nada, e continuar mostrando convida a fotografá-lo.
+                    if (temQr
+                        && signatario.request
+                        && signatario.request.id === solicitacaoAtual
+                        && signatario.request.status !== 'pending') {
+                        clearInterval(timer);
+                        contagem.textContent = 'Tablet conectado';
+                        estado.textContent = 'O documento está aberto no tablet.';
+                        alvo.innerHTML = '';
+                    }
+                });
+
+                /*
+                 | O estado do documento mudou (assinado, recusado, cancelado,
+                 | finalizado): recarrega a página em vez de remontar a tela
+                 | inteira em JavaScript. São botões, trilha de auditoria e
+                 | próximo signatário — e o servidor já sabe montar tudo isso.
+                 */
+                if (ultimoEstado !== null && dados.status !== ultimoEstado) {
+                    window.location.reload();
+                    return;
+                }
+
+                ultimoEstado = dados.status;
+            })
+            .catch(function () { /* falha de rede: a próxima volta tenta de novo */ });
+    }
+
+    setInterval(acompanha, 3000);
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+            acompanha();
+        }
+    });
+    acompanha();
 
     var cancelar = box.querySelector('[data-cancel-release]');
 

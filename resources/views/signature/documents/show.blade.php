@@ -139,12 +139,14 @@
             </div>
 
             <div class="space-y-6">
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6">
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6"
+                     data-signers-box>
                     <h3 class="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">Signatários</h3>
 
                     <ol class="space-y-4">
                         @foreach($document->signers as $signer)
-                            <li class="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                            <li class="rounded-xl border border-gray-200 dark:border-gray-700 p-4"
+                                data-signer-card="{{ $signer->id }}">
                                 <div class="flex items-start justify-between gap-2">
                                     <div>
                                         <div class="font-semibold text-gray-900 dark:text-white text-sm">{{ $signer->name }}</div>
@@ -157,10 +159,14 @@
                                             'text-green-700 dark:text-green-400' => $signer->status === \App\Models\SignatureSigner::STATUS_SIGNED,
                                             'text-amber-700 dark:text-amber-400' => $signer->status === \App\Models\SignatureSigner::STATUS_PENDING,
                                             'text-red-700 dark:text-red-400' => in_array($signer->status, [\App\Models\SignatureSigner::STATUS_REFUSED, \App\Models\SignatureSigner::STATUS_CANCELED, \App\Models\SignatureSigner::STATUS_EXPIRED], true),
-                                        ])">
+                                        ])"
+                                        data-signer-status>
                                         {{ $signer->statusLabel() }}
                                     </span>
                                 </div>
+
+                                {{-- Atualizado pelo acompanhamento ao vivo (ver partials/release). --}}
+                                <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400 hidden" data-signer-live></div>
 
                                 @if($signer->signed_at)
                                     <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
