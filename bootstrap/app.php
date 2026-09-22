@@ -18,6 +18,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // escopo próprio — não confunde com o token de sócio.
             'approval_token' => \App\Http\Middleware\ApprovalToken::class,
             'login_token' => \App\Http\Middleware\JwtMiddleware::class,
+            // Sessão do tablet de assinatura: cookie próprio (`lara_sign`),
+            // vinculado a UM documento pela leitura do QR. Não é a sessão web.
+            'signature_kiosk' => \App\Http\Middleware\EnsureSignatureKioskSession::class,
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,

@@ -20,6 +20,13 @@ class SignatureEvidence extends Model
 {
     use HasFactory;
 
+    /**
+     * O Eloquent pluraliza "Evidence" como "evidence" (substantivo incontável
+     * em inglês) e procuraria `signature_evidence`. A tabela é
+     * `signature_evidences`, no plural regular das demais do módulo.
+     */
+    protected $table = 'signature_evidences';
+
     protected $fillable = [
         'signature_signer_id',
         'signature_path',

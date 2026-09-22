@@ -13,6 +13,12 @@ Schedule::command('app:expire-pending-schedules')->everyMinute();
 Schedule::command('app:expire-uber-access-requests')->everyMinute();
 Schedule::command('app:prune-uber-access-request-messages')->dailyAt('03:00');
 
+// Assinatura eletrônica: QR não lido, sessão de tablet parada e documento
+// congelado que ninguém assinou. A cada minuto porque o prazo do QR é de
+// minutos — de hora em hora, a tela do atendente ficaria com contagem
+// regressiva de um código que já não vale.
+Schedule::command('signature:expire')->everyMinute()->withoutOverlapping();
+
 // Confere no Sicoob o desfecho dos Pix em processamento e dá a baixa dos que
 // finalizaram. Só CONSULTA — nunca envia —, por isso pode rodar a cada minuto.
 // É o que fecha o ciclo do Job, que de propósito não tem retry.

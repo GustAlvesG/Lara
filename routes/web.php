@@ -61,6 +61,8 @@ use App\Http\Controllers\Placar\Web\EscalacaoController as PlacarEscalacaoWebCon
 use App\Http\Controllers\Placar\Web\ScoutController as PlacarScoutWebController;
 
 use App\Http\Controllers\Signature\DocumentController as SignatureDocumentController;
+use App\Http\Controllers\Signature\QuiosqueController;
+use App\Http\Controllers\Signature\ReleaseController as SignatureReleaseController;
 use App\Http\Controllers\Signature\TemplateController as SignatureTemplateController;
 
 
@@ -71,6 +73,47 @@ Route::get('/', function () {
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])->name('dashboard');
+
+/*
+|--------------------------------------------------------------------------
+| Quiosque de assinatura (tablet do balcão) — PÚBLICO, sem sessão web
+|--------------------------------------------------------------------------
+|
+| Não confundir com o `/kiosk` logo abaixo, que é outro aparelho e outro
+| assunto: lá o OPERADOR entra com matrícula e PIN e atende vários contratos
+| de freelancer; aqui o tablet não entra em lugar nenhum — ele lê um QR Code
+| que libera UM documento para UMA assinatura, e volta à tela de espera.
+|
+| A porta é `/quiosque/consumir`: recebe o conteúdo do QR, consome o token (uso
+| único) e devolve o cookie `lara_sign`. Dali em diante, o middleware
+| `signature_kiosk` resolve esse cookie, confere o prazo e amarra a requisição
+| ao documento da sessão — qualquer outro id responde 403.
+|
+| O rate limiting do consumo é o mais apertado do módulo: é a única rota deste
+| sistema em que um token pode ser adivinhado.
+|
+*/
+Route::prefix('quiosque')->name('quiosque.')->group(function () {
+    Route::get('/', [QuiosqueController::class, 'index'])->name('index');
+
+    Route::post('/consumir', [QuiosqueController::class, 'consume'])
+        ->middleware('throttle:10,1')->name('consume');
+
+    Route::middleware('signature_kiosk')->group(function () {
+        Route::get('/sessao', [QuiosqueController::class, 'session'])
+            ->middleware('throttle:120,1')->name('session');
+
+        Route::post('/encerrar', [QuiosqueController::class, 'leave'])->name('leave');
+
+        Route::prefix('/documento/{signatureDocument}')->whereNumber('signatureDocument')->group(function () {
+            Route::get('/pdf', [QuiosqueController::class, 'pdf'])->name('pdf');
+            Route::post('/visualizado', [QuiosqueController::class, 'viewed'])
+                ->middleware('throttle:60,1')->name('viewed');
+            Route::post('/recusar', [QuiosqueController::class, 'refuse'])
+                ->middleware('throttle:20,1')->name('refuse');
+        });
+    });
+});
 
 // Kiosk de assinatura (tablet) — AUTENTICAÇÃO PRÓPRIA, fora da sessão web.
 // Entra-se com matrícula + PIN; a própria sessão de kiosk (operator_id + mode)
@@ -786,6 +829,23 @@ Route::middleware('auth')->group(function () {
                 ->middleware('throttle:20,1')->name('cancel');
 
             Route::get('/pdf', [SignatureDocumentController::class, 'pdf'])->name('pdf');
+
+            // Acompanhamento da tela do atendente (polling — não há
+            // broadcasting neste projeto). Teto alto porque a tela consulta a
+            // cada poucos segundos enquanto o atendimento corre.
+            Route::get('/status', [SignatureReleaseController::class, 'status'])
+                ->middleware('throttle:120,1')->name('status');
+
+            // Gerar o QR de um signatário. A mesma rota regera: "gerar outro"
+            // e "gerar o primeiro" são o mesmo ato no balcão, e duas rotas
+            // abririam a chance de dois QRs válidos ao mesmo tempo.
+            Route::post('/signatarios/{signatureSigner}/liberar', [SignatureReleaseController::class, 'store'])
+                ->whereNumber('signatureSigner')
+                ->middleware('throttle:30,1')->name('release');
+
+            Route::delete('/liberacoes/{signatureRequest}', [SignatureReleaseController::class, 'destroy'])
+                ->whereNumber('signatureRequest')
+                ->middleware('throttle:30,1')->name('release.cancel');
         });
     });
 

@@ -151,6 +151,41 @@ class SignaturePanelAccessTest extends TestCase
             ->assertNotFound();
     }
 
+    /**
+     * A tela de operação do atendente renderiza inteira — com o bloco do QR,
+     * a trilha de auditoria e o texto do documento.
+     *
+     * Existe porque não há navegador headless nesta máquina: conferir que o
+     * Blade monta sem erro é o que substitui abrir a página.
+     */
+    public function test_tela_do_documento_renderiza_com_o_bloco_de_liberacao(): void
+    {
+        $documento = $this->criaDocumentoDeAssinatura();
+
+        $usuario = $this->usuarioComPermissoes(['manage signature documents']);
+
+        $this->actingAs($usuario)->post(route('signature-documents.freeze', $documento));
+
+        $this->actingAs($usuario)
+            ->get(route('signature-documents.show', $documento))
+            ->assertOk()
+            ->assertSee('Liberar para assinatura')
+            ->assertSee('Maria de Souza')
+            // O CPF aparece mascarado, inclusive para quem opera.
+            ->assertSee('123.***.**9-09')
+            ->assertDontSee('12345678909');
+    }
+
+    public function test_tela_do_rascunho_explica_que_falta_congelar(): void
+    {
+        $documento = $this->criaDocumentoDeAssinatura();
+
+        $this->actingAs($this->usuarioComPermissoes(['manage signature documents']))
+            ->get(route('signature-documents.show', $documento))
+            ->assertOk()
+            ->assertSee('Congele o documento para liberar');
+    }
+
     public function test_editar_documento_congelado_e_recusado_pela_policy(): void
     {
         $documento = $this->criaDocumentoDeAssinatura();

@@ -178,12 +178,11 @@
                         @endforeach
                     </ol>
 
-                    @if($document->status === \App\Models\SignatureDocument::STATUS_AWAITING_SIGNATURE)
-                        <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">
-                            Documento congelado e pronto. A liberação por QR Code para o tablet entra aqui.
-                        </p>
-                    @endif
                 </div>
+
+                @can('release', $document)
+                    @include('signature.documents.partials.release')
+                @endcan
 
                 <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6">
                     <h3 class="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">Atendimento</h3>
