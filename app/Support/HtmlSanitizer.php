@@ -33,11 +33,33 @@ class HtmlSanitizer
         'input', 'button', 'svg', 'link', 'meta', 'noscript',
     ];
 
-    public static function clean(?string $html): string
+    /**
+     * Tags que o CHAMADOR aceita além da allow-list padrão, válidas só durante
+     * a chamada que as pediu.
+     *
+     * Existe por causa dos modelos de documento da assinatura eletrônica: um
+     * termo tem título e lista numerada de cláusulas, e "desembrulhar" um
+     * `<ol>` transformaria as cláusulas num parágrafo corrido. O InfoClube
+     * continua com a lista de sempre — quem quiser mais, pede.
+     *
+     * Nunca vence STRIP_WITH_CONTENT: script e companhia seguem proibidos,
+     * peça quem pedir.
+     *
+     * @var array<int, string>
+     */
+    private static array $extraAllowed = [];
+
+    /**
+     * @param  array<int, string>  $extraTags  tags adicionais aceitas por quem
+     *                                         chama, além da allow-list padrão
+     */
+    public static function clean(?string $html, array $extraTags = []): string
     {
         if ($html === null || trim($html) === '') {
             return '';
         }
+
+        self::$extraAllowed = array_map('strtolower', $extraTags);
 
         $dom = new DOMDocument();
 
@@ -86,7 +108,7 @@ class HtmlSanitizer
             // Sanitiza os filhos antes de decidir sobre a própria tag.
             self::sanitizeChildren($child, $dom);
 
-            if (!in_array($tag, self::ALLOWED_TAGS, true)) {
+            if (!in_array($tag, self::ALLOWED_TAGS, true) && !in_array($tag, self::$extraAllowed, true)) {
                 self::unwrap($child, $node, $dom);
                 continue;
             }

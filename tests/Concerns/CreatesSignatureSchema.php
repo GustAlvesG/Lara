@@ -42,6 +42,24 @@ trait CreatesSignatureSchema
     }
 
     /**
+     * As tabelas do Spatie Permission, para os testes que passam por rota.
+     *
+     * Não é firula: o Gate registra um `before` do Spatie que consulta
+     * `permissions` ANTES de chegar à Policy. Sem as tabelas, qualquer
+     * requisição autenticada morre em "no such table: permissions" — mesmo com
+     * o usuário mockado, que só é consultado depois.
+     *
+     * As tabelas ficam VAZIAS de propósito. Sem a permissão cadastrada, o
+     * `before` desiste (PermissionDoesNotExist, que o próprio Spatie engole) e
+     * a decisão volta para onde ela é de fato testada: o `can()` do usuário
+     * mockado e a SignatureDocumentPolicy.
+     */
+    protected function createPermissionSchema(): void
+    {
+        (require base_path('database/migrations/2025_12_23_111918_create_permission_tables.php'))->up();
+    }
+
+    /**
      * Um modelo de documento mínimo, já ativo.
      *
      * @param  array<string, mixed>  $attributes

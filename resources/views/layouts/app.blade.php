@@ -210,6 +210,46 @@
                 ];
             }
 
+            /*
+             | Assinatura eletrônica presencial (tablet do balcão).
+             |
+             | Duas permissões independentes: quem escreve o TEXTO dos termos
+             | não é necessariamente quem atende, e vice-versa. Por isso os
+             | filhos entram separados e o menu some inteiro para quem não
+             | alcança nenhum dos dois — o mesmo arranjo de Compras.
+             |
+             | Pergunta por `can()` (Gate), e nunca por método do model: este
+             | layout renderiza em TODA tela, inclusive nos testes com User
+             | mockado, e uma consulta ao banco aqui iria à conexão mysql.
+             |
+             | `Route::has` pelo mesmo motivo registrado no Banco de Horas: um
+             | nome de rota que não resolve (cache de rotas velho) derruba o
+             | sistema inteiro com 500, e não só este item.
+             */
+            $canSignatureTemplates = auth()->user()?->can('manage signature templates');
+            $canSignatureDocuments = auth()->user()?->can('manage signature documents')
+                || auth()->user()?->can('view signed documents');
+
+            if (($canSignatureTemplates || $canSignatureDocuments)
+                && \Illuminate\Support\Facades\Route::has('signature-documents.index')) {
+                $signatureChildren = [];
+
+                if ($canSignatureDocuments) {
+                    $signatureChildren[] = ['route' => 'signature-documents.index', 'label' => 'Documentos'];
+                }
+
+                if ($canSignatureTemplates) {
+                    $signatureChildren[] = ['route' => 'signature-templates.index', 'label' => 'Modelos'];
+                }
+
+                $navLinks[] = [
+                    'route' => $signatureChildren[0]['route'],
+                    'label' => 'Assinaturas',
+                    'icon' => 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z',
+                    'children' => $signatureChildren,
+                ];
+            }
+
             // Banco de Horas. A consulta tem três públicos: o RH (vê todos),
             // o coordenador (vê o próprio setor) e o colaborador com matrícula
             // (vê a própria ficha) — ver CompTimeService::accessFor(). Quem não

@@ -60,6 +60,9 @@ use App\Http\Controllers\Placar\Web\JogoController as PlacarJogoWebController;
 use App\Http\Controllers\Placar\Web\EscalacaoController as PlacarEscalacaoWebController;
 use App\Http\Controllers\Placar\Web\ScoutController as PlacarScoutWebController;
 
+use App\Http\Controllers\Signature\DocumentController as SignatureDocumentController;
+use App\Http\Controllers\Signature\TemplateController as SignatureTemplateController;
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -728,6 +731,61 @@ Route::middleware('auth')->group(function () {
             Route::get('scout/jogos/{jogo}/jogadores/{jogador}', [PlacarScoutWebController::class, 'atuacao'])->name('scout.atuacao');
             Route::get('scout/jogadores/{jogador}', [PlacarScoutWebController::class, 'jogador'])->name('scout.jogador');
             Route::get('scout/times/{time}', [PlacarScoutWebController::class, 'time'])->name('scout.time');
+        });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Assinatura eletrônica presencial — lado do ATENDENTE
+    |--------------------------------------------------------------------------
+    |
+    | O lado do TABLET não está aqui: ele é público, tem sessão própria (cookie
+    | `lara_sign`, vinculado a UM documento pela leitura do QR) e mora fora do
+    | grupo `auth`, junto das demais rotas públicas. Ver o prefixo `/quiosque`.
+    |
+    | Os modelos de documento são governados por permissão própria: escrever o
+    | texto de um termo é ato jurídico, e quem atende no balcão não precisa
+    | disso. As rotas de documento pedem a permissão de operação; o recorte
+    | fino (editar só rascunho, ver evidência) é da SignatureDocumentPolicy.
+    |
+    */
+    Route::prefix('assinatura/modelos')->name('signature-templates.')
+        ->middleware('permission:manage signature templates')
+        ->group(function () {
+            Route::get('/', [SignatureTemplateController::class, 'index'])->name('index');
+            Route::get('/novo', [SignatureTemplateController::class, 'create'])->name('create');
+            Route::post('/', [SignatureTemplateController::class, 'store'])->name('store');
+
+            Route::prefix('/{signatureTemplate}')->whereNumber('signatureTemplate')->group(function () {
+                Route::get('/', [SignatureTemplateController::class, 'show'])->name('show');
+                Route::get('/revisar', [SignatureTemplateController::class, 'edit'])->name('edit');
+                // PUT cria a versão seguinte; não sobrescreve a linha em uso.
+                Route::put('/', [SignatureTemplateController::class, 'update'])->name('update');
+                Route::delete('/', [SignatureTemplateController::class, 'destroy'])->name('destroy');
+            });
+        });
+
+    Route::prefix('assinatura/documentos')->name('signature-documents.')->group(function () {
+        Route::get('/', [SignatureDocumentController::class, 'index'])->name('index');
+
+        // Rotas fixas ANTES de `/{signatureDocument}`: sem isso, "novo" seria
+        // lido como id de documento.
+        Route::get('/novo', [SignatureDocumentController::class, 'create'])->name('create');
+        Route::get('/associados', [SignatureDocumentController::class, 'members'])
+            ->middleware('throttle:60,1')->name('members');
+        Route::post('/', [SignatureDocumentController::class, 'store'])->name('store');
+
+        Route::prefix('/{signatureDocument}')->whereNumber('signatureDocument')->group(function () {
+            Route::get('/', [SignatureDocumentController::class, 'show'])->name('show');
+            Route::get('/editar', [SignatureDocumentController::class, 'edit'])->name('edit');
+            Route::put('/', [SignatureDocumentController::class, 'update'])->name('update');
+
+            Route::post('/congelar', [SignatureDocumentController::class, 'freeze'])
+                ->middleware('throttle:20,1')->name('freeze');
+            Route::post('/cancelar', [SignatureDocumentController::class, 'cancel'])
+                ->middleware('throttle:20,1')->name('cancel');
+
+            Route::get('/pdf', [SignatureDocumentController::class, 'pdf'])->name('pdf');
         });
     });
 
