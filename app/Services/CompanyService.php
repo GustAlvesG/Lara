@@ -518,6 +518,114 @@ class CompanyService
     }
 
     /**
+     * A fila da portaria: todos os pedidos prontos, esperando o motorista.
+     *
+     * Sem filtro e sem paginação de propósito. A validade é de 30 minutos, a
+     * fila real tem poucas linhas, e esconder linha atrás de busca ou de
+     * página esconderia justamente o pedido que se procura — o Monitor mostra
+     * a fila inteira e quem identifica o carro é a pessoa na portaria. O teto
+     * é só uma trava de segurança.
+     */
+    public function uberWaitingQueue(int $limit = 200): array
+    {
+        $waiting = UberAccessRequest::where('status', UberAccessRequest::STATUS_AGUARDANDO_ACESSO)
+            ->orderByRaw('expires_at is null')
+            ->orderBy('expires_at')
+            ->limit($limit)
+            ->get();
+
+        // Vencido continua na fila: o cron que expira roda depois, e o
+        // motorista que chegou 30s atrasado não pode ficar sem saída.
+        [$expirados, $validos] = $waiting->partition(
+            fn (UberAccessRequest $req) => $req->expires_at !== null && $req->expires_at->isPast()
+        );
+
+        // Quem ainda está respondendo o WhatsApp agora. É o outro lado do
+        // mesmo problema: o motorista chega antes de o associado terminar de
+        // preencher, e a portaria precisa saber que o pedido existe.
+        $emPreenchimento = UberAccessRequest::whereIn('status', UberAccessRequest::CAPTURE_STATUSES)
+            ->where('last_message_at', '>=', now()->subMinutes(15))
+            ->latest('last_message_at')
+            ->limit(50)
+            ->get();
+
+        return [
+            'validos'         => $validos->values(),
+            'expirados'       => $expirados->values(),
+            'emPreenchimento' => $emPreenchimento,
+        ];
+    }
+
+    /**
+     * A fila serializada para o Monitor de Acesso (aplicação Python).
+     *
+     * `expires_in_seconds` vai pronto, e negativo quando já venceu: o cliente
+     * não precisa acertar fuso nem relógio com o servidor para mostrar quanto
+     * falta — a conta é sempre a do servidor.
+     */
+    public function uberWaitingPayload(int $limit = 200): array
+    {
+        $queue = $this->uberWaitingQueue($limit);
+
+        return [
+            'generated_at' => now()->toIso8601String(),
+            'counts' => [
+                'waiting' => $queue['validos']->count(),
+                'expired' => $queue['expirados']->count(),
+                'filling' => $queue['emPreenchimento']->count(),
+            ],
+            // Válidos e vencidos na mesma lista, cada um com a sua marca: os
+            // dois são liberáveis, e separá-los em dois campos só obrigaria o
+            // cliente a percorrer duas vezes para montar uma tela só.
+            'requests' => $queue['validos']->concat($queue['expirados'])
+                ->map(fn (UberAccessRequest $req) => $this->uberWaitingItem($req))
+                ->values()
+                ->all(),
+            'filling' => $queue['emPreenchimento']
+                ->map(fn (UberAccessRequest $req) => [
+                    'id'                    => $req->id,
+                    'status'                => $req->status,
+                    'status_label'          => $req->statusLabel(),
+                    'requester_name'        => $req->requester_name,
+                    'matricula'             => $req->matricula,
+                    'contact_phone'         => $req->contact_phone,
+                    'contact_name_whatsapp' => $req->contact_name_whatsapp,
+                    'club_location'         => $req->club_location,
+                    'vehicle_plate'         => $req->vehicle_plate,
+                    'started_at'            => optional($req->created_at)->toIso8601String(),
+                    'last_message_at'       => optional($req->last_message_at)->toIso8601String(),
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function uberWaitingItem(UberAccessRequest $request): array
+    {
+        $expired = $request->expires_at !== null && $request->expires_at->isPast();
+
+        return [
+            'id'                    => $request->id,
+            'status'                => $request->status,
+            'expired'               => $expired,
+            'expires_at'            => optional($request->expires_at)->toIso8601String(),
+            'expires_in_seconds'    => $request->expires_at ? now()->diffInSeconds($request->expires_at, false) : null,
+            'requester_name'        => $request->requester_name,
+            'matricula'             => $request->matricula,
+            'contact_phone'         => $request->contact_phone,
+            'contact_name_whatsapp' => $request->contact_name_whatsapp,
+            'club_location'         => $request->club_location,
+            'vehicle_plate'         => $request->vehicle_plate,
+            'screenshot_url'        => $request->screenshot_url,
+            'member_validation'       => $request->member_validation,
+            'member_validation_label' => $request->memberValidationLabel(),
+            'member_validation_name'  => $request->member_validation_name,
+            'member_validation_type'  => $request->member_validation_type,
+            'requested_at'          => optional($request->completed_at ?? $request->created_at)->toIso8601String(),
+        ];
+    }
+
+    /**
      * Registra o acesso de um pedido escolhido na tela de "Aguardando acesso
      * do motorista" — pelo id do pedido, não pela placa.
      *

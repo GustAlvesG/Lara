@@ -299,32 +299,19 @@ class CompanyAccessRulesController extends Controller
      */
     public function uberWaiting(Request $request)
     {
-        $waiting = UberAccessRequest::where('status', UberAccessRequest::STATUS_AGUARDANDO_ACESSO)
-            ->orderByRaw('expires_at is null')
-            ->orderBy('expires_at')
-            ->limit(200)
-            ->get();
+        return view('companies.uber.waiting', $this->companyService->uberWaitingQueue());
+    }
 
-        // Vencido ainda aparece: o cron que expira roda a cada minuto, e o
-        // motorista que chegou 30s atrasado não pode ficar sem saída.
-        [$expirados, $validos] = $waiting->partition(
-            fn (UberAccessRequest $req) => $req->expires_at !== null && $req->expires_at->isPast()
-        );
-
-        // Quem ainda está respondendo o WhatsApp agora. É o outro lado do
-        // mesmo problema: o motorista chega antes de o associado terminar de
-        // preencher, e o porteiro precisa saber que o pedido existe.
-        $emPreenchimento = UberAccessRequest::whereIn('status', UberAccessRequest::CAPTURE_STATUSES)
-            ->where('last_message_at', '>=', now()->subMinutes(15))
-            ->latest('last_message_at')
-            ->limit(50)
-            ->get();
-
-        return view('companies.uber.waiting', [
-            'validos'         => $validos->values(),
-            'expirados'       => $expirados->values(),
-            'emPreenchimento' => $emPreenchimento,
-        ]);
+    /**
+     * A mesma fila, em JSON, para o Monitor de Acesso (a aplicação Python que
+     * roda na portaria e consome a Lara). É a metade de consulta do par: a de
+     * registro é `registerUberRequestAccess`, que libera pelo `id` devolvido
+     * aqui — e é assim que a placa errada digitada no WhatsApp deixa de
+     * impedir a entrada.
+     */
+    public function uberWaitingList(Request $request)
+    {
+        return response()->json($this->companyService->uberWaitingPayload());
     }
 
     /**

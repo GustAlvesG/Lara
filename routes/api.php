@@ -131,8 +131,13 @@ Route::prefix('company-access')->group(function () {
     Route::post('/register-worker-access', [CompanyAccessRulesController::class, 'registerWorkerAccess'])->name('company_access.register_worker');
     Route::post('/register-freelancer-access', [CompanyAccessRulesController::class, 'registerFreelancerAccess'])->name('company_access.register_freelancer');
     Route::post('/register-one-off-access', [CompanyAccessRulesController::class, 'registerOneOffAccess'])->name('company_access.register_one_off');
-    // Tela "Aguardando acesso do motorista": libera e corrige pelo id do
-    // pedido, contornando a placa errada digitada no WhatsApp.
+    /*
+    | Fila "Aguardando acesso do motorista", consumida pelo Monitor de Acesso
+    | (a aplicação Python da portaria). Consulta e registro trabalham pelo
+    | `id` do pedido, e não pela placa: a placa é o campo que mais chega errado
+    | do WhatsApp, e é justamente por ela que o pedido some das consultas.
+    */
+    Route::get('/uber-waiting', [CompanyAccessRulesController::class, 'uberWaitingList'])->name('company_access.uber_waiting');
     Route::post('/register-uber-request-access', [CompanyAccessRulesController::class, 'registerUberRequestAccess'])->name('company_access.register_uber_request');
     Route::post('/uber-request-plate', [CompanyAccessRulesController::class, 'updateUberRequestPlate'])->name('company_access.uber_request_plate');
 });
