@@ -64,6 +64,7 @@ use App\Http\Controllers\Signature\DocumentController as SignatureDocumentContro
 use App\Http\Controllers\Signature\QuiosqueController;
 use App\Http\Controllers\Signature\ReleaseController as SignatureReleaseController;
 use App\Http\Controllers\Signature\TemplateController as SignatureTemplateController;
+use App\Http\Controllers\Signature\ValidationController as SignatureValidationController;
 
 
 Route::get('/', function () {
@@ -125,6 +126,22 @@ Route::prefix('quiosque')->name('quiosque.')->group(function () {
         });
     });
 });
+
+/*
+| Validação pública de documento assinado. Rota curta e sem autenticação de
+| propósito: quem chega aqui veio do QR impresso no manifesto, com o papel na
+| mão. Mostra pouco (ver ValidationController) e o arquivo enviado para
+| conferência nunca é gravado.
+*/
+Route::get('/validar/{codigo}', [SignatureValidationController::class, 'show'])
+    ->where('codigo', '[A-Za-z0-9]{6,24}')
+    ->middleware('throttle:60,1')
+    ->name('signature.validate');
+
+Route::post('/validar/{codigo}/conferir', [SignatureValidationController::class, 'verify'])
+    ->where('codigo', '[A-Za-z0-9]{6,24}')
+    ->middleware('throttle:30,1')
+    ->name('signature.validate.verify');
 
 // Kiosk de assinatura (tablet) — AUTENTICAÇÃO PRÓPRIA, fora da sessão web.
 // Entra-se com matrícula + PIN; a própria sessão de kiosk (operator_id + mode)

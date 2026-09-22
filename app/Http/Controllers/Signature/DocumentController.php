@@ -100,6 +100,7 @@ class DocumentController extends Controller
             ],
             $dados['signers'],
             auth()->id(),
+            auth()->user()?->name,
         );
 
         return redirect()->route('signature-documents.show', $documento)

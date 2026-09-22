@@ -43,6 +43,10 @@ class SignatureDocumentRenderer
      */
     public const EXTRA_HTML_TAGS = ['h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'hr', 'blockquote'];
 
+    public function __construct(private SignatureQrCode $qrCodes)
+    {
+    }
+
     /**
      * O corpo do documento com as variáveis substituídas.
      *
@@ -129,6 +133,43 @@ class SignatureDocumentRenderer
             'document' => $document,
             'body' => $corpo,
             'mode' => $mode,
+            // A página de manifesto só existe no PDF final: é o relatório das
+            // evidências, e não parte do que a pessoa leu e assinou.
+            'manifest' => $mode === self::MODE_FINAL ? $this->manifest($document) : null,
+        ])->render();
+    }
+
+    /**
+     * A página de manifesto: o que liga a assinatura àquela pessoa e àquele
+     * conteúdo.
+     *
+     * Vai no PDF final, depois do documento. Traz o `original_sha256` — o hash
+     * do arquivo que a pessoa leu no tablet —, a trilha de eventos, a
+     * miniatura da foto e o QR de validação.
+     */
+    private function manifest(SignatureDocument $document): string
+    {
+        $disk = Storage::disk(config('signature.disk'));
+
+        $fotos = [];
+
+        foreach ($document->signers()->with('evidence')->get() as $signatario) {
+            $caminho = $signatario->evidence?->photo_path;
+
+            if ($caminho && $disk->exists($caminho)) {
+                $fotos[$signatario->id] = 'data:image/jpeg;base64,' . base64_encode($disk->get($caminho));
+            }
+        }
+
+        $url = url('/validar/' . $document->validation_code);
+
+        return view('signature.pdf.manifest', [
+            'document' => $document,
+            'signers' => $document->signers()->with('evidence')->get(),
+            'events' => $document->auditEvents()->get(),
+            'photos' => $fotos,
+            'validationUrl' => $url,
+            'qr' => $this->qrCodes->dataUri($url, 108),
         ])->render();
     }
 

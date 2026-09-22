@@ -54,8 +54,9 @@ class SignatureDocumentService
         array $attributes,
         array $signers,
         ?int $userId = null,
+        ?string $userName = null,
     ): SignatureDocument {
-        return DB::transaction(function () use ($template, $attributes, $signers, $userId) {
+        return DB::transaction(function () use ($template, $attributes, $signers, $userId, $userName) {
             $document = SignatureDocument::create([
                 // A versão do modelo é fixada AGORA: publicar uma revisão
                 // enquanto o atendente preenche não pode trocar o texto embaixo
@@ -66,6 +67,10 @@ class SignatureDocumentService
                 'data' => $attributes['data'] ?? [],
                 'location' => $attributes['location'] ?? config('signature.location'),
                 'created_by' => $userId,
+                // Retrato do nome: o manifesto precisa dizer quem atendeu, e
+                // `users` vive noutra conexão — ver a migration que criou a
+                // coluna.
+                'created_by_name' => $userName,
             ]);
 
             $this->syncSigners($document, $signers);

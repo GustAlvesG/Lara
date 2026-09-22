@@ -16,8 +16,8 @@ use App\Models\SignatureTemplate;
  *
  * As migrations aplicadas são AS DE VERDADE, lidas do arquivo — e não uma
  * cópia do schema. É de propósito: uma cópia deixaria de acusar divergência no
- * dia em que uma coluna mudar. As seis rodam sem adaptação porque nenhuma
- * delas declara foreign key para `users` (o vínculo com o autor é
+ * dia em que uma coluna mudar. Todas rodam sem adaptação porque nenhuma delas
+ * declara foreign key para `users` (o vínculo com o autor é
  * `unsignedBigInteger` solto).
  *
  * A ordem importa: `signature_documents` tem FK para `signature_templates`,
@@ -35,6 +35,7 @@ trait CreatesSignatureSchema
             '2026_09_22_120400_create_signature_evidences_table.php',
             '2026_09_22_120500_create_signature_audit_events_table.php',
             '2026_09_22_120700_add_identity_check_to_signature_requests.php',
+            '2026_09_22_120800_add_attendant_name_to_signature_documents.php',
         ];
 
         foreach ($migrations as $arquivo) {

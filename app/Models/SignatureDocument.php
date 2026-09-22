@@ -68,6 +68,7 @@ class SignatureDocument extends Model
         'validation_code',
         'location',
         'created_by',
+        'created_by_name',
         'canceled_reason',
         'expires_at',
     ];

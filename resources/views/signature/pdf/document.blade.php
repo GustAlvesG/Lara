@@ -67,5 +67,11 @@
     <h1>{{ $document->title }}</h1>
 
     {!! $body !!}
+
+    @if(!empty($manifest))
+        {{-- A página de manifesto começa em folha nova: é anexo, não continuação. --}}
+        <div style="page-break-before: always;"></div>
+        {!! $manifest !!}
+    @endif
 </body>
 </html>

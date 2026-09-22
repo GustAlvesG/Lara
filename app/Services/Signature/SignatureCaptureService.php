@@ -3,6 +3,7 @@
 namespace App\Services\Signature;
 
 use App\Exceptions\SignatureSessionException;
+use App\Jobs\FinalizeSignatureDocument;
 use App\Models\SignatureAuditEvent;
 use App\Models\SignatureDocument;
 use App\Models\SignatureEvidence;
@@ -194,8 +195,11 @@ class SignatureCaptureService
             $disk->put($caminhoFoto, $foto);
         }
 
+        $fechouODocumento = false;
+
         try {
-            return DB::transaction(function () use (
+            $assinado = DB::transaction(function () use (
+                &$fechouODocumento,
                 $request,
                 $signer,
                 $document,
@@ -258,6 +262,8 @@ class SignatureCaptureService
                         [],
                         ['actor_type' => SignatureAuditEvent::ACTOR_KIOSK],
                     );
+
+                    $fechouODocumento = true;
                 }
 
                 return $signer->fresh();
@@ -269,6 +275,18 @@ class SignatureCaptureService
 
             throw $e;
         }
+
+        /*
+         | O PDF final é montado FORA da transação, em fila: gerar PDF leva
+         | segundos e a pessoa está no balcão. Despachar de dentro da transação
+         | correria o risco de o worker pegar o job antes do commit e não achar
+         | o documento assinado.
+         */
+        if ($fechouODocumento) {
+            FinalizeSignatureDocument::dispatch($document->id);
+        }
+
+        return $assinado;
     }
 
     /**

@@ -3,12 +3,14 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\EnsureSignatureKioskSession;
+use App\Jobs\FinalizeSignatureDocument;
 use App\Models\SignatureAuditEvent;
 use App\Models\SignatureDocument;
 use App\Models\SignatureRequest;
 use App\Models\SignatureSigner;
 use App\Services\Signature\SignatureDocumentService;
 use App\Services\Signature\SignatureRequestService;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\CreatesSignatureSchema;
 use Tests\TestCase;
@@ -35,6 +37,15 @@ class SignatureCaptureTest extends TestCase
         $this->createPermissionSchema();
 
         Storage::fake(config('signature.disk'));
+
+        /*
+         | A fila é `sync` na suíte: sem isto, o job de finalização rodaria
+         | dentro de cada assinatura e levaria o documento de `signed` para
+         | `finalized`. O que está sob teste aqui é a CAPTURA — a finalização
+         | tem o seu próprio teste. O que interessa saber daqui é que o job foi
+         | despachado, e isso é verificado abaixo.
+         */
+        Queue::fake();
 
         $this->requests = app(SignatureRequestService::class);
     }
@@ -177,6 +188,10 @@ class SignatureCaptureTest extends TestCase
 
         $this->assertSame(SignatureDocument::STATUS_SIGNED, $documento->status);
         $this->assertSame(SignatureSigner::STATUS_SIGNED, $signatario->status);
+
+        // O PDF final é montado em fila, fora da transação: gerar PDF leva
+        // segundos e a pessoa está no balcão.
+        Queue::assertPushed(FinalizeSignatureDocument::class);
 
         $evidencia = $signatario->evidence;
 
