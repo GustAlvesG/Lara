@@ -56,6 +56,13 @@ class ReleaseController extends Controller
             // O conteúdo do QR. Vai para a tela, vira imagem, e acaba aí.
             'qr_payload' => $liberacao['payload'],
             'expires_in' => $liberacao['request']->secondsToExpire(),
+            /*
+             | Código digitado — só existe com o modo sem HTTPS ligado. Vem em
+             | claro nesta resposta, como o token, e não é gravado em lugar
+             | nenhum: o atendente lê em voz alta e ele acaba aí.
+             */
+            'manual_code' => $liberacao['manual_code'],
+            'manual_code_expires_in' => $liberacao['manual_code_expires_in'],
             'signer' => [
                 'id' => $signatureSigner->id,
                 'name' => $signatureSigner->name,

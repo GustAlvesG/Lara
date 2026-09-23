@@ -53,20 +53,34 @@ class QuiosqueController extends Controller
      */
     public function consume(Request $request)
     {
+        /*
+         | Duas portas para a mesma liberação: o QR lido pela câmera e o código
+         | DIGITADO, que é o caminho de quem não tem câmera — em HTTP comum,
+         | `getUserMedia` não abre. Uma das duas é obrigatória, nunca as duas.
+         */
         $request->validate([
-            'payload' => ['required', 'string', 'max:200'],
+            'payload' => ['required_without:code', 'nullable', 'string', 'max:200'],
+            'code' => ['required_without:payload', 'nullable', 'string', 'max:40'],
         ]);
 
-        $token = SignatureRequest::tokenFromQrPayload($request->input('payload'));
-
-        if ($token === null) {
-            return response()->json([
-                'error' => 'Este QR Code não é de assinatura do Lara.',
-            ], 422);
-        }
-
         try {
-            $sessao = $this->requests->consume($token, $request->ip(), $request->userAgent());
+            if ($request->filled('code')) {
+                $sessao = $this->requests->consumeManualCode(
+                    $request->input('code'),
+                    $request->ip(),
+                    $request->userAgent(),
+                );
+            } else {
+                $token = SignatureRequest::tokenFromQrPayload($request->input('payload'));
+
+                if ($token === null) {
+                    return response()->json([
+                        'error' => 'Este QR Code não é de assinatura do Lara.',
+                    ], 422);
+                }
+
+                $sessao = $this->requests->consume($token, $request->ip(), $request->userAgent());
+            }
         } catch (SignatureSessionException $e) {
             return response()->json(['error' => $e->getMessage()], $e->status);
         }
@@ -188,6 +202,9 @@ class QuiosqueController extends Controller
             'signature' => ['required', 'string'],
             'strokes' => ['nullable', 'array'],
             'photo' => ['nullable', 'string'],
+            // Por que não veio foto. Só `camera_unavailable` é aceito, e só
+            // com a flag ligada — ver SignatureCaptureService.
+            'photo_skipped_reason' => ['nullable', 'string', 'max:60'],
             'accepted' => ['required', 'accepted'],
             'wants_copy' => ['nullable', 'boolean'],
             'read_seconds' => ['nullable', 'integer', 'min:0', 'max:86400'],
@@ -200,6 +217,7 @@ class QuiosqueController extends Controller
                 'signature' => $dados['signature'],
                 'strokes' => $dados['strokes'] ?? null,
                 'photo' => $dados['photo'] ?? null,
+                'photo_skipped_reason' => $dados['photo_skipped_reason'] ?? null,
                 'accepted' => true,
                 'wants_copy' => (bool) ($dados['wants_copy'] ?? false),
                 'read_seconds' => $dados['read_seconds'] ?? null,

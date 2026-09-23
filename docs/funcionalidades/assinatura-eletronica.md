@@ -238,9 +238,9 @@ desenvolvimento, `php artisan schedule:work`.
 
 ## Instalação do tablet
 
-**HTTPS é obrigatório.** `getUserMedia` — que é o que abre a câmera para o leitor de QR e para a
-foto — só funciona em origem segura. Em HTTP comum, o tablet abre a tela e não consegue ler nada.
-Origem considerada segura também vale (`localhost`), mas não é montagem de balcão.
+**Com HTTPS o módulo funciona inteiro.** `getUserMedia` — que abre a câmera para o leitor de QR e
+para a foto — só existe em origem segura. Origem considerada segura também vale (`localhost`),
+mas não é montagem de balcão. **Sem HTTPS, veja o modo degradado logo abaixo.**
 
 Configuração recomendada, com **Fully Kiosk Browser** (Android):
 
@@ -254,6 +254,56 @@ Configuração recomendada, com **Fully Kiosk Browser** (Android):
 | Auto-reload on idle | desligado — recarregar no meio do atendimento faz a tela retomar do começo do documento |
 
 A tela funciona em retrato e paisagem, com alvos de toque de 72px.
+
+## Modo sem HTTPS (degradado)
+
+Enquanto não houver certificado, duas flags tornam o módulo operável. **As duas nascem
+desligadas**, e ligá-las é abrir mão de alguma coisa — por isso a decisão é explícita:
+
+```dotenv
+SIGNATURE_MANUAL_CODE_ENABLED=true
+SIGNATURE_SKIP_PHOTO_WITHOUT_CAMERA=true
+```
+
+### Código digitado no lugar do QR
+
+Com a primeira flag, cada liberação também gera um **código de 8 caracteres** (alfabeto sem
+`0/O` e `1/I/L`, porque ele é ditado em voz alta). A tela do atendente o mostra abaixo do QR; o
+tablet ganha o botão **Digitar código**, com teclado próprio.
+
+É a **mesma liberação**, com as mesmas travas: uso único, vínculo com um único documento, faixa
+de IP, mesmo rate limiting. O que muda é como o segredo chega ao aparelho — e é aí que está a
+perda: um código ditado passa por uma pessoa, e uma pessoa pode repeti-lo a quem não devia. Por
+isso ele **vence antes do QR** (150s contra 300s, configurável): o QR da mesma liberação
+continua valendo depois que o código morre.
+
+A trilha de auditoria registra por onde o tablet entrou (`via: codigo_digitado`) — é o que,
+meses depois, explica um atendimento sem foto.
+
+### Assinatura sem foto
+
+Com a segunda flag, um modelo que exige foto ainda assim conclui quando o aparelho **não tem
+câmera**. A ausência não é silenciada:
+
+- fica gravada na evidência (`photo_skipped_reason = camera_unavailable`);
+- entra na trilha de auditoria;
+- é **impressa no manifesto**: "Foto não capturada: câmera indisponível no dispositivo (conexão
+  sem HTTPS)".
+
+O motivo é uma lista fechada de um item só. Qualquer outro valor é recusado — se fosse texto
+livre, bastaria o cliente mandar uma string qualquer para transformar a exigência de foto em
+sugestão. E, com a flag desligada, nem o motivo certo passa: quem decide é o servidor.
+
+### O que você perde
+
+| Com HTTPS | Sem HTTPS |
+|---|---|
+| Segredo vai do computador ao tablet sem passar por ninguém | Segredo é falado em voz alta no balcão |
+| Foto do signatário como evidência | Sem foto, com a ausência declarada no documento |
+| Nenhuma configuração extra | Duas flags ligadas, e um manifesto que diz que faltou evidência |
+
+É um modo de operação possível, não um modo equivalente. Vale enquanto o certificado não sai —
+e, quando sair, basta desligar as duas flags: nada mais muda.
 
 ## Testes
 

@@ -37,6 +37,7 @@ trait CreatesSignatureSchema
             '2026_09_22_120700_add_identity_check_to_signature_requests.php',
             '2026_09_22_120800_add_attendant_name_to_signature_documents.php',
             '2026_09_22_120900_add_copy_delivery_to_signature_signers.php',
+            '2026_09_23_100000_add_manual_fallback_to_signature_tables.php',
         ];
 
         foreach ($migrations as $arquivo) {

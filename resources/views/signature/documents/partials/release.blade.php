@@ -53,6 +53,21 @@
                 <p class="mt-3 text-sm font-bold text-gray-900 dark:text-white" data-qr-countdown></p>
                 <p class="text-xs text-gray-500 dark:text-gray-400" data-qr-state>Aguardando leitura…</p>
 
+                {{--
+                    Código digitado: só aparece com o modo sem HTTPS ligado
+                    (`signature.manual_code.enabled`). É o caminho de quando o
+                    tablet não tem câmera — em HTTP comum, getUserMedia não
+                    existe. Vence antes do QR, de propósito.
+                --}}
+                <div class="hidden mt-4 pt-4 border-t border-gray-200 dark:border-gray-700" data-manual-area>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        Sem câmera no tablet? Dite este código:
+                    </p>
+                    <p class="text-2xl font-extrabold tracking-[0.25em] text-gray-900 dark:text-white font-mono"
+                       data-manual-code></p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" data-manual-countdown></p>
+                </div>
+
                 <div class="mt-4 flex gap-2 justify-center">
                     <button type="button" data-regenerate
                             class="px-4 py-2 rounded-lg text-xs font-bold bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
@@ -164,6 +179,50 @@
         timer = setInterval(passo, 1000);
     }
 
+    var areaCodigo = box.querySelector('[data-manual-area]');
+    var textoCodigo = box.querySelector('[data-manual-code]');
+    var contagemCodigo = box.querySelector('[data-manual-countdown]');
+    var timerCodigo = null;
+
+    /**
+     * Exibe o código digitado, em dois blocos de quatro, com contagem própria.
+     *
+     * O código morre ANTES do QR: ele é ditado em voz alta no balcão, e quem
+     * está na fila ouve. Quando vence, some da tela — deixá-lo visível
+     * convidaria a ditar um código que não vale mais.
+     */
+    function mostraCodigo(codigo, segundos) {
+        clearInterval(timerCodigo);
+
+        if (!areaCodigo || !codigo) {
+            if (areaCodigo) {
+                areaCodigo.classList.add('hidden');
+            }
+
+            return;
+        }
+
+        textoCodigo.textContent = codigo.slice(0, 4) + ' ' + codigo.slice(4);
+        areaCodigo.classList.remove('hidden');
+
+        var restante = segundos;
+
+        function passo() {
+            if (restante <= 0) {
+                clearInterval(timerCodigo);
+                textoCodigo.textContent = '— — — —';
+                contagemCodigo.textContent = 'Código expirado. Gere outro.';
+                return;
+            }
+
+            contagemCodigo.textContent = 'Vale por mais ' + restante + 's';
+            restante--;
+        }
+
+        passo();
+        timerCodigo = setInterval(passo, 1000);
+    }
+
     function libera(signerId) {
         if (!temQr) {
             return;
@@ -191,6 +250,7 @@
                 estado.textContent = 'Aguardando leitura…';
                 desenha(resultado.body.qr_payload);
                 conta(resultado.body.expires_in);
+                mostraCodigo(resultado.body.manual_code, resultado.body.manual_code_expires_in);
             })
             .catch(function () {
                 mostraErro('Falha de rede ao liberar a assinatura.');
@@ -287,9 +347,14 @@
                         && signatario.request.id === solicitacaoAtual
                         && signatario.request.status !== 'pending') {
                         clearInterval(timer);
+                        clearInterval(timerCodigo);
                         contagem.textContent = 'Tablet conectado';
                         estado.textContent = 'O documento está aberto no tablet.';
                         alvo.innerHTML = '';
+
+                        if (areaCodigo) {
+                            areaCodigo.classList.add('hidden');
+                        }
                     }
                 });
 
@@ -331,6 +396,7 @@
             })
                 .then(function () {
                     clearInterval(timer);
+                    clearInterval(timerCodigo);
                     area.classList.add('hidden');
                     solicitacaoAtual = null;
                 })

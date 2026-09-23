@@ -83,6 +83,12 @@
                         (informado pelo navegador do tablet)<br>
                         Aceite explícito dos termos: {{ $evidencia->accepted ? 'sim' : 'não' }}<br>
                         Pontos capturados no traço: {{ $evidencia->strokePoints() }}
+
+                        @if($evidencia->photoSkipLabel())
+                            {{-- A foto era exigida pelo modelo e não foi possível. Some do
+                                 manifesto seria esconder uma evidência que faltou. --}}
+                            <br><b>Foto não capturada:</b> {{ $evidencia->photoSkipLabel() }}
+                        @endif
                     @endif
                 </span>
             </td>

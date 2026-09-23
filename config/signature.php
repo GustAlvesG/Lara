@@ -50,6 +50,39 @@ return [
     'session_warning_seconds' => (int) env('SIGNATURE_SESSION_WARNING_SECONDS', 60),
 
     /*
+    |--------------------------------------------------------------------------
+    | Modo sem HTTPS (caminho degradado)
+    |--------------------------------------------------------------------------
+    |
+    | `getUserMedia` só funciona em origem segura. Em HTTP comum, o tablet não
+    | lê QR e não tira foto — a tela abre e não faz nada.
+    |
+    | `manual_code` liga um código CURTO, ditado pelo atendente e digitado no
+    | tablet, ao lado do QR. É a mesma liberação, com as mesmas travas: uso
+    | único, mesmo prazo, mesmo vínculo com um documento. O que muda é só como
+    | o segredo chega ao aparelho — e aí entra a diferença que importa: um
+    | código ditado passa por uma pessoa, e uma pessoa pode repeti-lo a quem
+    | não devia. Por isso ele é mais curto de vida e nasce DESLIGADO.
+    |
+    | `photo.skip_without_camera` deixa o tablet concluir a assinatura sem a
+    | foto quando a câmera não existe. Não é o mesmo que "o modelo não pedia
+    | foto": a evidência fica registrada como AUSENTE, com o motivo, e o
+    | manifesto imprime isso. Também nasce desligado, porque ligar é abrir mão
+    | de uma evidência que o modelo declarou necessária.
+    |
+    | Os dois juntos são o modo de operação possível enquanto não há HTTPS —
+    | não um modo equivalente.
+    |
+    */
+
+    'manual_code' => [
+        'enabled' => (bool) env('SIGNATURE_MANUAL_CODE_ENABLED', false),
+        // Metade do prazo do QR, por padrão: um código ditado em voz alta no
+        // balcão é ouvido por quem estiver na fila.
+        'ttl_seconds' => (int) env('SIGNATURE_MANUAL_CODE_TTL_SECONDS', 150),
+    ],
+
+    /*
     | Prazo do documento inteiro: liberado e esquecido, é encerrado pelo
     | comando `signature:expire`. Conta a partir do congelamento.
     */
@@ -105,6 +138,13 @@ return [
         'min_stroke_points' => (int) env('SIGNATURE_MIN_STROKE_POINTS', 30),
         'max_signature_kb' => (int) env('SIGNATURE_MAX_SIGNATURE_KB', 2048),
         'max_photo_kb' => (int) env('SIGNATURE_MAX_PHOTO_KB', 4096),
+
+        /*
+         | Concluir sem foto quando a câmera não existe (ambiente sem HTTPS).
+         | Ver o bloco "Modo sem HTTPS" acima: a ausência é REGISTRADA com o
+         | motivo e impressa no manifesto, e não silenciada.
+         */
+        'skip_photo_without_camera' => (bool) env('SIGNATURE_SKIP_PHOTO_WITHOUT_CAMERA', false),
     ],
 
     /*

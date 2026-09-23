@@ -37,6 +37,22 @@ class SignatureRequestService
     /** Tamanho do token em claro. 64 caracteres alfanuméricos. */
     private const TOKEN_LENGTH = 64;
 
+    /**
+     * Alfabeto do código digitado: sem 0/O e 1/I/L, que ninguém dita por cima
+     * do balcão sem alguém errar. É o mesmo do código de validação pública.
+     */
+    private const MANUAL_ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+
+    /**
+     * 8 caracteres, exibidos em dois blocos de 4.
+     *
+     * 31^8 é da ordem de 8·10^11. Não é o token de 64 caracteres, e não
+     * precisa ser: o código vive dois minutos e meio, vale uma leitura só, e a
+     * rota de consumo aceita 10 tentativas por minuto. Para varrer 1% desse
+     * espaço nesse ritmo seriam necessários uns quinze mil anos.
+     */
+    private const MANUAL_CODE_LENGTH = 8;
+
     public function __construct(private SignatureStateMachine $states)
     {
     }
@@ -63,9 +79,15 @@ class SignatureRequestService
             // o mt_rand que um `rand()` daria.
             $token = Str::random(self::TOKEN_LENGTH);
 
+            // O código digitado só existe quando o modo sem HTTPS está ligado.
+            // Desligado, a coluna fica nula e não há segredo curto nenhum para
+            // ser adivinhado — ver config/signature.php.
+            $manualCode = $this->manualCodeEnabled() ? $this->generateManualCode() : null;
+
             $request = SignatureRequest::create([
                 'signature_signer_id' => $signer->id,
                 'token_hash' => $this->hash($token),
+                'manual_code_hash' => $manualCode === null ? null : $this->hash($manualCode),
                 'expires_at' => now()->addSeconds((int) config('signature.qr_ttl_seconds', 300)),
                 'created_by' => $userId,
             ]);
@@ -88,6 +110,12 @@ class SignatureRequestService
                 'request' => $request,
                 'token' => $token,
                 'payload' => SignatureRequest::qrPayload($token),
+                // Em claro só aqui, como o token: é o que o atendente lê em voz
+                // alta, e não é gravado em lugar nenhum.
+                'manual_code' => $manualCode,
+                'manual_code_expires_in' => $manualCode === null
+                    ? null
+                    : (int) config('signature.manual_code.ttl_seconds', 150),
             ];
         });
     }
@@ -111,6 +139,74 @@ class SignatureRequestService
             throw SignatureSessionException::invalidToken();
         }
 
+        return $this->open($request, $ip, $userAgent, manual: false);
+    }
+
+    /**
+     * Consome o CÓDIGO DIGITADO — o caminho de quem não tem câmera.
+     *
+     * Mesma liberação, mesmas travas: uso único, vínculo com um documento,
+     * faixa de IP. Duas diferenças, e ambas apertam:
+     *
+     *  - o prazo é mais curto (`manual_code.ttl_seconds`), porque um código
+     *    ditado em voz alta no balcão é ouvido por quem está na fila;
+     *  - só existe com o modo ligado na configuração. Desligado, esta rota
+     *    responde como se o código não existisse — que é a verdade.
+     *
+     * @return array{request: SignatureRequest, session_token: string}
+     *
+     * @throws SignatureSessionException
+     */
+    public function consumeManualCode(string $code, ?string $ip = null, ?string $userAgent = null): array
+    {
+        if (!$this->manualCodeEnabled()) {
+            throw SignatureSessionException::invalidToken();
+        }
+
+        $normalizado = $this->normalizeManualCode($code);
+
+        if ($normalizado === '') {
+            throw SignatureSessionException::invalidToken();
+        }
+
+        $request = SignatureRequest::where('manual_code_hash', $this->hash($normalizado))->first();
+
+        if (!$request) {
+            throw SignatureSessionException::invalidToken();
+        }
+
+        /*
+         | Prazo próprio, contado da EMISSÃO. Vence antes do QR, então o código
+         | pode estar morto com a liberação ainda válida — e aí o atendente
+         | gera outro, que é o comportamento desejado.
+         */
+        $limite = $request->created_at?->copy()
+            ->addSeconds((int) config('signature.manual_code.ttl_seconds', 150));
+
+        if ($request->status === SignatureRequest::STATUS_PENDING && $limite?->isPast()) {
+            throw SignatureSessionException::expired();
+        }
+
+        return $this->open($request, $ip, $userAgent, manual: true);
+    }
+
+    /**
+     * As travas comuns aos dois caminhos e a abertura da sessão.
+     *
+     * Existe para que QR e código digitado NÃO tenham duas listas de
+     * verificação: o dia em que elas divergirem é o dia em que uma delas deixa
+     * passar o que a outra barra.
+     *
+     * @return array{request: SignatureRequest, session_token: string}
+     *
+     * @throws SignatureSessionException
+     */
+    private function open(
+        SignatureRequest $request,
+        ?string $ip,
+        ?string $userAgent,
+        bool $manual,
+    ): array {
         $signer = $request->signer;
         $documentId = $signer?->signature_document_id;
 
@@ -192,6 +288,9 @@ class SignatureRequestService
                 'actor_type' => SignatureAuditEvent::ACTOR_KIOSK,
                 'ip' => $ip,
                 'user_agent' => $userAgent,
+                // Como o segredo chegou ao tablet fica na trilha: meses depois,
+                // é o que explica um atendimento sem foto.
+                'payload' => ['via' => $manual ? 'codigo_digitado' : 'qr_code'],
             ],
         );
 
@@ -351,6 +450,49 @@ class SignatureRequestService
     private function hash(string $value): string
     {
         return hash('sha256', $value);
+    }
+
+    public function manualCodeEnabled(): bool
+    {
+        return (bool) config('signature.manual_code.enabled', false);
+    }
+
+    /**
+     * Sorteia um código curto que não colida com nenhum outro AINDA VIVO.
+     *
+     * Colisão com um código já expirado ou consumido não importa: aquele não
+     * abre mais nada. O que não pode haver é dois códigos válidos iguais
+     * apontando para liberações diferentes.
+     */
+    private function generateManualCode(): string
+    {
+        do {
+            $codigo = '';
+
+            for ($i = 0; $i < self::MANUAL_CODE_LENGTH; $i++) {
+                $codigo .= self::MANUAL_ALPHABET[random_int(0, strlen(self::MANUAL_ALPHABET) - 1)];
+            }
+
+            $vivo = SignatureRequest::where('manual_code_hash', $this->hash($codigo))
+                ->where('status', SignatureRequest::STATUS_PENDING)
+                ->exists();
+        } while ($vivo);
+
+        return $codigo;
+    }
+
+    /**
+     * Normaliza o que a pessoa digitou: maiúsculas, sem espaço nem hífen.
+     *
+     * O código é exibido em dois blocos ("A7K2 9MPX") e alguém vai digitar o
+     * espaço. Recusar por causa disso seria transformar a apresentação em
+     * regra.
+     */
+    private function normalizeManualCode(string $code): string
+    {
+        $limpo = mb_strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $code) ?? '');
+
+        return strlen($limpo) === self::MANUAL_CODE_LENGTH ? $limpo : '';
     }
 
     /**

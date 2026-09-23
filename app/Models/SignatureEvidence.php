@@ -27,11 +27,27 @@ class SignatureEvidence extends Model
      */
     protected $table = 'signature_evidences';
 
+    /**
+     * Único motivo aceito para uma foto exigida não existir: o aparelho não
+     * tem câmera — o que, na prática, quer dizer ambiente sem HTTPS, onde
+     * `getUserMedia` não existe.
+     *
+     * É uma constante, e não texto livre, porque o motivo vem do CLIENTE: sem
+     * uma lista fechada, bastaria mandar qualquer string para transformar a
+     * exigência de foto em sugestão.
+     */
+    public const PHOTO_SKIP_NO_CAMERA = 'camera_unavailable';
+
+    public const PHOTO_SKIP_LABELS = [
+        self::PHOTO_SKIP_NO_CAMERA => 'Câmera indisponível no dispositivo (conexão sem HTTPS)',
+    ];
+
     protected $fillable = [
         'signature_signer_id',
         'signature_path',
         'strokes',
         'photo_path',
+        'photo_skipped_reason',
         'ip',
         'user_agent',
         'read_seconds',
@@ -73,6 +89,22 @@ class SignatureEvidence extends Model
     public function strokePoints(): int
     {
         return self::countPoints($this->strokes);
+    }
+
+    /**
+     * Por que não há foto, em português, para o manifesto.
+     *
+     * Devolve null quando a ausência não precisa de explicação — o modelo não
+     * pedia foto. A diferença entre "não era exigida" e "era exigida e não foi
+     * possível" é justamente o que o manifesto precisa dizer.
+     */
+    public function photoSkipLabel(): ?string
+    {
+        if ($this->photo_skipped_reason === null) {
+            return null;
+        }
+
+        return self::PHOTO_SKIP_LABELS[$this->photo_skipped_reason] ?? $this->photo_skipped_reason;
     }
 
     /**

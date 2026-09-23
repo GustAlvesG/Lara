@@ -35,6 +35,11 @@
     prefixoQr: @json(\App\Models\SignatureRequest::TOKEN_PREFIX),
     minPontos: {{ (int) config('signature.evidence.min_stroke_points', 30) }},
     clube: 'Clube dos Funcionários da CSN',
+    // Modo sem HTTPS: entrada por código digitado e conclusão sem foto quando
+    // não há câmera. Ver o bloco "Modo sem HTTPS" em config/signature.php.
+    codigoManual: {{ config('signature.manual_code.enabled') ? 'true' : 'false' }},
+    podePularFoto: {{ config('signature.evidence.skip_photo_without_camera') ? 'true' : 'false' }},
+    motivoSemCamera: @json(\App\Models\SignatureEvidence::PHOTO_SKIP_NO_CAMERA),
   };</script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
@@ -176,6 +181,27 @@
         <div class="hint" id="dicaLeitor">Procurando o código…</div>
         <div class="err hidden" id="erroLeitor"></div>
         <button type="button" class="btn btn-ghost hidden" id="trocarCamera" style="margin-top:16px;">Trocar de câmera</button>
+        <button type="button" class="btn btn-ghost hidden" id="abrirCodigo" style="margin-top:12px;">Digitar código</button>
+      </div>
+    </section>
+
+    <!-- 1b. Entrada por código digitado (tablet sem câmera) -->
+    <section class="screen" id="tela-codigo">
+      <div class="pad grow">
+        <h2>Digite o código</h2>
+        <p class="lead">Peça o código ao atendente. São 8 caracteres.</p>
+
+        <div class="cpf-box">
+          <input class="cpf-input" id="codigoInput" style="letter-spacing:6px;font-size:28px;"
+                 inputmode="text" autocomplete="off" maxlength="8" readonly>
+          <div class="keypad" id="tecladoCodigo" style="grid-template-columns:repeat(6,1fr);"></div>
+        </div>
+
+        <p class="note note-danger hidden" id="erroCodigo" style="margin-top:18px;"></p>
+      </div>
+      <div class="foot">
+        <button type="button" class="btn btn-ghost" id="voltarEspera">Voltar</button>
+        <button type="button" class="btn btn-primary" id="btnCodigo" disabled>Abrir documento</button>
       </div>
     </section>
 
@@ -349,6 +375,8 @@
       tracos: [],
       assinaturaPng: null,
       fotoJpeg: null,
+      // Motivo de não haver foto, quando o modelo a exigia. Ver a etapa da foto.
+      semFoto: null,
       aceitou: false,
       querVia: false,
       sessao: { restante: 0, aviso: 60 },
@@ -416,19 +444,40 @@
   var cameraAtual = 0;
   var lendo = false;
 
+  /**
+   * Há câmera utilizável? Em HTTP comum a resposta é não, porque
+   * `navigator.mediaDevices` simplesmente não existe fora de origem segura.
+   */
+  function temCamera() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  }
+
   function iniciaLeitor() {
+    /*
+     * O botão do código aparece ANTES de qualquer checagem de câmera: é
+     * justamente quando a câmera falha que ele precisa estar lá. Uma câmera
+     * que existe mas não foca também é um atendimento parado.
+     */
+    $('#abrirCodigo').classList.toggle('hidden', !CFG.codigoManual);
+
     if (typeof Html5Qrcode === 'undefined') {
       $('#erroLeitor').textContent = 'Leitor de QR indisponível. Verifique a conexão do tablet.';
       $('#erroLeitor').classList.remove('hidden');
       return;
     }
 
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      // getUserMedia só existe em origem segura. É o erro mais provável numa
-      // instalação nova, e a mensagem precisa dizer o que fazer.
-      $('#erroLeitor').innerHTML = 'A câmera não está disponível. O endereço precisa ser <b>HTTPS</b> '
-        + 'e a permissão de câmera precisa estar concedida ao navegador do tablet.';
+    if (!temCamera()) {
+      /*
+       * getUserMedia só existe em origem segura. É o erro mais provável numa
+       * instalação nova — e, com o modo sem HTTPS ligado, deixa de ser um beco
+       * sem saída: a pessoa digita o código que o atendente dita.
+       */
+      $('#erroLeitor').innerHTML = CFG.codigoManual
+        ? 'A câmera não está disponível neste tablet. Toque em <b>Digitar código</b> e peça o código ao atendente.'
+        : 'A câmera não está disponível. O endereço precisa ser <b>HTTPS</b> '
+          + 'e a permissão de câmera precisa estar concedida ao navegador do tablet.';
       $('#erroLeitor').classList.remove('hidden');
+      $('#dicaLeitor').textContent = '';
       return;
     }
 
@@ -524,6 +573,97 @@
   }
 
   /* ---------------------------------------------------------------------
+   | Entrada por código digitado (tablet sem câmera)
+   |---------------------------------------------------------------------*/
+
+  var codigoDigitado = '';
+
+  /*
+   * O mesmo alfabeto do servidor, sem 0/O e 1/I/L. Escrito aqui porque o
+   * teclado precisa desenhar as teclas — se divergir do servidor, a pessoa
+   * digita um caractere que o código nunca teria.
+   */
+  var ALFABETO_CODIGO = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+
+  (function montaTecladoCodigo() {
+    var alvo = $('#tecladoCodigo');
+
+    ALFABETO_CODIGO.split('').forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'key';
+      b.style.minHeight = '52px';
+      b.style.fontSize = '19px';
+      b.textContent = c;
+      b.dataset.char = c;
+      alvo.appendChild(b);
+    });
+
+    ['apagar', 'limpar'].forEach(function (acao) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'key';
+      b.style.minHeight = '52px';
+      b.textContent = acao === 'apagar' ? '⌫' : 'C';
+      b.dataset.acao = acao;
+      alvo.appendChild(b);
+    });
+
+    alvo.addEventListener('click', function (ev) {
+      var alvoTecla = ev.target;
+
+      if (alvoTecla.dataset.acao === 'limpar') {
+        codigoDigitado = '';
+      } else if (alvoTecla.dataset.acao === 'apagar') {
+        codigoDigitado = codigoDigitado.slice(0, -1);
+      } else if (alvoTecla.dataset.char && codigoDigitado.length < 8) {
+        codigoDigitado += alvoTecla.dataset.char;
+      } else {
+        return;
+      }
+
+      $('#codigoInput').value = codigoDigitado.length > 4
+        ? codigoDigitado.slice(0, 4) + ' ' + codigoDigitado.slice(4)
+        : codigoDigitado;
+
+      $('#erroCodigo').classList.add('hidden');
+      $('#btnCodigo').disabled = codigoDigitado.length !== 8;
+    });
+  })();
+
+  $('#abrirCodigo').addEventListener('click', function () {
+    codigoDigitado = '';
+    $('#codigoInput').value = '';
+    $('#btnCodigo').disabled = true;
+    $('#erroCodigo').classList.add('hidden');
+
+    // A câmera para enquanto a tela do código está aberta: duas coisas
+    // disputando o atendimento produziriam duas sessões.
+    paraLeitor();
+    mostra('tela-codigo');
+  });
+
+  $('#voltarEspera').addEventListener('click', function () {
+    mostra('tela-espera');
+    iniciaLeitor();
+  });
+
+  $('#btnCodigo').addEventListener('click', function () {
+    $('#btnCodigo').disabled = true;
+
+    api('POST', CFG.rotas.consumir, { code: codigoDigitado })
+      .then(function (dados) {
+        abreAtendimento(dados);
+      })
+      .catch(function (e) {
+        codigoDigitado = '';
+        $('#codigoInput').value = '';
+        $('#erroCodigo').textContent = e.message;
+        $('#erroCodigo').classList.remove('hidden');
+      });
+  });
+
+  /* ---------------------------------------------------------------------
    | Atendimento
    |---------------------------------------------------------------------*/
 
@@ -567,6 +707,9 @@
 
     $('#docScroll').innerHTML = '';
     $('#cpfInput').value = '';
+    $('#codigoInput').value = '';
+    $('#erroCodigo').classList.add('hidden');
+    codigoDigitado = '';
     $('#aceiteCheck').checked = false;
     $('#aceiteBox').classList.remove('on');
     $('#viaCheck').checked = false;
@@ -1021,6 +1164,18 @@
       return;
     }
 
+    /*
+     * Modelo pede foto e o aparelho não tem câmera (ambiente sem HTTPS). Com a
+     * flag ligada, a assinatura segue e a AUSÊNCIA é registrada com o motivo —
+     * que vai para a evidência e para o manifesto. Sem a flag, o servidor
+     * recusa, e é ele quem decide: o tablet não tem como se autorizar.
+     */
+    if (!temCamera() && CFG.podePularFoto) {
+      S.semFoto = CFG.motivoSemCamera;
+      envia();
+      return;
+    }
+
     mostra('tela-foto');
     iniciaFoto();
   });
@@ -1034,7 +1189,7 @@
   function iniciaFoto() {
     $('#erroFoto').classList.add('hidden');
 
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    if (!temCamera()) {
       $('#erroFoto').textContent = 'Câmera indisponível (é preciso HTTPS). Chame o atendente.';
       $('#erroFoto').classList.remove('hidden');
       return;
@@ -1118,6 +1273,7 @@
       signature: S.assinaturaPng,
       strokes: S.tracos,
       photo: S.fotoJpeg,
+      photo_skipped_reason: S.semFoto,
       accepted: true,
       wants_copy: S.querVia,
       read_seconds: S.leitura.segundos,

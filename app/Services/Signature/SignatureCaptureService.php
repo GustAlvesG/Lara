@@ -170,14 +170,21 @@ class SignatureCaptureService
         }
 
         $foto = null;
+        $motivoSemFoto = null;
 
         if ($template->requires_photo) {
-            $foto = $this->decodeImage(
-                $payload['photo'] ?? '',
-                ['jpeg', 'png'],
-                (int) config('signature.evidence.max_photo_kb', 4096),
-                'foto',
-            );
+            if (($payload['photo'] ?? '') === '') {
+                // Sem câmera (ambiente sem HTTPS): a evidência fica registrada
+                // como AUSENTE, com o motivo — nunca silenciada.
+                $motivoSemFoto = $this->photoSkipReason($payload['photo_skipped_reason'] ?? null);
+            } else {
+                $foto = $this->decodeImage(
+                    $payload['photo'],
+                    ['jpeg', 'png'],
+                    (int) config('signature.evidence.max_photo_kb', 4096),
+                    'foto',
+                );
+            }
         }
 
         $disk = Storage::disk(config('signature.disk'));
@@ -209,12 +216,14 @@ class SignatureCaptureService
                 $tracos,
                 $caminhoAssinatura,
                 $caminhoFoto,
+                $motivoSemFoto,
             ) {
                 SignatureEvidence::create([
                     'signature_signer_id' => $signer->id,
                     'signature_path' => $caminhoAssinatura,
                     'strokes' => $tracos,
                     'photo_path' => $caminhoFoto,
+                    'photo_skipped_reason' => $motivoSemFoto,
                     'ip' => $context['ip'] ?? null,
                     'user_agent' => isset($context['user_agent'])
                         ? mb_substr((string) $context['user_agent'], 0, 255)
@@ -248,6 +257,7 @@ class SignatureCaptureService
                             'segundos_de_leitura' => $payload['read_seconds'] ?? null,
                             'rolou_ate_o_fim' => (bool) ($payload['scrolled_to_end'] ?? false),
                             'com_foto' => $caminhoFoto !== null,
+                            'foto_ausente' => $motivoSemFoto,
                         ],
                     ],
                 );
@@ -295,6 +305,27 @@ class SignatureCaptureService
         }
 
         return $assinado;
+    }
+
+    /**
+     * O modelo pede foto e ela não veio. Isso só é aceito num caso, e com a
+     * flag ligada: o aparelho não tem câmera — o que, na prática, quer dizer
+     * ambiente sem HTTPS, onde `getUserMedia` não existe.
+     *
+     * Qualquer outro motivo é recusado com a mesma mensagem de sempre. Aceitar
+     * um motivo livre transformaria a exigência de foto em sugestão: bastaria
+     * o cliente mandar qualquer string.
+     *
+     * @throws SignatureSessionException
+     */
+    private function photoSkipReason(?string $reason): string
+    {
+        if (!config('signature.evidence.skip_photo_without_camera', false)
+            || $reason !== SignatureEvidence::PHOTO_SKIP_NO_CAMERA) {
+            throw new SignatureSessionException('Não foi possível ler a foto. Tente novamente.', 422);
+        }
+
+        return SignatureEvidence::PHOTO_SKIP_NO_CAMERA;
     }
 
     /**

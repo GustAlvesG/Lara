@@ -43,6 +43,7 @@ class SignatureRequest extends Model
     protected $fillable = [
         'signature_signer_id',
         'token_hash',
+        'manual_code_hash',
         'expires_at',
         'consumed_at',
         'session_hash',
@@ -80,6 +81,7 @@ class SignatureRequest extends Model
      */
     protected $hidden = [
         'token_hash',
+        'manual_code_hash',
         'session_hash',
     ];
 
