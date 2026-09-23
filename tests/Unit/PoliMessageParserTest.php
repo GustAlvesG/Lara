@@ -153,6 +153,41 @@ class PoliMessageParserTest extends TestCase
         $this->assertNull($parser->parse($digitado)->contextMessageUuid);
     }
 
+    /**
+     * O fecho do atendimento vem nas mensagens de despedida do bot, e as
+     * anteriores da mesma conversa trazem `closed_reason: null`.
+     */
+    public function test_reconhece_o_atendimento_encerrado(): void
+    {
+        $parser = new PoliMessageParser();
+
+        $emAndamento = $this->realOutgoingListPayload();
+        $emAndamento['value']['attendance']['closed_reason'] = null;
+
+        $this->assertNull($parser->extractFinishedAttendanceUuid($emAndamento));
+
+        $encerrado = $emAndamento;
+        $encerrado['value']['attendance']['closed_reason'] = 'FINISHED_BY_SYSTEM';
+
+        $this->assertSame(
+            '21ab48ee-b77d-11f1-9d75-06799772b1cd',
+            $parser->extractFinishedAttendanceUuid($encerrado)
+        );
+
+        // Qualquer motivo encerra: para nós o que importa é que acabou.
+        $porAtendente = $emAndamento;
+        $porAtendente['value']['attendance']['closed_reason'] = 'FINISHED_BY_USER';
+
+        $this->assertNotNull($parser->extractFinishedAttendanceUuid($porAtendente));
+    }
+
+    public function test_mensagem_de_entrada_comum_nao_encerra_atendimento(): void
+    {
+        $this->assertNull(
+            (new PoliMessageParser())->extractFinishedAttendanceUuid($this->realTextPayload())
+        );
+    }
+
     public function test_parses_confirmed_real_text_payload(): void
     {
         $parsed = (new PoliMessageParser())->parse($this->realTextPayload());

@@ -36,6 +36,16 @@ class ProcessUberAccessRequestMessage implements ShouldQueue
 
         $payload = $messageRow->raw_payload;
 
+        // Antes da checagem de relevância de propósito: o fim do atendimento é
+        // anunciado pelas mensagens do bot (`event: "sent"`), que nunca entram
+        // no fluxo e seriam descartadas aqui embaixo.
+        $atendimentoEncerrado = $parser->extractFinishedAttendanceUuid($payload);
+
+        if ($atendimentoEncerrado !== null) {
+            CloseUberCaptureSession::dispatch($atendimentoEncerrado)
+                ->delay(now()->addSeconds(UberAccessRequestFlow::CLOSURE_GRACE_SECONDS));
+        }
+
         if (!$parser->isRelevantEvent($payload)) {
             return;
         }
