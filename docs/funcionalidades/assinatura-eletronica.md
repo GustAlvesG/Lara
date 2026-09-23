@@ -211,6 +211,31 @@ passar por autorização nenhuma.
 O comando `signature:expire` roda **a cada minuto** (`routes/console.php`) e encerra QR não lido,
 sessão parada e documento não assinado.
 
+## Colocando para funcionar
+
+```bash
+php artisan migrate                                   # 10 migrations do módulo
+php artisan db:seed --class=SignatureTemplateSeeder   # opcional: 3 modelos iniciais
+php artisan queue:work                                # OBRIGATÓRIO — ver abaixo
+```
+
+**A fila não é detalhe.** `QUEUE_CONNECTION=database`: sem um worker rodando, o documento
+assinado **para em "Assinado" e nunca vira "Finalizado"** — não existe PDF final, não existe
+manifesto, não existe `final_sha256` e a via não é enviada. As evidências ficam todas gravadas,
+então nada se perde; o que falta é o arquivo, e ele sai assim que o worker subir.
+
+O seeder cria três modelos — termo de responsabilidade, ficha cadastral e contrato de locação de
+espaço — e é **idempotente**: rodar de novo não duplica nem sobrescreve um modelo já revisado
+pelo jurídico. Ele **não** está registrado no `DatabaseSeeder` de propósito: são textos com
+efeito jurídico, e um `db:seed` de rotina não deve criar documento que ninguém aprovou. Se
+preferir escrever os seus do zero, pule o seeder e use **Assinaturas → Modelos → Novo Modelo**.
+
+As quatro permissões nascem só no papel `admin` (a migration `120600` as concede). Quem for
+testar com outro usuário precisa recebê-las em **Usuários → Papéis e Permissões**.
+
+O `signature:expire` depende do scheduler do Laravel já configurado no servidor — em
+desenvolvimento, `php artisan schedule:work`.
+
 ## Instalação do tablet
 
 **HTTPS é obrigatório.** `getUserMedia` — que é o que abre a câmera para o leitor de QR e para a
