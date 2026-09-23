@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Exceptions\PoliListMessageNotIndexedException;
 use App\Models\UberAccessRequestMessage;
 use App\Services\Poli\PoliMessageParser;
 use App\Services\UberAccessRequestFlow;
@@ -15,6 +16,14 @@ use Illuminate\Support\Facades\Log;
 class ProcessUberAccessRequestMessage implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    /**
+     * Três tentativas por causa de uma corrida só: o toque pode ser
+     * processado antes de o webhook do menu que o originou ter chegado. Fora
+     * isso o job não repete — erro de processamento continua sendo logado e
+     * descartado, como antes.
+     */
+    public $tries = 3;
 
     public function __construct(public int $uberAccessRequestMessageId) {}
 
@@ -42,6 +51,21 @@ class ProcessUberAccessRequestMessage implements ShouldQueue
             if ($uberAccessRequest) {
                 $messageRow->update(['uber_access_request_id' => $uberAccessRequest->id]);
             }
+        } catch (PoliListMessageNotIndexedException $e) {
+            // Ainda dá tempo de o menu chegar: devolve para a fila. Esgotadas
+            // as tentativas, o toque é recusado — é o que resta para um menu
+            // que nunca foi indexado (por exemplo, enviado antes de o webhook
+            // de saída ser ligado).
+            if ($this->job && $this->attempts() < $this->tries) {
+                $this->release(10);
+
+                return;
+            }
+
+            Log::warning('ProcessUberAccessRequestMessage: gatilho recusado, menu nunca indexado', [
+                'uber_access_request_message_id' => $this->uberAccessRequestMessageId,
+                'poli_message_uuid' => $e->poliMessageUuid,
+            ]);
         } catch (\Throwable $e) {
             Log::error('ProcessUberAccessRequestMessage: falha ao processar mensagem', [
                 'uber_access_request_message_id' => $this->uberAccessRequestMessageId,

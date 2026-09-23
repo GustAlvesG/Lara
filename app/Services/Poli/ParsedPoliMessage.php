@@ -17,5 +17,14 @@ class ParsedPoliMessage
         public readonly string $type,
         public readonly ?string $text = null,
         public readonly ?string $mediaUrl = null,
+        /**
+         * O `value.uuid` da mensagem a que esta responde — preenchido quando o
+         * associado TOCA numa opção de menu, e nulo quando ele digita.
+         *
+         * É o que liga a resposta ao menu indexado em poli_list_messages, e a
+         * única forma de saber se o "Carro de Aplicativo" que chegou veio do
+         * botão ou do teclado.
+         */
+        public readonly ?string $contextMessageUuid = null,
     ) {}
 }
