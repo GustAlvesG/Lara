@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\PoliListMessageNotIndexedException;
 use App\Models\Employee;
 use App\Models\UberAccessRequest;
 use App\Models\UberAccessRequestMessage;
 use App\Services\MultiClubes\TitleMemberLookup;
+use App\Services\Poli\ParsedPoliMessage;
 use App\Services\UberAccessRequestFlow;
 use Tests\TestCase;
 
@@ -32,6 +34,10 @@ class UberAccessRequestWebhookTest extends TestCase
         (require base_path('database/migrations/2026_07_21_120000_add_matricula_to_uber_access_requests.php'))->up();
         (require base_path('database/migrations/2026_08_27_170000_add_member_validation_to_uber_access_requests.php'))->up();
         (require base_path('database/migrations/2026_09_10_100000_add_member_validation_type_to_uber_access_requests.php'))->up();
+
+        // Índice dos menus enviados: sem ele nenhum gatilho é aceito, porque a
+        // origem do toque deixou de ser deduzida do texto.
+        (require base_path('database/migrations/2026_09_23_190000_create_poli_list_messages_table.php'))->up();
 
         // Funcionários também podem pedir: a conferência consulta a tabela
         // employees de verdade (é banco local), só o MultiClubes é falso.
@@ -79,7 +85,9 @@ class UberAccessRequestWebhookTest extends TestCase
         ?string $mediaUrl = null,
         string $direction = 'IN',
         ?string $messageId = null,
-        string $contactUuid = self::CONTACT_UUID
+        string $contactUuid = self::CONTACT_UUID,
+        ?string $contextMessageUuid = null,
+        ?string $attendanceUuid = null
     ): array {
         $this->messageCounter++;
 
@@ -99,11 +107,94 @@ class UberAccessRequestWebhookTest extends TestCase
                     'uuid' => $contactUuid,
                     'attributes' => ['name' => 'Gustavo', 'phone' => self::CONTACT_PHONE],
                 ],
+                // Nulo quando o associado digita; preenchido quando ele toca
+                // numa opção. É a diferença que o payload real carrega.
+                'context' => $contextMessageUuid === null
+                    ? null
+                    : ['type' => 'message', 'message' => ['uuid' => $contextMessageUuid]],
                 'components' => $components,
-                'attendance' => ['uuid' => 'attendance-uuid'],
+                'attendance' => ['uuid' => $attendanceUuid ?? $this->attendanceFor($contactUuid)],
                 'metadata' => ['external_message_id' => $messageId ?? 'wamid-' . $this->messageCounter],
             ],
         ];
+    }
+
+    /** Um atendimento por contato, como a Poli faz. */
+    private function attendanceFor(string $contactUuid): string
+    {
+        return 'attendance-' . $contactUuid;
+    }
+
+    /**
+     * O menu de departamentos saindo — `event: "sent"`, com as opções. É este
+     * payload que o webhook indexa e que a resposta depois cita.
+     */
+    private function menuPayload(string $menuUuid, string $contactUuid, ?string $attendanceUuid = null): array
+    {
+        return [
+            'object' => 'message',
+            'event' => 'sent',
+            'value' => [
+                'uuid' => $menuUuid,
+                'event' => 'MESSAGE',
+                'type' => 'CHAT',
+                'direction' => 'OUT',
+                'contact' => ['uuid' => $contactUuid],
+                'components' => [
+                    'body' => ['text' => 'Selecione o Departamento que deseja conversar:'],
+                    'button' => 'Ver opções',
+                    'section' => [[
+                        'id' => 'secao-departamentos',
+                        'text' => 'Departamentos',
+                        'rows' => [
+                            ['id' => 'linha-financeiro', 'messageOption' => [
+                                'title' => 'Financeiro',
+                                'description' => 'Consulte seus débitos ou outras pendências.',
+                            ]],
+                            ['id' => 'linha-carro', 'messageOption' => [
+                                'title' => self::TRIGGER,
+                                'description' => 'Carro, moto ou táxi',
+                            ]],
+                        ],
+                    ]],
+                    'name' => 'polichat_list_message_556542',
+                ],
+                'attendance' => ['uuid' => $attendanceUuid ?? $this->attendanceFor($contactUuid)],
+                'metadata' => ['external_message_id' => 'wamid-out-' . $menuUuid],
+            ],
+        ];
+    }
+
+    /** O texto que o toque numa opção produz: título + quebra + descrição. */
+    private function toqueEm(string $titulo, string $descricao): string
+    {
+        return $titulo . "\n" . $descricao;
+    }
+
+    private function send(array $payload): void
+    {
+        $this->postJson($this->endpoint(), $payload, $this->authHeaders())->assertOk();
+    }
+
+    /**
+     * O caminho legítimo: o menu sai, o associado toca na opção.
+     *
+     * Virou helper porque o gatilho deixou de ser uma mensagem só — mandar o
+     * texto sem o menu por trás é, agora, exatamente o que a trava recusa.
+     */
+    private function sendTrigger(string $contactUuid = self::CONTACT_UUID, ?string $messageId = null): string
+    {
+        $menuUuid = 'menu-' . $contactUuid . '-' . (++$this->messageCounter);
+
+        $this->send($this->menuPayload($menuUuid, $contactUuid));
+        $this->send($this->payload(
+            text: $this->toqueEm(self::TRIGGER, 'Carro, moto ou táxi'),
+            messageId: $messageId,
+            contactUuid: $contactUuid,
+            contextMessageUuid: $menuUuid,
+        ));
+
+        return $menuUuid;
     }
 
     public function test_outbound_message_is_ignored(): void
@@ -124,8 +215,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_trigger_creates_session_awaiting_matricula(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())
-            ->assertOk();
+        $this->sendTrigger();
 
         $this->assertDatabaseHas('uber_access_requests', [
             'contact_uuid' => self::CONTACT_UUID,
@@ -134,23 +224,156 @@ class UberAccessRequestWebhookTest extends TestCase
         ]);
     }
 
-    public function test_trigger_matches_when_message_starts_with_trigger_text(): void
+    /**
+     * O texto sozinho não abre mais pedido — nem o exato, nem um que comece
+     * com ele. Começar com o texto do gatilho é só o filtro barato que evita
+     * ir ao banco a cada mensagem; quem autoriza é a procedência do toque.
+     */
+    public function test_texto_digitado_nao_abre_pedido(): void
     {
-        $this->postJson(
-            $this->endpoint(),
-            $this->payload(text: self::TRIGGER . ' - Uber'),
-            $this->authHeaders()
-        )->assertOk();
+        foreach ([self::TRIGGER, self::TRIGGER . ' - Uber', 'carro de aplicativo'] as $texto) {
+            $this->send($this->payload(text: $texto));
+        }
 
-        $this->assertDatabaseHas('uber_access_requests', [
-            'contact_uuid' => self::CONTACT_UUID,
-            'status' => UberAccessRequest::STATUS_AGUARDANDO_MATRICULA,
-        ]);
+        $this->assertDatabaseCount('uber_access_requests', 0);
+    }
+
+    /**
+     * Mesmo citando o menu certo: quem digitou mandou só o título, e a
+     * resposta de um toque traz título E descrição. É o que separa o toque no
+     * botão de uma mensagem digitada em resposta ao menu.
+     */
+    public function test_texto_digitado_citando_o_menu_nao_abre_pedido(): void
+    {
+        $this->send($this->menuPayload('menu-citado', self::CONTACT_UUID));
+
+        $this->send($this->payload(text: self::TRIGGER, contextMessageUuid: 'menu-citado'));
+
+        $this->assertDatabaseCount('uber_access_requests', 0);
+    }
+
+    /** Menu de outro atendimento: é o menu de dias atrás, rolando a conversa. */
+    public function test_toque_em_menu_de_outro_atendimento_nao_abre_pedido(): void
+    {
+        $this->send($this->menuPayload('menu-antigo', self::CONTACT_UUID, attendanceUuid: 'atendimento-de-ontem'));
+
+        $this->send($this->payload(
+            text: $this->toqueEm(self::TRIGGER, 'Carro, moto ou táxi'),
+            contextMessageUuid: 'menu-antigo',
+        ));
+
+        $this->assertDatabaseCount('uber_access_requests', 0);
+    }
+
+    /** Menu desconhecido: nunca vimos sair, então não é nosso. */
+    public function test_toque_em_menu_nao_indexado_nao_abre_pedido(): void
+    {
+        $this->send($this->payload(
+            text: $this->toqueEm(self::TRIGGER, 'Carro, moto ou táxi'),
+            contextMessageUuid: 'menu-que-nunca-existiu',
+        ));
+
+        $this->assertDatabaseCount('uber_access_requests', 0);
+    }
+
+    /**
+     * Menu não indexado não é recusa, é indecisão: pode ser a corrida entre o
+     * webhook de saída e o de entrada. O fluxo levanta a exceção e quem decide
+     * entre reprocessar e desistir é o job — este teste fixa esse contrato,
+     * porque na suíte a fila é `sync` e o reprocessamento não chega a rodar.
+     */
+    public function test_menu_nao_indexado_levanta_excecao_para_o_job_decidir(): void
+    {
+        $this->expectException(PoliListMessageNotIndexedException::class);
+
+        app(UberAccessRequestFlow::class)->handle(new ParsedPoliMessage(
+            messageId: 'wamid-corrida',
+            contactUuid: self::CONTACT_UUID,
+            contactPhone: self::CONTACT_PHONE,
+            contactName: 'Gustavo',
+            attendanceUuid: $this->attendanceFor(self::CONTACT_UUID),
+            type: ParsedPoliMessage::TYPE_TEXT,
+            text: self::TRIGGER . ' Carro, moto ou táxi',
+            contextMessageUuid: 'menu-ainda-nao-chegou',
+        ));
+    }
+
+    /** Outra opção do mesmo menu não abre pedido de carro. */
+    public function test_toque_em_outra_opcao_do_menu_nao_abre_pedido(): void
+    {
+        $this->send($this->menuPayload('menu-financeiro', self::CONTACT_UUID));
+
+        $this->send($this->payload(
+            text: $this->toqueEm('Financeiro', 'Consulte seus débitos ou outras pendências.'),
+            contextMessageUuid: 'menu-financeiro',
+        ));
+
+        $this->assertDatabaseCount('uber_access_requests', 0);
+    }
+
+    /**
+     * O toque repetido no menu durante uma sessão aberta era o que deslocava o
+     * pedido inteiro: ele entrava como matrícula, a matrícula virava nome e o
+     * nome virava local. Agora é ignorado, e a resposta seguinte cai no campo
+     * certo.
+     */
+    public function test_toque_repetido_no_gatilho_nao_e_consumido_como_resposta(): void
+    {
+        $this->sendTrigger();
+
+        // O associado toca no menu de novo antes de responder.
+        $this->sendTrigger();
+
+        $this->send($this->payload(text: '987654'));
+        $this->send($this->payload(text: 'Gustavo Alves'));
+
+        $this->assertDatabaseCount('uber_access_requests', 1);
+
+        $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
+
+        $this->assertSame('987654', $request->matricula);
+        $this->assertSame('Gustavo Alves', $request->requester_name);
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_LOCAL, $request->status);
+    }
+
+    /**
+     * Resposta de menu entra pelo título. O texto que chega é
+     * "Campo\nBar do Campo"; gravar isso inteiro faz o aviso de chegada dizer
+     * "a caminho de Campo Bar do Campo".
+     */
+    public function test_resposta_de_menu_grava_so_o_titulo_da_opcao(): void
+    {
+        $this->sendTrigger();
+        $this->send($this->payload(text: '987654'));
+        $this->send($this->payload(text: 'Gustavo Alves'));
+
+        $this->send($this->menuPayload('menu-locais', self::CONTACT_UUID));
+        $this->send($this->payload(
+            text: $this->toqueEm('Financeiro', 'Consulte seus débitos ou outras pendências.'),
+            contextMessageUuid: 'menu-locais',
+        ));
+
+        $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
+
+        $this->assertSame('Financeiro', $request->club_location);
+    }
+
+    /** Resposta digitada continua entrando como veio. */
+    public function test_resposta_digitada_continua_sendo_gravada_literalmente(): void
+    {
+        $this->sendTrigger();
+        $this->send($this->payload(text: '987654'));
+        $this->send($this->payload(text: 'Gustavo Alves'));
+        $this->send($this->payload(text: 'Portaria 2'));
+
+        $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
+
+        $this->assertSame('Portaria 2', $request->club_location);
     }
 
     public function test_plate_capture_strips_special_characters(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->sendTrigger();
         $this->postJson($this->endpoint(), $this->payload(text: '12345'), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'Gustavo Alves'), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'Portaria 2'), $this->authHeaders())->assertOk();
@@ -164,7 +387,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_matricula_capture_advances_to_awaiting_name(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->sendTrigger();
         $this->postJson($this->endpoint(), $this->payload(text: '987654'), $this->authHeaders())->assertOk();
 
         $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
@@ -175,7 +398,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_full_sequence_completes_and_sets_expiration(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->sendTrigger();
         $this->postJson($this->endpoint(), $this->payload(text: '987654'), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'Gustavo Alves'), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'Portaria 2'), $this->authHeaders())->assertOk();
@@ -206,7 +429,7 @@ class UberAccessRequestWebhookTest extends TestCase
     /** Roda o fluxo inteiro até a imagem, deixando o pedido completo. */
     private function completeFlow(string $name = 'Gustavo Alves', string $matricula = '987654'): UberAccessRequest
     {
-        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->sendTrigger();
         $this->postJson($this->endpoint(), $this->payload(text: $matricula), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: $name), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'Portaria 2'), $this->authHeaders())->assertOk();
@@ -301,12 +524,13 @@ class UberAccessRequestWebhookTest extends TestCase
 
         foreach ($cases as $i => [$cpf, $name, $official]) {
             $contact = 'employee-cpf-' . $i;
-            $send = fn (array $payload) => $this->postJson($this->endpoint(), $payload, $this->authHeaders())->assertOk();
 
-            foreach ([self::TRIGGER, $cpf, $name, 'Portaria 2', 'ABC1D23'] as $text) {
-                $send($this->payload(text: $text, contactUuid: $contact));
+            $this->sendTrigger($contact);
+
+            foreach ([$cpf, $name, 'Portaria 2', 'ABC1D23'] as $text) {
+                $this->send($this->payload(text: $text, contactUuid: $contact));
             }
-            $send($this->payload(mediaUrl: 'https://poli.example/media/print.jpg', contactUuid: $contact));
+            $this->send($this->payload(mediaUrl: 'https://poli.example/media/print.jpg', contactUuid: $contact));
 
             $request = UberAccessRequest::where('contact_uuid', $contact)->firstOrFail();
 
@@ -327,7 +551,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_media_out_of_order_does_not_advance_state(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->sendTrigger();
         $this->postJson(
             $this->endpoint(),
             $this->payload(mediaUrl: 'https://poli.example/media/print.jpg'),
@@ -342,7 +566,13 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_duplicate_message_id_is_not_reprocessed(): void
     {
-        $payload = $this->payload(text: self::TRIGGER, messageId: 'dup-1');
+        $this->send($this->menuPayload('menu-dup', self::CONTACT_UUID));
+
+        $payload = $this->payload(
+            text: $this->toqueEm(self::TRIGGER, 'Carro, moto ou táxi'),
+            messageId: 'dup-1',
+            contextMessageUuid: 'menu-dup',
+        );
 
         $this->postJson($this->endpoint(), $payload, $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $payload, $this->authHeaders())->assertOk();
@@ -353,7 +583,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_expired_session_does_not_accept_stale_answers_but_new_trigger_opens_fresh_session(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->sendTrigger();
 
         $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
         $request->update([
@@ -367,7 +597,7 @@ class UberAccessRequestWebhookTest extends TestCase
         $this->assertNull($request->requester_name);
         $this->assertDatabaseCount('uber_access_requests', 1);
 
-        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->sendTrigger();
 
         $this->assertDatabaseCount('uber_access_requests', 2);
         $this->assertDatabaseHas('uber_access_requests', [
@@ -378,7 +608,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_answer_just_within_the_timeout_is_still_accepted(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->sendTrigger();
 
         $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
         $request->update([
@@ -394,7 +624,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_completed_request_is_not_killed_by_the_response_timeout(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->sendTrigger();
         $this->postJson($this->endpoint(), $this->payload(text: '987654'), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'Gustavo Alves'), $this->authHeaders())->assertOk();
         $this->postJson($this->endpoint(), $this->payload(text: 'Portaria 2'), $this->authHeaders())->assertOk();
@@ -420,7 +650,7 @@ class UberAccessRequestWebhookTest extends TestCase
 
     public function test_scheduled_command_cancels_abandoned_capture(): void
     {
-        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->sendTrigger();
         $this->postJson($this->endpoint(), $this->payload(text: '987654'), $this->authHeaders())->assertOk();
 
         $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
@@ -434,7 +664,7 @@ class UberAccessRequestWebhookTest extends TestCase
         $this->assertSame(UberAccessRequest::STATUS_EXPIRADO, $request->status);
 
         // Cancelado de forma proativa, o gatilho seguinte abre um pedido novo.
-        $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER), $this->authHeaders())->assertOk();
+        $this->sendTrigger();
 
         $this->assertDatabaseCount('uber_access_requests', 2);
         $this->assertDatabaseHas('uber_access_requests', [

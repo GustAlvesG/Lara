@@ -2,6 +2,7 @@
 
 namespace App\Services\Poli;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -44,6 +45,98 @@ class PoliMessageParser
         return $value['metadata']['external_message_id'] ?? $value['uuid'] ?? null;
     }
 
+    /**
+     * Evento de SAÍDA que leva um menu de opções.
+     *
+     * Repare que o evento é "sent", e não "received": por isso `isRelevantEvent`
+     * continua ignorando estes payloads, e o fluxo do WhatsApp não muda. Eles
+     * servem só para indexar o menu e, depois, conferir de onde veio o toque.
+     */
+    public function isOutgoingListMessage(array $payload): bool
+    {
+        $value = $payload['value'] ?? null;
+
+        return ($payload['object'] ?? null) === 'message'
+            && ($payload['event'] ?? null) === 'sent'
+            && is_array($value)
+            && ($value['direction'] ?? null) === 'OUT'
+            && $this->listRows($value['components'] ?? []) !== [];
+    }
+
+    /**
+     * Os dados do menu enviado, no formato de poli_list_messages.
+     *
+     * A chave é `value.uuid` — é ele que a resposta devolve em
+     * `value.context.message.uuid`. O wamid de `metadata.external_message_id`
+     * existe aqui também, mas o contexto da resposta não o cita.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function parseOutgoingList(array $payload): ?array
+    {
+        $value = $payload['value'] ?? [];
+        $uuid = $value['uuid'] ?? null;
+
+        if (!is_string($uuid) || $uuid === '') {
+            return null;
+        }
+
+        $rows = $this->listRows($value['components'] ?? []);
+
+        if ($rows === []) {
+            return null;
+        }
+
+        $timestamp = $value['timestamp'] ?? null;
+
+        return [
+            'poli_message_uuid' => $uuid,
+            'attendance_uuid' => $value['attendance']['uuid'] ?? null,
+            'contact_uuid' => $value['contact']['uuid'] ?? null,
+            'template_name' => $value['components']['name'] ?? null,
+            'rows' => $rows,
+            'sent_at' => is_numeric($timestamp) ? Carbon::createFromTimestamp((int) $timestamp) : null,
+        ];
+    }
+
+    /**
+     * As opções da lista, achatadas: a seção não interessa, só o par
+     * título/descrição de cada linha — é ele que a resposta reproduz.
+     *
+     * O `id` da linha é deliberadamente descartado: é identidade gerada pela
+     * Poli e muda se alguém recriar o menu, então nenhuma regra pode depender
+     * dele.
+     *
+     * @return list<array{title: string, description: string|null}>
+     */
+    private function listRows(array $components): array
+    {
+        $rows = [];
+
+        foreach ($components['section'] ?? [] as $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            foreach ($section['rows'] ?? [] as $row) {
+                $title = $row['messageOption']['title'] ?? null;
+
+                if (!is_string($title) || trim($title) === '') {
+                    continue;
+                }
+
+                $description = $row['messageOption']['description'] ?? null;
+
+                $rows[] = [
+                    'title' => $this->sanitizeText($title),
+                    'description' => is_string($description) ? $this->sanitizeText($description) : null,
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
     public function parse(array $payload): ?ParsedPoliMessage
     {
         $value = $payload['value'] ?? null;
@@ -81,6 +174,9 @@ class PoliMessageParser
             type: $type,
             text: $text,
             mediaUrl: $mediaUrl,
+            // Só existe na ENTRADA. Na saída, `value.context` guarda a
+            // definição da própria lista — mesmo nome, outra coisa.
+            contextMessageUuid: $value['context']['message']['uuid'] ?? null,
         );
     }
 
