@@ -28,6 +28,20 @@ class UberAccessRequestFlow
     public const SESSION_TIMEOUT_SECONDS = 200;
 
     private const ACCESS_VALIDITY_MINUTES = 30;
+
+    /**
+     * Carência entre a Poli anunciar o fim do atendimento e a coleta ser
+     * encerrada de fato.
+     *
+     * Existe por causa de uma corrida estreita: no fluxo que dá certo, a
+     * despedida do bot sai no MESMO segundo em que o print chega. Os dois
+     * viram webhooks independentes, e com mais de um worker na fila o fecho
+     * pode ser processado antes do print — matando, na última etapa, um pedido
+     * que estava completo. A carência deixa o que está em voo aterrissar; se
+     * nesse meio-tempo a coleta terminar, o pedido sai de CAPTURE_STATUSES e o
+     * fecho não encosta nele.
+     */
+    public const CLOSURE_GRACE_SECONDS = 30;
     private const PLATE_PATTERN = '/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/';
 
     public function __construct(private readonly MemberValidator $memberValidator) {}
@@ -51,6 +65,38 @@ class UberAccessRequestFlow
         return $request
             ? $this->advance($request, $message)
             : $this->maybeStartSession($message);
+    }
+
+    /**
+     * Encerra a coleta de um atendimento que a Poli fechou, completa ou não.
+     *
+     * A conversa acabou: o que ficou pela metade não vai receber mais resposta
+     * nenhuma, e segurá-lo aberto só faz a próxima mensagem do associado cair
+     * como se fosse continuação. Encerrado aqui, a mensagem seguinte não acha
+     * pedido aberto e passa pela validação do gatilho de novo — que é como
+     * deve ser, porque é um pedido novo.
+     *
+     * Só a COLETA é encerrada. Um pedido já em "aguardando_acesso" está
+     * completo e o atendimento fecha logo depois dele no fluxo normal: expirar
+     * aí mataria todo pedido legítimo no instante em que ficou pronto. Ele
+     * segue vivo até o motorista chegar ou até `expires_at` vencer.
+     *
+     * @return int quantas coletas foram encerradas
+     */
+    public function closeCaptureForAttendance(string $attendanceUuid): int
+    {
+        $encerradas = UberAccessRequest::whereIn('status', UberAccessRequest::CAPTURE_STATUSES)
+            ->where('poli_attendance_uuid', $attendanceUuid)
+            ->update(['status' => UberAccessRequest::STATUS_EXPIRADO]);
+
+        if ($encerradas > 0) {
+            Log::info('UberAccessRequestFlow: coleta encerrada com o atendimento', [
+                'poli_attendance_uuid' => $attendanceUuid,
+                'pedidos' => $encerradas,
+            ]);
+        }
+
+        return $encerradas;
     }
 
     /**

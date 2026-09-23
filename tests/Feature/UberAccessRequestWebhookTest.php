@@ -3,12 +3,14 @@
 namespace Tests\Feature;
 
 use App\Exceptions\PoliListMessageNotIndexedException;
+use App\Jobs\CloseUberCaptureSession;
 use App\Models\Employee;
 use App\Models\UberAccessRequest;
 use App\Models\UberAccessRequestMessage;
 use App\Services\MultiClubes\TitleMemberLookup;
 use App\Services\Poli\ParsedPoliMessage;
 use App\Services\UberAccessRequestFlow;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 /**
@@ -161,6 +163,33 @@ class UberAccessRequestWebhookTest extends TestCase
                 ],
                 'attendance' => ['uuid' => $attendanceUuid ?? $this->attendanceFor($contactUuid)],
                 'metadata' => ['external_message_id' => 'wamid-out-' . $menuUuid],
+            ],
+        ];
+    }
+
+    /**
+     * A despedida do bot, que é onde `attendance.closed_reason` aparece —
+     * as mensagens anteriores do mesmo atendimento trazem null.
+     */
+    private function closingPayload(string $contactUuid = self::CONTACT_UUID, ?string $attendanceUuid = null): array
+    {
+        $this->messageCounter++;
+
+        return [
+            'object' => 'message',
+            'event' => 'sent',
+            'value' => [
+                'uuid' => 'bot-close-' . $this->messageCounter,
+                'event' => 'MESSAGE',
+                'type' => 'CHAT',
+                'direction' => 'OUT',
+                'contact' => ['uuid' => $contactUuid],
+                'components' => ['body' => ['text' => 'Prezado(a), Estamos finalizando esse chat.']],
+                'attendance' => [
+                    'uuid' => $attendanceUuid ?? $this->attendanceFor($contactUuid),
+                    'closed_reason' => 'FINISHED_BY_SYSTEM',
+                ],
+                'metadata' => ['external_message_id' => 'wamid-close-' . $this->messageCounter],
             ],
         ];
     }
@@ -356,6 +385,106 @@ class UberAccessRequestWebhookTest extends TestCase
         $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
 
         $this->assertSame('Financeiro', $request->club_location);
+    }
+
+    /**
+     * O atendimento fechou no meio da coleta: o associado desistiu, ou o bot
+     * encerrou. O que ficou pela metade não recebe mais resposta, então não
+     * tem por que continuar aberto.
+     */
+    public function test_fecho_do_atendimento_encerra_a_coleta_incompleta(): void
+    {
+        $this->sendTrigger();
+        $this->send($this->payload(text: '987654'));
+
+        $this->send($this->closingPayload());
+
+        $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
+
+        $this->assertSame(UberAccessRequest::STATUS_EXPIRADO, $request->status);
+    }
+
+    /**
+     * O caso que não pode dar errado: no fluxo normal o atendimento fecha
+     * LOGO DEPOIS do print, com o pedido já pronto. Encerrar aqui mataria todo
+     * pedido legítimo no instante em que ele ficou utilizável na portaria.
+     */
+    public function test_fecho_do_atendimento_nao_toca_em_pedido_ja_completo(): void
+    {
+        $request = $this->completeFlow();
+
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_ACESSO, $request->status);
+
+        $this->send($this->closingPayload());
+
+        $request->refresh();
+
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_ACESSO, $request->status);
+        $this->assertNotNull($request->expires_at);
+    }
+
+    /**
+     * Encerrada a coleta, a mensagem seguinte não é continuação: não acha
+     * pedido aberto, e volta a passar pela validação do gatilho. Só um toque
+     * válido no menu recomeça.
+     */
+    public function test_mensagem_depois_do_fecho_e_uma_validacao_nova(): void
+    {
+        $this->sendTrigger();
+        $this->send($this->payload(text: '987654'));
+        $this->send($this->closingPayload());
+
+        // Texto solto não continua o pedido encerrado nem abre outro.
+        $this->send($this->payload(text: 'Gustavo Alves'));
+
+        $this->assertDatabaseCount('uber_access_requests', 1);
+        $this->assertNull(
+            UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail()->requester_name
+        );
+
+        $this->sendTrigger();
+
+        $this->assertDatabaseCount('uber_access_requests', 2);
+        $this->assertSame(
+            UberAccessRequest::STATUS_AGUARDANDO_MATRICULA,
+            UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->latest('id')->firstOrFail()->status
+        );
+    }
+
+    /** O fecho é de um atendimento, não de todo mundo que está pedindo. */
+    public function test_fecho_de_um_atendimento_nao_encerra_o_de_outro_contato(): void
+    {
+        $this->sendTrigger('contato-a');
+        $this->sendTrigger('contato-b');
+
+        $this->send($this->closingPayload('contato-a'));
+
+        $this->assertSame(
+            UberAccessRequest::STATUS_EXPIRADO,
+            UberAccessRequest::where('contact_uuid', 'contato-a')->firstOrFail()->status
+        );
+        $this->assertSame(
+            UberAccessRequest::STATUS_AGUARDANDO_MATRICULA,
+            UberAccessRequest::where('contact_uuid', 'contato-b')->firstOrFail()->status
+        );
+    }
+
+    /**
+     * O fecho vai para a fila COM ATRASO. A despedida do bot sai no mesmo
+     * segundo em que o print chega, e sem a carência um segundo worker poderia
+     * encerrar a coleta antes de o print ser processado.
+     */
+    public function test_fecho_do_atendimento_vai_adiado_para_a_fila(): void
+    {
+        Queue::fake([CloseUberCaptureSession::class]);
+
+        $this->send($this->closingPayload());
+
+        Queue::assertPushed(
+            CloseUberCaptureSession::class,
+            fn (CloseUberCaptureSession $job) => $job->attendanceUuid === $this->attendanceFor(self::CONTACT_UUID)
+                && $job->delay !== null
+        );
     }
 
     /** Resposta digitada continua entrando como veio. */

@@ -46,6 +46,37 @@ class PoliMessageParser
     }
 
     /**
+     * O atendimento que este evento anuncia como encerrado, ou null.
+     *
+     * Vem pelas mensagens de despedida do bot (`event: "sent"`), que trazem
+     * `attendance.closed_reason` preenchido enquanto as anteriores trazem
+     * null. Como são eventos de saída, não passam por `isRelevantEvent` — quem
+     * os lê é o job, antes de decidir se a mensagem entra no fluxo.
+     *
+     * Qualquer motivo de encerramento serve, não só o FINISHED_BY_SYSTEM do
+     * fim do fluxo: para nós o que importa é que aquela conversa acabou, e o
+     * atendimento encerrado por um atendente acaba do mesmo jeito.
+     */
+    public function extractFinishedAttendanceUuid(array $payload): ?string
+    {
+        $attendance = $payload['value']['attendance'] ?? null;
+
+        if (!is_array($attendance)) {
+            return null;
+        }
+
+        $closedReason = $attendance['closed_reason'] ?? null;
+
+        if (!is_string($closedReason) || trim($closedReason) === '') {
+            return null;
+        }
+
+        $uuid = $attendance['uuid'] ?? null;
+
+        return is_string($uuid) && $uuid !== '' ? $uuid : null;
+    }
+
+    /**
      * Evento de SAÍDA que leva um menu de opções.
      *
      * Repare que o evento é "sent", e não "received": por isso `isRelevantEvent`
