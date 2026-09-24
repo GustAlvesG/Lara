@@ -6,6 +6,7 @@ use App\Exceptions\SelfServiceLightingException;
 use App\Models\Contactor;
 use App\Models\HomeAssistantOverride;
 use App\Models\LightingSelfServiceDate;
+use App\Models\LightingSelfServiceWindow;
 use App\Models\MemberLightingActivation;
 use App\Models\Place;
 use App\Models\Schedule;
@@ -55,6 +56,18 @@ class SelfServiceLightingService
      */
     private array $dates = [];
 
+    /**
+     * Todos os horários cadastrados, lidos uma vez por requisição.
+     *
+     * São poucas dezenas de linhas (oito dias × padrão + as quadras que fogem
+     * dele) e a resolução as consulta a cada dia varrido: trazer tudo de uma
+     * vez é mais barato que a consulta por linha, e simplifica a precedência.
+     */
+    private ?Collection $windows = null;
+
+    /** Quadras liberadas, lidas uma vez por requisição. */
+    private ?Collection $places = null;
+
     public function __construct(
         private ManualCommandService $commands,
     ) {
@@ -63,12 +76,19 @@ class SelfServiceLightingService
     /* ───────────────────────────── Janelas ───────────────────────────── */
 
     /**
-     * A janela do dia informado, ou null quando o autoatendimento está fechado.
+     * A janela do dia para uma quadra, ou null quando ela está fechada.
      *
-     * A data sempre vence o dia da semana: um `block` cadastrado fecha o sábado
-     * do torneio, e um `allow` abre a quinta-feira de Natal.
+     * Sem `$place`, responde pelo **padrão do clube** — é o que o painel mostra
+     * como horário geral, e o que vale para quadra que não tem exceção.
+     *
+     * Duas precedências, nesta ordem:
+     *
+     * 1. A **data** vence o dia da semana: um `block` fecha o sábado do
+     *    torneio, e um `allow` abre a quinta-feira de Natal.
+     * 2. A **quadra** vence o padrão do clube: a coberta escurece antes e abre
+     *    mais cedo que a descoberta ao lado, no mesmo dia.
      */
-    public function windowFor(Carbon $day): ?LightingWindow
+    public function windowFor(Carbon $day, ?Place $place = null): ?LightingWindow
     {
         $exception = $this->exceptionFor($day);
 
@@ -77,45 +97,55 @@ class SelfServiceLightingService
                 return null;
             }
 
-            // Sem horário próprio, o feriado usa a janela de feriado padrão.
-            [$start, $end] = $exception->starts_at && $exception->ends_at
-                ? [$exception->starts_at, $exception->ends_at]
-                : (array) config('home_assistant.self_service.holiday_window', ['17:00', '21:00']);
+            // Data liberada com horário próprio vale para todas as quadras: foi
+            // uma decisão tomada para aquele dia específico.
+            if ($exception->starts_at && $exception->ends_at) {
+                return $this->buildWindow(
+                    $day,
+                    $exception->starts_at,
+                    $exception->ends_at,
+                    LightingWindow::SOURCE_DATE,
+                    $exception->reason
+                );
+            }
 
-            return $this->buildWindow($day, $start, $end, LightingWindow::SOURCE_DATE, $exception->reason);
+            // Sem horário, cai no horário de feriado — que também é por quadra,
+            // para a coberta abrir cedo no feriado como abre no domingo.
+            $range = $this->rangeFor(LightingSelfServiceWindow::WEEKDAY_HOLIDAY, $place);
+
+            return $range
+                ? $this->buildWindow($day, $range[0], $range[1], LightingWindow::SOURCE_DATE, $exception->reason)
+                : null;
         }
 
-        $windows = (array) config('home_assistant.self_service.windows', []);
-        $range = $windows[$day->dayOfWeek] ?? null;
+        $range = $this->rangeFor($day->dayOfWeek, $place);
 
-        if (! $range) {
-            return null;
-        }
-
-        return $this->buildWindow($day, $range[0], $range[1], LightingWindow::SOURCE_WEEKLY);
+        return $range
+            ? $this->buildWindow($day, $range[0], $range[1], LightingWindow::SOURCE_WEEKLY)
+            : null;
     }
 
-    /** A janela que contém este instante, se houver uma aberta agora. */
-    public function openWindowAt(Carbon $moment): ?LightingWindow
+    /** A janela que contém este instante, se a quadra estiver aberta agora. */
+    public function openWindowAt(Carbon $moment, ?Place $place = null): ?LightingWindow
     {
-        $window = $this->windowFor($moment);
+        $window = $this->windowFor($moment, $place);
 
         return $window && $window->contains($moment) ? $window : null;
     }
 
     /**
-     * A próxima janela a partir deste instante — inclusive a de hoje, quando
-     * ainda não começou.
+     * A próxima janela da quadra a partir deste instante — inclusive a de hoje,
+     * quando ainda não começou.
      *
      * É o que a tela mostra quando o sócio abre o app numa terça: sem isto, a
      * única resposta possível seria "fechado", sem dizer até quando.
      */
-    public function nextWindow(Carbon $moment): ?LightingWindow
+    public function nextWindow(Carbon $moment, ?Place $place = null): ?LightingWindow
     {
         $this->preloadDates($moment, $moment->copy()->addDays(self::NEXT_WINDOW_SEARCH_DAYS));
 
         for ($i = 0; $i <= self::NEXT_WINDOW_SEARCH_DAYS; $i++) {
-            $window = $this->windowFor($moment->copy()->addDays($i)->startOfDay());
+            $window = $this->windowFor($moment->copy()->addDays($i)->startOfDay(), $place);
 
             if ($window && $window->end->greaterThan($moment)) {
                 return $window;
@@ -123,6 +153,75 @@ class SelfServiceLightingService
         }
 
         return null;
+    }
+
+    /**
+     * Alguma quadra liberada está aberta agora?
+     *
+     * Com horário por quadra, "o autoatendimento está aberto" deixou de ser uma
+     * pergunta sobre o relógio do clube e virou uma sobre o conjunto: às 15h de
+     * sábado a coberta já abriu e as outras não.
+     */
+    public function anyOpenAt(Carbon $moment): bool
+    {
+        return $this->eligiblePlaces()->contains(
+            fn (Place $place) => $this->openWindowAt($moment, $place) !== null
+        );
+    }
+
+    /** A primeira janela a abrir entre todas as quadras liberadas. */
+    public function earliestNextWindow(Carbon $moment): ?LightingWindow
+    {
+        return $this->eligiblePlaces()
+            ->map(fn (Place $place) => $this->nextWindow($moment, $place))
+            ->filter()
+            ->sortBy(fn (LightingWindow $window) => $window->start->getTimestamp())
+            ->first();
+    }
+
+    /**
+     * A faixa de horário que vale para o dia, resolvendo a precedência.
+     *
+     * Quadra → padrão do clube → configuração. A configuração continua no fim
+     * da fila como rede de segurança: um banco sem as linhas semeadas (ou um
+     * `config:cache` velho) não pode deixar o clube sem horário nenhum.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    private function rangeFor(int $weekday, ?Place $place): ?array
+    {
+        $rows = $this->windowRows();
+
+        if ($place) {
+            $own = $rows->first(fn ($row) => $row->place_id === $place->id && $row->weekday === $weekday);
+
+            // Linha da quadra sem horário é "fechado nesta quadra neste dia" —
+            // e por isso interrompe a busca em vez de cair no padrão.
+            if ($own) {
+                return $own->range();
+            }
+        }
+
+        $default = $rows->first(fn ($row) => $row->place_id === null && $row->weekday === $weekday);
+
+        if ($default) {
+            return $default->range();
+        }
+
+        if ($weekday === LightingSelfServiceWindow::WEEKDAY_HOLIDAY) {
+            $holiday = (array) config('home_assistant.self_service.holiday_window', []);
+
+            return count($holiday) === 2 ? [$holiday[0], $holiday[1]] : null;
+        }
+
+        $configured = (array) config('home_assistant.self_service.windows', []);
+
+        return $configured[$weekday] ?? null;
+    }
+
+    private function windowRows(): Collection
+    {
+        return $this->windows ??= LightingSelfServiceWindow::all();
     }
 
     /** A exceção cadastrada para o dia, consultando no máximo uma vez por data. */
@@ -179,7 +278,10 @@ class SelfServiceLightingService
      */
     public function eligiblePlaces(): Collection
     {
-        return Place::selfServiceLighting()
+        // Memorizado porque a disponibilidade percorre a lista duas vezes (quem
+        // está aberto agora e qual janela abre primeiro), e ela não muda no
+        // meio de uma requisição.
+        return $this->places ??= Place::selfServiceLighting()
             ->with(['group', 'contactor'])
             ->get();
     }
@@ -263,7 +365,7 @@ class SelfServiceLightingService
         $now = $moment ?: Carbon::now();
 
         $this->assertEligible($place);
-        $window = $this->assertWindowOpen($now);
+        $window = $this->assertWindowOpen($now, $place);
 
         $current = $this->activeFor($memberId, $now);
 
@@ -400,15 +502,17 @@ class SelfServiceLightingService
         }
     }
 
-    private function assertWindowOpen(Carbon $now): LightingWindow
+    private function assertWindowOpen(Carbon $now, Place $place): LightingWindow
     {
-        $window = $this->openWindowAt($now);
+        $window = $this->openWindowAt($now, $place);
 
         if (! $window) {
-            $next = $this->nextWindow($now);
+            // A próxima janela **desta quadra**: a coberta abre às 14h e a de
+            // fora às 17h, e mandar o horário errado é pior que não mandar.
+            $next = $this->nextWindow($now, $place);
 
             throw SelfServiceLightingException::closed(
-                'O acionamento da luz está disponível apenas nos horários liberados.',
+                'O acionamento da luz desta quadra está disponível apenas nos horários liberados.',
                 ['next_window' => $next?->toArray()]
             );
         }

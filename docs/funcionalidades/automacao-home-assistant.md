@@ -119,16 +119,42 @@ seguinte. O que a camada acrescenta é **de quem é a cota** e **quem acendeu**.
 
 ### Regras
 
-1. **Só na janela.** Sábado 17:00–23:00 e domingo 17:00–21:00, em
-   `config/home_assistant.php`. Feriados e bloqueios pontuais vêm da tabela
-   `lighting_self_service_dates`, cadastrada no painel — e a **data sempre vence o dia da
-   semana**.
+1. **Só na janela**, e a janela é **por quadra**. Ver [Horários](#horários) abaixo.
 2. **Só em quadra liberada.** `places.self_service_lighting`, marcada em *Espaços → editar →
    Autoatendimento do sócio*. Sem contator vinculado a quadra não aparece.
 3. **O sócio escolhe o tempo**, até `max_minutes` (2 h) por acionamento, sempre aparado no
    fim da janela: às 22:30 de sábado o máximo são 30 minutos.
 4. **Uma quadra por sócio ao mesmo tempo, sem teto diário.**
 5. **Quadra com reserva confirmada não aciona.** Ela tem dono e a luz já acende sozinha.
+
+### Horários
+
+Estão na tabela `lighting_self_service_windows`, editável na aba **Autoatendimento** do
+painel — mudar de 17h para 14h não é deploy. Duas camadas na mesma tabela:
+
+- **Padrão do clube** (`place_id` nulo): uma linha por dia da semana.
+- **Exceção da quadra** (`place_id` preenchido): o caso das **quadras cobertas**, que
+  escurecem antes e precisam de luz mais cedo que a quadra aberta ao lado, no mesmo dia.
+
+`weekday` segue o Carbon (0 = domingo … 6 = sábado), mais o **7 = feriado**. Numa linha de
+quadra, horários nulos significam **fechada naquele dia**, mesmo com o clube aberto — é como
+se cala uma quadra sem mexer no padrão.
+
+A resolução de um dia, na ordem: **exceção da quadra → padrão do clube →
+`config/home_assistant.php`**. A configuração ficou no fim da fila como rede de segurança:
+banco sem as linhas semeadas não pode deixar o clube sem horário nenhum.
+
+As **datas especiais** (`lighting_self_service_dates`) vêm antes de tudo isso:
+
+- `block` fecha o dia em **todas** as quadras;
+- `allow` **com** horário vale para todas as quadras — é decisão tomada para aquele dia;
+- `allow` **sem** horário cai na linha `weekday = 7` de cada quadra, e por isso a coberta
+  também abre cedo no feriado, sem ninguém precisar lembrar de cadastrar a hora.
+
+Consequência para a API: **"está aberto?" deixou de ser uma pergunta sobre o relógio do
+clube**. Às 15h de sábado a coberta já abriu e as outras não. O `open` de
+`/api/lighting/availability` é o agregado ("há alguma quadra aberta?"), e o horário de cada
+quadra vem em `/api/lighting/groups/{group}/places`.
 
 ### A luz não é de ninguém
 
@@ -154,9 +180,9 @@ Daí três consequências que o código honra explicitamente:
 
 | Método | URI | O que faz |
 |--------|-----|-----------|
-| GET | `/api/lighting/availability` | Janela de hoje, a próxima, os limites de duração e o acionamento vigente do sócio. |
+| GET | `/api/lighting/availability` | Se **alguma** quadra está aberta, a próxima a abrir, os limites de duração e o acionamento vigente do sócio. |
 | GET | `/api/lighting/groups` | Grupos que têm ao menos uma quadra liberada. |
-| GET | `/api/lighting/groups/{group}/places` | Quadras do grupo, com `lit` e `lit_until`. |
+| GET | `/api/lighting/groups/{group}/places` | Quadras do grupo, cada uma com a própria janela, `available_minutes`, `lit` e `lit_until`. |
 | POST | `/api/lighting/places/{place}/activate` | Acende pelos `minutes` pedidos. `201` novo, `200` prolongando. |
 | POST | `/api/lighting/release` | Devolve a quadra antes da hora. |
 | GET | `/api/lighting/activations` | Histórico do sócio (30 últimos). |
@@ -166,7 +192,7 @@ código, não pelo texto em português:
 
 | `reason` | HTTP | Quando |
 |----------|------|--------|
-| `window_closed` | 422 | Fora da janela, ou dia bloqueado. Vem com `next_window`. |
+| `window_closed` | 422 | Fora da janela **daquela quadra**, ou dia bloqueado. Vem com `next_window`, também da quadra. |
 | `window_ending` | 422 | Falta menos que `min_minutes` para fechar. |
 | `member_limit` | 409 | O sócio está em **outra** quadra. Vem com `active_activation`. |
 | `place_not_eligible` | 422 | Quadra não liberada, ou sem contator. |
@@ -185,9 +211,10 @@ aceita sócio vindo do corpo da requisição**.
   `LightingWindow.php`, `app/Exceptions/SelfServiceLightingException.php`
 - Endpoints: `app/Http/Controllers/Api/MemberLightingController.php`,
   `app/Http/Requests/StoreMemberLightingActivationRequest.php`
-- Modelos: `LightingSelfServiceDate`, `MemberLightingActivation`
+- Modelos: `LightingSelfServiceWindow`, `LightingSelfServiceDate`, `MemberLightingActivation`
 - Painel: aba **Autoatendimento** em `/home-assistant`
-  (`resources/views/home-assistant/partials/self-service.blade.php`)
+  (`resources/views/home-assistant/partials/self-service.blade.php` e
+  `self-service-window-form.blade.php`, o modal de horário por quadra)
 - Testes: `tests/Unit/HomeAssistant/SelfServiceLightingWindowTest.php`,
   `tests/Feature/MemberLightingSelfServiceTest.php`
 - Front-end: [prompt de implementação](iluminacao-autoatendimento-prompt.md)
@@ -201,9 +228,11 @@ aceita sócio vindo do corpo da requisição**.
   controle Automático / Ligado / Desligado.
 - **Agendamentos**: lista de ativos e de pausados/expirados, com resumo em texto, dias,
   contatores, período, prioridade, interruptor de pausa, edição e remoção.
-- **Autoatendimento**: os horários fixos de fim de semana, a próxima janela, as quadras
-  liberadas, quem está com luz acesa agora e o cadastro de **datas especiais** (liberar um
-  feriado, bloquear um sábado de torneio).
+- **Autoatendimento**: o **horário padrão** do clube (editável, um campo por dia da semana
+  mais o feriado), as quadras liberadas com o horário efetivo de hoje e o modal de **horário
+  próprio por quadra** (seguir o padrão / horário próprio / fechada), quem está com luz acesa
+  agora e o cadastro de **datas especiais** (liberar um feriado, bloquear um sábado de
+  torneio).
 - O formulário de agendamento mostra, antes de salvar, um resumo em linguagem natural do que
   o agendamento vai fazer.
 - A página recarrega a cada minuto, exceto quando há um modal aberto ou alguém digitando.

@@ -48,27 +48,27 @@ class MemberLightingController extends Controller
             return response()->json(['error' => 'Sócio não encontrado.'], 404);
         }
 
-        $today  = $this->lighting->windowFor($now->copy()->startOfDay());
-        $open   = $this->lighting->openWindowAt($now);
         $active = $this->lighting->activeFor($member->id, $now);
 
         return response()->json([
-            'now'              => $now->toIso8601String(),
-            'open'             => (bool) $open,
-            'window'           => $open?->toArray(),
-            'today_window'     => $today?->toArray(),
-            // Preenchida mesmo com a janela aberta: a tela usa para dizer
-            // "próximo horário" depois que o sócio já acionou hoje.
-            'next_window'      => $this->lighting->nextWindow($now)?->toArray(),
+            'now' => $now->toIso8601String(),
+            // Agregado, e não o relógio do clube: cada quadra tem o próprio
+            // horário, e às 15h de sábado a coberta já abriu e as outras não.
+            // Este campo diz apenas se vale mostrar o fluxo de escolha.
+            'open' => $this->lighting->anyOpenAt($now),
+            // A primeira janela a abrir entre todas as quadras. O horário
+            // exato de cada uma vem em /groups/{id}/places.
+            'next_window'  => $this->lighting->earliestNextWindow($now)?->toArray(),
+            // Horário geral do clube, para texto genérico. Uma quadra pode
+            // abrir antes ou depois — não decida nada por ele.
+            'club_window'  => $this->lighting->windowFor($now->copy()->startOfDay())?->toArray(),
             // O seletor de duração da tela é montado com estes três: pedir
-            // acima do teto é recusado, e o teto muda sem deploy do app.
-            'max_minutes'      => $this->lighting->maxMinutes(),
-            'min_minutes'      => $this->lighting->minimumMinutes(),
-            'step_minutes'     => $this->lighting->stepMinutes(),
-            // Quanto dá para pedir agora: o teto aparado no que resta da
-            // janela. Zero (ou abaixo do mínimo) quer dizer "hoje acabou".
-            'available_minutes' => $open ? $this->lighting->minutesToGrant($open, $now) : 0,
-            'activation'       => $active ? $this->lighting->activationPayload($active, $now) : null,
+            // acima do teto é recusado, e o teto muda sem deploy do app. O
+            // máximo do seletor, porém, é o `available_minutes` da quadra.
+            'max_minutes'  => $this->lighting->maxMinutes(),
+            'min_minutes'  => $this->lighting->minimumMinutes(),
+            'step_minutes' => $this->lighting->stepMinutes(),
+            'activation'   => $active ? $this->lighting->activationPayload($active, $now) : null,
         ]);
     }
 
@@ -97,8 +97,12 @@ class MemberLightingController extends Controller
     }
 
     /**
-     * As quadras liberadas de um grupo, cada uma dizendo se a luz já está acesa
-     * e até quando.
+     * As quadras liberadas de um grupo, cada uma com o próprio horário, quanto
+     * dá para pedir agora, e se a luz já está acesa.
+     *
+     * É aqui que mora a verdade desde que o horário passou a ser por quadra: a
+     * disponibilidade geral só diz se vale mostrar o fluxo. Uma quadra coberta
+     * pode estar aberta às 15h com todas as outras fechadas.
      *
      * Acesa **não** é indisponível: a quadra continua acionável, e acionar uma
      * já acesa é justamente como se prolonga a luz. O que o `lit_until` muda é
@@ -116,13 +120,25 @@ class MemberLightingController extends Controller
         $lit = $this->lighting->litUntilMany($places->pluck('id')->all(), $now);
 
         $places = $places
-            ->map(fn (Place $place) => [
-                'id'        => $place->id,
-                'name'      => $place->name,
-                'image'     => $place->image,
-                'lit'       => isset($lit[$place->id]),
-                'lit_until' => $lit[$place->id] ?? null,
-            ])
+            ->map(function (Place $place) use ($now, $lit) {
+                $open = $this->lighting->openWindowAt($now, $place);
+
+                return [
+                    'id'        => $place->id,
+                    'name'      => $place->name,
+                    'image'     => $place->image,
+                    'open'      => $open !== null,
+                    'window'    => $open?->toArray(),
+                    // Quanto dá para pedir nesta quadra agora: o teto aparado
+                    // no que resta da janela dela. É o máximo do seletor.
+                    'available_minutes' => $open ? $this->lighting->minutesToGrant($open, $now) : 0,
+                    // Preenchida mesmo com a quadra aberta: a tela usa para
+                    // dizer quando ela volta, depois que o horário fechar.
+                    'next_window' => $this->lighting->nextWindow($now, $place)?->toArray(),
+                    'lit'       => isset($lit[$place->id]),
+                    'lit_until' => $lit[$place->id] ?? null,
+                ];
+            })
             ->sortBy('name')
             ->values();
 

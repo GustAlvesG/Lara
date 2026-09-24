@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Contactor;
 use App\Models\HomeAssistantOverride;
 use App\Models\LightingSelfServiceDate;
+use App\Models\LightingSelfServiceWindow;
 use App\Models\MemberLightingActivation;
+use App\Models\Place;
 use App\Models\Weekday;
 use App\Services\HomeAssistant\ContactorState;
 use App\Services\HomeAssistant\ContactorStateResolver;
@@ -61,20 +63,36 @@ class HomeAssistantController extends Controller
             ->orderBy('date')
             ->get();
 
-        $selfServiceWindows  = (array) config('home_assistant.self_service.windows', []);
-        $selfServiceToday    = $selfService->windowFor($now->copy()->startOfDay());
-        $selfServiceNext     = $selfService->nextWindow($now);
-        $selfServicePlaces   = $selfService->eligiblePlaces();
-        $selfServiceActive   = MemberLightingActivation::activeAt($now)
+        $selfServicePlaces = $selfService->eligiblePlaces();
+        $selfServiceNext   = $selfService->earliestNextWindow($now);
+        $selfServiceActive = MemberLightingActivation::activeAt($now)
             ->with('place')
             ->orderBy('ends_at')
             ->get();
 
+        /*
+         * Horários: o padrão do clube e as exceções por quadra, os dois
+         * indexados por dia da semana para a tabela do painel não procurar
+         * linha a linha.
+         */
+        $rows = LightingSelfServiceWindow::all();
+
+        $selfServiceWindows      = $rows->whereNull('place_id')->keyBy('weekday');
+        $selfServicePlaceWindows = $rows->whereNotNull('place_id')
+            ->groupBy('place_id')
+            ->map(fn ($place) => $place->keyBy('weekday'));
+
+        // A janela efetiva de hoje, quadra a quadra: é o que responde "por que
+        // a quadra 2 não acendeu?" sem ninguém abrir o banco.
+        $selfServiceToday = $selfServicePlaces->mapWithKeys(
+            fn ($place) => [$place->id => $selfService->windowFor($now->copy()->startOfDay(), $place)]
+        );
+
         return view('home-assistant.index', compact(
             'now', 'contactors', 'states', 'timelines', 'inEffectIds',
             'activeOverrides', 'archivedOverrides', 'weekdays',
-            'selfServiceDates', 'selfServiceWindows', 'selfServiceToday',
-            'selfServiceNext', 'selfServicePlaces', 'selfServiceActive'
+            'selfServiceDates', 'selfServiceWindows', 'selfServicePlaceWindows',
+            'selfServiceToday', 'selfServiceNext', 'selfServicePlaces', 'selfServiceActive'
         ));
     }
 
@@ -197,6 +215,117 @@ class HomeAssistantController extends Controller
     {
         $override->delete();
         return redirect()->to(route('home-assistant.index') . '#schedules')->with('success', 'Agendamento removido!');
+    }
+
+    /* ──────────────── Autoatendimento: horários por dia ──────────────── */
+
+    /**
+     * Horário padrão do clube, um por dia da semana (mais o feriado).
+     *
+     * Os dois campos vazios num dia querem dizer **fechado**, e a linha é
+     * gravada assim mesmo: um "fechado" explícito precisa vencer o valor que
+     * ainda está em `config/home_assistant.php`, senão apagar o horário no
+     * painel não teria efeito nenhum.
+     */
+    public function saveSelfServiceWindows(Request $request)
+    {
+        foreach ($this->validateSelfServiceWindows($request) as $weekday => $range) {
+            LightingSelfServiceWindow::updateOrCreate(
+                ['place_id' => null, 'weekday' => $weekday],
+                ['starts_at' => $range['starts_at'] ?? null, 'ends_at' => $range['ends_at'] ?? null]
+            );
+        }
+
+        return redirect()->to(route('home-assistant.index') . '#self-service')
+            ->with('success', 'Horário padrão atualizado.');
+    }
+
+    /**
+     * Horário de uma quadra específica.
+     *
+     * Existe por causa das quadras cobertas: elas escurecem antes e precisam de
+     * luz mais cedo que a quadra aberta ao lado, no mesmo dia.
+     *
+     * Cada dia tem três destinos: `inherit` apaga a linha (a quadra volta a
+     * seguir o padrão), `closed` grava a linha sem horário (a quadra fica calada
+     * naquele dia, mesmo com o clube aberto) e `custom` grava a faixa própria.
+     */
+    public function saveSelfServicePlaceWindows(Request $request, Place $place)
+    {
+        $data = $this->validateSelfServiceWindows($request, withMode: true);
+
+        DB::transaction(function () use ($data, $place) {
+            foreach ($data as $weekday => $range) {
+                $mode = $range['mode'] ?? 'inherit';
+
+                if ($mode === 'inherit') {
+                    LightingSelfServiceWindow::where('place_id', $place->id)
+                        ->where('weekday', $weekday)->delete();
+
+                    continue;
+                }
+
+                LightingSelfServiceWindow::updateOrCreate(
+                    ['place_id' => $place->id, 'weekday' => $weekday],
+                    $mode === 'closed'
+                        ? ['starts_at' => null, 'ends_at' => null]
+                        : ['starts_at' => $range['starts_at'] ?? null, 'ends_at' => $range['ends_at'] ?? null]
+                );
+            }
+        });
+
+        return redirect()->to(route('home-assistant.index') . '#self-service')
+            ->with('success', 'Horário de ' . $place->name . ' atualizado.');
+    }
+
+    /** Devolve a quadra ao horário padrão do clube, em todos os dias. */
+    public function resetSelfServicePlaceWindows(Place $place)
+    {
+        LightingSelfServiceWindow::where('place_id', $place->id)->delete();
+
+        return redirect()->to(route('home-assistant.index') . '#self-service')
+            ->with('success', $place->name . ' voltou a seguir o horário padrão.');
+    }
+
+    /**
+     * @return array<int, array{mode?: string, starts_at?: string|null, ends_at?: string|null}>
+     */
+    private function validateSelfServiceWindows(Request $request, bool $withMode = false): array
+    {
+        $rules = [
+            'windows'             => 'required|array',
+            'windows.*.starts_at' => 'nullable|date_format:H:i|required_with:windows.*.ends_at',
+            // `after` e não `after_or_equal`: faixa de duração zero não abre
+            // nada, e uma que vira o dia não seria honrada pelo comando manual,
+            // truncado na meia-noite.
+            'windows.*.ends_at'   => 'nullable|date_format:H:i|after:windows.*.starts_at|required_with:windows.*.starts_at',
+        ];
+
+        if ($withMode) {
+            $rules['windows.*.mode']      = 'required|in:inherit,closed,custom';
+            // Sem isto, "faixa própria" com os campos vazios viraria um
+            // fechamento silencioso da quadra.
+            $rules['windows.*.starts_at'] .= '|required_if:windows.*.mode,custom';
+            $rules['windows.*.ends_at']   .= '|required_if:windows.*.mode,custom';
+        }
+
+        $data = $request->validate($rules, [
+            'windows.*.ends_at.after'           => 'O horário final precisa ser depois do inicial, e no mesmo dia.',
+            'windows.*.ends_at.required_with'   => 'Informe os dois horários, ou nenhum.',
+            'windows.*.starts_at.required_with' => 'Informe os dois horários, ou nenhum.',
+            'windows.*.starts_at.required_if'   => 'Informe o horário da faixa, ou escolha herdar/fechado.',
+            'windows.*.ends_at.required_if'     => 'Informe o horário da faixa, ou escolha herdar/fechado.',
+        ]);
+
+        $windows = [];
+
+        foreach ($data['windows'] as $weekday => $range) {
+            if (in_array((int) $weekday, LightingSelfServiceWindow::WEEKDAYS, true)) {
+                $windows[(int) $weekday] = $range;
+            }
+        }
+
+        return $windows;
     }
 
     /* ──────────── Autoatendimento: datas especiais (feriados) ──────────── */

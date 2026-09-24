@@ -268,7 +268,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/overrides/{override}/toggle', [HomeAssistantController::class, 'toggleOverride'])->name('home-assistant.overrides.toggle');
         Route::delete('/overrides/{override}', [HomeAssistantController::class, 'destroyOverride'])->name('home-assistant.overrides.destroy');
 
-        // Autoatendimento do sócio: feriados liberados e dias bloqueados.
+        // Autoatendimento do sócio: horários, exceções por quadra e feriados.
+        Route::post('/self-service/windows', [HomeAssistantController::class, 'saveSelfServiceWindows'])->name('home-assistant.self-service.windows.save');
+        Route::post('/self-service/windows/{place}', [HomeAssistantController::class, 'saveSelfServicePlaceWindows'])->name('home-assistant.self-service.windows.place');
+        Route::delete('/self-service/windows/{place}', [HomeAssistantController::class, 'resetSelfServicePlaceWindows'])->name('home-assistant.self-service.windows.reset');
         Route::post('/self-service/dates', [HomeAssistantController::class, 'storeSelfServiceDate'])->name('home-assistant.self-service.dates.store');
         Route::delete('/self-service/dates/{date}', [HomeAssistantController::class, 'destroySelfServiceDate'])->name('home-assistant.self-service.dates.destroy');
     });

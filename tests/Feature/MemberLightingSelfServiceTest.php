@@ -162,6 +162,16 @@ class MemberLightingSelfServiceTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('lighting_self_service_windows', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('place_id')->nullable();
+            $table->unsignedTinyInteger('weekday');
+            $table->time('starts_at')->nullable();
+            $table->time('ends_at')->nullable();
+            $table->timestamps();
+            $table->unique(['place_id', 'weekday']);
+        });
+
         Schema::create('member_lighting_activations', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('member_id');
@@ -221,6 +231,13 @@ class MemberLightingSelfServiceTest extends TestCase
             ['id' => 2, 'name' => 'Salões', 'icon' => 'party'],
         ]);
 
+        // Horário padrão do clube, como a migration semeia.
+        DB::table('lighting_self_service_windows')->insert([
+            ['place_id' => null, 'weekday' => 6, 'starts_at' => '17:00', 'ends_at' => '23:00'],
+            ['place_id' => null, 'weekday' => 0, 'starts_at' => '17:00', 'ends_at' => '21:00'],
+            ['place_id' => null, 'weekday' => 7, 'starts_at' => '17:00', 'ends_at' => '21:00'],
+        ]);
+
         DB::table('places')->insert([
             ['id' => 10, 'name' => 'Quadra 1', 'contactor_id' => 1, 'self_service_lighting' => true,  'place_group_id' => 1],
             ['id' => 20, 'name' => 'Quadra 2', 'contactor_id' => 2, 'self_service_lighting' => true,  'place_group_id' => 1],
@@ -239,9 +256,14 @@ class MemberLightingSelfServiceTest extends TestCase
         ];
 
         if ($cpf !== null) {
+            // `exp` no relógio REAL, não no do Carbon::setTestNow: o
+            // firebase/php-jwt compara com time() e não enxerga o tempo
+            // congelado do teste. Com `Carbon::now()` aqui, todo teste que
+            // viaja para uma data já passada nascia com o token vencido — e
+            // falhava com 401 dependendo do dia em que a suíte rodasse.
             $headers['Session'] = (new JwtService())->generateToken([
                 'username' => $cpf,
-                'exp'      => Carbon::now()->addHours(4)->timestamp,
+                'exp'      => time() + 3600,
             ]);
         }
 
@@ -309,12 +331,11 @@ class MemberLightingSelfServiceTest extends TestCase
         $this->availability()
             ->assertOk()
             ->assertJsonPath('open', true)
-            ->assertJsonPath('window.start', '17:00')
-            ->assertJsonPath('window.end', '23:00')
+            ->assertJsonPath('club_window.start', '17:00')
+            ->assertJsonPath('club_window.end', '23:00')
             ->assertJsonPath('max_minutes', 120)
             ->assertJsonPath('min_minutes', 15)
             ->assertJsonPath('step_minutes', 15)
-            ->assertJsonPath('available_minutes', 120)
             ->assertJsonPath('activation', null);
     }
 
@@ -325,7 +346,7 @@ class MemberLightingSelfServiceTest extends TestCase
         $this->availability()
             ->assertOk()
             ->assertJsonPath('open', false)
-            ->assertJsonPath('today_window', null)
+            ->assertJsonPath('club_window', null)
             ->assertJsonPath('next_window.date', self::SABADO);
     }
 
@@ -340,8 +361,8 @@ class MemberLightingSelfServiceTest extends TestCase
         $this->availability()
             ->assertOk()
             ->assertJsonPath('open', true)
-            ->assertJsonPath('window.end', '21:00')
-            ->assertJsonPath('window.reason', 'Feriado municipal');
+            ->assertJsonPath('club_window.end', '21:00')
+            ->assertJsonPath('club_window.reason', 'Feriado municipal');
     }
 
     /* ─────────────────────────── Catálogo ─────────────────────────── */
@@ -431,6 +452,102 @@ class MemberLightingSelfServiceTest extends TestCase
             ->assertJsonPath('active_activation.place_name', 'Quadra 1');
 
         $this->assertFalse($this->automationState('beach_quadra_2'));
+    }
+
+    /* ───────────── Horário por quadra ───────────── */
+
+    /** Quadra 1 vira "coberta": abre às 14h, três horas antes das outras. */
+    private function quadraCoberta(): void
+    {
+        DB::table('lighting_self_service_windows')->insert([
+            ['place_id' => 10, 'weekday' => 6, 'starts_at' => '14:00', 'ends_at' => '23:00'],
+        ]);
+    }
+
+    public function test_a_quadra_coberta_aciona_as_15h_e_a_descoberta_nao(): void
+    {
+        $this->quadraCoberta();
+        Carbon::setTestNow(self::SABADO . ' 15:00:00');
+
+        $this->activate(10, minutes: 60)->assertStatus(201);
+        $this->assertTrue($this->automationState('beach_quadra_1'));
+
+        $this->activate(20, self::CPF_BRUNO, minutes: 60)
+            ->assertStatus(422)
+            ->assertJsonPath('reason', 'window_closed')
+            // A próxima janela é a **da quadra pedida**, não a do clube.
+            ->assertJsonPath('next_window.start', '17:00');
+
+        $this->assertFalse($this->automationState('beach_quadra_2'));
+    }
+
+    public function test_disponibilidade_abre_quando_qualquer_quadra_abre(): void
+    {
+        $this->quadraCoberta();
+        Carbon::setTestNow(self::SABADO . ' 15:00:00');
+
+        $this->availability()
+            ->assertOk()
+            // O clube em geral ainda está fechado às 15h...
+            ->assertJsonPath('club_window.start', '17:00')
+            // ...mas há quadra aberta, então a tela mostra o fluxo.
+            ->assertJsonPath('open', true)
+            ->assertJsonPath('next_window.start', '14:00');
+    }
+
+    public function test_cada_quadra_traz_a_propria_janela_e_o_proprio_maximo(): void
+    {
+        $this->quadraCoberta();
+        Carbon::setTestNow(self::SABADO . ' 15:00:00');
+
+        $places = $this->withHeaders($this->headers())
+            ->getJson('/api/lighting/groups/1/places')
+            ->assertOk()
+            ->json('places');
+
+        // Quadra 1 (coberta): aberta, e o teto cabe inteiro até as 23:00.
+        $this->assertTrue($places[0]['open']);
+        $this->assertSame('14:00', $places[0]['window']['start']);
+        $this->assertSame(120, $places[0]['available_minutes']);
+
+        // Quadra 2: fechada às 15h, com o horário em que volta.
+        $this->assertFalse($places[1]['open']);
+        $this->assertNull($places[1]['window']);
+        $this->assertSame(0, $places[1]['available_minutes']);
+        $this->assertSame('17:00', $places[1]['next_window']['start']);
+    }
+
+    public function test_quadra_pode_ser_fechada_num_dia_em_que_o_clube_abre(): void
+    {
+        DB::table('lighting_self_service_windows')->insert([
+            ['place_id' => 10, 'weekday' => 6, 'starts_at' => null, 'ends_at' => null],
+        ]);
+
+        $this->activate(10)
+            ->assertStatus(422)
+            ->assertJsonPath('reason', 'window_closed');
+
+        $this->activate(20, self::CPF_BRUNO)->assertStatus(201);
+    }
+
+    public function test_o_fim_da_janela_propria_apara_a_duracao(): void
+    {
+        // Quadra 1 fecha às 19:00, três horas antes do clube.
+        DB::table('lighting_self_service_windows')->insert([
+            ['place_id' => 10, 'weekday' => 6, 'starts_at' => '14:00', 'ends_at' => '19:00'],
+        ]);
+
+        // 18:30, pedindo 2h: recebe 30 minutos, o que resta da janela dela.
+        Carbon::setTestNow(self::SABADO . ' 18:30:00');
+
+        $this->activate(10, minutes: 120)
+            ->assertStatus(201)
+            ->assertJsonPath('activation.minutes_remaining', 30);
+
+        $this->assertSame(
+            self::SABADO . ' 19:00:00',
+            HomeAssistantOverride::sole()->expires_at->format('Y-m-d H:i:s')
+        );
     }
 
     /* ───────────── Duração escolhida ───────────── */

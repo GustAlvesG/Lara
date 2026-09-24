@@ -33,6 +33,11 @@ Duas coisas decorrem disso e moldam a tela inteira:
    acesa sem piscar — inclusive quem não acendeu da primeira vez. É o que salva o
    jogo que passou do previsto, e é a parte que a tela mais precisa comunicar
    bem.
+3. **Cada quadra tem o próprio horário.** Quadra coberta escurece antes e abre
+   mais cedo que a descoberta ao lado, no mesmo dia. Não existe "o horário do
+   clube" para efeito de decisão: às 15h de sábado a coberta está aberta e as
+   outras não. **Toda a verdade de horário está na lista de quadras**, não na
+   disponibilidade geral.
 
 ### Antes de escrever qualquer código
 
@@ -68,6 +73,7 @@ disto:
 - calcular se é sábado/domingo ou se está dentro do horário no cliente;
 - guardar a lista de feriados no front;
 - fixar 2 h, 15 min ou qualquer limite de duração no código;
+- assumir que todas as quadras têm o mesmo horário;
 - esconder o botão porque "achou" que o sócio já tem quadra acesa, sem ter
   perguntado.
 
@@ -134,7 +140,7 @@ periodicamente enquanto o contador corre.
 {
   "now": "2026-09-26T18:00:00-03:00",
   "open": true,
-  "window": {
+  "next_window": {
     "date": "2026-09-26",
     "start": "17:00",
     "end": "23:00",
@@ -143,30 +149,27 @@ periodicamente enquanto o contador corre.
     "source": "weekly",
     "reason": null
   },
-  "today_window": { "...": "igual acima" },
-  "next_window": { "...": "a próxima janela, mesmo com uma aberta agora" },
+  "club_window": { "...": "o horário geral do clube hoje, ou null" },
   "max_minutes": 120,
   "min_minutes": 15,
   "step_minutes": 15,
-  "available_minutes": 120,
   "activation": null
 }
 ```
 
-- `open` — **é este o campo que libera o botão.** `true` quer dizer "agora dá".
-- `window` — a janela **aberta agora**; `null` quando `open` é `false`.
-- `today_window` — a janela de hoje, mesmo que ainda não tenha começado. Sábado
-  às 10:00 vem `open: false`, `window: null` e `today_window` preenchida: é com
-  ela que você diz "hoje a partir das 17:00".
-- `next_window` — sempre preenchida enquanto houver alguma nas próximas semanas.
-  `source` é `weekly` (sábado/domingo) ou `date` (feriado liberado no painel); em
-  `date`, `reason` costuma trazer o nome do feriado, e é um texto bom de mostrar.
+- `open` — **é o agregado: há alguma quadra aberta agora?** Use-o só para decidir
+  se mostra o fluxo de escolha. Ele **não** diz que a quadra X está aberta; isso
+  está na lista de quadras.
+- `next_window` — a **primeira** janela a abrir entre todas as quadras. `source` é
+  `weekly` (dia da semana) ou `date` (feriado liberado no painel); em `date`,
+  `reason` costuma trazer o nome do feriado, e é um texto bom de mostrar.
+- `club_window` — o horário geral do clube hoje, ou `null`. Serve só para texto
+  genérico ("o clube abre às 17:00"). **Não decida nada por ele**: uma quadra
+  coberta pode abrir às 14:00 e outra ficar fechada o dia inteiro.
 - `max_minutes` / `min_minutes` / `step_minutes` — **monte o seletor de duração
   com estes três.** São configuração do servidor; não replique 120/15/15 no
-  código.
-- `available_minutes` — quanto dá para pedir **agora**: o teto aparado no que
-  resta da janela. Às 22:30 de sábado vem `30`. **É este o máximo do seletor**,
-  não `max_minutes`.
+  código. O *máximo* do seletor, porém, é o `available_minutes` **da quadra
+  escolhida**, não `max_minutes`.
 - `activation` — o acionamento vigente do sócio, ou `null`:
 
 ```json
@@ -215,15 +218,38 @@ aviso, não uma tela quebrada.
 
 Segundo passo.
 
+**É aqui que mora a verdade sobre horário.** Cada quadra traz a própria janela.
+
 ```json
 {
   "places": [
-    { "id": 10, "name": "Quadra 1", "image": "1712...jpg", "lit": true,  "lit_until": "2026-09-26T20:00:00-03:00" },
-    { "id": 20, "name": "Quadra 2", "image": null,         "lit": false, "lit_until": null }
+    {
+      "id": 10, "name": "Quadra 1 (coberta)", "image": "1712...jpg",
+      "open": true,
+      "window": { "start": "14:00", "end": "23:00", "source": "weekly", "...": "..." },
+      "available_minutes": 120,
+      "next_window": { "...": "a próxima desta quadra" },
+      "lit": true, "lit_until": "2026-09-26T20:00:00-03:00"
+    },
+    {
+      "id": 20, "name": "Quadra 2", "image": null,
+      "open": false,
+      "window": null,
+      "available_minutes": 0,
+      "next_window": { "start": "17:00", "...": "..." },
+      "lit": false, "lit_until": null
+    }
   ]
 }
 ```
 
+- `open` / `window` — **desta quadra**, agora. No exemplo são 15:00: a coberta
+  abriu às 14:00 e a outra só abre às 17:00.
+- `available_minutes` — quanto dá para pedir nesta quadra agora: o teto aparado no
+  que resta da janela **dela**. **É este o máximo do seletor de duração.** Zero
+  quer dizer fechada.
+- `next_window` — quando esta quadra volta a abrir. Use no lugar de esconder a
+  quadra: "abre às 17:00" responde a pergunta que sumir não responde.
 - `image` é o nome do arquivo, no mesmo formato dos outros endpoints de espaço do
   app — monte a URL como o app já monta.
 - **`lit: true` NÃO quer dizer indisponível.** A quadra continua acionável, e
@@ -292,7 +318,7 @@ Corpo de toda recusa de regra: `{"error": "…", "reason": "…", …extras}`.
 
 | `reason` | HTTP | O que aconteceu | O que a tela deve fazer |
 |----------|------|-----------------|--------------------------|
-| `window_closed` | 422 | Fora do horário, ou dia bloqueado no painel | Extra `next_window`. Diga quando abre, com a data e a hora. Não é erro do sócio. |
+| `window_closed` | 422 | Fora do horário **daquela quadra**, ou dia bloqueado | Extra `next_window`, da quadra pedida. Diga quando *ela* abre. Não é erro do sócio. |
 | `window_ending` | 422 | Falta menos que `min_minutes` para fechar | Diga que hoje já encerrou e aponte `next_window` (releia a disponibilidade). |
 | `member_limit` | 409 | Ele está em **outra** quadra | Extra `active_activation`. Leve-o para o estado "acesa", com a opção de devolver. **Não acontece ao acionar a própria quadra** — ali é prolongamento. |
 | `place_reserved` | 409 | Reserva confirmada no período | Extras `reserved_from` / `reserved_until`. Explique que a quadra está reservada e que **a luz dela acende sozinha**. Ofereça outra quadra. |
@@ -310,22 +336,30 @@ Um fluxo curto, em três passos: **grupo → quadra → quanto tempo**. Use os
 componentes de seleção que o app já tem para grupo e espaço; não crie um padrão
 visual novo.
 
-**Estado 1 — fechado** (`open: false`, sem `activation`)
+**Estado 1 — nenhuma quadra aberta** (`open: false`, sem `activation`)
 
-O passo a passo não aparece. No lugar, um aviso com o próximo horário
-(`next_window`) e, se houver `today_window` ainda por começar, "hoje a partir
-das 17:00". Se `next_window.source` for `date` e tiver `reason`, mencione o
-feriado — é uma informação que o sócio não tem de outro jeito.
+O passo a passo não aparece. No lugar, um aviso com o `next_window` da
+disponibilidade — a primeira quadra a abrir. Se `next_window.source` for `date` e
+tiver `reason`, mencione o feriado: é uma informação que o sócio não tem de outro
+jeito.
 
 **Estado 2 — aberto, sem quadra acesa** (`open: true`, `activation: null`)
 
 O fluxo de escolha, terminando no seletor de duração, montado com
-`min_minutes` / `step_minutes` / `available_minutes`. Deixe explícito, antes de
-confirmar, que **acender não reserva a quadra**.
+`min_minutes` / `step_minutes` da disponibilidade e `available_minutes` **da
+quadra escolhida**. Deixe explícito, antes de confirmar, que **acender não
+reserva a quadra**.
 
-Quadras com `lit: true` aparecem normalmente, com o horário e o botão dizendo
-"Prolongar". Um sócio sem acionamento próprio pode prolongar a luz de uma quadra
-onde já está jogando — esse é o caso de uso principal, não uma exceção.
+Na lista de quadras, cada uma mostra o próprio estado:
+
+- `open: true` → botão ativo, com o horário dela ("até 23:00") e o seletor limitado
+  a `available_minutes`;
+- `open: false` → **não esconda**; mostre desabilitada com "abre às 17:00"
+  (`next_window`). É a diferença entre o sócio entender o clube e achar que o app
+  está quebrado;
+- `lit: true` → botão diz "Prolongar", com `lit_until`. Um sócio sem acionamento
+  próprio pode prolongar a luz de uma quadra onde já está jogando — esse é o caso
+  de uso principal, não uma exceção.
 
 **Estado 3 — com quadra acesa** (`activation` preenchida)
 
@@ -352,8 +386,8 @@ localmente entre as leituras. Não chegue perto de `120/min`.
 
 ### O que fica de fora
 
-- **Não construa tela de administração.** Liberar quadras e cadastrar feriados já
-  existe, no painel da Lara.
+- **Não construa tela de administração.** Liberar quadras, definir horários (o
+  padrão e o de cada quadra) e cadastrar feriados já existe, no painel da Lara.
 - **Não tente ligar outros espaços** (salão, piscina). A API só lista o que está
   liberado; respeite a lista.
 - **Não some com a opção quando fechado** — o sócio precisa descobrir que existe,
@@ -366,25 +400,30 @@ localmente entre as leituras. Não chegue perto de `120/min`.
    confirma, e a tela passa ao estado 3 com contador de 45 minutos.
 2. No estado 3, "Prolongar" por mais 30 minutos responde `200`, e o contador
    passa a 30 minutos **contados do toque**, não somados ao que faltava.
-3. Sábado 22:30: o seletor não oferece mais que 30 minutos (`available_minutes`).
+3. Sábado 22:30: o seletor não oferece mais que 30 minutos
+   (`available_minutes` da quadra).
 4. Sábado 22:50: a tela não deixa nem tentar, ou a recusa `window_ending` é
    exibida com a próxima janela.
-5. Quarta-feira: estado 1, com a data do próximo sábado.
-6. Quarta-feira que seja feriado liberado: estado 2, funcionando, com o nome do
+5. **Quadras com horários diferentes no mesmo dia**: com uma quadra aberta às
+   15:00 e outra só às 17:00, às 15:00 a lista mostra a primeira acionável e a
+   segunda desabilitada com "abre às 17:00" — e o seletor da primeira respeita o
+   `available_minutes` dela.
+6. Quarta-feira: estado 1, com a data e a hora da primeira quadra a abrir.
+7. Quarta-feira que seja feriado liberado: estado 2, funcionando, com o nome do
    feriado visível.
-7. Quadra acesa por **outro** sócio aparece na lista com o horário e o botão
+8. Quadra acesa por **outro** sócio aparece na lista com o horário e o botão
    "Prolongar", e prolongá-la funciona.
-8. Com uma quadra acesa, tentar **outra** não é possível pela interface; se
+9. Com uma quadra acesa, tentar **outra** não é possível pela interface; se
    acontecer, `member_limit` leva ao estado 3 em vez de mostrar erro cru.
-9. Com outro sócio tendo prolongado, a tela mostra a luz indo até `lit_until` e
-   **não** anuncia apagão no `ends_at` do sócio.
-10. Devolver a quadra volta ao estado 2, e acender outra funciona em seguida.
-11. Deixar a tela aberta até o prazo vencer volta ao estado 2 sozinha, sem
+10. Com outro sócio tendo prolongado, a tela mostra a luz indo até `lit_until` e
+    **não** anuncia apagão no `ends_at` do sócio.
+11. Devolver a quadra volta ao estado 2, e acender outra funciona em seguida.
+12. Deixar a tela aberta até o prazo vencer volta ao estado 2 sozinha, sem
     recarga manual.
-12. Nenhuma regra de horário, duração ou feriado aparece hardcoded no front.
+13. Nenhuma regra de horário, duração ou feriado aparece hardcoded no front.
     Grep por `120`, `sábado`, `17:00` não acha nada.
 
-Ao terminar, me diga quais dos doze você conseguiu verificar de fato e quais
+Ao terminar, me diga quais dos treze você conseguiu verificar de fato e quais
 ficaram só no código.
 
 ## Fim do prompt

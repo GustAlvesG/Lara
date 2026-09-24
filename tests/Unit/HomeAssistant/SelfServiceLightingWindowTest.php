@@ -3,6 +3,8 @@
 namespace Tests\Unit\HomeAssistant;
 
 use App\Models\LightingSelfServiceDate;
+use App\Models\LightingSelfServiceWindow;
+use App\Models\Place;
 use App\Services\HomeAssistant\LightingWindow;
 use App\Services\HomeAssistant\ManualCommandService;
 use App\Services\HomeAssistant\SelfServiceLightingService;
@@ -38,6 +40,18 @@ class SelfServiceLightingWindowTest extends TestCase
             $table->string('reason', 120)->nullable();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->timestamps();
+        });
+
+        // Nasce vazia: sem linha nenhuma, a resolução cai na configuração, que
+        // é a rede de segurança para um banco ainda não semeado.
+        Schema::create('lighting_self_service_windows', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('place_id')->nullable();
+            $table->unsignedTinyInteger('weekday');
+            $table->time('starts_at')->nullable();
+            $table->time('ends_at')->nullable();
+            $table->timestamps();
+            $table->unique(['place_id', 'weekday']);
         });
 
         config([
@@ -102,6 +116,88 @@ class SelfServiceLightingWindowTest extends TestCase
         $this->assertNull($this->service->openWindowAt(Carbon::parse('2026-09-26 16:59:00')));
     }
 
+    /* ───────────── Horário por quadra ───────────── */
+
+    /** Uma quadra que só existe para a resolução — nada é lido do banco dela. */
+    private function quadra(int $id): Place
+    {
+        return (new Place())->forceFill(['id' => $id]);
+    }
+
+    private function janela(?int $placeId, int $weekday, ?string $start, ?string $end): void
+    {
+        LightingSelfServiceWindow::create([
+            'place_id'  => $placeId,
+            'weekday'   => $weekday,
+            'starts_at' => $start,
+            'ends_at'   => $end,
+        ]);
+    }
+
+    public function test_o_padrao_cadastrado_vence_a_configuracao(): void
+    {
+        $this->janela(null, 6, '15:00', '22:00');
+
+        $window = $this->service->windowFor(Carbon::parse('2026-09-26'));
+
+        $this->assertSame('15:00', $window->start->format('H:i'));
+        $this->assertSame('22:00', $window->end->format('H:i'));
+    }
+
+    public function test_padrao_sem_horario_fecha_o_dia_mesmo_com_a_configuracao_aberta(): void
+    {
+        // Apagar o horário no painel precisa ter efeito: sem isto o valor
+        // antigo do config voltaria a valer sozinho.
+        $this->janela(null, 6, null, null);
+
+        $this->assertNull($this->service->windowFor(Carbon::parse('2026-09-26')));
+    }
+
+    public function test_a_quadra_coberta_abre_mais_cedo_que_as_outras(): void
+    {
+        // O caso que motivou o horário por quadra.
+        $this->janela(10, 6, '14:00', '23:00');
+
+        $coberta   = $this->service->windowFor(Carbon::parse('2026-09-26'), $this->quadra(10));
+        $descoberta = $this->service->windowFor(Carbon::parse('2026-09-26'), $this->quadra(20));
+
+        $this->assertSame('14:00', $coberta->start->format('H:i'));
+        $this->assertSame('17:00', $descoberta->start->format('H:i'));
+
+        // Às 15h só a coberta está aberta.
+        $tarde = Carbon::parse('2026-09-26 15:00');
+        $this->assertNotNull($this->service->openWindowAt($tarde, $this->quadra(10)));
+        $this->assertNull($this->service->openWindowAt($tarde, $this->quadra(20)));
+    }
+
+    public function test_quadra_sem_horario_proprio_segue_o_padrao(): void
+    {
+        $this->janela(null, 6, '15:00', '22:00');
+        $this->janela(10, 6, '14:00', '23:00');
+
+        $window = $this->service->windowFor(Carbon::parse('2026-09-26'), $this->quadra(20));
+
+        $this->assertSame('15:00', $window->start->format('H:i'));
+    }
+
+    public function test_quadra_pode_ficar_fechada_num_dia_em_que_o_clube_abre(): void
+    {
+        $this->janela(10, 0, null, null);
+
+        $this->assertNull($this->service->windowFor(Carbon::parse('2026-09-27'), $this->quadra(10)));
+        $this->assertNotNull($this->service->windowFor(Carbon::parse('2026-09-27'), $this->quadra(20)));
+    }
+
+    public function test_a_proxima_janela_respeita_o_horario_da_quadra(): void
+    {
+        $this->janela(10, 6, '14:00', '23:00');
+
+        $sabadoDeManha = Carbon::parse('2026-09-26 09:00');
+
+        $this->assertSame('14:00', $this->service->nextWindow($sabadoDeManha, $this->quadra(10))->start->format('H:i'));
+        $this->assertSame('17:00', $this->service->nextWindow($sabadoDeManha, $this->quadra(20))->start->format('H:i'));
+    }
+
     /* ───────────── Datas especiais ───────────── */
 
     public function test_feriado_no_meio_da_semana_abre_com_a_janela_padrao(): void
@@ -135,6 +231,44 @@ class SelfServiceLightingWindowTest extends TestCase
 
         $this->assertSame('18:00', $window->start->format('H:i'));
         $this->assertSame('22:30', $window->end->format('H:i'));
+    }
+
+    public function test_no_feriado_a_quadra_coberta_tambem_abre_cedo(): void
+    {
+        // Sem horário na data, cai na linha "Feriado" — que é por quadra. Sem
+        // isto a coberta abriria às 14h no domingo e só às 17h no feriado, o
+        // que ninguém consegue explicar para o sócio.
+        $this->janela(10, LightingSelfServiceWindow::WEEKDAY_HOLIDAY, '14:00', '21:00');
+
+        LightingSelfServiceDate::create([
+            'date'   => '2026-12-25',
+            'mode'   => LightingSelfServiceDate::MODE_ALLOW,
+            'reason' => 'Natal',
+        ]);
+
+        $natal = Carbon::parse('2026-12-25');
+
+        $this->assertSame('14:00', $this->service->windowFor($natal, $this->quadra(10))->start->format('H:i'));
+        $this->assertSame('17:00', $this->service->windowFor($natal, $this->quadra(20))->start->format('H:i'));
+    }
+
+    public function test_data_com_horario_proprio_vale_para_todas_as_quadras(): void
+    {
+        // Horário escrito na data é decisão tomada para aquele dia: vence até o
+        // horário próprio da coberta.
+        $this->janela(10, LightingSelfServiceWindow::WEEKDAY_HOLIDAY, '14:00', '21:00');
+
+        LightingSelfServiceDate::create([
+            'date'      => '2026-12-25',
+            'mode'      => LightingSelfServiceDate::MODE_ALLOW,
+            'starts_at' => '18:00',
+            'ends_at'   => '22:00',
+        ]);
+
+        $natal = Carbon::parse('2026-12-25');
+
+        $this->assertSame('18:00', $this->service->windowFor($natal, $this->quadra(10))->start->format('H:i'));
+        $this->assertSame('18:00', $this->service->windowFor($natal, $this->quadra(20))->start->format('H:i'));
     }
 
     public function test_bloqueio_fecha_um_sabado_que_a_regra_semanal_abriria(): void

@@ -26,10 +26,11 @@ class HomeAssistantAccessTest extends TestCase
         $routes = collect(Route::getRoutes()->getRoutes())
             ->filter(fn ($route) => str_starts_with((string) $route->getName(), 'home-assistant.'));
 
-        // index, contator (3), ação rápida (2), agendamento (4) e as datas do
-        // autoatendimento (2) — quem libera um feriado decide quando o clube
+        // index, contator (3), ação rápida (2), agendamento (4) e o
+        // autoatendimento (5: horário padrão, horário por quadra, reset, e as
+        // duas de datas) — quem mexe nesses horários decide quando o clube
         // inteiro pode acender a luz, e isso não é para qualquer login.
-        $this->assertCount(12, $routes, 'Rota nova no painel? Confira se ela está no grupo com a permissão.');
+        $this->assertCount(15, $routes, 'Rota nova no painel? Confira se ela está no grupo com a permissão.');
 
         foreach ($routes as $route) {
             $this->assertContains(
