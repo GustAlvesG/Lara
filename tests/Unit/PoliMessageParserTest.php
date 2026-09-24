@@ -43,6 +43,151 @@ class PoliMessageParserTest extends TestCase
         ];
     }
 
+    /**
+     * O menu de departamentos saindo, como a Poli entrega depois de o webhook
+     * de saída ser ligado. Reparar no `event: "sent"` e no `value.uuid` —
+     * é ele, e não o wamid, que a resposta devolve no contexto.
+     */
+    private function realOutgoingListPayload(): array
+    {
+        return [
+            'object' => 'message',
+            'event' => 'sent',
+            'account_uuid' => 'a9c0bc53-430e-11f1-9d75-06799772b1cd',
+            'uuid' => 'bot-0-99923-68849486-msg-17901883491664-',
+            'value' => [
+                'uuid' => 'bot-0-99923-68849486-msg-17901883491664-',
+                'event' => 'MESSAGE',
+                'type' => 'CHAT',
+                'direction' => 'OUT',
+                'timestamp' => 1790188349,
+                'contact' => ['uuid' => '59bd92c9-8467-11f1-9d75-06799772b1cd'],
+                'components' => [
+                    'body' => ['text' => 'Olá! Seja bem vindo(a) ao Clube dos Funcionários da CSN.'],
+                    'button' => 'Ver opções',
+                    'section' => [[
+                        'id' => '1781528942331',
+                        'text' => 'Departamentos',
+                        'rows' => [
+                            ['id' => '1781529293152', 'messageOption' => [
+                                'title' => 'Financeiro',
+                                'description' => 'Consulte seus débitos ou outras pendências.',
+                            ]],
+                            ['id' => '1784570154383', 'messageOption' => [
+                                'title' => 'Carro de Aplicativo',
+                                'description' => 'Carro, moto ou táxi',
+                            ]],
+                        ],
+                    ]],
+                    'name' => 'polichat_list_message_556542',
+                ],
+                'attendance' => ['uuid' => '21ab48ee-b77d-11f1-9d75-06799772b1cd'],
+                'metadata' => ['external_message_id' => 'wamid.HBgNNTUyNDk4MTE5NzI2ORUCABEYEjA2NzIxMzg3RDU1RUNBMjg1MAA='],
+            ],
+        ];
+    }
+
+    public function test_reconhece_e_extrai_o_menu_enviado(): void
+    {
+        $parser = new PoliMessageParser();
+        $payload = $this->realOutgoingListPayload();
+
+        $this->assertTrue($parser->isOutgoingListMessage($payload));
+
+        // Continua fora do fluxo do WhatsApp: o evento é "sent", não "received".
+        $this->assertFalse($parser->isRelevantEvent($payload));
+
+        $list = $parser->parseOutgoingList($payload);
+
+        // A chave é o value.uuid — o wamid não é citado pelo contexto da resposta.
+        $this->assertSame('bot-0-99923-68849486-msg-17901883491664-', $list['poli_message_uuid']);
+        $this->assertSame('21ab48ee-b77d-11f1-9d75-06799772b1cd', $list['attendance_uuid']);
+        $this->assertSame('59bd92c9-8467-11f1-9d75-06799772b1cd', $list['contact_uuid']);
+        $this->assertSame('polichat_list_message_556542', $list['template_name']);
+        $this->assertSame(1790188349, $list['sent_at']->timestamp);
+
+        $this->assertSame([
+            ['title' => 'Financeiro', 'description' => 'Consulte seus débitos ou outras pendências.'],
+            ['title' => 'Carro de Aplicativo', 'description' => 'Carro, moto ou táxi'],
+        ], $list['rows']);
+    }
+
+    /** Mensagem de saída sem lista não vira menu. */
+    public function test_saida_sem_lista_nao_e_menu(): void
+    {
+        $payload = $this->realOutgoingListPayload();
+        $payload['value']['components'] = ['body' => ['text' => 'Informe seu nome completo, por favor.']];
+
+        $parser = new PoliMessageParser();
+
+        $this->assertFalse($parser->isOutgoingListMessage($payload));
+        $this->assertNull($parser->parseOutgoingList($payload));
+    }
+
+    /**
+     * O toque devolve o uuid do menu; o texto digitado vem com `context: null`.
+     * É a diferença que sustenta a trava inteira.
+     */
+    public function test_extrai_o_menu_citado_pelo_toque(): void
+    {
+        $parser = new PoliMessageParser();
+
+        $payload = $this->realTextPayload();
+        $payload['value']['components'] = ['body' => ['text' => "Carro de Aplicativo\nCarro, moto ou táxi"]];
+        $payload['value']['context'] = [
+            'type' => 'message',
+            'message' => ['uuid' => 'bot-0-99923-68849486-msg-17901883491664-'],
+        ];
+
+        $this->assertSame(
+            'bot-0-99923-68849486-msg-17901883491664-',
+            $parser->parse($payload)->contextMessageUuid
+        );
+
+        // A quebra entre título e descrição vira espaço na sanitização.
+        $this->assertSame('Carro de Aplicativo Carro, moto ou táxi', $parser->parse($payload)->text);
+
+        $digitado = $this->realTextPayload();
+        $digitado['value']['context'] = null;
+
+        $this->assertNull($parser->parse($digitado)->contextMessageUuid);
+    }
+
+    /**
+     * O fecho do atendimento vem nas mensagens de despedida do bot, e as
+     * anteriores da mesma conversa trazem `closed_reason: null`.
+     */
+    public function test_reconhece_o_atendimento_encerrado(): void
+    {
+        $parser = new PoliMessageParser();
+
+        $emAndamento = $this->realOutgoingListPayload();
+        $emAndamento['value']['attendance']['closed_reason'] = null;
+
+        $this->assertNull($parser->extractFinishedAttendanceUuid($emAndamento));
+
+        $encerrado = $emAndamento;
+        $encerrado['value']['attendance']['closed_reason'] = 'FINISHED_BY_SYSTEM';
+
+        $this->assertSame(
+            '21ab48ee-b77d-11f1-9d75-06799772b1cd',
+            $parser->extractFinishedAttendanceUuid($encerrado)
+        );
+
+        // Qualquer motivo encerra: para nós o que importa é que acabou.
+        $porAtendente = $emAndamento;
+        $porAtendente['value']['attendance']['closed_reason'] = 'FINISHED_BY_USER';
+
+        $this->assertNotNull($parser->extractFinishedAttendanceUuid($porAtendente));
+    }
+
+    public function test_mensagem_de_entrada_comum_nao_encerra_atendimento(): void
+    {
+        $this->assertNull(
+            (new PoliMessageParser())->extractFinishedAttendanceUuid($this->realTextPayload())
+        );
+    }
+
     public function test_parses_confirmed_real_text_payload(): void
     {
         $parsed = (new PoliMessageParser())->parse($this->realTextPayload());
