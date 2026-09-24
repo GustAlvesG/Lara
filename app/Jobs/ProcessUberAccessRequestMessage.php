@@ -45,7 +45,7 @@ class ProcessUberAccessRequestMessage implements ShouldQueue
         // Ordem antes de tudo: a Poli entrega fora de ordem, e o fluxo é uma
         // máquina de estados — processar na frente de uma mensagem mais antiga
         // põe a resposta no campo errado e desloca o pedido inteiro.
-        if ($messageRow->hasPendingPredecessor((int) config('poli.inbound.ordering_wait_seconds', 120))) {
+        if ($messageRow->hasPendingPredecessor((int) config('poli.inbound.ordering_wait_seconds', 60))) {
             if ($this->job) {
                 $this->release((int) config('poli.inbound.defer_seconds', 3));
             }
