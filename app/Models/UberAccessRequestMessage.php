@@ -11,15 +11,62 @@ class UberAccessRequestMessage extends Model
     protected $fillable = [
         'uber_access_request_id',
         'poli_message_id',
+        'poli_sequence',
+        'contact_uuid',
         'raw_payload',
+        'processed_at',
     ];
 
     protected $casts = [
         'raw_payload' => 'array',
+        'processed_at' => 'datetime',
     ];
 
     public function uberAccessRequest()
     {
         return $this->belongsTo(UberAccessRequest::class);
+    }
+
+    /**
+     * Existe outra mensagem do mesmo contato que a Poli enviou ANTES desta e
+     * que ainda não passou pelo fluxo?
+     *
+     * Se existir, esta aqui tem de ceder a vez: o webhook entrega fora de
+     * ordem, e processar na ordem de chegada joga a resposta no campo errado.
+     *
+     * A janela é o freio de mão. Sem ela, uma mensagem que nunca conclui
+     * (presa em retentativa, ou um payload que o fluxo não digere) seguraria
+     * todas as seguintes daquele contato para sempre. Passado o prazo, segue
+     * sem ela — melhor uma ordem imperfeita do que uma conversa parada.
+     */
+    public function hasPendingPredecessor(int $windowSeconds): bool
+    {
+        // Mensagens anteriores à migration não têm sequência, e NULL nunca casa
+        // com `<`: elas não seguram ninguém, que é o comportamento desejado.
+        if ($this->contact_uuid === null || $this->poli_sequence === null) {
+            return false;
+        }
+
+        return static::query()
+            ->where('contact_uuid', $this->contact_uuid)
+            ->where('poli_sequence', '<', $this->poli_sequence)
+            ->whereNull('processed_at')
+            ->where('created_at', '>=', now()->subSeconds($windowSeconds))
+            ->exists();
+    }
+
+    /**
+     * Marca a mensagem como resolvida — tenha ela alimentado o fluxo, sido
+     * recusada ou ignorada. O que importa para a ordem é que ela saiu do
+     * caminho das seguintes.
+     */
+    public function markProcessed(?int $uberAccessRequestId = null): void
+    {
+        if ($uberAccessRequestId !== null) {
+            $this->uber_access_request_id = $uberAccessRequestId;
+        }
+
+        $this->processed_at = now();
+        $this->save();
     }
 }

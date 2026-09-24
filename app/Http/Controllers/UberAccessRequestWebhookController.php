@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\CloseUberCaptureSession;
 use App\Jobs\ProcessUberAccessRequestMessage;
 use App\Models\PoliListMessage;
 use App\Models\UberAccessRequestMessage;
 use App\Services\Poli\PoliMessageParser;
+use App\Services\UberAccessRequestFlow;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -39,14 +41,49 @@ class UberAccessRequestWebhookController extends Controller
             return response()->json(['status' => 'duplicate'], 200);
         }
 
+        // Só as mensagens de ENTRADA passam pelo fluxo, e só elas disputam
+        // ordem entre si. As de saída nascem resolvidas, para nunca segurar a
+        // vez de uma resposta do associado enquanto ele espera.
+        $entrada = $parser->extractDirection($payload) === 'IN';
+
         $messageRow = UberAccessRequestMessage::create([
             'poli_message_id' => $messageId,
+            'poli_sequence' => $parser->extractSequence($payload),
+            'contact_uuid' => $parser->extractContactUuid($payload),
             'raw_payload' => $payload,
+            'processed_at' => $entrada ? null : now(),
         ]);
 
-        ProcessUberAccessRequestMessage::dispatch($messageRow->id);
+        if ($entrada) {
+            // O atraso é o que dá tempo de uma mensagem atrasada chegar: só dá
+            // para ceder a vez a uma irmã que já esteja gravada.
+            ProcessUberAccessRequestMessage::dispatch($messageRow->id)
+                ->delay(now()->addSeconds((int) config('poli.inbound.ordering_delay_seconds', 20)));
+        }
+
+        // O fecho do atendimento é anunciado pelas mensagens do bot, que não
+        // entram no fluxo e portanto não têm job. Como ele não depende de
+        // ordem nenhuma, sai daqui mesmo — igual ao índice do menu.
+        $this->dispatchAttendanceClosure($payload, $parser);
 
         return response()->json(['status' => 'accepted'], 200);
+    }
+
+    /**
+     * Agenda o encerramento da coleta quando a Poli fecha o atendimento.
+     *
+     * O atraso e o motivo dele estão em UberAccessRequestFlow::CLOSURE_GRACE_SECONDS.
+     */
+    private function dispatchAttendanceClosure(array $payload, PoliMessageParser $parser): void
+    {
+        $atendimento = $parser->extractFinishedAttendanceUuid($payload);
+
+        if ($atendimento === null) {
+            return;
+        }
+
+        CloseUberCaptureSession::dispatch($atendimento)
+            ->delay(now()->addSeconds(UberAccessRequestFlow::CLOSURE_GRACE_SECONDS));
     }
 
     /**

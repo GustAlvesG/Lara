@@ -36,6 +36,53 @@ return [
 
     'enabled' => (bool) env('POLI_ENABLED', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Entrada — ordem de processamento
+    |--------------------------------------------------------------------------
+    |
+    | O webhook da Poli entrega fora de ordem. Medido em 7 dias de produção: 8
+    | mensagens em 2081 chegaram depois de outra enviada posteriormente a elas,
+    | com defasagens de 1 a 12 segundos. Numa máquina de estados isso põe a
+    | resposta no campo errado e desloca o pedido inteiro.
+    |
+    | A compensação tem duas metades. A primeira é `ordering_delay`: a mensagem
+    | espera antes de ser processada, porque uma irmã atrasada só pode ser
+    | levada em conta depois de ter chegado. A segunda é `ordering_wait`: na
+    | hora de processar, a mensagem cede a vez se houver outra do mesmo contato
+    | com sequência menor ainda pendente.
+    |
+    | O atraso é invisível para o associado — quem conversa com ele é o bot da
+    | Poli, que responde na hora. O custo real aparece só no último passo: o
+    | pedido chega à portaria este tanto de segundos depois do print.
+    |
+    */
+
+    'inbound' => [
+
+        'ordering_delay_seconds' => (int) env('POLI_INBOUND_ORDERING_DELAY', 20),
+
+        /*
+        | Até quando esperar por uma irmã mais antiga. Passado o prazo a
+        | mensagem segue sem ela — é a trava que impede uma mensagem presa de
+        | travar a conversa inteira do contato.
+        */
+        'ordering_wait_seconds' => (int) env('POLI_INBOUND_ORDERING_WAIT', 120),
+
+        /* Intervalo entre uma tentativa e outra enquanto se cede a vez. */
+        'defer_seconds' => (int) env('POLI_INBOUND_DEFER_SECONDS', 3),
+
+        /*
+        | Quanto tempo insistir quando o toque cita um menu ainda não indexado.
+        | É contado a partir da CHEGADA da mensagem, e não por tentativas, para
+        | não se confundir com as tentativas gastas cedendo a vez.
+        */
+        'menu_index_grace_seconds' => (int) env('POLI_INBOUND_MENU_GRACE', 45),
+
+        /* Teto de vida do job, para nenhuma espera virar laço infinito. */
+        'retry_until_minutes' => (int) env('POLI_INBOUND_RETRY_UNTIL_MINUTES', 5),
+    ],
+
     'base_url' => env('POLI_BASE_URL', 'https://foundation-api.poli.digital/v3'),
 
     'token' => env('POLI_API_TOKEN'),
