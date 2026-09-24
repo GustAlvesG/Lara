@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Exceptions\PoliListMessageNotIndexedException;
 use App\Jobs\CloseUberCaptureSession;
+use App\Jobs\ProcessUberAccessRequestMessage;
 use App\Models\Employee;
 use App\Models\UberAccessRequest;
 use App\Models\UberAccessRequestMessage;
@@ -40,6 +41,10 @@ class UberAccessRequestWebhookTest extends TestCase
         // Índice dos menus enviados: sem ele nenhum gatilho é aceito, porque a
         // origem do toque deixou de ser deduzida do texto.
         (require base_path('database/migrations/2026_09_23_190000_create_poli_list_messages_table.php'))->up();
+
+        // Sequência e marca de processamento, que ordenam o que o webhook
+        // entrega fora de ordem.
+        (require base_path('database/migrations/2026_09_24_120000_add_ordering_to_uber_access_request_messages.php'))->up();
 
         // Funcionários também podem pedir: a conferência consulta a tabela
         // employees de verdade (é banco local), só o MultiClubes é falso.
@@ -89,7 +94,8 @@ class UberAccessRequestWebhookTest extends TestCase
         ?string $messageId = null,
         string $contactUuid = self::CONTACT_UUID,
         ?string $contextMessageUuid = null,
-        ?string $attendanceUuid = null
+        ?string $attendanceUuid = null,
+        ?int $sequence = null
     ): array {
         $this->messageCounter++;
 
@@ -116,7 +122,12 @@ class UberAccessRequestWebhookTest extends TestCase
                     : ['type' => 'message', 'message' => ['uuid' => $contextMessageUuid]],
                 'components' => $components,
                 'attendance' => ['uuid' => $attendanceUuid ?? $this->attendanceFor($contactUuid)],
-                'metadata' => ['external_message_id' => $messageId ?? 'wamid-' . $this->messageCounter],
+                'metadata' => array_filter([
+                    'external_message_id' => $messageId ?? 'wamid-' . $this->messageCounter,
+                    // A sequência da Poli. Sem ela a mensagem não disputa
+                    // ordem — é o caso dos testes que não se importam com isso.
+                    'deprecated_message_id' => $sequence,
+                ], fn ($v) => $v !== null),
             ],
         ];
     }
@@ -485,6 +496,161 @@ class UberAccessRequestWebhookTest extends TestCase
             fn (CloseUberCaptureSession $job) => $job->attendanceUuid === $this->attendanceFor(self::CONTACT_UUID)
                 && $job->delay !== null
         );
+    }
+
+    /**
+     * Emula o worker: percorre as pendentes na ordem de CHEGADA e, quando uma
+     * tem irmã mais antiga pendente, adia — que é o que o `release()` faz na
+     * fila de verdade. Precisa ser simulado porque a suíte roda com `sync`,
+     * onde adiar é um no-op.
+     */
+    private function drenarFila(): void
+    {
+        for ($volta = 0; $volta < 20; $volta++) {
+            $pendentes = UberAccessRequestMessage::whereNull('processed_at')->orderBy('id')->get();
+
+            if ($pendentes->isEmpty()) {
+                return;
+            }
+
+            $andou = false;
+
+            foreach ($pendentes as $row) {
+                if ($row->hasPendingPredecessor(120)) {
+                    continue;
+                }
+
+                app()->call([new ProcessUberAccessRequestMessage($row->id), 'handle']);
+                $andou = true;
+            }
+
+            if (!$andou) {
+                return;
+            }
+        }
+    }
+
+    /**
+     * O caso que aconteceu em produção: a Poli entregou o toque no menu DEPOIS
+     * da matrícula, embora o tenha enviado 12 segundos antes. Na ordem de
+     * chegada o pedido sai deslocado; na ordem da sequência, sai certo.
+     */
+    public function test_mensagens_fora_de_ordem_sao_processadas_pela_sequencia(): void
+    {
+        Queue::fake([ProcessUberAccessRequestMessage::class]);
+
+        $this->send($this->menuPayload('menu-ordem', self::CONTACT_UUID));
+
+        // Chegada: matrícula primeiro. Envio: o toque veio antes dela.
+        $this->send($this->payload(text: '99988', sequence: 200));
+        $this->send($this->payload(
+            text: $this->toqueEm(self::TRIGGER, 'Carro, moto ou táxi'),
+            contextMessageUuid: 'menu-ordem',
+            sequence: 100,
+        ));
+        $this->send($this->payload(text: 'Gustavo Alves', sequence: 300));
+
+        $this->drenarFila();
+
+        $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
+
+        $this->assertSame('99988', $request->matricula);
+        $this->assertSame('Gustavo Alves', $request->requester_name);
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_LOCAL, $request->status);
+    }
+
+    /** A mesma sequência em ordem continua funcionando, sem nada a ceder. */
+    public function test_mensagens_em_ordem_seguem_direto(): void
+    {
+        Queue::fake([ProcessUberAccessRequestMessage::class]);
+
+        $this->send($this->menuPayload('menu-direto', self::CONTACT_UUID));
+        $this->send($this->payload(
+            text: $this->toqueEm(self::TRIGGER, 'Carro, moto ou táxi'),
+            contextMessageUuid: 'menu-direto',
+            sequence: 100,
+        ));
+        $this->send($this->payload(text: '99988', sequence: 200));
+        $this->send($this->payload(text: 'Gustavo Alves', sequence: 300));
+
+        $this->drenarFila();
+
+        $request = UberAccessRequest::where('contact_uuid', self::CONTACT_UUID)->firstOrFail();
+
+        $this->assertSame('99988', $request->matricula);
+        $this->assertSame('Gustavo Alves', $request->requester_name);
+    }
+
+    public function test_mensagem_cede_a_vez_apenas_para_irma_mais_antiga_do_mesmo_contato(): void
+    {
+        $anterior = UberAccessRequestMessage::create([
+            'poli_message_id' => 'm-100', 'poli_sequence' => 100,
+            'contact_uuid' => 'contato-x', 'raw_payload' => [],
+        ]);
+        $posterior = UberAccessRequestMessage::create([
+            'poli_message_id' => 'm-200', 'poli_sequence' => 200,
+            'contact_uuid' => 'contato-x', 'raw_payload' => [],
+        ]);
+        $outroContato = UberAccessRequestMessage::create([
+            'poli_message_id' => 'm-050', 'poli_sequence' => 50,
+            'contact_uuid' => 'contato-y', 'raw_payload' => [],
+        ]);
+
+        $this->assertTrue($posterior->hasPendingPredecessor(120));
+        $this->assertFalse($anterior->hasPendingPredecessor(120));
+        // Contato diferente não disputa: o estado do fluxo é por contato.
+        $this->assertFalse($outroContato->hasPendingPredecessor(120));
+
+        $anterior->markProcessed();
+
+        $this->assertFalse($posterior->fresh()->hasPendingPredecessor(120));
+    }
+
+    /**
+     * O freio de mão: uma mensagem que nunca conclui não pode segurar a
+     * conversa daquele contato para sempre.
+     */
+    public function test_irma_antiga_fora_da_janela_deixa_de_segurar(): void
+    {
+        $presa = UberAccessRequestMessage::create([
+            'poli_message_id' => 'm-presa', 'poli_sequence' => 100,
+            'contact_uuid' => 'contato-z', 'raw_payload' => [],
+        ]);
+        $presa->forceFill(['created_at' => now()->subMinutes(10)])->save();
+
+        $seguinte = UberAccessRequestMessage::create([
+            'poli_message_id' => 'm-seguinte', 'poli_sequence' => 200,
+            'contact_uuid' => 'contato-z', 'raw_payload' => [],
+        ]);
+
+        $this->assertTrue($seguinte->hasPendingPredecessor(3600));
+        $this->assertFalse($seguinte->hasPendingPredecessor(120));
+    }
+
+    /** Mensagem sem sequência (anterior à migration) não segura ninguém. */
+    public function test_mensagem_sem_sequencia_nao_segura_a_vez(): void
+    {
+        UberAccessRequestMessage::create([
+            'poli_message_id' => 'm-velha', 'poli_sequence' => null,
+            'contact_uuid' => 'contato-w', 'raw_payload' => [],
+        ]);
+        $nova = UberAccessRequestMessage::create([
+            'poli_message_id' => 'm-nova', 'poli_sequence' => 500,
+            'contact_uuid' => 'contato-w', 'raw_payload' => [],
+        ]);
+
+        $this->assertFalse($nova->hasPendingPredecessor(120));
+    }
+
+    /** As de saída nascem resolvidas: nunca disputam vez com uma resposta. */
+    public function test_mensagem_de_saida_nasce_resolvida(): void
+    {
+        $this->send($this->menuPayload('menu-saida', self::CONTACT_UUID));
+
+        $menu = UberAccessRequestMessage::where('poli_message_id', 'wamid-out-menu-saida')->firstOrFail();
+
+        $this->assertNotNull($menu->processed_at);
+        $this->assertSame(self::CONTACT_UUID, $menu->contact_uuid);
     }
 
     /** Resposta digitada continua entrando como veio. */

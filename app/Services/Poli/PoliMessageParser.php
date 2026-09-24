@@ -46,6 +46,51 @@ class PoliMessageParser
     }
 
     /**
+     * A posição desta mensagem na sequência da Poli, para ordenar o que chega
+     * fora de ordem.
+     *
+     * `metadata.deprecated_message_id` é um contador crescente e é a chave
+     * boa. O `value.timestamp` fica de reserva — o nome "deprecated" avisa que
+     * um dia some —, mas é reserva mesmo: com resolução de segundos, ele não
+     * enxerga inversões dentro do mesmo segundo, e numa das medidas apontou
+     * como mais antiga uma mensagem que a sequência prova ser posterior.
+     */
+    public function extractSequence(array $payload): ?int
+    {
+        $sequence = $payload['value']['metadata']['deprecated_message_id'] ?? null;
+
+        if (is_numeric($sequence)) {
+            return (int) $sequence;
+        }
+
+        $timestamp = $payload['value']['timestamp'] ?? null;
+
+        return is_numeric($timestamp) ? (int) $timestamp : null;
+    }
+
+    /**
+     * O contato de qualquer evento — inclusive os de saída, que não passam
+     * pelo `parse()`. A ordem é apurada por contato, porque é por contato que
+     * o fluxo mantém estado.
+     */
+    public function extractContactUuid(array $payload): ?string
+    {
+        $uuid = $payload['value']['contact']['uuid']
+            ?? $payload['value']['author']['uuid']
+            ?? null;
+
+        return is_string($uuid) && $uuid !== '' ? $uuid : null;
+    }
+
+    /** IN ou OUT. Só as de entrada disputam ordem entre si. */
+    public function extractDirection(array $payload): ?string
+    {
+        $direction = $payload['value']['direction'] ?? null;
+
+        return is_string($direction) ? strtoupper($direction) : null;
+    }
+
+    /**
      * O atendimento que este evento anuncia como encerrado, ou null.
      *
      * Vem pelas mensagens de despedida do bot (`event: "sent"`), que trazem

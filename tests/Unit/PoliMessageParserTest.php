@@ -154,6 +154,42 @@ class PoliMessageParserTest extends TestCase
     }
 
     /**
+     * A chave de ordem é o contador sequencial da Poli. O `timestamp` é só
+     * reserva: tem resolução de segundos e não enxerga inversões dentro do
+     * mesmo segundo — em 7 dias de produção foram 4 casos assim.
+     */
+    public function test_sequencia_prefere_o_contador_da_poli(): void
+    {
+        $parser = new PoliMessageParser();
+
+        $payload = $this->realTextPayload();
+        $payload['value']['metadata']['deprecated_message_id'] = 2053829869;
+
+        $this->assertSame(2053829869, $parser->extractSequence($payload));
+
+        // Sem o contador, cai no timestamp — o nome "deprecated" é da Poli.
+        unset($payload['value']['metadata']['deprecated_message_id']);
+        $this->assertSame(1784555626, $parser->extractSequence($payload));
+
+        unset($payload['value']['timestamp']);
+        $this->assertNull($parser->extractSequence($payload));
+    }
+
+    public function test_extrai_contato_e_direcao_de_qualquer_evento(): void
+    {
+        $parser = new PoliMessageParser();
+
+        $entrada = $this->realTextPayload();
+        $this->assertSame('d5e8a972-6360-11f1-9d75-06799772b1cd', $parser->extractContactUuid($entrada));
+        $this->assertSame('IN', $parser->extractDirection($entrada));
+
+        // A de saída também precisa ser identificada, e ela não passa por parse().
+        $saida = $this->realOutgoingListPayload();
+        $this->assertSame('59bd92c9-8467-11f1-9d75-06799772b1cd', $parser->extractContactUuid($saida));
+        $this->assertSame('OUT', $parser->extractDirection($saida));
+    }
+
+    /**
      * O fecho do atendimento vem nas mensagens de despedida do bot, e as
      * anteriores da mesma conversa trazem `closed_reason: null`.
      */
