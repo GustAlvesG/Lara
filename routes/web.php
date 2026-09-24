@@ -267,6 +267,10 @@ Route::middleware('auth')->group(function () {
         Route::put('/overrides/{override}', [HomeAssistantController::class, 'updateOverride'])->name('home-assistant.overrides.update');
         Route::post('/overrides/{override}/toggle', [HomeAssistantController::class, 'toggleOverride'])->name('home-assistant.overrides.toggle');
         Route::delete('/overrides/{override}', [HomeAssistantController::class, 'destroyOverride'])->name('home-assistant.overrides.destroy');
+
+        // Autoatendimento do sócio: feriados liberados e dias bloqueados.
+        Route::post('/self-service/dates', [HomeAssistantController::class, 'storeSelfServiceDate'])->name('home-assistant.self-service.dates.store');
+        Route::delete('/self-service/dates/{date}', [HomeAssistantController::class, 'destroySelfServiceDate'])->name('home-assistant.self-service.dates.destroy');
     });
 
 

@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Contactor;
 use App\Models\HomeAssistantOverride;
+use App\Models\LightingSelfServiceDate;
+use App\Models\MemberLightingActivation;
 use App\Models\Weekday;
 use App\Services\HomeAssistant\ContactorState;
 use App\Services\HomeAssistant\ContactorStateResolver;
 use App\Services\HomeAssistant\ManualCommandService;
+use App\Services\HomeAssistant\SelfServiceLightingService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +21,7 @@ class HomeAssistantController extends Controller
     {
     }
 
-    public function index(ContactorStateResolver $resolver)
+    public function index(ContactorStateResolver $resolver, SelfServiceLightingService $selfService)
     {
         $now = Carbon::now();
         $contactors = $resolver->contactors();
@@ -49,9 +52,29 @@ class HomeAssistantController extends Controller
 
         $weekdays = Weekday::orderBy('id')->get();
 
+        /*
+         * Autoatendimento do sócio. Só o que ainda vai acontecer: data especial
+         * do ano passado é ruído numa tela que serve para decidir o próximo fim
+         * de semana. A remoção fica com quem cadastrou.
+         */
+        $selfServiceDates = LightingSelfServiceDate::whereDate('date', '>=', $now->toDateString())
+            ->orderBy('date')
+            ->get();
+
+        $selfServiceWindows  = (array) config('home_assistant.self_service.windows', []);
+        $selfServiceToday    = $selfService->windowFor($now->copy()->startOfDay());
+        $selfServiceNext     = $selfService->nextWindow($now);
+        $selfServicePlaces   = $selfService->eligiblePlaces();
+        $selfServiceActive   = MemberLightingActivation::activeAt($now)
+            ->with('place')
+            ->orderBy('ends_at')
+            ->get();
+
         return view('home-assistant.index', compact(
             'now', 'contactors', 'states', 'timelines', 'inEffectIds',
-            'activeOverrides', 'archivedOverrides', 'weekdays'
+            'activeOverrides', 'archivedOverrides', 'weekdays',
+            'selfServiceDates', 'selfServiceWindows', 'selfServiceToday',
+            'selfServiceNext', 'selfServicePlaces', 'selfServiceActive'
         ));
     }
 
@@ -174,6 +197,59 @@ class HomeAssistantController extends Controller
     {
         $override->delete();
         return redirect()->to(route('home-assistant.index') . '#schedules')->with('success', 'Agendamento removido!');
+    }
+
+    /* ──────────── Autoatendimento: datas especiais (feriados) ──────────── */
+
+    /**
+     * Libera ou bloqueia uma data para o acionamento de luz pelo sócio.
+     *
+     * A data é única na tabela porque duas regras para o mesmo dia não teriam
+     * resposta ("libera ou bloqueia?"): regravar a existente é o comportamento
+     * que o painel promete ao mostrar uma linha por data.
+     */
+    public function storeSelfServiceDate(Request $request)
+    {
+        $data = $this->validateSelfServiceDate($request);
+
+        LightingSelfServiceDate::updateOrCreate(
+            ['date' => $data['date']],
+            [
+                'mode'       => $data['mode'],
+                // Bloqueio é sempre o dia inteiro: guardar horário ali só
+                // criaria a expectativa de um bloqueio parcial que não existe.
+                'starts_at'  => $data['mode'] === LightingSelfServiceDate::MODE_ALLOW ? ($data['starts_at'] ?? null) : null,
+                'ends_at'    => $data['mode'] === LightingSelfServiceDate::MODE_ALLOW ? ($data['ends_at'] ?? null) : null,
+                'reason'     => $data['reason'] ?? null,
+                'created_by' => auth()->id(),
+            ]
+        );
+
+        return redirect()->to(route('home-assistant.index') . '#self-service')
+            ->with('success', 'Data especial salva.');
+    }
+
+    public function destroySelfServiceDate(LightingSelfServiceDate $date)
+    {
+        $date->delete();
+
+        return redirect()->to(route('home-assistant.index') . '#self-service')
+            ->with('success', 'Data especial removida.');
+    }
+
+    private function validateSelfServiceDate(Request $request): array
+    {
+        return $request->validate([
+            'date'      => 'required|date',
+            'mode'      => 'required|in:allow,block',
+            'starts_at' => 'nullable|date_format:H:i|required_with:ends_at',
+            'ends_at'   => 'nullable|date_format:H:i|required_with:starts_at|after:starts_at',
+            'reason'    => 'nullable|string|max:120',
+        ], [
+            'ends_at.after'          => 'O horário final precisa ser depois do inicial.',
+            'starts_at.required_with' => 'Informe os dois horários, ou nenhum.',
+            'ends_at.required_with'   => 'Informe os dois horários, ou nenhum.',
+        ]);
     }
 
     /* ───────────────────────────── Helpers ───────────────────────────── */

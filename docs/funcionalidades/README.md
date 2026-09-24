@@ -30,7 +30,8 @@ rotas).
 | [WhatsApp](whatsapp.md) | Webhook, envio de mensagens e gestão de conversas/mídia. |
 | [Telegram](telegram.md) | Cadastro e consulta de contatos do Telegram. |
 | [Usuários e Permissões](usuarios-e-permissoes.md) | Administração de usuários, papéis e permissões. |
-| [Automação Home Assistant](automacao-home-assistant.md) | Iluminação automática a partir de reservas, agendamentos e controle manual. |
+| [Automação Home Assistant](automacao-home-assistant.md) | Iluminação automática a partir de reservas, agendamentos e controle manual. Inclui o autoatendimento do sócio no fim de semana. |
+| [Front-end do autoatendimento de luz (Next.js)](iluminacao-autoatendimento-prompt.md) | Contrato da API de acionamento de luz pelo sócio e o prompt de implementação da tela. |
 
 ## Perfis de usuário
 

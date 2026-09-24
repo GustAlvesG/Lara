@@ -106,6 +106,92 @@ usado pelo endpoint, pelo painel e pelo dashboard. A primeira regra que se aplic
 - `created_by` é nulo no comando que vem da API (autenticada por token, sem usuário); a
   procedência fica em `origin`.
 
+## Autoatendimento do sócio (fim de semana)
+
+No fim de semana **não há reserva de quadra**: o uso é livre. Até aqui isso deixava a luz sem
+dono — quem quisesse jogar à noite precisava achar alguém do clube para acender. O
+autoatendimento é a porta do sócio para isso, pelo aplicativo de reservas (o site em Next.js
+que consome esta API).
+
+Não é um mecanismo novo de iluminação: o acionamento vira **o mesmo comando manual** descrito
+acima (`is_quick`, prioridade 1000, com `expires_at`), e o Home Assistant o aplica no polling
+seguinte. O que a camada acrescenta é **de quem é a cota** e **quem acendeu**.
+
+### Regras
+
+1. **Só na janela.** Sábado 17:00–23:00 e domingo 17:00–21:00, em
+   `config/home_assistant.php`. Feriados e bloqueios pontuais vêm da tabela
+   `lighting_self_service_dates`, cadastrada no painel — e a **data sempre vence o dia da
+   semana**.
+2. **Só em quadra liberada.** `places.self_service_lighting`, marcada em *Espaços → editar →
+   Autoatendimento do sócio*. Sem contator vinculado a quadra não aparece.
+3. **O sócio escolhe o tempo**, até `max_minutes` (2 h) por acionamento, sempre aparado no
+   fim da janela: às 22:30 de sábado o máximo são 30 minutos.
+4. **Uma quadra por sócio ao mesmo tempo, sem teto diário.**
+5. **Quadra com reserva confirmada não aciona.** Ela tem dono e a luz já acende sozinha.
+
+### A luz não é de ninguém
+
+Um acionamento **não reserva a quadra**. Acabando o tempo, qualquer sócio presente aciona de
+novo e a luz continua acesa sem piscar — inclusive quem não acendeu da primeira vez. É o que
+resolve o jogo que passa do previsto: às 19:30, com a luz da Ana valendo até 20:00, o Bruno
+aciona e ela passa a valer até 21:30.
+
+Daí três consequências que o código honra explicitamente:
+
+- **Quadra acesa não é recusa.** Acionar a quadra em que o sócio já está **prolonga** o
+  acionamento dele (mesma linha, `starts_at` preservado, `ends_at` empurrado); acionar a de
+  outro sócio cria um acionamento novo e estende a luz.
+- **A luz do contator é o *maior* prazo entre os acionamentos vigentes dele**
+  (`SelfServiceLightingService::syncLight`). Um pedido de 20 minutos no meio de um de duas
+  horas não encurta o que já valia. A conta é por *contator*, não por quadra, porque um
+  contator pode alimentar mais de um espaço.
+- **Devolver a quadra não apaga a luz de quem ficou.** O `release` marca a saída e recalcula;
+  só apaga quando mais ninguém depende dela — e, mesmo aí, só se o comando no contator for o
+  do autoatendimento (um "manter ligado" dado no painel por cima sobrevive).
+
+### Endpoints (`api_token` + `login_token`)
+
+| Método | URI | O que faz |
+|--------|-----|-----------|
+| GET | `/api/lighting/availability` | Janela de hoje, a próxima, os limites de duração e o acionamento vigente do sócio. |
+| GET | `/api/lighting/groups` | Grupos que têm ao menos uma quadra liberada. |
+| GET | `/api/lighting/groups/{group}/places` | Quadras do grupo, com `lit` e `lit_until`. |
+| POST | `/api/lighting/places/{place}/activate` | Acende pelos `minutes` pedidos. `201` novo, `200` prolongando. |
+| POST | `/api/lighting/release` | Devolve a quadra antes da hora. |
+| GET | `/api/lighting/activations` | Histórico do sócio (30 últimos). |
+
+Toda recusa traz um `reason` estável além da mensagem — a tela decide o que mostrar pelo
+código, não pelo texto em português:
+
+| `reason` | HTTP | Quando |
+|----------|------|--------|
+| `window_closed` | 422 | Fora da janela, ou dia bloqueado. Vem com `next_window`. |
+| `window_ending` | 422 | Falta menos que `min_minutes` para fechar. |
+| `member_limit` | 409 | O sócio está em **outra** quadra. Vem com `active_activation`. |
+| `place_not_eligible` | 422 | Quadra não liberada, ou sem contator. |
+| `place_reserved` | 409 | Reserva confirmada no período. Vem com `reserved_from`/`reserved_until`. |
+| `no_activation` | 404 | `release` sem nada aceso. |
+
+`minutes` fora de `[min_minutes, max_minutes]` volta como erro de validação comum do Laravel
+(`422` com `errors.minutes`), não com `reason`.
+
+O sócio é sempre o dono do `Session` (JWT), resolvido pelo cpf do token — **nenhum endpoint
+aceita sócio vindo do corpo da requisição**.
+
+### Referência técnica do autoatendimento
+
+- Regras: `app/Services/HomeAssistant/SelfServiceLightingService.php`,
+  `LightingWindow.php`, `app/Exceptions/SelfServiceLightingException.php`
+- Endpoints: `app/Http/Controllers/Api/MemberLightingController.php`,
+  `app/Http/Requests/StoreMemberLightingActivationRequest.php`
+- Modelos: `LightingSelfServiceDate`, `MemberLightingActivation`
+- Painel: aba **Autoatendimento** em `/home-assistant`
+  (`resources/views/home-assistant/partials/self-service.blade.php`)
+- Testes: `tests/Unit/HomeAssistant/SelfServiceLightingWindowTest.php`,
+  `tests/Feature/MemberLightingSelfServiceTest.php`
+- Front-end: [prompt de implementação](iluminacao-autoatendimento-prompt.md)
+
 ## Painel `/home-assistant`
 
 - **Resumo**: quantos contatores estão ligados, quantos estão em modo manual e quantos
@@ -115,6 +201,9 @@ usado pelo endpoint, pelo painel e pelo dashboard. A primeira regra que se aplic
   controle Automático / Ligado / Desligado.
 - **Agendamentos**: lista de ativos e de pausados/expirados, com resumo em texto, dias,
   contatores, período, prioridade, interruptor de pausa, edição e remoção.
+- **Autoatendimento**: os horários fixos de fim de semana, a próxima janela, as quadras
+  liberadas, quem está com luz acesa agora e o cadastro de **datas especiais** (liberar um
+  feriado, bloquear um sábado de torneio).
 - O formulário de agendamento mostra, antes de salvar, um resumo em linguagem natural do que
   o agendamento vai fazer.
 - A página recarrega a cada minuto, exceto quando há um modal aberto ou alguém digitando.
