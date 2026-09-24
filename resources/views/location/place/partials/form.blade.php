@@ -104,6 +104,39 @@
         </div>
     </div>
 
+    {{-- ─── Autoatendimento do sócio ──────────────────────────────────── --}}
+    {{--
+        Sem a permissão de Home Assistant: quem decide se a quadra pode ser
+        acesa pelo sócio é quem administra os espaços, não a TI. O que é
+        restrito ali em cima é o switch, que é fiação.
+    --}}
+    <div class="rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div class="px-5 py-3 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700">
+            <p class="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                Autoatendimento do sócio
+            </p>
+        </div>
+        <div class="px-5 py-4 bg-white dark:bg-gray-800">
+            <label for="self_service_lighting" class="flex items-start gap-3 cursor-pointer">
+                {{-- Campo oculto: checkbox desmarcado não é enviado, e sem ele desmarcar nunca gravaria. --}}
+                <input type="hidden" name="self_service_lighting" value="0">
+                <input type="checkbox" name="self_service_lighting" id="self_service_lighting" value="1"
+                    @if(old('self_service_lighting', isset($item) ? $item->self_service_lighting : false)) checked @endif
+                    class="mt-0.5 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                <span>
+                    <span class="block text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        Permitir que o sócio acenda a luz pelo aplicativo
+                    </span>
+                    <span class="block mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                        Vale só nos horários de uso livre (fim de semana e feriados liberados),
+                        por tempo limitado e uma quadra por sócio. Precisa de um switch vinculado
+                        acima — sem ele, a quadra não aparece no aplicativo.
+                    </span>
+                </span>
+            </label>
+        </div>
+    </div>
+
     {{-- ─── Imagem ────────────────────────────────────────────────────── --}}
     <div class="rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden">
         <div class="px-5 py-3 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700">

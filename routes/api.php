@@ -34,6 +34,7 @@ use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\UberAccessRequestWebhookController;
 use App\Http\Controllers\InformationSearchController;
 use App\Http\Controllers\Api\PurchaseApprovalController;
+use App\Http\Controllers\Api\MemberLightingController;
 use App\Http\Controllers\Fleet\FleetApiController;
 
 
@@ -321,6 +322,45 @@ Route::middleware('api_token')->group(function () {
 
 
             Route::post('/time-options', [ScheduleRulesController::class, 'getTimeOptions'])->name('api.schedule.getTimeOptions')->withoutMiddleware(['login_token']);
+        });
+
+        /*
+        |------------------------------------------------------------------
+        | Iluminação — autoatendimento do sócio (app de reservas)
+        |------------------------------------------------------------------
+        |
+        | Fim de semana não tem reserva de quadra: o uso é livre, e a luz
+        | dependia de alguém do clube. Aqui o próprio sócio acende, dentro da
+        | janela de horário e com uma quadra por vez.
+        |
+        | Dentro do grupo `login_token` de propósito: a cota é por sócio, e
+        | sem sessão não há de quem seja. O `api_token` do grupo externo
+        | continua valendo — os dois são exigidos.
+        |
+        | Throttle por rota porque o de escrita é o que importa: a tela
+        | consulta a disponibilidade em laço enquanto o contador corre, e um
+        | limite único faria a consulta gastar a cota do acionamento.
+        */
+        Route::prefix('lighting')->group(function () {
+            Route::get('/availability', [MemberLightingController::class, 'availability'])
+                ->middleware('throttle:120,1')->name('api.lighting.availability');
+
+            Route::get('/groups', [MemberLightingController::class, 'groups'])
+                ->middleware('throttle:120,1')->name('api.lighting.groups');
+
+            Route::get('/groups/{group}/places', [MemberLightingController::class, 'places'])
+                ->where('group', '[0-9]+')
+                ->middleware('throttle:120,1')->name('api.lighting.places');
+
+            Route::get('/activations', [MemberLightingController::class, 'history'])
+                ->middleware('throttle:60,1')->name('api.lighting.history');
+
+            Route::post('/places/{place}/activate', [MemberLightingController::class, 'activate'])
+                ->where('place', '[0-9]+')
+                ->middleware('throttle:20,1')->name('api.lighting.activate');
+
+            Route::post('/release', [MemberLightingController::class, 'release'])
+                ->middleware('throttle:20,1')->name('api.lighting.release');
         });
     });
 });

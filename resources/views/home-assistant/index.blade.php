@@ -22,7 +22,7 @@
 
     <div class="py-6"
         x-data="{
-            tab: ['contactors', 'schedules'].includes(location.hash.slice(1)) ? location.hash.slice(1) : '{{ $initialTab }}',
+            tab: ['contactors', 'schedules', 'self-service'].includes(location.hash.slice(1)) ? location.hash.slice(1) : '{{ $initialTab }}',
             help: false,
             go(tab) { this.tab = tab; history.replaceState(null, '', '#' + tab); },
         }">
@@ -144,6 +144,12 @@
                         Agendamentos
                         <span class="ml-1 text-xs font-bold text-gray-400">{{ $activeOverrides->count() }}</span>
                     </button>
+                    <button type="button" role="tab" @click="go('self-service')" :aria-selected="tab === 'self-service'"
+                        :class="tab === 'self-service' ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'"
+                        class="px-4 py-2 rounded-lg text-sm font-semibold transition">
+                        Autoatendimento
+                        <span class="ml-1 text-xs font-bold text-gray-400">{{ $selfServicePlaces->count() }}</span>
+                    </button>
                 </nav>
 
                 <div class="flex items-center gap-2">
@@ -255,6 +261,11 @@
                         </div>
                     @endif
                 @endif
+            </section>
+
+            {{-- ══════════════ Autoatendimento do sócio ══════════════ --}}
+            <section x-show="tab === 'self-service'" x-cloak role="tabpanel" class="space-y-4">
+                @include('home-assistant.partials.self-service')
             </section>
         </div>
 
