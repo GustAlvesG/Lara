@@ -4,6 +4,11 @@
 > aplicativo de reservas (Next.js)**, não neste. Copie a partir de
 > "Início do prompt" até o fim.
 >
+> ⚠️ **A tela já existe?** Então o documento a entregar não é este, e sim
+> [iluminacao-autoatendimento-ajustes-prompt.md](iluminacao-autoatendimento-ajustes-prompt.md),
+> que lista o que mudou no contrato desde a primeira versão. Este aqui é para
+> implementar do zero, e serve de referência do contrato completo.
+>
 > O contrato descrito aqui é o que a Lara expõe hoje (`routes/api.php`, prefixo
 > `lighting`). Se a API mudar, este arquivo muda junto — ele é a fonte do que o
 > front pode esperar. As regras por trás dele estão em

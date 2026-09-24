@@ -217,7 +217,8 @@ aceita sócio vindo do corpo da requisição**.
   `self-service-window-form.blade.php`, o modal de horário por quadra)
 - Testes: `tests/Unit/HomeAssistant/SelfServiceLightingWindowTest.php`,
   `tests/Feature/MemberLightingSelfServiceTest.php`
-- Front-end: [prompt de implementação](iluminacao-autoatendimento-prompt.md)
+- Front-end: [prompt de implementação do zero](iluminacao-autoatendimento-prompt.md) e
+  [prompt de ajuste da tela existente](iluminacao-autoatendimento-ajustes-prompt.md)
 
 ## Painel `/home-assistant`
 
