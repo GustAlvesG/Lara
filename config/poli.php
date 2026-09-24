@@ -46,28 +46,49 @@ return [
     | com defasagens de 1 a 12 segundos. Numa máquina de estados isso põe a
     | resposta no campo errado e desloca o pedido inteiro.
     |
-    | A compensação tem duas metades. A primeira é `ordering_delay`: a mensagem
-    | espera antes de ser processada, porque uma irmã atrasada só pode ser
-    | levada em conta depois de ter chegado. A segunda é `ordering_wait`: na
-    | hora de processar, a mensagem cede a vez se houver outra do mesmo contato
-    | com sequência menor ainda pendente.
+    | A compensação tem duas metades. A primeira é `max_delivery_lag`: a
+    | mensagem espera antes de ser processada, porque uma irmã atrasada só pode
+    | ser levada em conta depois de ter chegado. A segunda é `ordering_wait`:
+    | na hora de processar, a mensagem cede a vez se houver outra do mesmo
+    | contato com sequência menor ainda pendente.
     |
-    | O atraso é invisível para o associado — quem conversa com ele é o bot da
-    | Poli, que responde na hora. O custo real aparece só no último passo: o
-    | pedido chega à portaria este tanto de segundos depois do print.
+    | A espera é contada a partir da hora em que a POLI CRIOU a mensagem
+    | (`value.metadata.created_at`), nunca da hora em que o webhook chegou.
+    | É o que mantém a compensação restrita ao problema que ela resolve:
+    |
+    |   - o que se compensa é o atraso de ENTREGA, então o teto é o atraso
+    |     máximo de entrega — e uma mensagem que já chegou atrasada não espera
+    |     de novo, porque o tempo dela já foi gasto no caminho;
+    |   - o RITMO DA CONVERSA não entra na conta. O associado pode levar o
+    |     tempo que quiser entre uma resposta e outra: cada uma é processada a
+    |     este tanto de segundos de quando ele a escreveu, e não a este tanto
+    |     de segundos depois da anterior.
+    |
+    | Ancorar na chegada, como se fazia antes, somava as duas coisas: o atraso
+    | da entrega e mais a espera inteira. Com 60s de espera a coleta passou a
+    | correr um minuto atrás da conversa, e como o FIM do atendimento chega por
+    | um caminho sem espera nenhuma, o atendimento fechava com metade das
+    | respostas ainda na fila — pedido perfeito no WhatsApp, pedido vazio no
+    | sistema.
     |
     */
 
     'inbound' => [
 
-        'ordering_delay_seconds' => (int) env('POLI_INBOUND_ORDERING_DELAY', 60),
+        /*
+        | Teto do atraso de entrega do webhook. As defasagens medidas em 7 dias
+        | de produção vão de 1 a 12 segundos; o resto é margem. Subir este
+        | número não atrasa a conversa toda — atrasa cada mensagem em relação à
+        | própria criação, e só até o teto.
+        */
+        'max_delivery_lag_seconds' => (int) env('POLI_INBOUND_MAX_LAG', 20),
 
         /*
         | Até quando esperar por uma irmã mais antiga. Passado o prazo a
         | mensagem segue sem ela — é a trava que impede uma mensagem presa de
         | travar a conversa inteira do contato.
         */
-        'ordering_wait_seconds' => (int) env('POLI_INBOUND_ORDERING_WAIT', 60),
+        'ordering_wait_seconds' => (int) env('POLI_INBOUND_ORDERING_WAIT', 45),
 
         /* Intervalo entre uma tentativa e outra enquanto se cede a vez. */
         'defer_seconds' => (int) env('POLI_INBOUND_DEFER_SECONDS', 3),

@@ -55,10 +55,10 @@ class UberAccessRequestWebhookController extends Controller
         ]);
 
         if ($entrada) {
-            // O atraso é o que dá tempo de uma mensagem atrasada chegar: só dá
+            // A espera é o que dá tempo de uma mensagem atrasada chegar: só dá
             // para ceder a vez a uma irmã que já esteja gravada.
             ProcessUberAccessRequestMessage::dispatch($messageRow->id)
-                ->delay(now()->addSeconds((int) config('poli.inbound.ordering_delay_seconds', 20)));
+                ->delay(now()->addSeconds($this->esperaDeEntrega($payload, $parser)));
         }
 
         // O fecho do atendimento é anunciado pelas mensagens do bot, que não
@@ -67,6 +67,45 @@ class UberAccessRequestWebhookController extends Controller
         $this->dispatchAttendanceClosure($payload, $parser);
 
         return response()->json(['status' => 'accepted'], 200);
+    }
+
+    /**
+     * Quantos segundos esta mensagem ainda precisa esperar para que nenhuma
+     * irmã mais antiga possa estar a caminho.
+     *
+     * A conta é feita a partir da hora em que a POLI CRIOU a mensagem, e não
+     * da hora em que ela chegou aqui. É a diferença entre as duas abordagens
+     * que importa:
+     *
+     *   - ancorado na chegada, todo mundo espera o mesmo tanto, e o atraso do
+     *     webhook SOMA com a espera. Uma mensagem entregue 12s atrasada só era
+     *     processada 12s + espera depois de ter sido escrita;
+     *   - ancorado na criação, a espera é o que FALTA para o teto. Quem chegou
+     *     atrasado já gastou o tempo no caminho e segue direto; quem chegou na
+     *     hora aguarda o teto inteiro.
+     *
+     * O efeito é que toda mensagem entra no fluxo a `max_delivery_lag` da sua
+     * criação — um prazo fixo, que não cresce com o atraso da entrega. E como
+     * a régua é a criação da mensagem, o ritmo da conversa não entra na conta:
+     * o associado pode levar o tempo que quiser entre uma resposta e outra.
+     */
+    private function esperaDeEntrega(array $payload, PoliMessageParser $parser): int
+    {
+        $teto = (int) config('poli.inbound.max_delivery_lag_seconds', 20);
+
+        $criadaEm = $parser->extractCreatedAt($payload);
+
+        // Sem hora de criação não há como descontar nada: espera o teto, que é
+        // o comportamento antigo e o seguro.
+        if ($criadaEm === null) {
+            return $teto;
+        }
+
+        $gastoNoCaminho = now()->getTimestamp() - $criadaEm->getTimestamp();
+
+        // O relógio da Poli e o nosso podem discordar; um adiantamento traria
+        // gasto negativo e uma espera MAIOR que o teto. Daí os dois limites.
+        return (int) max(0, min($teto, $teto - $gastoNoCaminho));
     }
 
     /**

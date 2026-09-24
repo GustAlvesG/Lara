@@ -69,6 +69,34 @@ class PoliMessageParser
     }
 
     /**
+     * Quando a POLI criou a mensagem — não quando o webhook chegou aqui.
+     *
+     * A diferença entre as duas é o atraso de entrega, e é só esse atraso que
+     * a espera de ordenação existe para cobrir. Ancorar na criação faz a
+     * espera encolher sozinha para quem chegou atrasado: o tempo já foi gasto
+     * no caminho.
+     *
+     * `timestamp` é o plano B, em segundos inteiros — mesma grandeza, pior
+     * resolução.
+     */
+    public function extractCreatedAt(array $payload): ?Carbon
+    {
+        $criadoEm = $payload['value']['metadata']['created_at'] ?? null;
+
+        if (is_string($criadoEm) && $criadoEm !== '') {
+            try {
+                return Carbon::parse($criadoEm);
+            } catch (\Throwable) {
+                // Formato inesperado cai no plano B abaixo.
+            }
+        }
+
+        $timestamp = $payload['value']['timestamp'] ?? null;
+
+        return is_numeric($timestamp) ? Carbon::createFromTimestamp((int) $timestamp) : null;
+    }
+
+    /**
      * O contato de qualquer evento — inclusive os de saída, que não passam
      * pelo `parse()`. A ordem é apurada por contato, porque é por contato que
      * o fluxo mantém estado.

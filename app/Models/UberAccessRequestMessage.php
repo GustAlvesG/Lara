@@ -56,6 +56,27 @@ class UberAccessRequestMessage extends Model
     }
 
     /**
+     * Ainda há mensagem deste atendimento esperando na fila?
+     *
+     * É a pergunta que o fecho da coleta precisa fazer antes de encerrar. A
+     * despedida do bot sai por um caminho síncrono e as respostas do associado
+     * por um caminho com atraso: fechar sem olhar para trás mata exatamente as
+     * respostas que ainda estavam em voo — o pedido some com metade dos campos
+     * preenchidos, embora a conversa tenha sido perfeita.
+     *
+     * Só mensagens de ENTRADA ficam pendentes: as de saída já nascem marcadas
+     * no próprio webhook.
+     */
+    public static function hasPendingForAttendance(string $attendanceUuid, int $windowSeconds): bool
+    {
+        return static::query()
+            ->whereNull('processed_at')
+            ->where('created_at', '>=', now()->subSeconds($windowSeconds))
+            ->where('raw_payload->value->attendance->uuid', $attendanceUuid)
+            ->exists();
+    }
+
+    /**
      * Marca a mensagem como resolvida — tenha ela alimentado o fluxo, sido
      * recusada ou ignorada. O que importa para a ordem é que ela saiu do
      * caminho das seguintes.

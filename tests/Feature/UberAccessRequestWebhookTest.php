@@ -237,6 +237,81 @@ class UberAccessRequestWebhookTest extends TestCase
         return $menuUuid;
     }
 
+    /**
+     * Carimba no payload a hora em que a Poli criou a mensagem, tantos
+     * segundos atrás — que é como se simula um webhook atrasado.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function criadaHa(array $payload, int $segundos): array
+    {
+        $payload['value']['metadata']['created_at'] = now()->copy()
+            ->subSeconds($segundos)
+            ->utc()
+            ->format('Y-m-d\TH:i:s.u\Z');
+
+        return $payload;
+    }
+
+    /**
+     * A espera antes de processar cobre o atraso do WEBHOOK, e só ele.
+     *
+     * Por isso ela é contada da criação da mensagem, não da chegada: quem
+     * chegou atrasado já gastou o tempo no caminho e espera menos, de modo que
+     * toda mensagem entra no fluxo a um prazo FIXO da sua criação. É o que
+     * impede a coleta de ir ficando para trás da conversa — e o que garante
+     * que o ritmo do associado não altere nada.
+     */
+    public function test_espera_desconta_o_atraso_do_webhook(): void
+    {
+        Queue::fake([ProcessUberAccessRequestMessage::class]);
+
+        // Sem congelar, o relógio anda entre o POST e a asserção e a conta
+        // erra por um segundo de vez em quando.
+        $this->freezeTime();
+
+        config(['poli.inbound.max_delivery_lag_seconds' => 20]);
+
+        $this->send($this->criadaHa($this->payload(text: 'chegou na hora'), 0));
+        $this->send($this->criadaHa($this->payload(text: 'chegou atrasada'), 18));
+
+        $esperas = [];
+
+        Queue::assertPushed(ProcessUberAccessRequestMessage::class, function ($job) use (&$esperas) {
+            $esperas[] = (int) round(now()->diffInSeconds($job->delay, false));
+
+            return true;
+        });
+
+        // A que chegou na hora aguarda o teto inteiro; a que chegou 18s
+        // atrasada aguarda só os 2s que faltavam. As duas, somadas ao atraso,
+        // dão os mesmos 20s desde que a Poli as criou.
+        $this->assertSame([20, 2], $esperas);
+    }
+
+    /**
+     * Sem hora de criação no payload, espera o teto — o comportamento antigo,
+     * que é o seguro.
+     */
+    public function test_sem_hora_de_criacao_espera_o_teto(): void
+    {
+        Queue::fake([ProcessUberAccessRequestMessage::class]);
+
+        // Sem congelar, o relógio anda entre o POST e a asserção e a conta
+        // erra por um segundo de vez em quando.
+        $this->freezeTime();
+
+        config(['poli.inbound.max_delivery_lag_seconds' => 20]);
+
+        $this->send($this->payload(text: 'sem metadata.created_at'));
+
+        Queue::assertPushed(
+            ProcessUberAccessRequestMessage::class,
+            fn ($job) => (int) round(now()->diffInSeconds($job->delay, false)) === 20
+        );
+    }
+
     public function test_outbound_message_is_ignored(): void
     {
         $this->postJson($this->endpoint(), $this->payload(text: self::TRIGGER, direction: 'OUT'), $this->authHeaders())
