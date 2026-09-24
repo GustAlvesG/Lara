@@ -60,14 +60,14 @@ return [
 
     'inbound' => [
 
-        'ordering_delay_seconds' => (int) env('POLI_INBOUND_ORDERING_DELAY', 20),
+        'ordering_delay_seconds' => (int) env('POLI_INBOUND_ORDERING_DELAY', 60),
 
         /*
         | Até quando esperar por uma irmã mais antiga. Passado o prazo a
         | mensagem segue sem ela — é a trava que impede uma mensagem presa de
         | travar a conversa inteira do contato.
         */
-        'ordering_wait_seconds' => (int) env('POLI_INBOUND_ORDERING_WAIT', 120),
+        'ordering_wait_seconds' => (int) env('POLI_INBOUND_ORDERING_WAIT', 60),
 
         /* Intervalo entre uma tentativa e outra enquanto se cede a vez. */
         'defer_seconds' => (int) env('POLI_INBOUND_DEFER_SECONDS', 3),
