@@ -175,6 +175,49 @@ class PoliBotWebhookTest extends TestCase
         $this->assertSame($antes, PoliMessage::where('direction', 'OUT')->count());
     }
 
+    public function test_resposta_em_atendimento_aberto_pela_empresa_fica_com_quem_escreveu(): void
+    {
+        $payload = $this->recebida('CHAT', ['body' => ['text' => 'Olá']]);
+        $payload['value']['attendance'] = ['uuid' => 'att-cobranca', 'type' => 'INITIATED_BY_BUSINESS', 'status' => 'IN_PROGRESS'];
+
+        $this->webhook($payload)->assertOk();
+
+        $this->assertSame(1, PoliMessage::where('direction', 'IN')->count());
+        $this->assertSame(0, PoliMessage::where('direction', 'OUT')->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_no_modo_on_a_espera_do_webhook_e_a_do_bot(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        config(['poli.bot.inbound_max_lag_seconds' => 6, 'poli.inbound.max_delivery_lag_seconds' => 20]);
+
+        $agora = now()->toIso8601String();
+        $comCriacao = function () use ($agora) {
+            $p = $this->recebida('CHAT', ['body' => ['text' => 'oi']]);
+            $p['value']['metadata']['created_at'] = $agora;
+
+            return $p;
+        };
+
+        $this->webhook($comCriacao())->assertOk();
+        config(['poli.bot.mode' => BotEngine::MODE_SHADOW]);
+        $this->webhook($comCriacao())->assertOk();
+
+        $esperas = [];
+        \Illuminate\Support\Facades\Queue::assertPushed(
+            \App\Jobs\ProcessUberAccessRequestMessage::class,
+            function ($job) use (&$esperas) {
+                $esperas[] = (int) round(now()->diffInSeconds($job->delay, false));
+
+                return true;
+            },
+        );
+
+        $this->assertEqualsWithDelta(6, $esperas[0], 1, 'on: teto do bot');
+        $this->assertEqualsWithDelta(20, $esperas[1], 1, 'shadow: teto da escuta do Uber, igual à main');
+    }
+
     public function test_modo_off_nao_toca_nas_tabelas_do_bot(): void
     {
         config(['poli.bot.mode' => BotEngine::MODE_OFF]);

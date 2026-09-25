@@ -105,6 +105,17 @@ class BotEngine
 
         $this->recordInbound($session, $message);
 
+        if (($motivo = $this->conversaDeOutroDono($message)) !== null) {
+            Log::info('PoliBot: silêncio — o atendimento não é do bot', [
+                'motivo' => $motivo,
+                'contact_uuid' => $session->contact_uuid,
+                'attendance_uuid' => $message->attendanceUuid,
+            ]);
+            $this->save($session);
+
+            return;
+        }
+
         if ($session->isHuman()) {
             if (!$this->humanExpired($session)) {
                 $this->save($session);
@@ -127,8 +138,15 @@ class BotEngine
             if ($flow === null) {
                 $session->reset();
             } elseif ($this->timedOut($session, $flow)) {
+                // O aviso só faz sentido para quem estava no meio de algo.
+                // Quem parou no menu inicial recebe o menu, sem sermão.
+                $estavaNoMeio = $session->step_key !== $flow->start() || !empty($session->data);
+
                 $session->reset();
-                $this->say($session, (string) config('poli.bot.messages.expired'));
+
+                if ($estavaNoMeio) {
+                    $this->say($session, (string) config('poli.bot.messages.expired'));
+                }
                 $this->startTriggered($session, $message, onlyAnyMessage: true);
                 $this->save($session);
 
@@ -696,6 +714,32 @@ class BotEngine
 
         return in_array($session->contact_uuid, $piloto, true)
             || ($telefone !== '' && in_array($telefone, $piloto, true));
+    }
+
+    /**
+     * Por que esta conversa não é do bot — ou null, se for.
+     *
+     * Mesma regra do bot da Poli, medida em produção em 25/09/2026: ele só
+     * entra em atendimento aberto PELO CONTATO e ainda não encerrado.
+     *
+     *   - INITIATED_BY_BUSINESS: alguém do clube começou a conversa (uma
+     *     cobrança, o aviso de chegada do Uber). A resposta do associado é
+     *     para quem escreveu, não para um menu.
+     *   - status CLOSED: a mensagem caiu num atendimento que acabou de ser
+     *     encerrado. Uma amostra só até aqui — o log de silêncio existe para
+     *     confirmar no modo sombra.
+     */
+    private function conversaDeOutroDono(ParsedPoliMessage $message): ?string
+    {
+        if ($message->attendanceType === 'INITIATED_BY_BUSINESS') {
+            return 'iniciado_pela_empresa';
+        }
+
+        if ($message->attendanceStatus === 'CLOSED') {
+            return 'atendimento_encerrado';
+        }
+
+        return null;
     }
 
     private function humanExpired(BotSession $session): bool

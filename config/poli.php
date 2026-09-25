@@ -202,6 +202,14 @@ return [
             explode(',', (string) env('POLI_BOT_LIVE_CONTACTS', ''))
         ))),
 
+        /*
+        | No modo on, quanto cada mensagem espera antes de o bot responder —
+        | o equivalente de inbound.max_delivery_lag_seconds para a conversa
+        | com o bot. Menor é mais rápido e mais exposto a mensagem fora de
+        | ordem (o webhook já atrasou até 12s). Em off/shadow não se aplica.
+        */
+        'inbound_max_lag_seconds' => (int) env('POLI_BOT_INBOUND_MAX_LAG', 6),
+
         'default_timeout_minutes' => (int) env('POLI_BOT_TIMEOUT_MINUTES', 15),
         'default_max_attempts' => (int) env('POLI_BOT_MAX_ATTEMPTS', 3),
 

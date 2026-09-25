@@ -26,5 +26,14 @@ class ParsedPoliMessage
          * botão ou do teclado.
          */
         public readonly ?string $contextMessageUuid = null,
+        /**
+         * `value.attendance.type` (INITIATED_BY_CONTACT / INITIATED_BY_BUSINESS)
+         * e `value.attendance.status` (null, IN_PROGRESS, CLOSED…). É por eles
+         * que o bot sabe se a conversa é dele: o bot da Poli só entra em
+         * atendimento aberto pelo contato e não encerrado (medido em
+         * 25/09/2026).
+         */
+        public readonly ?string $attendanceType = null,
+        public readonly ?string $attendanceStatus = null,
     ) {}
 }

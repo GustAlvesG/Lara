@@ -81,7 +81,7 @@ class UberAccessRequestWebhookController extends Controller
             // A espera é o que dá tempo de uma mensagem atrasada chegar: só dá
             // para ceder a vez a uma irmã que já esteja gravada.
             ProcessUberAccessRequestMessage::dispatch($messageRow->id)
-                ->delay(now()->addSeconds($this->esperaDeEntrega($payload, $parser)));
+                ->delay(now()->addSeconds($this->esperaDeEntrega($payload, $parser, $bot)));
         }
 
         // O fecho do atendimento é anunciado pelas mensagens do bot, que não
@@ -112,9 +112,16 @@ class UberAccessRequestWebhookController extends Controller
      * a régua é a criação da mensagem, o ritmo da conversa não entra na conta:
      * o associado pode levar o tempo que quiser entre uma resposta e outra.
      */
-    private function esperaDeEntrega(array $payload, PoliMessageParser $parser): int
+    private function esperaDeEntrega(array $payload, PoliMessageParser $parser, BotEngine $bot): int
     {
-        $teto = (int) config('poli.inbound.max_delivery_lag_seconds', 20);
+        // Com o bot da Lara respondendo (modo on), a espera vira tempo de
+        // resposta na cara do associado: 20s por mensagem é conversa travada.
+        // O teto do bot é menor e troca um pouco de proteção contra inversão
+        // (medidas: 1 a 12s, 8 em 2081) por uma conversa que anda. A escuta
+        // do Uber, que só existe fora do modo on, segue com o teto dela.
+        $teto = $bot->mode() === BotEngine::MODE_ON
+            ? (int) config('poli.bot.inbound_max_lag_seconds', 6)
+            : (int) config('poli.inbound.max_delivery_lag_seconds', 20);
 
         $criadaEm = $parser->extractCreatedAt($payload);
 

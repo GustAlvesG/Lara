@@ -79,6 +79,8 @@ class PoliMessageParser
             attendanceUuid: $value['attendance']['uuid'] ?? null,
             type: ParsedPoliMessage::TYPE_UNKNOWN,
             contextMessageUuid: $value['context']['message']['uuid'] ?? null,
+            attendanceType: $this->stringOrNull($value['attendance']['type'] ?? null),
+            attendanceStatus: $this->stringOrNull($value['attendance']['status'] ?? null),
         );
     }
 
@@ -325,6 +327,8 @@ class PoliMessageParser
             // Só existe na ENTRADA. Na saída, `value.context` guarda a
             // definição da própria lista — mesmo nome, outra coisa.
             contextMessageUuid: $value['context']['message']['uuid'] ?? null,
+            attendanceType: $this->stringOrNull($value['attendance']['type'] ?? null),
+            attendanceStatus: $this->stringOrNull($value['attendance']['status'] ?? null),
         );
     }
 
@@ -397,6 +401,11 @@ class PoliMessageParser
         $text = trim($text, " \t\n\r\0\x0B{}\"'");
 
         return trim(preg_replace('/\s+/', ' ', $text));
+    }
+
+    private function stringOrNull(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? $value : null;
     }
 
     private function extractUrl(mixed $component): ?string

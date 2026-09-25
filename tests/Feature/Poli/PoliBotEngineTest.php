@@ -101,8 +101,15 @@ class PoliBotEngineTest extends TestCase
         $this->bot()->handleInbound($this->msg(ParsedPoliMessage::TYPE_IMAGE, null, $url));
     }
 
-    private function msg(string $tipo, ?string $texto, ?string $url = null, ?string $contexto = null, string $contato = self::CONTACT): ParsedPoliMessage
-    {
+    private function msg(
+        string $tipo,
+        ?string $texto,
+        ?string $url = null,
+        ?string $contexto = null,
+        string $contato = self::CONTACT,
+        ?string $attendanceType = null,
+        ?string $attendanceStatus = null,
+    ): ParsedPoliMessage {
         return new ParsedPoliMessage(
             messageId: 'in-' . (++$this->seq),
             contactUuid: $contato,
@@ -113,6 +120,8 @@ class PoliBotEngineTest extends TestCase
             text: $texto,
             mediaUrl: $url,
             contextMessageUuid: $contexto,
+            attendanceType: $attendanceType,
+            attendanceStatus: $attendanceStatus,
         );
     }
 
@@ -374,6 +383,44 @@ class PoliBotEngineTest extends TestCase
         $this->assertStringContainsString('ficou parada', implode(' ', $this->enviados()));
         $this->assertSame('menu', $this->sessao()->step_key);
         $this->assertSame(0, UberAccessRequest::count());
+    }
+
+    public function test_parada_no_menu_inicial_recebe_o_menu_sem_aviso_de_expiracao(): void
+    {
+        $this->texto('oi');
+        BotSession::where('contact_uuid', self::CONTACT)->update(['last_interaction_at' => now()->subHours(2)]);
+
+        $this->texto('oi de novo');
+
+        $this->assertStringNotContainsString('ficou parada', implode(' ', $this->enviados()));
+        $this->assertSame('menu', $this->sessao()->step_key);
+    }
+
+    /**
+     * Medido em produção em 25/09/2026: o bot da Poli não responde em
+     * atendimento aberto pela empresa, nem em atendimento encerrado.
+     */
+    public function test_atendimento_iniciado_pela_empresa_nao_e_do_bot(): void
+    {
+        $this->bot()->handleInbound($this->msg(ParsedPoliMessage::TYPE_TEXT, 'Olá', attendanceType: 'INITIATED_BY_BUSINESS', attendanceStatus: 'IN_PROGRESS'));
+
+        Http::assertNothingSent();
+        $this->assertSame(0, PoliMessage::where('direction', 'OUT')->count());
+        $this->assertSame(1, PoliMessage::where('direction', 'IN')->count(), 'o histórico registra mesmo assim');
+    }
+
+    public function test_atendimento_encerrado_nao_e_do_bot(): void
+    {
+        $this->bot()->handleInbound($this->msg(ParsedPoliMessage::TYPE_TEXT, 'Olá', attendanceType: 'INITIATED_BY_CONTACT', attendanceStatus: 'CLOSED'));
+
+        Http::assertNothingSent();
+    }
+
+    public function test_atendimento_aberto_pelo_contato_e_do_bot(): void
+    {
+        $this->bot()->handleInbound($this->msg(ParsedPoliMessage::TYPE_TEXT, 'Oi', attendanceType: 'INITIATED_BY_CONTACT'));
+
+        Http::assertSentCount(1);
     }
 
     public function test_mesma_mensagem_duas_vezes_e_tratada_uma_vez(): void
