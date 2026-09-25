@@ -23,11 +23,16 @@ class SendMessageResult
         public readonly ?int $httpStatus = null,
         public readonly ?int $retryAfter = null,
         public readonly bool $retryable = false,
+        public readonly ?string $contactUuid = null,
     ) {}
 
-    public static function ok(?string $messageUuid, ?string $status, ?int $httpStatus = null): self
+    /**
+     * `contactUuid` é o contato que recebeu, quando a Poli o devolve — é o
+     * que permite encerrar a conversa de um envio feito só pelo telefone.
+     */
+    public static function ok(?string $messageUuid, ?string $status, ?int $httpStatus = null, ?string $contactUuid = null): self
     {
-        return new self(true, $messageUuid, $status, null, $httpStatus);
+        return new self(true, $messageUuid, $status, null, $httpStatus, null, false, $contactUuid);
     }
 
     /**

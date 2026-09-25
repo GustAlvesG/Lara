@@ -118,6 +118,50 @@ class PoliMessageService
         return $this->handleSuccess($response, $phone);
     }
 
+    /**
+     * Encerra a conversa do contato na Poli (POST /contacts/{uuid}/close,
+     * sem corpo, 204). Mesma promessa do envio: não lança.
+     *
+     * O client já repete na hora conexão, 5xx e 429. Quem chama não reagenda
+     * o encerramento: ele vem depois de um aviso já entregue, e repetir o
+     * job inteiro mandaria o aviso duas vezes.
+     */
+    public function closeChat(string $contactUuid): SendMessageResult
+    {
+        if (!$this->enabled()) {
+            return SendMessageResult::failure('integração Poli desligada');
+        }
+
+        if (blank($contactUuid)) {
+            return SendMessageResult::failure('sem contact_uuid para encerrar');
+        }
+
+        try {
+            $this->client->encerrar($contactUuid);
+        } catch (RequestException $e) {
+            $erro = $this->extractError($e->response);
+
+            Log::warning('Poli: conversa não encerrada', [
+                'contact_uuid' => $contactUuid,
+                'http_status' => $e->response->status(),
+                'erro' => $erro,
+            ]);
+
+            return SendMessageResult::httpFailure($erro, $e->response->status());
+        } catch (Throwable $e) {
+            Log::warning('Poli: conversa não encerrada (transporte)', [
+                'contact_uuid' => $contactUuid,
+                'erro' => class_basename($e) . ': ' . $e->getMessage(),
+            ]);
+
+            return SendMessageResult::connectionFailure(class_basename($e) . ': ' . $e->getMessage());
+        }
+
+        Log::info('Poli: conversa encerrada', ['contact_uuid' => $contactUuid]);
+
+        return SendMessageResult::ok(null, 'CLOSED', 204, $contactUuid);
+    }
+
     /* ---------------------------------------------------------------------
      | Leitura da resposta
      |---------------------------------------------------------------------*/
@@ -151,7 +195,9 @@ class PoliMessageService
             'ack' => $status,
         ]);
 
-        return SendMessageResult::ok($uuid, $status);
+        $contato = $response['contact']['uuid'] ?? null;
+
+        return SendMessageResult::ok($uuid, $status, null, is_string($contato) && $contato !== '' ? $contato : null);
     }
 
     private function handleFailure(Response $response, string $phone): SendMessageResult
