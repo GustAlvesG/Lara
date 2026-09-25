@@ -28,6 +28,7 @@ rotas).
 | [Frota — Quilometragem](frota.md) | Saída e retorno dos veículos da empresa: motorista, destino e hodômetro, registrados pela portaria. |
 | [Lara — Assistente de IA](lara-ia.md) | Chat interno de pergunta e resposta sobre o estatuto, ligado à VM da IA. |
 | [WhatsApp](whatsapp.md) | Webhook, envio de mensagens e gestão de conversas/mídia. |
+| [Bot do WhatsApp (Poli)](bot-whatsapp.md) | Fluxos de atendimento editáveis na tela, com validação de respostas, transbordo para atendente e simulador. |
 | [Telegram](telegram.md) | Cadastro e consulta de contatos do Telegram. |
 | [Usuários e Permissões](usuarios-e-permissoes.md) | Administração de usuários, papéis e permissões. |
 | [Automação Home Assistant](automacao-home-assistant.md) | Iluminação automática a partir de reservas, agendamentos e controle manual. |
