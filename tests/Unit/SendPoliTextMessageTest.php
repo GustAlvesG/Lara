@@ -30,6 +30,8 @@ class SendPoliTextMessageTest extends TestCase
             'poli.token' => 'token-de-teste',
             'poli.account_uuid' => 'conta-1',
             'poli.default_channel_uuid' => 'canal-1',
+            // O client repete 429/5xx na hora; aqui ele repete sem dormir.
+            'poli.http.retry_sleep_ms' => 0,
         ]);
     }
 
@@ -99,7 +101,8 @@ class SendPoliTextMessageTest extends TestCase
 
     public function test_sucesso_nao_reagenda_nem_falha(): void
     {
-        Http::fake(['*' => Http::response(['data' => ['uuid' => 'msg-1', 'status' => 'SENT']], 201)]);
+        // Formato real da resposta de envio (medido em 25/09/2026).
+        Http::fake(['*' => Http::response(['uuid' => 'msg-1', 'ack' => 'CREATED', 'direction' => 'OUT'], 201)]);
 
         $job = $this->job();
         $job->handle(app(PoliMessageService::class));
