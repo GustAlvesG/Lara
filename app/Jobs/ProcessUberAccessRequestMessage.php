@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Exceptions\PoliListMessageNotIndexedException;
 use App\Models\UberAccessRequestMessage;
 use App\Services\Poli\PoliMessageParser;
+use App\Services\PoliBot\BotEngine;
 use App\Services\UberAccessRequestFlow;
 use DateTimeInterface;
 use Illuminate\Bus\Queueable;
@@ -34,7 +35,7 @@ class ProcessUberAccessRequestMessage implements ShouldQueue
         return now()->addMinutes((int) config('poli.inbound.retry_until_minutes', 5));
     }
 
-    public function handle(PoliMessageParser $parser, UberAccessRequestFlow $flow): void
+    public function handle(PoliMessageParser $parser, UberAccessRequestFlow $flow, BotEngine $bot): void
     {
         $messageRow = UberAccessRequestMessage::find($this->uberAccessRequestMessageId);
 
@@ -61,6 +62,12 @@ class ProcessUberAccessRequestMessage implements ShouldQueue
         // mensagens do bot, que não têm job, e quem o agenda é o controller.
 
         if (!$parser->isRelevantEvent($payload)) {
+            // Áudio, documento, figurinha: o fluxo do Uber não lê, mas o bot
+            // responde pedindo texto.
+            if ($parser->isUnsupportedInbound($payload) && ($unsupported = $parser->parseUnsupported($payload))) {
+                $bot->handleInbound($unsupported);
+            }
+
             $messageRow->markProcessed();
 
             return;
@@ -75,7 +82,13 @@ class ProcessUberAccessRequestMessage implements ShouldQueue
                 return;
             }
 
-            $uberAccessRequest = $flow->handle($parsed);
+            // A escuta acompanha as perguntas do bot da POLI; com o bot da Lara
+            // no ar (modo on) é o fluxo do próprio bot que cria o pedido.
+            $uberAccessRequest = $bot->listensToPoliUberFlow() ? $flow->handle($parsed) : null;
+
+            // Depois da escuta, e só quando ela não pediu para esperar o menu:
+            // assim o bot vê cada mensagem uma vez só. Não lança.
+            $bot->handleInbound($parsed);
 
             $messageRow->markProcessed($uberAccessRequest?->id);
         } catch (PoliListMessageNotIndexedException $e) {

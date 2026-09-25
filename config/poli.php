@@ -2,22 +2,20 @@
 
 /*
 |--------------------------------------------------------------------------
-| Poli Digital — envio de mensagens (saída)
+| Poli Digital
 |--------------------------------------------------------------------------
 |
-| O webhook de ENTRADA (App\Services\Poli\PoliMessageParser) não passa por
-| aqui: ele só recebe. Este arquivo é o lado que FALA — hoje, um único caso
-| de uso, a mensagem que avisa o associado que o carro de aplicativo chegou
-| à portaria.
+| Quem fala com a API é App\Services\Poli\PoliClient; o formato das
+| requisições mora nele. Contrato comprovado em 25/09/2026 com entrega no
+| aparelho (ACK RECEIVED_BY_CLIENT):
 |
-| Contrato confirmado com o Postman da Poli:
-|
-|   POST {base_url}/accounts/{account_uuid}/messages
+|   POST {base_url}/contacts/{contact_uuid}/messages
+|   POST {base_url}/accounts/{account_uuid}/contacts/{telefone}/messages?include=contact
 |   Authorization: Bearer {token}
 |
-| Tudo que é "formato do payload" mora no bloco `send` abaixo, e não
-| espalhado pelo Service. Quando a Poli mudar um nome de campo, é UM arquivo
-| para editar.
+| Cuidado com `POST /accounts/{account_uuid}/messages`: responde 200 com corpo
+| vazio para QUALQUER corpo e não entrega nada. Foi o endpoint usado até
+| aqui, e é por isso que o aviso do Uber nunca chegou a ninguém.
 |
 */
 
@@ -111,13 +109,23 @@ return [
     'account_uuid' => env('POLI_ACCOUNT_UUID'),
 
     /*
-    | Canal (número de WhatsApp) usado quando quem chama não informa outro.
+    | Canal (número de WhatsApp) de saída. `default_channel_uuid` é o nome
+    | antigo, mantido para quem ainda o lê.
     */
+    'channel_uuid' => env('POLI_CHANNEL_UUID'),
     'default_channel_uuid' => env('POLI_CHANNEL_UUID'),
 
     'http' => [
         'connect_timeout' => (int) env('POLI_CONNECT_TIMEOUT', 10),
         'timeout' => (int) env('POLI_TIMEOUT', 20),
+
+        /*
+        | Novas tentativas DENTRO da mesma chamada, só para conexão, 5xx e 429.
+        | São para soluços de rede: a espera longa continua sendo do Job
+        | (SendPoliTextMessage), que reagenda sem segurar um worker.
+        */
+        'retries' => (int) env('POLI_HTTP_RETRIES', 2),
+        'retry_sleep_ms' => (int) env('POLI_HTTP_RETRY_SLEEP_MS', 300),
     ],
 
     /*
@@ -125,85 +133,20 @@ return [
     | Rate limit
     |--------------------------------------------------------------------------
     |
-    | 60 requisições por minuto por APLICAÇÃO — o teto é da conta inteira, não
-    | deste fluxo. Por isso o limitador (registrado em AppServiceProvider sob o
-    | nome abaixo) é único e sem chave por destinatário: se amanhã outro fluxo
-    | passar a enviar pela mesma conta, ele entra no MESMO balde, e não ganha
-    | uma cota paralela que estouraria o limite real.
-    |
-    | Na prática um acesso de Uber por vez fica ordens de grandeza abaixo de
-    | 60/min: isto é rede de proteção, não gargalo esperado.
+    | A documentação fala em 60 requisições por minuto por APLICAÇÃO; a API
+    | responde `X-Ratelimit-Limit: 5000`. Fica o número da documentação, com
+    | margem: 50. O teto é da conta inteira, não de um fluxo, por isso o
+    | limitador (registrado em AppServiceProvider sob o nome abaixo) é único e
+    | sem chave por destinatário: todo fluxo que enviar pela Poli entra no
+    | MESMO balde, e não ganha uma cota paralela que estouraria o limite real.
     |
     */
+
+    'rate_limit_per_minute' => (int) env('POLI_RATE_LIMIT_PER_MINUTE', 50),
 
     'rate_limit' => [
         'name' => 'poli-outbound',
-        'per_minute' => (int) env('POLI_RATE_LIMIT_PER_MINUTE', 60),
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Formato do POST de envio
-    |--------------------------------------------------------------------------
-    |
-    | Espelha o corpo do Postman. O exemplo de lá é de uma mensagem com anexo
-    | (`type: MEDIA`); para texto puro o tipo é `CHAT` — é o mesmo valor que a
-    | Poli usa no webhook de ENTRADA para mensagens de texto (`value.type`),
-    | o que torna CHAT/IMAGE o par simétrico de MEDIA/CHAT na saída.
-    |
-    */
-
-    'send' => [
-
-        /*
-        | `{account_uuid}` é trocado em tempo de execução. Separado do base_url
-        | porque é a parte que muda se a Poli versionar a rota.
-        */
-        'path' => env('POLI_SEND_PATH', '/accounts/{account_uuid}/messages'),
-
-        /*
-        | Valores fixos do envelope. `provider` vem do exemplo do Postman
-        | ("WHATSAPP"); repare que o webhook de entrada devolve "WABA" no
-        | `account_channel.provider` — são vocabulários de lados diferentes da
-        | API, e o que vale aqui é o da requisição de saída.
-        */
-        'provider' => env('POLI_PROVIDER', 'WHATSAPP'),
-        'version' => env('POLI_VERSION', 'v3'),
-        'text_type' => env('POLI_TEXT_TYPE', 'CHAT'),
-        'contact_type' => env('POLI_CONTACT_TYPE', 'PERSON'),
-
-        /*
-        | O corpo do Postman identifica o destinatário por DOIS campos:
-        | `contact_uuid` e `contact_channel_uid`.
-        |
-        | O `contact_uuid` é o identificador canônico e nós o temos de primeira
-        | mão — é a Poli que nos manda em `value.contact.uuid` no webhook, e ele
-        | fica gravado em `uber_access_requests.contact_uuid`. É nele que se
-        | deve confiar.
-        |
-        | O `contact_channel_uid` é o endereço no canal. Nunca o vimos para um
-        | CONTATO: o único `uid` observado em payload real é o do NOSSO canal
-        | (`account_channel.uid = "5524992510959@c.us"`), daí o sufixo padrão.
-        | Por ser inferência, e não contrato confirmado, ele é OPCIONAL: com
-        | `include_contact_channel_uid = false` o envio vai só com o uuid, que
-        | é o caminho seguro. Ligue se a Poli exigir os dois.
-        */
-        'include_contact_channel_uid' => (bool) env('POLI_SEND_CONTACT_CHANNEL_UID', false),
-        'contact_channel_uid_suffix' => env('POLI_CONTACT_UID_SUFFIX', '@c.us'),
-
-        /*
-        | Autor da mensagem. O exemplo do Postman mostra `USER` + `user_uuid`,
-        | que é o caso de um atendente humano mandando pela tela. Quem envia
-        | aqui é a integração, não uma pessoa — daí `APPLICATION` como padrão.
-        |
-        | Se a Poli recusar (o 422 dela nomeia o campo), preencha
-        | POLI_AUTHOR_USER_UUID com o uuid de um usuário da conta: o tipo vira
-        | `USER` sozinho, sem tocar em código.
-        */
-        'author' => [
-            'user_uuid' => env('POLI_AUTHOR_USER_UUID'),
-            'name' => env('POLI_AUTHOR_NAME', 'Portaria'),
-        ],
+        'per_minute' => (int) env('POLI_RATE_LIMIT_PER_MINUTE', 50),
     ],
 
     /*
@@ -226,6 +169,92 @@ return [
                 'Seu carro de aplicativo, placa :placa, chegou à portaria e o acesso foi liberado.'
             ),
             'local' => env('POLI_MSG_UBER_LOCAL', 'Ele está a caminho de :local.'),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Bot de atendimento na Lara
+    |--------------------------------------------------------------------------
+    |
+    | Substitui o bot da Poli: os fluxos ficam em bot_flows e quem conduz a
+    | conversa é App\Services\PoliBot\BotEngine. Três modos:
+    |
+    |   off     nada muda — o bot da Poli atende, a Lara só escuta o Uber.
+    |   shadow  a Lara processa cada mensagem e REGISTRA o que responderia
+    |           (poli_messages.shadow = true), sem enviar nada nem criar
+    |           pedido. O bot da Poli continua atendendo. É o ensaio.
+    |   on      a Lara responde de verdade. Desligue o bot da Poli ANTES, senão
+    |           os dois respondem. A escuta do Uber (UberAccessRequestFlow)
+    |           para: o pedido passa a ser criado pelo próprio fluxo do bot.
+    |
+    | `live_contacts` é o piloto: em modo shadow, estes contatos (contact_uuid
+    | ou telefone com DDI, separados por vírgula) recebem as respostas de
+    | verdade. Eles vão receber as do bot da Poli também.
+    |
+    */
+
+    'bot' => [
+        'mode' => env('POLI_BOT_MODE', 'off'),
+
+        'live_contacts' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('POLI_BOT_LIVE_CONTACTS', ''))
+        ))),
+
+        'default_timeout_minutes' => (int) env('POLI_BOT_TIMEOUT_MINUTES', 15),
+        'default_max_attempts' => (int) env('POLI_BOT_MAX_ATTEMPTS', 3),
+
+        /*
+        | Time que recebe quem esgota as tentativas ou pede atendente, quando o
+        | fluxo não diz outro. Vazio: o bot silencia e a conversa fica na fila
+        | geral da conta.
+        */
+        'fallback_team_uuid' => env('POLI_BOT_FALLBACK_TEAM'),
+
+        /*
+        | Rede de segurança do silêncio: se o fim do atendimento humano nunca
+        | chegar pelo webhook, o bot volta a responder depois deste prazo.
+        */
+        'human_timeout_hours' => (int) env('POLI_BOT_HUMAN_TIMEOUT_HOURS', 12),
+
+        /*
+        | Autor (author.uuid) com que a Poli publica as mensagens que a Lara
+        | envia pela API. Mensagem de USER com uuid é lida como "atendente
+        | assumiu"; um autor desta lista nunca é. Ainda não medido — confira
+        | num evento `sent` de um envio da API e preencha se precisar.
+        */
+        'own_author_uuids' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('POLI_BOT_OWN_AUTHOR_UUIDS', ''))
+        ))),
+
+        /*
+        | Palavras que valem em qualquer ponto da conversa (comparadas sem
+        | acento e sem caixa). O "0" não vale quando o passo espera um número.
+        */
+        'escape' => [
+            'menu' => ['menu', 'inicio', 'voltar', 'recomecar'],
+            'sair' => ['sair', 'encerrar', 'finalizar', 'tchau'],
+            'atendente' => ['atendente', 'humano', 'pessoa', 'falar com atendente', '0'],
+        ],
+
+        'messages' => [
+            'invalid' => [
+                'option' => 'Não entendi. Escolha uma das opções (pode tocar nela ou digitar o número).',
+                'plate' => 'Essa placa não parece válida. Envie no formato ABC1D23 ou ABC-1234.',
+                'date' => 'Não reconheci a data. Envie no formato dia/mês/ano, por exemplo 25/09/1980.',
+                'number' => 'Envie só números, por favor.',
+                'yes_no' => 'Responda *sim* ou *não*, por favor.',
+                'text' => 'Não consegui entender. Pode enviar de novo?',
+                'image' => 'Preciso de uma imagem. Envie a foto ou a captura de tela, por favor.',
+                'media' => 'Por aqui eu só consigo ler mensagens de texto. Pode escrever, por favor?',
+            ],
+            'stale_menu' => 'Esse menu é de uma etapa anterior. Responda, por favor, à última pergunta:',
+            'handoff' => 'Certo! Vou te passar para um de nossos atendentes. Aguarde um instante, por favor.',
+            'too_many_attempts' => 'Não consegui entender suas respostas. Vou te passar para um atendente.',
+            'goodbye' => 'Atendimento encerrado. Sempre que precisar, é só chamar!',
+            'expired' => 'Sua conversa anterior ficou parada e foi encerrada. Vamos recomeçar:',
         ],
     ],
 

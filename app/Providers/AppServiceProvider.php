@@ -152,18 +152,18 @@ class AppServiceProvider extends ServiceProvider
         );
 
         /**
-         * Teto de envio da Poli Digital: 60 requisições por minuto por
-         * APLICAÇÃO. Um limitador só, sem chave por destinatário, porque a
-         * cota é da conta inteira — qualquer outro fluxo que passe a enviar
-         * pela Poli deve usar ESTE mesmo nome no middleware, e não criar o
-         * seu, sob pena de dois baldes de 60 estourarem o limite real.
+         * Teto de envio da Poli Digital, por APLICAÇÃO (ver config/poli.php).
+         * Um limitador só, sem chave por destinatário, porque a cota é da
+         * conta inteira — qualquer outro fluxo que passe a enviar pela Poli
+         * deve usar ESTE mesmo nome no middleware, e não criar o seu, sob
+         * pena de dois baldes estourarem o limite real.
          *
          * Apoia-se no cache store da aplicação (hoje `database`), e não em
          * Redis: não há Redis servindo de cache ou fila neste projeto.
          */
         RateLimiter::for(
             (string) config('poli.rate_limit.name', 'poli-outbound'),
-            fn () => Limit::perMinute((int) config('poli.rate_limit.per_minute', 60)),
+            fn () => Limit::perMinute((int) config('poli.rate_limit_per_minute', 50)),
         );
     }
 }

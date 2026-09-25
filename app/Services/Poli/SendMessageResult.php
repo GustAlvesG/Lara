@@ -25,7 +25,7 @@ class SendMessageResult
         public readonly bool $retryable = false,
     ) {}
 
-    public static function ok(?string $messageUuid, ?string $status, int $httpStatus): self
+    public static function ok(?string $messageUuid, ?string $status, ?int $httpStatus = null): self
     {
         return new self(true, $messageUuid, $status, null, $httpStatus);
     }

@@ -38,6 +38,50 @@ class PoliMessageParser
             && ($value['direction'] ?? null) === 'IN';
     }
 
+    /**
+     * Mensagem do contato que o fluxo do Uber não lê — áudio, documento,
+     * figurinha, vídeo. Ninguém a processa como conteúdo, mas o bot precisa
+     * saber que ela chegou para pedir que o contato escreva.
+     */
+    public function isUnsupportedInbound(array $payload): bool
+    {
+        $value = $payload['value'] ?? null;
+
+        return ($payload['object'] ?? null) === 'message'
+            && ($payload['event'] ?? null) === 'received'
+            && is_array($value)
+            && ($value['event'] ?? null) === 'MESSAGE'
+            && ($value['direction'] ?? null) === 'IN'
+            && !in_array($value['type'] ?? null, self::RELEVANT_TYPES, true);
+    }
+
+    /**
+     * Como parse(), para as mensagens de isUnsupportedInbound: sai sempre
+     * como TYPE_UNKNOWN e SEM o log do payload bruto — o formato não é
+     * desconhecido, só não interessa, e o payload leva nome e telefone.
+     */
+    public function parseUnsupported(array $payload): ?ParsedPoliMessage
+    {
+        $value = $payload['value'] ?? [];
+        $messageId = $this->extractMessageId($payload);
+
+        if ($messageId === null) {
+            return null;
+        }
+
+        $contact = $value['contact'] ?? $value['author'] ?? [];
+
+        return new ParsedPoliMessage(
+            messageId: $messageId,
+            contactUuid: $contact['uuid'] ?? null,
+            contactPhone: $contact['attributes']['phone'] ?? null,
+            contactName: $contact['attributes']['name'] ?? null,
+            attendanceUuid: $value['attendance']['uuid'] ?? null,
+            type: ParsedPoliMessage::TYPE_UNKNOWN,
+            contextMessageUuid: $value['context']['message']['uuid'] ?? null,
+        );
+    }
+
     public function extractMessageId(array $payload): ?string
     {
         $value = $payload['value'] ?? [];

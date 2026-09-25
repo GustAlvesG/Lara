@@ -331,6 +331,37 @@ class UberAccessRequestFlow
             return $this->ignore($request, $message);
         }
 
+        return $this->concluir($request, $message->mediaUrl);
+    }
+
+    /**
+     * Pedido cuja coleta foi feita pelo bot da Lara, e não pela escuta do bot
+     * da Poli. Nasce já completo — o bot só chama aqui depois de validar cada
+     * resposta — e passa pela MESMA conclusão do fluxo escutado: conferência
+     * de sócio/funcionário e validade.
+     *
+     * @param array{matricula: string, nome: string, local: ?string, placa: string, print: string} $dados
+     */
+    public function registrarPedidoDoBot(array $dados, ParsedPoliMessage $message): UberAccessRequest
+    {
+        $request = UberAccessRequest::create([
+            'contact_uuid' => $message->contactUuid,
+            'contact_phone' => $message->contactPhone,
+            'contact_name_whatsapp' => $message->contactName,
+            'poli_attendance_uuid' => $message->attendanceUuid,
+            'matricula' => $dados['matricula'],
+            'requester_name' => $dados['nome'],
+            'club_location' => $dados['local'] ?? null,
+            'vehicle_plate' => $dados['placa'],
+            'status' => UberAccessRequest::STATUS_AGUARDANDO_PRINT,
+            'last_message_at' => now(),
+        ]);
+
+        return $this->concluir($request, $dados['print']);
+    }
+
+    private function concluir(UberAccessRequest $request, ?string $screenshotUrl): UberAccessRequest
+    {
         $completedAt = now();
 
         // Com todos os dados em mãos, confere nome + matrícula/CPF contra
@@ -342,7 +373,7 @@ class UberAccessRequestFlow
         // "aguardando acesso do motorista" até ele chegar na portaria (quando
         // vira "concluido") ou a validade vencer (quando vira "expirado").
         $request->update([
-            'screenshot_url' => $message->mediaUrl,
+            'screenshot_url' => $screenshotUrl,
             'status' => UberAccessRequest::STATUS_AGUARDANDO_ACESSO,
             'member_validation' => $validation->status,
             'member_validation_name' => $validation->matchedName,

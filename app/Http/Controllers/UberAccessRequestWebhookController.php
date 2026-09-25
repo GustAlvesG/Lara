@@ -7,6 +7,7 @@ use App\Jobs\ProcessUberAccessRequestMessage;
 use App\Models\PoliListMessage;
 use App\Models\UberAccessRequestMessage;
 use App\Services\Poli\PoliMessageParser;
+use App\Services\PoliBot\BotEngine;
 use App\Services\UberAccessRequestFlow;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,9 +15,25 @@ use Illuminate\Support\Facades\Log;
 
 class UberAccessRequestWebhookController extends Controller
 {
-    public function handle(Request $request, PoliMessageParser $parser): JsonResponse
+    public function handle(Request $request, PoliMessageParser $parser, BotEngine $bot): JsonResponse
     {
         $payload = $request->all();
+
+        // Evento de outra conta da Poli: não é conosco. 200 para ela não
+        // insistir; nada é gravado.
+        $conta = config('poli.account_uuid');
+        if (filled($conta) && filled($payload['account_uuid'] ?? null) && $payload['account_uuid'] !== $conta) {
+            return response()->json(['status' => 'ignored'], 200);
+        }
+
+        // ACK no formato da documentação vem sem `value`. Não é mensagem, mas
+        // também não é payload quebrado: um 422 aqui faria a Poli reenviar
+        // até desistir do webhook.
+        if (($payload['event'] ?? null) === 'ack' && !isset($payload['value'])) {
+            $bot->observe($payload);
+
+            return response()->json(['status' => 'accepted'], 200);
+        }
 
         if (!is_array($payload['value'] ?? null)) {
             return response()->json(['message' => 'Malformed payload'], 422);
@@ -36,6 +53,12 @@ class UberAccessRequestWebhookController extends Controller
         // mesmo evento quando o `ack` muda, e a segunda volta não pode deixar
         // o índice pela metade. Por isso é upsert.
         $this->indexOutgoingList($payload, $parser);
+
+        // Estado do bot (atendente assumiu, atendimento encerrado, ACK das
+        // mensagens dele). Também antes da duplicidade: o reenvio por mudança
+        // de `ack` é justamente o que atualiza o ACK. Não lança, e sem modo
+        // ligado não faz nada.
+        $bot->observe($payload);
 
         if (UberAccessRequestMessage::where('poli_message_id', $messageId)->exists()) {
             return response()->json(['status' => 'duplicate'], 200);
