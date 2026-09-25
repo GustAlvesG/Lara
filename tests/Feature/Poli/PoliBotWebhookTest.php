@@ -29,6 +29,9 @@ class PoliBotWebhookTest extends TestCase
     {
         parent::setUp();
 
+        // Horário comercial fixo: o fluxo padrão tem horário de atendimento.
+        \Illuminate\Support\Carbon::setTestNow('2026-09-23 10:00:00');   // quarta-feira
+
         foreach ([
             '2026_07_20_150000_create_uber_access_requests_tables.php',
             '2026_07_21_120000_add_matricula_to_uber_access_requests.php',

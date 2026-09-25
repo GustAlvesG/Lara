@@ -37,6 +37,7 @@ class BotEngine
     private const MAX_CHAIN = 20;
 
     private BotOutbox $out;
+    private bool $incluiInativos = false;
     private ParsedPoliMessage $message;
 
     public function __construct(
@@ -133,7 +134,7 @@ class BotEngine
         }
 
         if ($session->inFlow()) {
-            $flow = BotFlow::findActive($session->flow_slug)?->flow();
+            $flow = $this->findFlow($session->flow_slug);
 
             if ($flow === null) {
                 $session->reset();
@@ -305,7 +306,7 @@ class BotEngine
                 return false;
 
             case 'goto_flow':
-                $destino = BotFlow::findActive((string) ($action['flow'] ?? ''))?->flow();
+                $destino = $this->findFlow((string) ($action['flow'] ?? ''));
 
                 if ($destino === null) {
                     Log::warning('PoliBot: goto para fluxo inexistente ou inativo', ['flow' => $action['flow'] ?? null]);
@@ -378,7 +379,10 @@ class BotEngine
     {
         $flow = $onlyAnyMessage ? $this->defaultFlow() : $this->triggeredFlow($message);
 
-        if ($flow === null || $flow->start() === null) {
+        // Fora do horário de atendimento o fluxo começa pelo passo próprio.
+        $entrada = $flow?->entryStep();
+
+        if ($flow === null || $entrada === null) {
             return;
         }
 
@@ -390,20 +394,76 @@ class BotEngine
         // resposta — mandar o menu para quem já escolheu seria só atrito.
         // Pelo NOME da opção, nunca pelo número: quem manda "1" sem ter visto
         // menu nenhum não escolheu nada.
-        $inicio = $flow->step($flow->start());
+        $inicio = $flow->step($entrada);
         if (!$onlyAnyMessage && ($inicio['expect']['type'] ?? null) === 'option'
             && $message->type === ParsedPoliMessage::TYPE_TEXT
             && !ctype_digit(AnswerValidator::normalize($message->text))
             && $this->validator->option($inicio['options'] ?? [], (string) $message->text)->valid) {
             $session->state = BotSession::STATE_FLOW;
             $session->flow_slug = $flow->slug;
-            $session->step_key = $flow->start();
+            $session->step_key = $entrada;
             $this->answer($session, $flow, $message);
 
             return;
         }
 
-        $this->enter($session, $flow, $flow->start());
+        $this->enter($session, $flow, $entrada);
+    }
+
+    /* ---------------------------------------------------------------------
+     | Simulação
+     |---------------------------------------------------------------------*/
+
+    /**
+     * Rascunhos (fluxos inativos) passam a valer como se estivessem ativos.
+     * Só para o simulador — a conversa de verdade nunca vê um fluxo inativo.
+     */
+    public function incluindoInativos(bool $incluir = true): static
+    {
+        $this->incluiInativos = $incluir;
+
+        return $this;
+    }
+
+    /**
+     * Põe a conversa no começo de um fluxo específico, sem esperar gatilho.
+     * É o "testar este fluxo" do simulador.
+     */
+    public function beginFlow(ParsedPoliMessage $message, string $slug): bool
+    {
+        $flow = $this->findFlow($slug);
+
+        if ($flow === null || $message->contactUuid === null) {
+            return false;
+        }
+
+        $session = BotSession::find($message->contactUuid)
+            ?? new BotSession(['contact_uuid' => $message->contactUuid]);
+        $session->fill(array_filter(['contact_name' => $message->contactName], 'filled'));
+
+        $this->message = $message;
+        $this->out = $this->outbox->live($this->isLive($session));
+
+        $session->reset();
+        $this->enter($session, $flow, (string) $flow->entryStep());
+        $this->save($session);
+
+        return true;
+    }
+
+    private function findFlow(?string $slug): ?FlowDefinition
+    {
+        if ($slug === null || $slug === '') {
+            return null;
+        }
+
+        $query = BotFlow::where('slug', $slug);
+
+        if (!$this->incluiInativos) {
+            $query->where('active', true);
+        }
+
+        return $query->first()?->flow();
     }
 
     /**
@@ -462,7 +522,7 @@ class BotEngine
 
         $esperaNumero = false;
         if ($session->inFlow()) {
-            $step = BotFlow::findActive($session->flow_slug)?->flow()->step($session->step_key);
+            $step = $this->findFlow($session->flow_slug)?->step($session->step_key);
             $esperaNumero = ($step['expect']['type'] ?? null) === 'number';
         }
 

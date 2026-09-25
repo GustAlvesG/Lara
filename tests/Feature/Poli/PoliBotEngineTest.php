@@ -36,6 +36,10 @@ class PoliBotEngineTest extends TestCase
     {
         parent::setUp();
 
+        // O fluxo padrão tem horário de atendimento: sem relógio fixo, a
+        // suíte rodada à noite cairia toda no "fora do horário".
+        \Illuminate\Support\Carbon::setTestNow('2026-09-23 10:00:00');   // quarta-feira
+
         foreach ([
             '2026_07_20_150000_create_uber_access_requests_tables.php',
             '2026_07_21_120000_add_matricula_to_uber_access_requests.php',
@@ -464,6 +468,56 @@ class PoliBotEngineTest extends TestCase
         $this->assertSame('FAILED', $menu->ack);
         $this->assertStringContainsString('HTTP 500', $menu->error);
         $this->assertSame('menu', $this->sessao()->step_key);
+    }
+
+    /* ---------------- horário de atendimento ---------------- */
+
+    public function test_fora_do_horario_manda_o_menu_de_opcoes(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow('2026-09-23 21:30:00');   // quarta, depois das 19:50
+
+        $this->texto('oi');
+
+        Http::assertSent(fn (Request $r) => ($r->data()['template_uuid'] ?? null) === DefaultFlows::TPL_FORA_DO_HORARIO);
+        $this->assertSame('fora_do_horario', $this->sessao()->step_key);
+    }
+
+    public function test_fora_do_horario_o_carro_de_aplicativo_continua_funcionando(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow('2026-09-27 23:00:00');   // domingo à noite
+
+        $this->texto('oi');
+        $this->texto("Carro de Aplicativo\nCarro, moto ou táxi");
+
+        $this->assertSame('carro-de-aplicativo', $this->sessao()->flow_slug);
+        $this->assertSame('matricula', $this->sessao()->step_key);
+    }
+
+    public function test_fora_do_horario_os_departamentos_nao_sao_oferecidos(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow('2026-09-23 06:30:00');
+
+        $this->texto('oi');
+        $this->texto('Financeiro');
+
+        $this->assertFalse($this->sessao()->isHuman(), 'Financeiro não é opção fora do horário');
+        $this->assertStringContainsString('Fora do horário', implode(' ', $this->enviados()));
+    }
+
+    public function test_sabado_e_feriado_seguem_o_horario_de_fim_de_semana(): void
+    {
+        $fluxo = BotFlow::where('slug', 'atendimento')->first()->flow();
+
+        $this->assertTrue($fluxo->isOpenAt(\Illuminate\Support\Carbon::parse('2026-09-26 17:30')));   // sábado
+        $this->assertFalse($fluxo->isOpenAt(\Illuminate\Support\Carbon::parse('2026-09-26 18:30')));
+        $this->assertTrue($fluxo->isOpenAt(\Illuminate\Support\Carbon::parse('2026-09-23 19:45')));   // quarta
+        $this->assertFalse($fluxo->isOpenAt(\Illuminate\Support\Carbon::parse('2026-09-23 19:50')));
+
+        $def = BotFlow::where('slug', 'atendimento')->first()->definition;
+        $def['hours']['holidays'] = ['2026-09-23'];
+        $feriado = new \App\Services\PoliBot\FlowDefinition('x', $def);
+
+        $this->assertFalse($feriado->isOpenAt(\Illuminate\Support\Carbon::parse('2026-09-23 19:00')), 'feriado fecha às 18:00');
     }
 
     /* ---------------- comandos ---------------- */
