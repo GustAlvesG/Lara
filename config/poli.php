@@ -154,21 +154,34 @@ return [
     | Textos
     |--------------------------------------------------------------------------
     |
-    | Placeholders disponíveis: :nome, :placa, :local. Cada frase é separada
+    | Placeholders disponíveis: :nome, :placa, :local. Cada linha é separada
     | porque os dados são de preenchimento livre no WhatsApp — quando o
-    | associado não informou o local, a última frase simplesmente não entra,
-    | em vez de sair um "a caminho de ." na mensagem dele.
+    | associado não informou o local, a linha do destino simplesmente não
+    | entra, em vez de sair um "Destino: " vazio na mensagem dele.
+    |
+    | Asteriscos são negrito no WhatsApp.
+    |
+    | Com `close_after` ligado, a conversa é encerrada na Poli logo depois do
+    | aviso aceito — o aviso é a última coisa que o associado precisa, e o
+    | atendimento aberto por ele ficaria pendurado no painel. O `rodape` só
+    | entra nesse caso: é ele que diz ao associado que o atendimento acabou.
     |
     */
 
     'messages' => [
         'uber_arrival' => [
-            'saudacao' => env('POLI_MSG_UBER_SAUDACAO', 'Olá, :nome!'),
+            'saudacao' => env('POLI_MSG_UBER_SAUDACAO', 'Olá, *:nome*!'),
             'corpo' => env(
                 'POLI_MSG_UBER_CORPO',
-                'Seu carro de aplicativo, placa :placa, chegou à portaria e o acesso foi liberado.'
+                '🚗 Seu carro de aplicativo chegou à portaria e o acesso foi liberado.'
             ),
-            'local' => env('POLI_MSG_UBER_LOCAL', 'Ele está a caminho de :local.'),
+            'placa' => env('POLI_MSG_UBER_PLACA', '*Placa:* :placa'),
+            'local' => env('POLI_MSG_UBER_LOCAL', '*Destino:* :local'),
+            'rodape' => env(
+                'POLI_MSG_UBER_RODAPE',
+                'Este atendimento foi encerrado. Se precisar de algo, é só mandar uma nova mensagem.'
+            ),
+            'close_after' => (bool) env('POLI_UBER_ARRIVAL_CLOSE', true),
         ],
     ],
 

@@ -113,6 +113,116 @@ class SendPoliTextMessageTest extends TestCase
     }
 
     /**
+     * Aviso aceito com closeAfter: logo depois vem o /close do mesmo contato,
+     * sem corpo.
+     */
+    public function test_com_close_after_encerra_a_conversa_depois_do_aviso(): void
+    {
+        Http::fake([
+            '*/contacts/contato-1/close' => Http::response(null, 204),
+            '*/contacts/contato-1/messages' => Http::response(['uuid' => 'msg-1', 'ack' => 'CREATED'], 201),
+        ]);
+
+        $job = (new SendPoliTextMessage(self::PHONE, 'Seu carro chegou.', 'contato-1', null, 42, closeAfter: true))
+            ->withFakeQueueInteractions();
+        $job->handle(app(PoliMessageService::class));
+
+        $job->assertNotReleased();
+        Http::assertSentCount(2);
+        Http::assertSentInOrder([
+            fn ($r) => str_ends_with($r->url(), '/contacts/contato-1/messages'),
+            fn ($r) => str_ends_with($r->url(), '/contacts/contato-1/close') && $r->method() === 'POST' && $r->body() === '',
+        ]);
+    }
+
+    /**
+     * Sem contact_uuid o aviso sai pelo telefone; o contato para encerrar
+     * vem na própria resposta do envio (?include=contact).
+     */
+    public function test_sem_contact_uuid_encerra_pelo_contato_da_resposta(): void
+    {
+        Http::fake([
+            '*/contacts/contato-9/close' => Http::response(null, 204),
+            '*' => Http::response(['uuid' => 'msg-1', 'ack' => 'CREATED', 'contact' => ['uuid' => 'contato-9']], 201),
+        ]);
+
+        $job = (new SendPoliTextMessage(self::PHONE, 'Seu carro chegou.', null, null, 42, closeAfter: true))
+            ->withFakeQueueInteractions();
+        $job->handle(app(PoliMessageService::class));
+
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/contacts/contato-9/close'));
+    }
+
+    public function test_sem_close_after_nao_encerra(): void
+    {
+        Http::fake(['*' => Http::response(['uuid' => 'msg-1', 'ack' => 'CREATED'], 201)]);
+
+        $this->job()->handle(app(PoliMessageService::class));
+
+        Http::assertSentCount(1);
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), '/close'));
+    }
+
+    /**
+     * Aviso que não saiu não encerra nada: o associado ficaria sem o aviso
+     * e sem a conversa.
+     */
+    public function test_aviso_recusado_nao_encerra(): void
+    {
+        Http::fake(['*' => Http::response(['message' => 'inválido'], 422)]);
+
+        $job = (new SendPoliTextMessage(self::PHONE, 'Seu carro chegou.', 'contato-1', null, 42, closeAfter: true))
+            ->withFakeQueueInteractions();
+        $job->handle(app(PoliMessageService::class));
+
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), '/close'));
+    }
+
+    /**
+     * Encerramento que falha fica no log, e o job NÃO é reagendado — senão o
+     * aviso, que já saiu, sairia de novo.
+     */
+    public function test_falha_ao_encerrar_nao_reenvia_o_aviso(): void
+    {
+        Http::fake([
+            '*/contacts/contato-1/close' => Http::response(['message' => 'erro'], 500),
+            '*/contacts/contato-1/messages' => Http::response(['uuid' => 'msg-1', 'ack' => 'CREATED'], 201),
+        ]);
+
+        $job = (new SendPoliTextMessage(self::PHONE, 'Seu carro chegou.', 'contato-1', null, 42, closeAfter: true))
+            ->withFakeQueueInteractions();
+        $job->handle(app(PoliMessageService::class));
+
+        $job->assertNotReleased();
+        $job->assertNotFailed();
+        Http::assertSentCount(1 + 1 + (int) config('poli.http.retries', 2));
+        Log::shouldHaveReceived('warning')->withArgs(fn ($msg) => $msg === 'Poli: conversa não encerrada')->once();
+    }
+
+    /**
+     * Job enfileirado antes do deploy chega sem a propriedade nova: precisa
+     * rodar como antes (enviar e não encerrar), não estourar.
+     */
+    public function test_job_antigo_da_fila_sem_close_after_ainda_roda(): void
+    {
+        Http::fake(['*' => Http::response(['uuid' => 'msg-1', 'ack' => 'CREATED'], 201)]);
+
+        $serializado = serialize(new SendPoliTextMessage(self::PHONE, 'Seu carro chegou.', 'contato-1', null, 42));
+        $serializado = preg_replace('/s:10:"closeAfter";b:0;/', '', $serializado);
+        $serializado = preg_replace_callback(
+            '/^(O:\d+:"[^"]+":)(\d+):/',
+            fn ($m) => $m[1] . ((int) $m[2] - 1) . ':',
+            $serializado
+        );
+        $this->assertStringNotContainsString('closeAfter', $serializado);
+
+        $job = unserialize($serializado)->withFakeQueueInteractions();
+        $job->handle(app(PoliMessageService::class));
+
+        Http::assertSentCount(1);
+    }
+
+    /**
      * O Job atravessa a fila serializado. Como as propriedades são readonly,
      * vale garantir que a volta funciona — um erro aqui só apareceria em
      * produção, com a fila já rodando.
