@@ -128,6 +128,15 @@ class PoliClient
     }
 
     /**
+     * Times (departamentos) da conta, com nome — o destino do transbordo.
+     * Conferido na API real em 25/09/2026.
+     */
+    public function times(): array
+    {
+        return $this->desembrulhar($this->get("/accounts/{$this->conta()}/teams", ['include' => 'attributes']));
+    }
+
+    /**
      * Uma mensagem, com o ACK. A resposta pode vir embrulhada em `data`.
      */
     public function mensagem(string $uuid): array

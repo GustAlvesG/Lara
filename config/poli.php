@@ -172,4 +172,90 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Bot de atendimento na Lara
+    |--------------------------------------------------------------------------
+    |
+    | Substitui o bot da Poli: os fluxos ficam em bot_flows e quem conduz a
+    | conversa é App\Services\PoliBot\BotEngine. Três modos:
+    |
+    |   off     nada muda — o bot da Poli atende, a Lara só escuta o Uber.
+    |   shadow  a Lara processa cada mensagem e REGISTRA o que responderia
+    |           (poli_messages.shadow = true), sem enviar nada nem criar
+    |           pedido. O bot da Poli continua atendendo. É o ensaio.
+    |   on      a Lara responde de verdade. Desligue o bot da Poli ANTES, senão
+    |           os dois respondem. A escuta do Uber (UberAccessRequestFlow)
+    |           para: o pedido passa a ser criado pelo próprio fluxo do bot.
+    |
+    | `live_contacts` é o piloto: em modo shadow, estes contatos (contact_uuid
+    | ou telefone com DDI, separados por vírgula) recebem as respostas de
+    | verdade. Eles vão receber as do bot da Poli também.
+    |
+    */
+
+    'bot' => [
+        'mode' => env('POLI_BOT_MODE', 'off'),
+
+        'live_contacts' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('POLI_BOT_LIVE_CONTACTS', ''))
+        ))),
+
+        'default_timeout_minutes' => (int) env('POLI_BOT_TIMEOUT_MINUTES', 15),
+        'default_max_attempts' => (int) env('POLI_BOT_MAX_ATTEMPTS', 3),
+
+        /*
+        | Time que recebe quem esgota as tentativas ou pede atendente, quando o
+        | fluxo não diz outro. Vazio: o bot silencia e a conversa fica na fila
+        | geral da conta.
+        */
+        'fallback_team_uuid' => env('POLI_BOT_FALLBACK_TEAM'),
+
+        /*
+        | Rede de segurança do silêncio: se o fim do atendimento humano nunca
+        | chegar pelo webhook, o bot volta a responder depois deste prazo.
+        */
+        'human_timeout_hours' => (int) env('POLI_BOT_HUMAN_TIMEOUT_HOURS', 12),
+
+        /*
+        | Autor (author.uuid) com que a Poli publica as mensagens que a Lara
+        | envia pela API. Mensagem de USER com uuid é lida como "atendente
+        | assumiu"; um autor desta lista nunca é. Ainda não medido — confira
+        | num evento `sent` de um envio da API e preencha se precisar.
+        */
+        'own_author_uuids' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('POLI_BOT_OWN_AUTHOR_UUIDS', ''))
+        ))),
+
+        /*
+        | Palavras que valem em qualquer ponto da conversa (comparadas sem
+        | acento e sem caixa). O "0" não vale quando o passo espera um número.
+        */
+        'escape' => [
+            'menu' => ['menu', 'inicio', 'voltar', 'recomecar'],
+            'sair' => ['sair', 'encerrar', 'finalizar', 'tchau'],
+            'atendente' => ['atendente', 'humano', 'pessoa', 'falar com atendente', '0'],
+        ],
+
+        'messages' => [
+            'invalid' => [
+                'option' => 'Não entendi. Escolha uma das opções (pode tocar nela ou digitar o número).',
+                'plate' => 'Essa placa não parece válida. Envie no formato ABC1D23 ou ABC-1234.',
+                'date' => 'Não reconheci a data. Envie no formato dia/mês/ano, por exemplo 25/09/1980.',
+                'number' => 'Envie só números, por favor.',
+                'yes_no' => 'Responda *sim* ou *não*, por favor.',
+                'text' => 'Não consegui entender. Pode enviar de novo?',
+                'image' => 'Preciso de uma imagem. Envie a foto ou a captura de tela, por favor.',
+                'media' => 'Por aqui eu só consigo ler mensagens de texto. Pode escrever, por favor?',
+            ],
+            'stale_menu' => 'Esse menu é de uma etapa anterior. Responda, por favor, à última pergunta:',
+            'handoff' => 'Certo! Vou te passar para um de nossos atendentes. Aguarde um instante, por favor.',
+            'too_many_attempts' => 'Não consegui entender suas respostas. Vou te passar para um atendente.',
+            'goodbye' => 'Atendimento encerrado. Sempre que precisar, é só chamar!',
+            'expired' => 'Sua conversa anterior ficou parada e foi encerrada. Vamos recomeçar:',
+        ],
+    ],
+
 ];
