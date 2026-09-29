@@ -49,6 +49,7 @@ class SendPoliTextMessage implements ShouldQueue
         public readonly ?string $contactUuid = null,
         public readonly ?string $channelUuid = null,
         public readonly ?int $uberAccessRequestId = null,
+        public readonly bool $closeAfter = false,
     ) {}
 
     /**
@@ -71,6 +72,8 @@ class SendPoliTextMessage implements ShouldQueue
         );
 
         if ($result->success) {
+            $this->encerrarConversa($poli, $result->contactUuid);
+
             return;
         }
 
@@ -100,6 +103,32 @@ class SendPoliTextMessage implements ShouldQueue
             'tentativas' => $this->attempts(),
             'erro' => $result->error,
         ]);
+    }
+
+    /**
+     * Fecha o atendimento depois do aviso aceito. Falha aqui só vira log: o
+     * aviso já saiu, e reagendar o job o mandaria de novo.
+     *
+     * O `?? false` cobre o job enfileirado pelo código anterior a esta
+     * propriedade — desserializado, ele chega sem ela.
+     */
+    private function encerrarConversa(PoliMessageService $poli, ?string $contatoDaResposta): void
+    {
+        if (!($this->closeAfter ?? false)) {
+            return;
+        }
+
+        $contato = filled($this->contactUuid) ? $this->contactUuid : $contatoDaResposta;
+
+        if (blank($contato)) {
+            Log::warning('Poli: aviso enviado, mas sem contato para encerrar a conversa', [
+                'uber_access_request_id' => $this->uberAccessRequestId,
+            ]);
+
+            return;
+        }
+
+        $poli->closeChat($contato);
     }
 
     private function currentBackoff(): int

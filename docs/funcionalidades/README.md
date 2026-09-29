@@ -31,7 +31,9 @@ rotas).
 | [Bot do WhatsApp (Poli)](bot-whatsapp.md) | Fluxos de atendimento editáveis na tela, com validação de respostas, transbordo para atendente e simulador. |
 | [Telegram](telegram.md) | Cadastro e consulta de contatos do Telegram. |
 | [Usuários e Permissões](usuarios-e-permissoes.md) | Administração de usuários, papéis e permissões. |
-| [Automação Home Assistant](automacao-home-assistant.md) | Iluminação automática a partir de reservas, agendamentos e controle manual. |
+| [Automação Home Assistant](automacao-home-assistant.md) | Iluminação automática a partir de reservas, agendamentos e controle manual. Inclui o autoatendimento do sócio no fim de semana. |
+| [Front-end do autoatendimento de luz (Next.js)](iluminacao-autoatendimento-prompt.md) | Contrato da API de acionamento de luz pelo sócio e o prompt de implementação da tela **do zero**. |
+| [Ajustes do front-end do autoatendimento](iluminacao-autoatendimento-ajustes-prompt.md) | Prompt de **mudança** para a tela que já existe: o que quebrou no contrato e o que ela precisa ganhar. |
 
 ## Perfis de usuário
 

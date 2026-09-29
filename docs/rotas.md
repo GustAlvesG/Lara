@@ -174,6 +174,12 @@ Prefixo `/api`. Legenda de middleware: **T** = `api_token`, **L** = `login_token
 | POST | `/api/schedule/payment` | SchedulePaymentController@store | |
 | DELETE | `/api/schedule/delete-pending` | ScheduleController@destroyPending | |
 | POST | `/api/schedule/time-options` | ScheduleRulesController@getTimeOptions | sem L |
+| GET | `/api/lighting/availability` | Api\MemberLightingController@availability | janela de hoje + acionamento vigente; `throttle:120,1` |
+| GET | `/api/lighting/groups` | Api\MemberLightingController@groups | grupos com quadra liberada; `throttle:120,1` |
+| GET | `/api/lighting/groups/{group}/places` | Api\MemberLightingController@places | quadras do grupo; `throttle:120,1` |
+| GET | `/api/lighting/activations` | Api\MemberLightingController@history | últimos 30 do sócio; `throttle:60,1` |
+| POST | `/api/lighting/places/{place}/activate` | Api\MemberLightingController@activate | acende a luz; `throttle:20,1` |
+| POST | `/api/lighting/release` | Api\MemberLightingController@release | devolve a quadra; `throttle:20,1` |
 
 ---
 

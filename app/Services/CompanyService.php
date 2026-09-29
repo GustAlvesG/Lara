@@ -740,37 +740,58 @@ class CompanyService
             return;
         }
 
+        $encerrar = (bool) config('poli.messages.uber_arrival.close_after', true);
+
         SendPoliTextMessage::dispatch(
             phone: $request->contact_phone,
-            text: $this->uberArrivalMessage($request),
+            text: $this->uberArrivalMessage($request, $encerrar),
             contactUuid: $request->contact_uuid,
             uberAccessRequestId: $request->id,
+            closeAfter: $encerrar,
         );
     }
 
     /**
-     * Os dados vêm de texto livre digitado no WhatsApp, então cada frase é
-     * condicional: sem nome vira uma saudação seca, sem local a última frase
-     * não entra. O primeiro nome basta — o WhatsApp costuma devolver o nome do
-     * contato com sufixos ("Gustavo Coordenador de TI|Gustavo").
+     * Os dados vêm de texto livre digitado no WhatsApp, então cada linha é
+     * condicional: sem nome não há saudação, sem local a linha do destino não
+     * entra. O primeiro nome basta — o WhatsApp costuma devolver o nome do
+     * contato com sufixos ("Gustavo Coordenador de TI|Gustavo") —, e sai com
+     * a inicial maiúscula mesmo quando foi digitado "GUSTAVO" ou "gustavo".
+     *
+     * Blocos separados por linha em branco: saudação, o aviso, os dados do
+     * carro e, quando a conversa vai ser encerrada, o rodapé que diz isso.
      */
-    private function uberArrivalMessage(UberAccessRequest $request): string
+    private function uberArrivalMessage(UberAccessRequest $request, bool $encerrar): string
     {
         $textos = config('poli.messages.uber_arrival');
-        $nome = Str::of((string) $request->requester_name)->trim()->before(' ')->value();
-        $frases = [];
+        $nome = Str::of((string) $request->requester_name)->trim()->before(' ')->before('|')->value();
+        $placa = (string) $request->vehicle_plate;
+        $blocos = [];
 
         if ($nome !== '') {
-            $frases[] = str_replace(':nome', $nome, $textos['saudacao']);
+            $blocos[] = str_replace(':nome', mb_convert_case($nome, MB_CASE_TITLE, 'UTF-8'), $textos['saudacao']);
         }
 
-        $frases[] = str_replace(':placa', (string) $request->vehicle_plate, $textos['corpo']);
+        // :placa ainda vale no corpo, para quem personalizou o texto no .env
+        // antes de a placa ganhar linha própria.
+        $blocos[] = str_replace(':placa', $placa, $textos['corpo']);
 
+        $dados = [];
+        if ($placa !== '' && filled($textos['placa'] ?? null) && !str_contains($textos['corpo'], ':placa')) {
+            $dados[] = str_replace(':placa', $placa, $textos['placa']);
+        }
         if (filled($request->club_location)) {
-            $frases[] = str_replace(':local', trim($request->club_location), $textos['local']);
+            $dados[] = str_replace(':local', trim($request->club_location), $textos['local']);
+        }
+        if ($dados !== []) {
+            $blocos[] = implode("\n", $dados);
         }
 
-        return implode(' ', $frases);
+        if ($encerrar && filled($textos['rodape'] ?? null)) {
+            $blocos[] = $textos['rodape'];
+        }
+
+        return implode("\n\n", $blocos);
     }
 
     /* ---------------------------------------------------------------------
