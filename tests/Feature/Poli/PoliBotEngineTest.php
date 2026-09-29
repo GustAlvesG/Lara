@@ -89,6 +89,8 @@ class PoliBotEngineTest extends TestCase
             'poli.http.retry_sleep_ms' => 0,
             'poli.bot.mode' => BotEngine::MODE_ON,
             'poli.bot.user_uuid' => self::LARA,
+            'poli.bot.test_contacts' => [self::PHONE],
+            'poli.bot.test_others_team_uuid' => null,
             'poli.bot.fallback_team_uuid' => 'time-geral',
             'poli.bot.close_after_minutes' => 10,
             'poli.bot.rescue_minutes' => 30,
@@ -1191,6 +1193,56 @@ class PoliBotEngineTest extends TestCase
         Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/forward'));
         $this->assertSame('att-1', $this->sessao()->attendance_uuid);
         $this->assertSame(BotSession::STATE_ENDING, $this->sessao()->state);
+    }
+
+    /**
+     * A opção "Funcionalidade Teste" aparece para todo mundo no menu da Poli.
+     * Em shadow, quem não é número de teste vai direto para a Secretaria —
+     * mesmo à noite, sem passar pelo fora do horário.
+     */
+    public function test_piloto_em_sombra_numero_fora_da_lista_vai_para_a_secretaria(): void
+    {
+        config(['poli.bot.mode' => BotEngine::MODE_SHADOW, 'poli.bot.test_contacts' => ['5524992689647']]);
+        Carbon::setTestNow('2026-09-23 22:00:00');
+
+        $this->texto("Funcionalidade Teste\n<em desenvolvimento>", atendente: null);
+        $this->bot()->handleRedirect($this->redirect('att-1'));
+
+        $this->assertTrue($this->enviouPara('distribute', fn ($d) => ($d['team'] ?? null) === DefaultFlows::TEAM_SECRETARIA));
+        $this->assertStringContainsString('*Secretaria*', $this->ultimoEnviado());
+        Http::assertNotSent(fn (Request $r) => ($r->data()['type'] ?? null) === 'TEMPLATE');
+        $this->assertTrue($this->sessao()->isHuman());
+        Queue::assertPushed(ConfirmPoliBotHandoff::class);
+    }
+
+    public function test_piloto_em_sombra_mensagem_de_numero_fora_da_lista_tambem_vai_para_a_secretaria(): void
+    {
+        config(['poli.bot.mode' => BotEngine::MODE_SHADOW, 'poli.bot.test_contacts' => ['5524992689647']]);
+
+        $this->texto('oi');
+
+        $this->assertTrue($this->enviouPara('distribute', fn ($d) => ($d['team'] ?? null) === DefaultFlows::TEAM_SECRETARIA));
+        $this->assertNull($this->sessao()->flow_slug);
+    }
+
+    public function test_time_dos_demais_numeros_e_configuravel(): void
+    {
+        config(['poli.bot.mode' => BotEngine::MODE_SHADOW, 'poli.bot.test_contacts' => [], 'poli.bot.test_others_team_uuid' => 'time-x']);
+
+        $this->texto('oi');
+
+        $this->assertTrue($this->enviouPara('distribute', fn ($d) => ($d['team'] ?? null) === 'time-x'));
+    }
+
+    /** No on não há lista: toda conversa do O Lara é conduzida pela Lara. */
+    public function test_no_modo_on_nao_ha_filtro_de_numero(): void
+    {
+        config(['poli.bot.test_contacts' => []]);
+
+        $this->texto('oi');
+
+        Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/distribute'));
+        $this->assertSame('menu', $this->sessao()->step_key);
     }
 
     /** Em shadow (piloto) o processo do Uber é o de hoje: aviso e close, sem O Lara. */
