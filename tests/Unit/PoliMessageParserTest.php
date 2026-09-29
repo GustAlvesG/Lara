@@ -329,4 +329,71 @@ class PoliMessageParserTest extends TestCase
 
         $this->assertSame(ParsedPoliMessage::TYPE_UNKNOWN, $parsed->type);
     }
+
+    public function test_atendente_e_estado_do_atendimento_vem_de_value_attendance(): void
+    {
+        $payload = $this->realTextPayload();
+        $payload['value']['attendance'] += ['status' => 'IN_PROGRESS', 'attendant' => ['uuid' => 'o-lara'], 'closed_reason' => null];
+        $payload['value']['contact']['attendant'] = ['uuid' => 'desatualizado'];
+        $payload[PoliMessageParser::WEBHOOK_META] = ['attempt' => '3', 'delivery_id' => 'entrega-1'];
+
+        $parsed = (new PoliMessageParser())->parse($payload);
+
+        $this->assertSame('o-lara', $parsed->attendanceAttendantUuid);
+        $this->assertSame('IN_PROGRESS', $parsed->attendanceStatus);
+        $this->assertNull($parsed->attendanceClosedReason);
+        $this->assertSame(3, $parsed->webhookAttempt);
+        $this->assertSame('entrega-1', $parsed->webhookDeliveryId);
+        $this->assertTrue($parsed->isRetry());
+    }
+
+    public function test_sem_atendente_e_sem_headers(): void
+    {
+        $parsed = (new PoliMessageParser())->parse($this->realTextPayload());
+
+        $this->assertNull($parsed->attendanceAttendantUuid);
+        $this->assertNull($parsed->webhookAttempt);
+        $this->assertFalse($parsed->isRetry());
+    }
+
+    /**
+     * A transferência que o distribute gera vem como mensagem de sistema
+     * com `direction = EMPTY`.
+     */
+    public function test_transferencia_com_direction_empty(): void
+    {
+        $payload = [
+            'object' => 'message',
+            'event' => 'received',
+            'value' => [
+                'uuid' => 'sys-1',
+                'event' => 'SYSTEM',
+                'type' => 'ATTENDANCE_REDIRECTED',
+                'direction' => 'EMPTY',
+                'contact' => ['uuid' => 'c-1', 'attributes' => ['name' => 'Gustavo', 'phone' => '5524992542363']],
+                'attendance' => ['uuid' => 'att-2', 'type' => 'INITIATED_BY_FORWARDING', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => 'o-lara']],
+            ],
+        ];
+
+        $parser = new PoliMessageParser();
+
+        $this->assertTrue($parser->isRedirect($payload));
+        $this->assertFalse($parser->isRelevantEvent($payload), 'não entra no fluxo como mensagem do contato');
+        $this->assertSame('EMPTY', $parser->extractDirection($payload));
+        $this->assertSame('o-lara', $parser->extractAttendantUuid($payload));
+
+        $redirect = $parser->parseRedirect($payload);
+        $this->assertSame('c-1', $redirect->contactUuid);
+        $this->assertSame('att-2', $redirect->attendanceUuid);
+        $this->assertSame('o-lara', $redirect->attendanceAttendantUuid);
+        $this->assertSame('INITIATED_BY_FORWARDING', $redirect->attendanceType);
+    }
+
+    public function test_mensagem_comum_nao_e_transferencia(): void
+    {
+        $parser = new PoliMessageParser();
+
+        $this->assertFalse($parser->isRedirect($this->realTextPayload()));
+        $this->assertNull($parser->parseRedirect($this->realTextPayload()));
+    }
 }

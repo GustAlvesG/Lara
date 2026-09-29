@@ -15,6 +15,7 @@ class DefaultFlows
     // Templates LIST cadastrados no painel da Poli.
     public const TPL_DEPARTAMENTOS = 'a22783de-dcc6-4ff3-8f6e-70f264adefc3';
     public const TPL_LOCAL_UBER = 'a27eaf22-2607-4737-97e0-9b485051d86a';
+    public const TPL_FORA_DO_HORARIO = 'a2500d8d-ca34-447e-86fe-f2f4b6f2460b';   // "Opções"
 
     // Times (departamentos) da conta.
     public const TEAM_ACHADOS = 'a22789b0-2dd4-484a-b622-e57498d533d3';
@@ -45,26 +46,59 @@ class DefaultFlows
             'timeout_minutes' => 15,
             'max_attempts' => 3,
             'on_max_attempts' => ['type' => 'handoff', 'team_uuid' => self::TEAM_SECRETARIA],
+
+            // O horário que os templates da Poli anunciam. Os dois discordam no
+            // fim de semana (HorarioAtendimento diz 07:10, Opções diz 07:00):
+            // vale o de Opções, que é a mensagem que o bot manda quando fecha.
+            'hours' => [
+                'enabled' => true,
+                'days' => [
+                    '1' => ['07:00', '19:50'], '2' => ['07:00', '19:50'], '3' => ['07:00', '19:50'],
+                    '4' => ['07:00', '19:50'], '5' => ['07:00', '19:50'],
+                    '6' => ['07:00', '18:00'], '7' => ['07:00', '18:00'],
+                ],
+                'holidays' => [],
+                'holiday' => ['07:00', '18:00'],
+                'out_of_hours' => 'fora_do_horario',
+            ],
+
             'steps' => [
                 'menu' => [
                     'say' => ['type' => 'template', 'template_uuid' => self::TPL_DEPARTAMENTOS],
                     'expect' => ['type' => 'option'],
                     'options' => [
-                        ['label' => 'Achados e Perdidos', 'next' => 'achados'],
-                        ['label' => 'Financeiro', 'next' => 'financeiro'],
-                        ['label' => 'Secretaria', 'next' => 'secretaria'],
-                        ['label' => 'Carro de Aplicativo', 'aliases' => ['uber', '99', 'taxi', 'carro'], 'next' => 'uber'],
-                        ['label' => 'Funcionalidade Teste', 'next' => 'teste'],
+                        ['label' => 'Achados e Perdidos', 'description' => 'Materiais e equipamentos que foram esquecidos no Clube.', 'next' => 'achados'],
+                        ['label' => 'Financeiro', 'description' => 'Consulte seus débitos ou outras pendências.', 'next' => 'financeiro'],
+                        ['label' => 'Secretaria', 'description' => 'Atendimento pra sócios e não sócios para assuntos do Clube.', 'next' => 'secretaria'],
+                        ['label' => 'Carro de Aplicativo', 'description' => 'Carro, moto ou táxi', 'aliases' => ['uber', '99', 'taxi', 'carro'], 'next' => 'uber'],
+                        ['label' => 'Funcionalidade Teste', 'description' => '<em desenvolvimento>', 'aliases' => ['funcionalidade em teste'], 'next' => 'teste'],
                     ],
                     'save_as' => 'departamento',
                     'invalid' => 'Não entendi. Toque em *Ver opções* e escolha o departamento.',
+                ],
+                'fora_do_horario' => [
+                    'say' => ['type' => 'template', 'template_uuid' => self::TPL_FORA_DO_HORARIO],
+                    'expect' => ['type' => 'option'],
+                    'options' => [
+                        ['label' => 'Carro de Aplicativo', 'description' => 'Carro, moto ou táxi', 'aliases' => ['uber', '99', 'taxi', 'carro'], 'next' => 'uber'],
+                        ['label' => 'Sair', 'description' => 'Encerrar atendimento.', 'next' => 'sair'],
+                        ['label' => 'Funcionalidade Teste', 'description' => '<em desenvolvimento>', 'aliases' => ['funcionalidade em teste'], 'next' => 'teste'],
+                    ],
+                    'invalid' => 'Fora do horário eu só consigo ajudar com as opções do menu. Toque em *Opções* e escolha uma.',
+                ],
+                'sair' => [
+                    'say' => ['type' => 'text', 'text' => 'Atendimento encerrado. Sempre que precisar, é só chamar!'],
+                    'action' => ['type' => 'close'],
                 ],
                 'achados' => $encaminhar('Achados e Perdidos', self::TEAM_ACHADOS),
                 'financeiro' => $encaminhar('Financeiro', self::TEAM_FINANCEIRO),
                 'secretaria' => $encaminhar('Secretaria', self::TEAM_SECRETARIA),
                 'uber' => ['action' => ['type' => 'goto_flow', 'flow' => 'carro-de-aplicativo']],
+                // Porta do piloto: no bot da Poli, esta opção transfere para O
+                // Lara, e o toque chega aqui como gatilho. Daqui em diante é o
+                // menu da Lara com todos os fluxos, de verdade.
                 'teste' => [
-                    'say' => ['type' => 'text', 'text' => 'Esta opção ainda está em desenvolvimento. 🙂'],
+                    'say' => ['type' => 'text', 'text' => '🧪 Modo de teste: você está falando com o novo atendimento. Todas as opções funcionam de verdade.'],
                     'next' => 'menu',
                 ],
             ],
@@ -75,7 +109,7 @@ class DefaultFlows
     {
         return [
             'start' => 'matricula',
-            'triggers' => ['texts' => []],   // só se chega aqui pelo menu
+            'triggers' => ['only_goto' => true],   // só se chega aqui pelo menu
             'timeout_minutes' => 10,
             'max_attempts' => 3,
             'on_max_attempts' => ['type' => 'handoff', 'team_uuid' => self::TEAM_SECRETARIA],
@@ -124,9 +158,11 @@ class DefaultFlows
                     'action' => ['type' => 'uber_request'],
                     'next' => 'fim',
                 ],
+                // Sem close: o fim do fluxo deixa a conversa em encerramento
+                // diferido. Fechar na hora prenderia a próxima mensagem do
+                // sócio no atendimento fechado (medido em 29/09/2026).
                 'fim' => [
                     'say' => ['type' => 'text', 'text' => "Pronto, {nome}! ✅ A entrada do carro placa *{placa}* está liberada por 30 minutos. Avisaremos quando ele chegar à portaria."],
-                    'action' => ['type' => 'close'],
                 ],
             ],
         ];

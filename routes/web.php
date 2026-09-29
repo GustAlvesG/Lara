@@ -59,6 +59,9 @@ use App\Http\Controllers\Placar\Web\CompeticaoController as PlacarCompeticaoWebC
 use App\Http\Controllers\Placar\Web\JogoController as PlacarJogoWebController;
 use App\Http\Controllers\Placar\Web\EscalacaoController as PlacarEscalacaoWebController;
 use App\Http\Controllers\Placar\Web\ScoutController as PlacarScoutWebController;
+use App\Http\Controllers\PoliBot\FlowController as PoliBotFlowController;
+use App\Http\Controllers\PoliBot\PoliDataController as PoliBotDataController;
+use App\Http\Controllers\PoliBot\SimulatorController as PoliBotSimulatorController;
 
 
 Route::get('/', function () {
@@ -669,6 +672,31 @@ Route::middleware('auth')->group(function () {
             Route::delete('/fornecedores/{fornecedor}', [CotacaoFornecedorController::class, 'destroy'])
                 ->whereNumber('fornecedor')->name('fornecedores.destroy');
         });
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | Bot do WhatsApp — fluxos de conversa
+    |----------------------------------------------------------------------
+    |
+    | Editor dos fluxos que o bot da Lara conduz no lugar do bot da Poli.
+    | Salvar um fluxo ativo é publicar: vale na próxima mensagem. O
+    | simulador nunca envia nada (App\Services\PoliBot\BotSimulator).
+    */
+    Route::prefix('bot-whatsapp')->name('poli-bot.')->middleware('permission:manage whatsapp bot')->group(function () {
+        Route::get('/', [PoliBotFlowController::class, 'index'])->name('index');
+        Route::get('/fluxos/novo', [PoliBotFlowController::class, 'create'])->name('flows.create');
+        Route::post('/fluxos', [PoliBotFlowController::class, 'store'])->name('flows.store');
+        Route::get('/fluxos/{flow}/editar', [PoliBotFlowController::class, 'edit'])->whereNumber('flow')->name('flows.edit');
+        Route::put('/fluxos/{flow}', [PoliBotFlowController::class, 'update'])->whereNumber('flow')->name('flows.update');
+        Route::post('/fluxos/{flow}/ativo', [PoliBotFlowController::class, 'toggle'])->whereNumber('flow')->name('flows.toggle');
+        Route::delete('/fluxos/{flow}', [PoliBotFlowController::class, 'destroy'])->whereNumber('flow')->name('flows.destroy');
+
+        Route::post('/simular', PoliBotSimulatorController::class)->middleware('throttle:120,1')->name('simulate');
+
+        // Dados da conta Poli para as listas do editor (em cache).
+        Route::get('/poli/templates', [PoliBotDataController::class, 'templates'])->middleware('throttle:30,1')->name('poli.templates');
+        Route::get('/poli/times', [PoliBotDataController::class, 'teams'])->middleware('throttle:30,1')->name('poli.teams');
     });
 
     // Notificações

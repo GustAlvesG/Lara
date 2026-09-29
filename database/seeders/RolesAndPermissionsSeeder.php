@@ -81,6 +81,13 @@ class RolesAndPermissionsSeeder extends Seeder
             [ 'name' => 'manage fleet', 'description' => 'Permite gerenciar a frota e a quilometragem dos veículos'],
         ];
 
+        // Editar os fluxos do bot do WhatsApp é publicar: o que se salva ativo
+        // passa a responder aos associados na mensagem seguinte. Por isso é
+        // uma permissão própria, e não "todo mundo da secretaria".
+        $permission_whatsapp_bot = [
+            [ 'name' => 'manage whatsapp bot', 'description' => 'Permite criar e editar os fluxos do bot do WhatsApp'],
+        ];
+
         $allPermissions = array_merge(
             $permissions_infoclube,
             $permissions_siv,
@@ -90,7 +97,8 @@ class RolesAndPermissionsSeeder extends Seeder
             $permission_home_assistant,
             $permission_lara,
             $permission_questor,
-            $permission_fleet
+            $permission_fleet,
+            $permission_whatsapp_bot
         );
 
         foreach ($allPermissions as $permission) {

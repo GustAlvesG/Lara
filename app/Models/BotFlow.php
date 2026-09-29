@@ -23,6 +23,11 @@ class BotFlow extends Model
         return new FlowDefinition($this->slug, $this->definition ?? []);
     }
 
+    public function versions()
+    {
+        return $this->hasMany(BotFlowVersion::class)->orderByDesc('id');
+    }
+
     public static function findActive(string $slug): ?self
     {
         return static::where('slug', $slug)->where('active', true)->first();

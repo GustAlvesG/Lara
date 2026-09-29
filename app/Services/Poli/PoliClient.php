@@ -15,9 +15,13 @@ use Throwable;
  *
  * Espelha o poli_teste_envio.py, validado contra a API real: mesmos métodos,
  * caminhos, query strings e corpos. Envio de texto e de template LIST foram
- * comprovados com entrega no aparelho em 25/09/2026; o resto (distribuir,
- * encaminhar, nota) segue a documentação e ainda não foi exercitado de
- * verdade.
+ * comprovados com entrega no aparelho em 25/09/2026; encerrar, distribuir e
+ * encaminhar, em produção em 29/09/2026. Nota e a lista de chats seguem a
+ * documentação e ainda não foram exercitadas de verdade.
+ *
+ * Só o ENVIO de mensagem exige `uuid` na resposta (quem confere é quem
+ * chama). As ações de atendimento respondem `{"message": …}` ou nada, e
+ * qualquer 2xx é sucesso.
  *
  * Ao contrário do PoliMessageService, este client LANÇA: RequestException em
  * resposta de erro, ConnectionException sem resposta, InvalidArgumentException
@@ -144,14 +148,51 @@ class PoliClient
         return $this->desembrulhar($this->get("/messages/{$uuid}", ['include' => self::MESSAGE_INCLUDE]));
     }
 
+    /**
+     * O atendimento em curso do contato (`current_attendance`), ou null.
+     *
+     * É a fonte certa de quem está com a conversa. O `attendant` na raiz do
+     * contato fica desatualizado por mais de 90 s depois de um distribute
+     * (medido em 29/09/2026) — nunca use aquele.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function atendimentoAtual(string $contactUuid): ?array
+    {
+        $contato = $this->desembrulhar($this->get("/contacts/{$contactUuid}", ['include' => 'current_attendance']));
+        $atendimento = $contato['current_attendance'] ?? null;
+
+        return is_array($atendimento) ? $this->desembrulhar($atendimento) : null;
+    }
+
+    /**
+     * Conversas abertas atribuídas a um usuário. Endpoint documentado, ainda
+     * não exercitado: quem usa confere cada contato em atendimentoAtual()
+     * antes de agir, porque um filtro ignorado devolveria as conversas de
+     * todo mundo.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function chatsAtribuidos(string $userUuid): array
+    {
+        $resposta = $this->desembrulhar($this->get("/accounts/{$this->conta()}/chats", [
+            'assigned' => $userUuid,
+            'status' => 'OPEN',
+            'per_page' => 100,
+        ]));
+
+        return array_values(array_filter($resposta, 'is_array'));
+    }
+
     /* ---------------------------------------------------------------------
      | Atendimento
      |---------------------------------------------------------------------*/
 
     /**
      * Encerra a conversa. A despedida, se houver, sai antes. O /close vai SEM
-     * corpo e responde 204 — o exemplo da documentação com `user_uuid` no
-     * corpo é cópia do forward.
+     * corpo e responde 200 com `{"message": …}` ou 204 — o exemplo da
+     * documentação com `user_uuid` no corpo é cópia do forward. A Poli manda
+     * a própria despedida e o link de avaliação depois (duas mensagens).
      */
     public function encerrar(string $contactUuid, ?string $despedida = null): void
     {
@@ -162,7 +203,11 @@ class PoliClient
         $this->enviar('POST', "/contacts/{$contactUuid}/close");
     }
 
-    /** Pela documentação — ainda não exercitado de verdade. */
+    /**
+     * Passa o atendimento para um atendente DISPONÍVEL do time; o uuid do
+     * atendimento não muda e nada chega ao contato. Responde 200 com
+     * `{"message": …}`, sem `uuid` (medido em 29/09/2026).
+     */
     public function distribuir(string $contactUuid, string $teamUuid): void
     {
         $this->post("/contacts/{$contactUuid}/distribute", ['team' => $teamUuid]);
@@ -170,7 +215,8 @@ class PoliClient
 
     /**
      * Passa o contato para um usuário ou aplicação, opcionalmente num time.
-     * Pela documentação — ainda não exercitado de verdade.
+     * Com `user_uuid` responde 200 e abre um atendimento novo com o usuário
+     * (medido em 29/09/2026); o formato `member_uuid`/`member_type` dá 422.
      */
     public function encaminhar(
         string $contactUuid,
