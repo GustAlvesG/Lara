@@ -49,7 +49,12 @@ ligado — não há outro atendente para responder por ela.
 |---|---|
 | `off` | Chave de emergência: a Lara não fala nem nas conversas do O Lara. A escuta do Uber segue. |
 | `shadow` | O piloto. Para os sócios tudo segue como hoje (bot da Poli, escuta do Uber, aviso de chegada que encerra). A Lara responde só nas conversas do O Lara — as que chegam pela opção **Funcionalidade Teste** do menu da Poli —, e nelas tudo roda de verdade, como no `on`, inclusive o pedido do carro. |
-| `on` | Como `shadow`, e o aviso de chegada do Uber passa a conversa para O Lara em vez de encerrar. |
+| `on` | Como `shadow`, sem a lista de números de teste, e o aviso de chegada do Uber passa a conversa para O Lara em vez de encerrar. |
+
+No `shadow`, só os números de `POLI_BOT_TEST_CONTACTS` têm a conversa do O Lara conduzida pela
+Lara. A opção "Funcionalidade Teste" aparece para todos no menu da Poli: quem tocar nela sem
+estar na lista recebe um aviso e vai direto para a Secretaria (`POLI_BOT_TEST_OTHERS_TEAM` troca
+o time), sem passar por fluxo nem por horário.
 
 Nos dois, as conversas que continuam no bot da Poli passam pela Lara só em sombra, para comparação.
 

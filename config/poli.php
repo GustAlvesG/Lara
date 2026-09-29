@@ -239,6 +239,19 @@ return [
         'user_uuid' => env('POLI_BOT_USER_UUID'),
 
         /*
+        | Piloto (modo shadow): só estes números (DDI + DDD + número, só
+        | dígitos, separados por vírgula) têm a conversa do O Lara conduzida
+        | pela Lara. A opção "Funcionalidade Teste" aparece para todo mundo no
+        | menu da Poli: quem tocar nela sem estar na lista vai direto para
+        | `test_others_team_uuid` (padrão: Secretaria). No modo on não há filtro.
+        */
+        'test_contacts' => array_values(array_filter(array_map(
+            fn ($n) => preg_replace('/\D/', '', $n),
+            explode(',', (string) env('POLI_BOT_TEST_CONTACTS', ''))
+        ))),
+        'test_others_team_uuid' => env('POLI_BOT_TEST_OTHERS_TEAM'),
+
+        /*
         | Fim do fluxo: a Lara manda a conclusão e só encerra o atendimento
         | depois deste tanto de minutos sem mensagem. Encerrar na hora abre a
         | janela em que a primeira mensagem do sócio fica presa no atendimento
@@ -325,7 +338,8 @@ return [
             'too_many_attempts' => 'Não consegui entender suas respostas. Vou te passar para um atendente.',
             'goodbye' => 'Atendimento encerrado. Sempre que precisar, é só chamar!',
             'expired' => 'Sua conversa anterior ficou parada e foi encerrada. Vamos recomeçar:',
-            'abandoned' => 'Como não tivemos resposta, vou encerrar este atendimento. Sempre que precisar, é só chamar!',
+            'test_others' => 'Esta opção ainda está em desenvolvimento. Vou te encaminhar para a *Secretaria*, que continua com você em instantes.',
+            'abandoned' =>'Como não tivemos resposta, vou encerrar este atendimento. Sempre que precisar, é só chamar!',
             'handoff_failed' => 'Não consegui te transferir para um atendente agora. Tente de novo em alguns minutos, por favor.',
         ],
     ],

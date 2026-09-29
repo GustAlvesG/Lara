@@ -245,6 +245,12 @@ class BotEngine
 
         $session->lara_owned = true;
 
+        if ($this->sentOutOfPilot($session)) {
+            $this->save($session);
+
+            return;
+        }
+
         // Fluxo concluído e o contato escreveu antes do encerramento: a
         // conversa ainda é da Lara, que recomeça pelo menu.
         if ($session->isEnding()) {
@@ -258,6 +264,41 @@ class BotEngine
 
         $this->converse($session, $message);
         $this->save($session);
+    }
+
+    /**
+     * Piloto (modo shadow): a opção "Funcionalidade Teste" aparece para todo
+     * mundo no menu da Poli, mas só os números de teste têm a conversa
+     * conduzida pela Lara. Os demais vão direto para a Secretaria — sem
+     * fluxo e sem desvio de horário, que os prenderia no bot novo.
+     *
+     * @return bool true se a conversa foi encaminhada (e não deve seguir)
+     */
+    private function sentOutOfPilot(BotSession $session): bool
+    {
+        if ($this->mode() !== self::MODE_SHADOW || $this->simulacao || $this->isTestContact($session)) {
+            return false;
+        }
+
+        Log::info('PoliBot: piloto — número fora da lista de teste encaminhado', ['contact_uuid' => $session->contact_uuid]);
+
+        $this->say($session, (string) config('poli.bot.messages.test_others'));
+        $feito = $this->out->handoff($session, config('poli.bot.test_others_team_uuid') ?: DefaultFlows::TEAM_SECRETARIA);
+        $session->toHuman();
+
+        if ($feito) {
+            ConfirmPoliBotHandoff::dispatch($session->contact_uuid)
+                ->delay(now()->addSeconds((int) config('poli.bot.handoff_confirm_seconds', 10)));
+        }
+
+        return true;
+    }
+
+    private function isTestContact(BotSession $session): bool
+    {
+        $telefone = preg_replace('/\D/', '', (string) $session->contact_phone);
+
+        return $telefone !== '' && in_array($telefone, (array) config('poli.bot.test_contacts', []), true);
     }
 
     /** O atendimento em curso do contato, pela API, está com O Lara? Sem resposta dela: não. */
@@ -760,6 +801,12 @@ class BotEngine
         $session->reset();
         $session->lara_owned = true;
         $session->attendance_uuid = $redirect->attendanceUuid;
+
+        if ($this->sentOutOfPilot($session)) {
+            $this->save($session);
+
+            return;
+        }
 
         $this->message = $gatilho ?? $redirect;
         $gatilho !== null
