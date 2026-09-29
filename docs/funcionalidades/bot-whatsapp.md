@@ -29,16 +29,31 @@ próxima mensagem dos associados.
 - Fluxos iniciais, equivalentes ao bot da Poli de hoje: `php artisan poli:bot-fluxos --instalar`.
 - Modo do bot no `.env` (`POLI_BOT_MODE`), ver abaixo.
 
+## Quando a Lara responde
+
+A regra é explícita: **a Lara responde nas conversas atribuídas ao usuário "O Lara" na Poli**
+(`POLI_BOT_USER_UUID`) e ainda não encerradas. O bot da Poli continua sendo a porta de entrada:
+as opções dele que devem ir para a Lara transferem a conversa para esse usuário. A Lara abre o
+fluxo assim que a transferência chega (usando como gatilho o toque no menu da Poli) e, no fim,
+distribui para um time humano ou encerra.
+
+Quem entra no piloto é decidido **no fluxo do bot da Poli** (qual opção transfere para O Lara),
+não no `.env`.
+
 ## Modos (`POLI_BOT_MODE`)
+
+O Lara é a própria Lara: **toda conversa atribuída a ele é respondida**, em qualquer modo
+ligado — não há outro atendente para responder por ela.
 
 | Modo | O que acontece |
 |---|---|
-| `off` | Nada muda: o bot da Poli atende; a Lara só escuta o fluxo do Uber. |
-| `shadow` | O bot da Poli atende. A Lara processa cada conversa e **registra** o que responderia, sem enviar nada nem criar pedido. É o ensaio com tráfego real. |
-| `on` | A Lara responde de verdade. **Desligue o bot da Poli antes**, senão os dois respondem. |
+| `off` | Chave de emergência: a Lara não fala nem nas conversas do O Lara. A escuta do Uber segue. |
+| `shadow` | O piloto. Para os sócios tudo segue como hoje (bot da Poli, escuta do Uber, aviso de chegada que encerra). A Lara responde só nas conversas do O Lara — as que chegam pela opção **Funcionalidade Teste** do menu da Poli —, e nelas tudo roda de verdade, como no `on`, inclusive o pedido do carro. |
+| `on` | Como `shadow`, e o aviso de chegada do Uber passa a conversa para O Lara em vez de encerrar. |
 
-`POLI_BOT_LIVE_CONTACTS` (telefones com DDI ou contact_uuid) faz esses contatos receberem as
-respostas de verdade mesmo em `shadow` — é o piloto. Eles recebem as do bot da Poli também.
+Nos dois, as conversas que continuam no bot da Poli passam pela Lara só em sombra, para comparação.
+
+É nas conversas do bot da Poli que a escuta do fluxo do Uber trabalha.
 
 ## Fluxo passo a passo (criar um fluxo)
 
@@ -60,11 +75,28 @@ conferir e salvar.
 
 ## Regras de negócio
 
-- **Silêncio:** o bot não responde quando um atendente assumiu (mensagem de atendente ou
-  conversa redirecionada) e volta quando o atendimento fecha — com teto de 12 h
-  (`POLI_BOT_HUMAN_TIMEOUT_HOURS`). Também não responde em atendimento **aberto pela empresa**
-  (cobrança, aviso de chegada do Uber) nem em atendimento encerrado — a mesma regra que o bot da
-  Poli segue (medida em produção em 25/09/2026).
+- **Silêncio:** chegou mensagem ou transferência com outro atendente (humano pelo painel, ou o
+  próprio transbordo da Lara), a conversa vira `human` e a Lara para de responder.
+- **Transbordo:** o horário é conferido **na hora do transbordo** — fora dele a conversa vai para o
+  passo "fora do horário" (do fluxo atual, ou do fluxo de boas-vindas se o atual não tem
+  horário). Depois do distribute, um job confere em ~10 s (`POLI_BOT_CONFIRMAR_TRANSBORDO_S`)
+  se o atendimento saiu mesmo do O Lara; se não saiu, o contato é avisado e a falha vai para o log.
+- **Fim do fluxo:** a conclusão sai e a conversa fica em `ending`. Se o contato escrever em até
+  `POLI_BOT_ENCERRAR_APOS_MIN` (10) minutos, recebe o menu; senão a Lara encerra. Encerrar na hora
+  prende a próxima mensagem do contato no atendimento fechado (medido em 29/09/2026). A ação
+  "encerrar" do fluxo continua existindo para quando se quer fechar na hora (ex.: "Sair").
+- **Resgate:** mensagem que cai num atendimento que **a Lara** encerrou há até
+  `POLI_BOT_RESGATE_MIN` (30) minutos é trazida de volta: forward para O Lara e o menu.
+- **Abandono:** conversa parada no meio do fluxo por mais que o `timeout_minutes` do fluxo é
+  encerrada pelo agendamento (a Poli não encerra por inatividade os atendimentos do O Lara).
+- **Reconciliação:** a cada 10 minutos, conversas abertas com O Lara sem sessão ativa na Lara são
+  encerradas. Cada uma é conferida na API antes; lista maior que `POLI_BOT_RECONCILIAR_MAX` (50)
+  aborta a rodada.
+- **Aviso de chegada do Uber:** com humano no atendimento, só o aviso. No `on`, a conversa passa
+  para O Lara antes do aviso e fecha como no fim do fluxo — a resposta do sócio chega à Lara. Em
+  `shadow` e `off`, encerra logo depois do aviso, como hoje.
+- **Depois do transbordo:** se ainda chegar mensagem com O Lara como atendente, a Lara confere na
+  API; continuando com O Lara, ela responde.
 - **Palavras de escape**, em qualquer ponto: `menu` (recomeça), `sair` (encerra), `atendente`
   ou `0` (passa para humano; `0` não vale quando o passo espera um número).
 - **Atalho:** se a primeira mensagem já é o nome de uma opção do menu inicial ("financeiro"), ela
@@ -76,7 +108,8 @@ conferir e salvar.
   *HorarioAtendimento* diz 07:10 no fim de semana; vale o *Opções*, que é o que o bot envia).
 - **Pedido de carro de aplicativo** (ação `uber_request`): usa as respostas `matricula`, `nome`,
   `local`, `placa` e `print`, e passa pela mesma conferência de sócio/funcionário e validade de
-  30 min do fluxo escutado. Só cria pedido no modo `on`.
+  30 min do fluxo escutado. Cria o pedido em toda conversa do O Lara (nunca no simulador); a escuta do
+  Uber ignora as conversas do O Lara, para não duplicar.
 - **Histórico:** tudo que o bot recebe e envia fica em `poli_messages`, com CPF e datas
   mascarados.
 
@@ -92,12 +125,23 @@ conferir e salvar.
 ## Integrações
 
 API v3 da Poli — `App\Services\Poli\PoliClient` (envio, templates, times, encerrar,
-distribuir). Webhook de entrada: `POST /api/webhooks/whatsapp` (o mesmo do fluxo do Uber).
+distribuir, encaminhar, atendimento atual, chats atribuídos). Webhook de entrada:
+`POST /api/webhooks/whatsapp` (o mesmo do fluxo do Uber). Reenvio da Poli
+(`X-Webhook-Attempt` > 1) faz a Lara conferir o dono na API antes de agir.
+
+## Rollback
+
+Religar as transferências da Poli para os times humanos, `POLI_BOT_MODE=off` e então
+`php artisan poli:bot-reconciliar --devolver` (distribui todas as conversas abertas com O Lara
+para a Secretaria; `--devolver=<uuid>` escolhe outro time, `--simular` só lista).
 
 ## Referência técnica
 
 - Motor: `app/Services/PoliBot/BotEngine.php`; validação de resposta: `AnswerValidator`;
-  formato do fluxo: `FlowDefinition` (docblock descreve o JSON); envio: `BotOutbox`.
+  formato do fluxo: `FlowDefinition` (docblock descreve o JSON); envio: `BotOutbox`; aviso do
+  Uber: `UberArrivalHandover`.
+- Jobs: `ProcessPoliBotRedirect` (transferência para O Lara), `ConfirmPoliBotHandoff`.
 - Tela: `app/Http/Controllers/PoliBot/*`, `resources/views/poli-bot/*`, rotas `poli-bot.*`.
-- Terminal: `php artisan poli:bot-fluxos`, `poli:bot-simular`, `poli:teste-envio`.
+- Terminal: `php artisan poli:bot-fluxos`, `poli:bot-simular`, `poli:teste-envio`,
+  `poli:bot-expirar` (agendado a cada minuto), `poli:bot-reconciliar` (a cada 10 minutos).
 - Configuração: bloco `bot` de `config/poli.php`.

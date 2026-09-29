@@ -206,10 +206,11 @@ class UberAccessValidationTest extends TestCase
                 && $job->contactUuid === 'uuid-' . $plate
                 && $job->uberAccessRequestId === $request->id
                 && $job->closeAfter === true
+                // O rodapé depende do destino do atendimento, decidido na
+                // hora do envio: quem o põe é o job (SendPoliTextMessageTest).
                 && $job->text === "Olá, *Fulano*!\n\n"
                     . "🚗 Seu carro de aplicativo chegou à portaria e o acesso foi liberado.\n\n"
-                    . "*Placa:* {$plate}\n*Destino:* Sede\n\n"
-                    . 'Este atendimento foi encerrado. Se precisar de algo, é só mandar uma nova mensagem.'
+                    . "*Placa:* {$plate}\n*Destino:* Sede"
         );
     }
 

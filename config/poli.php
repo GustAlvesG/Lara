@@ -161,10 +161,14 @@ return [
     |
     | Asteriscos são negrito no WhatsApp.
     |
-    | Com `close_after` ligado, a conversa é encerrada na Poli logo depois do
-    | aviso aceito — o aviso é a última coisa que o associado precisa, e o
-    | atendimento aberto por ele ficaria pendurado no painel. O `rodape` só
-    | entra nesse caso: é ele que diz ao associado que o atendimento acabou.
+    | Com `close_after` ligado, a Lara cuida do atendimento depois do aviso
+    | (SendPoliTextMessage + PoliBot\UberArrivalHandover):
+    |
+    |   - atendimento aberto com um humano: só o aviso, sem encerrar nada;
+    |   - bot on: a conversa passa para o usuário O Lara e fecha depois de
+    |     `bot.close_after_minutes` sem resposta (rodapé `rodape_continua`);
+    |   - shadow, off ou O Lara não configurado: encerra logo depois do aviso
+    |     aceito (rodapé `rodape`), como hoje.
     |
     */
 
@@ -181,6 +185,10 @@ return [
                 'POLI_MSG_UBER_RODAPE',
                 'Este atendimento foi encerrado. Se precisar de algo, é só mandar uma nova mensagem.'
             ),
+            'rodape_continua' => env(
+                'POLI_MSG_UBER_RODAPE_CONTINUA',
+                'Se precisar de mais alguma coisa, é só responder por aqui.'
+            ),
             'close_after' => (bool) env('POLI_UBER_ARRIVAL_CLOSE', true),
         ],
     ],
@@ -190,36 +198,77 @@ return [
     | Bot de atendimento na Lara
     |--------------------------------------------------------------------------
     |
-    | Substitui o bot da Poli: os fluxos ficam em bot_flows e quem conduz a
-    | conversa é App\Services\PoliBot\BotEngine. Três modos:
+    | Os fluxos ficam em bot_flows e quem conduz a conversa é
+    | App\Services\PoliBot\BotEngine. A regra de quando a Lara fala é
+    | explícita: a conversa é dela quando o atendimento está atribuído ao
+    | usuário O Lara (`user_uuid`) e não está encerrado. O bot da Poli continua
+    | sendo a porta de entrada e transfere para esse usuário; a Lara conduz o
+    | fluxo e, no fim, distribui para um time humano ou encerra.
     |
-    |   off     nada muda — o bot da Poli atende, a Lara só escuta o Uber.
-    |   shadow  a Lara processa cada mensagem e REGISTRA o que responderia
-    |           (poli_messages.shadow = true), sem enviar nada nem criar
-    |           pedido. O bot da Poli continua atendendo. É o ensaio.
-    |   on      a Lara responde de verdade. Desligue o bot da Poli ANTES, senão
-    |           os dois respondem. A escuta do Uber (UberAccessRequestFlow)
-    |           para: o pedido passa a ser criado pelo próprio fluxo do bot.
+    | O Lara é a própria Lara: toda conversa atribuída a ele é respondida de
+    | verdade, em qualquer modo ligado — não existe outro atendente para
+    | responder por ela.
     |
-    | `live_contacts` é o piloto: em modo shadow, estes contatos (contact_uuid
-    | ou telefone com DDI, separados por vírgula) recebem as respostas de
-    | verdade. Eles vão receber as do bot da Poli também.
+    |   off     chave de emergência: a Lara não fala nem nas conversas do O
+    |           Lara. A escuta do Uber segue como sempre.
+    |   shadow  o piloto. Para os sócios tudo segue como hoje: o bot da Poli
+    |           atende, a escuta do Uber trabalha e o aviso de chegada encerra
+    |           a conversa. A Lara fala só nas conversas do O Lara — as que
+    |           chegam pela opção "Funcionalidade Teste" do menu da Poli —, e
+    |           nelas tudo roda de verdade, como no on (pedido do carro
+    |           incluído). As demais passam por ela só em sombra, para comparar
+    |           (poli_messages.shadow = true).
+    |   on      como shadow, e o aviso de chegada do Uber passa a conversa
+    |           para O Lara em vez de encerrar.
+    |
+    | É nas conversas do bot da Poli que a escuta do Uber
+    | (UberAccessRequestFlow) trabalha; nas do O Lara, quem cria o pedido é o
+    | fluxo da Lara.
+    |
+    | Quem entra no piloto não é mais configurado aqui: é decidido por quais
+    | opções do bot da Poli transferem para O Lara.
     |
     */
 
     'bot' => [
         'mode' => env('POLI_BOT_MODE', 'off'),
 
-        'live_contacts' => array_values(array_filter(array_map(
-            'trim',
-            explode(',', (string) env('POLI_BOT_LIVE_CONTACTS', ''))
-        ))),
+        /*
+        | O usuário "O Lara" na Poli. Sem ele, nenhuma conversa é da Lara.
+        */
+        'user_uuid' => env('POLI_BOT_USER_UUID'),
 
         /*
-        | No modo on, quanto cada mensagem espera antes de o bot responder —
+        | Fim do fluxo: a Lara manda a conclusão e só encerra o atendimento
+        | depois deste tanto de minutos sem mensagem. Encerrar na hora abre a
+        | janela em que a primeira mensagem do sócio fica presa no atendimento
+        | fechado (medido em 29/09/2026: até ~1 minuto depois do close).
+        */
+        'close_after_minutes' => (int) env('POLI_BOT_ENCERRAR_APOS_MIN', 10),
+
+        /*
+        | Até quantos minutos depois de a Lara encerrar um atendimento uma
+        | mensagem presa nele é resgatada (forward para O Lara + menu).
+        */
+        'rescue_minutes' => (int) env('POLI_BOT_RESGATE_MIN', 30),
+
+        /*
+        | Depois do distribute, quanto esperar para conferir na API se o
+        | atendimento saiu mesmo do O Lara.
+        */
+        'handoff_confirm_seconds' => (int) env('POLI_BOT_CONFIRMAR_TRANSBORDO_S', 10),
+
+        /*
+        | Reconciliação: a lista da Poli com mais conversas que isto não é
+        | tratada — é sinal de que o filtro por atendente foi ignorado.
+        */
+        'reconcile_max_chats' => (int) env('POLI_BOT_RECONCILIAR_MAX', 50),
+
+        /*
+        | Na conversa do O Lara, quanto cada mensagem espera antes de o bot responder —
         | o equivalente de inbound.max_delivery_lag_seconds para a conversa
         | com o bot. Menor é mais rápido e mais exposto a mensagem fora de
-        | ordem (o webhook já atrasou até 12s). Em off/shadow não se aplica.
+        | ordem (o webhook já atrasou até 12s). Com o bot off não se aplica.
         */
         'inbound_max_lag_seconds' => (int) env('POLI_BOT_INBOUND_MAX_LAG', 6),
 
@@ -276,6 +325,8 @@ return [
             'too_many_attempts' => 'Não consegui entender suas respostas. Vou te passar para um atendente.',
             'goodbye' => 'Atendimento encerrado. Sempre que precisar, é só chamar!',
             'expired' => 'Sua conversa anterior ficou parada e foi encerrada. Vamos recomeçar:',
+            'abandoned' => 'Como não tivemos resposta, vou encerrar este atendimento. Sempre que precisar, é só chamar!',
+            'handoff_failed' => 'Não consegui te transferir para um atendente agora. Tente de novo em alguns minutos, por favor.',
         ],
     ],
 

@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Services\Poli\PoliMessageService;
+use App\Services\PoliBot\UberArrivalHandover;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -49,6 +50,11 @@ class SendPoliTextMessage implements ShouldQueue
         public readonly ?string $contactUuid = null,
         public readonly ?string $channelUuid = null,
         public readonly ?int $uberAccessRequestId = null,
+        /**
+         * Aviso do Uber: depois dele a Lara cuida do atendimento — nada, O
+         * Lara ou close (UberArrivalHandover). O nome é de antes, quando era
+         * sempre close.
+         */
         public readonly bool $closeAfter = false,
     ) {}
 
@@ -62,17 +68,27 @@ class SendPoliTextMessage implements ShouldQueue
         return [new RateLimited((string) config('poli.rate_limit.name', 'poli-outbound'))];
     }
 
-    public function handle(PoliMessageService $poli): void
+    public function handle(PoliMessageService $poli, UberArrivalHandover $handover): void
     {
+        // O `?? false` cobre o job enfileirado pelo código anterior a esta
+        // propriedade — desserializado, ele chega sem ela.
+        $cuidar = ($this->closeAfter ?? false) && $poli->enabled();
+
+        // Com o contato conhecido, decide ANTES do aviso: se a conversa vai
+        // para O Lara, ela vai antes, para a resposta do sócio chegar à Lara.
+        $plano = $cuidar && filled($this->contactUuid) ? $handover->prepare($this->contactUuid) : null;
+
         $result = $poli->sendTextByPhone(
             $this->phone,
-            $this->text,
+            $this->comRodape($plano),
             $this->channelUuid,
             $this->contactUuid,
         );
 
         if ($result->success) {
-            $this->encerrarConversa($poli, $result->contactUuid);
+            if ($cuidar) {
+                $this->depoisDoAviso($poli, $handover, $plano, $result->contactUuid);
+            }
 
             return;
         }
@@ -106,29 +122,51 @@ class SendPoliTextMessage implements ShouldQueue
     }
 
     /**
-     * Fecha o atendimento depois do aviso aceito. Falha aqui só vira log: o
-     * aviso já saiu, e reagendar o job o mandaria de novo.
+     * Depois do aviso aceito, o destino do atendimento (ver
+     * UberArrivalHandover). Falha aqui só vira log: o aviso já saiu, e
+     * reagendar o job o mandaria de novo.
      *
-     * O `?? false` cobre o job enfileirado pelo código anterior a esta
-     * propriedade — desserializado, ele chega sem ela.
+     * Aviso enviado só pelo telefone não tinha contato para decidir antes: a
+     * decisão sai agora, com o contato que veio na resposta.
      */
-    private function encerrarConversa(PoliMessageService $poli, ?string $contatoDaResposta): void
-    {
-        if (!($this->closeAfter ?? false)) {
-            return;
-        }
-
+    private function depoisDoAviso(
+        PoliMessageService $poli,
+        UberArrivalHandover $handover,
+        ?string $plano,
+        ?string $contatoDaResposta,
+    ): void {
         $contato = filled($this->contactUuid) ? $this->contactUuid : $contatoDaResposta;
 
         if (blank($contato)) {
-            Log::warning('Poli: aviso enviado, mas sem contato para encerrar a conversa', [
+            Log::warning('Poli: aviso enviado, mas sem contato para cuidar da conversa', [
                 'uber_access_request_id' => $this->uberAccessRequestId,
             ]);
 
             return;
         }
 
-        $poli->closeChat($contato);
+        $plano ??= $handover->prepare($contato);
+
+        if ($plano === UberArrivalHandover::ENCERRAR) {
+            $poli->closeChat($contato);
+        }
+    }
+
+    /**
+     * O texto viaja sem o rodapé, que depende do destino do atendimento. O
+     * job enfileirado antes desta versão já traz o rodapé no texto — aí ele
+     * não é repetido.
+     */
+    private function comRodape(?string $plano): string
+    {
+        $rodape = UberArrivalHandover::footer($plano);
+
+        if ($rodape === null || str_ends_with($this->text, $rodape)
+            || str_ends_with($this->text, (string) config('poli.messages.uber_arrival.rodape'))) {
+            return $this->text;
+        }
+
+        return $this->text . "\n\n" . $rodape;
     }
 
     private function currentBackoff(): int

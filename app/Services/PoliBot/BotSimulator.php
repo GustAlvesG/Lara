@@ -10,14 +10,20 @@ use Illuminate\Support\Str;
 /**
  * Conversa com o bot sem WhatsApp — o simulador da tela e do terminal.
  *
- * Força o modo sombra e esvazia o piloto enquanto roda: NADA sai para a Poli
- * e nenhum pedido de Uber é criado, seja qual for o .env. As respostas ficam
- * em poli_messages (shadow = true) sob um contato próprio da simulação, e o
- * estado em bot_sessions, como numa conversa de verdade. Fluxos inativos
- * também valem: é assim que se testa um rascunho antes de ativá-lo.
+ * Roda em simulação (BotEngine::simulando): NADA sai para a Poli e nenhum
+ * pedido de Uber é criado, seja qual for o .env. A conversa simulada é uma conversa do
+ * O Lara (é só nelas que a Lara fala), sob um atendimento próprio da
+ * simulação — que o agendamento de encerramento ignora. As respostas ficam em
+ * poli_messages (shadow = true) e o estado em bot_sessions, como numa
+ * conversa de verdade. Fluxos inativos também valem: é assim que se testa um
+ * rascunho antes de ativá-lo.
  */
 class BotSimulator
 {
+    public const ATTENDANCE = 'sim-atendimento';
+
+    private const USUARIO_SIMULADO = 'simulador-o-lara';
+
     public function __construct(private readonly BotEngine $engine) {}
 
     /**
@@ -48,17 +54,20 @@ class BotSimulator
 
     private function emSombra(string $contato, callable $acao): array
     {
-        $antes = [config('poli.bot.mode'), config('poli.bot.live_contacts')];
-        config(['poli.bot.mode' => BotEngine::MODE_SHADOW, 'poli.bot.live_contacts' => []]);
+        $antes = [config('poli.bot.mode'), config('poli.bot.user_uuid')];
+        config([
+            'poli.bot.mode' => BotEngine::MODE_SHADOW,
+            'poli.bot.user_uuid' => filled($antes[1]) ? $antes[1] : self::USUARIO_SIMULADO,
+        ]);
 
         $ultimo = (int) PoliMessage::where('contact_uuid', $contato)->max('id');
 
         try {
-            $this->engine->incluindoInativos();
+            $this->engine->incluindoInativos()->simulando();
             $acao();
         } finally {
-            $this->engine->incluindoInativos(false);
-            config(['poli.bot.mode' => $antes[0], 'poli.bot.live_contacts' => $antes[1]]);
+            $this->engine->incluindoInativos(false)->simulando(false);
+            config(['poli.bot.mode' => $antes[0], 'poli.bot.user_uuid' => $antes[1]]);
         }
 
         $respostas = PoliMessage::where('contact_uuid', $contato)
@@ -96,10 +105,11 @@ class BotSimulator
             contactUuid: $contato,
             contactPhone: null,
             contactName: 'Simulador|Teste',
-            attendanceUuid: 'sim-atendimento',
+            attendanceUuid: self::ATTENDANCE,
             type: $imagem ? ParsedPoliMessage::TYPE_IMAGE : ParsedPoliMessage::TYPE_TEXT,
             text: $imagem ? null : $texto,
             mediaUrl: $imagem ?: null,
+            attendanceAttendantUuid: (string) config('poli.bot.user_uuid'),
         );
     }
 }

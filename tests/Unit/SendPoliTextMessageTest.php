@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Jobs\SendPoliTextMessage;
 use App\Services\Poli\PoliMessageService;
+use App\Services\PoliBot\UberArrivalHandover;
 use Illuminate\Queue\Middleware\RateLimited;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -32,13 +33,29 @@ class SendPoliTextMessageTest extends TestCase
             'poli.default_channel_uuid' => 'canal-1',
             // O client repete 429/5xx na hora; aqui ele repete sem dormir.
             'poli.http.retry_sleep_ms' => 0,
+            // Fora do modo on o aviso não passa a conversa para O Lara (esse
+            // caminho usa banco e mora em PoliBotEngineTest).
+            'poli.bot.mode' => 'off',
         ]);
+
+        Http::preventStrayRequests();
     }
 
     private function job(): SendPoliTextMessage
     {
         return (new SendPoliTextMessage(self::PHONE, 'Seu carro chegou.', 'contato-1', null, 42))
             ->withFakeQueueInteractions();
+    }
+
+    private function handle(SendPoliTextMessage $job): void
+    {
+        $job->handle(app(PoliMessageService::class), app(UberArrivalHandover::class));
+    }
+
+    /** GET /contacts/{uuid}?include=current_attendance */
+    private function atendimento(string $contato, ?array $atual): array
+    {
+        return ["*/contacts/{$contato}?*" => Http::response(['current_attendance' => $atual], 200)];
     }
 
     public function test_429_reagenda_o_job_pelo_retry_after(): void
@@ -48,7 +65,7 @@ class SendPoliTextMessageTest extends TestCase
         ]);
 
         $job = $this->job();
-        $job->handle(app(PoliMessageService::class));
+        $this->handle($job);
 
         $job->assertReleased(30);
         $job->assertNotFailed();
@@ -62,7 +79,7 @@ class SendPoliTextMessageTest extends TestCase
         Http::fake(['*' => Http::response(['message' => 'Too Many Attempts.'], 429)]);
 
         $job = $this->job();
-        $job->handle(app(PoliMessageService::class));
+        $this->handle($job);
 
         $job->assertReleased(60);
     }
@@ -74,7 +91,7 @@ class SendPoliTextMessageTest extends TestCase
         $job = $this->job();
         $job->job->attempts = $job->tries;
 
-        $job->handle(app(PoliMessageService::class));
+        $this->handle($job);
 
         $job->assertNotReleased();
         $job->assertNotFailed();
@@ -93,7 +110,7 @@ class SendPoliTextMessageTest extends TestCase
         ]);
 
         $job = $this->job();
-        $job->handle(app(PoliMessageService::class));
+        $this->handle($job);
 
         $job->assertNotReleased();
         $job->assertNotFailed();
@@ -105,7 +122,7 @@ class SendPoliTextMessageTest extends TestCase
         Http::fake(['*' => Http::response(['uuid' => 'msg-1', 'ack' => 'CREATED', 'direction' => 'OUT'], 201)]);
 
         $job = $this->job();
-        $job->handle(app(PoliMessageService::class));
+        $this->handle($job);
 
         $job->assertNotReleased();
         $job->assertNotFailed();
@@ -113,26 +130,63 @@ class SendPoliTextMessageTest extends TestCase
     }
 
     /**
-     * Aviso aceito com closeAfter: logo depois vem o /close do mesmo contato,
-     * sem corpo.
+     * Aviso aceito com closeAfter, fora do modo on e sem humano no
+     * atendimento: confere o atendimento, avisa (com o rodapé do
+     * encerramento) e fecha, sem corpo.
      */
     public function test_com_close_after_encerra_a_conversa_depois_do_aviso(): void
     {
-        Http::fake([
-            '*/contacts/contato-1/close' => Http::response(null, 204),
+        Http::fake($this->atendimento('contato-1', null) + [
+            '*/contacts/contato-1/close' => Http::response(['message' => 'ok'], 200),
             '*/contacts/contato-1/messages' => Http::response(['uuid' => 'msg-1', 'ack' => 'CREATED'], 201),
         ]);
 
         $job = (new SendPoliTextMessage(self::PHONE, 'Seu carro chegou.', 'contato-1', null, 42, closeAfter: true))
             ->withFakeQueueInteractions();
-        $job->handle(app(PoliMessageService::class));
+        $this->handle($job);
 
         $job->assertNotReleased();
-        Http::assertSentCount(2);
+        Http::assertSentCount(3);
         Http::assertSentInOrder([
-            fn ($r) => str_ends_with($r->url(), '/contacts/contato-1/messages'),
+            fn ($r) => $r->method() === 'GET' && str_contains($r->url(), '/contacts/contato-1?include=current_attendance'),
+            fn ($r) => str_ends_with($r->url(), '/contacts/contato-1/messages')
+                && str_ends_with((string) data_get($r->data(), 'components.body.text'), 'é só mandar uma nova mensagem.'),
             fn ($r) => str_ends_with($r->url(), '/contacts/contato-1/close') && $r->method() === 'POST' && $r->body() === '',
         ]);
+    }
+
+    /**
+     * O defeito do #43: o close fechava também o atendimento de um humano
+     * que estivesse conversando com o sócio.
+     */
+    public function test_com_humano_no_atendimento_so_avisa(): void
+    {
+        Http::fake($this->atendimento('contato-1', ['uuid' => 'att', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => 'ana']]) + [
+            '*/contacts/contato-1/messages' => Http::response(['uuid' => 'msg-1', 'ack' => 'CREATED'], 201),
+        ]);
+
+        $job = (new SendPoliTextMessage(self::PHONE, 'Seu carro chegou.', 'contato-1', null, 42, closeAfter: true))
+            ->withFakeQueueInteractions();
+        $this->handle($job);
+
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), '/close'));
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/messages')
+            && data_get($r->data(), 'components.body.text') === 'Seu carro chegou.');
+    }
+
+    /** Sem saber de quem é o atendimento, não mexe nele. */
+    public function test_sem_conseguir_conferir_o_atendimento_so_avisa(): void
+    {
+        Http::fake([
+            '*/contacts/contato-1?*' => Http::response(['message' => 'erro'], 500),
+            '*/contacts/contato-1/messages' => Http::response(['uuid' => 'msg-1', 'ack' => 'CREATED'], 201),
+        ]);
+
+        $job = (new SendPoliTextMessage(self::PHONE, 'Seu carro chegou.', 'contato-1', null, 42, closeAfter: true))
+            ->withFakeQueueInteractions();
+        $this->handle($job);
+
+        Http::assertNotSent(fn ($r) => str_contains($r->url(), '/close'));
     }
 
     /**
@@ -141,14 +195,14 @@ class SendPoliTextMessageTest extends TestCase
      */
     public function test_sem_contact_uuid_encerra_pelo_contato_da_resposta(): void
     {
-        Http::fake([
+        Http::fake($this->atendimento('contato-9', null) + [
             '*/contacts/contato-9/close' => Http::response(null, 204),
             '*' => Http::response(['uuid' => 'msg-1', 'ack' => 'CREATED', 'contact' => ['uuid' => 'contato-9']], 201),
         ]);
 
         $job = (new SendPoliTextMessage(self::PHONE, 'Seu carro chegou.', null, null, 42, closeAfter: true))
             ->withFakeQueueInteractions();
-        $job->handle(app(PoliMessageService::class));
+        $this->handle($job);
 
         Http::assertSent(fn ($r) => str_ends_with($r->url(), '/contacts/contato-9/close'));
     }
@@ -157,7 +211,7 @@ class SendPoliTextMessageTest extends TestCase
     {
         Http::fake(['*' => Http::response(['uuid' => 'msg-1', 'ack' => 'CREATED'], 201)]);
 
-        $this->job()->handle(app(PoliMessageService::class));
+        $this->handle($this->job());
 
         Http::assertSentCount(1);
         Http::assertNotSent(fn ($r) => str_contains($r->url(), '/close'));
@@ -173,7 +227,7 @@ class SendPoliTextMessageTest extends TestCase
 
         $job = (new SendPoliTextMessage(self::PHONE, 'Seu carro chegou.', 'contato-1', null, 42, closeAfter: true))
             ->withFakeQueueInteractions();
-        $job->handle(app(PoliMessageService::class));
+        $this->handle($job);
 
         Http::assertNotSent(fn ($r) => str_contains($r->url(), '/close'));
     }
@@ -184,18 +238,18 @@ class SendPoliTextMessageTest extends TestCase
      */
     public function test_falha_ao_encerrar_nao_reenvia_o_aviso(): void
     {
-        Http::fake([
+        Http::fake($this->atendimento('contato-1', null) + [
             '*/contacts/contato-1/close' => Http::response(['message' => 'erro'], 500),
             '*/contacts/contato-1/messages' => Http::response(['uuid' => 'msg-1', 'ack' => 'CREATED'], 201),
         ]);
 
         $job = (new SendPoliTextMessage(self::PHONE, 'Seu carro chegou.', 'contato-1', null, 42, closeAfter: true))
             ->withFakeQueueInteractions();
-        $job->handle(app(PoliMessageService::class));
+        $this->handle($job);
 
         $job->assertNotReleased();
         $job->assertNotFailed();
-        Http::assertSentCount(1 + 1 + (int) config('poli.http.retries', 2));
+        Http::assertSentCount(1 + 1 + 1 + (int) config('poli.http.retries', 2));   // GET, aviso, close com retentativas
         Log::shouldHaveReceived('warning')->withArgs(fn ($msg) => $msg === 'Poli: conversa não encerrada')->once();
     }
 
@@ -217,9 +271,28 @@ class SendPoliTextMessageTest extends TestCase
         $this->assertStringNotContainsString('closeAfter', $serializado);
 
         $job = unserialize($serializado)->withFakeQueueInteractions();
-        $job->handle(app(PoliMessageService::class));
+        $this->handle($job);
 
         Http::assertSentCount(1);
+    }
+
+    /**
+     * Job da versão anterior já traz o rodapé no texto: não sai duas vezes.
+     */
+    public function test_job_antigo_com_rodape_no_texto_nao_repete_o_rodape(): void
+    {
+        $rodape = (string) config('poli.messages.uber_arrival.rodape');
+        Http::fake($this->atendimento('contato-1', null) + [
+            '*/contacts/contato-1/close' => Http::response(null, 204),
+            '*/contacts/contato-1/messages' => Http::response(['uuid' => 'msg-1', 'ack' => 'CREATED'], 201),
+        ]);
+
+        $job = (new SendPoliTextMessage(self::PHONE, "Seu carro chegou.\n\n" . $rodape, 'contato-1', null, 42, closeAfter: true))
+            ->withFakeQueueInteractions();
+        $this->handle($job);
+
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/messages')
+            && substr_count((string) data_get($r->data(), 'components.body.text'), $rodape) === 1);
     }
 
     /**

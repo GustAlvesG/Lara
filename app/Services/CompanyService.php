@@ -744,7 +744,7 @@ class CompanyService
 
         SendPoliTextMessage::dispatch(
             phone: $request->contact_phone,
-            text: $this->uberArrivalMessage($request, $encerrar),
+            text: $this->uberArrivalMessage($request),
             contactUuid: $request->contact_uuid,
             uberAccessRequestId: $request->id,
             closeAfter: $encerrar,
@@ -758,10 +758,11 @@ class CompanyService
      * contato com sufixos ("Gustavo Coordenador de TI|Gustavo") —, e sai com
      * a inicial maiúscula mesmo quando foi digitado "GUSTAVO" ou "gustavo".
      *
-     * Blocos separados por linha em branco: saudação, o aviso, os dados do
-     * carro e, quando a conversa vai ser encerrada, o rodapé que diz isso.
+     * Blocos separados por linha em branco: saudação, o aviso e os dados do
+     * carro. O rodapé depende de para onde o atendimento vai depois do aviso,
+     * e quem o põe é o SendPoliTextMessage, que decide isso na hora do envio.
      */
-    private function uberArrivalMessage(UberAccessRequest $request, bool $encerrar): string
+    private function uberArrivalMessage(UberAccessRequest $request): string
     {
         $textos = config('poli.messages.uber_arrival');
         $nome = Str::of((string) $request->requester_name)->trim()->before(' ')->before('|')->value();
@@ -785,10 +786,6 @@ class CompanyService
         }
         if ($dados !== []) {
             $blocos[] = implode("\n", $dados);
-        }
-
-        if ($encerrar && filled($textos['rodape'] ?? null)) {
-            $blocos[] = $textos['rodape'];
         }
 
         return implode("\n\n", $blocos);

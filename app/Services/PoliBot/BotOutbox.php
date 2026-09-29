@@ -66,16 +66,50 @@ class BotOutbox
     /**
      * Passa o contato para um time. Sem time, só registra: o bot silencia do
      * mesmo jeito, e a conversa fica na fila de quem atende a conta.
+     *
+     * @return bool true se o distribute foi feito de verdade e aceito
      */
-    public function handoff(BotSession $session, ?string $teamUuid): void
+    public function handoff(BotSession $session, ?string $teamUuid): bool
     {
-        $this->action($session, 'handoff' . ($teamUuid ? " time={$teamUuid}" : ' sem time'),
-            $teamUuid ? fn () => $this->poli->distribuir($session->contact_uuid, $teamUuid) : null);
+        return $this->action($session, 'handoff' . ($teamUuid ? " time={$teamUuid}" : ' sem time'),
+            $teamUuid ? fn () => $this->poli->distribuir($session->contact_uuid, $teamUuid) : null)->ack === 'DONE';
     }
 
-    public function close(BotSession $session): void
+    /** @return bool true se o close foi feito de verdade e aceito */
+    public function close(BotSession $session): bool
     {
-        $this->action($session, 'close', fn () => $this->poli->encerrar($session->contact_uuid));
+        return $this->action($session, 'close', fn () => $this->poli->encerrar($session->contact_uuid))->ack === 'DONE';
+    }
+
+    /**
+     * Passa o contato para um usuário (o próprio O Lara, no resgate). Abre um
+     * atendimento novo com ele; nada chega ao contato.
+     *
+     * @return bool true se o forward foi feito de verdade e aceito
+     */
+    public function forward(BotSession $session, string $userUuid): bool
+    {
+        return $this->action($session, "forward usuario={$userUuid}",
+            fn () => $this->poli->encaminhar($session->contact_uuid, userUuid: $userUuid))->ack === 'DONE';
+    }
+
+    /**
+     * O que o contato mandou (ou a transferência dele, `REDIRECT`), com o
+     * texto mascarado. A linha é também a trava de idempotência: o uuid da
+     * mensagem é único.
+     */
+    public function recordInboundRow(BotSession $session, string $uuid, string $tipo, ?string $texto): PoliMessage
+    {
+        return PoliMessage::create([
+            'uuid' => $uuid,
+            'contact_uuid' => $session->contact_uuid,
+            'direction' => PoliMessage::IN,
+            'type' => $tipo,
+            'texto' => PoliTextMask::mask($texto),
+            'flow_slug' => $session->flow_slug,
+            'step_key' => $session->step_key,
+            'shadow' => !$this->live,
+        ]);
     }
 
     /**

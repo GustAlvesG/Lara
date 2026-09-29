@@ -71,7 +71,7 @@ class DefaultFlows
                         ['label' => 'Financeiro', 'description' => 'Consulte seus débitos ou outras pendências.', 'next' => 'financeiro'],
                         ['label' => 'Secretaria', 'description' => 'Atendimento pra sócios e não sócios para assuntos do Clube.', 'next' => 'secretaria'],
                         ['label' => 'Carro de Aplicativo', 'description' => 'Carro, moto ou táxi', 'aliases' => ['uber', '99', 'taxi', 'carro'], 'next' => 'uber'],
-                        ['label' => 'Funcionalidade Teste', 'description' => '<em desenvolvimento>', 'next' => 'teste'],
+                        ['label' => 'Funcionalidade Teste', 'description' => '<em desenvolvimento>', 'aliases' => ['funcionalidade em teste'], 'next' => 'teste'],
                     ],
                     'save_as' => 'departamento',
                     'invalid' => 'Não entendi. Toque em *Ver opções* e escolha o departamento.',
@@ -82,7 +82,7 @@ class DefaultFlows
                     'options' => [
                         ['label' => 'Carro de Aplicativo', 'description' => 'Carro, moto ou táxi', 'aliases' => ['uber', '99', 'taxi', 'carro'], 'next' => 'uber'],
                         ['label' => 'Sair', 'description' => 'Encerrar atendimento.', 'next' => 'sair'],
-                        ['label' => 'Funcionalidade Teste', 'description' => '<em desenvolvimento>', 'next' => 'teste'],
+                        ['label' => 'Funcionalidade Teste', 'description' => '<em desenvolvimento>', 'aliases' => ['funcionalidade em teste'], 'next' => 'teste'],
                     ],
                     'invalid' => 'Fora do horário eu só consigo ajudar com as opções do menu. Toque em *Opções* e escolha uma.',
                 ],
@@ -94,8 +94,11 @@ class DefaultFlows
                 'financeiro' => $encaminhar('Financeiro', self::TEAM_FINANCEIRO),
                 'secretaria' => $encaminhar('Secretaria', self::TEAM_SECRETARIA),
                 'uber' => ['action' => ['type' => 'goto_flow', 'flow' => 'carro-de-aplicativo']],
+                // Porta do piloto: no bot da Poli, esta opção transfere para O
+                // Lara, e o toque chega aqui como gatilho. Daqui em diante é o
+                // menu da Lara com todos os fluxos, de verdade.
                 'teste' => [
-                    'say' => ['type' => 'text', 'text' => 'Esta opção ainda está em desenvolvimento. 🙂'],
+                    'say' => ['type' => 'text', 'text' => '🧪 Modo de teste: você está falando com o novo atendimento. Todas as opções funcionam de verdade.'],
                     'next' => 'menu',
                 ],
             ],
@@ -155,9 +158,11 @@ class DefaultFlows
                     'action' => ['type' => 'uber_request'],
                     'next' => 'fim',
                 ],
+                // Sem close: o fim do fluxo deixa a conversa em encerramento
+                // diferido. Fechar na hora prenderia a próxima mensagem do
+                // sócio no atendimento fechado (medido em 29/09/2026).
                 'fim' => [
                     'say' => ['type' => 'text', 'text' => "Pronto, {nome}! ✅ A entrada do carro placa *{placa}* está liberada por 30 minutos. Avisaremos quando ele chegar à portaria."],
-                    'action' => ['type' => 'close'],
                 ],
             ],
         ];

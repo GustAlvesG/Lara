@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\CloseUberCaptureSession;
+use App\Jobs\ProcessPoliBotRedirect;
 use App\Jobs\ProcessUberAccessRequestMessage;
 use App\Models\PoliListMessage;
 use App\Models\UberAccessRequestMessage;
 use App\Services\Poli\PoliMessageParser;
 use App\Services\PoliBot\BotEngine;
 use App\Services\UberAccessRequestFlow;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -44,6 +46,16 @@ class UberAccessRequestWebhookController extends Controller
             return response()->json(['message' => 'Malformed payload'], 422);
         }
 
+        // Os headers do reenvio viajam dentro do payload até o job: um evento
+        // reenviado pode trazer o atendimento como estava na primeira entrega.
+        $meta = array_filter([
+            'attempt' => $request->header('X-Webhook-Attempt'),
+            'delivery_id' => $request->header('X-Webhook-Delivery-Id'),
+        ], 'filled');
+        if ($meta !== []) {
+            $payload[PoliMessageParser::WEBHOOK_META] = $meta;
+        }
+
         // Menu enviado: indexa AQUI, e não numa fila. A validação do gatilho
         // roda num job que pode ser processado logo depois do toque, e ela
         // precisa do menu já gravado — deixar as duas pontas na fila abriria
@@ -58,7 +70,7 @@ class UberAccessRequestWebhookController extends Controller
         // mensagens dele). Também antes da duplicidade: o reenvio por mudança
         // de `ack` é justamente o que atualiza o ACK. Não lança, e sem modo
         // ligado não faz nada.
-        $bot->observe($payload);
+        $this->observe($payload, $parser, $bot);
 
         if (UberAccessRequestMessage::where('poli_message_id', $messageId)->exists()) {
             return response()->json(['status' => 'duplicate'], 200);
@@ -82,6 +94,15 @@ class UberAccessRequestWebhookController extends Controller
             // para ceder a vez a uma irmã que já esteja gravada.
             ProcessUberAccessRequestMessage::dispatch($messageRow->id)
                 ->delay(now()->addSeconds($this->esperaDeEntrega($payload, $parser, $bot)));
+        }
+
+        // Transferência para O Lara: a Lara abre o fluxo sem esperar a próxima
+        // mensagem do contato. Com o mesmo atraso das mensagens da conversa
+        // dela, para o toque no menu que motivou a transferência chegar antes.
+        if ($bot->mode() !== BotEngine::MODE_OFF && $parser->isRedirect($payload)
+            && $bot->isLaraAttendant($parser->extractAttendantUuid($payload))) {
+            ProcessPoliBotRedirect::dispatch($messageRow->id)
+                ->delay(now()->addSeconds((int) config('poli.bot.inbound_max_lag_seconds', 6)));
         }
 
         // O fecho do atendimento é anunciado pelas mensagens do bot, que não
@@ -114,12 +135,16 @@ class UberAccessRequestWebhookController extends Controller
      */
     private function esperaDeEntrega(array $payload, PoliMessageParser $parser, BotEngine $bot): int
     {
-        // Com o bot da Lara respondendo (modo on), a espera vira tempo de
-        // resposta na cara do associado: 20s por mensagem é conversa travada.
-        // O teto do bot é menor e troca um pouco de proteção contra inversão
-        // (medidas: 1 a 12s, 8 em 2081) por uma conversa que anda. A escuta
-        // do Uber, que só existe fora do modo on, segue com o teto dela.
-        $teto = $bot->mode() === BotEngine::MODE_ON
+        // Na conversa do O Lara, que a Lara sempre responde, a espera vira
+        // tempo de resposta na cara do associado: 20s por mensagem é conversa
+        // travada. O teto do bot é menor e troca um pouco de proteção contra
+        // inversão (medidas: 1 a 12s, 8 em 2081) por uma conversa que anda. As
+        // conversas do bot da Poli, onde trabalha a escuta do Uber, seguem
+        // com o teto dela.
+        $conversaDaLara = $bot->mode() !== BotEngine::MODE_OFF
+            && $bot->isLaraAttendant($parser->extractAttendantUuid($payload));
+
+        $teto = $conversaDaLara
             ? (int) config('poli.bot.inbound_max_lag_seconds', 6)
             : (int) config('poli.inbound.max_delivery_lag_seconds', 20);
 
@@ -136,6 +161,30 @@ class UberAccessRequestWebhookController extends Controller
         // O relógio da Poli e o nosso podem discordar; um adiantamento traria
         // gasto negativo e uma espera MAIOR que o teto. Daí os dois limites.
         return (int) max(0, min($teto, $teto - $gastoNoCaminho));
+    }
+
+    /**
+     * O estado do bot, com a trava do contato: a sessão pode estar sendo
+     * gravada pelo job da mesma conversa. Trava ocupada por tempo demais não
+     * segura o webhook — observa sem ela (é só estado, e a Poli reenviaria o
+     * evento inteiro se o webhook demorasse).
+     */
+    private function observe(array $payload, PoliMessageParser $parser, BotEngine $bot): void
+    {
+        $contato = $parser->extractContactUuid($payload);
+
+        if ($contato === null || $bot->mode() === BotEngine::MODE_OFF) {
+            $bot->observe($payload);
+
+            return;
+        }
+
+        try {
+            $bot->exclusive($contato, fn () => $bot->observe($payload), waitSeconds: 5);
+        } catch (LockTimeoutException) {
+            Log::warning('PoliBot: evento observado sem a trava do contato', ['contact_uuid' => $contato]);
+            $bot->observe($payload);
+        }
     }
 
     /**

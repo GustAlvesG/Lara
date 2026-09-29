@@ -13,6 +13,12 @@ Schedule::command('app:expire-pending-schedules')->everyMinute();
 Schedule::command('app:expire-uber-access-requests')->everyMinute();
 Schedule::command('app:prune-uber-access-request-messages')->dailyAt('03:00');
 
+// Bot do WhatsApp: a Poli não encerra por inatividade as conversas do O Lara.
+// Fecha as concluídas (encerramento diferido) e as abandonadas no meio do
+// fluxo; a reconciliação pega as que a Lara perdeu de vista.
+Schedule::command('poli:bot-expirar')->everyMinute()->withoutOverlapping();
+Schedule::command('poli:bot-reconciliar')->everyTenMinutes()->withoutOverlapping();
+
 // Confere no Sicoob o desfecho dos Pix em processamento e dá a baixa dos que
 // finalizaram. Só CONSULTA — nunca envia —, por isso pode rodar a cada minuto.
 // É o que fecha o ciclo do Job, que de propósito não tem retry.

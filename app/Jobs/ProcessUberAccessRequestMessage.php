@@ -9,6 +9,7 @@ use App\Services\PoliBot\BotEngine;
 use App\Services\UberAccessRequestFlow;
 use DateTimeInterface;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
@@ -65,7 +66,9 @@ class ProcessUberAccessRequestMessage implements ShouldQueue
             // Áudio, documento, figurinha: o fluxo do Uber não lê, mas o bot
             // responde pedindo texto.
             if ($parser->isUnsupportedInbound($payload) && ($unsupported = $parser->parseUnsupported($payload))) {
-                $bot->handleInbound($unsupported);
+                if (!$this->exclusivo($bot, $unsupported->contactUuid, fn () => $bot->handleInbound($unsupported))) {
+                    return;
+                }
             }
 
             $messageRow->markProcessed();
@@ -82,13 +85,22 @@ class ProcessUberAccessRequestMessage implements ShouldQueue
                 return;
             }
 
-            // A escuta acompanha as perguntas do bot da POLI; com o bot da Lara
-            // no ar (modo on) é o fluxo do próprio bot que cria o pedido.
-            $uberAccessRequest = $bot->listensToPoliUberFlow() ? $flow->handle($parsed) : null;
+            $uberAccessRequest = null;
 
-            // Depois da escuta, e só quando ela não pediu para esperar o menu:
-            // assim o bot vê cada mensagem uma vez só. Não lança.
-            $bot->handleInbound($parsed);
+            $feito = $this->exclusivo($bot, $parsed->contactUuid, function () use ($bot, $flow, $parsed, &$uberAccessRequest) {
+                // A escuta acompanha as perguntas do bot da POLI, e só na fase
+                // dele (atendimento sem atendente). Na conversa do O Lara quem
+                // cria o pedido é o fluxo da própria Lara.
+                $uberAccessRequest = $bot->listensToPoliUberFlow($parsed) ? $flow->handle($parsed) : null;
+
+                // Depois da escuta, e só quando ela não pediu para esperar o
+                // menu: assim o bot vê cada mensagem uma vez só. Não lança.
+                $bot->handleInbound($parsed);
+            });
+
+            if (!$feito) {
+                return;
+            }
 
             $messageRow->markProcessed($uberAccessRequest?->id);
         } catch (PoliListMessageNotIndexedException $e) {
@@ -118,6 +130,40 @@ class ProcessUberAccessRequestMessage implements ShouldQueue
             // Resolvida mesmo com erro: segurá-la pendente travaria todas as
             // mensagens seguintes daquele contato até a janela expirar.
             $messageRow->markProcessed();
+        }
+    }
+
+    /**
+     * Roda com a trava do contato (a transferência para O Lara e esta
+     * mensagem podem estar sendo processadas ao mesmo tempo). Trava ocupada
+     * demais: devolve para a fila ANTES de a escuta ou o bot tocarem em
+     * qualquer coisa, para a volta não processar nada duas vezes.
+     *
+     * @return bool false quando devolveu para a fila
+     */
+    private function exclusivo(BotEngine $bot, ?string $contato, callable $callback): bool
+    {
+        if ($contato === null) {
+            $callback();
+
+            return true;
+        }
+
+        try {
+            $bot->exclusive($contato, $callback);
+
+            return true;
+        } catch (LockTimeoutException) {
+            if ($this->job) {
+                $this->release((int) config('poli.inbound.defer_seconds', 3));
+
+                return false;
+            }
+
+            // Sem fila (execução direta), não há para onde adiar.
+            $callback();
+
+            return true;
         }
     }
 }

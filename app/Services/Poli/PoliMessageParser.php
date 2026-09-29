@@ -26,6 +26,13 @@ class PoliMessageParser
      */
     private const MEDIA_COMPONENT_KEYS = ['image', 'media', 'file', 'attachment', 'document'];
 
+    /**
+     * Chave onde o controller guarda, dentro do payload, os headers do
+     * webhook (`X-Webhook-Attempt`, `X-Webhook-Delivery-Id`). O payload é o
+     * que atravessa a fila (uber_access_request_messages.raw_payload).
+     */
+    public const WEBHOOK_META = '_webhook';
+
     public function isRelevantEvent(array $payload): bool
     {
         $value = $payload['value'] ?? null;
@@ -71,17 +78,89 @@ class PoliMessageParser
 
         $contact = $value['contact'] ?? $value['author'] ?? [];
 
-        return new ParsedPoliMessage(
-            messageId: $messageId,
-            contactUuid: $contact['uuid'] ?? null,
-            contactPhone: $contact['attributes']['phone'] ?? null,
-            contactName: $contact['attributes']['name'] ?? null,
-            attendanceUuid: $value['attendance']['uuid'] ?? null,
-            type: ParsedPoliMessage::TYPE_UNKNOWN,
-            contextMessageUuid: $value['context']['message']['uuid'] ?? null,
-            attendanceType: $this->stringOrNull($value['attendance']['type'] ?? null),
-            attendanceStatus: $this->stringOrNull($value['attendance']['status'] ?? null),
-        );
+        return new ParsedPoliMessage(...[
+            'messageId' => $messageId,
+            'contactUuid' => $contact['uuid'] ?? null,
+            'contactPhone' => $contact['attributes']['phone'] ?? null,
+            'contactName' => $contact['attributes']['name'] ?? null,
+            'attendanceUuid' => $value['attendance']['uuid'] ?? null,
+            'type' => ParsedPoliMessage::TYPE_UNKNOWN,
+            'contextMessageUuid' => $value['context']['message']['uuid'] ?? null,
+            ...$this->attendanceFields($payload),
+        ]);
+    }
+
+    /**
+     * Transferência do atendimento: mensagem de sistema ATTENDANCE_REDIRECTED,
+     * com o novo atendente em `attendance.attendant`. A que o distribute gera
+     * ("redirecionado… pelo sistema") vem com `direction = EMPTY`.
+     */
+    public function isRedirect(array $payload): bool
+    {
+        $value = $payload['value'] ?? null;
+
+        return ($payload['object'] ?? null) === 'message'
+            && is_array($value)
+            && ($value['event'] ?? null) === 'SYSTEM'
+            && ($value['type'] ?? null) === 'ATTENDANCE_REDIRECTED';
+    }
+
+    /**
+     * A transferência como mensagem: sem texto, com o atendimento de destino.
+     * Aceita qualquer `direction` (EMPTY, SYSTEM): ela não vem do contato.
+     */
+    public function parseRedirect(array $payload): ?ParsedPoliMessage
+    {
+        if (!$this->isRedirect($payload)) {
+            return null;
+        }
+
+        $value = $payload['value'];
+        $messageId = $this->extractMessageId($payload);
+        $contato = $value['contact']['uuid'] ?? null;
+
+        if ($messageId === null || !is_string($contato) || $contato === '') {
+            return null;
+        }
+
+        return new ParsedPoliMessage(...[
+            'messageId' => $messageId,
+            'contactUuid' => $contato,
+            'contactPhone' => $value['contact']['attributes']['phone'] ?? null,
+            'contactName' => $value['contact']['attributes']['name'] ?? null,
+            'attendanceUuid' => $value['attendance']['uuid'] ?? null,
+            'type' => ParsedPoliMessage::TYPE_UNKNOWN,
+            ...$this->attendanceFields($payload),
+        ]);
+    }
+
+    /**
+     * Atendente e estado do atendimento, e os headers do webhook que o
+     * controller guardou no payload (WEBHOOK_META).
+     *
+     * @return array<string, mixed>
+     */
+    private function attendanceFields(array $payload): array
+    {
+        $atendimento = $payload['value']['attendance'] ?? null;
+        $atendimento = is_array($atendimento) ? $atendimento : [];
+        $meta = $payload[self::WEBHOOK_META] ?? [];
+        $tentativa = $meta['attempt'] ?? null;
+
+        return [
+            'attendanceType' => $this->stringOrNull($atendimento['type'] ?? null),
+            'attendanceStatus' => $this->stringOrNull($atendimento['status'] ?? null),
+            'attendanceAttendantUuid' => $this->stringOrNull($atendimento['attendant']['uuid'] ?? null),
+            'attendanceClosedReason' => $this->stringOrNull($atendimento['closed_reason'] ?? null),
+            'webhookAttempt' => is_numeric($tentativa) ? (int) $tentativa : null,
+            'webhookDeliveryId' => $this->stringOrNull($meta['delivery_id'] ?? null),
+        ];
+    }
+
+    /** O atendente do atendimento deste evento, qualquer que seja o tipo. */
+    public function extractAttendantUuid(array $payload): ?string
+    {
+        return $this->stringOrNull($payload['value']['attendance']['attendant']['uuid'] ?? null);
     }
 
     public function extractMessageId(array $payload): ?string
@@ -315,21 +394,20 @@ class PoliMessageParser
             ]);
         }
 
-        return new ParsedPoliMessage(
-            messageId: $messageId,
-            contactUuid: $contactUuid,
-            contactPhone: $contactPhone,
-            contactName: $contactName,
-            attendanceUuid: $attendanceUuid,
-            type: $type,
-            text: $text,
-            mediaUrl: $mediaUrl,
+        return new ParsedPoliMessage(...[
+            'messageId' => $messageId,
+            'contactUuid' => $contactUuid,
+            'contactPhone' => $contactPhone,
+            'contactName' => $contactName,
+            'attendanceUuid' => $attendanceUuid,
+            'type' => $type,
+            'text' => $text,
+            'mediaUrl' => $mediaUrl,
             // Só existe na ENTRADA. Na saída, `value.context` guarda a
             // definição da própria lista — mesmo nome, outra coisa.
-            contextMessageUuid: $value['context']['message']['uuid'] ?? null,
-            attendanceType: $this->stringOrNull($value['attendance']['type'] ?? null),
-            attendanceStatus: $this->stringOrNull($value['attendance']['status'] ?? null),
-        );
+            'contextMessageUuid' => $value['context']['message']['uuid'] ?? null,
+            ...$this->attendanceFields($payload),
+        ]);
     }
 
     /**

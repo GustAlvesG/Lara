@@ -252,6 +252,65 @@ class PoliEnvioTest extends TestCase
         $this->assertSame('RECEIVED_BY_CLIENT', app(PoliClient::class)->mensagem('m')['ack']);
     }
 
+    /**
+     * Medido em 29/09/2026: distribute, forward e close respondem 200 com
+     * {"message": …}, sem uuid. Para as ações de atendimento isso é sucesso
+     * (a regra do uuid é só do envio de mensagem, conferida por quem envia).
+     */
+    public function test_acoes_de_atendimento_com_200_sem_uuid_sao_sucesso(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([self::BASE.'/contacts/*' => Http::response(['message' => 'Operação realizada.'], 200)]);
+
+        $poli = app(PoliClient::class);
+        $poli->distribuir('c-1', 'time-1');
+        $poli->encaminhar('c-1', userUuid: 'o-lara');
+        $poli->encerrar('c-1');
+
+        Http::assertSentInOrder([
+            fn (Request $r) => $r->url() === self::BASE.'/contacts/c-1/distribute' && $r->data() === ['team' => 'time-1'],
+            fn (Request $r) => $r->url() === self::BASE.'/contacts/c-1/forward' && $r->data() === ['user_uuid' => 'o-lara'],
+            fn (Request $r) => $r->url() === self::BASE.'/contacts/c-1/close' && $r->body() === '',
+        ]);
+    }
+
+    /** O dono da conversa vem de current_attendance, nunca do `attendant` da raiz. */
+    public function test_atendimento_atual_vem_de_current_attendance(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([self::BASE.'/contacts/*' => Http::response(['data' => [
+            'uuid' => 'c-1',
+            'attendant' => ['uuid' => 'desatualizado'],
+            'current_attendance' => ['uuid' => 'att-1', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => 'o-lara']],
+        ]], 200)]);
+
+        $atual = app(PoliClient::class)->atendimentoAtual('c-1');
+
+        $this->assertSame('o-lara', $atual['attendant']['uuid']);
+        Http::assertSent(fn (Request $r) => $r->method() === 'GET'
+            && $r->url() === self::BASE.'/contacts/c-1?include=current_attendance');
+    }
+
+    public function test_sem_atendimento_em_curso_devolve_null(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([self::BASE.'/contacts/*' => Http::response(['uuid' => 'c-1', 'current_attendance' => null], 200)]);
+
+        $this->assertNull(app(PoliClient::class)->atendimentoAtual('c-1'));
+    }
+
+    public function test_chats_atribuidos_filtra_por_usuario_e_abertos(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([self::BASE.'/accounts/*' => Http::response(['data' => [['contact' => ['uuid' => 'c-1']]]], 200)]);
+
+        $chats = app(PoliClient::class)->chatsAtribuidos('o-lara');
+
+        $this->assertSame('c-1', $chats[0]['contact']['uuid']);
+        Http::assertSent(fn (Request $r) => str_starts_with($r->url(), self::BASE.'/accounts/acc-uuid/chats?')
+            && str_contains($r->url(), 'assigned=o-lara') && str_contains($r->url(), 'status=OPEN'));
+    }
+
     public function test_nota_interna_usa_provider_annotation(): void
     {
         Http::fake([self::BASE.'/contacts/*' => Http::response($this->respostaCriada(), 201)]);

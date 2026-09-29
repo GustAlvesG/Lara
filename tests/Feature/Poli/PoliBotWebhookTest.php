@@ -7,6 +7,7 @@ use App\Models\BotSession;
 use App\Models\PoliListMessage;
 use App\Models\PoliMessage;
 use App\Models\UberAccessRequest;
+use App\Models\UberAccessRequestMessage;
 use App\Services\PoliBot\BotEngine;
 use App\Services\PoliBot\DefaultFlows;
 use Illuminate\Http\Client\Request;
@@ -22,6 +23,7 @@ use Tests\TestCase;
 class PoliBotWebhookTest extends TestCase
 {
     private const CONTACT = 'contato-webhook';
+    private const LARA = 'o-lara';
 
     private int $n = 0;
 
@@ -41,6 +43,7 @@ class PoliBotWebhookTest extends TestCase
             '2026_09_24_120000_add_ordering_to_uber_access_request_messages.php',
             '2026_01_05_141304_banco_de_horas.php',
             '2026_09_25_160000_create_poli_bot_tables.php',
+            '2026_09_29_120000_add_lara_owner_to_bot_sessions.php',
         ] as $migration) {
             (require base_path('database/migrations/' . $migration))->up();
         }
@@ -53,22 +56,29 @@ class PoliBotWebhookTest extends TestCase
             'poli.channel_uuid' => 'chan-uuid',
             'poli.http.retry_sleep_ms' => 0,
             'poli.bot.mode' => BotEngine::MODE_ON,
-            'poli.bot.live_contacts' => [],
+            'poli.bot.user_uuid' => self::LARA,
         ]);
 
         foreach (DefaultFlows::all() as $slug => $fluxo) {
             BotFlow::create(['slug' => $slug, 'name' => $fluxo['name'], 'active' => true, 'definition' => $fluxo['definition']]);
         }
 
-        Http::fake(fn () => Http::response(['uuid' => 'out-' . (++$this->n), 'ack' => 'CREATED'], 201));
+        \Illuminate\Support\Facades\Queue::fake([\App\Jobs\ConfirmPoliBotHandoff::class]);
+        Http::preventStrayRequests();
+        Http::fake(fn (Request $r) => $r->method() === 'GET'
+            ? Http::response(['current_attendance' => $this->atendimentoNaApi], 200)
+            : Http::response(['uuid' => 'out-' . (++$this->n), 'ack' => 'CREATED'], 201));
     }
 
-    private function webhook(array $payload)
+    /** O que o GET /contacts/{uuid}?include=current_attendance devolve. */
+    private ?array $atendimentoNaApi = null;
+
+    private function webhook(array $payload, array $headers = [])
     {
-        return $this->postJson('/api/webhooks/whatsapp', $payload, ['Authorization' => 'Bearer token-da-api']);
+        return $this->postJson('/api/webhooks/whatsapp', $payload, ['Authorization' => 'Bearer token-da-api'] + $headers);
     }
 
-    private function recebida(string $tipo, array $components, ?string $contexto = null): array
+    private function recebida(string $tipo, array $components, ?string $contexto = null, ?string $atendente = self::LARA): array
     {
         $this->n++;
 
@@ -86,16 +96,40 @@ class PoliBotWebhookTest extends TestCase
                 'contact' => ['uuid' => self::CONTACT, 'attributes' => ['name' => 'Gustavo', 'phone' => '5524992542363']],
                 'context' => $contexto ? ['type' => 'message', 'message' => ['uuid' => $contexto]] : null,
                 'components' => $components,
-                'attendance' => ['uuid' => 'att-1'],
+                'attendance' => [
+                    'uuid' => 'att-1',
+                    'status' => 'IN_PROGRESS',
+                    'attendant' => $atendente ? ['uuid' => $atendente] : null,
+                ],
                 'metadata' => ['external_message_id' => 'wamid-' . $this->n],
             ],
         ];
     }
 
-    public function test_modo_on_o_bot_responde_e_a_escuta_do_uber_nao_abre_pedido(): void
+    /**
+     * O toque no menu do bot da Poli é uma conversa sem atendente: a escuta
+     * do Uber trabalha nela, e a Lara só compara em sombra — mesmo no modo on.
+     */
+    public function test_conversa_do_bot_da_poli_a_escuta_do_uber_abre_o_pedido_e_a_lara_nao_fala(): void
     {
-        // Um menu da POLI indexado, com o toque nele: é exatamente o que faria
-        // a escuta abrir um pedido "aguardando_matricula".
+        PoliListMessage::create([
+            'poli_message_uuid' => 'menu-poli', 'attendance_uuid' => 'att-1', 'contact_uuid' => self::CONTACT,
+            'rows' => [['title' => 'Carro de Aplicativo', 'description' => 'Carro, moto ou táxi']],
+        ]);
+
+        $this->webhook($this->recebida('CHAT', ['body' => ['text' => "Carro de Aplicativo\nCarro, moto ou táxi"]], 'menu-poli', atendente: null))
+            ->assertOk();
+
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_MATRICULA, UberAccessRequest::sole()->status);
+        Http::assertNothingSent();
+    }
+
+    /**
+     * Na conversa do O Lara as mensagens da Lara têm a mesma assinatura das
+     * do bot da Poli: a escuta ficaria duplicando o pedido.
+     */
+    public function test_conversa_do_o_lara_a_lara_responde_e_a_escuta_do_uber_nao_abre_pedido(): void
+    {
         PoliListMessage::create([
             'poli_message_uuid' => 'menu-poli', 'attendance_uuid' => 'att-1', 'contact_uuid' => self::CONTACT,
             'rows' => [['title' => 'Carro de Aplicativo', 'description' => 'Carro, moto ou táxi']],
@@ -104,9 +138,68 @@ class PoliBotWebhookTest extends TestCase
         $this->webhook($this->recebida('CHAT', ['body' => ['text' => "Carro de Aplicativo\nCarro, moto ou táxi"]], 'menu-poli'))
             ->assertOk();
 
-        $this->assertSame(0, UberAccessRequest::count(), 'No modo on quem cria o pedido é o fluxo do bot');
+        $this->assertSame(0, UberAccessRequest::count());
         $this->assertSame('carro-de-aplicativo', BotSession::find(self::CONTACT)->flow_slug);
         Http::assertSent(fn (Request $r) => str_contains((string) data_get($r->data(), 'components.body.text'), '*matrícula*'));
+    }
+
+    /**
+     * O caminho inteiro da entrada: o toque no menu do bot da Poli, a
+     * transferência para O Lara (mensagem de sistema, direction EMPTY) e a
+     * Lara abrindo o fluxo pelo toque, sem esperar outra mensagem.
+     */
+    public function test_transferencia_para_o_lara_abre_o_fluxo_pelo_toque_no_menu_da_poli(): void
+    {
+        $this->webhook($this->recebida('CHAT', ['body' => ['text' => "Carro de Aplicativo\nCarro, moto ou táxi"]], atendente: null))
+            ->assertOk();
+        Http::assertNothingSent();
+
+        $this->webhook([
+            'object' => 'message', 'event' => 'received', 'account_uuid' => 'acc-uuid', 'uuid' => 'sys-1',
+            'value' => [
+                'uuid' => 'sys-1', 'event' => 'SYSTEM', 'type' => 'ATTENDANCE_REDIRECTED', 'direction' => 'EMPTY',
+                'contact' => ['uuid' => self::CONTACT, 'attributes' => ['name' => 'Gustavo', 'phone' => '5524992542363']],
+                'attendance' => ['uuid' => 'att-lara', 'type' => 'INITIATED_BY_FORWARDING', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => self::LARA]],
+            ],
+        ])->assertOk();
+
+        $sessao = BotSession::find(self::CONTACT);
+        $this->assertSame('carro-de-aplicativo', $sessao->flow_slug);
+        $this->assertSame('att-lara', $sessao->attendance_uuid);
+        $this->assertFalse($sessao->isHuman(), 'a transferência para O Lara não é humano assumindo');
+        Http::assertSent(fn (Request $r) => str_contains((string) data_get($r->data(), 'components.body.text'), '*matrícula*'));
+    }
+
+    /**
+     * O `attendant` na raiz do contato fica desatualizado depois de um
+     * distribute (medido em 29/09/2026): vale o do atendimento.
+     */
+    public function test_vale_o_atendente_do_atendimento_e_nao_o_da_raiz_do_contato(): void
+    {
+        $payload = $this->recebida('CHAT', ['body' => ['text' => 'oi']]);
+        $payload['value']['contact']['attendant'] = ['uuid' => 'atendente-antigo'];
+
+        $this->webhook($payload)->assertOk();
+
+        Http::assertSent(fn (Request $r) => ($r->data()['type'] ?? null) === 'TEMPLATE');
+    }
+
+    /**
+     * Reenvio da Poli: o atendimento é conferido na API antes de a Lara agir.
+     */
+    public function test_evento_reenviado_guarda_os_headers_e_confere_o_dono_na_api(): void
+    {
+        $this->atendimentoNaApi = ['uuid' => 'att-1', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => 'atendente-ana']];
+
+        $this->webhook($this->recebida('CHAT', ['body' => ['text' => 'oi']]), [
+            'X-Webhook-Attempt' => '2',
+            'X-Webhook-Delivery-Id' => 'entrega-9',
+        ])->assertOk();
+
+        $linha = UberAccessRequestMessage::sole();
+        $this->assertSame(['attempt' => '2', 'delivery_id' => 'entrega-9'], $linha->raw_payload['_webhook']);
+        $this->assertTrue(BotSession::find(self::CONTACT)->isHuman());
+        Http::assertNotSent(fn (Request $r) => $r->method() === 'POST');
     }
 
     public function test_modo_sombra_a_escuta_do_uber_continua_abrindo_o_pedido(): void
@@ -118,7 +211,7 @@ class PoliBotWebhookTest extends TestCase
             'rows' => [['title' => 'Carro de Aplicativo', 'description' => 'Carro, moto ou táxi']],
         ]);
 
-        $this->webhook($this->recebida('CHAT', ['body' => ['text' => "Carro de Aplicativo\nCarro, moto ou táxi"]], 'menu-poli'))
+        $this->webhook($this->recebida('CHAT', ['body' => ['text' => "Carro de Aplicativo\nCarro, moto ou táxi"]], 'menu-poli', atendente: null))
             ->assertOk();
 
         $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_MATRICULA, UberAccessRequest::sole()->status);
@@ -180,7 +273,7 @@ class PoliBotWebhookTest extends TestCase
 
     public function test_resposta_em_atendimento_aberto_pela_empresa_fica_com_quem_escreveu(): void
     {
-        $payload = $this->recebida('CHAT', ['body' => ['text' => 'Olá']]);
+        $payload = $this->recebida('CHAT', ['body' => ['text' => 'Olá']], atendente: null);
         $payload['value']['attendance'] = ['uuid' => 'att-cobranca', 'type' => 'INITIATED_BY_BUSINESS', 'status' => 'IN_PROGRESS'];
 
         $this->webhook($payload)->assertOk();
@@ -190,20 +283,21 @@ class PoliBotWebhookTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_no_modo_on_a_espera_do_webhook_e_a_do_bot(): void
+    public function test_so_a_conversa_do_o_lara_no_modo_on_usa_a_espera_do_bot(): void
     {
         \Illuminate\Support\Facades\Queue::fake();
         config(['poli.bot.inbound_max_lag_seconds' => 6, 'poli.inbound.max_delivery_lag_seconds' => 20]);
 
         $agora = now()->toIso8601String();
-        $comCriacao = function () use ($agora) {
-            $p = $this->recebida('CHAT', ['body' => ['text' => 'oi']]);
+        $comCriacao = function (?string $atendente = self::LARA) use ($agora) {
+            $p = $this->recebida('CHAT', ['body' => ['text' => 'oi']], atendente: $atendente);
             $p['value']['metadata']['created_at'] = $agora;
 
             return $p;
         };
 
         $this->webhook($comCriacao())->assertOk();
+        $this->webhook($comCriacao(null))->assertOk();
         config(['poli.bot.mode' => BotEngine::MODE_SHADOW]);
         $this->webhook($comCriacao())->assertOk();
 
@@ -217,8 +311,9 @@ class PoliBotWebhookTest extends TestCase
             },
         );
 
-        $this->assertEqualsWithDelta(6, $esperas[0], 1, 'on: teto do bot');
-        $this->assertEqualsWithDelta(20, $esperas[1], 1, 'shadow: teto da escuta do Uber, igual à main');
+        $this->assertEqualsWithDelta(6, $esperas[0], 1, 'on, conversa do O Lara: teto do bot');
+        $this->assertEqualsWithDelta(20, $esperas[1], 1, 'on, conversa do bot da Poli: teto da escuta do Uber');
+        $this->assertEqualsWithDelta(6, $esperas[2], 1, 'shadow, conversa do O Lara: também respondida, teto do bot');
     }
 
     public function test_modo_off_nao_toca_nas_tabelas_do_bot(): void
