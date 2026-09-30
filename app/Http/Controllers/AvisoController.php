@@ -50,9 +50,10 @@ class AvisoController extends Controller
             'viewed_at' => now(),
         ]);
 
-        $canManage = auth()->user()->can('manage avisos');
-        $viewHistory = $canManage
-            ? $aviso->views()->with('user:id,name')->get()
+        // Avisos são de todo mundo logado: quem vê o aviso vê também quem o leu.
+        // A privacidade (público, setor, grupo, pessoal) é do próprio aviso —
+        // ver Aviso::scopeVisibleTo().
+        $viewHistory = $aviso->views()->with('user:id,name')->get()
                 ->groupBy('user_id')
                 ->map(fn($entries) => [
                     'user'       => $entries->first()->user,
@@ -60,22 +61,19 @@ class AvisoController extends Controller
                     'count'      => $entries->count(),
                 ])
                 ->sortByDesc('last_view')
-                ->values()
-            : collect();
+                ->values();
 
-        return view('avisos.show', compact('aviso', 'canManage', 'viewHistory'));
+        return view('avisos.show', compact('aviso', 'viewHistory'));
     }
 
     public function create()
     {
-        $this->authorizeManage();
         $users = User::orderBy('name')->get(['id', 'name']);
         return view('avisos.create', compact('users'));
     }
 
     public function store(Request $request)
     {
-        $this->authorizeManage();
 
         $data = $request->validate([
             'title'                      => 'required|string|max:200',
@@ -111,7 +109,6 @@ class AvisoController extends Controller
 
     public function edit(Aviso $aviso)
     {
-        $this->authorizeManage();
         $aviso->load('lembretes', 'tags', 'users');
         $users = User::orderBy('name')->get(['id', 'name']);
         return view('avisos.edit', compact('aviso', 'users'));
@@ -119,7 +116,6 @@ class AvisoController extends Controller
 
     public function update(Request $request, Aviso $aviso)
     {
-        $this->authorizeManage();
 
         $data = $request->validate([
             'title'                 => 'required|string|max:200',
@@ -157,7 +153,6 @@ class AvisoController extends Controller
 
     public function destroy(Aviso $aviso)
     {
-        $this->authorizeManage();
         $aviso->delete();
         return redirect()->route('avisos.index')->with('success', 'Aviso removido.');
     }
@@ -210,15 +205,20 @@ class AvisoController extends Controller
         $users->each(fn($user) => $user->notify($notification));
     }
 
+    /**
+     * Quem divide ao menos um setor com o criador — a mesma régua de
+     * Aviso::scopeVisibleTo() para a privacidade "setor". (Antes era a role
+     * do Spatie, e a notificação ia para gente que nem enxergava o aviso.)
+     */
     private function usersInSameSetor(Aviso $aviso): \Illuminate\Support\Collection
     {
-        $creator = User::with('roles')->find($aviso->created_by);
-        if (!$creator || $creator->roles->isEmpty()) {
+        $creator = User::with('sectors')->find($aviso->created_by);
+        if (!$creator || $creator->sectors->isEmpty()) {
             return collect([$creator])->filter();
         }
 
-        $roleNames = $creator->roles->pluck('name');
-        return User::whereHas('roles', fn($q) => $q->whereIn('name', $roleNames))->get();
+        $sectorIds = $creator->sectors->pluck('id');
+        return User::whereHas('sectors', fn($q) => $q->whereIn('sectors.id', $sectorIds))->get();
     }
 
     private function deleteImage(?string $filename): void
@@ -226,10 +226,5 @@ class AvisoController extends Controller
         if ($filename && file_exists(public_path('images/avisos/' . $filename))) {
             unlink(public_path('images/avisos/' . $filename));
         }
-    }
-
-    private function authorizeManage(): void
-    {
-        abort_unless(auth()->user()->can('manage avisos'), 403);
     }
 }

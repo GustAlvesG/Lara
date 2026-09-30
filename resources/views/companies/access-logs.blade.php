@@ -16,10 +16,12 @@
                 </div>
             </div>
             <div class="flex gap-2">
+                @can(\App\Authorization\Permissions::EXTERNOS_CARROS_APLICATIVO)
                 <a href="{{ route('company.uber.requests') }}"
                    class="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     Pedidos de Uber
                 </a>
+                @endcan
                 <a href="{{ route('company.access.monitor') }}"
                    class="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold text-sm shadow-md hover:bg-indigo-700 transition">
                     Monitor de Acesso
@@ -238,10 +240,14 @@
                                                 {{ strtoupper(substr($log->freelancer->name, 0, 1)) }}
                                             </div>
                                             <div>
+                                                @can(\App\Authorization\Permissions::FREELANCERS_CADASTRO)
                                                 <a href="{{ route('freelancers.show', $log->freelancer_id) }}"
                                                    class="font-semibold text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline">
                                                     {{ $log->freelancer->name }}
                                                 </a>
+                                                @else
+                                                <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $log->freelancer->name }}</span>
+                                                @endcan
                                                 {{-- O contrato que liberou a entrada — ausente quando o acesso foi negado. --}}
                                                 @if($log->freelancerService)
                                                     <p class="text-xs text-gray-400 dark:text-gray-500">
@@ -263,10 +269,14 @@
                                                 </div>
                                             @endif
                                             <div>
+                                                @can(\App\Authorization\Permissions::EXTERNOS_LIBERACAO_PONTUAL)
                                                 <a href="{{ route('company.one-off.index', ['date' => $log->oneOffAccess->access_date->toDateString()]) }}"
                                                    class="font-semibold text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline">
                                                     {{ $log->oneOffAccess->name }}
                                                 </a>
+                                                @else
+                                                <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $log->oneOffAccess->name }}</span>
+                                                @endcan
                                                 <p class="text-xs text-gray-400 dark:text-gray-500 max-w-xs truncate" title="{{ $log->oneOffAccess->reason }}">
                                                     {{ $log->oneOffAccess->reason }}
                                                     @if($log->oneOffAccess->creator)

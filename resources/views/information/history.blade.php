@@ -45,7 +45,7 @@
                         </div>
 
                         @if ($index > 0)
-                            @can('edit information')
+                            @can('infoclube.editar')
                                 <form action="{{ route('information.update', $version->id) }}" method="POST"
                                       onsubmit="return confirm('Restaurar esta versão? Ela será copiada como a nova versão atual.')">
                                     @csrf

@@ -19,6 +19,7 @@
                     </p>
                 </div>
 
+                @can(\App\Authorization\Permissions::SIV_PLACAS_DIRETORIA)
                 <a href="{{ route('parking-authorizations.index') }}"
                    class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -27,6 +28,7 @@
                     </svg>
                     Placas Diretoria
                 </a>
+                @endcan
             </div>
 
             @include('parking.partials.dashTotals')

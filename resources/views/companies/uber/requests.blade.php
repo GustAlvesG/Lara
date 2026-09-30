@@ -15,10 +15,12 @@
                     <p class="text-sm text-gray-500 dark:text-gray-400">Todos os pedidos feitos pelo WhatsApp, em qualquer status.</p>
                 </div>
             </div>
+            @can(\App\Authorization\Permissions::EXTERNOS_HISTORICO)
             <a href="{{ route('company.access.logs') }}"
                class="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                 Histórico de Acessos
             </a>
+            @endcan
         </div>
 
         @include('companies.uber.partials.tabs', ['active' => 'requests'])

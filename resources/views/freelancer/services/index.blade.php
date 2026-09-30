@@ -31,6 +31,12 @@
         : '';
 
     $hasFilters = collect($filters)->except(['sort', 'dir'])->filter()->isNotEmpty();
+
+    // Quem só tem a lista (a Secretaria, na matriz inicial) enxerga os
+    // contratos sem valor, sem documento e sem ação — a linha não abre o
+    // contrato, e as colunas de preço e de ações não aparecem. Ver
+    // `freelancers.servicos.listar` x `freelancers.servicos.gerenciar`.
+    $canManage = $canManage ?? false;
 @endphp
 
 <div class="py-12 bg-gray-50 dark:bg-gray-900 min-h-screen">
@@ -44,6 +50,7 @@
                 <p class="text-gray-500 dark:text-gray-400 font-medium">Serviços a serem realizados por freelancers e o estado das assinaturas.</p>
             </div>
 
+            @if($canManage)
             <div class="flex items-center gap-3">
                 <a href="{{ route('freelancer-services.bulk') }}" class="inline-flex items-center px-4 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-xl font-bold shadow border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
@@ -55,6 +62,7 @@
                     Novo Serviço
                 </a>
             </div>
+            @endif
         </div>
 
         @include('freelancer.services.partials.tabs')
@@ -220,9 +228,13 @@
                                     </a>
                                 </th>
                                 <th class="px-4 py-3">Duração</th>
+                                @if($canManage)
                                 <th class="px-4 py-3">Preço</th>
+                                @endif
                                 <th class="px-4 py-3">Contrato</th>
+                                @if($canManage)
                                 <th class="px-4 py-3 text-right">Ações</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -231,10 +243,12 @@
                             {{-- A linha inteira abre o contrato. Cliques em link, botão ou
                                  formulário (Excluir) continuam sendo deles, e um clique que
                                  só selecionou texto não navega. --}}
-                            <tr class="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition {{ $exceeds ? 'bg-amber-50 dark:bg-amber-900/10' : '' }} {{ $service->isCancelled() ? 'opacity-60' : '' }}"
+                            <tr class="{{ $canManage ? 'cursor-pointer' : '' }} hover:bg-gray-50 dark:hover:bg-gray-700/50 transition {{ $exceeds ? 'bg-amber-50 dark:bg-amber-900/10' : '' }} {{ $service->isCancelled() ? 'opacity-60' : '' }}"
+                                @if($canManage)
                                 tabindex="0"
                                 x-on:click="if (!$event.target.closest('a, button, form') && !window.getSelection().toString()) window.location = '{{ route('freelancer-services.show', $service) }}'"
-                                x-on:keydown.enter="window.location = '{{ route('freelancer-services.show', $service) }}'">
+                                x-on:keydown.enter="window.location = '{{ route('freelancer-services.show', $service) }}'"
+                                @endif>
                                 <td class="px-4 py-4">
                                     @if($exceeds)
                                         <span title="Freelancer com mais de {{ \App\Models\FreelancerService::WEEKLY_LIMIT }} serviços numa janela de 7 dias" class="text-amber-500">⚠️</span>
@@ -259,14 +273,16 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-4 text-gray-700 dark:text-gray-300">{{ $service->formattedDuration() }}</td>
+                                @if($canManage)
                                 <td class="px-4 py-4 text-gray-700 dark:text-gray-300">R$ {{ number_format($service->price, 2, ',', '.') }}</td>
+                                @endif
                                 <td class="px-4 py-4">
                                     <x-freelancer-signature-badge :service="$service" />
                                     {{-- O par aditivo/aditivado explica por que duas linhas do mesmo
                                          turno aparecem na lista e só uma delas será paga. --}}
                                     @if($service->isCommissionAmendment())
                                         <span class="block text-xs font-bold text-emerald-600 dark:text-emerald-400"
-                                              title="Comissão sobre R$ {{ number_format((float) $service->sales_amount, 2, ',', '.') }} vendidos, paga além do contrato #{{ $service->parent_service_id }}">Comissão de venda</span>
+                                              title="{{ $canManage ? 'Comissão sobre R$ ' . number_format((float) $service->sales_amount, 2, ',', '.') . ' vendidos, paga' : 'Comissão paga' }} além do contrato #{{ $service->parent_service_id }}">Comissão de venda</span>
                                     @elseif($service->isAmendment())
                                         <span class="block text-xs font-bold text-indigo-600 dark:text-indigo-400"
                                               title="Aditivo do contrato #{{ $service->parent_service_id }}">Aditivo</span>
@@ -287,6 +303,7 @@
                                         </span>
                                     @endif
                                 </td>
+                                @if($canManage)
                                 <td class="px-4 py-4 text-right space-x-3 whitespace-nowrap">
                                     <a href="{{ route('freelancer-services.show', $service) }}" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium text-xs">
                                         {{ $service->canBeUpdated() ? 'Editar' : 'Ver' }}
@@ -300,6 +317,7 @@
                                         </form>
                                     @endif
                                 </td>
+                                @endif
                             </tr>
                             @endforeach
                         </tbody>

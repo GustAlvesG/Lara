@@ -102,19 +102,16 @@
                                 @error('matricula')<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
                             </div>
 
-                            <div>
-                                <label for="role_id" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Perfil de Acesso</label>
-                                <select name="role_id" id="role_id" required
-                                        class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition uppercase text-xs font-bold tracking-wider bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-                                    <option value="" disabled selected>Selecione um perfil</option>
-                                    @foreach($roles as $role)
-                                        <option value="{{ $role['id'] }}" {{ old('role_id') == $role['id'] ? 'selected' : '' }}>
-                                            {{ $role['name'] }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                @error('role_id')<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
-                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+                        <div class="p-6 border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50">
+                            <h2 class="text-lg font-bold text-gray-800 dark:text-white">Setores</h2>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">O acesso vem dos setores. Sem setor, a pessoa enxerga só o que é de todo mundo logado. Permissões individuais ficam na edição, depois de criar.</p>
+                        </div>
+                        <div class="px-6 pb-2">
+                            @include('user.partials.sectors-select', ['sectors' => $sectors, 'current' => []])
                         </div>
                     </div>
 

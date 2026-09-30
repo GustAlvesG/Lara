@@ -22,7 +22,7 @@
                     @endif
                 </h1>
                 <p class="text-gray-500 dark:text-gray-400 font-medium">{{ $time->equipe->nome }} · {{ $time->modalidade->nome }}</p>
-                @can('view-placar-scout')
+                @can('placar.scout')
                     <a href="{{ route('placar.scout.time', $time) }}" class="text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:underline">Ver painel no scout →</a>
                 @endcan
             </div>

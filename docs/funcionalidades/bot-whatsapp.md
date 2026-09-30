@@ -18,14 +18,14 @@ Cada fluxo é uma sequência de **passos**. Todo passo tem até três partes:
 
 ## Para quem
 
-Quem tem a permissão **`manage whatsapp bot`**. Salvar um fluxo ativo é **publicar**: ele vale na
+Quem tem a permissão **`bot-whatsapp`** — na matriz inicial, o coordenador do Atendimento.
+ Salvar um fluxo ativo é **publicar**: ele vale na
 próxima mensagem dos associados.
 
 ## Pré-requisitos
 
 - Tabelas: `php artisan migrate` (bot_flows, bot_sessions, poli_messages, bot_flow_versions).
-- Permissão: `php artisan db:seed --class=RolesAndPermissionsSeeder` (o papel `admin` recebe todas)
-  e atribuir `manage whatsapp bot` a quem vai editar.
+- Permissão: `bot-whatsapp`, do catálogo de acesso (ver [Usuários, setores e permissões](usuarios-e-permissoes.md)).
 - Fluxos iniciais, equivalentes ao bot da Poli de hoje: `php artisan poli:bot-fluxos --instalar`.
 - Modo do bot no `.env` (`POLI_BOT_MODE`), ver abaixo.
 

@@ -22,19 +22,27 @@
                     <p class="text-sm text-gray-500 dark:text-gray-400">Consulte ou registre acessos de Externos terceirizados e freelancers.</p>
                 </div>
             </div>
+            {{-- O monitor é de todo mundo logado; os atalhos, não — cada um
+                 aparece só para quem a rota de destino deixa entrar. --}}
             <div class="flex gap-2">
+                @can(\App\Authorization\Permissions::EXTERNOS_CARROS_APLICATIVO)
                 <a href="{{ route('company.uber.waiting') }}"
                    class="px-4 py-2 bg-white dark:bg-gray-800 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-400 rounded-lg font-bold text-sm shadow-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition">
                     Aguardando Motorista
                 </a>
+                @endcan
+                @can(\App\Authorization\Permissions::EXTERNOS_LIBERACAO_PONTUAL)
                 <a href="{{ route('company.one-off.index') }}"
                    class="px-4 py-2 bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 rounded-lg font-bold text-sm shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/30 transition">
                     Liberação Pontual
                 </a>
+                @endcan
+                @can(\App\Authorization\Permissions::EXTERNOS_HISTORICO)
                 <a href="{{ route('company.access.logs') }}"
                    class="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                     Ver Histórico
                 </a>
+                @endcan
             </div>
         </div>
 

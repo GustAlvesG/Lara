@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Authorization\Permissions;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginByMatriculaRequest;
 use App\Models\User;
@@ -12,7 +13,8 @@ class UserAuthController extends Controller
     /**
      * Login de usuário do sistema por matrícula + senha, para a integração
      * externa (bot do Telegram) identificar qual usuário está agindo.
-     * Restrito a usuários com o papel "comercial".
+     * Restrito a quem tem a permissão `telegram.login` (setor Comercial na
+     * matriz inicial).
      */
     public function login(LoginByMatriculaRequest $request)
     {
@@ -23,7 +25,7 @@ class UserAuthController extends Controller
             return response()->json(['error' => 'Credenciais inválidas', 'data' => $user ?? 'sem usuario'], 401);
         }
 
-        if (!$user->hasRole('comercial')) {
+        if (!$user->can(Permissions::TELEGRAM_LOGIN)) {
             return response()->json(['error' => 'Usuário não tem permissão para acessar'], 403);
         }
 

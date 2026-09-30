@@ -14,7 +14,7 @@ use Tests\TestCase;
 /**
  * Quem pode mexer na iluminação.
  *
- * A permissão `manage home assistant` só escondia o menu e o card do dashboard:
+ * A permissão (hoje `home-assistant`) só escondia o menu e o card do dashboard:
  * as rotas do painel exigiam apenas login, e o contator de um espaço era gravado
  * a partir do que chegasse no POST. Sem banco — o User é mockado (ver
  * user-model preso à conexão mysql em MocksPlacarUser).
@@ -34,9 +34,9 @@ class HomeAssistantAccessTest extends TestCase
 
         foreach ($routes as $route) {
             $this->assertContains(
-                'permission:manage home assistant',
+                'can:home-assistant',
                 $route->gatherMiddleware(),
-                "A rota {$route->getName()} não exige a permissão manage home assistant."
+                "A rota {$route->getName()} não exige a permissão home-assistant."
             );
         }
     }
@@ -51,7 +51,7 @@ class HomeAssistantAccessTest extends TestCase
     private function contactorIdFor(bool $canManage, array $input, ?Place $place = null): ?int
     {
         $user = Mockery::mock(User::class)->makePartial();
-        $user->shouldReceive('can')->with('manage home assistant')->andReturn($canManage);
+        $user->shouldReceive('can')->with('home-assistant')->andReturn($canManage);
 
         $request = Request::create('/place', 'POST', $input);
         $request->setUserResolver(fn () => $user);

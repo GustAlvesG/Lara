@@ -21,7 +21,7 @@
                         <span class="ml-2 align-middle inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">Criado em campo</span>
                     @endif
                 </h1>
-                @can('view-placar-scout')
+                @can('placar.scout')
                     <a href="{{ route('placar.scout.jogador', $jogador) }}" class="text-sm font-bold text-emerald-600 dark:text-emerald-400 hover:underline">Ver perfil no scout →</a>
                 @endcan
             </div>

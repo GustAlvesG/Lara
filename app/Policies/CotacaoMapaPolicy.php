@@ -8,42 +8,30 @@ use App\Models\User;
 /**
  * Quem pode o quê no mapa de cotação.
  *
- * **O MÓDULO É DO SETOR CONTABILIDADE.** Estar no setor — em QUALQUER papel,
- * colaborador ou coordenador — dá acesso à aba e ao trabalho todo: ver, montar
- * o mapa, digitar preço, escolher vencedor, fechar e exportar.
+ * **A porta é a permissão `compras`** (setor Contabilidade — o Financeiro —
+ * na matriz inicial, ou quem tiver acesso total). Tê-la dá o trabalho todo:
+ * ver, montar o mapa, digitar preço, escolher vencedor, fechar e exportar.
  *
- * Não há permissão do Spatie no caminho, e isso é deliberado. É o mesmo arranjo
- * do financeiro dos freelancers (`manage-freelancer-payments`): quando o acesso
- * é atribuição de setor, exigir também uma permissão cria uma segunda porta que
- * ninguém lembra de abrir — e o efeito prático é o funcionário entrar no setor,
- * continuar levando 403 e ninguém saber por quê.
+ * O que NÃO vem com a permissão é reabrir um mapa fechado: ver {@see reabrir()}.
+ * Isso é cargo (coordenador da Contabilidade), e o acesso total não o dá.
  *
- * Duas consequências que valem ser ditas em voz alta:
- *
- *   - **A role `admin` não abre nada aqui.** Quem administra o sistema não cota
- *     compra por consequência disso; entra no setor quem de fato cota.
- *   - **Tirar alguém do setor corta o acesso na hora.** É uma consulta por
- *     requisição, memorizada só dentro dela.
- *
- * O que NÃO vem com o setor é reabrir um mapa fechado: ver {@see reabrir()}.
- *
- * A terceira pergunta, que se cruza com a do setor em toda ação de escrita, é o
- * ESTADO do mapa: fechado ou cancelado é somente leitura para todo mundo — é
- * ele que sustenta a decisão de compra, e um preço corrigido depois do
- * fechamento, sem trilha, transformaria o documento em rascunho.
+ * A outra pergunta, que se cruza com a da permissão em toda ação de escrita, é
+ * o ESTADO do mapa: fechado ou cancelado é somente leitura para todo mundo —
+ * inclusive para o acesso total. É ele que sustenta a decisão de compra, e um
+ * preço corrigido depois do fechamento, sem trilha, transformaria o documento
+ * em rascunho. Por isso esta policy não é atravessada pelo Gate::before: as
+ * abilities dela não estão no catálogo.
  */
 class CotacaoMapaPolicy
 {
     /**
-     * A porta do módulo: vínculo com a Contabilidade, em qualquer papel.
-     *
-     * Passa pelo Gate `acessar-cotacao` em vez de chamar o model direto porque
-     * o menu faz a mesma pergunta em toda tela, e `can()` funciona com o
+     * A porta do módulo. Passa por `can()` e não pelo model direto porque o
+     * menu faz a mesma pergunta em toda tela, e `can()` funciona com o
      * usuário montado à mão dos testes.
      */
     private function doSetor(User $user): bool
     {
-        return $user->can('acessar-cotacao');
+        return $user->can('compras');
     }
 
     public function viewAny(User $user): bool

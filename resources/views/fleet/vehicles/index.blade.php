@@ -29,10 +29,12 @@
                         <p class="text-sm text-gray-500 dark:text-gray-400">A portaria enxerga apenas os ativos.</p>
                     </div>
                     <div class="flex gap-2">
+                        @can(\App\Authorization\Permissions::SIV_FROTA)
                         <a href="{{ route('fleet.index') }}"
                            class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-600 dark:text-gray-300 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                             Painel
                         </a>
+                        @endcan
                         <a href="{{ route('fleet.vehicles.create') }}"
                            class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 transition">
                             Novo Veículo

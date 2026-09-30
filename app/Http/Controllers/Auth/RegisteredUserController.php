@@ -44,8 +44,9 @@ class RegisteredUserController extends Controller
             'status_id' => 1,
         ]);
 
-        //Step up default permissions for new users
-        $user->assignRole('user');
+        // Sem setor e sem permissão: quem se cadastra enxerga só o que é de
+        // todo mundo logado até um coordenador ou a tela de Usuários o
+        // colocar num setor.
 
         event(new Registered($user));
 

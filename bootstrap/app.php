@@ -18,9 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
             // escopo próprio — não confunde com o token de sócio.
             'approval_token' => \App\Http\Middleware\ApprovalToken::class,
             'login_token' => \App\Http\Middleware\JwtMiddleware::class,
-            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
-            'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            // Sem os aliases `role`/`permission` do Spatie: o acesso do painel
+            // é `can:<permissão do catálogo>` — ver App\Authorization.
             // Sanctum não registra esses aliases automaticamente — usados
             // pela API do Placar Clube (ver routes/api.php).
             'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,

@@ -7,8 +7,8 @@
             </h2>
         </div>
         
-        {{-- Importar, recalcular e administrar o cadastro é do RH; ver o Gate
-             `manage-comp-time`. Coordenador de setor e colaborador continuam
+        {{-- Importar, recalcular e administrar o cadastro é da permissão
+             `banco-horas.admin` (RH). Coordenador de setor e colaborador continuam
              enxergando a consulta abaixo, mas não estes botões. --}}
         @if($canImport ?? false)
         <div class="div">

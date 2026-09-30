@@ -11,13 +11,15 @@
             <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Gestão de Usuários</h1>
-                    <p class="text-gray-500 dark:text-gray-400 font-medium">Controle o acesso e as permissões dos membros do sistema.</p>
+                    <p class="text-gray-500 dark:text-gray-400 font-medium">O acesso vem dos setores de cada pessoa e das permissões individuais.</p>
                 </div>
 
                 <div class="flex gap-3">
-                    <a href="{{ route('roles-permission.index') }}" class="inline-flex items-center px-5 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-bold shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition">
-                        Grupos e Permissões
+                    @can(\App\Authorization\Permissions::SETORES_GERENCIAR)
+                    <a href="{{ route('sectors.index') }}" class="inline-flex items-center px-5 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-bold shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition">
+                        Setores e Permissões
                     </a>
+                    @endcan
                     <a href="{{ route('users.create') }}" class="inline-flex items-center px-6 py-3 bg-[#A00001] text-white rounded-xl font-bold shadow-lg hover:bg-[#800000] transition duration-150 transform hover:scale-[1.02]">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         Novo Usuário
@@ -32,7 +34,7 @@
                     <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                     </span>
-                    <input type="text" id="user-search-input" placeholder="Pesquisar por nome, e-mail ou perfil..."
+                    <input type="text" id="user-search-input" placeholder="Pesquisar por nome, e-mail ou setor..."
                         class="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 outline-none shadow-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white dark:placeholder-gray-500"
                         onkeyup="filterUsers()">
                 </div>
@@ -45,7 +47,7 @@
                             <tr>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Usuário</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Matrícula</th>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Perfil</th>
+                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Setores</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
                                 <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Último Acesso</th>
                                 <th class="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Ações</th>
@@ -72,9 +74,20 @@
                                     {{ $user['matricula'] ?? '—' }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 uppercase tracking-tight user-role">
-                                        {{ $user['roles'][0]->name ?? 'Sem Perfil' }}
-                                    </span>
+                                    <div class="flex flex-wrap gap-1 max-w-xs user-role">
+                                        @forelse($user->sectors->sortBy('name') as $sector)
+                                            <span class="px-2 py-0.5 inline-flex text-xs leading-5 font-bold rounded-lg {{ $sector->full_access ? 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200' }}"
+                                                  title="{{ $sector->pivot->role === 'coordinator' ? 'Coordenador' : 'Colaborador' }}{{ $sector->full_access ? ' · acesso total' : '' }}">
+                                                {{ $sector->name }}{{ $sector->pivot->role === 'coordinator' ? ' ★' : '' }}
+                                            </span>
+                                        @empty
+                                            <span class="text-xs text-gray-400">Sem setor</span>
+                                        @endforelse
+                                        @if($user->directPermissions->isNotEmpty())
+                                            <span class="px-2 py-0.5 inline-flex text-xs leading-5 font-bold rounded-lg bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300"
+                                                  title="Permissões individuais">+{{ $user->directPermissions->count() }} individual</span>
+                                        @endif
+                                    </div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     @if($user['status_id'] == '1')

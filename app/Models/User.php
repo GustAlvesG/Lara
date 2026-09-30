@@ -8,13 +8,21 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use App\Models\DataInfo;
 use App\Models\Information;
-use Spatie\Permission\Traits\HasRoles; // Importe o trait
+use App\Authorization\AccessResolver;
+use App\Authorization\Permissions;
+use App\Authorization\UserAccess;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Permission\Models\Permission;
 
 
+/**
+ * Acesso: setores (com o papel em cada um), permissões individuais e setores
+ * de acesso total — ver access() e App\Authorization\AccessResolver. As roles
+ * do Spatie saíram; do pacote sobram só as tabelas de permissão.
+ */
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles; // Use o trait HasRoles
+    use HasFactory, Notifiable;
     use SoftDeletes;
     /**
      * The attributes that are mass assignable.
@@ -31,16 +39,18 @@ class User extends Authenticatable
     public const MANAGEMENT_SECTOR = 'Gerência';
 
     /**
-     * Setor que responde pelo financeiro dos freelancers.
+     * O Financeiro. O coordenador dele é o nível 1 da ordem de compra e quem
+     * reabre mapa de cotação fechado — regras de cargo. O acesso aos módulos
+     * (Compras, Financeiro dos freelancers, Pagamentos) é permissão do setor,
+     * editável na tela de Setores.
      * Criado pela migration `create_contabilidade_sector`.
      */
     public const ACCOUNTING_SECTOR = 'Contabilidade';
 
     /**
-     * Setor que registra os contratos de freelancer e acompanha o trâmite deles
-     * até o pagamento. Coordenar o setor dá poderes extras (assinar como
-     * contraparte, liberar o limite semanal); **estar** nele, em qualquer papel,
-     * dá a tela de acompanhamento.
+     * Setor que registra os contratos de freelancer. Coordenar o setor dá
+     * poderes de cargo (validar contrato, assinar como contraparte no kiosk,
+     * liberar o limite semanal); o acesso às telas vem das permissões do setor.
      */
     public const COMMERCIAL_SECTOR = 'Comercial';
 
@@ -53,21 +63,15 @@ class User extends Authenticatable
     public const DIRECTORS_SECTOR = 'Diretoria';
 
     /**
-     * Setor do módulo Placar Clube (cadastro e scout) — ver
-     * AppServiceProvider::boot() para os Gates `manage-placar-cadastro` e
-     * `view-placar-scout`.
+     * Setor do módulo Placar Clube. O acesso é pelas permissões
+     * `placar.cadastro` e `placar.scout`, que o setor recebe na matriz inicial.
      */
     public const SPORT_SECTOR = 'Esporte';
 
     /**
-     * Setor que responde pelo Banco de Horas: importa o espelho de ponto,
-     * enxerga todos os funcionários e administra o cadastro (férias,
-     * afastamento, rescisão) — ver canManageCompTime().
-     *
-     * Antes esta regra eram os nomes 'RH' e 'TI' escritos dentro do
-     * CompTimeController. O TI saiu junto com a mudança: administrar o
-     * servidor e responder pelo banco de horas de todo mundo são coisas
-     * diferentes, e a segunda tem dono.
+     * Setor que responde pelo Banco de Horas. O acesso de administrador é a
+     * permissão `banco-horas.admin` (ver canManageCompTime()), que o setor
+     * recebe na matriz inicial.
      */
     public const HR_SECTOR = 'RH';
 
@@ -98,20 +102,8 @@ class User extends Authenticatable
         'remember_token',
     ];
 
-    /** Cache da requisição para canManageFreelancerPayments(). */
-    private ?bool $freelancerPaymentsAccess = null;
-
-    /** Cache da requisição para canTrackFreelancerBatches(). */
-    private ?bool $freelancerTrackingAccess = null;
-
-    /** Cache da requisição para canAccessCotacao(). */
-    private ?bool $cotacaoAccess = null;
-
-    /** Cache da requisição para canAccessPlacar(). */
-    private ?bool $placarAccess = null;
-
-    /** Cache da requisição para canManageCompTime(). */
-    private ?bool $compTimeAccess = null;
+    /** Cache da requisição para access(). */
+    private ?UserAccess $resolvedAccess = null;
 
     /** Cache da requisição para canViewCompTime(). */
     private ?bool $compTimeVisibility = null;
@@ -285,91 +277,63 @@ class User extends Authenticatable
     }
 
     /**
-     * Financeiro dos freelancers (aba Financeiro e baixa de pagamento): quem
-     * está no setor **Contabilidade** ou no setor **Gerência**, em qualquer
-     * papel.
+     * Acesso efetivo desta requisição — setores de acesso total, permissões
+     * dos setores e permissões individuais. Ver App\Authorization\AccessResolver.
      *
-     * Como a aprovação do lote, é atribuição de setor e não nível de acesso —
-     * a role `admin` não vale aqui. Quem administra o sistema não paga
-     * freelancer por consequência disso; entra no setor quem de fato paga.
+     * Memorizado por instância: o menu, as abas, o middleware e a policy
+     * perguntam várias vezes na mesma requisição, e cada requisição reconfere
+     * — tirar o vínculo no painel corta o acesso no clique seguinte.
      *
-     * Memorizado por instância porque a barra de abas, o menu e o middleware
-     * perguntam a mesma coisa na mesma requisição. Cada requisição reconfere,
-     * então tirar o vínculo no painel corta o acesso na hora.
+     * É o ponto que os testes interceptam quando mockam o User (ver
+     * tests/Concerns/MocksPlacarUser): o model está preso à conexão mysql, e
+     * a consulta de verdade não pode rodar na suíte.
      */
-    public function canManageFreelancerPayments(): bool
+    public function access(): UserAccess
     {
-        return $this->freelancerPaymentsAccess ??= $this->belongsToSectorNamed(self::ACCOUNTING_SECTOR)
-            || $this->belongsToSectorNamed(self::MANAGEMENT_SECTOR);
+        return $this->resolvedAccess ??= app(AccessResolver::class)->resolve($this);
+    }
+
+    /** Esquece o acesso calculado — para quem acabou de mudar o próprio vínculo. */
+    public function forgetAccess(): void
+    {
+        $this->resolvedAccess = null;
+        $this->compTimeVisibility = null;
+    }
+
+    /** Membro de um setor com acesso total (Gerência, Diretoria, TI). */
+    public function hasFullAccess(): bool
+    {
+        return $this->access()->hasFullAccess();
     }
 
     /**
-     * Acompanhamento dos lotes (aba própria, só leitura): quem está no setor
-     * **Comercial**, em qualquer papel. É o setor que registra os contratos e
-     * responde ao freelancer por onde o pagamento dele parou — sem precisar,
-     * para isso, aprovar ou pagar coisa nenhuma.
+     * Alcança a permissão do catálogo? Prefira `can()` em rota e view: é o
+     * mesmo teste, e passa pelo Gate::before do AppServiceProvider.
      */
-    public function canTrackFreelancerBatches(): bool
+    public function hasAccess(string $permission): bool
     {
-        return $this->freelancerTrackingAccess ??= $this->belongsToSectorNamed(self::COMMERCIAL_SECTOR)
-            || $this->canManageFreelancerPayments();
+        return $this->access()->allows($permission);
     }
 
     /**
-     * Mapa de cotação: quem está no setor **Contabilidade**, em qualquer papel.
-     *
-     * Como o financeiro dos freelancers, é atribuição de setor e não nível de
-     * acesso — **a role `admin` não vale aqui**. Quem administra o sistema não
-     * cota compra por consequência disso; entra no setor quem de fato cota.
-     *
-     * O setor é a porta; o que cada um faz lá dentro (digitar preço, escolher
-     * vencedor, exportar) continua sendo decidido pelas permissões `cotacao.*`.
-     *
-     * Memorizado por instância porque o menu, a policy e cada ação da grade
-     * perguntam a mesma coisa na mesma requisição. Cada requisição reconfere,
-     * então tirar o vínculo no painel corta o acesso na hora.
+     * Permissões individuais — dadas direto ao usuário, fora de setor. Mora
+     * na `model_has_permissions` do Spatie; quem lê é o AccessResolver.
      */
-    public function canAccessCotacao(): bool
+    public function directPermissions()
     {
-        return $this->cotacaoAccess ??= $this->belongsToSectorNamed(self::ACCOUNTING_SECTOR);
-    }
-
-    /**
-     * Placar Clube (telas de cadastro e de scout): quem está no setor
-     * **Esporte**, em qualquer papel — colaborador ou coordenador. Um Gate
-     * só, reaproveitado pelos dois (`manage-placar-cadastro`,
-     * `view-placar-scout`), pela mesma razão de cache das outras checagens
-     * de setor acima: a barra de navegação e o middleware perguntam a mesma
-     * coisa na mesma requisição.
-     */
-    public function canAccessPlacar(): bool
-    {
-        return $this->placarAccess ??= $this->belongsToSectorNamed(self::SPORT_SECTOR);
+        return $this->morphToMany(Permission::class, 'model', 'model_has_permissions', 'model_id', 'permission_id');
     }
 
     /**
      * Banco de Horas em modo administrador: importar o espelho de ponto, ver
      * **todos** os funcionários e mexer no cadastro (férias, afastamento,
-     * rescisão).
-     *
-     * Duas portas, de propósito. A de rotina é o **vínculo com o setor RH**,
-     * em qualquer papel — quem entra no RH passa a administrar o banco de
-     * horas sem ninguém precisar mexer em permissão. A outra é a permissão
-     * `import comp time`, para o caso nominal: dar o acesso a uma pessoa
-     * específica que não está no RH.
-     *
-     * Repare que não há atalho por role: `admin` só entra aqui porque a
-     * migration deu a permissão à role, e tirá-la de lá corta o acesso. É o
-     * mesmo desenho dos outros acessos por setor deste app
-     * (canManageFreelancerPayments, canAccessPlacar).
-     *
-     * Memorizado por instância porque o menu, a tela e o middleware perguntam
-     * a mesma coisa na mesma requisição.
+     * rescisão). É a permissão `banco-horas.admin` — o setor RH a recebe na
+     * matriz inicial, e ela pode ser dada a uma pessoa específica na tela de
+     * Usuários.
      */
     public function canManageCompTime(): bool
     {
-        return $this->compTimeAccess ??= $this->belongsToSectorNamed(self::HR_SECTOR)
-            || $this->hasCompTimePermission();
+        return $this->hasAccess(Permissions::BANCO_HORAS_ADMIN);
     }
 
     /**
@@ -380,32 +344,15 @@ class User extends Authenticatable
      * não é nada disso abriria a tela vazia — ver
      * CompTimeService::accessFor(), que faz o recorte de verdade.
      *
-     * Serve ao menu. Existe como método (e Gate) em vez de a navegação
-     * perguntar `isCoordinator()` e `matricula` direto ao model porque a
-     * navegação é renderizada por praticamente toda tela do app: se ela
-     * chamar métodos que consultam o banco, cada tela do sistema passa a
-     * depender das tabelas de setor.
+     * Serve ao menu, pelo Gate `view-comp-time`: a navegação é renderizada
+     * por praticamente toda tela do app e não pode chamar métodos que
+     * consultam o banco direto.
      */
     public function canViewCompTime(): bool
     {
         return $this->compTimeVisibility ??= $this->canManageCompTime()
             || $this->isCoordinator()
             || filled($this->matricula);
-    }
-
-    /**
-     * `hasPermissionTo()` estoura PermissionDoesNotExist quando a permissão
-     * ainda não foi criada — o que acontece em qualquer ambiente onde a
-     * migration não rodou, inclusive na suíte. Aqui a ausência da permissão é
-     * uma resposta ("não tem"), não um erro.
-     */
-    private function hasCompTimePermission(): bool
-    {
-        try {
-            return $this->hasPermissionTo('import comp time');
-        } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist) {
-            return false;
-        }
     }
 
     /**

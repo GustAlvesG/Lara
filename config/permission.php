@@ -99,9 +99,13 @@ return [
     /*
      * When set to true, the method for checking permissions will be registered on the gate.
      * Set this to false if you want to implement custom logic for checking permissions.
+     *
+     * Desligado: quem responde pelas permissões no Gate é o AppServiceProvider
+     * (setor, permissão individual e acesso total — ver App\Authorization).
+     * Do Spatie o app usa só as tabelas.
      */
 
-    'register_permission_check_method' => true,
+    'register_permission_check_method' => false,
 
     /*
      * When set to true, Laravel\Octane\Events\OperationTerminated event listener will be registered

@@ -15,7 +15,7 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
-        $this->call(RolesAndPermissionsSeeder::class);
+        $this->call(SectorAccessSeeder::class);
         // Dado de referência fixo do Placar Clube (3 modalidades), não demo.
         $this->call(ModalidadeSeeder::class);
     }

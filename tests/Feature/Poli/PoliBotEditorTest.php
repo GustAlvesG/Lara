@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Poli;
 
+use App\Authorization\Permissions;
+use App\Authorization\UserAccess;
 use App\Models\BotFlow;
 use App\Models\BotFlowVersion;
 use App\Models\PoliMessage;
@@ -19,8 +21,8 @@ use Tests\TestCase;
  * permissão, controller, layout.
  *
  * O usuário é um mock (o model User está preso à conexão mysql — ver
- * MocksPlacarUser): responde `can`/`canAny` só para a permissão do bot, e o
- * resto do que o layout pergunta sai inofensivo.
+ * MocksPlacarUser): o acesso efetivo tem só a permissão do bot, e o resto
+ * do que o layout pergunta sai inofensivo.
  */
 class PoliBotEditorTest extends TestCase
 {
@@ -55,11 +57,11 @@ class PoliBotEditorTest extends TestCase
     {
         $user = Mockery::mock(User::class)->makePartial();
 
-        $permitido = fn ($habilidade) => $podeEditar && in_array('manage whatsapp bot', (array) $habilidade, true);
-        $user->shouldReceive('can')->andReturnUsing(fn ($habilidade) => $permitido($habilidade));
-        $user->shouldReceive('canAny')->andReturnUsing(fn ($habilidades) => $permitido($habilidades));
-        $user->shouldReceive('hasAnyPermission')->andReturn($podeEditar);
-        $user->shouldReceive('hasRole')->andReturn(false);
+        // O acesso efetivo é o ponto que a rota (`can:bot-whatsapp`) e o menu
+        // consultam, pelo Gate::before — ver User::access().
+        $user->shouldReceive('access')->andReturn(
+            $podeEditar ? new UserAccess([Permissions::BOT_WHATSAPP]) : UserAccess::none()
+        );
         $user->shouldReceive('isCoordinator')->andReturn(false);
         $user->shouldReceive('belongsToSectorNamed')->andReturn(false);
 

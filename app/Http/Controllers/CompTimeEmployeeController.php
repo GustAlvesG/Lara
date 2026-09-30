@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\Auth;
 class CompTimeEmployeeController extends Controller
 {
     // A aba inteira é do RH. O corte está na rota
-    // (`middleware('can:manage-comp-time')`, ver routes/web.php) e não aqui:
+    // (`can:banco-horas.admin`, ver routes/web.php) e não aqui:
     // o Controller base do Laravel 11 não tem mais `$this->middleware()`, e o
     // resto do app já usa `can:` na definição da rota.
 

@@ -63,21 +63,27 @@
                     Viagem aberta há mais de {{ $alertHours }}h aparece destacada. O horário gravado é sempre o do registro.
                 </p>
                 <div class="flex gap-2">
+                    @can(\App\Authorization\Permissions::SIV_VIAGENS)
                     <a href="{{ route('fleet.trips') }}"
                        class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-600 dark:text-gray-300 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         Histórico
                     </a>
+                    @endcan
+                    @can(\App\Authorization\Permissions::SIV_VEICULOS)
                     <a href="{{ route('fleet.vehicles') }}"
                        class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-600 dark:text-gray-300 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                         Veículos
                     </a>
+                    @endcan
                 </div>
             </div>
 
             @if ($vehicles->isEmpty())
                 <div class="p-6 bg-white dark:bg-gray-800 shadow sm:rounded-lg text-sm text-gray-500 dark:text-gray-400">
                     Nenhum veículo ativo cadastrado.
+                    @can(\App\Authorization\Permissions::SIV_VEICULOS)
                     <a href="{{ route('fleet.vehicles.create') }}" class="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline">Cadastrar veículo</a>.
+                    @endcan
                 </div>
             @endif
 

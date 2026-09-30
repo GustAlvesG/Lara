@@ -79,17 +79,47 @@ algoritmo **HS256**.
 | `generate` | `static generate($member)` | Gera um token JWT (validade de fim de dia) para o sócio. | — (uso interno) |
 | `validate` | `validate(Request $request)` | Valida o token atual (passou pelo middleware) e responde sucesso. | `GET /api/verify-token` (`api_token` + `login_token`) |
 
-## 4.4. Papéis e permissões (Spatie)
+## 4.4. Acesso do painel: setores e permissões
 
-A aplicação usa `spatie/laravel-permission`. O model `User` aplica a trait `HasRoles`.
+O acesso do painel é decidido por **setor**, e não mais por papel (role) do
+Spatie. Do pacote `spatie/laravel-permission` o app usa só as tabelas
+(`permissions` e `model_has_permissions`); os traits, o middleware `permission:`
+e o `Gate::before` dele estão desligados (`register_permission_check_method =
+false`). O detalhe de cada tela está em
+[Usuários, setores e permissões](funcionalidades/usuarios-e-permissoes.md).
 
-- **Middleware:** `role`, `permission`, `role_or_permission` (registrados em `bootstrap/app.php`).
-- **Uso em rotas:** ex. `->middleware('permission:manage users')` (gestão de usuários) e
-  `->middleware('permission:search parking')` (busca de estacionamento).
-- **Seeder:** `RolesAndPermissionsSeeder` cria os papéis e permissões iniciais;
-  `SetUserAsRoleUser` associa usuários a papéis.
-- **Gestão:** `UserController` (atribuição de papéis ao salvar usuário) e
-  `PermissionController` (tela de papéis e permissões).
+De onde vem o acesso de uma pessoa (`App\Authorization\AccessResolver`):
+
+1. **Setores de acesso total** (`sectors.full_access`) — Gerência, Diretoria e
+   TI. Todos os membros alcançam todas as permissões do catálogo.
+2. **Permissões do setor** (`sector_permission`) — para todos os membros ou só
+   para os coordenadores (`coordinators_only`).
+3. **Permissões individuais** (`model_has_permissions`) — para o caso nominal.
+
+- **Catálogo:** `App\Authorization\Permissions` é a fonte única dos nomes
+  (`siv.busca`, `reservas.pagamentos`, `freelancers.servicos.gerenciar`…). A
+  migration `sync_access_catalog` espelha o catálogo na tabela `permissions` e
+  cria a matriz inicial de setor → permissão.
+- **Checagem:** sempre `can()` — nas rotas `->middleware('can:' . P::SIV_BUSCA)`,
+  nas views `@can(...)`. Um `Gate::before` no `AppServiceProvider` responde
+  pelos nomes do catálogo a partir de `User::access()`, calculado uma vez por
+  requisição (três consultas) e sem cache entre requisições: tirar alguém do
+  setor corta o acesso no clique seguinte.
+- **Regras de cargo** ficam fora do catálogo e o acesso total não passa por
+  cima delas: `validate-freelancer-contracts` (coordenador do Comercial),
+  `manage-freelancer-director` (coordenador da Gerência), `coordinate-sector`
+  ("Meu setor"), `view-comp-time`, os níveis da ordem de compra e o reabrir mapa
+  de cotação (coordenador da Contabilidade). A `CotacaoMapaPolicy` também:
+  mapa fechado é somente leitura para todo mundo.
+- **Mudanças** de setor e de permissão passam pelo `App\Authorization\AccessManager`,
+  que grava em `access_audit_logs` e recusa duas coisas: esvaziar um setor de
+  acesso total e tirar de si mesmo o acesso às telas de gestão.
+- **Comandos:** `acesso:diferenca` (antes × agora, por pessoa),
+  `acesso:aplicar-de-para` (roles antigas → setores, pelo arquivo
+  `database/data/acesso-de-para.php`) e `acesso:limpar-legado` (apaga as roles e
+  as permissões fora do catálogo).
+- **Seeder de desenvolvimento:** `SectorAccessSeeder` coloca o usuário 1 como
+  coordenador da TI.
 
 ## 4.5. Policies
 

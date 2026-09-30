@@ -1,6 +1,6 @@
 {{--
     Acompanhamento do trâmite — a tela do setor Comercial e de quem responde
-    pelo financeiro dos freelancers (Gate `track-freelancer-batches`). SÓ
+    pelo financeiro dos freelancers (permissão `freelancers.acompanhamento`). SÓ
     LEITURA: aprovar é da Gerência, pagar é do Financeiro, e nenhuma das duas
     ações existe aqui.
 
@@ -13,10 +13,10 @@
 @php
     $user = auth()->user();
 
-    // O Comercial nem sempre tem `manage freelancers`, e a tela do lote ainda
-    // exige ser o coordenador que o montou ou a Gerência. Sem essas duas
+    // Abrir o lote e os contratos pede `freelancers.servicos.gerenciar`, e a
+    // tela do lote ainda exige ser o coordenador que o montou ou a Gerência. Sem essas duas
     // conferências, os links daqui virariam 403 — pior que não ter link.
-    $canOpenServices = $user?->can('manage freelancers') ?? false;
+    $canOpenServices = $user?->can(\App\Authorization\Permissions::FREELANCERS_SERVICOS_GERENCIAR) ?? false;
     // Resolvido uma vez: dentro do laço, cada chamada seria uma consulta a
     // user_sector por lote listado.
     $isManager = $canOpenServices && ($user?->isManagementCoordinator() ?? false);

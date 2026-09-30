@@ -55,7 +55,9 @@
         <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
             <div class="p-6 border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50 flex items-center justify-between">
                 <h2 class="text-lg font-bold text-gray-800 dark:text-white">Serviços / Contratos</h2>
+                @can(\App\Authorization\Permissions::FREELANCERS_SERVICOS_GERENCIAR)
                 <a href="{{ route('freelancer-services.create') }}" class="text-sm font-bold text-red-700 dark:text-red-400 hover:underline">+ Novo serviço</a>
+                @endcan
             </div>
 
             @if($freelancer->freelancerServices->isEmpty())
@@ -72,7 +74,9 @@
                                 <th class="px-6 py-3">Função</th>
                                 <th class="px-6 py-3">Evento/Local</th>
                                 <th class="px-6 py-3">Período</th>
+                                @can(\App\Authorization\Permissions::FREELANCERS_SERVICOS_GERENCIAR)
                                 <th class="px-6 py-3">Preço</th>
+                                @endcan
                                 <th class="px-6 py-3">Contrato</th>
                                 <th class="px-6 py-3 text-right">Ações</th>
                             </tr>
@@ -106,12 +110,17 @@
                                         <span title="Termina no dia seguinte" class="text-amber-500">+1</span>
                                     @endif
                                 </td>
+                                {{-- Valor é de quem gerencia os serviços; o cadastro (Secretaria) não vê. --}}
+                                @can(\App\Authorization\Permissions::FREELANCERS_SERVICOS_GERENCIAR)
                                 <td class="px-6 py-4 text-gray-700 dark:text-gray-300">R$ {{ number_format($service->price, 2, ',', '.') }}</td>
+                                @endcan
                                 <td class="px-6 py-4">
                                     <x-freelancer-signature-badge :service="$service" />
                                 </td>
                                 <td class="px-6 py-4 text-right">
+                                    @can(\App\Authorization\Permissions::FREELANCERS_SERVICOS_GERENCIAR)
                                     <a href="{{ route('freelancer-services.show', $service) }}" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium text-xs">Ver / Editar</a>
+                                    @endcan
                                 </td>
                             </tr>
                             @endforeach

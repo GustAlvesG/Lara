@@ -216,8 +216,10 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-4 text-right space-x-3 whitespace-nowrap">
+                                    @can(\App\Authorization\Permissions::FREELANCERS_SERVICOS_GERENCIAR)
                                     <a href="{{ route('freelancer-services.show', $service) }}" x-show="!compact"
                                        class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium text-xs">Ver</a>
+                                    @endcan
                                     @if($selecionavel)
                                         {{-- A confirmação muda de texto quando o clique move dinheiro:
                                              ela precisa dizer o valor e para quem vai. --}}
