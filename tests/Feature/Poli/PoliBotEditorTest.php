@@ -222,6 +222,24 @@ class PoliBotEditorTest extends TestCase
         $this->assertSame(2, BotFlowVersion::count());
     }
 
+    public function test_posicoes_do_quadro_sao_gravadas_sem_mudar_o_fluxo(): void
+    {
+        $layout = [
+            'nota' => ['x' => 250, 'y' => 40],
+            'obrigado' => ['x' => 630, 'y' => 0],   // 0 é posição, não "vazio"
+            ':inicio' => ['x' => 40, 'y' => 50],
+        ];
+
+        $this->actingAs($this->usuario())
+            ->postJson(route('poli-bot.flows.store'), $this->fluxoValido(['definition' => ['layout' => $layout]]))
+            ->assertOk();
+
+        $fluxo = BotFlow::sole();
+        $this->assertSame($layout, $fluxo->definition['layout']);
+        $this->assertSame([], $fluxo->flow()->errors());
+        $this->assertSame('nota', $fluxo->flow()->entryStep());
+    }
+
     public function test_ativar_fluxo_quebrado_e_recusado(): void
     {
         $fluxo = BotFlow::create(['slug' => 'quebrado', 'name' => 'Quebrado', 'active' => false, 'definition' => ['start' => 'x', 'steps' => []]]);

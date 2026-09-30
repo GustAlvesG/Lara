@@ -63,19 +63,25 @@ Nos dois, as conversas que continuam no bot da Poli passam pela Lara só em somb
 ## Fluxo passo a passo (criar um fluxo)
 
 1. **Bot WhatsApp › Novo fluxo.**
-2. Nome e identificador (o identificador não muda depois: é por ele que outros fluxos o chamam).
+2. Na aba **Fluxo** (painel à direita): nome e identificador (o identificador não muda depois:
+   é por ele que outros fluxos o chamam).
 3. **Quando começa:** em qualquer primeira mensagem (boas-vindas — só um fluxo ativo pode), por
    palavras-chave, ou só quando outro fluxo mandar para ele.
-4. Monte os passos. Para menus da Poli, escolha o template e clique em **Usar as opções deste
-   template** — as opções aceitas vêm dele, e em cada uma se escolhe para onde a conversa vai.
+4. Monte os passos no **quadro**: arraste blocos da paleta (Mensagem, Pergunta, Menu, Template
+   Poli, Passar p/ time, Pedido de carro, Outro fluxo, Encerrar) e ligue-os puxando a bolinha
+   à direita de um bloco até outro. Cada opção de um menu é uma saída própria. Soltar a ligação
+   no vazio cria um bloco já ligado. Clique num bloco para editá-lo na aba **Passo**. Para menus
+   da Poli, escolha o template e clique em **Usar as opções deste template**.
 5. Use **Guardar a resposta como** para reaproveitar respostas nos textos seguintes
    (`{placa}`, `{nome}`; `{contato}` é o primeiro nome do WhatsApp).
 6. Salve **inativo** e teste no **Simulador** (▶ Testar este). O simulador nunca envia nada e
    aceita rascunhos.
 7. Marque **Ativo** e salve.
 
-O **Mapa do fluxo** mostra para onde cada passo leva e marca **sem caminho** o passo que nenhum
-outro alcança. **Versões** guarda cada gravação, com quem salvou; restaurar carrega na tela para
+O próprio quadro é o mapa do fluxo: marca **sem caminho** o passo que nenhum outro alcança, em
+vermelho o passo com problema ao salvar, e em verde o passo em que o **Simulador** está.
+**Organizar** redistribui os blocos em colunas, na ordem da conversa. A posição dos blocos é
+gravada no fluxo (`layout`), mas o bot não a usa. **Versões** guarda cada gravação, com quem salvou; restaurar carrega na tela para
 conferir e salvar.
 
 ## Regras de negócio

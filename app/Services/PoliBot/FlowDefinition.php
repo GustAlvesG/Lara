@@ -34,6 +34,11 @@ namespace App\Services\PoliBot;
  *     }
  *   }
  *
+ * `layout` (opcional) é só da tela: a posição de cada bloco no quadro do
+ * editor, por chave de passo, mais as entradas ":inicio" e ":fora" —
+ * {"menu": {"x": 290, "y": 40}, ":inicio": {"x": 40, "y": 50}}. O motor
+ * não lê, e fluxo sem `layout` é arrumado automaticamente ao abrir.
+ *
  * Passo sem `expect` não espera resposta: diz o que tem a dizer, executa a
  * ação e segue para `next` (ou termina a conversa, se não houver).
  *
