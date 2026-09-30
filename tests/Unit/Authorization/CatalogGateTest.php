@@ -109,6 +109,53 @@ class CatalogGateTest extends TestCase
         $this->assertGreaterThan(100, $checked, 'Quase nenhuma rota com can: — o arquivo de rotas mudou?');
     }
 
+    /**
+     * O mesmo para as checagens dentro do código (`->can()`, `@can`,
+     * `Gate::allows`): todo nome literal é do catálogo, um Gate ou um método
+     * de policy. Um nome antigo do Spatie ('create information') passa
+     * batido pela rota e dá 403 só na hora de salvar.
+     */
+    public function test_toda_checagem_no_codigo_usa_uma_habilidade_que_existe(): void
+    {
+        $policyMethods = [];
+        foreach (glob(app_path('Policies/*.php')) as $file) {
+            $class = 'App\\Policies\\' . basename($file, '.php');
+            foreach ((new \ReflectionClass($class))->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+                $policyMethods[$method->getName()] = true;
+            }
+        }
+
+        $files = [];
+        foreach ([app_path(), resource_path('views'), base_path('routes')] as $dir) {
+            $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS));
+            foreach (new \RegexIterator($iterator, '/\.php$/') as $file) {
+                $files[] = $file;
+            }
+        }
+
+        $checked = 0;
+        foreach ($files as $file) {
+            $source = file_get_contents($file->getPathname());
+            preg_match_all('/(?:->can|->cannot|@can|@cannot|Gate::allows|Gate::denies|->authorize)\(([^,)]*)/', $source, $calls);
+
+            foreach ($calls[1] as $argument) {
+                // `$item['permission']` é índice de array, não nome de habilidade.
+                $argument = preg_replace('/\[[^\]]*\]/', '', $argument);
+                preg_match_all('/[\'"]([^\'"]+)[\'"]/', $argument, $literals);
+
+                foreach ($literals[1] as $ability) {
+                    $checked++;
+                    $this->assertTrue(
+                        Permissions::exists($ability) || Gate::has($ability) || isset($policyMethods[$ability]),
+                        "{$file->getFilename()} checa `{$ability}`, que não é permissão do catálogo, Gate nem método de policy."
+                    );
+                }
+            }
+        }
+
+        $this->assertGreaterThan(20, $checked, 'Quase nenhuma checagem encontrada — a varredura quebrou?');
+    }
+
     /** O que antes era aberto a qualquer login e agora tem porta. */
     public function test_telas_que_eram_abertas_agora_exigem_permissao(): void
     {
