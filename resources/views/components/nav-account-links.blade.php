@@ -14,9 +14,15 @@
 
 <a href="{{ route('profile.edit') }}" class="{{ $itemClasses }}">Perfil</a>
 <a href="{{ route('docs.index') }}" class="{{ $itemClasses }}">Documentação</a>
-@role('admin')
+@can('coordinate-sector')
+<a href="{{ route('my-sector.index') }}" class="{{ $itemClasses }}">Meu setor</a>
+@endcan
+@can(\App\Authorization\Permissions::USUARIOS_GERENCIAR)
 <a href="{{ route('users.index') }}" class="{{ $itemClasses }}">Usuários</a>
-@endrole
+@endcan
+@can(\App\Authorization\Permissions::SETORES_GERENCIAR)
+<a href="{{ route('sectors.index') }}" class="{{ $itemClasses }}">Setores</a>
+@endcan
 
 <button type="button" @click="organizerOpen = true; userOpen = false"
     class="{{ $itemClasses }} flex w-full items-center gap-2 text-left">

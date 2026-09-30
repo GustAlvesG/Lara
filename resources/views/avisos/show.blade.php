@@ -11,12 +11,12 @@
                     {{ $aviso->title }}
                 </h2>
             </div>
-            @can('manage avisos')
+            @auth
                 <a href="{{ route('avisos.edit', $aviso) }}"
                    class="px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">
                     Editar
                 </a>
-            @endcan
+            @endauth
         </div>
     </x-slot>
 
@@ -110,7 +110,7 @@
             </div>
 
             {{-- Histórico de acessos (somente managers/admins) --}}
-            @if($canManage && $viewHistory->isNotEmpty())
+            @if($viewHistory->isNotEmpty())
                 <div class="mt-4 bg-white dark:bg-gray-800 shadow sm:rounded-lg overflow-hidden"
                      x-data="{ open: false }">
                     <button type="button" @click="open = !open"

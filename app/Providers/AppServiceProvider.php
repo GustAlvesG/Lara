@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use App\Authorization\Permissions;
 use App\Models\Information;
 use App\Models\User;
 use Illuminate\Auth\Events\Login;
@@ -45,26 +46,29 @@ class AppServiceProvider extends ServiceProvider
         JsonResource::withoutWrapping();
 
         /**
-         * Financeiro dos freelancers. É um Gate, e não uma permissão do Spatie,
-         * porque a regra é vínculo de setor (Contabilidade ou Gerência) e não
-         * algo que se conceda na tela de permissões — em particular, a role
-         * `admin` não dá acesso. Repare no hífen: as permissões do Spatie neste
-         * app usam espaço (`manage freelancers`), os Gates usam hífen.
+         * Permissões do catálogo (App\Authorization\Permissions): o acesso
+         * efetivo do usuário decide — setor de acesso total, permissão do
+         * setor ou permissão individual. Ver User::access().
+         *
+         * Responde SÓ por nomes do catálogo. Qualquer outra ability — policy,
+         * Gate de cargo — devolve null aqui e segue o caminho normal do
+         * Laravel. É isso que impede o acesso total de passar por cima de
+         * "mapa fechado não se edita" ou de "quem aprova o lote é o
+         * coordenador da Gerência".
          */
-        Gate::define(
-            'manage-freelancer-payments',
-            fn (User $user) => $user->canManageFreelancerPayments(),
-        );
+        Gate::before(function ($user, string $ability) {
+            if (! $user instanceof User || ! Permissions::exists($ability)) {
+                return null;
+            }
 
-        /**
-         * Acompanhamento do trâmite dos freelancers (aba só leitura). Mesmo
-         * raciocínio do Gate acima: vínculo de setor (Comercial, em qualquer
-         * papel), não permissão do Spatie — a role `admin` não dá acesso.
+            return $user->hasAccess($ability);
+        });
+
+        /*
+         * Daqui para baixo, regras de CARGO: dependem de quem a pessoa é no
+         * setor, não de permissão. O acesso total não as alcança, e elas não
+         * aparecem na tela de Setores.
          */
-        Gate::define(
-            'track-freelancer-batches',
-            fn (User $user) => $user->canTrackFreelancerBatches(),
-        );
 
         /**
          * Validação dos contratos da redação 2 pela web — o que substituiu, para
@@ -87,60 +91,19 @@ class AppServiceProvider extends ServiceProvider
         );
 
         /**
-         * Mapa de cotação. Mesmo raciocínio dos dois acima: o acesso ao módulo
-         * é vínculo com o setor **Contabilidade**, não permissão do Spatie — a
-         * role `admin` não dá acesso.
-         *
-         * É a PORTA do módulo, não o que se faz dentro dele: as permissões
-         * `cotacao.*` continuam separando ver, cotar, decidir e exportar. A
-         * policy exige as duas coisas.
-         *
-         * Existe como Gate também por causa do menu: o layout renderiza em toda
-         * tela, e `can()` funciona com o usuário mockado dos testes, enquanto
-         * chamar o método do model direto na view iria ao banco.
+         * "Meu setor": coordenador de ao menos um setor. Ele adiciona e remove
+         * colaboradores e cadastra gente nova, só nos setores que coordena —
+         * ver MySectorController, que confere o setor em cada ação.
          */
         Gate::define(
-            'acessar-cotacao',
-            fn (User $user) => $user->canAccessCotacao(),
+            'coordinate-sector',
+            fn (User $user) => $user->isCoordinator(),
         );
 
         /**
-         * Placar Clube — telas de cadastro (equipes/times/jogadores/
-         * competições/jogos/escalação) e de scout (súmula/artilharia/perfil).
-         * Mesma regra hoje (setor Esporte, qualquer papel — ver
-         * User::canAccessPlacar()), dois Gates porque cadastro escreve e
-         * scout só lê, e podem divergir depois sem precisar tocar em rota.
-         */
-        Gate::define(
-            'manage-placar-cadastro',
-            fn (User $user) => $user->canAccessPlacar(),
-        );
-
-        Gate::define(
-            'view-placar-scout',
-            fn (User $user) => $user->canAccessPlacar(),
-        );
-
-        /**
-         * Banco de Horas em modo administrador — importar o espelho de ponto,
-         * recalcular saldos e mexer no cadastro dos funcionários (férias,
-         * afastamento, rescisão).
-         *
-         * Meio Gate de setor, meio permissão: libera quem está no setor **RH**
-         * (qualquer papel) ou quem tem a permissão `import comp time` — ver
-         * User::canManageCompTime(). O acesso de leitura NÃO passa por aqui:
-         * coordenador enxerga o próprio setor e colaborador enxerga a própria
-         * ficha, e isso é decidido em CompTimeService::accessFor().
-         */
-        Gate::define(
-            'manage-comp-time',
-            fn (User $user) => $user->canManageCompTime(),
-        );
-
-        /**
-         * Tem alguma coisa para ver no Banco de Horas — RH, coordenador de
-         * algum setor, ou qualquer um com matrícula. Só decide se o menu
-         * aparece; o recorte do que a pessoa enxerga é de
+         * Tem alguma coisa para ver no Banco de Horas — administrador do banco
+         * de horas, coordenador de algum setor, ou qualquer um com matrícula.
+         * Só decide se o menu aparece; o recorte do que a pessoa enxerga é de
          * CompTimeService::accessFor().
          *
          * Existe para que a navegação pergunte por Gate e não chame métodos do

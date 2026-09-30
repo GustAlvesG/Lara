@@ -4,11 +4,11 @@
             <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
                 Avisos e Lembretes
             </h2>
-            @can('manage avisos')
+            @auth
                 <x-primary-button-a href="{{ route('avisos.create') }}">
                     + Novo Aviso
                 </x-primary-button-a>
-            @endcan
+            @endauth
         </div>
     </x-slot>
 

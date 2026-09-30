@@ -21,7 +21,7 @@
                 </div>
             </div>
 
-            @can('view payments')
+            @can('reservas.pagamentos')
                 @if($data['schedule']->schedulePayment)
                     <a href="{{ route('payment.show', $data['schedule']->schedulePayment->id) }}"
                        class="flex items-center gap-2 px-5 py-3 bg-white rounded-xl shadow-md text-indigo-600 hover:text-white hover:bg-indigo-600 border border-gray-100 hover:border-indigo-600 transition font-black text-xs uppercase tracking-widest">
@@ -308,7 +308,7 @@
                         @endif
                     @endif
 
-                    @can('edit reservations')
+                    @can('reservas.agendamentos')
                         <!-- Secção: Operação a Realizar -->
                         <div class="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
                             <div class="flex items-center gap-3 mb-6">

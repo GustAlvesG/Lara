@@ -53,12 +53,12 @@ Para o estado completo, rode `php artisan migrate:status`.
 `AccessSeeder`, `CompanyAccessRulesSeeder`, `CompanySeeder`, `CompanyWorkerSeeder`,
 `DataInfoSeeder`, `EmployeeSeeder`, `FreelancerSeeder`, `FreelancerServiceSeeder`,
 `FunctionFreelancerSeeder`, `InformationSeeder`, `MemberSeeder`, `OuterSeeder`,
-`ParkingSeeder`, `PlaceGroupSeeder`, `PlaceSeeder`, `RolesAndPermissionsSeeder`,
-`SchedulePaymentSeeder`, `ScheduleRulesSeeder`, `ScheduleSeeder`, `SetUserAsRoleUser`,
+`ParkingSeeder`, `PlaceGroupSeeder`, `PlaceSeeder`, `SectorAccessSeeder`,
+`SchedulePaymentSeeder`, `ScheduleRulesSeeder`, `ScheduleSeeder`,
 `TimeAdjustmentSeeder`, `TimeEntrySeeder`, `VisitorSeeder`.
 
-> `RolesAndPermissionsSeeder` cria papéis/permissões; `SetUserAsRoleUser` associa
-> usuários a papéis.
+> O catálogo de permissões e a matriz setor → permissão vêm da migration
+> `sync_access_catalog`; `SectorAccessSeeder` só coloca o usuário 1 na TI (desenvolvimento).
 
 ## 12.5. Factories (`database/factories/`)
 

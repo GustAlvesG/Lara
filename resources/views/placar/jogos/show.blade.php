@@ -34,7 +34,7 @@
             <a href="{{ route('placar.jogos.escalacao.edit', $jogo) }}" class="inline-flex items-center px-5 py-2.5 bg-gray-800 text-white rounded-xl font-bold shadow hover:bg-gray-900 transition text-sm">
                 Escalação
             </a>
-            @can('view-placar-scout')
+            @can('placar.scout')
             <a href="{{ route('placar.scout.sumula', $jogo) }}" class="inline-flex items-center px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold shadow hover:bg-indigo-700 transition text-sm">
                 Súmula
             </a>

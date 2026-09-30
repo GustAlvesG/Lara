@@ -1,5 +1,6 @@
 <?php
 
+use App\Authorization\Permissions as P;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ParkingController;
@@ -12,15 +13,14 @@ use App\Http\Controllers\Company\CompanyAccessRulesController as CompanyRulesCon
 use App\Http\Controllers\Company\OneOffAccessController;
 use App\Http\Controllers\Tournament\TournamentController;
 
-use App\Http\Controllers\VideoWallController;
 use App\Http\Controllers\PlaceGroupController;
 use App\Http\Controllers\PlaceController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\SchedulePaymentController;
 use App\Http\Controllers\ScheduleRulesController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\SectorController;
+use App\Http\Controllers\MySectorController;
 use App\Http\Controllers\CompTimeController;
 use App\Http\Controllers\CompTimeEmployeeController;
 use App\Http\Controllers\ParkingAuthorizationController;
@@ -74,8 +74,9 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 
 // Kiosk de assinatura (tablet) — AUTENTICAÇÃO PRÓPRIA, fora da sessão web.
 // Entra-se com matrícula + PIN; a própria sessão de kiosk (operator_id + mode)
-// protege os endpoints. Atendem freelancers os usuários com `manage freelancers`;
-// assinam como contraparte os coordenadores do setor Comercial.
+// protege os endpoints. Atendem freelancers os usuários com a permissão
+// `freelancers.assinatura`; assinam como contraparte os coordenadores do setor
+// Comercial.
 Route::prefix('kiosk')->group(function () {
     Route::get('/', [KioskController::class, 'index'])->name('kiosk.index');
     Route::get('/session', [KioskController::class, 'session'])->name('kiosk.session');
@@ -157,6 +158,19 @@ Route::prefix('kiosk')->group(function () {
         ->middleware('throttle:40,1')->name('kiosk.service.sign-coordinator');
 });
 
+/*
+|--------------------------------------------------------------------------
+| Painel (sessão web)
+|--------------------------------------------------------------------------
+|
+| O acesso é por permissão do catálogo (App\Authorization\Permissions),
+| sempre na ROTA — esconder o item do menu não impede um POST direto. O
+| middleware é `can:<permissão>`: passa pelo Gate::before do
+| AppServiceProvider, que decide pelo setor, pela permissão individual ou
+| pelo acesso total. Rota sem `can:` é aberta a qualquer usuário logado —
+| hoje: dashboard, perfil, documentação, InfoClube (leitura), Avisos,
+| Empresas, Monitor de Acesso, notificações e "Meu setor".
+*/
 Route::middleware('auth')->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -167,55 +181,63 @@ Route::middleware('auth')->group(function () {
     // Diagnóstico das configurações de e-mail, no perfil de quem administra.
     // Só abre conexão com o servidor SMTP: nenhuma mensagem é enviada.
     Route::post('/profile/email-test', [EmailController::class, 'testConfiguration'])
-        ->middleware(['permission:manage users', 'throttle:10,1'])
+        ->middleware(['can:' . P::USUARIOS_GERENCIAR, 'throttle:10,1'])
         ->name('profile.email-test');
 
-    Route::group(['prefix' => 'parking', 
-                'middleware' => 'permission:search parking',
-            ], function () {
+    Route::group(['prefix' => 'parking', 'middleware' => 'can:' . P::SIV_BUSCA], function () {
         Route::get('/search', [ParkingController::class, 'search'])->name('parking.search');
         Route::post('/find', [ParkingController::class, 'show'])->name('parking.show');
     });
 
-    Route::get('/members', [MemberController::class, 'index'])->name('members.index');
-    Route::get('/accesses/{time}', [AccessController::class, 'findAccessByTime'])->name('accesses.findAccessByTime');
-    Route::get('/accesses', [AccessController::class, 'index'])->name('accesses.index');
-    
-    Route::get('/information', [InformationController::class, 'index'])
-        ->middleware('permission:view information')->name('information.index');
-    Route::get('/information/create', [InformationController::class, 'create'])
-        ->middleware('permission:create information')->name('information.create');
-    Route::post('/information', [InformationController::class, 'store'])
-        ->middleware('permission:create information|edit information')->name('information.store');
-    Route::get('/information/{information}', [InformationController::class, 'show'])
-        ->middleware('permission:view information')->name('information.show');
-    Route::get('/information/{information}/edit', [InformationController::class, 'edit'])
-        ->middleware('permission:edit information')->name('information.edit');
-    Route::put('/information/{information}', [InformationController::class, 'update'])
-        ->middleware('permission:edit information')->name('information.update');
-    Route::delete('/information/{information}', [InformationController::class, 'destroy'])
-        ->middleware('permission:delete information')->name('information.destroy');
+    // Consulta de sócios e de acessos: fora do menu e sem tela que as chame.
+    // Fechadas para quem tem acesso total até alguém precisar — aí a
+    // permissão é dada ao setor na tela de Setores.
+    Route::middleware('can:' . P::SOCIOS_CONSULTA)->group(function () {
+        Route::get('/members', [MemberController::class, 'index'])->name('members.index');
+        Route::get('/accesses/{time}', [AccessController::class, 'findAccessByTime'])->name('accesses.findAccessByTime');
+        Route::get('/accesses', [AccessController::class, 'index'])->name('accesses.index');
+        Route::get('/members/{title}', [MemberController::class, 'findMemberByCode'])->name('information.findMemberByCode');
+    });
 
-    Route::get('/information/{id}/history', [InformationController::class, 'history'])
-        ->middleware('permission:view information')->name('information.history');
-    Route::get('/members/{title}', [MemberController::class, 'findMemberByCode'])->name('information.findMemberByCode');
+    // InfoClube: ler é de todo mundo logado; escrever é da permissão.
+    Route::get('/information', [InformationController::class, 'index'])->name('information.index');
+    Route::middleware('can:' . P::INFOCLUBE_EDITAR)->group(function () {
+        Route::get('/information/create', [InformationController::class, 'create'])->name('information.create');
+        Route::post('/information', [InformationController::class, 'store'])->name('information.store');
+        Route::get('/information/{information}/edit', [InformationController::class, 'edit'])->name('information.edit');
+        Route::put('/information/{information}', [InformationController::class, 'update'])->name('information.update');
+        Route::delete('/information/{information}', [InformationController::class, 'destroy'])->name('information.destroy');
+    });
+    Route::get('/information/{information}', [InformationController::class, 'show'])->name('information.show');
+    Route::get('/information/{id}/history', [InformationController::class, 'history'])->name('information.history');
 
+    // Externos. Empresas (com prestadores e regras) e o Monitor de Acesso são
+    // de todo mundo logado; Liberação Pontual, Histórico e Carros de
+    // Aplicativo têm permissão própria.
     Route::group(['prefix' => 'company'], function () {
         Route::get('/', [CompanyController::class, 'index'])->name('company.index');
         Route::get('/create', [CompanyController::class, 'create'])->name('company.create');
         Route::post('/', [CompanyController::class, 'store'])->name('company.store');
         Route::get('/access-monitor', [CompanyRulesController::class, 'monitor'])->name('company.access.monitor');
-        Route::get('/access-logs', [CompanyRulesController::class, 'accessLogs'])->name('company.access.logs');
-        Route::get('/uber-requests', [CompanyRulesController::class, 'uberRequests'])->name('company.uber.requests');
-        Route::get('/uber-accesses', [CompanyRulesController::class, 'uberAccesses'])->name('company.uber.accesses');
-        // Painel da portaria: a fila de pedidos esperando o motorista chegar.
-        Route::get('/uber-waiting', [CompanyRulesController::class, 'uberWaiting'])->name('company.uber.waiting');
+        Route::get('/access-logs', [CompanyRulesController::class, 'accessLogs'])
+            ->middleware('can:' . P::EXTERNOS_HISTORICO)->name('company.access.logs');
+
+        Route::middleware('can:' . P::EXTERNOS_CARROS_APLICATIVO)->group(function () {
+            Route::get('/uber-requests', [CompanyRulesController::class, 'uberRequests'])->name('company.uber.requests');
+            Route::get('/uber-accesses', [CompanyRulesController::class, 'uberAccesses'])->name('company.uber.accesses');
+            // Painel da portaria: a fila de pedidos esperando o motorista
+            // chegar. Fora do menu — abre pela tela de Carros de Aplicativo.
+            Route::get('/uber-waiting', [CompanyRulesController::class, 'uberWaiting'])->name('company.uber.waiting');
+        });
+
         // Liberação pontual — acima do `/{company}`, que engoliria o segmento.
-        // Sem permissão própria: é a mesma régua do cadastro de terceirizado.
-        Route::get('/one-off-accesses', [OneOffAccessController::class, 'index'])->name('company.one-off.index');
-        Route::get('/one-off-accesses/create', [OneOffAccessController::class, 'create'])->name('company.one-off.create');
-        Route::post('/one-off-accesses', [OneOffAccessController::class, 'store'])->name('company.one-off.store');
-        Route::patch('/one-off-accesses/{oneOffAccess}/cancel', [OneOffAccessController::class, 'cancel'])->name('company.one-off.cancel');
+        Route::middleware('can:' . P::EXTERNOS_LIBERACAO_PONTUAL)->group(function () {
+            Route::get('/one-off-accesses', [OneOffAccessController::class, 'index'])->name('company.one-off.index');
+            Route::get('/one-off-accesses/create', [OneOffAccessController::class, 'create'])->name('company.one-off.create');
+            Route::post('/one-off-accesses', [OneOffAccessController::class, 'store'])->name('company.one-off.store');
+            Route::patch('/one-off-accesses/{oneOffAccess}/cancel', [OneOffAccessController::class, 'cancel'])->name('company.one-off.cancel');
+        });
+
         Route::get('/workers/search', [WorkerController::class, 'search'])->name('company.worker.search');
         Route::get('/workers/quick-create', [WorkerController::class, 'quickCreate'])->name('company.worker.quick.create');
         Route::post('/workers/quick-create', [WorkerController::class, 'store'])->name('company.worker.quick.store');
@@ -248,12 +270,8 @@ Route::middleware('auth')->group(function () {
             Route::post('/', [CompanyRulesController::class, 'store'])->name('company.worker.rules.store');
         });
     });
-    
-    
-    Route::get('/videowall', [VideoWallController::class, 'index'])->name('videowall.index');
 
-    // A permissão precisa estar na rota: esconder o menu não impede um POST direto.
-    Route::group(['prefix' => 'home-assistant', 'middleware' => 'permission:manage home assistant'], function () {
+    Route::group(['prefix' => 'home-assistant', 'middleware' => 'can:' . P::HOME_ASSISTANT], function () {
         Route::get('/', [HomeAssistantController::class, 'index'])->name('home-assistant.index');
 
         // Contactors
@@ -279,16 +297,32 @@ Route::middleware('auth')->group(function () {
         Route::delete('/self-service/dates/{date}', [HomeAssistantController::class, 'destroySelfServiceDate'])->name('home-assistant.self-service.dates.destroy');
     });
 
+    // Configuração das reservas: locais, grupos de local e regras. Fora do
+    // menu; o que a tela de agendamento consulta (datas, grupos por
+    // categoria) fica no grupo `schedule` abaixo, com a permissão dela.
+    Route::middleware('can:' . P::RESERVAS_CONFIGURAR)->group(function () {
+        Route::resource('place-group', PlaceGroupController::class);
 
-    Route::resource('place-group', PlaceGroupController::class);
+        Route::group(['prefix' => 'place-group'], function () {
+            Route::get('/{id}/schedule/rule/create', [PlaceGroupController::class, 'createScheduleRule'])->name('place-group.createScheduleRule');
+            Route::post('/schedule/rule', [ScheduleRulesController::class, 'store'])->name('schedule-rules.store');
+            Route::get('/schedule/rule/{id}/edit', [PlaceGroupController::class, 'editScheduleRule'])->name('place-group.editScheduleRule');
+            Route::put('/schedule/rule/{id}', [PlaceGroupController::class, 'updateScheduleRule'])->name('place-group.updateScheduleRule');
+            Route::delete('/schedule/rule/{id}', [PlaceGroupController::class, 'destroyScheduleRule'])->name('place-group.destroyScheduleRule');
 
-    // Route::resource('place', PlaceController::class);
-    Route::group(['prefix' => 'schedule'], function () {
+            Route::get('/{id}/place/create', [PlaceGroupController::class, 'createPlace'])->name('place-group.createPlace');
+            Route::post('/place', [PlaceGroupController::class, 'storePlace'])->name('place-group.storePlace');
+            Route::get('/place/{place_id}/edit', [PlaceGroupController::class, 'editPlace'])->name('place-group.editPlace');
+            Route::put('/place/{place_id}', [PlaceGroupController::class, 'updatePlace'])->name('place-group.updatePlace');
+            Route::delete('/place/{place_id}', [PlaceGroupController::class, 'destroyPlace'])->name('place-group.destroyPlace');
+        });
+    });
+
+    Route::group(['prefix' => 'schedule', 'middleware' => 'can:' . P::RESERVAS_AGENDAMENTOS], function () {
         Route::get('/', [ScheduleController::class, 'index'])->name('schedule.index');
         Route::post('/filter', [ScheduleController::class, 'indexFilter'])->name('schedule.index.filter');
         Route::get('/create', [ScheduleController::class, 'create'])->name('schedule.create');
-        Route::get('/list', [ScheduleController::class, 'list'])
-            ->middleware('permission:view reservations')->name('schedule.list');
+        Route::get('/list', [ScheduleController::class, 'list'])->name('schedule.list');
         Route::get('/group/{category}/', [PlaceGroupController::class, 'indexByCategory'])->name('api.placegroup.indexByCategory');
         Route::get('/getDates/{place_id?}', [ScheduleRulesController::class, 'getScheduledDates'])->name('schedule.getScheduledDates');
         Route::get('/{id}', [ScheduleController::class, 'show'])->name('schedule.show');
@@ -296,61 +330,50 @@ Route::middleware('auth')->group(function () {
         Route::post('/store/web', [ScheduleController::class, 'store'])->name('schedule.store.web');
     });
 
-    // Gestão de pagamentos (visualização + estorno via Rede)
+    // Pagamentos das reservas (visualização + estorno via Rede). No menu é
+    // uma sub-aba de Reservas; a URL continua a mesma.
     Route::group(['prefix' => 'payments'], function () {
-        Route::get('/', [SchedulePaymentController::class, 'index'])
-            ->middleware('permission:view payments')->name('payment.index');
-        Route::get('/{schedulePayment}', [SchedulePaymentController::class, 'show'])
-            ->middleware('permission:view payments')->name('payment.show');
+        Route::middleware('can:' . P::RESERVAS_PAGAMENTOS)->group(function () {
+            Route::get('/', [SchedulePaymentController::class, 'index'])->name('payment.index');
+            Route::get('/{schedulePayment}', [SchedulePaymentController::class, 'show'])->name('payment.show');
+        });
         Route::post('/{schedulePayment}/refund', [SchedulePaymentController::class, 'refund'])
-            ->middleware('permission:manage payments')->name('payment.refund');
-    });
-    
-    Route::group(['prefix' => 'place-group'], function () {
-
-        Route::get('/{id}/schedule/rule/create', [PlaceGroupController::class, 'createScheduleRule'])->name('place-group.createScheduleRule');
-        Route::post('/schedule/rule', [ScheduleRulesController::class, 'store'])->name('schedule-rules.store');
-        Route::get('/schedule/rule/{id}/edit', [PlaceGroupController::class, 'editScheduleRule'])->name('place-group.editScheduleRule');
-        Route::put('/schedule/rule/{id}', [PlaceGroupController::class, 'updateScheduleRule'])->name('place-group.updateScheduleRule');
-        Route::delete('/schedule/rule/{id}', [PlaceGroupController::class, 'destroyScheduleRule'])->name('place-group.destroyScheduleRule');
-
-        Route::get('/{id}/place/create', [PlaceGroupController::class, 'createPlace'])->name('place-group.createPlace');
-        Route::post('/place', [PlaceGroupController::class, 'storePlace'])->name('place-group.storePlace');
-        Route::get('/place/{place_id}/edit', [PlaceGroupController::class, 'editPlace'])->name('place-group.editPlace');
-        Route::put('/place/{place_id}', [PlaceGroupController::class, 'updatePlace'])->name('place-group.updatePlace');
-        Route::delete('/place/{place_id}', [PlaceGroupController::class, 'destroyPlace'])->name('place-group.destroyPlace');
+            ->middleware('can:' . P::RESERVAS_PAGAMENTOS_ESTORNAR)->name('payment.refund');
     });
 
-    
-    Route::group(['middleware' => 'permission:manage users',], function () {
-        Route::group(['prefix' => 'users'], function () {
-            Route::get('/', [UserController::class, 'index'])->name('users.index');
-            Route::get('/create', [UserController::class, 'create'])->name('users.create');
-            Route::post('/', [UserController::class, 'store'])->name('users.store');
-            Route::get('/{id}/edit', [UserController::class, 'edit'])->name('users.edit');
-            Route::put('/{id}', [UserController::class, 'update'])->name('users.update');
-            Route::delete('/{id}', [UserController::class, 'destroy'])->name('users.destroy');
-        });
+    // Gestão de acesso. Usuários e Setores são de quem tem a permissão (na
+    // prática, os setores de acesso total). "Meu setor" é de qualquer
+    // coordenador, e o controller restringe aos setores que ele coordena.
+    Route::group(['prefix' => 'users', 'middleware' => 'can:' . P::USUARIOS_GERENCIAR], function () {
+        Route::get('/', [UserController::class, 'index'])->name('users.index');
+        Route::get('/create', [UserController::class, 'create'])->name('users.create');
+        Route::post('/', [UserController::class, 'store'])->name('users.store');
+        Route::get('/{id}/edit', [UserController::class, 'edit'])->name('users.edit');
+        Route::put('/{id}', [UserController::class, 'update'])->name('users.update');
+        Route::put('/{id}/permissions', [UserController::class, 'updatePermissions'])->name('users.permissions.update');
+        Route::put('/{id}/sectors', [UserController::class, 'updateSectors'])->name('users.sectors.update');
+        Route::delete('/{id}', [UserController::class, 'destroy'])->name('users.destroy');
+    });
 
-        Route::group(['prefix' => 'roles-permission'], function () {
-            Route::get('/', [PermissionController::class, 'index'])->name('roles-permission.index');
-            Route::get('/create', [PermissionController::class, 'create'])->name('roles-permission.create');
-            Route::post('/', [PermissionController::class, 'store'])->name('roles-permission.store');
-            Route::get('/{id}', [PermissionController::class, 'show'])->name('roles-permission.show');
-            Route::put('/{id}', [PermissionController::class, 'update'])->name('roles-permission.update');
-            Route::delete('/{id}', [PermissionController::class, 'destroy'])->name('roles-permission.destroy');
-        });
+    Route::group(['prefix' => 'sectors', 'middleware' => 'can:' . P::SETORES_GERENCIAR], function () {
+        Route::get('/', [SectorController::class, 'index'])->name('sectors.index');
+        Route::get('/create', [SectorController::class, 'create'])->name('sectors.create');
+        Route::get('/audit', [SectorController::class, 'audit'])->name('sectors.audit');
+        Route::post('/', [SectorController::class, 'store'])->name('sectors.store');
+        Route::get('/{id}', [SectorController::class, 'show'])->name('sectors.show');
+        Route::put('/{id}', [SectorController::class, 'update'])->name('sectors.update');
+        Route::put('/{id}/permissions', [SectorController::class, 'updatePermissions'])->name('sectors.permissions.update');
+        Route::delete('/{id}', [SectorController::class, 'destroy'])->name('sectors.destroy');
+        Route::post('/{id}/users', [SectorController::class, 'addUser'])->name('sectors.users.add');
+        Route::delete('/{id}/users/{userId}', [SectorController::class, 'removeUser'])->name('sectors.users.remove');
+    });
 
-        Route::group(['prefix' => 'sectors'], function () {
-            Route::get('/', [SectorController::class, 'index'])->name('sectors.index');
-            Route::get('/create', [SectorController::class, 'create'])->name('sectors.create');
-            Route::post('/', [SectorController::class, 'store'])->name('sectors.store');
-            Route::get('/{id}', [SectorController::class, 'show'])->name('sectors.show');
-            Route::put('/{id}', [SectorController::class, 'update'])->name('sectors.update');
-            Route::delete('/{id}', [SectorController::class, 'destroy'])->name('sectors.destroy');
-            Route::post('/{id}/users', [SectorController::class, 'addUser'])->name('sectors.users.add');
-            Route::delete('/{id}/users/{userId}', [SectorController::class, 'removeUser'])->name('sectors.users.remove');
-        });
+    Route::prefix('meu-setor')->name('my-sector.')->group(function () {
+        Route::get('/', [MySectorController::class, 'index'])->name('index');
+        Route::get('/{sector}', [MySectorController::class, 'show'])->name('show');
+        Route::post('/{sector}/membros', [MySectorController::class, 'addMember'])->middleware('throttle:30,1')->name('members.add');
+        Route::post('/{sector}/usuarios', [MySectorController::class, 'createUser'])->middleware('throttle:10,1')->name('users.store');
+        Route::delete('/{sector}/membros/{user}', [MySectorController::class, 'removeMember'])->name('members.remove');
     });
 
     // Banco de Horas. A leitura é aberta a qualquer autenticado e o recorte é
@@ -365,9 +388,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/write-off', [CompTimeController::class, 'writeOff'])->name('comp-time.write-off');
         Route::post('/undo-write-off', [CompTimeController::class, 'undoWriteOff'])->name('comp-time.undo-write-off');
 
-        // Importação e cadastro são do RH — setor RH ou permissão
-        // `import comp time`, ver o Gate em AppServiceProvider.
-        Route::group(['middleware' => 'can:manage-comp-time'], function () {
+        // Importação e cadastro: permissão `banco-horas.admin` (setor RH na
+        // matriz inicial, ou individual).
+        Route::group(['middleware' => 'can:' . P::BANCO_HORAS_ADMIN], function () {
             Route::post('/upload', [CompTimeController::class, 'store'])->name('comp-time.store');
             Route::post('/recalculate', [CompTimeController::class, 'recalculateBalances'])->name('comp-time.recalculate');
             Route::get('/import-status/{uuid}', [CompTimeController::class, 'importStatus'])->name('comp-time.import-status');
@@ -387,26 +410,38 @@ Route::middleware('auth')->group(function () {
 
     // Frota: painel de saída/retorno, histórico de quilometragem e cadastro
     // dos veículos. O registro daqui usa o mesmo serviço da API da portaria.
-    Route::group(['prefix' => 'fleet', 'middleware' => 'permission:manage fleet'], function () {
-        Route::get('/', [FleetController::class, 'index'])->name('fleet.index');
-        Route::post('/departure', [FleetController::class, 'storeDeparture'])->name('fleet.departure');
-        Route::post('/return', [FleetController::class, 'storeReturn'])->name('fleet.return');
-        Route::get('/trips', [FleetController::class, 'trips'])->name('fleet.trips');
-        Route::post('/trips/{trip}/cancel', [FleetController::class, 'cancelTrip'])->name('fleet.trips.cancel');
+    // Uma permissão por tela: hoje os três vão juntos para os mesmos setores,
+    // mas podem se separar na tela de Setores sem mexer em rota.
+    Route::group(['prefix' => 'fleet'], function () {
+        Route::middleware('can:' . P::SIV_FROTA)->group(function () {
+            Route::get('/', [FleetController::class, 'index'])->name('fleet.index');
+            Route::post('/departure', [FleetController::class, 'storeDeparture'])->name('fleet.departure');
+            Route::post('/return', [FleetController::class, 'storeReturn'])->name('fleet.return');
+        });
 
-        Route::get('/vehicles', [FleetController::class, 'vehicles'])->name('fleet.vehicles');
-        Route::get('/vehicles/create', [FleetController::class, 'createVehicle'])->name('fleet.vehicles.create');
-        Route::post('/vehicles', [FleetController::class, 'storeVehicle'])->name('fleet.vehicles.store');
-        Route::get('/vehicles/{vehicle}/edit', [FleetController::class, 'editVehicle'])->name('fleet.vehicles.edit');
-        Route::put('/vehicles/{vehicle}', [FleetController::class, 'updateVehicle'])->name('fleet.vehicles.update');
-        Route::delete('/vehicles/{vehicle}', [FleetController::class, 'destroyVehicle'])->name('fleet.vehicles.destroy');
+        Route::middleware('can:' . P::SIV_VIAGENS)->group(function () {
+            Route::get('/trips', [FleetController::class, 'trips'])->name('fleet.trips');
+            Route::post('/trips/{trip}/cancel', [FleetController::class, 'cancelTrip'])->name('fleet.trips.cancel');
+        });
+
+        Route::middleware('can:' . P::SIV_VEICULOS)->group(function () {
+            Route::get('/vehicles', [FleetController::class, 'vehicles'])->name('fleet.vehicles');
+            Route::get('/vehicles/create', [FleetController::class, 'createVehicle'])->name('fleet.vehicles.create');
+            Route::post('/vehicles', [FleetController::class, 'storeVehicle'])->name('fleet.vehicles.store');
+            Route::get('/vehicles/{vehicle}/edit', [FleetController::class, 'editVehicle'])->name('fleet.vehicles.edit');
+            Route::put('/vehicles/{vehicle}', [FleetController::class, 'updateVehicle'])->name('fleet.vehicles.update');
+            Route::delete('/vehicles/{vehicle}', [FleetController::class, 'destroyVehicle'])->name('fleet.vehicles.destroy');
+        });
     });
 
-    Route::resource('parking-authorizations', ParkingAuthorizationController::class);
+    Route::resource('parking-authorizations', ParkingAuthorizationController::class)
+        ->middleware('can:' . P::SIV_PLACAS_DIRETORIA);
 
-    Route::resource('tournaments', TournamentController::class);
+    // Torneios e categorias: fora do menu, fechados para o acesso total até
+    // alguém precisar.
+    Route::resource('tournaments', TournamentController::class)->middleware('can:' . P::TORNEIOS);
 
-    Route::prefix('categories')->name('categories.')->controller(TournamentController::class)->group(function () {
+    Route::prefix('categories')->name('categories.')->middleware('can:' . P::TORNEIOS)->controller(TournamentController::class)->group(function () {
         Route::get('/', 'indexCategories')->name('index');
         Route::get('/create', 'createCategory')->name('create');
         Route::post('/', 'storeCategory')->name('store');
@@ -423,10 +458,12 @@ Route::middleware('auth')->group(function () {
     // Avisos e Lembretes
     Route::resource('avisos', AvisoController::class);
 
-    // Financeiro dos freelancers — regra própria (Gate de setor, não permissão
-    // do Spatie: ver AppServiceProvider), e declarado antes do grupo abaixo para
-    // /freelancer-services/financeiro não cair na rota /{freelancerService}.
-    Route::group(['middleware' => 'can:manage-freelancer-payments'], function () {
+    // Freelancers. Cada tela tem a sua permissão, e a ordem importa: as rotas
+    // de nome fixo (financeiro, acompanhamento, lotes, validação, diretoria)
+    // vêm antes de /freelancer-services/{freelancerService}, que as engoliria.
+
+    // Financeiro dos freelancers.
+    Route::group(['middleware' => 'can:' . P::FREELANCERS_FINANCEIRO], function () {
         Route::prefix('freelancer-services')->group(function () {
             // O lote é a unidade de trabalho do financeiro: a lista abre por
             // lote e o pagamento acontece dentro de um deles. As telas
@@ -443,19 +480,18 @@ Route::middleware('auth')->group(function () {
         });
     });
 
-    // Acompanhamento do trâmite — tela de leitura do setor Comercial. Gate
-    // próprio (vínculo de setor, não permissão) e fora do grupo abaixo: quem
-    // acompanha nem sempre tem `manage freelancers`. Declarado antes dele pelo
-    // mesmo motivo do financeiro — /freelancer-services/acompanhamento não pode
-    // cair na rota /{freelancerService}.
-    Route::group(['middleware' => 'can:track-freelancer-batches'], function () {
+    // Acompanhamento do trâmite — tela de leitura.
+    Route::group(['middleware' => 'can:' . P::FREELANCERS_ACOMPANHAMENTO], function () {
         Route::get('/freelancer-services/acompanhamento', [FreelancerTrackingController::class, 'index'])
             ->name('freelancer-services.tracking');
     });
 
-    // Freelancers: cadastro de freelancers, funções e serviços/contratos
-    Route::group(['middleware' => 'permission:manage freelancers'], function () {
-        Route::prefix('freelancers')->group(function () {
+    // Lista de serviços — a única tela do módulo de contratos que a
+    // Secretaria alcança: sem valores, sem documento, sem ação.
+    Route::get('/freelancer-services', [FreelancerServiceWebController::class, 'index'])
+        ->middleware('can:' . P::FREELANCERS_SERVICOS_LISTAR)->name('freelancer-services.index');
+
+    Route::prefix('freelancers')->middleware('can:' . P::FREELANCERS_CADASTRO)->group(function () {
             Route::get('/', [FreelancerWebController::class, 'index'])->name('freelancers.index');
             Route::get('/create', [FreelancerWebController::class, 'create'])->name('freelancers.create');
             Route::post('/', [FreelancerWebController::class, 'store'])->name('freelancers.store');
@@ -465,17 +501,22 @@ Route::middleware('auth')->group(function () {
             Route::get('/{freelancer}', [FreelancerWebController::class, 'show'])->name('freelancers.show');
             Route::put('/{freelancer}', [FreelancerWebController::class, 'update'])->name('freelancers.update');
             Route::delete('/{freelancer}', [FreelancerWebController::class, 'destroy'])->name('freelancers.destroy');
-        });
+    });
 
-        Route::prefix('freelancer-functions')->group(function () {
-            Route::get('/', [FreelancerFunctionController::class, 'index'])->name('freelancer-functions.index');
-            Route::get('/create', [FreelancerFunctionController::class, 'create'])->name('freelancer-functions.create');
-            Route::post('/', [FreelancerFunctionController::class, 'store'])->name('freelancer-functions.store');
-            Route::get('/{freelancerFunction}', [FreelancerFunctionController::class, 'show'])->name('freelancer-functions.show');
-            Route::put('/{freelancerFunction}', [FreelancerFunctionController::class, 'update'])->name('freelancer-functions.update');
-            Route::delete('/{freelancerFunction}', [FreelancerFunctionController::class, 'destroy'])->name('freelancer-functions.destroy');
-        });
+    Route::prefix('freelancer-functions')->middleware('can:' . P::FREELANCERS_FUNCOES)->group(function () {
+        Route::get('/', [FreelancerFunctionController::class, 'index'])->name('freelancer-functions.index');
+        Route::get('/create', [FreelancerFunctionController::class, 'create'])->name('freelancer-functions.create');
+        Route::post('/', [FreelancerFunctionController::class, 'store'])->name('freelancer-functions.store');
+        Route::get('/{freelancerFunction}', [FreelancerFunctionController::class, 'show'])->name('freelancer-functions.show');
+        Route::put('/{freelancerFunction}', [FreelancerFunctionController::class, 'update'])->name('freelancer-functions.update');
+        Route::delete('/{freelancerFunction}', [FreelancerFunctionController::class, 'destroy'])->name('freelancer-functions.destroy');
+    });
 
+    // Serviços / contratos: todo o resto do módulo — valores, documento,
+    // assinatura, registro, lotes, validação e diretoria. Validação,
+    // aprovação e diretoria ainda exigem o CARGO (Gates de coordenador e
+    // checagens no controller), além desta permissão.
+    Route::middleware('can:' . P::FREELANCERS_SERVICOS_GERENCIAR)->group(function () {
         // Lotes de aprovação — declarados antes de /freelancer-services/{freelancerService}
         // para "lotes" não ser capturado como id de contrato.
         Route::prefix('freelancer-services/lotes')->group(function () {
@@ -525,7 +566,6 @@ Route::middleware('auth')->group(function () {
             });
 
         Route::prefix('freelancer-services')->group(function () {
-            Route::get('/', [FreelancerServiceWebController::class, 'index'])->name('freelancer-services.index');
             Route::get('/create', [FreelancerServiceWebController::class, 'create'])->name('freelancer-services.create');
             // Registro em massa pelo painel (várias linhas, sem planilha) —
             // antes de /{freelancerService} para não cair na rota do serviço.
@@ -554,7 +594,7 @@ Route::middleware('auth')->group(function () {
     });
 
     // Carteirinhas (emissão via webcam/impressão em cartão PVC + gestão de modelos)
-    Route::group(['middleware' => 'permission:manage id cards'], function () {
+    Route::group(['middleware' => 'can:' . P::CARTEIRINHAS], function () {
         Route::get('/id-cards', [CardIssuerController::class, 'create'])->name('id-cards.issue');
 
         Route::prefix('card-templates')->group(function () {
@@ -570,7 +610,7 @@ Route::middleware('auth')->group(function () {
     // Lara — chat interno com o agente de IA do estatuto.
     // O throttle é baixo de propósito: cada pergunta pode segurar um worker do
     // PHP-FPM por até 30s enquanto o modelo (que roda em CPU) responde.
-    Route::prefix('lara')->middleware('permission:use lara chat')->group(function () {
+    Route::prefix('lara')->middleware('can:' . P::LARA)->group(function () {
         Route::get('/', [LaraChatController::class, 'index'])->name('lara.index');
         Route::post('/perguntar', [LaraChatController::class, 'ask'])
             ->middleware('throttle:15,1')->name('lara.ask');
@@ -585,7 +625,7 @@ Route::middleware('auth')->group(function () {
     // não muda a URL nem quebra link salvo.
     // Throttle baixo: cada requisição escreve num ERP externo, e um duplo
     // clique repetido não é um caso que se queira exercitar contra o Questor.
-    Route::prefix('questor/ordens-compra')->middleware('permission:authorize purchase orders')->group(function () {
+    Route::prefix('questor/ordens-compra')->middleware('can:' . P::COMPRAS)->group(function () {
         Route::get('/', [QuestorPurchaseOrderController::class, 'index'])->name('questor.purchase-orders.index');
         Route::get('/{ordem}', [QuestorPurchaseOrderController::class, 'show'])
             ->where('ordem', '[0-9]+')->name('questor.purchase-orders.show');
@@ -599,7 +639,7 @@ Route::middleware('auth')->group(function () {
     // Relação centro de custo → diretores: define quem vem SUGERIDO no último
     // nível da aprovação. Mesma permissão da fila — quem edita aqui muda quem
     // costuma decidir o quê.
-    Route::prefix('questor/centros-custo')->middleware('permission:authorize purchase orders')->group(function () {
+    Route::prefix('questor/centros-custo')->middleware('can:' . P::COMPRAS)->group(function () {
         Route::get('/', [QuestorCostCenterController::class, 'index'])->name('questor.cost-centers.index');
         Route::put('/{centroCusto}', [QuestorCostCenterController::class, 'update'])
             ->where('centroCusto', '[0-9]+')->name('questor.cost-centers.update');
@@ -614,15 +654,15 @@ Route::middleware('auth')->group(function () {
     | NADA é gravado no Questor, nem com `dry_run` desligado. A solicitação e o
     | histórico de compras são lidos; a cotação inteira vive no banco da Lara.
     |
-    | O controle de acesso é por policy (App\Policies\CotacaoMapaPolicy), não
-    | por middleware de permissão: as ações têm permissões diferentes
-    | (visualizar, criar, editar preços, definir vencedor, exportar) e o estado
-    | do mapa — fechado é somente leitura — entra na decisão junto.
+    | A porta é a permissão `compras`, na rota. O que se faz lá dentro é da
+    | policy (App\Policies\CotacaoMapaPolicy): o estado do mapa — fechado é
+    | somente leitura — e o cargo (reabrir é do coordenador da Contabilidade)
+    | entram na decisão, e o acesso total não passa por cima deles.
     |
     | As rotas fixas vêm ANTES de `/{mapa}`: sem isso, "previa" seria lido como
     | um id de mapa.
     */
-    Route::prefix('cotacao/mapas')->name('cotacao.mapas.')->group(function () {
+    Route::prefix('cotacao/mapas')->name('cotacao.mapas.')->middleware('can:' . P::COMPRAS)->group(function () {
         Route::get('/', [CotacaoMapaController::class, 'index'])->name('index');
 
         // Consulta o ERP a cada carregamento; o throttle protege o Questor de
@@ -683,7 +723,7 @@ Route::middleware('auth')->group(function () {
     | Salvar um fluxo ativo é publicar: vale na próxima mensagem. O
     | simulador nunca envia nada (App\Services\PoliBot\BotSimulator).
     */
-    Route::prefix('bot-whatsapp')->name('poli-bot.')->middleware('permission:manage whatsapp bot')->group(function () {
+    Route::prefix('bot-whatsapp')->name('poli-bot.')->middleware('can:' . P::BOT_WHATSAPP)->group(function () {
         Route::get('/', [PoliBotFlowController::class, 'index'])->name('index');
         Route::get('/fluxos/novo', [PoliBotFlowController::class, 'create'])->name('flows.create');
         Route::post('/fluxos', [PoliBotFlowController::class, 'store'])->name('flows.store');
@@ -709,14 +749,12 @@ Route::middleware('auth')->group(function () {
     | Placar Clube — telas de cadastro e de scout
     |----------------------------------------------------------------------
     |
-    | Gate de setor (Esporte, qualquer papel — ver User::canAccessPlacar()),
-    | não permissão do Spatie, pelo mesmo motivo do financeiro/acompanhamento
-    | de freelancers acima: é atribuição de setor, não nível de acesso.
-    | Cadastro e scout são Gates separados hoje com a mesma regra — podem
-    | divergir depois sem tocar em rota nenhuma.
+    | Permissões `placar.cadastro` e `placar.scout` (setor Esporte na matriz
+    | inicial). Duas porque cadastro escreve e scout só lê — podem ir para
+    | setores diferentes na tela de Setores sem tocar em rota nenhuma.
     */
     Route::prefix('placar')->name('placar.')->group(function () {
-        Route::group(['middleware' => 'can:manage-placar-cadastro'], function () {
+        Route::group(['middleware' => 'can:' . P::PLACAR_CADASTRO], function () {
             Route::resource('equipes', PlacarEquipeWebController::class)->except(['edit']);
             Route::post('equipes/{equipe}/logo', [PlacarEquipeWebController::class, 'storeLogo'])->name('equipes.logo.store');
             Route::delete('equipes/{equipe}/logo', [PlacarEquipeWebController::class, 'destroyLogo'])->name('equipes.logo.destroy');
@@ -756,7 +794,7 @@ Route::middleware('auth')->group(function () {
             Route::resource('jogos', PlacarJogoWebController::class)->except(['edit']);
         });
 
-        Route::group(['middleware' => 'can:view-placar-scout'], function () {
+        Route::group(['middleware' => 'can:' . P::PLACAR_SCOUT], function () {
             Route::get('scout/jogos', [PlacarScoutWebController::class, 'jogos'])->name('scout.jogos');
             Route::get('scout/jogos/{jogo}/sumula', [PlacarScoutWebController::class, 'sumula'])->name('scout.sumula');
             Route::get('scout/jogos/{jogo}/sumula/impressao', [PlacarScoutWebController::class, 'sumulaPrint'])->name('scout.sumula.print');

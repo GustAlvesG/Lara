@@ -49,7 +49,7 @@ class DashboardController extends Controller
         $dayLabels = $days->map(fn ($d) => $d->format('d/m'));
 
         // SIV / Estacionamento ------------------------------------------------
-        if ($user->can('search parking')) {
+        if ($user->can('siv.busca')) {
             $parkingByDay = Parking::selectRaw('DATE(entry_date) as day, COUNT(*) as total')
                 ->where('entry_date', '>=', Carbon::today()->subDays(13)->startOfDay())
                 ->groupBy('day')
@@ -74,7 +74,7 @@ class DashboardController extends Controller
         }
 
         // Reservas ------------------------------------------------------------
-        if ($user->can('view reservations')) {
+        if ($user->can('reservas.agendamentos')) {
             $statusNames = Status::pluck('portuguese', 'id');
 
             $byStatus = Schedule::whereDate('start_schedule', Carbon::today())
@@ -121,28 +121,26 @@ class DashboardController extends Controller
             ],
         ];
 
-        // InfoClube -----------------------------------------------------------
-        if ($user->can('view information')) {
-            // Cada informação tem várias versões em data_infos (mesma information_id).
-            // Só a última versão de cada informação (com Information não deletada) conta.
-            $latestInfos = DataInfo::whereHas('information', fn ($q) => $q->whereNull('deleted_at'))
-                ->get()
-                ->groupBy('information_id')
-                ->map->sortByDesc('created_at')
-                ->map->first();
+        // InfoClube (de todo mundo logado) -----------------------------------
+        // Cada informação tem várias versões em data_infos (mesma information_id).
+        // Só a última versão de cada informação (com Information não deletada) conta.
+        $latestInfos = DataInfo::whereHas('information', fn ($q) => $q->whereNull('deleted_at'))
+            ->get()
+            ->groupBy('information_id')
+            ->map->sortByDesc('created_at')
+            ->map->first();
 
-            $data['info'] = [
-                'total' => $latestInfos->count(),
-                'categories' => $latestInfos->filter(fn ($i) => filled($i->category))
-                    ->groupBy('category')
-                    ->map->count()
-                    ->sortDesc()
-                    ->take(5),
-            ];
-        }
+        $data['info'] = [
+            'total' => $latestInfos->count(),
+            'categories' => $latestInfos->filter(fn ($i) => filled($i->category))
+                ->groupBy('category')
+                ->map->count()
+                ->sortDesc()
+                ->take(5),
+        ];
 
         // Home Assistant (interruptores / contatores) -------------------------
-        if ($user->can('manage home assistant')) {
+        if ($user->can('home-assistant')) {
             $resolver = new ContactorStateResolver();
             $contactors = $resolver->contactors();
 

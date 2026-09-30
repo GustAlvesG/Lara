@@ -28,12 +28,13 @@ class FreelancerFlowDemoSeeder extends Seeder
 
         $coordinator = User::all()->first(fn(User $u) => $u->isCoordinatorOfSectorNamed('Comercial'))
             ?? User::all()->first(fn(User $u) => $u->isCoordinator());
-        $manager = User::role('admin')->first();
+        // Quem aprova o lote: o coordenador da Gerência (cargo, não permissão).
+        $manager = User::all()->first(fn(User $u) => $u->isManagementCoordinator());
         $freelancers = Freelancer::orderBy('id')->get();
         $functions = FunctionFreelancer::where('price', '<', 10)->orderBy('name')->get();
 
         if ($freelancers->isEmpty() || $functions->isEmpty() || !$coordinator || !$manager) {
-            $this->command->error('Faltam freelancers, funções, coordenador ou gerente (role admin). Nada foi criado.');
+            $this->command->error('Faltam freelancers, funções, coordenador ou coordenador da Gerência. Nada foi criado.');
 
             return;
         }

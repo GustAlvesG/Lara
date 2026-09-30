@@ -132,7 +132,7 @@
                         </div>
 
                         <!-- Estorno -->
-                        @can('manage payments')
+                        @can('reservas.pagamentos.estornar')
                             @if($remaining > 0 && $schedulePayment->payment_integration_id)
                                 <form method="POST" action="{{ route('payment.refund', $schedulePayment->id) }}"
                                       class="pt-4 border-t border-gray-100 space-y-3"
@@ -185,8 +185,11 @@
                                     10 => ['bg' => 'bg-gray-200 text-gray-600', 'text' => 'Antiga'],
                                     default => ['bg' => 'bg-gray-100 text-gray-500', 'text' => '?'],
                                 };
+                                // Quem vê o pagamento sem ter a agenda (o Financeiro) vê o
+                                // cartão da reserva, mas sem o link para ela.
+                                $scheduleTag = auth()->user()->can(\App\Authorization\Permissions::RESERVAS_AGENDAMENTOS) ? 'a' : 'div';
                             @endphp
-                            <a href="{{ route('schedule.show', $schedule->id) }}"
+                            <{{ $scheduleTag }} @if($scheduleTag === 'a') href="{{ route('schedule.show', $schedule->id) }}" @endif
                                class="block relative flex items-center p-4 border-2 border-gray-100 rounded-2xl hover:border-indigo-200 hover:bg-indigo-50/40 transition">
                                 <div class="flex-grow">
                                     <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
@@ -210,7 +213,7 @@
                                         <p class="text-[10px] text-gray-400 mt-1 italic max-w-[180px]">"{{ $schedule->cancel_reason }}"</p>
                                     @endif
                                 </div>
-                            </a>
+                            </{{ $scheduleTag }}>
                         @empty
                             <p class="text-sm text-gray-400 italic text-center py-8">Nenhum agendamento vinculado a este pagamento.</p>
                         @endforelse

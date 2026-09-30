@@ -57,7 +57,7 @@ deletes, scopes globais, etc.).
 - **Relacionamentos:** nenhum definido (dados de sócio vêm também da base externa).
 
 ### User
-- **Tabela:** `users` · **SoftDeletes** · `Authenticatable`, `Notifiable`, `HasRoles` (Spatie)
+- **Tabela:** `users` · **SoftDeletes** · `Authenticatable`, `Notifiable` · acesso por setor: `access()`, `hasAccess()`, `hasFullAccess()`, `directPermissions()` (ver [Usuários, setores e permissões](funcionalidades/usuarios-e-permissoes.md))
 - **`$fillable`:** `name`, `email`, `password`, `cpf`, `matricula`, `last_login_at`, `status_id`
 - **`$casts`:** `email_verified_at`→`datetime`, `password`→`hashed`, `last_login_at`→`datetime`
 - **Relacionamentos:** `data_info()` hasMany DataInfo (`created_by`) · `information()` hasMany Information (`created_by`) · `status()` belongsTo Status · `schedulesCreated()` hasMany Schedule (`created_by_user`) · `schedulesUpdated()` hasMany Schedule (`updated_by_user`)

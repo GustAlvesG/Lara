@@ -31,7 +31,7 @@
                     @endif
                 </form>
 
-                @can('create information')
+                @can('infoclube.editar')
                     <x-primary-button-a href="{{ route('information.create') }}" class="shrink-0">
                         Nova Informação
                     </x-primary-button-a>
@@ -59,7 +59,7 @@
                         </div>
                     @else
                         <p class="text-gray-600 dark:text-gray-300">Nenhuma informação cadastrada ainda.</p>
-                        @can('create information')
+                        @can('infoclube.editar')
                             <div class="mt-4">
                                 <x-primary-button-a href="{{ route('information.create') }}">
                                     Criar a primeira

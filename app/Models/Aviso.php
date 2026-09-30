@@ -118,7 +118,8 @@ class Aviso extends Model
 
     public function scopeVisibleTo($query, User $user)
     {
-        if ($user->hasRole('admin')) {
+        // Acesso total (Gerência, Diretoria, TI) enxerga todos os avisos.
+        if ($user->hasFullAccess()) {
             return $query;
         }
 

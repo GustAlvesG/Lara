@@ -28,240 +28,157 @@
     <body class="font-sans antialiased">
         @php
             /*
-             | Menu "Compras" (Questor). Montado antes do $navLinks porque as
-             | duas metades têm donos diferentes:
+             | Menu do painel.
              |
-             |   Ordens de Compra / Centros de Custo -> permissão `authorize purchase orders`
-             |   Mapas de Cotação                    -> vínculo com o setor Contabilidade
-             |
-             | Os partials do menu só sabem filtrar pela permissão do item PAI,
-             | então a filtragem por filho acontece aqui — e o pai só existe se
-             | sobrar algum filho. É o mesmo arranjo do menu Freelancers, logo
-             | abaixo.
+             | Cada destino declara a permissão do catálogo que a ROTA dele
+             | exige (App\Authorization\Permissions) — a mesma, sempre, senão o
+             | item vira um link para um 403. Sem `permission` = todo mundo
+             | logado. Um grupo some inteiro quando não sobra filho nenhum, e o
+             | link do grupo é o primeiro filho que sobrou.
              |
              | `can()` e não o método do model: o layout renderiza em toda tela,
              | e uma consulta ao banco daqui quebraria as telas cujos testes
-             | montam o usuário na mão.
+             | montam o usuário na mão. O acesso é calculado uma vez por
+             | requisição (User::access()), então as dezenas de `can()` abaixo
+             | custam uma consulta só.
              */
-            $canAuthorizeOrders = auth()->user()?->can('authorize purchase orders');
-            // Só o setor: estar na Contabilidade, em qualquer papel, já mostra a
-            // aba. Sem permissão do Spatie no caminho — ver CotacaoMapaPolicy.
-            $canCotacao = auth()->user()?->can('acessar-cotacao');
-
-            $comprasChildren = [];
-
-            if ($canAuthorizeOrders) {
-                // `active` com curinga porque o detalhe da ordem é outra rota:
-                // sem ele, abrir uma ordem apagaria o destaque.
-                #$comprasChildren[] = ['route' => 'questor.purchase-orders.index', 'label' => 'Ordens de Compra', 'active' => 'questor.purchase-orders.*'];
-                #$comprasChildren[] = ['route' => 'questor.cost-centers.index', 'label' => 'Centros de Custo'];
-            }
-
-            if ($canCotacao) {
-                $comprasChildren[] = ['route' => 'cotacao.mapas.index', 'label' => 'Mapas de Cotação', 'active' => 'cotacao.mapas.index'];
-                $comprasChildren[] = ['route' => 'cotacao.mapas.previa', 'label' => 'Nova Cotação (buscar SC)', 'active' => 'cotacao.mapas.previa'];
-            }
-
-            // SIV reúne o que é de portaria e veículo: consulta de placas,
-            // placas da diretoria e a quilometragem da frota. Os itens são
-            // montados por permissão porque o menu só checa permissão no nível
-            // de cima — mesmo padrão de Freelancers e Placar mais abaixo.
-            $sivChildren = [];
-
-            if (auth()->user()?->can('search parking')) {
-                $sivChildren[] = ['route' => 'parking.search', 'label' => 'Busca'];
-                $sivChildren[] = ['route' => 'parking-authorizations.index', 'label' => 'Placas Diretoria'];
-            }
-
-            if (auth()->user()?->can('manage fleet')) {
-                $sivChildren[] = ['route' => 'fleet.index', 'label' => 'Frota'];
-                $sivChildren[] = ['route' => 'fleet.trips', 'label' => 'Viagens'];
-                $sivChildren[] = ['route' => 'fleet.vehicles', 'label' => 'Veículos'];
-            }
+            $P = \App\Authorization\Permissions::class;
 
             $navLinks = [
                 ['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6'],
-                ['route' => 'information.index', 'label' => 'InfoClube', 'icon' => 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-                    'permission' => 'view information',
+                ['label' => 'InfoClube', 'icon' => 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
                     'children' => [
                         ['route' => 'information.index', 'label' => 'Informações'],
                         ['route' => 'avisos.index', 'label' => 'Avisos'],
                     ],
                 ],
-                // Some inteiro quando a pessoa não tem nem placas nem frota.
-                ...($sivChildren === [] ? [] : [[
-                    'route' => $sivChildren[0]['route'],
-                    'label' => 'SIV',
-                    'icon' => 'M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.294 6.336a6.721 6.721 0 0 1-3.17.789 6.721 6.721 0 0 1-3.168-.789 3.376 3.376 0 0 1 6.338 0Z',
-                    'children' => $sivChildren,
-                ]]),
-                ['route' => 'videowall.index', 'label' => 'Smart Panel', 'icon' => 'M9.75 17L9 20l-1-1v-4h-2l-1 1 7-7 7 7-1 1h-2v-4l-1 1h-2v4z',
-                    'permission' => 'manage smart panel',
-                ],
-                ['route' => 'home-assistant.index', 'label' => 'Home Assistant', 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
-                    'permission' => 'manage home assistant',
-                ],
-                ['route' => 'schedule.index', 'label' => 'Reservas', 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
-                    'permission' => 'view reservations',
+                ['label' => 'SIV', 'icon' => 'M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.294 6.336a6.721 6.721 0 0 1-3.17.789 6.721 6.721 0 0 1-3.168-.789 3.376 3.376 0 0 1 6.338 0Z',
                     'children' => [
-                        ['route' => 'schedule.index', 'label' => 'Novo Agendamento'],
-                        ['route' => 'schedule.list', 'label' => 'Todos os Agendamentos'],
+                        ['route' => 'parking.search', 'label' => 'Busca', 'permission' => $P::SIV_BUSCA],
+                        ['route' => 'parking-authorizations.index', 'label' => 'Placas Diretoria', 'permission' => $P::SIV_PLACAS_DIRETORIA, 'active' => 'parking-authorizations.*'],
+                        ['route' => 'fleet.index', 'label' => 'Frota', 'permission' => $P::SIV_FROTA],
+                        ['route' => 'fleet.trips', 'label' => 'Viagens', 'permission' => $P::SIV_VIAGENS],
+                        ['route' => 'fleet.vehicles', 'label' => 'Veículos', 'permission' => $P::SIV_VEICULOS, 'active' => 'fleet.vehicles*'],
                     ],
                 ],
-                ['route' => 'payment.index', 'label' => 'Pagamentos', 'icon' => 'M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
-                    'permission' => 'view payments',
+                ['route' => 'home-assistant.index', 'label' => 'Home Assistant', 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
+                    'permission' => $P::HOME_ASSISTANT,
                 ],
-                ['route' => 'company.index', 'label' => 'Externos', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
+                // Pagamentos virou sub-aba de Reservas (a URL continua /payments).
+                ['label' => 'Reservas', 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+                    'children' => [
+                        ['route' => 'schedule.index', 'label' => 'Novo Agendamento', 'permission' => $P::RESERVAS_AGENDAMENTOS],
+                        ['route' => 'schedule.list', 'label' => 'Todos os Agendamentos', 'permission' => $P::RESERVAS_AGENDAMENTOS],
+                        ['route' => 'payment.index', 'label' => 'Pagamentos', 'permission' => $P::RESERVAS_PAGAMENTOS, 'active' => 'payment.*'],
+                    ],
+                ],
+                // Aguardando Motorista saiu do menu: abre pela tela de Carros de
+                // Aplicativo.
+                ['label' => 'Externos', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
                     'children' => [
                         ['route' => 'company.index', 'label' => 'Empresas'],
                         ['route' => 'company.access.monitor', 'label' => 'Monitor de Acesso'],
-                        ['route' => 'company.one-off.index', 'label' => 'Liberação Pontual'],
-                        ['route' => 'company.access.logs', 'label' => 'Histórico'],
-                        ['route' => 'company.uber.requests', 'label' => 'Carros de Aplicativo'],
-                        ['route' => 'company.uber.waiting', 'label' => 'Aguardando Motorista'],
+                        ['route' => 'company.one-off.index', 'label' => 'Liberação Pontual', 'permission' => $P::EXTERNOS_LIBERACAO_PONTUAL],
+                        ['route' => 'company.access.logs', 'label' => 'Histórico', 'permission' => $P::EXTERNOS_HISTORICO],
+                        ['route' => 'company.uber.requests', 'label' => 'Carros de Aplicativo', 'permission' => $P::EXTERNOS_CARROS_APLICATIVO, 'active' => 'company.uber.*'],
                     ],
                 ],
                 ['route' => 'lara.index', 'label' => 'Lara (IA)', 'icon' => 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z',
-                    'permission' => 'use lara chat',
+                    'permission' => $P::LARA,
                 ],
-                // Route::has: com o route cache velho o layout inteiro cairia
-                // por um route() que não resolve (ver a memória do projeto).
-                ...(\Illuminate\Support\Facades\Route::has('poli-bot.index') ? [[
-                    'route' => 'poli-bot.index', 'label' => 'Bot WhatsApp',
+                ['route' => 'poli-bot.index', 'label' => 'Bot WhatsApp',
                     'icon' => 'M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z',
-                    'permission' => 'manage whatsapp bot',
+                    'permission' => $P::BOT_WHATSAPP,
                     'active' => 'poli-bot.*',
-                ]] : []),
-                // Compras (Questor): Ordens de Compra, Centros de Custo e Mapas
-                // de Cotação. Some inteiro quando o usuário não alcança nenhum
-                // dos filhos — daí o spread condicional, e não uma `permission`
-                // de pai, que só saberia gatilhar por uma das duas regras.
-                ...($comprasChildren === [] ? [] : [[
-                    'route' => $comprasChildren[0]['route'],
-                    'label' => 'Compras',
-                    'icon' => 'M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12A1.125 1.125 0 0 1 19.75 21.75H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z',
-                    'children' => $comprasChildren,
-                ]]),
-                ['route' => 'id-cards.issue', 'label' => 'Carteirinhas', 'icon' => 'M12 4.5v15m7.5-7.5h-15',
-                    'permission' => 'manage id cards',
+                ],
+                // Compras (Questor). Ordens de Compra e Centros de Custo seguem
+                // fora do menu enquanto a integração só simula a gravação — as
+                // rotas existem e exigem a mesma permissão.
+                ['label' => 'Compras', 'icon' => 'M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12A1.125 1.125 0 0 1 19.75 21.75H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z',
                     'children' => [
-                        ['route' => 'id-cards.issue', 'label' => 'Emitir Carteirinha'],
-                        ['route' => 'card-templates.index', 'label' => 'Modelos'],
+                        // ['route' => 'questor.purchase-orders.index', 'label' => 'Ordens de Compra', 'permission' => $P::COMPRAS, 'active' => 'questor.purchase-orders.*'],
+                        // ['route' => 'questor.cost-centers.index', 'label' => 'Centros de Custo', 'permission' => $P::COMPRAS],
+                        ['route' => 'cotacao.mapas.index', 'label' => 'Mapas de Cotação', 'permission' => $P::COMPRAS],
+                        ['route' => 'cotacao.mapas.previa', 'label' => 'Nova Cotação (buscar SC)', 'permission' => $P::COMPRAS],
                     ],
                 ],
+                ['label' => 'Carteirinhas', 'icon' => 'M12 4.5v15m7.5-7.5h-15',
+                    'children' => [
+                        ['route' => 'id-cards.issue', 'label' => 'Emitir Carteirinha', 'permission' => $P::CARTEIRINHAS],
+                        ['route' => 'card-templates.index', 'label' => 'Modelos', 'permission' => $P::CARTEIRINHAS, 'active' => 'card-templates.*'],
+                    ],
+                ],
+                ['label' => 'Freelancers', 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+                    'children' => [
+                        ['route' => 'freelancers.index', 'label' => 'Freelancers', 'permission' => $P::FREELANCERS_CADASTRO],
+                        ['route' => 'freelancer-functions.index', 'label' => 'Funções', 'permission' => $P::FREELANCERS_FUNCOES],
+                        ['route' => 'freelancer-services.index', 'label' => 'Serviços / Contratos', 'permission' => $P::FREELANCERS_SERVICOS_LISTAR],
+                        ['route' => 'kiosk.index', 'label' => 'Assinatura (Tablet)', 'permission' => $P::FREELANCERS_ASSINATURA],
+                        ['route' => 'freelancer-services.tracking', 'label' => 'Acompanhamento', 'permission' => $P::FREELANCERS_ACOMPANHAMENTO],
+                        ['route' => 'freelancer-services.finance', 'label' => 'Financeiro', 'permission' => $P::FREELANCERS_FINANCEIRO, 'active' => 'freelancer-services.finance*'],
+                    ],
+                ],
+                ['label' => 'Placar Clube', 'icon' => 'M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2',
+                    'children' => [
+                        ['route' => 'placar.equipes.index', 'label' => 'Equipes', 'permission' => $P::PLACAR_CADASTRO],
+                        ['route' => 'placar.times.index', 'label' => 'Times', 'permission' => $P::PLACAR_CADASTRO],
+                        ['route' => 'placar.jogadores.index', 'label' => 'Jogadores', 'permission' => $P::PLACAR_CADASTRO],
+                        ['route' => 'placar.competicoes.index', 'label' => 'Competições', 'permission' => $P::PLACAR_CADASTRO],
+                        ['route' => 'placar.jogos.index', 'label' => 'Jogos', 'permission' => $P::PLACAR_CADASTRO],
+                        ['route' => 'placar.scout.jogos', 'label' => 'Súmulas (Scout)', 'permission' => $P::PLACAR_SCOUT],
+                    ],
+                ],
+                // Banco de Horas: escondido do menu por decisão anterior. Para
+                // voltar, é descomentar — a consulta é do Gate `view-comp-time`
+                // (RH, coordenador ou quem tem matrícula) e o cadastro é da
+                // permissão `banco-horas.admin`.
+                // ['label' => 'Banco de Horas', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+                //     'permission' => 'view-comp-time',
+                //     'children' => [
+                //         ['route' => 'comp-time.index', 'label' => 'Consulta'],
+                //         ['route' => 'comp-time.employees.index', 'label' => 'Funcionários', 'permission' => $P::BANCO_HORAS_ADMIN],
+                //     ],
+                // ],
             ];
 
-            // O financeiro tem regra própria — vínculo com o setor Contabilidade
-            // ou Gerência: quem só tem isso enxerga o menu Freelancers apenas
-            // com a aba Financeiro.
-            $canFreelancers = auth()->user()?->can('manage freelancers');
-            $canFreelancerPayments = auth()->user()?->can('manage-freelancer-payments');
-            // Acompanhamento do trâmite: vínculo com o setor Comercial. Como o
-            // Financeiro, é uma entrada que existe sozinha — quem só acompanha
-            // enxerga o menu Freelancers apenas com ela.
-            $canTrackFreelancers = auth()->user()?->can('track-freelancer-batches');
+            // Filtra por permissão (pai e filhos) numa passada só: as duas
+            // barras e o índice de busca consomem a mesma lista já filtrada, em
+            // vez de repetir o `can()` em cada partial.
+            //
+            // Route::has em cada destino porque este layout renderiza em TODA
+            // tela: um nome de rota que não resolve (tela ainda não mesclada,
+            // cache de rotas velho) derrubaria o sistema inteiro com 500, e não
+            // só este item.
+            $allowed = fn (array $item) => \Illuminate\Support\Facades\Route::has($item['route'])
+                && (! ($item['permission'] ?? null) || auth()->user()?->can($item['permission']));
 
-            if ($canFreelancers || $canFreelancerPayments || $canTrackFreelancers) {
-                $freelancerChildren = [];
+            $visibleNavLinks = [];
 
-                if ($canFreelancers) {
-                    $freelancerChildren[] = ['route' => 'freelancers.index', 'label' => 'Freelancers'];
-                    $freelancerChildren[] = ['route' => 'freelancer-functions.index', 'label' => 'Funções'];
-                    $freelancerChildren[] = ['route' => 'freelancer-services.index', 'label' => 'Serviços / Contratos'];
-                    $freelancerChildren[] = ['route' => 'kiosk.index', 'label' => 'Assinatura (Tablet)'];
+            foreach ($navLinks as $link) {
+                if (($link['permission'] ?? null) && ! auth()->user()?->can($link['permission'])) {
+                    continue;
                 }
 
-                if ($canTrackFreelancers) {
-                    $freelancerChildren[] = ['route' => 'freelancer-services.tracking', 'label' => 'Acompanhamento'];
+                if (isset($link['children'])) {
+                    $link['children'] = array_values(array_filter($link['children'], $allowed));
+
+                    if ($link['children'] === []) {
+                        continue;
+                    }
+
+                    $link['route'] = $link['children'][0]['route'];
+                } elseif (! \Illuminate\Support\Facades\Route::has($link['route'])) {
+                    continue;
                 }
 
-                if ($canFreelancerPayments) {
-                    $freelancerChildren[] = ['route' => 'freelancer-services.finance', 'label' => 'Financeiro'];
-                }
+                // Chave estável do grupo: é por ela que a ordem escolhida pela
+                // pessoa fica gravada, então não pode ser a posição na lista nem
+                // a rota do primeiro filho — as duas mudam quando uma permissão
+                // entra ou sai, e a ordem salva apontaria para o grupo errado.
+                $link['key'] = \Illuminate\Support\Str::slug($link['label']);
 
-                $navLinks[] = [
-                    'route' => $freelancerChildren[0]['route'],
-                    'label' => 'Freelancers',
-                    'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
-                    'children' => $freelancerChildren,
-                ];
+                $visibleNavLinks[] = $link;
             }
-
-            // Placar Clube: cadastro (escreve) e scout (só lê) são Gates
-            // separados hoje com a mesma regra de setor (ver AppServiceProvider),
-            // por isso os dois grupos aparecem juntos sempre que algum dos
-            // dois estiver liberado — quem só acompanha o jogo também precisa
-            // achar a súmula no menu.
-            $canPlacarCadastro = auth()->user()?->can('manage-placar-cadastro');
-            $canPlacarScout = auth()->user()?->can('view-placar-scout');
-
-            if ($canPlacarCadastro || $canPlacarScout) {
-                $placarChildren = [];
-
-                if ($canPlacarCadastro) {
-                    $placarChildren[] = ['route' => 'placar.equipes.index', 'label' => 'Equipes'];
-                    $placarChildren[] = ['route' => 'placar.times.index', 'label' => 'Times'];
-                    $placarChildren[] = ['route' => 'placar.jogadores.index', 'label' => 'Jogadores'];
-                    $placarChildren[] = ['route' => 'placar.competicoes.index', 'label' => 'Competições'];
-                    $placarChildren[] = ['route' => 'placar.jogos.index', 'label' => 'Jogos'];
-                }
-
-                if ($canPlacarScout) {
-                    $placarChildren[] = ['route' => 'placar.scout.jogos', 'label' => 'Súmulas (Scout)'];
-                }
-
-                $navLinks[] = [
-                    'route' => $placarChildren[0]['route'],
-                    'label' => 'Placar Clube',
-                    'icon' => 'M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2',
-                    'children' => $placarChildren,
-                ];
-            }
-
-            // Banco de Horas. A consulta tem três públicos: o RH (vê todos),
-            // o coordenador (vê o próprio setor) e o colaborador com matrícula
-            // (vê a própria ficha) — ver CompTimeService::accessFor(). Quem não
-            // se encaixa em nenhum dos três não tem o que abrir, e o menu não
-            // aparece. A aba de cadastro é só do RH.
-            $canManageCompTime = auth()->user()?->can('manage-comp-time');
-            $canViewCompTime = auth()->user()?->can('view-comp-time');
-
-            // if ($canViewCompTime) {
-            //     $compTimeChildren = [
-            //         ['route' => 'comp-time.index', 'label' => 'Consulta'],
-            //     ];
-
-            //     // Route::has porque este layout renderiza em TODA tela: um nome de
-            //     // rota que não existe (tela ainda não mesclada, cache de rotas
-            //     // velho) derruba o sistema inteiro com 500, e não só este item.
-            //     if ($canManageCompTime && \Illuminate\Support\Facades\Route::has('comp-time.employees.index')) {
-            //         $compTimeChildren[] = ['route' => 'comp-time.employees.index', 'label' => 'Funcionários'];
-            //     }
-
-            //     $navLinks[] = [
-            //         'route' => 'comp-time.index',
-            //         'label' => 'Banco de Horas',
-            //         'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
-            //         'children' => $compTimeChildren,
-            //     ];
-            // }
-
-            // Permissao do nivel de cima resolvida uma vez so: as duas barras e
-            // o indice de busca consomem a mesma lista ja filtrada, em vez de
-            // repetir o `can()` em cada partial.
-            $visibleNavLinks = array_values(array_filter(
-                $navLinks,
-                fn ($link) => ! ($link['permission'] ?? null) || auth()->user()?->can($link['permission'])
-            ));
-
-            // Chave estável do grupo: é por ela que a ordem escolhida pela
-            // pessoa fica gravada, então não pode ser a posição na lista nem a
-            // rota do primeiro filho — as duas mudam quando uma permissão entra
-            // ou sai, e a ordem salva apontaria para o grupo errado.
-            $visibleNavLinks = array_map(
-                fn ($link) => $link + ['key' => \Illuminate\Support\Str::slug($link['label'])],
-                $visibleNavLinks
-            );
 
             $navGroups = array_map(
                 fn ($link) => [
@@ -293,30 +210,26 @@
             }
 
             // Atalhos da conta tambem entram na busca: e onde as pessoas se
-            // perdem procurando "usuarios" e "documentacao".
-            $navIndex['profile.edit'] ??= [
-                'key' => 'profile.edit',
-                'label' => 'Perfil',
-                'group' => 'Conta',
-                'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
-                'url' => route('profile.edit'),
+            // perdem procurando "usuarios" e "documentacao". A lista e a
+            // mesma do menu da conta (x-nav-account-links).
+            $userIcon = 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z';
+            $groupIcon = 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z';
+
+            $accountLinks = [
+                ['route' => 'profile.edit', 'label' => 'Perfil', 'icon' => $userIcon],
+                ['route' => 'docs.index', 'label' => 'Documentação', 'icon' => 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253'],
+                ['route' => 'my-sector.index', 'label' => 'Meu setor', 'icon' => $groupIcon, 'permission' => 'coordinate-sector'],
+                ['route' => 'users.index', 'label' => 'Usuários', 'icon' => $groupIcon, 'permission' => $P::USUARIOS_GERENCIAR],
+                ['route' => 'sectors.index', 'label' => 'Setores', 'icon' => $groupIcon, 'permission' => $P::SETORES_GERENCIAR],
             ];
 
-            $navIndex['docs.index'] ??= [
-                'key' => 'docs.index',
-                'label' => 'Documentação',
-                'group' => 'Conta',
-                'icon' => 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
-                'url' => route('docs.index'),
-            ];
-
-            if (auth()->user()?->hasRole('admin')) {
-                $navIndex['users.index'] ??= [
-                    'key' => 'users.index',
-                    'label' => 'Usuários',
+            foreach (array_filter($accountLinks, $allowed) as $item) {
+                $navIndex[$item['route']] ??= [
+                    'key' => $item['route'],
+                    'label' => $item['label'],
                     'group' => 'Conta',
-                    'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
-                    'url' => route('users.index'),
+                    'icon' => $item['icon'],
+                    'url' => route($item['route']),
                 ];
             }
 

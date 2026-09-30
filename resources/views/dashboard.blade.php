@@ -41,7 +41,7 @@
             </x-dashboard.section>
 
              {{-- ========================= Home Assistant ========================= --}}
-            @can('manage home assistant')
+            @can('home-assistant')
                 <x-dashboard.section title="Home Assistant" color="amber"
                     :href="route('home-assistant.index')" linkLabel="Gerenciar"
                     icon="M13 10V3L4 14h7v7l9-11h-7z">
@@ -61,7 +61,7 @@
             @endcan
 
             {{-- ============================ InfoClube ============================ --}}
-            @can('view information')
+            {{-- InfoClube é de todo mundo logado. --}}
                 <x-dashboard.section title="InfoClube" color="teal"
                     :href="route('information.index')"
                     icon="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
@@ -94,10 +94,9 @@
                         </div> --}}
                     </div>
                 </x-dashboard.section>
-            @endcan
 
             {{-- =============================== SIV =============================== --}}
-            @can('search parking')
+            @can('siv.busca')
                 <x-dashboard.section title="SIV" color="indigo"
                     :href="route('parking.search')" linkLabel="Buscar placa"
                     icon="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z">
@@ -123,7 +122,7 @@
             @endcan
 
             {{-- ============================= Reservas ============================ --}}
-            @can('view reservations')
+            @can('reservas.agendamentos')
                 <x-dashboard.section title="Reservas" color="violet"
                     :href="route('schedule.index')"
                     icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
@@ -228,7 +227,7 @@
                 Chart.defaults.font.family = 'Figtree, sans-serif';
                 const grid = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
 
-                @can('search parking')
+                @can('siv.busca')
                 const parkingEl = document.getElementById('parkingChart');
                 if (parkingEl) {
                     new Chart(parkingEl, {
@@ -257,7 +256,7 @@
                 }
                 @endcan
 
-                @can('view reservations')
+                @can('reservas.agendamentos')
                 const reservationEl = document.getElementById('reservationChart');
                 if (reservationEl) {
                     new Chart(reservationEl, {

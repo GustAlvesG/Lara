@@ -64,13 +64,14 @@ class ProcessAvisoNotifications extends Command
         };
     }
 
+    /** Quem divide ao menos um setor com o criador — ver AvisoController. */
     private function usersInSameSetor(Aviso $aviso): Collection
     {
-        $creator = User::with('roles')->find($aviso->created_by);
-        if (!$creator || $creator->roles->isEmpty()) {
+        $creator = User::with('sectors')->find($aviso->created_by);
+        if (!$creator || $creator->sectors->isEmpty()) {
             return collect([$creator])->filter();
         }
-        $roleNames = $creator->roles->pluck('name');
-        return User::whereHas('roles', fn($q) => $q->whereIn('name', $roleNames))->get();
+        $sectorIds = $creator->sectors->pluck('id');
+        return User::whereHas('sectors', fn($q) => $q->whereIn('sectors.id', $sectorIds))->get();
     }
 }

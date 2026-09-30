@@ -10,21 +10,26 @@
 
         <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div class="flex items-center gap-4">
-                <a href="{{ route('roles-permission.index') }}" class="p-2 bg-white dark:bg-gray-800 rounded-xl shadow-md text-gray-400 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 border border-gray-100 dark:border-gray-700 transition">
+                <a href="{{ route('users.index') }}" class="p-2 bg-white dark:bg-gray-800 rounded-xl shadow-md text-gray-400 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 border border-gray-100 dark:border-gray-700 transition">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
                     </svg>
                 </a>
                 <div>
                     <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Setores</h1>
-                    <p class="text-gray-500 dark:text-gray-400 font-medium">Gerencie os setores e os acessos ao Banco de Horas.</p>
+                    <p class="text-gray-500 dark:text-gray-400 font-medium">Quem está em cada setor e o que cada setor alcança no sistema.</p>
                 </div>
             </div>
 
+            <div class="flex gap-3">
+            <a href="{{ route('sectors.audit') }}" class="inline-flex items-center px-5 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-bold shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition">
+                Histórico de acesso
+            </a>
             <a href="{{ route('sectors.create') }}" class="inline-flex items-center px-6 py-3 bg-[#A00001] text-white rounded-xl font-bold shadow-lg hover:bg-[#800000] transition duration-150 transform hover:scale-[1.02]">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                 Novo Setor
             </a>
+            </div>
         </div>
 
         @include('partials.alerts')
@@ -64,6 +69,9 @@
                             </div>
                             <div>
                                 <h2 class="text-xl font-extrabold text-gray-900 dark:text-white uppercase tracking-tight sector-name">{{ $sector->name }}</h2>
+                                @if($sector->full_access)
+                                    <span class="inline-block mt-1 px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">Acesso total</span>
+                                @endif
                                 @if($sector->description)
                                     <p class="text-sm text-gray-500 dark:text-gray-400">{{ $sector->description }}</p>
                                 @endif
@@ -90,7 +98,8 @@
                             ID: #{{ $sector->id }}
                         </span>
                         <span class="text-xs font-medium text-gray-400 dark:text-gray-600">
-                            {{ $sector->users_count }} membro(s)
+                            {{ $sector->users_count }} membro(s) ·
+                            {{ $sector->full_access ? 'todas as permissões' : $sector->permissions_count . ' permissão(ões)' }}
                         </span>
                     </div>
                 </div>

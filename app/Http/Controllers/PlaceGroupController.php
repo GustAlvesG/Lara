@@ -372,7 +372,7 @@ class PlaceGroupController extends Controller
      */
     protected function contactorIdFor(Request $request, ?Place $place = null): ?int
     {
-        if (! $request->user()?->can('manage home assistant') || ! $request->has('contactor_id')) {
+        if (! $request->user()?->can('home-assistant') || ! $request->has('contactor_id')) {
             return $place?->contactor_id;
         }
 

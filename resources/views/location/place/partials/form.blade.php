@@ -47,7 +47,7 @@
 
     {{-- ─── Home Assistant ───────────────────────────────────────────── --}}
     @php
-        $canManageHA = auth()->user()->can('manage home assistant');
+        $canManageHA = auth()->user()->can('home-assistant');
     @endphp
     <div class="rounded-2xl border overflow-hidden
         {{ $canManageHA ? 'border-indigo-200 dark:border-indigo-800' : 'border-gray-100 dark:border-gray-700' }}">

@@ -19,13 +19,13 @@
                     Histórico
                 </x-secondary-button-a>
 
-                @can('edit information')
+                @can('infoclube.editar')
                     <x-primary-button-a href="{{ route('information.edit', $info->id) }}">
                         Editar
                     </x-primary-button-a>
                 @endcan
 
-                @can('delete information')
+                @can('infoclube.editar')
                     <form action="{{ route('information.destroy', $info->information_id) }}" method="POST"
                           onsubmit="return confirm('Você tem certeza que deseja apagar essa informação? Essa ação é irreversível.')">
                         @csrf

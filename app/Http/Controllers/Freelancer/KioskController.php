@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Freelancer;
 
+use App\Authorization\Permissions;
 use App\Exceptions\CoordinatorAuthorizationException;
 use App\Exceptions\FreelancerBatchException;
 use App\Exceptions\FreelancerServiceLockedException;
@@ -40,7 +41,7 @@ use Illuminate\Support\Facades\Storage;
  *
  * São dois modos, decididos pelo que o usuário é:
  *
- *  - `operator`    — quem tem a permissão `manage freelancers`. Cadastra
+ *  - `operator`    — quem tem a permissão `freelancers.assinatura`. Cadastra
  *                    freelancers, registra contratos e conduz a assinatura do
  *                    freelancer. Fica gravado em created_by / freelancer_signed_by.
  *                    A sessão dura 30 minutos OU 5 contratos, o que vier primeiro.
@@ -1156,7 +1157,7 @@ class KioskController extends Controller
     private function availableModes(User $user): array
     {
         return array_values(array_filter([
-            $user->can('manage freelancers') ? self::MODE_OPERATOR : null,
+            $user->can(Permissions::FREELANCERS_ASSINATURA) ? self::MODE_OPERATOR : null,
             $user->isCoordinatorOfSectorNamed(self::COORDINATOR_SECTOR) ? self::MODE_COORDINATOR : null,
         ]));
     }

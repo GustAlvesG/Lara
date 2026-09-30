@@ -2,6 +2,8 @@
 
 namespace Tests\Concerns;
 
+use App\Authorization\Permissions;
+use App\Authorization\UserAccess;
 use App\Models\User;
 use Mockery;
 
@@ -12,14 +14,11 @@ use Mockery;
  * em SQLite — uma consulta de verdade nessas tabelas tentaria abrir a
  * conexão mysql do `.env` mesmo dentro da suíte.
  *
- * Por isso o mock intercepta o ponto certo (`belongsToSectorNamed`), não
- * `canAccessPlacar()`: renderizar o layout completo (`x-app-layout`) também
- * chama `canManageFreelancerPayments()`/`hasRole()`/`unreadNotifications()`
- * em toda página, e essas três precisam ficar inofensivas também.
- *
- * `isCoordinator()` entrou na lista pelo mesmo motivo: o menu do Banco de
- * Horas pergunta se a pessoa coordena algum setor, e essa é a única checagem
- * de setor do layout que não passa por `belongsToSectorNamed`.
+ * Por isso o mock intercepta `access()`, o acesso efetivo que o Gate::before
+ * consulta para toda permissão do catálogo (rota, menu, abas). Renderizar o
+ * layout completo (`x-app-layout`) também pergunta `isCoordinator()` (menu
+ * "Meu setor") e `unreadNotifications()` em toda página, e essas precisam
+ * ficar inofensivas também.
  */
 trait MocksPlacarUser
 {
@@ -27,10 +26,12 @@ trait MocksPlacarUser
     {
         $user = Mockery::mock(User::class)->makePartial();
 
+        $user->shouldReceive('access')->andReturn(
+            $temAcesso ? new UserAccess([Permissions::PLACAR_CADASTRO, Permissions::PLACAR_SCOUT]) : UserAccess::none()
+        );
+
         $user->shouldReceive('belongsToSectorNamed')
             ->andReturnUsing(fn (string $nome) => $temAcesso && $nome === User::SPORT_SECTOR);
-
-        $user->shouldReceive('hasRole')->andReturn(false);
         $user->shouldReceive('isCoordinator')->andReturn(false);
 
         $semNotificacoes = Mockery::mock();
