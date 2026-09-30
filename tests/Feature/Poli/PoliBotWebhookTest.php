@@ -171,6 +171,50 @@ class PoliBotWebhookTest extends TestCase
     }
 
     /**
+     * O toque no menu da Poli é de uma conversa do bot da Poli e entra na fila
+     * com a espera longa (20 s). A transferência não espera por ele: lê o
+     * toque do webhook gravado e responde já. Quando o job do toque rodar
+     * depois, ele não desfaz a conversa da Lara nem abre pedido passivo.
+     */
+    public function test_transferencia_nao_espera_o_job_do_toque_e_o_toque_atrasado_nao_desfaz_nada(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake([\App\Jobs\ProcessUberAccessRequestMessage::class]);
+
+        PoliListMessage::create([
+            'poli_message_uuid' => 'menu-poli', 'attendance_uuid' => 'att-1', 'contact_uuid' => self::CONTACT,
+            'rows' => [['title' => 'Carro de Aplicativo', 'description' => 'Carro, moto ou táxi']],
+        ]);
+
+        $this->webhook($this->recebida('CHAT', ['body' => ['text' => "Carro de Aplicativo\nCarro, moto ou táxi"]], 'menu-poli', atendente: null))
+            ->assertOk();
+        $toque = UberAccessRequestMessage::sole();
+        $this->assertNull($toque->processed_at, 'o toque ainda está na fila');
+
+        $this->webhook([
+            'object' => 'message', 'event' => 'received', 'account_uuid' => 'acc-uuid', 'uuid' => 'sys-1',
+            'value' => [
+                'uuid' => 'sys-1', 'event' => 'SYSTEM', 'type' => 'ATTENDANCE_REDIRECTED', 'direction' => 'EMPTY',
+                'contact' => ['uuid' => self::CONTACT],
+                'attendance' => ['uuid' => 'att-1', 'type' => 'INITIATED_BY_CONTACT', 'status' => null, 'attendant' => ['uuid' => self::LARA]],
+            ],
+        ])->assertOk();
+
+        $this->assertSame('matricula', BotSession::find(self::CONTACT)->step_key, 'respondeu sem esperar o toque');
+        $enviadas = PoliMessage::where('direction', 'OUT')->count();
+
+        // Agora o job do toque roda, atrasado.
+        app()->call([new \App\Jobs\ProcessUberAccessRequestMessage($toque->id), 'handle']);
+
+        $sessao = BotSession::find(self::CONTACT);
+        $this->assertSame('carro-de-aplicativo', $sessao->flow_slug);
+        $this->assertSame('matricula', $sessao->step_key);
+        $this->assertTrue($sessao->lara_owned);
+        $this->assertSame($enviadas, PoliMessage::where('direction', 'OUT')->count());
+        $this->assertSame(0, UberAccessRequest::count(), 'a escuta do Uber não abre pedido na conversa que já é do O Lara');
+        $this->assertNotNull($toque->fresh()->processed_at);
+    }
+
+    /**
      * O `attendant` na raiz do contato fica desatualizado depois de um
      * distribute (medido em 29/09/2026): vale o do atendimento.
      */

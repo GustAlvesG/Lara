@@ -166,10 +166,11 @@ class PoliClient
     }
 
     /**
-     * Conversas abertas atribuídas a um usuário. Endpoint documentado, ainda
-     * não exercitado: quem usa confere cada contato em atendimentoAtual()
-     * antes de agir, porque um filtro ignorado devolveria as conversas de
-     * todo mundo.
+     * Conversas abertas atribuídas a um usuário. Em produção (29/09/2026) cada
+     * item veio como {id, uuid, contact_origin, attendance_origin,
+     * from_campaign}, com o contato em `uuid`. Quem usa confere cada contato
+     * em atendimentoAtual() antes de agir, porque um filtro ignorado
+     * devolveria as conversas de todo mundo.
      *
      * @return array<int, array<string, mixed>>
      */

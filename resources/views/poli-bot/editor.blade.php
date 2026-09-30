@@ -331,7 +331,14 @@
                                         </div>
                                         <div>
                                             <label class="{{ $rotulo }}">Tentativas neste passo</label>
-                                            <input type="number" min="1" max="10" x-model="step.max_attempts" class="{{ $campo }}" :placeholder="'padrão: ' + settings.max_attempts">
+                                            <input type="number" min="1" max="10" x-model="step.max_attempts" class="{{ $campo }}" :placeholder="'padrão: ' + settings.max_attempts" :disabled="step.optional">
+                                        </div>
+                                        <div class="md:col-span-2">
+                                            <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                                                <input type="checkbox" x-model="step.optional" class="rounded border-gray-300">
+                                                Pergunta opcional
+                                            </label>
+                                            <p class="text-[11px] text-gray-400 mt-1">Sem resposta, a conversa fecha em silêncio no prazo do fluxo. Resposta fora das opções encerra o fluxo e recomeça pelo menu, sem "não entendi".</p>
                                         </div>
                                     </div>
                                 </div>
@@ -541,6 +548,7 @@
                             expect: {type: ex.type || '', min: ex.min ?? '', max: ex.max ?? '', pattern: ex.pattern || '', past_only: !!ex.past_only, future_only: !!ex.future_only},
                             options: (s.options || []).map(o => ({label: o.label || '', description: o.description || '', aliases: (o.aliases || []).join(', '), next: o.next || '', value: o.value || ''})),
                             save_as: s.save_as || '', invalid: s.invalid || '', max_attempts: s.max_attempts ?? '',
+                            optional: !!s.optional,
                             action: {type: ac.type || '', team_uuid: ac.team_uuid || '', flow: ac.flow || ''},
                             next: s.next || '',
                         };
@@ -569,6 +577,7 @@
                                 if (s.save_as) out.save_as = s.save_as.trim();
                                 if (s.invalid) out.invalid = s.invalid;
                                 if (num(s.max_attempts)) out.max_attempts = num(s.max_attempts);
+                                if (s.optional) out.optional = true;
                             }
                             if (s.expect.type === 'option' || s.say.type === 'menu') {
                                 out.options = s.options.filter(o => o.label.trim() !== '').map(o => ({

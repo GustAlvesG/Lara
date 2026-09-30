@@ -340,10 +340,32 @@ class UberAccessRequestFlow
      * resposta — e passa pela MESMA conclusão do fluxo escutado: conferência
      * de sócio/funcionário e validade.
      *
+     * O fluxo pode voltar a uma pergunta já respondida (o motorista cancelou e
+     * o sócio troca placa e print) e registrar de novo. Com `$anteriorId` — o
+     * pedido que esta mesma conversa criou — e ele ainda à espera do
+     * motorista, os dados novos sobrescrevem os dele: é o mesmo carro que a
+     * portaria espera, e um segundo pedido deixaria a placa antiga liberada.
+     *
      * @param array{matricula: string, nome: string, local: ?string, placa: string, print: string} $dados
      */
-    public function registrarPedidoDoBot(array $dados, ParsedPoliMessage $message): UberAccessRequest
+    public function registrarPedidoDoBot(array $dados, ParsedPoliMessage $message, ?int $anteriorId = null): UberAccessRequest
     {
+        $anterior = $anteriorId === null ? null : UberAccessRequest::where('id', $anteriorId)
+            ->where('contact_uuid', $message->contactUuid)
+            ->where('status', UberAccessRequest::STATUS_AGUARDANDO_ACESSO)
+            ->first();
+
+        if ($anterior !== null) {
+            $anterior->update([
+                'matricula' => $dados['matricula'],
+                'requester_name' => $dados['nome'],
+                'club_location' => $dados['local'] ?? null,
+                'vehicle_plate' => $dados['placa'],
+            ]);
+
+            return $this->concluir($anterior, $dados['print']);
+        }
+
         $request = UberAccessRequest::create([
             'contact_uuid' => $message->contactUuid,
             'contact_phone' => $message->contactPhone,

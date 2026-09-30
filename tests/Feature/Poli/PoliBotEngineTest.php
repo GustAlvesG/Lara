@@ -44,6 +44,9 @@ class PoliBotEngineTest extends TestCase
 
     private bool $envioSemUuid = false;
 
+    /** Contato para o qual o GET responde 404. */
+    private ?string $contatoInexistente = null;
+
     /** O que o GET /contacts/{uuid}?include=current_attendance devolve. */
     private ?array $atendimentoNaApi = null;
 
@@ -116,6 +119,10 @@ class PoliBotEngineTest extends TestCase
 
             if ($r->method() === 'GET' && str_contains($r->url(), '/chats')) {
                 return Http::response(['data' => $this->chatsNaApi], 200);
+            }
+
+            if ($this->contatoInexistente !== null && str_contains($r->url(), '/contacts/' . $this->contatoInexistente . '?')) {
+                return Http::response(['message' => 'Not found'], 404);
             }
 
             if ($r->method() === 'GET' && str_contains($r->url(), '/contacts/')) {
@@ -614,6 +621,56 @@ class PoliBotEngineTest extends TestCase
         $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_ACESSO, UberAccessRequest::sole()->status);
     }
 
+    /**
+     * Fase 3, como está em produção (30/09/2026): o "fim" pergunta se o
+     * motorista trocou, e "Trocar Veículo" volta para a placa. O segundo
+     * registro sobrescreve o pedido da conversa — a placa antiga não pode
+     * continuar liberada na portaria.
+     */
+    public function test_voltar_para_a_placa_sobrescreve_o_pedido_da_conversa(): void
+    {
+        $this->fimPerguntaSeTrocouOVeiculo();
+
+        $this->irAtePlaca();
+        $this->texto('ABC1234');
+        $this->imagem('https://cdn/print-1.jpg');
+        $primeiro = UberAccessRequest::sole();
+        $this->assertSame('fim', $this->sessao()->step_key);
+
+        $this->travel(5)->minutes();
+        $this->texto('Trocar Veículo');
+        $this->assertSame('placa', $this->sessao()->step_key);
+        $this->texto('DEF4321');
+        $this->imagem('https://cdn/print-2.jpg');
+
+        $pedido = UberAccessRequest::sole();
+        $this->assertSame($primeiro->id, $pedido->id);
+        $this->assertSame('DEF4321', $pedido->vehicle_plate);
+        $this->assertSame('https://cdn/print-2.jpg', $pedido->screenshot_url);
+        $this->assertSame('12345', $pedido->matricula);
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_ACESSO, $pedido->status);
+        $this->assertTrue($pedido->expires_at->greaterThan($primeiro->expires_at), 'a validade recomeça com o carro novo');
+        $this->assertTrue(PoliMessage::where('texto', "uber_request pedido={$pedido->id} atualizado")->exists());
+    }
+
+    /** O pedido que já saiu da espera (motorista entrou, validade venceu) não é reaberto. */
+    public function test_voltar_depois_do_pedido_encerrado_abre_outro(): void
+    {
+        $this->fimPerguntaSeTrocouOVeiculo();
+
+        $this->irAtePlaca();
+        $this->texto('ABC1234');
+        $this->imagem();
+        UberAccessRequest::query()->update(['status' => UberAccessRequest::STATUS_CONCLUIDO]);
+
+        $this->texto('Trocar Veículo');
+        $this->texto('DEF4321');
+        $this->imagem();
+
+        $this->assertSame(2, UberAccessRequest::count());
+        $this->assertSame('ABC1234', UberAccessRequest::orderBy('id')->first()->vehicle_plate);
+    }
+
     /** Na comparação em sombra quem cria o pedido é a escuta do Uber: aqui seria duplicado. */
     public function test_na_comparacao_com_o_bot_da_poli_o_pedido_e_so_simulado(): void
     {
@@ -870,6 +927,65 @@ class PoliBotEngineTest extends TestCase
         $this->assertSame('idle', $this->sessao()->state);
     }
 
+    /** Pedido feito e ninguém quis trocar o carro: nada de "não tivemos resposta". */
+    public function test_pergunta_opcional_sem_resposta_fecha_em_silencio(): void
+    {
+        $this->fimPerguntaSeTrocouOVeiculo(opcional: true);
+        $this->irAtePlaca();
+        $this->texto('ABC1D23');
+        $this->imagem();
+        $enviadas = count($this->enviados());
+
+        $this->travel(11)->minutes();
+        $this->artisan('poli:bot-expirar')->assertSuccessful();
+
+        $this->assertCount($enviadas, $this->enviados());
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/close'));
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_ACESSO, UberAccessRequest::sole()->status);
+    }
+
+    /** "obrigado" no fim não é resposta errada: sem correção, sem transbordo — recomeça pelo menu. */
+    public function test_pergunta_opcional_com_outra_resposta_encerra_o_fluxo(): void
+    {
+        $this->fimPerguntaSeTrocouOVeiculo(opcional: true);
+        $this->irAtePlaca();
+        $this->texto('ABC1D23');
+        $this->imagem();
+
+        $this->texto('obrigado');
+
+        $this->assertStringNotContainsString('Não entendi', implode(' ', $this->enviados()));
+        $this->assertSame('atendimento', $this->sessao()->flow_slug);
+        $this->assertSame('menu', $this->sessao()->step_key);
+        $this->assertSame(0, $this->sessao()->tentativas);
+        Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/distribute'));
+        $this->assertSame(1, UberAccessRequest::count());
+    }
+
+    public function test_pergunta_opcional_ainda_aceita_a_opcao(): void
+    {
+        $this->fimPerguntaSeTrocouOVeiculo(opcional: true);
+        $this->irAtePlaca();
+        $this->texto('ABC1D23');
+        $this->imagem();
+
+        $this->texto('Trocar Veículo');
+
+        $this->assertSame('carro-de-aplicativo', $this->sessao()->flow_slug);
+        $this->assertSame('placa', $this->sessao()->step_key);
+    }
+
+    public function test_pergunta_opcional_exige_resposta_esperada(): void
+    {
+        $fluxo = new \App\Services\PoliBot\FlowDefinition('x', [
+            'start' => 'a',
+            'triggers' => ['any' => true],
+            'steps' => ['a' => ['say' => ['type' => 'text', 'text' => 'oi'], 'optional' => true]],
+        ]);
+
+        $this->assertContains('Passo "a": pergunta opcional sem resposta esperada.', $fluxo->errors());
+    }
+
     public function test_agendamento_nao_toca_na_comparacao_em_sombra_nem_no_simulador(): void
     {
         $this->texto('oi', atendente: null);               // bot da Poli
@@ -948,7 +1064,11 @@ class PoliBotEngineTest extends TestCase
 
     public function test_reconciliacao_encerra_conversa_do_o_lara_sem_sessao_na_lara(): void
     {
-        $this->chatsNaApi = [['contact' => ['uuid' => self::CONTACT]]];
+        // Formato real do item (29/09/2026): o contato vem em `uuid`.
+        $this->chatsNaApi = [[
+            'id' => 68849486, 'uuid' => self::CONTACT, 'contact_origin' => 'orgânico',
+            'attendance_origin' => 'INITIATED_BY_FORWARDING', 'from_campaign' => false,
+        ]];
         $this->atendimentoNaApi = ['uuid' => 'att-perdido', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => self::LARA]];
 
         $this->artisan('poli:bot-reconciliar')->expectsOutputToContain('encerrar')->assertSuccessful();
@@ -968,6 +1088,19 @@ class PoliBotEngineTest extends TestCase
         $this->artisan('poli:bot-reconciliar')->assertSuccessful();
 
         Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/close'));
+    }
+
+    /** Item cujo uuid a API não reconhece como contato é pulado; os outros seguem. */
+    public function test_reconciliacao_pula_item_com_erro_e_segue_com_os_outros(): void
+    {
+        $this->chatsNaApi = [['uuid' => 'nao-e-contato'], ['uuid' => self::CONTACT]];
+        $this->atendimentoNaApi = ['uuid' => 'att-1', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => self::LARA]];
+        $this->contatoInexistente = 'nao-e-contato';
+
+        $this->artisan('poli:bot-reconciliar')->assertSuccessful();
+
+        Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/contacts/nao-e-contato/close'));
+        Http::assertSent(fn (Request $r) => $r->url() === self::BASE . '/contacts/' . self::CONTACT . '/close');
     }
 
     public function test_reconciliacao_aborta_se_a_lista_vier_grande_demais(): void
@@ -1318,6 +1451,20 @@ class PoliBotEngineTest extends TestCase
         $this->texto('Ginásio');
 
         $this->assertSame('placa', $this->sessao()->step_key);
+    }
+
+    /** O passo "fim" do carro de aplicativo como foi configurado em produção na Fase 3. */
+    private function fimPerguntaSeTrocouOVeiculo(bool $opcional = false): void
+    {
+        $fluxo = BotFlow::where('slug', 'carro-de-aplicativo')->sole();
+        $definicao = $fluxo->definition;
+        $definicao['steps']['fim'] = array_filter([
+            'say' => ['type' => 'template', 'template_uuid' => 'tpl-uber-confirmacao', 'params' => ['{nome}', '{placa}']],
+            'expect' => ['type' => 'option'],
+            'options' => [['label' => 'Trocar Veículo', 'next' => 'placa']],
+            'optional' => $opcional,
+        ]);
+        $fluxo->update(['definition' => $definicao]);
     }
 
     private function irAteOFimDoUber(): void

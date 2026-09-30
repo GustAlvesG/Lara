@@ -119,7 +119,39 @@ class BotEngine
      */
     public function listensToPoliUberFlow(ParsedPoliMessage $message): bool
     {
-        return !$this->isLaraAttendant($message->attendanceAttendantUuid);
+        if ($this->isLaraAttendant($message->attendanceAttendantUuid)) {
+            return false;
+        }
+
+        if ($this->mode() === self::MODE_OFF || $message->contactUuid === null) {
+            return true;
+        }
+
+        // O toque que motivou a transferência pode ser processado depois
+        // dela (ProcessPoliBotRedirect não o espera): a conversa já é do O
+        // Lara, e é o fluxo da Lara que cuida do pedido. A escuta do Uber não
+        // pode cair por causa do bot: sem conseguir ler a sessão, ela segue.
+        try {
+            $session = BotSession::find($message->contactUuid);
+        } catch (Throwable $e) {
+            Log::warning('PoliBot: sessão ilegível, a escuta do Uber segue', ['erro' => $e->getMessage()]);
+
+            return true;
+        }
+
+        return !($session !== null && $this->takenByLara($session, $message));
+    }
+
+    /**
+     * Mensagem da fase do bot da Poli (sem atendente) que chega depois de a
+     * Lara já ter assumido este atendimento: é anterior à transferência.
+     */
+    private function takenByLara(BotSession $session, ParsedPoliMessage $message): bool
+    {
+        return $message->attendanceAttendantUuid === null
+            && $session->lara_owned
+            && ($session->inFlow() || $session->isEnding() || $session->isHuman())
+            && (blank($session->attendance_uuid) || $session->attendance_uuid === $message->attendanceUuid);
     }
 
     /**
@@ -191,6 +223,12 @@ class BotEngine
             $this->rescue($session, $message);
             $this->save($session);
 
+            return;
+        }
+
+        // O toque no menu da Poli processado depois da transferência: a
+        // conversa já é da Lara. Fica no histórico e não mexe em nada.
+        if ($dono === self::DONO_BOT_DA_POLI && $this->takenByLara($session, $message)) {
             return;
         }
 
@@ -334,7 +372,9 @@ class BotEngine
             } elseif ($this->timedOut($session, $flow)) {
                 // O aviso só faz sentido para quem estava no meio de algo.
                 // Quem parou no menu inicial recebe o menu, sem sermão.
-                $estavaNoMeio = $session->step_key !== $flow->start() || !empty($session->data);
+                // Parado numa pergunta opcional, o fluxo já tinha terminado.
+                $estavaNoMeio = ($session->step_key !== $flow->start() || !empty($session->data))
+                    && empty($flow->step($session->step_key)['optional']);
 
                 $session->reset();
 
@@ -402,10 +442,15 @@ class BotEngine
             $session->attendance_uuid = $message->attendanceUuid ?? $session->attendance_uuid;
         }
 
+        // O atendente vai no log: é o que se compara com poli.bot.user_uuid
+        // quando uma conversa que devia ser do O Lara fica em silêncio.
         Log::info('PoliBot: silêncio — o atendimento não é do bot', [
             'motivo' => $motivo,
             'contact_uuid' => $session->contact_uuid,
             'attendance_uuid' => $message->attendanceUuid,
+            'attendant_uuid' => $message->attendanceAttendantUuid,
+            'attendance_status' => $message->attendanceStatus,
+            'bot_user_uuid' => $this->botUserUuid(),
         ]);
 
         $this->save($session);
@@ -483,6 +528,16 @@ class BotEngine
             $next = $answer->option['next'] ?? $step['next'] ?? null;
 
             $next !== null ? $this->enter($session, $flow, $next) : $this->finish($session);
+
+            return;
+        }
+
+        // Pergunta opcional ("o motorista trocou?"): quem responde outra coisa
+        // já terminou — um "obrigado" não é erro. O fluxo acaba e a mensagem
+        // vale como começo de conversa, como no encerramento diferido.
+        if (!empty($step['optional'])) {
+            $session->reset();
+            $this->startTriggered($session, $message);
 
             return;
         }
@@ -702,6 +757,10 @@ class BotEngine
             return;
         }
 
+        // Registrar de novo na mesma conversa (o fluxo voltou a uma pergunta)
+        // atualiza o pedido que ela criou, em vez de abrir outro.
+        $anterior = is_numeric($session->get('uber_access_request_id')) ? (int) $session->get('uber_access_request_id') : null;
+
         try {
             $pedido = $this->uber->registrarPedidoDoBot([
                 'matricula' => (string) $session->get('matricula'),
@@ -709,10 +768,10 @@ class BotEngine
                 'local' => $session->get('local'),
                 'placa' => (string) $session->get('placa'),
                 'print' => (string) $session->get('print'),
-            ], $this->message);
+            ], $this->message, $anterior);
 
             $session->put('uber_access_request_id', $pedido->id);
-            $this->out->action($session, "uber_request pedido={$pedido->id}");
+            $this->out->action($session, "uber_request pedido={$pedido->id}" . ($pedido->id === $anterior ? ' atualizado' : ''));
         } catch (Throwable $e) {
             Log::error('PoliBot: falha ao registrar pedido do Uber', [
                 'contact_uuid' => $session->contact_uuid,
@@ -744,7 +803,12 @@ class BotEngine
      * Lara abre o fluxo pelo gatilho da última mensagem do contato antes da
      * transferência — o toque no menu do bot da Poli —, sem esperar a próxima.
      */
-    public function handleRedirect(ParsedPoliMessage $redirect): void
+    /**
+     * @param ParsedPoliMessage|null $ultima A última mensagem do contato antes
+     *        da transferência, lida do webhook gravado (ProcessPoliBotRedirect).
+     *        Sem ela, vale a última registrada em poli_messages.
+     */
+    public function handleRedirect(ParsedPoliMessage $redirect, ?ParsedPoliMessage $ultima = null): void
     {
         if ($this->mode() === self::MODE_OFF || $redirect->contactUuid === null) {
             return;
@@ -752,7 +816,7 @@ class BotEngine
 
         try {
             $this->desviouPorHorario = false;
-            $this->startFromRedirect($redirect);
+            $this->startFromRedirect($redirect, $ultima);
         } catch (Throwable $e) {
             Log::error('PoliBot: falha ao abrir a conversa transferida', [
                 'contact_uuid' => $redirect->contactUuid,
@@ -762,7 +826,7 @@ class BotEngine
         }
     }
 
-    private function startFromRedirect(ParsedPoliMessage $redirect): void
+    private function startFromRedirect(ParsedPoliMessage $redirect, ?ParsedPoliMessage $ultima): void
     {
         if (PoliMessage::where('uuid', $redirect->messageId)->exists()) {
             return;
@@ -783,7 +847,7 @@ class BotEngine
         ], 'filled'));
 
         $this->out = $this->outbox->live($this->liveFor(true));
-        $gatilho = $this->lastInboundBeforeRedirect($session, $redirect);
+        $gatilho = $this->lastInboundBeforeRedirect($session, $redirect, $ultima);
 
         $this->out->recordInboundRow($session, $redirect->messageId, 'REDIRECT', '[transferido para O Lara]');
 
@@ -821,16 +885,22 @@ class BotEngine
      * mensagem nova do atendimento transferido — para passar pelos gatilhos
      * dos fluxos e pelo atalho do menu inicial.
      */
-    private function lastInboundBeforeRedirect(BotSession $session, ParsedPoliMessage $redirect): ?ParsedPoliMessage
+    private function lastInboundBeforeRedirect(BotSession $session, ParsedPoliMessage $redirect, ?ParsedPoliMessage $doWebhook): ?ParsedPoliMessage
     {
-        $ultima = PoliMessage::where('contact_uuid', $session->contact_uuid)
-            ->where('direction', PoliMessage::IN)
-            ->where('type', '!=', 'REDIRECT')
-            ->where('created_at', '>=', now()->subMinutes(self::REDIRECT_TRIGGER_MINUTES))
-            ->orderByDesc('id')
-            ->first();
+        if ($doWebhook !== null) {
+            $texto = $doWebhook->type === ParsedPoliMessage::TYPE_TEXT ? $doWebhook->text : null;
+        } else {
+            $linha = PoliMessage::where('contact_uuid', $session->contact_uuid)
+                ->where('direction', PoliMessage::IN)
+                ->where('type', '!=', 'REDIRECT')
+                ->where('created_at', '>=', now()->subMinutes(self::REDIRECT_TRIGGER_MINUTES))
+                ->orderByDesc('id')
+                ->first();
 
-        if ($ultima === null || $ultima->type !== 'TEXT' || blank($ultima->texto)) {
+            $texto = $linha?->type === 'TEXT' ? $linha->texto : null;
+        }
+
+        if (blank($texto)) {
             return null;
         }
 
@@ -841,7 +911,7 @@ class BotEngine
             contactName: $redirect->contactName ?? $session->contact_name,
             attendanceUuid: $redirect->attendanceUuid,
             type: ParsedPoliMessage::TYPE_TEXT,
-            text: $ultima->texto,
+            text: $texto,
             attendanceType: $redirect->attendanceType,
             attendanceStatus: $redirect->attendanceStatus,
             attendanceAttendantUuid: $redirect->attendanceAttendantUuid,
@@ -1359,6 +1429,15 @@ class BotEngine
             return null;
         }
 
+        // Sem resposta a uma pergunta opcional: o fluxo tinha terminado, e
+        // fecha como no encerramento diferido — sem "não tivemos resposta".
+        if (!empty($flow?->step($session->step_key)['optional'])) {
+            $this->close($session);
+            $session->save();
+
+            return 'encerradas';
+        }
+
         $this->say($session, (string) config('poli.bot.messages.abandoned'));
         $this->close($session);
         $session->save();
@@ -1437,15 +1516,25 @@ class BotEngine
         $relatorio = [];
 
         foreach ($chats as $chat) {
-            $contato = $chat['contact']['uuid'] ?? $chat['contact_uuid'] ?? null;
+            // Medido em 29/09/2026: o item da lista é o contato —
+            // {id, uuid, contact_origin, attendance_origin, from_campaign}.
+            // As outras chaves ficam para o caso de a Poli embrulhar diferente.
+            $contato = $chat['contact']['uuid'] ?? $chat['contact_uuid'] ?? $chat['uuid'] ?? null;
 
             if (!is_string($contato) || $contato === '') {
                 Log::warning('PoliBot: conversa da reconciliação sem contato reconhecível', ['chaves' => array_keys($chat)]);
                 continue;
             }
 
-            $acao = Cache::lock('poli-bot:contato:' . $contato, 60)
-                ->get(fn () => $this->reconcileOne($contato, $simular, $devolverPara));
+            // Um item com problema (uuid que não é de contato, API fora) não
+            // derruba a rodada: é pulado, e nada é encerrado por ele.
+            try {
+                $acao = Cache::lock('poli-bot:contato:' . $contato, 60)
+                    ->get(fn () => $this->reconcileOne($contato, $simular, $devolverPara));
+            } catch (Throwable $e) {
+                Log::warning('PoliBot: reconciliação pulou um contato', ['contact_uuid' => $contato, 'erro' => $e->getMessage()]);
+                $acao = null;
+            }
 
             if (is_string($acao)) {
                 $relatorio[] = ['contact_uuid' => $contato, 'acao' => $acao];
