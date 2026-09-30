@@ -26,6 +26,7 @@ namespace App\Services\PoliBot;
  *         "options": [{"label": "Financeiro", "description": "…", "aliases": ["fin"], "next": "fin", "value": "…"}],
  *         "save_as": "placa",
  *         "invalid": "Mensagem de correção",
+ *         "optional": true,                // pergunta que se pode ignorar (ver abaixo)
  *         "action":  {"type": "handoff", "team_uuid": "…"} | {"type": "close"}
  *                  | {"type": "uber_request"} | {"type": "goto_flow", "flow": "slug"},
  *         "next": "<chave>"
@@ -35,6 +36,18 @@ namespace App\Services\PoliBot;
  *
  * Passo sem `expect` não espera resposta: diz o que tem a dizer, executa a
  * ação e segue para `next` (ou termina a conversa, se não houver).
+ *
+ * Voltar a um passo já respondido (uma opção com `next` para trás) é
+ * permitido: a resposta nova sobrescreve a do mesmo `save_as`, e as outras
+ * ficam. Uma ação que grava no banco e roda de novo na mesma conversa
+ * atualiza o que ela mesma gravou (`uber_request` reaproveita o pedido em
+ * `uber_access_request_id`), em vez de criar outro.
+ *
+ * Pergunta opcional (`optional`, só em passo com `expect`): o fluxo já fez o
+ * que tinha a fazer e oferece mais uma coisa ("o motorista trocou?"). Resposta
+ * que não serve não é erro — sem correção nem contagem de tentativas: o fluxo
+ * termina e a mensagem vale como começo de conversa. Sem resposta, a conversa
+ * fecha em silêncio no prazo do fluxo, sem o aviso de abandono.
  *
  * Horário de atendimento (opcional): fora dele, a conversa começa por
  * `out_of_hours` em vez de `start`. Dias pela ISO (1 = segunda … 7 =
@@ -275,6 +288,10 @@ class FlowDefinition
             }
             if ($acao === 'goto_flow' && blank($step['action']['flow'] ?? null)) {
                 $erros[] = "{$onde}: goto_flow sem o fluxo de destino.";
+            }
+
+            if (!empty($step['optional']) && !isset($step['expect'])) {
+                $erros[] = "{$onde}: pergunta opcional sem resposta esperada.";
             }
 
             if ($say === null && !isset($step['expect']) && !isset($step['action']) && !isset($step['next'])) {
