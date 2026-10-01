@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\Aviso;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -32,9 +33,7 @@ class EnsureMandatoryAvisosAcknowledged
             return $next($request);
         }
 
-        $pending = Aviso::mandatoryPendingFor($user)->exists();
-
-        if (!$pending) {
+        if (!$this->hasPending($user)) {
             return $next($request);
         }
 
@@ -42,6 +41,28 @@ class EnsureMandatoryAvisosAcknowledged
         $request->session()->put('url.intended', $request->fullUrl());
 
         return redirect()->route('avisos.pending');
+    }
+
+    /**
+     * Roda em toda tela do sistema, então não pode ser o que derruba o
+     * sistema: se a consulta falhar (migration da leitura obrigatória ainda
+     * não aplicada, banco fora), a navegação segue e o erro vai para o log —
+     * uma vez por processo, para não inundar.
+     */
+    private function hasPending($user): bool
+    {
+        static $warned = false;
+
+        try {
+            return Aviso::mandatoryPendingFor($user)->exists();
+        } catch (\Throwable $e) {
+            if (!$warned) {
+                $warned = true;
+                Log::warning('Leitura obrigatória de avisos indisponível: ' . $e->getMessage());
+            }
+
+            return false;
+        }
     }
 
     /**

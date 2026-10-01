@@ -26,13 +26,13 @@
                 <input type="hidden" name="is_active" value="0">
                 <input type="checkbox" name="is_active" value="1"
                        {{ old('is_active', $template->is_active ?? true) ? 'checked' : '' }}
-                       class="rounded border-gray-300 dark:border-gray-600 text-red-600 focus:ring-red-500">
-                <span class="text-sm font-bold text-gray-700 dark:text-gray-300">Modelo ativo (aparece na emissão de carteirinhas)</span>
+                       class="rounded border-line-strong text-grena focus:ring-grena-tint">
+                <span class="text-sm font-bold text-ink">Modelo ativo (aparece na emissão de carteirinhas)</span>
             </label>
         </div>
     </div>
 
-    <div class="mb-6 p-4 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-900 text-sm text-indigo-900 dark:text-indigo-200">
+    <div class="mb-6 rounded-2xl bg-grena-tint p-4 text-sm text-ink">
         <p class="font-bold mb-1">Recomendações para as imagens de frente e verso</p>
         <ul class="list-disc list-inside space-y-0.5">
             <li><strong>Orientação:</strong> vertical (retrato) — largura menor que a altura</li>
@@ -40,7 +40,7 @@
             <li><strong>Resolução:</strong> cerca de 638&nbsp;×&nbsp;1011px (300 DPI) para impressão nítida</li>
             <li><strong>Formato:</strong> PNG ou JPG, até 5 MB por imagem</li>
         </ul>
-        <p class="mt-1 text-xs text-indigo-700 dark:text-indigo-300">
+        <p class="mt-1 text-xs text-ink-2">
             Imagens fora dessa proporção são cortadas para preencher o cartão (o navegador ajusta preenchendo e cortando as bordas).
         </p>
     </div>
@@ -50,13 +50,13 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <!-- FRENTE -->
         <div>
-            <h3 class="font-bold text-gray-800 dark:text-gray-200 mb-2">Frente</h3>
+            <h3 class="mb-2 font-display font-semibold text-ink">Frente</h3>
 
             <x-input-file id="front_image" name="front_image" accept="image/*"
                           @change="onImageChange('front', $event)" />
             <x-input-error :messages="$errors->get('front_image')" class="mt-1" />
 
-            <div class="card-canvas relative w-full mt-3 rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700"
+            <div class="card-canvas relative w-full mt-3 rounded-xl overflow-hidden border-2 border-line bg-subtle"
                  style="aspect-ratio: 54 / 85.6; max-width: 320px;">
                 <img :src="frontPreviewUrl" x-show="frontPreviewUrl" class="absolute inset-0 w-full h-full object-cover pointer-events-none">
                 <template x-for="(field, key) in layout.front" :key="key">
@@ -75,13 +75,13 @@
 
         <!-- VERSO -->
         <div>
-            <h3 class="font-bold text-gray-800 dark:text-gray-200 mb-2">Verso</h3>
+            <h3 class="mb-2 font-display font-semibold text-ink">Verso</h3>
 
             <x-input-file id="back_image" name="back_image" accept="image/*"
                           @change="onImageChange('back', $event)" />
             <x-input-error :messages="$errors->get('back_image')" class="mt-1" />
 
-            <div class="card-canvas relative w-full mt-3 rounded-xl overflow-hidden border-2 border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700"
+            <div class="card-canvas relative w-full mt-3 rounded-xl overflow-hidden border-2 border-line bg-subtle"
                  style="aspect-ratio: 54 / 85.6; max-width: 320px;">
                 <img :src="backPreviewUrl" x-show="backPreviewUrl" class="absolute inset-0 w-full h-full object-cover pointer-events-none">
                 <template x-for="(field, key) in layout.back" :key="key">
@@ -97,17 +97,17 @@
         </div>
     </div>
 
-    <p class="text-xs text-gray-500 dark:text-gray-400 mt-3">
+    <p class="mt-3 text-xs text-ink-3">
         Arraste as caixas para posicionar cada campo. Todas as caixas podem ser redimensionadas pela alça no canto inferior direito.
     </p>
 
     <!-- ESTILO DOS CAMPOS DE TEXTO -->
     <div class="mt-8">
-        <h3 class="font-bold text-gray-800 dark:text-gray-200 mb-3">Estilo dos campos de texto</h3>
-        <div class="overflow-x-auto bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
+        <h3 class="mb-3 font-display font-semibold text-ink">Estilo dos campos de texto</h3>
+        <div class="overflow-x-auto rounded-2xl border border-line">
             <table class="min-w-full text-sm">
                 <thead>
-                    <tr class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
+                    <tr class="border-b border-line text-left text-xs font-bold text-ink-3">
                         <th class="py-2 px-4">Campo</th>
                         <th class="py-2 px-4">Tamanho</th>
                         <th class="py-2 px-4">Negrito</th>
@@ -117,19 +117,19 @@
                 </thead>
                 <tbody>
                     <template x-for="tf in textFields" :key="tf.side + tf.key">
-                        <tr class="border-b border-gray-50 dark:border-gray-700 last:border-0">
-                            <td class="py-2 px-4 font-medium text-gray-700 dark:text-gray-300" x-text="tf.label"></td>
+                        <tr class="border-b border-line last:border-0">
+                            <td class="py-2 px-4 font-semibold text-ink" x-text="tf.label"></td>
                             <td class="py-2 px-4">
                                 <input type="number" min="6" max="40"
-                                       class="w-20 px-2 py-1 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                                       class="w-20 rounded-lg px-2 py-1 font-mono text-sm"
                                        x-model.number="layout[tf.side][tf.key].font_size">
                             </td>
                             <td class="py-2 px-4">
                                 <input type="checkbox" x-model="layout[tf.side][tf.key].bold"
-                                       class="rounded border-gray-300 dark:border-gray-600 text-red-600 focus:ring-red-500">
+                                       class="rounded border-line-strong text-grena focus:ring-grena-tint">
                             </td>
                             <td class="py-2 px-4">
-                                <select class="px-2 py-1 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                                <select class="rounded-lg py-1 pl-2 pr-8 text-sm"
                                         x-model="layout[tf.side][tf.key].align">
                                     <option value="left">Esquerda</option>
                                     <option value="center">Centro</option>
@@ -137,7 +137,7 @@
                                 </select>
                             </td>
                             <td class="py-2 px-4">
-                                <input type="color" x-model="layout[tf.side][tf.key].color" class="w-10 h-8 p-0 border border-gray-200 dark:border-gray-600 rounded">
+                                <input type="color" x-model="layout[tf.side][tf.key].color" class="h-8 w-10 cursor-pointer rounded-lg border border-line-strong p-0">
                             </td>
                         </tr>
                     </template>
@@ -148,13 +148,9 @@
 
     <input type="hidden" name="layout" :value="JSON.stringify(layout)">
 
-    <div class="row mt-8">
-        <div class="col-2">
-            <x-primary-button class="mt-2" type="submit">{{ $isEdit ? 'Salvar alterações' : 'Cadastrar modelo' }}</x-primary-button>
-        </div>
-        <div class="col-2">
-            <x-secondary-button class="mt-2" type="button" onclick="window.history.back();">Cancelar</x-secondary-button>
-        </div>
+    <div class="mt-8 flex flex-wrap justify-end gap-2.5 border-t border-line pt-5">
+        <x-secondary-button-a href="{{ route('card-templates.index') }}">Cancelar</x-secondary-button-a>
+        <x-primary-button type="submit"><x-icon name="check" /> {{ $isEdit ? 'Salvar alterações' : 'Cadastrar modelo' }}</x-primary-button>
     </div>
 </form>
 

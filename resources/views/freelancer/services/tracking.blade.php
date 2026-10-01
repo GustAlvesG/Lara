@@ -25,26 +25,20 @@
     $brl = fn($v) => 'R$ ' . number_format((float) $v, 2, ',', '.');
 
     $stepStyles = [
-        'done' => ['bg-emerald-500 text-white', 'text-gray-900 dark:text-white'],
-        'current' => ['bg-amber-500 text-white', 'text-amber-700 dark:text-amber-300'],
-        'rejected' => ['bg-red-600 text-white', 'text-red-700 dark:text-red-300'],
-        'pending' => ['bg-gray-200 text-gray-500 dark:bg-gray-600 dark:text-gray-300', 'text-gray-400 dark:text-gray-500'],
+        'done' => ['bg-ok text-white dark:text-canvas', 'text-ink'],
+        'current' => ['bg-warn text-white dark:text-canvas', 'text-warn'],
+        'rejected' => ['bg-danger text-white dark:text-canvas', 'text-danger'],
+        'pending' => ['bg-line text-ink-2', 'text-ink-3'],
     ];
 @endphp
 
 <x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Serviços / Contratos') }}
-        </h2>
-    </x-slot>
-
-<div class="py-12 bg-gray-50 dark:bg-gray-900 min-h-screen">
-    <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+<div class="py-6">
+    <div class="max-w-7xl mx-auto sm:px-6 lg:px-8" id="acompanhamento">
 
         <div class="mb-8">
-            <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Acompanhamento</h1>
-            <p class="text-gray-500 dark:text-gray-400 font-medium">
+            <h1 class="font-display text-2xl font-semibold tracking-tight text-ink">Acompanhamento</h1>
+            <p class="text-ink-2 font-medium">
                 Onde cada contrato parou: assinaturas, gerência, diretoria e pagamento. Tela de consulta — as
                 aprovações e as baixas continuam com a Gerência e o Financeiro.
             </p>
@@ -53,19 +47,21 @@
         @include('freelancer.services.partials.tabs', ['activeTab' => 'freelancer-services.tracking'])
         @include('partials.alerts')
 
+        <x-search-bar mode="client" target="#acompanhamento" placeholder="Buscar freelancer, CPF, evento ou lote" class="mb-6" />
+
         {{-- ============ FILTRO DE PERÍODO ============ --}}
         <div class="mb-6 flex flex-wrap items-center gap-2">
-            <span class="text-xs font-bold uppercase tracking-wider text-gray-400 mr-1">Período</span>
+            <span class="text-xs font-bold uppercase tracking-wider text-ink-3 mr-1">Período</span>
             @foreach($periods as $value => $label)
                 <a href="{{ route('freelancer-services.tracking', ['periodo' => $value]) }}"
                    class="px-3 py-1.5 rounded-lg text-sm font-bold transition
                           {{ $period === $value
-                              ? 'bg-[#A00001] text-white'
-                              : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:border-gray-300' }}">
+                              ? 'bg-grena text-white'
+                              : 'bg-surface text-ink-2 border border-line hover:border-line-strong' }}">
                     {{ $label }}
                 </a>
             @endforeach
-            <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">
+            <span class="text-xs text-ink-3 ml-1">
                 As filas em aberto aparecem sempre, mesmo fora do período — é o atraso que interessa achar.
             </span>
         </div>
@@ -73,61 +69,61 @@
         {{-- ============ RESUMO POR ETAPA ============ --}}
         <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4 mb-8">
             @foreach($summary as $item)
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-4">
-                    <p class="text-xs font-bold uppercase tracking-wider text-gray-400 leading-tight min-h-[2rem]">
+                <div class="bg-surface rounded-2xl shadow-card border border-line p-4">
+                    <p class="text-xs font-bold uppercase tracking-wider text-ink-3 leading-tight min-h-[2rem]">
                         {{ $item['label'] }}
                     </p>
-                    <p class="mt-1 text-2xl font-extrabold text-gray-900 dark:text-white tabular-nums">{{ $item['count'] }}</p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 tabular-nums">{{ $brl($item['total']) }}</p>
+                    <p class="mt-1 text-2xl font-extrabold text-ink tabular-nums">{{ $item['count'] }}</p>
+                    <p class="text-xs text-ink-2 tabular-nums">{{ $brl($item['total']) }}</p>
                 </div>
             @endforeach
         </div>
 
         {{-- ============ LOTES ============ --}}
         <div class="mb-4 flex items-baseline justify-between gap-4">
-            <h2 class="text-xl font-extrabold text-gray-900 dark:text-white">Lotes</h2>
-            <span class="text-xs text-gray-400 dark:text-gray-500">
+            <h2 class="text-xl font-extrabold text-ink">Lotes</h2>
+            <span class="text-xs text-ink-3">
                 Toque em um lote para ver os contratos dele
             </span>
         </div>
 
         <div class="space-y-4 mb-10">
             @forelse($batches as $batch)
-                <div x-data="{ open: false }"
-                     class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div data-search="" x-data="{ open: false }"
+                     class="bg-surface rounded-2xl shadow-card border border-line overflow-hidden">
 
                     {{-- Cabeçalho clicável em <div>, não em <button>: a linha do
                          tempo abaixo é conteúdo de bloco, que um botão não pode
                          conter. O papel e o teclado são declarados à mão. --}}
                     <div role="button" tabindex="0" :aria-expanded="open ? 'true' : 'false'"
                          @click="open = !open" @keydown.enter="open = !open" @keydown.space.prevent="open = !open"
-                         class="w-full text-left px-6 py-5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 transition">
+                         class="w-full text-left px-6 py-5 cursor-pointer hover:bg-subtle transition">
                         <div class="flex flex-wrap items-center justify-between gap-4">
                             <div class="min-w-0">
                                 <div class="flex items-center gap-3">
-                                    <p class="font-extrabold text-gray-900 dark:text-white">Lote #{{ $batch->id }}</p>
+                                    <p class="font-extrabold text-ink">Lote #{{ $batch->id }}</p>
                                     @include('freelancer.services.partials.stage-badge', [
                                         'stage' => $batch->trackingStage(),
                                         'label' => $batch->trackingStageLabel(),
                                     ])
                                 </div>
-                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                <p class="text-sm text-ink-2">
                                     Montado por {{ $batch->createdBy->name ?? '—' }}
                                     @if($batch->sent_at) · enviado em {{ $batch->sent_at->format('d/m/Y H:i') }} @endif
                                 </p>
                             </div>
                             <div class="flex items-center gap-6 shrink-0">
                                 <div class="text-right">
-                                    <p class="text-xs font-bold uppercase tracking-wider text-gray-400">Contratos</p>
-                                    <p class="text-lg font-extrabold text-gray-900 dark:text-white tabular-nums">{{ $batch->services_count }}</p>
+                                    <p class="text-xs font-bold uppercase tracking-wider text-ink-3">Contratos</p>
+                                    <p class="text-lg font-extrabold text-ink tabular-nums">{{ $batch->services_count }}</p>
                                 </div>
                                 <div class="text-right">
-                                    <p class="text-xs font-bold uppercase tracking-wider text-gray-400">Total</p>
-                                    <p class="text-lg font-extrabold text-gray-900 dark:text-white tabular-nums">
+                                    <p class="text-xs font-bold uppercase tracking-wider text-ink-3">Total</p>
+                                    <p class="text-lg font-extrabold text-ink tabular-nums">
                                         {{ $brl($batch->services_sum_price ?? 0) }}
                                     </p>
                                 </div>
-                                <svg class="w-5 h-5 text-gray-400 transition-transform" :class="open && 'rotate-180'"
+                                <svg class="w-5 h-5 text-ink-3 transition-transform" :class="open && 'rotate-180'"
                                      fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                 </svg>
@@ -151,23 +147,23 @@
                                     <span class="leading-tight">
                                         <span class="block text-xs font-bold {{ $texto }}">{{ $step['label'] }}</span>
                                         @if($step['detail'])
-                                            <span class="block text-[11px] text-gray-400 dark:text-gray-500">{{ $step['detail'] }}</span>
+                                            <span class="block text-[11px] text-ink-3">{{ $step['detail'] }}</span>
                                         @endif
                                     </span>
                                 </li>
                                 @if(!$loop->last)
-                                    <span class="hidden sm:block h-px w-6 bg-gray-200 dark:bg-gray-600"></span>
+                                    <span class="hidden sm:block h-px w-6 bg-line"></span>
                                 @endif
                             @endforeach
                         </ol>
                     </div>
 
                     {{-- Contratos do lote --}}
-                    <div x-show="open" x-cloak class="border-t border-gray-100 dark:border-gray-700">
+                    <div x-show="open" x-cloak class="border-t border-line">
                         @if($canOpenBatch($batch))
                             <div class="px-6 pt-4">
                                 <a href="{{ route('freelancer-batches.show', $batch) }}"
-                                   class="text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
+                                   class="text-sm font-bold text-grena-ink hover:underline">
                                     Abrir o lote →
                                 </a>
                             </div>
@@ -180,16 +176,16 @@
                     </div>
                 </div>
             @empty
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 px-6 py-16 text-center">
-                    <p class="text-lg font-bold text-gray-900 dark:text-white">Nenhum lote no período</p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                <div class="bg-surface rounded-2xl shadow-card border border-line px-6 py-16 text-center">
+                    <p class="text-lg font-bold text-ink">Nenhum lote no período</p>
+                    <p class="text-sm text-ink-2 mt-1">
                         Assim que um coordenador montar um lote, ele aparece aqui com o andamento.
                     </p>
                 </div>
             @endforelse
 
             @if($batches->count() >= $batchLimit)
-                <p class="text-xs text-gray-400 dark:text-gray-500 text-center">
+                <p class="text-xs text-ink-3 text-center">
                     Mostrando os {{ $batchLimit }} lotes mais recentes. Reduza o período para ver menos.
                 </p>
             @endif
@@ -197,17 +193,17 @@
 
         {{-- ============ FORA DE LOTE ============ --}}
         <div class="mb-4 flex items-baseline justify-between gap-4">
-            <h2 class="text-xl font-extrabold text-gray-900 dark:text-white">Ainda fora de lote</h2>
-            <span class="text-xs text-gray-400 dark:text-gray-500">
+            <h2 class="text-xl font-extrabold text-ink">Ainda fora de lote</h2>
+            <span class="text-xs text-ink-3">
                 Contratos que esperam assinatura ou o coordenador montar o lote
             </span>
         </div>
 
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div class="bg-surface rounded-2xl shadow-card border border-line overflow-hidden">
             @if($loose->isEmpty())
                 <div class="px-6 py-16 text-center">
-                    <p class="text-lg font-bold text-gray-900 dark:text-white">Nada parado fora de lote</p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    <p class="text-lg font-bold text-ink">Nada parado fora de lote</p>
+                    <p class="text-sm text-ink-2 mt-1">
                         Todo contrato do período já está num lote em trâmite.
                     </p>
                 </div>
@@ -221,7 +217,7 @@
         </div>
 
         @if($loose->count() >= $looseLimit)
-            <p class="mt-3 text-xs text-gray-400 dark:text-gray-500 text-center">
+            <p class="mt-3 text-xs text-ink-3 text-center">
                 Lista limitada a {{ $looseLimit }} contratos por etapa. Reduza o período para ver menos.
             </p>
         @endif

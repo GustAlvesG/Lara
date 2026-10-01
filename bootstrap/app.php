@@ -18,6 +18,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // escopo próprio — não confunde com o token de sócio.
             'approval_token' => \App\Http\Middleware\ApprovalToken::class,
             'login_token' => \App\Http\Middleware\JwtMiddleware::class,
+            // Aviso de leitura obrigatória pendente desvia a navegação para a
+            // tela de ciência (ver o middleware e routes/web.php).
+            'avisos_obrigatorios' => \App\Http\Middleware\EnsureMandatoryAvisosAcknowledged::class,
             // Sem os aliases `role`/`permission` do Spatie: o acesso do painel
             // é `can:<permissão do catálogo>` — ver App\Authorization.
             // Sanctum não registra esses aliases automaticamente — usados

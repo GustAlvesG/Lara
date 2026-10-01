@@ -10,10 +10,10 @@
 @endphp
 
 <div class="md:col-span-2 flex flex-col items-center">
-    <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 text-center">Foto de Identificação</label>
+    <label class="block text-sm font-bold text-ink mb-3 text-center">Foto de Identificação</label>
 
-    <div class="relative w-full max-w-[220px] bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden border-4 border-white dark:border-gray-800 shadow-xl flex items-center justify-center" style="aspect-ratio:1">
-        <div id="fl-photo-placeholder" class="{{ $currentPhoto ? 'hidden' : '' }} flex flex-col items-center text-gray-400 dark:text-gray-500 p-4">
+    <div class="relative w-full max-w-[220px] bg-subtle rounded-full overflow-hidden border-4 border-white shadow-pop flex items-center justify-center" style="aspect-ratio:1">
+        <div id="fl-photo-placeholder" class="{{ $currentPhoto ? 'hidden' : '' }} flex flex-col items-center text-ink-3 p-4">
             <svg class="w-16 h-16 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
             </svg>
@@ -22,31 +22,31 @@
         <video id="fl-photo-video" autoplay playsinline class="hidden w-full h-full object-cover scale-x-[-1]"></video>
         <img id="fl-photo-preview" src="{{ $currentPhoto ?? '#' }}" alt="Foto do freelancer"
              class="{{ $currentPhoto ? '' : 'hidden' }} w-full h-full object-cover">
-        <div id="fl-photo-loading" class="hidden absolute inset-0 bg-white/80 dark:bg-gray-800/80 flex items-center justify-center">
-            <div class="w-8 h-8 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+        <div id="fl-photo-loading" class="hidden absolute inset-0 bg-surface/80 flex items-center justify-center">
+            <div class="w-8 h-8 border-4 border-danger border-t-transparent rounded-full animate-spin"></div>
         </div>
     </div>
 
     <div class="mt-4 flex flex-wrap justify-center gap-2">
         <button type="button" id="fl-photo-start"
-                class="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-bold uppercase shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition">
+                class="px-4 py-2 bg-surface border border-line text-ink rounded-lg text-xs font-bold uppercase shadow-card hover:bg-subtle transition">
             Ativar Câmera
         </button>
         <button type="button" id="fl-photo-import"
-                class="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-bold uppercase shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition">
+                class="px-4 py-2 bg-surface border border-line text-ink rounded-lg text-xs font-bold uppercase shadow-card hover:bg-subtle transition">
             Importar Foto
         </button>
         <button type="button" id="fl-photo-take"
-                class="hidden px-4 py-2 bg-[#A00001] text-white rounded-lg text-xs font-bold uppercase shadow-md hover:bg-[#800000] transition">
+                class="hidden px-4 py-2 bg-grena text-white rounded-lg text-xs font-bold uppercase shadow-card hover:bg-grena-hover transition">
             Tirar Foto
         </button>
         <button type="button" id="fl-photo-undo"
-                class="hidden px-4 py-2 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-800 rounded-lg text-xs font-bold uppercase hover:bg-red-100 dark:hover:bg-red-900/50 transition">
+                class="hidden px-4 py-2 bg-danger-soft text-danger border border-danger/40 rounded-lg text-xs font-bold uppercase hover:bg-danger-soft transition">
             {{ $currentPhoto ? 'Manter a Foto Atual' : 'Descartar' }}
         </button>
     </div>
 
-    @error('image')<p class="mt-2 text-xs text-red-600">{{ $message }}</p>@enderror
+    @error('image')<p class="mt-2 text-xs text-danger">{{ $message }}</p>@enderror
 
     <input type="hidden" name="image" id="fl-photo-input">
     <input type="file" id="fl-photo-file" accept="image/jpeg,image/png,image/webp" class="hidden">

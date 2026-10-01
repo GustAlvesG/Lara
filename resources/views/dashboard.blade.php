@@ -1,220 +1,152 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Dashboard') }}
-        </h2>
-    </x-slot>
+{{--
+    Painel inicial: um bloco por área que a pessoa pode abrir, cada um na cor
+    da sua área, com os números do dia e o atalho para a tela.
+--}}
+@php
+    $th = 'px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3';
+    $panel = 'rounded-card bg-surface p-5 shadow-card';
+    $panelTitle = 'mb-4 text-xs font-bold uppercase tracking-[0.08em] text-ink-3';
+@endphp
+<x-app-layout :bootstrap-grid="false">
+    <x-page class="gap-8">
 
-    <div class="py-8">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-
-            {{-- Boas-vindas --}}
-            <div class="bg-gradient-to-r from-red-800 to-red-600 dark:from-red-900 dark:to-red-700 rounded-2xl shadow-lg p-6 text-white flex items-center justify-between flex-wrap gap-4">
-                <div>
-                    <h1 class="text-2xl font-extrabold">{{ __('Olá') }}, {{ $user->name }} 👋</h1>
-                    <p class="text-sm text-red-100 mt-1">{{ __('Bem-vindo ao seu painel de controle.') }}</p>
-                </div>
-                <div class="text-right">
-                    <p class="text-xs uppercase tracking-wider text-red-200">{{ __('Último acesso') }}</p>
-                    <p class="text-sm font-semibold">
-                        {{ $user->last_login_at ? \Illuminate\Support\Carbon::parse($user->last_login_at)->format('d/m/Y H:i') : __('Primeiro acesso') }}
-                    </p>
-                </div>
+        {{-- Boas-vindas --}}
+        <div class="flex flex-wrap items-end justify-between gap-4">
+            <div>
+                <p class="text-xs font-bold uppercase tracking-[0.1em] text-ink-3">{{ now()->translatedFormat('l, d \d\e F') }}</p>
+                <h1 class="font-display text-2xl font-semibold tracking-tight text-ink sm:text-[28px]">{{ __('Olá') }}, {{ \Illuminate\Support\Str::before($user->name, ' ') }}</h1>
             </div>
+            <p class="text-sm text-ink-2">
+                {{ __('Último acesso') }}:
+                <span class="font-mono font-semibold text-ink">{{ $user->last_login_at ? \Illuminate\Support\Carbon::parse($user->last_login_at)->format('d/m/Y H:i') : __('primeiro acesso') }}</span>
+            </p>
+        </div>
 
-            {{-- ============================== Avisos ============================= --}}
-            <x-dashboard.section title="Avisos" color="rose"
-                :href="route('avisos.index')" linkLabel="Ver todos"
-                icon="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9">
+        @include('partials.alerts')
 
-                @if($avisos->isEmpty())
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 text-center text-gray-400 dark:text-gray-500 font-medium">
-                        {{ __('Nenhum aviso ativo no momento.') }}
-                    </div>
+        {{-- ============================== Avisos ============================= --}}
+        <x-dashboard.section title="Avisos" area="info" glyph="bell" :href="route('avisos.index')" linkLabel="Ver todos">
+            @if($avisos->isEmpty())
+                <x-empty-state icon="bell">{{ __('Nenhum aviso ativo no momento.') }}</x-empty-state>
+            @else
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    @foreach($avisos as $aviso)
+                        @include('avisos.partials.card', ['aviso' => $aviso])
+                    @endforeach
+                </div>
+            @endif
+        </x-dashboard.section>
+
+        {{-- ========================= Home Assistant ========================= --}}
+        @can('home-assistant')
+            <x-dashboard.section title="Home Assistant" area="inicio" glyph="bolt" :href="route('home-assistant.index')" linkLabel="Gerenciar">
+                @if($homeAssistant['contactors']->isEmpty())
+                    <x-empty-state icon="bulb">{{ __('Nenhum interruptor cadastrado.') }}</x-empty-state>
                 @else
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                        @foreach($avisos as $aviso)
-                            @include('avisos.partials.card', ['aviso' => $aviso])
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        @foreach($homeAssistant['contactors'] as $contactor)
+                            <x-dashboard.ha-switch :contactor="$contactor" :state="$homeAssistant['states'][$contactor->id]" />
                         @endforeach
                     </div>
                 @endif
             </x-dashboard.section>
+        @endcan
 
-             {{-- ========================= Home Assistant ========================= --}}
-            @can('home-assistant')
-                <x-dashboard.section title="Home Assistant" color="amber"
-                    :href="route('home-assistant.index')" linkLabel="Gerenciar"
-                    icon="M13 10V3L4 14h7v7l9-11h-7z">
+        {{-- ============================ InfoClube ============================ --}}
+        {{-- InfoClube é de todo mundo logado. --}}
+        <x-dashboard.section title="InfoClube" area="info" glyph="info" :href="route('information.index')">
+            <div class="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                <x-dashboard.stat-card glyph="info" label="Informações ativas" :value="$info['total']" :href="route('information.index')" />
+            </div>
+        </x-dashboard.section>
 
-                    @if($homeAssistant['contactors']->isEmpty())
-                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 text-center text-gray-400 dark:text-gray-500 font-medium">
-                            {{ __('Nenhum interruptor cadastrado.') }}
-                        </div>
-                    @else
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            @foreach($homeAssistant['contactors'] as $contactor)
-                                <x-dashboard.ha-switch :contactor="$contactor" :state="$homeAssistant['states'][$contactor->id]" />
-                            @endforeach
-                        </div>
-                    @endif
-                </x-dashboard.section>
-            @endcan
+        {{-- =============================== SIV =============================== --}}
+        @can('siv.busca')
+            <x-dashboard.section title="SIV" area="portaria" glyph="car" :href="route('parking.search')" linkLabel="Buscar placa">
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <x-dashboard.stat-card glyph="car" label="Veículos hoje" :value="$parking['today']" />
+                    <x-dashboard.stat-card glyph="calendar" label="Veículos no mês" :value="$parking['month']" />
+                    <x-dashboard.stat-card glyph="shield" label="Placas diretoria" :value="$parking['authTotal']"
+                        :sub="$parking['authExpiring'] > 0 ? $parking['authExpiring'].' expiram em 30 dias' : null" />
+                </div>
 
-            {{-- ============================ InfoClube ============================ --}}
-            {{-- InfoClube é de todo mundo logado. --}}
-                <x-dashboard.section title="InfoClube" color="teal"
-                    :href="route('information.index')"
-                    icon="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                <div class="{{ $panel }}">
+                    <h3 class="{{ $panelTitle }}">{{ __('Detecções — últimos 14 dias') }}</h3>
+                    <canvas id="parkingChart" height="90"></canvas>
+                </div>
+            </x-dashboard.section>
+        @endcan
 
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <x-dashboard.stat-card color="teal" label="Informações ativas" :value="$info['total']">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </x-dashboard.stat-card>
+        {{-- ============================= Reservas ============================ --}}
+        @can('reservas.agendamentos')
+            <x-dashboard.section title="Reservas" area="reservas" glyph="calendar" :href="route('schedule.index')" linkLabel="Agenda">
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <x-dashboard.stat-card glyph="calendar" label="Reservas hoje" :value="$reservations['today']" />
+                    <x-dashboard.stat-card glyph="clock" label="Reservas futuras" :value="$reservations['upcomingCount']" />
+                    <x-dashboard.stat-card glyph="money" label="Receita do mês" value="R$ {{ number_format($reservations['revenue'], 2, ',', '.') }}" />
+                </div>
 
-                        {{-- <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                            <h3 class="text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">{{ __('Principais categorias') }}</h3>
-                            @if($info['categories']->isEmpty())
-                                <p class="text-sm text-gray-400 dark:text-gray-500 py-4">{{ __('Nenhuma categoria registrada.') }}</p>
-                            @else
-                                @php $maxCat = max($info['categories']->max(), 1); @endphp
-                                <div class="space-y-3">
-                                    @foreach($info['categories'] as $category => $count)
-                                        <div>
-                                            <div class="flex justify-between text-sm mb-1">
-                                                <span class="font-semibold text-gray-700 dark:text-gray-200">{{ $category }}</span>
-                                                <span class="font-bold text-gray-500 dark:text-gray-400">{{ $count }}</span>
-                                            </div>
-                                            <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
-                                                <div class="bg-teal-500 h-2 rounded-full" style="width: {{ round($count / $maxCat * 100) }}%"></div>
-                                            </div>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            @endif
-                        </div> --}}
-                    </div>
-                </x-dashboard.section>
-
-            {{-- =============================== SIV =============================== --}}
-            @can('siv.busca')
-                <x-dashboard.section title="SIV" color="indigo"
-                    :href="route('parking.search')" linkLabel="Buscar placa"
-                    icon="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z">
-
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <x-dashboard.stat-card color="indigo" label="Veículos hoje" :value="$parking['today']">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13l1.5-4.5A2 2 0 016.4 7h11.2a2 2 0 011.9 1.5L21 13m-18 0h18m-18 0v5a1 1 0 001 1h1a1 1 0 001-1v-1h10v1a1 1 0 001 1h1a1 1 0 001-1v-5M6.5 16h.01M17.5 16h.01"/>
-                        </x-dashboard.stat-card>
-                        <x-dashboard.stat-card color="sky" label="Veículos no mês" :value="$parking['month']">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                        </x-dashboard.stat-card>
-                        <x-dashboard.stat-card color="amber" label="Placas diretoria" :value="$parking['authTotal']"
-                            :sub="$parking['authExpiring'] > 0 ? $parking['authExpiring'].' expiram em 30 dias' : null">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </x-dashboard.stat-card>
+                <div class="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                    <div class="{{ $panel }}">
+                        <h3 class="{{ $panelTitle }}">{{ __('Reservas por status') }}</h3>
+                        @if($reservations['chart']['data']->isEmpty())
+                            <p class="py-10 text-center text-sm text-ink-3">{{ __('Sem reservas registradas.') }}</p>
+                        @else
+                            <canvas id="reservationChart" height="200"></canvas>
+                        @endif
                     </div>
 
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                        <h3 class="text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">{{ __('Detecções — últimos 14 dias') }}</h3>
-                        <canvas id="parkingChart" height="90"></canvas>
-                    </div>
-                </x-dashboard.section>
-            @endcan
-
-            {{-- ============================= Reservas ============================ --}}
-            @can('reservas.agendamentos')
-                <x-dashboard.section title="Reservas" color="violet"
-                    :href="route('schedule.index')"
-                    icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
-
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <x-dashboard.stat-card color="violet" label="Reservas hoje" :value="$reservations['today']">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                        </x-dashboard.stat-card>
-                        <x-dashboard.stat-card color="indigo" label="Reservas futuras" :value="$reservations['upcomingCount']">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </x-dashboard.stat-card>
-                        <x-dashboard.stat-card color="emerald" label="Receita do mês" value="R$ {{ number_format($reservations['revenue'], 2, ',', '.') }}">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </x-dashboard.stat-card>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                            <h3 class="text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">{{ __('Reservas por status') }}</h3>
-                            @if($reservations['chart']['data']->isEmpty())
-                                <p class="text-sm text-gray-400 dark:text-gray-500 text-center py-10">{{ __('Sem reservas registradas.') }}</p>
-                            @else
-                                <canvas id="reservationChart" height="200"></canvas>
-                            @endif
-                        </div>
-
-                        <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-                            <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-                                <h3 class="text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('Próximas reservas') }}</h3>
-                            </div>
-                            @if($reservations['upcoming']->isEmpty())
-                                <p class="py-12 text-center text-gray-400 dark:text-gray-500 font-medium">{{ __('Nenhuma reserva agendada.') }}</p>
-                            @else
+                    <div class="overflow-hidden rounded-card bg-surface shadow-card lg:col-span-2">
+                        <h3 class="px-5 pt-5 text-xs font-bold uppercase tracking-[0.08em] text-ink-3">{{ __('Próximas reservas') }}</h3>
+                        @if($reservations['upcoming']->isEmpty())
+                            <p class="py-12 text-center text-sm text-ink-3">{{ __('Nenhuma reserva agendada.') }}</p>
+                        @else
+                            <div class="overflow-x-auto">
                                 <table class="w-full text-sm">
                                     <thead>
-                                        <tr class="bg-gray-50/70 dark:bg-gray-700/50">
-                                            <th class="px-6 py-3 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('Local') }}</th>
-                                            <th class="px-6 py-3 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('Membro') }}</th>
-                                            <th class="px-6 py-3 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('Início') }}</th>
-                                            <th class="px-6 py-3 text-center text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">{{ __('Status') }}</th>
+                                        <tr class="border-b border-line">
+                                            <th class="{{ $th }}">{{ __('Local') }}</th>
+                                            <th class="{{ $th }}">{{ __('Membro') }}</th>
+                                            <th class="{{ $th }}">{{ __('Início') }}</th>
+                                            <th class="{{ $th }}">{{ __('Status') }}</th>
                                         </tr>
                                     </thead>
-                                    <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
+                                    <tbody class="divide-y divide-line">
                                         @foreach($reservations['upcoming'] as $schedule)
-                                            <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition">
-                                                <td class="px-6 py-3.5 font-semibold text-gray-800 dark:text-gray-200">{{ $schedule->place ? ($schedule->place->group?->name ? $schedule->place->group->name.' - '.$schedule->place->name : $schedule->place->name) : '—' }}</td>
-                                                <td class="px-6 py-3.5 text-gray-600 dark:text-gray-300">{{ $schedule->member->name . ' (' . $schedule->member->title . ')' ?? '—' }}</td>
-                                                <td class="px-6 py-3.5 whitespace-nowrap text-gray-600 dark:text-gray-300">{{ $schedule->start_schedule?->format('d/m/Y H:i') }}</td>
-                                                <td class="px-6 py-3.5 text-center">
-                                                    <span class="inline-flex px-2.5 py-1 bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-400 rounded-full text-[11px] font-black uppercase">
-                                                        {{ $schedule->status->portuguese ?? '—' }}
-                                                    </span>
+                                            <tr class="transition hover:bg-subtle">
+                                                <td class="px-5 py-3 font-semibold text-ink">{{ $schedule->place ? ($schedule->place->group?->name ? $schedule->place->group->name.' - '.$schedule->place->name : $schedule->place->name) : '—' }}</td>
+                                                <td class="px-5 py-3 text-ink-2">{{ $schedule->member ? $schedule->member->name . ' (' . $schedule->member->title . ')' : '—' }}</td>
+                                                <td class="whitespace-nowrap px-5 py-3 font-mono text-xs text-ink-2">{{ $schedule->start_schedule?->format('d/m/Y H:i') }}</td>
+                                                <td class="px-5 py-3">
+                                                    <x-pill :kind="match((int) $schedule->status_id) { 1 => 'ok', 3 => 'warn', 0 => 'danger', default => 'off' }">{{ $schedule->status->portuguese ?? '—' }}</x-pill>
                                                 </td>
                                             </tr>
                                         @endforeach
                                     </tbody>
                                 </table>
-                            @endif
-                        </div>
+                            </div>
+                        @endif
                     </div>
-                </x-dashboard.section>
-            @endcan
-
-            {{-- ============================= Externos =========================== --}}
-            <x-dashboard.section title="Externos" color="emerald"
-                :href="route('company.index')"
-                icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z">
-
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <x-dashboard.stat-card color="indigo" label="Empresas parceiras" :value="$partners['companies']"
-                        :sub="$partners['workers'].' funcionários'">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
-                    </x-dashboard.stat-card>
-                    <x-dashboard.stat-card color="sky" label="Funcionários" :value="$partners['workers']">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                    </x-dashboard.stat-card>
-                    <x-dashboard.stat-card color="green" label="Acessos permitidos hoje" :value="$partners['allowedToday']">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </x-dashboard.stat-card>
-                    <x-dashboard.stat-card color="red" label="Acessos negados hoje" :value="$partners['deniedToday']">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </x-dashboard.stat-card>
-                </div>
-
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-                    <h3 class="text-sm font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">{{ __('Acessos — últimos 14 dias') }}</h3>
-                    <canvas id="partnersChart" height="80"></canvas>
                 </div>
             </x-dashboard.section>
+        @endcan
 
-        </div>
-    </div>
+        {{-- ============================= Externos =========================== --}}
+        <x-dashboard.section title="Externos" area="externos" glyph="users" :href="route('company.index')">
+            <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <x-dashboard.stat-card glyph="users" label="Empresas parceiras" :value="$partners['companies']" />
+                <x-dashboard.stat-card glyph="user" label="Funcionários" :value="$partners['workers']" />
+                <x-dashboard.stat-card glyph="check" tone="ok" label="Acessos permitidos hoje" :value="$partners['allowedToday']" />
+                <x-dashboard.stat-card glyph="ban" tone="danger" label="Acessos negados hoje" :value="$partners['deniedToday']" />
+            </div>
+
+            <div class="{{ $panel }}">
+                <h3 class="{{ $panelTitle }}">{{ __('Acessos — últimos 14 dias') }}</h3>
+                <canvas id="partnersChart" height="80"></canvas>
+            </div>
+        </x-dashboard.section>
+
+    </x-page>
 
     <x-slot name="js">
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
@@ -222,10 +154,17 @@
             document.addEventListener('DOMContentLoaded', function () {
                 if (typeof Chart === 'undefined') return;
 
-                const isDark = document.documentElement.classList.contains('dark');
-                Chart.defaults.color = isDark ? '#9ca3af' : '#6b7280';
+                // As cores saem dos tokens do tema (claro ou escuro), não de
+                // valores fixos: o gráfico acompanha o resto da tela.
+                const css = getComputedStyle(document.documentElement);
+                const token = (name, alpha) => {
+                    const rgb = css.getPropertyValue('--' + name).trim().split(/\s+/).join(', ');
+                    return alpha === undefined ? 'rgb(' + rgb + ')' : 'rgba(' + rgb + ', ' + alpha + ')';
+                };
+
+                Chart.defaults.color = token('ink-2');
                 Chart.defaults.font.family = 'Figtree, sans-serif';
-                const grid = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
+                const grid = token('line');
 
                 @can('siv.busca')
                 const parkingEl = document.getElementById('parkingChart');
@@ -237,8 +176,8 @@
                             datasets: [{
                                 label: 'Detecções',
                                 data: @json($parking['chart']['data']),
-                                borderColor: '#6366f1',
-                                backgroundColor: 'rgba(99,102,241,0.15)',
+                                borderColor: token('a-portaria-ink'),
+                                backgroundColor: token('a-portaria-ink', 0.14),
                                 fill: true,
                                 tension: 0.35,
                                 pointRadius: 3,
@@ -265,7 +204,7 @@
                             labels: @json($reservations['chart']['labels']),
                             datasets: [{
                                 data: @json($reservations['chart']['data']),
-                                backgroundColor: ['#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#ec4899'],
+                                backgroundColor: [token('a-reservas-ink'), token('ok'), token('warn'), token('danger'), token('grena'), token('ink-3')],
                                 borderWidth: 0,
                             }]
                         },
@@ -287,13 +226,13 @@
                                 {
                                     label: 'Permitidos',
                                     data: @json($partners['chart']['allowed']),
-                                    backgroundColor: '#10b981',
+                                    backgroundColor: token('ok'),
                                     borderRadius: 4,
                                 },
                                 {
                                     label: 'Negados',
                                     data: @json($partners['chart']['denied']),
-                                    backgroundColor: '#ef4444',
+                                    backgroundColor: token('danger'),
                                     borderRadius: 4,
                                 }
                             ]

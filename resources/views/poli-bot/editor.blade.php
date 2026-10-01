@@ -1,15 +1,14 @@
 <x-app-layout>
     @php
-        $campo = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-900 dark:text-gray-100';
-        $rotulo = 'block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1';
-        $botaoSec = 'inline-flex items-center justify-center px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-40';
-        $secao = 'text-sm font-bold text-gray-800 dark:text-gray-100';
+        $campo = 'w-full px-3 py-2 border border-line-strong rounded-lg shadow-card text-sm focus:border-grena focus:ring-grena-tint bg-surface';
+        $rotulo = 'block text-xs font-semibold text-ink-2 mb-1';
+        $botaoSec = 'inline-flex items-center justify-center px-3 py-1.5 bg-surface border border-line-strong rounded-md text-xs font-semibold text-ink hover:bg-subtle disabled:opacity-40';
+        $secao = 'text-sm font-bold text-ink';
     @endphp
 
     <x-slot name="css">
         <style>
-            .pb-canvas { background-color: #f8fafc; background-image: radial-gradient(circle, rgba(148, 163, 184, .45) 1px, transparent 1px); }
-            .dark .pb-canvas { background-color: #111827; background-image: radial-gradient(circle, rgba(148, 163, 184, .18) 1px, transparent 1px); }
+            .pb-canvas { background-color: rgb(var(--canvas)); background-image: radial-gradient(circle, rgb(var(--ink-3) / .35) 1px, transparent 1px); }
             .pb-canvas.pb-panning { cursor: grabbing; }
             .pb-node { transition: box-shadow .15s; }
             .pb-port { transition: transform .1s; }
@@ -35,22 +34,22 @@
             'teams' => route('poli-bot.poli.teams'),
         ],
     ]))" x-cloak
-         class="flex flex-col bg-gray-50 dark:bg-gray-900" style="height: calc(100vh - 4rem); min-height: 640px"
+         class="flex flex-col bg-subtle" style="height: calc(100vh - 4rem); min-height: 640px"
          @pointermove.window="onMove($event)" @pointerup.window="onUp($event)" @keydown.window="onKey($event)">
 
         {{-- ============ Barra superior ============ --}}
-        <div class="flex flex-wrap items-center gap-3 px-4 py-2.5 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-            <a :href="urls.index" class="text-sm text-gray-500 hover:underline">&larr; Fluxos</a>
-            <h1 class="text-lg font-extrabold text-gray-900 dark:text-white truncate max-w-[24rem]" x-text="flow.name || 'Novo fluxo'"></h1>
+        <div class="flex flex-wrap items-center gap-3 px-4 py-2.5 border-b border-line bg-surface">
+            <a :href="urls.index" class="text-sm text-ink-2 hover:underline">&larr; Fluxos</a>
+            <h1 class="font-display text-lg font-semibold tracking-tight text-ink truncate max-w-[24rem]" x-text="flow.name || 'Novo fluxo'"></h1>
             <span class="px-2 py-0.5 rounded text-xs font-bold"
-                  :class="flow.active ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'"
+                  :class="flow.active ? 'bg-ok-soft text-ok' : 'bg-line text-ink'"
                   x-text="flow.active ? 'Ativo' : 'Rascunho'"></span>
-            <span x-show="dirty" class="text-xs text-amber-600 font-semibold">● Alterações não salvas</span>
+            <span x-show="dirty" class="text-xs text-warn font-semibold">● Alterações não salvas</span>
             <div class="flex-1"></div>
-            <span x-show="message" x-text="message" class="text-sm text-green-700"></span>
-            <button type="button" x-show="flow.id" @click="removeFlow()" class="text-xs text-red-600 hover:underline">Apagar fluxo</button>
+            <span x-show="message" x-text="message" class="text-sm text-ok"></span>
+            <button type="button" x-show="flow.id" @click="removeFlow()" class="text-xs text-danger hover:underline">Apagar fluxo</button>
             <button type="button" @click="save()" :disabled="saving" title="Ctrl+S"
-                    class="inline-flex items-center px-5 py-2 bg-gray-800 dark:bg-gray-200 rounded-md font-semibold text-xs text-white dark:text-gray-800 uppercase tracking-widest hover:bg-gray-700 disabled:opacity-50">
+                    class="inline-flex h-9 items-center rounded-full bg-grena px-5 text-sm font-bold text-white transition hover:bg-grena-hover disabled:opacity-50">
                 <span x-text="saving ? 'Salvando…' : 'Salvar'"></span>
             </button>
         </div>
@@ -58,40 +57,40 @@
         <div class="flex flex-1 min-h-0">
 
             {{-- ============ Paleta de blocos ============ --}}
-            <aside class="w-52 shrink-0 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto p-3 space-y-4">
+            <aside class="w-52 shrink-0 border-r border-line bg-surface overflow-y-auto p-3 space-y-4">
                 <div>
-                    <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Conversa</p>
+                    <p class="text-[11px] font-bold uppercase tracking-wider text-ink-3 mb-2">Conversa</p>
                     <div class="space-y-1.5">
                         <template x-for="k in ['mensagem', 'pergunta', 'menu', 'template']" :key="k">
                             <div draggable="true" @dragstart="paletteDrag($event, k)" @click="addBlockAtCenter(k)"
-                                 class="flex items-start gap-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 cursor-grab active:cursor-grabbing hover:border-indigo-300 hover:bg-indigo-50/50 dark:hover:bg-gray-700 select-none"
+                                 class="flex items-start gap-2 p-2 rounded-lg border border-line cursor-grab active:cursor-grabbing hover:border-grena/40 hover:bg-grena-tint/50 select-none"
                                  :title="'Arraste para o quadro (ou clique) — ' + KINDS[k].hint">
                                 <span class="w-7 h-7 shrink-0 rounded-md flex items-center justify-center text-sm text-white" :style="'background:' + KINDS[k].color" x-text="KINDS[k].icon"></span>
                                 <span class="min-w-0">
-                                    <span class="block text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="KINDS[k].label"></span>
-                                    <span class="block text-[10px] leading-tight text-gray-400" x-text="KINDS[k].hint"></span>
+                                    <span class="block text-xs font-semibold text-ink" x-text="KINDS[k].label"></span>
+                                    <span class="block text-[10px] leading-tight text-ink-3" x-text="KINDS[k].hint"></span>
                                 </span>
                             </div>
                         </template>
                     </div>
                 </div>
                 <div>
-                    <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Ações</p>
+                    <p class="text-[11px] font-bold uppercase tracking-wider text-ink-3 mb-2">Ações</p>
                     <div class="space-y-1.5">
                         <template x-for="k in ['handoff', 'uber_request', 'goto_flow', 'close']" :key="k">
                             <div draggable="true" @dragstart="paletteDrag($event, k)" @click="addBlockAtCenter(k)"
-                                 class="flex items-start gap-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 cursor-grab active:cursor-grabbing hover:border-indigo-300 hover:bg-indigo-50/50 dark:hover:bg-gray-700 select-none"
+                                 class="flex items-start gap-2 p-2 rounded-lg border border-line cursor-grab active:cursor-grabbing hover:border-grena/40 hover:bg-grena-tint/50 select-none"
                                  :title="'Arraste para o quadro (ou clique) — ' + KINDS[k].hint">
                                 <span class="w-7 h-7 shrink-0 rounded-md flex items-center justify-center text-sm text-white" :style="'background:' + KINDS[k].color" x-text="KINDS[k].icon"></span>
                                 <span class="min-w-0">
-                                    <span class="block text-xs font-semibold text-gray-800 dark:text-gray-100" x-text="KINDS[k].label"></span>
-                                    <span class="block text-[10px] leading-tight text-gray-400" x-text="KINDS[k].hint"></span>
+                                    <span class="block text-xs font-semibold text-ink" x-text="KINDS[k].label"></span>
+                                    <span class="block text-[10px] leading-tight text-ink-3" x-text="KINDS[k].hint"></span>
                                 </span>
                             </div>
                         </template>
                     </div>
                 </div>
-                <div class="rounded-lg bg-gray-50 dark:bg-gray-900 p-2.5 text-[11px] leading-snug text-gray-500 space-y-1">
+                <div class="rounded-lg bg-subtle p-2.5 text-[11px] leading-snug text-ink-2 space-y-1">
                     <p><strong>Ligar:</strong> puxe a bolinha à direita de um bloco até outro bloco. Soltar no vazio cria um bloco já ligado.</p>
                     <p><strong>Desligar:</strong> clique na linha e em ✕ (ou Delete).</p>
                     <p><strong>Mover o quadro:</strong> arraste o fundo. Roda do mouse dá zoom.</p>
@@ -124,17 +123,17 @@
                     {{-- Botão de desligar a ligação selecionada --}}
                     <template x-if="selectedEdgeMid()">
                         <button type="button" @pointerdown.stop @click.stop="removeSelectedEdge()"
-                                class="absolute w-6 h-6 -ml-3 -mt-3 rounded-full bg-red-500 text-white text-xs font-bold shadow hover:bg-red-600"
+                                class="absolute w-6 h-6 -ml-3 -mt-3 rounded-full bg-danger text-white text-xs font-bold shadow-card hover:bg-danger"
                                 :style="`left:${selectedEdgeMid().x}px; top:${selectedEdgeMid().y}px`" title="Desligar (Delete)">✕</button>
                     </template>
 
                     {{-- Entradas: Início e Fora do horário --}}
                     <template x-for="en in entries()" :key="en.id">
-                        <div class="absolute flex items-center gap-2 px-3 rounded-full text-xs font-bold text-white shadow-md cursor-move"
+                        <div class="absolute flex items-center gap-2 px-3 rounded-full text-xs font-bold text-white shadow-card cursor-move"
                              :style="`left:${en.pos.x}px; top:${en.pos.y}px; width:${ENTRY_W}px; height:${ENTRY_H}px; background:${en.color}`"
                              @pointerdown.stop="entryDown($event, en)" :title="en.hint">
                             <span x-text="en.icon"></span><span class="flex-1 truncate" x-text="en.label"></span>
-                            <span class="pb-port absolute -right-[7px] w-3.5 h-3.5 rounded-full border-2 bg-white cursor-crosshair"
+                            <span class="pb-port absolute -right-[7px] w-3.5 h-3.5 rounded-full border-2 bg-surface cursor-crosshair"
                                   :style="`top:${ENTRY_H / 2 - 7}px; border-color:${en.color}`"
                                   @pointerdown.stop="portDown($event, en.id, 'next')" title="Puxe até o passo por onde começar"></span>
                         </div>
@@ -142,15 +141,15 @@
 
                     {{-- Blocos (passos) --}}
                     <template x-for="s in steps" :key="s._uid">
-                        <div class="pb-node absolute rounded-xl bg-white dark:bg-gray-800 border shadow-md cursor-move"
+                        <div class="pb-node absolute rounded-xl bg-surface border shadow-card cursor-move"
                              :data-node="s._uid"
                              :class="nodeClass(s)"
                              :style="`left:${s.pos.x}px; top:${s.pos.y}px; width:${W}px; height:${nodeHeight(s)}px`"
                              @pointerdown.stop="nodeDown($event, s)" @dblclick.stop="select(s); panel = 'passo'">
 
                             {{-- entrada --}}
-                            <span class="absolute -left-[7px] w-3.5 h-3.5 rounded-full border-2 border-gray-400 bg-white dark:bg-gray-700"
-                                  :class="drag && drag.type === 'link' ? '!border-indigo-500 scale-125' : ''"
+                            <span class="absolute -left-[7px] w-3.5 h-3.5 rounded-full border-2 border-line-strong bg-surface"
+                                  :class="drag && drag.type === 'link' ? '!border-grena scale-125' : ''"
                                   :style="`top:${HEAD / 2 - 7}px`"></span>
 
                             <div class="flex items-center gap-2 px-3 rounded-t-xl text-white" :style="`height:${HEAD}px; background:${KINDS[kind(s)].color}`">
@@ -158,23 +157,23 @@
                                 <span class="font-mono font-semibold text-sm truncate flex-1" x-text="s.key"></span>
                                 <span x-show="s.key === settings.start" class="px-1.5 py-0.5 rounded bg-white/25 text-[10px] font-bold">início</span>
                                 <span x-show="settings.hours.enabled && s.key === settings.hours.out_of_hours" class="px-1.5 py-0.5 rounded bg-white/25 text-[10px] font-bold">fora</span>
-                                <span x-show="!isReachable(s.key)" class="px-1.5 py-0.5 rounded bg-amber-300 text-amber-900 text-[10px] font-bold" title="Nenhum passo leva até aqui">sem caminho</span>
-                                <span x-show="errorKeys().has(s.key)" class="px-1.5 py-0.5 rounded bg-red-600 text-[10px] font-bold" title="Este passo tem problema — veja o aviso no alto">!</span>
+                                <span x-show="!isReachable(s.key)" class="px-1.5 py-0.5 rounded bg-warn-soft text-warn text-[10px] font-bold" title="Nenhum passo leva até aqui">sem caminho</span>
+                                <span x-show="errorKeys().has(s.key)" class="px-1.5 py-0.5 rounded bg-danger text-[10px] font-bold" title="Este passo tem problema — veja o aviso no alto">!</span>
                             </div>
 
                             <div class="px-3 pt-1.5 overflow-hidden" :style="`height:${BODY}px`">
-                                <p class="text-[10px] font-semibold uppercase tracking-wide text-gray-400 truncate" x-text="meta(s)"></p>
-                                <p class="text-xs text-gray-700 dark:text-gray-200 line-clamp-2 leading-snug" :class="previewText(s) ? '' : 'italic text-gray-400'" x-text="previewText(s) || '(sem mensagem)'"></p>
+                                <p class="text-[10px] font-semibold uppercase tracking-wide text-ink-3 truncate" x-text="meta(s)"></p>
+                                <p class="text-xs text-ink line-clamp-2 leading-snug" :class="previewText(s) ? '' : 'italic text-ink-3'" x-text="previewText(s) || '(sem mensagem)'"></p>
                             </div>
 
-                            <div class="border-t border-gray-100 dark:border-gray-700">
+                            <div class="border-t border-line">
                                 <template x-for="(p, pi) in ports(s)" :key="p.id">
                                     <div class="relative flex items-center justify-end gap-1 pl-3 pr-4 text-[11px]"
-                                         :class="p.dim ? 'text-gray-300 dark:text-gray-600' : 'text-gray-600 dark:text-gray-300'"
+                                         :class="p.dim ? 'text-ink-3' : 'text-ink-2'"
                                          :style="`height:${ROW}px`">
                                         <span class="truncate" x-text="p.label"></span>
-                                        <span x-show="!p.to && !p.dim" class="text-[10px] text-gray-400 shrink-0">· fim</span>
-                                        <span class="pb-port absolute -right-[7px] w-3.5 h-3.5 rounded-full border-2 bg-white dark:bg-gray-700 cursor-crosshair"
+                                        <span x-show="!p.to && !p.dim" class="text-[10px] text-ink-3 shrink-0">· fim</span>
+                                        <span class="pb-port absolute -right-[7px] w-3.5 h-3.5 rounded-full border-2 bg-surface cursor-crosshair"
                                               :style="`top:${ROW / 2 - 7}px; border-color:${p.opt ? '#818cf8' : '#94a3b8'}`"
                                               @pointerdown.stop="portDown($event, s._uid, p.id)" title="Puxe até o próximo passo"></span>
                                     </div>
@@ -191,25 +190,25 @@
 
                 {{-- Criar bloco ao soltar uma ligação no vazio --}}
                 <template x-if="quick">
-                    <div class="absolute z-20 w-56 rounded-xl bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-700 p-1.5"
+                    <div class="absolute z-20 w-56 rounded-xl bg-surface shadow-pop border border-line p-1.5"
                          :style="`left:${quick.sx}px; top:${quick.sy}px`" @pointerdown.stop>
-                        <p class="px-2 py-1 text-[11px] font-semibold text-gray-400">Criar e ligar:</p>
+                        <p class="px-2 py-1 text-[11px] font-semibold text-ink-3">Criar e ligar:</p>
                         <template x-for="(k, ki) in Object.keys(KINDS)" :key="k">
-                            <button type="button" @click="quickCreate(k)" class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <button type="button" @click="quickCreate(k)" class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-xs text-ink hover:bg-subtle">
                                 <span class="w-5 h-5 rounded flex items-center justify-center text-[11px] text-white" :style="'background:' + KINDS[k].color" x-text="KINDS[k].icon"></span>
                                 <span x-text="KINDS[k].label"></span>
                             </button>
                         </template>
-                        <button type="button" @click="quick = null" class="w-full px-2 py-1 mt-1 text-[11px] text-gray-400 hover:underline">cancelar (Esc)</button>
+                        <button type="button" @click="quick = null" class="w-full px-2 py-1 mt-1 text-[11px] text-ink-3 hover:underline">cancelar (Esc)</button>
                     </div>
                 </template>
 
                 {{-- Problemas ao salvar --}}
                 <template x-if="errors.length">
-                    <div class="absolute z-10 top-3 left-3 max-w-lg rounded-xl border border-red-200 bg-red-50 text-red-800 px-4 py-3 text-sm shadow-lg" @pointerdown.stop>
+                    <div class="absolute z-10 top-3 left-3 max-w-lg rounded-xl border border-danger/40 bg-danger-soft text-grena-ink px-4 py-3 text-sm shadow-card" @pointerdown.stop>
                         <div class="flex items-start gap-2">
                             <p class="font-semibold mb-1 flex-1">Não foi salvo. Corrija:</p>
-                            <button type="button" @click="errors = []" class="text-red-400 hover:text-red-700">✕</button>
+                            <button type="button" @click="errors = []" class="text-danger hover:text-danger">✕</button>
                         </div>
                         <ul class="list-disc ml-5 space-y-0.5 max-h-48 overflow-y-auto">
                             <template x-for="e in errors">
@@ -223,28 +222,28 @@
                 </template>
 
                 {{-- Zoom e arrumação --}}
-                <div class="absolute z-10 bottom-3 left-3 flex items-center gap-1 rounded-lg bg-white/95 dark:bg-gray-800/95 shadow border border-gray-200 dark:border-gray-700 p-1" @pointerdown.stop>
-                    <button type="button" @click="zoomBy(1 / 1.2)" class="w-7 h-7 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300" title="Diminuir">−</button>
-                    <span class="w-12 text-center text-xs text-gray-500" x-text="Math.round(view.z * 100) + '%'"></span>
-                    <button type="button" @click="zoomBy(1.2)" class="w-7 h-7 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300" title="Aumentar">+</button>
-                    <span class="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1"></span>
-                    <button type="button" @click="fit()" class="px-2 h-7 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-xs text-gray-600 dark:text-gray-300" title="Mostrar o fluxo inteiro">Ajustar</button>
-                    <button type="button" @click="autoLayout(); $nextTick(() => fit())" class="px-2 h-7 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-xs text-gray-600 dark:text-gray-300" title="Reposicionar os blocos em colunas, na ordem da conversa">Organizar</button>
+                <div class="absolute z-10 bottom-3 left-3 flex items-center gap-1 rounded-lg bg-surface/95 shadow-card border border-line p-1" @pointerdown.stop>
+                    <button type="button" @click="zoomBy(1 / 1.2)" class="w-7 h-7 rounded hover:bg-subtle text-ink-2" title="Diminuir">−</button>
+                    <span class="w-12 text-center text-xs text-ink-2" x-text="Math.round(view.z * 100) + '%'"></span>
+                    <button type="button" @click="zoomBy(1.2)" class="w-7 h-7 rounded hover:bg-subtle text-ink-2" title="Aumentar">+</button>
+                    <span class="w-px h-5 bg-line mx-1"></span>
+                    <button type="button" @click="fit()" class="px-2 h-7 rounded hover:bg-subtle text-xs text-ink-2" title="Mostrar o fluxo inteiro">Ajustar</button>
+                    <button type="button" @click="autoLayout(); $nextTick(() => fit())" class="px-2 h-7 rounded hover:bg-subtle text-xs text-ink-2" title="Reposicionar os blocos em colunas, na ordem da conversa">Organizar</button>
                 </div>
 
                 <div x-show="!steps.length" class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <p class="text-sm text-gray-400">Arraste um bloco da paleta para começar.</p>
+                    <p class="text-sm text-ink-3">Arraste um bloco da paleta para começar.</p>
                 </div>
             </div>
 
             {{-- ============ Painel lateral ============ --}}
-            <aside class="w-[24rem] shrink-0 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col min-h-0">
-                <div class="flex border-b border-gray-200 dark:border-gray-700 text-xs font-semibold">
-                    <button type="button" @click="panel = 'fluxo'" class="flex-1 py-2.5 border-b-2" :class="panel === 'fluxo' ? 'border-indigo-500 text-indigo-700 dark:text-indigo-300' : 'border-transparent text-gray-500'">Fluxo</button>
-                    <button type="button" @click="panel = 'passo'" :disabled="!sel" class="flex-1 py-2.5 border-b-2 disabled:opacity-40" :class="panel === 'passo' ? 'border-indigo-500 text-indigo-700 dark:text-indigo-300' : 'border-transparent text-gray-500'">
+            <aside class="w-[24rem] shrink-0 border-l border-line bg-surface flex flex-col min-h-0">
+                <div class="flex border-b border-line text-xs font-semibold">
+                    <button type="button" @click="panel = 'fluxo'" class="flex-1 py-2.5 border-b-2" :class="panel === 'fluxo' ? 'border-grena text-grena-ink' : 'border-transparent text-ink-2'">Fluxo</button>
+                    <button type="button" @click="panel = 'passo'" :disabled="!sel" class="flex-1 py-2.5 border-b-2 disabled:opacity-40" :class="panel === 'passo' ? 'border-grena text-grena-ink' : 'border-transparent text-ink-2'">
                         Passo<span x-show="sel" class="font-mono font-normal" x-text="sel ? ' · ' + sel.key : ''"></span>
                     </button>
-                    <button type="button" @click="panel = 'sim'" class="flex-1 py-2.5 border-b-2" :class="panel === 'sim' ? 'border-indigo-500 text-indigo-700 dark:text-indigo-300' : 'border-transparent text-gray-500'">Simulador</button>
+                    <button type="button" @click="panel = 'sim'" class="flex-1 py-2.5 border-b-2" :class="panel === 'sim' ? 'border-grena text-grena-ink' : 'border-transparent text-ink-2'">Simulador</button>
                 </div>
 
                 {{-- ---------- Configuração do fluxo ---------- --}}
@@ -257,15 +256,15 @@
                         <div>
                             <label class="{{ $rotulo }}">Identificador</label>
                             <input type="text" x-model="flow.slug" @input="slugTouched = true" :disabled="!!flow.id" class="{{ $campo }} font-mono disabled:opacity-60" placeholder="atendimento">
-                            <p class="text-[11px] text-gray-400 mt-1" x-show="flow.id">Não muda depois de criado.</p>
+                            <p class="text-[11px] text-ink-3 mt-1" x-show="flow.id">Não muda depois de criado.</p>
                         </div>
-                        <label class="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-200">
-                            <input type="checkbox" x-model="flow.active" class="rounded border-gray-300 mt-0.5">
+                        <label class="flex items-start gap-2 text-sm text-ink">
+                            <input type="checkbox" x-model="flow.active" class="rounded border-line-strong mt-0.5">
                             <span>Ativo — salvar publica: vale na próxima mensagem dos associados</span>
                         </label>
                     </div>
 
-                    <div class="border-t border-gray-100 dark:border-gray-700 pt-4 space-y-3">
+                    <div class="border-t border-line pt-4 space-y-3">
                         <h3 class="{{ $secao }}">Quando começa</h3>
                         <select x-model="triggerMode" class="{{ $campo }}">
                             <option value="any">Em qualquer primeira mensagem (boas-vindas)</option>
@@ -274,18 +273,18 @@
                         </select>
                         <div x-show="triggerMode === 'texts'">
                             <input type="text" x-model="settings.triggerTexts" class="{{ $campo }}" placeholder="carro de aplicativo, uber, taxi">
-                            <p class="text-[11px] text-gray-400 mt-1">Separe por vírgula. Vale a mensagem inteira ou começando pela palavra; sem diferença de acento ou maiúscula.</p>
+                            <p class="text-[11px] text-ink-3 mt-1">Separe por vírgula. Vale a mensagem inteira ou começando pela palavra; sem diferença de acento ou maiúscula.</p>
                         </div>
                         <div>
                             <label class="{{ $rotulo }}">Primeiro passo</label>
                             <select x-model="settings.start" class="{{ $campo }}">
                                 <template x-for="k in stepKeys()"><option :value="k" x-text="k" :selected="k === settings.start"></option></template>
                             </select>
-                            <p class="text-[11px] text-gray-400 mt-1">Ou puxe a bolinha do bloco <strong>Início</strong> no quadro.</p>
+                            <p class="text-[11px] text-ink-3 mt-1">Ou puxe a bolinha do bloco <strong>Início</strong> no quadro.</p>
                         </div>
                     </div>
 
-                    <div class="border-t border-gray-100 dark:border-gray-700 pt-4 space-y-3">
+                    <div class="border-t border-line pt-4 space-y-3">
                         <h3 class="{{ $secao }}">Limites</h3>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
@@ -306,34 +305,34 @@
                         </div>
                     </div>
 
-                    <div class="border-t border-gray-100 dark:border-gray-700 pt-4 space-y-3">
+                    <div class="border-t border-line pt-4 space-y-3">
                         <label class="inline-flex items-center gap-2 {{ $secao }}">
-                            <input type="checkbox" x-model="settings.hours.enabled" class="rounded border-gray-300">
+                            <input type="checkbox" x-model="settings.hours.enabled" class="rounded border-line-strong">
                             Tem horário de atendimento
                         </label>
-                        <p class="text-xs text-gray-500">Fora do horário a conversa começa pelo bloco ligado a <strong>Fora do horário</strong> no quadro.</p>
+                        <p class="text-xs text-ink-2">Fora do horário a conversa começa pelo bloco ligado a <strong>Fora do horário</strong> no quadro.</p>
                         <div x-show="settings.hours.enabled" class="space-y-2">
                             <template x-for="d in weekDays" :key="d.n">
                                 <div class="flex items-center gap-2">
-                                    <label class="inline-flex items-center gap-2 w-24 text-xs font-semibold text-gray-700 dark:text-gray-200">
-                                        <input type="checkbox" x-model="settings.hours.days[d.n].open" class="rounded border-gray-300">
+                                    <label class="inline-flex items-center gap-2 w-24 text-xs font-semibold text-ink">
+                                        <input type="checkbox" x-model="settings.hours.days[d.n].open" class="rounded border-line-strong">
                                         <span x-text="d.label"></span>
                                     </label>
                                     <template x-if="settings.hours.days[d.n].open">
                                         <div class="flex items-center gap-1 flex-1">
                                             <input type="time" x-model="settings.hours.days[d.n].from" class="{{ $campo }} !px-1 !py-1">
-                                            <span class="text-xs text-gray-400">às</span>
+                                            <span class="text-xs text-ink-3">às</span>
                                             <input type="time" x-model="settings.hours.days[d.n].to" class="{{ $campo }} !px-1 !py-1">
                                         </div>
                                     </template>
-                                    <span x-show="!settings.hours.days[d.n].open" class="text-xs text-gray-400">Fechado</span>
+                                    <span x-show="!settings.hours.days[d.n].open" class="text-xs text-ink-3">Fechado</span>
                                 </div>
                             </template>
                             <div class="flex items-center gap-2">
-                                <span class="w-24 text-xs font-semibold text-gray-700 dark:text-gray-200 pl-6">Feriados</span>
+                                <span class="w-24 text-xs font-semibold text-ink pl-6">Feriados</span>
                                 <div class="flex items-center gap-1 flex-1">
                                     <input type="time" x-model="settings.hours.holiday.from" class="{{ $campo }} !px-1 !py-1">
-                                    <span class="text-xs text-gray-400">às</span>
+                                    <span class="text-xs text-ink-3">às</span>
                                     <input type="time" x-model="settings.hours.holiday.to" class="{{ $campo }} !px-1 !py-1">
                                 </div>
                             </div>
@@ -351,17 +350,17 @@
                         </div>
                     </div>
 
-                    <div class="border-t border-gray-100 dark:border-gray-700 pt-4" x-show="versions.length">
+                    <div class="border-t border-line pt-4" x-show="versions.length">
                         <h3 class="{{ $secao }} mb-2">Versões</h3>
                         <ul class="space-y-1 text-xs max-h-60 overflow-y-auto">
                             <template x-for="(v, vi) in versions" :key="v.id">
                                 <li class="flex items-center gap-2">
-                                    <span class="text-gray-500 flex-1"><span x-text="v.at"></span> · <span x-text="v.user || '—'"></span><span x-show="vi === 0" class="text-green-700 font-semibold"> (atual)</span></span>
-                                    <button type="button" x-show="vi > 0" @click="restoreVersion(v)" class="text-indigo-600 hover:underline">restaurar</button>
+                                    <span class="text-ink-2 flex-1"><span x-text="v.at"></span> · <span x-text="v.user || '—'"></span><span x-show="vi === 0" class="text-ok font-semibold"> (atual)</span></span>
+                                    <button type="button" x-show="vi > 0" @click="restoreVersion(v)" class="text-grena-ink hover:underline">restaurar</button>
                                 </li>
                             </template>
                         </ul>
-                        <p class="text-[11px] text-gray-400 mt-2">Restaurar só carrega na tela — confira e salve.</p>
+                        <p class="text-[11px] text-ink-3 mt-2">Restaurar só carrega na tela — confira e salve.</p>
                     </div>
                 </div>
 
@@ -376,9 +375,9 @@
                                 </div>
                                 <button type="button" @click="focusStep(sel)" class="{{ $botaoSec }} !px-2 h-[38px]" title="Mostrar no quadro">◎</button>
                                 <button type="button" @click="duplicateStep(steps.indexOf(sel))" class="{{ $botaoSec }} !px-2 h-[38px]" title="Duplicar (Ctrl+D)">⧉</button>
-                                <button type="button" @click="removeStep(steps.indexOf(sel))" class="{{ $botaoSec }} !px-2 h-[38px] !text-red-600" title="Apagar (Delete)">✕</button>
+                                <button type="button" @click="removeStep(steps.indexOf(sel))" class="{{ $botaoSec }} !px-2 h-[38px] !text-danger" title="Apagar (Delete)">✕</button>
                             </div>
-                            <button type="button" x-show="sel.key !== settings.start" @click="settings.start = sel.key" class="text-xs text-indigo-600 hover:underline">Começar o fluxo por este passo</button>
+                            <button type="button" x-show="sel.key !== settings.start" @click="settings.start = sel.key" class="text-xs text-grena-ink hover:underline">Começar o fluxo por este passo</button>
 
                             {{-- 1. O bot diz --}}
                             <div class="space-y-3">
@@ -393,12 +392,12 @@
                                 <div x-show="sel.say.type === 'text' || sel.say.type === 'menu'">
                                     <textarea rows="4" x-model="sel.say.text" class="{{ $campo }}" :placeholder="sel.say.type === 'menu' ? 'Escolha uma opção:' : 'Olá, {contato}!'"></textarea>
                                     <div class="flex flex-wrap gap-1 mt-1">
-                                        <span class="text-[11px] text-gray-400 mr-1">Inserir:</span>
+                                        <span class="text-[11px] text-ink-3 mr-1">Inserir:</span>
                                         <template x-for="v in variables()">
-                                            <button type="button" @click="sel.say.text = (sel.say.text || '') + '{' + v + '}'" class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-[11px] font-mono text-gray-600 dark:text-gray-300" x-text="'{' + v + '}'"></button>
+                                            <button type="button" @click="sel.say.text = (sel.say.text || '') + '{' + v + '}'" class="px-1.5 py-0.5 rounded bg-subtle text-[11px] font-mono text-ink-2" x-text="'{' + v + '}'"></button>
                                         </template>
                                     </div>
-                                    <p class="text-[11px] text-gray-400 mt-1">*negrito* e _itálico_ funcionam como no WhatsApp.</p>
+                                    <p class="text-[11px] text-ink-3 mt-1">*negrito* e _itálico_ funcionam como no WhatsApp.</p>
                                 </div>
 
                                 <div x-show="sel.say.type === 'template'" class="space-y-2">
@@ -409,13 +408,13 @@
                                         </select>
                                         <button type="button" @click="loadPoli(true)" class="{{ $botaoSec }}" title="Recarregar da Poli">↻</button>
                                     </div>
-                                    <p x-show="poliError" x-text="poliError" class="text-xs text-red-600"></p>
+                                    <p x-show="poliError" x-text="poliError" class="text-xs text-danger"></p>
                                     <template x-if="templateById(sel.say.template_uuid)">
-                                        <div class="rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-3 text-xs text-gray-600 dark:text-gray-300 whitespace-pre-line">
+                                        <div class="rounded-lg bg-subtle border border-line p-3 text-xs text-ink-2 whitespace-pre-line">
                                             <span x-text="templateById(sel.say.template_uuid).body"></span>
                                             <template x-if="templateById(sel.say.template_uuid).options.length">
                                                 <div class="mt-2">
-                                                    <button type="button" @click="useTemplateOptions(sel)" class="text-indigo-600 font-semibold hover:underline">
+                                                    <button type="button" @click="useTemplateOptions(sel)" class="text-grena-ink font-semibold hover:underline">
                                                         Usar as <span x-text="templateById(sel.say.template_uuid).options.length"></span> opções deste template como respostas aceitas
                                                     </button>
                                                 </div>
@@ -427,16 +426,16 @@
                                         <template x-for="(p, pi) in sel.say.params">
                                             <div class="flex gap-2 mb-1">
                                                 <input type="text" x-model="sel.say.params[pi]" class="{{ $campo }}" placeholder="{contato}">
-                                                <button type="button" @click="sel.say.params.splice(pi, 1)" class="text-red-500 text-xs">✕</button>
+                                                <button type="button" @click="sel.say.params.splice(pi, 1)" class="text-danger text-xs">✕</button>
                                             </div>
                                         </template>
-                                        <button type="button" @click="sel.say.params.push('')" class="text-xs text-indigo-600 hover:underline">+ variável</button>
+                                        <button type="button" @click="sel.say.params.push('')" class="text-xs text-grena-ink hover:underline">+ variável</button>
                                     </div>
                                 </div>
                             </div>
 
                             {{-- 2. O bot espera --}}
-                            <div class="space-y-3 border-t border-gray-100 dark:border-gray-700 pt-4">
+                            <div class="space-y-3 border-t border-line pt-4">
                                 <h3 class="{{ $secao }}">2. O bot espera como resposta</h3>
                                 <select x-model="sel.expect.type" class="{{ $campo }}">
                                     <option value="">Nada — segue direto</option>
@@ -462,21 +461,21 @@
                                     <div><label class="{{ $rotulo }}">Mínimo</label><input type="number" x-model="sel.expect.min" class="{{ $campo }}"></div>
                                     <div><label class="{{ $rotulo }}">Máximo</label><input type="number" x-model="sel.expect.max" class="{{ $campo }}"></div>
                                 </div>
-                                <div x-show="sel.expect.type === 'date'" class="flex gap-6 text-sm text-gray-700 dark:text-gray-200">
-                                    <label class="inline-flex items-center gap-2"><input type="checkbox" x-model="sel.expect.past_only" class="rounded border-gray-300"> Só passadas</label>
-                                    <label class="inline-flex items-center gap-2"><input type="checkbox" x-model="sel.expect.future_only" class="rounded border-gray-300"> Só futuras</label>
+                                <div x-show="sel.expect.type === 'date'" class="flex gap-6 text-sm text-ink">
+                                    <label class="inline-flex items-center gap-2"><input type="checkbox" x-model="sel.expect.past_only" class="rounded border-line-strong"> Só passadas</label>
+                                    <label class="inline-flex items-center gap-2"><input type="checkbox" x-model="sel.expect.future_only" class="rounded border-line-strong"> Só futuras</label>
                                 </div>
 
                                 {{-- Opções: cada uma vira uma saída do bloco no quadro --}}
                                 <div x-show="hasOptions(sel)" class="space-y-2">
-                                    <p class="text-xs text-gray-500">Cada opção é uma saída do bloco. Vale o número, o texto (tocado ou digitado) ou um apelido.</p>
+                                    <p class="text-xs text-ink-2">Cada opção é uma saída do bloco. Vale o número, o texto (tocado ou digitado) ou um apelido.</p>
                                     <template x-for="(op, oi) in sel.options">
-                                        <div class="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 space-y-2">
+                                        <div class="rounded-lg border border-line p-2.5 space-y-2">
                                             <div class="flex items-center gap-2">
-                                                <span class="text-xs font-bold text-indigo-500 w-5" x-text="(oi + 1) + '.'"></span>
+                                                <span class="text-xs font-bold text-grena-ink w-5" x-text="(oi + 1) + '.'"></span>
                                                 <input type="text" x-model="op.label" class="{{ $campo }} !py-1" placeholder="Rótulo da opção">
-                                                <button type="button" @click="moveOption(sel, oi, -1)" :disabled="oi === 0" class="text-gray-400 text-xs disabled:opacity-30" title="Subir">↑</button>
-                                                <button type="button" @click="sel.options.splice(oi, 1)" class="text-red-500 text-xs" title="Remover opção">✕</button>
+                                                <button type="button" @click="moveOption(sel, oi, -1)" :disabled="oi === 0" class="text-ink-3 text-xs disabled:opacity-30" title="Subir">↑</button>
+                                                <button type="button" @click="sel.options.splice(oi, 1)" class="text-danger text-xs" title="Remover opção">✕</button>
                                             </div>
                                             <input type="text" x-model="op.description" class="{{ $campo }} !py-1" placeholder="Descrição (opcional)">
                                             <input type="text" x-model="op.aliases" class="{{ $campo }} !py-1" placeholder="Apelidos: uber, 99">
@@ -489,14 +488,14 @@
                                             </div>
                                         </div>
                                     </template>
-                                    <button type="button" @click="sel.options.push({label: '', description: '', aliases: '', next: '', value: ''})" class="text-xs text-indigo-600 hover:underline">+ opção</button>
+                                    <button type="button" @click="sel.options.push({label: '', description: '', aliases: '', next: '', value: ''})" class="text-xs text-grena-ink hover:underline">+ opção</button>
                                 </div>
 
                                 <div x-show="sel.expect.type" class="space-y-3">
                                     <div>
                                         <label class="{{ $rotulo }}">Guardar a resposta como</label>
                                         <input type="text" x-model="sel.save_as" class="{{ $campo }} font-mono" placeholder="placa">
-                                        <p class="text-[11px] text-gray-400 mt-1">Vira a variável <span class="font-mono" x-text="'{' + (sel.save_as || 'nome') + '}'"></span> nos passos seguintes.</p>
+                                        <p class="text-[11px] text-ink-3 mt-1">Vira a variável <span class="font-mono" x-text="'{' + (sel.save_as || 'nome') + '}'"></span> nos passos seguintes.</p>
                                     </div>
                                     <div>
                                         <label class="{{ $rotulo }}">Se a resposta não servir, o bot responde</label>
@@ -507,17 +506,17 @@
                                             <label class="{{ $rotulo }}">Tentativas neste passo</label>
                                             <input type="number" min="1" max="10" x-model="sel.max_attempts" class="{{ $campo }}" :placeholder="'padrão: ' + settings.max_attempts" :disabled="sel.optional">
                                         </div>
-                                        <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 mt-6">
-                                            <input type="checkbox" x-model="sel.optional" class="rounded border-gray-300">
+                                        <label class="inline-flex items-center gap-2 text-sm text-ink mt-6">
+                                            <input type="checkbox" x-model="sel.optional" class="rounded border-line-strong">
                                             Pergunta opcional
                                         </label>
                                     </div>
-                                    <p x-show="sel.optional" class="text-[11px] text-gray-400">Sem resposta, a conversa fecha em silêncio no prazo do fluxo. Resposta fora das opções encerra o fluxo e recomeça pelo menu, sem "não entendi".</p>
+                                    <p x-show="sel.optional" class="text-[11px] text-ink-3">Sem resposta, a conversa fecha em silêncio no prazo do fluxo. Resposta fora das opções encerra o fluxo e recomeça pelo menu, sem "não entendi".</p>
                                 </div>
                             </div>
 
                             {{-- 3. Depois --}}
-                            <div class="space-y-3 border-t border-gray-100 dark:border-gray-700 pt-4">
+                            <div class="space-y-3 border-t border-line pt-4">
                                 <h3 class="{{ $secao }}">3. Depois</h3>
                                 <div>
                                     <label class="{{ $rotulo }}">Ação</label>
@@ -543,12 +542,12 @@
                                         <template x-for="f in otherFlows"><option :value="f.slug" x-text="f.name + (f.active ? '' : ' (rascunho)')" :selected="f.slug === sel.action.flow"></option></template>
                                     </select>
                                 </div>
-                                <p x-show="sel.action.type === 'uber_request'" class="text-xs text-amber-700 bg-amber-50 rounded p-2">
+                                <p x-show="sel.action.type === 'uber_request'" class="text-xs text-warn bg-warn-soft rounded p-2">
                                     Usa as respostas guardadas como <span class="font-mono">matricula</span>, <span class="font-mono">nome</span>,
                                     <span class="font-mono">local</span>, <span class="font-mono">placa</span> e <span class="font-mono">print</span>.
                                     Só cria o pedido de verdade com o bot no ar (modo on).
                                 </p>
-                                <p x-show="isTerminal(sel)" class="text-xs text-gray-500">A conversa sai do bot aqui — o bloco não tem saída.</p>
+                                <p x-show="isTerminal(sel)" class="text-xs text-ink-2">A conversa sai do bot aqui — o bloco não tem saída.</p>
                                 <div x-show="!isTerminal(sel)">
                                     <label class="{{ $rotulo }}" x-text="hasOptions(sel) ? 'Opções sem destino vão para' : 'Próximo passo'"></label>
                                     <select x-model="sel.next" class="{{ $campo }}">
@@ -559,39 +558,39 @@
                             </div>
                         </div>
                     </template>
-                    <p x-show="!sel" class="p-6 text-sm text-gray-400 text-center">Clique num bloco do quadro para editar.</p>
+                    <p x-show="!sel" class="p-6 text-sm text-ink-3 text-center">Clique num bloco do quadro para editar.</p>
                 </div>
 
                 {{-- ---------- Simulador ---------- --}}
                 <div x-show="panel === 'sim'" class="flex-1 flex flex-col min-h-0">
-                    <div class="px-4 py-2 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
-                        <h2 class="font-bold text-gray-900 dark:text-white flex-1">Simulador</h2>
+                    <div class="px-4 py-2 border-b border-line flex items-center gap-2">
+                        <h2 class="font-bold text-ink flex-1">Simulador</h2>
                         <button type="button" @click="simStart()" :disabled="!flow.id || sim.busy" class="{{ $botaoSec }}" title="Começar por este fluxo (versão salva)">▶ Testar este</button>
                         <button type="button" @click="simReset()" :disabled="sim.busy" class="{{ $botaoSec }}">Reiniciar</button>
                     </div>
-                    <p class="px-4 pt-2 text-[11px] text-gray-400">Nada é enviado. Testa a versão <strong>salva</strong><span x-show="dirty" class="text-amber-600"> — salve para testar as mudanças</span>. O passo atual acende em verde no quadro.</p>
+                    <p class="px-4 pt-2 text-[11px] text-ink-3">Nada é enviado. Testa a versão <strong>salva</strong><span x-show="dirty" class="text-warn"> — salve para testar as mudanças</span>. O passo atual acende em verde no quadro.</p>
                     <div class="flex-1 overflow-y-auto px-4 py-3 space-y-2" x-ref="chat">
                         <template x-for="(m, mi) in sim.messages" :key="mi">
                             <div :class="m.from === 'me' ? 'flex justify-end' : 'flex justify-start'">
                                 <div class="max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-line"
-                                     :class="m.from === 'me' ? 'bg-green-100 text-green-900' : (m.kind === 'ACTION' ? 'bg-amber-50 text-amber-800 italic text-xs' : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100')">
+                                     :class="m.from === 'me' ? 'bg-ok-soft text-ok' : (m.kind === 'ACTION' ? 'bg-warn-soft text-warn italic text-xs' : 'bg-subtle text-ink')">
                                     <span x-text="m.text"></span>
                                     <template x-if="m.options && m.options.length">
                                         <div class="mt-2 flex flex-col gap-1">
                                             <template x-for="o in m.options">
-                                                <button type="button" @click="simTap(o)" class="text-left px-2 py-1 rounded bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-xs text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50" x-text="o.label"></button>
+                                                <button type="button" @click="simTap(o)" class="text-left px-2 py-1 rounded bg-surface border border-line text-xs text-grena-ink hover:bg-grena-tint" x-text="o.label"></button>
                                             </template>
                                         </div>
                                     </template>
                                 </div>
                             </div>
                         </template>
-                        <p x-show="!sim.messages.length" class="text-xs text-gray-400 text-center mt-10">Mande uma mensagem como se fosse o associado.</p>
+                        <p x-show="!sim.messages.length" class="text-xs text-ink-3 text-center mt-10">Mande uma mensagem como se fosse o associado.</p>
                     </div>
-                    <div class="px-4 py-2 text-[11px] text-gray-500 border-t border-gray-100 dark:border-gray-700" x-show="sim.session">
+                    <div class="px-4 py-2 text-[11px] text-ink-2 border-t border-line" x-show="sim.session">
                         <span x-text="sessionLabel()"></span>
                     </div>
-                    <form class="p-3 border-t border-gray-100 dark:border-gray-700 flex gap-2" @submit.prevent="simSend(sim.input)">
+                    <form class="p-3 border-t border-line flex gap-2" @submit.prevent="simSend(sim.input)">
                         <input type="text" x-model="sim.input" class="{{ $campo }}" placeholder="Mensagem…" :disabled="sim.busy">
                         <button type="button" @click="simImage()" :disabled="sim.busy" class="{{ $botaoSec }}" title="Enviar uma imagem">📷</button>
                         <button type="submit" :disabled="sim.busy || !sim.input.trim()" class="{{ $botaoSec }}">Enviar</button>
@@ -895,11 +894,11 @@
                     nodeClass(s) {
                         const c = [];
                         const atual = this.simStep();
-                        if (atual === s.key) c.push('ring-4 ring-emerald-400 border-emerald-400');
-                        else if (this.selectedUid === s._uid) c.push('ring-2 ring-indigo-500 border-indigo-500');
-                        else if (this.errorKeys().has(s.key)) c.push('border-red-400 ring-2 ring-red-200');
-                        else if (this.sim.visited.includes(s.key)) c.push('border-emerald-300 ring-1 ring-emerald-200');
-                        else c.push('border-gray-200 dark:border-gray-700');
+                        if (atual === s.key) c.push('ring-4 ring-ok/40 border-ok');
+                        else if (this.selectedUid === s._uid) c.push('ring-2 ring-grena-tint border-grena');
+                        else if (this.errorKeys().has(s.key)) c.push('border-danger ring-2 ring-danger/30');
+                        else if (this.sim.visited.includes(s.key)) c.push('border-ok ring-1 ring-ok/40');
+                        else c.push('border-line');
                         if (!this.isReachable(s.key)) c.push('opacity-80');
                         return c.join(' ');
                     },

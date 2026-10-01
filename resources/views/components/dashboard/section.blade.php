@@ -1,36 +1,24 @@
 @props([
     'title' => '',
-    'icon' => '',
+    'glyph' => 'grid',
     'href' => null,
-    'linkLabel' => 'Ver mais',
-    'color' => 'indigo',
+    'linkLabel' => 'Abrir',
+    'area' => 'inicio',
 ])
 
-@php
-    $palette = [
-        'indigo'  => ['bg' => 'bg-indigo-100 dark:bg-indigo-900/40',  'icon' => 'text-indigo-600 dark:text-indigo-400'],
-        'sky'     => ['bg' => 'bg-sky-100 dark:bg-sky-900/40',        'icon' => 'text-sky-600 dark:text-sky-400'],
-        'violet'  => ['bg' => 'bg-violet-100 dark:bg-violet-900/40',  'icon' => 'text-violet-600 dark:text-violet-400'],
-        'teal'    => ['bg' => 'bg-teal-100 dark:bg-teal-900/40',      'icon' => 'text-teal-600 dark:text-teal-400'],
-        'emerald' => ['bg' => 'bg-emerald-100 dark:bg-emerald-900/40','icon' => 'text-emerald-600 dark:text-emerald-400'],
-        'amber'   => ['bg' => 'bg-amber-100 dark:bg-amber-900/40',    'icon' => 'text-amber-600 dark:text-amber-400'],
-        'rose'    => ['bg' => 'bg-rose-100 dark:bg-rose-900/40',      'icon' => 'text-rose-600 dark:text-rose-400'],
-    ];
-    $c = $palette[$color] ?? $palette['indigo'];
-@endphp
-
-<section class="space-y-4">
-    <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-2">
-        <div class="flex items-center gap-3">
-            <div class="w-9 h-9 {{ $c['bg'] }} rounded-xl flex items-center justify-center shrink-0">
-                <svg class="w-5 h-5 {{ $c['icon'] }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $icon }}"/>
-                </svg>
-            </div>
-            <h2 class="text-lg font-extrabold text-gray-800 dark:text-white">{{ __($title) }}</h2>
+{{-- Bloco de uma área no painel: símbolo e nome na cor da área, e o atalho para ela. --}}
+<section class="flex flex-col gap-3" style="{{ \App\View\AreaColor::style($area, paint: false) }}">
+    <div class="flex items-center justify-between gap-3">
+        <div class="flex min-w-0 items-center gap-3">
+            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style="background-color: rgb(var(--c)); color: rgb(var(--ci))">
+                <x-icon :name="$glyph" class="h-5 w-5" />
+            </span>
+            <h2 class="truncate font-display text-lg font-semibold tracking-tight text-ink">{{ __($title) }}</h2>
         </div>
         @if($href)
-            <a href="{{ $href }}" class="text-sm font-bold text-red-700 dark:text-red-400 hover:underline whitespace-nowrap">{{ __($linkLabel) }}</a>
+            <a href="{{ $href }}" class="inline-flex items-center gap-1 whitespace-nowrap text-sm font-bold text-grena-ink hover:underline">
+                {{ __($linkLabel) }} <x-icon name="arrow-right" class="h-3.5 w-3.5" />
+            </a>
         @endif
     </div>
     {{ $slot }}

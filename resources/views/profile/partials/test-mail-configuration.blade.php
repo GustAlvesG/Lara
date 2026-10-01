@@ -2,19 +2,19 @@
     $result = session('mail_test');
 
     $badge = [
-        'ok' => ['label' => 'OK', 'class' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'],
-        'warn' => ['label' => 'Atenção', 'class' => 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'],
-        'fail' => ['label' => 'Falhou', 'class' => 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'],
+        'ok' => ['label' => 'OK', 'class' => 'bg-ok-soft text-ok'],
+        'warn' => ['label' => 'Atenção', 'class' => 'bg-warn-soft text-warn'],
+        'fail' => ['label' => 'Falhou', 'class' => 'bg-danger-soft text-grena-ink'],
     ];
 @endphp
 
 <section>
     <header>
-        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+        <h2 class="text-lg font-medium text-ink">
             {{ __('Teste de E-mail') }}
         </h2>
 
-        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+        <p class="mt-1 text-sm text-ink-2">
             {{ __('Confere as configurações de envio e abre a conexão com o servidor SMTP para validar host, porta, criptografia e credenciais. Nenhuma mensagem é enviada.') }}
         </p>
     </header>
@@ -30,7 +30,7 @@
             </x-primary-button>
 
             @if ($result)
-                <span class="text-sm text-gray-500 dark:text-gray-400">
+                <span class="text-sm text-ink-2">
                     {{ __('Último teste:') }} {{ $result['tested_at'] }}
                 </span>
             @endif
@@ -40,14 +40,14 @@
     @if ($result)
         <div class="mt-6 space-y-4">
             <div class="rounded-lg p-4 {{ $result['ok']
-                ? 'bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800'
-                : 'bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800' }}">
-                <p class="font-semibold {{ $result['ok'] ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200' }}">
+                ? 'bg-ok-soft border border-ok/40'
+                : 'bg-danger-soft border border-danger/40' }}">
+                <p class="font-semibold {{ $result['ok'] ? 'text-ok' : 'text-grena-ink' }}">
                     {{ $result['ok']
                         ? __('Configuração de e-mail válida.')
                         : __('A configuração de e-mail tem problemas.') }}
                 </p>
-                <p class="mt-1 text-sm {{ $result['ok'] ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300' }}">
+                <p class="mt-1 text-sm {{ $result['ok'] ? 'text-ok' : 'text-danger' }}">
                     {{ __('Mailer') }}: <span class="font-mono">{{ $result['mailer'] }}</span>
                 </p>
             </div>
@@ -59,20 +59,20 @@
                             {{ $badge[$check['status']]['label'] }}
                         </span>
                         <span class="text-sm">
-                            <span class="font-medium text-gray-900 dark:text-gray-100">{{ $check['label'] }}</span>
-                            <span class="block text-gray-600 dark:text-gray-400 break-words">{{ $check['detail'] }}</span>
+                            <span class="font-medium text-ink">{{ $check['label'] }}</span>
+                            <span class="block text-ink-2 break-words">{{ $check['detail'] }}</span>
                         </span>
                     </li>
                 @endforeach
             </ul>
 
-            <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
-                <h3 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ __('Configuração atual') }}</h3>
+            <div class="pt-4 border-t border-line">
+                <h3 class="text-sm font-medium text-ink">{{ __('Configuração atual') }}</h3>
                 <dl class="mt-2 space-y-1">
                     @foreach ($result['settings'] as $label => $value)
                         <div class="flex gap-2 text-sm">
-                            <dt class="w-32 shrink-0 text-gray-500 dark:text-gray-400">{{ $label }}</dt>
-                            <dd class="font-mono text-gray-800 dark:text-gray-200 break-all">{{ $value }}</dd>
+                            <dt class="w-32 shrink-0 text-ink-2">{{ $label }}</dt>
+                            <dd class="font-mono text-ink break-all">{{ $value }}</dd>
                         </div>
                     @endforeach
                 </dl>

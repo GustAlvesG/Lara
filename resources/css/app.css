@@ -1,3 +1,173 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ | Tokens da identidade visual (rebrand "Áreas", grená).
+ |
+ | Cada cor é guardada como canais RGB soltos ("138 21 56") para o Tailwind
+ | conseguir aplicar opacidade: `bg-grena/20` vira rgb(138 21 56 / .2). Os
+ | nomes são expostos em tailwind.config.js; nas telas, use as classes
+ | (`bg-surface`, `text-ink-2`, `bg-area-portaria`) e não os valores.
+ |
+ | O tema escuro troca só os tokens, pela classe `dark` no <html>, que o
+ | partial `partials.theme-script` liga conforme a escolha da pessoa ou,
+ | sem escolha, conforme o sistema.
+ */
+@layer base {
+    :root {
+        --canvas: 245 243 243;
+        --surface: 255 255 255;
+        --subtle: 238 234 234;
+        --line: 227 221 222;
+        --line-strong: 208 199 201;
+        --ink: 30 18 21;
+        --ink-2: 90 74 78;
+        --ink-3: 140 124 128;
+
+        /* Grená: ação principal, links, foco, seleção e faixa da placa. */
+        --grena: 138 21 56;
+        --grena-hover: 111 15 44;
+        --grena-ink: 138 21 56;
+        --grena-tint: 246 227 233;
+        /* Carmim do logo: só na marca, nunca em superfície. */
+        --carmim: 160 0 1;
+        --star: 201 138 0;
+
+        --ok: 20 122 69;
+        --ok-soft: 221 243 230;
+        --warn: 147 87 0;
+        --warn-soft: 251 239 216;
+        --danger: 194 43 43;
+        --danger-soft: 252 228 228;
+
+        /* Áreas do clube: fundo da capa + tinta sobre ela. */
+        --a-portaria: 214 236 255;  --a-portaria-ink: 11 90 138;
+        --a-reservas: 217 243 226;  --a-reservas-ink: 23 105 63;
+        --a-externos: 232 224 255;  --a-externos-ink: 90 45 176;
+        --a-freela: 255 228 211;    --a-freela-ink: 154 67 18;
+        --a-placar: 227 240 192;    --a-placar-ink: 74 101 8;
+        --a-lara: 255 221 236;      --a-lara-ink: 160 30 94;
+        --a-info: 210 241 238;      --a-info-ink: 12 102 96;
+        --a-compras: 236 229 219;   --a-compras-ink: 106 79 47;
+        --a-cartao: 221 227 240;    --a-cartao-ink: 52 66 106;
+        --a-inicio: 246 227 233;    --a-inicio-ink: 138 21 56;
+
+        --plate-band: 138 21 56;
+
+        --shadow-card: 0 1px 2px rgb(30 18 21 / .05), 0 6px 20px -12px rgb(30 18 21 / .22);
+        --shadow-pop: 0 28px 56px -24px rgb(30 18 21 / .45);
+
+        color-scheme: light;
+    }
+
+    .dark {
+        --canvas: 18 12 14;
+        --surface: 28 20 23;
+        --subtle: 39 29 32;
+        --line: 51 39 43;
+        --line-strong: 71 55 60;
+        --ink: 243 236 238;
+        --ink-2: 191 174 179;
+        --ink-3: 135 118 123;
+
+        --grena: 176 40 79;
+        --grena-hover: 196 58 98;
+        --grena-ink: 242 140 168;
+        --grena-tint: 59 21 34;
+        --star: 242 183 58;
+
+        --ok: 86 207 141;
+        --ok-soft: 16 48 31;
+        --warn: 230 174 82;
+        --warn-soft: 51 38 15;
+        --danger: 255 123 123;
+        --danger-soft: 58 22 22;
+
+        --a-portaria: 15 43 68;     --a-portaria-ink: 140 203 255;
+        --a-reservas: 15 48 32;     --a-reservas-ink: 127 219 163;
+        --a-externos: 35 26 69;     --a-externos-ink: 187 163 255;
+        --a-freela: 58 33 18;       --a-freela-ink: 255 179 135;
+        --a-placar: 34 48 18;       --a-placar-ink: 195 226 122;
+        --a-lara: 58 20 40;         --a-lara-ink: 255 156 200;
+        --a-info: 13 47 45;         --a-info-ink: 122 220 211;
+        --a-compras: 46 38 28;      --a-compras-ink: 217 193 160;
+        --a-cartao: 30 37 64;       --a-cartao-ink: 174 187 224;
+        --a-inicio: 59 21 34;       --a-inicio-ink: 242 140 168;
+
+        --plate-band: 158 27 66;
+
+        --shadow-card: 0 1px 2px rgb(0 0 0 / .3), 0 6px 20px -12px rgb(0 0 0 / .7);
+        --shadow-pop: 0 28px 56px -24px rgb(0 0 0 / .85);
+
+        color-scheme: dark;
+    }
+}
+
+/*
+ | Qual navegação aparece: Áreas (padrão), lateral ou superior. O modo é
+ | gravado no <html> por um script no <head> antes de qualquer pintura, e não
+ | por x-show, para a casca não piscar escondida até o Alpine subir. Sem
+ | atributo (guest, testes) vale Áreas.
+ */
+@layer components {
+    html[data-nav="side"] .nav-only-areas,
+    html[data-nav="top"] .nav-only-areas,
+    html:not([data-nav="side"]) .nav-only-side,
+    html:not([data-nav="top"]) .nav-only-top {
+        display: none !important;
+    }
+
+    /* A barra de baixo do celular cobre o fim da página. */
+    @media (max-width: 639px) {
+        html:not([data-nav="side"]):not([data-nav="top"]) .nav-tabbar-pad {
+            padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+        }
+    }
+}
+
+/*
+ | Campos de formulário nos tokens.
+ |
+ | O @tailwindcss/forms pinta todo campo de branco com texto cinza-escuro e
+ | foco azul. Sem isto, qualquer campo que perdeu o `dark:bg-…` (telas
+ | convertidas, telas antigas) fica branco no tema escuro com o texto claro
+ | por cima — ilegível. Mesma especificidade do plugin e declarado depois
+ | dele: ganha do plugin e perde para qualquer classe utilitária do campo.
+ */
+@layer base {
+    [type='text'], input:where(:not([type])), [type='email'], [type='url'], [type='password'],
+    [type='number'], [type='date'], [type='datetime-local'], [type='month'], [type='search'],
+    [type='tel'], [type='time'], [type='week'], [multiple], textarea, select {
+        background-color: rgb(var(--surface));
+        border-color: rgb(var(--line-strong));
+        color: rgb(var(--ink));
+    }
+
+    [type='text']:focus, input:where(:not([type])):focus, [type='email']:focus, [type='url']:focus,
+    [type='password']:focus, [type='number']:focus, [type='date']:focus, [type='datetime-local']:focus,
+    [type='month']:focus, [type='search']:focus, [type='tel']:focus, [type='time']:focus,
+    [type='week']:focus, [multiple]:focus, textarea:focus, select:focus {
+        --tw-ring-color: rgb(var(--grena-tint));
+        border-color: rgb(var(--grena));
+    }
+
+    input::placeholder, textarea::placeholder {
+        color: rgb(var(--ink-3));
+    }
+
+    [type='checkbox'], [type='radio'] {
+        background-color: rgb(var(--surface));
+        border-color: rgb(var(--line-strong));
+        color: rgb(var(--grena));
+    }
+
+    [type='checkbox']:focus, [type='radio']:focus {
+        --tw-ring-color: rgb(var(--grena-tint));
+    }
+
+    input:disabled, select:disabled, textarea:disabled {
+        background-color: rgb(var(--subtle));
+        color: rgb(var(--ink-3));
+    }
+}

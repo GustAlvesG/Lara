@@ -1,116 +1,117 @@
-<x-app-layout>
-    <x-slot name="header">
-        <div class="flex items-center gap-3">
-            <span class="flex h-9 w-9 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40">
-                <svg class="w-5 h-5 text-red-700 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                </svg>
-            </span>
-            <div>
-                <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-                    Aviso de leitura obrigatória
-                </h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400">
-                    @if($restantes > 1)
-                        {{ $restantes }} avisos aguardando sua confirmação
-                    @else
-                        Confirme a leitura para continuar usando o sistema
-                    @endif
-                </p>
-            </div>
-        </div>
-    </x-slot>
+{{--
+    Aviso de leitura obrigatória, em tela cheia. Página própria, sem o menu:
+    enquanto a pessoa não confirmar, o middleware `avisos_obrigatorios` traz
+    toda navegação para cá — então não há para onde o menu levaria. As únicas
+    saídas são confirmar a leitura ou sair do sistema.
+--}}
+<!DOCTYPE html>
+<html lang="pt-BR">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="csrf-token" content="{{ csrf_token() }}">
+        <link rel="icon" href="{{ asset('favicon.ico') }}" type="image/x-icon" />
 
-    <div class="py-6">
-        <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
+        <title>Aviso de leitura obrigatória · {{ config('app.name', 'Lara') }}</title>
 
-            <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg overflow-hidden border-t-4 border-red-700">
-
-                @if($aviso->image)
-                    <img src="{{ asset('images/avisos/' . $aviso->image) }}"
-                         alt="{{ $aviso->title }}"
-                         class="w-full max-h-64 object-cover">
-                @endif
-
-                <div class="p-6 space-y-4">
-
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                        {{ $aviso->title }}
-                    </h1>
-
-                    @if($aviso->tags->isNotEmpty())
-                        <div class="flex flex-wrap gap-1.5">
-                            @foreach($aviso->tags as $tag)
-                                <span class="px-2.5 py-1 text-xs rounded-full bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300">
-                                    #{{ $tag->name }}
-                                </span>
-                            @endforeach
-                        </div>
-                    @endif
-
-                    @if($aviso->content)
-                        <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed aviso-content">
-                            {!! $aviso->content !!}
-                        </div>
-                    @endif
-
-                    <div class="pt-4 border-t border-gray-100 dark:border-gray-700 text-sm text-gray-400 dark:text-gray-500">
-                        Publicado por
-                        <span class="font-medium text-gray-600 dark:text-gray-400">{{ $aviso->creator->name ?? '—' }}</span>
-                        em {{ $aviso->created_at->format('d/m/Y \à\s H:i') }}
-                    </div>
-                </div>
-
-                {{-- Confirmação de ciência --}}
-                <div class="bg-gray-50 dark:bg-gray-900/40 border-t border-gray-100 dark:border-gray-700 p-6"
-                     x-data="{ ciente: false }">
-                    <form action="{{ route('avisos.acknowledge', $aviso) }}" method="POST" class="space-y-4">
-                        @csrf
-
-                        <label class="flex items-start gap-3 cursor-pointer">
-                            <input type="checkbox" name="confirm" value="1" x-model="ciente"
-                                   class="mt-0.5 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-red-700 focus:ring-red-500">
-                            <span class="text-sm text-gray-700 dark:text-gray-300">
-                                Li e estou ciente do aviso
-                                <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $aviso->title }}</span>
-                            </span>
-                        </label>
-
-                        @error('confirm')
-                            <p class="text-xs text-red-600">{{ $message }}</p>
-                        @enderror
-
-                        <div class="flex items-center justify-between gap-3">
-                            <p class="text-xs text-gray-400 dark:text-gray-500">
-                                A confirmação fica registrada com data, hora e seu usuário.
-                            </p>
-                            <button type="submit" :disabled="!ciente"
-                                    class="px-6 py-2 text-sm font-medium text-white bg-red-800 hover:bg-red-700 rounded-lg transition
-                                           disabled:opacity-40 disabled:cursor-not-allowed">
-                                @if($restantes > 1)
-                                    Confirmar e ver próximo
-                                @else
-                                    Confirmar ciência
-                                @endif
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <p class="mt-4 text-center text-xs text-gray-400 dark:text-gray-500">
-                As demais telas do sistema ficam disponíveis depois da confirmação.
-            </p>
-
-        </div>
-    </div>
-
-    <x-slot name="css">
+        @include('partials.theme-script')
+        <link rel="preconnect" href="https://fonts.bunny.net">
+        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700|unbounded:500,600,700&display=swap" rel="stylesheet" />
+        @vite(['resources/css/app.css', 'resources/js/app.js'])
         <style>
             .aviso-content b, .aviso-content strong { font-weight: 700; }
             .aviso-content i, .aviso-content em { font-style: italic; }
             .aviso-content u { text-decoration: underline; }
+            .aviso-content p + p, .aviso-content ul, .aviso-content ol { margin-top: .75rem; }
+            .aviso-content ul { list-style: disc; padding-left: 1.25rem; }
+            .aviso-content ol { list-style: decimal; padding-left: 1.25rem; }
+            .aviso-content a { color: rgb(var(--grena-ink)); text-decoration: underline; }
         </style>
-    </x-slot>
-</x-app-layout>
+    </head>
+    <body class="flex min-h-screen flex-col bg-canvas font-sans text-ink antialiased" x-data="{ ciente: false }">
+
+        {{-- Faixa fixa: o que é esta tela e a única outra saída (sair). --}}
+        <header class="sticky top-0 z-10 border-b border-line bg-surface">
+            <div class="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+                <div class="flex min-w-0 items-center gap-3">
+                    <span class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl" style="{{ \App\View\AreaColor::style('info') }}">
+                        <x-icon name="bell" class="h-5 w-5" />
+                    </span>
+                    <div class="min-w-0">
+                        <p class="font-display text-base font-semibold tracking-tight text-ink">Aviso de leitura obrigatória</p>
+                        <p class="truncate text-xs text-ink-2">
+                            @if ($restantes > 1)
+                                {{ $restantes }} avisos aguardando a sua confirmação
+                            @else
+                                Confirme a leitura para continuar usando o sistema
+                            @endif
+                        </p>
+                    </div>
+                </div>
+
+                <form method="POST" action="{{ route('logout') }}" class="shrink-0">
+                    @csrf
+                    <x-secondary-button size="sm" type="submit"><x-icon name="logout" /> Sair</x-secondary-button>
+                </form>
+            </div>
+        </header>
+
+        <main class="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-4 py-6 sm:px-6 sm:py-10">
+            <article class="overflow-hidden rounded-card bg-surface shadow-card">
+                @if ($aviso->image)
+                    <img src="{{ asset('images/avisos/' . $aviso->image) }}" alt="" class="max-h-72 w-full object-cover" onerror="this.remove()">
+                @endif
+
+                <div class="flex flex-col gap-4 p-5 sm:p-8">
+                    <h1 class="font-display text-2xl font-semibold leading-tight tracking-tight text-ink sm:text-3xl">{{ $aviso->title }}</h1>
+
+                    @if ($aviso->tags->isNotEmpty())
+                        <div class="flex flex-wrap gap-1.5">
+                            @foreach ($aviso->tags as $tag)
+                                <span class="rounded-full bg-subtle px-2.5 py-1 text-xs font-bold text-ink-2">#{{ $tag->name }}</span>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    @if ($aviso->content)
+                        <div class="aviso-content max-w-none text-base leading-relaxed text-ink">
+                            {!! $aviso->content !!}
+                        </div>
+                    @endif
+
+                    <p class="border-t border-line pt-4 text-sm text-ink-3">
+                        Publicado por <span class="font-bold text-ink-2">{{ $aviso->creator->name ?? '—' }}</span>
+                        em <span class="font-mono text-xs">{{ $aviso->created_at?->format('d/m/Y H:i') }}</span>
+                    </p>
+                </div>
+            </article>
+        </main>
+
+        {{-- Confirmação: presa ao pé da tela, sempre à vista. --}}
+        <footer class="sticky bottom-0 border-t border-line bg-surface">
+            <form action="{{ route('avisos.acknowledge', $aviso) }}" method="POST"
+                  class="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                @csrf
+
+                <div class="min-w-0">
+                    <label class="flex cursor-pointer items-start gap-3">
+                        <input type="checkbox" name="confirm" value="1" x-model="ciente"
+                               class="mt-0.5 h-5 w-5 rounded border-line-strong text-grena focus:ring-grena-tint">
+                        <span class="text-sm text-ink">
+                            Li e estou ciente deste aviso.
+                            <span class="block text-xs text-ink-3">A confirmação fica registrada com o seu usuário, a data e a hora.</span>
+                        </span>
+                    </label>
+                    @error('confirm')
+                        <p class="mt-1 text-sm font-medium text-danger">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <x-primary-button class="h-12 shrink-0 px-6 text-base" x-bind:disabled="!ciente">
+                    <x-icon name="check" />
+                    {{ $restantes > 1 ? 'Confirmar e ver o próximo' : 'Confirmar leitura' }}
+                </x-primary-button>
+            </form>
+        </footer>
+    </body>
+</html>

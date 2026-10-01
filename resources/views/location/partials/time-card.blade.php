@@ -7,101 +7,88 @@
     $inProgress = ($slot['in_progress'] ?? false) === true;
     $slotPrice = $slot['price'] ?? null;
     $slotPercent = isset($slot['price_factor']) ? round($slot['price_factor'] * 100) : null;
+    $range = $slot['start_time'] . ' – ' . $slot['end_time'];
+    $base = 'relative flex min-h-[84px] flex-col justify-between gap-1 rounded-2xl p-3 text-left transition';
 @endphp
-{{-- {{ Array to string }} --}}
+{{--
+    Um horário da agenda. Livre é botão (marca/desmarca para a reserva);
+    ocupado leva ao agendamento; bloqueado e passado só informam. O estado vai
+    em texto além da cor, para quem não distingue bem verde de amarelo.
+--}}
 @if($isBooked)
-<!-- SLOT AGENDADO (CONFIRMADO OU PENDENTE) -->
-<a type="button" 
-    href="{{ route('schedule.show', ['id' => $slot['colides']['id']]) }}" 
-    class="{{ $slot['colided_status_id'] == '1' ? 'bg-green-600' : 'bg-yellow-500' }} rounded-xl p-3 text-white shadow-md flex flex-col justify-between min-h-[85px] opacity-95 relative group overflow-hidden transition-all duration-300">
-    
-    <div class="flex justify-between items-start mb-1">
-        <span class="text-xs font-black leading-none">{{ $slot['start_time'] }} - {{ $slot['end_time'] }}</span>
-        <div class="h-6 w-6 rounded bg-white/20 flex items-center justify-center text-[9px] font-black">
-            {{ strtoupper(substr($slot['colided_member']['name'], 0, 2)) }}
+    @php $confirmed = $slot['colided_status_id'] == '1'; @endphp
+    <a href="{{ route('schedule.show', ['id' => $slot['colides']['id']]) }}"
+       class="{{ $base }} group border-l-4 {{ $confirmed ? 'border-ok bg-ok-soft text-ok' : 'border-warn bg-warn-soft text-warn' }} hover:shadow-card">
+        <div class="flex items-start justify-between gap-2">
+            <span class="font-mono text-xs font-semibold leading-none">{{ $range }}</span>
+            <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-surface text-[9px] font-bold" aria-hidden="true">
+                {{ mb_strtoupper(mb_substr($slot['colided_member']['name'], 0, 2)) }}
+            </span>
         </div>
-    </div>
-    
-    <div>
-        <p class="text-[10px] font-bold truncate">{{ $slot['colided_member']['name'] }}</p>
-        
-        <!-- CONTADOR DE MINUTOS (SOMENTE PARA PENDENTE) -->
-        @if($slot['colided_status_id'] == '3')
-            @php
-                $seconds = \Carbon\Carbon::parse($slot['colides']['created_at'])
-                    ->diffInSeconds(now());
-                $formatted = gmdate('i:s', $seconds);
-            @endphp
-            <div class="flex items-center gap-1 mt-1">
-                <span class="flex h-1.5 w-1.5 rounded-full bg-white animate-pulse"></span>
-                <span class="text-[12px] font-black uppercase tracking-tighter">{{ $formatted }}</span>
-            </div>
-        @else
-            <p class="text-[8px] uppercase font-black opacity-70 tracking-widest mt-1">Confirmado</p>
-        @endif
-    </div>
 
-    <!-- OVERLAY DE HOVER/DICA -->
-    <div class="absolute inset-0 bg-black/20 p-3 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
-        <span class="text-[10px] font-black uppercase bg-white text-gray-900 px-2 py-1 rounded shadow">Detalhes</span>
-    </div>
-</a>
-@elseif($isBlocked)
-    <div class="bg-gray-800 rounded-xl p-3 text-white shadow-md border border-gray-700 flex flex-col justify-between min-h-[85px] transition-all">
-    <div class="flex justify-between items-start mb-1">
-        <span class="text-xs font-black text-gray-400 leading-none">
-            {{ $slot['start_time'] }} - {{ $slot['end_time'] }}
-        </span>
-        
-        <!-- SVG de Cadeado Refatorado -->
-        <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"></path>
-        </svg>
-    </div>
-    
-    <div>
-        <p class="text-[10px] font-bold text-gray-300 truncate leading-tight">
-            {{ $slot['excluded_by_rule']['name'] ?? 'Indisponível' }}
-        </p>
-        <p class="text-[9px] text-red-500 font-black uppercase tracking-widest mt-0.5">
-            Bloqueado
-        </p>
-    </div>
-</div>
-@elseif($isPast)
-    <div class="bg-gray-300 dark:bg-gray-600 rounded-xl p-3 text-gray-600 dark:text-gray-300 shadow-md border border-gray-400 dark:border-gray-500 flex flex-col justify-between min-h-[80px]">
-        <div class="flex justify-between items-start mb-1">
-            <span class="text-sm font-black">{{ $slot['start_time'] }}  - {{ $slot['end_time'] }}</span>
-            <svg class="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"></path></svg>
+        <div class="min-w-0">
+            <p class="truncate text-xs font-bold text-ink">{{ $slot['colided_member']['name'] }}</p>
+
+            {{-- Pendente mostra há quanto tempo espera o pagamento. --}}
+            @if($slot['colided_status_id'] == '3')
+                @php
+                    $seconds = \Carbon\Carbon::parse($slot['colides']['created_at'])->diffInSeconds(now());
+                    $formatted = gmdate('i:s', $seconds);
+                @endphp
+                <p class="mt-0.5 flex items-center gap-1 text-[11px] font-bold">
+                    <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-warn"></span>
+                    Pendente · <span class="font-mono">{{ $formatted }}</span>
+                </p>
+            @else
+                <p class="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em]">Confirmado</p>
+            @endif
         </div>
-        <p class="text-[10px] font-bold text-gray-500 dark:text-gray-400 truncate">Data passada</p>
-        <p class="text-[9px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-widest">Indisponível</p>
+
+        <span class="absolute right-2 bottom-2 text-[10px] font-bold text-ink-2 opacity-0 transition group-hover:opacity-100">Detalhes →</span>
+    </a>
+@elseif($isBlocked)
+    <div class="{{ $base }} bg-subtle text-ink-2">
+        <div class="flex items-start justify-between gap-2">
+            <span class="font-mono text-xs font-semibold leading-none">{{ $range }}</span>
+            <x-icon name="lock" class="h-4 w-4 text-danger" />
+        </div>
+        <div class="min-w-0">
+            <p class="truncate text-xs font-bold text-ink">{{ $slot['excluded_by_rule']['name'] ?? 'Indisponível' }}</p>
+            <p class="mt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-danger">Bloqueado</p>
+        </div>
+    </div>
+@elseif($isPast)
+    <div class="{{ $base }} border border-line bg-canvas text-ink-3">
+        <div class="flex items-start justify-between gap-2">
+            <span class="font-mono text-xs font-semibold leading-none">{{ $range }}</span>
+            <x-icon name="clock" class="h-4 w-4" />
+        </div>
+        <p class="text-[10px] font-bold uppercase tracking-[0.08em]">Já passou</p>
     </div>
 @else
-    <input value="{{ $slot['start_time']}} - {{ $slot['end_time'] }}" class="hidden" type="checkbox" name="selected_slots[]" id="">
+    <input value="{{ $slot['start_time']}} - {{ $slot['end_time'] }}" class="hidden" type="checkbox" name="selected_slots[]">
     <button type="button"
         onclick="toggleSlot(this, '{{ $place['id'] }}', '{{ $slot['start_time'] }}')"
         data-price="{{ $slotPrice ?? ($place['price'] ?? 0) }}"
-        class="slot-button bg-white dark:bg-gray-700 border-2 border-dashed {{ $inProgress ? 'border-amber-300 dark:border-amber-600' : 'border-gray-100 dark:border-gray-600' }} rounded-xl p-3 hover:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition duration-200 flex flex-col justify-between min-h-[80px] text-left">
-        <div class="flex justify-between items-start w-full">
-            <span class="text-sm font-black text-gray-400 dark:text-gray-500">{{ $slot['start_time'] }} - {{ $slot['end_time'] }}</span>
-            <div class="h-6 w-6 rounded-full bg-gray-50 dark:bg-gray-600 flex items-center justify-center icon-container transition-colors">
-                <svg class="w-3 h-3 text-gray-300 dark:text-gray-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
-                </svg>
-            </div>
+        aria-pressed="false"
+        class="slot-button {{ $base }} border-[1.5px] border-dashed {{ $inProgress ? 'border-warn' : 'border-line-strong' }} bg-surface text-ink hover:border-ok hover:bg-ok-soft focus:outline-none focus-visible:ring-4 focus-visible:ring-grena-tint">
+        <div class="flex w-full items-start justify-between gap-2">
+            <span class="font-mono text-xs font-semibold leading-none">{{ $range }}</span>
+            <span class="icon-container grid h-6 w-6 shrink-0 place-items-center rounded-full bg-subtle text-ink-3 transition">
+                <x-icon name="check" class="h-3 w-3" />
+            </span>
         </div>
         @if($inProgress)
             {{-- Fora da .status-text de propósito: o JS reescreve aquele texto ao
                  selecionar/limpar o slot e apagaria o valor proporcional. --}}
-            <p class="text-[9px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-tighter leading-tight">
+            <p class="text-[10px] font-bold leading-tight text-warn">
                 Em andamento · resta {{ $slot['remaining_minutes'] ?? 0 }} min
             </p>
-            <p class="text-[10px] font-black text-green-600 leading-none">
+            <p class="font-mono text-[11px] font-semibold leading-none text-ok">
                 R$ {{ number_format((float) $slotPrice, 2, ',', '.') }}
-                <span class="text-gray-400 dark:text-gray-500">({{ $slotPercent }}%)</span>
+                <span class="text-ink-3">({{ $slotPercent }}%)</span>
             </p>
         @endif
-        <p class="text-[9px] font-black text-gray-300 dark:text-gray-500 uppercase tracking-widest status-text">Livre</p>
+        <p class="status-text text-[10px] font-bold uppercase tracking-[0.08em] text-ink-3">Livre</p>
     </button>
 @endif

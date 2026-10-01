@@ -3,7 +3,7 @@
 {{--
     Estrela de favorito de um item do menu.
 
-    Só marca/desmarca — quem guarda a lista é o laraShell (localStorage), e
+    Só marca/desmarca — quem guarda a lista é o laraShell (na conta da pessoa), e
     tanto a barra lateral quanto a superior leem de lá. Por isso o componente
     não declara x-data: ele precisa cair no escopo do shell.
 

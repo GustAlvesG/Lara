@@ -121,6 +121,8 @@ class User extends Authenticatable
             'pin' => 'hashed',
             'approval_password' => 'hashed',
             'last_login_at' => 'datetime', // Isso permite usar Carbon no campo
+            // Favoritos e ordem do menu (ver NavPreferencesController).
+            'nav_preferences' => 'array',
         ];
     }
 

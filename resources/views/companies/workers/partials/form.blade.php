@@ -1,9 +1,9 @@
 @isset($companies)
     <!-- Seleção de Empresa (fluxo rápido) -->
     <div class="md:col-span-2">
-        <label for="company_id" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Empresa</label>
+        <label for="company_id" class="block text-sm font-bold text-ink mb-1">Empresa</label>
         <select id="company_id" name="company_id" required
-                class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+                class="w-full px-4 py-3 border border-line rounded-xl focus:ring-2 focus:ring-grena-tint focus:border-grena outline-none transition shadow-card bg-surface text-ink">
             <option value="">Selecione a empresa...</option>
             @foreach($companies as $c)
                 <option value="{{ $c->id }}" {{ (string) old('company_id', $selectedCompanyId ?? '') === (string) $c->id ? 'selected' : '' }}>
@@ -12,7 +12,7 @@
             @endforeach
         </select>
         @error('company_id')
-            <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>
+            <p class="mt-1 text-xs text-danger">{{ $message }}</p>
         @enderror
     </div>
 @else
@@ -21,10 +21,10 @@
 
 <!-- ÁREA DA WEBCAM / FOTO -->
 <div class="md:col-span-2 flex flex-col items-center">
-    <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 text-center">Foto de Identificação</label>
+    <label class="block text-sm font-bold text-ink mb-3 text-center">Foto de Identificação</label>
 
-    <div class="relative w-full max-w-[280px] bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden border-4 border-white dark:border-gray-800 shadow-xl flex items-center justify-center" style="aspect-ratio:1">
-        <div id="camera-placeholder" class="flex flex-col items-center text-gray-400 dark:text-gray-500 p-4">
+    <div class="relative w-full max-w-[280px] bg-subtle rounded-full overflow-hidden border-4 border-white shadow-pop flex items-center justify-center" style="aspect-ratio:1">
+        <div id="camera-placeholder" class="flex flex-col items-center text-ink-3 p-4">
             <svg class="w-16 h-16 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
             </svg>
@@ -32,26 +32,26 @@
         </div>
         <video id="webcam-video" autoplay playsinline class="hidden w-full h-full object-cover scale-x-[-1]"></video>
         <img id="photo-preview" src="#" alt="Foto capturada" class="hidden w-full h-full object-cover">
-        <div id="camera-loading" class="hidden absolute inset-0 bg-white/80 dark:bg-gray-800/80 flex items-center justify-center">
-            <div class="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+        <div id="camera-loading" class="hidden absolute inset-0 bg-surface/80 flex items-center justify-center">
+            <div class="w-8 h-8 border-4 border-grena border-t-transparent rounded-full animate-spin"></div>
         </div>
     </div>
 
     <div class="mt-4 flex flex-wrap justify-center gap-2">
         <button type="button" id="btn-start-camera" onclick="startCamera()"
-                class="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-bold uppercase shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition">
+                class="px-4 py-2 bg-surface border border-line text-ink rounded-lg text-xs font-bold uppercase shadow-card hover:bg-subtle transition">
             Ativar Câmera
         </button>
         <button type="button" onclick="triggerPhotoImport()"
-                class="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-bold uppercase shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition">
+                class="px-4 py-2 bg-surface border border-line text-ink rounded-lg text-xs font-bold uppercase shadow-card hover:bg-subtle transition">
             Importar Foto
         </button>
         <button type="button" id="btn-take-photo" onclick="takePhoto()"
-                class="hidden px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold uppercase shadow-md hover:bg-indigo-700 transition">
+                class="hidden px-4 py-2 bg-grena text-white rounded-lg text-xs font-bold uppercase shadow-card hover:bg-grena-hover transition">
             Tirar Foto
         </button>
         <button type="button" id="btn-reset-photo" onclick="resetCamera()"
-                class="hidden px-4 py-2 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-800 rounded-lg text-xs font-bold uppercase hover:bg-red-100 dark:hover:bg-red-900/50 transition">
+                class="hidden px-4 py-2 bg-danger-soft text-danger border border-danger/40 rounded-lg text-xs font-bold uppercase hover:bg-danger-soft transition">
             Tentar Novamente
         </button>
     </div>
@@ -64,43 +64,43 @@
 
 <!-- Nome Completo -->
 <div class="md:col-span-2">
-    <label for="name" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Nome Completo</label>
+    <label for="name" class="block text-sm font-bold text-ink mb-1">Nome Completo</label>
     <input type="text" id="name" name="name" required placeholder="Ex: João Silva"
             value="{{ old('name') }}"
-            class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500">
+            class="w-full px-4 py-3 border border-line rounded-xl focus:ring-2 focus:ring-grena-tint focus:border-grena outline-none transition shadow-card bg-surface text-ink placeholder-ink-3">
 </div>
 
 <!-- Email -->
 <div>
-    <label for="email" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">E-mail</label>
+    <label for="email" class="block text-sm font-bold text-ink mb-1">E-mail</label>
     <input type="email" id="email" name="email" placeholder="joao.silva@empresa.com"
             value="{{ old('email') }}"
-            class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500">
+            class="w-full px-4 py-3 border border-line rounded-xl focus:ring-2 focus:ring-grena-tint focus:border-grena outline-none transition shadow-card bg-surface text-ink placeholder-ink-3">
 </div>
 
 <!-- CPF / Documento -->
 <div>
-    <label for="cpf-field" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">CPF / Documento</label>
+    <label for="cpf-field" class="block text-sm font-bold text-ink mb-1">CPF / Documento</label>
     <input type="text" id="cpf-field" inputmode="numeric" placeholder="000.000.000-00" maxlength="14" autocomplete="off"
-            class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500">
+            class="w-full px-4 py-3 border border-line rounded-xl focus:ring-2 focus:ring-grena-tint focus:border-grena outline-none transition shadow-card bg-surface text-ink placeholder-ink-3">
     <input type="hidden" id="document-raw" name="document" value="{{ old('document', '') }}">
     <p id="cpf-feedback" class="mt-1 text-xs hidden"></p>
 </div>
 
 <!-- Cargo -->
 <div>
-    <label for="position" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Cargo / Função</label>
+    <label for="position" class="block text-sm font-bold text-ink mb-1">Cargo / Função</label>
     <input type="text" id="position" name="position" required placeholder="Ex: Motorista"
             value="{{ old('position') }}"
-            class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500">
+            class="w-full px-4 py-3 border border-line rounded-xl focus:ring-2 focus:ring-grena-tint focus:border-grena outline-none transition shadow-card bg-surface text-ink placeholder-ink-3">
 </div>
 
 <!-- Telefone -->
 <div>
-    <label for="telephone" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Telefone</label>
+    <label for="telephone" class="block text-sm font-bold text-ink mb-1">Telefone</label>
     <input type="text" id="telephone" name="telephone" placeholder="(24) 99999-9999"
             value="{{ old('telephone') }}"
-            class="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500">
+            class="w-full px-4 py-3 border border-line rounded-xl focus:ring-2 focus:ring-grena-tint focus:border-grena outline-none transition shadow-card bg-surface text-ink placeholder-ink-3">
 </div>
 
 
@@ -206,7 +206,7 @@
                 e.preventDefault();
                 const fb = document.getElementById('cpf-feedback');
                 fb.textContent = '✗ CPF incompleto — informe todos os 11 dígitos';
-                fb.className   = 'mt-1 text-xs text-red-600 dark:text-red-400';
+                fb.className   = 'mt-1 text-xs text-danger';
                 document.getElementById('cpf-field').focus();
             }
         });
@@ -238,14 +238,14 @@
             cpfFeedback.classList.remove('hidden');
             if (digits.length < 11) {
                 cpfFeedback.textContent = '✗ CPF incompleto (' + digits.length + '/11 dígitos)';
-                cpfFeedback.className   = 'mt-1 text-xs text-red-600 dark:text-red-400';
+                cpfFeedback.className   = 'mt-1 text-xs text-danger';
                 return;
             }
             const valid = validateCPF(digits);
             cpfFeedback.textContent = valid ? '✓ CPF válido' : '✗ CPF inválido';
             cpfFeedback.className   = valid
-                ? 'mt-1 text-xs text-green-600 dark:text-green-400'
-                : 'mt-1 text-xs text-red-600 dark:text-red-400';
+                ? 'mt-1 text-xs text-ok'
+                : 'mt-1 text-xs text-danger';
         }
 
         cpfField.addEventListener('input', function () {

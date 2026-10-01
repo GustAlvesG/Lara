@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Aviso;
+use App\Models\AvisoAcknowledgement;
 use App\Models\AvisoView;
 use App\Models\Lembrete;
 use App\Models\Tag;
@@ -63,7 +64,67 @@ class AvisoController extends Controller
                 ->sortByDesc('last_view')
                 ->values();
 
-        return view('avisos.show', compact('aviso', 'viewHistory'));
+        // Quem já deu ciência, quando o aviso é de leitura obrigatória.
+        $acknowledgements = $aviso->mandatory
+            ? $aviso->acknowledgements()->with('user:id,name')->get()
+            : collect();
+
+        return view('avisos.show', compact('aviso', 'viewHistory', 'acknowledgements'));
+    }
+
+    /**
+     * Tela de ciência: o aviso obrigatório mais antigo que a pessoa ainda não
+     * confirmou, em tela cheia. O middleware `avisos_obrigatorios` traz para
+     * cá qualquer navegação enquanto houver pendência.
+     */
+    public function pending(Request $request)
+    {
+        $pendentes = Aviso::with('creator', 'tags')->mandatoryPendingFor($request->user())->get();
+
+        if ($pendentes->isEmpty()) {
+            return redirect()->intended(route('dashboard'));
+        }
+
+        return view('avisos.pending', [
+            'aviso' => $pendentes->first(),
+            'restantes' => $pendentes->count(),
+        ]);
+    }
+
+    /** Registra a ciência e devolve a pessoa para onde ela ia. */
+    public function acknowledge(Request $request, Aviso $aviso)
+    {
+        $request->validate(
+            ['confirm' => 'accepted'],
+            ['confirm.accepted' => 'Marque que leu o aviso para continuar.']
+        );
+
+        $user = $request->user();
+
+        // Só se confirma o que está de fato pendente para esta pessoa.
+        abort_unless(Aviso::mandatoryPendingFor($user)->whereKey($aviso->id)->exists(), 404);
+
+        AvisoAcknowledgement::firstOrCreate(
+            ['aviso_id' => $aviso->id, 'user_id' => $user->id],
+            ['acknowledged_at' => now(), 'ip_address' => $request->ip()]
+        );
+
+        // Se ainda houver outro pendente, o middleware traz de volta para cá.
+        return redirect()->intended(route('dashboard'));
+    }
+
+    /**
+     * Só coordenador de setor pode exigir leitura. Quem não é tem o campo
+     * ignorado — inclusive ao editar um aviso obrigatório de outra pessoa,
+     * que continua como estava.
+     */
+    private function mandatoryFrom(Request $request, ?Aviso $aviso = null): bool
+    {
+        if (! $request->user()->isCoordinator()) {
+            return (bool) $aviso?->mandatory;
+        }
+
+        return $request->boolean('mandatory');
     }
 
     public function create()
@@ -89,6 +150,7 @@ class AvisoController extends Controller
         ]);
 
         $data['created_by'] = auth()->id();
+        $data['mandatory'] = $this->mandatoryFrom($request);
 
         if ($request->hasFile('image')) {
             $imageName = time() . '.' . $request->image->extension();
@@ -141,6 +203,8 @@ class AvisoController extends Controller
             $this->deleteImage($aviso->image);
             $data['image'] = null;
         }
+
+        $data['mandatory'] = $this->mandatoryFrom($request, $aviso);
 
         $aviso->update($data);
 

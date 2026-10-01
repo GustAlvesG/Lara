@@ -21,7 +21,7 @@
                 @endforeach
                 @if (count($rules) > 2)
                 <div class="flex justify-center sm:px-6 lg:px-8 space-y-6 my-3">
-                    <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg pagination">
+                    <div class="p-6 sm:p-8 bg-surface shadow-card sm:rounded-lg pagination">
                         @include('partials.navPagination')
                     </div>
                 </div>

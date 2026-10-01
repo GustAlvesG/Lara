@@ -1,14 +1,14 @@
-<div class="bg-white dark:bg-gray-800 p-6 shadow-md rounded-lg">
+<div class="bg-surface p-6 shadow-card rounded-lg">
     
     @isset($title)
     <div class="flex justify-between items-center cursor-pointer search-accordion-header">
         <div>
-             <span class="text-xl font-bold text-gray-800 dark:text-white">
+             <span class="text-xl font-bold text-ink">
                 {{ $title }}
              </span>
              
         </div>
-         <span class="text-indigo-600 dark:text-indigo-400">
+         <span class="text-grena-ink">
                 <svg id="accordion-icon" 
                     class="w-6 h-6 inline-block transition-transform duration-300" 
                     fill="none" 

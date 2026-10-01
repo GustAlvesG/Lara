@@ -24,6 +24,7 @@ class JogoController extends Controller
     {
         $jogos = Jogo::query()
             ->with(['modalidade', 'competicao', 'timeCasa', 'timeFora'])
+            ->busca($request->query('busca'))
             ->when($request->filled('status'), fn ($q) => $q->statusEntre(explode(',', $request->query('status'))))
             ->daModalidade($request->query('modalidade'))
             ->when($request->filled('competicao_id'), fn ($q) => $q->where('competicao_id', $request->query('competicao_id')))

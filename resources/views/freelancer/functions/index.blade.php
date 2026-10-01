@@ -1,67 +1,67 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Funções de Freelancer') }}
-        </h2>
-    </x-slot>
-
-<div class="py-12 bg-gray-50 dark:bg-gray-900 min-h-screen">
-    <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-
-        <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-                <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Funções</h1>
-                <p class="text-gray-500 dark:text-gray-400 font-medium">Funções que um freelancer pode exercer, com valor por bloco de 15 minutos.</p>
-            </div>
-
-            <a href="{{ route('freelancer-functions.create') }}" class="inline-flex items-center px-6 py-3 bg-[#A00001] text-white rounded-xl font-bold shadow-lg hover:bg-[#800000] transition duration-150 transform hover:scale-[1.02]">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                Nova Função
-            </a>
-        </div>
+{{-- Funções de freelancer. A lista vem inteira: a busca filtra na página. --}}
+@php
+    $th = 'px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3';
+@endphp
+<x-app-layout :bootstrap-grid="false">
+    <x-page>
+        <x-page-title title="Funções">
+            Funções que um freelancer pode exercer, com valor por bloco de 15 minutos.
+            <x-slot:actions>
+                <x-primary-button-a href="{{ route('freelancer-functions.create') }}"><x-icon name="plus" /> Nova função</x-primary-button-a>
+            </x-slot:actions>
+        </x-page-title>
 
         @include('partials.alerts')
 
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-            @if($functions->isEmpty())
-                <div class="p-12 text-center">
-                    <p class="text-gray-500 dark:text-gray-400">Nenhuma função cadastrada.</p>
-                </div>
-            @else
+        @if($functions->isEmpty())
+            <x-empty-state icon="tag">
+                Nenhuma função cadastrada.
+                <a href="{{ route('freelancer-functions.create') }}" class="font-bold text-grena-ink hover:underline">Cadastrar a primeira</a>.
+            </x-empty-state>
+        @else
+            <x-search-bar mode="client" target="#funcoes" placeholder="Buscar função ou descrição" />
+
+            <div class="overflow-hidden rounded-card bg-surface shadow-card">
                 <div class="overflow-x-auto">
-                    <table class="w-full text-sm text-left">
-                        <thead class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider bg-gray-50 dark:bg-gray-900/40">
-                            <tr>
-                                <th class="px-6 py-3">Nome</th>
-                                <th class="px-6 py-3">Descrição</th>
-                                <th class="px-6 py-3">Preço (15 min)</th>
-                                <th class="px-6 py-3">Serviços</th>
-                                <th class="px-6 py-3 text-right">Ações</th>
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-line">
+                                <th class="{{ $th }}">Nome</th>
+                                <th class="{{ $th }}">Descrição</th>
+                                <th class="{{ $th }} text-right">Preço (15 min)</th>
+                                <th class="{{ $th }} text-right">Serviços</th>
+                                <th class="{{ $th }}"><span class="sr-only">Ações</span></th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        <tbody id="funcoes" class="divide-y divide-line">
                             @foreach($functions as $function)
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
-                                <td class="px-6 py-4 font-semibold text-gray-900 dark:text-white">{{ $function->name }}</td>
-                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $function->description ?? '—' }}</td>
-                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">R$ {{ number_format($function->price, 2, ',', '.') }}</td>
-                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $function->freelancer_services_count }}</td>
-                                <td class="px-6 py-4 text-right space-x-3 whitespace-nowrap">
-                                    <a href="{{ route('freelancer-functions.show', $function) }}" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium text-xs">Editar</a>
-                                    <form method="POST" action="{{ route('freelancer-functions.destroy', $function) }}" class="inline"
-                                          onsubmit="return confirm('Excluir a função \'{{ $function->name }}\'?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="text-red-600 dark:text-red-400 hover:underline font-medium text-xs">Excluir</button>
-                                    </form>
+                            <tr data-search="" class="transition hover:bg-subtle">
+                                <td class="px-5 py-3.5 font-semibold text-ink">
+                                    <a href="{{ route('freelancer-functions.show', $function) }}" class="hover:text-grena-ink">{{ $function->name }}</a>
+                                </td>
+                                <td class="px-5 py-3.5 text-ink-2">{{ $function->description ?? '—' }}</td>
+                                <td class="px-5 py-3.5 text-right font-mono font-semibold text-ink">R$ {{ number_format($function->price, 2, ',', '.') }}</td>
+                                <td class="px-5 py-3.5 text-right font-mono text-ink-2">{{ $function->freelancer_services_count }}</td>
+                                <td class="whitespace-nowrap px-5 py-3.5">
+                                    <div class="flex items-center justify-end gap-1">
+                                        <x-secondary-button-a size="sm" href="{{ route('freelancer-functions.show', $function) }}"><x-icon name="pencil" /> Editar</x-secondary-button-a>
+                                        <form method="POST" action="{{ route('freelancer-functions.destroy', $function) }}"
+                                              onsubmit="return confirm('Excluir a função \'{{ $function->name }}\'?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" aria-label="Excluir {{ $function->name }}"
+                                                    class="grid h-8 w-8 place-items-center rounded-full text-ink-3 transition hover:bg-danger-soft hover:text-danger">
+                                                <x-icon name="trash" class="h-4 w-4" />
+                                            </button>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                             @endforeach
                         </tbody>
                     </table>
                 </div>
-            @endif
-        </div>
-    </div>
-</div>
+            </div>
+        @endif
+    </x-page>
 </x-app-layout>

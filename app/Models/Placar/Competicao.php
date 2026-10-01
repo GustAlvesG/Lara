@@ -40,4 +40,19 @@ class Competicao extends Model
     {
         return $query->where('ativo', true);
     }
+
+    /** Busca da listagem: nome, temporada ou modalidade. */
+    public function scopeBusca($query, ?string $termo)
+    {
+        $termo = trim((string) $termo);
+        if ($termo === '') {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($termo) {
+            $q->where('nome', 'like', "%{$termo}%")
+              ->orWhere('temporada', 'like', "%{$termo}%")
+              ->orWhereHas('modalidade', fn ($m) => $m->where('nome', 'like', "%{$termo}%"));
+        });
+    }
 }
