@@ -38,34 +38,65 @@ class PainelContaScreensTest extends TestCase
         );
     }
 
-    public function test_painel_inicial_por_area_com_graficos_nas_cores_do_tema(): void
+    public function test_painel_inicial_leve_por_modulo_sem_graficos(): void
     {
         $pessoa = $this->usuario(new UserAccess([P::SIV_BUSCA, P::RESERVAS_AGENDAMENTOS]), 'Marina Souza Lima');
-        $serie = ['labels' => ['01/10'], 'data' => [3]];
 
         $html = $this->tela($pessoa, 'dashboard', [], 'dashboard', [
             'user' => $pessoa,
             'avisos' => collect(),
-            'info' => ['total' => 12, 'categories' => collect()],
-            'parking' => ['today' => 40, 'month' => 900, 'authTotal' => 7, 'authExpiring' => 2, 'chart' => $serie],
-            'reservations' => ['today' => 5, 'upcomingCount' => 9, 'revenue' => 1234.5, 'upcoming' => collect(), 'chart' => ['labels' => collect(), 'data' => collect()]],
-            'partners' => ['companies' => 4, 'workers' => 30, 'allowedToday' => 11, 'deniedToday' => 1, 'chart' => ['labels' => [], 'allowed' => [], 'denied' => []]],
+            'info' => ['total' => 12],
+            'parking' => ['today' => 40, 'authTotal' => 7, 'authExpiring' => 2],
+            'reservations' => ['today' => 5, 'upcomingCount' => 9, 'revenue' => 1234.5, 'upcoming' => collect()],
+            'partners' => ['companies' => 4, 'workers' => 30, 'allowedToday' => 11, 'deniedToday' => 1],
         ]);
 
         // Primeiro nome, sem título duplicado nem faixa vermelha de boas-vindas.
         $this->assertStringContainsString('Olá, Marina', $html);
         $this->assertStringNotContainsString('from-red-800', $html);
-        // Cada bloco na cor da sua área.
+        // Cada bloco na cor do seu módulo.
         $this->assertStringContainsString('--c: var(--a-portaria)', $html);
         $this->assertStringContainsString('--c: var(--a-reservas)', $html);
         $this->assertStringContainsString('2 expiram em 30 dias', $html);
         $this->assertStringContainsString('R$ 1.234,50', $html);
         // Sem a permissão, o bloco do Home Assistant não aparece.
         $this->assertStringNotContainsString('Nenhum interruptor cadastrado', $html);
-        // Gráficos leem os tokens do tema, não cores fixas.
-        $this->assertStringContainsString("token('a-portaria-ink')", $html);
-        $this->assertStringNotContainsString('#6366f1', $html);
+        // Sem aviso novo, o bloco de avisos some em vez de ocupar a tela.
+        $this->assertStringNotContainsString('Avisos novos', $html);
+        // Leve: nenhum gráfico e nenhum script de terceiros no painel.
+        $this->assertStringNotContainsString('chart.js', $html);
+        $this->assertStringNotContainsString('<canvas', $this->miolo($html));
         $this->assertSemPaletaAntiga($html);
+    }
+
+    public function test_painel_conta_no_banco_e_guarda_os_numeros_por_um_minuto(): void
+    {
+        $controller = file_get_contents(app_path('Http/Controllers/DashboardController.php'));
+
+        // O InfoClube não carrega mais todas as versões para contar.
+        $this->assertStringContainsString("->count('information_id')", $controller);
+        $this->assertStringNotContainsString("->groupBy('information_id')", $controller);
+        // Datas por intervalo (usa índice), não por função na coluna.
+        $this->assertStringNotContainsString('whereDate(', $controller);
+        $this->assertStringNotContainsString('whereMonth(', $controller);
+
+        // Os números de um bloco são calculados uma vez por minuto.
+        $numbers = new \ReflectionMethod(\App\Http\Controllers\DashboardController::class, 'numbers');
+        $calls = 0;
+        $compute = function () use (&$calls) {
+            $calls++;
+
+            return ['today' => 3];
+        };
+        $painel = new \App\Http\Controllers\DashboardController;
+
+        $this->assertSame(['today' => 3], $numbers->invoke($painel, 'teste', $compute));
+        $this->assertSame(['today' => 3], $numbers->invoke($painel, 'teste', $compute));
+        $this->assertSame(1, $calls);
+
+        $this->travel(61)->seconds();
+        $numbers->invoke($painel, 'teste', $compute);
+        $this->assertSame(2, $calls);
     }
 
     public function test_interruptor_do_painel_diz_o_estado_em_texto(): void
