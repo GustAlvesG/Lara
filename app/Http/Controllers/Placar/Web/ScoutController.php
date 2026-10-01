@@ -26,6 +26,7 @@ class ScoutController extends Controller
     {
         $jogos = Jogo::query()
             ->with(['modalidade', 'competicao', 'timeCasa.equipe', 'timeFora.equipe'])
+            ->busca($request->query('busca'))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->query('status')))
             ->daModalidade($request->query('modalidade'))
             ->orderByDesc('data_hora')

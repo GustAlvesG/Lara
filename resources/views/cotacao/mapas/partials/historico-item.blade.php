@@ -23,14 +23,14 @@
 
     {{-- Cabeçalho do item --}}
     <div>
-        <p class="text-xs font-bold uppercase tracking-wider text-gray-400">
+        <p class="text-xs font-bold uppercase tracking-wider text-ink-3">
             Item {{ $item->questor_cd_item ?? 'avulso' }}
             @if($item->questor_cd_material)
                 · material {{ $item->questor_cd_material }}
             @endif
         </p>
-        <h4 class="text-lg font-extrabold text-gray-900 dark:text-white">{{ $item->descricao }}</h4>
-        <p class="text-sm text-gray-500 dark:text-gray-400">
+        <h4 class="text-lg font-extrabold text-ink">{{ $item->descricao }}</h4>
+        <p class="text-sm text-ink-2">
             {{ $num($item->quantidade) }} {{ $item->unidade }}
             @if($item->temUltimaCompra())
                 · última compra {{ $brl($item->ult_compra_valor) }}
@@ -42,34 +42,34 @@
     </div>
 
     @if(! $item->temCadastroNoQuestor())
-        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-5">
-            <p class="font-bold text-amber-800 dark:text-amber-300">Item sem cadastro — sem histórico</p>
-            <p class="text-sm text-amber-700 dark:text-amber-400 mt-1">
+        <div class="bg-warn-soft border border-warn/40 rounded-xl p-5">
+            <p class="font-bold text-warn">Item sem cadastro — sem histórico</p>
+            <p class="text-sm text-warn mt-1">
                 Este item foi digitado como texto livre na solicitação, sem vínculo com o cadastro de materiais
                 do Questor (<code class="font-mono text-xs">CD_MATERIAL</code> nulo). Não existe histórico de
                 compra por código para ele — o que não impede cotá-lo normalmente.
             </p>
-            <p class="text-xs text-amber-600 dark:text-amber-500 mt-2">
+            <p class="text-xs text-warn mt-2">
                 Para ganhar histórico nas próximas vezes, o item precisa ser cadastrado em
                 <code class="font-mono">TBL_MATERIAIS</code> pelo próprio Questor.
             </p>
         </div>
     @elseif($erro)
-        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-5">
-            <p class="font-bold text-red-800 dark:text-red-300">O Questor não respondeu</p>
-            <p class="text-sm text-red-700 dark:text-red-400 mt-1">{{ $erro }}</p>
+        <div class="bg-danger-soft border border-danger/40 rounded-xl p-5">
+            <p class="font-bold text-grena-ink">O Questor não respondeu</p>
+            <p class="text-sm text-danger mt-1">{{ $erro }}</p>
         </div>
     @else
 
         {{-- ============ 1. ÚLTIMAS COMPRAS ============ --}}
         <div>
-            <h5 class="font-extrabold text-gray-900 dark:text-white mb-2">Últimas compras</h5>
+            <h5 class="font-extrabold text-ink mb-2">Últimas compras</h5>
             @if($historico->isEmpty())
-                <p class="text-sm text-gray-400 italic">Nenhuma entrada de compra na janela consultada.</p>
+                <p class="text-sm text-ink-3 italic">Nenhuma entrada de compra na janela consultada.</p>
             @else
-                <div class="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-xl">
+                <div class="overflow-x-auto border border-line rounded-xl">
                     <table class="min-w-full text-xs">
-                        <thead class="bg-gray-50 dark:bg-gray-900/50 text-gray-500 uppercase tracking-wider">
+                        <thead class="bg-subtle text-ink-2 uppercase tracking-wider">
                             <tr>
                                 <th class="px-3 py-2 text-left font-bold">Data</th>
                                 <th class="px-3 py-2 text-left font-bold">NF</th>
@@ -81,7 +81,7 @@
                                 <th class="px-3 py-2 text-left font-bold">Pagamento</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        <tbody class="divide-y divide-line">
                             @foreach($historico as $h)
                                 <tr>
                                     <td class="px-3 py-2 whitespace-nowrap">{{ $data($h->DT_ENTRADA) }}</td>
@@ -89,20 +89,20 @@
                                     <td class="px-3 py-2">
                                         {{ $h->DS_FANTASIA ?: $h->DS_ENTIDADE }}
                                         @if($h->DS_CIDADE)
-                                            <span class="text-gray-400">· {{ $h->DS_CIDADE }}/{{ $h->DS_UF }}</span>
+                                            <span class="text-ink-3">· {{ $h->DS_CIDADE }}/{{ $h->DS_UF }}</span>
                                         @endif
                                     </td>
                                     <td class="px-3 py-2 text-right tabular-nums">{{ $num($h->NR_QUANTIDADE) }} {{ $h->DS_UNIDADE }}</td>
                                     <td class="px-3 py-2 text-right tabular-nums font-bold">{{ $brl($h->VL_UNITARIO) }}</td>
-                                    <td class="px-3 py-2 text-right tabular-nums text-gray-500">{{ $brl($h->VL_CUSTO_COMPRA) }}</td>
-                                    <td class="px-3 py-2 text-gray-500">{{ $h->DS_CME }}</td>
-                                    <td class="px-3 py-2 text-gray-500">{{ $h->DS_FORMA_PAGAMENTO ?: '—' }}</td>
+                                    <td class="px-3 py-2 text-right tabular-nums text-ink-2">{{ $brl($h->VL_CUSTO_COMPRA) }}</td>
+                                    <td class="px-3 py-2 text-ink-2">{{ $h->DS_CME }}</td>
+                                    <td class="px-3 py-2 text-ink-2">{{ $h->DS_FORMA_PAGAMENTO ?: '—' }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
                     </table>
                 </div>
-                <p class="text-[11px] text-gray-400 mt-1">
+                <p class="text-[11px] text-ink-3 mt-1">
                     Só operações que o Questor conta como compra
                     (<code class="font-mono">X_ATUALIZA_DT_ULTIMA_COMPRA = 1</code>) — devolução, transferência
                     e remessa ficam de fora.
@@ -112,13 +112,13 @@
 
         {{-- ============ 2. QUEM JÁ FORNECEU ============ --}}
         <div>
-            <h5 class="font-extrabold text-gray-900 dark:text-white mb-2">Fornecedores que já venderam este item</h5>
+            <h5 class="font-extrabold text-ink mb-2">Fornecedores que já venderam este item</h5>
             @if($fornecedores->isEmpty())
-                <p class="text-sm text-gray-400 italic">Nenhum.</p>
+                <p class="text-sm text-ink-3 italic">Nenhum.</p>
             @else
-                <div class="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-xl">
+                <div class="overflow-x-auto border border-line rounded-xl">
                     <table class="min-w-full text-xs">
-                        <thead class="bg-gray-50 dark:bg-gray-900/50 text-gray-500 uppercase tracking-wider">
+                        <thead class="bg-subtle text-ink-2 uppercase tracking-wider">
                             <tr>
                                 <th class="px-3 py-2 text-left font-bold">Fornecedor</th>
                                 <th class="px-3 py-2 text-left font-bold">Contato</th>
@@ -129,23 +129,23 @@
                                 <th class="px-3 py-2 text-right font-bold">Mínimo</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        <tbody class="divide-y divide-line">
                             @foreach($fornecedores as $f)
                                 <tr>
                                     <td class="px-3 py-2">
                                         {{ $f->nomeCurto() }}
                                         @unless($f->ativo)
-                                            <span class="ml-1 px-1 py-0.5 rounded text-[10px] font-bold bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">inativo</span>
+                                            <span class="ml-1 px-1 py-0.5 rounded text-[10px] font-bold bg-line text-ink-2">inativo</span>
                                         @endunless
                                     </td>
-                                    <td class="px-3 py-2 text-gray-500">
+                                    <td class="px-3 py-2 text-ink-2">
                                         {{ collect([$f->telefone, $f->email])->filter()->implode(' · ') ?: '—' }}
                                     </td>
                                     <td class="px-3 py-2 text-center tabular-nums">{{ $f->qtdCompras }}</td>
                                     <td class="px-3 py-2 whitespace-nowrap">{{ $data($f->ultimaCompra) }}</td>
                                     <td class="px-3 py-2 text-right tabular-nums font-bold">{{ $brl($f->valorUnitarioUltimo) }}</td>
-                                    <td class="px-3 py-2 text-right tabular-nums text-gray-500">{{ $brl($f->valorUnitarioMedio) }}</td>
-                                    <td class="px-3 py-2 text-right tabular-nums text-gray-500">{{ $brl($f->valorUnitarioMinimo) }}</td>
+                                    <td class="px-3 py-2 text-right tabular-nums text-ink-2">{{ $brl($f->valorUnitarioMedio) }}</td>
+                                    <td class="px-3 py-2 text-right tabular-nums text-ink-2">{{ $brl($f->valorUnitarioMinimo) }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -157,16 +157,16 @@
         {{-- ============ 3. HOMOLOGADOS ============ --}}
         @if($homologados->isNotEmpty())
             <div>
-                <h5 class="font-extrabold text-gray-900 dark:text-white mb-2">
+                <h5 class="font-extrabold text-ink mb-2">
                     Fornecedores homologados
-                    <span class="text-xs font-normal text-gray-400">— quem PODE fornecer, mesmo sem histórico</span>
+                    <span class="text-xs font-normal text-ink-3">— quem PODE fornecer, mesmo sem histórico</span>
                 </h5>
                 <div class="flex flex-wrap gap-2">
                     @foreach($homologados as $h)
-                        <span class="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-xs text-gray-700 dark:text-gray-200">
+                        <span class="px-3 py-1.5 rounded-lg bg-subtle text-xs text-ink">
                             {{ $h->DS_FANTASIA ?: $h->DS_ENTIDADE }}
                             @if($h->DS_NOME_PRODUTO_FORNECEDOR)
-                                <span class="text-gray-400">· {{ $h->DS_NOME_PRODUTO_FORNECEDOR }}</span>
+                                <span class="text-ink-3">· {{ $h->DS_NOME_PRODUTO_FORNECEDOR }}</span>
                             @endif
                         </span>
                     @endforeach
@@ -177,10 +177,10 @@
         {{-- ============ 4. COTAÇÕES ANTERIORES NO QUESTOR ============ --}}
         @if($cotacoes->isNotEmpty())
             <div>
-                <h5 class="font-extrabold text-gray-900 dark:text-white mb-2">Cotações anteriores registradas no Questor</h5>
-                <div class="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-xl max-h-56 overflow-y-auto">
+                <h5 class="font-extrabold text-ink mb-2">Cotações anteriores registradas no Questor</h5>
+                <div class="overflow-x-auto border border-line rounded-xl max-h-56 overflow-y-auto">
                     <table class="min-w-full text-xs">
-                        <thead class="bg-gray-50 dark:bg-gray-900/50 text-gray-500 uppercase tracking-wider sticky top-0">
+                        <thead class="bg-subtle text-ink-2 uppercase tracking-wider sticky top-0">
                             <tr>
                                 <th class="px-3 py-2 text-left font-bold">Cotação</th>
                                 <th class="px-3 py-2 text-left font-bold">Data</th>
@@ -189,7 +189,7 @@
                                 <th class="px-3 py-2 text-right font-bold">Vl. unit.</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        <tbody class="divide-y divide-line">
                             @foreach($cotacoes as $c)
                                 <tr>
                                     <td class="px-3 py-2 tabular-nums">{{ $c->CD_COTACAO }}</td>
@@ -208,13 +208,13 @@
         {{-- ============ 5. ORDENS EM ABERTO ============ --}}
         @if($ordens->isNotEmpty())
             <div>
-                <h5 class="font-extrabold text-gray-900 dark:text-white mb-2">
+                <h5 class="font-extrabold text-ink mb-2">
                     Ordens de compra
-                    <span class="text-xs font-normal text-gray-400">— pedido feito, nota ainda não entrou</span>
+                    <span class="text-xs font-normal text-ink-3">— pedido feito, nota ainda não entrou</span>
                 </h5>
-                <div class="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-xl max-h-56 overflow-y-auto">
+                <div class="overflow-x-auto border border-line rounded-xl max-h-56 overflow-y-auto">
                     <table class="min-w-full text-xs">
-                        <thead class="bg-gray-50 dark:bg-gray-900/50 text-gray-500 uppercase tracking-wider sticky top-0">
+                        <thead class="bg-subtle text-ink-2 uppercase tracking-wider sticky top-0">
                             <tr>
                                 <th class="px-3 py-2 text-left font-bold">OC</th>
                                 <th class="px-3 py-2 text-left font-bold">Emissão</th>
@@ -225,7 +225,7 @@
                                 <th class="px-3 py-2 text-left font-bold">Situação</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        <tbody class="divide-y divide-line">
                             @foreach($ordens as $o)
                                 <tr>
                                     <td class="px-3 py-2 tabular-nums">{{ $o->CD_ORDEM_COMPRA }}</td>
@@ -234,7 +234,7 @@
                                     <td class="px-3 py-2 text-right tabular-nums">{{ $num($o->NR_QUANTIDADE) }}</td>
                                     <td class="px-3 py-2 text-right tabular-nums">{{ $num($o->NR_SALDO) }}</td>
                                     <td class="px-3 py-2 text-right tabular-nums font-bold">{{ $brl($o->VL_UNITARIO) }}</td>
-                                    <td class="px-3 py-2 text-gray-500">{{ $o->DS_STATUS ?: '—' }}</td>
+                                    <td class="px-3 py-2 text-ink-2">{{ $o->DS_STATUS ?: '—' }}</td>
                                 </tr>
                             @endforeach
                         </tbody>

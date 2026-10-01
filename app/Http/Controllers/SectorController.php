@@ -181,9 +181,21 @@ class SectorController extends Controller
     /** Registro das mudanças de acesso — todos os setores e usuários. */
     public function audit(Request $request)
     {
+        // Busca por quem fez, pelo usuário afetado ou pelo setor.
+        $term = trim((string) $request->query('q', ''));
+
         $logs = AccessAuditLog::with(['actor:id,name', 'user:id,name', 'sector:id,name'])
+            ->when($term !== '', function ($query) use ($term) {
+                $byName = fn ($q) => $q->where('name', 'like', "%{$term}%");
+
+                $query->where(fn ($q) => $q
+                    ->whereHas('actor', $byName)
+                    ->orWhereHas('user', $byName)
+                    ->orWhereHas('sector', $byName));
+            })
             ->latest('created_at')
-            ->paginate(50);
+            ->paginate(50)
+            ->withQueryString();
 
         return view('sector.audit', compact('logs'));
     }

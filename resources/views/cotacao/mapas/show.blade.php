@@ -38,21 +38,20 @@
      | que se compra e passa a comparar de quem: é a divisão que mais importa.
      */
     $sep = fn (int $i) => $i === 0
-        ? 'border-l-4 border-gray-300 dark:border-gray-600'
-        : 'border-l-2 border-gray-200 dark:border-gray-700';
+        ? 'border-l-4 border-line-strong'
+        : 'border-l-2 border-line';
 
     /*
      | Zebra das linhas.
      |
-     | `bg-gray-100` opaco, e NÃO `bg-gray-100/120`: a escala de opacidade do
-     | Tailwind vai até 100, e um modificador fora dela não gera classe alguma —
-     | a linha ficava transparente e a zebra não aparecia no modo claro. Acima
-     | de 100% o alpha seria truncado para opaco de qualquer forma, que é
-     | exatamente este valor.
+     | Tokens opacos (bg-subtle / bg-surface): a linha precisa cobrir o fundo
+     | para a zebra aparecer nos dois temas. Ao trocar, nada de modificador de
+     | opacidade fora da escala do Tailwind (ex.: /120) — ele não gera classe
+     | alguma e a linha fica transparente.
      */
     $zebra = fn (int $i) => $i % 2 === 1
-        ? 'bg-gray-100 dark:bg-gray-900/40'
-        : 'bg-white dark:bg-gray-800';
+        ? 'bg-subtle'
+        : 'bg-surface';
 
     // Preços indexados para a grade não fazer uma busca por célula.
     $precos = [];
@@ -63,14 +62,10 @@
     }
 @endphp
 
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Mapa de Cotação') }} #{{ $mapa->id }}
-        </h2>
-    </x-slot>
-
-<div class="py-10 bg-gray-50 dark:bg-gray-900 min-h-screen"
+{{-- Sem bootstrap-grid: a tela é toda Tailwind, e o p-4/px-4 !important
+     dele estragava o respiro das células da grade. --}}
+<x-app-layout :bootstrap-grid="false">
+<div class="pb-12 pt-6"
      x-data="mapaGrade({
         calculo: @js($calculo),
         urlPreco: '{{ route('cotacao.mapas.precos.salvar', $mapa) }}',
@@ -88,18 +83,20 @@
         <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
             <div class="min-w-0">
                 <div class="flex items-center gap-3 flex-wrap">
-                    <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white leading-tight">{{ $mapa->titulo }}</h1>
-                    <span class="px-2.5 py-1 rounded-lg text-xs font-bold
-                        @class([
-                            'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200' => $mapa->status === 'rascunho',
-                            'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' => $mapa->status === 'em_cotacao',
-                            'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' => $mapa->status === 'fechado',
-                            'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' => $mapa->status === 'cancelado',
-                        ])">
+                    <a href="{{ route('cotacao.mapas.index') }}" aria-label="Voltar para os mapas"
+                       class="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line-strong bg-surface text-ink-2 transition hover:text-ink">
+                        <x-icon name="arrow-right" class="h-4 w-4 rotate-180" />
+                    </a>
+                    <h1 class="font-display text-xl font-semibold leading-tight tracking-tight text-ink sm:text-[22px]">
+                        <span class="font-mono text-ink-3">#{{ $mapa->id }}</span> {{ $mapa->titulo }}
+                    </h1>
+                    {{-- Antes era @class dentro de um class="" já aberto, o que gerava
+                         dois atributos class e a cor do status nunca aparecia. --}}
+                    <x-pill :kind="['rascunho' => 'off', 'em_cotacao' => 'info', 'fechado' => 'ok', 'cancelado' => 'danger'][$mapa->status] ?? 'off'">
                         {{ $mapa->statusLabel() }}
-                    </span>
+                    </x-pill>
                 </div>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                <p class="text-sm text-ink-2 mt-1">
                     SC {{ $mapa->questor_solicitacao }}
                     · {{ $mapa->departamento ?: '—' }}
                     · solicitante {{ $mapa->solicitante ?: '—' }}
@@ -124,7 +121,7 @@
                          @keydown.escape.window="aberto = false">
                         <button type="button" @click="aberto = !aberto"
                                 :aria-expanded="aberto ? 'true' : 'false'"
-                                class="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-700 hover:bg-green-800 text-white text-sm font-bold shadow transition">
+                                class="flex items-center gap-2 px-4 py-2 rounded-xl bg-ok hover:bg-ok/90 text-white dark:text-canvas text-sm font-bold shadow-card transition">
                             Exportar XLSX
                             <svg class="w-4 h-4 transition-transform duration-200" :class="aberto && 'rotate-180'"
                                  fill="currentColor" viewBox="0 0 20 20">
@@ -133,18 +130,18 @@
                         </button>
 
                         <div x-show="aberto" x-cloak x-transition
-                             class="absolute right-0 top-full z-[70] mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 rounded-xl shadow-2xl ring-1 ring-black/5 border border-gray-100 dark:border-gray-700 overflow-hidden">
+                             class="absolute right-0 top-full z-[70] mt-2 w-80 max-w-[calc(100vw-2rem)] bg-surface rounded-xl shadow-pop ring-1 ring-line border border-line overflow-hidden">
                             @foreach($layouts as $chave => $layout)
                                 <a href="{{ route('cotacao.mapas.exportar', [$mapa, 'layout' => $chave]) }}"
                                    @click="aberto = false"
-                                   class="block px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-50 dark:border-gray-700 last:border-0 transition">
-                                    <span class="block text-sm font-bold text-gray-900 dark:text-white">
+                                   class="block px-4 py-3 hover:bg-subtle border-b border-line last:border-0 transition">
+                                    <span class="block text-sm font-bold text-ink">
                                         {{ $layout['nome'] }}
                                         @if($chave === \App\Services\Cotacao\MapaExportService::LAYOUT_PADRAO)
-                                            <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">padrão</span>
+                                            <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-subtle text-ink-2">padrão</span>
                                         @endif
                                     </span>
-                                    <span class="block text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">
+                                    <span class="block text-xs text-ink-2 mt-0.5 leading-snug">
                                         {{ $layout['descricao'] }}
                                     </span>
                                 </a>
@@ -158,7 +155,7 @@
                         @csrf
                         <button type="submit"
                                 title="Reconsulta o Questor e regrava a última compra de cada item. Muda a base de comparação do mapa."
-                                class="px-4 py-2 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 text-sm font-bold hover:bg-gray-50 transition">
+                                class="px-4 py-2 rounded-xl bg-surface border border-line text-ink text-sm font-bold hover:bg-subtle transition">
                             Atualizar histórico
                         </button>
                     </form>
@@ -170,7 +167,7 @@
                         @csrf @method('PATCH')
                         <input type="hidden" name="status" value="fechado">
                         <button type="submit"
-                                class="px-4 py-2 rounded-xl bg-gray-800 dark:bg-gray-700 hover:bg-gray-900 text-white text-sm font-bold shadow transition">
+                                class="px-4 py-2 rounded-xl bg-ink hover:bg-ink-2 text-canvas text-sm font-bold shadow-card transition">
                             Fechar mapa
                         </button>
                     </form>
@@ -181,7 +178,7 @@
                         @csrf @method('PATCH')
                         <input type="hidden" name="status" value="em_cotacao">
                         <button type="submit"
-                                class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold shadow transition">
+                                class="px-4 py-2 rounded-xl bg-warn hover:bg-warn/90 text-white dark:text-canvas text-sm font-bold shadow-card transition">
                             Reabrir
                         </button>
                     </form>
@@ -192,11 +189,11 @@
         @include('partials.alerts')
 
         @unless($mapa->editavel())
-            <div class="mb-6 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-5 py-3">
-                <p class="text-sm font-bold text-gray-700 dark:text-gray-200">
+            <div class="mb-6 bg-subtle border border-line rounded-2xl px-5 py-3">
+                <p class="text-sm font-bold text-ink">
                     Mapa {{ mb_strtolower($mapa->statusLabel()) }} — somente leitura.
                 </p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
+                <p class="text-xs text-ink-2">
                     É este documento que sustenta a decisão de compra. Corrigir um preço depois do fechamento,
                     sem trilha, transformaria o mapa em rascunho.
                 </p>
@@ -205,49 +202,49 @@
 
         {{-- ============ RESUMO ============ --}}
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 p-4">
-                <p class="text-xs font-bold uppercase tracking-wider text-gray-400">Melhor combinação</p>
-                <p class="mt-1 text-xl font-extrabold text-gray-900 dark:text-white tabular-nums" x-text="moeda(calculo.totais.melhor_combinacao)"></p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
+            <div class="bg-surface rounded-2xl shadow-card border border-line p-4">
+                <p class="text-xs font-bold uppercase tracking-wider text-ink-3">Melhor combinação</p>
+                <p class="mt-1 text-xl font-extrabold text-ink tabular-nums" x-text="moeda(calculo.totais.melhor_combinacao)"></p>
+                <p class="text-xs text-ink-2">
                     compra dividida · frete somado
                     <span class="font-semibold" x-text="moeda(calculo.totais.melhor_combinacao_com_frete)"></span>
                 </p>
-                <p class="text-xs text-amber-600 dark:text-amber-400 mt-1" x-show="!calculo.totais.cotacao_completa">
+                <p class="text-xs text-warn mt-1" x-show="!calculo.totais.cotacao_completa">
                     parcial — há item sem nenhuma cotação
                 </p>
             </div>
 
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 p-4">
-                <p class="text-xs font-bold uppercase tracking-wider text-gray-400">Melhor fornecedor único</p>
-                <p class="mt-1 text-xl font-extrabold text-gray-900 dark:text-white tabular-nums" x-text="moeda(calculo.totais.melhor_fornecedor_unico_total)"></p>
-                <p class="text-xs text-gray-500 dark:text-gray-400" x-text="nomeFornecedor(calculo.totais.melhor_fornecedor_unico_id)"></p>
-                <p class="text-xs text-gray-400 mt-1">
+            <div class="bg-surface rounded-2xl shadow-card border border-line p-4">
+                <p class="text-xs font-bold uppercase tracking-wider text-ink-3">Melhor fornecedor único</p>
+                <p class="mt-1 text-xl font-extrabold text-ink tabular-nums" x-text="moeda(calculo.totais.melhor_fornecedor_unico_total)"></p>
+                <p class="text-xs text-ink-2" x-text="nomeFornecedor(calculo.totais.melhor_fornecedor_unico_id)"></p>
+                <p class="text-xs text-ink-3 mt-1">
                     <span x-text="calculo.totais.fornecedores_completos"></span> de
                     <span x-text="calculo.totais.fornecedores_total"></span> cotaram tudo
                 </p>
             </div>
 
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 p-4">
-                <p class="text-xs font-bold uppercase tracking-wider text-gray-400">Economia projetada</p>
+            <div class="bg-surface rounded-2xl shadow-card border border-line p-4">
+                <p class="text-xs font-bold uppercase tracking-wider text-ink-3">Economia projetada</p>
                 <p class="mt-1 text-xl font-extrabold tabular-nums"
-                   :class="(calculo.totais.economia ?? 0) >= 0 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'"
+                   :class="(calculo.totais.economia ?? 0) >= 0 ? 'text-ok' : 'text-danger'"
                    x-text="moeda(calculo.totais.economia)"></p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
+                <p class="text-xs text-ink-2">
                     vs. última compra · <span x-text="calculo.totais.itens_comparaveis"></span> item(ns) comparáveis
                 </p>
             </div>
 
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 p-4">
-                <p class="text-xs font-bold uppercase tracking-wider text-gray-400">Decisão registrada</p>
-                <p class="mt-1 text-xl font-extrabold text-gray-900 dark:text-white tabular-nums" x-text="moeda(calculo.totais.total_decidido_com_frete)"></p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
+            <div class="bg-surface rounded-2xl shadow-card border border-line p-4">
+                <p class="text-xs font-bold uppercase tracking-wider text-ink-3">Decisão registrada</p>
+                <p class="mt-1 text-xl font-extrabold text-ink tabular-nums" x-text="moeda(calculo.totais.total_decidido_com_frete)"></p>
+                <p class="text-xs text-ink-2">
                     <span x-text="calculo.totais.itens_decididos"></span> de
                     <span x-text="calculo.totais.itens_total"></span> itens com vencedor
                 </p>
                 {{-- Mercadoria e frete separados: o frete é o que a compra
                      dividida cobra por fora, e some do total se a decisão se
                      concentrar numa loja só. --}}
-                <p class="text-xs text-gray-400 mt-1" x-show="calculo.totais.itens_decididos">
+                <p class="text-xs text-ink-3 mt-1" x-show="calculo.totais.itens_decididos">
                     mercadoria <span class="font-semibold" x-text="moeda(calculo.totais.total_decidido)"></span>
                     · frete/desc. <span class="font-semibold" x-text="moeda(calculo.totais.total_decidido_frete)"></span>
                     <span x-show="calculo.totais.lojas_decididas > 1"
@@ -258,31 +255,31 @@
 
         {{-- ============ GRADE ============ --}}
         @if($mapa->fornecedores->isEmpty())
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-10 text-center mb-6">
-                <p class="font-extrabold text-gray-900 dark:text-white">O mapa ainda não tem colunas</p>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <div class="bg-surface rounded-2xl shadow-card border border-line p-10 text-center mb-6">
+                <p class="font-extrabold text-ink">O mapa ainda não tem colunas</p>
+                <p class="text-sm text-ink-2 mt-1">
                     Acrescente os fornecedores que você vai consultar — inclusive os que não estão no cadastro do Questor.
                 </p>
             </div>
         @else
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden mb-6">
+        <div class="bg-surface rounded-2xl shadow-card border border-line overflow-hidden mb-6">
             <div class="overflow-x-auto">
                 <table class="min-w-full text-sm border-collapse">
                     <thead>
                         {{-- Linhas 5, 6 e 7 do modelo: condições por fornecedor --}}
-                        <tr class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50">
+                        <tr class="text-xs text-ink-2 bg-subtle">
                             <th colspan="5" class="px-3 py-1.5 text-right font-semibold">Frete</th>
                             @foreach($mapa->fornecedores as $f)
                                 <th class="px-3 py-1.5 text-center font-semibold whitespace-nowrap {{ $sep($loop->index) }}">{{ $f->frete ?: '—' }}</th>
                             @endforeach
                         </tr>
-                        <tr class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50">
+                        <tr class="text-xs text-ink-2 bg-subtle">
                             <th colspan="5" class="px-3 py-1.5 text-right font-semibold">Prazo de entrega</th>
                             @foreach($mapa->fornecedores as $f)
                                 <th class="px-3 py-1.5 text-center font-semibold whitespace-nowrap {{ $sep($loop->index) }}">{{ $f->prazo_entrega ?: '—' }}</th>
                             @endforeach
                         </tr>
-                        <tr class="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+                        <tr class="text-xs text-ink-2 bg-subtle border-b border-line">
                             <th colspan="5" class="px-3 py-1.5 text-right font-semibold">Condição de pagamento</th>
                             @foreach($mapa->fornecedores as $f)
                                 <th class="px-3 py-1.5 text-center font-semibold whitespace-nowrap {{ $sep($loop->index) }}">{{ $f->condicao_pagamento ?: '—' }}</th>
@@ -290,7 +287,7 @@
                         </tr>
 
                         {{-- Linha 8 do modelo --}}
-                        <tr class="bg-gray-100 dark:bg-gray-900 text-xs uppercase tracking-wider text-gray-600 dark:text-gray-300">
+                        <tr class="bg-subtle text-xs uppercase tracking-wider text-ink-2">
                             <th class="px-3 py-3 text-left font-extrabold">Item SC</th>
                             <th class="px-3 py-3 text-left font-extrabold">Und</th>
                             <th class="px-3 py-3 text-left font-extrabold min-w-[22rem]">Descrição</th>
@@ -300,40 +297,40 @@
                             @foreach($mapa->fornecedores as $f)
                                 <th class="px-3 py-3 text-center font-extrabold min-w-[9rem] {{ $sep($loop->index) }}">
                                     {{ mb_strtoupper($f->nome) }}
-                                    <span class="block text-[10px] font-normal normal-case text-gray-400"
+                                    <span class="block text-[10px] font-normal normal-case text-ink-3"
                                           x-text="cobertura({{ $f->id }})"></span>
                                 </th>
                             @endforeach
                         </tr>
                     </thead>
 
-                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    <tbody class="divide-y divide-line">
                         @foreach($mapa->itens as $item)
                             {{-- Hover marcante de propósito: a grade é larga e o
                                  comprador precisa saber em que ITEM está antes
                                  de digitar preço na coluna certa. --}}
-                            <tr class="{{ $zebra($loop->index) }} hover:bg-red-100/70 dark:hover:bg-red-900/30 transition-colors">
-                                <td class="px-3 py-2 tabular-nums text-gray-600 dark:text-gray-400">
+                            <tr class="{{ $zebra($loop->index) }} hover:bg-grena-tint transition-colors">
+                                <td class="px-3 py-2 tabular-nums text-ink-2">
                                     {{ $item->questor_cd_item ?? '—' }}
                                 </td>
-                                <td class="px-3 py-2 text-gray-600 dark:text-gray-400">{{ $item->unidade ?: '—' }}</td>
-                                <td class="px-3 py-2 text-gray-800 dark:text-gray-200">
+                                <td class="px-3 py-2 text-ink-2">{{ $item->unidade ?: '—' }}</td>
+                                <td class="px-3 py-2 text-ink">
                                     <button type="button" @click="abrirHistorico({{ $item->id }})"
-                                            class="text-left hover:text-red-800 dark:hover:text-red-400 hover:underline">
+                                            class="text-left hover:text-grena-ink hover:underline">
                                         {{ $item->descricao }}
                                     </button>
                                     @unless($item->temCadastroNoQuestor())
-                                        <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                                        <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-warn-soft text-warn"
                                               title="Item sem cadastro no Questor — não há histórico de compra por código.">sem cadastro</span>
                                     @endunless
                                     @if($item->origem === 'avulso')
-                                        <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">avulso</span>
+                                        <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-grena-tint text-grena-ink">avulso</span>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{{ $qtd($item->quantidade) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums text-ink">{{ $qtd($item->quantidade) }}</td>
 
                                 {{-- Últ. compra: valor visível, resto no title --}}
-                                <td class="px-3 py-2 text-right tabular-nums text-gray-600 dark:text-gray-400 whitespace-nowrap"
+                                <td class="px-3 py-2 text-right tabular-nums text-ink-2 whitespace-nowrap"
                                     title="{{ $item->temUltimaCompra()
                                         ? $data($item->ult_compra_data) . ' · ' . $item->ult_compra_fornecedor_nome . ' · NF ' . ($item->ult_compra_nf ?: '—')
                                         : ($item->temCadastroNoQuestor() ? 'sem compra anterior' : 'item sem cadastro — sem histórico') }}">
@@ -358,12 +355,12 @@
                                                    @change="salvarPreco({{ $item->id }}, {{ $f->id }}, $event.target.value, null)"
                                                    @keydown.enter.prevent="andar({{ $item->id }}, {{ $f->id }}, 'baixo')"
                                                    @keydown.tab.prevent="andar({{ $item->id }}, {{ $f->id }}, $event.shiftKey ? 'tras' : 'frente')"
-                                                   class="w-full text-right tabular-nums text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-800 px-2 py-1 focus:ring-2 focus:ring-red-700 focus:border-red-700"
+                                                   class="w-full text-right tabular-nums text-sm rounded-lg border-line disabled:bg-subtle px-2 py-1 focus:ring-2 focus:ring-grena-tint focus:border-grena"
                                                    placeholder="—">
                                             <select @if(!$podeEditarPrecos) disabled @endif
                                                     @change="salvarPreco({{ $item->id }}, {{ $f->id }}, null, $event.target.value)"
                                                     title="Situação da célula"
-                                                    class="text-[10px] rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-800 px-1 py-1">
+                                                    class="text-[10px] rounded-lg border-line disabled:bg-subtle px-1 py-1">
                                                 <option value="cotado" @selected($p?->situacao === 'cotado')>R$</option>
                                                 <option value="nao_trabalha" @selected($p?->situacao === 'nao_trabalha')>NT</option>
                                                 <option value="sem_resposta" @selected($p === null || $p->situacao === 'sem_resposta')>—</option>
@@ -374,7 +371,7 @@
                                         <p class="text-[10px] text-right mt-0.5 tabular-nums"
                                            x-show="variacao({{ $item->id }}, {{ $f->id }}) !== null"
                                            :class="variacao({{ $item->id }}, {{ $f->id }}) <= 0
-                                                ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
+                                                ? 'text-ok' : 'text-danger'"
                                            x-text="percentual(variacao({{ $item->id }}, {{ $f->id }}))"></p>
 
                                         @if($podeDecidir)
@@ -391,8 +388,8 @@
                                                  não dispara ali — os dois não se atropelam. --}}
                                             <label class="flex items-center justify-end gap-1 mt-1 text-[10px] cursor-pointer"
                                                    :class="ehVencedor({{ $item->id }}, {{ $f->id }})
-                                                        ? 'text-red-800 dark:text-red-400 font-bold'
-                                                        : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'"
+                                                        ? 'text-grena-ink font-bold'
+                                                        : 'text-ink-3 hover:text-ink-2'"
                                                    :title="ehVencedor({{ $item->id }}, {{ $f->id }})
                                                         ? 'Clique para desfazer — o item volta a ficar sem decisão.'
                                                         : 'Comprar este item desta loja.'">
@@ -400,11 +397,11 @@
                                                        @checked($item->vencedor_id === $f->id)
                                                        @change="definirVencedor({{ $item->id }}, {{ $f->id }})"
                                                        @click="desfazerSeJaEscolhido($event, {{ $item->id }}, {{ $f->id }})"
-                                                       class="text-red-800 focus:ring-red-700">
+                                                       class="text-grena-ink focus:ring-grena-tint">
                                                 <span x-text="ehVencedor({{ $item->id }}, {{ $f->id }}) ? 'escolhido ✕' : 'escolher'">escolher</span>
                                             </label>
                                         @elseif($item->vencedor_id === $f->id)
-                                            <p class="text-[10px] text-right mt-1 font-bold text-red-800 dark:text-red-400">escolhido</p>
+                                            <p class="text-[10px] text-right mt-1 font-bold text-grena-ink">escolhido</p>
                                         @endif
                                     </td>
                                 @endforeach
@@ -413,29 +410,29 @@
                     </tbody>
 
                     {{-- Rodapé, como no modelo --}}
-                    <tfoot class="bg-gray-50 dark:bg-gray-900/60 text-sm">
+                    <tfoot class="bg-subtle text-sm">
                         <tr>
-                            <td colspan="5" class="px-3 py-2 text-right font-bold text-gray-600 dark:text-gray-300">FRETE</td>
+                            <td colspan="5" class="px-3 py-2 text-right font-bold text-ink-2">FRETE</td>
                             @foreach($mapa->fornecedores as $f)
-                                <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300 {{ $sep($loop->index) }}">{{ $brl($f->valor_frete) }}</td>
+                                <td class="px-3 py-2 text-right tabular-nums text-ink {{ $sep($loop->index) }}">{{ $brl($f->valor_frete) }}</td>
                             @endforeach
                         </tr>
                         <tr>
-                            <td colspan="5" class="px-3 py-2 text-right font-bold text-gray-600 dark:text-gray-300">
+                            <td colspan="5" class="px-3 py-2 text-right font-bold text-ink-2">
                                 SUBTOTAL DA LOJA
-                                <span class="block text-[10px] font-normal text-gray-400">tudo o que ela cotou, sem frete</span>
+                                <span class="block text-[10px] font-normal text-ink-3">tudo o que ela cotou, sem frete</span>
                             </td>
                             @foreach($mapa->fornecedores as $f)
-                                <td class="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300 {{ $sep($loop->index) }}"
+                                <td class="px-3 py-2 text-right tabular-nums text-ink {{ $sep($loop->index) }}"
                                     x-text="moeda(calculo.fornecedores[{{ $f->id }}]?.subtotal)"></td>
                             @endforeach
                         </tr>
-                        <tr class="border-t-2 border-gray-300 dark:border-gray-600">
-                            <td colspan="5" class="px-3 py-2 text-right font-extrabold text-gray-800 dark:text-gray-100">TOTAL</td>
+                        <tr class="border-t-2 border-line-strong">
+                            <td colspan="5" class="px-3 py-2 text-right font-extrabold text-ink">TOTAL</td>
                             @foreach($mapa->fornecedores as $f)
                                 <td class="px-3 py-2 text-right tabular-nums font-extrabold {{ $sep($loop->index) }}"
                                     :class="calculo.fornecedores[{{ $f->id }}]?.cobertura_completa
-                                        ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'"
+                                        ? 'text-ink' : 'text-ink-3'"
                                     :title="calculo.fornecedores[{{ $f->id }}]?.cobertura_completa
                                         ? 'Cotou todos os itens — comparável com os demais totais.'
                                         : 'Não cotou todos os itens: este total é só do que ele cotou e NÃO é comparável com quem cobriu o mapa inteiro.'"
@@ -450,38 +447,38 @@
                              pode ser alto e a compra nela, pequena. Nulo quando
                              a loja não ganhou nada — zero seria "comprei R$ 0,00
                              aqui", que é outra coisa. --}}
-                        <tr class="border-t-2 border-red-200 dark:border-red-900/40 bg-red-50/40 dark:bg-red-900/10">
-                            <td colspan="5" class="px-3 py-2 text-right font-bold text-gray-700 dark:text-gray-200">
+                        <tr class="border-t-2 border-grena/40 bg-grena-tint/60">
+                            <td colspan="5" class="px-3 py-2 text-right font-bold text-ink">
                                 SUBTOTAL DOS ESCOLHIDOS
-                                <span class="block text-[10px] font-normal text-gray-400">só os itens em que esta loja ganhou · sem frete</span>
+                                <span class="block text-[10px] font-normal text-ink-3">só os itens em que esta loja ganhou · sem frete</span>
                             </td>
                             @foreach($mapa->fornecedores as $f)
-                                <td class="px-3 py-2 text-right tabular-nums font-bold text-red-800 dark:text-red-400 {{ $sep($loop->index) }}">
+                                <td class="px-3 py-2 text-right tabular-nums font-bold text-grena-ink {{ $sep($loop->index) }}">
                                     <span x-text="moeda(calculo.fornecedores[{{ $f->id }}]?.total_vencidos)"></span>
-                                    <span class="block text-[10px] font-normal text-gray-400"
+                                    <span class="block text-[10px] font-normal text-ink-3"
                                           x-text="escolhidos({{ $f->id }})"></span>
                                 </td>
                             @endforeach
                         </tr>
-                        <tr class="bg-red-50/40 dark:bg-red-900/10">
-                            <td colspan="5" class="px-3 py-2 text-right font-extrabold text-gray-800 dark:text-gray-100">
+                        <tr class="bg-grena-tint/60">
+                            <td colspan="5" class="px-3 py-2 text-right font-extrabold text-ink">
                                 PEDIDO A ESTA LOJA
-                                <span class="block text-[10px] font-normal text-gray-400">escolhidos + frete − desconto · é o valor do pedido</span>
+                                <span class="block text-[10px] font-normal text-ink-3">escolhidos + frete − desconto · é o valor do pedido</span>
                             </td>
                             @foreach($mapa->fornecedores as $f)
-                                <td class="px-3 py-2 text-right tabular-nums font-extrabold text-red-800 dark:text-red-400 {{ $sep($loop->index) }}"
+                                <td class="px-3 py-2 text-right tabular-nums font-extrabold text-grena-ink {{ $sep($loop->index) }}"
                                     title="Frete e desconto entram uma vez só, não por item: é um pedido."
                                     x-text="moeda(calculo.fornecedores[{{ $f->id }}]?.total_vencidos_com_frete)"></td>
                             @endforeach
                         </tr>
 
-                        <tr class="border-t-2 border-gray-300 dark:border-gray-600">
-                            <td colspan="5" class="px-3 py-2 text-right font-extrabold text-gray-800 dark:text-gray-100">
+                        <tr class="border-t-2 border-line-strong">
+                            <td colspan="5" class="px-3 py-2 text-right font-extrabold text-ink">
                                 TOTAL GERAL DO PEDIDO
-                                <span class="block text-[10px] font-normal text-gray-400">melhor preço item a item (compra dividida)</span>
+                                <span class="block text-[10px] font-normal text-ink-3">melhor preço item a item (compra dividida)</span>
                             </td>
                             <td colspan="{{ max($mapa->fornecedores->count(), 1) }}"
-                                class="px-3 py-2 text-right tabular-nums font-extrabold text-red-800 dark:text-red-400"
+                                class="px-3 py-2 text-right tabular-nums font-extrabold text-grena-ink"
                                 x-text="moeda(calculo.totais.melhor_combinacao)"></td>
                         </tr>
 
@@ -489,14 +486,14 @@
                              do total teórico de propósito: é a diferença entre
                              o que dava para gastar e o que a decisão registrada
                              vai gastar. --}}
-                        <tr class="bg-red-50/40 dark:bg-red-900/10">
-                            <td colspan="5" class="px-3 py-2 text-right font-extrabold text-gray-800 dark:text-gray-100">
+                        <tr class="bg-grena-tint/60">
+                            <td colspan="5" class="px-3 py-2 text-right font-extrabold text-ink">
                                 TOTAL DECIDIDO
-                                <span class="block text-[10px] font-normal text-gray-400"
+                                <span class="block text-[10px] font-normal text-ink-3"
                                       x-text="resumoDecisao()"></span>
                             </td>
                             <td colspan="{{ max($mapa->fornecedores->count(), 1) }}"
-                                class="px-3 py-2 text-right tabular-nums font-extrabold text-red-800 dark:text-red-400"
+                                class="px-3 py-2 text-right tabular-nums font-extrabold text-grena-ink"
                                 x-text="moeda(calculo.totais.total_decidido_com_frete)"></td>
                         </tr>
                     </tfoot>
@@ -511,22 +508,22 @@
         @endif
 
         {{-- ============ TRILHA ============ --}}
-        <details class="bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 p-6">
-            <summary class="cursor-pointer font-extrabold text-gray-900 dark:text-white">
+        <details class="bg-surface rounded-2xl shadow-card border border-line p-6">
+            <summary class="cursor-pointer font-extrabold text-ink">
                 Histórico de alterações ({{ $mapa->logs->count() }})
             </summary>
             <div class="mt-4 space-y-2 max-h-96 overflow-y-auto">
                 @forelse($mapa->logs as $log)
-                    <div class="flex items-start gap-3 text-sm border-b border-gray-50 dark:border-gray-700 pb-2">
-                        <span class="text-xs text-gray-400 tabular-nums whitespace-nowrap w-32 shrink-0">
+                    <div class="flex items-start gap-3 text-sm border-b border-line pb-2">
+                        <span class="text-xs text-ink-3 tabular-nums whitespace-nowrap w-32 shrink-0">
                             {{ $log->created_at?->format('d/m/Y H:i') }}
                         </span>
-                        <span class="font-semibold text-gray-700 dark:text-gray-300 w-52 shrink-0">{{ $log->acaoLabel() }}</span>
-                        <span class="text-gray-500 dark:text-gray-400 w-40 shrink-0">{{ $log->user_nome ?: '—' }}</span>
-                        <span class="text-xs text-gray-400 font-mono break-all">{{ json_encode($log->payload, JSON_UNESCAPED_UNICODE) }}</span>
+                        <span class="font-semibold text-ink w-52 shrink-0">{{ $log->acaoLabel() }}</span>
+                        <span class="text-ink-2 w-40 shrink-0">{{ $log->user_nome ?: '—' }}</span>
+                        <span class="text-xs text-ink-3 font-mono break-all">{{ json_encode($log->payload, JSON_UNESCAPED_UNICODE) }}</span>
                     </div>
                 @empty
-                    <p class="text-sm text-gray-400">Sem registros.</p>
+                    <p class="text-sm text-ink-3">Sem registros.</p>
                 @endforelse
             </div>
         </details>
@@ -534,15 +531,15 @@
 
     {{-- ============ MODAL: DRILL-DOWN DO ITEM ============ --}}
     <div x-show="historicoAberto" x-cloak
-         class="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-10 bg-black/50 overflow-y-auto"
+         class="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-10 bg-ink/40 overflow-y-auto"
          @click.self="historicoAberto = false" @keydown.escape.window="historicoAberto = false">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-6xl">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-                <h3 class="font-extrabold text-gray-900 dark:text-white">Histórico do item</h3>
-                <button @click="historicoAberto = false" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+        <div class="bg-surface rounded-2xl shadow-pop w-full max-w-6xl">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-line">
+                <h3 class="font-extrabold text-ink">Histórico do item</h3>
+                <button @click="historicoAberto = false" class="text-ink-3 hover:text-ink-2 text-2xl leading-none">&times;</button>
             </div>
             <div class="p-6" x-html="historicoHtml">
-                <p class="text-gray-400">Carregando…</p>
+                <p class="text-ink-3">Carregando…</p>
             </div>
         </div>
     </div>
@@ -601,9 +598,9 @@ function mapaGrade(config) {
 
             if (!c) return '';
 
-            const VENCEDOR = 'bg-green-100 dark:bg-green-900/30 ring-2 ring-inset ring-green-500 dark:ring-green-600';
-            const MENOR = 'bg-green-50 dark:bg-green-900/20 ring-1 ring-inset ring-green-300 dark:ring-green-800';
-            const FRACO = 'bg-green-50/40 dark:bg-green-900/10';
+            const VENCEDOR = 'bg-ok-soft ring-2 ring-inset ring-ok/40';
+            const MENOR = 'bg-ok-soft ring-1 ring-inset ring-ok/40';
+            const FRACO = 'bg-ok-soft/50';
 
             if (this.empateResolvido(linha)) {
                 if (fornecedorId === linha.vencedor_id) return VENCEDOR;
@@ -937,7 +934,7 @@ function mapaGrade(config) {
         },
 
         async abrirHistorico(itemId) {
-            this.historicoHtml = '<p class="text-gray-400">Carregando…</p>';
+            this.historicoHtml = '<p class="text-ink-3">Carregando…</p>';
             this.historicoAberto = true;
 
             try {
@@ -946,9 +943,9 @@ function mapaGrade(config) {
                 });
                 this.historicoHtml = res.ok
                     ? await res.text()
-                    : '<p class="text-red-600">Não foi possível carregar o histórico.</p>';
+                    : '<p class="text-danger">Não foi possível carregar o histórico.</p>';
             } catch (e) {
-                this.historicoHtml = '<p class="text-red-600">Falha de rede ao carregar o histórico.</p>';
+                this.historicoHtml = '<p class="text-danger">Falha de rede ao carregar o histórico.</p>';
             }
         },
     };

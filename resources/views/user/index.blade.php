@@ -1,146 +1,99 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Usuários') }}
-        </h2>
-    </x-slot>
+{{-- Usuários do painel. A lista vem inteira: a busca filtra na página. --}}
+@php
+    $th = 'px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3';
+@endphp
+<x-app-layout :bootstrap-grid="false">
+    <x-page>
+        <x-page-title title="Usuários">
+            O acesso vem dos setores de cada pessoa e das permissões individuais.
+            <x-slot:actions>
+                @can(\App\Authorization\Permissions::SETORES_GERENCIAR)
+                    <x-secondary-button-a href="{{ route('sectors.index') }}"><x-icon name="shield" /> Setores e permissões</x-secondary-button-a>
+                @endcan
+                <x-primary-button-a href="{{ route('users.create') }}"><x-icon name="user-plus" /> Novo usuário</x-primary-button-a>
+            </x-slot:actions>
+        </x-page-title>
 
-    <div class="py-12 bg-gray-50 dark:bg-gray-900 min-h-screen">
-        <div class="max-w-full mx-auto sm:px-6 lg:px-8">
+        @include('partials.alerts')
 
-            <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                    <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Gestão de Usuários</h1>
-                    <p class="text-gray-500 dark:text-gray-400 font-medium">O acesso vem dos setores de cada pessoa e das permissões individuais.</p>
-                </div>
+        <x-search-bar mode="client" target="#usuarios" placeholder="Buscar por nome, e-mail, matrícula ou setor" />
 
-                <div class="flex gap-3">
-                    @can(\App\Authorization\Permissions::SETORES_GERENCIAR)
-                    <a href="{{ route('sectors.index') }}" class="inline-flex items-center px-5 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-bold shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition">
-                        Setores e Permissões
-                    </a>
-                    @endcan
-                    <a href="{{ route('users.create') }}" class="inline-flex items-center px-6 py-3 bg-[#A00001] text-white rounded-xl font-bold shadow-lg hover:bg-[#800000] transition duration-150 transform hover:scale-[1.02]">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        Novo Usuário
-                    </a>
-                </div>
-            </div>
-
-            @include('partials.alerts')
-
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 mb-8 border border-gray-100 dark:border-gray-700">
-                <div class="relative">
-                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                    </span>
-                    <input type="text" id="user-search-input" placeholder="Pesquisar por nome, e-mail ou setor..."
-                        class="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 outline-none shadow-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white dark:placeholder-gray-500"
-                        onkeyup="filterUsers()">
-                </div>
-            </div>
-
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-700">
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700" id="users-table">
-                        <thead class="bg-gray-50 dark:bg-gray-700">
-                            <tr>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Usuário</th>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Matrícula</th>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Setores</th>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Último Acesso</th>
-                                <th class="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
-
-                            @foreach($users as $user)
-                            <tr class="hover:bg-indigo-50/30 dark:hover:bg-indigo-900/20 transition duration-150 user-row">
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="flex items-center">
-                                        <div class="h-10 w-10 flex-shrink-0">
-                                            <a href="{{ route('users.edit', ['id' => $user['id']]) }}" class="h-10 w-10 rounded-full bg-[#ff6961] dark:bg-[#A00001] flex items-center justify-center text-black dark:text-white font-bold border-2 border-white dark:border-gray-600 shadow-sm">
-                                                {{ substr($user['name'], 0, 1) }}
-                                            </a>
-                                        </div>
-                                        <div class="ml-4">
-                                            <a href="{{ route('users.edit', ['id' => $user['id']]) }}" class="text-sm font-bold text-gray-900 dark:text-white user-name">{{ $user['name'] }}</a>
-                                            <div class="text-xs text-gray-500 dark:text-gray-400 user-email">{{ $user['email'] }}</div>
-                                        </div>
-                                    </div>
+        <div class="overflow-hidden rounded-card bg-surface shadow-card">
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm" id="users-table">
+                    <thead>
+                        <tr class="border-b border-line">
+                            <th class="{{ $th }}">Usuário</th>
+                            <th class="{{ $th }}">Matrícula</th>
+                            <th class="{{ $th }}">Setores</th>
+                            <th class="{{ $th }}">Status</th>
+                            <th class="{{ $th }}">Último acesso</th>
+                            <th class="{{ $th }}"><span class="sr-only">Ações</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="usuarios" class="divide-y divide-line">
+                        @foreach($users as $user)
+                            @php
+                                $initials = mb_strtoupper(collect(preg_split('/\s+/', trim($user['name']), -1, PREG_SPLIT_NO_EMPTY))->take(2)->map(fn ($p) => mb_substr($p, 0, 1))->implode(''));
+                                $active = $user['status_id'] == '1';
+                            @endphp
+                            <tr data-search="{{ $active ? 'ativo' : 'inativo' }}" class="transition hover:bg-subtle">
+                                <td class="whitespace-nowrap px-5 py-3.5">
+                                    <a href="{{ route('users.edit', ['id' => $user['id']]) }}" class="group flex items-center gap-3">
+                                        <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-grena-tint font-display text-sm font-semibold text-grena-ink" aria-hidden="true">{{ $initials }}</span>
+                                        <span>
+                                            <span class="block font-bold text-ink group-hover:text-grena-ink">{{ $user['name'] }}</span>
+                                            <span class="block text-xs text-ink-2">{{ $user['email'] }}</span>
+                                        </span>
+                                    </a>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300 font-mono">
-                                    {{ $user['matricula'] ?? '—' }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="flex flex-wrap gap-1 max-w-xs user-role">
+                                <td class="whitespace-nowrap px-5 py-3.5 font-mono text-ink-2">{{ $user['matricula'] ?? '—' }}</td>
+                                <td class="px-5 py-3.5">
+                                    <div class="flex max-w-xs flex-wrap gap-1">
                                         @forelse($user->sectors->sortBy('name') as $sector)
-                                            <span class="px-2 py-0.5 inline-flex text-xs leading-5 font-bold rounded-lg {{ $sector->full_access ? 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200' }}"
+                                            <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold {{ $sector->full_access ? 'bg-grena-tint text-grena-ink' : 'bg-subtle text-ink-2' }}"
                                                   title="{{ $sector->pivot->role === 'coordinator' ? 'Coordenador' : 'Colaborador' }}{{ $sector->full_access ? ' · acesso total' : '' }}">
-                                                {{ $sector->name }}{{ $sector->pivot->role === 'coordinator' ? ' ★' : '' }}
+                                                {{ $sector->name }}
+                                                @if($sector->pivot->role === 'coordinator')
+                                                    <x-icon name="star" class="h-3 w-3" /><span class="sr-only">coordenador</span>
+                                                @endif
                                             </span>
                                         @empty
-                                            <span class="text-xs text-gray-400">Sem setor</span>
+                                            <span class="text-xs text-ink-3">Sem setor</span>
                                         @endforelse
                                         @if($user->directPermissions->isNotEmpty())
-                                            <span class="px-2 py-0.5 inline-flex text-xs leading-5 font-bold rounded-lg bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300"
+                                            <span class="inline-flex rounded-full bg-subtle px-2.5 py-0.5 text-xs font-bold text-ink-2"
                                                   title="Permissões individuais">+{{ $user->directPermissions->count() }} individual</span>
                                         @endif
                                     </div>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    @if($user['status_id'] == '1')
-                                        <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
-                                            ● Ativo
-                                        </span>
-                                    @else
-                                        <span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300">
-                                            ○ Inativo
-                                        </span>
-                                    @endif
+                                <td class="whitespace-nowrap px-5 py-3.5">
+                                    <x-pill :kind="$active ? 'ok' : 'off'">{{ $active ? 'Ativo' : 'Inativo' }}</x-pill>
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                                <td class="whitespace-nowrap px-5 py-3.5 text-ink-2">
                                     {{ $user['last_login_at'] ? \Carbon\Carbon::parse($user['last_login_at'])->diffForHumans() : '—' }}
                                 </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <div class="flex justify-end gap-2">
-                                        <a href="{{ route('users.edit', ['id' => $user['id']]) }}" class="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-gray-600 rounded-lg transition duration-150 shadow-sm border border-gray-100 dark:border-gray-600 bg-white dark:bg-gray-700" title="Editar Usuário">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                                        </a>
+                                <td class="whitespace-nowrap px-5 py-3.5">
+                                    <div class="flex items-center justify-end gap-1">
+                                        <x-secondary-button-a size="sm" href="{{ route('users.edit', ['id' => $user['id']]) }}"><x-icon name="pencil" /> Editar</x-secondary-button-a>
                                         @if($user['id'] !== auth()->id())
-                                        <form method="POST" action="{{ route('users.destroy', $user['id']) }}"
-                                              onsubmit="return confirm('Excluir o usuário \'{{ addslashes($user['name']) }}\' permanentemente?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="p-2 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-600 rounded-lg transition duration-150 shadow-sm border border-red-100 dark:border-gray-600 bg-white dark:bg-gray-700" title="Excluir Usuário">
-                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                            </button>
-                                        </form>
+                                            <form method="POST" action="{{ route('users.destroy', $user['id']) }}"
+                                                  onsubmit="return confirm('Excluir o usuário \'{{ addslashes($user['name']) }}\' permanentemente?')">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" aria-label="Excluir {{ $user['name'] }}"
+                                                        class="grid h-8 w-8 place-items-center rounded-full text-ink-3 transition hover:bg-danger-soft hover:text-danger">
+                                                    <x-icon name="trash" class="h-4 w-4" />
+                                                </button>
+                                            </form>
                                         @endif
                                     </div>
                                 </td>
                             </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
         </div>
-    </div>
-
-<script>
-    function filterUsers() {
-        const input = document.getElementById('user-search-input');
-        const filter = input.value.toUpperCase();
-        const rows = document.querySelectorAll('.user-row');
-
-        rows.forEach(row => {
-            const name = row.querySelector('.user-name').textContent.toUpperCase();
-            const email = row.querySelector('.user-email').textContent.toUpperCase();
-            const role = row.querySelector('.user-role').textContent.toUpperCase();
-            row.style.display = (name.includes(filter) || email.includes(filter) || role.includes(filter)) ? "" : "none";
-        });
-    }
-</script>
+    </x-page>
 </x-app-layout>

@@ -44,13 +44,16 @@ class ValidationController extends Controller
     }
 
     /** Fila: redação 2, assinados pelo freelancer, liberados e sem validação. */
-    public function index()
+    public function index(Request $request)
     {
         $services = FreelancerService::awaitingCoordinatorValidation()
             ->with(['freelancer:id,name,cpf', 'functionFreelancer', 'baseService'])
+            // Mesma busca da lista de serviços (nome, CPF, evento/local).
+            ->search(trim((string) $request->query('q', '')) ?: null)
             // Os mais antigos primeiro: são os que travam o lote e o pagamento.
             ->orderBy('freelancer_signed_at')
-            ->paginate(self::PER_PAGE);
+            ->paginate(self::PER_PAGE)
+            ->withQueryString();
 
         // Assinados hoje ainda esperam a manhã seguinte; não entram na fila, mas
         // a contagem evita a pergunta "cadê o contrato de ontem à noite?".

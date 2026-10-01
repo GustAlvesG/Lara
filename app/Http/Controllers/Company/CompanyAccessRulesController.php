@@ -122,6 +122,8 @@ class CompanyAccessRulesController extends Controller
             $query->whereDate('created_at', '<=', $request->date_to);
         }
 
+        $query->search($request->input('q'));
+
         $logs = $query->paginate(25)->withQueryString();
         $companies = Company::orderBy('name')->get();
 
@@ -333,6 +335,8 @@ class CompanyAccessRulesController extends Controller
         if ($request->filled('date_to')) {
             $query->whereDate('created_at', '<=', $request->date_to);
         }
+
+        $query->search($request->input('q'));
 
         $logs = $query->paginate(25)->withQueryString();
 

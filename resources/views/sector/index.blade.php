@@ -1,125 +1,71 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Setores') }}
-        </h2>
-    </x-slot>
-
-<div class="py-12 bg-gray-50 dark:bg-gray-900 min-h-screen">
-    <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-
-        <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div class="flex items-center gap-4">
-                <a href="{{ route('users.index') }}" class="p-2 bg-white dark:bg-gray-800 rounded-xl shadow-md text-gray-400 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 border border-gray-100 dark:border-gray-700 transition">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                    </svg>
-                </a>
-                <div>
-                    <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Setores</h1>
-                    <p class="text-gray-500 dark:text-gray-400 font-medium">Quem está em cada setor e o que cada setor alcança no sistema.</p>
-                </div>
-            </div>
-
-            <div class="flex gap-3">
-            <a href="{{ route('sectors.audit') }}" class="inline-flex items-center px-5 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-bold shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition">
-                Histórico de acesso
-            </a>
-            <a href="{{ route('sectors.create') }}" class="inline-flex items-center px-6 py-3 bg-[#A00001] text-white rounded-xl font-bold shadow-lg hover:bg-[#800000] transition duration-150 transform hover:scale-[1.02]">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                Novo Setor
-            </a>
-            </div>
-        </div>
+{{-- Setores e o que cada um alcança. A lista vem inteira: a busca filtra na página. --}}
+<x-app-layout :bootstrap-grid="false">
+    <x-page>
+        <x-page-title title="Setores" :back="route('users.index')">
+            Quem está em cada setor e o que cada setor alcança no sistema.
+            <x-slot:actions>
+                <x-secondary-button-a href="{{ route('sectors.audit') }}"><x-icon name="history" /> Histórico de acesso</x-secondary-button-a>
+                <x-primary-button-a href="{{ route('sectors.create') }}"><x-icon name="plus" /> Novo setor</x-primary-button-a>
+            </x-slot:actions>
+        </x-page-title>
 
         @include('partials.alerts')
 
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 mb-8 border border-gray-100 dark:border-gray-700">
-            <div class="relative">
-                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                </span>
-                <input type="text" id="sector-search-input" placeholder="Filtrar por nome do setor..."
-                       class="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 outline-none shadow-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white dark:placeholder-gray-500"
-                       onkeyup="filterSectors()">
-            </div>
-        </div>
-
         @if($sectors->isEmpty())
-            <div class="bg-white dark:bg-gray-800 p-12 text-center rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700">
-                <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                </svg>
-                <p class="text-gray-500 dark:text-gray-400 text-lg font-medium">Nenhum setor cadastrado.</p>
-                <a href="{{ route('sectors.create') }}" class="mt-4 inline-flex items-center px-4 py-2 bg-[#A00001] text-white rounded-lg font-bold hover:bg-[#800000] transition">
-                    Criar primeiro setor
-                </a>
-            </div>
+            <x-empty-state icon="users">
+                Nenhum setor cadastrado.
+                <a href="{{ route('sectors.create') }}" class="font-bold text-grena-ink hover:underline">Criar o primeiro setor</a>.
+            </x-empty-state>
         @else
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="sectors-container">
+            <x-search-bar mode="client" target="#sectors-container" placeholder="Buscar setor" />
+
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2" id="sectors-container">
                 @foreach($sectors as $sector)
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-700 flex flex-col sector-card overflow-hidden transition-all duration-300 hover:shadow-indigo-100 dark:hover:shadow-indigo-900/20">
-
-                    <div class="p-6 border-b border-gray-50 dark:border-gray-700 flex items-center justify-between bg-gray-50/50 dark:bg-gray-700/50">
-                        <div class="flex items-center gap-3">
-                            <div class="p-3 bg-[#A00001] flex items-center justify-center rounded-lg shadow-lg">
-                                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-                                </svg>
-                            </div>
-                            <div>
-                                <h2 class="text-xl font-extrabold text-gray-900 dark:text-white uppercase tracking-tight sector-name">{{ $sector->name }}</h2>
-                                @if($sector->full_access)
-                                    <span class="inline-block mt-1 px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">Acesso total</span>
-                                @endif
-                                @if($sector->description)
-                                    <p class="text-sm text-gray-500 dark:text-gray-400">{{ $sector->description }}</p>
-                                @endif
-                            </div>
-                        </div>
-
-                        <div class="flex gap-2">
-                            <a href="{{ route('sectors.show', $sector->id) }}" class="p-2 text-indigo-600 dark:text-indigo-400 hover:bg-white dark:hover:bg-gray-600 rounded-lg transition border border-transparent hover:border-indigo-100 dark:hover:border-indigo-900 hover:shadow-sm" title="Editar Setor">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                    <article data-search="{{ $sector->full_access ? 'acesso total' : '' }}" class="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
+                        <div class="flex items-start justify-between gap-3">
+                            <a href="{{ route('sectors.show', $sector->id) }}" class="group flex min-w-0 items-start gap-3">
+                                <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-grena-tint text-grena-ink">
+                                    <x-icon name="users" class="h-5 w-5" />
+                                </span>
+                                <span class="min-w-0">
+                                    <span class="block font-display text-base font-semibold tracking-tight text-ink group-hover:text-grena-ink">{{ $sector->name }}</span>
+                                    @if($sector->description)
+                                        <span class="block text-sm text-ink-2">{{ $sector->description }}</span>
+                                    @endif
+                                </span>
                             </a>
-                            <form method="POST" action="{{ route('sectors.destroy', $sector->id) }}"
-                                  onsubmit="return confirm('Excluir o setor \'{{ $sector->name }}\' permanentemente?')">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="p-2 text-red-700 dark:text-red-400 hover:bg-white dark:hover:bg-gray-600 rounded-lg transition border border-transparent hover:border-red-100 dark:hover:border-red-900 hover:shadow-sm" title="Excluir Setor">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                </button>
-                            </form>
-                        </div>
-                    </div>
 
-                    <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                        <span class="text-xs font-medium text-gray-500 dark:text-gray-500">
-                            ID: #{{ $sector->id }}
-                        </span>
-                        <span class="text-xs font-medium text-gray-400 dark:text-gray-600">
-                            {{ $sector->users_count }} membro(s) ·
-                            {{ $sector->full_access ? 'todas as permissões' : $sector->permissions_count . ' permissão(ões)' }}
-                        </span>
-                    </div>
-                </div>
+                            <div class="flex shrink-0 items-center gap-1">
+                                <a href="{{ route('sectors.show', $sector->id) }}" aria-label="Editar {{ $sector->name }}"
+                                   class="grid h-9 w-9 place-items-center rounded-full text-ink-2 transition hover:bg-subtle hover:text-ink">
+                                    <x-icon name="pencil" class="h-4 w-4" />
+                                </a>
+                                <form method="POST" action="{{ route('sectors.destroy', $sector->id) }}"
+                                      onsubmit="return confirm('Excluir o setor \'{{ $sector->name }}\' permanentemente?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" aria-label="Excluir {{ $sector->name }}"
+                                            class="grid h-9 w-9 place-items-center rounded-full text-ink-3 transition hover:bg-danger-soft hover:text-danger">
+                                        <x-icon name="trash" class="h-4 w-4" />
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        <div class="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-xs text-ink-3">
+                            <span>
+                                {{ $sector->users_count }} {{ $sector->users_count == 1 ? 'membro' : 'membros' }} ·
+                                {{ $sector->full_access ? 'todas as permissões' : $sector->permissions_count . ($sector->permissions_count == 1 ? ' permissão' : ' permissões') }}
+                            </span>
+                            @if($sector->full_access)
+                                <x-pill kind="info">Acesso total</x-pill>
+                            @else
+                                <span class="font-mono">#{{ $sector->id }}</span>
+                            @endif
+                        </div>
+                    </article>
                 @endforeach
             </div>
         @endif
-    </div>
-</div>
-
-<script>
-    function filterSectors() {
-        const input = document.getElementById('sector-search-input');
-        const filter = input.value.toUpperCase();
-        const cards = document.querySelectorAll('.sector-card');
-
-        cards.forEach(card => {
-            const name = card.querySelector('.sector-name').textContent.toUpperCase();
-            card.style.display = name.includes(filter) ? "" : "none";
-        });
-    }
-</script>
-
+    </x-page>
 </x-app-layout>

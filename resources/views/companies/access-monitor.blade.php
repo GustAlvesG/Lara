@@ -12,14 +12,14 @@
         <!-- Header -->
         <div class="mb-8 flex items-center justify-between">
             <div class="flex items-center gap-4">
-                <a href="{{ route('company.index') }}" class="p-2 bg-white dark:bg-gray-800 rounded-xl shadow-md text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 border border-gray-100 dark:border-gray-700 transition">
+                <a href="{{ route('company.index') }}" class="p-2 bg-surface rounded-xl shadow-card text-ink-3 hover:text-grena-ink border border-line transition">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                     </svg>
                 </a>
                 <div>
-                    <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white">Monitor de Acesso</h1>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Consulte ou registre acessos de Externos terceirizados e freelancers.</p>
+                    <h1 class="text-2xl font-extrabold text-ink">Monitor de Acesso</h1>
+                    <p class="text-sm text-ink-2">Consulte ou registre acessos de Externos terceirizados e freelancers.</p>
                 </div>
             </div>
             {{-- O monitor é de todo mundo logado; os atalhos, não — cada um
@@ -27,19 +27,19 @@
             <div class="flex gap-2">
                 @can(\App\Authorization\Permissions::EXTERNOS_CARROS_APLICATIVO)
                 <a href="{{ route('company.uber.waiting') }}"
-                   class="px-4 py-2 bg-white dark:bg-gray-800 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-400 rounded-lg font-bold text-sm shadow-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition">
+                   class="px-4 py-2 bg-surface border border-grena/40 text-grena-ink rounded-lg font-bold text-sm shadow-card hover:bg-grena-tint transition">
                     Aguardando Motorista
                 </a>
                 @endcan
                 @can(\App\Authorization\Permissions::EXTERNOS_LIBERACAO_PONTUAL)
                 <a href="{{ route('company.one-off.index') }}"
-                   class="px-4 py-2 bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 rounded-lg font-bold text-sm shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/30 transition">
+                   class="px-4 py-2 bg-surface border border-warn/40 text-warn rounded-lg font-bold text-sm shadow-card hover:bg-warn-soft transition">
                     Liberação Pontual
                 </a>
                 @endcan
                 @can(\App\Authorization\Permissions::EXTERNOS_HISTORICO)
                 <a href="{{ route('company.access.logs') }}"
-                   class="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                   class="px-4 py-2 bg-surface border border-line text-ink rounded-lg font-bold text-sm shadow-card hover:bg-subtle transition">
                     Ver Histórico
                 </a>
                 @endcan
@@ -47,38 +47,38 @@
         </div>
 
         <!-- Input Card -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6 mb-6">
-            <label class="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">CPF do funcionário/freelancer ou nome da empresa</label>
+        <div class="bg-surface rounded-2xl shadow-pop border border-line p-6 mb-6">
+            <label class="block text-xs font-bold text-ink-3 uppercase tracking-wider mb-3">CPF do funcionário/freelancer ou nome da empresa</label>
             <div class="flex gap-3">
                 <input type="text" id="target-input"
                     placeholder="Ex: 123.456.789-09  ou  Acme Serviços"
-                    class="flex-1 px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition shadow-sm text-base font-medium bg-white dark:bg-gray-700 text-gray-900 dark:text-white dark:placeholder-gray-400">
+                    class="flex-1 px-4 py-3 border border-line rounded-xl focus:ring-2 focus:ring-grena-tint focus:border-grena outline-none transition shadow-card text-base font-medium bg-surface text-ink">
                 <button onclick="checkAccess(false)"
                     title="Consulta sem registrar no histórico"
-                    class="px-5 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-xl font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition whitespace-nowrap">
+                    class="px-5 py-3 bg-surface border border-line text-ink-2 rounded-xl font-bold text-sm shadow-card hover:bg-subtle transition whitespace-nowrap">
                     Consultar
                 </button>
                 <button onclick="checkAccess(true)"
                     title="Valida e registra no histórico"
-                    class="px-5 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-md hover:bg-indigo-700 transition whitespace-nowrap">
+                    class="px-5 py-3 bg-grena text-white rounded-xl font-bold text-sm shadow-card hover:bg-grena-hover transition whitespace-nowrap">
                     Registrar Acesso
                 </button>
             </div>
-            <p class="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
+            <p class="mt-2 text-[11px] text-ink-3">
                 <span class="font-semibold">Consultar</span> apenas valida sem gravar.
                 <span class="font-semibold ml-2">Registrar Acesso</span> valida e grava no histórico.
             </p>
-            <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+            <p class="mt-1 text-[11px] text-ink-3">
                 O CPF também consulta o contrato do freelancer: ele entra a partir de 30 min antes do início do serviço, até o término.
             </p>
-            <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+            <p class="mt-1 text-[11px] text-ink-3">
                 E a <span class="font-semibold">liberação pontual</span> do dia: vale para uma única entrada, gasta ao registrar.
             </p>
         </div>
 
         <!-- Loading -->
         <div id="loading" class="hidden flex justify-center py-8">
-            <div class="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+            <div class="w-8 h-8 border-4 border-grena border-t-transparent rounded-full animate-spin"></div>
         </div>
 
         <!-- Result -->
@@ -86,7 +86,7 @@
 
         <!-- Session Log -->
         <div id="session-log-wrapper" class="hidden mt-8">
-            <h3 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-3">Consultas desta sessão</h3>
+            <h3 class="text-xs font-bold text-ink-3 uppercase tracking-wider mb-3">Consultas desta sessão</h3>
             <div id="session-log" class="space-y-2"></div>
         </div>
 
@@ -127,8 +127,8 @@
             const target = document.getElementById('target-input').value.trim();
             if (!target) {
                 const inp = document.getElementById('target-input');
-                inp.classList.add('ring-2', 'ring-red-300', 'border-red-300');
-                setTimeout(() => inp.classList.remove('ring-2', 'ring-red-300', 'border-red-300'), 1500);
+                inp.classList.add('ring-2', 'ring-grena-tint', 'border-danger/40');
+                setTimeout(() => inp.classList.remove('ring-2', 'ring-grena-tint', 'border-danger/40'), 1500);
                 return;
             }
 
@@ -170,7 +170,7 @@
 
             } catch (err) {
                 document.getElementById('result-area').innerHTML = `
-                    <div class="fade-in bg-red-50 border border-red-100 rounded-2xl p-5 text-red-700 font-semibold text-sm">
+                    <div class="fade-in bg-danger-soft border border-danger/40 rounded-2xl p-5 text-danger font-semibold text-sm">
                         Erro de conexão. Verifique o servidor.
                     </div>`;
             } finally {
@@ -193,7 +193,7 @@
                 if (data.found) {
                     const allowed = data.workers[0].allowed;
                     buttonEl.textContent  = allowed ? '✓ Registrado' : '✗ Registrado';
-                    buttonEl.className    = `px-3 py-1.5 rounded-full text-xs font-black ${allowed ? 'bg-green-600 text-white' : 'bg-red-600 text-white'} cursor-default`;
+                    buttonEl.className    = `px-3 py-1.5 rounded-full text-xs font-black ${allowed ? 'bg-ok text-white dark:text-canvas' : 'bg-danger text-white'} cursor-default`;
                     sessionLog.unshift({ target: entry.name, data, register: true, time: new Date() });
                     renderSessionLog();
                 }
@@ -225,11 +225,11 @@
                 return '';
             }
 
-            const tag = `<span class="text-[10px] font-black uppercase tracking-wide bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Freelancer</span>`;
+            const tag = `<span class="text-[10px] font-black uppercase tracking-wide bg-grena-tint text-grena-ink px-2 py-0.5 rounded-full">Freelancer</span>`;
 
             if (!w.allowed) {
                 return `<div class="flex items-center gap-2 mt-1">${tag}
-                            <span class="text-xs text-gray-500">Sem serviço registrado para este horário.</span>
+                            <span class="text-xs text-ink-2">Sem serviço registrado para este horário.</span>
                         </div>`;
             }
 
@@ -239,9 +239,9 @@
             const place = [s.function, s.location].filter(Boolean).map(escHtml).join(' &nbsp;·&nbsp; ');
 
             return `<div class="flex items-center gap-2 mt-1">${tag}
-                        <span class="text-xs text-gray-500">${parts}</span>
+                        <span class="text-xs text-ink-2">${parts}</span>
                     </div>
-                    ${place ? `<p class="text-xs text-gray-400 mt-0.5">${place}</p>` : ''}`;
+                    ${place ? `<p class="text-xs text-ink-3 mt-0.5">${place}</p>` : ''}`;
         }
 
         /**
@@ -250,7 +250,7 @@
          */
         function oneOffDetail(w) {
             const o = w.one_off ?? {};
-            const tag = `<span class="text-[10px] font-black uppercase tracking-wide bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Liberação Pontual</span>`;
+            const tag = `<span class="text-[10px] font-black uppercase tracking-wide bg-warn-soft text-warn px-2 py-0.5 rounded-full">Liberação Pontual</span>`;
 
             let status;
             if (w.allowed) {
@@ -265,10 +265,10 @@
                 .filter(Boolean).join(' ');
 
             return `<div class="flex items-center gap-2 mt-1">${tag}
-                        <span class="text-xs text-gray-500">${status}</span>
+                        <span class="text-xs text-ink-2">${status}</span>
                     </div>
-                    ${o.reason ? `<p class="text-xs text-gray-600 mt-1 whitespace-pre-line">${escHtml(o.reason)}</p>` : ''}
-                    <p class="text-xs text-gray-400 mt-0.5">${by}</p>`;
+                    ${o.reason ? `<p class="text-xs text-ink-2 mt-1 whitespace-pre-line">${escHtml(o.reason)}</p>` : ''}
+                    <p class="text-xs text-ink-3 mt-0.5">${by}</p>`;
         }
 
         /** Atalho do "não encontrado" para a liberação pontual, já com o CPF. */
@@ -279,7 +279,7 @@
             }
 
             return `<a href="${ONE_OFF_CREATE_URL}?cpf=${digits}"
-                       class="ml-auto shrink-0 px-4 py-2 bg-amber-500 text-white rounded-xl font-bold text-sm shadow-sm hover:bg-amber-600 transition">
+                       class="ml-auto shrink-0 px-4 py-2 bg-warn text-white dark:text-canvas rounded-xl font-bold text-sm shadow-card hover:bg-warn/90 transition">
                         Criar liberação pontual
                     </a>`;
         }
@@ -290,18 +290,18 @@
 
             if (!data.found) {
                 area.innerHTML = `
-                    <div class="fade-in bg-white border border-red-100 rounded-2xl shadow-sm overflow-hidden">
-                        <div class="w-full h-1 bg-red-500"></div>
+                    <div class="fade-in bg-surface border border-danger/40 rounded-2xl shadow-card overflow-hidden">
+                        <div class="w-full h-1 bg-danger"></div>
                         <div class="p-6 flex items-center gap-4">
-                            <div class="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                                <svg class="w-7 h-7 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div class="w-14 h-14 rounded-full bg-danger-soft flex items-center justify-center shrink-0">
+                                <svg class="w-7 h-7 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                 </svg>
                             </div>
                             <div>
-                                <p class="font-black text-red-700 text-lg">Não Encontrado</p>
-                                <p class="text-sm text-gray-500 mt-0.5">${reasonLabel(data.reason)}</p>
-                                <p class="text-xs text-gray-400 mt-1">Alvo: <span class="font-mono font-bold">${escHtml(target)}</span></p>
+                                <p class="font-black text-danger text-lg">Não Encontrado</p>
+                                <p class="text-sm text-ink-2 mt-0.5">${reasonLabel(data.reason)}</p>
+                                <p class="text-xs text-ink-3 mt-1">Alvo: <span class="font-mono font-bold">${escHtml(target)}</span></p>
                             </div>
                             ${data.reason === 'worker_not_found' ? oneOffShortcut(target) : ''}
                         </div>
@@ -311,7 +311,7 @@
 
             const allAllowed = data.workers.every(w => w.allowed);
             const anyAllowed = data.workers.some(w => w.allowed);
-            const topColor   = allAllowed ? 'bg-green-500' : anyAllowed ? 'bg-yellow-400' : 'bg-red-500';
+            const topColor   = allAllowed ? 'bg-ok' : anyAllowed ? 'bg-warn' : 'bg-danger';
 
             const showPerWorkerBtn = (mode === 'pending');
 
@@ -319,23 +319,23 @@
 
             const workersHtml = data.workers.map((w, index) => {
                 const avatar = w.image
-                    ? `<img src="${escHtml(w.image)}" class="w-12 h-12 rounded-full object-cover border-2 ${w.allowed ? 'border-green-200' : 'border-red-200'} shrink-0">`
-                    : `<div class="w-12 h-12 rounded-full ${w.allowed ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'} flex items-center justify-center font-black text-lg shrink-0">${escHtml(w.name.charAt(0).toUpperCase())}</div>`;
+                    ? `<img src="${escHtml(w.image)}" class="w-12 h-12 rounded-full object-cover border-2 ${w.allowed ? 'border-ok/40' : 'border-danger/40'} shrink-0">`
+                    : `<div class="w-12 h-12 rounded-full ${w.allowed ? 'bg-ok-soft text-ok' : 'bg-danger-soft text-grena-ink'} flex items-center justify-center font-black text-lg shrink-0">${escHtml(w.name.charAt(0).toUpperCase())}</div>`;
 
-                const statusBadge = `<span class="px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-wide ${w.allowed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${w.allowed ? '✓ Permitido' : '✗ Negado'}</span>`;
+                const statusBadge = `<span class="px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-wide ${w.allowed ? 'bg-ok-soft text-ok' : 'bg-danger-soft text-danger'}">${w.allowed ? '✓ Permitido' : '✗ Negado'}</span>`;
 
                 const registerBtn = showPerWorkerBtn
                     ? `<button onclick="registerEntry(${index}, this)"
-                            class="px-3 py-1.5 bg-indigo-600 text-white rounded-full text-xs font-black hover:bg-indigo-700 transition">
+                            class="px-3 py-1.5 bg-grena text-white rounded-full text-xs font-black hover:bg-grena-hover transition">
                            Registrar
                        </button>`
                     : '';
 
                 return `
-                    <div class="flex items-center gap-4 p-4 rounded-xl border ${w.allowed ? 'border-green-100 bg-green-50/40' : 'border-red-100 bg-red-50/40'}">
+                    <div class="flex items-center gap-4 p-4 rounded-xl border ${w.allowed ? 'border-ok/40 bg-ok-soft/50' : 'border-danger/40 bg-grena-tint/60'}">
                         ${avatar}
                         <div class="flex-grow">
-                            <p class="font-bold text-gray-900">${escHtml(w.name)}</p>
+                            <p class="font-bold text-ink">${escHtml(w.name)}</p>
                             ${entryDetail(w)}
                         </div>
                         ${statusBadge}
@@ -344,18 +344,18 @@
             }).join('');
 
             const tagMap = {
-                registered: '<span class="text-[10px] font-black uppercase tracking-wide bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Registrado</span>',
-                pending:    '<span class="text-[10px] font-black uppercase tracking-wide bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Selecione o funcionário</span>',
-                consulta:   '<span class="text-[10px] font-black uppercase tracking-wide bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Apenas Consulta</span>',
+                registered: '<span class="text-[10px] font-black uppercase tracking-wide bg-grena-tint text-grena-ink px-2 py-0.5 rounded-full">Registrado</span>',
+                pending:    '<span class="text-[10px] font-black uppercase tracking-wide bg-warn-soft text-warn px-2 py-0.5 rounded-full">Selecione o funcionário</span>',
+                consulta:   '<span class="text-[10px] font-black uppercase tracking-wide bg-subtle text-ink-2 px-2 py-0.5 rounded-full">Apenas Consulta</span>',
             };
 
             area.innerHTML = `
-                <div class="fade-in bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+                <div class="fade-in bg-surface rounded-2xl shadow-pop border border-line overflow-hidden">
                     <div class="w-full h-1.5 ${topColor}"></div>
-                    <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                    <div class="px-6 py-4 border-b border-line flex items-center justify-between">
                         <div>
-                            <p class="font-black text-gray-900 text-lg">${escHtml(data.company)}</p>
-                            <p class="text-xs text-gray-400 mt-0.5">${new Date().toLocaleTimeString('pt-BR')} &nbsp;·&nbsp; ${data.workers.length} resultado(s)</p>
+                            <p class="font-black text-ink text-lg">${escHtml(data.company)}</p>
+                            <p class="text-xs text-ink-3 mt-0.5">${new Date().toLocaleTimeString('pt-BR')} &nbsp;·&nbsp; ${data.workers.length} resultado(s)</p>
                         </div>
                         <div class="flex items-center gap-3">
                             ${!anyAllowed && !data.workers.some(w => w.type === 'one_off') ? oneOffShortcut(target) : ''}
@@ -375,18 +375,18 @@
                 const found   = entry.data.found;
                 const workers = found ? entry.data.workers : [];
                 const allowed = workers.some(w => w.allowed);
-                const bg      = !found ? 'bg-gray-100 text-gray-500' : (allowed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700');
+                const bg      = !found ? 'bg-subtle text-ink-2' : (allowed ? 'bg-ok-soft text-ok' : 'bg-danger-soft text-danger');
                 const label   = !found ? '—' : (allowed ? '✓' : '✗');
                 const company = found ? entry.data.company : 'Não encontrado';
                 const time    = entry.time.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
                 return `
-                    <div class="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm">
+                    <div class="flex items-center gap-3 bg-surface border border-line rounded-xl px-4 py-3 shadow-card">
                         <span class="w-7 h-7 rounded-full ${bg} flex items-center justify-center text-xs font-black shrink-0">${label}</span>
-                        <span class="font-mono text-sm text-gray-700 flex-1">${escHtml(entry.target)}</span>
-                        <span class="text-sm text-gray-500">${escHtml(company)}</span>
-                        <span class="text-xs text-gray-400 ml-auto shrink-0">${time}</span>
-                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${entry.register ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-400'}">${entry.register ? 'reg' : 'cons'}</span>
+                        <span class="font-mono text-sm text-ink flex-1">${escHtml(entry.target)}</span>
+                        <span class="text-sm text-ink-2">${escHtml(company)}</span>
+                        <span class="text-xs text-ink-3 ml-auto shrink-0">${time}</span>
+                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${entry.register ? 'bg-grena-tint text-grena-ink' : 'bg-subtle text-ink-3'}">${entry.register ? 'reg' : 'cons'}</span>
                     </div>`;
             }).join('');
         }

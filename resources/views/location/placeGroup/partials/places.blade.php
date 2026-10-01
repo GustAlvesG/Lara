@@ -1,43 +1,17 @@
-<div class="row text-center mb-3">
-    <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-        Locais         
-    </h2>
+<div class="flex flex-wrap items-center justify-between gap-3">
+    <h2 class="font-display text-lg font-semibold tracking-tight text-ink">Locais</h2>
+    <x-primary-button-a size="sm" href="{{ route('place-group.createPlace', $item->id) }}"><x-icon name="plus" /> Novo local</x-primary-button-a>
 </div>
 
-<div class="row mb-3">
-    <div class="col-md-4 offset-md-4 flex justify-center col-sm-12">
-        <x-primary-button-a href="{{ route('place-group.createPlace', $item->id) }}">
-            Novo Local
-        </x-primary-button-a>
+@if (blank($places) || count($places) === 0)
+    <x-empty-state icon="calendar">Nenhum local nesta modalidade.</x-empty-state>
+@else
+    @if (count($places) > 4)
+        <x-search-bar mode="client" target="#locais" id="busca-locais" placeholder="Buscar local" />
+    @endif
+    <div id="locais" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        @foreach ($places as $place)
+            @include('location.placeGroup.partials.place-card', ['place' => $place])
+        @endforeach
     </div>
-</div>
-<div class="mx-auto sm:px-6 lg:px-8 space-y-6 page-group">
-    <div class="page" data-limit="4" data-actual="">
-        @php
-            $cont = 0;
-        @endphp
-        @if ($places != null)
-            @foreach ($places as $place)
-                @if ($cont % 4 == 0)
-                    <div class="row">
-                @endif
-                <div class="col-3 element rule-card-pagination">
-                    @include('location.placeGroup.partials.place-card', ['place' => $place])
-                </div>
-                @if ($cont % 4 == 3)
-                    </div>
-                @endif
-                @php
-                    $cont++;   
-                @endphp
-            @endforeach
-            @if (count($places) > 4)
-            <div class="flex justify-center sm:px-6 lg:px-8 space-y-6 my-3">
-                <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg pagination">
-                    @include('partials.navPagination')
-                </div>
-            </div>
-        @endif
-        @endif
-    </div>
-</div>
+@endif

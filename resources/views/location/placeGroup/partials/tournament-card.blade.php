@@ -1,67 +1,29 @@
 @php
-    $imageUrl = Str::startsWith($tournament->image, 'http') 
-        ? $tournament->image 
-        : ($tournament->image ? asset('images/'. $tournament->image) : asset('images/defaultImage.jpg'));
-
-    $statusColor = $tournament->status_id == 1 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
-    $statusText = $tournament->status_id == 1 ? 'Ativo' : 'Inativo';
+    $imageUrl = $tournament->image
+        ? (Str::startsWith($tournament->image, 'http') ? $tournament->image : asset('images/' . $tournament->image))
+        : null;
+    $active = $tournament->status_id == 1;
 @endphp
+{{-- Editar/excluir vão para o torneio (antes apontavam para a rota de local, com o id do torneio). --}}
+<x-card :href="route('tournaments.edit', $tournament->id)" data-search="{{ $tournament->title }}">
+    <x-slot:media>
+        <x-media :src="$imageUrl" :alt="'Imagem de ' . $tournament->title" area="reservas" icon="trophy" />
+    </x-slot:media>
 
-<div class="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl border border-gray-100 dark:border-gray-700 transform hover:scale-[1.02] transition duration-300 mb-4">
-    
-    <!-- Imagem de Destaque - Altura Compacta (h-36) -->
-    <div class="h-36 overflow-hidden bg-gray-100">
-        <img class="w-full h-full object-cover" 
-             src="{{ $imageUrl }}" 
-             alt="Imagem de {{ $tournament->title }}">
-    </div>
+    <a href="{{ route('tournaments.edit', $tournament->id) }}" class="font-display text-base font-semibold tracking-tight text-ink hover:text-grena-ink">{{ $tournament->title }}</a>
+    <p class="font-mono text-sm font-semibold text-ink">R$ {{ number_format($tournament->price, 2, ',', '.') }}</p>
 
-    <!-- Conteúdo do Card -->
-    <div class="p-3">
-        
-        <!-- Título com Link de Edição -->
-        <a href="{{ route('place-group.editPlace', $tournament->id) }}" class="block mb-3">
-            <h3 class="text-lg font-extrabold text-gray-900 dark:text-white hover:text-red-800 transition duration-150 leading-tight">
-                {{ $tournament->title }}
-            </h3>
-        </a>
-
-        <!-- Informações de Status e Valor -->
-        <div class="space-y-1 mb-4">
-            <div class="flex justify-between items-center text-sm">
-                <span class="text-gray-500 dark:text-gray-400 font-medium">Status:</span>
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase {{ $statusColor }}">
-                    {{ $statusText }}
-                </span>
-            </div>
-            
-            <div class="flex justify-between items-center text-sm border-t border-gray-50 pt-1">
-                <span class="text-gray-500 dark:text-gray-400 font-medium">Valor:</span>
-                <span class="text-indigo-700 dark:text-indigo-400 font-extrabold text-base">
-                    R$ {{ number_format($tournament->price, 2, ',', '.') }}
-                </span>
-            </div>
-        </div>
-
-        <!-- Ações do Card (Grid de 2 Colunas) -->
-        <div class="grid grid-cols-2 gap-3 border-t border-gray-100">
-            <!-- Botão Editar -->
-            <a href="{{ route('place-group.editPlace', $tournament->id) }}" 
-               class="inline-flex justify-center items-center px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold uppercase tracking-widest rounded-lg transition duration-150">
-                Editar
-            </a>
-
-            <!-- Botão Excluir -->
-            <form action="{{ route('place-group.destroyPlace', $tournament->id) }}" method="POST" class="w-full">
+    <x-slot:footer>
+        <x-pill :kind="$active ? 'ok' : 'off'">{{ $active ? 'Ativo' : 'Inativo' }}</x-pill>
+        <div class="flex items-center gap-1">
+            <x-secondary-button-a size="sm" href="{{ route('tournaments.edit', $tournament->id) }}"><x-icon name="pencil" /> Editar</x-secondary-button-a>
+            <form action="{{ route('tournaments.destroy', $tournament->id) }}" method="POST" onsubmit="return confirm('Excluir este torneio?')">
                 @csrf
                 @method('DELETE')
-                <button type="submit" 
-                        onclick="return confirm('Tem certeza que deseja deletar?')"
-                        class="w-full inline-flex justify-center items-center px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold uppercase tracking-widest rounded-lg transition duration-150 border border-red-100">
-                    Excluir
+                <button type="submit" aria-label="Excluir {{ $tournament->title }}" class="grid h-8 w-8 place-items-center rounded-full text-ink-3 transition hover:bg-danger-soft hover:text-danger">
+                    <x-icon name="trash" class="h-4 w-4" />
                 </button>
             </form>
         </div>
-
-    </div>
-</div>
+    </x-slot:footer>
+</x-card>

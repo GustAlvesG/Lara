@@ -1,45 +1,19 @@
-<div class="row text-center mb-3">
-    <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-        Regras de Locação              
-    </h2>
+<div class="flex flex-wrap items-center justify-between gap-3">
+    <h2 class="font-display text-lg font-semibold tracking-tight text-ink">Regras de locação</h2>
+    <x-primary-button-a size="sm" href="{{ route('place-group.createScheduleRule', $item->id) }}"><x-icon name="plus" /> Nova regra</x-primary-button-a>
 </div>
 
-<div class="row mb-3">
-    <div class="col-md-4 offset-md-4 flex justify-center col-sm-12">
-        <x-primary-button-a href="{{ route('place-group.createScheduleRule', $item->id) }}">
-            Nova Regra
-        </x-primary-button-a>
-    </div>
-</div>
-<div class="mx-auto sm:px-6 lg:px-8 space-y-6 page-group">
-    <div class="page" data-limit="2" data-actual="">
-        @php
-            $cont = 0;
-        @endphp
-        @if ($rules != null)
-            @foreach ($rules as $rule)
-                @if ($cont % 2 == 0)
-                    <div class="row">
-                @endif
-                <div class="col-6 element rule-card-pagination">
-                    @include('location.placeGroup.partials.rule-card', ['rule' => $rule])
-                    {{-- <pre>{{ json_encode($rule, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre> --}}
-                </div>
-                @if ($cont % 2 == 1)
-                    </div>
-                @endif
-                @php
-                    $cont++;   
-                @endphp
-            @endforeach
-            @if (count($rules) > 2)
-            <div class="flex justify-center sm:px-6 lg:px-8 space-y-6 my-3">
-                <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg pagination">
-                    @include('partials.navPagination')
-                </div>
+@if (blank($rules) || count($rules) === 0)
+    <x-empty-state icon="clock">Nenhuma regra de locação nesta modalidade.</x-empty-state>
+@else
+    @if (count($rules) > 2)
+        <x-search-bar mode="client" target="#regras" id="busca-regras" placeholder="Buscar regra" />
+    @endif
+    <div id="regras" class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        @foreach ($rules as $rule)
+            <div data-search="">
+                @include('location.placeGroup.partials.rule-card', ['rule' => $rule])
             </div>
-        @endif
-        @endif
-        
+        @endforeach
     </div>
-</div>
+@endif

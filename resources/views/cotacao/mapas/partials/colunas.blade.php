@@ -20,9 +20,9 @@
      x-init="carregarCondicoes()">
 
     {{-- ============ NOVA COLUNA ============ --}}
-    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 p-6">
-        <h3 class="font-extrabold text-gray-900 dark:text-white">Acrescentar fornecedor</h3>
-        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-4">
+    <div class="bg-surface rounded-2xl shadow-card border border-line p-6">
+        <h3 class="font-extrabold text-ink">Acrescentar fornecedor</h3>
+        <p class="text-xs text-ink-2 mt-1 mb-4">
             Busque no cadastro do Questor ou digite o nome direto — não é preciso estar cadastrado no ERP.
         </p>
 
@@ -30,73 +30,73 @@
             @csrf
 
             <div class="relative">
-                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Buscar no Questor</label>
+                <label class="block text-xs font-semibold text-ink-2 mb-1">Buscar no Questor</label>
                 <input type="text" x-model="termo" @input.debounce.400ms="buscar()"
                        placeholder="nome, fantasia ou CNPJ"
-                       class="w-full rounded-xl border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white text-sm">
+                       class="w-full rounded-xl border-line text-sm">
 
                 <div x-show="resultados.length" x-cloak @click.outside="resultados = []"
-                     class="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl">
+                     class="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto bg-surface border border-line rounded-xl shadow-pop">
                     <template x-for="f in resultados" :key="f.codigo">
                         <button type="button" @click="escolher(f)"
-                                class="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-50 dark:border-gray-700 last:border-0">
-                            <span class="block text-sm font-bold text-gray-900 dark:text-white" x-text="f.nome"></span>
-                            <span class="block text-xs text-gray-500 dark:text-gray-400"
+                                class="w-full text-left px-3 py-2 hover:bg-subtle border-b border-line last:border-0">
+                            <span class="block text-sm font-bold text-ink" x-text="f.nome"></span>
+                            <span class="block text-xs text-ink-2"
                                   x-text="[f.cnpj, f.cidade && (f.cidade + '/' + f.uf)].filter(Boolean).join(' · ')"></span>
                         </button>
                     </template>
                 </div>
-                <p x-show="erroBusca" x-cloak class="text-xs text-amber-600 mt-1" x-text="erroBusca"></p>
+                <p x-show="erroBusca" x-cloak class="text-xs text-warn mt-1" x-text="erroBusca"></p>
             </div>
 
             <input type="hidden" name="questor_cd_entidade" x-model="escolhido.codigo">
 
             <div>
-                <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Nome na coluna *</label>
+                <label class="block text-xs font-semibold text-ink-2 mb-1">Nome na coluna *</label>
                 <input type="text" name="nome" x-model="escolhido.nome" required maxlength="150"
-                       class="w-full rounded-xl border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white text-sm">
-                @error('nome')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+                       class="w-full rounded-xl border-line text-sm">
+                @error('nome')<p class="text-xs text-danger mt-1">{{ $message }}</p>@enderror
             </div>
 
             <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">CNPJ</label>
+                    <label class="block text-xs font-semibold text-ink-2 mb-1">CNPJ</label>
                     <input type="text" name="cnpj" x-model="escolhido.cnpj" maxlength="20"
-                           class="w-full rounded-xl border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white text-sm">
+                           class="w-full rounded-xl border-line text-sm">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Telefone</label>
+                    <label class="block text-xs font-semibold text-ink-2 mb-1">Telefone</label>
                     <input type="text" name="telefone" x-model="escolhido.telefone" maxlength="20"
-                           class="w-full rounded-xl border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white text-sm">
+                           class="w-full rounded-xl border-line text-sm">
                 </div>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Contato</label>
+                    <label class="block text-xs font-semibold text-ink-2 mb-1">Contato</label>
                     <input type="text" name="contato" maxlength="100"
-                           class="w-full rounded-xl border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white text-sm">
+                           class="w-full rounded-xl border-line text-sm">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">E-mail</label>
+                    <label class="block text-xs font-semibold text-ink-2 mb-1">E-mail</label>
                     <input type="email" name="email" x-model="escolhido.email" maxlength="150"
-                           class="w-full rounded-xl border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white text-sm">
+                           class="w-full rounded-xl border-line text-sm">
                 </div>
             </div>
 
             <button type="submit"
-                    class="w-full px-4 py-2.5 rounded-xl bg-red-800 hover:bg-red-900 text-white text-sm font-bold shadow transition">
+                    class="w-full px-4 py-2.5 rounded-xl bg-grena hover:bg-grena-hover text-white text-sm font-bold shadow-card transition">
                 Acrescentar coluna
             </button>
         </form>
     </div>
 
     {{-- ============ COLUNAS EXISTENTES ============ --}}
-    <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 p-6">
+    <div class="lg:col-span-2 bg-surface rounded-2xl shadow-card border border-line p-6">
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
-                <h3 class="font-extrabold text-gray-900 dark:text-white">Condições por fornecedor</h3>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <h3 class="font-extrabold text-ink">Condições por fornecedor</h3>
+                <p class="text-xs text-ink-2 mt-1">
                     Linhas 5, 6 e 7 do mapa impresso. Frete em reais e desconto entram no TOTAL, não no SUBTOTAL.
                 </p>
             </div>
@@ -107,14 +107,14 @@
                      com uma condição velha, sem nada na tela avisando. Agora é
                      um formulário só, e o aviso de "não salvo" cobre o resto. --}}
                 <button type="submit" form="condicoes-em-lote"
-                        class="px-4 py-2 rounded-xl bg-red-800 hover:bg-red-900 text-white text-xs font-bold shadow transition whitespace-nowrap">
+                        class="px-4 py-2 rounded-xl bg-grena hover:bg-grena-hover text-white text-xs font-bold shadow-card transition whitespace-nowrap">
                     Salvar todas as condições
                 </button>
             @endunless
         </div>
 
         @if($mapa->fornecedores->isEmpty())
-            <p class="text-sm text-gray-400 italic mt-4">Nenhuma coluna ainda.</p>
+            <p class="text-sm text-ink-3 italic mt-4">Nenhuma coluna ainda.</p>
         @else
             {{-- UM formulário para as {{ $mapa->fornecedores->count() }} colunas.
                  Os botões "Remover" NÃO moram aqui: `<form>` aninhado é inválido
@@ -131,56 +131,56 @@
 
                 <div class="space-y-3">
                     @foreach($mapa->fornecedores as $f)
-                        <div class="p-3 rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700">
+                        <div class="p-3 rounded-xl bg-subtle border border-line">
                             <div class="grid gap-2 md:grid-cols-12 items-end">
                                 <div class="md:col-span-3">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-400">Fornecedor</label>
+                                    <label class="block text-[10px] font-bold uppercase text-ink-3">Fornecedor</label>
                                     <input type="text" name="fornecedores[{{ $f->id }}][nome]" value="{{ old("fornecedores.{$f->id}.nome", $f->nome) }}"
                                            maxlength="150" required
-                                           class="w-full text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
+                                           class="w-full text-sm rounded-lg border-line px-2 py-1">
                                     @if($f->questor_cd_entidade)
-                                        <span class="text-[10px] text-gray-400">Questor #{{ $f->questor_cd_entidade }}</span>
+                                        <span class="text-[10px] text-ink-3">Questor #{{ $f->questor_cd_entidade }}</span>
                                     @else
-                                        <span class="text-[10px] text-amber-600 dark:text-amber-400">fora do cadastro do ERP</span>
+                                        <span class="text-[10px] text-warn">fora do cadastro do ERP</span>
                                     @endif
-                                    @error("fornecedores.{$f->id}.nome")<p class="text-[10px] text-red-600">{{ $message }}</p>@enderror
+                                    @error("fornecedores.{$f->id}.nome")<p class="text-[10px] text-danger">{{ $message }}</p>@enderror
                                 </div>
 
                                 <div class="md:col-span-1">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-400">Frete</label>
+                                    <label class="block text-[10px] font-bold uppercase text-ink-3">Frete</label>
                                     <input type="text" name="fornecedores[{{ $f->id }}][frete]" value="{{ old("fornecedores.{$f->id}.frete", $f->frete) }}"
                                            maxlength="20" list="lista-fretes" placeholder="CIF"
-                                           class="w-full text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
+                                           class="w-full text-sm rounded-lg border-line px-2 py-1">
                                 </div>
 
                                 <div class="md:col-span-2">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-400">Prazo</label>
+                                    <label class="block text-[10px] font-bold uppercase text-ink-3">Prazo</label>
                                     <input type="text" name="fornecedores[{{ $f->id }}][prazo_entrega]" value="{{ old("fornecedores.{$f->id}.prazo_entrega", $f->prazo_entrega) }}"
                                            maxlength="30" list="lista-prazos" placeholder="3DU / CONFIRMAR"
-                                           class="w-full text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
+                                           class="w-full text-sm rounded-lg border-line px-2 py-1">
                                 </div>
 
                                 <div class="md:col-span-2">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-400">Pagamento</label>
+                                    <label class="block text-[10px] font-bold uppercase text-ink-3">Pagamento</label>
                                     <input type="text" name="fornecedores[{{ $f->id }}][condicao_pagamento]" value="{{ old("fornecedores.{$f->id}.condicao_pagamento", $f->condicao_pagamento) }}"
                                            maxlength="30" list="lista-pagamentos" placeholder="Á VISTA / 28 D"
-                                           class="w-full text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
+                                           class="w-full text-sm rounded-lg border-line px-2 py-1">
                                 </div>
 
                                 <div class="md:col-span-1">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-400">Frete R$</label>
+                                    <label class="block text-[10px] font-bold uppercase text-ink-3">Frete R$</label>
                                     <input type="text" name="fornecedores[{{ $f->id }}][valor_frete]" value="{{ old("fornecedores.{$f->id}.valor_frete", $brl2($f->valor_frete)) }}"
                                            inputmode="decimal"
-                                           class="w-full text-sm text-right tabular-nums rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
-                                    @error("fornecedores.{$f->id}.valor_frete")<p class="text-[10px] text-red-600">{{ $message }}</p>@enderror
+                                           class="w-full text-sm text-right tabular-nums rounded-lg border-line px-2 py-1">
+                                    @error("fornecedores.{$f->id}.valor_frete")<p class="text-[10px] text-danger">{{ $message }}</p>@enderror
                                 </div>
 
                                 <div class="md:col-span-1">
-                                    <label class="block text-[10px] font-bold uppercase text-gray-400">Desc. R$</label>
+                                    <label class="block text-[10px] font-bold uppercase text-ink-3">Desc. R$</label>
                                     <input type="text" name="fornecedores[{{ $f->id }}][desconto]" value="{{ old("fornecedores.{$f->id}.desconto", $brl2($f->desconto)) }}"
                                            inputmode="decimal"
-                                           class="w-full text-sm text-right tabular-nums rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
-                                    @error("fornecedores.{$f->id}.desconto")<p class="text-[10px] text-red-600">{{ $message }}</p>@enderror
+                                           class="w-full text-sm text-right tabular-nums rounded-lg border-line px-2 py-1">
+                                    @error("fornecedores.{$f->id}.desconto")<p class="text-[10px] text-danger">{{ $message }}</p>@enderror
                                 </div>
 
                                 {{-- Fora do formulário de condições, por `form=`:
@@ -188,7 +188,7 @@
                                      carona num "salvar tudo". --}}
                                 <div class="md:col-span-2">
                                     <button type="submit" form="remover-fornecedor-{{ $f->id }}"
-                                            class="w-full px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/40 transition">
+                                            class="w-full px-3 py-1.5 rounded-lg bg-danger-soft text-danger text-xs font-bold hover:bg-danger-soft transition">
                                         Remover coluna
                                     </button>
                                 </div>
@@ -201,16 +201,16 @@
                      salvar só, é ele que impede o comprador de sair da tela
                      achando que as condições já estavam gravadas. --}}
                 <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-                    <p class="text-xs font-bold text-amber-600 dark:text-amber-400" x-show="sujo" x-cloak>
+                    <p class="text-xs font-bold text-warn" x-show="sujo" x-cloak>
                         Há alterações não salvas nas condições.
                     </p>
-                    <p class="text-xs text-gray-400" x-show="!sujo">
+                    <p class="text-xs text-ink-3" x-show="!sujo">
                         Um clique salva as {{ $mapa->fornecedores->count() }} colunas de uma vez.
                     </p>
 
                     <button type="submit"
-                            class="px-5 py-2.5 rounded-xl text-white text-sm font-bold shadow transition"
-                            :class="sujo ? 'bg-red-800 hover:bg-red-900' : 'bg-gray-800 dark:bg-gray-700 hover:bg-gray-900'">
+                            class="px-5 py-2.5 rounded-xl text-sm font-bold shadow-card transition"
+                            :class="sujo ? 'bg-grena hover:bg-grena-hover text-white' : 'bg-ink hover:bg-ink-2 text-canvas'">
                         Salvar todas as condições
                     </button>
                 </div>
@@ -235,9 +235,9 @@
         @endif
 
         {{-- ============ ITEM AVULSO ============ --}}
-        <div class="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700">
-            <h3 class="font-extrabold text-gray-900 dark:text-white">Acrescentar item avulso</h3>
-            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-3">
+        <div class="mt-6 pt-6 border-t border-line">
+            <h3 class="font-extrabold text-ink">Acrescentar item avulso</h3>
+            <p class="text-xs text-ink-2 mt-1 mb-3">
                 O que não veio na solicitação mas entra na mesma cotação.
             </p>
 
@@ -245,30 +245,30 @@
                   class="grid gap-2 md:grid-cols-12 items-end">
                 @csrf
                 <div class="md:col-span-6">
-                    <label class="block text-[10px] font-bold uppercase text-gray-400">Descrição *</label>
+                    <label class="block text-[10px] font-bold uppercase text-ink-3">Descrição *</label>
                     <input type="text" name="descricao" required maxlength="255"
-                           class="w-full text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
+                           class="w-full text-sm rounded-lg border-line px-2 py-1">
                 </div>
                 <div class="md:col-span-2">
-                    <label class="block text-[10px] font-bold uppercase text-gray-400">Unidade</label>
+                    <label class="block text-[10px] font-bold uppercase text-ink-3">Unidade</label>
                     <input type="text" name="unidade" maxlength="10" placeholder="UN"
-                           class="w-full text-sm rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
+                           class="w-full text-sm rounded-lg border-line px-2 py-1">
                 </div>
                 <div class="md:col-span-2">
-                    <label class="block text-[10px] font-bold uppercase text-gray-400">Qnt. *</label>
+                    <label class="block text-[10px] font-bold uppercase text-ink-3">Qnt. *</label>
                     <input type="text" name="quantidade" required inputmode="decimal" value="1"
-                           class="w-full text-sm text-right tabular-nums rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white px-2 py-1">
+                           class="w-full text-sm text-right tabular-nums rounded-lg border-line px-2 py-1">
                 </div>
                 <div class="md:col-span-2">
                     <button type="submit"
-                            class="w-full px-3 py-1.5 rounded-lg bg-gray-800 dark:bg-gray-700 hover:bg-gray-900 text-white text-xs font-bold transition">
+                            class="w-full px-3 py-1.5 rounded-lg bg-ink hover:bg-ink-2 text-canvas text-xs font-bold transition">
                         Acrescentar
                     </button>
                 </div>
             </form>
 
-            @error('descricao')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
-            @error('quantidade')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+            @error('descricao')<p class="text-xs text-danger mt-1">{{ $message }}</p>@enderror
+            @error('quantidade')<p class="text-xs text-danger mt-1">{{ $message }}</p>@enderror
         </div>
     </div>
 </div>

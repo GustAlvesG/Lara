@@ -1,10 +1,4 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Setores') }}
-        </h2>
-    </x-slot>
-
+<x-app-layout :bootstrap-grid="false">
 @php
     $labels = [
         'sector.member_added' => 'Entrou no setor',
@@ -38,56 +32,48 @@
     };
 @endphp
 
-<div class="py-12 bg-gray-50 dark:bg-gray-900 min-h-screen">
-    <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+<x-page>
+    <x-page-title title="Histórico de acesso" :back="route('sectors.index')">
+        Toda mudança de setor, de permissão e de acesso total, com quem fez.
+    </x-page-title>
 
-        <div class="mb-8 flex items-center gap-4">
-            <a href="{{ route('sectors.index') }}" class="p-2 bg-white dark:bg-gray-800 rounded-xl shadow-md text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 border border-gray-100 dark:border-gray-700 transition">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                </svg>
-            </a>
-            <div>
-                <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Histórico de acesso</h1>
-                <p class="text-gray-500 dark:text-gray-400 font-medium">Toda mudança de setor, de permissão e de acesso total, com quem fez.</p>
-            </div>
-        </div>
+    <x-search-bar placeholder="Quem fez, usuário ou setor" />
 
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+    <div class="overflow-hidden rounded-card bg-surface shadow-card">
             <div class="overflow-x-auto">
-                <table class="w-full text-sm text-left">
-                    <thead class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider bg-gray-50 dark:bg-gray-900/40">
+                <table class="w-full text-left text-sm">
+                    <thead class="border-b border-line text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">
                         <tr>
-                            <th class="px-6 py-3">Quando</th>
-                            <th class="px-6 py-3">Quem fez</th>
-                            <th class="px-6 py-3">O quê</th>
-                            <th class="px-6 py-3">Usuário</th>
-                            <th class="px-6 py-3">Setor</th>
-                            <th class="px-6 py-3">Detalhe</th>
+                            <th class="px-5 py-3">Quando</th>
+                            <th class="px-5 py-3">Quem fez</th>
+                            <th class="px-5 py-3">O quê</th>
+                            <th class="px-5 py-3">Usuário</th>
+                            <th class="px-5 py-3">Setor</th>
+                            <th class="px-5 py-3">Detalhe</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                    <tbody class="divide-y divide-line">
                         @forelse($logs as $log)
                             <tr>
-                                <td class="px-6 py-3 whitespace-nowrap text-gray-500 dark:text-gray-400">{{ $log->created_at?->format('d/m/Y H:i') }}</td>
-                                <td class="px-6 py-3 text-gray-900 dark:text-white">{{ $log->actor->name ?? 'sistema' }}</td>
-                                <td class="px-6 py-3 font-semibold text-gray-900 dark:text-white">{{ $labels[$log->action] ?? $log->action }}</td>
-                                <td class="px-6 py-3 text-gray-700 dark:text-gray-300">{{ $log->user->name ?? ($log->user_id ? '#' . $log->user_id : '—') }}</td>
-                                <td class="px-6 py-3 text-gray-700 dark:text-gray-300">{{ $log->sector->name ?? ($log->sector_id ? '#' . $log->sector_id : '—') }}</td>
-                                <td class="px-6 py-3 text-xs text-gray-500 dark:text-gray-400">{{ $describe($log) }}</td>
+                                <td class="px-5 py-3 whitespace-nowrap font-mono text-xs text-ink-2">{{ $log->created_at?->format('d/m/Y H:i') }}</td>
+                                <td class="px-5 py-3 text-ink">{{ $log->actor->name ?? 'sistema' }}</td>
+                                <td class="px-5 py-3 font-semibold text-ink">{{ $labels[$log->action] ?? $log->action }}</td>
+                                <td class="px-5 py-3 text-ink">{{ $log->user->name ?? ($log->user_id ? '#' . $log->user_id : '—') }}</td>
+                                <td class="px-5 py-3 text-ink">{{ $log->sector->name ?? ($log->sector_id ? '#' . $log->sector_id : '—') }}</td>
+                                <td class="px-5 py-3 text-xs text-ink-2">{{ $describe($log) }}</td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">Nenhuma mudança registrada.</td></tr>
+                            <tr><td colspan="6" class="px-6 py-12 text-center text-ink-2">{{ filled(request('q')) ? 'Nenhuma mudança encontrada com essa busca.' : 'Nenhuma mudança registrada.' }}</td></tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
 
-            @if($logs->hasPages())
-                <div class="px-6 py-4 border-t border-gray-100 dark:border-gray-700">{{ $logs->links() }}</div>
-            @endif
-        </div>
     </div>
-</div>
+
+    @if($logs->hasPages())
+        {{ $logs->links() }}
+    @endif
+</x-page>
 
 </x-app-layout>

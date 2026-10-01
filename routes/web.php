@@ -70,7 +70,7 @@ Route::get('/', function () {
 
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
-    ->middleware(['auth', 'verified'])->name('dashboard');
+    ->middleware(['auth', 'verified', 'avisos_obrigatorios'])->name('dashboard');
 
 // Kiosk de assinatura (tablet) — AUTENTICAÇÃO PRÓPRIA, fora da sessão web.
 // Entra-se com matrícula + PIN; a própria sessão de kiosk (operator_id + mode)
@@ -171,12 +171,16 @@ Route::prefix('kiosk')->group(function () {
 | hoje: dashboard, perfil, documentação, InfoClube (leitura), Avisos,
 | Empresas, Monitor de Acesso, notificações e "Meu setor".
 */
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::put('/profile/pin', [ProfileController::class, 'updatePin'])->name('profile.pin.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Favoritos e ordem do menu, gravados na conta (o layout chama por URL
+    // fixa, e não por route(), para um cache de rotas velho não derrubar a tela).
+    Route::put('/nav-preferences', [\App\Http\Controllers\NavPreferencesController::class, 'update'])->name('nav-preferences.update');
 
     // Diagnóstico das configurações de e-mail, no perfil de quem administra.
     // Só abre conexão com o servidor SMTP: nenhuma mensagem é enviada.
@@ -455,7 +459,16 @@ Route::middleware('auth')->group(function () {
     Route::get('/docs/{slug}', [DocumentationController::class, 'show'])
         ->where('slug', '.*')->name('docs.show');
 
+    // Catálogo dos componentes da identidade visual (rebrand). Fora do menu:
+    // é a vitrine para conferir botão, cartão e busca nos dois temas, sem
+    // depender de uma tela com dado real.
+    Route::view('/design/componentes', 'design.components')->name('design.components');
+
     // Avisos e Lembretes
+    // Leitura obrigatória: a tela de ciência e a confirmação. Antes do
+    // resource, para "pendentes" não cair em avisos/{aviso}.
+    Route::get('avisos/pendentes', [AvisoController::class, 'pending'])->name('avisos.pending');
+    Route::post('avisos/{aviso}/ciencia', [AvisoController::class, 'acknowledge'])->name('avisos.acknowledge');
     Route::resource('avisos', AvisoController::class);
 
     // Freelancers. Cada tela tem a sua permissão, e a ordem importa: as rotas

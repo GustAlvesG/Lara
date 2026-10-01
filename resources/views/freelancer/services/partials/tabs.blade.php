@@ -87,7 +87,7 @@
 @endphp
 
 @if(count($tabs) > 1)
-<div class="mb-6 border-b border-gray-200 dark:border-gray-700">
+<div class="mb-6 border-b border-line">
     <nav class="-mb-px flex gap-6 overflow-x-auto">
         @foreach($tabs as $tab)
             @php
@@ -99,8 +99,8 @@
                @if($active) aria-current="page" @endif
                class="whitespace-nowrap border-b-2 px-1 py-3 text-sm font-bold transition
                       {{ $active
-                          ? 'border-[#A00001] text-[#A00001] dark:text-red-400 dark:border-red-400'
-                          : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300' }}">
+                          ? 'border-grena text-grena-ink'
+                          : 'border-transparent text-ink-2 hover:text-ink hover:border-line-strong' }}">
                 {{ $tab['label'] }}
             </a>
         @endforeach

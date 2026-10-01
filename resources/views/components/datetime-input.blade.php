@@ -1,3 +1,3 @@
 @props(['disabled' => false])
 
-<input type="date" {{ $disabled ? 'disabled' : '' }} {!! $attributes->merge(['class' => 'border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm']) !!}>
+<input type="date" {{ $disabled ? 'disabled' : '' }} {!! $attributes->merge(['class' => 'h-11 px-3.5 rounded-xl border border-line-strong bg-surface text-ink font-mono shadow-none transition focus:border-grena focus:ring-4 focus:ring-grena-tint disabled:bg-subtle disabled:text-ink-3']) !!}>

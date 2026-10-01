@@ -9,14 +9,16 @@ use Illuminate\Http\Request;
 
 class CompeticaoController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $competicoes = Competicao::query()
             ->with('modalidade')
             ->withCount('jogos')
+            ->busca($request->query('busca'))
             ->orderByDesc('temporada')
             ->orderBy('nome')
-            ->paginate(20);
+            ->paginate(20)
+            ->withQueryString();
 
         return view('placar.competicoes.index', compact('competicoes'));
     }

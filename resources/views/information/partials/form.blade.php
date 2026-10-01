@@ -78,8 +78,13 @@
         ['key' => 'location', 'name' => 'location', 'label' => 'Localização', 'type' => 'text', 'attrs' => 'maxlength="255"', 'placeholder' => 'Ex.: Piscina coberta'],
     ];
 
-    $inputClass = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white';
-    $cardClass = 'rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800';
+    $inputClass = 'w-full h-11 px-3.5 rounded-xl border border-line-strong bg-surface text-ink placeholder:text-ink-3 shadow-none transition focus:border-grena focus:ring-4 focus:ring-grena-tint';
+    $fileClass = 'w-full rounded-xl border border-line-strong bg-surface text-sm text-ink-2 shadow-none focus:border-grena focus:ring-4 focus:ring-grena-tint file:mr-3 file:h-10 file:cursor-pointer file:rounded-l-xl file:border-0 file:bg-grena-tint file:px-4 file:font-bold file:text-grena-ink';
+    $cardClass = 'rounded-card bg-surface p-5 shadow-card';
+    $cardTitle = 'font-display text-base font-semibold tracking-tight text-ink';
+    $hint = 'text-sm text-ink-2';
+    $miniLabel = 'block text-xs font-bold text-ink-2';
+    $addButton = 'mt-3 inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-dashed border-line-strong px-3.5 py-2 text-sm font-bold text-ink-2 transition hover:border-grena hover:text-grena-ink';
 
     // Renderizadas como HTML estático (e não por x-for) para que o x-model do
     // select encontre a opção salva já no primeiro render.
@@ -91,7 +96,7 @@
     action="{{ $route }}"
     method="POST"
     enctype="multipart/form-data"
-    class="space-y-6"
+    class="flex flex-col gap-4"
     x-data="informationForm(@js([
         'toggles' => $toggles,
         'prices' => $prices,
@@ -111,39 +116,44 @@
     @endif
 
     @if ($errors->any())
-        <div class="rounded-lg border border-red-300 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/30">
-            <p class="mb-1 text-sm font-semibold text-red-800 dark:text-red-300">
+        <div class="rounded-2xl bg-danger-soft p-4" role="alert">
+            <p class="mb-1 text-sm font-bold text-danger">
                 Corrija os itens abaixo antes de salvar:
             </p>
-            <x-input-error :messages="$errors->all()" class="text-red-700 dark:text-red-300" />
+            <x-input-error :messages="$errors->all()" />
         </div>
     @endif
 
     {{-- 10 colunas: 6/4 = 60% / 40%. --}}
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-10">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-10">
 
         {{-- ---------- Coluna esquerda (60%): imagem, título e descrição ---------- --}}
-        <div class="space-y-6 lg:col-span-6">
+        <div class="flex flex-col gap-4 lg:col-span-6">
             <section class="{{ $cardClass }}">
-                <h3 class="mb-4 text-base font-semibold text-gray-900 dark:text-gray-100">
-                    Identificação
-                </h3>
+                <h3 class="{{ $cardTitle }} mb-4">Identificação</h3>
 
-                {{-- Imagem aqui é só exibição; o upload fica na coluna da direita. --}}
-                <img :src="previewUrl()"
-                     alt="Pré-visualização da imagem"
-                     class="mb-4 h-48 w-full rounded-lg border border-gray-200 object-cover dark:border-gray-700">
+                {{-- Imagem aqui é só exibição; o upload fica na coluna da direita.
+                     Sem imagem, o mesmo substituto da listagem (iniciais na cor
+                     do InfoClube), acompanhando o nome digitado. --}}
+                <div class="relative mb-4 grid aspect-[21/9] place-items-center overflow-hidden rounded-2xl"
+                     style="{{ \App\View\AreaColor::style('info') }}">
+                    <span class="grid h-[72px] w-24 place-items-center rounded-2xl bg-surface font-display text-2xl font-bold tracking-tight shadow-card"
+                          style="color: rgb(var(--ci))" x-text="initials()" aria-hidden="true"></span>
+                    <template x-if="previewUrl()">
+                        <img :src="previewUrl()" alt="Pré-visualização da imagem" class="absolute inset-0 h-full w-full object-cover">
+                    </template>
+                </div>
 
                 <div class="space-y-4">
                     <div>
-                        <x-input-label for="name">Nome <span class="text-red-600">*</span></x-input-label>
+                        <x-input-label for="name">Nome <span class="text-danger">*</span></x-input-label>
                         <input type="text" name="name" id="name" maxlength="255" required
                                x-model="title"
                                class="{{ $inputClass }} mt-1">
                     </div>
 
                     <div>
-                        <x-input-label for="description">Descrição <span class="text-red-600">*</span></x-input-label>
+                        <x-input-label for="description">Descrição <span class="text-danger">*</span></x-input-label>
                         <div class="mt-1">
                             <x-rich-editor name="description" :value="old('description', $isEdit ? $info->description : '')" />
                         </div>
@@ -153,14 +163,14 @@
         </div>
 
         {{-- ---------- Coluna direita (40%): tags e demais campos ---------- --}}
-        <div class="space-y-6 lg:col-span-4">
+        <div class="flex flex-col gap-4 lg:col-span-4">
 
             {{-- Tags --}}
             <section class="{{ $cardClass }}">
-                <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">
-                    Tags <span class="text-red-600">*</span>
+                <h3 class="{{ $cardTitle }}">
+                    Tags <span class="text-danger">*</span>
                 </h3>
-                <p class="mb-3 mt-1 text-sm text-gray-500 dark:text-gray-400">
+                <p class="{{ $hint }} mb-3 mt-1">
                     Mínimo de 3. Digite e tecle Enter (ou vírgula) para adicionar.
                 </p>
 
@@ -183,24 +193,23 @@
                            placeholder="Digite e tecle Enter…">
                 </div>
 
-                <p class="mt-2 text-xs" x-show="tagsMissing() > 0"
-                   :class="'text-amber-600 dark:text-amber-400'">
+                <p class="mt-2 text-xs font-semibold text-warn" x-show="tagsMissing() > 0">
                     Faltam <span x-text="tagsMissing()"></span>
                     <span x-text="tagsMissing() === 1 ? 'tag' : 'tags'"></span> para atingir o mínimo.
                 </p>
-                <p class="mt-2 text-xs text-green-600 dark:text-green-400" x-show="tagsMissing() === 0" x-cloak>
+                <p class="mt-2 text-xs font-semibold text-ok" x-show="tagsMissing() === 0" x-cloak>
                     <span x-text="tags.length"></span> tags cadastradas.
                 </p>
             </section>
 
             {{-- Campos opcionais de valor único --}}
             <section class="{{ $cardClass }}">
-                <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Detalhes adicionais</h3>
-                <p class="mb-4 mt-1 text-sm text-gray-500 dark:text-gray-400">
+                <h3 class="{{ $cardTitle }}">Detalhes adicionais</h3>
+                <p class="{{ $hint }} mb-4 mt-1">
                     Ative apenas o que se aplica. O que ficar desativado não é salvo.
                 </p>
 
-                <div class="divide-y divide-gray-200 dark:divide-gray-700">
+                <div class="divide-y divide-line">
                     {{-- Imagem (upload) --}}
                     <div class="py-4 first:pt-0">
                         <label class="info-switch">
@@ -212,9 +221,9 @@
                         <template x-if="toggles.image">
                             <div class="mt-3 space-y-3">
                                 @if ($currentImage)
-                                    <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                    <label class="flex items-center gap-2 text-sm text-ink-2">
                                         <input type="checkbox" name="remove_image" value="1" x-model="removeImage"
-                                               class="rounded border-gray-300 text-red-600 focus:ring-red-500">
+                                               class="rounded border-line-strong text-danger focus:ring-danger-soft">
                                         Remover a imagem atual
                                     </label>
                                 @endif
@@ -225,8 +234,8 @@
                                     </x-input-label>
                                     <input type="file" name="image" id="image" accept="image/jpeg,image/png,image/gif"
                                            @change="onImagePicked($event)"
-                                           class="{{ $inputClass }} mt-1 file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-1 file:text-sm dark:file:bg-gray-700 dark:file:text-gray-200">
-                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">JPG, PNG ou GIF, até 4 MB.</p>
+                                           class="{{ $fileClass }} mt-1">
+                                    <p class="mt-1 text-xs text-ink-3">JPG, PNG ou GIF, até 4 MB.</p>
                                 </div>
                             </div>
                         </template>
@@ -263,7 +272,7 @@
                     <span class="info-switch-label">Preços (Sócio / Não Sócio)</span>
                 </label>
 
-                <p class="mb-3 mt-1 text-sm text-gray-500 dark:text-gray-400" x-show="toggles.prices" x-cloak>
+                <p class="{{ $hint }} mb-3 mt-1" x-show="toggles.prices" x-cloak>
                     Use as setas para ordenar. <strong>O primeiro preço da lista é o que aparece no card</strong> da listagem.
                 </p>
 
@@ -275,20 +284,20 @@
                             <div class="info-repeat-row">
                                 <div class="info-repeat-fields">
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400"
+                                        <label class="{{ $miniLabel }}"
                                                x-text="'Título #' + (index + 1)"></label>
                                         <input type="text" name="name_price[]" x-model="row.name" maxlength="255"
                                                placeholder="Ex.: Mensalidade" aria-label="Título do preço"
                                                class="{{ $inputClass }} mt-1">
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">R$ Sócio</label>
+                                        <label class="{{ $miniLabel }}">R$ Sócio</label>
                                         <input type="number" min="0" max="99999.99" step="0.01" name="price_associated[]"
                                                x-model="row.associated" placeholder="0,00" aria-label="Preço sócio"
                                                class="{{ $inputClass }} mt-1">
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">R$ Não Sócio</label>
+                                        <label class="{{ $miniLabel }}">R$ Não Sócio</label>
                                         <input type="number" min="0" max="99999.99" step="0.01" name="price_not_associated[]"
                                                x-model="row.not_associated" placeholder="0,00" aria-label="Preço não sócio"
                                                class="{{ $inputClass }} mt-1">
@@ -309,7 +318,7 @@
                         </template>
 
                         <button type="button" @click="addRow('prices')"
-                                class="mt-3 inline-flex items-center gap-1 rounded-lg border border-dashed border-gray-400 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                                class="{{ $addButton }}">
                             + Adicionar preço
                         </button>
                     </div>
@@ -331,7 +340,7 @@
                             <div class="info-repeat-row">
                                 <div class="info-repeat-fields">
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">Dia</label>
+                                        <label class="{{ $miniLabel }}">Dia</label>
                                         <select name="day[]" x-model="row.day" aria-label="Dia"
                                                 class="{{ $inputClass }} mt-1">
                                             <option value="#">Selecione uma opção</option>
@@ -344,12 +353,12 @@
                                         </select>
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">Início</label>
+                                        <label class="{{ $miniLabel }}">Início</label>
                                         <input type="time" name="start_hour[]" x-model="row.start"
                                                aria-label="Horário de início" class="{{ $inputClass }} mt-1">
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">Fim</label>
+                                        <label class="{{ $miniLabel }}">Fim</label>
                                         <input type="time" name="end_hour[]" x-model="row.end"
                                                aria-label="Horário de fim" class="{{ $inputClass }} mt-1">
                                     </div>
@@ -369,7 +378,7 @@
                         </template>
 
                         <button type="button" @click="addRow('schedules')"
-                                class="mt-3 inline-flex items-center gap-1 rounded-lg border border-dashed border-gray-400 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                                class="{{ $addButton }}">
                             + Adicionar dia
                         </button>
                     </div>
@@ -384,7 +393,7 @@
                     <span class="info-switch-label">Responsáveis</span>
                 </label>
 
-                <p class="mb-3 mt-1 text-sm text-gray-500 dark:text-gray-400" x-show="toggles.responsibles" x-cloak>
+                <p class="{{ $hint }} mb-3 mt-1" x-show="toggles.responsibles" x-cloak>
                     <strong>O primeiro responsável é o que aparece no card</strong>, e o telefone dele vira o link de WhatsApp.
                 </p>
 
@@ -396,14 +405,14 @@
                             <div class="info-repeat-row">
                                 <div class="info-repeat-fields">
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400"
+                                        <label class="{{ $miniLabel }}"
                                                x-text="'Responsável #' + (index + 1)"></label>
                                         <input type="text" name="responsible[]" x-model="row.name" maxlength="255"
                                                placeholder="Nome" aria-label="Nome do responsável"
                                                class="{{ $inputClass }} mt-1">
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">Telefone (WhatsApp)</label>
+                                        <label class="{{ $miniLabel }}">Telefone (WhatsApp)</label>
                                         <input type="text" name="responsible_contact[]" x-model="row.contact" maxlength="50"
                                                placeholder="(00) 00000-0000" aria-label="Telefone do responsável"
                                                class="{{ $inputClass }} mt-1">
@@ -424,7 +433,7 @@
                         </template>
 
                         <button type="button" @click="addRow('responsibles')"
-                                class="mt-3 inline-flex items-center gap-1 rounded-lg border border-dashed border-gray-400 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                                class="{{ $addButton }}">
                             + Adicionar responsável
                         </button>
                     </div>
@@ -438,7 +447,7 @@
             Cancelar
         </x-secondary-button-a>
         <x-primary-button type="submit">
-            {{ $isEdit ? 'Salvar nova versão' : 'Criar informação' }}
+            <x-icon name="check" /> {{ $isEdit ? 'Salvar nova versão' : 'Criar informação' }}
         </x-primary-button>
     </div>
 </form>

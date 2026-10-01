@@ -6,7 +6,7 @@
     $blockMinutes = \App\Models\FreelancerService::BLOCK_MINUTES;
 @endphp
 
-<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden"
+<div class="bg-surface rounded-2xl shadow-pop border border-line overflow-hidden"
      x-data="{
         blockMinutes: {{ $blockMinutes }},
         functionPrices: {{ $functionPrices->toJson() }},
@@ -51,15 +51,15 @@
             return (rate * b).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
      }">
-    <div class="p-6 border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50">
-        <h2 class="text-lg font-bold text-gray-800 dark:text-white">Dados do Serviço</h2>
+    <div class="p-6 border-b border-line bg-subtle">
+        <h2 class="text-lg font-bold text-ink">Dados do Serviço</h2>
     </div>
 
     <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Freelancer <span class="text-red-500">*</span></label>
+            <label class="block text-sm font-bold text-ink mb-1">Freelancer <span class="text-danger">*</span></label>
             <select name="freelancer_id" required @disabled($locked)
-                class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed">
+                class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink disabled:opacity-60 disabled:cursor-not-allowed">
                 <option value="">Selecione...</option>
                 @foreach($freelancers as $freelancerOption)
                     @php $incomplete = method_exists($freelancerOption, 'hasCompleteContractData') && !$freelancerOption->hasCompleteContractData(); @endphp
@@ -68,14 +68,14 @@
                     </option>
                 @endforeach
             </select>
-            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Freelancers com cadastro incompleto ficam indisponíveis até os dados serem completados.</p>
-            @error('freelancer_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+            <p class="mt-1 text-xs text-ink-3">Freelancers com cadastro incompleto ficam indisponíveis até os dados serem completados.</p>
+            @error('freelancer_id')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
         </div>
 
         <div>
-            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Função <span class="text-red-500">*</span></label>
+            <label class="block text-sm font-bold text-ink mb-1">Função <span class="text-danger">*</span></label>
             <select name="function_freelancer_id" required x-model="functionId" @disabled($locked)
-                class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed">
+                class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink disabled:opacity-60 disabled:cursor-not-allowed">
                 <option value="">Selecione...</option>
                 @foreach($functions as $functionOption)
                     <option value="{{ $functionOption->id }}" @selected((int) old('function_freelancer_id', $service?->function_freelancer_id) === $functionOption->id)>
@@ -83,95 +83,95 @@
                     </option>
                 @endforeach
             </select>
-            @error('function_freelancer_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+            @error('function_freelancer_id')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
         </div>
 
         <div class="md:col-span-2">
-            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Evento / Local <span class="text-red-500">*</span></label>
+            <label class="block text-sm font-bold text-ink mb-1">Evento / Local <span class="text-danger">*</span></label>
             <input type="text" name="location" value="{{ old('location', $service?->location) }}" required @disabled($locked)
                 placeholder="Ex: Festa de Confraternização - Salão Nobre"
-                class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed">
-            @error('location')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
-            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Apenas o evento/local. Esclarecimentos vão no campo abaixo.</p>
+                class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink disabled:opacity-60 disabled:cursor-not-allowed">
+            @error('location')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
+            <p class="mt-1 text-xs text-ink-3">Apenas o evento/local. Esclarecimentos vão no campo abaixo.</p>
         </div>
 
         <div class="md:col-span-2">
-            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Descrição / Justificativa</label>
+            <label class="block text-sm font-bold text-ink mb-1">Descrição / Justificativa</label>
             <textarea name="description" rows="3" @disabled($locked)
                 placeholder="Observações e justificativas sobre o serviço (opcional)."
-                class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed">{{ old('description', $service?->description) }}</textarea>
-            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Campo informativo, não aparece no contrato nem altera o cálculo.</p>
-            @error('description')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink disabled:opacity-60 disabled:cursor-not-allowed">{{ old('description', $service?->description) }}</textarea>
+            <p class="mt-1 text-xs text-ink-3">Campo informativo, não aparece no contrato nem altera o cálculo.</p>
+            @error('description')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
         </div>
 
         <div>
-            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Data <span class="text-red-500">*</span></label>
+            <label class="block text-sm font-bold text-ink mb-1">Data <span class="text-danger">*</span></label>
             <input type="date" name="start_date" value="{{ old('start_date', $service?->start_date?->format('Y-m-d')) }}" required @disabled($locked)
-                class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed">
-            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Dia em que o turno começa.</p>
-            @error('start_date')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink disabled:opacity-60 disabled:cursor-not-allowed">
+            <p class="mt-1 text-xs text-ink-3">Dia em que o turno começa.</p>
+            @error('start_date')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
         </div>
 
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Início <span class="text-red-500">*</span></label>
+                <label class="block text-sm font-bold text-ink mb-1">Início <span class="text-danger">*</span></label>
                 <input type="time" name="start_time" x-model="startTime" required @disabled($locked)
-                    class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed">
-                @error('start_time')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                    class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink disabled:opacity-60 disabled:cursor-not-allowed">
+                @error('start_time')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
             </div>
             <div>
-                <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Término <span class="text-red-500">*</span></label>
+                <label class="block text-sm font-bold text-ink mb-1">Término <span class="text-danger">*</span></label>
                 <input type="time" name="end_time" x-model="endTime" required @disabled($locked)
-                    class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed">
-                @error('end_time')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+                    class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink disabled:opacity-60 disabled:cursor-not-allowed">
+                @error('end_time')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
             </div>
             <p class="col-span-2 text-xs" x-show="crossesMidnight" x-cloak>
-                <span class="text-amber-600 dark:text-amber-400 font-semibold">Termina no dia seguinte.</span>
+                <span class="text-warn font-semibold">Termina no dia seguinte.</span>
             </p>
         </div>
 
-        <div class="md:col-span-2 p-4 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-dashed border-gray-300 dark:border-gray-600 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="md:col-span-2 p-4 rounded-xl bg-subtle border border-dashed border-line-strong grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-                <p class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Duração</p>
+                <p class="text-xs font-bold text-ink-2 uppercase tracking-wide">Duração</p>
                 @if($locked)
-                    <p class="text-lg font-bold text-gray-800 dark:text-gray-200">{{ $service->formattedDuration() }}</p>
+                    <p class="text-lg font-bold text-ink">{{ $service->formattedDuration() }}</p>
                 @else
-                    <p class="text-lg font-bold text-gray-800 dark:text-gray-200" x-text="durationLabel ?? '—'"></p>
+                    <p class="text-lg font-bold text-ink" x-text="durationLabel ?? '—'"></p>
                 @endif
             </div>
             <div>
-                <p class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Horas pagas</p>
+                <p class="text-xs font-bold text-ink-2 uppercase tracking-wide">Horas pagas</p>
                 @if($locked)
-                    <p class="text-lg font-bold text-gray-800 dark:text-gray-200">{{ number_format($service->total_hours, 2, ',', '.') }} h</p>
+                    <p class="text-lg font-bold text-ink">{{ number_format($service->total_hours, 2, ',', '.') }} h</p>
                 @else
-                    <p class="text-lg font-bold text-gray-800 dark:text-gray-200" x-text="billedLabel ?? '—'"></p>
+                    <p class="text-lg font-bold text-ink" x-text="billedLabel ?? '—'"></p>
                 @endif
             </div>
             <div>
-                <p class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Valor</p>
+                <p class="text-xs font-bold text-ink-2 uppercase tracking-wide">Valor</p>
                 @if($locked)
-                    <p class="text-lg font-bold text-gray-800 dark:text-gray-200">R$ {{ number_format($service->price, 2, ',', '.') }}</p>
+                    <p class="text-lg font-bold text-ink">R$ {{ number_format($service->price, 2, ',', '.') }}</p>
                 @else
-                    <p class="text-lg font-bold text-gray-800 dark:text-gray-200" x-text="estimatedPrice ? 'R$ ' + estimatedPrice : '—'"></p>
+                    <p class="text-lg font-bold text-ink" x-text="estimatedPrice ? 'R$ ' + estimatedPrice : '—'"></p>
                 @endif
             </div>
-            <p class="sm:col-span-3 text-xs text-gray-400 dark:text-gray-500">
+            <p class="sm:col-span-3 text-xs text-ink-3">
                 Cobrado em blocos de {{ $blockMinutes }} minutos. Blocos incompletos não são pagos
                 (ex.: 3h10 paga 3h00). Calculado no servidor ao salvar.
             </p>
         </div>
 
         <div>
-            <label class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Status</label>
+            <label class="block text-sm font-bold text-ink mb-1">Status</label>
             <select name="status_id" @disabled($locked)
-                class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed">
+                class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink disabled:opacity-60 disabled:cursor-not-allowed">
                 @foreach($statuses as $status)
                     <option value="{{ $status->id }}" @selected((int) old('status_id', $service?->status_id ?? 1) === $status->id)>
                         {{ $status->status }}
                     </option>
                 @endforeach
             </select>
-            @error('status_id')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
+            @error('status_id')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
         </div>
     </div>
 </div>

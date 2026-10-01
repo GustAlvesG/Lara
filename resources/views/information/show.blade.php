@@ -1,50 +1,32 @@
-<x-app-layout>
-    <x-slot name="header">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
-                <h2 class="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">
-                    {{ $info->name }}
-                </h2>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    InfoClube · versão de {{ $info->created_at?->format('d/m/Y H:i') ?? '—' }}
-                    @if ($info->user)
-                        por {{ $info->user->name }}
-                    @endif
-                </p>
-            </div>
+<x-app-layout :bootstrap-grid="false">
+    <x-slot name="css">
+        <link rel="stylesheet" href="{{ asset('css/information/editor.css') }}">
+    </x-slot>
 
-            <div class="flex flex-wrap items-center gap-2">
-                <x-secondary-button-a href="{{ route('information.index') }}">Voltar</x-secondary-button-a>
+    <x-page>
+        <x-page-title :title="$info->name" :back="route('information.index')">
+            Versão de {{ $info->created_at?->format('d/m/Y H:i') ?? '—' }}@if ($info->user) por {{ $info->user->name }}@endif
+
+            <x-slot:actions>
                 <x-secondary-button-a href="{{ route('information.history', $info->information_id) }}">
-                    Histórico
+                    <x-icon name="history" /> Histórico
                 </x-secondary-button-a>
 
                 @can('infoclube.editar')
                     <x-primary-button-a href="{{ route('information.edit', $info->id) }}">
-                        Editar
+                        <x-icon name="pencil" /> Editar
                     </x-primary-button-a>
-                @endcan
 
-                @can('infoclube.editar')
                     <form action="{{ route('information.destroy', $info->information_id) }}" method="POST"
                           onsubmit="return confirm('Você tem certeza que deseja apagar essa informação? Essa ação é irreversível.')">
                         @csrf
                         @method('DELETE')
-                        <x-danger-button type="submit">Excluir</x-danger-button>
+                        <x-danger-button type="submit"><x-icon name="trash" /> Excluir</x-danger-button>
                     </form>
                 @endcan
-            </div>
-        </div>
-    </x-slot>
+            </x-slot:actions>
+        </x-page-title>
 
-    <x-slot name="css">
-        <link rel="stylesheet" href="{{ asset('css/information/editor.css') }}">
-        <link rel="stylesheet" href="{{ asset('css/information/form.css') }}">
-    </x-slot>
-
-    <div class="py-6">
-        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            @include('information.partials.details', ['info' => $info])
-        </div>
-    </div>
+        @include('information.partials.details', ['info' => $info])
+    </x-page>
 </x-app-layout>

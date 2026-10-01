@@ -1,67 +1,28 @@
 @php
-    $imageUrl = Str::startsWith($place->image, 'http') 
-        ? $place->image 
-        : ($place->image ? asset('images/'. $place->image) : asset('images/defaultImage.jpg'));
-
-    $statusColor = $place->status_id == 1 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
-    $statusText = $place->status_id == 1 ? 'Ativo' : 'Inativo';
+    $imageUrl = $place->image
+        ? (Str::startsWith($place->image, 'http') ? $place->image : asset('images/' . $place->image))
+        : null;
+    $active = $place->status_id == 1;
 @endphp
+<x-card :href="route('place-group.editPlace', $place->id)" data-search="{{ $place->name }}">
+    <x-slot:media>
+        <x-media :src="$imageUrl" :alt="'Imagem de ' . $place->name" area="reservas" icon="calendar" />
+    </x-slot:media>
 
-<div class="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-2xl border border-gray-100 dark:border-gray-700 transform hover:scale-[1.02] transition duration-300 mb-4">
-    
-    <!-- Imagem de Destaque - Altura Compacta (h-36) -->
-    <div class="h-36 overflow-hidden bg-gray-100">
-        <img class="w-full h-full object-cover" 
-             src="{{ $imageUrl }}" 
-             alt="Imagem de {{ $place->name }}">
-    </div>
+    <a href="{{ route('place-group.editPlace', $place->id) }}" class="font-display text-base font-semibold tracking-tight text-ink hover:text-grena-ink">{{ $place->name }}</a>
+    <p class="font-mono text-sm font-semibold text-ink">R$ {{ number_format($place->price, 2, ',', '.') }}<span class="font-sans text-xs font-normal text-ink-3">/h</span></p>
 
-    <!-- Conteúdo do Card -->
-    <div class="p-3">
-        
-        <!-- Título com Link de Edição -->
-        <a href="{{ route('place-group.editPlace', $place->id) }}" class="block mb-3">
-            <h3 class="text-lg font-extrabold text-gray-900 dark:text-white hover:text-red-800 transition duration-150 leading-tight">
-                {{ $place->name }}
-            </h3>
-        </a>
-
-        <!-- Informações de Status e Valor -->
-        <div class="space-y-1 mb-4">
-            <div class="flex justify-between items-center text-sm">
-                <span class="text-gray-500 dark:text-gray-400 font-medium">Status:</span>
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase {{ $statusColor }}">
-                    {{ $statusText }}
-                </span>
-            </div>
-            
-            <div class="flex justify-between items-center text-sm border-t border-gray-50 pt-1">
-                <span class="text-gray-500 dark:text-gray-400 font-medium">Valor:</span>
-                <span class="text-indigo-700 dark:text-indigo-400 font-extrabold text-base">
-                    R$ {{ number_format($place->price, 2, ',', '.') }}
-                </span>
-            </div>
-        </div>
-
-        <!-- Ações do Card (Grid de 2 Colunas) -->
-        <div class="grid grid-cols-2 gap-3 border-t border-gray-100 dark:border-gray-700">
-            <!-- Botão Editar -->
-            <a href="{{ route('place-group.editPlace', $place->id) }}"
-               class="inline-flex justify-center items-center px-3 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 text-xs font-bold uppercase tracking-widest rounded-lg transition duration-150">
-                Editar
-            </a>
-
-            <!-- Botão Excluir -->
-            <form action="{{ route('place-group.destroyPlace', $place->id) }}" method="POST" class="w-full">
+    <x-slot:footer>
+        <x-pill :kind="$active ? 'ok' : 'off'">{{ $active ? 'Ativo' : 'Inativo' }}</x-pill>
+        <div class="flex items-center gap-1">
+            <x-secondary-button-a size="sm" href="{{ route('place-group.editPlace', $place->id) }}"><x-icon name="pencil" /> Editar</x-secondary-button-a>
+            <form action="{{ route('place-group.destroyPlace', $place->id) }}" method="POST" onsubmit="return confirm('Excluir este local?')">
                 @csrf
                 @method('DELETE')
-                <button type="submit"
-                        onclick="return confirm('Tem certeza que deseja deletar?')"
-                        class="w-full inline-flex justify-center items-center px-3 py-2 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-bold uppercase tracking-widest rounded-lg transition duration-150 border border-red-100 dark:border-red-800">
-                    Excluir
+                <button type="submit" aria-label="Excluir {{ $place->name }}" class="grid h-8 w-8 place-items-center rounded-full text-ink-3 transition hover:bg-danger-soft hover:text-danger">
+                    <x-icon name="trash" class="h-4 w-4" />
                 </button>
             </form>
         </div>
-
-    </div>
-</div>
+    </x-slot:footer>
+</x-card>

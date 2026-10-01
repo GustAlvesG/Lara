@@ -1,15 +1,15 @@
 @props([
     'href' => '#',
     'label' => '',
-    'icon' => '',
+    'glyph' => 'grid',
+    'area' => 'inicio',
 ])
 
-<a href="{{ $href }}"
-   class="group bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 flex flex-col items-center justify-center gap-2 text-center hover:shadow-md hover:border-red-200 dark:hover:border-red-800 hover:-translate-y-0.5 transition">
-    <div class="w-11 h-11 bg-red-50 dark:bg-red-900/30 rounded-xl flex items-center justify-center text-red-700 dark:text-red-400 group-hover:scale-110 transition">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ $icon }}"/>
-        </svg>
-    </div>
-    <span class="text-sm font-bold text-gray-700 dark:text-gray-200">{{ __($label) }}</span>
+{{-- Atalho do painel: símbolo na cor da área e o nome da tela. --}}
+<a href="{{ $href }}" style="{{ \App\View\AreaColor::style($area, paint: false) }}"
+   class="group flex flex-col items-center justify-center gap-2 rounded-card bg-surface p-5 text-center shadow-card transition hover:shadow-pop focus:outline-none focus-visible:ring-4 focus-visible:ring-grena-tint">
+    <span class="grid h-11 w-11 place-items-center rounded-2xl transition group-hover:scale-105" style="background-color: rgb(var(--c)); color: rgb(var(--ci))">
+        <x-icon :name="$glyph" class="h-5 w-5" />
+    </span>
+    <span class="text-sm font-bold text-ink">{{ __($label) }}</span>
 </a>

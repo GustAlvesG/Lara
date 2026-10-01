@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+        <h2 class="font-semibold text-xl text-ink leading-tight">
             Grupos de Espaços
         </h2>
     </x-slot>
@@ -13,7 +13,7 @@
     <div class="py-6">        
         <div class="mx-auto sm:px-6 lg:px-8 space-y-6 row items-center justify-content">
             <div class="col-10">
-                <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg row">
+                <div class="p-6 sm:p-8 bg-surface shadow-card sm:rounded-lg row">
                     <x-crud.create >
                         <x-slot name="route">
                             {{ route('place-group.updateScheduleRule', $rule->id) }}
