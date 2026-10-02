@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
  *
  *   - só um fluxo ATIVO pode abrir em "qualquer primeira mensagem" —
  *     com dois, o segundo nunca seria escolhido e ninguém saberia por quê;
+ *   - pelo mesmo motivo, só um fluxo ATIVO pode abrir na transferência de
+ *     um setor para O Lara;
  *   - todo goto_flow aponta para um fluxo que existe;
  *   - fluxo que é destino de goto de outro não pode ser apagado.
  */
@@ -44,6 +46,17 @@ class FlowRepository
 
             if ($outro) {
                 $erros[] = "O fluxo \"{$outro->name}\" já abre em qualquer primeira mensagem. Só um fluxo ativo pode fazer isso.";
+            }
+        }
+
+        if ($ativo && $fluxo->opensOnRedirect()) {
+            $outro = BotFlow::where('active', true)
+                ->when($ignorarId, fn ($q) => $q->where('id', '!=', $ignorarId))
+                ->get()
+                ->first(fn (BotFlow $f) => $f->flow()->opensOnRedirect());
+
+            if ($outro) {
+                $erros[] = "O fluxo \"{$outro->name}\" já abre quando um setor transfere a conversa para O Lara. Só um fluxo ativo pode fazer isso.";
             }
         }
 

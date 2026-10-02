@@ -10,7 +10,9 @@ namespace App\Services\PoliBot;
  *   {
  *     "start": "menu",                    // passo inicial
  *     "triggers": {"any": true}           // abre em qualquer 1ª mensagem
- *              | {"texts": ["carro"]},    // ou só quando o texto casa
+ *              | {"texts": ["carro"]}     // ou só quando o texto casa
+ *              | {"redirect": true}       // ou quando um setor transfere a conversa para O Lara
+ *              | {"only_goto": true},     // ou só quando outro fluxo manda para cá
  *     "timeout_minutes": 15,              // inatividade que encerra a conversa
  *     "max_attempts": 3,                  // respostas inválidas até o transbordo
  *     "on_max_attempts": {"type": "handoff", "team_uuid": "…"},
@@ -98,6 +100,15 @@ class FlowDefinition
     public function opensOnAnyMessage(): bool
     {
         return (bool) ($this->definition['triggers']['any'] ?? false);
+    }
+
+    /**
+     * Abre quando um atendente (um setor) transfere a conversa para O Lara,
+     * em vez de pelo que o contato escreveu.
+     */
+    public function opensOnRedirect(): bool
+    {
+        return (bool) ($this->definition['triggers']['redirect'] ?? false);
     }
 
     /** @return string[] */
@@ -220,6 +231,11 @@ class FlowDefinition
             'only_goto' => (bool) ($definicao['triggers']['only_goto'] ?? false),
         ];
 
+        // Gatilho mais novo que os fluxos gravados: só aparece quando ligado.
+        if ($definicao['triggers']['redirect'] ?? false) {
+            $limpa['triggers']['redirect'] = true;
+        }
+
         return $limpa;
     }
 
@@ -314,7 +330,7 @@ class FlowDefinition
         }
 
         $gatilhoTexto = $this->triggerTexts() !== [];
-        if (!$this->opensOnAnyMessage() && !$gatilhoTexto && !$this->reachedOnlyByGoto()) {
+        if (!$this->opensOnAnyMessage() && !$gatilhoTexto && !$this->opensOnRedirect() && !$this->reachedOnlyByGoto()) {
             $erros[] = 'O fluxo não tem gatilho: marque "qualquer primeira mensagem" ou informe palavras-chave.';
         }
 

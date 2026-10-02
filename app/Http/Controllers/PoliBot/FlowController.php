@@ -193,9 +193,15 @@ class FlowController extends Controller
 
     private function descreverGatilho(FlowDefinition $f): string
     {
+        // Os gatilhos somam: um fluxo pode abrir por palavra e por transferência.
+        $gatilhos = array_filter([
+            $f->opensOnAnyMessage() ? 'Qualquer primeira mensagem' : null,
+            $f->triggerTexts() !== [] ? 'Palavras: ' . implode(', ', $f->triggerTexts()) : null,
+            $f->opensOnRedirect() ? 'Transferência de um setor' : null,
+        ]);
+
         return match (true) {
-            $f->opensOnAnyMessage() => 'Qualquer primeira mensagem',
-            $f->triggerTexts() !== [] => 'Palavras: ' . implode(', ', $f->triggerTexts()),
+            $gatilhos !== [] => implode(' · ', $gatilhos),
             $f->reachedOnlyByGoto() => 'Só chamado por outro fluxo',
             default => 'Sem gatilho',
         };

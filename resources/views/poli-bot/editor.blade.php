@@ -269,8 +269,10 @@
                         <select x-model="triggerMode" class="{{ $campo }}">
                             <option value="any">Em qualquer primeira mensagem (boas-vindas)</option>
                             <option value="texts">Quando a mensagem for uma destas palavras</option>
+                            <option value="redirect">Quando um setor transferir a conversa para O Lara</option>
                             <option value="goto">Só quando outro fluxo mandar para cá</option>
                         </select>
+                        <p x-show="triggerMode === 'redirect'" class="text-[11px] text-gray-400">Vale quando um atendente, de qualquer setor, passa para O Lara uma conversa que estava com ele. Só um fluxo ativo pode começar assim; sem nenhum, a transferência abre o fluxo de boas-vindas.</p>
                         <div x-show="triggerMode === 'texts'">
                             <input type="text" x-model="settings.triggerTexts" class="{{ $campo }}" placeholder="carro de aplicativo, uber, taxi">
                             <p class="text-[11px] text-ink-3 mt-1">Separe por vírgula. Vale a mensagem inteira ou começando pela palavra; sem diferença de acento ou maiúscula.</p>
@@ -697,7 +699,7 @@
                     load(def) {
                         def = def || {};
                         const t = def.triggers || {};
-                        this.triggerMode = t.any ? 'any' : (t.only_goto ? 'goto' : 'texts');
+                        this.triggerMode = t.any ? 'any' : (t.redirect ? 'redirect' : (t.only_goto ? 'goto' : 'texts'));
                         const h = def.hours || {};
                         const days = {};
                         DAYS.forEach(d => {
@@ -809,6 +811,7 @@
                                 any: this.triggerMode === 'any',
                                 texts: this.triggerMode === 'texts' ? this.settings.triggerTexts.split(',').map(t => t.trim()).filter(Boolean) : [],
                                 only_goto: this.triggerMode === 'goto',
+                                redirect: this.triggerMode === 'redirect' || undefined,
                             },
                             timeout_minutes: num(this.settings.timeout_minutes),
                             max_attempts: num(this.settings.max_attempts),
