@@ -40,6 +40,26 @@ distribui para um time humano ou encerra.
 Quem entra no piloto é decidido **no fluxo do bot da Poli** (qual opção transfere para O Lara),
 não no `.env`.
 
+### Transferência de um setor para O Lara
+
+Um atendente também pode passar para O Lara uma conversa que estava com ele (no painel da Poli,
+transferir o atendimento para o usuário O Lara). Se houver um fluxo ativo com o início **Quando
+um setor transferir a conversa para O Lara**, é ele que abre — pelo primeiro passo, ou pelo passo
+"fora do horário" quando o fluxo tem horário e está fechado. Serve para devolver a conversa ao
+bot depois do atendimento: uma pesquisa de satisfação, um "posso ajudar em mais alguma coisa?",
+um menu de retorno.
+
+- **Como a Lara sabe que veio de um setor:** ela marca a conversa como "com atendente" quando um
+  humano assume (transferência para ele, atendente no atendimento ou mensagem dele). Transferência
+  para O Lara de uma conversa nesse estado é de setor; sem humano antes, é a do bot da Poli e
+  segue a regra de sempre. A marca vale por `POLI_BOT_HUMAN_TIMEOUT_HOURS` (12 h).
+- **Vale para qualquer setor:** o fluxo é um só, não há um por setor.
+- **O que o contato disse ao atendente não é gatilho:** nesse início, palavras-chave e o atalho do
+  menu não são consultados.
+- **Sem fluxo ativo com esse início**, a transferência de um setor abre como antes: pela última
+  mensagem do contato ou pelo fluxo de boas-vindas.
+- No modo `shadow`, quem não está na lista de teste continua indo para a Secretaria.
+
 ## Modos (`POLI_BOT_MODE`)
 
 O Lara é a própria Lara: **toda conversa atribuída a ele é respondida**, em qualquer modo
@@ -66,7 +86,8 @@ Nos dois, as conversas que continuam no bot da Poli passam pela Lara só em somb
 2. Na aba **Fluxo** (painel à direita): nome e identificador (o identificador não muda depois:
    é por ele que outros fluxos o chamam).
 3. **Quando começa:** em qualquer primeira mensagem (boas-vindas — só um fluxo ativo pode), por
-   palavras-chave, ou só quando outro fluxo mandar para ele.
+   palavras-chave, quando um setor transferir a conversa para O Lara (também só um fluxo ativo
+   pode), ou só quando outro fluxo mandar para ele.
 4. Monte os passos no **quadro**: arraste blocos da paleta (Mensagem, Pergunta, Menu, Template
    Poli, Passar p/ time, Pedido de carro, Outro fluxo, Encerrar) e ligue-os puxando a bolinha
    à direita de um bloco até outro. Cada opção de um menu é uma saída própria. Soltar a ligação

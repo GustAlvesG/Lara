@@ -208,6 +208,38 @@ class PoliBotEditorTest extends TestCase
         $this->assertStringContainsString('já abre em qualquer primeira mensagem', implode(' ', $resposta->json('errors.definition')));
     }
 
+    public function test_gatilho_de_transferencia_de_setor_e_gravado_e_so_um_ativo_pode_ter(): void
+    {
+        $transferencia = ['any' => false, 'texts' => [], 'only_goto' => false, 'redirect' => true];
+
+        $this->actingAs($this->usuario())
+            ->postJson(route('poli-bot.flows.store'), $this->fluxoValido(['active' => true, 'definition' => ['triggers' => $transferencia]]))
+            ->assertOk();
+
+        $fluxo = BotFlow::sole();
+        $this->assertTrue($fluxo->definition['triggers']['redirect']);
+        $this->assertTrue($fluxo->flow()->opensOnRedirect());
+        $this->assertSame([], $fluxo->flow()->errors(), 'transferência conta como gatilho');
+
+        $resposta = $this->actingAs($this->usuario())
+            ->postJson(route('poli-bot.flows.store'), $this->fluxoValido([
+                'slug' => 'outro', 'active' => true, 'definition' => ['triggers' => $transferencia],
+            ]))
+            ->assertStatus(422);
+
+        $this->assertStringContainsString('já abre quando um setor transfere', implode(' ', $resposta->json('errors.definition')));
+
+        $this->actingAs($this->usuario())->get(route('poli-bot.index'))->assertSee('Transferência de um setor');
+    }
+
+    /** Fluxo gravado antes do gatilho novo não ganha a chave `redirect`. */
+    public function test_fluxo_sem_gatilho_de_transferencia_nao_grava_a_chave(): void
+    {
+        $this->actingAs($this->usuario())->postJson(route('poli-bot.flows.store'), $this->fluxoValido())->assertOk();
+
+        $this->assertArrayNotHasKey('redirect', BotFlow::sole()->definition['triggers']);
+    }
+
     public function test_editar_mantem_o_slug_e_empilha_versoes(): void
     {
         $this->actingAs($this->usuario())->postJson(route('poli-bot.flows.store'), $this->fluxoValido())->assertOk();

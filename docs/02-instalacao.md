@@ -117,6 +117,16 @@ filas, cron e reinício do servidor web. Ele para no primeiro erro e diz em que 
 
 ### Chaves do `.env.example` que faltam no `.env`
 
+**Um worker de fila só.** Os dois scripts garantem que a fila tenha exatamente um `queue:work`,
+o programa `lara-queue` do Supervisor. A cada deploy: outro programa do Supervisor que rode o
+`queue:work` desta instalação é parado e o arquivo dele em `/etc/supervisor/conf.d/` é renomeado
+para `.desativado-<data>` (guardado, não apagado); o `numprocs` do `lara-queue` volta a 1; o
+`lara-queue` é reiniciado; e `queue:work` aberto à mão recebe `TERM` (termina o job em andamento
+e sai). No fim o script diz quantos workers ficaram no ar. Dois workers já fizeram o bot do
+WhatsApp responder com configuração antiga (o deploy reiniciava um só) e podem processar fora de
+ordem duas mensagens da mesma conversa. Um worker de fila dedicada (comando com `--queue=`) não
+é tratado como duplicata e fica.
+
 A cada deploy, logo depois do `git pull` e de novo no fim, o `deploy_prod.sh` lista as chaves
 que existem no `.env.example` e **não** existem no `.env` do servidor, cada uma com o comentário
 que a antecede no `.env.example` (o bloco de linhas com `#` logo acima; chaves seguidas sob o

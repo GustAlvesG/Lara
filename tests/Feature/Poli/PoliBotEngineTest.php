@@ -850,6 +850,71 @@ class PoliBotEngineTest extends TestCase
         $this->assertNull(BotSession::find(self::CONTACT));
     }
 
+    /* ---------------- transferência de um setor para O Lara ---------------- */
+
+    /**
+     * Um atendente estava com a conversa e a passou para O Lara: abre o fluxo
+     * marcado para isso, e não o de boas-vindas.
+     */
+    public function test_transferencia_de_um_setor_abre_o_fluxo_proprio(): void
+    {
+        $this->fluxoDeTransferencia();
+        $this->bot()->observe($this->redirecionado('atendente-ana'));
+        $this->assertTrue($this->sessao()->isHuman());
+
+        $this->bot()->handleRedirect($this->redirect());
+
+        $s = $this->sessao();
+        $this->assertTrue($s->lara_owned);
+        $this->assertSame('retorno-do-setor', $s->flow_slug);
+        $this->assertSame('pergunta', $s->step_key);
+        $this->assertStringContainsString('voltou para mim', $this->ultimoEnviado());
+        Http::assertSentCount(1);
+    }
+
+    /** O que o contato disse ao atendente não é gatilho de fluxo nenhum. */
+    public function test_transferencia_de_um_setor_ignora_a_ultima_mensagem_do_contato(): void
+    {
+        $this->fluxoDeTransferencia();
+        $this->texto("Carro de Aplicativo\nCarro, moto ou táxi", atendente: 'atendente-ana');
+        $this->bot()->observe($this->redirecionado('atendente-ana'));
+
+        $this->bot()->handleRedirect($this->redirect());
+
+        $this->assertSame('retorno-do-setor', $this->sessao()->flow_slug);
+    }
+
+    /** A transferência do bot da Poli (ninguém humano antes) segue como sempre. */
+    public function test_transferencia_do_bot_da_poli_nao_usa_o_fluxo_de_setor(): void
+    {
+        $this->fluxoDeTransferencia();
+
+        $this->bot()->handleRedirect($this->redirect());
+
+        $this->assertSame('atendimento', $this->sessao()->flow_slug);
+    }
+
+    public function test_transferencia_de_um_setor_sem_fluxo_proprio_abre_o_menu(): void
+    {
+        $this->bot()->observe($this->redirecionado('atendente-ana'));
+
+        $this->bot()->handleRedirect($this->redirect());
+
+        $this->assertSame('atendimento', $this->sessao()->flow_slug);
+        Http::assertSent(fn (Request $r) => ($r->data()['template_uuid'] ?? null) === DefaultFlows::TPL_DEPARTAMENTOS);
+    }
+
+    /** Rascunho não vale: só fluxo ativo abre na transferência. */
+    public function test_fluxo_de_setor_inativo_nao_abre(): void
+    {
+        $this->fluxoDeTransferencia(ativo: false);
+        $this->bot()->observe($this->redirecionado('atendente-ana'));
+
+        $this->bot()->handleRedirect($this->redirect());
+
+        $this->assertSame('atendimento', $this->sessao()->flow_slug);
+    }
+
     /* ---------------- transbordo: conferência ---------------- */
 
     public function test_transbordo_que_nao_trocou_o_atendente_avisa_o_contato_e_registra(): void
@@ -1474,6 +1539,20 @@ class PoliBotEngineTest extends TestCase
         $this->imagem();
 
         $this->assertSame(BotSession::STATE_ENDING, $this->sessao()->state);
+    }
+
+    private function fluxoDeTransferencia(bool $ativo = true): void
+    {
+        BotFlow::create(['slug' => 'retorno-do-setor', 'name' => 'Retorno do setor', 'active' => $ativo, 'definition' => [
+            'start' => 'pergunta',
+            'triggers' => ['redirect' => true],
+            'steps' => [
+                'pergunta' => [
+                    'say' => ['type' => 'text', 'text' => 'Seu atendimento voltou para mim. Posso ajudar em mais alguma coisa?'],
+                    'expect' => ['type' => 'yes_no'],
+                ],
+            ],
+        ]]);
     }
 
     private function redirecionado(string $atendente): array

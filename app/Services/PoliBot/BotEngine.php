@@ -846,6 +846,10 @@ class BotEngine
             'contact_name' => $redirect->contactName,
         ], 'filled'));
 
+        // Um humano estava com a conversa (observeEvent a marcou quando ele
+        // assumiu): a transferência veio de um setor, não do bot da Poli.
+        $veioDeSetor = $session->isHuman() && !$this->humanExpired($session);
+
         $this->out = $this->outbox->live($this->liveFor(true));
         $gatilho = $this->lastInboundBeforeRedirect($session, $redirect, $ultima);
 
@@ -867,6 +871,19 @@ class BotEngine
         $session->attendance_uuid = $redirect->attendanceUuid;
 
         if ($this->sentOutOfPilot($session)) {
+            $this->save($session);
+
+            return;
+        }
+
+        // Transferência de um setor abre o fluxo feito para ela, se houver
+        // um ativo. A última mensagem do contato não é gatilho aqui: foi dita
+        // ao atendente, não ao bot. Sem esse fluxo, vale a regra de sempre.
+        $doSetor = $veioDeSetor ? $this->redirectFlow() : null;
+
+        if ($doSetor !== null) {
+            $this->message = $redirect;
+            $this->startTriggered($session, $redirect, flow: $doSetor);
             $this->save($session);
 
             return;
@@ -954,9 +971,9 @@ class BotEngine
      | Início e palavras de escape
      |---------------------------------------------------------------------*/
 
-    private function startTriggered(BotSession $session, ParsedPoliMessage $message, bool $onlyAnyMessage = false): void
+    private function startTriggered(BotSession $session, ParsedPoliMessage $message, bool $onlyAnyMessage = false, ?FlowDefinition $flow = null): void
     {
-        $flow = $onlyAnyMessage ? $this->defaultFlow() : $this->triggeredFlow($message);
+        $flow ??= $onlyAnyMessage ? $this->defaultFlow() : $this->triggeredFlow($message);
 
         // Fora do horário de atendimento o fluxo começa pelo passo próprio.
         $entrada = $flow?->entryStep();
@@ -1086,6 +1103,18 @@ class BotEngine
     {
         foreach ($this->activeFlows() as $flow) {
             if ($flow->opensOnAnyMessage()) {
+                return $flow;
+            }
+        }
+
+        return null;
+    }
+
+    /** O fluxo que abre quando um setor transfere a conversa para O Lara. */
+    private function redirectFlow(): ?FlowDefinition
+    {
+        foreach ($this->activeFlows() as $flow) {
+            if ($flow->opensOnRedirect()) {
                 return $flow;
             }
         }
