@@ -63,6 +63,14 @@ use App\Http\Controllers\PoliBot\FlowController as PoliBotFlowController;
 use App\Http\Controllers\PoliBot\PoliDataController as PoliBotDataController;
 use App\Http\Controllers\PoliBot\SimulatorController as PoliBotSimulatorController;
 
+use App\Http\Controllers\Signature\DocumentController as SignatureDocumentController;
+use App\Http\Controllers\Signature\GuideController as SignatureGuideController;
+use App\Http\Controllers\Signature\LayoutController as SignatureLayoutController;
+use App\Http\Controllers\Signature\QuiosqueController;
+use App\Http\Controllers\Signature\ReleaseController as SignatureReleaseController;
+use App\Http\Controllers\Signature\TemplateController as SignatureTemplateController;
+use App\Http\Controllers\Signature\ValidationController as SignatureValidationController;
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -71,6 +79,89 @@ Route::get('/', function () {
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified', 'avisos_obrigatorios'])->name('dashboard');
+
+/*
+|--------------------------------------------------------------------------
+| Quiosque de assinatura (tablet do balcão) — PÚBLICO, sem sessão web
+|--------------------------------------------------------------------------
+|
+| Não confundir com o `/kiosk` logo abaixo, que é outro aparelho e outro
+| assunto: lá o OPERADOR entra com matrícula e PIN e atende vários contratos
+| de freelancer; aqui o tablet não entra em lugar nenhum — ele lê um QR Code
+| que libera UM documento para UMA assinatura, e volta à tela de espera.
+|
+| A porta é `/assinatura/kiosk/consumir`: recebe o conteúdo do QR, consome o token (uso
+| único) e devolve o cookie `lara_sign`. Dali em diante, o middleware
+| `signature_kiosk` resolve esse cookie, confere o prazo e amarra a requisição
+| ao documento da sessão — qualquer outro id responde 403.
+|
+| O rate limiting do consumo é o mais apertado do módulo: é a única rota deste
+| sistema em que um token pode ser adivinhado.
+|
+*/
+// Endereço antigo da tela do tablet: um aparelho já configurado com ele cai
+// no endereço novo em vez de numa página de erro.
+Route::redirect('/quiosque', '/assinatura/kiosk');
+
+/*
+| O endereço é `/assinatura/kiosk`, junto do resto do módulo. Os NOMES das
+| rotas continuam `quiosque.*` — são internos, e é por eles que o código e os
+| testes as chamam. `assinatura/modelos` e `assinatura/documentos` ficam no
+| grupo `auth`, mais abaixo; este prefixo é público de propósito.
+*/
+Route::prefix('assinatura/kiosk')->name('quiosque.')->group(function () {
+    Route::get('/', [QuiosqueController::class, 'index'])->name('index');
+
+    Route::post('/consumir', [QuiosqueController::class, 'consume'])
+        ->middleware('throttle:10,1')->name('consume');
+
+    Route::middleware('signature_kiosk')->group(function () {
+        Route::get('/sessao', [QuiosqueController::class, 'session'])
+            ->middleware('throttle:120,1')->name('session');
+
+        Route::post('/encerrar', [QuiosqueController::class, 'leave'])->name('leave');
+
+        Route::prefix('/documento/{signatureDocument}')->whereNumber('signatureDocument')->group(function () {
+            Route::get('/pdf', [QuiosqueController::class, 'pdf'])->name('pdf');
+
+            // Respostas de quem assina às perguntas do modelo. Refaz o PDF a
+            // cada envio, daí o teto.
+            Route::post('/respostas', [QuiosqueController::class, 'answers'])
+                ->middleware('throttle:20,1')->name('answers');
+            Route::post('/visualizado', [QuiosqueController::class, 'viewed'])
+                ->middleware('throttle:60,1')->name('viewed');
+
+            // Teto baixo: no modo parcial a conferência é de quatro dígitos, e
+            // o contador por solicitação (identity_attempts) fecha a sessão
+            // antes disso. As duas travas existem porque o throttle é por IP —
+            // e o tablet inteiro divide um IP só.
+            Route::post('/identidade', [QuiosqueController::class, 'identity'])
+                ->middleware('throttle:10,1')->name('identity');
+
+            Route::post('/assinar', [QuiosqueController::class, 'sign'])
+                ->middleware('throttle:10,1')->name('sign');
+
+            Route::post('/recusar', [QuiosqueController::class, 'refuse'])
+                ->middleware('throttle:20,1')->name('refuse');
+        });
+    });
+});
+
+/*
+| Validação pública de documento assinado. Rota curta e sem autenticação de
+| propósito: quem chega aqui veio do QR impresso no manifesto, com o papel na
+| mão. Mostra pouco (ver ValidationController) e o arquivo enviado para
+| conferência nunca é gravado.
+*/
+Route::get('/validar/{codigo}', [SignatureValidationController::class, 'show'])
+    ->where('codigo', '[A-Za-z0-9]{6,24}')
+    ->middleware('throttle:60,1')
+    ->name('signature.validate');
+
+Route::post('/validar/{codigo}/conferir', [SignatureValidationController::class, 'verify'])
+    ->where('codigo', '[A-Za-z0-9]{6,24}')
+    ->middleware('throttle:30,1')
+    ->name('signature.validate.verify');
 
 // Kiosk de assinatura (tablet) — AUTENTICAÇÃO PRÓPRIA, fora da sessão web.
 // Entra-se com matrícula + PIN; a própria sessão de kiosk (operator_id + mode)
@@ -814,6 +905,115 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::get('scout/jogos/{jogo}/jogadores/{jogador}', [PlacarScoutWebController::class, 'atuacao'])->name('scout.atuacao');
             Route::get('scout/jogadores/{jogador}', [PlacarScoutWebController::class, 'jogador'])->name('scout.jogador');
             Route::get('scout/times/{time}', [PlacarScoutWebController::class, 'time'])->name('scout.time');
+        });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Assinatura eletrônica presencial — lado do ATENDENTE
+    |--------------------------------------------------------------------------
+    |
+    | O lado do TABLET não está aqui: ele é público, tem sessão própria (cookie
+    | `lara_sign`, vinculado a UM documento pela leitura do QR) e mora fora do
+    | grupo `auth`, junto das demais rotas públicas. Ver o prefixo
+    | `/assinatura/kiosk`.
+    |
+    | Os modelos de documento são governados por permissão própria: escrever o
+    | texto de um termo é ato jurídico, e quem atende no balcão não precisa
+    | disso. As rotas de documento pedem a permissão de operação; o recorte
+    | fino (editar só rascunho, ver evidência) é da SignatureDocumentPolicy.
+    |
+    */
+    // Guia do usuário do módulo: o passo a passo de quem escreve os modelos e
+    // de quem atende. Abre para qualquer um que alcance o módulo.
+    Route::prefix('assinatura/guia')->name('signature-guide.')
+        ->middleware('can:acessar-guia-assinatura')
+        ->group(function () {
+            Route::get('/', [SignatureGuideController::class, 'index'])->name('index');
+            Route::get('/conteudo', [SignatureGuideController::class, 'content'])->name('content');
+            Route::get('/pdf', [SignatureGuideController::class, 'pdf'])->name('pdf');
+        });
+
+    // Papel timbrado (cabeçalho e rodapé da empresa). Mesma permissão dos
+    // modelos: é a aparência do que as pessoas assinam.
+    Route::prefix('assinatura/papel-timbrado')->name('signature-layout.')
+        ->middleware('can:' . P::ASSINATURA_MODELOS)
+        ->group(function () {
+            Route::get('/', [SignatureLayoutController::class, 'edit'])->name('edit');
+            Route::post('/', [SignatureLayoutController::class, 'update'])->name('update');
+            Route::get('/exemplo', [SignatureLayoutController::class, 'preview'])->name('preview');
+        });
+
+    Route::prefix('assinatura/modelos')->name('signature-templates.')
+        ->middleware('can:' . P::ASSINATURA_MODELOS)
+        ->group(function () {
+            Route::get('/', [SignatureTemplateController::class, 'index'])->name('index');
+            Route::get('/novo', [SignatureTemplateController::class, 'create'])->name('create');
+            Route::post('/', [SignatureTemplateController::class, 'store'])->name('store');
+            // Converte o .docx e devolve texto + campos para o formulário; não grava.
+            Route::post('/importar-docx', [SignatureTemplateController::class, 'importDocx'])->name('import-docx');
+
+            Route::prefix('/{signatureTemplate}')->whereNumber('signatureTemplate')->group(function () {
+                Route::get('/', [SignatureTemplateController::class, 'show'])->name('show');
+                Route::get('/revisar', [SignatureTemplateController::class, 'edit'])->name('edit');
+                // PUT cria a versão seguinte; não sobrescreve a linha em uso.
+                Route::put('/', [SignatureTemplateController::class, 'update'])->name('update');
+                Route::delete('/', [SignatureTemplateController::class, 'destroy'])->name('destroy');
+            });
+        });
+
+    Route::prefix('assinatura/documentos')->name('signature-documents.')->group(function () {
+        Route::get('/', [SignatureDocumentController::class, 'index'])->name('index');
+
+        // Rotas fixas ANTES de `/{signatureDocument}`: sem isso, "novo" seria
+        // lido como id de documento.
+        Route::get('/novo', [SignatureDocumentController::class, 'create'])->name('create');
+        Route::get('/associados', [SignatureDocumentController::class, 'members'])
+            ->middleware('throttle:60,1')->name('members');
+        Route::post('/', [SignatureDocumentController::class, 'store'])->name('store');
+
+        // Documento PRONTO, em PDF: aproveitado na íntegra, sem modelo.
+        Route::get('/enviar', [SignatureDocumentController::class, 'createUpload'])->name('upload');
+        Route::post('/enviar', [SignatureDocumentController::class, 'storeUpload'])
+            ->middleware('throttle:20,1')->name('upload.store');
+
+        Route::prefix('/{signatureDocument}')->whereNumber('signatureDocument')->group(function () {
+            Route::get('/', [SignatureDocumentController::class, 'show'])->name('show');
+            Route::get('/editar', [SignatureDocumentController::class, 'edit'])->name('edit');
+            Route::put('/', [SignatureDocumentController::class, 'update'])->name('update');
+
+            Route::post('/congelar', [SignatureDocumentController::class, 'freeze'])
+                ->middleware('throttle:20,1')->name('freeze');
+            Route::post('/cancelar', [SignatureDocumentController::class, 'cancel'])
+                ->middleware('throttle:20,1')->name('cancel');
+
+            Route::get('/pdf', [SignatureDocumentController::class, 'pdf'])->name('pdf');
+
+            // Onde cada pessoa assina no PDF enviado (só no rascunho).
+            Route::post('/posicoes', [SignatureDocumentController::class, 'positions'])->name('positions');
+
+            // Acompanhamento da tela do atendente (polling — não há
+            // broadcasting neste projeto). Teto alto porque a tela consulta a
+            // cada poucos segundos enquanto o atendimento corre.
+            Route::get('/status', [SignatureReleaseController::class, 'status'])
+                ->middleware('throttle:120,1')->name('status');
+
+            // Gerar o QR de um signatário. A mesma rota regera: "gerar outro"
+            // e "gerar o primeiro" são o mesmo ato no balcão, e duas rotas
+            // abririam a chance de dois QRs válidos ao mesmo tempo.
+            Route::post('/signatarios/{signatureSigner}/liberar', [SignatureReleaseController::class, 'store'])
+                ->whereNumber('signatureSigner')
+                ->middleware('throttle:30,1')->name('release');
+
+            // Reenvio da via assinada — e-mail falha, e o documento já está
+            // guardado: o que falta é a entrega.
+            Route::post('/signatarios/{signatureSigner}/via', [SignatureReleaseController::class, 'resend'])
+                ->whereNumber('signatureSigner')
+                ->middleware('throttle:10,1')->name('resend-copy');
+
+            Route::delete('/liberacoes/{signatureRequest}', [SignatureReleaseController::class, 'destroy'])
+                ->whereNumber('signatureRequest')
+                ->middleware('throttle:30,1')->name('release.cancel');
         });
     });
 

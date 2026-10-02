@@ -110,6 +110,17 @@ final class Navigation
                     ['route' => 'card-templates.index', 'label' => 'Modelos', 'permission' => P::CARTEIRINHAS, 'active' => 'card-templates.*'],
                 ],
             ],
+            // Assinatura eletrônica presencial (tablet do balcão). Quem atende
+            // e quem escreve o texto dos termos não são necessariamente a
+            // mesma pessoa: cada filho tem a sua permissão, e o grupo some
+            // para quem não alcança nenhum.
+            ['label' => 'Assinaturas', 'area' => 'cartao', 'glyph' => 'pencil',
+                'icon' => 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z',
+                'children' => [
+                    ['route' => 'signature-documents.index', 'label' => 'Documentos', 'permission' => 'acessar-documentos-assinatura', 'active' => 'signature-documents.*'],
+                    ['route' => 'signature-templates.index', 'label' => 'Modelos', 'permission' => P::ASSINATURA_MODELOS, 'active' => 'signature-templates.*'],
+                    ['route' => 'signature-guide.index', 'label' => 'Guia', 'permission' => 'acessar-guia-assinatura', 'active' => 'signature-guide.*'],
+                ]],
             ['label' => 'Freelancers', 'area' => 'freela', 'glyph' => 'user',
                 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
                 'children' => [

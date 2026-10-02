@@ -115,6 +115,30 @@ class AppServiceProvider extends ServiceProvider
         );
 
         /**
+         * A lista de documentos da assinatura eletrônica abre para quem atende
+         * no balcão OU para quem só consulta os assinados — duas permissões do
+         * catálogo. O menu pede uma habilidade só por item, e esta junta as
+         * duas (a mesma regra de SignatureDocumentPolicy::viewAny).
+         */
+        Gate::define(
+            'acessar-documentos-assinatura',
+            fn (User $user) => $user->can(Permissions::ASSINATURA_DOCUMENTOS)
+                || $user->can(Permissions::ASSINATURA_CONSULTAR),
+        );
+
+        /**
+         * O guia do módulo de assinatura abre para quem alcança QUALQUER parte
+         * dele — quem atende, quem consulta e quem escreve os modelos leem o
+         * mesmo passo a passo.
+         */
+        Gate::define(
+            'acessar-guia-assinatura',
+            fn (User $user) => $user->can(Permissions::ASSINATURA_DOCUMENTOS)
+                || $user->can(Permissions::ASSINATURA_CONSULTAR)
+                || $user->can(Permissions::ASSINATURA_MODELOS),
+        );
+
+        /**
          * Teto de envio da Poli Digital, por APLICAÇÃO (ver config/poli.php).
          * Um limitador só, sem chave por destinatário, porque a cota é da
          * conta inteira — qualquer outro fluxo que passe a enviar pela Poli

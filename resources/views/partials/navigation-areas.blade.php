@@ -110,26 +110,36 @@
     x-transition:enter="transition ease-out duration-150"
     x-transition:enter-start="opacity-0 -translate-y-2"
     x-transition:enter-end="opacity-100 translate-y-0"
-    class="fixed left-3 z-50 flex max-h-[calc(100vh-100px)] w-[min(500px,calc(100vw-24px))] flex-col gap-3 overflow-auto rounded-[20px] border border-line bg-surface p-3.5 text-ink shadow-pop sm:left-5"
+    class="fixed left-3 z-50 flex max-h-[calc(100dvh-156px)] w-[min(520px,calc(100vw-24px))] flex-col gap-3 overflow-hidden rounded-[20px] border border-line bg-surface p-3.5 text-ink shadow-pop sm:left-5 sm:max-h-[calc(100dvh-86px)]"
     style="top: calc(70px + env(safe-area-inset-top, 0px))">
-    <div class="flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-subtle p-1" role="tablist">
-        @foreach (['todas' => ['grid', 'Todos os módulos'], 'favoritos' => ['star', 'Favoritos'], 'recentes' => ['history', 'Recentes']] as $tab => [$glyph, $label])
-            <button type="button" role="tab" @click="launcherTab = '{{ $tab }}'" :aria-selected="(launcherTab === '{{ $tab }}').toString()" class="{{ $tabClasses }}">
-                <x-icon :name="$glyph" class="h-3.5 w-3.5" />{{ $label }}
+    {{-- Abas: sempre à vista e sem rolagem própria. As três dividem a largura;
+         em tela estreita o rótulo da primeira encurta em vez de empurrar as outras. --}}
+    <div class="grid shrink-0 grid-cols-3 gap-1 rounded-full bg-subtle p-1" role="tablist">
+        @foreach (['todas' => ['grid', 'Todos os módulos', 'Módulos'], 'favoritos' => ['star', 'Favoritos', null], 'recentes' => ['history', 'Recentes', null]] as $tab => [$glyph, $label, $short])
+            <button type="button" role="tab" @click="launcherTab = '{{ $tab }}'" :aria-selected="(launcherTab === '{{ $tab }}').toString()" class="{{ $tabClasses }} min-w-0 justify-center !px-2">
+                <x-icon :name="$glyph" class="h-3.5 w-3.5" />
+                @if ($short)
+                    <span class="truncate sm:hidden">{{ $short }}</span><span class="hidden truncate sm:inline">{{ $label }}</span>
+                @else
+                    <span class="truncate">{{ $label }}</span>
+                @endif
             </button>
         @endforeach
     </div>
+
+    {{-- Só esta parte rola, e só se a lista não couber na tela. --}}
+    <div class="-mr-1.5 min-h-0 flex-1 overflow-y-auto pr-1.5">
 
     {{-- Flex com `order` (e não grid na ordem do DOM) para respeitar a ordem
          dos grupos que a pessoa escolheu em "Organizar menu". --}}
     <div x-show="launcherTab === 'todas'" class="grid grid-cols-2 gap-2 sm:grid-cols-3">
         @foreach ($navGroups as $group)
             <a href="{{ $group['url'] }}" style="{{ \App\View\AreaColor::style($group['area']) }}" :style="{ order: navRank('{{ $group['key'] }}') }"
-                class="flex min-h-[96px] flex-col justify-between gap-3 rounded-[14px] p-3 no-underline transition hover:-translate-y-0.5">
-                <x-icon :name="$group['glyph']" class="h-[23px] w-[23px]" />
-                <span>
-                    <b class="block text-[13.5px] font-bold leading-tight">{{ $group['label'] }}</b>
-                    <span class="text-[11.5px] opacity-80">{{ $group['pages'] }} {{ $group['pages'] === 1 ? 'página' : 'páginas' }}</span>
+                class="flex min-h-[58px] items-center gap-2.5 rounded-[14px] px-3 py-2.5 no-underline transition hover:-translate-y-0.5">
+                <x-icon :name="$group['glyph']" class="h-5 w-5" />
+                <span class="min-w-0">
+                    <b class="block text-[13px] font-bold leading-tight">{{ $group['label'] }}</b>
+                    <span class="block text-[11px] leading-tight opacity-80">{{ $group['pages'] }} {{ $group['pages'] === 1 ? 'página' : 'páginas' }}</span>
                 </span>
             </a>
         @endforeach
@@ -154,7 +164,9 @@
         </div>
     @endforeach
 
-    <div class="flex items-center justify-between border-t border-line pt-3 text-[13px]">
+    </div>{{-- parte que rola --}}
+
+    <div class="flex shrink-0 items-center justify-between gap-3 border-t border-line pt-3 text-[13px]">
         <span class="text-ink-3">Dica: <kbd class="rounded-md border border-line-strong px-1.5 py-0.5 font-mono text-[11px]">Ctrl K</kbd> busca qualquer página</span>
         <button type="button" @click="launcherOpen = false; organizerOpen = true" class="font-bold text-grena-ink hover:underline">Organizar</button>
     </div>

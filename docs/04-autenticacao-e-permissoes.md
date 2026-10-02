@@ -100,6 +100,14 @@ De onde vem o acesso de uma pessoa (`App\Authorization\AccessResolver`):
   (`siv.busca`, `reservas.pagamentos`, `freelancers.servicos.gerenciar`…). A
   migration `sync_access_catalog` espelha o catálogo na tabela `permissions` e
   cria a matriz inicial de setor → permissão.
+- **Permissão nova (módulo novo):** declare-a no catálogo — a constante e a linha em
+  `CATALOG`, com grupo e rótulo. O **seed padrão** `PermissionCatalogSeeder`, que os scripts de
+  deploy (`deploy_prod.sh`, `deploy_hml.sh`) rodam logo depois das migrations, cria no banco o
+  que ainda não existe. Ele **não dá a permissão a nenhum setor** nem altera o que já está
+  configurado: a permissão nasce solta e é atribuída na tela de Setores (os setores de acesso
+  total a alcançam por definição). Também não apaga o que saiu do catálogo — isso é do
+  `acesso:limpar-legado`. Pode rodar à mão, quantas vezes for:
+  `php artisan db:seed --class=PermissionCatalogSeeder --force`.
 - **Checagem:** sempre `can()` — nas rotas `->middleware('can:' . P::SIV_BUSCA)`,
   nas views `@can(...)`. Um `Gate::before` no `AppServiceProvider` responde
   pelos nomes do catálogo a partir de `User::access()`, calculado uma vez por

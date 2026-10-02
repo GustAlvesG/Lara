@@ -53,12 +53,15 @@ Para o estado completo, rode `php artisan migrate:status`.
 `AccessSeeder`, `CompanyAccessRulesSeeder`, `CompanySeeder`, `CompanyWorkerSeeder`,
 `DataInfoSeeder`, `EmployeeSeeder`, `FreelancerSeeder`, `FreelancerServiceSeeder`,
 `FunctionFreelancerSeeder`, `InformationSeeder`, `MemberSeeder`, `OuterSeeder`,
-`ParkingSeeder`, `PlaceGroupSeeder`, `PlaceSeeder`, `SectorAccessSeeder`,
+`ParkingSeeder`, `PermissionCatalogSeeder` (o seed padrão, do deploy), `PlaceGroupSeeder`,
+`PlaceSeeder`, `SectorAccessSeeder`,
 `SchedulePaymentSeeder`, `ScheduleRulesSeeder`, `ScheduleSeeder`,
 `TimeAdjustmentSeeder`, `TimeEntrySeeder`, `VisitorSeeder`.
 
-> O catálogo de permissões e a matriz setor → permissão vêm da migration
-> `sync_access_catalog`; `SectorAccessSeeder` só coloca o usuário 1 na TI (desenvolvimento).
+> A matriz inicial setor → permissão vem da migration `sync_access_catalog`. O **catálogo** de
+> permissões é mantido no banco pelo seed padrão `PermissionCatalogSeeder`, que roda em todo
+> deploy: cria as permissões novas do catálogo, sem dar nenhuma a setor e sem alterar o que já
+> está configurado. `SectorAccessSeeder` só coloca o usuário 1 na TI (desenvolvimento).
 
 ## 12.5. Factories (`database/factories/`)
 

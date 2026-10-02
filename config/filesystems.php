@@ -44,6 +44,30 @@ return [
             'port' => 21,
         ],
 
+        /*
+         * Arquivo dos documentos assinados (assinatura eletrônica).
+         *
+         * Disco próprio, e não o `ftp` acima — aquele é o das imagens das
+         * câmeras. Por padrão aponta para o MESMO servidor e a mesma conta;
+         * as variáveis SIGNATURE_FTP_* trocam isso sem mexer no outro.
+         *
+         * Sem `root` de propósito: o driver exige que a raiz já exista, e a
+         * pasta do arquivo (config/signature.php → archive.root) é criada
+         * pelo próprio sistema no primeiro envio.
+         */
+        'signature_archive' => [
+            'driver' => 'ftp',
+            'host' => env('SIGNATURE_FTP_HOST', env('FTP_HOST')),
+            'username' => env('SIGNATURE_FTP_USERNAME', env('FTP_USERNAME')),
+            'password' => env('SIGNATURE_FTP_PASSWORD', env('FTP_PASSWORD')),
+            'port' => (int) env('SIGNATURE_FTP_PORT', env('FTP_PORT', 21)),
+            'ssl' => (bool) env('SIGNATURE_FTP_SSL', false),
+            'passive' => (bool) env('SIGNATURE_FTP_PASSIVE', true),
+            'timeout' => 30,
+            // Falha vira exceção: o job precisa saber que não gravou.
+            'throw' => true,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

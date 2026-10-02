@@ -62,6 +62,14 @@ final class Permissions
     public const FREELANCERS_ACOMPANHAMENTO = 'freelancers.acompanhamento';
     public const FREELANCERS_FINANCEIRO = 'freelancers.financeiro';
 
+    // Assinatura eletrônica presencial (tablet do balcão). Quatro acessos de
+    // peso diferente: escrever o texto de um termo, atender no balcão,
+    // consultar o que foi assinado e ver foto/traço de uma pessoa.
+    public const ASSINATURA_MODELOS = 'assinatura.modelos';
+    public const ASSINATURA_DOCUMENTOS = 'assinatura.documentos';
+    public const ASSINATURA_CONSULTAR = 'assinatura.consultar';
+    public const ASSINATURA_EVIDENCIAS = 'assinatura.evidencias';
+
     public const PLACAR_CADASTRO = 'placar.cadastro';
     public const PLACAR_SCOUT = 'placar.scout';
 
@@ -110,6 +118,11 @@ final class Permissions
         self::FREELANCERS_ASSINATURA => ['Freelancers', 'Assinatura no tablet (kiosk)'],
         self::FREELANCERS_ACOMPANHAMENTO => ['Freelancers', 'Acompanhamento dos lotes'],
         self::FREELANCERS_FINANCEIRO => ['Freelancers', 'Financeiro e baixa de pagamento'],
+
+        self::ASSINATURA_DOCUMENTOS => ['Assinaturas', 'Criar documentos e liberar para assinatura no tablet'],
+        self::ASSINATURA_CONSULTAR => ['Assinaturas', 'Consultar documentos assinados e baixar o PDF'],
+        self::ASSINATURA_MODELOS => ['Assinaturas', 'Criar e revisar os modelos de documento'],
+        self::ASSINATURA_EVIDENCIAS => ['Assinaturas', 'Ver as evidências (foto do signatário e traço)'],
 
         self::PLACAR_CADASTRO => ['Placar Clube', 'Cadastro (equipes, times, jogadores, jogos)'],
         self::PLACAR_SCOUT => ['Placar Clube', 'Súmulas e scout'],

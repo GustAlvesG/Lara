@@ -13,6 +13,16 @@ Schedule::command('app:expire-pending-schedules')->everyMinute();
 Schedule::command('app:expire-uber-access-requests')->everyMinute();
 Schedule::command('app:prune-uber-access-request-messages')->dailyAt('03:00');
 
+// Assinatura eletrônica: QR não lido, sessão de tablet parada e documento
+// congelado que ninguém assinou. A cada minuto porque o prazo do QR é de
+// minutos — de hora em hora, a tela do atendente ficaria com contagem
+// regressiva de um código que já não vale.
+Schedule::command('signature:expire')->everyMinute()->withoutOverlapping();
+
+// Rede do arquivamento no FTP: reenvia o que o job não conseguiu mandar. Não
+// faz nada com o arquivamento desligado.
+Schedule::command('signature:archive')->hourly()->withoutOverlapping();
+
 // Bot do WhatsApp: a Poli não encerra por inatividade as conversas do O Lara.
 // Fecha as concluídas (encerramento diferido) e as abandonadas no meio do
 // fluxo; a reconciliação pega as que a Lara perdeu de vista.

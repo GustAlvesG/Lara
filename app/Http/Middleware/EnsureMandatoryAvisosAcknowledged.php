@@ -54,6 +54,12 @@ class EnsureMandatoryAvisosAcknowledged
         static $warned = false;
 
         try {
+            // Quase sempre não há nenhum aviso obrigatório ativo: uma consulta
+            // barata resolve, sem carregar os setores da pessoa.
+            if (! Aviso::where('mandatory', true)->active()->exists()) {
+                return false;
+            }
+
             return Aviso::mandatoryPendingFor($user)->exists();
         } catch (\Throwable $e) {
             if (!$warned) {
