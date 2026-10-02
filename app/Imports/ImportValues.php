@@ -79,4 +79,36 @@ class ImportValues
             );
         }
     }
+
+    /**
+     * Valor em reais, como digitado ("350", "350,50", "R$ 1.200,00") ou como o
+     * Excel entrega uma célula numérica ("350.5"). Devolve com ponto decimal,
+     * ou vazio quando a célula está em branco.
+     *
+     * Com vírgula, o ponto é separador de milhar; sem vírgula, é o decimal — é
+     * o que distingue "1.200,00" de "350.5".
+     *
+     * @throws ImportRowException
+     */
+    public static function money(string $value, string $label): string
+    {
+        $value = trim(str_ireplace('R$', '', $value));
+        $value = preg_replace('/\s+/u', '', $value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        $normalized = str_contains($value, ',')
+            ? str_replace(',', '.', str_replace('.', '', $value))
+            : $value;
+
+        if (!is_numeric($normalized)) {
+            throw new ImportRowException(
+                $label . ' inválido ("' . $value . '"). Use só o número, como 350,00.'
+            );
+        }
+
+        return (string) round((float) $normalized, 2);
+    }
 }

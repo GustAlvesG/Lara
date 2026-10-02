@@ -137,6 +137,11 @@ trait CreatesFreelancerPixSchema
         (require base_path('database/migrations/2026_09_11_100000_create_freelancer_directors_table.php'))->up();
         (require base_path('database/migrations/2026_09_11_100100_add_director_signature_to_freelancer_services_table.php'))->up();
 
+        // Por horas ou valor fixo: o serviço grava a forma em todo contrato que
+        // cria, então a coluna precisa existir para qualquer teste que registre
+        // um. Migration de verdade, pelo mesmo motivo das anteriores.
+        (require base_path('database/migrations/2026_10_09_100000_add_pricing_mode_to_freelancer_services_table.php'))->up();
+
         // A migration da diretoria importa o destinatário do `.env` de quem roda
         // a suíte. O teste começa sem diretor; quem precisa de um, cria.
         \Illuminate\Support\Facades\DB::table('freelancer_directors')->delete();

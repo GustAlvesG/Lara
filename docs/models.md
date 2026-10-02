@@ -83,7 +83,11 @@ deletes, scopes globais, etc.).
 
 ### FreelancerService
 - **Tabela:** `freelancer_services`
-- **`$fillable`:** `freelancer_id`, `function_freelancer_id`, `start_date`, `end_date`, `price`, `pix_key`, `pix_key_confirmed_at`, `total_hours`, `status_id`
+- **`$fillable`:** `freelancer_id`, `function_freelancer_id`, `start_date`, `end_date`, `price`, `pricing_mode`, `pix_key`, `pix_key_confirmed_at`, `total_hours`, `status_id`
+- **Valor fixo:** `pricing_mode` diz de onde veio o `price` — `hourly` (blocos de 15 min × preço da
+  função, o padrão) ou `fixed` (valor digitado no registro). `isFixedPrice()` / `pricingMode()` /
+  `pricingModeLabel()`; contrato anterior à coluna é lido como `hourly`. Ver
+  [Freelancers → Valor fixo](funcionalidades/freelancers.md#valor-fixo-o-valor-digitado-no-lugar-das-horas).
 - **Chave PIX do contrato:** `pix_key` é a **cópia congelada** na assinatura do freelancer — o
   documento assinado não pode passar a citar outra chave porque o cadastro mudou. `pixKey()` cai no
   cadastro quando a cópia não existe (contratos antigos e assinaturas pela API);

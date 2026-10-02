@@ -110,7 +110,7 @@ banco e integrações externas. Os controllers delegam a essas classes.
 | `create` | `create($data)` | Cria um freelancer. |
 | `get` | `get($cpf)` | Recupera o freelancer pelo CPF. |
 | `getFunctions` | `getFunctions()` | Lista as funções disponíveis. |
-| `createService` | `createService($data)` | Cria um registro de serviço de freelancer. |
+| `createService` | `createService($data)` | Cria um registro de serviço de freelancer. Deriva `end_date`, `total_hours` e `price`; com `pricing_mode = fixed`, o `price` é o `fixed_price` informado (contrato de valor fixo), e não o das horas. |
 | `markAsPaid` | `markAsPaid(FreelancerService $service, User $user)` | Baixa manual de pagamento (fluxo sem Pix). Registra quem deu e quando. |
 | `markManyAsPaid` | `markManyAsPaid(array $ids, User $user): int` | Baixa manual em lote. Ignora contratos não aptos ou já pagos. |
 | `requestPixForMany` | `requestPixForMany(array $ids, User $user): array` | **Move dinheiro.** Cria um `PixPayment` e enfileira um `SendFreelancerPixPayment` por contrato. Retorna `{queued, skipped, problems}`. **Não** marca `paid` — a baixa vem depois, do banco. |

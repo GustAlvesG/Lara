@@ -35,6 +35,24 @@ class FreelancerService extends Model
     /** O valor da função é cobrado por bloco de 15 minutos. */
     const BLOCK_MINUTES = 15;
 
+    /**
+     * Como o valor do contrato é obtido (coluna `pricing_mode`). O padrão é por
+     * horas — blocos de 15 minutos × preço da função. No valor fixo, quem
+     * registra o contrato digita o valor, e as horas do turno deixam de entrar
+     * na conta. Ver a seção "Valor fixo".
+     */
+    const PRICING_HOURLY = 'hourly';
+    const PRICING_FIXED = 'fixed';
+
+    /** As duas formas, com o rótulo das telas. */
+    const PRICING_MODES = [
+        self::PRICING_HOURLY => 'Por horas',
+        self::PRICING_FIXED => 'Valor fixo',
+    ];
+
+    /** Teto do valor fixo aceito na entrada — trava contra zero a mais. */
+    const MAX_FIXED_PRICE = 100000;
+
     /* ---------------------------------------------------------------------
      | Comissão de venda
      |---------------------------------------------------------------------*/
@@ -191,6 +209,8 @@ class FreelancerService extends Model
         'end_date',
         'end_time',
         'price',
+        // Por horas (padrão) ou valor fixo digitado (ver a seção "Valor fixo").
+        'pricing_mode',
         // Chave PIX conferida pelo freelancer na assinatura (ver a seção
         // "Chave PIX do pagamento").
         'pix_key',
@@ -484,6 +504,42 @@ class FreelancerService extends Model
         $rest = $minutes % 60;
 
         return $rest === 0 ? "{$hours}h" : sprintf('%dh%02d', $hours, $rest);
+    }
+
+    /* ---------------------------------------------------------------------
+     | Valor fixo
+     |
+     | O padrão é o valor por horas: blocos de 15 minutos × preço da função. O
+     | contrato de VALOR FIXO troca só essa conta — o valor é digitado por quem
+     | registra o contrato e vale pelo dia, qualquer que seja a duração.
+     |
+     | Todo o resto continua igual, e de propósito: o turno ainda tem horário de
+     | início e término, porque é por ele que a portaria abre, que o prazo da
+     | assinatura conta e que o jantar é decidido. O corpo do instrumento também
+     | não muda — a cláusula 2 já ajusta "o valor de R$ X, por dia, previamente
+     | acordado", sem falar em horas.
+     |
+     | O aditivo de horário de um contrato de valor fixo HERDA a forma e o valor:
+     | se o valor não depende das horas, esticar ou encurtar o turno não o
+     | altera, e o termo diz que ele "permanece".
+     |---------------------------------------------------------------------*/
+
+    /** A forma gravada, ou a padrão nos contratos anteriores à coluna. */
+    public function pricingMode(): string
+    {
+        return $this->pricing_mode === self::PRICING_FIXED ? self::PRICING_FIXED : self::PRICING_HOURLY;
+    }
+
+    /** O valor foi digitado, e não calculado pelas horas do turno. */
+    public function isFixedPrice(): bool
+    {
+        return $this->pricingMode() === self::PRICING_FIXED;
+    }
+
+    /** "Por horas" · "Valor fixo". */
+    public function pricingModeLabel(): string
+    {
+        return self::PRICING_MODES[$this->pricingMode()];
     }
 
     /* ---------------------------------------------------------------------
@@ -1250,6 +1306,10 @@ class FreelancerService extends Model
      * Sem isto, quem aprova vê o mesmo freelancer duas vezes no mesmo dia, com
      * dois valores, e não tem como saber se é para pagar os dois ou se alguém
      * duplicou o lançamento.
+     *
+     * O contrato de valor fixo entra aqui pelo mesmo motivo, ainda que seja o
+     * contrato do turno: o valor dele não sai de horas × função, e quem aprova
+     * precisa saber que foi digitado antes de estranhar a conta.
      */
     public function kindLabel(): ?string
     {
@@ -1257,6 +1317,7 @@ class FreelancerService extends Model
             $this->isCommissionAmendment() => 'Comissão de venda',
             $this->isAmendment() => 'Aditivo de horário',
             $this->isAmended() => 'Aditivado',
+            $this->isFixedPrice() => 'Valor fixo',
             default => null,
         };
     }
@@ -1273,11 +1334,12 @@ class FreelancerService extends Model
             $this->isAmendment() => sprintf(
                 'Substitui o contrato #%s, que foi assinado mas não é pago.',
                 $this->parent_service_id,
-            ),
+            ) . ($this->isFixedPrice() ? ' Valor fixo, mantido do contrato original.' : ''),
             $this->isAmended() => sprintf(
                 'O pagamento do turno é feito pelo aditivo #%s.',
                 $this->amendment_service_id,
             ),
+            $this->isFixedPrice() => 'Valor digitado no registro do contrato, e não calculado pelas horas do turno.',
             default => null,
         };
     }

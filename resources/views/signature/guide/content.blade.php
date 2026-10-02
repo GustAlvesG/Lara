@@ -610,7 +610,9 @@
             <td><b>4. Identidade</b>Digita os quatro primeiros dígitos do CPF (ou o CPF completo).</td>
         </tr>
         <tr>
-            <td><b>5. Aceite</b>Marca "Li e concordo" e, se quiser, pede a via por e-mail.</td>
+            <td><b>5. Aceite</b>Marca "Li e concordo" e, quando o modelo pede foto, marca também que
+                <b>autoriza a captura da imagem</b> — sem as duas marcações o tablet não segue. Se quiser, pede a
+                via por e-mail.</td>
             <td><b>6. Assinatura</b>Assina com o dedo ou a caneta. <i>Limpar</i> apaga e deixa refazer.</td>
             <td><span class="opt">se o modelo pedir</span><b>7. Visto</b>"Agora faça o seu visto": a rubrica que vai em todas as páginas.</td>
             <td><span class="opt">se o modelo pedir</span><b>8. Foto</b>O tablet conta 3 segundos e fotografa. Depois: "Assinatura concluída".</td>

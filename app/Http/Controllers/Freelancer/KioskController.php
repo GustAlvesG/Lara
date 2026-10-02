@@ -1295,6 +1295,9 @@ class KioskController extends Controller
             'crosses_midnight' => ($s->start_date && $s->end_date) ? $s->start_date->ne($s->end_date) : false,
             'total_hours' => $s->total_hours,
             'price' => (float) $s->price,
+            // Valor fixo: digitado no registro, não sai das horas. A prévia do
+            // aditivo precisa saber para não recalcular o que não muda.
+            'is_fixed_price' => $s->isFixedPrice(),
             // Valor do bloco de 15 min da função: é com ele que a prévia do
             // aditivo recalcula o preço na tela, sem inventar uma segunda regra.
             'block_price' => (float) ($s->functionFreelancer?->price ?? 0),

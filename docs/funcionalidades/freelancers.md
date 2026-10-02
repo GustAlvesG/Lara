@@ -19,7 +19,8 @@ O módulo tem duas frentes:
    informada, e o **tipo** dela é lido da própria chave já normalizada (ver *Conferência da chave PIX*).
    Tem **foto de identificação** (`image`) — ver *Foto de identificação*.
 2. **Função** (`function_freelancers`) — catálogo de funções (garçom, segurança...), com **preço
-   por bloco de 15 minutos**.
+   por bloco de 15 minutos**. É o que calcula o valor do contrato, salvo no contrato de **valor
+   fixo** (ver *Valor fixo*).
 3. **Serviço / Contrato** (`freelancer_services`) — um trabalho de um freelancer numa função, num
    evento/local, com data, horário de início e término, status e as duas assinaturas. Tem ainda uma
    **descrição/justificativa** (`description`) livre e opcional, só para esclarecimentos: não entra
@@ -195,7 +196,7 @@ O turno é informado por **data + horário de início e término** (`start_date`
 |---|---|
 | `end_date` | `start_date`, ou `start_date + 1 dia` quando o turno vira a meia-noite |
 | `total_hours` | blocos pagos × 0,25 |
-| `price` | blocos pagos × preço da função |
+| `price` | blocos pagos × preço da função — ou o valor digitado, no contrato de **valor fixo** (seção seguinte) |
 
 **Virada de dia:** quando `end_time` é **anterior** a `start_time`, entende-se que o turno
 atravessa a meia-noite e termina no dia seguinte (ex.: `22:00 → 02:00` = 4h). Contratos são
@@ -210,7 +211,80 @@ Consequências dessa regra, validadas na entrada:
 - período **menor que 15 minutos** é recusado (arredondado para baixo daria 0 bloco e R$ 0,00).
 
 `total_hours`, `end_date` e `price` **não são aceitos como entrada** — se enviados, são ignorados
-e recalculados. Isso vale para o painel e para a API.
+e recalculados. Isso vale para o painel e para a API. O valor digitado do contrato de valor fixo
+entra por outro campo, `fixed_price`, e só vale junto de `pricing_mode = fixed`.
+
+### Valor fixo (o valor digitado no lugar das horas)
+
+O padrão é o valor **por horas**: blocos de 15 minutos × preço da função. O contrato de **valor
+fixo** troca só essa conta — quem registra o contrato **digita o valor**, e ele vale pelo dia,
+qualquer que seja a duração do turno. A escolha é feita na geração do contrato; sem escolher nada, o
+contrato é por horas.
+
+| | Por horas (padrão) | Valor fixo |
+|---|---|---|
+| `pricing_mode` | `hourly` | `fixed` |
+| `price` | blocos pagos × preço da função | o valor digitado (`fixed_price` na entrada) |
+| `total_hours` | horas pagas | a duração do turno em blocos — **registro, não base de pagamento** |
+| Horário de início e término | obrigatórios | obrigatórios |
+
+**O que não muda.** O turno continua tendo data, início e término: é por eles que a portaria abre,
+que o prazo da assinatura conta, que a pergunta do jantar é decidida e que o contrato é liberado para
+a coordenação na manhã seguinte. Limite semanal, conferência da chave PIX, assinaturas, lote,
+aprovações, financeiro e arquivo valem igual. A função continua sendo escolhida — é ela que a
+cláusula 1 do contrato nomeia —, só o preço dela deixa de entrar na conta.
+
+**O texto do contrato também não muda**, e por isso não houve redação nova: a cláusula 2 já ajusta
+"o valor de R$ X, por dia, previamente acordado", sem falar em horas (ver *O que o contrato diz*).
+
+**Onde se escolhe:**
+
+| Caminho | Como |
+|---|---|
+| Registro individual (painel) | campo **Valor do contrato**: *Por horas (padrão)* ou *Valor fixo*, que abre o campo do valor |
+| Tablet (`/kiosk`) | passo **Valor do contrato**, o último antes da prévia; no valor fixo, teclado em centavos |
+| Registro em massa | coluna **Valor** em cada linha; a linha nova volta a *por horas* |
+| Planilha | coluna opcional **Valor fixo (R$)**: preenchida, o contrato é de valor fixo; em branco, por horas |
+| API (bot) | `pricing_mode = fixed` + `fixed_price` |
+
+**Regras do valor:** maior que zero e até R$ 100.000,00 (`FreelancerService::MAX_FIXED_PRICE`, trava
+contra zero a mais). A conferência é feita pelo FormRequest (`ValidatesServiceSchedule::pricingRules()`)
+**e** pelo serviço (`withSchedule()` / `fixedPriceOrFail()`), porque é do serviço que sai o valor que
+vai ao documento e ao Pix. Um `fixed_price` enviado sem `pricing_mode = fixed` é ignorado: valor
+esquecido no campo não transforma um contrato por horas em fixo.
+
+**Edição** (só enquanto ninguém assinou, como qualquer contrato): dá para trocar a forma e o valor.
+Quem edita **sem dizer a forma** — o `PUT` do bot, que não conhece o campo — mantém a que o contrato
+já tem, com o mesmo valor. Sem isso, corrigir o local de um contrato de valor fixo o recalcularia
+pelas horas em silêncio.
+
+**Aditivo de horário.** O aditivo de um contrato de valor fixo **herda a forma e o valor**: se o
+valor não depende das horas, esticar ou encurtar o turno não o altera, e o termo diz que o valor
+"permanece" (cláusula 4). O tablet mostra isso na prévia do aditivo. Para um valor diferente do
+combinado, o caminho é o de sempre para contrato sem assinatura — corrigir o próprio contrato; depois
+de assinado, o valor fixo não se altera por aditivo.
+
+**Comissão de venda** sobre um contrato de valor fixo funciona como sobre qualquer outro: acresce ao
+contrato e é calculada sobre as vendas.
+
+**Quem aprova fica sabendo.** O valor de um contrato fixo não bate com duração × função, e sem aviso
+pareceria erro de cálculo. Por isso ele leva o selo **Valor fixo** (`kindLabel()` / `kindNote()`) na
+montagem do lote, na validação da coordenação, na análise da gerência, no e-mail e no PDF da
+diretoria, no financeiro e no acompanhamento; a listagem de contratos marca o valor, e o tablet marca
+o contrato em *Meus contratos*. No aditivo, a frase do selo acrescenta "Valor fixo, mantido do
+contrato original".
+
+> **Não há permissão própria.** Registra contrato de valor fixo quem já registra contrato. O controle
+> é o do fluxo: validação da coordenação, aprovação da gerência contrato a contrato e aprovação da
+> diretoria — todas com o selo à vista.
+
+Peças: `FreelancerService::PRICING_HOURLY` / `PRICING_FIXED` / `PRICING_MODES` / `MAX_FIXED_PRICE`,
+`pricingMode()` / `isFixedPrice()` / `pricingModeLabel()`;
+`App\Services\FreelancerService::withSchedule()` (criação e edição) e `createAmendment()` (herança);
+`ValidatesServiceSchedule::pricingRules()` (registro individual, tablet, API, planilha e em massa);
+`ImportValues::money()` e `SpreadsheetImport::optionalColumns()` (planilha). Coluna em
+`2026_10_09_100000_add_pricing_mode_to_freelancer_services_table` — todo contrato anterior é
+`hourly`. Testes em `tests/Feature/FreelancerFixedPriceTest.php`.
 
 ### Redação 2: a coordenação valida, a diretoria assina
 
@@ -510,7 +584,8 @@ dele e muda **apenas horário de início, horário de término e local**.
 
 Freelancer, função e data **não são aceitos** na criação do aditivo: vêm do base. `end_date`,
 `total_hours` e `price` continuam derivados no servidor, pelas mesmas regras (virada de dia e
-blocos de 15 min) — o aditivo vale pelo **turno inteiro**, não pela diferença.
+blocos de 15 min) — o aditivo vale pelo **turno inteiro**, não pela diferença. A exceção é o contrato
+de **valor fixo**: o aditivo herda a forma e o valor do base (ver *Valor fixo*).
 
 **O contrato base continua vivo — o que o aditivo tira dele é o pagamento.** Ao criar o aditivo, o
 base recebe `amended_at` / `amendment_service_id`:
@@ -785,13 +860,15 @@ Selo ⚠️ no index de Serviços e no index de Freelancers marca quem está aci
 ### Registro em massa pelo painel
 Tela **Serviços → Em massa** (`/freelancer-services/em-massa`): várias linhas na própria página,
 sem planilha. Cada linha é **freelancer** (select), **função** (select), **evento/local**, **data**,
-**início** e **término**. Duração, horas pagas e valor aparecem calculados na linha e somados no
-topo, mas quem calcula de verdade continua sendo o servidor.
+**início**, **término** e **valor** (*por horas*, o padrão, ou *valor fixo* com o valor digitado —
+ver *Valor fixo*). Duração, horas pagas e valor aparecem calculados na linha e somados no topo, mas
+quem calcula de verdade continua sendo o servidor.
 
 - **Tudo-ou-nada**, como a importação por planilha: havendo um erro, nada é gravado e a tela lista
   os problemas numerados pela linha. A gravação corre em transação.
 - "Adicionar linha" repete função, local, data e horários da linha anterior e deixa só o freelancer
-  em branco — o caso comum é o mesmo evento com várias pessoas. Máximo de **100 linhas** por envio
+  em branco — o caso comum é o mesmo evento com várias pessoas. O **valor fixo não é repetido**: ele
+  é combinado com cada pessoa, e a linha nova volta a *por horas*. Máximo de **100 linhas** por envio
   (`StoreFreelancerServicesBulkRequest::MAX_ROWS`).
 - Mesmas travas do registro individual: freelancer com **cadastro incompleto** fica desabilitado no
   select e é recusado no servidor; turno precisa ter ao menos um bloco de 15 min; turno que vira a
@@ -815,7 +892,9 @@ arquivo modelo `.xlsx` para download e o envio do arquivo preenchido.
 - **Mesmas regras do cadastro individual:** os importadores reaproveitam `StoreFreelancerRequest` e
   `StoreFreelancerServiceRequest`, então planilha e formulário não divergem.
 - **Cabeçalho tolerante, colunas obrigatórias:** o rótulo é normalizado (acentos, caixa, `*`) e
-  aceita sinônimos, mas toda coluna do modelo precisa existir.
+  aceita sinônimos, mas toda coluna do modelo precisa existir. A exceção são as colunas declaradas em
+  `optionalColumns()` — hoje, só **Valor fixo (R$)** dos serviços: a planilha salva antes de ela
+  existir continua sendo aceita, e importa tudo por horas.
 - **CPF:** normalizado para 11 dígitos, recompondo os zeros à esquerda que o Excel corta ao tratar
   a célula como número. Na planilha de freelancers, o CPF repetido **dentro do próprio arquivo**
   também é barrado — a regra `unique` só enxergaria o banco.
@@ -824,6 +903,9 @@ arquivo modelo `.xlsx` para download e o envio do arquivo preenchido.
   `HH:MM`, e células formatadas como data/hora no Excel são convertidas automaticamente. A coluna
   *Descrição / Justificativa* é opcional. `total_hours`, `end_date` e `price` continuam sendo
   derivados no servidor, e o alerta de limite semanal aparece resumido ao final da importação.
+- **Valor fixo:** a coluna *Valor fixo (R$)* é opcional. **Em branco, o contrato é por horas**;
+  preenchida, é de valor fixo (ver *Valor fixo*). Aceita `350`, `350,50`, `1.200,00` e `R$ 1.200,00`,
+  além da célula numérica do Excel; texto que não é número recusa a linha.
 
 ### Listagem de contratos: busca, filtros e ordenação
 A tela **Serviços / Contratos** (`/freelancer-services`) filtra e ordena **no servidor**, por
@@ -1077,7 +1159,9 @@ lançamento duplicado, e não é. Por isso todas as telas por onde ele passa diz
 | Financeiro (`finance-table`, `finance-print`) | selo e frase na linha, onde a baixa de pagamento acontece |
 
 O texto dos selos vem de `FreelancerService::kindLabel()` e `kindNote()` — um único lugar, para
-que lote, aprovação, e-mail e financeiro nunca digam a mesma coisa com palavras diferentes. Na
+que lote, aprovação, e-mail e financeiro nunca digam a mesma coisa com palavras diferentes. É por
+esses mesmos métodos que o contrato de **valor fixo** aparece marcado nessas telas (ver *Valor fixo*):
+ali a duração continua à vista, porque o turno existiu — o selo é que avisa que o valor não saiu dela. Na
 comissão a **duração some** das relações de pagamento: o valor não é calculado por hora, e mostrar
 "8h" ao lado dele convida a uma conta que não existe.
 
@@ -1150,6 +1234,9 @@ Dois modos, decididos pelo que o usuário é — quem acumula os dois papéis es
 | `operator` | permissão `manage freelancers` | localiza/cadastra freelancer, registra contrato, faz o **aditivo** quando o turno muda e colhe a assinatura do freelancer | 30 min **ou** 5 contratos |
 | `coordinator` | **coordenador do setor `Comercial`** (`user_sector.role = 'coordinator'`) | assina os contratos que aguardam a contraparte e monta/envia o lote para a gerência | 30 min (sem teto de contratos) |
 
+- O registro do contrato termina no passo **Valor do contrato**: *Por horas (padrão)* ou *Valor fixo*,
+  este com o teclado de dinheiro (em centavos, o mesmo da comissão). A prévia mostra o valor digitado
+  e, no lugar da conta dos blocos, que ele é fixo — ver *Valor fixo*.
 - Antes de **toda** assinatura do freelancer entra a tela de **conferência da chave PIX**, com a
   opção de corrigi-la ali mesmo — ver *Conferência da chave PIX*.
 - **Depois** da assinatura, quando o turno dá direito à refeição, entra a pergunta **"Vai jantar?"**
@@ -1381,6 +1468,7 @@ existe — é esse 404 que indica ao bot que deve cadastrar.
   "duration_minutes": 240,
   "total_hours": "4.00",
   "price": "200.00",
+  "pricing_mode": "hourly",
   "status_id": 1,
   "status": "confirmed/active",
   "freelancer_signed_at": "2026-07-21 17:31:51",
@@ -1397,7 +1485,8 @@ existe — é esse 404 que indica ao bot que deve cadastrar.
 ```
 
 Os campos `can_be_updated` e `can_be_signed_by_freelancer` dizem ao bot o que ainda é possível
-fazer, evitando uma chamada que resultaria em `409`.
+fazer, evitando uma chamada que resultaria em `409`. `pricing_mode` diz de onde veio o `price`:
+`hourly` (calculado pelas horas) ou `fixed` (valor digitado — ver *Valor fixo*).
 
 ### `POST /api/telegram/freelancer/service` e `PUT /api/telegram/freelancer/service/{id}`
 
@@ -1409,13 +1498,19 @@ fazer, evitando uma chamada que resultaria em `409`.
 | `start_date` | obrigatório, data (dia em que o turno começa) |
 | `start_time` | obrigatório, `H:i` ou `H:i:s` |
 | `end_time` | obrigatório, `H:i` ou `H:i:s`; se anterior a `start_time`, vira o dia |
+| `pricing_mode` | opcional, `hourly` (padrão) ou `fixed` — ver *Valor fixo* |
+| `fixed_price` | **obrigatório quando `pricing_mode` = `fixed`**; numérico, de `0.01` a `100000`. Ignorado fora do valor fixo |
 | `status_id` | opcional, existe em `status` (default `1`) |
 | `created_by` | **obrigatório no POST** — id do usuário logado no bot, que auxilia o preenchimento |
 | `updated_by` | opcional, id de `users` |
 | `confirm_weekly_limit` / `password` | só no POST, e só quando o limite semanal for excedido (abaixo) |
 
 **Não envie `price`, `total_hours` nem `end_date`** — são derivados no servidor e qualquer valor
-enviado é ignorado.
+enviado é ignorado. No contrato de valor fixo o valor vai em `fixed_price`, nunca em `price`.
+
+No `PUT`, **omitir `pricing_mode` mantém a forma que o contrato já tem** (e, sendo fixo, o valor):
+um bot que não conhece o campo não desfaz um valor fixo ao corrigir outro dado. Para voltar ao
+cálculo por horas, envie `pricing_mode = hourly`.
 
 Respostas: `201`/`200` · `422` validação (inclui `created_by` ausente no POST) ·
 **`409` contrato já assinado ou cancelado, ou limite semanal a confirmar** · `401` senha inválida ·
@@ -1651,3 +1746,6 @@ guardam qual coordenador do Comercial liberou e quando — sem isso a autorizaç
 - **Cálculo do período:** concentrado em `FreelancerService::minutesBetween()`,
   `crossesMidnight()` e `billedBlocks()` — a virada de dia e o arredondamento para baixo existem
   em um lugar só, reaproveitados por painel, API e validação.
+- **Valor fixo:** `FreelancerService::isFixedPrice()` / `pricingMode()` (leitura),
+  `App\Services\FreelancerService::withSchedule()` (decide o preço na criação e na edição) e
+  `ValidatesServiceSchedule::pricingRules()` (entrada). Ver a seção *Valor fixo*.

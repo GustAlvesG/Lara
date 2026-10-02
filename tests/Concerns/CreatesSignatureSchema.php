@@ -43,6 +43,7 @@ trait CreatesSignatureSchema
             '2026_10_04_100100_create_signature_layouts_table.php',
             '2026_10_05_100000_add_archive_to_signature_documents.php',
             '2026_10_06_100000_add_uploaded_pdf_to_signature_tables.php',
+            '2026_10_08_100000_add_photo_consent_to_signature_evidences.php',
         ];
 
         foreach ($migrations as $arquivo) {

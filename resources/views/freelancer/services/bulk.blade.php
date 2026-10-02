@@ -2,6 +2,8 @@
     use App\Models\FreelancerService;
 
     $blockMinutes = FreelancerService::BLOCK_MINUTES;
+    $pricingHourly = FreelancerService::PRICING_HOURLY;
+    $pricingFixed = FreelancerService::PRICING_FIXED;
 
     // Freelancer com cadastro incompleto não gera contrato: aparece na lista
     // marcado e desabilitado, como no registro individual.
@@ -26,6 +28,8 @@
         'start_date' => (string) ($row['start_date'] ?? ''),
         'start_time' => (string) ($row['start_time'] ?? ''),
         'end_time' => (string) ($row['end_time'] ?? ''),
+        'pricing_mode' => (string) ($row['pricing_mode'] ?? $pricingHourly),
+        'fixed_price' => (string) ($row['fixed_price'] ?? ''),
     ])->values();
 @endphp
 
@@ -37,7 +41,8 @@
             <div>
                 <h1 class="font-display text-2xl font-semibold tracking-tight text-ink">Registro em massa</h1>
                 <p class="text-ink-2 font-medium">
-                    Vários contratos de uma vez. Valor e horas pagas são calculados no servidor.
+                    Vários contratos de uma vez. Valor e horas pagas são calculados no servidor —
+                    a não ser na linha marcada como valor fixo, que paga o valor digitado.
                 </p>
             </div>
 
@@ -82,6 +87,8 @@
                 freelancers: {{ Js::from($freelancerOptions) }},
                 functions: {{ Js::from($functionOptions) }},
                 blockMinutes: {{ $blockMinutes }},
+                pricingHourly: @js($pricingHourly),
+                pricingFixed: @js($pricingFixed),
                 maxRows: {{ $maxRows }},
                 rows: {{ Js::from($initialRows) }},
 
@@ -101,6 +108,10 @@
                         start_date: from ? from.start_date : '',
                         start_time: from ? from.start_time : '',
                         end_time: from ? from.end_time : '',
+                        /* O valor fixo é combinado com cada pessoa: a linha nova
+                           volta ao padrão, por horas. */
+                        pricing_mode: this.pricingHourly,
+                        fixed_price: '',
                     };
                 },
                 addRow() {
@@ -129,7 +140,15 @@
                     const s = this.toMinutes(row.start_time), e = this.toMinutes(row.end_time);
                     return s !== null && e !== null && e <= s;
                 },
+                isFixed(row) {
+                    return row.pricing_mode === this.pricingFixed;
+                },
                 rowPrice(row) {
+                    /* Valor fixo: vale o digitado, as horas não entram. */
+                    if (this.isFixed(row)) {
+                        const fixed = parseFloat(row.fixed_price);
+                        return fixed > 0 ? fixed : null;
+                    }
                     const fn = this.functions.find(f => String(f.id) === String(row.function_freelancer_id));
                     const b = this.blocks(row);
                     return (!fn || b === null) ? null : fn.price * b;
@@ -173,6 +192,7 @@
                                 <th class="px-3 py-3">Data</th>
                                 <th class="px-3 py-3">Início</th>
                                 <th class="px-3 py-3">Término</th>
+                                <th class="px-3 py-3">Valor</th>
                                 <th class="px-3 py-3">Duração / Valor</th>
                                 <th class="px-3 py-3 w-10"></th>
                             </tr>
@@ -234,6 +254,22 @@
                                         </span>
                                     </td>
 
+                                    <td class="px-3 py-3">
+                                        <select :name="'services[' + i + '][pricing_mode]'" x-model="row.pricing_mode"
+                                            class="w-full min-w-[8rem] px-3 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none bg-surface text-ink">
+                                            @foreach(FreelancerService::PRICING_MODES as $mode => $label)
+                                                <option value="{{ $mode }}">{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                        {{-- Só existe na linha de valor fixo: um valor esquecido
+                                             não pode acompanhar um contrato por horas. --}}
+                                        <template x-if="isFixed(row)">
+                                            <input type="number" :name="'services[' + i + '][fixed_price]'" x-model="row.fixed_price" required
+                                                step="0.01" min="0.01" max="{{ FreelancerService::MAX_FIXED_PRICE }}" inputmode="decimal" placeholder="R$ 0,00"
+                                                class="mt-2 w-full min-w-[8rem] px-3 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none bg-surface text-ink">
+                                        </template>
+                                    </td>
+
                                     <td class="px-3 py-3 whitespace-nowrap text-ink font-semibold" x-text="rowLabel(row)"></td>
 
                                     <td class="px-3 py-3 text-right">
@@ -252,7 +288,7 @@
                         + Adicionar linha
                     </button>
                     <span class="ml-3 text-xs text-ink-3">
-                        A linha nova repete função, local, data e horários da anterior — freelancer e descrição ficam em branco.
+                        A linha nova repete função, local, data e horários da anterior — freelancer e descrição ficam em branco, e o valor volta a ser por horas.
                         Máximo de {{ $maxRows }} linhas por envio.
                     </span>
                 </div>

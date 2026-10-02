@@ -36,7 +36,16 @@ class FreelancerServiceImport extends SpreadsheetImport
             'start_time' => 'Início (HH:MM) *',
             'end_time' => 'Término (HH:MM) *',
             'description' => 'Descrição / Justificativa',
+            // Em branco, o contrato é por horas (o padrão). Preenchida, é de
+            // valor fixo — ver "Valor fixo" no model.
+            'fixed_price' => 'Valor fixo (R$)',
         ];
+    }
+
+    /** Planilha salva antes de a coluna existir segue valendo: tudo por horas. */
+    protected function optionalColumns(): array
+    {
+        return ['fixed_price'];
     }
 
     public function aliases(): array
@@ -65,6 +74,9 @@ class FreelancerServiceImport extends SpreadsheetImport
             'descricao' => 'description',
             'justificativa' => 'description',
             'description' => 'description',
+            'valor_fixo_r' => 'fixed_price',
+            'valor_fixo' => 'fixed_price',
+            'fixed_price' => 'fixed_price',
         ];
     }
 
@@ -80,6 +92,8 @@ class FreelancerServiceImport extends SpreadsheetImport
             'start_time' => '18:00',
             'end_time' => '23:00',
             'description' => 'Reforço de equipe por conta do público acima do previsto.',
+            // Em branco no exemplo: o padrão é o valor por horas.
+            'fixed_price' => '',
         ];
     }
 
@@ -112,6 +126,8 @@ class FreelancerServiceImport extends SpreadsheetImport
             'start_date' => 'data de início',
             'start_time' => 'horário de início',
             'end_time' => 'horário de término',
+            'pricing_mode' => 'forma de cálculo do valor',
+            'fixed_price' => 'valor fixo',
         ];
     }
 
@@ -150,7 +166,15 @@ class FreelancerServiceImport extends SpreadsheetImport
             );
         }
 
+        // A planilha não tem coluna para a forma de cálculo: valor fixo
+        // preenchido é contrato de valor fixo, em branco é por horas.
+        $fixedPrice = ImportValues::money((string) ($row['fixed_price'] ?? ''), 'valor fixo');
+
         return [
+            'pricing_mode' => $fixedPrice === ''
+                ? FreelancerService::PRICING_HOURLY
+                : FreelancerService::PRICING_FIXED,
+            'fixed_price' => $fixedPrice === '' ? null : $fixedPrice,
             'freelancer_id' => $freelancer->id,
             'function_freelancer_id' => $functionId,
             'location' => $row['location'] ?? '',

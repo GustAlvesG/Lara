@@ -172,6 +172,27 @@ Cada assinatura grava, na **mesma transação**: PNG do traço, traços vetoriai
 relativo), foto, IP, user agent, tempo de leitura, se a tela informou rolagem até o fim, o aceite
 e a hora do servidor.
 
+### Autorização da captura da imagem
+
+Quando o modelo pede foto, a tela de aceite do tablet tem uma **segunda caixa de marcação**,
+obrigatória para continuar, logo abaixo do "Li e concordo":
+
+> Autorizo a captura da minha imagem (foto) para anexo ao contrato. A imagem será armazenada pelo
+> Clube dos Funcionários da CSN por tempo indeterminado, sem fins comerciais, sendo utilizada
+> apenas para fins relacionados ao documento que está sendo assinado.
+
+- **O servidor confere**: foto sem a autorização é recusada (`422`), como a assinatura sem o
+  aceite dos termos. Se dependesse só do tablet, a exigência seria uma sugestão.
+- **Fica na evidência o fato e o texto**: `signature_evidences.photo_consent` e
+  `photo_consent_text`. O texto mora em `SignatureEvidence::PHOTO_CONSENT_TEXT`, e cada
+  assinatura guarda a cópia do que estava na tela — mudar a redação não reescreve as antigas.
+- **Vai ao manifesto** do documento assinado ("Autorização da captura da imagem: sim — …") e à
+  trilha (`autorizou_imagem`).
+- **Sem foto, sem caixa**: modelo que não pede foto, ou tablet sem câmera no modo sem HTTPS (a
+  foto é dispensada e declarada ausente), não mostra a autorização — não há o que autorizar.
+- Quem não autoriza não assina no tablet: o caminho é **Recusar**, e o atendente decide o que
+  fazer (um modelo sem foto, por exemplo).
+
 A tabela `signature_audit_events` é **somente inserção**, em três camadas:
 
 1. o model recusa `update` e `delete` — com exceção, não com `return false` silencioso;
@@ -612,7 +633,7 @@ sessão parada e documento não assinado.
 ## Colocando para funcionar
 
 ```bash
-php artisan migrate                                   # 15 migrations do módulo
+php artisan migrate                                   # 16 migrations do módulo
 php artisan db:seed --class=SignatureTemplateSeeder   # opcional: 3 modelos iniciais
 php artisan queue:work                                # OBRIGATÓRIO — ver abaixo
 ```

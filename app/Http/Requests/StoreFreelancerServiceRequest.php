@@ -23,11 +23,14 @@ class StoreFreelancerServiceRequest extends FormRequest
      * `total_hours`, `end_date` e `price` não são aceitos como entrada: são
      * derivados de start_time/end_time e do valor da função.
      *
+     * O contrato de valor fixo (`pricing_mode` = fixed) recebe o valor em
+     * `fixed_price` — ver `pricingRules()`.
+     *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
-        return array_merge($this->scheduleRules(), [
+        return array_merge($this->scheduleRules(), $this->pricingRules(), [
             'freelancer_id' => ['required', 'integer', 'exists:freelancers,id'],
             'function_freelancer_id' => ['required', 'integer', 'exists:function_freelancers,id'],
             'location' => ['required', 'string', 'max:255'],
@@ -47,6 +50,13 @@ class StoreFreelancerServiceRequest extends FormRequest
             'start_date' => 'data de início',
             'start_time' => 'horário de início',
             'end_time' => 'horário de término',
+            'pricing_mode' => 'forma de cálculo do valor',
+            'fixed_price' => 'valor fixo',
         ];
+    }
+
+    public function messages(): array
+    {
+        return $this->pricingMessages();
     }
 }

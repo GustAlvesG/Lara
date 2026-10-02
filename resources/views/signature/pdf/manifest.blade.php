@@ -126,6 +126,10 @@
                         Rolou o documento até o fim: {{ $evidencia->scrolled_to_end ? 'sim' : 'não' }}
                         (informado pelo navegador do tablet)<br>
                         Aceite explícito dos termos: {{ $evidencia->accepted ? 'sim' : 'não' }}<br>
+                        @if($evidencia->photo_consent)
+                            {{-- O texto é o que a pessoa leu no tablet, gravado na evidência. --}}
+                            Autorização da captura da imagem: sim — “{{ $evidencia->photo_consent_text }}”<br>
+                        @endif
                         Pontos capturados no traço: {{ $evidencia->strokePoints() }}
 
                         @if($evidencia->initials_path)
