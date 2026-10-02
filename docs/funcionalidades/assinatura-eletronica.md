@@ -172,6 +172,24 @@ Cada assinatura grava, na **mesma transação**: PNG do traço, traços vetoriai
 relativo), foto, IP, user agent, tempo de leitura, se a tela informou rolagem até o fim, o aceite
 e a hora do servidor.
 
+### Rastreio: quem gerou o documento e quem gerou o QR Code
+
+O documento assinado diz, pelo **nome**, quais usuários do sistema atuaram nele:
+
+| Quem | Onde fica gravado | Onde aparece |
+|---|---|---|
+| Quem **gerou o documento** (criou o rascunho) | `signature_documents.created_by` + `created_by_name` | Manifesto ("Documento gerado por"), tela do documento ("Gerado por"), evento `created` da trilha (`gerado_por`) |
+| Quem **gerou o QR Code** de cada signatário | `signature_requests.created_by` + `created_by_name` | Manifesto, no bloco do signatário ("QR Code gerado por … em …"), tela do documento, evento `qr_issued` / `qr_reissued` da trilha (`gerado_por`) |
+
+- **É um retrato do nome**, tirado na hora, e não uma consulta ao cadastro: o manifesto precisa
+  dizer quem atuou sem depender de o usuário existir — ou ter o mesmo nome — anos depois. O `id`
+  fica ao lado, para quem precisar chegar ao cadastro.
+- **Podem ser pessoas diferentes**: uma prepara o documento, outra atende no balcão e gera o QR.
+  E cada signatário tem o seu — num contrato de duas partes, dois QR Codes, talvez dois atendentes.
+- **O manifesto cita o QR Code pelo qual a pessoa assinou** (`SignatureSigner::signingRequest()`).
+  Os que expiraram, foram cancelados ou substituídos ficam só na trilha, cada um com quem o gerou.
+- Documentos e liberações anteriores a esse registro aparecem como "não registrado".
+
 ### Autorização da captura da imagem
 
 Quando o modelo pede foto, a tela de aceite do tablet tem uma **segunda caixa de marcação**,
@@ -633,7 +651,7 @@ sessão parada e documento não assinado.
 ## Colocando para funcionar
 
 ```bash
-php artisan migrate                                   # 16 migrations do módulo
+php artisan migrate                                   # 17 migrations do módulo
 php artisan db:seed --class=SignatureTemplateSeeder   # opcional: 3 modelos iniciais
 php artisan queue:work                                # OBRIGATÓRIO — ver abaixo
 ```

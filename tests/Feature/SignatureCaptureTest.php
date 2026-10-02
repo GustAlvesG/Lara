@@ -14,6 +14,7 @@ use App\Services\Signature\SignatureRequestService;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\CreatesSignatureSchema;
+use Tests\Concerns\MocksSignatureUser;
 use Tests\TestCase;
 
 /**
@@ -27,6 +28,7 @@ use Tests\TestCase;
 class SignatureCaptureTest extends TestCase
 {
     use CreatesSignatureSchema;
+    use MocksSignatureUser;
 
     private SignatureRequestService $requests;
 
@@ -163,6 +165,64 @@ class SignatureCaptureTest extends TestCase
         $this->comSessao($cookie)
             ->postJson(route('quiosque.identity', $documento), ['cpf' => '1234'])
             ->assertStatus(419);
+    }
+
+    public function test_documento_assinado_diz_quem_o_gerou_e_quem_gerou_o_qr_code(): void
+    {
+        $usuario = $this->usuarioComPermissoes(['assinatura.documentos']);
+        $usuario->name = 'Carla Atendente';
+
+        $modelo = $this->criaModeloDeAssinatura([
+            'identity_check' => \App\Models\SignatureTemplate::IDENTITY_NONE,
+            'requires_photo' => false,
+        ]);
+
+        // Quem cria o documento pela tela...
+        $this->actingAs($usuario)
+            ->post(route('signature-documents.store'), [
+                'signature_template_id' => $modelo->id,
+                'signers' => [['name' => 'Maria de Souza', 'cpf' => '123.456.789-09']],
+            ])
+            ->assertRedirect();
+
+        $documento = app(SignatureDocumentService::class)->freeze(SignatureDocument::latest('id')->firstOrFail());
+        $signatario = $documento->signers()->first();
+
+        $this->assertSame('Carla Atendente', $documento->created_by_name);
+
+        // ...e quem gera o QR Code — aqui, outra pessoa — ficam no documento, pelo nome.
+        $outro = $this->usuarioComPermissoes(['assinatura.documentos']);
+        $outro->name = 'Paulo do Balcão';
+
+        $this->actingAs($outro)
+            ->postJson(route('signature-documents.release', [$documento, $signatario]))
+            ->assertCreated();
+
+        $liberacao = $signatario->requests()->firstOrFail();
+
+        $this->assertSame('Paulo do Balcão', $liberacao->created_by_name);
+
+        // Na trilha, os dois eventos levam o nome.
+        $eventos = $documento->auditEvents()->get()->keyBy('event');
+
+        $this->assertSame('Carla Atendente', $eventos[SignatureAuditEvent::EVENT_CREATED]->payload['gerado_por']);
+        $this->assertSame('Paulo do Balcão', $eventos[SignatureAuditEvent::EVENT_QR_ISSUED]->payload['gerado_por']);
+
+        // Assinado por aquele QR Code, o manifesto do documento cita os dois.
+        $liberacao->forceFill(['status' => SignatureRequest::STATUS_COMPLETED])->save();
+
+        $manifesto = app(\App\Services\Signature\SignatureDocumentRenderer::class)
+            ->html($documento->fresh(), \App\Services\Signature\SignatureDocumentRenderer::MODE_FINAL);
+
+        $this->assertStringContainsString('Documento gerado por: Carla Atendente', $manifesto);
+        $this->assertStringContainsString('QR Code gerado por: Paulo do Balcão', $manifesto);
+
+        // E a tela do documento também.
+        $this->actingAs($usuario)
+            ->get(route('signature-documents.show', $documento))
+            ->assertOk()
+            ->assertSee('Carla Atendente')
+            ->assertSee('QR Code gerado por Paulo do Balcão');
     }
 
     public function test_foto_so_entra_com_a_autorizacao_de_quem_assina(): void

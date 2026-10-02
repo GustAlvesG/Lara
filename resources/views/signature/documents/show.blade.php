@@ -81,6 +81,12 @@
                         }">{{ $document->statusLabel() }}</x-pill>
                     </div>
 
+                    {{-- Rastreio: quem, no sistema, gerou este documento. O QR Code de cada pessoa tem o seu, na lista de signatários. --}}
+                    <p class="text-xs text-ink-2 mb-3">
+                        <span class="font-bold">Gerado por:</span> {{ $document->created_by_name ?? 'não registrado' }}
+                        @if($document->created_at) em {{ $document->created_at->format('d/m/Y H:i') }} @endif
+                    </p>
+
                     @if($document->isFrozen())
                         <div class="rounded-xl bg-subtle p-4 text-xs text-ink-2 space-y-1 mb-5">
                             <div><span class="font-bold">Congelado em:</span> {{ $document->frozen_at?->format('d/m/Y H:i:s') }}</div>
@@ -228,6 +234,15 @@
                                 @if($signer->signed_at)
                                     <div class="mt-2 text-[11px] text-ink-2">
                                         Assinou em {{ $signer->signed_at->format('d/m/Y H:i:s') }}
+                                    </div>
+                                @endif
+
+                                {{-- O QR Code pelo qual a pessoa assinou; sem assinatura, o último gerado. --}}
+                                @php $liberacao = $signer->signingRequest() ?? $signer->requests->first(); @endphp
+                                @if($liberacao)
+                                    <div class="mt-1 text-[11px] text-ink-2">
+                                        QR Code gerado por {{ $liberacao->created_by_name ?? 'não registrado' }}
+                                        em {{ $liberacao->created_at?->format('d/m/Y H:i:s') }}
                                     </div>
                                 @endif
 
