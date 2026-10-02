@@ -39,7 +39,8 @@ class FreelancerServiceController extends Controller
     }
 
     /**
-     * Registra um serviço. O preço é calculado no servidor (por bloco de 15min).
+     * Registra um serviço. O preço é calculado no servidor (por bloco de 15min),
+     * a menos que venha `pricing_mode` = fixed com o valor em `fixed_price`.
      *
      * `created_by` é obrigatório aqui: é o login que auxiliou o preenchimento.
      * Passando do limite semanal recomendado, o cadastro só é gravado com
@@ -167,6 +168,8 @@ class FreelancerServiceController extends Controller
             'duration_minutes' => $service->durationInMinutes(),
             'total_hours' => $service->total_hours,
             'price' => $service->price,
+            // `hourly` (calculado pelas horas) ou `fixed` (valor digitado).
+            'pricing_mode' => $service->pricingMode(),
             'status_id' => $service->status_id,
             'status' => $service->status?->status,
             'freelancer_signed_at' => $service->freelancer_signed_at?->toDateTimeString(),

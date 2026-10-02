@@ -43,6 +43,16 @@ abstract class SpreadsheetImport
     /** Grava uma linha validada. */
     abstract protected function persist(array $data);
 
+    /**
+     * Colunas de columns() que a planilha pode não trazer. O modelo baixado as
+     * tem; a planilha salva antes de a coluna existir continua sendo aceita, e
+     * a coluna ausente é lida como vazia.
+     */
+    protected function optionalColumns(): array
+    {
+        return [];
+    }
+
     /** Nomes amigáveis dos campos nas mensagens de erro. */
     protected function attributes(): array
     {
@@ -183,6 +193,7 @@ abstract class SpreadsheetImport
     /**
      * Toda coluna do modelo precisa estar presente — uma coluna faltando
      * viraria um campo vazio em todas as linhas, com erro repetido e confuso.
+     * As de optionalColumns() são a exceção: vazias, elas não geram erro.
      *
      * @throws SpreadsheetImportException
      */
@@ -191,6 +202,10 @@ abstract class SpreadsheetImport
         $missing = [];
 
         foreach ($this->columns() as $field => $label) {
+            if (in_array($field, $this->optionalColumns(), true)) {
+                continue;
+            }
+
             if (!in_array($field, $fields, true)) {
                 $missing[] = $label;
             }

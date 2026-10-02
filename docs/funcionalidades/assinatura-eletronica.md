@@ -78,6 +78,13 @@ valor também é guardado só como hash. Três razões:
 
 ## Fluxo do atendente
 
+O **título** de um documento novo é, por padrão, "Modelo - Primeiro signatário"
+(`SignatureDocumentService::titleFor`): numa lista de vinte documentos do mesmo modelo, o título
+igual em todos não distingue nenhum. Vale enquanto o atendente não escrever outro — título em
+branco ou igual ao nome do modelo, que é como o formulário o traz. Título digitado é respeitado;
+documento enviado pronto fica de fora (ali o título é sempre digitado); e na correção do rascunho
+o título não é refeito.
+
 1. **Escolher o modelo** → informar os signatários, buscando o associado por nome, título ou CPF
    (ou digitando um visitante) → preencher os dados do modelo.
 
@@ -164,6 +171,27 @@ Tela de espera → leitura do QR → formulário, se o modelo pergunta algo a qu
 Cada assinatura grava, na **mesma transação**: PNG do traço, traços vetoriais (pontos com tempo
 relativo), foto, IP, user agent, tempo de leitura, se a tela informou rolagem até o fim, o aceite
 e a hora do servidor.
+
+### Autorização da captura da imagem
+
+Quando o modelo pede foto, a tela de aceite do tablet tem uma **segunda caixa de marcação**,
+obrigatória para continuar, logo abaixo do "Li e concordo":
+
+> Autorizo a captura da minha imagem (foto) para anexo ao contrato. A imagem será armazenada pelo
+> Clube dos Funcionários da CSN por tempo indeterminado, sem fins comerciais, sendo utilizada
+> apenas para fins relacionados ao documento que está sendo assinado.
+
+- **O servidor confere**: foto sem a autorização é recusada (`422`), como a assinatura sem o
+  aceite dos termos. Se dependesse só do tablet, a exigência seria uma sugestão.
+- **Fica na evidência o fato e o texto**: `signature_evidences.photo_consent` e
+  `photo_consent_text`. O texto mora em `SignatureEvidence::PHOTO_CONSENT_TEXT`, e cada
+  assinatura guarda a cópia do que estava na tela — mudar a redação não reescreve as antigas.
+- **Vai ao manifesto** do documento assinado ("Autorização da captura da imagem: sim — …") e à
+  trilha (`autorizou_imagem`).
+- **Sem foto, sem caixa**: modelo que não pede foto, ou tablet sem câmera no modo sem HTTPS (a
+  foto é dispensada e declarada ausente), não mostra a autorização — não há o que autorizar.
+- Quem não autoriza não assina no tablet: o caminho é **Recusar**, e o atendente decide o que
+  fazer (um modelo sem foto, por exemplo).
 
 A tabela `signature_audit_events` é **somente inserção**, em três camadas:
 
@@ -277,19 +305,41 @@ quem procura um documento sem abrir o sistema:
 
 ```
 Lara/DocumentosAssinados/
-  Contrato de Locacao de Espaco para Evento/      ← o modelo
-    2026/                                         ← ano da assinatura
-      10 - Outubro/                               ← mês, com o número na frente para ordenar
-        2026-10-03 - Maria de Souza e Joao Pereira - 6W5YTTTJGRCU.pdf
+  Contrato de Locacao de Espaco para Evento/      ← tipo: o modelo
+    Maria de Souza/                               ← pessoa: o primeiro signatário
+      2026-10-03 - Maria de Souza e Joao Pereira - 6W5YTTTJGRCU.pdf
+  Documentos avulsos/                             ← os enviados prontos, em PDF
+    Empresa X/
+      2026-10-03 - Contrato de patrocinio - Empresa X - 8KQ2M4.pdf
+  Freelancers/                                    ← contratos de freelancer (ver freelancers.md)
+    Joao Antonio da Conceicao/
+      2026-10-03 - Contrato - C1234.pdf
+      2026-10-03 - Termo aditivo - C1240.pdf
 ```
 
-- **Modelo primeiro**: é a pergunta que vem antes ("cadê os contratos de locação?"), e é por
-  modelo que o prazo de guarda é definido.
-- **Nome do arquivo**: data, quem assinou (os dois primeiros; "e mais N" quando há mais) e o
-  **código de validação** — que torna o nome único e liga o arquivo à página `/validar/{código}`
-  e ao registro no sistema. CPF não entra em nome de arquivo.
+A organização é **tipo → pessoa**, a mesma para os documentos do balcão e para os contratos de
+freelancer. As regras de nome moram num lugar só, `App\Support\ArchivePath`:
+
+- **Tipo primeiro**: é a pergunta que vem antes ("cadê os contratos de locação?"). Documento
+  enviado pronto não tem modelo, então todos ficam em **Documentos avulsos** — e, como ali a
+  pasta não diz o que o documento é, o **título** entra no nome do arquivo.
+- **Pessoa**: o **primeiro signatário**, que é de quem o documento trata. Tudo o que uma pessoa
+  assinou de um tipo fica junto.
+- **Data da assinatura** abrindo o nome do arquivo, em ano-mês-dia: dentro da pasta, os
+  documentos ficam em ordem de data sozinhos.
+- **Quantidade de signatários**, nos nomes: um, o nome; dois, os dois; três ou mais, os dois
+  primeiros e "e mais N".
+- **Código de validação** no fim — torna o nome único e liga o arquivo à página
+  `/validar/{código}` e ao registro no sistema.
+- **CPF não entra** em nome de pasta nem de arquivo. O preço: duas pessoas de nome idêntico
+  dividem a mesma pasta (os arquivos não se confundem, por causa do código).
 - **Sem acento** e sem os caracteres que Windows e FTP recusam: servidor FTP antigo troca "ç" por
   lixo, e pasta com nome quebrado ninguém acha.
+
+> A organização anterior era modelo → ano → mês. Documento arquivado antes da mudança **fica
+> onde está** (o `archive_path` dele continua apontando para lá); só os novos seguem a regra
+> nova. Para refazer um antigo no lugar novo: limpe o `archived_at` dele e rode
+> `php artisan signature:archive` — a cópia antiga precisa ser apagada à mão.
 
 O arquivo de verdade continua no disco privado do módulo — é dele o `final_sha256`, e é dele que
 o painel baixa. O FTP é cópia, e por isso é conferida: o que sai tem de bater com o hash gravado,
@@ -320,6 +370,10 @@ php artisan signature:archive            # envia os já finalizados
 
 O disco é o `signature_archive` (`config/filesystems.php`), que por padrão usa o mesmo servidor
 e a mesma conta das variáveis `FTP_*`; as `SIGNATURE_FTP_*` só são necessárias se for outro.
+
+Os **contratos de freelancer** usam o mesmo disco e a mesma pasta-raiz, com chave própria para
+ligar (`FREELANCER_ARCHIVE_ENABLED`) e comando próprio (`freelancers:archive`) — ver
+[Freelancers](freelancers.md#arquivo-no-servidor-de-arquivos-ftp).
 
 > FTP comum trafega sem criptografia, e esses PDFs têm nome, CPF mascarado e assinatura. Se o
 > servidor aceitar FTPS, ligue `SIGNATURE_FTP_SSL=true`.
@@ -579,7 +633,7 @@ sessão parada e documento não assinado.
 ## Colocando para funcionar
 
 ```bash
-php artisan migrate                                   # 15 migrations do módulo
+php artisan migrate                                   # 16 migrations do módulo
 php artisan db:seed --class=SignatureTemplateSeeder   # opcional: 3 modelos iniciais
 php artisan queue:work                                # OBRIGATÓRIO — ver abaixo
 ```

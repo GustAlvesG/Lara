@@ -610,7 +610,9 @@
             <td><b>4. Identidade</b>Digita os quatro primeiros dígitos do CPF (ou o CPF completo).</td>
         </tr>
         <tr>
-            <td><b>5. Aceite</b>Marca "Li e concordo" e, se quiser, pede a via por e-mail.</td>
+            <td><b>5. Aceite</b>Marca "Li e concordo" e, quando o modelo pede foto, marca também que
+                <b>autoriza a captura da imagem</b> — sem as duas marcações o tablet não segue. Se quiser, pede a
+                via por e-mail.</td>
             <td><b>6. Assinatura</b>Assina com o dedo ou a caneta. <i>Limpar</i> apaga e deixa refazer.</td>
             <td><span class="opt">se o modelo pedir</span><b>7. Visto</b>"Agora faça o seu visto": a rubrica que vai em todas as páginas.</td>
             <td><span class="opt">se o modelo pedir</span><b>8. Foto</b>O tablet conta 3 segundos e fotografa. Depois: "Assinatura concluída".</td>
@@ -668,10 +670,13 @@
         <tr>
             <td><b>Pasta de rede</b><br><span class="small">(se o arquivamento estiver ligado)</span></td>
             <td>Uma cópia de cada PDF assinado é guardada no servidor de arquivos, em<br>
-                <code>Lara/DocumentosAssinados</code> → pasta do <b>modelo</b> → <b>ano</b> → <b>mês</b>.<br>
+                <code>Lara/DocumentosAssinados</code> → pasta do <b>modelo</b> → pasta da <b>pessoa</b> (o primeiro
+                signatário).<br>
                 O arquivo se chama, por exemplo:<br>
                 <span class="small">2026-10-03 - Maria de Souza e Joao Pereira - 6W5YTTTJGRCU.pdf</span><br>
-                (data, quem assinou e código de validação), sem acentos. A pasta é uma <b>cópia</b>: renomear ou
+                (data da assinatura, quem assinou e código de validação), sem acentos. Com três ou mais pessoas,
+                aparecem as duas primeiras e “e mais N”. Documento enviado pronto, em PDF, fica na pasta
+                <b>Documentos avulsos</b>, com o título no nome do arquivo. A pasta é uma <b>cópia</b>: renomear ou
                 apagar um arquivo ali não muda nada no sistema.</td>
         </tr>
         <tr>

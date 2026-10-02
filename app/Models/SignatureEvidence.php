@@ -42,6 +42,15 @@ class SignatureEvidence extends Model
         self::PHOTO_SKIP_NO_CAMERA => 'Câmera indisponível no dispositivo (conexão sem HTTPS)',
     ];
 
+    /**
+     * O que a pessoa lê e marca no tablet para autorizar a foto. É gravado na
+     * evidência de cada assinatura (`photo_consent_text`): se a redação mudar
+     * aqui, as assinaturas antigas continuam com o texto que foi lido.
+     */
+    public const PHOTO_CONSENT_TEXT = 'Autorizo a captura da minha imagem (foto) para anexo ao contrato. '
+        . 'A imagem será armazenada pelo Clube dos Funcionários da CSN por tempo indeterminado, sem fins '
+        . 'comerciais, sendo utilizada apenas para fins relacionados ao documento que está sendo assinado.';
+
     protected $fillable = [
         'signature_signer_id',
         'signature_path',
@@ -50,6 +59,8 @@ class SignatureEvidence extends Model
         'strokes',
         'photo_path',
         'photo_skipped_reason',
+        'photo_consent',
+        'photo_consent_text',
         'ip',
         'user_agent',
         'read_seconds',
@@ -66,6 +77,7 @@ class SignatureEvidence extends Model
         'read_seconds' => 'integer',
         'scrolled_to_end' => 'boolean',
         'accepted' => 'boolean',
+        'photo_consent' => 'boolean',
         'viewport' => 'array',
         'server_signed_at' => 'datetime',
     ];

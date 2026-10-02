@@ -137,7 +137,7 @@ class FreelancerService
     {
         $this->assertUpdatable($service);
 
-        $data = $this->withSchedule($this->withoutEmptyStatus($data));
+        $data = $this->withSchedule($this->withoutEmptyStatus($data), $service);
         $data['updated_by'] = $this->actorId($data, 'updated_by');
 
         $service->update($data);
@@ -154,6 +154,9 @@ class FreelancerService
      * mudando só horário de início, horário de término e local. Preço, horas e
      * data de término são recalculados pelo mesmo caminho de um contrato comum
      * — o aditivo vale pelo turno INTEIRO, não pela diferença.
+     *
+     * A exceção é o contrato de VALOR FIXO: o aditivo herda a forma e o valor
+     * do base. Se o valor não depende das horas, mudar o horário não o altera.
      *
      * Por isso o base é marcado como aditivado na mesma transação: os dois
      * documentos existem e os dois são assinados, mas só o aditivo é pago.
@@ -179,6 +182,8 @@ class FreelancerService
                 'location' => $data['location'],
                 'start_time' => $data['start_time'],
                 'end_time' => $data['end_time'],
+                'pricing_mode' => $base->pricingMode(),
+                'fixed_price' => $base->isFixedPrice() ? $base->price : null,
                 'created_by' => $actorId,
             ]);
 
@@ -319,8 +324,18 @@ class FreelancerService
     /**
      * Deriva os campos que não são digitados: total de horas pagas, data de
      * término (start_date, ou +1 dia quando o turno vira a meia-noite) e preço.
+     *
+     * O preço sai das horas, a menos que o contrato seja de VALOR FIXO
+     * (`pricing_mode` = fixed): aí vale o `fixed_price` digitado. `total_hours`
+     * continua sendo o do turno nos dois casos — no valor fixo ele registra a
+     * duração, e não o que se paga.
+     *
+     * `$current` é o contrato em edição. Quem edita sem dizer a forma (o `PUT`
+     * do bot, que não conhece o campo) mantém a que o contrato já tem: sem
+     * isso, corrigir o local de um contrato de valor fixo o recalcularia pelas
+     * horas em silêncio.
      */
-    private function withSchedule(array $data): array
+    private function withSchedule(array $data, ?FreelancerServiceModel $current = null): array
     {
         $blocks = FreelancerServiceModel::billedBlocks($data['start_time'], $data['end_time']);
         $crossesMidnight = FreelancerServiceModel::crossesMidnight($data['start_time'], $data['end_time']);
@@ -329,13 +344,58 @@ class FreelancerService
         $data['end_date'] = Carbon::parse($data['start_date'])
             ->addDays($crossesMidnight ? 1 : 0)
             ->toDateString();
-        $data['price'] = $this->calculatePrice(
-            $data['function_freelancer_id'],
-            $data['start_time'],
-            $data['end_time']
-        );
+
+        $mode = $data['pricing_mode'] ?? $current?->pricingMode() ?? FreelancerServiceModel::PRICING_HOURLY;
+        $fixedPrice = $data['fixed_price'] ?? null;
+
+        // `fixed_price` é só entrada: o valor mora em `price`, como o calculado.
+        unset($data['fixed_price']);
+
+        if ($mode !== FreelancerServiceModel::PRICING_FIXED) {
+            $data['pricing_mode'] = FreelancerServiceModel::PRICING_HOURLY;
+            $data['price'] = $this->calculatePrice(
+                $data['function_freelancer_id'],
+                $data['start_time'],
+                $data['end_time']
+            );
+
+            return $data;
+        }
+
+        // Edição que mantém a forma sem redigitar o valor: fica o que já estava.
+        if ($fixedPrice === null && $current?->isFixedPrice()) {
+            $fixedPrice = $current->price;
+        }
+
+        $data['pricing_mode'] = FreelancerServiceModel::PRICING_FIXED;
+        $data['price'] = $this->fixedPriceOrFail($fixedPrice);
 
         return $data;
+    }
+
+    /**
+     * O valor fixo, conferido. As telas já validam pelo FormRequest; a trava
+     * mora também aqui porque é daqui que sai o valor que vai ao documento e ao
+     * Pix, e nem todo caminho passa por um formulário.
+     */
+    private function fixedPriceOrFail($value): float
+    {
+        $price = is_numeric($value) ? round((float) $value, 2) : 0.0;
+
+        if ($price <= 0) {
+            throw ValidationException::withMessages([
+                'fixed_price' => 'Informe o valor fixo do contrato.',
+            ]);
+        }
+
+        if ($price > FreelancerServiceModel::MAX_FIXED_PRICE) {
+            throw ValidationException::withMessages([
+                'fixed_price' => 'O valor fixo não pode passar de R$ '
+                    . number_format(FreelancerServiceModel::MAX_FIXED_PRICE, 2, ',', '.') . '.',
+            ]);
+        }
+
+        return $price;
     }
 
     /* ---------------------------------------------------------------------

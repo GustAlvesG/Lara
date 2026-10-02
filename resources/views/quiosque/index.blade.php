@@ -43,6 +43,9 @@
     codigoManual: {{ config('signature.manual_code.enabled') ? 'true' : 'false' }},
     podePularFoto: {{ config('signature.evidence.skip_photo_without_camera') ? 'true' : 'false' }},
     motivoSemCamera: @json(\App\Models\SignatureEvidence::PHOTO_SKIP_NO_CAMERA),
+    // O texto da autorização da foto. Vem do servidor porque é o MESMO que a
+    // evidência grava — e o corpo desta página não passa pelo Blade.
+    textoAutorizacaoFoto: @json(\App\Models\SignatureEvidence::PHOTO_CONSENT_TEXT),
   };</script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
@@ -287,15 +290,21 @@
           <span>Li e concordo com os termos deste documento.</span>
         </label>
 
+        <!-- Autorização da foto: obrigatória para continuar quando o modelo pede foto e o tablet tem câmera.
+             O texto é posto pelo script, a partir de CFG.textoAutorizacaoFoto. -->
+        <label class="accept hidden" id="fotoBox" style="margin-top:14px;">
+          <input type="checkbox" id="fotoCheck">
+          <span id="fotoTexto"></span>
+        </label>
+
         <label class="accept hidden" id="viaBox" style="margin-top:14px;">
           <input type="checkbox" id="viaCheck">
           <span>Quero receber uma via assinada no meu e-mail cadastrado.</span>
         </label>
 
         <div class="note note-info" id="avisoFoto" style="margin-top:18px;">
-          Ao confirmar a assinatura, sua foto será registrada pela câmera frontal do tablet,
-          junto com data, hora e local do atendimento. Esses dados ficam guardados como prova
-          da assinatura e não são usados para outra finalidade.
+          Ao confirmar a assinatura, a foto é tirada pela câmera frontal do tablet e registrada
+          junto com data, hora e local do atendimento, como prova da assinatura.
         </div>
       </div>
       <div class="foot">
@@ -424,6 +433,7 @@
       // Motivo de não haver foto, quando o modelo a exigia. Ver a etapa da foto.
       semFoto: null,
       aceitou: false,
+      autorizouImagem: false,
       querVia: false,
       sessao: { restante: 0, aviso: 60 },
     };
@@ -731,7 +741,9 @@
     $('#sigNome').textContent = S.signatario.name;
     $('#relogio').classList.remove('hidden');
 
-    $('#avisoFoto').classList.toggle('hidden', !S.regras.requires_photo);
+    // A foto, o aviso dela e a autorização andam juntos: sem foto, nada a autorizar.
+    $('#avisoFoto').classList.toggle('hidden', !vaiTirarFoto());
+    $('#fotoBox').classList.toggle('hidden', !vaiTirarFoto());
 
     // A via por e-mail só é oferecida a quem tem e-mail cadastrado. O tablet
     // sabe SE existe, nunca QUAL é.
@@ -1039,6 +1051,9 @@
     $('#viaCheck').checked = false;
     $('#viaBox').classList.remove('on');
     $('#viaBox').classList.add('hidden');
+    $('#fotoCheck').checked = false;
+    $('#fotoBox').classList.remove('on');
+    $('#fotoBox').classList.add('hidden');
     $('#btnAceite').disabled = true;
     $('#btnIdentidade').disabled = true;
     $('#btnLido').disabled = true;
@@ -1334,16 +1349,34 @@
    | Aceite
    |---------------------------------------------------------------------*/
 
-  $('#aceiteCheck').addEventListener('change', function () {
-    var marcado = $('#aceiteCheck').checked;
+  /*
+   * Vai haver foto nesta assinatura? O modelo pede e o tablet tem câmera — ou
+   * não tem e o ambiente não permite seguir sem ela (aí a etapa da foto é que
+   * barra). Sem câmera e com a dispensa ligada, não há foto nem o que autorizar.
+   */
+  function vaiTirarFoto() {
+    return !!S && S.regras.requires_photo && !(!temCamera() && CFG.podePularFoto);
+  }
 
-    $('#aceiteBox').classList.toggle('on', marcado);
-    $('#btnAceite').disabled = !marcado;
+  // "Continuar" pede o aceite dos termos e, havendo foto, a autorização dela.
+  function atualizaAceite() {
+    var aceitou = $('#aceiteCheck').checked;
+    var autorizou = $('#fotoCheck').checked;
+
+    $('#aceiteBox').classList.toggle('on', aceitou);
+    $('#fotoBox').classList.toggle('on', autorizou);
+    $('#btnAceite').disabled = !(aceitou && (!vaiTirarFoto() || autorizou));
 
     if (S) {
-      S.aceitou = marcado;
+      S.aceitou = aceitou;
+      S.autorizouImagem = autorizou;
     }
-  });
+  }
+
+  $('#fotoTexto').textContent = CFG.textoAutorizacaoFoto;
+
+  $('#aceiteCheck').addEventListener('change', atualizaAceite);
+  $('#fotoCheck').addEventListener('change', atualizaAceite);
 
   $('#viaCheck').addEventListener('change', function () {
     var marcado = $('#viaCheck').checked;
@@ -1662,6 +1695,7 @@
       initials_strokes: S.vistoPng ? S.tracosVisto : null,
       photo: S.fotoJpeg,
       photo_skipped_reason: S.semFoto,
+      photo_consent: S.autorizouImagem,
       accepted: true,
       wants_copy: S.querVia,
       read_seconds: S.leitura.segundos,

@@ -29,6 +29,7 @@
              da máquina o ligue: a suíte não pode gravar na pasta de produção.
              Os testes do arquivamento ligam por config(), com o disco falso. -->
         <env name="SIGNATURE_ARCHIVE_ENABLED" value="false"/>
+        <env name="FREELANCER_ARCHIVE_ENABLED" value="false"/>
         <env name="SIGNATURE_SKIP_PHOTO_WITHOUT_CAMERA" value="false"/>
         <!--
             NÃO COMENTE ESTAS DUAS LINHAS.

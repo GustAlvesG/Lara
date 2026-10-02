@@ -113,6 +113,7 @@ class SignatureCaptureService
      *     signature: string,
      *     strokes?: array<mixed>|null,
      *     photo?: string|null,
+     *     photo_consent?: bool,
      *     accepted: bool,
      *     wants_copy?: bool,
      *     read_seconds?: int|null,
@@ -213,6 +214,19 @@ class SignatureCaptureService
                 // como AUSENTE, com o motivo — nunca silenciada.
                 $motivoSemFoto = $this->photoSkipReason($payload['photo_skipped_reason'] ?? null);
             } else {
+                /*
+                 | A foto só entra com a autorização de quem aparece nela,
+                 | marcada na tela de aceite. Conferida aqui pelo mesmo motivo
+                 | do aceite dos termos: se dependesse do tablet, seria uma
+                 | sugestão. Sem câmera não há foto, e não há o que autorizar.
+                 */
+                if (!($payload['photo_consent'] ?? false)) {
+                    throw new SignatureSessionException(
+                        'É preciso autorizar a captura da imagem para assinar.',
+                        422,
+                    );
+                }
+
                 $foto = $this->decodeImage(
                     $payload['photo'],
                     ['jpeg', 'png'],
@@ -272,6 +286,10 @@ class SignatureCaptureService
                     'strokes' => $tracos,
                     'photo_path' => $caminhoFoto,
                     'photo_skipped_reason' => $motivoSemFoto,
+                    // A autorização vale para a foto que foi guardada — e o
+                    // texto é o que estava na tela, não o de hoje.
+                    'photo_consent' => $caminhoFoto !== null,
+                    'photo_consent_text' => $caminhoFoto !== null ? SignatureEvidence::PHOTO_CONSENT_TEXT : null,
                     'ip' => $context['ip'] ?? null,
                     'user_agent' => isset($context['user_agent'])
                         ? mb_substr((string) $context['user_agent'], 0, 255)
@@ -305,6 +323,7 @@ class SignatureCaptureService
                             'segundos_de_leitura' => $payload['read_seconds'] ?? null,
                             'rolou_ate_o_fim' => (bool) ($payload['scrolled_to_end'] ?? false),
                             'com_foto' => $caminhoFoto !== null,
+                            'autorizou_imagem' => $caminhoFoto !== null,
                             'com_visto' => $caminhoVisto !== null,
                             'foto_ausente' => $motivoSemFoto,
                         ],

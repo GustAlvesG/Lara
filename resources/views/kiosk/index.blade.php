@@ -14,6 +14,8 @@
     // constante do model porque o script roda em bloco literal (sem Blade), e
     // um 10 digitado à mão aqui divergiria em silêncio da regra do servidor.
     salesReasonMin: {{ \App\Models\FreelancerService::SALES_ADJUSTMENT_REASON_MIN }},
+    // Teto do valor fixo do contrato — o mesmo que o servidor confere.
+    maxFixedPrice: {{ \App\Models\FreelancerService::MAX_FIXED_PRICE }},
   };</script>
 @verbatim
   <style>
@@ -552,7 +554,7 @@
     <!-- ===== NOVO CONTRATO ===== -->
     <section class="screen" id="s-novo">
       <div class="screen-body">
-        <div class="steps" id="novoSteps"><i class="done"></i><i></i><i></i><i></i><i></i></div>
+        <div class="steps" id="novoSteps"><i class="done"></i><i></i><i></i><i></i><i></i><i></i></div>
         <div class="nstep" data-step="0">
           <h2 class="title">Quando o turno começou?</h2>
           <p class="subtitle">Dia em que o serviço teve início</p>
@@ -586,6 +588,16 @@
           <label class="subtitle" style="display:block;margin-top:22px">Descrição / justificativa <span style="opacity:.6">(opcional)</span></label>
           <textarea class="txt-input" id="descInput" rows="3" maxlength="2000" placeholder="Esclarecimentos sobre o serviço. Não vai ao contrato." style="margin-top:8px;resize:none" autocomplete="off"></textarea>
         </div>
+        <div class="nstep" data-step="5" style="display:none">
+          <h2 class="title">Valor do contrato</h2>
+          <p class="subtitle">O padrão é por horas, calculado pela função e pelo período</p>
+          <div class="chipset" id="pricingModes" style="margin-top:20px;flex-direction:column"></div>
+          <div id="fixedBox" style="display:none">
+            <div class="display" style="margin-top:20px"><div class="val placeholder" id="fixedVal">R$ 0,00</div></div>
+            <div class="hint" id="fixedHint" style="text-align:center;color:var(--brand);font-size:13px;min-height:18px">&nbsp;</div>
+            <div class="keypad" id="fixedKeypad"></div>
+          </div>
+        </div>
       </div>
       <div class="screen-foot">
         <button class="btn btn-primary" id="novoNext" disabled>Continuar</button>
@@ -598,7 +610,7 @@
       <div class="screen-body">
         <p class="eyebrow">Confira antes de gravar</p>
         <h2 class="title">Prévia do contrato</h2>
-        <p class="subtitle">Valor e término calculados pelo servidor</p>
+        <p class="subtitle">Término calculado pelo servidor; o valor também, salvo no contrato de valor fixo</p>
         <div class="receipt" id="previaReceipt" style="margin-top:18px"></div>
         <div id="previaWarn"></div>
       </div>
@@ -1266,7 +1278,8 @@
   /* ---------- Novo contrato ---------- */
   let nstep=0;
   async function startNovo(){
-    S.draft={ day:null, dayIso:'', start:'', end:'', fn:null, loc:'', description:'' };
+    // `pricing`: por horas (padrão) ou valor fixo, digitado em centavos.
+    S.draft={ day:null, dayIso:'', start:'', end:'', fn:null, loc:'', description:'', pricing:'hourly', fixedCents:0 };
     if(!S.functions.length){ try{ const r=await api('GET','/kiosk/functions'); if(r.ok) S.functions=r.data; }catch(e){ if(e.handled) return; } }
     nstep=0; showStep(); go('s-novo');
   }
@@ -1274,7 +1287,7 @@
     $$('#s-novo .nstep').forEach(el=> el.style.display=(+el.dataset.step===nstep)?'block':'none');
     $$('#novoSteps i').forEach((el,i)=> el.classList.toggle('done', i<=nstep));
     $('#novoBack').textContent = nstep===0?'Cancelar':'Voltar';
-    $('#novoNext').textContent = nstep===4?'Ver prévia':'Continuar';
+    $('#novoNext').textContent = nstep===5?'Ver prévia':'Continuar';
     validateStep();
   }
   function validateStep(){ const d=S.draft; let ok=false;
@@ -1283,6 +1296,7 @@
     if(nstep===2) ok=validTime(d.end);
     if(nstep===3) ok=!!d.fn;
     if(nstep===4) ok=d.loc.trim().length>1;
+    if(nstep===5) ok= d.pricing!=='fixed' || (d.fixedCents>0 && d.fixedCents/100<=MAX_FIXED_PRICE);
     $('#novoNext').disabled=!ok;
   }
   $$('#s-novo [data-day]').forEach(b=> b.addEventListener('click', ()=>{
@@ -1315,8 +1329,39 @@
   $('#locInput').addEventListener('input', ()=>{ S.draft.loc=$('#locInput').value; validateStep(); });
   $('#descInput').addEventListener('input', ()=>{ S.draft.description=$('#descInput').value; });
 
+  /* Valor do contrato: por horas é o padrão; o valor fixo é digitado aqui e
+     substitui a conta das horas. O servidor confere os dois casos. */
+  const MAX_FIXED_PRICE = KIOSK.maxFixedPrice || 100000;
+  const PRICING_MODES = {
+    hourly: { label:'Por horas (padrão)', hint:'Blocos de 15 min × valor da função' },
+    fixed:  { label:'Valor fixo',         hint:'Valor digitado, qualquer que seja a duração' }
+  };
+  function renderPricing(){
+    const d=S.draft, host=$('#pricingModes'); host.innerHTML='';
+    Object.keys(PRICING_MODES).forEach(k=>{
+      const m=PRICING_MODES[k];
+      const b=document.createElement('button');
+      b.className='opt fn-opt'+(d.pricing===k?' sel':'');
+      b.style.flexDirection='column'; b.style.alignItems='flex-start'; b.style.gap='4px'; b.style.padding='16px';
+      b.innerHTML=`<span>${m.label}</span><span class="price" style="font-size:12.5px">${m.hint}</span>`;
+      b.addEventListener('click', ()=>{ d.pricing=k; renderPricing(); });
+      host.appendChild(b);
+    });
+    $('#fixedBox').style.display = d.pricing==='fixed' ? 'block' : 'none';
+    const el=$('#fixedVal');
+    el.textContent=brl(d.fixedCents/100);
+    el.classList.toggle('placeholder', d.fixedCents===0);
+    $('#fixedHint').innerHTML = d.fixedCents/100>MAX_FIXED_PRICE
+      ? 'Valor acima do limite aceito. Confira o que foi digitado.' : '&nbsp;';
+    validateStep();
+  }
+  /* Mesmo teclado de dinheiro da comissão: os dígitos entram pelos centavos. */
+  buildKeypad($('#fixedKeypad'),
+    d=>{ if(String(S.draft.fixedCents).length<9){ S.draft.fixedCents=S.draft.fixedCents*10+Number(d); renderPricing(); } },
+    ()=>{ S.draft.fixedCents=Math.floor(S.draft.fixedCents/10); renderPricing(); });
+
   $('#novoNext').addEventListener('click', ()=>{
-    if(nstep<4){ nstep++; if(nstep===3) renderFnList(); if(nstep===4){ $('#locInput').value=S.draft.loc||''; $('#descInput').value=S.draft.description||''; } showStep(); }
+    if(nstep<5){ nstep++; if(nstep===3) renderFnList(); if(nstep===4){ $('#locInput').value=S.draft.loc||''; $('#descInput').value=S.draft.description||''; } if(nstep===5) renderPricing(); showStep(); }
     else showPrevia();
   });
   $('#novoBack').addEventListener('click', ()=>{ if(nstep===0) go('s-menu'); else { nstep--; showStep(); } });
@@ -1325,22 +1370,31 @@
   function rrow(k,v){ return `<div class="rrow"><span class="k">${k}</span><span class="v">${v}</span></div>`; }
   function showPrevia(){
     const d=S.draft, r=calc(d.start,d.end,d.fn.price);
+    const fixed = d.pricing==='fixed';
     const endIso = r.crosses ? nextDayIso(d.dayIso) : d.dayIso;
     let h=`<div class="head"><div class="fn">${esc(d.fn.name)}</div><div class="fl">${esc(S.freelancer.name)}</div></div>`;
     h+=rrow('Local', esc(d.loc));
     if(d.description && d.description.trim()) h+=rrow('Descrição', esc(d.description.trim()));
     h+=rrow('Início', `${brFromIso(d.dayIso)} · ${d.start}`);
     h+=rrow('Término', `${brFromIso(endIso)} · ${d.end}`+(r.crosses?' <span style="color:var(--warning)">(vira o dia)</span>':''));
-    if(r.paidMin!==r.dur){ h+=rrow('Duração real', fmtDur(r.dur)); h+=rrow('Horas pagas', `${fmtDur(r.paidMin)} <span class="note">(${r.blocks} blocos)</span>`); }
+    // Valor fixo: as horas não são o que se paga, então some a conta dos
+    // blocos e fica só a duração do turno.
+    if(fixed){ h+=rrow('Duração', fmtDur(r.dur)); h+=rrow('Valor', 'Valor fixo <span class="note">(digitado, não calculado pelas horas)</span>'); }
+    else if(r.paidMin!==r.dur){ h+=rrow('Duração real', fmtDur(r.dur)); h+=rrow('Horas pagas', `${fmtDur(r.paidMin)} <span class="note">(${r.blocks} blocos)</span>`); }
     else h+=rrow('Duração', `${fmtDur(r.dur)} <span class="note">(${r.blocks} blocos de 15 min)</span>`);
     // A chave aparece já aqui, antes de gravar: quem confere o contrato confere
     // também para onde ele vai ser pago. A conferência com o freelancer, essa,
     // acontece na tela própria antes da assinatura.
     h+=rrow('Pagamento', `Pix · ${esc(S.freelancer.pix_key_formatted||'—')}`);
-    h+=`<div class="rrow total"><span class="k">Valor a pagar</span><span class="v">${brl(r.price)}</span></div>`;
+    h+=`<div class="rrow total"><span class="k">Valor a pagar</span><span class="v">${brl(fixed ? d.fixedCents/100 : r.price)}</span></div>`;
     $('#previaReceipt').innerHTML=h; $('#previaWarn').innerHTML=''; go('s-previa');
   }
-  function servicePayload(){ const d=S.draft; return { freelancer_id:S.freelancer.id, function_freelancer_id:d.fn.id, location:d.loc.trim(), description:(d.description||'').trim()||null, start_date:d.dayIso, start_time:d.start, end_time:d.end }; }
+  function servicePayload(){ const d=S.draft;
+    const payload={ freelancer_id:S.freelancer.id, function_freelancer_id:d.fn.id, location:d.loc.trim(), description:(d.description||'').trim()||null, start_date:d.dayIso, start_time:d.start, end_time:d.end, pricing_mode:d.pricing };
+    // O valor só acompanha o contrato de valor fixo: digitado e depois
+    // abandonado na troca para "por horas", ele não vai junto.
+    if(d.pricing==='fixed') payload.fixed_price=d.fixedCents/100;
+    return payload; }
   $('#registrarBtn').addEventListener('click', ()=> submitService(false));
   /**
    * Acima do limite de 7 dias o servidor devolve 409 e o contrato só é gravado
@@ -1426,12 +1480,13 @@
       const aditChip = c.is_commission ? '<span class="chip adit">Comissão</span>'
                      : c.is_amendment ? '<span class="chip adit">Aditivo</span>'
                      : (c.is_amended ? '<span class="chip unsigned">Aditivado</span>' : '');
+      const fixChip = c.is_fixed_price && !c.is_commission ? '<span class="chip unsigned" style="margin-left:6px">Valor fixo</span>' : '';
       const acts = (c.can_be_signed ? '<button class="btn btn-primary" data-sign>Assinar</button>' : '')
                  + (c.needs_dinner_answer ? '<button class="btn btn-ghost" data-janta>Jantar</button>' : '')
                  + (c.can_be_amended ? '<button class="btn btn-ghost" data-adit>Fazer aditivo</button>' : '')
                  + (c.can_receive_commission ? '<button class="btn btn-ghost" data-com>Comissão de venda</button>' : '');
       const el=document.createElement('div'); el.className='contract';
-      el.innerHTML=`<div class="row1"><span class="num">#${c.id}</span><span class="fn">${esc(c.function||'—')}</span>${chip}${aditChip}</div>
+      el.innerHTML=`<div class="row1"><span class="num">#${c.id}</span><span class="fn">${esc(c.function||'—')}</span>${chip}${aditChip}${fixChip}</div>
         <div class="loc">${esc(c.location)}</div>
         <div class="when"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
         ${c.start_date_br} · ${c.start_time}–${c.end_time} · <b>${brl(c.price)}</b></div>
@@ -1499,6 +1554,9 @@
     const a=S.aditivo, b=a.base;
     // Quem calcula de verdade é o servidor; aqui é só a conferência na tela.
     const r=calc(a.start,a.end,b.block_price||0);
+    // Contrato de valor fixo: o aditivo herda o valor, que não depende das
+    // horas — muda o período, o valor permanece.
+    const fixed=!!b.is_fixed_price;
     const endIso = r.crosses ? nextDayIso(b.start_date) : b.start_date;
     const diff = r.paidMin - Math.floor(b.duration_minutes/15)*15;
     let h=`<div class="head"><div class="fn">Aditivo · ${esc(b.function||'—')}</div><div class="fl">${esc(S.freelancer.name)}</div></div>`;
@@ -1508,9 +1566,15 @@
     h+=rrow('Início', `<span class="was">${b.start_time}</span>${brFromIso(b.start_date)} · ${a.start}`);
     h+=rrow('Término', `<span class="was">${b.end_time}</span>${brFromIso(endIso)} · ${a.end}`
       +(r.crosses?' <span style="color:var(--warning)">(vira o dia)</span>':''));
-    h+=rrow('Horas pagas', `<span class="was">${fmtDur(Math.floor(b.duration_minutes/15)*15)}</span>${fmtDur(r.paidMin)}`
-      +(diff!==0?` <span class="note">(${diff>0?'+':'−'}${fmtDur(Math.abs(diff))})</span>`:''));
-    h+=`<div class="rrow total"><span class="k">Valor a pagar</span><span class="v"><span class="was" style="font-size:15px">${brl(b.price)}</span>${brl(r.price)}</span></div>`;
+    if(fixed){
+      h+=rrow('Duração', `<span class="was">${fmtDur(b.duration_minutes)}</span>${fmtDur(r.dur)}`);
+      h+=rrow('Valor', 'Valor fixo <span class="note">(permanece o do contrato original)</span>');
+      h+=`<div class="rrow total"><span class="k">Valor a pagar</span><span class="v">${brl(b.price)}</span></div>`;
+    } else {
+      h+=rrow('Horas pagas', `<span class="was">${fmtDur(Math.floor(b.duration_minutes/15)*15)}</span>${fmtDur(r.paidMin)}`
+        +(diff!==0?` <span class="note">(${diff>0?'+':'−'}${fmtDur(Math.abs(diff))})</span>`:''));
+      h+=`<div class="rrow total"><span class="k">Valor a pagar</span><span class="v"><span class="was" style="font-size:15px">${brl(b.price)}</span>${brl(r.price)}</span></div>`;
+    }
     $('#aditReceipt').innerHTML=h;
     $('#aditWarn').innerHTML=`<div class="banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>
       <div><b>Quem paga o turno passa a ser o aditivo</b><p>O contrato original continua valendo e sendo assinado pelas duas partes — ele só deixa de ir ao financeiro, para o turno não ser pago duas vezes. O freelancer assina o aditivo em seguida.</p></div></div>`;

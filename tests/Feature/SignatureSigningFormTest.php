@@ -534,6 +534,50 @@ class SignatureSigningFormTest extends TestCase
         $this->assertStringNotContainsString('data-signer-fill="data_inicio"', $html);
     }
 
+    public function test_titulo_padrao_leva_o_nome_do_primeiro_signatario(): void
+    {
+        $modelo = $this->criaModeloDeAssinatura(['name' => 'Termo de uso da piscina']);
+        $servico = app(SignatureDocumentService::class);
+
+        $signatarios = [
+            ['name' => 'Maria de Souza', 'cpf' => '12345678909'],
+            ['name' => 'João Pereira', 'cpf' => '98765432100'],
+        ];
+
+        // O formulário manda o nome do modelo, que é como o campo vem preenchido.
+        $this->assertSame(
+            'Termo de uso da piscina - Maria de Souza',
+            $servico->create($modelo, ['title' => 'Termo de uso da piscina'], $signatarios)->title,
+        );
+
+        // Em branco, idem.
+        $this->assertSame(
+            'Termo de uso da piscina - Maria de Souza',
+            $servico->create($modelo, [], $signatarios)->title,
+        );
+
+        // Título digitado é respeitado como está.
+        $this->assertSame(
+            'Piscina — temporada 2026',
+            $servico->create($modelo, ['title' => 'Piscina — temporada 2026'], $signatarios)->title,
+        );
+
+        // Pela tela, do mesmo jeito.
+        $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
+            ->post(route('signature-documents.store'), [
+                'signature_template_id' => $modelo->id,
+                'title' => 'Termo de uso da piscina',
+                'signers' => [['name' => 'Ana Lima', 'cpf' => '123.456.789-09']],
+            ])
+            ->assertRedirect();
+
+        $this->assertSame('Termo de uso da piscina - Ana Lima', SignatureDocument::latest('id')->firstOrFail()->title);
+
+        $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
+            ->get(route('signature-documents.create', ['template' => $modelo->id]))
+            ->assertSee('o nome do primeiro signatário é acrescentado');
+    }
+
     public function test_atendente_so_preenche_o_que_e_dele_e_o_valor_e_conferido_pelo_tipo(): void
     {
         $modelo = $this->criaModeloDeAssinatura([

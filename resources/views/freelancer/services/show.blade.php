@@ -396,6 +396,14 @@
                             atual do freelancer — congela na primeira assinatura.
                         </p>
                     @endif
+
+                    {{-- Cópia em PDF no servidor de arquivos, feita depois das duas assinaturas. --}}
+                    @if($service->isArchived())
+                        <p class="mt-3 text-xs text-ink-2">
+                            <b>Arquivado no servidor de arquivos</b> em {{ $service->archived_at->format('d/m/Y H:i') }}:<br>
+                            <span class="font-mono break-all">{{ $service->archive_path }}</span>
+                        </p>
+                    @endif
                 </div>
             </div>
 

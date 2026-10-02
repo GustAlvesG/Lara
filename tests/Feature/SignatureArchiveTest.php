@@ -103,7 +103,7 @@ class SignatureArchiveTest extends TestCase
         Queue::assertNotPushed(ArchiveSignatureDocument::class);
     }
 
-    public function test_copia_vai_para_a_pasta_do_modelo_do_ano_e_do_mes(): void
+    public function test_copia_vai_para_a_pasta_do_modelo_e_da_pessoa(): void
     {
         Carbon::setTestNow('2026-10-03 14:30:00');
 
@@ -118,7 +118,8 @@ class SignatureArchiveTest extends TestCase
 
         // Sem acento e sem caractere que FTP ou Windows recusem.
         $this->assertSame(
-            'Lara/DocumentosAssinados/Contrato de Locacao de Espaco para Evento/2026/10 - Outubro/'
+            // Tipo (o modelo) → pessoa (o primeiro signatário) → data, quem assinou e código.
+            'Lara/DocumentosAssinados/Contrato de Locacao de Espaco para Evento/Maria de Souza/'
                 . '2026-10-03 - Maria de Souza e Joao Pereira - ' . $documento->validation_code . '.pdf',
             $documento->archive_path,
         );
@@ -147,8 +148,9 @@ class SignatureArchiveTest extends TestCase
         $partes = explode('/', $caminho);
 
         $this->assertSame('Termo uso emprestimo de quadra 2026', $partes[2]);
+        $this->assertSame('Maria de Souza', $partes[3]);
         // Mais de dois signatários: os dois primeiros e a conta dos demais.
-        $this->assertStringContainsString(' - Maria de Souza e Ana e mais 2 - ', $partes[5]);
+        $this->assertStringContainsString(' - Maria de Souza e Ana e mais 2 - ', $partes[4]);
 
         foreach ($partes as $parte) {
             $this->assertDoesNotMatchRegularExpression('/[\\\\:*?"<>|]/', $parte);

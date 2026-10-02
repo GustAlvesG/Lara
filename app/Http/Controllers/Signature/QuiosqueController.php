@@ -252,6 +252,9 @@ class QuiosqueController extends Controller
             // Por que não veio foto. Só `camera_unavailable` é aceito, e só
             // com a flag ligada — ver SignatureCaptureService.
             'photo_skipped_reason' => ['nullable', 'string', 'max:60'],
+            // Autorização da captura da imagem, marcada na tela de aceite.
+            // Exigida quando há foto — ver SignatureCaptureService.
+            'photo_consent' => ['nullable', 'boolean'],
             'accepted' => ['required', 'accepted'],
             'wants_copy' => ['nullable', 'boolean'],
             'read_seconds' => ['nullable', 'integer', 'min:0', 'max:86400'],
@@ -267,6 +270,7 @@ class QuiosqueController extends Controller
                 'initials_strokes' => $dados['initials_strokes'] ?? null,
                 'photo' => $dados['photo'] ?? null,
                 'photo_skipped_reason' => $dados['photo_skipped_reason'] ?? null,
+                'photo_consent' => (bool) ($dados['photo_consent'] ?? false),
                 'accepted' => true,
                 'wants_copy' => (bool) ($dados['wants_copy'] ?? false),
                 'read_seconds' => $dados['read_seconds'] ?? null,

@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureSignatureKioskSession;
 use App\Jobs\FinalizeSignatureDocument;
 use App\Models\SignatureAuditEvent;
 use App\Models\SignatureDocument;
+use App\Models\SignatureEvidence;
 use App\Models\SignatureRequest;
 use App\Models\SignatureSigner;
 use App\Services\Signature\SignatureDocumentService;
@@ -164,6 +165,58 @@ class SignatureCaptureTest extends TestCase
             ->assertStatus(419);
     }
 
+    public function test_foto_so_entra_com_a_autorizacao_de_quem_assina(): void
+    {
+        ['document' => $documento, 'cookie' => $cookie] = $this->sessaoAberta();
+
+        $this->confirmaIdentidade($cookie, $documento);
+
+        $envio = [
+            'signature' => $this->pngValido(),
+            'strokes' => $this->tracos(),
+            'photo' => $this->jpegValido(),
+            'accepted' => true,
+        ];
+
+        // Sem marcar a autorização, a assinatura não entra — nem a foto é guardada.
+        $this->comSessao($cookie)
+            ->postJson(route('quiosque.sign', $documento), $envio)
+            ->assertStatus(422)
+            ->assertJsonFragment(['error' => 'É preciso autorizar a captura da imagem para assinar.']);
+
+        $signatario = $documento->signers()->first();
+
+        $this->assertNull($signatario->evidence);
+        $this->assertNotSame(SignatureSigner::STATUS_SIGNED, $signatario->fresh()->status);
+
+        $this->comSessao($cookie)
+            ->postJson(route('quiosque.sign', $documento), $envio + ['photo_consent' => true])
+            ->assertOk();
+
+        $evidencia = $signatario->fresh()->evidence;
+
+        // Fica o fato e o TEXTO que a pessoa leu.
+        $this->assertTrue($evidencia->photo_consent);
+        $this->assertSame(SignatureEvidence::PHOTO_CONSENT_TEXT, $evidencia->photo_consent_text);
+        $this->assertStringContainsString('Clube dos Funcionários da CSN', $evidencia->photo_consent_text);
+        $this->assertStringContainsString('tempo indeterminado', $evidencia->photo_consent_text);
+
+        // E vai para o manifesto do documento assinado.
+        $manifesto = app(\App\Services\Signature\SignatureDocumentRenderer::class)
+            ->html($documento->fresh(), \App\Services\Signature\SignatureDocumentRenderer::MODE_FINAL);
+
+        $this->assertStringContainsString('Autorização da captura da imagem: sim', $manifesto);
+
+        // A tela do tablet traz a caixa de marcação, e o texto dela é o mesmo da
+        // evidência. O corpo da página não passa pelo Blade: o texto chega pela
+        // configuração do script — expressão do Blade ali apareceria crua na tela.
+        $tablet = $this->get(route('quiosque.index'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('id="fotoCheck"', $tablet);
+        $this->assertStringContainsString('textoAutorizacaoFoto: ' . json_encode(SignatureEvidence::PHOTO_CONSENT_TEXT), $tablet);
+        $this->assertStringNotContainsString('{{', $tablet);
+    }
+
     public function test_assinatura_completa_grava_evidencia_e_fecha_o_documento(): void
     {
         ['document' => $documento, 'cookie' => $cookie] = $this->sessaoAberta();
@@ -174,7 +227,7 @@ class SignatureCaptureTest extends TestCase
             ->postJson(route('quiosque.sign', $documento), [
                 'signature' => $this->pngValido(),
                 'strokes' => $this->tracos(),
-                'photo' => $this->jpegValido(),
+                'photo' => $this->jpegValido(), 'photo_consent' => true,
                 'accepted' => true,
                 'read_seconds' => 73,
                 'scrolled_to_end' => true,
@@ -217,7 +270,7 @@ class SignatureCaptureTest extends TestCase
             ->postJson(route('quiosque.sign', $documento), [
                 'signature' => $this->pngValido(),
                 'strokes' => $this->tracos(),
-                'photo' => $this->jpegValido(),
+                'photo' => $this->jpegValido(), 'photo_consent' => true,
                 'accepted' => true,
             ])
             ->assertStatus(409);
@@ -237,7 +290,7 @@ class SignatureCaptureTest extends TestCase
             ->postJson(route('quiosque.sign', $documento), [
                 'signature' => $this->pngValido(),
                 'strokes' => [],
-                'photo' => $this->jpegValido(),
+                'photo' => $this->jpegValido(), 'photo_consent' => true,
                 'accepted' => true,
             ])
             ->assertStatus(422)
@@ -254,7 +307,7 @@ class SignatureCaptureTest extends TestCase
             ->postJson(route('quiosque.sign', $documento), [
                 'signature' => $this->pngValido(),
                 'strokes' => $this->tracos(3),
-                'photo' => $this->jpegValido(),
+                'photo' => $this->jpegValido(), 'photo_consent' => true,
                 'accepted' => true,
             ])
             ->assertStatus(422);
@@ -269,7 +322,7 @@ class SignatureCaptureTest extends TestCase
             ->postJson(route('quiosque.sign', $documento), [
                 'signature' => $this->pngValido(),
                 'strokes' => $this->tracos(),
-                'photo' => $this->jpegValido(),
+                'photo' => $this->jpegValido(), 'photo_consent' => true,
                 'accepted' => false,
             ])
             ->assertStatus(422);
@@ -288,7 +341,7 @@ class SignatureCaptureTest extends TestCase
             ->postJson(route('quiosque.sign', $documento), [
                 'signature' => 'data:image/png;base64,' . base64_encode('<?php echo "não sou imagem";'),
                 'strokes' => $this->tracos(),
-                'photo' => $this->jpegValido(),
+                'photo' => $this->jpegValido(), 'photo_consent' => true,
                 'accepted' => true,
             ])
             ->assertStatus(422)
@@ -340,7 +393,7 @@ class SignatureCaptureTest extends TestCase
         $payload = [
             'signature' => $this->pngValido(),
             'strokes' => $this->tracos(),
-            'photo' => $this->jpegValido(),
+            'photo' => $this->jpegValido(), 'photo_consent' => true,
             'accepted' => true,
         ];
 

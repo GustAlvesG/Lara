@@ -4,6 +4,11 @@
     $locked = $locked ?? false;
     $functionPrices = $functions->pluck('price', 'id');
     $blockMinutes = \App\Models\FreelancerService::BLOCK_MINUTES;
+    // Por horas (padrão) ou valor fixo digitado — ver "Valor fixo" no model.
+    $pricingFixed = \App\Models\FreelancerService::PRICING_FIXED;
+    $pricingMode = old('pricing_mode', $service?->pricingMode() ?? \App\Models\FreelancerService::PRICING_HOURLY);
+    $fixedPrice = old('fixed_price', $service?->isFixedPrice() ? (float) $service->price : '');
+    $maxFixedPrice = \App\Models\FreelancerService::MAX_FIXED_PRICE;
 @endphp
 
 <div class="bg-surface rounded-2xl shadow-pop border border-line overflow-hidden"
@@ -13,6 +18,9 @@
         functionId: '{{ old('function_freelancer_id', $service?->function_freelancer_id) }}',
         startTime: '{{ old('start_time', $service ? substr($service->start_time, 0, 5) : '') }}',
         endTime: '{{ old('end_time', $service ? substr($service->end_time, 0, 5) : '') }}',
+        pricingMode: @js($pricingMode),
+        fixedPrice: @js((string) $fixedPrice),
+        get isFixed() { return this.pricingMode === @js($pricingFixed); },
         toMinutes(value) {
             if (!value) return null;
             const [h, m] = value.split(':').map(Number);
@@ -45,6 +53,13 @@
             return (b * this.blockMinutes / 60).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) + ' h';
         },
         get estimatedPrice() {
+            /* Valor fixo: vale o que foi digitado, as horas não entram. */
+            if (this.isFixed) {
+                const fixed = parseFloat(this.fixedPrice);
+                return fixed > 0
+                    ? fixed.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : null;
+            }
             const rate = parseFloat(this.functionPrices[this.functionId] ?? 0);
             const b = this.blocks;
             if (!rate || b === null) return null;
@@ -130,6 +145,37 @@
             </p>
         </div>
 
+        {{-- Forma de cálculo do valor. O padrão é por horas; o valor fixo troca
+             só a conta — o turno continua com início e término, que é por onde a
+             portaria abre e o prazo da assinatura conta. --}}
+        <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label class="block text-sm font-bold text-ink mb-1">Valor do contrato</label>
+                <select name="pricing_mode" x-model="pricingMode" @disabled($locked)
+                    class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink disabled:opacity-60 disabled:cursor-not-allowed">
+                    @foreach(\App\Models\FreelancerService::PRICING_MODES as $mode => $label)
+                        <option value="{{ $mode }}" @selected($pricingMode === $mode)>
+                            {{ $label }}{{ $mode === \App\Models\FreelancerService::PRICING_HOURLY ? ' (padrão)' : '' }}
+                        </option>
+                    @endforeach
+                </select>
+                <p class="mt-1 text-xs text-ink-3">Por horas: calculado pela função e pelo período. Valor fixo: o valor digitado ao lado, qualquer que seja a duração.</p>
+                @error('pricing_mode')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
+            </div>
+
+            <div x-show="isFixed" x-cloak>
+                <label class="block text-sm font-bold text-ink mb-1">Valor fixo (R$) <span class="text-danger">*</span></label>
+                {{-- Desabilitado fora do valor fixo para não ir no envio: um valor
+                     esquecido no campo não pode acompanhar um contrato por horas. --}}
+                <input type="number" name="fixed_price" x-model="fixedPrice" step="0.01" min="0.01" max="{{ $maxFixedPrice }}"
+                    inputmode="decimal" placeholder="0,00"
+                    :required="isFixed" :disabled="!isFixed || @js($locked)"
+                    class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink disabled:opacity-60 disabled:cursor-not-allowed">
+                <p class="mt-1 text-xs text-ink-3">É o valor que vai ao contrato e ao pagamento.</p>
+                @error('fixed_price')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
+            </div>
+        </div>
+
         <div class="md:col-span-2 p-4 rounded-xl bg-subtle border border-dashed border-line-strong grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
                 <p class="text-xs font-bold text-ink-2 uppercase tracking-wide">Duração</p>
@@ -141,10 +187,12 @@
             </div>
             <div>
                 <p class="text-xs font-bold text-ink-2 uppercase tracking-wide">Horas pagas</p>
+                {{-- No valor fixo as horas não são o que se paga: a duração ao
+                     lado continua dizendo quanto o turno durou. --}}
                 @if($locked)
-                    <p class="text-lg font-bold text-ink">{{ number_format($service->total_hours, 2, ',', '.') }} h</p>
+                    <p class="text-lg font-bold text-ink">{{ $service->isFixedPrice() ? '—' : number_format($service->total_hours, 2, ',', '.') . ' h' }}</p>
                 @else
-                    <p class="text-lg font-bold text-ink" x-text="billedLabel ?? '—'"></p>
+                    <p class="text-lg font-bold text-ink" x-text="isFixed ? '—' : (billedLabel ?? '—')"></p>
                 @endif
             </div>
             <div>
@@ -155,9 +203,12 @@
                     <p class="text-lg font-bold text-ink" x-text="estimatedPrice ? 'R$ ' + estimatedPrice : '—'"></p>
                 @endif
             </div>
-            <p class="sm:col-span-3 text-xs text-ink-3">
+            <p class="sm:col-span-3 text-xs text-ink-3" x-show="!isFixed">
                 Cobrado em blocos de {{ $blockMinutes }} minutos. Blocos incompletos não são pagos
                 (ex.: 3h10 paga 3h00). Calculado no servidor ao salvar.
+            </p>
+            <p class="sm:col-span-3 text-xs text-ink-3" x-show="isFixed" x-cloak>
+                <b>Valor fixo:</b> o valor é o digitado, e não muda com a duração do turno.
             </p>
         </div>
 

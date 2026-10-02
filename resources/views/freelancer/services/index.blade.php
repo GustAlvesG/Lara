@@ -268,7 +268,15 @@
                                 </td>
                                 <td class="px-4 py-4 text-ink">{{ $service->formattedDuration() }}</td>
                                 @if($canManage)
-                                <td class="px-4 py-4 text-ink">R$ {{ number_format($service->price, 2, ',', '.') }}</td>
+                                <td class="px-4 py-4 text-ink whitespace-nowrap">
+                                    R$ {{ number_format($service->price, 2, ',', '.') }}
+                                    {{-- Valor digitado no registro: não bate com duração × função,
+                                         e a marca evita que pareça erro de cálculo. --}}
+                                    @if($service->isFixedPrice() && !$service->isCommissionAmendment())
+                                        <span class="block text-xs font-bold text-ink-3"
+                                              title="Valor fixo, digitado no registro do contrato — não calculado pelas horas do turno">Valor fixo</span>
+                                    @endif
+                                </td>
                                 @endif
                                 <td class="px-4 py-4">
                                     <x-freelancer-signature-badge :service="$service" />
