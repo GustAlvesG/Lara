@@ -26,6 +26,71 @@ DEPLOY_USER="$(id -un)"
 
 trap 'echo; echo "❌ Deploy INTERROMPIDO na linha $LINENO (comando: $BASH_COMMAND). O site pode estar na versão anterior — corrija o erro acima e rode de novo."' ERR
 
+# Chaves que o .env.example tem e o .env do servidor não tem, cada uma com o
+# comentário que a antecede no .env.example. É só aviso: chave nova quase
+# sempre tem valor padrão no código, e quem decide se ela precisa de valor no
+# servidor é quem está fazendo o deploy — o comentário diz para que serve.
+#
+# "Comentário anterior" é o bloco de linhas com # logo acima da chave. Várias
+# chaves seguidas sob o mesmo comentário o compartilham, e ele sai uma vez só.
+# Chave comentada no .env (# CHAVE=...) conta como ausente.
+chaves_faltando_no_env() {
+    [ -f .env.example ] || return 0
+
+    local env_file=".env"
+    [ -f "$env_file" ] || env_file="/dev/null"
+
+    awk '
+        function chave(linha) {
+            sub(/^[ \t]*(export[ \t]+)?/, "", linha)
+            return substr(linha, 1, index(linha, "=") - 1)
+        }
+
+        { sub(/\r$/, "") }
+
+        # Primeiro arquivo: as chaves que o .env tem. (Pelo nome do arquivo, e
+        # não por FNR == NR: com o .env vazio ou ausente, essa conta trataria o
+        # .env.example como se fosse o .env.)
+        FILENAME == ARGV[1] {
+            if ($0 ~ /^[ \t]*(export[ \t]+)?[A-Za-z_][A-Za-z0-9_]*=/) tem[chave($0)] = 1
+            next
+        }
+
+        # Segundo arquivo: o .env.example.
+        /^[ \t]*$/ { comentario = ""; impresso = 0; depois_de_chave = 0; next }
+
+        /^[ \t]*#/ {
+            if (depois_de_chave) { comentario = ""; impresso = 0; depois_de_chave = 0 }
+            comentario = comentario $0 "\n"
+            next
+        }
+
+        /^[ \t]*(export[ \t]+)?[A-Za-z_][A-Za-z0-9_]*=/ {
+            depois_de_chave = 1
+            if (!(chave($0) in tem)) {
+                if (comentario != "" && !impresso) { printf "\n%s", comentario; impresso = 1 }
+                else if (comentario == "") printf "\n"
+                print $0
+            }
+        }
+    ' "$env_file" .env.example
+}
+
+# Guarda a lista para repetir no fim do deploy, onde ela não se perde na rolagem.
+CHAVES_FALTANDO=""
+
+mostra_chaves_faltando() {
+    if [ -z "$CHAVES_FALTANDO" ]; then
+        echo "✅ .env: tem todas as chaves do .env.example."
+        return 0
+    fi
+
+    echo "⚠️  Chaves do .env.example que NÃO estão no .env deste servidor ($(printf '%s\n' "$CHAVES_FALTANDO" | grep -c '^[^#]*=')):"
+    printf '%s\n' "$CHAVES_FALTANDO" | sed 's/^/    /'
+    echo
+    echo "    Inclua no .env as que este servidor precisa e rode: php artisan config:cache"
+}
+
 echo "🚀 Iniciando processo de deploy..."
 
 # 1. Backup do banco -----------------------------------------------------------
@@ -49,15 +114,32 @@ if [ -d "$PROJECT_PATH/.git" ]; then
     cd "$PROJECT_PATH"
     ANTES=$(git rev-parse --short HEAD)
 
-    # O package-lock.json alterado no servidor (por um `npm install` antigo)
-    # fazia o pull ser recusado. O arquivo certo é o do repositório.
-    git checkout -- package-lock.json
+    # O que SEMPRE aparece diferente no servidor sem ninguém ter editado nada:
+    #
+    # 1. Permissão de arquivo. O passo 6 dá chmod 775 em storage/ e
+    #    bootstrap/cache/, e o git via isso como alteração nos .gitignore de lá.
+    #    Num servidor, o modo do arquivo não é mudança de código.
+    git config core.fileMode false
 
-    # Qualquer outra alteração local em arquivo versionado para o deploy aqui,
-    # em vez de ser sobrescrita ou de travar o pull sem ninguém ver.
+    # 2. Arquivos que o próprio deploy regera: o package-lock.json (um
+    #    `npm install` antigo o alterava) e o cache de pacotes do Laravel
+    #    (packages.php e services.php, refeitos pelo composer no passo 3).
+    #    Voltam ao que o repositório tem; o deploy os refaz logo adiante.
+    #    O `ls-files` é porque o cache de pacotes deixa de ser versionado — aí
+    #    não há o que restaurar.
+    for GERADO in package-lock.json bootstrap/cache/packages.php bootstrap/cache/services.php; do
+        if git ls-files --error-unmatch "$GERADO" > /dev/null 2>&1; then
+            git checkout -- "$GERADO"
+        fi
+    done
+
+    # Qualquer OUTRA alteração local em arquivo versionado para o deploy aqui,
+    # em vez de ser sobrescrita ou de travar o pull sem ninguém ver. Arquivo
+    # novo, não versionado (imagem enviada pelo sistema em public/images, por
+    # exemplo), não entra na conta nem na lista.
     if ! git diff --quiet || ! git diff --cached --quiet; then
         echo "❌ Há arquivos versionados alterados direto no servidor:"
-        git status --short
+        git status --short --untracked-files=no
         echo "   Confira-os. Para descartar: git checkout -- <arquivo>. Para guardar: git stash."
         exit 1
     fi
@@ -79,6 +161,10 @@ if [ "$(git rev-parse HEAD)" != "$(git rev-parse FETCH_HEAD 2>/dev/null || git r
     exit 1
 fi
 echo "✅ Código: $ANTES → $DEPOIS  ($(git log -1 --format=%s))"
+
+# Com o .env.example já atualizado pelo pull: o que falta no .env daqui.
+CHAVES_FALTANDO="$(chaves_faltando_no_env)"
+mostra_chaves_faltando
 
 # 3. Dependências PHP ----------------------------------------------------------
 echo "📦 Rodando Composer..."
@@ -184,3 +270,7 @@ for FPM in $(systemctl list-units --type=service --state=running --no-legend 'ph
 done
 
 echo "✅ Deploy finalizado: versão $DEPOIS no ar ($DATA_ATUAL)."
+
+# De novo, por último: é o que fica na tela quando o deploy termina.
+echo
+mostra_chaves_faltando
