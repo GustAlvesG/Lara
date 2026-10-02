@@ -121,6 +121,16 @@ class SignatureSigner extends Model
     /**
      * @return HasOne<SignatureEvidence>
      */
+    /**
+     * A liberação pela qual esta pessoa ASSINOU — o QR Code que ela leu. As
+     * outras (expiradas, canceladas, substituídas) ficam na trilha; esta é a
+     * que o documento cita, com quem a gerou e quando.
+     */
+    public function signingRequest(): ?SignatureRequest
+    {
+        return $this->requests->firstWhere('status', SignatureRequest::STATUS_COMPLETED);
+    }
+
     public function evidence(): HasOne
     {
         return $this->hasOne(SignatureEvidence::class);

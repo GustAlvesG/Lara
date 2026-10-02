@@ -46,7 +46,7 @@ class ReleaseController extends Controller
         abort_if($signatureSigner->signature_document_id !== $signatureDocument->id, 404);
 
         try {
-            $liberacao = $this->requests->issue($signatureSigner, auth()->id());
+            $liberacao = $this->requests->issue($signatureSigner, auth()->id(), auth()->user()?->name);
         } catch (SignatureDocumentLockedException $e) {
             return response()->json(['error' => $e->getMessage()], 409);
         }

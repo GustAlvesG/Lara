@@ -169,10 +169,12 @@ class SignatureDocumentService
             $this->syncSigners($document, $signers);
 
             $this->states->note($document, SignatureAuditEvent::EVENT_CREATED, [
+                'actor_id' => $userId,
                 'payload' => [
                     'modelo' => $template->name,
                     'versao' => $template->version,
                     'signatarios' => count($signers),
+                    'gerado_por' => $userName,
                 ],
             ]);
 

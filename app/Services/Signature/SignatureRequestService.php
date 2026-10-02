@@ -66,13 +66,13 @@ class SignatureRequestService
      *
      * @throws SignatureDocumentLockedException
      */
-    public function issue(SignatureSigner $signer, ?int $userId = null): array
+    public function issue(SignatureSigner $signer, ?int $userId = null, ?string $userName = null): array
     {
         if ($motivo = $signer->releaseBlockReason()) {
             throw new SignatureDocumentLockedException($motivo);
         }
 
-        return DB::transaction(function () use ($signer, $userId) {
+        return DB::transaction(function () use ($signer, $userId, $userName) {
             $anteriores = $this->supersedePending($signer, $userId);
 
             // Str::random usa random_bytes — aleatoriedade criptográfica, e não
@@ -90,6 +90,9 @@ class SignatureRequestService
                 'manual_code_hash' => $manualCode === null ? null : $this->hash($manualCode),
                 'expires_at' => now()->addSeconds((int) config('signature.qr_ttl_seconds', 300)),
                 'created_by' => $userId,
+                // Rastreio: quem gerou este QR Code, pelo nome, como estava
+                // no dia. Vai ao manifesto do documento assinado.
+                'created_by_name' => $userName,
             ]);
 
             $this->states->note(
@@ -102,6 +105,7 @@ class SignatureRequestService
                     'payload' => [
                         'expira_em_segundos' => (int) config('signature.qr_ttl_seconds', 300),
                         'substituiu' => $anteriores,
+                        'gerado_por' => $userName,
                     ],
                 ],
             );

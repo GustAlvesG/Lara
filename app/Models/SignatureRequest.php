@@ -54,6 +54,8 @@ class SignatureRequest extends Model
         'identity_attempts',
         'status',
         'created_by',
+        // Retrato do nome de quem gerou o QR Code (ver a migration da coluna).
+        'created_by_name',
     ];
 
     /**

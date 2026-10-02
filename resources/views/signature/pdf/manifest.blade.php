@@ -37,7 +37,7 @@
                 @endif
                 Congelado em: {{ $document->frozen_at?->format('d/m/Y H:i:s') }}<br>
                 Finalizado em: {{ $document->finalized_at?->format('d/m/Y H:i:s') ?? now()->format('d/m/Y H:i:s') }}<br>
-                Atendente: {{ $document->created_by_name ?? 'não registrado' }}<br>
+                Documento gerado por: {{ $document->created_by_name ?? 'não registrado' }} (usuário do sistema)<br>
                 Local: {{ $document->location ?? 'não informado' }}
             </span>
         </td>
@@ -117,6 +117,12 @@
                         Assinado em {{ $signer->signed_at->format('d/m/Y H:i:s') }}<br>
                     @else
                         {{ $signer->statusLabel() }}<br>
+                    @endif
+
+                    @if($liberacao = $signer->signingRequest())
+                        {{-- Rastreio: o usuário do sistema que liberou a assinatura desta pessoa. --}}
+                        QR Code gerado por: {{ $liberacao->created_by_name ?? 'não registrado' }}
+                        (usuário do sistema), em {{ $liberacao->created_at?->format('d/m/Y H:i:s') }}<br>
                     @endif
 
                     @if($evidencia)
