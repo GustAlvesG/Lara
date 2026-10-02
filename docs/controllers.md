@@ -370,7 +370,10 @@ Classe vazia (sem métodos implementados) — reservada para um futuro dashboard
 ### FtpController (`FtpController.php`)
 | Método | Assinatura | Descrição |
 |--------|-----------|-----------|
-| `getImage` | `static getImage($imageName)` | Recupera uma imagem via disco FTP (Flysystem FTP). |
+| `getImage` | `static getImage($imageName)` | Garante a foto do acesso (SIV) no disco local `img_car` e devolve o caminho relativo, ou `false` quando não há foto. Só vai ao disco `ftp` se a cópia local não existir. |
+| `imageUrl` | `static imageUrl($path)` | URL pública da foto (`/storage/img_car/…`), com cada trecho do caminho codificado. |
+
+Detalhes em [Placas de Carro — Foto do acesso](funcionalidades/estacionamento-placas.md#foto-do-acesso-ftp-das-câmeras).
 
 ### EmailController (`EmailController.php`)
 | Método | Assinatura | Descrição | Rota |

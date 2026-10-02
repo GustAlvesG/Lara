@@ -6,8 +6,9 @@
     $driverCount = is_countable($drivers) ? count($drivers) : 0;
     $th = 'px-3 py-2.5 text-left text-xs font-bold text-ink-3';
     // Foto da câmera da portaria, trazida do FTP na hora da busca. `file`
-    // vem falso quando o FTP não respondeu: fica só o substituto.
-    $imageUrl = ! empty($log['file']) ? asset('storage/img_car/' . $log['file']) : null;
+    // vem falso quando não há foto (FTP fora do ar ou arquivo inexistente):
+    // fica só o substituto.
+    $imageUrl = ! empty($log['file']) ? \App\Http\Controllers\FtpController::imageUrl($log['file']) : null;
 @endphp
 
 <div class="overflow-hidden rounded-2xl border border-line" data-search="{{ $logTime }} {{ $logDate }}">
