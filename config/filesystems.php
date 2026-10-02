@@ -36,12 +36,45 @@ return [
             'throw' => false,
         ],
 
+        /*
+         * FTP das câmeras da portaria (fotos do SIV — busca de placa).
+         *
+         * `timeout` curto de propósito: a foto é baixada dentro da tela de
+         * resultado, e o padrão do driver (90s) deixaria a busca presa com o
+         * servidor fora do ar. Ver FtpController::getImage().
+         *
+         * `root` é a pasta onde as câmeras gravam, uma subpasta por placa. A
+         * coluna `parkings.file` guarda só `PLACA/arquivo.jpg`; sem a raiz o
+         * arquivo é procurado no topo do servidor e nunca é achado.
+         */
         'ftp' => [
             'driver' => 'ftp',
             'host' => env('FTP_HOST'),
             'username' => env('FTP_USERNAME'),
             'password' => env('FTP_PASSWORD'),
-            'port' => 21,
+            'port' => (int) env('FTP_PORT', 21),
+            'root' => env('FTP_ROOT', 'Lara/lpr'),
+            'passive' => (bool) env('FTP_PASSIVE', true),
+            'timeout' => (int) env('FTP_TIMEOUT', 10),
+            // Falha vira exceção: é o que deixa o motivo no log.
+            'throw' => true,
+        ],
+
+        /*
+         * Cópia local das fotos do SIV, trazidas do disco `ftp` acima.
+         *
+         * Aponta para dentro de `public/`, como o disco `placar` abaixo e pelo
+         * mesmo motivo: a tela lê em `/storage/img_car/…`, e `public/storage`
+         * é um diretório real, não o symlink do `storage:link`. Pelo disco
+         * `public` (storage/app/public) a foto ia para onde nenhuma URL
+         * alcança.
+         */
+        'img_car' => [
+            'driver' => 'local',
+            'root' => public_path('storage/img_car'),
+            'url' => '/storage/img_car',
+            'visibility' => 'public',
+            'throw' => true,
         ],
 
         /*
