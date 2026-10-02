@@ -2,13 +2,31 @@
     $logDateTime = explode(' ', $log['entry_date']);
     $logTime = $logDateTime[0] ?? '';
     $logDate = $logDateTime[1] ?? '';
-    $drivers = $log['access'] ?? [];
-    $driverCount = is_countable($drivers) ? count($drivers) : 0;
     $th = 'px-3 py-2.5 text-left text-xs font-bold text-ink-3';
     // Foto da câmera da portaria, trazida do FTP na hora da busca. `file`
     // vem falso quando não há foto (FTP fora do ar ou arquivo inexistente):
     // fica só o substituto.
     $imageUrl = ! empty($log['file']) ? \App\Http\Controllers\FtpController::imageUrl($log['file']) : null;
+
+    // Uma tabela só para quem passou junto com o carro. Associado vem das
+    // catracas (MultiClubes); externo, do registro da portaria; carro de
+    // aplicativo, do pedido feito para esta placa.
+    $people = [];
+    foreach (($log['access'] ?? []) as $driver) {
+        $people[] = [
+            'kind' => 'associado',
+            'label' => 'Associado',
+            'ident' => $driver->TitleCode ? 'Mat. ' . $driver->TitleCode : null,
+            'name' => $driver->Name,
+            'detail' => null,
+            'telephone' => $driver->Telephone,
+            'time' => $driver->date,
+            'allowed' => true,
+        ];
+    }
+    $people = array_merge($people, $log['externals'] ?? [], $log['app_cars'] ?? []);
+    $driverCount = count($people);
+    $pillKinds = ['associado' => 'off', 'aplicativo' => 'info'];
 @endphp
 
 <div class="overflow-hidden rounded-2xl border border-line" data-search="{{ $logTime }} {{ $logDate }}">
@@ -44,21 +62,37 @@
                 <table class="min-w-full text-sm">
                     <thead>
                         <tr class="border-b border-line">
-                            <th class="{{ $th }}">Mat.</th>
+                            <th class="{{ $th }}">Tipo</th>
                             <th class="{{ $th }}">Nome</th>
+                            <th class="{{ $th }}">Vínculo</th>
                             <th class="{{ $th }}">Telefone</th>
                             <th class="{{ $th }}">Horário</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($drivers as $driver)
-                            <tr class="border-b border-line transition last:border-0 hover:bg-subtle">
-                                <td class="whitespace-nowrap px-3 py-2.5 font-mono font-semibold text-ink">{{ $driver->TitleCode }}</td>
-                                <td class="px-3 py-2.5 text-ink">{{ $driver->Name }}</td>
-                                <td class="whitespace-nowrap px-3 py-2.5 font-mono text-ink-2">
-                                    <a href="tel:{{ preg_replace('/\D/', '', $driver->Telephone) }}" class="text-ink-2 no-underline hover:text-grena-ink">{{ $driver->Telephone }}</a>
+                        @foreach ($people as $person)
+                            <tr class="border-b border-line align-top transition last:border-0 hover:bg-subtle">
+                                <td class="whitespace-nowrap px-3 py-2.5">
+                                    <x-pill :kind="$pillKinds[$person['kind']] ?? 'warn'" :icon="false">{{ $person['label'] }}</x-pill>
+                                    @unless ($person['allowed'])
+                                        <x-pill kind="danger" class="mt-1">Negado</x-pill>
+                                    @endunless
                                 </td>
-                                <td class="whitespace-nowrap px-3 py-2.5 font-mono font-semibold text-ink">{{ $driver->date }}</td>
+                                <td class="px-3 py-2.5 text-ink">
+                                    {{ $person['name'] }}
+                                    @if ($person['detail'])
+                                        <span class="block text-xs text-ink-3">{{ $person['detail'] }}</span>
+                                    @endif
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-2.5 font-mono font-semibold text-ink">{{ $person['ident'] ?: '—' }}</td>
+                                <td class="whitespace-nowrap px-3 py-2.5 font-mono text-ink-2">
+                                    @if ($person['telephone'])
+                                        <a href="tel:{{ preg_replace('/\D/', '', $person['telephone']) }}" class="text-ink-2 no-underline hover:text-grena-ink">{{ $person['telephone'] }}</a>
+                                    @else
+                                        —
+                                    @endif
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-2.5 font-mono font-semibold text-ink">{{ $person['time'] }}</td>
                             </tr>
                         @endforeach
                     </tbody>

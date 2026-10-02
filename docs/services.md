@@ -194,6 +194,22 @@ Lança `SicoobCertificateException` (arquivo ausente/ilegível, senha errada, ha
 
 ---
 
+## ParkingAccessCorrelationService
+
+`app/Services/ParkingAccessCorrelationService.php` — SIV, busca de placa: liga a leitura da
+câmera aos externos registrados na portaria e aos pedidos de carro de aplicativo. Os associados
+(catracas do MultiClubes) continuam em `AccessController::findAccessByTime`. Guia:
+[Placas de Carro](funcionalidades/estacionamento-placas.md#como-funciona-a-correlação-com-os-acessos).
+
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `externalsAround` | `externalsAround($entryDate): array` | Terceirizados, freelancers e liberações pontuais de `company_access_logs` registrados a até `EXTERNAL_WINDOW_SECONDS` (60 s) da leitura. Uma linha por pessoa; inclui o registro negado. |
+| `appCarRequests` | `appCarRequests(string $plate, $startOfDay, $endOfDay): Collection` | Pedidos de `uber_access_requests` da placa (normalizada) feitos ou liberados no dia. |
+| `appCarsByEntry` | `appCarsByEntry(array $entryDates, Collection $requests): array` | Distribui os pedidos liberados entre as leituras do dia: cada um vai para a mais próxima, a até `APP_CAR_WINDOW_SECONDS` (30 min). |
+| `appCarRow` | `appCarRow(UberAccessRequest $request): array` | Linha do pedido no formato da tabela de pessoas do acesso. |
+
+---
+
 ## RuleValidatorService
 
 `app/Services/RuleValidatorService.php` — validação de regras por data/hora/dia da semana.

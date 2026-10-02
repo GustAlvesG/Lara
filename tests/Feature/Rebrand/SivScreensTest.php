@@ -96,6 +96,66 @@ class SivScreensTest extends TestCase
         $this->assertStringNotContainsString('placehold.co', $html);
     }
 
+    public function test_resultado_junta_associado_externo_e_carro_de_aplicativo(): void
+    {
+        $associado = (object) ['TitleCode' => '12345', 'Name' => 'Marina Costa', 'Telephone' => '(21) 99999-0000', 'date' => '10:00:10'];
+        $terceirizado = [
+            'key' => 'terceirizado:3', 'kind' => 'terceirizado', 'label' => 'Terceirizado', 'ident' => 'Acme Serviços',
+            'name' => 'Bruno Terceiro', 'detail' => 'Eletricista', 'telephone' => '(21) 98888-0000', 'time' => '10:00:40', 'allowed' => true,
+        ];
+        $negado = array_merge($terceirizado, ['key' => 'terceirizado:4', 'name' => 'Nádia Negada', 'telephone' => null, 'allowed' => false]);
+        $aplicativo = [
+            'key' => 'aplicativo:8', 'kind' => 'aplicativo', 'label' => 'Carro de aplicativo', 'ident' => 'Mat./CPF 777',
+            'name' => 'Paulo Passageiro', 'detail' => 'Pedido para Sede social', 'telephone' => '5521977770000', 'time' => '10:03:00', 'allowed' => true,
+        ];
+
+        $concluido = (new \App\Models\UberAccessRequest)->forceFill([
+            'id' => 8, 'status' => \App\Models\UberAccessRequest::STATUS_CONCLUIDO, 'requester_name' => 'Paulo Passageiro',
+            'matricula' => '777', 'club_location' => 'Sede social', 'vehicle_plate' => 'RKT4F21', 'contact_phone' => '5521977770000',
+            'screenshot_url' => 'https://exemplo.test/print.jpg', 'member_validation' => 'validado',
+            'created_at' => Carbon::parse('2026-10-01 09:50:00'), 'accessed_at' => Carbon::parse('2026-10-01 10:03:00'),
+        ]);
+        $vencido = (new \App\Models\UberAccessRequest)->forceFill([
+            'id' => 9, 'status' => \App\Models\UberAccessRequest::STATUS_EXPIRADO, 'requester_name' => 'Vera Vencida',
+            'vehicle_plate' => 'RKT4F21', 'created_at' => Carbon::parse('2026-10-01 15:00:00'),
+        ]);
+
+        $dados = [
+            'data' => [[
+                'entry_date' => '10:00:12 01/10/2026', 'file' => false,
+                'access' => [$associado], 'externals' => [$terceirizado, $negado], 'app_cars' => [$aplicativo],
+            ]],
+            'car' => ['plate' => 'rkt4f21', 'color' => 'prata'],
+            'probaly' => ['Bruno Terceiro | (21) 98888-0000 | Terceirizado' => 60.0, 'Marina Costa | (21) 99999-0000' => 40.0],
+            'datetime' => '2026-10-01',
+            'appCarRequests' => collect([$concluido, $vencido]),
+        ];
+
+        $html = $this->tela($this->portaria(), 'parking.show', [], 'parking.show', $dados);
+
+        // Uma tabela só, com o tipo de cada pessoa.
+        $this->assertStringContainsString('4 condutores', $html);
+        foreach (['Associado', 'Terceirizado', 'Carro de aplicativo', 'Mat. 12345', 'Acme Serviços', 'Eletricista', 'Mat./CPF 777', 'Pedido para Sede social', 'Nádia Negada', 'Negado'] as $texto) {
+            $this->assertStringContainsString($texto, $html);
+        }
+
+        // Pedidos da placa: o liberado e o que venceu sem entrada.
+        $this->assertStringContainsString('Pedidos de carro de aplicativo', $html);
+        $this->assertStringContainsString('Vera Vencida', $html);
+        $this->assertStringContainsString('Expirado', $html);
+        $this->assertStringContainsString('10:03 01/10', $html);
+        $this->assertStringContainsString('Sócio confere', $html);
+        $this->assertStringContainsString('href="https://exemplo.test/print.jpg"', $html);
+
+        // O atalho para Externos só aparece para quem tem a permissão de lá.
+        $this->assertStringNotContainsString('Ver em Carros de aplicativo', $html);
+        $comExternos = $this->usuario(new UserAccess([P::SIV_BUSCA, P::EXTERNOS_CARROS_APLICATIVO]));
+        $this->assertStringContainsString(
+            'href="' . route('company.uber.requests', ['q' => 'RKT4F21']) . '"',
+            $this->tela($comExternos, 'parking.show', [], 'parking.show', $dados)
+        );
+    }
+
     public function test_frota_por_nome_sem_foto_com_busca_e_alerta_de_baixa(): void
     {
         $emRota = $this->veiculo(1);

@@ -5,17 +5,20 @@
 Ferramenta de **identificação de veículos** pela placa. A partir de uma placa (e
 opcionalmente uma data), o sistema mostra os acessos do veículo naquele dia, a foto do carro,
 e tenta identificar o **condutor mais provável** com base no histórico de acessos daquela
-placa. Cruza dados do estacionamento (banco local) com a base de acessos/catracas
-(SQL Server externo — MultiClubes).
+placa. Cruza a leitura da câmera (banco local) com três fontes de "quem estava no carro":
+
+- **Associados** — acessos das catracas (SQL Server externo — MultiClubes);
+- **Externos** — terceirizados, freelancers e liberações pontuais registrados na portaria;
+- **Carros de aplicativo** — pedidos feitos pelo WhatsApp para aquela placa.
 
 ## Para quem
 
-Operadores autorizados (portaria/segurança). Exige a **permissão `search parking`** além de
+Operadores autorizados (portaria/segurança). Exige a **permissão `siv.busca` (Busca de placas)** além de
 estar autenticado.
 
 ## Pré-requisitos
 
-- Usuário autenticado **com a permissão `search parking`**.
+- Usuário autenticado **com a permissão `siv.busca` (Busca de placas)**.
 
 ## Fluxo passo a passo
 
@@ -31,37 +34,78 @@ Formulário de busca:
 | `datetime` | Não | Data (input `date`). Se vazio, usa **hoje**. |
 
 ### 2. Resultado — `POST /parking/find`
-A tela de resultado é dividida em três partes:
+A tela de resultado é dividida em quatro partes:
 
 **a) Cartões do veículo**
 - Placa pesquisada;
 - Cor do carro (ou "Não encontrado");
 - Quantidade de acessos do dia (total de entradas).
 
-**b) Condutores mais prováveis (top 3)**
-Cards com **nome**, **telefone** e **percentual de frequência**. O cálculo usa os **últimos 10
-acessos** daquela placa (de todos os dias): conta quantas vezes cada par "nome | telefone"
-aparece e calcula `ocorrências / total × 100`. Os três mais frequentes são exibidos.
+**b) Pedidos de carro de aplicativo**
+Só aparece quando há pedido para a placa: os **feitos no dia** e os **liberados no dia**. Cada
+cartão mostra quem pediu, matrícula/CPF, situação do pedido (aguardando, concluído, expirado),
+hora do pedido, hora em que a entrada foi liberada, local no clube, WhatsApp, a conferência do
+sócio e o print da corrida. A seção aparece **mesmo sem leitura da câmera** — o pedido casa pela
+placa. Quem tem a permissão *Carros de aplicativo e fila da portaria* vê o atalho para a tela
+de pedidos de Externos, já filtrada pela placa.
 
-**c) Histórico de acessos do dia**
+**c) Condutores mais prováveis (top 3)**
+Cards com **nome**, **telefone** e **percentual de frequência**. O cálculo usa os **últimos 10
+acessos** daquela placa (de todos os dias): conta quantas vezes cada pessoa aparece e calcula
+`ocorrências / total × 100`. Os três mais frequentes são exibidos. Entram associados e
+externos **liberados** (o card do externo traz o tipo: Terceirizado, Freelancer ou Liberação
+pontual). Carro de aplicativo fica de fora: quem pede é o passageiro, não quem dirige.
+
+**d) Histórico de acessos do dia**
 Lista de cada entrada do veículo no dia escolhido (mais recente primeiro). Para cada acesso:
-- Cabeçalho com data/hora ("Acesso em: DD/MM/AAAA às HH:MM:SS");
+- Cabeçalho com data/hora e a contagem de pessoas ligadas àquela leitura;
 - Foto do carro, que abre em tamanho cheio ao clicar. Sem foto, aparece o aviso "Sem foto
   deste acesso" (ver [Foto do acesso](#foto-do-acesso-ftp-das-câmeras));
-- Tabela com **Matrícula · Nome · Telefone · Horário** das pessoas que acessaram naquele
-  momento.
+- Uma tabela só, com **Tipo · Nome · Vínculo · Telefone · Horário**:
+
+| Tipo | Nome (e linha de baixo) | Vínculo |
+|------|-------------------------|---------|
+| Associado | Nome do sócio | Matrícula |
+| Terceirizado | Nome · cargo | Empresa |
+| Freelancer | Nome | — |
+| Liberação pontual | Nome · motivo | — |
+| Carro de aplicativo | Quem pediu · local no clube | Matrícula/CPF informado |
+
+O externo cujo registro foi **negado** aparece com o selo "Negado": ele estava na portaria
+naquele instante, mas não foi liberado.
 
 ## Como funciona a correlação com os acessos
 
-Para cada registro de entrada do estacionamento (`Parking`), o sistema chama
-`AccessController::findAccessByTime($entry_date, $gate)`, que consulta a base de acessos
-(SQL Server, `mc_sqlsrv`, tabela `Analytics.RealizedAccesses`) procurando acessos numa
-**janela de ±15 segundos** em torno do horário de entrada, na portaria correspondente. Assim,
-relaciona quem passou pela catraca no mesmo instante em que o carro entrou.
+Cada leitura da câmera (`Parking`) é ligada às pessoas por três caminhos. Os dois últimos ficam
+em `App\Services\ParkingAccessCorrelationService`.
 
-Campos retornados de cada acesso incluem nome, telefone, matrícula (título), portaria, local e
-horário. Quando não há correspondência, o nome aparece como "Visitante" e o telefone como
-"Sem Telefone".
+| Quem | Fonte | Como liga | Janela |
+|------|-------|-----------|--------|
+| Associado | Catracas do MultiClubes (`mc_sqlsrv`) | Horário + portaria (A/B) | ±15 s |
+| Terceirizado, freelancer, liberação pontual | `company_access_logs` | Só horário | ±60 s |
+| Carro de aplicativo | `uber_access_requests` | **Placa** + leitura mais próxima da liberação | até 30 min |
+
+**Associados.** `AccessController::findAccessByTime($entry_date, $gate)` consulta os acessos de
+catraca numa janela de ±15 segundos em torno da leitura, na portaria correspondente. Sem
+correspondência de cadastro, o nome aparece como "Visitante" e o telefone como "Sem Telefone".
+
+**Externos.** O registro da portaria (Monitor de Acesso) não guarda placa nem portaria, então a
+ligação é só pelo horário: entra quem foi registrado até 60 segundos antes ou depois da leitura.
+A janela é maior que a das catracas porque o registro é manual. Ela foi medida nos acessos de
+Uber de set/2026, que têm placa dos dois lados: ±15 s pega 64% dos casos e ±60 s pega 89%.
+A mesma pessoa registrada duas vezes na janela aparece uma vez (o registro liberado vence o
+negado). Terceirizado excluído do cadastro continua aparecendo com o nome.
+
+> **Limite conhecido:** por ser só horário, um externo que passou a pé pela portaria no mesmo
+> minuto aparece junto do carro. É o mesmo tipo de ruído dos associados; o card de condutores
+> mais prováveis, que soma dez acessos, é o que separa coincidência de padrão.
+
+**Carros de aplicativo.** O pedido tem a placa (`vehicle_plate`), então a ligação é exata — a
+placa buscada é normalizada (maiúsculas, só letras e números) antes de comparar. O horário só
+decide a qual leitura do dia o pedido pertence: cada pedido **liberado** vai para a leitura mais
+próxima do `accessed_at`, desde que a até 30 minutos. Pedido sem liberação (aguardando ou
+expirado), ou liberado longe de qualquer leitura, não entra em nenhum acesso, mas continua na
+seção de pedidos. O registro manual de motorista de aplicativo (`app_drivers`) não entra.
 
 ## Foto do acesso (FTP das câmeras)
 
@@ -121,26 +165,37 @@ Depois de mudar o `.env` em produção: `php artisan config:cache`.
 | Dado | Origem |
 |------|--------|
 | Placa, cor, nome do arquivo da foto, horário de entrada | Tabela `parkings` (MySQL local), alimentada pelo sistema das câmeras. |
-| Nome, telefone, matrícula do condutor | `Analytics.RealizedAccesses` (SQL Server, somente leitura). |
+| Nome, telefone, matrícula do associado | Catracas do MultiClubes (SQL Server, somente leitura). |
+| Terceirizado, freelancer, liberação pontual | `company_access_logs` e os cadastros ligados (`company_workers`, `companies`, `freelancers`, `one_off_accesses`). Ver [Controle de Acesso de Empresas](../company-access-control.md). |
+| Pedido de carro de aplicativo | `uber_access_requests`. |
 | Imagem do carro | FTP das câmeras, com cópia local em `public/storage/img_car` (via `FtpController::getImage`). |
 
 ## Regras de negócio
 
 - **Data padrão:** se nenhuma data for informada, busca o dia atual.
-- **Janela de ±15s:** absorve pequenas diferenças entre o relógio do estacionamento e o das
-  catracas.
-- **Condutor provável:** baseado nos últimos 10 acessos anteriores da placa.
-- **Sem dados:** placa não encontrada exibe cor "Não encontrado" e zero acessos.
+- **Janela de ±15s (associados):** absorve pequenas diferenças entre o relógio do
+  estacionamento e o das catracas.
+- **Janela de ±60s (externos):** o registro na portaria é manual e não guarda placa.
+- **Carro de aplicativo:** casa pela placa; o pedido liberado vai para a leitura mais próxima,
+  a até 30 minutos.
+- **Condutor provável:** baseado nos últimos 10 acessos anteriores da placa, somando associados
+  e externos liberados.
+- **Sem dados:** placa não encontrada exibe cor "Não encontrado" e zero acessos — os pedidos de
+  carro de aplicativo da placa aparecem assim mesmo.
+- **Quem vê:** a busca mostra os externos e os pedidos a quem tem `siv.busca`, sem exigir as
+  permissões da área de Externos. Só o atalho para a tela de pedidos depende da permissão de lá.
 
 ## Mensagens e validações
 
 - A placa é obrigatória; a data é opcional.
-- Acesso negado (HTTP 403) se o usuário não tiver a permissão `search parking`.
+- Acesso negado (HTTP 403) se o usuário não tiver a permissão `siv.busca` (Busca de placas).
 
 ## Referência técnica
 
 - Controllers: [`ParkingController`](../controllers.md#parkingcontroller), [`AccessController`](../controllers.md#accesscontroller), [`FtpController`](../controllers.md#ftpcontroller-ftpcontrollerphp)
-- Teste: `tests/Feature/ParkingCarImageTest.php`
+- Service: [`ParkingAccessCorrelationService`](../services.md#parkingaccesscorrelationservice)
+- Testes: `tests/Feature/ParkingCarImageTest.php` (foto), `tests/Feature/ParkingAccessCorrelationTest.php`
+  (externos e carros de aplicativo), `tests/Feature/Rebrand/SivScreensTest.php` (tela)
 - Integração FTP: [Integrações](../integracoes.md#119-ftp-flysystem)
 - Models: [`Parking`, `Access`](../models.md#status-acesso-e-estacionamento)
 - Integração SQL Server: [Integrações](../integracoes.md#114-sql-server--multiclubes)
