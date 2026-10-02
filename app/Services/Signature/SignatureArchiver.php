@@ -4,33 +4,35 @@ namespace App\Services\Signature;
 
 use App\Models\SignatureAuditEvent;
 use App\Models\SignatureDocument;
+use App\Support\ArchivePath;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
  * Arquiva a cópia do documento assinado no servidor de arquivos (FTP).
  *
  * As pastas são feitas para quem PROCURA um documento sem abrir o sistema —
- * primeiro o tipo, depois quando, depois de quem:
+ * primeiro o tipo, depois a pessoa (ver App\Support\ArchivePath, que é a
+ * mesma organização dos contratos de freelancer):
  *
  *     Lara/DocumentosAssinados/
- *       Contrato de Locacao de Espaco para Evento/
- *         2026/
- *           10 - Outubro/
- *             2026-10-03 - Maria de Souza e Joao Pereira - 6W5YTTTJGRCU.pdf
+ *       Contrato de Locacao de Espaco para Evento/      ← tipo: o modelo
+ *         Maria de Souza/                               ← pessoa: o primeiro signatário
+ *           2026-10-03 - Maria de Souza e Joao Pereira - 6W5YTTTJGRCU.pdf
+ *       Documentos avulsos/                             ← os enviados prontos, em PDF
+ *         Empresa X/
+ *           2026-10-03 - Contrato de patrocinio - Empresa X - 8KQ2M4.pdf
  *
- *  - **Modelo primeiro**: é a pergunta que vem antes ("cadê os contratos de
- *    locação?"), e é por modelo que o prazo de guarda é definido.
- *  - **Ano e mês** da assinatura, com o número na frente do mês para a pasta
- *    ordenar na ordem do calendário.
- *  - **No nome do arquivo**, a data, quem assinou e o código de validação. O
- *    código é o que torna o nome único e o que liga o arquivo à página de
- *    validação e ao registro no sistema. O CPF não entra em nome de arquivo.
- *
- * Nomes sem acento e sem os caracteres que Windows e FTP recusam: servidor
- * FTP antigo troca "ç" por lixo, e uma pasta com nome quebrado ninguém acha.
+ *  - **Tipo primeiro**: é a pergunta que vem antes ("cadê os contratos de
+ *    locação?"). Documento enviado pronto não tem modelo — uma pasta por
+ *    título viraria uma pasta por arquivo —, então todos ficam em
+ *    "Documentos avulsos", e o título vai no nome do arquivo.
+ *  - **Pessoa**: o primeiro signatário, que é de quem o documento trata. Os
+ *    demais aparecem no nome do arquivo.
+ *  - **No nome do arquivo**, a data da assinatura, quem assinou e o código de
+ *    validação. O código é o que torna o nome único e o que liga o arquivo à
+ *    página de validação e ao registro no sistema.
  *
  * O arquivo de verdade continua no disco privado do módulo. Aqui vai a CÓPIA
  * — e, por ser cópia, ela é conferida depois de enviada: um PDF truncado numa
@@ -38,11 +40,6 @@ use RuntimeException;
  */
 class SignatureArchiver
 {
-    private const MONTHS = [
-        1 => 'Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
-        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-    ];
-
     public function __construct(private SignatureStateMachine $states)
     {
     }
@@ -89,28 +86,22 @@ class SignatureArchiver
     public function pathFor(SignatureDocument $document): string
     {
         $data = $document->finalized_at ?? now();
-
-        $signers = $document->signers()->get();
-        $nomes = $signers->take(2)->map(fn($s) => $this->clean($s->name, 40))->filter()->join(' e ');
-
-        if ($signers->count() > 2) {
-            $nomes .= ' e mais ' . ($signers->count() - 2);
-        }
+        $nomes = $document->signers()->orderBy('position')->pluck('name');
+        $avulso = (bool) $document->template?->single_use;
 
         return implode('/', [
             $this->root(),
-            // Documento enviado pronto não tem modelo: uma pasta por título
-            // viraria uma pasta por arquivo.
-            $document->template?->single_use
+            $avulso
                 ? 'Documentos avulsos'
-                : ($this->clean($document->template?->name ?? $document->title, 80) ?: 'Sem modelo'),
-            $data->format('Y'),
-            $data->format('m') . ' - ' . self::MONTHS[(int) $data->format('n')],
-            implode(' - ', array_filter([
+                : (ArchivePath::clean($document->template?->name ?? $document->title, 80) ?: 'Sem modelo'),
+            ArchivePath::person($nomes->first()),
+            ArchivePath::file([
                 $data->format('Y-m-d'),
-                $nomes,
+                // Na pasta dos avulsos o tipo não diz o que o documento é: o título diz.
+                $avulso ? ArchivePath::clean($document->title, 60) : null,
+                ArchivePath::signers($nomes),
                 $document->validation_code ?: ('doc' . $document->id),
-            ])) . '.pdf',
+            ]),
         ]);
     }
 
@@ -158,19 +149,5 @@ class SignatureArchiver
         ]);
 
         return $document;
-    }
-
-    /**
-     * Um trecho de nome de pasta ou arquivo: sem acento, sem os caracteres que
-     * Windows e FTP recusam, sem ponto ou espaço nas pontas.
-     */
-    private function clean(?string $texto, int $limite): string
-    {
-        $texto = Str::ascii((string) $texto);
-        $texto = (string) preg_replace('/[\\\\\/:*?"<>|\x00-\x1F]+/', ' ', $texto);
-        $texto = (string) preg_replace('/[^A-Za-z0-9 ._()\-]+/', '', $texto);
-        $texto = trim((string) preg_replace('/\s+/', ' ', $texto), ' .');
-
-        return trim(mb_substr($texto, 0, $limite), ' .');
     }
 }

@@ -78,6 +78,13 @@ valor também é guardado só como hash. Três razões:
 
 ## Fluxo do atendente
 
+O **título** de um documento novo é, por padrão, "Modelo - Primeiro signatário"
+(`SignatureDocumentService::titleFor`): numa lista de vinte documentos do mesmo modelo, o título
+igual em todos não distingue nenhum. Vale enquanto o atendente não escrever outro — título em
+branco ou igual ao nome do modelo, que é como o formulário o traz. Título digitado é respeitado;
+documento enviado pronto fica de fora (ali o título é sempre digitado); e na correção do rascunho
+o título não é refeito.
+
 1. **Escolher o modelo** → informar os signatários, buscando o associado por nome, título ou CPF
    (ou digitando um visitante) → preencher os dados do modelo.
 
@@ -277,19 +284,41 @@ quem procura um documento sem abrir o sistema:
 
 ```
 Lara/DocumentosAssinados/
-  Contrato de Locacao de Espaco para Evento/      ← o modelo
-    2026/                                         ← ano da assinatura
-      10 - Outubro/                               ← mês, com o número na frente para ordenar
-        2026-10-03 - Maria de Souza e Joao Pereira - 6W5YTTTJGRCU.pdf
+  Contrato de Locacao de Espaco para Evento/      ← tipo: o modelo
+    Maria de Souza/                               ← pessoa: o primeiro signatário
+      2026-10-03 - Maria de Souza e Joao Pereira - 6W5YTTTJGRCU.pdf
+  Documentos avulsos/                             ← os enviados prontos, em PDF
+    Empresa X/
+      2026-10-03 - Contrato de patrocinio - Empresa X - 8KQ2M4.pdf
+  Freelancers/                                    ← contratos de freelancer (ver freelancers.md)
+    Joao Antonio da Conceicao/
+      2026-10-03 - Contrato - C1234.pdf
+      2026-10-03 - Termo aditivo - C1240.pdf
 ```
 
-- **Modelo primeiro**: é a pergunta que vem antes ("cadê os contratos de locação?"), e é por
-  modelo que o prazo de guarda é definido.
-- **Nome do arquivo**: data, quem assinou (os dois primeiros; "e mais N" quando há mais) e o
-  **código de validação** — que torna o nome único e liga o arquivo à página `/validar/{código}`
-  e ao registro no sistema. CPF não entra em nome de arquivo.
+A organização é **tipo → pessoa**, a mesma para os documentos do balcão e para os contratos de
+freelancer. As regras de nome moram num lugar só, `App\Support\ArchivePath`:
+
+- **Tipo primeiro**: é a pergunta que vem antes ("cadê os contratos de locação?"). Documento
+  enviado pronto não tem modelo, então todos ficam em **Documentos avulsos** — e, como ali a
+  pasta não diz o que o documento é, o **título** entra no nome do arquivo.
+- **Pessoa**: o **primeiro signatário**, que é de quem o documento trata. Tudo o que uma pessoa
+  assinou de um tipo fica junto.
+- **Data da assinatura** abrindo o nome do arquivo, em ano-mês-dia: dentro da pasta, os
+  documentos ficam em ordem de data sozinhos.
+- **Quantidade de signatários**, nos nomes: um, o nome; dois, os dois; três ou mais, os dois
+  primeiros e "e mais N".
+- **Código de validação** no fim — torna o nome único e liga o arquivo à página
+  `/validar/{código}` e ao registro no sistema.
+- **CPF não entra** em nome de pasta nem de arquivo. O preço: duas pessoas de nome idêntico
+  dividem a mesma pasta (os arquivos não se confundem, por causa do código).
 - **Sem acento** e sem os caracteres que Windows e FTP recusam: servidor FTP antigo troca "ç" por
   lixo, e pasta com nome quebrado ninguém acha.
+
+> A organização anterior era modelo → ano → mês. Documento arquivado antes da mudança **fica
+> onde está** (o `archive_path` dele continua apontando para lá); só os novos seguem a regra
+> nova. Para refazer um antigo no lugar novo: limpe o `archived_at` dele e rode
+> `php artisan signature:archive` — a cópia antiga precisa ser apagada à mão.
 
 O arquivo de verdade continua no disco privado do módulo — é dele o `final_sha256`, e é dele que
 o painel baixa. O FTP é cópia, e por isso é conferida: o que sai tem de bater com o hash gravado,
@@ -320,6 +349,10 @@ php artisan signature:archive            # envia os já finalizados
 
 O disco é o `signature_archive` (`config/filesystems.php`), que por padrão usa o mesmo servidor
 e a mesma conta das variáveis `FTP_*`; as `SIGNATURE_FTP_*` só são necessárias se for outro.
+
+Os **contratos de freelancer** usam o mesmo disco e a mesma pasta-raiz, com chave própria para
+ligar (`FREELANCER_ARCHIVE_ENABLED`) e comando próprio (`freelancers:archive`) — ver
+[Freelancers](freelancers.md#arquivo-no-servidor-de-arquivos-ftp).
 
 > FTP comum trafega sem criptografia, e esses PDFs têm nome, CPF mascarado e assinatura. Se o
 > servidor aceitar FTPS, ligue `SIGNATURE_FTP_SSL=true`.

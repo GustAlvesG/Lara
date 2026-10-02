@@ -52,6 +52,12 @@
             <input type="text" name="title" id="title" maxlength="200"
                    value="{{ old('title', $document?->title ?? $template->name) }}"
                    class="w-full rounded-xl border-line-strong shadow-card focus:border-grena focus:ring-grena-tint">
+            @if(!$document && $template->name !== '')
+                <p class="mt-1 text-xs text-ink-2">
+                    Se você não mudar o título, o nome do primeiro signatário é acrescentado a ele:
+                    “{{ $template->name }} - Nome da pessoa”.
+                </p>
+            @endif
         </div>
 
         <div>

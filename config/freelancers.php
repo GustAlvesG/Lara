@@ -28,6 +28,27 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Cópia dos contratos assinados no servidor de arquivos (FTP)
+    |--------------------------------------------------------------------------
+    |
+    | Contrato, termo aditivo e termo de comissão, depois de assinados pelas
+    | duas partes, ganham uma cópia em PDF no mesmo arquivo de rede dos
+    | documentos do balcão — pasta `Freelancers`, uma pasta por pessoa (ver
+    | FreelancerContractArchiver). O disco e a pasta-raiz são os de
+    | config/signature.php → archive.
+    |
+    | Desligado por padrão, pelo mesmo motivo de lá: a máquina de
+    | desenvolvimento tem as credenciais do FTP, e um teste local não deve
+    | criar contrato na pasta de produção. Ligue no .env do servidor.
+    |
+    */
+
+    'archive' => [
+        'enabled' => (bool) env('FREELANCER_ARCHIVE_ENABLED', false),
+    ],
+
     'weekly_limit' => [
         'code_ttl_minutes' => (int) env('FREELANCER_WEEKLY_CODE_TTL_MINUTES', 120),
         'code_max_attempts' => (int) env('FREELANCER_WEEKLY_CODE_MAX_ATTEMPTS', 5),

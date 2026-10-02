@@ -13,7 +13,9 @@
      *
      * Parâmetros:
      *   $service      — contrato, termo aditivo ou termo de comissão
-     *   $layout       — 'print' (painel e impressão, padrão) ou 'tablet' (kiosk)
+     *   $layout       — 'print' (painel e impressão, padrão), 'tablet' (kiosk)
+     *                   ou 'pdf' (o arquivo gerado pelo DomPDF para o servidor
+     *                   de arquivos — ver App\Services\FreelancerContractPdf)
      *   $signing      — null | 'freelancer' | 'coordinator': quem vai assinar
      *                   AGORA, e portanto qual dos dois campos recebe o canvas.
      *                   Da redação 2 em diante o campo do CONTRATANTE nunca
@@ -27,6 +29,10 @@
     $signing = $signing ?? null;
     $operatorName = $operatorName ?? null;
     $tablet = $layout === 'tablet';
+    // O DomPDF não busca imagem por rota autenticada nem repete thead/tfoot de
+    // uma célula que atravessa páginas: no PDF as imagens vão embutidas e o
+    // cabeçalho/rodapé são blocos fixos, repetidos por ele em toda página.
+    $pdf = $layout === 'pdf';
 
     // A qualificação vem congelada quando o contrato já foi assinado: o cadastro
     // muda, o documento firmado não. Ver FreelancerService::contractParty().
@@ -49,8 +55,21 @@
         'party' => $party,
     ]);
 
-    $freelancerSignatureUrl = $service->freelancer_signature_path ? $signatureUrl('freelancer') : null;
-    $coordinatorSignatureUrl = $service->coordinator_signature_path ? $signatureUrl('coordinator') : null;
+    // No PDF, o traço vai embutido, lido do mesmo disco de onde a rota o serve.
+    $embutida = function (?string $path): ?string {
+        $disk = \Illuminate\Support\Facades\Storage::disk('public');
+
+        return $path && $disk->exists($path)
+            ? 'data:image/png;base64,' . base64_encode($disk->get($path))
+            : null;
+    };
+
+    $freelancerSignatureUrl = $pdf
+        ? $embutida($service->freelancer_signature_path)
+        : ($service->freelancer_signature_path ? $signatureUrl('freelancer') : null);
+    $coordinatorSignatureUrl = $pdf
+        ? $embutida($service->coordinator_signature_path)
+        : ($service->coordinator_signature_path ? $signatureUrl('coordinator') : null);
 
     // Quem assina pelo CONTRATANTE vem da redação do contrato: na 1, o
     // coordenador desenha no tablet; da 2 em diante, assina o diretor na
@@ -70,12 +89,23 @@
     // O corpo é o mesmo nos dois layouts; só a moldura difere. Na impressão ele
     // vai dentro de uma tabela, cujo thead/tfoot o navegador repete em todas as
     // páginas; no tablet, que rola numa tela só, divs bastam.
-    $cabecalho = '<div class="doc-header-img"><img src="' . e(asset('images/freelancer/cabecalho.png')) . '" alt="Clube dos Funcionários"></div>';
-    $rodape = '<div class="doc-footer-img"><img src="' . e(asset('images/freelancer/rodape.png')) . '" alt="Endereços e contatos do Clube dos Funcionários"></div>';
+    $imagem = fn(string $arquivo) => $pdf
+        ? 'data:image/png;base64,' . base64_encode((string) file_get_contents(public_path('images/freelancer/' . $arquivo)))
+        : asset('images/freelancer/' . $arquivo);
+
+    $cabecalho = '<div class="doc-header-img"><img src="' . e($imagem('cabecalho.png')) . '" alt="Clube dos Funcionários"></div>';
+    $rodape = '<div class="doc-footer-img"><img src="' . e($imagem('rodape.png')) . '" alt="Endereços e contatos do Clube dos Funcionários"></div>';
 @endphp
 
+@if($pdf)
+    {{-- Fixos e ANTES do corpo: é assim que o DomPDF os repete em todas as páginas. --}}
+    <div class="pdf-header">{!! $cabecalho !!}</div>
+    <div class="pdf-footer">{!! $rodape !!}</div>
+@endif
+
 <div class="doc" id="docSheet">
-    @if($tablet)
+    @if($pdf)
+    @elseif($tablet)
         {!! $cabecalho !!}
     @else
     <table class="doc-table">
@@ -169,7 +199,8 @@
         </div>
     </div>
 
-    @if($tablet)
+    @if($pdf)
+    @elseif($tablet)
         {!! $rodape !!}
     @else
     </td></tr></tbody>

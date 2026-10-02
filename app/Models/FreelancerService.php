@@ -253,6 +253,8 @@ class FreelancerService extends Model
         'director_rejected_at' => 'datetime',
         // Assinatura da diretoria aplicada ao documento (redação 2).
         'director_signed_at' => 'datetime',
+        // Cópia no servidor de arquivos (ver FreelancerContractArchiver).
+        'archived_at' => 'datetime',
         'paid' => 'boolean',
         'paid_at' => 'datetime',
         'cancelled_at' => 'datetime',
@@ -1820,6 +1822,50 @@ class FreelancerService extends Model
         return $this->usesDirectorSignature()
             && !$this->isCancelled()
             && !$this->hasDirectorSignature();
+    }
+
+    /* ---------------------------------------------------------------------
+     | Arquivo no servidor de arquivos (FTP)
+     |
+     | Só vai para lá o documento que não muda mais: assinado pelas duas
+     | partes. Na redação 1 a segunda assinatura é a do coordenador; da 2 em
+     | diante é a do diretor, aplicada na aprovação do lote (a validação da
+     | coordenação não entra no documento).
+     |---------------------------------------------------------------------*/
+
+    public function isFinalDocument(): bool
+    {
+        if ($this->isCancelled() || $this->freelancer_signed_at === null) {
+            return false;
+        }
+
+        return $this->usesDirectorSignature()
+            ? $this->hasDirectorSignature()
+            : $this->coordinator_signed_at !== null;
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->archived_at !== null;
+    }
+
+    /** A fila do comando `freelancers:archive` — `isFinalDocument()` em SQL, sem cópia ainda. */
+    public function scopeAwaitingArchive($query)
+    {
+        return $query
+            ->where('status_id', self::STATUS_ACTIVE)
+            ->whereNotNull('freelancer_signed_at')
+            ->whereNull('archived_at')
+            ->where(function ($q) {
+                $q->where(function ($diretor) {
+                    $diretor->contractorSignedBy(self::CONTRACTOR_SIGNS_DIRECTOR)
+                        ->whereNotNull('director_signed_at')
+                        ->whereNotNull('freelancer_director_id');
+                })->orWhere(function ($coordenador) {
+                    $coordenador->contractorSignedBy(self::CONTRACTOR_SIGNS_COORDINATOR)
+                        ->whereNotNull('coordinator_signed_at');
+                });
+            });
     }
 
     /**

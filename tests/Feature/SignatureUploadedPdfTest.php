@@ -312,9 +312,13 @@ class SignatureUploadedPdfTest extends TestCase
         $this->assertStringContainsString($documento->source_sha256, $manifesto);
 
         // No arquivo de rede, vai para a pasta dos avulsos — e não para uma pasta só dele.
+        // Como ali a pasta não diz o que o documento é, o título vai no nome do arquivo.
+        $caminho = app(SignatureArchiver::class)->pathFor($documento);
+
+        $this->assertStringContainsString('/Documentos avulsos/', $caminho);
         $this->assertStringContainsString(
-            '/Documentos avulsos/',
-            app(SignatureArchiver::class)->pathFor($documento),
+            ' - ' . \App\Support\ArchivePath::clean($documento->title, 60) . ' - ',
+            basename($caminho),
         );
     }
 

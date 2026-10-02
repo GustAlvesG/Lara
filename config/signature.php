@@ -172,7 +172,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | Depois de finalizado, o PDF assinado ganha uma CÓPIA no FTP, organizada
-    | em pastas por modelo, ano e mês (ver SignatureArchiver). O arquivo de
+    | em pastas por modelo e por pessoa (ver SignatureArchiver). O arquivo de
     | verdade continua no disco privado acima.
     |
     | Desligado por padrão: a máquina de desenvolvimento tem as credenciais do

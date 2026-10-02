@@ -1197,6 +1197,71 @@ amanhã) e **qual função** — e a uma lista de quem já atuou nela
   `FreelancerService::functionHistory()` e `weeklyCountsFor()` (uma consulta agregada cada, e não uma
   por freelancer). Testes em `tests/Feature/FreelancerFunctionSearchTest.php`.
 
+### Arquivo no servidor de arquivos (FTP)
+
+Contrato, termo aditivo e termo de comissão, depois de assinados pelas **duas partes**, ganham uma
+**cópia em PDF** no servidor de arquivos — o mesmo arquivo de rede dos documentos do balcão
+(ver [Assinatura eletrônica](assinatura-eletronica.md#arquivo-no-servidor-de-arquivos-ftp)), na
+pasta `Freelancers`, uma pasta por pessoa:
+
+```
+Lara/DocumentosAssinados/
+  Freelancers/
+    Joao Antonio da Conceicao/
+      2026-10-03 - Contrato - C1234.pdf
+      2026-10-03 - Termo aditivo - C1240.pdf
+      2026-10-03 - Comissao - C1241.pdf
+      2026-10-10 - Contrato - C1301.pdf
+```
+
+- **Pasta da pessoa**: o nome que o **documento** cita (a qualificação congelada na assinatura),
+  sem acento. Corrigir o cadastro depois não muda a pasta dos contratos antigos. CPF não entra em
+  nome de pasta nem de arquivo — dois freelancers de nome idêntico dividem a pasta.
+- **Nome do arquivo**: a data da assinatura do freelancer (a data do documento), o que o documento
+  é (`Contrato`, `Termo aditivo`, `2o Termo aditivo`, `Comissao`) e o número do contrato no sistema
+  (`C` + id), que torna o nome único.
+- **Quando vai**: só com as duas assinaturas do documento (`isFinalDocument()`). Na redação 1,
+  freelancer e coordenador; da redação 2 em diante, freelancer e **diretor** — a validação da
+  coordenação não entra no documento. Antes disso a cópia ficaria velha: a assinatura que falta
+  ainda entra nele. Contrato cancelado não vai.
+- **O PDF nasce na hora de arquivar.** O contrato não tem arquivo guardado no sistema: é montado a
+  cada exibição. `FreelancerContractPdf` usa o **mesmo** parcial do painel e do tablet
+  (`contract-document`, layout `pdf`) com a redação firmada; só a folha de estilo é outra
+  (`services/pdf.blade.php`), porque o DomPDF não entende variável de CSS nem flexbox. As imagens
+  (cabeçalho, rodapé, traço do freelancer e do coordenador, assinatura do diretor) vão embutidas.
+- **É cópia, e é conferida**: o tamanho do que chegou é comparado ao do que saiu, e o hash do PDF
+  fica em `archive_sha256` — dá para saber, depois, se o arquivo da pasta ainda é o que o sistema
+  enviou. Arquivar não mexe em `updated_at` nem em `updated_by` do contrato.
+- **Quem envia** é o comando `freelancers:archive`, agendado de hora em hora — não há envio no ato
+  da assinatura: a aprovação da diretoria assina dezenas de documentos de uma vez, e gerar dezenas
+  de PDFs ali seguraria a tela de quem aprova. Uma falha do FTP não perde nada: o contrato fica na
+  fila (`archived_at` nulo) até a próxima execução.
+- Na tela do contrato, o bloco da redação mostra quando e onde a cópia foi gravada.
+
+Vem **desligado** (`FREELANCER_ARCHIVE_ENABLED=false`), pelo mesmo motivo do arquivo do balcão: um
+teste local não deve criar contrato na pasta de produção. Para ligar no servidor:
+
+```bash
+# .env
+FREELANCER_ARCHIVE_ENABLED=true
+
+php artisan signature:archive --testar        # confere a conexão com o FTP (é o mesmo disco)
+php artisan freelancers:archive --limite=5    # envia os primeiros, para conferir na pasta
+```
+
+> **Ao ligar, o histórico inteiro entra na fila**: todo contrato já assinado pelas duas partes é
+> enviado, dos mais antigos para os mais novos, `--limite` (100) por execução. Com o agendamento de
+> hora em hora, mil contratos levam umas dez horas. Para adiantar, rode o comando à mão.
+> `--forcar` envia mesmo com o arquivamento desligado — serve para testar antes de ligar.
+
+Peças: `App\Services\FreelancerContractPdf`, `App\Services\FreelancerContractArchiver`,
+`App\Support\ArchivePath` (regras de nome, compartilhadas com o balcão),
+`App\Console\Commands\ArchiveFreelancerContracts`, `FreelancerService::isFinalDocument()` /
+`scopeAwaitingArchive()` / `isArchived()`, `config/freelancers.php` → `archive`, e a migration
+`2026_10_07_100000_add_archive_to_freelancer_services_table` (`archive_path`, `archive_sha256`,
+`archived_at`). Testes em `tests/Feature/FreelancerContractArchiveTest.php` e
+`tests/Unit/ArchivePathTest.php`.
+
 ### Permissões
 - Todo o painel exige a permissão `manage freelancers`.
 - **A aba Financeiro e a baixa de pagamento são vínculo de setor, não permissão:** acessa quem

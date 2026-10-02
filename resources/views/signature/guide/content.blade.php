@@ -668,10 +668,13 @@
         <tr>
             <td><b>Pasta de rede</b><br><span class="small">(se o arquivamento estiver ligado)</span></td>
             <td>Uma cópia de cada PDF assinado é guardada no servidor de arquivos, em<br>
-                <code>Lara/DocumentosAssinados</code> → pasta do <b>modelo</b> → <b>ano</b> → <b>mês</b>.<br>
+                <code>Lara/DocumentosAssinados</code> → pasta do <b>modelo</b> → pasta da <b>pessoa</b> (o primeiro
+                signatário).<br>
                 O arquivo se chama, por exemplo:<br>
                 <span class="small">2026-10-03 - Maria de Souza e Joao Pereira - 6W5YTTTJGRCU.pdf</span><br>
-                (data, quem assinou e código de validação), sem acentos. A pasta é uma <b>cópia</b>: renomear ou
+                (data da assinatura, quem assinou e código de validação), sem acentos. Com três ou mais pessoas,
+                aparecem as duas primeiras e “e mais N”. Documento enviado pronto, em PDF, fica na pasta
+                <b>Documentos avulsos</b>, com o título no nome do arquivo. A pasta é uma <b>cópia</b>: renomear ou
                 apagar um arquivo ali não muda nada no sistema.</td>
         </tr>
         <tr>

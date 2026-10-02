@@ -156,7 +156,7 @@ class SignatureDocumentService
                 // dele.
                 'signature_template_id' => $template->id,
                 'template_version' => $template->version,
-                'title' => $attributes['title'] ?? $template->name,
+                'title' => $this->titleFor($template, $attributes['title'] ?? null, $signers),
                 'data' => $attributes['data'] ?? [],
                 'location' => $attributes['location'] ?? config('signature.location'),
                 'created_by' => $userId,
@@ -178,6 +178,47 @@ class SignatureDocumentService
 
             return $document->fresh();
         });
+    }
+
+    /**
+     * O título de um documento novo.
+     *
+     * Por padrão é "Modelo - Primeiro signatário": numa lista de vinte
+     * documentos do mesmo modelo, o título igual em todos não distingue nenhum.
+     * "Por padrão" é enquanto o atendente não escreveu outro — título em
+     * branco ou igual ao nome do modelo, que é como o formulário o traz.
+     * Título digitado é respeitado como está.
+     *
+     * Documento enviado pronto (modelo de uso único) fica de fora: ali o
+     * título é sempre digitado, e o modelo só existe para guardar as regras.
+     *
+     * Só na criação. Na correção do rascunho o título já está na tela, com o
+     * nome, e quem troca o signatário troca o título se quiser.
+     *
+     * @param  array<int, array<string, mixed>>  $signers
+     */
+    private function titleFor(SignatureTemplate $template, ?string $title, array $signers): string
+    {
+        $title = trim((string) $title);
+
+        if ($template->single_use) {
+            return $title !== '' ? $title : $template->name;
+        }
+
+        if ($title !== '' && $title !== trim($template->name)) {
+            return $title;
+        }
+
+        $primeiro = trim((string) (array_values($signers)[0]['name'] ?? ''));
+
+        if ($primeiro === '') {
+            return $template->name;
+        }
+
+        // A coluna tem 200 caracteres; quem cede é o nome do modelo, não o da pessoa.
+        $sufixo = ' - ' . mb_substr($primeiro, 0, 80);
+
+        return mb_substr($template->name, 0, 200 - mb_strlen($sufixo)) . $sufixo;
     }
 
     /**

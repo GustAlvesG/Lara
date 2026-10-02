@@ -23,6 +23,11 @@ Schedule::command('signature:expire')->everyMinute()->withoutOverlapping();
 // faz nada com o arquivamento desligado.
 Schedule::command('signature:archive')->hourly()->withoutOverlapping();
 
+// Contratos de freelancer assinados pelas duas partes: gera o PDF e manda a
+// cópia ao mesmo servidor de arquivos. É o único caminho desse arquivamento, e
+// também não faz nada desligado.
+Schedule::command('freelancers:archive')->hourly()->withoutOverlapping();
+
 // Bot do WhatsApp: a Poli não encerra por inatividade as conversas do O Lara.
 // Fecha as concluídas (encerramento diferido) e as abandonadas no meio do
 // fluxo; a reconciliação pega as que a Lara perdeu de vista.
