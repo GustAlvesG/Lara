@@ -1,12 +1,9 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Novo Modelo de Documento') }}
-        </h2>
-    </x-slot>
-
-<div class="py-12 bg-gray-50 dark:bg-gray-900 min-h-screen">
-    <div class="max-w-4xl mx-auto sm:px-6 lg:px-8">
+<x-app-layout :bootstrap-grid="false">
+<div>
+    <div class="mx-auto flex w-full max-w-[900px] flex-col gap-5 px-4 pb-12 pt-6 sm:px-6 lg:px-8">
+        <x-page-title title="Novo modelo" :back="route('signature-templates.index')">
+            O texto do documento e como a identidade é conferida no tablet.
+        </x-page-title>
 
         @include('partials.alerts')
 
@@ -15,8 +12,8 @@
             @include('signature.templates.partials.form', ['template' => null])
 
             <div class="mt-6 flex justify-end gap-3">
-                <a href="{{ route('signature-templates.index') }}" class="px-6 py-3 rounded-xl font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">Cancelar</a>
-                <button type="submit" class="px-6 py-3 bg-[#A00001] text-white rounded-xl font-bold shadow-lg hover:bg-[#800000] transition">Criar modelo</button>
+                <a href="{{ route('signature-templates.index') }}" class="px-6 py-3 rounded-full font-bold text-ink-2 hover:bg-subtle transition">Cancelar</a>
+                <button type="submit" class="px-6 py-3 bg-grena text-white rounded-full font-bold hover:bg-grena-hover transition">Criar modelo</button>
             </div>
         </form>
     </div>

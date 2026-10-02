@@ -27,6 +27,7 @@
       encerrar: @json(route('quiosque.leave')),
       // Os caminhos por documento são montados na hora, com o id que a leitura
       // do QR devolveu — o tablet nunca escolhe um id.
+      respostas: @json(route('quiosque.answers', ['signatureDocument' => '__DOC__'])),
       visualizado: @json(route('quiosque.viewed', ['signatureDocument' => '__DOC__'])),
       identidade: @json(route('quiosque.identity', ['signatureDocument' => '__DOC__'])),
       assinar: @json(route('quiosque.sign', ['signatureDocument' => '__DOC__'])),
@@ -34,6 +35,8 @@
     },
     prefixoQr: @json(\App\Models\SignatureRequest::TOKEN_PREFIX),
     minPontos: {{ (int) config('signature.evidence.min_stroke_points', 30) }},
+    // O visto (rubrica) é um desenho curto: o mínimo dele é outro.
+    minPontosVisto: {{ (int) config('signature.evidence.min_initials_points', 8) }},
     clube: 'Clube dos Funcionários da CSN',
     // Modo sem HTTPS: entrada por código digitado e conclusão sem foto quando
     // não há câmera. Ver o bloco "Modo sem HTTPS" em config/signature.php.
@@ -46,20 +49,26 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 @verbatim
+  <link rel="preconnect" href="https://fonts.bunny.net">
+  <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800|unbounded:500,600,700&display=swap" rel="stylesheet" />
   <style>
+  /* Paleta do rebrand (as mesmas cores dos tokens de resources/css/app.css,
+     escritas aqui porque o quiosque é uma página própria, sem o CSS do painel).
+     A ação é grená; o carmim fica só no logo. */
   :root{
-    --bg:#efe9e8; --surface:#ffffff; --surface-2:#faf6f5; --surface-3:#f2ecea;
-    --border:#e8dedd; --border-strong:#d8cbc9;
-    --ink:#1f1819; --ink-2:#6d6062; --ink-3:#9a8e90;
-    --brand:#A00001; --brand-strong:#7c0001; --brand-tint:#fbe9e8; --on-brand:#fff;
-    --success:#157a58; --success-tint:#e0f2ea;
-    --warning:#a3560a; --warning-tint:#fbedd9;
-    --danger:#b3261e; --danger-tint:#fbe7e5;
+    --bg:#f5f3f3; --surface:#ffffff; --surface-2:#faf8f8; --surface-3:#eeeaea;
+    --border:#e3ddde; --border-strong:#d0c7c9;
+    --ink:#1e1215; --ink-2:#5a4a4e; --ink-3:#8c7c80;
+    --brand:#8a1538; --brand-strong:#6f0f2c; --brand-tint:#f6e3e9; --on-brand:#fff;
+    --success:#147a45; --success-tint:#ddf3e6;
+    --warning:#935700; --warning-tint:#fbefd8;
+    --danger:#c22b2b; --danger-tint:#fce4e4;
     --paper:#fffefb; --paper-ink:#241f1a;
     --shadow: 0 1px 2px rgba(31,24,25,.04), 0 8px 24px -12px rgba(31,24,25,.18);
     --shadow-lg: 0 24px 60px -24px rgba(31,24,25,.45);
     --r:18px; --r-lg:26px; --tap:72px;
-    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --sans: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --display: "Unbounded", var(--sans);
     --ease: cubic-bezier(.22,.61,.36,1);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -85,8 +94,8 @@
   .grow{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;}
   .foot{flex:0 0 auto;padding:16px 22px calc(16px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--border);background:var(--surface);display:flex;gap:12px;}
 
-  h1{font-size:26px;line-height:1.2;margin:0 0 8px;}
-  h2{font-size:20px;line-height:1.25;margin:0 0 6px;}
+  h1{font-family:var(--display);font-weight:600;letter-spacing:-.01em;font-size:23px;line-height:1.25;margin:0 0 8px;}
+  h2{font-family:var(--display);font-weight:600;letter-spacing:-.01em;font-size:18px;line-height:1.3;margin:0 0 6px;}
   p.lead{font-size:16px;color:var(--ink-2);line-height:1.5;margin:0 0 18px;}
 
   .btn{flex:1 1 auto;min-height:var(--tap);border:none;border-radius:var(--r);font-size:18px;font-weight:800;cursor:pointer;display:grid;place-items:center;transition:transform .12s var(--ease),opacity .12s;}
@@ -108,6 +117,20 @@
   .doc-scroll{flex:1 1 auto;overflow-y:auto;background:var(--surface-3);padding:16px;-webkit-overflow-scrolling:touch;}
   .doc-page{display:block;margin:0 auto 14px;background:#fff;box-shadow:var(--shadow);max-width:100%;}
   .doc-status{font-size:13px;color:var(--ink-2);padding:0 22px 10px;}
+
+  /* Formulário: as perguntas que o modelo faz a quem assina */
+  .q{margin-bottom:24px;}
+  .q-title{display:block;font-size:17px;font-weight:700;line-height:1.35;margin-bottom:10px;}
+  .q-title .req{color:var(--brand);}
+  .q-input{width:100%;min-height:62px;border-radius:var(--r);border:2px solid var(--border-strong);background:var(--surface-2);color:var(--ink);font-family:inherit;font-size:19px;padding:12px 16px;}
+  .q-input:focus{outline:none;border-color:var(--brand);}
+  textarea.q-input{min-height:128px;resize:none;line-height:1.45;}
+  .q-opts{display:flex;flex-direction:column;gap:10px;}
+  .q-opt{display:flex;align-items:center;gap:14px;min-height:62px;padding:12px 16px;border-radius:var(--r);border:2px solid var(--border-strong);background:var(--surface-2);font-size:17px;line-height:1.35;cursor:pointer;}
+  .q-opt input{width:26px;height:26px;flex:0 0 auto;accent-color:var(--brand);}
+  .q-opt.on{border-color:var(--brand);background:var(--brand-tint);}
+  .q-err{margin-top:8px;font-size:14.5px;font-weight:600;color:var(--danger);}
+  .q.bad .q-input,.q.bad .q-opt{border-color:var(--danger);}
 
   /* Identidade */
   .cpf-box{display:flex;flex-direction:column;align-items:center;gap:16px;padding:10px 0 4px;}
@@ -205,6 +228,20 @@
       </div>
     </section>
 
+    <!-- 1c. Formulário: o que o modelo pergunta a quem assina, antes da leitura -->
+    <section class="screen" id="tela-formulario">
+      <div class="pad grow" id="formScroll">
+        <h2>Antes de ler, responda</h2>
+        <p class="lead">Suas respostas entram no documento que você vai ler e assinar em seguida.</p>
+        <div id="formCampos"></div>
+        <p class="note note-danger hidden" id="erroFormulario"></p>
+      </div>
+      <div class="foot">
+        <button type="button" class="btn btn-danger" data-recusar>Recusar</button>
+        <button type="button" class="btn btn-primary" id="btnFormulario">Continuar</button>
+      </div>
+    </section>
+
     <!-- 2. Documento -->
     <section class="screen" id="tela-documento">
       <div class="pad" style="padding-bottom:10px;">
@@ -215,6 +252,7 @@
       <div class="doc-status" id="docStatus">Carregando o documento…</div>
       <div class="foot">
         <button type="button" class="btn btn-danger" data-recusar>Recusar</button>
+        <button type="button" class="btn btn-ghost hidden" id="btnCorrigir">Corrigir respostas</button>
         <button type="button" class="btn btn-primary" id="btnLido" disabled>Role até o fim</button>
       </div>
     </section>
@@ -269,8 +307,8 @@
     <!-- 5. Assinatura -->
     <section class="screen" id="tela-assinatura">
       <div class="pad" style="padding-bottom:6px;">
-        <h2>Assine no espaço abaixo</h2>
-        <p class="lead" style="margin-bottom:0;">Use o dedo ou a caneta do tablet.</p>
+        <h2 id="sigTitulo">Assine no espaço abaixo</h2>
+        <p class="lead" id="sigLead" style="margin-bottom:0;">Use o dedo ou a caneta do tablet.</p>
       </div>
       <div class="sig-wrap">
         <div class="sig-pad" id="sigPad">
@@ -369,11 +407,19 @@
       titulo: null,
       pdfUrl: null,
       signatario: null,
-      regras: { identity_check: 'partial', requires_photo: true },
+      // As perguntas do modelo a quem assina; null quando não há nenhuma.
+      formulario: null,
+      regras: { identity_check: 'partial', requires_photo: true, requires_initials: false },
       cpfDigitado: '',
       leitura: { inicio: null, segundos: 0, ateOFim: false },
       tracos: [],
       assinaturaPng: null,
+      tracosAssinatura: [],
+      // O visto de todas as páginas: desenhado na mesma tela, depois da
+      // assinatura, quando o modelo exige.
+      modoVisto: false,
+      vistoPng: null,
+      tracosVisto: [],
       fotoJpeg: null,
       // Motivo de não haver foto, quando o modelo a exigia. Ver a etapa da foto.
       semFoto: null,
@@ -426,6 +472,8 @@
         if (!resposta.ok) {
           var falha = new Error(dados.error || 'Falha na comunicação com o servidor.');
           falha.status = resposta.status;
+          // Erros por pergunta do formulário (chave do campo => mensagem).
+          falha.campos = dados.errors || null;
           falha.sessaoEncerrada = !!dados.session_ended || resposta.status === 419;
           throw falha;
         }
@@ -692,9 +740,282 @@
     iniciaContagem();
     iniciaBatimento();
 
+    S.formulario = dados.form || null;
+    $('#btnCorrigir').classList.toggle('hidden', !S.formulario);
+
+    /*
+     * O modelo pergunta algo a quem assina: as perguntas vêm ANTES do
+     * documento. O texto que a pessoa lê depois já tem as respostas dela — e é
+     * o hash desse texto que fica gravado.
+     */
+    if (S.formulario && !S.formulario.answered) {
+      abreFormulario();
+      return;
+    }
+
     mostra('tela-documento');
     carregaPdf();
   }
+
+  /* ---------------------------------------------------------------------
+   | Formulário
+   |---------------------------------------------------------------------*/
+
+  var MASCARAS = {
+    cpf: function (v) {
+      var d = v.replace(/\D/g, '').slice(0, 11);
+
+      return d.replace(/^(\d{3})(\d)/, '$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/\.(\d{3})(\d)/, '.$1-$2');
+    },
+    cep: function (v) {
+      var d = v.replace(/\D/g, '').slice(0, 8);
+
+      return d.replace(/^(\d{5})(\d)/, '$1-$2');
+    },
+    phone: function (v) {
+      var d = v.replace(/\D/g, '').slice(0, 11);
+
+      if (d.length <= 2) { return d.length ? '(' + d : ''; }
+      if (d.length <= 6) { return '(' + d.slice(0, 2) + ') ' + d.slice(2); }
+      if (d.length <= 10) { return '(' + d.slice(0, 2) + ') ' + d.slice(2, 6) + '-' + d.slice(6); }
+
+      return '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7);
+    },
+    // Digitação de caixa registradora: os números entram pela direita, como centavos.
+    money: function (v) {
+      var d = v.replace(/\D/g, '').replace(/^0+/, '').slice(0, 13);
+
+      if (!d) { return ''; }
+
+      while (d.length < 3) { d = '0' + d; }
+
+      return d.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + d.slice(-2);
+    },
+    cnpj: function (v) {
+      return v.toUpperCase().replace(/[^0-9A-Z./-]/g, '').slice(0, 18);
+    },
+  };
+
+  // [type do input, inputmode, exemplo]
+  var CONTROLES = {
+    number: ['text', 'decimal', ''],
+    money: ['text', 'numeric', '0,00'],
+    cpf: ['text', 'numeric', '000.000.000-00'],
+    cnpj: ['text', 'text', '00.000.000/0000-00'],
+    email: ['email', 'email', 'nome@exemplo.com.br'],
+    phone: ['text', 'tel', '(00) 00000-0000'],
+    cep: ['text', 'numeric', '00000-000'],
+    date: ['date', '', ''],
+    date_long: ['date', '', ''],
+    time: ['time', '', ''],
+  };
+
+  function opcoesDe(campo) {
+    if (campo.type === 'yes_no') {
+      return [{ valor: 'sim', rotulo: 'Sim' }, { valor: 'nao', rotulo: 'Não' }];
+    }
+
+    return (campo.options || []).map(function (o) { return { valor: o, rotulo: o }; });
+  }
+
+  /*
+   * As perguntas são montadas por DOM, com textContent: o texto da pergunta e
+   * das opções vem do modelo, e nada dele é interpretado como HTML.
+   */
+  function montaPergunta(campo) {
+    var bloco = document.createElement('div');
+    bloco.className = 'q';
+    bloco.dataset.chave = campo.key;
+    bloco.dataset.tipo = campo.type;
+
+    var titulo = document.createElement('label');
+    titulo.className = 'q-title';
+    titulo.textContent = campo.question;
+
+    if (campo.required) {
+      var asterisco = document.createElement('span');
+      asterisco.className = 'req';
+      asterisco.textContent = ' *';
+      titulo.appendChild(asterisco);
+    }
+
+    bloco.appendChild(titulo);
+
+    if (campo.type === 'radio' || campo.type === 'checkbox' || campo.type === 'yes_no') {
+      var lista = document.createElement('div');
+      lista.className = 'q-opts';
+
+      var marcadas = Array.isArray(campo.value) ? campo.value : [campo.value];
+
+      opcoesDe(campo).forEach(function (opcao) {
+        var item = document.createElement('label');
+        item.className = 'q-opt';
+
+        var controle = document.createElement('input');
+        controle.type = campo.type === 'checkbox' ? 'checkbox' : 'radio';
+        controle.name = 'q_' + campo.key;
+        controle.value = opcao.valor;
+        controle.checked = marcadas.indexOf(opcao.valor) !== -1;
+
+        var texto = document.createElement('span');
+        texto.textContent = opcao.rotulo;
+
+        item.appendChild(controle);
+        item.appendChild(texto);
+        item.classList.toggle('on', controle.checked);
+        lista.appendChild(item);
+      });
+
+      bloco.appendChild(lista);
+    } else if (campo.type === 'textarea') {
+      var area = document.createElement('textarea');
+      area.className = 'q-input';
+      area.maxLength = 5000;
+      area.value = campo.value || '';
+      bloco.appendChild(area);
+    } else {
+      var controleTexto = CONTROLES[campo.type] || ['text', '', ''];
+      var input = document.createElement('input');
+      input.className = 'q-input';
+      input.type = controleTexto[0];
+      input.autocomplete = 'off';
+
+      if (controleTexto[1]) { input.inputMode = controleTexto[1]; }
+      if (controleTexto[2]) { input.placeholder = controleTexto[2]; }
+
+      input.value = campo.value || '';
+      bloco.appendChild(input);
+    }
+
+    var falha = document.createElement('div');
+    falha.className = 'q-err hidden';
+    bloco.appendChild(falha);
+
+    return bloco;
+  }
+
+  function abreFormulario() {
+    var alvo = $('#formCampos');
+    alvo.innerHTML = '';
+
+    S.formulario.fields.forEach(function (campo) {
+      alvo.appendChild(montaPergunta(campo));
+    });
+
+    $('#erroFormulario').classList.add('hidden');
+    $('#btnFormulario').disabled = false;
+    $('#formScroll').scrollTop = 0;
+
+    mostra('tela-formulario');
+  }
+
+  function respostas() {
+    var saida = {};
+
+    document.querySelectorAll('#formCampos .q').forEach(function (bloco) {
+      var tipo = bloco.dataset.tipo;
+      var marcados = Array.prototype.map.call(bloco.querySelectorAll('input:checked'), function (c) { return c.value; });
+
+      if (tipo === 'checkbox') {
+        saida[bloco.dataset.chave] = marcados;
+      } else if (tipo === 'radio' || tipo === 'yes_no') {
+        saida[bloco.dataset.chave] = marcados[0] || '';
+      } else {
+        saida[bloco.dataset.chave] = bloco.querySelector('.q-input').value;
+      }
+    });
+
+    return saida;
+  }
+
+  function limpaErroDa(bloco) {
+    bloco.classList.remove('bad');
+    bloco.querySelector('.q-err').classList.add('hidden');
+  }
+
+  $('#formCampos').addEventListener('input', function (ev) {
+    var bloco = ev.target.closest('.q');
+
+    if (!bloco) {
+      return;
+    }
+
+    var mascara = MASCARAS[bloco.dataset.tipo];
+
+    if (mascara && ev.target.classList.contains('q-input')) {
+      ev.target.value = mascara(ev.target.value);
+    }
+
+    limpaErroDa(bloco);
+  });
+
+  $('#formCampos').addEventListener('change', function (ev) {
+    var bloco = ev.target.closest('.q');
+
+    if (!bloco) {
+      return;
+    }
+
+    bloco.querySelectorAll('.q-opt').forEach(function (item) {
+      item.classList.toggle('on', item.querySelector('input').checked);
+    });
+
+    limpaErroDa(bloco);
+  });
+
+  $('#btnFormulario').addEventListener('click', function () {
+    $('#btnFormulario').disabled = true;
+    $('#erroFormulario').classList.add('hidden');
+
+    api('POST', rota('respostas'), { answers: respostas() })
+      .then(function (dados) {
+        // O documento foi refeito com as respostas: endereço novo do PDF, e o
+        // formulário volta com o que ficou gravado, para uma eventual correção.
+        S.pdfUrl = dados.document.pdf_url;
+        S.formulario = dados.form;
+
+        mostra('tela-documento');
+        carregaPdf();
+      })
+      .catch(function (e) {
+        if (trataFalha(e)) {
+          return;
+        }
+
+        $('#btnFormulario').disabled = false;
+
+        var primeiro = null;
+
+        Object.keys(e.campos || {}).forEach(function (chave) {
+          var bloco = document.querySelector('#formCampos .q[data-chave="' + chave + '"]');
+
+          if (!bloco) {
+            return;
+          }
+
+          bloco.classList.add('bad');
+          bloco.querySelector('.q-err').textContent = e.campos[chave];
+          bloco.querySelector('.q-err').classList.remove('hidden');
+          primeiro = primeiro || bloco;
+        });
+
+        if (primeiro) {
+          primeiro.scrollIntoView({ block: 'center' });
+        } else {
+          $('#erroFormulario').textContent = e.message;
+          $('#erroFormulario').classList.remove('hidden');
+        }
+      });
+  });
+
+  // Viu o documento e achou um erro no que respondeu: volta, corrige, e o
+  // documento é refeito. Vale até a assinatura — depois dela o texto não muda.
+  $('#btnCorrigir').addEventListener('click', function () {
+    if (S && S.formulario) {
+      abreFormulario();
+    }
+  });
 
   /* Volta à estaca zero — e apaga tudo o que era da pessoa atendida. */
   function encerraAtendimento(opcoes) {
@@ -706,6 +1027,9 @@
     limpaCanvas();
 
     $('#docScroll').innerHTML = '';
+    // As respostas da pessoa atendida não sobrevivem a ela.
+    $('#formCampos').innerHTML = '';
+    $('#btnCorrigir').classList.add('hidden');
     $('#cpfInput').value = '';
     $('#codigoInput').value = '';
     $('#erroCodigo').classList.add('hidden');
@@ -831,8 +1155,14 @@
   function carregaPdf() {
     var alvo = $('#docScroll');
     alvo.innerHTML = '';
+    alvo.scrollTop = 0;
 
+    // Cada carga é uma leitura nova: depois de corrigir uma resposta o
+    // documento é outro, e "li até o fim" tem de valer para ele.
     S.leitura.inicio = Date.now();
+    S.leitura.ateOFim = false;
+    $('#btnLido').disabled = true;
+    $('#btnLido').textContent = 'Role até o fim';
 
     if (typeof pdfjsLib === 'undefined') {
       $('#docStatus').textContent = 'Não foi possível carregar o leitor de PDF.';
@@ -1026,8 +1356,7 @@
   });
 
   $('#btnAceite').addEventListener('click', function () {
-    mostra('tela-assinatura');
-    preparaCanvas();
+    abreAssinatura();
   });
 
   /* ---------------------------------------------------------------------
@@ -1059,6 +1388,35 @@
     $('#btnAssinar').disabled = true;
   }
 
+  /*
+   * A tela de desenho serve a dois atos, um depois do outro: a assinatura e,
+   * quando o modelo exige, o visto. `modoVisto` diz qual dos dois está na tela.
+   */
+  function rotulaTelaDeDesenho() {
+    var visto = !!(S && S.modoVisto);
+
+    $('#sigTitulo').textContent = visto ? 'Agora faça o seu visto' : 'Assine no espaço abaixo';
+    $('#sigLead').textContent = visto
+      ? 'Sua rubrica será aplicada ao pé de cada página do documento.'
+      : 'Use o dedo ou a caneta do tablet.';
+    $('#sigNome').textContent = visto ? 'Visto' : (S ? S.signatario.name : '');
+    $('#btnAssinar').textContent = visto ? 'Confirmar visto' : 'Confirmar assinatura';
+  }
+
+  // Começa (ou recomeça) pela assinatura. É também para onde se volta quando
+  // o servidor recusa a gravação: assinatura e visto são refeitos juntos.
+  function abreAssinatura() {
+    S.modoVisto = false;
+    S.vistoPng = null;
+    S.tracosVisto = [];
+    S.tracosAssinatura = [];
+    inicioTraco = null;
+
+    mostra('tela-assinatura');
+    preparaCanvas();
+    rotulaTelaDeDesenho();
+  }
+
   function limpaCanvas() {
     var canvas = $('#sigCanvas');
 
@@ -1068,7 +1426,11 @@
 
     if (S) {
       S.tracos = [];
-      S.assinaturaPng = null;
+
+      // Limpar o visto não apaga a assinatura já confirmada.
+      if (!S.modoVisto) {
+        S.assinaturaPng = null;
+      }
     }
 
     $('#btnAssinar').disabled = true;
@@ -1143,7 +1505,7 @@
 
       // O mínimo do servidor é o mesmo daqui — a config vai para a tela para
       // que os dois números não divirjam em silêncio.
-      $('#btnAssinar').disabled = contaPontos() < CFG.minPontos;
+      $('#btnAssinar').disabled = contaPontos() < (S.modoVisto ? CFG.minPontosVisto : CFG.minPontos);
     }
 
     canvas.addEventListener('pointerup', encerraTraco);
@@ -1157,7 +1519,31 @@
   });
 
   $('#btnAssinar').addEventListener('click', function () {
-    S.assinaturaPng = $('#sigCanvas').toDataURL('image/png');
+    if (S.modoVisto) {
+      S.vistoPng = $('#sigCanvas').toDataURL('image/png');
+      S.tracosVisto = S.tracos;
+    } else {
+      var png = $('#sigCanvas').toDataURL('image/png');
+      var tracos = S.tracos;
+
+      /*
+       * O modelo exige visto: a mesma tela é limpa e pede a rubrica. A
+       * assinatura fica guardada em memória e segue junto, numa requisição só
+       * — o servidor grava as duas ou nenhuma.
+       */
+      if (S.regras.requires_initials) {
+        S.modoVisto = true;
+        inicioTraco = null;
+        preparaCanvas();
+        S.assinaturaPng = png;
+        S.tracosAssinatura = tracos;
+        rotulaTelaDeDesenho();
+        return;
+      }
+
+      S.assinaturaPng = png;
+      S.tracosAssinatura = tracos;
+    }
 
     if (!S.regras.requires_photo) {
       envia();
@@ -1271,7 +1657,9 @@
 
     api('POST', rota('assinar'), {
       signature: S.assinaturaPng,
-      strokes: S.tracos,
+      strokes: S.tracosAssinatura,
+      initials: S.vistoPng,
+      initials_strokes: S.vistoPng ? S.tracosVisto : null,
       photo: S.fotoJpeg,
       photo_skipped_reason: S.semFoto,
       accepted: true,
@@ -1310,7 +1698,7 @@
 
         // A assinatura NÃO foi gravada: volta para o traço, em vez de deixar a
         // pessoa achando que assinou.
-        mostra('tela-assinatura');
+        abreAssinatura();
         erro(e.message, 'A assinatura não foi registrada');
       });
   }

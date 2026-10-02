@@ -23,6 +23,8 @@ return [
         'documents' => 'signature/documents',
         'signatures' => 'signature/signatures',
         'photos' => 'signature/photos',
+        // Imagens do papel timbrado (cabeçalho e rodapé da empresa).
+        'layouts' => 'signature/layouts',
     ],
 
     /*
@@ -136,6 +138,10 @@ return [
 
     'evidence' => [
         'min_stroke_points' => (int) env('SIGNATURE_MIN_STROKE_POINTS', 30),
+
+        // O visto (rubrica) é um desenho curto: menos pontos que a assinatura,
+        // mas ainda mais que um toque.
+        'min_initials_points' => (int) env('SIGNATURE_MIN_INITIALS_POINTS', 8),
         'max_signature_kb' => (int) env('SIGNATURE_MAX_SIGNATURE_KB', 2048),
         'max_photo_kb' => (int) env('SIGNATURE_MAX_PHOTO_KB', 4096),
 
@@ -159,6 +165,29 @@ return [
     */
 
     'retention_months' => (int) env('SIGNATURE_RETENTION_MONTHS', 60),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Arquivo no servidor de arquivos (FTP)
+    |--------------------------------------------------------------------------
+    |
+    | Depois de finalizado, o PDF assinado ganha uma CÓPIA no FTP, organizada
+    | em pastas por modelo, ano e mês (ver SignatureArchiver). O arquivo de
+    | verdade continua no disco privado acima.
+    |
+    | Desligado por padrão: a máquina de desenvolvimento tem as credenciais do
+    | FTP no .env, e um teste local não deve criar "documento assinado" na
+    | pasta de produção. Ligue no .env do servidor.
+    |
+    | `root` é relativo à pasta inicial da conta FTP e é criado se não existir.
+    |
+    */
+
+    'archive' => [
+        'enabled' => (bool) env('SIGNATURE_ARCHIVE_ENABLED', false),
+        'disk' => env('SIGNATURE_ARCHIVE_DISK', 'signature_archive'),
+        'root' => env('SIGNATURE_ARCHIVE_ROOT', 'Lara/DocumentosAssinados'),
+    ],
 
     /*
     |--------------------------------------------------------------------------

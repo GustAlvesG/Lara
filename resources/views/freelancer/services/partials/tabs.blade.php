@@ -3,21 +3,24 @@
     Diretoria, Acompanhamento e Financeiro.
 
     Cada aba aparece só para quem a opera, e a condição aqui é a **mesma** que a
-    rota exige — sem isso a aba viraria um link para um 403. As três primeiras
-    estão sob `permission:manage freelancers`; o Financeiro tem regra própria
-    (Gate `manage-freelancer-payments`: setor Contabilidade ou Gerência), então
-    quem só tem ela navega entre as abas que alcança sem esbarrar nas outras.
+    rota exige — sem isso a aba viraria um link para um 403. Contratos pede a
+    lista de serviços; Validação, Lotes, Aprovação e Diretoria pedem
+    `freelancers.servicos.gerenciar` MAIS o cargo (coordenador do Comercial,
+    coordenador de setor, coordenador da Gerência); Acompanhamento e Financeiro
+    têm permissão própria, e quem só tem uma delas navega sem esbarrar nas
+    outras.
 
     Aceita `$activeTab` (nome de rota) para telas que não são a aba em si —
     a de um lote, por exemplo, que continua destacando "Lotes".
 --}}
 @php
+    $P = \App\Authorization\Permissions::class;
     $user = auth()->user();
-    $canFreelancers = $user?->can('manage freelancers') ?? false;
+    $canManage = $user?->can($P::FREELANCERS_SERVICOS_GERENCIAR) ?? false;
 
     $tabs = [];
 
-    if ($canFreelancers) {
+    if ($user?->can($P::FREELANCERS_SERVICOS_LISTAR)) {
         $tabs[] = [
             'route' => 'freelancer-services.index',
             'label' => 'Contratos',
@@ -27,7 +30,7 @@
 
     // Validação dos contratos da redação 2: coordenador do Comercial. Vem antes
     // de Lotes porque é o passo anterior — só o validado entra em lote.
-    if ($canFreelancers && $user?->can('validate-freelancer-contracts')) {
+    if ($canManage && $user?->can('validate-freelancer-contracts')) {
         $tabs[] = [
             'route' => 'freelancer-validation.index',
             'label' => 'Validação',
@@ -36,7 +39,7 @@
     }
 
     // Montar lote é atribuição de coordenador de setor.
-    if ($canFreelancers && $user?->isCoordinator()) {
+    if ($canManage && $user?->isCoordinator()) {
         $tabs[] = [
             'route' => 'freelancer-batches.index',
             'label' => 'Lotes',
@@ -45,7 +48,7 @@
     }
 
     // Aprovação: só o coordenador do setor Gerência.
-    if ($canFreelancers && $user?->isManagementCoordinator()) {
+    if ($canManage && $user?->isManagementCoordinator()) {
         $tabs[] = [
             'route' => 'freelancer-batches.queue',
             'label' => 'Aprovação',
@@ -55,7 +58,7 @@
 
     // Diretoria: cadastro de quem recebe os códigos e assina os contratos da
     // redação 2. Também só o coordenador da Gerência.
-    if ($canFreelancers && $user?->can('manage-freelancer-director')) {
+    if ($canManage && $user?->can('manage-freelancer-director')) {
         $tabs[] = [
             'route' => 'freelancer-director.edit',
             'label' => 'Diretoria',
@@ -63,10 +66,7 @@
         ];
     }
 
-    // Acompanhamento: só leitura, para quem está no setor Comercial (Gate
-    // próprio, como o Financeiro). Não exige `manage freelancers` — quem só
-    // acompanha vê esta aba sozinha.
-    if ($user?->can('track-freelancer-batches')) {
+    if ($user?->can($P::FREELANCERS_ACOMPANHAMENTO)) {
         $tabs[] = [
             'route' => 'freelancer-services.tracking',
             'label' => 'Acompanhamento',
@@ -74,7 +74,7 @@
         ];
     }
 
-    if ($user?->can('manage-freelancer-payments')) {
+    if ($user?->can($P::FREELANCERS_FINANCEIRO)) {
         $tabs[] = [
             'route' => 'freelancer-services.finance',
             'label' => 'Financeiro',
@@ -87,7 +87,7 @@
 @endphp
 
 @if(count($tabs) > 1)
-<div class="mb-6 border-b border-gray-200 dark:border-gray-700">
+<div class="mb-6 border-b border-line">
     <nav class="-mb-px flex gap-6 overflow-x-auto">
         @foreach($tabs as $tab)
             @php
@@ -99,8 +99,8 @@
                @if($active) aria-current="page" @endif
                class="whitespace-nowrap border-b-2 px-1 py-3 text-sm font-bold transition
                       {{ $active
-                          ? 'border-[#A00001] text-[#A00001] dark:text-red-400 dark:border-red-400'
-                          : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300' }}">
+                          ? 'border-grena text-grena-ink'
+                          : 'border-transparent text-ink-2 hover:text-ink hover:border-line-strong' }}">
                 {{ $tab['label'] }}
             </a>
         @endforeach

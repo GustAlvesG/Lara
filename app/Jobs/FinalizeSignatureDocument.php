@@ -125,6 +125,12 @@ class FinalizeSignatureDocument implements ShouldQueue
         foreach ($document->signers()->where('wants_copy', true)->whereNotNull('email')->get() as $signer) {
             SendSignatureCopy::dispatch($signer->id);
         }
+
+        // A cópia no servidor de arquivos (FTP), também em job próprio: é um
+        // servidor de fora, e a queda dele não desfaz a finalização.
+        if (config('signature.archive.enabled')) {
+            ArchiveSignatureDocument::dispatch($document->id);
+        }
     }
 
     /**

@@ -28,6 +28,7 @@ class Aviso extends Model
         'content',
         'image',
         'privacy',
+        'mandatory',
         'expires_at',
         'expiry_notified',
         'created_by',
@@ -41,7 +42,14 @@ class Aviso extends Model
     protected $casts = [
         'expires_at'      => 'date',
         'expiry_notified' => 'boolean',
+        'mandatory'       => 'boolean',
     ];
+
+    /** Ciências de leitura: um registro por pessoa (ver a migration). */
+    public function acknowledgements()
+    {
+        return $this->hasMany(AvisoAcknowledgement::class)->orderByDesc('acknowledged_at');
+    }
 
     public function creator()
     {
@@ -116,12 +124,40 @@ class Aviso extends Model
         });
     }
 
+    /**
+     * Avisos de leitura obrigatória que esta pessoa ainda não confirmou: os
+     * ativos, DIRIGIDOS a ela e sem ciência registrada.
+     *
+     * "Dirigidos" e não "visíveis" de propósito: quem tem acesso total enxerga
+     * todo aviso do sistema, mas só precisa dar ciência do que foi escrito
+     * para ele. E o autor não confirma o próprio aviso.
+     */
+    public function scopeMandatoryPendingFor($query, User $user)
+    {
+        return $query->where('mandatory', true)
+            ->active()
+            ->where('created_by', '!=', $user->id)
+            ->addressedTo($user)
+            ->whereDoesntHave('acknowledgements', fn ($q) => $q->where('user_id', $user->id))
+            ->orderBy('created_at');
+    }
+
     public function scopeVisibleTo($query, User $user)
     {
-        if ($user->hasRole('admin')) {
+        // Acesso total (Gerência, Diretoria, TI) enxerga todos os avisos.
+        if ($user->hasFullAccess()) {
             return $query;
         }
 
+        return $query->addressedTo($user);
+    }
+
+    /**
+     * A regra de privacidade em si — público, setor, grupo, pessoal —, sem o
+     * atalho de quem tem acesso total.
+     */
+    public function scopeAddressedTo($query, User $user)
+    {
         $userSectorIds = $user->sectors->pluck('id');
 
         return $query->where(function ($q) use ($user, $userSectorIds) {

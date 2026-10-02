@@ -1,9 +1,9 @@
-<div class="element mb-4 pb-8 border-b border-gray-200 dark:border-gray-700">
+<div class="element mb-4 pb-8 border-b border-line">
     <div class="row">
         <div class="col-2 flex justify-center items-center">
             <img class="img-responsive" src="{{ $image }}" alt="">
         </div>
-        <div class="col-8 text-gray-800 dark:text-gray-200">
+        <div class="col-8 text-ink">
             {{ $bodyElement }}       
         </div>
         

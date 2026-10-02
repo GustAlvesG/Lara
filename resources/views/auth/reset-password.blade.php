@@ -1,4 +1,5 @@
 <x-guest-layout>
+    <x-auth-card title="Nova senha" lead="Escolha a senha nova para a sua conta.">
     <form method="POST" action="{{ route('password.store') }}">
         @csrf
 
@@ -36,4 +37,5 @@
             </x-primary-button>
         </div>
     </form>
+    </x-auth-card>
 </x-guest-layout>

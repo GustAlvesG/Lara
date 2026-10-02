@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Freelancer;
 
+use App\Authorization\Permissions;
 use App\Exceptions\CoordinatorAuthorizationException;
 use App\Exceptions\FreelancerServiceLockedException;
 use App\Exceptions\SpreadsheetImportException;
@@ -80,6 +81,8 @@ class ServiceController extends Controller
         }
 
         return view('freelancer.services.index', array_merge($this->formOptions(), [
+            // Sem esta permissão a lista sai sem valores e sem ações — ver a view.
+            'canManage' => $request->user()->can(Permissions::FREELANCERS_SERVICOS_GERENCIAR),
             'services' => $services,
             'excessFlags' => $excessFlags,
             'filters' => $filters,

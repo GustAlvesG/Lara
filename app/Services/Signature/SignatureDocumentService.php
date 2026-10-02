@@ -5,6 +5,7 @@ namespace App\Services\Signature;
 use App\Exceptions\SignatureDocumentLockedException;
 use App\Models\SignatureAuditEvent;
 use App\Models\SignatureDocument;
+use App\Models\SignatureLayout;
 use App\Models\SignatureSigner;
 use App\Models\SignatureTemplate;
 use App\Support\Cpf;
@@ -40,7 +41,99 @@ class SignatureDocumentService
     public function __construct(
         private SignatureStateMachine $states,
         private SignatureDocumentRenderer $renderer,
+        private SignaturePdfStamper $stamper,
     ) {
+    }
+
+    /**
+     * Cria o rascunho de um documento PRONTO, a partir do PDF enviado.
+     *
+     * O PDF é conferido ANTES de qualquer coisa ser gravada: é aqui que o
+     * atendente ainda pode trocar o arquivo. As regras da assinatura
+     * (identidade, foto, visto) moram num modelo de uso único, criado junto —
+     * o resto do módulo lê as regras do modelo, e assim não precisa saber que
+     * este documento não veio de um.
+     *
+     * @param  array<string, mixed>  $attributes  title, location
+     * @param  array<string, mixed>  $rules       identity_check, requires_photo, requires_initials
+     * @param  array<int, array<string, mixed>>  $signers
+     *
+     * @throws \App\Exceptions\UnreadablePdfException
+     */
+    public function createFromUpload(
+        string $pdf,
+        array $attributes,
+        array $rules,
+        array $signers,
+        ?int $userId = null,
+        ?string $userName = null,
+    ): SignatureDocument {
+        $paginas = $this->stamper->inspect($pdf);
+        $hash = hash('sha256', $pdf);
+
+        $document = DB::transaction(function () use ($attributes, $rules, $signers, $userId, $userName) {
+            $template = SignatureTemplate::create([
+                'name' => $attributes['title'],
+                'description' => 'Documento enviado pronto, em PDF.',
+                'body_html' => '',
+                'variables' => [],
+                'identity_check' => $rules['identity_check'],
+                'requires_photo' => (bool) ($rules['requires_photo'] ?? false),
+                'requires_initials' => (bool) ($rules['requires_initials'] ?? false),
+                'single_use' => true,
+                // Fora da lista de modelos e da escolha do atendente.
+                'active' => false,
+                'created_by' => $userId,
+            ]);
+
+            return $this->create($template, $attributes, $signers, $userId, $userName);
+        });
+
+        $caminho = config('signature.paths.documents') . '/' . $document->id . '/enviado.pdf';
+
+        Storage::disk(config('signature.disk'))->put($caminho, $pdf);
+
+        $document->forceFill(['source_path' => $caminho, 'source_sha256' => $hash])->save();
+
+        $this->states->note($document, SignatureAuditEvent::EVENT_SOURCE_UPLOADED, [
+            'actor_id' => $userId,
+            'payload' => ['sha256' => $hash, 'paginas' => $paginas, 'bytes' => strlen($pdf)],
+        ]);
+
+        return $document->fresh();
+    }
+
+    /**
+     * Onde cada pessoa assina no PDF enviado — o ponto que o atendente marcou
+     * na tela. Sem ponto, a pessoa assina na folha de assinaturas do fim.
+     *
+     * A posição é fração da página (0 a 1), a partir de cima e da esquerda.
+     *
+     * @param  array<int|string, array{page?: mixed, x?: mixed, y?: mixed}|null>  $positions  id do signatário => posição
+     *
+     * @throws SignatureDocumentLockedException
+     */
+    public function setSignaturePositions(SignatureDocument $document, array $positions): SignatureDocument
+    {
+        if ($motivo = $document->editBlockReason()) {
+            throw new SignatureDocumentLockedException($motivo);
+        }
+
+        foreach ($document->signers()->get() as $signer) {
+            $posicao = $positions[$signer->id] ?? null;
+
+            $signer->forceFill([
+                'signature_position' => is_array($posicao) && isset($posicao['page'], $posicao['x'], $posicao['y'])
+                    ? [
+                        'page' => max(1, (int) $posicao['page']),
+                        'x' => round(min(1, max(0, (float) $posicao['x'])), 5),
+                        'y' => round(min(1, max(0, (float) $posicao['y'])), 5),
+                    ]
+                    : null,
+            ])->save();
+        }
+
+        return $document->fresh();
     }
 
     /**
@@ -136,6 +229,18 @@ class SignatureDocumentService
             );
         }
 
+        // Parte declarada no modelo e sem ninguém para assinar por ela: o
+        // contrato sairia com o lugar do Contratado em branco, e "assinado".
+        $semSignatario = collect($document->template->declaredParties())
+            ->reject(fn(array $parte) => $document->signers->contains('party', $parte['key']))
+            ->pluck('label');
+
+        if ($semSignatario->isNotEmpty()) {
+            throw new SignatureDocumentLockedException(
+                'Falta informar quem assina como: ' . $semSignatario->join(', ') . '.'
+            );
+        }
+
         $faltando = $this->renderer->missingVariables($document->template, $document->data);
 
         if ($faltando !== []) {
@@ -152,6 +257,11 @@ class SignatureDocumentService
         $document->forceFill([
             'body_snapshot' => $this->renderer->body($document->template, $document->data),
             'validation_code' => $this->generateValidationCode(),
+            // O papel timbrado vigente AGORA fica preso ao documento: o PDF
+            // final, montado depois, tem de sair com a mesma cara do original.
+            // Documento enviado pronto não leva papel timbrado: ele já é a
+            // arte de quem o enviou.
+            'signature_layout_id' => $document->isUploaded() ? null : SignatureLayout::current()?->id,
         ])->save();
 
         $bytes = $this->renderer->pdf($document->fresh(['template', 'signers']));
@@ -239,7 +349,13 @@ class SignatureDocumentService
 
         $posicao = 1;
 
+        // O rótulo da parte é copiado do modelo: é ele que sai impresso sob o
+        // nome. Parte que o modelo não declara é ignorada, e não gravada.
+        $partes = collect($document->template->declaredParties())->pluck('label', 'key');
+
         foreach ($signers as $signer) {
+            $parte = $partes->has($signer['party'] ?? null) ? $signer['party'] : null;
+
             SignatureSigner::create([
                 'signature_document_id' => $document->id,
                 'name' => trim((string) ($signer['name'] ?? '')),
@@ -248,6 +364,8 @@ class SignatureDocumentService
                 'email' => $signer['email'] ?? null,
                 'phone' => $signer['phone'] ?? null,
                 'role' => $signer['role'] ?? SignatureSigner::ROLE_SIGNER,
+                'party' => $parte,
+                'party_label' => $parte !== null ? $partes[$parte] : null,
                 'position' => $posicao++,
             ]);
         }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Signature;
 
+use App\Exceptions\SignatureFormException;
 use App\Exceptions\SignatureSessionException;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnsureSignatureKioskSession;
@@ -11,6 +12,7 @@ use App\Models\SignatureRequest;
 use App\Models\SignatureSigner;
 use App\Services\Signature\SignatureCaptureService;
 use App\Services\Signature\SignatureRequestService;
+use App\Services\Signature\SignatureSigningDataService;
 use App\Services\Signature\SignatureStateMachine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
@@ -34,6 +36,7 @@ class QuiosqueController extends Controller
         private SignatureRequestService $requests,
         private SignatureStateMachine $states,
         private SignatureCaptureService $capture,
+        private SignatureSigningDataService $signingData,
     ) {
     }
 
@@ -85,9 +88,50 @@ class QuiosqueController extends Controller
             return response()->json(['error' => $e->getMessage()], $e->status);
         }
 
+        /*
+         | A data da assinatura dos campos automáticos entra AGORA, antes de a
+         | pessoa ver o documento — com a hora do servidor. O PDF que o tablet
+         | vai buscar em seguida já é o datado.
+         */
+        $this->signingData->prepare(
+            $sessao['request']->signer->document,
+            $this->auditContext($request, $sessao['request']),
+        );
+
         return response()
             ->json($this->sessionPayload($sessao['request']))
             ->cookie($this->sessionCookie($sessao['session_token']));
+    }
+
+    /**
+     * As respostas de quem assina às perguntas do modelo.
+     *
+     * Vêm ANTES da leitura: o documento é remontado com elas, ganha hash novo,
+     * e só então a pessoa lê — o texto que ela assina já tem as respostas
+     * dela. Pode ser reenviado (a pessoa voltou para corrigir) até a primeira
+     * assinatura.
+     */
+    public function answers(Request $request, SignatureDocument $signatureDocument)
+    {
+        $solicitacao = $this->current($request);
+
+        $dados = $request->validate([
+            'answers' => ['present', 'array', 'max:60'],
+        ]);
+
+        try {
+            $this->signingData->answer(
+                $signatureDocument,
+                $dados['answers'],
+                $this->auditContext($request, $solicitacao),
+            );
+        } catch (SignatureFormException $e) {
+            return response()->json(['error' => $e->getMessage(), 'errors' => $e->errors], 422);
+        } catch (SignatureSessionException $e) {
+            return response()->json(['error' => $e->getMessage()], $e->status);
+        }
+
+        return response()->json($this->sessionPayload($solicitacao->fresh()));
     }
 
     /**
@@ -201,6 +245,9 @@ class QuiosqueController extends Controller
         $dados = $request->validate([
             'signature' => ['required', 'string'],
             'strokes' => ['nullable', 'array'],
+            // O visto de todas as páginas — exigido quando o modelo pede.
+            'initials' => ['nullable', 'string'],
+            'initials_strokes' => ['nullable', 'array'],
             'photo' => ['nullable', 'string'],
             // Por que não veio foto. Só `camera_unavailable` é aceito, e só
             // com a flag ligada — ver SignatureCaptureService.
@@ -216,6 +263,8 @@ class QuiosqueController extends Controller
             $this->capture->capture($solicitacao, [
                 'signature' => $dados['signature'],
                 'strokes' => $dados['strokes'] ?? null,
+                'initials' => $dados['initials'] ?? null,
+                'initials_strokes' => $dados['initials_strokes'] ?? null,
                 'photo' => $dados['photo'] ?? null,
                 'photo_skipped_reason' => $dados['photo_skipped_reason'] ?? null,
                 'accepted' => true,
@@ -305,6 +354,20 @@ class QuiosqueController extends Controller
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private function auditContext(Request $request, SignatureRequest $solicitacao): array
+    {
+        return [
+            'signer' => $solicitacao->signature_signer_id,
+            'request' => $solicitacao->id,
+            'actor_type' => SignatureAuditEvent::ACTOR_KIOSK,
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ];
+    }
+
+    /**
      * A solicitação que o middleware já resolveu e conferiu.
      *
      * O controller nunca lê o cookie: quando chega aqui, a sessão já foi
@@ -334,11 +397,16 @@ class QuiosqueController extends Controller
             'document' => [
                 'id' => $documento->id,
                 'title' => $documento->title,
-                'pdf_url' => route('quiosque.pdf', $documento),
+                // O hash na URL faz o tablet buscar o arquivo de novo depois
+                // que as respostas do formulário refazem o documento.
+                'pdf_url' => route('quiosque.pdf', $documento) . '?v=' . substr((string) $documento->original_sha256, 0, 12),
             ],
+            // As perguntas que o modelo faz a quem assina — null quando não há
+            // nenhuma, ou quando alguém já assinou e o texto não muda mais.
+            'form' => $this->signingData->form($documento),
             'signer' => [
                 'name' => $signatario->name,
-                'role' => $signatario->roleLabel(),
+                'role' => $signatario->capacityLabel(),
                 /*
                  | Só se HÁ e-mail, nunca QUAL. A tela usa isto para decidir se
                  | oferece a via por e-mail; mostrar o endereço seria expor
@@ -350,6 +418,7 @@ class QuiosqueController extends Controller
             'rules' => [
                 'identity_check' => $modelo->identity_check,
                 'requires_photo' => (bool) $modelo->requires_photo,
+                'requires_initials' => (bool) $modelo->requires_initials,
             ],
             'session' => [
                 'remaining_seconds' => $solicitacao->secondsToSessionEnd(),
@@ -375,7 +444,7 @@ class QuiosqueController extends Controller
             name: EnsureSignatureKioskSession::COOKIE,
             value: $value,
             minutes: (int) config('signature.session_ttl_minutes', 15),
-            path: '/quiosque',
+            path: $this->cookiePath(),
             domain: null,
             secure: (bool) config('session.secure', false) || request()->isSecure(),
             httpOnly: true,
@@ -386,6 +455,17 @@ class QuiosqueController extends Controller
 
     private function forgetCookie(): \Symfony\Component\HttpFoundation\Cookie
     {
-        return Cookie::forget(EnsureSignatureKioskSession::COOKIE, '/quiosque');
+        return Cookie::forget(EnsureSignatureKioskSession::COOKIE, $this->cookiePath());
+    }
+
+    /**
+     * O cookie só viaja nas requisições da tela do tablet. O caminho sai da
+     * ROTA, e não de um texto fixo: se o endereço mudar e o caminho do cookie
+     * ficar para trás, o tablet abre a sessão e a perde na requisição
+     * seguinte — sem erro nenhum que explique.
+     */
+    private function cookiePath(): string
+    {
+        return parse_url(route('quiosque.index'), PHP_URL_PATH) ?: '/';
     }
 }

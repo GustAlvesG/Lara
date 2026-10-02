@@ -11,7 +11,7 @@
     @endforeach
 </datalist>
 
-<p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+<p class="mt-1 text-xs text-ink-3">
     @if(($categorias ?? collect())->isEmpty())
         Ex.: Adulto, Sub-15, Sub-17.
     @else

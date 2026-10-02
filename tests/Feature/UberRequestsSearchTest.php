@@ -214,4 +214,104 @@ class UberRequestsSearchTest extends TestCase
 
         $this->assertSame([$antes->id, $depois->id], $data['validos']->pluck('id')->all());
     }
+
+    /** O JSON que o Monitor de Acesso (aplicação Python) consome. */
+    private function payload(): array
+    {
+        return $this->controller()->uberWaitingList(new Request())->getData(true);
+    }
+
+    public function test_endpoint_da_fila_entrega_tudo_que_a_portaria_precisa(): void
+    {
+        $req = $this->makeRequest([
+            'requester_name'         => 'Mariana Alvarenga',
+            'matricula'              => '112233',
+            'vehicle_plate'          => 'XYZ9A88',
+            'club_location'          => 'Portaria da Piscina',
+            'screenshot_url'         => 'https://cdn.example.com/p.jpg',
+            'contact_name_whatsapp'  => 'Mariana|Mari',
+            'member_validation'      => UberAccessRequest::MEMBER_VALIDATION_VALIDADO,
+            'member_validation_type' => UberAccessRequest::MEMBER_TYPE_FUNCIONARIO,
+            'member_validation_name' => 'MARIANA A SILVA',
+            'expires_at'             => now()->addMinutes(10),
+        ]);
+
+        $payload = $this->payload();
+        $item = $payload['requests'][0];
+
+        $this->assertSame($req->id, $item['id']);
+        $this->assertFalse($item['expired']);
+        $this->assertSame('Mariana Alvarenga', $item['requester_name']);
+        $this->assertSame('112233', $item['matricula']);
+        $this->assertSame('XYZ9A88', $item['vehicle_plate']);
+        $this->assertSame('Portaria da Piscina', $item['club_location']);
+        $this->assertSame('https://cdn.example.com/p.jpg', $item['screenshot_url']);
+        $this->assertSame('5524999990000', $item['contact_phone']);
+        $this->assertSame('Mariana|Mari', $item['contact_name_whatsapp']);
+
+        // O rótulo muda conforme quem conferiu, e é o que a portaria lê.
+        $this->assertSame('Funcionário confere', $item['member_validation_label']);
+        $this->assertSame(UberAccessRequest::MEMBER_TYPE_FUNCIONARIO, $item['member_validation_type']);
+        $this->assertSame('MARIANA A SILVA', $item['member_validation_name']);
+
+        $this->assertSame(['waiting' => 1, 'expired' => 0, 'filling' => 0], $payload['counts']);
+        $this->assertNotNull($payload['generated_at']);
+    }
+
+    /**
+     * Vencido vai na mesma lista, marcado — os dois são liberáveis, e separá-los
+     * em dois campos obrigaria o cliente a percorrer duas vezes.
+     */
+    public function test_endpoint_marca_o_vencido_sem_tirar_da_lista(): void
+    {
+        $valido = $this->makeRequest(['expires_at' => now()->addMinutes(5)]);
+        $vencido = $this->makeRequest(['expires_at' => now()->subMinutes(2)]);
+
+        $payload = $this->payload();
+
+        $this->assertSame([$valido->id, $vencido->id], array_column($payload['requests'], 'id'));
+        $this->assertSame([false, true], array_column($payload['requests'], 'expired'));
+        $this->assertSame(['waiting' => 1, 'expired' => 1, 'filling' => 0], $payload['counts']);
+    }
+
+    /**
+     * A conta do tempo é a do servidor: o cliente não precisa acertar fuso nem
+     * relógio para mostrar quanto falta. Negativo quer dizer vencido.
+     */
+    public function test_endpoint_entrega_o_tempo_restante_pronto(): void
+    {
+        $this->makeRequest(['expires_at' => now()->addMinutes(10)]);
+        $this->makeRequest(['expires_at' => now()->subMinutes(10)]);
+
+        [$valido, $vencido] = $this->payload()['requests'];
+
+        $this->assertEqualsWithDelta(600, $valido['expires_in_seconds'], 5);
+        $this->assertEqualsWithDelta(-600, $vencido['expires_in_seconds'], 5);
+    }
+
+    public function test_endpoint_separa_quem_ainda_preenche_no_whatsapp(): void
+    {
+        $this->makeRequest();
+        $preenchendo = $this->makeRequest([
+            'status'          => UberAccessRequest::STATUS_AGUARDANDO_PLACA,
+            'expires_at'      => null,
+            'last_message_at' => now()->subMinute(),
+        ]);
+
+        $payload = $this->payload();
+
+        // Não entra em `requests`: não há o que liberar num pedido incompleto.
+        $this->assertSame([$preenchendo->id], array_column($payload['filling'], 'id'));
+        $this->assertNotContains($preenchendo->id, array_column($payload['requests'], 'id'));
+        $this->assertSame('Aguardando placa', $payload['filling'][0]['status_label']);
+    }
+
+    public function test_endpoint_com_a_fila_vazia_devolve_listas_vazias(): void
+    {
+        $payload = $this->payload();
+
+        $this->assertSame([], $payload['requests']);
+        $this->assertSame([], $payload['filling']);
+        $this->assertSame(['waiting' => 0, 'expired' => 0, 'filling' => 0], $payload['counts']);
+    }
 }

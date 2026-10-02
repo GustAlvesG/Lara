@@ -1,35 +1,37 @@
 @props([
-    'color' => 'indigo',
+    'glyph' => 'grid',
     'label' => '',
     'value' => '',
     'sub' => null,
+    'tone' => null,
+    'href' => null,
 ])
 
 @php
-    $palette = [
-        'indigo'  => ['bg' => 'bg-indigo-100 dark:bg-indigo-900/40',  'icon' => 'text-indigo-600 dark:text-indigo-400'],
-        'sky'     => ['bg' => 'bg-sky-100 dark:bg-sky-900/40',        'icon' => 'text-sky-600 dark:text-sky-400'],
-        'amber'   => ['bg' => 'bg-amber-100 dark:bg-amber-900/40',    'icon' => 'text-amber-600 dark:text-amber-400'],
-        'violet'  => ['bg' => 'bg-violet-100 dark:bg-violet-900/40',  'icon' => 'text-violet-600 dark:text-violet-400'],
-        'emerald' => ['bg' => 'bg-emerald-100 dark:bg-emerald-900/40','icon' => 'text-emerald-600 dark:text-emerald-400'],
-        'green'   => ['bg' => 'bg-green-100 dark:bg-green-900/40',    'icon' => 'text-green-600 dark:text-green-400'],
-        'red'     => ['bg' => 'bg-red-100 dark:bg-red-900/40',        'icon' => 'text-red-500 dark:text-red-400'],
-        'teal'    => ['bg' => 'bg-teal-100 dark:bg-teal-900/40',      'icon' => 'text-teal-600 dark:text-teal-400'],
+    /*
+     | Número do painel. O símbolo herda a cor da área do bloco em volta
+     | (--c/--ci do x-dashboard.section); `tone` só entra quando o número é
+     | um estado: ok (permitido), danger (negado), warn (atenção).
+     */
+    $tones = [
+        'ok' => 'bg-ok-soft text-ok',
+        'danger' => 'bg-danger-soft text-danger',
+        'warn' => 'bg-warn-soft text-warn',
     ];
-    $c = $palette[$color] ?? $palette['indigo'];
+    $tag = $href ? 'a' : 'div';
 @endphp
 
-<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 flex items-center gap-4">
-    <div class="w-12 h-12 {{ $c['bg'] }} rounded-xl flex items-center justify-center shrink-0">
-        <svg class="w-6 h-6 {{ $c['icon'] }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {{ $slot }}
-        </svg>
-    </div>
+<{{ $tag }} @if($href) href="{{ $href }}" @endif
+    {{ $attributes->merge(['class' => 'flex items-center gap-4 rounded-card bg-surface p-4 shadow-card' . ($href ? ' transition hover:shadow-pop focus:outline-none focus-visible:ring-4 focus-visible:ring-grena-tint' : '')]) }}>
+    <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl {{ $tones[$tone] ?? '' }}"
+        @unless(isset($tones[$tone])) style="background-color: rgb(var(--c)); color: rgb(var(--ci))" @endunless>
+        <x-icon :name="$glyph" class="h-5 w-5" />
+    </span>
     <div class="min-w-0">
-        <p class="text-2xl font-black text-gray-900 dark:text-white truncate">{{ $value }}</p>
-        <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">{{ __($label) }}</p>
+        <p class="truncate font-mono text-2xl font-semibold leading-tight text-ink">{{ $value }}</p>
+        <p class="text-xs font-bold text-ink-2">{{ __($label) }}</p>
         @if($sub)
-            <p class="text-[11px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5">{{ $sub }}</p>
+            <p class="mt-0.5 text-[11px] font-bold text-ink-3">{{ $sub }}</p>
         @endif
     </div>
-</div>
+</{{ $tag }}>

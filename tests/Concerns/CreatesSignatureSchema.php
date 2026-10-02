@@ -38,6 +38,11 @@ trait CreatesSignatureSchema
             '2026_09_22_120800_add_attendant_name_to_signature_documents.php',
             '2026_09_22_120900_add_copy_delivery_to_signature_signers.php',
             '2026_09_23_100000_add_manual_fallback_to_signature_tables.php',
+            '2026_10_03_100000_add_signing_data_to_signature_documents.php',
+            '2026_10_04_100000_add_parties_and_initials_to_signature_tables.php',
+            '2026_10_04_100100_create_signature_layouts_table.php',
+            '2026_10_05_100000_add_archive_to_signature_documents.php',
+            '2026_10_06_100000_add_uploaded_pdf_to_signature_tables.php',
         ];
 
         foreach ($migrations as $arquivo) {

@@ -59,6 +59,9 @@ class SignatureSigner extends Model
         'wants_copy',
         'copy_sent_at',
         'role',
+        'party',
+        'party_label',
+        'signature_position',
         'position',
         'status',
         'signed_at',
@@ -81,6 +84,7 @@ class SignatureSigner extends Model
         'signature_document_id' => 'integer',
         'member_id' => 'integer',
         'position' => 'integer',
+        'signature_position' => 'array',
         'wants_copy' => 'boolean',
         'copy_sent_at' => 'datetime',
         'signed_at' => 'datetime',
@@ -130,6 +134,17 @@ class SignatureSigner extends Model
     public function roleLabel(): string
     {
         return self::ROLE_LABELS[$this->role] ?? $this->role;
+    }
+
+    /**
+     * Na qualidade de quê a pessoa assina — é o que sai impresso sob o nome.
+     *
+     * A parte declarada no modelo ("Contratante") quando há; senão o papel
+     * genérico ("Signatário"), como sempre foi.
+     */
+    public function capacityLabel(): string
+    {
+        return $this->party_label ?: $this->roleLabel();
     }
 
     public function maskedCpf(): string

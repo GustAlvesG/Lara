@@ -14,7 +14,7 @@ use Tests\TestCase;
 /**
  * Quem pode mexer na iluminação.
  *
- * A permissão `manage home assistant` só escondia o menu e o card do dashboard:
+ * A permissão (hoje `home-assistant`) só escondia o menu e o card do dashboard:
  * as rotas do painel exigiam apenas login, e o contator de um espaço era gravado
  * a partir do que chegasse no POST. Sem banco — o User é mockado (ver
  * user-model preso à conexão mysql em MocksPlacarUser).
@@ -26,14 +26,17 @@ class HomeAssistantAccessTest extends TestCase
         $routes = collect(Route::getRoutes()->getRoutes())
             ->filter(fn ($route) => str_starts_with((string) $route->getName(), 'home-assistant.'));
 
-        // index, contator (3), ação rápida (2) e agendamento (4)
-        $this->assertCount(10, $routes, 'Rota nova no painel? Confira se ela está no grupo com a permissão.');
+        // index, contator (3), ação rápida (2), agendamento (4) e o
+        // autoatendimento (5: horário padrão, horário por quadra, reset, e as
+        // duas de datas) — quem mexe nesses horários decide quando o clube
+        // inteiro pode acender a luz, e isso não é para qualquer login.
+        $this->assertCount(15, $routes, 'Rota nova no painel? Confira se ela está no grupo com a permissão.');
 
         foreach ($routes as $route) {
             $this->assertContains(
-                'permission:manage home assistant',
+                'can:home-assistant',
                 $route->gatherMiddleware(),
-                "A rota {$route->getName()} não exige a permissão manage home assistant."
+                "A rota {$route->getName()} não exige a permissão home-assistant."
             );
         }
     }
@@ -48,7 +51,7 @@ class HomeAssistantAccessTest extends TestCase
     private function contactorIdFor(bool $canManage, array $input, ?Place $place = null): ?int
     {
         $user = Mockery::mock(User::class)->makePartial();
-        $user->shouldReceive('can')->with('manage home assistant')->andReturn($canManage);
+        $user->shouldReceive('can')->with('home-assistant')->andReturn($canManage);
 
         $request = Request::create('/place', 'POST', $input);
         $request->setUserResolver(fn () => $user);

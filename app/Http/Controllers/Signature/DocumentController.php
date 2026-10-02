@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Signature;
 
 use App\Exceptions\SignatureDocumentLockedException;
 use App\Http\Controllers\Controller;
+use App\Exceptions\UnreadablePdfException;
 use App\Http\Requests\StoreSignatureDocumentRequest;
+use App\Http\Requests\StoreUploadedSignatureDocumentRequest;
 use App\Models\Member;
 use App\Models\SignatureDocument;
 use App\Models\SignatureTemplate;
 use App\Services\Signature\SignatureDocumentService;
+use App\Services\Signature\SignatureMemberDirectory;
 use App\Support\Cpf;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
@@ -95,7 +98,7 @@ class DocumentController extends Controller
             $modelo,
             [
                 'title' => $dados['title'] ?? null,
-                'data' => $dados['data'] ?? [],
+                'data' => $request->fieldData(),
                 'location' => $dados['location'] ?? null,
             ],
             $dados['signers'],
@@ -105,6 +108,75 @@ class DocumentController extends Controller
 
         return redirect()->route('signature-documents.show', $documento)
             ->with('success', 'Documento criado. Confira o texto com a pessoa antes de congelar.');
+    }
+
+    /**
+     * Formulário de envio de um documento PRONTO, em PDF.
+     *
+     * O modelo vazio é só para o formulário de signatários, que é o mesmo do
+     * documento de modelo: sem campos e sem partes, ele pede título, local e
+     * quem assina.
+     */
+    public function createUpload()
+    {
+        $this->authorize('create', SignatureDocument::class);
+
+        return view('signature.documents.upload', [
+            'template' => new SignatureTemplate(['name' => '']),
+        ]);
+    }
+
+    public function storeUpload(StoreUploadedSignatureDocumentRequest $request)
+    {
+        $this->authorize('create', SignatureDocument::class);
+
+        $dados = $request->validated();
+
+        try {
+            $documento = $this->documents->createFromUpload(
+                (string) file_get_contents($request->file('file')->getRealPath()),
+                ['title' => $dados['title'], 'location' => $dados['location'] ?? null],
+                [
+                    'identity_check' => $dados['identity_check'],
+                    'requires_photo' => $dados['requires_photo'] ?? false,
+                    'requires_initials' => $dados['requires_initials'] ?? false,
+                ],
+                $dados['signers'],
+                auth()->id(),
+                auth()->user()?->name,
+            );
+        } catch (UnreadablePdfException $e) {
+            return back()->withErrors(['file' => $e->getMessage()])->withInput();
+        }
+
+        return redirect()->route('signature-documents.show', $documento)
+            ->with('success', 'Documento enviado. Marque o lugar de cada assinatura e confira antes de congelar.');
+    }
+
+    /**
+     * Grava onde cada pessoa assina no PDF enviado.
+     */
+    public function positions(Request $request, SignatureDocument $signatureDocument)
+    {
+        $this->authorize('update', $signatureDocument);
+
+        abort_unless($signatureDocument->isUploaded(), 404);
+
+        $dados = $request->validate([
+            'positions' => ['present', 'array', 'max:10'],
+            'positions.*' => ['nullable', 'array'],
+            'positions.*.page' => ['required_with:positions.*', 'integer', 'min:1', 'max:2000'],
+            'positions.*.x' => ['required_with:positions.*', 'numeric', 'between:0,1'],
+            'positions.*.y' => ['required_with:positions.*', 'numeric', 'between:0,1'],
+        ]);
+
+        try {
+            $this->documents->setSignaturePositions($signatureDocument, $dados['positions']);
+        } catch (SignatureDocumentLockedException $e) {
+            return response()->json(['error' => $e->getMessage()], 409);
+        }
+
+        return response()->json(['ok' => true]);
     }
 
     public function show(SignatureDocument $signatureDocument)
@@ -142,7 +214,7 @@ class DocumentController extends Controller
                 $signatureDocument,
                 [
                     'title' => $dados['title'] ?? null,
-                    'data' => $dados['data'] ?? [],
+                    'data' => $request->fieldData(),
                     'location' => $dados['location'] ?? null,
                 ],
                 $dados['signers'],
@@ -204,9 +276,16 @@ class DocumentController extends Controller
     {
         $this->authorize('download', $signatureDocument);
 
-        $final = $request->query('versao') === 'final';
+        $versao = $request->query('versao');
+        $final = $versao === 'final';
 
-        $caminho = $final ? $signatureDocument->final_path : $signatureDocument->original_path;
+        // `enviado` é o PDF como o atendente o mandou, antes de qualquer
+        // carimbo — é o que a tela de marcar o lugar das assinaturas mostra.
+        $caminho = match ($versao) {
+            'final' => $signatureDocument->final_path,
+            'enviado' => $signatureDocument->source_path,
+            default => $signatureDocument->original_path,
+        };
 
         abort_if(!$caminho, 404, 'Este documento ainda não tem PDF ' . ($final ? 'final' : 'original') . '.');
 
@@ -228,8 +307,13 @@ class DocumentController extends Controller
      * DÍGITOS dos dois lados: nos cadastros deste sistema o mesmo documento
      * aparece com e sem pontuação, e comparar texto cru já deixou passar gente
      * que estava cadastrada.
+     *
+     * A tabela local só tem quem se cadastrou no aplicativo. Por isso, quando
+     * o termo tem cara de título, a família inteira — titular e dependentes —
+     * vem do MultiClubes e entra na frente; quem dela também está na tabela
+     * local aparece uma vez só, com o `id` local.
      */
-    public function members(Request $request)
+    public function members(Request $request, SignatureMemberDirectory $directory)
     {
         $this->authorize('create', SignatureDocument::class);
 
@@ -257,7 +341,7 @@ class DocumentController extends Controller
             ->limit(10)
             ->get(['Id', 'Name', 'cpf', 'title', 'Email', 'telephone']);
 
-        return response()->json($associados->map(fn(Member $member) => [
+        $locais = $associados->map(fn(Member $member) => [
             'id' => $member->Id,
             'name' => $member->Name,
             // Só dígitos para o formulário; a tela mostra mascarado.
@@ -266,6 +350,41 @@ class DocumentController extends Controller
             'title' => $member->title,
             'email' => $member->Email,
             'phone' => $member->telephone,
-        ]));
+            // Titular ou dependente: a tabela local não sabe dizer.
+            'kind' => null,
+        ]);
+
+        $familia = collect($directory->looksLikeTitle($termo) ? $directory->byTitle($termo) : []);
+
+        if ($familia->isEmpty()) {
+            return response()->json($locais->values());
+        }
+
+        $locaisPorCpf = $locais->filter(fn(array $local) => $local['cpf'] !== '')->keyBy('cpf');
+
+        $daFamilia = $familia->map(function (array $pessoa) use ($locaisPorCpf) {
+            $local = $pessoa['cpf'] !== '' ? $locaisPorCpf->get($pessoa['cpf']) : null;
+
+            return [
+                'id' => $local['id'] ?? null,
+                'name' => $pessoa['name'],
+                'cpf' => $pessoa['cpf'],
+                // Dependente menor muitas vezes não tem CPF no cadastro.
+                'cpf_masked' => $pessoa['cpf'] !== '' ? Cpf::mask($pessoa['cpf']) : 'sem CPF no cadastro',
+                'title' => $pessoa['title'],
+                // O contato que a pessoa pôs no aplicativo é mais recente que o do cadastro do clube.
+                'email' => ($local['email'] ?? null) ?: $pessoa['email'],
+                'phone' => ($local['phone'] ?? null) ?: $pessoa['phone'],
+                'kind' => $pessoa['titular'] ? 'titular' : 'dependente',
+            ];
+        });
+
+        $cpfsDaFamilia = $daFamilia->pluck('cpf')->filter()->all();
+
+        return response()->json(
+            $daFamilia
+                ->concat($locais->reject(fn(array $local) => in_array($local['cpf'], $cpfsDaFamilia, true)))
+                ->values(),
+        );
     }
 }

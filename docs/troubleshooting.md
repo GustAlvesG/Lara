@@ -76,6 +76,9 @@ O que verificar:
 - Se é 403 no painel: o usuário **tem a permissão**? Confira em Usuários → Permissões
   ([usuarios-e-permissoes.md](funcionalidades/usuarios-e-permissoes.md)).
 - Se é 401 numa integração: o token no `.env` do outro sistema bate com o daqui?
+- Permissão nova declarada no catálogo passa a existir no banco no deploy seguinte
+  (`PermissionCatalogSeeder`); fora do deploy, rode
+  `php artisan db:seed --class=PermissionCatalogSeeder --force`.
 - Permissão nova criada no código só funciona depois de rodar o seeder/cadastro dela e de
   `php artisan permission:cache-reset` — o Spatie cacheia permissões.
 

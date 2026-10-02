@@ -2,7 +2,9 @@
 
 namespace App\Jobs;
 
+use App\Models\UberAccessRequestMessage;
 use App\Services\UberAccessRequestFlow;
+use DateTimeInterface;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -27,8 +29,32 @@ class CloseUberCaptureSession implements ShouldQueue
 
     public function __construct(public string $attendanceUuid) {}
 
+    /**
+     * Teto de vida da espera. Estourado o prazo o fecho desiste e a coleta
+     * fica por conta do timeout de inatividade — é o que impede uma mensagem
+     * presa na fila de segurar o fecho para sempre.
+     */
+    public function retryUntil(): DateTimeInterface
+    {
+        return now()->addMinutes((int) config('poli.inbound.retry_until_minutes', 5));
+    }
+
     public function handle(UberAccessRequestFlow $flow): void
     {
+        // A carência acima é um relógio; esta é a checagem de verdade. As
+        // respostas do associado entram na fila com atraso, e fechar com fila
+        // por drenar apaga justamente as últimas etapas do pedido.
+        $janela = (int) config('poli.inbound.max_delivery_lag_seconds', 20)
+            + (int) config('poli.inbound.ordering_wait_seconds', 45);
+
+        if (UberAccessRequestMessage::hasPendingForAttendance($this->attendanceUuid, $janela)) {
+            if ($this->job) {
+                $this->release((int) config('poli.inbound.defer_seconds', 3));
+
+                return;
+            }
+        }
+
         $flow->closeCaptureForAttendance($this->attendanceUuid);
     }
 }

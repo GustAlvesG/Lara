@@ -9,20 +9,22 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Mockery;
 use Tests\TestCase;
 
 /**
  * Envio de texto pela Poli. Sem banco de propósito: nada aqui toca Eloquent,
  * e teste que não precisa de tabela não deve arrastar RefreshDatabase junto.
+ *
+ * O formato da requisição é o comprovado com entrega no aparelho em
+ * 25/09/2026 — ver config/poli.php.
  */
 class PoliMessageServiceTest extends TestCase
 {
+    private const BASE = 'https://foundation-api.poli.digital/v3';
     private const ACCOUNT = 'a9c0bc53-430e-11f1-9d75-06799772b1cd';
     private const CHANNEL = 'c2e53327-633f-11f1-9d75-06799772b1cd';
     private const CONTACT = 'd5e8a972-6360-11f1-9d75-06799772b1cd';
     private const PHONE = '5524992542363';
-    private const ENDPOINT = 'https://foundation-api.poli.digital/v3/accounts/' . self::ACCOUNT . '/messages';
 
     protected function setUp(): void
     {
@@ -34,109 +36,134 @@ class PoliMessageServiceTest extends TestCase
 
         config()->set([
             'poli.enabled' => true,
-            'poli.base_url' => 'https://foundation-api.poli.digital/v3',
+            'poli.base_url' => self::BASE,
             'poli.token' => 'token-secreto-de-teste',
             'poli.account_uuid' => self::ACCOUNT,
-            'poli.default_channel_uuid' => self::CHANNEL,
+            'poli.channel_uuid' => self::CHANNEL,
+            'poli.http.retry_sleep_ms' => 0,
         ]);
     }
 
     private function service(): PoliMessageService
     {
-        return new PoliMessageService();
+        return app(PoliMessageService::class);
     }
 
-    public function test_envia_texto_no_formato_do_contrato(): void
+    private function aceito(string $uuid = 'msg-123'): array
     {
-        Http::fake([
-            '*' => Http::response(['data' => ['uuid' => 'msg-123', 'status' => 'SENT']], 201),
-        ]);
+        return ['uuid' => $uuid, 'event' => 'MESSAGE', 'type' => 'TEXT', 'ack' => 'CREATED', 'direction' => 'OUT'];
+    }
 
-        $result = $this->service()->sendTextByPhone(
-            self::PHONE,
-            'Seu carro chegou.',
-            null,
-            self::CONTACT
-        );
+    public function test_com_contact_uuid_envia_pelo_contato_no_formato_validado(): void
+    {
+        Http::fake(['*' => Http::response($this->aceito(), 201)]);
+
+        $result = $this->service()->sendTextByPhone(self::PHONE, 'Seu carro chegou.', null, self::CONTACT);
 
         $this->assertTrue($result->success);
         $this->assertSame('msg-123', $result->messageUuid);
-        $this->assertSame('SENT', $result->status);
+        $this->assertSame('CREATED', $result->status);
         $this->assertNull($result->error);
 
         Http::assertSent(function (Request $request) {
             $body = $request->data();
 
-            return $request->url() === self::ENDPOINT
+            return $request->url() === self::BASE . '/contacts/' . self::CONTACT . '/messages'
                 && $request->method() === 'POST'
                 && $request->hasHeader('Authorization', 'Bearer token-secreto-de-teste')
-                && $body['provider'] === 'WHATSAPP'
-                && $body['account_channel_uuid'] === self::CHANNEL
-                && $body['type'] === 'CHAT'
-                && $body['version'] === 'v3'
-                && $body['direction'] === 'OUT'
-                && $body['contact']['type'] === 'PERSON'
-                && $body['contact']['contact_uuid'] === self::CONTACT
-                && $body['author']['type'] === 'APPLICATION'
-                && $body['components']['body']['text'] === 'Seu carro chegou.'
-                && !array_key_exists('attachments', $body['components']);
+                && $body === [
+                    'provider' => 'WHATSAPP',
+                    'account_channel_uuid' => self::CHANNEL,
+                    'type' => 'TEXT',
+                    'version' => 'v3',
+                    'components' => ['body' => ['text' => 'Seu carro chegou.']],
+                ];
         });
     }
 
     /**
-     * O `contact_channel_uid` é inferência nossa, não contrato confirmado —
-     * e o envio real de 28/08 passou sem ele, com o uuid sozinho. Fica de
-     * fora por padrão; ligado, sai no formato do canal.
+     * A regressão que este arquivo existe para impedir: o endpoint da conta
+     * responde 200 a qualquer corpo e não entrega nada.
      */
-    public function test_contact_channel_uid_fica_de_fora_por_padrao(): void
+    public function test_nunca_usa_o_endpoint_da_conta_que_nao_entrega(): void
     {
-        Http::fake(['*' => Http::response(['data' => ['uuid' => 'msg-1']], 201)]);
+        Http::fake(['*' => Http::response($this->aceito(), 201)]);
 
         $this->service()->sendTextByPhone(self::PHONE, 'Oi', null, self::CONTACT);
-
-        Http::assertSent(fn (Request $r) => !array_key_exists('contact_channel_uid', $r->data()['contact']));
-    }
-
-    public function test_contact_channel_uid_entra_quando_ligado(): void
-    {
-        config()->set('poli.send.include_contact_channel_uid', true);
-        Http::fake(['*' => Http::response(['data' => ['uuid' => 'msg-1']], 201)]);
-
-        $this->service()->sendTextByPhone(self::PHONE, 'Oi', null, self::CONTACT);
-
-        Http::assertSent(
-            fn (Request $r) => $r->data()['contact']['contact_channel_uid'] === self::PHONE . '@c.us'
-        );
-    }
-
-    public function test_autor_vira_user_quando_ha_uuid_configurado(): void
-    {
-        config()->set('poli.send.author.user_uuid', 'user-uuid-1');
-        config()->set('poli.send.author.name', 'Portaria');
-        Http::fake(['*' => Http::response(['data' => ['uuid' => 'msg-1']], 201)]);
-
         $this->service()->sendTextByPhone(self::PHONE, 'Oi');
 
-        Http::assertSent(function (Request $r) {
-            $author = $r->data()['author'];
+        Http::assertNotSent(fn (Request $r) => $r->url() === self::BASE . '/accounts/' . self::ACCOUNT . '/messages');
+    }
 
-            return $author['type'] === 'USER'
-                && $author['user_uuid'] === 'user-uuid-1'
-                && $author['name'] === 'Portaria';
-        });
+    public function test_sem_contact_uuid_envia_por_telefone_pedindo_o_contato(): void
+    {
+        Http::fake(['*' => Http::response($this->aceito() + ['contact' => ['uuid' => self::CONTACT]], 201)]);
+
+        $result = $this->service()->sendTextByPhone('+55 (24) 99254-2363', 'Oi');
+
+        $this->assertTrue($result->success);
+        Http::assertSent(fn (Request $r) => $r->url()
+            === self::BASE . '/accounts/' . self::ACCOUNT . '/contacts/' . self::PHONE . '/messages?include=contact');
+    }
+
+    public function test_canal_informado_substitui_o_do_env(): void
+    {
+        Http::fake(['*' => Http::response($this->aceito(), 201)]);
+
+        $this->service()->sendTextByPhone(self::PHONE, 'Oi', 'outro-canal', self::CONTACT);
+
+        Http::assertSent(fn (Request $r) => $r->data()['account_channel_uuid'] === 'outro-canal');
+    }
+
+    public function test_canal_pelo_nome_antigo_da_config_ainda_vale(): void
+    {
+        config()->set(['poli.channel_uuid' => null, 'poli.default_channel_uuid' => 'canal-antigo']);
+        Http::fake(['*' => Http::response($this->aceito(), 201)]);
+
+        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi', null, self::CONTACT);
+
+        $this->assertTrue($result->success);
+        Http::assertSent(fn (Request $r) => $r->data()['account_channel_uuid'] === 'canal-antigo');
+    }
+
+    public function test_sem_canal_configurado_nao_envia(): void
+    {
+        config()->set(['poli.channel_uuid' => null, 'poli.default_channel_uuid' => null]);
+        Http::fake();
+
+        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi', null, self::CONTACT);
+
+        $this->assertFalse($result->success);
+        $this->assertSame('canal de envio não configurado', $result->error);
+        Http::assertNothingSent();
+    }
+
+    /**
+     * 2xx sem uuid é exatamente a cara do endpoint que aceita tudo e não
+     * entrega. Não é sucesso — e também não é retentável: se por acaso a
+     * mensagem saiu, repetir mandaria duas.
+     */
+    public function test_2xx_sem_uuid_nao_conta_como_enviado(): void
+    {
+        Http::fake(['*' => Http::response('', 200)]);
+
+        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi', null, self::CONTACT);
+
+        $this->assertFalse($result->success);
+        $this->assertFalse($result->retryable);
+        $this->assertStringContainsString('sem uuid', $result->error);
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn ($message) => $message === 'Poli: envio respondido sem uuid — não confirmado')
+            ->once();
     }
 
     public function test_429_devolve_rate_limited_com_retry_after(): void
     {
         Http::fake([
-            '*' => Http::response(
-                ['message' => 'Too Many Attempts.'],
-                429,
-                ['Retry-After' => '30']
-            ),
+            '*' => Http::response(['message' => 'Too Many Attempts.'], 429, ['Retry-After' => '30']),
         ]);
 
-        $result = $this->service()->sendTextByPhone(self::PHONE, 'Seu carro chegou.');
+        $result = $this->service()->sendTextByPhone(self::PHONE, 'Seu carro chegou.', null, self::CONTACT);
 
         $this->assertFalse($result->success);
         $this->assertTrue($result->isRateLimited());
@@ -150,44 +177,45 @@ class PoliMessageServiceTest extends TestCase
     {
         Http::fake(['*' => Http::response(['message' => 'Too Many Attempts.'], 429)]);
 
-        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi');
+        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi', null, self::CONTACT);
 
         $this->assertTrue($result->isRateLimited());
         $this->assertNull($result->retryAfter);
     }
 
     /**
-     * Formato de erro confirmado da Poli: `message` + bag `errors`.
+     * Formato de erro confirmado da Poli: `message` + bag `errors`. E 422 é
+     * payload errado: o client não repete, e o resultado não é retentável.
      */
-    public function test_422_traz_a_mensagem_e_os_campos_recusados(): void
+    public function test_422_traz_a_mensagem_e_nao_e_repetido(): void
     {
         Http::fake([
             '*' => Http::response([
-                'message' => 'O campo contact.contact_uuid é obrigatório.',
-                'errors' => [
-                    'contact.contact_uuid' => ['O campo contact.contact_uuid é obrigatório.'],
-                ],
+                'message' => 'O campo account_channel_uuid é obrigatório.',
+                'errors' => ['account_channel_uuid' => ['O campo account_channel_uuid é obrigatório.']],
             ], 422),
         ]);
 
-        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi');
+        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi', null, self::CONTACT);
 
         $this->assertFalse($result->success);
         $this->assertSame(422, $result->httpStatus);
-        $this->assertStringContainsString('contact.contact_uuid', $result->error);
-        // 422 é payload errado: repetir erra de novo igual.
+        $this->assertStringContainsString('account_channel_uuid', $result->error);
         $this->assertFalse($result->retryable);
+        Http::assertSentCount(1);
     }
 
-    public function test_5xx_e_retentavel(): void
+    public function test_5xx_e_repetido_na_hora_e_continua_retentavel(): void
     {
+        config()->set('poli.http.retries', 2);
         Http::fake(['*' => Http::response('', 503)]);
 
-        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi');
+        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi', null, self::CONTACT);
 
         $this->assertFalse($result->success);
         $this->assertTrue($result->retryable);
         $this->assertSame('HTTP 503', $result->error);
+        Http::assertSentCount(3);
     }
 
     /**
@@ -195,7 +223,7 @@ class PoliMessageServiceTest extends TestCase
      * E.164 curto de outro país. Completar por conta própria pode mandar a
      * mensagem para um estranho — então recusa, sem sair da nossa casa.
      */
-    public function test_recusa_telefone_sem_ddi_sem_chamar_a_api(): void
+    public function test_sem_contact_uuid_recusa_telefone_sem_ddi_sem_chamar_a_api(): void
     {
         Http::fake();
 
@@ -207,19 +235,17 @@ class PoliMessageServiceTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_aceita_telefone_com_mascara_e_normaliza(): void
+    /**
+     * Com o contact_uuid o telefone nem é usado — um telefone estranho no
+     * pedido não pode impedir o aviso.
+     */
+    public function test_com_contact_uuid_telefone_estranho_nao_impede_o_envio(): void
     {
-        // O uid do canal é o único lugar do corpo em que o telefone aparece,
-        // então é por ele que se confere a normalização.
-        config()->set('poli.send.include_contact_channel_uid', true);
-        Http::fake(['*' => Http::response(['data' => ['uuid' => 'msg-1']], 201)]);
+        Http::fake(['*' => Http::response($this->aceito(), 201)]);
 
-        $result = $this->service()->sendTextByPhone('+55 (24) 99254-2363', 'Oi');
+        $result = $this->service()->sendTextByPhone('24992542363', 'Oi', null, self::CONTACT);
 
         $this->assertTrue($result->success);
-        Http::assertSent(
-            fn (Request $r) => $r->data()['contact']['contact_channel_uid'] === '5524992542363@c.us'
-        );
     }
 
     /**
@@ -228,7 +254,7 @@ class PoliMessageServiceTest extends TestCase
      */
     public function test_log_mascara_token_e_telefone(): void
     {
-        Http::fake(['*' => Http::response(['data' => ['uuid' => 'msg-1']], 201)]);
+        Http::fake(['*' => Http::response($this->aceito(), 201)]);
 
         $this->service()->sendTextByPhone(self::PHONE, 'Oi');
 
@@ -243,7 +269,7 @@ class PoliMessageServiceTest extends TestCase
     {
         Http::fake();
 
-        $result = $this->service()->sendTextByPhone(self::PHONE, '   ');
+        $result = $this->service()->sendTextByPhone(self::PHONE, '   ', null, self::CONTACT);
 
         $this->assertFalse($result->success);
         $this->assertSame('texto vazio', $result->error);
@@ -255,7 +281,7 @@ class PoliMessageServiceTest extends TestCase
         config()->set('poli.enabled', false);
         Http::fake();
 
-        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi');
+        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi', null, self::CONTACT);
 
         $this->assertFalse($result->success);
         $this->assertFalse($result->retryable);
@@ -266,7 +292,7 @@ class PoliMessageServiceTest extends TestCase
     {
         Http::fake(fn () => throw new ConnectionException('Connection refused'));
 
-        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi');
+        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi', null, self::CONTACT);
 
         $this->assertFalse($result->success);
         $this->assertTrue($result->retryable);
@@ -285,49 +311,14 @@ class PoliMessageServiceTest extends TestCase
         Http::fake(function () {
             throw new RequestException(
                 'cURL error 60: SSL certificate problem',
-                new GuzzleRequest('POST', self::ENDPOINT)
+                new GuzzleRequest('POST', self::BASE . '/contacts/' . self::CONTACT . '/messages')
             );
         });
 
-        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi');
+        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi', null, self::CONTACT);
 
         $this->assertFalse($result->success);
         $this->assertTrue($result->retryable);
         $this->assertStringContainsString('cURL error 60', $result->error);
-    }
-
-    /**
-     * Formato real, medido num envio de verdade: 200 com o corpo vazio. Não é
-     * anomalia, então não deve gerar log de "formato não mapeado" a cada
-     * mensagem enviada.
-     */
-    public function test_200_com_corpo_vazio_e_o_sucesso_normal(): void
-    {
-        Http::fake(['*' => Http::response('', 200)]);
-
-        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi');
-
-        $this->assertTrue($result->success);
-        $this->assertNull($result->messageUuid);
-        $this->assertNull($result->error);
-
-        Log::shouldNotHaveReceived('info', [
-            'Poli: envio aceito em formato de resposta não mapeado',
-            Mockery::any(),
-        ]);
-    }
-
-    public function test_corpo_desconhecido_e_sucesso_mas_fica_registrado(): void
-    {
-        Http::fake(['*' => Http::response(['algo' => 'inesperado'], 200)]);
-
-        $result = $this->service()->sendTextByPhone(self::PHONE, 'Oi');
-
-        $this->assertTrue($result->success);
-        $this->assertNull($result->messageUuid);
-
-        Log::shouldHaveReceived('info')
-            ->withArgs(fn ($message) => $message === 'Poli: envio aceito em formato de resposta não mapeado')
-            ->once();
     }
 }

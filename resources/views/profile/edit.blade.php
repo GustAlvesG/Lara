@@ -1,44 +1,43 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Profile') }}
-        </h2>
-    </x-slot>
+{{-- Perfil: dados, senha, PIN e (para quem gerencia usuários) o teste de e-mail. --}}
+@php
+    $section = 'rounded-card bg-surface p-5 shadow-card sm:p-7';
+@endphp
+<x-app-layout :bootstrap-grid="false">
+    <x-page narrow>
+        <x-page-title title="Perfil">
+            Seus dados de acesso ao painel.
+        </x-page-title>
 
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-            <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.update-profile-information-form')
-                </div>
+        <div class="{{ $section }}">
+            <div class="max-w-xl">
+                @include('profile.partials.update-profile-information-form')
             </div>
-
-            <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.update-password-form')
-                </div>
-            </div>
-
-            <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.update-pin-form')
-                </div>
-            </div>
-
-            @can('manage users')
-                <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
-                    <div class="max-w-xl">
-                        @include('profile.partials.test-mail-configuration')
-                    </div>
-                </div>
-            @endcan
-
-            <div class="p-4 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
-                <div class="max-w-xl">
-                    @include('profile.partials.delete-user-form')
-                </div>
-            </div>
-
         </div>
-    </div>
+
+        <div class="{{ $section }}">
+            <div class="max-w-xl">
+                @include('profile.partials.update-password-form')
+            </div>
+        </div>
+
+        <div class="{{ $section }}">
+            <div class="max-w-xl">
+                @include('profile.partials.update-pin-form')
+            </div>
+        </div>
+
+        @can('usuarios.gerenciar')
+            <div class="{{ $section }}">
+                <div class="max-w-xl">
+                    @include('profile.partials.test-mail-configuration')
+                </div>
+            </div>
+        @endcan
+
+        <div class="{{ $section }}">
+            <div class="max-w-xl">
+                @include('profile.partials.delete-user-form')
+            </div>
+        </div>
+    </x-page>
 </x-app-layout>

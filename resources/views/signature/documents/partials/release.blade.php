@@ -19,39 +19,39 @@
         : null;
 @endphp
 
-<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6"
+<div class="bg-surface rounded-card shadow-card p-6"
      data-release-box
      data-release-url="{{ route('signature-documents.release', [$document, '__SIGNER__']) }}"
      data-cancel-url="{{ route('signature-documents.release.cancel', [$document, '__REQUEST__']) }}"
      data-status-url="{{ route('signature-documents.status', $document) }}"
      data-csrf="{{ csrf_token() }}">
 
-    <h3 class="text-sm font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-4">
+    <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider mb-4">
         Assinatura no tablet
     </h3>
 
     @if($proximo)
-        <p class="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            Próximo a assinar: <span class="font-bold text-gray-900 dark:text-white">{{ $proximo->name }}</span>
-            <span class="text-gray-400">({{ $proximo->roleLabel() }})</span>
+        <p class="text-sm text-ink-2 mb-4">
+            Próximo a assinar: <span class="font-bold text-ink">{{ $proximo->name }}</span>
+            <span class="text-ink-3">({{ $proximo->capacityLabel() }})</span>
         </p>
 
         <button type="button" data-release-button data-signer="{{ $proximo->id }}"
-                class="w-full px-5 py-3 bg-[#A00001] text-white rounded-xl font-bold text-sm shadow-lg hover:bg-[#800000] transition">
+                class="w-full px-5 py-3 bg-grena text-white rounded-full font-bold text-sm hover:bg-grena-hover transition">
             Liberar para assinatura
         </button>
 
         <div class="hidden mt-5" data-qr-area>
-            <div class="rounded-xl border border-gray-200 dark:border-gray-700 p-5 text-center">
-                <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            <div class="rounded-xl border border-line p-5 text-center">
+                <p class="text-xs text-ink-2 mb-3">
                     Peça para apontarem a câmera do tablet para este código.
                 </p>
 
                 {{-- Fundo branco fixo: um QR sobre fundo escuro não é lido. --}}
-                <div class="inline-block bg-white p-3 rounded-lg" data-qr></div>
+                <div class="inline-block bg-surface p-3 rounded-lg" data-qr></div>
 
-                <p class="mt-3 text-sm font-bold text-gray-900 dark:text-white" data-qr-countdown></p>
-                <p class="text-xs text-gray-500 dark:text-gray-400" data-qr-state>Aguardando leitura…</p>
+                <p class="mt-3 text-sm font-bold text-ink" data-qr-countdown></p>
+                <p class="text-xs text-ink-2" data-qr-state>Aguardando leitura…</p>
 
                 {{--
                     Código digitado: só aparece com o modo sem HTTPS ligado
@@ -59,35 +59,35 @@
                     tablet não tem câmera — em HTTP comum, getUserMedia não
                     existe. Vence antes do QR, de propósito.
                 --}}
-                <div class="hidden mt-4 pt-4 border-t border-gray-200 dark:border-gray-700" data-manual-area>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                <div class="hidden mt-4 pt-4 border-t border-line" data-manual-area>
+                    <p class="text-xs text-ink-2 mb-1">
                         Sem câmera no tablet? Dite este código:
                     </p>
-                    <p class="text-2xl font-extrabold tracking-[0.25em] text-gray-900 dark:text-white font-mono"
+                    <p class="text-2xl font-extrabold tracking-[0.25em] text-ink font-mono"
                        data-manual-code></p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" data-manual-countdown></p>
+                    <p class="text-xs text-ink-2 mt-1" data-manual-countdown></p>
                 </div>
 
                 <div class="mt-4 flex gap-2 justify-center">
                     <button type="button" data-regenerate
-                            class="px-4 py-2 rounded-lg text-xs font-bold bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                            class="px-4 py-2 rounded-lg text-xs font-bold bg-subtle text-ink hover:bg-line transition">
                         Gerar outro código
                     </button>
                     <button type="button" data-cancel-release
-                            class="px-4 py-2 rounded-lg text-xs font-bold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition">
+                            class="px-4 py-2 rounded-lg text-xs font-bold text-danger hover:bg-danger-soft transition">
                         Cancelar liberação
                     </button>
                 </div>
             </div>
         </div>
 
-        <p class="hidden mt-3 text-xs text-red-600 dark:text-red-400" data-release-error></p>
+        <p class="hidden mt-3 text-xs text-danger" data-release-error></p>
     @elseif($document->status === \App\Models\SignatureDocument::STATUS_AWAITING_SIGNATURE)
-        <p class="text-sm text-gray-500 dark:text-gray-400">
+        <p class="text-sm text-ink-2">
             Todos os signatários já responderam. Aguardando o fechamento do documento.
         </p>
     @else
-        <p class="text-sm text-gray-500 dark:text-gray-400">
+        <p class="text-sm text-ink-2">
             {{ $document->isFrozen()
                 ? 'Documento em ' . mb_strtolower($document->statusLabel()) . ': não há assinatura a liberar.'
                 : 'Congele o documento para liberar a assinatura no tablet.' }}

@@ -21,7 +21,7 @@
             id="weekday-{{ $day['value'] }}"
             @if(isset($weekdays) && $weekdays->contains('name_pt', $day['name_pt'])) checked @endif
         >
-        <label class="form-check text-gray-900 dark:text-gray-100" for="weekday-{{ $day['value'] }}">
+        <label class="form-check text-ink" for="weekday-{{ $day['value'] }}">
             {{ $day['label'] }}
         </label>
     @endforeach

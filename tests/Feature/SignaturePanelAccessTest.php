@@ -46,7 +46,7 @@ class SignaturePanelAccessTest extends TestCase
 
     public function test_quem_atende_ve_documentos_mas_nao_escreve_modelos(): void
     {
-        $usuario = $this->usuarioComPermissoes(['manage signature documents']);
+        $usuario = $this->usuarioComPermissoes(['assinatura.documentos']);
 
         $this->actingAs($usuario)
             ->get(route('signature-documents.index'))
@@ -60,7 +60,7 @@ class SignaturePanelAccessTest extends TestCase
 
     public function test_quem_so_consulta_nao_cria_documento(): void
     {
-        $usuario = $this->usuarioComPermissoes(['view signed documents']);
+        $usuario = $this->usuarioComPermissoes(['assinatura.consultar']);
 
         $this->actingAs($usuario)
             ->get(route('signature-documents.index'))
@@ -75,7 +75,7 @@ class SignaturePanelAccessTest extends TestCase
     {
         $modelo = $this->criaModeloDeAssinatura();
 
-        $resposta = $this->actingAs($this->usuarioComPermissoes(['manage signature documents']))
+        $resposta = $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
             ->post(route('signature-documents.store'), [
                 'signature_template_id' => $modelo->id,
                 'title' => 'Termo de responsabilidade — Piscina',
@@ -100,7 +100,7 @@ class SignaturePanelAccessTest extends TestCase
     {
         $documento = $this->criaDocumentoDeAssinatura();
 
-        $this->actingAs($this->usuarioComPermissoes(['view signed documents']))
+        $this->actingAs($this->usuarioComPermissoes(['assinatura.consultar']))
             ->post(route('signature-documents.freeze', $documento))
             ->assertForbidden();
 
@@ -111,7 +111,7 @@ class SignaturePanelAccessTest extends TestCase
     {
         $documento = $this->criaDocumentoDeAssinatura();
 
-        $this->actingAs($this->usuarioComPermissoes(['manage signature documents']))
+        $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
             ->post(route('signature-documents.freeze', $documento))
             ->assertRedirect(route('signature-documents.show', $documento));
 
@@ -129,14 +129,14 @@ class SignaturePanelAccessTest extends TestCase
     {
         $documento = $this->criaDocumentoDeAssinatura();
 
-        $this->actingAs($this->usuarioComPermissoes(['manage signature documents']))
+        $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
             ->post(route('signature-documents.freeze', $documento));
 
         $this->actingAs($this->usuarioComPermissoes([]))
             ->get(route('signature-documents.pdf', $documento))
             ->assertForbidden();
 
-        $this->actingAs($this->usuarioComPermissoes(['view signed documents']))
+        $this->actingAs($this->usuarioComPermissoes(['assinatura.consultar']))
             ->get(route('signature-documents.pdf', $documento))
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf');
@@ -146,7 +146,7 @@ class SignaturePanelAccessTest extends TestCase
     {
         $documento = $this->criaDocumentoDeAssinatura();
 
-        $this->actingAs($this->usuarioComPermissoes(['view signed documents']))
+        $this->actingAs($this->usuarioComPermissoes(['assinatura.consultar']))
             ->get(route('signature-documents.pdf', $documento))
             ->assertNotFound();
     }
@@ -162,7 +162,7 @@ class SignaturePanelAccessTest extends TestCase
     {
         $documento = $this->criaDocumentoDeAssinatura();
 
-        $usuario = $this->usuarioComPermissoes(['manage signature documents']);
+        $usuario = $this->usuarioComPermissoes(['assinatura.documentos']);
 
         $this->actingAs($usuario)->post(route('signature-documents.freeze', $documento));
 
@@ -180,7 +180,7 @@ class SignaturePanelAccessTest extends TestCase
     {
         $documento = $this->criaDocumentoDeAssinatura();
 
-        $this->actingAs($this->usuarioComPermissoes(['manage signature documents']))
+        $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
             ->get(route('signature-documents.show', $documento))
             ->assertOk()
             ->assertSee('Congele o documento para liberar');
@@ -198,7 +198,7 @@ class SignaturePanelAccessTest extends TestCase
     {
         $documento = $this->criaDocumentoDeAssinatura();
 
-        $usuario = $this->usuarioComPermissoes(['manage signature documents']);
+        $usuario = $this->usuarioComPermissoes(['assinatura.documentos']);
         $this->actingAs($usuario)->post(route('signature-documents.freeze', $documento));
 
         $signatario = $documento->signers()->first();
@@ -221,7 +221,7 @@ class SignaturePanelAccessTest extends TestCase
     {
         $documento = $this->criaDocumentoDeAssinatura();
 
-        $usuario = $this->usuarioComPermissoes(['manage signature documents']);
+        $usuario = $this->usuarioComPermissoes(['assinatura.documentos']);
         $this->actingAs($usuario)->post(route('signature-documents.freeze', $documento));
 
         $liberacao = $this->actingAs($usuario)
@@ -239,10 +239,10 @@ class SignaturePanelAccessTest extends TestCase
     {
         $documento = $this->criaDocumentoDeAssinatura();
 
-        $this->actingAs($this->usuarioComPermissoes(['manage signature documents']))
+        $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
             ->post(route('signature-documents.freeze', $documento));
 
-        $this->actingAs($this->usuarioComPermissoes(['view signed documents']))
+        $this->actingAs($this->usuarioComPermissoes(['assinatura.consultar']))
             ->postJson(route('signature-documents.release', [$documento, $documento->signers()->first()]))
             ->assertForbidden();
     }
@@ -253,7 +253,7 @@ class SignaturePanelAccessTest extends TestCase
         $meu = $this->criaDocumentoDeAssinatura();
         $alheio = $this->criaDocumentoDeAssinatura();
 
-        $usuario = $this->usuarioComPermissoes(['manage signature documents']);
+        $usuario = $this->usuarioComPermissoes(['assinatura.documentos']);
         $this->actingAs($usuario)->post(route('signature-documents.freeze', $meu));
         $this->actingAs($usuario)->post(route('signature-documents.freeze', $alheio));
 
@@ -266,10 +266,10 @@ class SignaturePanelAccessTest extends TestCase
     {
         $documento = $this->criaDocumentoDeAssinatura();
 
-        $this->actingAs($this->usuarioComPermissoes(['manage signature documents']))
+        $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
             ->post(route('signature-documents.freeze', $documento));
 
-        $this->actingAs($this->usuarioComPermissoes(['manage signature documents']))
+        $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
             ->get(route('signature-documents.edit', $documento))
             ->assertForbidden();
     }

@@ -1,14 +1,14 @@
 <section>
     <header>
-        <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+        <h2 class="text-lg font-medium text-ink">
             {{ __('PIN de Assinatura') }}
         </h2>
 
-        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+        <p class="mt-1 text-sm text-ink-2">
             {{ __('6 dígitos usados no tablet de contratos (Kiosk): destravam a sessão e confirmam cada assinatura.') }}
         </p>
 
-        <p class="mt-2 text-sm font-medium {{ $user->hasPin() ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400' }}">
+        <p class="mt-2 text-sm font-medium {{ $user->hasPin() ? 'text-ok' : 'text-warn' }}">
             {{ $user->hasPin()
                 ? __('PIN definido. Preencha abaixo para trocá-lo.')
                 : __('Você ainda não tem um PIN cadastrado.') }}
@@ -16,7 +16,7 @@
 
         @if (blank($user->matricula))
             {{-- A entrada no tablet é matrícula + PIN: sem matrícula, o PIN sozinho não abre. --}}
-            <p class="mt-1 text-sm text-amber-600 dark:text-amber-400">
+            <p class="mt-1 text-sm text-warn">
                 {{ __('A entrada no tablet é feita com matrícula e PIN — preencha sua matrícula nos dados do perfil.') }}
             </p>
         @endif
@@ -54,7 +54,7 @@
                     x-show="show"
                     x-transition
                     x-init="setTimeout(() => show = false, 2000)"
-                    class="text-sm text-gray-600 dark:text-gray-400"
+                    class="text-sm text-ink-2"
                 >{{ __('Saved.') }}</p>
             @endif
         </div>

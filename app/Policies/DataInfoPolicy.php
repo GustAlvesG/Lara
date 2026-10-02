@@ -2,65 +2,48 @@
 
 namespace App\Policies;
 
-use Illuminate\Auth\Access\Response;
+use App\Authorization\Permissions;
 use App\Models\DataInfo;
 use App\Models\User;
 
+/**
+ * InfoClube: ler é de todo mundo logado; criar, editar e excluir é da
+ * permissão `infoclube.editar` (Secretaria na matriz inicial).
+ */
 class DataInfoPolicy
 {
-    /**
-     * Determine whether the user can view any models.
-     */
     public function viewAny(User $user): bool
     {
-        return $user->can('view information');
+        return true;
     }
 
-    /**
-     * Determine whether the user can view the model.
-     */
     public function view(User $user, DataInfo $dataInfo): bool
     {
-        return $user->can('view information');
+        return true;
     }
 
-    /**
-     * Determine whether the user can create models.
-     */
     public function create(User $user): bool
     {
-        return $user->can('create information');
+        return $user->can(Permissions::INFOCLUBE_EDITAR);
     }
 
-    /**
-     * Determine whether the user can update the model.
-     */
     public function update(User $user, DataInfo $dataInfo): bool
     {
-        return $user->can('edit information');
+        return $user->can(Permissions::INFOCLUBE_EDITAR);
     }
 
-    /**
-     * Determine whether the user can delete the model.
-     */
     public function delete(User $user, DataInfo $dataInfo): bool
     {
-        return $user->can('delete information');
+        return $user->can(Permissions::INFOCLUBE_EDITAR);
     }
 
-    /**
-     * Determine whether the user can restore the model.
-     */
     public function restore(User $user, DataInfo $dataInfo): bool
     {
-        return $user->can('edit information');
+        return $user->can(Permissions::INFOCLUBE_EDITAR);
     }
 
-    /**
-     * Determine whether the user can permanently delete the model.
-     */
     public function forceDelete(User $user, DataInfo $dataInfo): bool
     {
-        return $user->can('delete information');
+        return $user->can(Permissions::INFOCLUBE_EDITAR);
     }
 }

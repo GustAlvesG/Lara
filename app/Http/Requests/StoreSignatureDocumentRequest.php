@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Models\SignatureSigner;
+use App\Models\SignatureTemplate;
+use App\Services\Signature\SignatureFieldTypes;
 use App\Support\Cpf;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -16,9 +18,61 @@ use Illuminate\Validation\Rule;
  */
 class StoreSignatureDocumentRequest extends FormRequest
 {
+    /**
+     * Os dados do modelo, conferidos e na forma canônica de cada tipo.
+     *
+     * @var array<string, mixed>
+     */
+    private array $fieldData = [];
+
     public function authorize(): bool
     {
         return true;
+    }
+
+    /**
+     * O que vai para `data`: só os campos que o ATENDENTE preenche, já
+     * conferidos. Os de quem assina e os automáticos não saem daqui nem que o
+     * formulário os mande — eles têm outra porta (SignatureSigningDataService).
+     *
+     * @return array<string, mixed>
+     */
+    public function fieldData(): array
+    {
+        return $this->fieldData;
+    }
+
+    /**
+     * Confere cada campo pelo TIPO dele. Em branco passa — a obrigatoriedade é
+     * do congelamento, para o rascunho poder ficar incompleto —, mas um CPF
+     * preenchido errado é recusado já aqui.
+     */
+    public function withValidator(\Illuminate\Validation\Validator $validator): void
+    {
+        $validator->after(function ($validator) {
+            // Na correção o modelo é o do documento: ele não muda depois de criado.
+            $documento = $this->route('signatureDocument');
+
+            $modelo = is_object($documento)
+                ? $documento->template
+                : SignatureTemplate::find($this->input('signature_template_id'));
+
+            if (!$modelo) {
+                return;
+            }
+
+            $bruto = (array) $this->input('data', []);
+
+            foreach ($modelo->attendantFields() as $campo) {
+                [$valor, $erro] = SignatureFieldTypes::parse($campo, $bruto[$campo['key']] ?? null);
+
+                if ($erro !== null) {
+                    $validator->errors()->add('data.' . $campo['key'], $erro);
+                } elseif ($valor !== null) {
+                    $this->fieldData[$campo['key']] = $valor;
+                }
+            }
+        });
     }
 
     protected function prepareForValidation(): void
@@ -56,6 +110,9 @@ class StoreSignatureDocumentRequest extends FormRequest
             'signers.*.email' => ['nullable', 'email', 'max:150'],
             'signers.*.phone' => ['nullable', 'string', 'max:30'],
             'signers.*.role' => ['nullable', Rule::in(array_keys(SignatureSigner::ROLE_LABELS))],
+            // A parte do modelo pela qual a pessoa assina ("contratante"). Se o
+            // modelo não a declara, o serviço a descarta.
+            'signers.*.party' => ['nullable', 'string', 'max:60'],
         ];
     }
 

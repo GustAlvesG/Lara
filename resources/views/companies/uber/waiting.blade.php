@@ -10,26 +10,26 @@
         <!-- Header -->
         <div class="mb-8 flex items-center justify-between gap-4">
             <div class="flex items-center gap-4">
-                <a href="{{ route('company.access.monitor') }}" class="p-2 bg-white dark:bg-gray-800 rounded-xl shadow-md text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 border border-gray-100 dark:border-gray-700 transition">
+                <a href="{{ route('company.access.monitor') }}" class="p-2 bg-surface rounded-xl shadow-card text-ink-3 hover:text-grena-ink border border-line transition">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                     </svg>
                 </a>
                 <div>
-                    <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white">Aguardando Acesso do Motorista</h1>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                    <h1 class="text-2xl font-extrabold text-ink">Aguardando Acesso do Motorista</h1>
+                    <p class="text-sm text-ink-2">
                         Todos os pedidos prontos, esperando o carro chegar na portaria. Confira com o motorista à sua frente e libere direto — sem depender da placa digitada no WhatsApp.
                     </p>
                 </div>
             </div>
             <div class="flex items-center gap-3 shrink-0">
-                <label class="flex items-center gap-2 text-xs font-bold text-gray-500 dark:text-gray-400 cursor-pointer select-none">
+                <label class="flex items-center gap-2 text-xs font-bold text-ink-2 cursor-pointer select-none">
                     <input type="checkbox" id="auto-refresh" checked
-                           class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                           class="rounded border-line-strong text-grena-ink focus:ring-grena-tint">
                     Atualizar sozinho
                 </label>
                 <button onclick="window.location.reload()"
-                        class="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                        class="px-4 py-2 bg-surface border border-line text-ink rounded-lg font-bold text-sm shadow-card hover:bg-subtle transition">
                     Atualizar
                 </button>
             </div>
@@ -39,35 +39,40 @@
 
         <!-- Resumo da fila -->
         <div class="flex flex-wrap items-center gap-4 mb-6 text-xs font-bold">
-            <span class="px-3 py-1.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400">
+            <span class="px-3 py-1.5 rounded-full bg-grena-tint text-grena-ink">
                 {{ $validos->count() }} na validade
             </span>
             @if($expirados->isNotEmpty())
-                <span class="px-3 py-1.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">
+                <span class="px-3 py-1.5 rounded-full bg-danger-soft text-danger">
                     {{ $expirados->count() }} com validade vencida
                 </span>
             @endif
             @if($emPreenchimento->isNotEmpty())
-                <span class="px-3 py-1.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                <span class="px-3 py-1.5 rounded-full bg-warn-soft text-warn">
                     {{ $emPreenchimento->count() }} ainda preenchendo no WhatsApp
                 </span>
             @endif
-            <span class="ml-auto font-semibold text-gray-400 dark:text-gray-500">
+            <span class="ml-auto font-semibold text-ink-3">
                 Atualizado às {{ now()->format('H:i:s') }}
             </span>
         </div>
 
         @php
             $validationColors = [
-                \App\Models\UberAccessRequest::MEMBER_VALIDATION_VALIDADO       => 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
-                \App\Models\UberAccessRequest::MEMBER_VALIDATION_NAO_ENCONTRADO => 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
-                \App\Models\UberAccessRequest::MEMBER_VALIDATION_INDISPONIVEL   => 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+                \App\Models\UberAccessRequest::MEMBER_VALIDATION_VALIDADO       => 'bg-ok-soft text-ok',
+                \App\Models\UberAccessRequest::MEMBER_VALIDATION_NAO_ENCONTRADO => 'bg-warn-soft text-warn',
+                \App\Models\UberAccessRequest::MEMBER_VALIDATION_INDISPONIVEL   => 'bg-subtle text-ink-2',
             ];
         @endphp
 
+        @if($validos->isNotEmpty() || $expirados->isNotEmpty() || $emPreenchimento->isNotEmpty())
+            <x-search-bar mode="client" target="#fila-uber" id="busca-fila" placeholder="Buscar nome, placa, matrícula ou telefone" class="mb-4" />
+        @endif
+
+        <div id="fila-uber">
         @if($validos->isEmpty() && $expirados->isEmpty())
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 py-16 text-center mb-6">
-                <p class="text-gray-400 dark:text-gray-500 font-medium">Nenhum pedido aguardando motorista no momento.</p>
+            <div class="bg-surface rounded-2xl shadow-card border border-line py-16 text-center mb-6">
+                <p class="text-ink-3 font-medium">Nenhum pedido aguardando motorista no momento.</p>
             </div>
         @endif
 
@@ -81,8 +86,8 @@
 
         @if($expirados->isNotEmpty())
             <div class="mb-3 flex items-center gap-3 flex-wrap">
-                <h2 class="text-sm font-black text-red-600 dark:text-red-400 uppercase tracking-wider">Validade vencida</h2>
-                <p class="text-xs text-gray-400 dark:text-gray-500">
+                <h2 class="text-sm font-black text-danger uppercase tracking-wider">Validade vencida</h2>
+                <p class="text-xs text-ink-3">
                     Passaram dos 30 minutos e o sistema ainda não fechou. Dá para liberar — o histórico registra que foi fora do prazo.
                 </p>
             </div>
@@ -95,31 +100,31 @@
 
         @if($emPreenchimento->isNotEmpty())
             <div class="mb-3 flex items-center gap-3 flex-wrap">
-                <h2 class="text-sm font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider">Preenchendo agora no WhatsApp</h2>
-                <p class="text-xs text-gray-400 dark:text-gray-500">
+                <h2 class="text-sm font-black text-warn uppercase tracking-wider">Preenchendo agora no WhatsApp</h2>
+                <p class="text-xs text-ink-3">
                     O associado começou o pedido e ainda não terminou. Aparece só para consulta; liberar, só quando o pedido ficar pronto.
                 </p>
             </div>
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-amber-100 dark:border-amber-900/40 overflow-hidden mb-8">
+            <div class="bg-surface rounded-2xl shadow-card border border-warn/40 overflow-hidden mb-8">
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[700px] text-sm">
                         <thead>
-                            <tr class="border-b border-gray-100 dark:border-gray-700 bg-amber-50/60 dark:bg-amber-900/10">
-                                <th class="px-5 py-3 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Início</th>
-                                <th class="px-5 py-3 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Quem está pedindo</th>
-                                <th class="px-5 py-3 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Já preencheu</th>
-                                <th class="px-5 py-3 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Parou em</th>
+                            <tr class="border-b border-line bg-warn-soft">
+                                <th class="px-5 py-3 text-left text-[11px] font-black text-ink-3 uppercase tracking-wider">Início</th>
+                                <th class="px-5 py-3 text-left text-[11px] font-black text-ink-3 uppercase tracking-wider">Quem está pedindo</th>
+                                <th class="px-5 py-3 text-left text-[11px] font-black text-ink-3 uppercase tracking-wider">Já preencheu</th>
+                                <th class="px-5 py-3 text-left text-[11px] font-black text-ink-3 uppercase tracking-wider">Parou em</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
+                        <tbody class="divide-y divide-line">
                             @foreach($emPreenchimento as $req)
-                                <tr>
-                                    <td class="px-5 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400">{{ $req->created_at->format('H:i:s') }}</td>
+                                <tr data-search="">
+                                    <td class="px-5 py-3 whitespace-nowrap text-ink-2">{{ $req->created_at->format('H:i:s') }}</td>
                                     <td class="px-5 py-3">
-                                        <p class="font-semibold text-gray-700 dark:text-gray-300">{{ $req->requester_name ?: ($req->contact_name_whatsapp ?: '—') }}</p>
-                                        <p class="text-xs font-mono text-gray-400 dark:text-gray-500">{{ $req->contact_phone }}</p>
+                                        <p class="font-semibold text-ink">{{ $req->requester_name ?: ($req->contact_name_whatsapp ?: '—') }}</p>
+                                        <p class="text-xs font-mono text-ink-3">{{ $req->contact_phone }}</p>
                                     </td>
-                                    <td class="px-5 py-3 text-xs text-gray-500 dark:text-gray-400">
+                                    <td class="px-5 py-3 text-xs text-ink-2">
                                         {{ collect([
                                             $req->matricula ? 'Matrícula/CPF ' . $req->matricula : null,
                                             $req->club_location,
@@ -127,7 +132,7 @@
                                         ])->filter()->implode(' · ') ?: 'Nada ainda' }}
                                     </td>
                                     <td class="px-5 py-3">
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-warn-soft text-warn">
                                             {{ $req->statusLabel() }}
                                         </span>
                                     </td>
@@ -138,6 +143,7 @@
                 </div>
             </div>
         @endif
+        </div>{{-- #fila-uber --}}
 
     </div>
 
@@ -173,12 +179,12 @@
 
                 if (data.found) {
                     buttonEl.textContent = '✓ Liberado';
-                    buttonEl.className = 'w-full px-5 py-2.5 rounded-xl font-black text-sm bg-green-600 text-white cursor-default';
+                    buttonEl.className = 'w-full px-5 py-2.5 rounded-xl font-black text-sm bg-ok text-white dark:text-canvas cursor-default';
                     card.classList.add('opacity-60');
                     card.querySelectorAll('[data-plate-edit]').forEach(el => el.remove());
                 } else {
                     buttonEl.textContent = registerError(data.reason);
-                    buttonEl.className = 'w-full px-5 py-2.5 rounded-xl font-black text-sm bg-red-600 text-white cursor-default';
+                    buttonEl.className = 'w-full px-5 py-2.5 rounded-xl font-black text-sm bg-danger text-white cursor-default';
                 }
             } catch (e) {
                 buttonEl.textContent = 'Erro de conexão — tente de novo';
@@ -242,8 +248,8 @@
                 const clock = mins + 'min ' + String(secs).padStart(2, '0') + 's';
 
                 el.textContent = diff > 0 ? 'expira em ' + clock : 'vencido há ' + clock;
-                el.classList.toggle('text-red-600', diff <= 0);
-                el.classList.toggle('dark:text-red-400', diff <= 0);
+                el.classList.toggle('text-danger', diff <= 0);
+                el.classList.toggle('', diff <= 0);
             });
         }
 
@@ -257,7 +263,8 @@
         // não sumir da tela antes de ser lido.
         // ------------------------------------------------------------------
         setInterval(function () {
-            if (document.getElementById('auto-refresh').checked && !acting) {
+            var busca = document.getElementById('busca-fila');
+            if (document.getElementById('auto-refresh').checked && !acting && !(busca && busca.value.trim())) {
                 window.location.reload();
             }
         }, 30000);

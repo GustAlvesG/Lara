@@ -1,3 +1,3 @@
 @props(['disabled' => false])
 
-<input type="file" {{ $disabled ? 'disabled' : '' }} {!! $attributes->merge(['class' => 'border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm w-full']) !!}>
+<input type="file" {{ $disabled ? 'disabled' : '' }} {!! $attributes->merge(['class' => 'w-full rounded-xl border border-line-strong bg-surface text-sm text-ink-2 shadow-none focus:border-grena focus:ring-4 focus:ring-grena-tint file:mr-3 file:h-10 file:cursor-pointer file:rounded-l-xl file:border-0 file:bg-grena-tint file:px-4 file:font-bold file:text-grena-ink']) !!}>

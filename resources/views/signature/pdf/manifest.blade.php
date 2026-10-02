@@ -30,7 +30,11 @@
             <b style="font-size:10px;">Documento</b><br>
             <span style="font-size:10px;">{{ $document->title }}</span><br>
             <span style="font-size:9px;color:#6d6062;">
-                Modelo: {{ $document->template?->name }} (versão {{ $document->template_version }})<br>
+                @if($document->isUploaded())
+                    Documento enviado pronto, em PDF — aproveitado na íntegra<br>
+                @else
+                    Modelo: {{ $document->template?->name }} (versão {{ $document->template_version }})<br>
+                @endif
                 Congelado em: {{ $document->frozen_at?->format('d/m/Y H:i:s') }}<br>
                 Finalizado em: {{ $document->finalized_at?->format('d/m/Y H:i:s') ?? now()->format('d/m/Y H:i:s') }}<br>
                 Atendente: {{ $document->created_by_name ?? 'não registrado' }}<br>
@@ -52,10 +56,50 @@
         {{ $document->original_sha256 }}
     </span>
     <div style="font-size:8.5px;color:#6d6062;margin-top:4px;">
-        É o hash do arquivo exibido no tablet, calculado no momento do congelamento — antes de qualquer
-        assinatura. Confira-o na página de validação.
+        @if($document->signing_data)
+            {{-- O modelo deixou dados para o ato da assinatura. O hash é o do documento JÁ com eles. --}}
+            É o hash do arquivo exibido no tablet, calculado depois que os dados do ato da assinatura entraram
+            no documento — e antes de qualquer assinatura. Confira-o na página de validação.
+        @else
+            É o hash do arquivo exibido no tablet, calculado no momento do congelamento — antes de qualquer
+            assinatura. Confira-o na página de validação.
+        @endif
     </div>
 </div>
+
+@if($document->isUploaded())
+    {{-- O hash do arquivo como o atendente o enviou: é o que liga o que foi assinado ao que foi enviado. --}}
+    <div style="border:1px solid #d8cbc9;padding:8px;margin-bottom:14px;">
+        <b style="font-size:10px;">Impressão digital do PDF enviado (SHA-256)</b><br>
+        <span style="font-size:8.5px;font-family:DejaVu Sans Mono, monospace;word-break:break-all;">
+            {{ $document->source_sha256 }}
+        </span>
+        <div style="font-size:8.5px;color:#6d6062;margin-top:4px;">
+            É o arquivo antes de o sistema acrescentar a linha de validação, os campos de visto e a folha de
+            assinaturas. As páginas dele não foram alteradas.
+        </div>
+    </div>
+@endif
+
+@php
+    $doSignatario = collect($document->template?->signerFields() ?? [])->pluck('label');
+    $automaticos = collect($document->template?->automaticFields() ?? [])->pluck('label');
+@endphp
+
+@if($doSignatario->isNotEmpty() || $automaticos->isNotEmpty())
+    {{-- De onde veio cada dado do texto: "o signatário informou" e "o atendente digitou" não são a mesma afirmação. --}}
+    <div style="border:1px solid #d8cbc9;padding:8px;margin-bottom:14px;font-size:9px;">
+        <b style="font-size:10px;">Dados preenchidos no ato da assinatura</b><br>
+        @if($doSignatario->isNotEmpty())
+            Informados pelo signatário, no tablet, antes da leitura do documento{{ $document->signing_answered_at ? ' (em ' . $document->signing_answered_at->format('d/m/Y H:i:s') . ')' : '' }}:
+            {{ $doSignatario->join(', ') }}.<br>
+        @endif
+        @if($automaticos->isNotEmpty())
+            Preenchidos pelo sistema, com a data do servidor: {{ $automaticos->join(', ') }}.<br>
+        @endif
+        <span style="color:#6d6062;">Os demais dados do documento foram preenchidos pelo atendente.</span>
+    </div>
+@endif
 
 <h3 style="font-size:11.5px;margin:0 0 6px;">Signatários e evidências</h3>
 
@@ -65,7 +109,7 @@
         <tr>
             <td style="border:1px solid #d8cbc9;padding:8px;vertical-align:top;">
                 <b style="font-size:10.5px;">{{ $signer->name }}</b>
-                <span style="font-size:9px;color:#6d6062;">— {{ $signer->roleLabel() }}</span><br>
+                <span style="font-size:9px;color:#6d6062;">— {{ $signer->capacityLabel() }}</span><br>
                 <span style="font-size:9.5px;">CPF {{ $signer->maskedCpf() }}</span><br>
 
                 <span style="font-size:9px;color:#6d6062;">
@@ -83,6 +127,11 @@
                         (informado pelo navegador do tablet)<br>
                         Aceite explícito dos termos: {{ $evidencia->accepted ? 'sim' : 'não' }}<br>
                         Pontos capturados no traço: {{ $evidencia->strokePoints() }}
+
+                        @if($evidencia->initials_path)
+                            {{-- O visto é um desenho próprio, feito no tablet depois da assinatura; o sistema o repete nas páginas. --}}
+                            <br>Visto (rubrica) desenhado no tablet e aplicado pelo sistema a todas as páginas do documento
+                        @endif
 
                         @if($evidencia->photoSkipLabel())
                             {{-- A foto era exigida pelo modelo e não foi possível. Some do

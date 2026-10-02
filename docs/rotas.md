@@ -9,6 +9,11 @@ As rotas estão divididas em quatro arquivos, registrados em `bootstrap/app.php`
 
 > Nota: as rotas de freelancer ficam em `api.php` (grupo `/api/telegram/freelancer/*`).
 
+> **Permissões:** a coluna de middleware desta página é anterior à reforma do acesso e não
+> lista todas as permissões. A fonte da verdade é `php artisan route:list` e o `routes/web.php`,
+> onde cada rota do painel tem `can:<permissão do catálogo>` — ver
+> [Usuários, setores e permissões](funcionalidades/usuarios-e-permissoes.md).
+
 ---
 
 ## 8.1. Rotas Web (`routes/web.php`)
@@ -45,7 +50,6 @@ Todas, salvo `/`, `/members` e `/dashboard`, estão sob o middleware `auth`.
 | DELETE | `/company/{company}/worker/{worker}` | CompanyWorkerController@destroy | company.worker.destroy | auth |
 | GET | `/company/{company}/rules/create` | CompanyAccessRulesController@create | company.rules.create | auth |
 | POST | `/company/{company}/rules` | CompanyAccessRulesController@store | company.rules.store | auth |
-| GET | `/videowall` | VideoWallController@index | videowall.index | auth |
 | GET | `/place-group` | PlaceGroupController@index | place-group.index | auth |
 | GET | `/place-group/create` | PlaceGroupController@create | place-group.create | auth |
 | POST | `/place-group` | PlaceGroupController@store | place-group.store | auth |
@@ -70,10 +74,15 @@ Todas, salvo `/`, `/members` e `/dashboard`, estão sob o middleware `auth`.
 | GET | `/schedule/{id}` | ScheduleController@show | schedule.show | auth |
 | PUT | `/schedule/update` | ScheduleController@update | schedule.update | auth |
 | POST | `/schedule/store/web` | ScheduleController@store | schedule.store.web | auth |
-| GET | `/users` | UserController@index | users.index | auth, permission:manage users |
-| GET | `/users/{id}/edit` | UserController@edit | users.edit | auth, permission:manage users |
-| PUT | `/users/{id}` | UserController@update | users.update | auth, permission:manage users |
-| GET | `/roles-permission` | PermissionController@index | roles-permission.index | auth, permission:manage users |
+| GET | `/users` | UserController@index | users.index | auth, can:usuarios.gerenciar |
+| GET | `/users/{id}/edit` | UserController@edit | users.edit | auth, can:usuarios.gerenciar |
+| PUT | `/users/{id}` | UserController@update | users.update | auth, can:usuarios.gerenciar |
+| PUT | `/users/{id}/sectors` | UserController@updateSectors | users.sectors.update | auth, can:usuarios.gerenciar |
+| PUT | `/users/{id}/permissions` | UserController@updatePermissions | users.permissions.update | auth, can:usuarios.gerenciar |
+| GET | `/sectors` | SectorController@index | sectors.index | auth, can:setores.gerenciar |
+| PUT | `/sectors/{id}/permissions` | SectorController@updatePermissions | sectors.permissions.update | auth, can:setores.gerenciar |
+| GET | `/sectors/audit` | SectorController@audit | sectors.audit | auth, can:setores.gerenciar |
+| GET | `/meu-setor/{sector}` | MySectorController@show | my-sector.show | auth (coordenador do setor) |
 | GET | `/comp-time/upload` | CompTimeController@index | comp-time.index | auth |
 | POST | `/comp-time/upload` | CompTimeController@store | comp-time.store | auth |
 | POST | `/comp-time/filter` | CompTimeController@indexFilter | comp-time.index.filter | auth |
@@ -174,6 +183,12 @@ Prefixo `/api`. Legenda de middleware: **T** = `api_token`, **L** = `login_token
 | POST | `/api/schedule/payment` | SchedulePaymentController@store | |
 | DELETE | `/api/schedule/delete-pending` | ScheduleController@destroyPending | |
 | POST | `/api/schedule/time-options` | ScheduleRulesController@getTimeOptions | sem L |
+| GET | `/api/lighting/availability` | Api\MemberLightingController@availability | janela de hoje + acionamento vigente; `throttle:120,1` |
+| GET | `/api/lighting/groups` | Api\MemberLightingController@groups | grupos com quadra liberada; `throttle:120,1` |
+| GET | `/api/lighting/groups/{group}/places` | Api\MemberLightingController@places | quadras do grupo; `throttle:120,1` |
+| GET | `/api/lighting/activations` | Api\MemberLightingController@history | últimos 30 do sócio; `throttle:60,1` |
+| POST | `/api/lighting/places/{place}/activate` | Api\MemberLightingController@activate | acende a luz; `throttle:20,1` |
+| POST | `/api/lighting/release` | Api\MemberLightingController@release | devolve a quadra; `throttle:20,1` |
 
 ---
 

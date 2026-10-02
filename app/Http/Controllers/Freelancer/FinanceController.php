@@ -9,8 +9,8 @@ use App\Models\FreelancerServiceBatch;
 use App\Services\FreelancerService as FreelancerServiceManager;
 
 /**
- * Aba Financeiro de Serviços / Contratos. Acesso restrito a quem está no setor
- * Contabilidade ou Gerência — Gate "manage-freelancer-payments".
+ * Aba Financeiro de Serviços / Contratos. Acesso pela permissão
+ * `freelancers.financeiro` (setor Contabilidade na matriz inicial).
  *
  * **O lote é a unidade de trabalho.** A diretoria aprova um bloco de contratos
  * e é esse bloco que o financeiro quita, então a tela abre pela lista de lotes

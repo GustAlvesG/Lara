@@ -1,34 +1,41 @@
 {{--
     Itens do menu da conta.
 
-    Existe para os três dropdowns (lateral expandida, lateral recolhida e barra
-    superior) não saírem de sincronia — eram três cópias do mesmo bloco, e
-    agora há um item a mais para manter alinhado.
+    Um só para os quatro dropdowns (Módulos, lateral expandida, lateral
+    recolhida e barra superior) não saírem de sincronia.
 
-    Depende de estar dentro de um x-data com `userOpen` (os três têm) e do
+    Depende de estar dentro de um x-data com `userOpen` (os quatro têm) e do
     escopo do laraShell, de onde vem `organizerOpen`.
 --}}
 @php
-    $itemClasses = 'block px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition';
+    $itemClasses = 'flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-ink no-underline transition hover:bg-subtle';
+    $glyphClasses = 'h-4 w-4 text-ink-3';
+    $links = array_filter(
+        \App\View\Navigation::accountLinks(),
+        fn ($link) => ! ($link['permission'] ?? null) || auth()->user()?->can($link['permission'])
+    );
 @endphp
 
-<a href="{{ route('profile.edit') }}" class="{{ $itemClasses }}">Perfil</a>
-<a href="{{ route('docs.index') }}" class="{{ $itemClasses }}">Documentação</a>
-@role('admin')
-<a href="{{ route('users.index') }}" class="{{ $itemClasses }}">Usuários</a>
-@endrole
+<div class="flex flex-col p-1">
+    @foreach ($links as $link)
+        <a href="{{ route($link['route']) }}" class="{{ $itemClasses }}">
+            <x-icon :name="$link['glyph']" class="{{ $glyphClasses }}" />{{ $link['label'] }}
+        </a>
+    @endforeach
 
-<button type="button" @click="organizerOpen = true; userOpen = false"
-    class="{{ $itemClasses }} flex w-full items-center gap-2 text-left">
-    <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7M17 20l3-3-3-3" />
-    </svg>
-    Organizar menu
-</button>
+    <button type="button" @click="organizerOpen = true; userOpen = false" class="{{ $itemClasses }}">
+        <x-icon name="sliders" class="{{ $glyphClasses }}" />Organizar menu
+    </button>
+</div>
 
-<x-nav-mode-toggle />
+<div class="border-t border-line">
+    <x-theme-toggle />
+    <x-nav-mode-toggle />
+</div>
 
-<form method="POST" action="{{ route('logout') }}" class="border-t border-gray-100 dark:border-gray-700">
+<form method="POST" action="{{ route('logout') }}" class="border-t border-line p-1">
     @csrf
-    <button type="submit" class="w-full px-4 py-2.5 text-left text-sm text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">Sair</button>
+    <button type="submit" class="{{ $itemClasses }} text-danger hover:bg-danger-soft">
+        <x-icon name="logout" class="h-4 w-4" />Sair
+    </button>
 </form>

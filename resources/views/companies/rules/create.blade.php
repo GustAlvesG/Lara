@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+        <h2 class="font-semibold text-xl text-ink leading-tight">
             {{ __('Externos Terceirizados - Novo') }}
 
         </h2>
@@ -28,8 +28,8 @@
             <x-slot name="header">
                 <div class="my-4 flex items-center gap-4">
                     <div>
-                        <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Nova Regra de Acesso</h1>
-                        <p class="text-gray-500 dark:text-gray-400 font-medium">Configure as condições de entrada e permanência no local.</p>
+                        <h1 class="text-3xl font-extrabold text-ink leading-tight">Nova Regra de Acesso</h1>
+                        <p class="text-ink-2 font-medium">Configure as condições de entrada e permanência no local.</p>
                     </div>
                 </div>
             </x-slot>
@@ -38,21 +38,21 @@
 
                 <!-- Regra Rápida -->
                 @if(!isset($rule))
-                <div id="quick-rule-card" class="mb-6 p-5 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-700 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div id="quick-rule-card" class="mb-6 p-5 bg-warn-soft border-2 border-warn/40 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-1">
-                            <svg class="w-5 h-5 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-5 h-5 text-warn shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                             </svg>
-                            <span class="font-extrabold text-amber-800 dark:text-amber-300 text-sm">Regra Rápida</span>
+                            <span class="font-extrabold text-warn text-sm">Regra Rápida</span>
                         </div>
-                        <p class="text-xs text-amber-700 dark:text-amber-400">
+                        <p class="text-xs text-warn">
                             Preenche automaticamente uma regra de <strong>inclusão</strong> válida somente para hoje,
                             <strong>{{ now()->format('d/m/Y') }}</strong>, até as <strong>23:59</strong>.
                         </p>
                     </div>
                     <button type="button" id="quick-rule-btn" onclick="applyQuickRule()"
-                            class="shrink-0 flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-sm shadow transition">
+                            class="shrink-0 flex items-center gap-2 px-5 py-2.5 bg-warn hover:bg-warn/90 text-white dark:text-canvas rounded-xl font-bold text-sm shadow-card transition">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                         </svg>
@@ -109,8 +109,8 @@
             const btn = document.getElementById('quick-rule-btn');
             if (btn) {
                 btn.textContent = '✓ Aplicado';
-                btn.classList.replace('bg-amber-500', 'bg-green-500');
-                btn.classList.replace('hover:bg-amber-600', 'hover:bg-green-600');
+                btn.classList.replace('bg-warn', 'bg-ok');
+                btn.classList.replace('hover:bg-warn/90', 'hover:bg-ok');
                 btn.disabled = true;
             }
 

@@ -11,8 +11,9 @@ voltou.
 
 ## Para quem
 
-Funcionários com a permissão **`use lara chat`**. A permissão é própria (e não "todo mundo
-logado") para permitir liberar o chat aos poucos.
+Quem tem a permissão **`lara`** — hoje, a TI (acesso total). A permissão é própria (e não
+"todo mundo logado") para permitir liberar o chat aos poucos: dê a um setor ou a uma pessoa
+na tela de Setores/Usuários.
 
 ## Pré-requisitos (`.env`)
 
@@ -169,9 +170,8 @@ máquina, a liberação de rede precisa acompanhar.
 ## Rollout
 
 1. Deploy com `LARA_ENABLED=false`.
-2. `php artisan migrate` e `php artisan db:seed --class=RolesAndPermissionsSeeder`
-   (idempotente — só acrescenta a permissão nova).
-3. Conceder `use lara chat` a 2–3 pessoas.
+2. `php artisan migrate` (a permissão `lara` vem do catálogo de acesso).
+3. Conceder `lara` a 2–3 pessoas (permissão individual, na tela de Usuários).
 4. Preencher `LARA_BASE_URL`, ligar `LARA_ENABLED=true` e rodar
    **`php artisan config:cache`**.
 

@@ -22,7 +22,7 @@
             <div class="sig-line">
                 <div class="sig-name">{{ $signer->name }}</div>
                 <div class="sig-meta">
-                    {{ $signer->roleLabel() }} — CPF {{ $signer->maskedCpf() }}
+                    {{ $signer->capacityLabel() }} — CPF {{ $signer->maskedCpf() }}
                 </div>
 
                 @if($mode === SignatureDocumentRenderer::MODE_FINAL && $signer->signed_at)

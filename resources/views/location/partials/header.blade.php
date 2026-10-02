@@ -1,41 +1,29 @@
-<div class="mb-6 flex justify-end gap-3">
-            
-    <!-- Botão Exportar PDF -->
-    <button onclick="generatePDFTable({{ json_encode($modalities) }})" class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-xl font-bold text-sm shadow-lg hover:bg-red-700 transition duration-150 transform hover:scale-[1.02]">
-        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9h1.5m1.5 0H13m-4 4h1.5m1.5 0H13m-4 4h1.5m1.5 0H13"></path>
-        </svg>
-        Exportar PDF
-    </button>
-    <!-- Botão Configurações -->
-    <a href="{{ route('place-group.index') }}" class="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition duration-150 group">
-        <svg class="w-5 h-5 mr-2 text-gray-400 group-hover:text-indigo-600 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-        </svg>
-        Configurações
-    </a>
-    </div>
+{{-- Título da agenda: troca de dia (setas e calendário), PDF do dia e configurações. --}}
+@php
+    $dayButton = 'grid h-9 w-9 place-items-center rounded-full text-ink-2 transition hover:bg-subtle hover:text-ink';
+@endphp
+<x-page-title title="Reservas">
+    Ocupação e horários disponíveis do dia, por modalidade. Escolha os horários livres de um local e identifique o sócio.
 
-    <!-- HEADER E FILTRO DE DATA -->
-    <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-    <div>
-        <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Reservas</h1>
-        <p class="text-gray-500 dark:text-gray-400 font-medium">Visualize ocupação e horários disponíveis por modalidade.</p>
-    </div>
-
-    <div class="flex items-center gap-3 bg-white dark:bg-gray-800 p-2 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700">
-        <a href="{{ request()->fullUrlWithQuery(['date' => date('Y-m-d', strtotime($date . ' -1 day'))]) }}" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-        </a>
-        
-        <form action="{{ url()->current() }}" method="GET" class="px-4 text-center">
-            <input id="report-date" type="date" name="date" value="{{ $date }}" onchange="this.form.submit()" class="font-bold text-gray-800 dark:text-gray-200 border-none focus:ring-0 cursor-pointer bg-transparent dark:bg-transparent dark:[color-scheme:dark]">
-        </form>
-
-        <a href="{{ request()->fullUrlWithQuery(['date' => date('Y-m-d', strtotime($date . ' +1 day'))]) }}" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-        </a>
-    </div>
-</div>
+    <x-slot:actions>
+        <div class="flex items-center gap-1 rounded-full border border-line-strong bg-surface p-1">
+            <a href="{{ request()->fullUrlWithQuery(['date' => date('Y-m-d', strtotime($date . ' -1 day'))]) }}" class="{{ $dayButton }}" aria-label="Dia anterior">
+                <x-icon name="arrow-right" class="h-4 w-4 rotate-180" />
+            </a>
+            <form action="{{ url()->current() }}" method="GET">
+                <label for="report-date" class="sr-only">Data da agenda</label>
+                <input id="report-date" type="date" name="date" value="{{ $date }}" onchange="this.form.submit()"
+                       class="h-9 cursor-pointer rounded-full border-0 bg-transparent px-2 font-mono text-sm font-semibold text-ink focus:ring-0">
+            </form>
+            <a href="{{ request()->fullUrlWithQuery(['date' => date('Y-m-d', strtotime($date . ' +1 day'))]) }}" class="{{ $dayButton }}" aria-label="Próximo dia">
+                <x-icon name="arrow-right" class="h-4 w-4" />
+            </a>
+        </div>
+        <x-secondary-button type="button" onclick="generatePDFTable({{ json_encode($modalities) }})">
+            <x-icon name="download" /> PDF do dia
+        </x-secondary-button>
+        <x-secondary-button-a href="{{ route('place-group.index') }}">
+            <x-icon name="sliders" /> Configurações
+        </x-secondary-button-a>
+    </x-slot:actions>
+</x-page-title>

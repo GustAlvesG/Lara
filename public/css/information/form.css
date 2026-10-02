@@ -5,6 +5,10 @@
  * Bootstrap (.row/.col-*) misturado com Tailwind, e as margens negativas do
  * .row dentro de cards com padding eram a causa dos elementos sobrepostos.
  * Aqui o layout é flex/grid nativo, sem classes de grid de terceiros.
+ *
+ * As cores são os tokens do rebrand (resources/css/app.css): elas já trocam
+ * sozinhas no tema escuro, então não há bloco "dark" aqui — e o tema segue a
+ * escolha da pessoa (classe .dark), não só o sistema.
  */
 
 /* --- Switch das seções opcionais --- */
@@ -35,7 +39,7 @@
     width: 2.5rem;
     height: 1.375rem;
     border-radius: 9999px;
-    background: #d1d5db;
+    background: rgb(var(--line-strong));
     transition: background-color 0.15s ease-in-out;
 }
 
@@ -53,7 +57,7 @@
 }
 
 .info-switch input:checked + .info-switch-track {
-    background: #4f46e5;
+    background: rgb(var(--grena));
 }
 
 .info-switch input:checked + .info-switch-track::after {
@@ -61,14 +65,14 @@
 }
 
 .info-switch input:focus-visible + .info-switch-track {
-    outline: 2px solid #6366f1;
+    outline: 3px solid rgb(var(--grena-tint));
     outline-offset: 2px;
 }
 
 .info-switch-label {
     font-size: 0.875rem;
-    font-weight: 500;
-    color: #374151;
+    font-weight: 700;
+    color: rgb(var(--ink));
 }
 
 /* --- Linhas repetíveis (preços, horários, responsáveis) --- */
@@ -78,9 +82,9 @@
     gap: 0.75rem;
     align-items: flex-end;
     padding: 0.875rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.5rem;
-    background: #f9fafb;
+    border: 1px solid rgb(var(--line));
+    border-radius: 0.875rem;
+    background: rgb(var(--subtle) / 0.6);
 }
 
 .info-repeat-item + .info-repeat-item {
@@ -92,19 +96,19 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.375rem;
     padding: 0.125rem 0.5rem;
     font-size: 0.6875rem;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.04em;
     border-radius: 9999px;
-    background: #eef2ff;
-    color: #4338ca;
+    background: rgb(var(--grena-tint));
+    color: rgb(var(--grena-ink));
 }
 
 .info-repeat-item:first-child .info-repeat-row {
-    border-color: #a5b4fc;
+    border-color: rgb(var(--grena) / 0.45);
 }
 
 /* Coluna estreita com mover para cima / baixo / remover. */
@@ -120,11 +124,11 @@
     align-items: center;
     justify-content: center;
     height: 1.5rem;
-    width: 2.375rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    background: #fff;
-    color: #4b5563;
+    width: 2.5rem;
+    border: 1px solid rgb(var(--line-strong));
+    border-radius: 9999px;
+    background: rgb(var(--surface));
+    color: rgb(var(--ink-2));
     cursor: pointer;
     font-size: 0.75rem;
     line-height: 1;
@@ -132,7 +136,8 @@
 }
 
 .info-move-btn:hover:not(:disabled) {
-    background: #f3f4f6;
+    background: rgb(var(--subtle));
+    color: rgb(var(--ink));
 }
 
 .info-move-btn:disabled {
@@ -153,25 +158,6 @@
     min-width: 0;
 }
 
-/* --- Corte de texto por número de linhas (usado nos cards) --- */
-
-.info-clamp-2,
-.info-clamp-3 {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.info-clamp-2 {
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-}
-
-.info-clamp-3 {
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-}
-
 /* --- Campo de tags --- */
 
 .info-tags-box {
@@ -179,16 +165,18 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.5rem;
-    background: #fff;
+    min-height: 2.75rem;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid rgb(var(--line-strong));
+    border-radius: 0.75rem;
+    background: rgb(var(--surface));
     cursor: text;
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .info-tags-box:focus-within {
-    border-color: #6366f1;
-    box-shadow: 0 0 0 1px #6366f1;
+    border-color: rgb(var(--grena));
+    box-shadow: 0 0 0 4px rgb(var(--grena-tint));
 }
 
 .info-tag-chip {
@@ -197,9 +185,10 @@
     gap: 0.25rem;
     padding: 0.125rem 0.5rem;
     font-size: 0.75rem;
+    font-weight: 600;
     border-radius: 9999px;
-    background: #fef2f2;
-    color: #b91c1c;
+    background: rgb(var(--a-info));
+    color: rgb(var(--a-info-ink));
 }
 
 .info-tag-chip button {
@@ -220,7 +209,11 @@
     padding: 0;
     background: transparent;
     font-size: 0.875rem;
-    color: #111827;
+    color: rgb(var(--ink));
+}
+
+.info-tags-box input::placeholder {
+    color: rgb(var(--ink-3));
 }
 
 .info-tags-box input:focus {
@@ -232,12 +225,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 2.375rem;
-    width: 2.375rem;
-    border: 1px solid #fca5a5;
-    border-radius: 0.5rem;
-    background: #fff;
-    color: #dc2626;
+    height: 2.5rem;
+    width: 2.5rem;
+    border: 1px solid rgb(var(--danger) / 0.45);
+    border-radius: 9999px;
+    background: rgb(var(--surface));
+    color: rgb(var(--danger));
     cursor: pointer;
     font-size: 1.125rem;
     line-height: 1;
@@ -245,98 +238,5 @@
 }
 
 .info-remove-btn:hover {
-    background: #fef2f2;
-}
-
-/* --- Leitura (show / histórico) --- */
-
-.info-detail-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.875rem;
-}
-
-.info-detail-table th,
-.info-detail-table td {
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid #e5e7eb;
-    text-align: left;
-}
-
-.info-detail-table th {
-    font-weight: 600;
-    color: #374151;
-    background: #f9fafb;
-}
-
-.info-detail-table tr:last-child td {
-    border-bottom: none;
-}
-
-@media (prefers-color-scheme: dark) {
-    .info-switch-track {
-        background: #4b5563;
-    }
-
-    .info-switch-label {
-        color: #d1d5db;
-    }
-
-    .info-repeat-row {
-        border-color: #374151;
-        background: rgba(31, 41, 55, 0.5);
-    }
-
-    .info-tags-box {
-        border-color: #4b5563;
-        background: #111827;
-    }
-
-    .info-tags-box input {
-        color: #f3f4f6;
-    }
-
-    .info-tag-chip {
-        background: rgba(127, 29, 29, 0.35);
-        color: #fca5a5;
-    }
-
-    .info-remove-btn {
-        border-color: #7f1d1d;
-        background: transparent;
-        color: #f87171;
-    }
-
-    .info-featured-badge {
-        background: rgba(49, 46, 129, 0.5);
-        color: #c7d2fe;
-    }
-
-    .info-repeat-item:first-child .info-repeat-row {
-        border-color: #4f46e5;
-    }
-
-    .info-move-btn {
-        border-color: #4b5563;
-        background: transparent;
-        color: #d1d5db;
-    }
-
-    .info-move-btn:hover:not(:disabled) {
-        background: rgba(255, 255, 255, 0.08);
-    }
-
-    .info-remove-btn:hover {
-        background: rgba(127, 29, 29, 0.25);
-    }
-
-    .info-detail-table th,
-    .info-detail-table td {
-        border-color: #374151;
-    }
-
-    .info-detail-table th {
-        color: #e5e7eb;
-        background: rgba(31, 41, 55, 0.6);
-    }
+    background: rgb(var(--danger-soft));
 }

@@ -1,11 +1,11 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+        <h2 class="font-semibold text-xl text-ink leading-tight">
             {{ __('Novo Jogador') }}
         </h2>
     </x-slot>
 
-<div class="py-12 bg-gray-50 dark:bg-gray-900 min-h-screen">
+<div class="py-6">
     <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
 
         @include('partials.alerts')
@@ -24,8 +24,8 @@
             @include('placar.jogadores.partials.form')
 
             <div class="mt-6 flex justify-end gap-3">
-                <a href="{{ route('placar.jogadores.index') }}" class="px-6 py-3 rounded-xl font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">Cancelar</a>
-                <button type="submit" class="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold shadow-lg hover:bg-emerald-700 transition">Cadastrar</button>
+                <a href="{{ route('placar.jogadores.index') }}" class="px-6 py-3 rounded-xl font-bold text-ink-2 hover:bg-subtle transition">Cancelar</a>
+                <button type="submit" class="px-6 py-3 bg-grena text-white rounded-full font-bold shadow-card hover:bg-grena-hover transition">Cadastrar</button>
             </div>
         </form>
     </div>

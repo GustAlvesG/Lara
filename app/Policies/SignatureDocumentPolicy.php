@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Authorization\Permissions as P;
 use App\Models\SignatureDocument;
 use App\Models\User;
 
@@ -13,7 +14,7 @@ use App\Models\User;
  * `viewEvidence`: foto e traço de uma pessoa não são o mesmo dado que o
  * documento que ela assinou, e quem consulta um não precisa ver o outro.
  *
- * Quem cria documentos também os consulta (`manage signature documents` cobre
+ * Quem cria documentos também os consulta (`assinatura.documentos` cobre
  * a leitura): exigir as duas permissões faria o atendente perder o próprio
  * atendimento de vista assim que o documento fosse assinado.
  */
@@ -21,8 +22,8 @@ class SignatureDocumentPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->can('manage signature documents')
-            || $user->can('view signed documents');
+        return $user->can(P::ASSINATURA_DOCUMENTOS)
+            || $user->can(P::ASSINATURA_CONSULTAR);
     }
 
     public function view(User $user, SignatureDocument $document): bool
@@ -32,25 +33,25 @@ class SignatureDocumentPolicy
 
     public function create(User $user): bool
     {
-        return $user->can('manage signature documents');
+        return $user->can(P::ASSINATURA_DOCUMENTOS);
     }
 
     /** Editar só existe enquanto é rascunho — a regra de estado é do model. */
     public function update(User $user, SignatureDocument $document): bool
     {
-        return $user->can('manage signature documents')
+        return $user->can(P::ASSINATURA_DOCUMENTOS)
             && $document->editBlockReason() === null;
     }
 
     /** Congelar e liberar para o tablet. */
     public function release(User $user, SignatureDocument $document): bool
     {
-        return $user->can('manage signature documents');
+        return $user->can(P::ASSINATURA_DOCUMENTOS);
     }
 
     public function cancel(User $user, SignatureDocument $document): bool
     {
-        return $user->can('manage signature documents');
+        return $user->can(P::ASSINATURA_DOCUMENTOS);
     }
 
     /** Baixar o PDF (original ou final). */
@@ -65,6 +66,6 @@ class SignatureDocumentPolicy
      */
     public function viewEvidence(User $user, SignatureDocument $document): bool
     {
-        return $user->can('view signature evidences');
+        return $user->can(P::ASSINATURA_EVIDENCIAS);
     }
 }

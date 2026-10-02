@@ -5,50 +5,52 @@
         <!-- Header -->
         <div class="mb-8 flex items-center justify-between">
             <div class="flex items-center gap-4">
-                <a href="{{ route('company.access.monitor') }}" class="p-2 bg-white dark:bg-gray-800 rounded-xl shadow-md text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 border border-gray-100 dark:border-gray-700 transition">
+                <a href="{{ route('company.access.monitor') }}" class="p-2 bg-surface rounded-xl shadow-card text-ink-3 hover:text-grena-ink border border-line transition">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
                     </svg>
                 </a>
                 <div>
-                    <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white">Pedidos de Uber</h1>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Todos os pedidos feitos pelo WhatsApp, em qualquer status.</p>
+                    <h1 class="text-2xl font-extrabold text-ink">Pedidos de Uber</h1>
+                    <p class="text-sm text-ink-2">Todos os pedidos feitos pelo WhatsApp, em qualquer status.</p>
                 </div>
             </div>
+            @can(\App\Authorization\Permissions::EXTERNOS_HISTORICO)
             <a href="{{ route('company.access.logs') }}"
-               class="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-bold text-sm shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+               class="px-4 py-2 bg-surface border border-line text-ink rounded-lg font-bold text-sm shadow-card hover:bg-subtle transition">
                 Histórico de Acessos
             </a>
+            @endcan
         </div>
 
         @include('companies.uber.partials.tabs', ['active' => 'requests'])
 
         <!-- Stats do dia -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
-                <p class="text-2xl font-black text-gray-900 dark:text-white">{{ $stats['total'] }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Pedidos hoje</p>
+            <div class="bg-surface rounded-2xl shadow-card border border-line p-5">
+                <p class="text-2xl font-black text-ink">{{ $stats['total'] }}</p>
+                <p class="text-xs text-ink-2 font-medium">Pedidos hoje</p>
             </div>
             <a href="{{ route('company.uber.waiting') }}"
-               class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-indigo-200 dark:border-indigo-800 p-5 block hover:shadow-md transition">
-                <p class="text-2xl font-black text-indigo-600 dark:text-indigo-400">{{ $stats['aguardando'] }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Aguardando acesso &rarr;</p>
+               class="bg-surface rounded-2xl shadow-card border border-grena/40 p-5 block hover:shadow-card transition">
+                <p class="text-2xl font-black text-grena-ink">{{ $stats['aguardando'] }}</p>
+                <p class="text-xs text-ink-2 font-medium">Aguardando acesso &rarr;</p>
             </a>
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
-                <p class="text-2xl font-black text-green-700 dark:text-green-400">{{ $stats['concluido'] }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Concluídos hoje</p>
+            <div class="bg-surface rounded-2xl shadow-card border border-line p-5">
+                <p class="text-2xl font-black text-ok">{{ $stats['concluido'] }}</p>
+                <p class="text-xs text-ink-2 font-medium">Concluídos hoje</p>
             </div>
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
-                <p class="text-2xl font-black text-red-600 dark:text-red-400">{{ $stats['expirado'] }}</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Expirados hoje</p>
+            <div class="bg-surface rounded-2xl shadow-card border border-line p-5">
+                <p class="text-2xl font-black text-danger">{{ $stats['expirado'] }}</p>
+                <p class="text-xs text-ink-2 font-medium">Expirados hoje</p>
             </div>
         </div>
 
         @php
             $filterKeys = ['q','status','member_validation','name','plate','matricula','phone','location','date_from','date_to'];
             $hasFilters = request()->hasAny($filterKeys);
-            $inputClass = 'w-full px-3 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white dark:placeholder-gray-500';
-            $labelClass = 'block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5';
+            $inputClass = 'w-full px-3 py-2.5 border border-line rounded-xl text-sm outline-none focus:ring-2 focus:ring-grena-tint bg-surface text-ink';
+            $labelClass = 'block text-xs font-bold text-ink-3 uppercase tracking-wider mb-1.5';
 
             // Atalhos de período: preservam os demais filtros da URL.
             $ranges = [
@@ -61,7 +63,7 @@
 
         <!-- Filtros -->
         <form method="GET" action="{{ route('company.uber.requests') }}"
-              class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 mb-6">
+              class="bg-surface rounded-2xl shadow-card border border-line p-5 mb-6">
 
             <!-- Busca livre -->
             <div class="flex flex-col md:flex-row gap-3 mb-4">
@@ -72,12 +74,12 @@
                            class="{{ $inputClass }}">
                 </div>
                 <div class="flex gap-2 items-end">
-                    <button type="submit" class="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition shadow-sm shrink-0">
+                    <button type="submit" class="px-5 py-2.5 bg-grena text-white rounded-xl font-bold text-sm hover:bg-grena-hover transition shadow-card shrink-0">
                         Filtrar
                     </button>
                     @if($hasFilters)
                         <a href="{{ route('company.uber.requests') }}"
-                           class="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 rounded-xl font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition shrink-0">
+                           class="px-4 py-2.5 bg-surface border border-line text-ink-2 rounded-xl font-bold text-sm hover:bg-subtle transition shrink-0">
                             Limpar
                         </a>
                     @endif
@@ -151,21 +153,21 @@
 
             <!-- Atalhos de período -->
             <div class="flex flex-wrap items-center gap-2">
-                <span class="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mr-1">Período</span>
+                <span class="text-[11px] font-bold text-ink-3 uppercase tracking-wider mr-1">Período</span>
                 @foreach($ranges as $label => [$from, $to])
                     @php $on = request('date_from') === $from && request('date_to') === $to; @endphp
                     <a href="{{ request()->fullUrlWithQuery(['date_from' => $from, 'date_to' => $to, 'page' => null]) }}"
-                       class="px-3 py-1.5 rounded-full text-xs font-bold transition {{ $on ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600' }}">
+                       class="px-3 py-1.5 rounded-full text-xs font-bold transition {{ $on ? 'bg-grena text-white' : 'bg-subtle text-ink-2 hover:bg-line' }}">
                         {{ $label }}
                     </a>
                 @endforeach
                 @if(request()->hasAny(['date_from','date_to']))
                     <a href="{{ request()->fullUrlWithQuery(['date_from' => null, 'date_to' => null, 'page' => null]) }}"
-                       class="px-3 py-1.5 rounded-full text-xs font-bold bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 transition">
+                       class="px-3 py-1.5 rounded-full text-xs font-bold bg-surface border border-line text-ink-2 hover:bg-subtle transition">
                         Sem período
                     </a>
                 @endif
-                <span class="ml-auto text-xs font-semibold text-gray-500 dark:text-gray-400">
+                <span class="ml-auto text-xs font-semibold text-ink-2">
                     {{ $requests->total() }} pedido(s) encontrado(s)
                 </span>
             </div>
@@ -173,52 +175,52 @@
 
         @php
             $statusColors = [
-                'aguardando_acesso' => 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400',
-                'concluido'         => 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
-                'expirado'          => 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400',
+                'aguardando_acesso' => 'bg-grena-tint text-grena-ink',
+                'concluido'         => 'bg-ok-soft text-ok',
+                'expirado'          => 'bg-danger-soft text-danger',
             ];
 
             $validationColors = [
-                \App\Models\UberAccessRequest::MEMBER_VALIDATION_VALIDADO       => 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
-                \App\Models\UberAccessRequest::MEMBER_VALIDATION_NAO_ENCONTRADO => 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
-                \App\Models\UberAccessRequest::MEMBER_VALIDATION_INDISPONIVEL   => 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+                \App\Models\UberAccessRequest::MEMBER_VALIDATION_VALIDADO       => 'bg-ok-soft text-ok',
+                \App\Models\UberAccessRequest::MEMBER_VALIDATION_NAO_ENCONTRADO => 'bg-warn-soft text-warn',
+                \App\Models\UberAccessRequest::MEMBER_VALIDATION_INDISPONIVEL   => 'bg-subtle text-ink-2',
             ];
         @endphp
 
         <!-- Tabela -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div class="bg-surface rounded-2xl shadow-pop border border-line overflow-hidden">
 
             @if($requests->isEmpty())
                 <div class="py-16 text-center">
-                    <p class="text-gray-400 dark:text-gray-500 font-medium">Nenhum pedido encontrado.</p>
+                    <p class="text-ink-3 font-medium">Nenhum pedido encontrado.</p>
                 </div>
             @else
                 <div class="overflow-x-auto">
                 <table class="w-full min-w-[1200px] text-sm">
                     <thead>
-                        <tr class="border-b border-gray-100 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-700/50">
-                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Data / Hora</th>
-                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Solicitante</th>
-                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Placa</th>
-                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Local</th>
-                            <th class="px-5 py-3.5 text-center text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Imagem</th>
-                            <th class="px-5 py-3.5 text-center text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Status</th>
-                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Conferência</th>
-                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-wider">Validade</th>
+                        <tr class="border-b border-line bg-subtle">
+                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-ink-3 uppercase tracking-wider">Data / Hora</th>
+                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-ink-3 uppercase tracking-wider">Solicitante</th>
+                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-ink-3 uppercase tracking-wider">Placa</th>
+                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-ink-3 uppercase tracking-wider">Local</th>
+                            <th class="px-5 py-3.5 text-center text-[11px] font-black text-ink-3 uppercase tracking-wider">Imagem</th>
+                            <th class="px-5 py-3.5 text-center text-[11px] font-black text-ink-3 uppercase tracking-wider">Status</th>
+                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-ink-3 uppercase tracking-wider">Conferência</th>
+                            <th class="px-5 py-3.5 text-left text-[11px] font-black text-ink-3 uppercase tracking-wider">Validade</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
+                    <tbody class="divide-y divide-line">
                         @foreach($requests as $req)
-                            <tr class="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition">
+                            <tr class="hover:bg-subtle transition">
 
                                 <td class="px-5 py-3.5 whitespace-nowrap">
-                                    <p class="font-semibold text-gray-800 dark:text-gray-200">{{ $req->created_at->format('d/m/Y') }}</p>
-                                    <p class="text-xs text-gray-400 dark:text-gray-500">{{ $req->created_at->format('H:i:s') }}</p>
+                                    <p class="font-semibold text-ink">{{ $req->created_at->format('d/m/Y') }}</p>
+                                    <p class="text-xs text-ink-3">{{ $req->created_at->format('H:i:s') }}</p>
                                 </td>
 
                                 <td class="px-5 py-3.5">
-                                    <p class="font-semibold text-gray-700 dark:text-gray-300">{{ $req->requester_name ?? '—' }}</p>
-                                    <div class="flex flex-wrap items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
+                                    <p class="font-semibold text-ink">{{ $req->requester_name ?? '—' }}</p>
+                                    <div class="flex flex-wrap items-center gap-2 text-xs text-ink-3">
                                         @if($req->matricula)
                                             <span>Matrícula/CPF {{ $req->matricula }}</span>
                                         @endif
@@ -227,58 +229,59 @@
                                         @endif
                                     </div>
                                     @if($req->contact_name_whatsapp)
-                                        <p class="text-xs text-gray-400 dark:text-gray-500">WhatsApp: {{ $req->contact_name_whatsapp }}</p>
+                                        <p class="text-xs text-ink-3">WhatsApp: {{ $req->contact_name_whatsapp }}</p>
                                     @endif
                                 </td>
-
+                                {{-- //TODO PLATES --}}
                                 <td class="px-5 py-3.5">
                                     @if($req->vehicle_plate)
-                                        <span class="font-mono text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-md">{{ $req->vehicle_plate }}</span>
+                                        <x-plate :plate="$req->vehicle_plate" size="sm" /></td>
+                                        {{-- <span class="font-mono text-xs bg-subtle text-ink px-2 py-0.5 rounded-md"></span> --}}
                                     @else
-                                        <span class="text-gray-300 dark:text-gray-600">—</span>
+                                        <span class="text-ink-3">—</span>
                                     @endif
                                 </td>
 
-                                <td class="px-5 py-3.5 text-gray-600 dark:text-gray-400">{{ $req->club_location ?? '—' }}</td>
+                                <td class="px-5 py-3.5 text-ink-2">{{ $req->club_location ?? '—' }}</td>
 
                                 <td class="px-5 py-3.5 text-center">
                                     @if($req->screenshot_url)
                                         <a href="{{ $req->screenshot_url }}" target="_blank" rel="noopener"
                                            class="inline-block group" title="Ver imagem da solicitação">
                                             <img src="{{ $req->screenshot_url }}" alt="Solicitação" loading="lazy"
-                                                 class="w-12 h-12 rounded-lg object-cover border border-gray-200 dark:border-gray-600 group-hover:ring-2 group-hover:ring-indigo-400 transition mx-auto">
+                                                 class="w-12 h-12 rounded-lg object-cover border border-line group-hover:ring-2 group-hover:ring-grena-tint transition mx-auto">
                                         </a>
                                     @else
-                                        <span class="text-gray-300 dark:text-gray-600">—</span>
+                                        <span class="text-ink-3">—</span>
                                     @endif
                                 </td>
 
                                 <td class="px-5 py-3.5 text-center">
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-black uppercase tracking-wide {{ $statusColors[$req->status] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' }}">
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-black uppercase tracking-wide {{ $statusColors[$req->status] ?? 'bg-subtle text-ink-2' }}">
                                         {{ $req->statusLabel() }}
                                     </span>
                                 </td>
 
                                 <td class="px-5 py-3.5">
                                     @if($req->member_validation)
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold {{ $validationColors[$req->member_validation] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' }}">
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold {{ $validationColors[$req->member_validation] ?? 'bg-subtle text-ink-2' }}">
                                             {{ $req->memberValidationLabel() }}
                                         </span>
                                         @if($req->member_validation_name)
-                                            <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ $req->member_validation_name }}</p>
+                                            <p class="text-xs text-ink-3 mt-0.5">{{ $req->member_validation_name }}</p>
                                         @endif
                                     @else
-                                        <span class="text-gray-300 dark:text-gray-600">—</span>
+                                        <span class="text-ink-3">—</span>
                                     @endif
                                 </td>
 
                                 <td class="px-5 py-3.5 whitespace-nowrap">
                                     @if($req->expires_at)
-                                        <span class="text-xs {{ $req->expires_at->isFuture() ? 'text-gray-600 dark:text-gray-400' : 'text-gray-400 dark:text-gray-500' }}">
+                                        <span class="text-xs {{ $req->expires_at->isFuture() ? 'text-ink-2' : 'text-ink-3' }}">
                                             {{ $req->expires_at->format('d/m/Y H:i') }}
                                         </span>
                                     @else
-                                        <span class="text-gray-300 dark:text-gray-600">—</span>
+                                        <span class="text-ink-3">—</span>
                                     @endif
                                 </td>
 
@@ -289,7 +292,7 @@
                 </div>
 
                 @if($requests->hasPages())
-                    <div class="px-5 py-4 border-t border-gray-100 dark:border-gray-700">
+                    <div class="px-5 py-4 border-t border-line">
                         {{ $requests->links() }}
                     </div>
                 @endif

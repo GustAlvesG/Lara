@@ -205,8 +205,32 @@ class UberAccessValidationTest extends TestCase
             fn (SendPoliTextMessage $job) => $job->phone === '5524999990000'
                 && $job->contactUuid === 'uuid-' . $plate
                 && $job->uberAccessRequestId === $request->id
-                && $job->text === 'Olá, Fulano! Seu carro de aplicativo, placa ' . $plate
-                    . ', chegou à portaria e o acesso foi liberado. Ele está a caminho de Sede.'
+                && $job->closeAfter === true
+                // O rodapé depende do destino do atendimento, decidido na
+                // hora do envio: quem o põe é o job (SendPoliTextMessageTest).
+                && $job->text === "Olá, *Fulano*!\n\n"
+                    . "🚗 Seu carro de aplicativo chegou à portaria e o acesso foi liberado.\n\n"
+                    . "*Placa:* {$plate}\n*Destino:* Sede"
+        );
+    }
+
+    /**
+     * Sem encerramento, o rodapé que anuncia o encerramento não pode sair.
+     */
+    public function test_sem_encerramento_o_aviso_nao_fala_em_encerrar(): void
+    {
+        Queue::fake();
+        config()->set('poli.messages.uber_arrival.close_after', false);
+
+        $plate = $this->uniquePlate();
+        $this->makeRequest($plate, now()->addMinutes(10));
+
+        $this->service()->registerAccess(['target' => $plate]);
+
+        Queue::assertPushed(
+            SendPoliTextMessage::class,
+            fn (SendPoliTextMessage $job) => $job->closeAfter === false
+                && !str_contains($job->text, 'encerrado')
         );
     }
 

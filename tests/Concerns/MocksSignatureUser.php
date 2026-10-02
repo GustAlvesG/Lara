@@ -34,12 +34,10 @@ trait MocksSignatureUser
     {
         $user = Mockery::mock(User::class)->makePartial();
 
-        $user->shouldReceive('can')
-            ->andReturnUsing(fn($ability) => in_array($ability, $permissoes, true));
-
-        $user->shouldReceive('canAny')
-            ->andReturnUsing(fn($abilities) => collect((array) $abilities)
-                ->contains(fn($ability) => in_array($ability, $permissoes, true)));
+        // O acesso efetivo é o que o Gate::before do catálogo consulta — pela
+        // rota (`can:`), pela policy e pelo menu. Devolvido pronto, nada vai
+        // ao banco (o User é preso à conexão mysql).
+        $user->shouldReceive('access')->andReturn(new \App\Authorization\UserAccess($permissoes));
 
         $user->shouldReceive('hasRole')->andReturn(false);
         $user->shouldReceive('isCoordinator')->andReturn(false);

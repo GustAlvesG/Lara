@@ -55,9 +55,14 @@ class SignatureDocument extends Model
     protected $fillable = [
         'signature_template_id',
         'template_version',
+        'signature_layout_id',
         'title',
         'data',
+        'signing_data',
+        'signing_answered_at',
         'body_snapshot',
+        'source_path',
+        'source_sha256',
         'status',
         'original_path',
         'original_sha256',
@@ -65,6 +70,8 @@ class SignatureDocument extends Model
         'final_path',
         'final_sha256',
         'finalized_at',
+        'archive_path',
+        'archived_at',
         'validation_code',
         'location',
         'created_by',
@@ -87,9 +94,13 @@ class SignatureDocument extends Model
     protected $casts = [
         'signature_template_id' => 'integer',
         'template_version' => 'integer',
+        'signature_layout_id' => 'integer',
         'data' => 'array',
+        'signing_data' => 'array',
+        'signing_answered_at' => 'datetime',
         'frozen_at' => 'datetime',
         'finalized_at' => 'datetime',
+        'archived_at' => 'datetime',
         'expires_at' => 'datetime',
         'created_by' => 'integer',
     ];
@@ -100,6 +111,18 @@ class SignatureDocument extends Model
     public function template(): BelongsTo
     {
         return $this->belongsTo(SignatureTemplate::class, 'signature_template_id');
+    }
+
+    /**
+     * O papel timbrado vigente quando o documento foi congelado. Null para
+     * documento congelado sem papel timbrado — sai com o cabeçalho padrão,
+     * para sempre, mesmo que a empresa cadastre um depois.
+     *
+     * @return BelongsTo<SignatureLayout, SignatureDocument>
+     */
+    public function layout(): BelongsTo
+    {
+        return $this->belongsTo(SignatureLayout::class, 'signature_layout_id');
     }
 
     /**
@@ -121,6 +144,15 @@ class SignatureDocument extends Model
     public function statusLabel(): string
     {
         return self::STATUS_LABELS[$this->status] ?? $this->status;
+    }
+
+    /**
+     * Documento PRONTO, enviado em PDF: entra na íntegra, e o sistema só
+     * carimba assinatura e visto por cima. Não tem texto de modelo.
+     */
+    public function isUploaded(): bool
+    {
+        return $this->source_path !== null;
     }
 
     /** Congelado: texto, dados e PDF original não mudam mais. */
@@ -162,6 +194,32 @@ class SignatureDocument extends Model
         return $this->signers()
             ->where('status', SignatureSigner::STATUS_PENDING)
             ->first();
+    }
+
+    /**
+     * Os dados do ato da assinatura ainda podem mudar?
+     *
+     * Podem enquanto o documento aguarda assinatura e NINGUÉM assinou. A
+     * primeira assinatura é a fronteira de verdade: a partir dela existe uma
+     * pessoa que leu e assinou aquele texto, e ele não muda mais — nem para o
+     * signatário seguinte.
+     */
+    public function signingDataIsOpen(): bool
+    {
+        return $this->status === self::STATUS_AWAITING_SIGNATURE
+            && !$this->signers()->where('status', SignatureSigner::STATUS_SIGNED)->exists();
+    }
+
+    /**
+     * O modelo pergunta algo a quem assina e a resposta ainda não veio.
+     * Enquanto for assim, o documento não pode ser assinado: o texto que a
+     * pessoa leria ainda tem lacunas.
+     */
+    public function signingFormPending(): bool
+    {
+        return $this->signing_answered_at === null
+            && $this->template !== null
+            && $this->template->signerFields() !== [];
     }
 
     /** Todos assinaram? É o que move o documento para `signed`. */

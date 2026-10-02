@@ -17,14 +17,19 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Validação de documento — CFCSN</title>
   <link rel="icon" href="{{ asset('favicon.ico') }}" type="image/x-icon" />
+  <link rel="preconnect" href="https://fonts.bunny.net">
+  <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800|unbounded:500,600,700&display=swap" rel="stylesheet" />
 @verbatim
   <style>
+    /* Paleta do rebrand (as cores dos tokens do painel; página própria, sem o
+       CSS do sistema). A ação é grená. */
     :root{
-      --bg:#efe9e8; --surface:#fff; --border:#e8dedd; --border-strong:#d8cbc9;
-      --ink:#1f1819; --ink-2:#6d6062; --brand:#A00001;
-      --ok:#157a58; --ok-tint:#e0f2ea; --warn:#a3560a; --warn-tint:#fbedd9;
-      --bad:#b3261e; --bad-tint:#fbe7e5;
-      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      --bg:#f5f3f3; --surface:#fff; --border:#e3ddde; --border-strong:#d0c7c9;
+      --ink:#1e1215; --ink-2:#5a4a4e; --brand:#8a1538;
+      --ok:#147a45; --ok-tint:#ddf3e6; --warn:#935700; --warn-tint:#fbefd8;
+      --bad:#c22b2b; --bad-tint:#fce4e4;
+      --sans: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      --display: "Unbounded", var(--sans);
     }
     *{box-sizing:border-box;}
     body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;}
@@ -34,7 +39,7 @@
     header b{display:block;font-size:16px;}
     header span{font-size:13px;color:var(--ink-2);}
     .card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:22px;margin-bottom:16px;}
-    h1{font-size:22px;margin:0 0 6px;}
+    h1{font-family:var(--display);font-weight:600;letter-spacing:-.01em;font-size:20px;line-height:1.3;margin:0 0 6px;}
     p.sub{margin:0 0 18px;color:var(--ink-2);font-size:14.5px;}
     .badge{display:inline-block;padding:6px 12px;border-radius:999px;font-size:13px;font-weight:800;}
     .b-ok{background:var(--ok-tint);color:var(--ok);}
@@ -48,7 +53,7 @@
     th{font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-2);}
     .hash{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;word-break:break-all;color:var(--ink-2);}
     .file{display:block;margin:12px 0;font-size:14px;}
-    button{min-height:48px;padding:0 22px;border:none;border-radius:14px;background:var(--brand);color:#fff;font-weight:800;font-size:15px;cursor:pointer;font-family:inherit;}
+    button{min-height:48px;padding:0 22px;border:none;border-radius:999px;background:var(--brand);color:#fff;font-weight:800;font-size:15px;cursor:pointer;font-family:inherit;}
     .note{border-radius:14px;padding:14px 16px;font-size:14px;margin-top:14px;}
     .n-ok{background:var(--ok-tint);color:var(--ok);}
     .n-warn{background:var(--warn-tint);color:var(--warn);}

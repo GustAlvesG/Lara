@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers\Signature;
 
+use App\Exceptions\DocxImportException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSignatureTemplateRequest;
 use App\Models\SignatureDocument;
 use App\Models\SignatureTemplate;
+use App\Services\Signature\DocxTemplateImporter;
 use App\Services\Signature\SignatureDocumentRenderer;
+use App\Services\Signature\SignatureFieldTypes;
 use App\Support\HtmlSanitizer;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -34,6 +38,9 @@ class TemplateController extends Controller
                 ->from('signature_templates')
                 ->groupBy('root_id');
         })
+            // Os de uso único pertencem a UM documento enviado em PDF — não
+            // são modelos de ninguém.
+            ->where('single_use', false)
             ->orderBy('name')
             ->get();
 
@@ -58,6 +65,32 @@ class TemplateController extends Controller
 
         return redirect()->route('signature-templates.show', $template)
             ->with('success', 'Modelo "' . $template->name . '" criado.');
+    }
+
+    /**
+     * Converte um .docx no texto e nos campos do modelo — sem gravar nada.
+     *
+     * A resposta preenche o formulário que está aberto; quem grava continua
+     * sendo o `store`/`update`, depois de a pessoa conferir a prévia. Por isso
+     * o arquivo não é guardado: o modelo é o HTML convertido, e o Word é só o
+     * jeito de escrevê-lo.
+     */
+    public function importDocx(Request $request, DocxTemplateImporter $importer)
+    {
+        $request->validate(
+            ['arquivo' => ['required', 'file', 'max:10240']],
+            [
+                'arquivo.required' => 'Escolha o arquivo do Word (.docx).',
+                'arquivo.file' => 'O envio do arquivo falhou. Tente de novo.',
+                'arquivo.max' => 'O arquivo passa de 10 MB. Um modelo é só o texto — retire as imagens e envie de novo.',
+            ],
+        );
+
+        try {
+            return response()->json($importer->import($request->file('arquivo')->getRealPath()));
+        } catch (DocxImportException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
     }
 
     public function show(SignatureTemplate $signatureTemplate)
@@ -133,19 +166,106 @@ class TemplateController extends Controller
     {
         $dados = $request->validated();
 
+        $corpo = HtmlSanitizer::clean($dados['body_html'], SignatureDocumentRenderer::EXTRA_HTML_TAGS);
+        $marcador = ($dados['signature_placeholder'] ?? null) ?: '[[assinatura]]';
+
         return [
             'name' => $dados['name'],
             'description' => $dados['description'] ?? null,
-            'body_html' => HtmlSanitizer::clean(
-                $dados['body_html'],
-                SignatureDocumentRenderer::EXTRA_HTML_TAGS,
-            ),
-            'signature_placeholder' => $dados['signature_placeholder'] ?: '[[assinatura]]',
-            'variables' => array_values($dados['variables'] ?? []),
+            'body_html' => $corpo,
+            'signature_placeholder' => $marcador,
+            'variables' => $this->variables($corpo, $marcador, array_map(
+                fn(array $variavel) => $this->variable($variavel),
+                array_values($dados['variables'] ?? []),
+            )),
+            'parties' => $this->parties($corpo, array_values($dados['parties'] ?? [])),
             'requires_photo' => (bool) ($dados['requires_photo'] ?? false),
+            'requires_initials' => (bool) ($dados['requires_initials'] ?? false),
             'identity_check' => $dados['identity_check'],
             'retention_months' => $dados['retention_months'] ?? null,
             'created_by' => auth()->id(),
         ];
+    }
+
+    /**
+     * As partes declaradas, mais as que têm marcador no texto e ninguém
+     * declarou — a mesma rede dos campos. Um `[[assinatura:contratado]]` sem
+     * parte declarada não teria quem assinar por ele, e sumiria do documento.
+     *
+     * @param  array<int, array<string, mixed>>  $declaradas
+     * @return array<int, array{key: string, label: string}>
+     */
+    private function parties(string $corpo, array $declaradas): array
+    {
+        $partes = [];
+
+        foreach ($declaradas as $parte) {
+            $partes[$parte['key']] = ['key' => $parte['key'], 'label' => $parte['label']];
+        }
+
+        preg_match_all('/\[\[assinatura:([a-z][a-z0-9_]{0,59})\]\]/', $corpo, $achados);
+
+        foreach (array_unique($achados[1]) as $chave) {
+            $partes[$chave] ??= ['key' => $chave, 'label' => DocxTemplateImporter::labelFor($chave)];
+        }
+
+        return array_values($partes);
+    }
+
+    /**
+     * Um campo como é gravado: só o que o tipo dele usa.
+     *
+     * Opções de um campo que deixou de ser de escolha e pergunta de um campo
+     * que voltou a ser do atendente não ficam guardadas — sobras assim
+     * reapareceriam na próxima revisão como se alguém as tivesse escrito.
+     *
+     * @param  array<string, mixed>  $variavel
+     * @return array<string, mixed>
+     */
+    private function variable(array $variavel): array
+    {
+        $tipo = $variavel['type'] ?? SignatureFieldTypes::TEXT;
+        $pergunta = (bool) ($variavel['ask_signer'] ?? false) && !SignatureFieldTypes::isAutomatic($tipo);
+
+        return [
+            'key' => $variavel['key'],
+            'label' => $variavel['label'],
+            'type' => $tipo,
+            // Campo automático nunca fica em branco: obrigatório não se aplica.
+            'required' => (bool) ($variavel['required'] ?? false) && !SignatureFieldTypes::isAutomatic($tipo),
+            'ask_signer' => $pergunta,
+            'question' => $pergunta ? (trim((string) ($variavel['question'] ?? '')) ?: null) : null,
+            'options' => SignatureFieldTypes::hasOptions($tipo) ? array_values($variavel['options'] ?? []) : [],
+        ];
+    }
+
+    /**
+     * As variáveis declaradas, mais as que estão no texto e ninguém declarou.
+     *
+     * Um `[[campo]]` sem declaração não vira campo no formulário do atendente
+     * e sairia IMPRESSO no documento, com colchetes e tudo, para a pessoa
+     * assinar. Declarar por conta própria é a rede: quem escreve o modelo não
+     * precisa saber que existe uma segunda lista para manter em dia.
+     *
+     * @param  array<int, array<string, mixed>>  $declaradas
+     * @return array<int, array<string, mixed>>
+     */
+    private function variables(string $corpo, string $marcador, array $declaradas): array
+    {
+        $conhecidas = array_column($declaradas, 'key');
+
+        preg_match_all('/\[\[([a-z][a-z0-9_]{0,59})\]\]/', str_replace($marcador, '', $corpo), $achados);
+
+        foreach (array_unique($achados[1]) as $chave) {
+            if (!in_array($chave, $conhecidas, true)) {
+                $declaradas[] = $this->variable([
+                    'key' => $chave,
+                    'label' => DocxTemplateImporter::labelFor($chave),
+                    'required' => true,
+                ]);
+            }
+        }
+
+        return $declaradas;
     }
 }

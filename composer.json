@@ -14,6 +14,8 @@
         "laravel/tinker": "^2.9",
         "league/flysystem-ftp": "^3.27",
         "phpoffice/phpspreadsheet": "^5.8",
+        "setasign/fpdf": "^1.8",
+        "setasign/fpdi": "^2.6",
         "spatie/laravel-permission": "^6.24",
         "symfony/css-selector": "^7.4",
         "symfony/dom-crawler": "^7.4"

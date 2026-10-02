@@ -26,6 +26,13 @@ class PoliMessageParser
      */
     private const MEDIA_COMPONENT_KEYS = ['image', 'media', 'file', 'attachment', 'document'];
 
+    /**
+     * Chave onde o controller guarda, dentro do payload, os headers do
+     * webhook (`X-Webhook-Attempt`, `X-Webhook-Delivery-Id`). O payload é o
+     * que atravessa a fila (uber_access_request_messages.raw_payload).
+     */
+    public const WEBHOOK_META = '_webhook';
+
     public function isRelevantEvent(array $payload): bool
     {
         $value = $payload['value'] ?? null;
@@ -38,11 +45,202 @@ class PoliMessageParser
             && ($value['direction'] ?? null) === 'IN';
     }
 
+    /**
+     * Mensagem do contato que o fluxo do Uber não lê — áudio, documento,
+     * figurinha, vídeo. Ninguém a processa como conteúdo, mas o bot precisa
+     * saber que ela chegou para pedir que o contato escreva.
+     */
+    public function isUnsupportedInbound(array $payload): bool
+    {
+        $value = $payload['value'] ?? null;
+
+        return ($payload['object'] ?? null) === 'message'
+            && ($payload['event'] ?? null) === 'received'
+            && is_array($value)
+            && ($value['event'] ?? null) === 'MESSAGE'
+            && ($value['direction'] ?? null) === 'IN'
+            && !in_array($value['type'] ?? null, self::RELEVANT_TYPES, true);
+    }
+
+    /**
+     * Como parse(), para as mensagens de isUnsupportedInbound: sai sempre
+     * como TYPE_UNKNOWN e SEM o log do payload bruto — o formato não é
+     * desconhecido, só não interessa, e o payload leva nome e telefone.
+     */
+    public function parseUnsupported(array $payload): ?ParsedPoliMessage
+    {
+        $value = $payload['value'] ?? [];
+        $messageId = $this->extractMessageId($payload);
+
+        if ($messageId === null) {
+            return null;
+        }
+
+        $contact = $value['contact'] ?? $value['author'] ?? [];
+
+        return new ParsedPoliMessage(...[
+            'messageId' => $messageId,
+            'contactUuid' => $contact['uuid'] ?? null,
+            'contactPhone' => $contact['attributes']['phone'] ?? null,
+            'contactName' => $contact['attributes']['name'] ?? null,
+            'attendanceUuid' => $value['attendance']['uuid'] ?? null,
+            'type' => ParsedPoliMessage::TYPE_UNKNOWN,
+            'contextMessageUuid' => $value['context']['message']['uuid'] ?? null,
+            ...$this->attendanceFields($payload),
+        ]);
+    }
+
+    /**
+     * Transferência do atendimento: mensagem de sistema ATTENDANCE_REDIRECTED,
+     * com o novo atendente em `attendance.attendant`. A que o distribute gera
+     * ("redirecionado… pelo sistema") vem com `direction = EMPTY`.
+     */
+    public function isRedirect(array $payload): bool
+    {
+        $value = $payload['value'] ?? null;
+
+        return ($payload['object'] ?? null) === 'message'
+            && is_array($value)
+            && ($value['event'] ?? null) === 'SYSTEM'
+            && ($value['type'] ?? null) === 'ATTENDANCE_REDIRECTED';
+    }
+
+    /**
+     * A transferência como mensagem: sem texto, com o atendimento de destino.
+     * Aceita qualquer `direction` (EMPTY, SYSTEM): ela não vem do contato.
+     */
+    public function parseRedirect(array $payload): ?ParsedPoliMessage
+    {
+        if (!$this->isRedirect($payload)) {
+            return null;
+        }
+
+        $value = $payload['value'];
+        $messageId = $this->extractMessageId($payload);
+        $contato = $value['contact']['uuid'] ?? null;
+
+        if ($messageId === null || !is_string($contato) || $contato === '') {
+            return null;
+        }
+
+        return new ParsedPoliMessage(...[
+            'messageId' => $messageId,
+            'contactUuid' => $contato,
+            'contactPhone' => $value['contact']['attributes']['phone'] ?? null,
+            'contactName' => $value['contact']['attributes']['name'] ?? null,
+            'attendanceUuid' => $value['attendance']['uuid'] ?? null,
+            'type' => ParsedPoliMessage::TYPE_UNKNOWN,
+            ...$this->attendanceFields($payload),
+        ]);
+    }
+
+    /**
+     * Atendente e estado do atendimento, e os headers do webhook que o
+     * controller guardou no payload (WEBHOOK_META).
+     *
+     * @return array<string, mixed>
+     */
+    private function attendanceFields(array $payload): array
+    {
+        $atendimento = $payload['value']['attendance'] ?? null;
+        $atendimento = is_array($atendimento) ? $atendimento : [];
+        $meta = $payload[self::WEBHOOK_META] ?? [];
+        $tentativa = $meta['attempt'] ?? null;
+
+        return [
+            'attendanceType' => $this->stringOrNull($atendimento['type'] ?? null),
+            'attendanceStatus' => $this->stringOrNull($atendimento['status'] ?? null),
+            'attendanceAttendantUuid' => $this->stringOrNull($atendimento['attendant']['uuid'] ?? null),
+            'attendanceClosedReason' => $this->stringOrNull($atendimento['closed_reason'] ?? null),
+            'webhookAttempt' => is_numeric($tentativa) ? (int) $tentativa : null,
+            'webhookDeliveryId' => $this->stringOrNull($meta['delivery_id'] ?? null),
+        ];
+    }
+
+    /** O atendente do atendimento deste evento, qualquer que seja o tipo. */
+    public function extractAttendantUuid(array $payload): ?string
+    {
+        return $this->stringOrNull($payload['value']['attendance']['attendant']['uuid'] ?? null);
+    }
+
     public function extractMessageId(array $payload): ?string
     {
         $value = $payload['value'] ?? [];
 
         return $value['metadata']['external_message_id'] ?? $value['uuid'] ?? null;
+    }
+
+    /**
+     * A posição desta mensagem na sequência da Poli, para ordenar o que chega
+     * fora de ordem.
+     *
+     * `metadata.deprecated_message_id` é um contador crescente e é a chave
+     * boa. O `value.timestamp` fica de reserva — o nome "deprecated" avisa que
+     * um dia some —, mas é reserva mesmo: com resolução de segundos, ele não
+     * enxerga inversões dentro do mesmo segundo, e numa das medidas apontou
+     * como mais antiga uma mensagem que a sequência prova ser posterior.
+     */
+    public function extractSequence(array $payload): ?int
+    {
+        $sequence = $payload['value']['metadata']['deprecated_message_id'] ?? null;
+
+        if (is_numeric($sequence)) {
+            return (int) $sequence;
+        }
+
+        $timestamp = $payload['value']['timestamp'] ?? null;
+
+        return is_numeric($timestamp) ? (int) $timestamp : null;
+    }
+
+    /**
+     * Quando a POLI criou a mensagem — não quando o webhook chegou aqui.
+     *
+     * A diferença entre as duas é o atraso de entrega, e é só esse atraso que
+     * a espera de ordenação existe para cobrir. Ancorar na criação faz a
+     * espera encolher sozinha para quem chegou atrasado: o tempo já foi gasto
+     * no caminho.
+     *
+     * `timestamp` é o plano B, em segundos inteiros — mesma grandeza, pior
+     * resolução.
+     */
+    public function extractCreatedAt(array $payload): ?Carbon
+    {
+        $criadoEm = $payload['value']['metadata']['created_at'] ?? null;
+
+        if (is_string($criadoEm) && $criadoEm !== '') {
+            try {
+                return Carbon::parse($criadoEm);
+            } catch (\Throwable) {
+                // Formato inesperado cai no plano B abaixo.
+            }
+        }
+
+        $timestamp = $payload['value']['timestamp'] ?? null;
+
+        return is_numeric($timestamp) ? Carbon::createFromTimestamp((int) $timestamp) : null;
+    }
+
+    /**
+     * O contato de qualquer evento — inclusive os de saída, que não passam
+     * pelo `parse()`. A ordem é apurada por contato, porque é por contato que
+     * o fluxo mantém estado.
+     */
+    public function extractContactUuid(array $payload): ?string
+    {
+        $uuid = $payload['value']['contact']['uuid']
+            ?? $payload['value']['author']['uuid']
+            ?? null;
+
+        return is_string($uuid) && $uuid !== '' ? $uuid : null;
+    }
+
+    /** IN ou OUT. Só as de entrada disputam ordem entre si. */
+    public function extractDirection(array $payload): ?string
+    {
+        $direction = $payload['value']['direction'] ?? null;
+
+        return is_string($direction) ? strtoupper($direction) : null;
     }
 
     /**
@@ -196,19 +394,20 @@ class PoliMessageParser
             ]);
         }
 
-        return new ParsedPoliMessage(
-            messageId: $messageId,
-            contactUuid: $contactUuid,
-            contactPhone: $contactPhone,
-            contactName: $contactName,
-            attendanceUuid: $attendanceUuid,
-            type: $type,
-            text: $text,
-            mediaUrl: $mediaUrl,
+        return new ParsedPoliMessage(...[
+            'messageId' => $messageId,
+            'contactUuid' => $contactUuid,
+            'contactPhone' => $contactPhone,
+            'contactName' => $contactName,
+            'attendanceUuid' => $attendanceUuid,
+            'type' => $type,
+            'text' => $text,
+            'mediaUrl' => $mediaUrl,
             // Só existe na ENTRADA. Na saída, `value.context` guarda a
             // definição da própria lista — mesmo nome, outra coisa.
-            contextMessageUuid: $value['context']['message']['uuid'] ?? null,
-        );
+            'contextMessageUuid' => $value['context']['message']['uuid'] ?? null,
+            ...$this->attendanceFields($payload),
+        ]);
     }
 
     /**
@@ -280,6 +479,11 @@ class PoliMessageParser
         $text = trim($text, " \t\n\r\0\x0B{}\"'");
 
         return trim(preg_replace('/\s+/', ' ', $text));
+    }
+
+    private function stringOrNull(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? $value : null;
     }
 
     private function extractUrl(mixed $component): ?string

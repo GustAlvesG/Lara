@@ -21,9 +21,11 @@ return Application::configure(basePath: dirname(__DIR__))
             // Sessão do tablet de assinatura: cookie próprio (`lara_sign`),
             // vinculado a UM documento pela leitura do QR. Não é a sessão web.
             'signature_kiosk' => \App\Http\Middleware\EnsureSignatureKioskSession::class,
-            'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
-            'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
-            'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
+            // Aviso de leitura obrigatória pendente desvia a navegação para a
+            // tela de ciência (ver o middleware e routes/web.php).
+            'avisos_obrigatorios' => \App\Http\Middleware\EnsureMandatoryAvisosAcknowledged::class,
+            // Sem os aliases `role`/`permission` do Spatie: o acesso do painel
+            // é `can:<permissão do catálogo>` — ver App\Authorization.
             // Sanctum não registra esses aliases automaticamente — usados
             // pela API do Placar Clube (ver routes/api.php).
             'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,

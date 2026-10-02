@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Signature\SignatureFieldTypes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -41,12 +42,15 @@ class SignatureTemplate extends Model
         'description',
         'body_html',
         'variables',
+        'parties',
         'signature_placeholder',
         'signature_position',
         'requires_photo',
+        'requires_initials',
         'identity_check',
         'retention_months',
         'active',
+        'single_use',
         'created_by',
     ];
 
@@ -61,6 +65,8 @@ class SignatureTemplate extends Model
         'version' => 1,
         'active' => true,
         'requires_photo' => true,
+        'requires_initials' => false,
+        'single_use' => false,
         'identity_check' => self::IDENTITY_PARTIAL,
         'signature_placeholder' => '[[assinatura]]',
     ];
@@ -69,10 +75,13 @@ class SignatureTemplate extends Model
         'root_id' => 'integer',
         'version' => 'integer',
         'variables' => 'array',
+        'parties' => 'array',
         'signature_position' => 'array',
         'requires_photo' => 'boolean',
+        'requires_initials' => 'boolean',
         'retention_months' => 'integer',
         'active' => 'boolean',
+        'single_use' => 'boolean',
         'created_by' => 'integer',
     ];
 
@@ -132,9 +141,11 @@ class SignatureTemplate extends Model
                 'description',
                 'body_html',
                 'variables',
+                'parties',
                 'signature_placeholder',
                 'signature_position',
                 'requires_photo',
+                'requires_initials',
                 'identity_check',
                 'retention_months',
             ]),
@@ -163,21 +174,104 @@ class SignatureTemplate extends Model
     }
 
     /**
-     * As variáveis declaradas, normalizadas — a tela do atendente monta o
-     * formulário a partir disto.
+     * As partes que assinam este modelo — "Contratante", "Contratado".
      *
-     * @return array<int, array{key: string, label: string, required: bool}>
+     * Cada uma tem o seu lugar no texto (`[[assinatura:contratante]]`) e o
+     * rótulo que sai impresso sob o nome de quem assina por ela. Vazio para o
+     * modelo de sempre: um `[[assinatura]]` só, com todos os signatários.
+     *
+     * @return array<int, array{key: string, label: string}>
+     */
+    public function declaredParties(): array
+    {
+        return collect($this->parties ?? [])
+            ->map(fn($p) => [
+                'key' => (string) ($p['key'] ?? ''),
+                'label' => (string) ($p['label'] ?? ($p['key'] ?? '')),
+            ])
+            ->filter(fn($p) => $p['key'] !== '')
+            ->values()
+            ->all();
+    }
+
+    /** O marcador de uma parte no texto. */
+    public static function partyPlaceholder(string $key): string
+    {
+        return '[[assinatura:' . $key . ']]';
+    }
+
+    /**
+     * As variáveis declaradas, normalizadas — os formulários do atendente e do
+     * tablet são montados a partir disto.
+     *
+     * Um modelo gravado antes de os campos terem tipo só traz chave, rótulo e
+     * obrigatoriedade: vale como texto, preenchido pelo atendente — que é
+     * exatamente o que ele era.
+     *
+     * @return array<int, array{
+     *     key: string, label: string, required: bool, type: string,
+     *     ask_signer: bool, question: string, options: array<int, string>
+     * }>
      */
     public function declaredVariables(): array
     {
         return collect($this->variables ?? [])
-            ->map(fn($v) => [
-                'key' => (string) ($v['key'] ?? ''),
-                'label' => (string) ($v['label'] ?? ($v['key'] ?? '')),
-                'required' => (bool) ($v['required'] ?? false),
-            ])
+            ->map(function ($v) {
+                $rotulo = (string) ($v['label'] ?? ($v['key'] ?? ''));
+                $tipo = SignatureFieldTypes::exists($v['type'] ?? null) ? $v['type'] : SignatureFieldTypes::TEXT;
+
+                return [
+                    'key' => (string) ($v['key'] ?? ''),
+                    'label' => $rotulo,
+                    'required' => (bool) ($v['required'] ?? false),
+                    'type' => $tipo,
+                    // Campo automático não é perguntado a ninguém.
+                    'ask_signer' => (bool) ($v['ask_signer'] ?? false) && !SignatureFieldTypes::isAutomatic($tipo),
+                    // Sem pergunta escrita, a pergunta é o rótulo.
+                    'question' => trim((string) ($v['question'] ?? '')) ?: $rotulo,
+                    'options' => SignatureFieldTypes::hasOptions($tipo)
+                        ? array_values(array_map('strval', (array) ($v['options'] ?? [])))
+                        : [],
+                ];
+            })
             ->filter(fn($v) => $v['key'] !== '')
             ->values()
             ->all();
+    }
+
+    /**
+     * Os campos que o ATENDENTE preenche, ao preparar o documento.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function attendantFields(): array
+    {
+        return array_values(array_filter(
+            $this->declaredVariables(),
+            fn($v) => !$v['ask_signer'] && !SignatureFieldTypes::isAutomatic($v['type']),
+        ));
+    }
+
+    /**
+     * Os campos que QUEM ASSINA responde, no tablet, antes de ler o documento.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function signerFields(): array
+    {
+        return array_values(array_filter($this->declaredVariables(), fn($v) => $v['ask_signer']));
+    }
+
+    /**
+     * Os campos que o servidor resolve sozinho no ato da assinatura.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function automaticFields(): array
+    {
+        return array_values(array_filter(
+            $this->declaredVariables(),
+            fn($v) => SignatureFieldTypes::isAutomatic($v['type']),
+        ));
     }
 }

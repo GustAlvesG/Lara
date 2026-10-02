@@ -1,73 +1,71 @@
-<x-app-layout>
+{{--
+    Agenda de reservas do dia. Cada local lista os horários (livres, ocupados,
+    bloqueados) para a reserva ser feita direto: marcar os horários livres,
+    achar o sócio, confirmar. A seleção vale para um local por vez.
+--}}
+<x-app-layout :bootstrap-grid="false">
 
     <style>
-        /* Estilos para o estado selecionado */
+        /* Horário marcado para a reserva (o JS liga/desliga a classe). */
         .slot-selected {
-            background-color: #10b981 !important; /* green-500 */
-            border-color: #059669 !important;     /* green-600 */
-            color: white !important;
-            transform: scale(1.02);
-            box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.2);
+            background-color: rgb(var(--grena)) !important;
+            border-color: rgb(var(--grena)) !important;
+            border-style: solid !important;
+            color: #fff !important;
+            box-shadow: 0 10px 20px -8px rgb(var(--grena) / .45);
         }
-        .slot-selected span, .slot-selected p {
-            color: white !important;
-        }
-        .slot-selected .icon-container {
-            background-color: rgba(255, 255, 255, 0.2) !important;
-        }
-        .slot-selected svg {
-            color: white !important;
-        }
+        .slot-selected span, .slot-selected p { color: #fff !important; }
+        .slot-selected .icon-container { background-color: rgb(255 255 255 / .2) !important; }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 
-    <div class="max-w-7xl mx-auto pt-8">
+    <x-page>
+        @include('location.partials.header', ['date' => $date])
 
         @include('partials.alerts')
 
-        <!-- BOTÕES SUPERIORES DE AÇÃO -->
-        @include('location.partials.header', ['date' => $date])
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <x-search-bar mode="client" target="#agenda" placeholder="Buscar local, modalidade ou sócio já agendado" />
 
-        <!-- LEGENDA -->
-        <div class="mb-8 flex flex-wrap gap-6 text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">
-            <div class="flex items-center gap-2">
-                <span class="w-3 h-3 bg-green-600 rounded-full shadow-sm"></span> Confirmado
-            </div>
-            <div class="flex items-center gap-2">
-                <span class="w-3 h-3 bg-yellow-500 rounded-full shadow-sm"></span> Pendente
-            </div>
-            <div class="flex items-center gap-2">
-                <span class="w-3 h-3 bg-indigo-600 rounded-full shadow-sm"></span> Selecionado
-            </div>
-            <div class="flex items-center gap-2">
-                <span class="w-3 h-3 bg-gray-800 rounded-full shadow-sm"></span> Bloqueado
-            </div>
+            {{-- Legenda: cor e texto juntos. --}}
+            <ul class="flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold text-ink-2">
+                <li class="flex items-center gap-1.5"><span class="h-3 w-3 rounded border-[1.5px] border-dashed border-line-strong bg-surface"></span> Livre</li>
+                <li class="flex items-center gap-1.5"><span class="h-3 w-3 rounded bg-grena"></span> Selecionado</li>
+                <li class="flex items-center gap-1.5"><span class="h-3 w-3 rounded bg-ok"></span> Confirmado</li>
+                <li class="flex items-center gap-1.5"><span class="h-3 w-3 rounded bg-warn"></span> Pendente</li>
+                <li class="flex items-center gap-1.5"><span class="h-3 w-3 rounded bg-ink-3"></span> Bloqueado</li>
+            </ul>
         </div>
 
-
-
-        <div class="space-y-12">
-            
-            @foreach($modalities as $modalityName => $places)
-            <section>
+        <div id="agenda" class="flex flex-col gap-10">
+            @forelse($modalities as $modalityName => $places)
+            <section class="flex flex-col gap-4">
                 @php
-                    // Contagem de locais nesta modalidade
-                    $placeCount = count($places);
-                    if ($placeCount >= 1) {
-                        $group_id = $places[0]['group']['id'];
-                    }
+                    $group_id = count($places) >= 1 ? $places[0]['group']['id'] : null;
                 @endphp
-                <a href="{{ route('place-group.show', $group_id ?? '') }}" class="flex items-center gap-3 mb-6">
-                    <span class="px-4 py-1 bg-indigo-300 text-indigo-900 rounded-full text-lg font-black uppercase tracking-widest shadow-sm">
-                        {{ $modalityName }} 
+                <a href="{{ $group_id ? route('place-group.show', $group_id) : '#' }}" class="group flex items-center gap-3">
+                    <span class="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 font-display text-sm font-semibold tracking-tight" style="{{ \App\View\AreaColor::style('reservas') }}">
+                        <x-icon name="calendar" class="h-4 w-4" /> {{ $modalityName }}
                     </span>
-                    <div class="h-[1px] flex-grow bg-gray-200 dark:bg-gray-700"></div>
+                    <span class="text-xs font-bold text-ink-3">{{ count($places) }} {{ count($places) === 1 ? 'local' : 'locais' }}</span>
+                    <span class="h-px flex-grow bg-line"></span>
+                    <span class="text-xs font-bold text-ink-3 opacity-0 transition group-hover:opacity-100">Ver modalidade →</span>
                 </a>
 
-                <div class="grid grid-cols-1 gap-8">
+                <div class="grid grid-cols-1 gap-4">
                     @foreach($places as $place)
-                    <form id="form-{{ $place['id'] }}" action="{{ route('schedule.store.web') }}" method="POST" class="bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+                    @php
+                        // Imagem salva só com o nome do arquivo mora em public/images.
+                        if (isset($place['image']) && $place['image'] && !str_starts_with($place['image'], 'http')) {
+                            $place['image'] = asset('images/' . $place['image']);
+                        }
+                        $available = !empty($place['time_options'] ?? []);
+                    @endphp
+                    <form id="form-{{ $place['id'] }}" action="{{ route('schedule.store.web') }}" method="POST"
+                          data-price="{{ $place['price'] ?? 0 }}" data-search="{{ $modalityName }} {{ $place['name'] }}">
                         @csrf
-                        <div class="dados" style="display: none;">
+                        <div class="dados" hidden>
                             <input type="hidden" name="cpf" value="">
                             <input type="hidden" id="selected-member-id-{{ $place['id'] }}" name="title" value="">
                             <input type="hidden" name="birthDate" value="">
@@ -77,110 +75,98 @@
                             <input type="hidden" name="price" value="">
                         </div>
 
+                        {{-- Sem overflow-hidden no cartão: a lista de sócios encontrados abre
+                             para fora dele. Quem arredonda os cantos é a própria imagem. --}}
+                        <article class="court-card flex flex-col rounded-card bg-surface shadow-card md:flex-row" data-court-id="{{ $place['id'] }}">
+                            <x-media :src="($place['image'] ?? null) ?: null" :alt="$place['name']" area="reservas" icon="calendar" ratio="sq"
+                                     class="rounded-t-card md:aspect-auto md:w-60 md:shrink-0 md:rounded-l-card md:rounded-tr-none" />
 
-                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 court-card" data-court-id="{{ $place['id'] }}">
-                            <div class="flex flex-col md:flex-row min-h-full">
-                                <div class="md:w-64 h-48 md:h-auto overflow-hidden bg-gray-100 flex-shrink-0">
-                                    @php
-                                        //Check se a imagem contem http
-                                        if(isset($place['image']) && !str_starts_with($place['image'], 'http')) {
-                                            $place['image'] = asset('images/' . $place['image']);
-                                        }
-                                    @endphp
-                                    <img src="{{ $place['image'] ?? 'https://placehold.co/400x300/e2e8f0/475569?text=Sem+Foto' }}" 
-                                         alt="{{ $place['name'] }}" class="w-full h-full object-cover">
-                                </div>
-                                
-                                <div class="flex-grow p-6 flex flex-col">
-                                    <div class="flex justify-between items-start mb-6">
-                                        <div>
-                                            <h3 class="text-xl font-extrabold text-gray-900 dark:text-white">{{ $place['name'] }}</h3>
-                                            @if(empty($place['time_options'] ?? []))
-                                                <p class="text-xs text-red-500 font-bold uppercase tracking-wider">Localidade indisponível</p>
-                                            @else
-                                                <p class="text-xs text-indigo-600 font-bold uppercase tracking-wider">Localidade Disponível</p>
-                                            @endif
-                                        </div>
-                                        <div class="text-right">
-                                            <p class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase">Preço p/ Hora</p>
-                                            <p class="text-lg font-black text-green-600">R$ {{ number_format($place['price'] ?? 0, 2, ',', '.') }}</p>
-                                        </div>
-                                    </div>
-
-                                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 mb-6">
-                                        @if(empty($place['time_options'] ?? []))
-                                            <p class="text-sm text-gray-500 dark:text-gray-400 italic col-span-full">Nenhum horário disponível para esta data.</p>
+                            <div class="flex min-w-0 flex-grow flex-col gap-4 p-5">
+                                <div class="flex flex-wrap items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <h3 class="font-display text-lg font-semibold tracking-tight text-ink">{{ $place['name'] }}</h3>
+                                        @if($available)
+                                            <x-pill kind="ok" class="mt-1">Disponível</x-pill>
+                                        @else
+                                            <x-pill kind="off" class="mt-1">Indisponível nesta data</x-pill>
                                         @endif
-                                        @foreach(($place['time_options'] ?? []) as $slot)
-                                            @include('location.partials.time-card', ['slot' => $slot, 'place' => $place])
-                                        @endforeach
                                     </div>
+                                    <div class="text-right">
+                                        <p class="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">Por horário</p>
+                                        <p class="font-mono text-lg font-semibold text-ink">R$ {{ number_format($place['price'] ?? 0, 2, ',', '.') }}</p>
+                                    </div>
+                                </div>
 
-                                    <!-- FORMULÁRIO COM BUSCA DE SÓCIO -->
-                                    <div id="form-container-{{ $place['id'] }}" class="hidden animate-fadeIn mt-auto pt-4 border-t border-gray-100 dark:border-gray-700">
-                                        <div class="flex flex-col md:flex-row items-start gap-4">
-                                            <div class="flex-grow w-full relative">
-                                                <label class="block text-xs font-black uppercase text-indigo-600 mb-2 tracking-widest">Identificação do Sócio (Título ou Nome)</label>
-                                                <div class="relative">
-                                                    <input type="text"
-                                                           id="member-search-{{ $place['id'] }}"
-                                                           placeholder="Mínimo 5 caracteres para buscar..."
-                                                           oninput="handleMemberSearch(this, '{{ $place['id'] }}')"
-                                                           class="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition shadow-sm font-medium text-gray-900 dark:text-white dark:placeholder-gray-400">
+                                <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                                    @unless($available)
+                                        <p class="col-span-full text-sm text-ink-3">Nenhum horário disponível para esta data.</p>
+                                    @endunless
+                                    @foreach(($place['time_options'] ?? []) as $slot)
+                                        @include('location.partials.time-card', ['slot' => $slot, 'place' => $place])
+                                    @endforeach
+                                </div>
 
-                                                    <!-- Resultados da busca: Podem aparecer vários por matrícula -->
-                                                    <div id="search-results-{{ $place['id'] }}" class="hidden absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl overflow-hidden ring-1 ring-black ring-opacity-5">
-                                                        <div class="p-2 bg-gray-50 dark:bg-gray-700 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest border-b dark:border-gray-600">Pessoas Encontradas</div>
-                                                        <ul class="search-results-list divide-y divide-gray-100">
-                                                            <!-- Resultados injetados aqui -->
-                                                        </ul>
-                                                    </div>
-                                                </div>
+                                {{-- Aparece ao marcar um horário: busca do sócio e confirmação. --}}
+                                <div id="form-container-{{ $place['id'] }}" class="animate-fadeIn relative z-20 mt-auto hidden border-t border-line pt-4">
+                                    <div class="flex flex-col items-start gap-4 md:flex-row md:items-end">
+                                        <div class="relative w-full flex-grow">
+                                            <label for="member-search-{{ $place['id'] }}" class="mb-1.5 block text-xs font-bold text-ink-2">Sócio (título ou nome)</label>
+                                            <div class="relative">
+                                                <x-icon name="search" class="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-3" />
+                                                <input type="text"
+                                                       id="member-search-{{ $place['id'] }}"
+                                                       placeholder="Mínimo 5 caracteres para buscar"
+                                                       autocomplete="off"
+                                                       oninput="handleMemberSearch(this, '{{ $place['id'] }}')"
+                                                       class="h-11 w-full rounded-full border border-line-strong bg-surface pl-10 pr-4 text-ink placeholder:text-ink-3 focus:border-grena focus:ring-4 focus:ring-grena-tint">
 
-                                                <!-- Feedback do Membro Selecionado -->
-                                                <div id="selected-member-tag-{{ $place['id'] }}" class="hidden mt-2 p-3 bg-green-50 dark:bg-green-900/20 border-2 border-green-100 dark:border-green-800 rounded-xl flex items-center justify-between">
-                                                    <div class="flex items-center gap-3">
-                                                        <div class="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center text-white font-bold text-xs">
-                                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                                                        </div>
-                                                        <div>
-                                                            <p class="text-sm font-black text-green-800 dark:text-green-300 leading-none" id="selected-member-name-{{ $place['id'] }}"></p>
-                                                            <p class="text-[10px] text-green-600 dark:text-green-400 font-bold uppercase mt-1">Sócio Selecionado</p>
-                                                        </div>
-                                                    </div>
-                                                    <button type="button" onclick="clearMemberSelection('{{ $place['id'] }}')" class="text-green-400 hover:text-red-500 transition">
-                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                                    </button>
+                                                {{-- Resultados: uma matrícula pode trazer várias pessoas. --}}
+                                                <div id="search-results-{{ $place['id'] }}" class="absolute left-0 right-0 z-50 mt-1 hidden overflow-hidden rounded-2xl border border-line bg-surface shadow-pop">
+                                                    <div class="border-b border-line bg-subtle px-3 py-2 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">Pessoas encontradas</div>
+                                                    <ul class="search-results-list max-h-72 divide-y divide-line overflow-y-auto"></ul>
                                                 </div>
                                             </div>
 
-                                            <div class="w-full md:w-auto pt-7">
-                                                <button type="submit" 
-                                                        id="submit-btn-{{ $place['id'] }}"
-                                                        disabled
-                                                        class="w-full px-8 py-3 bg-gray-300 text-gray-500 rounded-xl font-bold shadow-lg transition cursor-not-allowed uppercase text-sm">
-                                                    Confirmar Reserva
+                                            {{-- Sócio escolhido. --}}
+                                            <div id="selected-member-tag-{{ $place['id'] }}" class="mt-2 hidden items-center justify-between gap-3 rounded-2xl bg-ok-soft p-3 [&:not(.hidden)]:flex">
+                                                <div class="flex items-center gap-3">
+                                                    <span class="grid h-8 w-8 place-items-center rounded-full bg-ok text-white dark:text-canvas">
+                                                        <x-icon name="check" class="h-4 w-4" />
+                                                    </span>
+                                                    <div>
+                                                        <p class="text-sm font-bold leading-none text-ink" id="selected-member-name-{{ $place['id'] }}"></p>
+                                                        <p class="mt-1 text-[11px] font-bold text-ok">Sócio selecionado</p>
+                                                    </div>
+                                                </div>
+                                                <button type="button" onclick="clearMemberSelection('{{ $place['id'] }}')" aria-label="Trocar sócio"
+                                                        class="grid h-8 w-8 place-items-center rounded-full text-ink-2 transition hover:bg-surface hover:text-danger">
+                                                    <x-icon name="x" class="h-4 w-4" />
                                                 </button>
                                             </div>
                                         </div>
-                                        <p class="mt-3 text-[10px] text-gray-400 dark:text-gray-500 font-medium italic">
-                                            Reserva para: <span id="display-slots-{{ $place['id'] }}" class="font-bold text-green-600"></span>
-                                            <span id="display-total-wrapper-{{ $place['id'] }}" class="hidden">
-                                                &middot; Total: <span id="display-total-{{ $place['id'] }}" class="font-bold text-green-600"></span>
-                                            </span>
-                                        </p>
-                                    </div>
 
+                                        <x-primary-button id="submit-btn-{{ $place['id'] }}" disabled class="w-full md:w-auto">
+                                            <x-icon name="check" /> Confirmar reserva
+                                        </x-primary-button>
+                                    </div>
+                                    <p class="mt-3 text-xs text-ink-3">
+                                        Reserva para: <span id="display-slots-{{ $place['id'] }}" class="font-mono font-semibold text-ink"></span>
+                                        <span id="display-total-wrapper-{{ $place['id'] }}" class="hidden">
+                                            &middot; Total: <span id="display-total-{{ $place['id'] }}" class="font-mono font-semibold text-ok"></span>
+                                        </span>
+                                    </p>
                                 </div>
                             </div>
-                        </div>
+                        </article>
                     </form>
                     @endforeach
                 </div>
             </section>
-            @endforeach
+            @empty
+                <x-empty-state icon="calendar">Nenhuma modalidade com locais cadastrados.</x-empty-state>
+            @endforelse
         </div>
-    </div>
+    </x-page>
 
     <script>
         const API_TOKEN = "{{ config('services.api.token') }}";
@@ -200,10 +186,12 @@
 
             if (button.classList.contains('slot-selected')) {
                 button.classList.remove('slot-selected');
+                button.setAttribute('aria-pressed', 'false');
                 button.querySelector('.status-text').innerText = 'Livre';
                 selectedSlots = selectedSlots.filter(s => s !== time);
             } else {
                 button.classList.add('slot-selected');
+                button.setAttribute('aria-pressed', 'true');
                 button.querySelector('.status-text').innerText = 'Selecionado';
                 selectedSlots.push(time);
             }
@@ -246,6 +234,7 @@
         function clearAllSelections() {
             document.querySelectorAll('.slot-button').forEach(btn => {
                 btn.classList.remove('slot-selected');
+                btn.setAttribute('aria-pressed', 'false');
                 btn.querySelector('.status-text').innerText = 'Livre';
             });
             document.querySelectorAll('[id^="form-container-"]').forEach(container => {
@@ -268,7 +257,7 @@
                 return;
             }
 
-            list.innerHTML = '<li class="p-4 text-xs text-gray-500 italic">Pesquisando no banco de dados...</li>';
+            list.innerHTML = '<li class="p-4 text-xs text-ink-3">Pesquisando...</li>';
             resultsBox.classList.remove('hidden');
 
             try {
@@ -292,17 +281,17 @@
 
                     setTimeout(() => {
                         if (filtered.length === 0) {
-                            list.innerHTML = '<li class="p-4 text-xs text-red-500 font-bold">Nenhuma pessoa encontrada com esses dados.</li>';
+                            list.innerHTML = '<li class="p-4 text-xs font-bold text-danger">Nenhuma pessoa encontrada com esses dados.</li>';
                         } else {
                             list.innerHTML = filtered.map(m => `
                                 <li onclick="selectMember('${m.title}', '${m.Name}', '${m.title}', '${placeId}', '${m.document}', '${m.birth_date.split(' ')[0]}')" 
-                                    class="p-3 hover:bg-indigo-50 cursor-pointer transition group border-l-4 border-transparent hover:border-indigo-500">
-                                    <div class="flex justify-between items-center">
+                                    class="group cursor-pointer border-l-4 border-transparent p-3 transition hover:border-grena hover:bg-grena-tint">
+                                    <div class="flex items-center justify-between gap-3">
                                         <div class="flex flex-col">
-                                            <span class="font-extrabold text-sm text-gray-800 group-hover:text-indigo-700">${m.Name}</span>
-                                            <span class="text-[10px] text-gray-400 font-bold tracking-wider">Matrícula: ${m.title}</span>
+                                            <span class="text-sm font-bold text-ink group-hover:text-grena-ink">${m.Name}</span>
+                                            <span class="font-mono text-[11px] text-ink-3">Matrícula ${m.title}</span>
                                         </div>
-                                        <span class="px-2 py-0.5 rounded bg-gray-100 text-[9px] font-black text-gray-500 uppercase group-hover:bg-indigo-100 group-hover:text-indigo-600 transition">
+                                        <span class="rounded-full bg-subtle px-2 py-0.5 text-[10px] font-bold uppercase text-ink-2 transition group-hover:bg-surface">
                                             ${m.Titular == 1 ? 'Titular' : 'Dependente'}
                                         </span>
                                     </div>
@@ -319,7 +308,7 @@
                 
 
             } catch (err) {
-                list.innerHTML = '<li class="p-4 text-xs text-red-500">Erro ao conectar com o servidor.</li>';
+                list.innerHTML = '<li class="p-4 text-xs text-danger">Erro ao conectar com o servidor.</li>';
             }
         }
 
@@ -339,9 +328,7 @@
             tag.classList.remove('hidden');
 
             submitBtn.disabled = false;
-            submitBtn.classList.remove('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
-            submitBtn.classList.add('bg-green-600', 'text-white', 'hover:bg-green-700', 'cursor-pointer');
-        
+
             //Parent Form
             const form = document.getElementById(`form-${placeId}`);
             form.querySelector('input[name="cpf"]').value = cpf;
@@ -350,8 +337,9 @@
             // Preço BASE da quadra (por horário). O valor final de cada horário é
             // calculado no servidor: horário já em andamento é cobrado proporcional
             // ao tempo restante, então não dá para fechar o preço aqui.
-            const pricePerHour = {{ $place['price'] ?? 0 }};
-            form.querySelector('input[name="price"]').value = pricePerHour
+            // Vem do próprio formulário: antes saía do último local do laço,
+            // e toda quadra levava o preço da última.
+            form.querySelector('input[name="price"]').value = form.dataset.price || 0;
 
            
         }
@@ -370,8 +358,6 @@
             tag.classList.add('hidden');
 
             submitBtn.disabled = true;
-            submitBtn.classList.add('bg-gray-300', 'text-gray-500', 'cursor-not-allowed');
-            submitBtn.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-700', 'cursor-pointer');
             inputSearch.focus();
         }
 
@@ -402,18 +388,18 @@
             <style>
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&display=swap');
                 body { font-family: 'Inter', sans-serif; padding: 40px; color: #1e293b; background: white; }
-                .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 4px solid #4f46e5; padding-bottom: 20px; margin-bottom: 30px; }
-                .header-left h1 { margin: 0; font-size: 28px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: -0.025em; }
+                .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 4px solid #8A1538; padding-bottom: 20px; margin-bottom: 30px; }
+                .header-left h1 { margin: 0; font-size: 28px; font-weight: 800; color: #5C0E26; text-transform: uppercase; letter-spacing: -0.025em; }
                 .header-left p { margin: 5px 0 0; font-size: 14px; color: #64748b; font-weight: 600; }
                 .header-right { text-align: right; }
                 .header-right .date-box { background: #f1f5f9; padding: 10px 20px; border-radius: 12px; display: inline-block; }
                 .header-right .date-label { font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 2px; }
-                .header-right .date-value { font-size: 18px; font-weight: 800; color: #4f46e5; }
+                .header-right .date-value { font-size: 18px; font-weight: 800; color: #8A1538; }
                 .modality-container { margin-bottom: 40px; page-break-inside: avoid; }
-                .modality-header { background: #4f46e5; color: white; padding: 12px 20px; border-radius: 8px 8px 0 0; font-weight: 800; text-transform: uppercase; font-size: 14px; display: flex; justify-content: space-between; }
+                .modality-header { background: #8A1538; color: white; padding: 12px 20px; border-radius: 8px 8px 0 0; font-weight: 800; text-transform: uppercase; font-size: 14px; display: flex; justify-content: space-between; }
                 .court-wrapper { border: 1px solid #e2e8f0; border-top: none; padding: 20px; margin-bottom: 10px; border-radius: 0 0 8px 8px; }
                 .court-title { font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; }
-                .court-title::before { content: ""; display: inline-block; width: 4px; height: 16px; background: #4f46e5; margin-right: 10px; border-radius: 2px; }
+                .court-title::before { content: ""; display: inline-block; width: 4px; height: 16px; background: #8A1538; margin-right: 10px; border-radius: 2px; }
                 table { width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 20px; }
                 th { background-color: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 10px 15px; text-align: left; font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 800; }
                 td { border-bottom: 1px solid #f1f5f9; padding: 10px 15px; font-size: 12px; color: #334155; }
@@ -474,8 +460,4 @@
 }
     </script>
 
-    <style>
-        .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    </style>
 </x-app-layout>

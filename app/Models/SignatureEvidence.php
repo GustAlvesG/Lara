@@ -45,6 +45,8 @@ class SignatureEvidence extends Model
     protected $fillable = [
         'signature_signer_id',
         'signature_path',
+        'initials_path',
+        'initials_strokes',
         'strokes',
         'photo_path',
         'photo_skipped_reason',
@@ -60,6 +62,7 @@ class SignatureEvidence extends Model
     protected $casts = [
         'signature_signer_id' => 'integer',
         'strokes' => 'array',
+        'initials_strokes' => 'array',
         'read_seconds' => 'integer',
         'scrolled_to_end' => 'boolean',
         'accepted' => 'boolean',

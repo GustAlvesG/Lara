@@ -18,10 +18,15 @@ class Place extends Model
     protected $fillable = [
         'name',
         'contactor_id',
+        'self_service_lighting',
         'image',
         'place_group_id',
         'price',
         'status_id',
+    ];
+
+    protected $casts = [
+        'self_service_lighting' => 'boolean',
     ];
 
     //Order by name
@@ -45,6 +50,17 @@ class Place extends Model
     public function schedule()
     {
         return $this->hasMany(Schedule::class);
+    }
+
+    /**
+     * Espaços que o sócio pode acender sozinho pelo app, no fim de semana.
+     *
+     * Sem contator não há o que acender: a flag marcada num espaço que perdeu o
+     * switch não deve aparecer na lista do app.
+     */
+    public function scopeSelfServiceLighting($query)
+    {
+        return $query->where('self_service_lighting', true)->whereNotNull('contactor_id');
     }
 
     public function scheduleRules()

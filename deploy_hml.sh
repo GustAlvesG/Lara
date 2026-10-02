@@ -57,6 +57,11 @@ fi
 # 7. Laravel Artisan
 echo "🗄️ Rodando migrations e limpando caches..."
 php artisan migrate
+
+# Seed padrão: cria no banco as permissões do catálogo que ainda não existem.
+# Não dá permissão a nenhum setor nem altera o que já está configurado.
+echo "🔑 Sincronizando o catálogo de permissões..."
+php artisan db:seed --class=PermissionCatalogSeeder --force
 php artisan config:cache
 php artisan route:cache
 

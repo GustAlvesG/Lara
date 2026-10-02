@@ -10,357 +10,63 @@
         <!-- Icon -->
         <link rel="icon" href="{{ asset('favicon.ico') }}" type="image/x-icon" />
 
+        @include('partials.theme-script')
+
+        {{-- Modo de navegação antes da primeira pintura (ver app.css,
+             .nav-only-*). Lateral e Superior são os menus de antes. --}}
+        <script>
+            (function () {
+                var mode = 'areas';
+                try {
+                    var saved = localStorage.getItem('laraNavMode');
+                    if (saved === 'side' || saved === 'top') {
+                        mode = saved;
+                    }
+                } catch (e) {}
+                document.documentElement.dataset.nav = mode;
+            })();
+        </script>
+
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700|unbounded:500,600,700|jetbrains-mono:500,600&display=swap" rel="stylesheet" />
         <script src="https://cdnjs.cloudflare.com/ajax/libs/webcamjs/1.0.25/webcam.min.js"></script>
-        <!-- Bootstrap Grid -->
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap/dist/css/bootstrap-grid.min.css">
-        <script src="https://cdn.tailwindcss.com"></script>
+        {{-- Só nas telas ainda não repaginadas: ver App\View\Components\AppLayout. --}}
+        @if ($bootstrapGrid ?? true)
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap/dist/css/bootstrap-grid.min.css">
+        @endif
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         {{-- @vite(['resources/sass/app.scss', 'resources/js/app.js']) --}}
 
-        <link rel="stylesheet" href="{{ asset('css/style-global.css') }}">
         <style>[x-cloak]{display:none!important;}</style>
         {{ $css ?? '' }}
     </head>
     <body class="font-sans antialiased">
         @php
-            /*
-             | Menu "Compras" (Questor). Montado antes do $navLinks porque as
-             | duas metades têm donos diferentes:
-             |
-             |   Ordens de Compra / Centros de Custo -> permissão `authorize purchase orders`
-             |   Mapas de Cotação                    -> vínculo com o setor Contabilidade
-             |
-             | Os partials do menu só sabem filtrar pela permissão do item PAI,
-             | então a filtragem por filho acontece aqui — e o pai só existe se
-             | sobrar algum filho. É o mesmo arranjo do menu Freelancers, logo
-             | abaixo.
-             |
-             | `can()` e não o método do model: o layout renderiza em toda tela,
-             | e uma consulta ao banco daqui quebraria as telas cujos testes
-             | montam o usuário na mão.
-             */
-            $canAuthorizeOrders = auth()->user()?->can('authorize purchase orders');
-            // Só o setor: estar na Contabilidade, em qualquer papel, já mostra a
-            // aba. Sem permissão do Spatie no caminho — ver CotacaoMapaPolicy.
-            $canCotacao = auth()->user()?->can('acessar-cotacao');
+            // O menu sai de App\View\Navigation (permissões, rotas e a página
+            // atual); os parciais das três navegações usam estas variáveis.
+            $nav = \App\View\Navigation::build(auth()->user(), request());
+            $visibleNavLinks = $nav['links'];
+            $navGroups = $nav['groups'];
+            $navIndex = $nav['index'];
+            $navCurrent = $nav['current'];
 
-            $comprasChildren = [];
-
-            if ($canAuthorizeOrders) {
-                // `active` com curinga porque o detalhe da ordem é outra rota:
-                // sem ele, abrir uma ordem apagaria o destaque.
-                #$comprasChildren[] = ['route' => 'questor.purchase-orders.index', 'label' => 'Ordens de Compra', 'active' => 'questor.purchase-orders.*'];
-                #$comprasChildren[] = ['route' => 'questor.cost-centers.index', 'label' => 'Centros de Custo'];
-            }
-
-            if ($canCotacao) {
-                $comprasChildren[] = ['route' => 'cotacao.mapas.index', 'label' => 'Mapas de Cotação', 'active' => 'cotacao.mapas.index'];
-                $comprasChildren[] = ['route' => 'cotacao.mapas.previa', 'label' => 'Nova Cotação (buscar SC)', 'active' => 'cotacao.mapas.previa'];
-            }
-
-            // SIV reúne o que é de portaria e veículo: consulta de placas,
-            // placas da diretoria e a quilometragem da frota. Os itens são
-            // montados por permissão porque o menu só checa permissão no nível
-            // de cima — mesmo padrão de Freelancers e Placar mais abaixo.
-            $sivChildren = [];
-
-            if (auth()->user()?->can('search parking')) {
-                $sivChildren[] = ['route' => 'parking.search', 'label' => 'Busca'];
-                $sivChildren[] = ['route' => 'parking-authorizations.index', 'label' => 'Placas Diretoria'];
-            }
-
-            if (auth()->user()?->can('manage fleet')) {
-                $sivChildren[] = ['route' => 'fleet.index', 'label' => 'Frota'];
-                $sivChildren[] = ['route' => 'fleet.trips', 'label' => 'Viagens'];
-                $sivChildren[] = ['route' => 'fleet.vehicles', 'label' => 'Veículos'];
-            }
-
-            $navLinks = [
-                ['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6'],
-                ['route' => 'information.index', 'label' => 'InfoClube', 'icon' => 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-                    'permission' => 'view information',
-                    'children' => [
-                        ['route' => 'information.index', 'label' => 'Informações'],
-                        ['route' => 'avisos.index', 'label' => 'Avisos'],
-                    ],
-                ],
-                // Some inteiro quando a pessoa não tem nem placas nem frota.
-                ...($sivChildren === [] ? [] : [[
-                    'route' => $sivChildren[0]['route'],
-                    'label' => 'SIV',
-                    'icon' => 'M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Zm6-10.125a1.875 1.875 0 1 1-3.75 0 1.875 1.875 0 0 1 3.75 0Zm1.294 6.336a6.721 6.721 0 0 1-3.17.789 6.721 6.721 0 0 1-3.168-.789 3.376 3.376 0 0 1 6.338 0Z',
-                    'children' => $sivChildren,
-                ]]),
-                ['route' => 'videowall.index', 'label' => 'Smart Panel', 'icon' => 'M9.75 17L9 20l-1-1v-4h-2l-1 1 7-7 7 7-1 1h-2v-4l-1 1h-2v4z',
-                    'permission' => 'manage smart panel',
-                ],
-                ['route' => 'home-assistant.index', 'label' => 'Home Assistant', 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
-                    'permission' => 'manage home assistant',
-                ],
-                ['route' => 'schedule.index', 'label' => 'Reservas', 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
-                    'permission' => 'view reservations',
-                    'children' => [
-                        ['route' => 'schedule.index', 'label' => 'Novo Agendamento'],
-                        ['route' => 'schedule.list', 'label' => 'Todos os Agendamentos'],
-                    ],
-                ],
-                ['route' => 'payment.index', 'label' => 'Pagamentos', 'icon' => 'M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
-                    'permission' => 'view payments',
-                ],
-                ['route' => 'company.index', 'label' => 'Externos', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
-                    'children' => [
-                        ['route' => 'company.index', 'label' => 'Empresas'],
-                        ['route' => 'company.access.monitor', 'label' => 'Monitor de Acesso'],
-                        ['route' => 'company.one-off.index', 'label' => 'Liberação Pontual'],
-                        ['route' => 'company.access.logs', 'label' => 'Histórico'],
-                        ['route' => 'company.uber.requests', 'label' => 'Carros de Aplicativo'],
-                        ['route' => 'company.uber.waiting', 'label' => 'Aguardando Motorista'],
-                    ],
-                ],
-                ['route' => 'lara.index', 'label' => 'Lara (IA)', 'icon' => 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z',
-                    'permission' => 'use lara chat',
-                ],
-                // Compras (Questor): Ordens de Compra, Centros de Custo e Mapas
-                // de Cotação. Some inteiro quando o usuário não alcança nenhum
-                // dos filhos — daí o spread condicional, e não uma `permission`
-                // de pai, que só saberia gatilhar por uma das duas regras.
-                ...($comprasChildren === [] ? [] : [[
-                    'route' => $comprasChildren[0]['route'],
-                    'label' => 'Compras',
-                    'icon' => 'M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12A1.125 1.125 0 0 1 19.75 21.75H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007Z',
-                    'children' => $comprasChildren,
-                ]]),
-                ['route' => 'id-cards.issue', 'label' => 'Carteirinhas', 'icon' => 'M12 4.5v15m7.5-7.5h-15',
-                    'permission' => 'manage id cards',
-                    'children' => [
-                        ['route' => 'id-cards.issue', 'label' => 'Emitir Carteirinha'],
-                        ['route' => 'card-templates.index', 'label' => 'Modelos'],
-                    ],
-                ],
-            ];
-
-            // O financeiro tem regra própria — vínculo com o setor Contabilidade
-            // ou Gerência: quem só tem isso enxerga o menu Freelancers apenas
-            // com a aba Financeiro.
-            $canFreelancers = auth()->user()?->can('manage freelancers');
-            $canFreelancerPayments = auth()->user()?->can('manage-freelancer-payments');
-            // Acompanhamento do trâmite: vínculo com o setor Comercial. Como o
-            // Financeiro, é uma entrada que existe sozinha — quem só acompanha
-            // enxerga o menu Freelancers apenas com ela.
-            $canTrackFreelancers = auth()->user()?->can('track-freelancer-batches');
-
-            if ($canFreelancers || $canFreelancerPayments || $canTrackFreelancers) {
-                $freelancerChildren = [];
-
-                if ($canFreelancers) {
-                    $freelancerChildren[] = ['route' => 'freelancers.index', 'label' => 'Freelancers'];
-                    $freelancerChildren[] = ['route' => 'freelancer-functions.index', 'label' => 'Funções'];
-                    $freelancerChildren[] = ['route' => 'freelancer-services.index', 'label' => 'Serviços / Contratos'];
-                    $freelancerChildren[] = ['route' => 'kiosk.index', 'label' => 'Assinatura (Tablet)'];
-                }
-
-                if ($canTrackFreelancers) {
-                    $freelancerChildren[] = ['route' => 'freelancer-services.tracking', 'label' => 'Acompanhamento'];
-                }
-
-                if ($canFreelancerPayments) {
-                    $freelancerChildren[] = ['route' => 'freelancer-services.finance', 'label' => 'Financeiro'];
-                }
-
-                $navLinks[] = [
-                    'route' => $freelancerChildren[0]['route'],
-                    'label' => 'Freelancers',
-                    'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
-                    'children' => $freelancerChildren,
-                ];
-            }
-
-            // Placar Clube: cadastro (escreve) e scout (só lê) são Gates
-            // separados hoje com a mesma regra de setor (ver AppServiceProvider),
-            // por isso os dois grupos aparecem juntos sempre que algum dos
-            // dois estiver liberado — quem só acompanha o jogo também precisa
-            // achar a súmula no menu.
-            $canPlacarCadastro = auth()->user()?->can('manage-placar-cadastro');
-            $canPlacarScout = auth()->user()?->can('view-placar-scout');
-
-            if ($canPlacarCadastro || $canPlacarScout) {
-                $placarChildren = [];
-
-                if ($canPlacarCadastro) {
-                    $placarChildren[] = ['route' => 'placar.equipes.index', 'label' => 'Equipes'];
-                    $placarChildren[] = ['route' => 'placar.times.index', 'label' => 'Times'];
-                    $placarChildren[] = ['route' => 'placar.jogadores.index', 'label' => 'Jogadores'];
-                    $placarChildren[] = ['route' => 'placar.competicoes.index', 'label' => 'Competições'];
-                    $placarChildren[] = ['route' => 'placar.jogos.index', 'label' => 'Jogos'];
-                }
-
-                if ($canPlacarScout) {
-                    $placarChildren[] = ['route' => 'placar.scout.jogos', 'label' => 'Súmulas (Scout)'];
-                }
-
-                $navLinks[] = [
-                    'route' => $placarChildren[0]['route'],
-                    'label' => 'Placar Clube',
-                    'icon' => 'M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2',
-                    'children' => $placarChildren,
-                ];
-            }
-
-            /*
-             | Assinatura eletrônica presencial (tablet do balcão).
-             |
-             | Duas permissões independentes: quem escreve o TEXTO dos termos
-             | não é necessariamente quem atende, e vice-versa. Por isso os
-             | filhos entram separados e o menu some inteiro para quem não
-             | alcança nenhum dos dois — o mesmo arranjo de Compras.
-             |
-             | Pergunta por `can()` (Gate), e nunca por método do model: este
-             | layout renderiza em TODA tela, inclusive nos testes com User
-             | mockado, e uma consulta ao banco aqui iria à conexão mysql.
-             |
-             | `Route::has` pelo mesmo motivo registrado no Banco de Horas: um
-             | nome de rota que não resolve (cache de rotas velho) derruba o
-             | sistema inteiro com 500, e não só este item.
-             */
-            $canSignatureTemplates = auth()->user()?->can('manage signature templates');
-            $canSignatureDocuments = auth()->user()?->can('manage signature documents')
-                || auth()->user()?->can('view signed documents');
-
-            if (($canSignatureTemplates || $canSignatureDocuments)
-                && \Illuminate\Support\Facades\Route::has('signature-documents.index')) {
-                $signatureChildren = [];
-
-                if ($canSignatureDocuments) {
-                    $signatureChildren[] = ['route' => 'signature-documents.index', 'label' => 'Documentos'];
-                }
-
-                if ($canSignatureTemplates) {
-                    $signatureChildren[] = ['route' => 'signature-templates.index', 'label' => 'Modelos'];
-                }
-
-                $navLinks[] = [
-                    'route' => $signatureChildren[0]['route'],
-                    'label' => 'Assinaturas',
-                    'icon' => 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z',
-                    'children' => $signatureChildren,
-                ];
-            }
-
-            // Banco de Horas. A consulta tem três públicos: o RH (vê todos),
-            // o coordenador (vê o próprio setor) e o colaborador com matrícula
-            // (vê a própria ficha) — ver CompTimeService::accessFor(). Quem não
-            // se encaixa em nenhum dos três não tem o que abrir, e o menu não
-            // aparece. A aba de cadastro é só do RH.
-            $canManageCompTime = auth()->user()?->can('manage-comp-time');
-            $canViewCompTime = auth()->user()?->can('view-comp-time');
-
-            // if ($canViewCompTime) {
-            //     $compTimeChildren = [
-            //         ['route' => 'comp-time.index', 'label' => 'Consulta'],
-            //     ];
-
-            //     // Route::has porque este layout renderiza em TODA tela: um nome de
-            //     // rota que não existe (tela ainda não mesclada, cache de rotas
-            //     // velho) derruba o sistema inteiro com 500, e não só este item.
-            //     if ($canManageCompTime && \Illuminate\Support\Facades\Route::has('comp-time.employees.index')) {
-            //         $compTimeChildren[] = ['route' => 'comp-time.employees.index', 'label' => 'Funcionários'];
-            //     }
-
-            //     $navLinks[] = [
-            //         'route' => 'comp-time.index',
-            //         'label' => 'Banco de Horas',
-            //         'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
-            //         'children' => $compTimeChildren,
-            //     ];
-            // }
-
-            // Permissao do nivel de cima resolvida uma vez so: as duas barras e
-            // o indice de busca consomem a mesma lista ja filtrada, em vez de
-            // repetir o `can()` em cada partial.
-            $visibleNavLinks = array_values(array_filter(
-                $navLinks,
-                fn ($link) => ! ($link['permission'] ?? null) || auth()->user()?->can($link['permission'])
-            ));
-
-            // Chave estável do grupo: é por ela que a ordem escolhida pela
-            // pessoa fica gravada, então não pode ser a posição na lista nem a
-            // rota do primeiro filho — as duas mudam quando uma permissão entra
-            // ou sai, e a ordem salva apontaria para o grupo errado.
-            $visibleNavLinks = array_map(
-                fn ($link) => $link + ['key' => \Illuminate\Support\Str::slug($link['label'])],
-                $visibleNavLinks
-            );
-
-            $navGroups = array_map(
-                fn ($link) => [
-                    'key' => $link['key'],
-                    'label' => __($link['label']),
-                    'icon' => $link['icon'],
-                ],
-                $visibleNavLinks
-            );
-
-            // Indice plano do menu: alimenta a busca (Ctrl+K) e os favoritos,
-            // que precisam de uma lista unica de destinos finais. O grupo vira
-            // so rotulo, e a chave e o nome da rota — e o que fica salvo no
-            // localStorage do usuario.
-            $navIndex = [];
-
-            foreach ($visibleNavLinks as $link) {
-                $items = $link['children'] ?? [['route' => $link['route'], 'label' => $link['label']]];
-
-                foreach ($items as $item) {
-                    $navIndex[$item['route']] ??= [
-                        'key' => $item['route'],
-                        'label' => __($item['label']),
-                        'group' => isset($link['children']) ? __($link['label']) : null,
-                        'icon' => $link['icon'],
-                        'url' => route($item['route']),
-                    ];
-                }
-            }
-
-            // Atalhos da conta tambem entram na busca: e onde as pessoas se
-            // perdem procurando "usuarios" e "documentacao".
-            $navIndex['profile.edit'] ??= [
-                'key' => 'profile.edit',
-                'label' => 'Perfil',
-                'group' => 'Conta',
-                'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
-                'url' => route('profile.edit'),
-            ];
-
-            $navIndex['docs.index'] ??= [
-                'key' => 'docs.index',
-                'label' => 'Documentação',
-                'group' => 'Conta',
-                'icon' => 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
-                'url' => route('docs.index'),
-            ];
-
-            if (auth()->user()?->hasRole('admin')) {
-                $navIndex['users.index'] ??= [
-                    'key' => 'users.index',
-                    'label' => 'Usuários',
-                    'group' => 'Conta',
-                    'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
-                    'url' => route('users.index'),
-                ];
-            }
-
-            $navIndex = array_values($navIndex);
+            // Uma consulta só, para o sino da barra e o flutuante.
+            $unreadNotifications = auth()->user()->unreadNotifications()->latest()->limit(8)->get();
         @endphp
 
         <script>
-            // Estado compartilhado das duas barras: modo de navegacao, sidebar
-            // recolhida, favoritos e a busca (Ctrl+K). Fica aqui, e nao inline
-            // no x-data, porque leitura de localStorage precisa de try/catch —
-            // em janela anonima o acesso lanca e derrubaria o menu inteiro.
-            window.laraShell = function (navIndex, navGroups) {
+            // Estado compartilhado das navegações: modo (Módulos, lateral ou
+            // superior), sidebar recolhida, favoritos, recentes, o painel de
+            // Módulos e a busca (Ctrl+K). Fica aqui, e nao inline no x-data,
+            // porque leitura de localStorage precisa de try/catch — em janela
+            // anonima o acesso lanca e derrubaria o menu inteiro.
+            //
+            // Favoritos e ordem do menu sao da CONTA: vem do servidor (prefs)
+            // e cada mudanca e gravada la. O localStorage fica so de copia —
+            // limpar os dados do navegador nao apaga mais os favoritos.
+            window.laraShell = function (navIndex, navGroups, currentKey, prefs) {
                 // Faixa de acentos combinantes do NFD. Montada por codigo de
                 // caractere de proposito: escrita literal, seriam bytes
                 // invisiveis no blade, que e justamente o que costuma virar
@@ -394,29 +100,129 @@
                     return Array.isArray(parsed) ? parsed : [];
                 }
 
+                // `null` no servidor = a pessoa nunca salvou: vale o que
+                // este navegador tiver, e o init() sobe isso uma vez.
+                prefs = prefs || {};
+                var saved = prefs.saved || {};
+                var fromServer = Array.isArray(saved.favorites) || Array.isArray(saved.order);
+                var syncTimer = null;
+
                 return {
                     collapsed: window.matchMedia('(max-width: 640px)').matches ? false : read('sidebarCollapsed', 'false') === 'true',
                     mobileOpen: false,
-                    navMode: read('navMode', 'side'),
+                    // O script do <head> já leu e gravou o modo no <html>.
+                    navMode: document.documentElement.dataset.nav || 'areas',
                     navIndex: navIndex,
                     navGroups: navGroups,
-                    favorites: readList('navFavorites'),
-                    navOrder: readList('navOrder'),
+                    currentKey: currentKey,
+                    favorites: Array.isArray(saved.favorites) ? saved.favorites : readList('navFavorites'),
+                    recent: readList('navRecent'),
+                    navOrder: Array.isArray(saved.order) ? saved.order : readList('navOrder'),
                     paletteOpen: false,
                     organizerOpen: false,
+                    launcherOpen: false,
+                    launcherTab: 'todas',
                     dragKey: null,
                     query: '',
                     cursor: 0,
+
+                    // A página aberta vai para o topo dos recentes. Só entra o
+                    // que está no menu desta pessoa: tela de detalhe e perfil
+                    // não têm chave (currentKey nulo) e não poluem a lista.
+                    init() {
+                        if (fromServer) {
+                            // A copia local acompanha a conta.
+                            write('navFavorites', JSON.stringify(this.favorites));
+                            write('navOrder', JSON.stringify(this.navOrder));
+                        } else if (this.favorites.length || this.navOrder.length) {
+                            // Primeira vez com a conta vazia: sobe o que o
+                            // navegador ja tinha.
+                            this.syncPrefs();
+                        }
+
+                        if (!this.currentKey) {
+                            return;
+                        }
+
+                        var key = this.currentKey;
+                        this.recent = [key].concat(this.recent.filter(function (k) { return k !== key; })).slice(0, 8);
+                        write('navRecent', JSON.stringify(this.recent));
+                    },
+
+                    // Grava favoritos e ordem na conta. Junta mudancas
+                    // seguidas (arrastar, varias estrelas) num envio so; se
+                    // falhar, a copia local segura ate a proxima mudanca.
+                    syncPrefs() {
+                        if (!prefs.url) {
+                            return;
+                        }
+
+                        var self = this;
+                        clearTimeout(syncTimer);
+                        syncTimer = setTimeout(function () {
+                            fetch(prefs.url, {
+                                method: 'PUT',
+                                credentials: 'same-origin',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'X-CSRF-TOKEN': prefs.token || '',
+                                },
+                                body: JSON.stringify({ favorites: self.favorites, order: self.navOrder }),
+                            }).catch(function () {});
+                        }, 400);
+                    },
 
                     toggle() {
                         this.collapsed = !this.collapsed;
                         write('sidebarCollapsed', this.collapsed);
                     },
 
+                    // A chave é nova (laraNavMode, e não a navMode antiga) para
+                    // todo mundo começar nas Módulos uma vez; quem preferir o
+                    // menu de antes escolhe Lateral ou Superior na conta.
                     setNav(m) {
                         this.navMode = m;
-                        write('navMode', m);
+                        write('laraNavMode', m);
+                        document.documentElement.dataset.nav = m;
                         this.mobileOpen = false;
+                        this.launcherOpen = false;
+                        // A barra superior mede a largura ao aparecer.
+                        window.dispatchEvent(new CustomEvent('nav-order-changed'));
+                    },
+
+                    // ----- Painel de Módulos -----
+
+                    openLauncher(tab) {
+                        this.launcherTab = tab || 'todas';
+                        this.launcherOpen = true;
+                        this.paletteOpen = false;
+                    },
+
+                    toggleLauncher(tab) {
+                        if (this.launcherOpen) {
+                            this.launcherOpen = false;
+                            return;
+                        }
+
+                        this.openLauncher(tab);
+                    },
+
+                    // ----- Recentes -----
+
+                    // Sem a página atual: ela já está na capa e no "você está em".
+                    get recentItems() {
+                        var index = this.navIndex;
+                        var current = this.currentKey;
+
+                        return this.recent
+                            .filter(function (key) { return key !== current; })
+                            .map(function (key) {
+                                return index.find(function (item) { return item.key === key; });
+                            })
+                            .filter(Boolean)
+                            .slice(0, 5);
                     },
 
                     // ----- Favoritos -----
@@ -428,6 +234,7 @@
                     setFavorites(list) {
                         this.favorites = list;
                         write('navFavorites', JSON.stringify(list));
+                        this.syncPrefs();
                     },
 
                     toggleFav(key) {
@@ -491,6 +298,7 @@
                     setNavOrder(list) {
                         this.navOrder = list;
                         write('navOrder', JSON.stringify(list));
+                        this.syncPrefs();
                         // A barra superior recalcula quantos itens cabem, e a
                         // conta depende da ordem.
                         window.dispatchEvent(new CustomEvent('nav-order-changed'));
@@ -619,6 +427,7 @@
 
                     openPalette() {
                         this.paletteOpen = true;
+                        this.launcherOpen = false;
                         this.query = '';
                         this.cursor = 0;
                         this.mobileOpen = false;
@@ -655,31 +464,61 @@
         </script>
 
         <div
-            x-data="laraShell(@js($navIndex), @js($navGroups))"
+            x-data="laraShell(@js($navIndex), @js($navGroups), @js($navCurrent['key'] ?? null), @js(['saved' => auth()->user()->nav_preferences, 'url' => url('/nav-preferences'), 'token' => csrf_token()]))"
             @keydown.window.ctrl.k.prevent="openPalette()"
             @keydown.window.meta.k.prevent="openPalette()"
-            @keydown.escape.window="paletteOpen = false"
-            class="min-h-screen bg-gray-100 dark:bg-gray-900"
+            @keydown.escape.window="paletteOpen = false; launcherOpen = false"
+            class="min-h-screen bg-canvas"
         >
-            <!-- Lateral navigation -->
-            <div x-show="navMode === 'side'" x-cloak>
+            {{-- Navegação por Módulos (padrão). `contents` para o wrapper não
+                 virar o limite do `sticky` da barra. --}}
+            <div class="nav-only-areas contents">
+                @include('partials.navigation-areas')
+            </div>
+
+            {{-- Menus de antes, como opção --}}
+            <div class="nav-only-side">
                 @include('partials.navigation')
             </div>
 
-            <!-- Top navigation -->
-            <div x-show="navMode === 'top'" x-cloak>
+            <div class="nav-only-top contents">
                 @include('partials.navigation-top')
             </div>
 
             <!-- Content -->
             <div
-                class="transition-all duration-300 ease-in-out"
+                class="nav-tabbar-pad transition-all duration-300 ease-in-out"
                 :class="navMode === 'side' ? (collapsed ? 'sm:ml-20' : 'sm:ml-64') : ''"
             >
+                {{-- Capa da área da página atual, com as páginas irmãs como
+                     abas. Só nas Módulos: nos menus de antes, quem leva às irmãs
+                     é o próprio menu. Tela fora do menu não tem capa. --}}
+                @if ($cover && $navCurrent && $navCurrent['tabs'])
+                    <div class="nav-only-areas">
+                        <x-area-cover
+                            :area="$navCurrent['group']['area']"
+                            :title="__($navCurrent['group']['label'])"
+                            :icon="$navCurrent['group']['glyph']"
+                            :tabs="$navCurrent['tabs']"
+                        >
+                            <button type="button" @click="toggleFav(currentKey)" :aria-pressed="isFav(currentKey)"
+                                class="inline-flex h-8 items-center gap-[7px] rounded-full border-[1.5px] px-[13px] text-[13px] font-bold transition"
+                                style="border-color: rgb(var(--ci) / .35); background-color: rgb(var(--surface) / .55); color: rgb(var(--ci))">
+                                <svg class="h-4 w-4" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"
+                                    :fill="isFav(currentKey) ? 'currentColor' : 'none'" aria-hidden="true">
+                                    <path d="M11.48 3.5a.56.56 0 011.04 0l2.12 4.7 5.11.6c.47.05.66.64.31.96l-3.8 3.45 1.03 5.05c.09.46-.4.82-.81.59L12 16.3l-4.48 2.55c-.41.23-.9-.13-.81-.59l1.03-5.05-3.8-3.45c-.35-.32-.16-.91.31-.96l5.11-.6z" />
+                                </svg>
+                                <span x-text="isFav(currentKey) ? 'Favorito' : 'Favoritar'">Favoritar</span>
+                            </button>
+                            {{ $coverActions ?? '' }}
+                        </x-area-cover>
+                    </div>
+                @endif
+
                 <!-- Page Heading -->
                 @if (isset($header))
-                    <header class="bg-white dark:bg-gray-800 shadow">
-                        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                    <header>
+                        <div class="max-w-7xl mx-auto pt-6 pb-2 px-4 sm:px-6 lg:px-8">
                             {{ $header }}
                         </div>
                     </header>
@@ -693,8 +532,14 @@
                 @include('partials.footer')
             </div>
 
-            <!-- Floating notification bell (fixed bottom-right, both modes) -->
-            @include('partials.notification-bell')
+            {{-- Nas Módulos o sino fica na barra de cima; nos menus de antes,
+                 flutuante no canto. --}}
+            <div class="nav-only-side">
+                @include('partials.notification-bell', ['placement' => 'floating'])
+            </div>
+            <div class="nav-only-top">
+                @include('partials.notification-bell', ['placement' => 'floating'])
+            </div>
 
             <!-- Busca de módulos (Ctrl+K), compartilhada pelos dois modos -->
             @include('partials.nav-palette')

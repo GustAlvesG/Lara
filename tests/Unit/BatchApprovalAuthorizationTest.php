@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Authorization\UserAccess;
 use App\Http\Controllers\Freelancer\BatchController;
 use App\Http\Requests\ReviewFreelancerBatchRequest;
 use App\Models\User;
@@ -13,9 +14,9 @@ use Tests\TestCase;
 /**
  * Quem aprova o lote de contratos antes da diretoria.
  *
- * A regra mudou: era a role `admin` do Spatie, passou a ser o **coordenador do
- * setor Gerência**. Responder pelo lote é um cargo, não um nível de acesso ao
- * sistema — administrador continua administrando, e não aprova nada.
+ * É o **coordenador do setor Gerência**. Responder pelo lote é um cargo, não
+ * um nível de acesso ao sistema: quem tem acesso total (Gerência, Diretoria,
+ * TI) alcança todas as permissões do catálogo, mas não aprova lote por isso.
  *
  * São duas portas para a mesma regra, e as duas são testadas: o
  * `ReviewFreelancerBatchRequest` (a análise em si) e o `BatchController`
@@ -28,13 +29,13 @@ class BatchApprovalAuthorizationTest extends TestCase
 {
     /**
      * @param  string|null  $sector  setor do qual o usuário é coordenador
-     * @param  bool  $admin  se ele tem a role `admin` — que não deve mais pesar
+     * @param  bool  $fullAccess  se ele tem acesso total — que não deve pesar
      */
-    private function user(?string $sector, bool $admin = false): User
+    private function user(?string $sector, bool $fullAccess = false): User
     {
         $user = new class extends User {
             public ?string $coordinatorSector = null;
-            public bool $isAdmin = false;
+            public bool $isFullAccess = false;
 
             public function isCoordinatorOfSectorNamed(string $name): bool
             {
@@ -42,15 +43,15 @@ class BatchApprovalAuthorizationTest extends TestCase
                     && mb_strtolower($this->coordinatorSector) === mb_strtolower($name);
             }
 
-            /** Evita a consulta do Spatie: aqui a role é só um dado do dublê. */
-            public function hasRole($roles, ?string $guard = null): bool
+            /** Evita a consulta às tabelas de setor: o acesso é só um dado do dublê. */
+            public function access(): UserAccess
             {
-                return $this->isAdmin && $roles === 'admin';
+                return $this->isFullAccess ? new UserAccess([], ['TI']) : UserAccess::none();
             }
         };
 
         $user->coordinatorSector = $sector;
-        $user->isAdmin = $admin;
+        $user->isFullAccess = $fullAccess;
         $user->name = 'Fulano';
 
         return $user;
@@ -90,12 +91,12 @@ class BatchApprovalAuthorizationTest extends TestCase
         $this->assertTrue($this->isManager($user));
     }
 
-    /** O que a mudança tirou: administrar o sistema não aprova mais lote. */
-    public function test_admin_que_nao_e_coordenador_da_gerencia_nao_aprova(): void
+    /** Acesso total não passa por cima do cargo: administrar não aprova lote. */
+    public function test_acesso_total_que_nao_e_coordenador_da_gerencia_nao_aprova(): void
     {
-        $user = $this->user(null, admin: true);
+        $user = $this->user(null, fullAccess: true);
 
-        $this->assertTrue($user->hasRole('admin'), 'o dublê precisa mesmo ser admin');
+        $this->assertTrue($user->hasFullAccess(), 'o dublê precisa mesmo ter acesso total');
         $this->assertFalse($user->isManagementCoordinator());
         $this->assertFalse($this->canReview($user));
         $this->assertFalse($this->isManager($user));

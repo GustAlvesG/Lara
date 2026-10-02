@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Authorization\Permissions;
 use App\Models\Information;
 use App\Models\DataInfo;
 use App\Models\Tag;
@@ -141,10 +142,7 @@ class InformationController extends Controller
         $data = $request->all();
 
         $isNewInformation = !isset($data['information_id']);
-        abort_unless(
-            auth()->user()->can($isNewInformation ? 'create information' : 'edit information'),
-            403
-        );
+        abort_unless(auth()->user()->can(Permissions::INFOCLUBE_EDITAR), 403);
 
         try {
             $fieldsToConcatenate = ['name_price', 'price_associated', 'price_not_associated', 'responsible', 'responsible_contact'];

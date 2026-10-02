@@ -1,54 +1,28 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Grupo de Espaços') }}
+{{-- Modalidades (grupos de espaços) em cartões. A lista vem inteira: a busca filtra na página. --}}
+<x-app-layout :bootstrap-grid="false">
+    <x-page>
+        <x-page-title title="Modalidades" :back="route('schedule.index')">
+            Grupos de espaços reserváveis, com seus locais, regras e preços.
+            <x-slot:actions>
+                <x-primary-button-a href="{{ route('place-group.create') }}"><x-icon name="plus" /> Nova modalidade</x-primary-button-a>
+            </x-slot:actions>
+        </x-page-title>
 
-        </h2>
+        @include('partials.alerts')
 
-    </x-slot>
+        @if ($groups->isEmpty())
+            <x-empty-state icon="calendar">
+                Nenhuma modalidade cadastrada.
+                <a href="{{ route('place-group.create') }}" class="font-bold text-grena-ink hover:underline">Cadastrar a primeira</a>.
+            </x-empty-state>
+        @else
+            <x-search-bar mode="client" target="#modalidades" placeholder="Buscar modalidade ou categoria" />
 
-    <x-slot name="css">
-    </x-slot>
-
-    <div class="py-6">
-        <div class="mx-auto sm:px-6 lg:px-8 space-y-6">
-            <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg row">
-                <div class="col-6">
-                    @include('partials.search')
-                </div>
-                <div class="col-6 flex justify-center items-center"> <!-- Adicionado classes do Flexbox -->
-                    <x-primary-button-a href="{{ route('place-group.create') }}">
-                        Novo Grupo
-                    </x-primary-button-a>
-                </div>
+            <div id="modalidades" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach ($groups as $item)
+                    @include('location.placeGroup.partials.element', ['item' => $item])
+                @endforeach
             </div>
-        </div>
-        <br>
-        <div class="mx-auto sm:px-6 lg:px-8 space-y-6 page-group">
-            <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg page" data-limit="5" data-actual="">
-                
-                <!-- NOVA ESTRUTURA COM TAILWIND GRID (Solução) -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    @foreach ($groups as $item)
-                        <!-- A classe 'col-span-1' é implícita no grid -->
-                        <div> 
-                            @include('location.placeGroup.partials.element', ['item' => $item])
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-
-            <div class="flex justify-center sm:px-6 lg:px-8 space-y-6 my-3">
-                <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg pagination">
-                    @include('partials.navPagination')
-                </div>
-            </div>
-        </div>
-
-       
-    </div>
-
-    <x-slot name="js">
-        <script src="{{ asset('js/pagination.js') }}"></script>
-    </x-slot>
+        @endif
+    </x-page>
 </x-app-layout>

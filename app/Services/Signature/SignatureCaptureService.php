@@ -10,6 +10,7 @@ use App\Models\SignatureEvidence;
 use App\Models\SignatureRequest;
 use App\Models\SignatureSigner;
 use App\Support\Cpf;
+use App\Support\PngTrimmer;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -142,6 +143,13 @@ class SignatureCaptureService
             throw new SignatureSessionException('Confirme a identidade antes de assinar.', 409);
         }
 
+        // O modelo pergunta algo a quem assina e a resposta não veio: o texto
+        // ainda tem lacunas, e lacuna não se assina. O tablet não chega aqui
+        // pelo caminho normal — a trava é para o caminho que não é normal.
+        if ($document->signingFormPending()) {
+            throw new SignatureSessionException('Responda as perguntas do documento antes de assinar.', 409);
+        }
+
         if (!($payload['accepted'] ?? false)) {
             throw new SignatureSessionException('É preciso aceitar os termos do documento para assinar.', 422);
         }
@@ -169,6 +177,33 @@ class SignatureCaptureService
             );
         }
 
+        /*
+         | O visto de todas as páginas. É exigido pelo MODELO — e conferido
+         | aqui, como a foto: se dependesse do tablet mandar ou não, a
+         | exigência seria uma sugestão.
+         */
+        $visto = null;
+        $tracosDoVisto = null;
+
+        if ($template->requires_initials) {
+            $tracosDoVisto = $payload['initials_strokes'] ?? null;
+
+            if (($payload['initials'] ?? '') === ''
+                || SignatureEvidence::countPoints($tracosDoVisto) < (int) config('signature.evidence.min_initials_points', 8)) {
+                throw new SignatureSessionException(
+                    'Faltou o visto. Faça a sua rubrica no espaço indicado.',
+                    422,
+                );
+            }
+
+            $visto = PngTrimmer::trim($this->decodeImage(
+                $payload['initials'],
+                ['png'],
+                (int) config('signature.evidence.max_signature_kb', 2048),
+                'rubrica',
+            ));
+        }
+
         $foto = null;
         $motivoSemFoto = null;
 
@@ -194,6 +229,15 @@ class SignatureCaptureService
 
         $disk->put($caminhoAssinatura, $assinatura);
 
+        $caminhoVisto = null;
+
+        if ($visto !== null) {
+            $caminhoVisto = config('signature.paths.signatures') . '/' . $document->id
+                . '/signer_' . $signer->id . '_visto.png';
+
+            $disk->put($caminhoVisto, $visto);
+        }
+
         $caminhoFoto = null;
 
         if ($foto !== null) {
@@ -217,10 +261,14 @@ class SignatureCaptureService
                 $caminhoAssinatura,
                 $caminhoFoto,
                 $motivoSemFoto,
+                $caminhoVisto,
+                $tracosDoVisto,
             ) {
                 SignatureEvidence::create([
                     'signature_signer_id' => $signer->id,
                     'signature_path' => $caminhoAssinatura,
+                    'initials_path' => $caminhoVisto,
+                    'initials_strokes' => $caminhoVisto !== null ? $tracosDoVisto : null,
                     'strokes' => $tracos,
                     'photo_path' => $caminhoFoto,
                     'photo_skipped_reason' => $motivoSemFoto,
@@ -257,6 +305,7 @@ class SignatureCaptureService
                             'segundos_de_leitura' => $payload['read_seconds'] ?? null,
                             'rolou_ate_o_fim' => (bool) ($payload['scrolled_to_end'] ?? false),
                             'com_foto' => $caminhoFoto !== null,
+                            'com_visto' => $caminhoVisto !== null,
                             'foto_ausente' => $motivoSemFoto,
                         ],
                     ],
@@ -289,7 +338,7 @@ class SignatureCaptureService
         } catch (\Throwable $e) {
             // Disco não participa de rollback: o que a transação não gravou
             // não pode ficar no disco.
-            $disk->delete(array_filter([$caminhoAssinatura, $caminhoFoto]));
+            $disk->delete(array_filter([$caminhoAssinatura, $caminhoFoto, $caminhoVisto]));
 
             throw $e;
         }

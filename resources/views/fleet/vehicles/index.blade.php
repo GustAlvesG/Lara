@@ -1,97 +1,91 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Frota — Veículos
-        </h2>
-    </x-slot>
+{{--
+    Cadastro dos veículos da frota. Tabela (é cadastro: nome, placa, km,
+    viagens lado a lado) com busca na página — a lista vem inteira.
+--}}
+@php
+    $th = 'px-4 py-3 text-left text-xs font-bold text-ink-3';
+    $td = 'px-4 py-3';
+@endphp
 
-    <x-slot name="css"></x-slot>
+<x-app-layout :bootstrap-grid="false">
+    <x-page>
+        <x-page-title title="Veículos">
+            Veículos cadastrados. A portaria enxerga apenas os ativos.
 
-    <div class="py-6">
-        <div class="mx-auto sm:px-6 lg:px-8 space-y-6">
+            <x-slot:actions>
+                @can(\App\Authorization\Permissions::SIV_FROTA)
+                    <x-secondary-button-a href="{{ route('fleet.index') }}"><x-icon name="car" /> Painel da frota</x-secondary-button-a>
+                @endcan
+                <x-primary-button-a href="{{ route('fleet.vehicles.create') }}"><x-icon name="plus" /> Novo veículo</x-primary-button-a>
+            </x-slot:actions>
+        </x-page-title>
 
-            @if (session('success'))
-                <div class="p-4 bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 text-green-800 dark:text-green-300 rounded-lg">
-                    {{ session('success') }}
-                </div>
-            @endif
+        @include('partials.alerts')
 
-            @if (session('error'))
-                <div class="p-4 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-800 dark:text-red-300 rounded-lg">
-                    {{ session('error') }}
-                </div>
-            @endif
+        @if ($vehicles->isEmpty())
+            <x-empty-state icon="car">
+                Nenhum veículo cadastrado.
+                <a href="{{ route('fleet.vehicles.create') }}" class="font-bold text-grena-ink hover:underline">Cadastrar o primeiro</a>.
+            </x-empty-state>
+        @else
+            <x-search-bar mode="client" target="#veiculos" placeholder="Buscar por nome, placa ou descrição" />
 
-            <div class="p-6 bg-white dark:bg-gray-800 shadow sm:rounded-lg space-y-4">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Veículos cadastrados</h3>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">A portaria enxerga apenas os ativos.</p>
-                    </div>
-                    <div class="flex gap-2">
-                        <a href="{{ route('fleet.index') }}"
-                           class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md font-semibold text-xs text-gray-600 dark:text-gray-300 uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                            Painel
-                        </a>
-                        <a href="{{ route('fleet.vehicles.create') }}"
-                           class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 transition">
-                            Novo Veículo
-                        </a>
-                    </div>
-                </div>
-
+            <div class="overflow-hidden rounded-card bg-surface shadow-card">
                 <div class="overflow-x-auto">
-                    <table class="w-full text-sm text-left text-gray-700 dark:text-gray-300">
-                        <thead class="text-xs uppercase text-gray-400 dark:text-gray-500 border-b border-gray-200 dark:border-gray-700">
-                            <tr>
-                                <th class="py-2 pr-3">Nome</th>
-                                <th class="py-2 pr-3">Placa</th>
-                                <th class="py-2 pr-3">Descrição</th>
-                                <th class="py-2 pr-3 text-right">Km atual</th>
-                                <th class="py-2 pr-3 text-right">Viagens</th>
-                                <th class="py-2 pr-3">Situação</th>
-                                <th class="py-2 pr-3 text-right">Ações</th>
+                    <table class="min-w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-line">
+                                <th class="{{ $th }}">Nome</th>
+                                <th class="{{ $th }}">Placa</th>
+                                <th class="{{ $th }}">Descrição</th>
+                                <th class="{{ $th }} text-right">Km atual</th>
+                                <th class="{{ $th }} text-right">Viagens</th>
+                                <th class="{{ $th }}">Situação</th>
+                                <th class="{{ $th }} text-right">Ações</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            @forelse ($vehicles as $vehicle)
-                                <tr class="border-b border-gray-100 dark:border-gray-700/60">
-                                    <td class="py-3 pr-3 font-semibold">{{ $vehicle->name }}</td>
-                                    <td class="py-3 pr-3 font-mono">{{ $vehicle->plate ?: '—' }}</td>
-                                    <td class="py-3 pr-3">{{ $vehicle->description ?: '—' }}</td>
-                                    <td class="py-3 pr-3 text-right font-mono">
+                        <tbody id="veiculos">
+                            @foreach ($vehicles as $vehicle)
+                                <tr data-search="{{ $vehicle->name }} {{ $vehicle->plate }} {{ $vehicle->description }} {{ $vehicle->active ? 'ativo' : 'inativo' }}"
+                                    class="border-b border-line transition last:border-0 hover:bg-subtle">
+                                    <td class="{{ $td }} font-semibold text-ink">{{ $vehicle->name }}</td>
+                                    <td class="{{ $td }}">
+                                        @if ($vehicle->plate)
+                                            <x-plate :plate="$vehicle->plate" size="sm" />
+                                        @else
+                                            <span class="text-ink-3">—</span>
+                                        @endif
+                                    </td>
+                                    <td class="{{ $td }} text-ink-2">{{ $vehicle->description ?: '—' }}</td>
+                                    <td class="{{ $td }} text-right font-mono text-ink">
                                         {{ $vehicle->current_odometer !== null ? number_format($vehicle->current_odometer, 0, ',', '.') : '—' }}
                                     </td>
-                                    <td class="py-3 pr-3 text-right">{{ $vehicle->trips_count }}</td>
-                                    <td class="py-3 pr-3">
-                                        <span class="px-2 py-1 rounded-full text-xs font-bold
-                                            {{ $vehicle->active ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300' }}">
-                                            {{ $vehicle->active ? 'Ativo' : 'Inativo' }}
-                                        </span>
+                                    <td class="{{ $td }} text-right font-mono text-ink">{{ $vehicle->trips_count }}</td>
+                                    <td class="{{ $td }}">
+                                        <x-pill :kind="$vehicle->active ? 'ok' : 'off'">{{ $vehicle->active ? 'Ativo' : 'Inativo' }}</x-pill>
                                     </td>
-                                    <td class="py-3 pr-3 text-right whitespace-nowrap">
-                                        <a href="{{ route('fleet.vehicles.edit', $vehicle) }}"
-                                           class="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline">Editar</a>
-                                        <form method="POST" action="{{ route('fleet.vehicles.destroy', $vehicle) }}" class="inline"
-                                              onsubmit="return confirm('Excluir este veículo?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="ml-3 text-red-600 dark:text-red-400 font-semibold hover:underline">Excluir</button>
-                                        </form>
+                                    <td class="{{ $td }} whitespace-nowrap text-right">
+                                        <div class="inline-flex items-center gap-1">
+                                            <a href="{{ route('fleet.vehicles.edit', $vehicle) }}" title="Editar" aria-label="Editar {{ $vehicle->name }}"
+                                               class="grid h-8 w-8 place-items-center rounded-full text-ink-3 transition hover:bg-subtle hover:text-ink">
+                                                <x-icon name="pencil" />
+                                            </a>
+                                            <form method="POST" action="{{ route('fleet.vehicles.destroy', $vehicle) }}" onsubmit="return confirm('Excluir este veículo?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" title="Excluir" aria-label="Excluir {{ $vehicle->name }}"
+                                                        class="grid h-8 w-8 place-items-center rounded-full text-ink-3 transition hover:bg-danger-soft hover:text-danger">
+                                                    <x-icon name="trash" />
+                                                </button>
+                                            </form>
+                                        </div>
                                     </td>
                                 </tr>
-                            @empty
-                                <tr>
-                                    <td colspan="7" class="py-6 text-center text-gray-400 dark:text-gray-500">Nenhum veículo cadastrado.</td>
-                                </tr>
-                            @endforelse
+                            @endforeach
                         </tbody>
                     </table>
                 </div>
             </div>
-
-        </div>
-    </div>
-
-    <x-slot name="js"></x-slot>
+        @endif
+    </x-page>
 </x-app-layout>
