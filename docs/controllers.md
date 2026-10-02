@@ -295,8 +295,8 @@ Depende de `CompanyService`.
 
 | Método | Assinatura | Descrição | Rota |
 |--------|-----------|-----------|------|
-| `search` | `search()` | Tela de busca com a contagem do dia. → View `parking.search` | `GET /parking/search` (perm. `search parking`) |
-| `show` | `show(Request $request)` | Busca por placa/horário e exibe acessos relacionados. → View `parking.show` | `POST /parking/find` (perm. `search parking`) |
+| `search` | `search()` | Tela de busca com a contagem do dia. → View `parking.search` | `GET /parking/search` (perm. `siv.busca`) |
+| `show` | `show(Request $request)` | Busca por placa/dia e exibe as leituras com quem estava no carro: associados (catracas), externos e pedidos de carro de aplicativo (`ParkingAccessCorrelationService`). → View `parking.show` | `POST /parking/find` (perm. `siv.busca`) |
 | `create`/`store`/`edit`/`update`/`destroy` | — | _stub_. | — |
 
 ---

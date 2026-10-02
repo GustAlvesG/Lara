@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateParkingRequest;
 use Illuminate\Http\Request;
 use App\Http\Controllers\FtpController;
 use App\Http\Controllers\AccessController;
+use App\Services\ParkingAccessCorrelationService;
 use DateTime;
 
 class ParkingController extends Controller
@@ -73,7 +74,13 @@ class ParkingController extends Controller
 
         // Busca os dados de estacionamento com base na placa do veículo e na data fornecida
         $data = Parking::where('plate', $plate)->whereBetween('entry_date', [$startOfDay, $endOfDay])->get();
-        
+
+        // Externos (terceirizado, freelancer, liberação pontual) e pedidos de
+        // carro de aplicativo: o pedido casa pela placa, o externo pelo horário.
+        $correlation = app(ParkingAccessCorrelationService::class);
+        $appCarRequests = $correlation->appCarRequests((string) $plate, $startOfDay, $endOfDay);
+        $appCarsByEntry = $correlation->appCarsByEntry($data->pluck('entry_date', 'id')->all(), $appCarRequests);
+
         // Inicializa arrays para os dados da resposta
         $response = [];
 
@@ -92,7 +99,11 @@ class ParkingController extends Controller
                 // Chama o método 'getImage' do controlador 'FtpController' para obter a imagem do carro
                 'file' => FtpController::getImage($item->file),
                 // Chama o método 'findAccessByTime' do controlador 'AccessController' para obter os dados de acesso
-                'access' => AccessController::findAccessByTime($item->entry_date, $item->gate)
+                'access' => AccessController::findAccessByTime($item->entry_date, $item->gate),
+                // Externos registrados na portaria em torno do mesmo horário
+                'externals' => $correlation->externalsAround($item->entry_date),
+                // Pedidos de carro de aplicativo desta placa liberados nesta leitura
+                'app_cars' => $appCarsByEntry[$item->id] ?? [],
             ];
 
             // Adiciona a cor do carro ao array do carro
@@ -102,6 +113,7 @@ class ParkingController extends Controller
         $lasts = Parking::where('plate', $plate)->where('entry_date', '<', $endOfDay)->orderBy('entry_date', 'desc')->limit(10)->get();
 
         $aux = [];
+        $auxExternals = [];
         foreach ($lasts as $item) {
             $temp_date = explode(' ', $item->entry_date);
             $temp_date[1] = str_replace('-', ':', $temp_date[1]);
@@ -110,12 +122,24 @@ class ParkingController extends Controller
             $date = $date->format('H:i:s d/m/Y');
 
             $aux[] = AccessController::findAccessByTime($item->entry_date, $item->gate);
+            $auxExternals[] = $correlation->externalsAround($item->entry_date);
         }
 
         $probaly = [];
         foreach ($aux as $item) {
             foreach ($item as $access) {
                 $probaly[] = $access->Name . " | " . $access->Telephone;
+            }
+        }
+
+        // Externo liberado também é candidato a condutor. O terceiro trecho
+        // da chave é o tipo, que a tela mostra como selo. Carro de aplicativo
+        // fica de fora: quem pediu é o passageiro, não quem dirige.
+        foreach ($auxExternals as $item) {
+            foreach ($item as $external) {
+                if ($external['allowed']) {
+                    $probaly[] = $external['name'] . " | " . $external['telephone'] . " | " . $external['label'];
+                }
             }
         }
 
@@ -136,7 +160,7 @@ class ParkingController extends Controller
 
 
         // Retorna a view 'parking.show' com os dados da resposta e do carro
-        return view('parking.show')->with('data', array_reverse($response))->with('plate', $plate)->with('datetime', $datetime)->with('car', $car)->with('probaly', $probaly);
+        return view('parking.show')->with('data', array_reverse($response))->with('plate', $plate)->with('datetime', $datetime)->with('car', $car)->with('probaly', $probaly)->with('appCarRequests', $appCarRequests);
     }
 
     /**
