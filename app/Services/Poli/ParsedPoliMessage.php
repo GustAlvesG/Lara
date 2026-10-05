@@ -2,6 +2,8 @@
 
 namespace App\Services\Poli;
 
+use Carbon\CarbonInterface;
+
 class ParsedPoliMessage
 {
     public const TYPE_TEXT = 'text';
@@ -46,6 +48,13 @@ class ParsedPoliMessage
          */
         public readonly ?int $webhookAttempt = null,
         public readonly ?string $webhookDeliveryId = null,
+        /**
+         * Quando a Poli criou a mensagem (`value.metadata.created_at`) — a
+         * hora em que o contato escreveu, não a em que ela chegou aqui. É o
+         * que separa a resposta a uma pergunta do que foi escrito antes de
+         * ela aparecer na tela. Nulo quando o evento não traz a hora.
+         */
+        public readonly ?CarbonInterface $createdAt = null,
     ) {}
 
     public function isClosed(): bool
@@ -77,6 +86,7 @@ class ParsedPoliMessage
             attendanceClosedReason: $this->attendanceClosedReason,
             webhookAttempt: $this->webhookAttempt,
             webhookDeliveryId: $this->webhookDeliveryId,
+            createdAt: $this->createdAt,
         );
     }
 }

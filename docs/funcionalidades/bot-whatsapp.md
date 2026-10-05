@@ -134,6 +134,16 @@ conferir e salvar.
 - **Atalho:** se a primeira mensagem já é o nome de uma opção do menu inicial ("financeiro"), ela
   vale como resposta. Pelo número não: quem manda "1" sem ter visto menu não escolheu nada.
 - **Menu antigo:** tocar num menu de uma etapa anterior não vale como resposta da etapa atual.
+  Menu da **mesma** etapa vale: depois de uma correção o menu é reenviado, e tocar no primeiro
+  dos dois menus iguais é escolher (comparado por `flow_slug`/`step_key` da mensagem tocada em
+  `poli_messages`).
+- **Rajada de abertura:** é comum o contato mandar várias mensagens de uma vez ("Bom dia" >
+  "Segue meu documento" > print). A mensagem que **não** é resposta válida e foi escrita antes da
+  última fala do bot, ou até `POLI_BOT_RAJADA_S` (5) segundos depois dela, fica no histórico sem
+  correção, sem menu de novo e sem gastar tentativa — o contato ainda não tinha visto a pergunta.
+  Resposta válida na rajada ("Financeiro") vale normalmente. A régua é a hora em que a Poli criou
+  a mensagem (`metadata.created_at`, senão `timestamp`), não a de chegada; evento sem essa hora
+  é tratado como antes. Mensagem escrita depois da janela continua recebendo a correção.
 - **Conversa parada** expira pelo tempo do fluxo; quem estava no meio recebe um aviso.
 - **Horário de atendimento:** fora dele o fluxo começa pelo passo "fora do horário". O padrão
   segue os templates da Poli (seg–sex 07:00–19:50; sáb, dom e feriados 07:00–18:00 — o template

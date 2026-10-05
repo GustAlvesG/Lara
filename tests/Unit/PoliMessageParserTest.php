@@ -237,6 +237,22 @@ class PoliMessageParserTest extends TestCase
         $this->assertSame('wamid.HBgNNTUyNDk5MjU0MjM2MxUCABIYFjNFQjAzRjM1QjFCOEE1QzUxQzA2Q0QA', $parsed->messageId);
     }
 
+    public function test_mensagem_traz_a_hora_em_que_foi_escrita(): void
+    {
+        $parser = new PoliMessageParser();
+
+        // Sem metadata.created_at, vale o value.timestamp do payload real.
+        $this->assertSame(1784555626, $parser->parse($this->realTextPayload())->createdAt?->getTimestamp());
+
+        $audio = $this->realTextPayload();
+        $audio['value']['type'] = 'AUDIO';
+        $audio['value']['metadata']['created_at'] = '2026-10-05T11:43:10.250Z';
+        $audio['value']['components'] = ['attachments' => [['type' => 'audio', 'media' => ['url' => 'https://cdn/a.ogg']]]];
+
+        $this->assertTrue($parser->isUnsupportedInbound($audio));
+        $this->assertSame('2026-10-05 11:43:10', $parser->parseUnsupported($audio)->createdAt?->utc()->format('Y-m-d H:i:s'));
+    }
+
     public function test_is_relevant_event_rejects_outbound_messages(): void
     {
         $payload = $this->realTextPayload();
