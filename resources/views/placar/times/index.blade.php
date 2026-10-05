@@ -1,59 +1,45 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Placar Clube — Times') }}
-        </h2>
-    </x-slot>
-
-<div class="py-12 bg-gray-50 dark:bg-gray-900 min-h-screen">
-    <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-
-        <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-                <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Times</h1>
-                <p class="text-gray-500 dark:text-gray-400 font-medium">Recorte de uma equipe por modalidade e categoria.</p>
-            </div>
-
-            <a href="{{ route('placar.times.create') }}" class="inline-flex items-center px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold shadow-lg hover:bg-emerald-700 transition duration-150 transform hover:scale-[1.02]">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                Novo Time
-            </a>
-        </div>
+<x-app-layout :bootstrap-grid="false">
+    <x-page>
+        <x-page-title title="Times">
+            Recorte de uma equipe por modalidade e categoria.
+            <x-slot:actions>
+                <x-primary-button-a href="{{ route('placar.times.create') }}"><x-icon name="plus" /> Novo time</x-primary-button-a>
+            </x-slot:actions>
+        </x-page-title>
 
         @include('partials.alerts')
 
-        <form method="GET" class="mb-6 flex flex-wrap items-center gap-3">
-            <input type="text" name="busca" value="{{ request('busca') }}" placeholder="Buscar por nome, categoria..."
-                class="px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
-            <select name="modalidade" class="px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
-                <option value="">Todas as modalidades</option>
-                @foreach($modalidades as $modalidade)
-                    <option value="{{ $modalidade->slug }}" @selected(request('modalidade') === $modalidade->slug)>{{ $modalidade->nome }}</option>
-                @endforeach
-            </select>
-            <select name="equipe_id" class="px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
-                <option value="">Todas as equipes</option>
-                @foreach($equipes as $equipe)
-                    <option value="{{ $equipe->id }}" @selected((string) request('equipe_id') === (string) $equipe->id)>{{ $equipe->nome }}</option>
-                @endforeach
-            </select>
-            <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                <input type="checkbox" name="criado_em_campo" value="1" @checked(request('criado_em_campo'))
-                    class="rounded border-gray-300 text-amber-600 focus:ring-amber-500">
-                Só criados em campo
-            </label>
-            <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-bold hover:bg-gray-900 transition">Filtrar</button>
-        </form>
+        <x-search-bar name="busca" placeholder="Buscar time, categoria ou equipe" :filters="['modalidade', 'equipe_id', 'criado_em_campo']">
+            <x-slot:controls>
+                <select name="modalidade" class="h-11 rounded-full border border-line-strong bg-surface px-4 text-sm text-ink focus:border-grena focus:ring-4 focus:ring-grena-tint w-full sm:w-auto">
+                    <option value="">Todas as modalidades</option>
+                    @foreach($modalidades as $modalidade)
+                        <option value="{{ $modalidade->slug }}" @selected(request('modalidade') === $modalidade->slug)>{{ $modalidade->nome }}</option>
+                    @endforeach
+                </select>
+                <select name="equipe_id" class="h-11 rounded-full border border-line-strong bg-surface px-4 text-sm text-ink focus:border-grena focus:ring-4 focus:ring-grena-tint w-full sm:w-auto">
+                    <option value="">Todas as equipes</option>
+                    @foreach($equipes as $equipe)
+                        <option value="{{ $equipe->id }}" @selected((string) request('equipe_id') === (string) $equipe->id)>{{ $equipe->nome }}</option>
+                    @endforeach
+                </select>
+                <label class="flex items-center gap-2 text-sm text-ink-2">
+                    <input type="checkbox" name="criado_em_campo" value="1" @checked(request('criado_em_campo'))
+                        class="rounded border-line-strong text-warn focus:ring-warn-soft">
+                    Só criados em campo
+                </label>
+            </x-slot:controls>
+        </x-search-bar>
 
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div class="overflow-hidden rounded-card bg-surface shadow-card">
             @if($times->isEmpty())
                 <div class="p-12 text-center">
-                    <p class="text-gray-500 dark:text-gray-400">Nenhum time cadastrado.</p>
+                    <p class="text-ink-2">Nenhum time cadastrado.</p>
                 </div>
             @else
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm text-left">
-                        <thead class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider bg-gray-50 dark:bg-gray-900/40">
+                        <thead class="border-b border-line text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">
                             <tr>
                                 <th class="px-6 py-3">Nome</th>
                                 <th class="px-6 py-3">Equipe</th>
@@ -62,20 +48,20 @@
                                 <th class="px-6 py-3 text-right">Ações</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        <tbody class="divide-y divide-line">
                             @foreach($times as $time)
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
-                                <td class="px-6 py-4 font-semibold text-gray-900 dark:text-white">
+                            <tr class="hover:bg-subtle transition">
+                                <td class="px-6 py-4 font-semibold text-ink">
                                     {{ $time->nomeExibicaoResolvido() }}
                                     @if($time->criado_em_campo)
-                                        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">Criado em campo</span>
+                                        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-warn-soft text-warn">Criado em campo</span>
                                     @endif
                                 </td>
-                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $time->equipe->nome }}</td>
-                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $time->modalidade->nome }}</td>
-                                <td class="px-6 py-4 text-gray-700 dark:text-gray-300">{{ $time->categoria }}</td>
+                                <td class="px-6 py-4 text-ink">{{ $time->equipe->nome }}</td>
+                                <td class="px-6 py-4 text-ink">{{ $time->modalidade->nome }}</td>
+                                <td class="px-6 py-4 text-ink">{{ $time->categoria }}</td>
                                 <td class="px-6 py-4 text-right space-x-3 whitespace-nowrap">
-                                    <a href="{{ route('placar.times.show', $time) }}" class="text-emerald-600 dark:text-emerald-400 hover:underline font-medium text-xs">Ver / Editar</a>
+                                    <a href="{{ route('placar.times.show', $time) }}" class="text-grena-ink hover:underline font-medium text-xs">Ver / Editar</a>
                                 </td>
                             </tr>
                             @endforeach
@@ -85,6 +71,5 @@
                 <div class="p-4">{{ $times->links() }}</div>
             @endif
         </div>
-    </div>
-</div>
+    </x-page>
 </x-app-layout>

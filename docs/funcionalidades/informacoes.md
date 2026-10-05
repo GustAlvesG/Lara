@@ -120,6 +120,11 @@ allow-list (`p`, `br`, `strong`/`b`, `em`/`i`, `u`, `span`, `div`, `table`, `the
 gravado antigamente pelo CKEditor (títulos, listas etc. viram texto simples ao serem
 reexibidos).
 
+O último botão da barra alterna **tela cheia**: o editor vira `position: fixed` ocupando a
+viewport inteira (classe `is-fullscreen`), a área editável estica até o rodapé e o scroll da
+página fica travado. Sai com o mesmo botão ou com `Esc`. É só CSS + classe — o conteúdo, a
+textarea escondida e o submit do form não são tocados.
+
 ### 3. Visualizar — `GET /information/{information}`
 Mostra todos os dados da versão atual (campos somente leitura). Preços aparecem como
 "Título — R$ X,XX (Sócio) | R$ Y,YY (Não Sócio)" e horários como "Dia — HH:MM–HH:MM". Há

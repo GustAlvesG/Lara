@@ -19,10 +19,9 @@ use Illuminate\Support\Carbon;
  * diretoria e pagamento.
  *
  * **Só leitura.** Nenhuma ação, nenhum botão que mude estado: aprovar continua
- * sendo da Gerência, e pagar, do Financeiro. O acesso é vínculo com o setor
- * Comercial em qualquer papel, ou o mesmo vínculo que dá o Financeiro
- * (Contabilidade / Gerência) — Gate `track-freelancer-batches`. Inclui quem não
- * tem `manage freelancers`, e por isso a rota fica fora daquele grupo.
+ * sendo da Gerência, e pagar, do Financeiro. O acesso é a permissão
+ * `freelancers.acompanhamento` (setor Comercial na matriz inicial), que não
+ * depende das outras permissões do módulo.
  */
 class TrackingController extends Controller
 {

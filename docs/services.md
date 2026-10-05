@@ -110,7 +110,7 @@ banco e integrações externas. Os controllers delegam a essas classes.
 | `create` | `create($data)` | Cria um freelancer. |
 | `get` | `get($cpf)` | Recupera o freelancer pelo CPF. |
 | `getFunctions` | `getFunctions()` | Lista as funções disponíveis. |
-| `createService` | `createService($data)` | Cria um registro de serviço de freelancer. |
+| `createService` | `createService($data)` | Cria um registro de serviço de freelancer. Deriva `end_date`, `total_hours` e `price`; com `pricing_mode = fixed`, o `price` é o `fixed_price` informado (contrato de valor fixo), e não o das horas. |
 | `markAsPaid` | `markAsPaid(FreelancerService $service, User $user)` | Baixa manual de pagamento (fluxo sem Pix). Registra quem deu e quando. |
 | `markManyAsPaid` | `markManyAsPaid(array $ids, User $user): int` | Baixa manual em lote. Ignora contratos não aptos ou já pagos. |
 | `requestPixForMany` | `requestPixForMany(array $ids, User $user): array` | **Move dinheiro.** Cria um `PixPayment` e enfileira um `SendFreelancerPixPayment` por contrato. Retorna `{queued, skipped, problems}`. **Não** marca `paid` — a baixa vem depois, do banco. |
@@ -191,6 +191,22 @@ Lança `SicoobCertificateException` (arquivo ausente/ilegível, senha errada, ha
 | `validateTryToAccess` | `validateTryToAccess($data)` | Valida a tentativa de acesso por CPF ou nome da empresa. Por CPF, consulta terceirizados **e** freelancers (contrato). |
 | `registerWorkerAccess` | `registerWorkerAccess(int $workerId)` | Valida e grava no histórico o acesso de um terceirizado já identificado. |
 | `registerFreelancerAccess` | `registerFreelancerAccess(int $freelancerId)` | Valida e grava no histórico o acesso de um freelancer — liberado pelo contrato vigente (30 min antes do turno até o término). |
+
+---
+
+## ParkingAccessCorrelationService
+
+`app/Services/ParkingAccessCorrelationService.php` — SIV, busca de placa: liga a leitura da
+câmera aos externos registrados na portaria e aos pedidos de carro de aplicativo. Os associados
+(catracas do MultiClubes) continuam em `AccessController::findAccessByTime`. Guia:
+[Placas de Carro](funcionalidades/estacionamento-placas.md#como-funciona-a-correlação-com-os-acessos).
+
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `externalsAround` | `externalsAround($entryDate): array` | Terceirizados, freelancers e liberações pontuais de `company_access_logs` registrados a até `EXTERNAL_WINDOW_SECONDS` (60 s) da leitura. Uma linha por pessoa; inclui o registro negado. |
+| `appCarRequests` | `appCarRequests(string $plate, $startOfDay, $endOfDay): Collection` | Pedidos de `uber_access_requests` da placa (normalizada) feitos ou liberados no dia. |
+| `appCarsByEntry` | `appCarsByEntry(array $entryDates, Collection $requests): array` | Distribui os pedidos liberados entre as leituras do dia: cada um vai para a mais próxima, a até `APP_CAR_WINDOW_SECONDS` (30 min). |
+| `appCarRow` | `appCarRow(UberAccessRequest $request): array` | Linha do pedido no formato da tabela de pessoas do acesso. |
 
 ---
 

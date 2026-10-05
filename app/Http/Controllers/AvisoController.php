@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Aviso;
+use App\Models\AvisoAcknowledgement;
 use App\Models\AvisoView;
 use App\Models\Lembrete;
 use App\Models\Tag;
@@ -50,9 +51,10 @@ class AvisoController extends Controller
             'viewed_at' => now(),
         ]);
 
-        $canManage = auth()->user()->can('manage avisos');
-        $viewHistory = $canManage
-            ? $aviso->views()->with('user:id,name')->get()
+        // Avisos são de todo mundo logado: quem vê o aviso vê também quem o leu.
+        // A privacidade (público, setor, grupo, pessoal) é do próprio aviso —
+        // ver Aviso::scopeVisibleTo().
+        $viewHistory = $aviso->views()->with('user:id,name')->get()
                 ->groupBy('user_id')
                 ->map(fn($entries) => [
                     'user'       => $entries->first()->user,
@@ -60,22 +62,79 @@ class AvisoController extends Controller
                     'count'      => $entries->count(),
                 ])
                 ->sortByDesc('last_view')
-                ->values()
+                ->values();
+
+        // Quem já deu ciência, quando o aviso é de leitura obrigatória.
+        $acknowledgements = $aviso->mandatory
+            ? $aviso->acknowledgements()->with('user:id,name')->get()
             : collect();
 
-        return view('avisos.show', compact('aviso', 'canManage', 'viewHistory'));
+        return view('avisos.show', compact('aviso', 'viewHistory', 'acknowledgements'));
+    }
+
+    /**
+     * Tela de ciência: o aviso obrigatório mais antigo que a pessoa ainda não
+     * confirmou, em tela cheia. O middleware `avisos_obrigatorios` traz para
+     * cá qualquer navegação enquanto houver pendência.
+     */
+    public function pending(Request $request)
+    {
+        $pendentes = Aviso::with('creator', 'tags')->mandatoryPendingFor($request->user())->get();
+
+        if ($pendentes->isEmpty()) {
+            return redirect()->intended(route('dashboard'));
+        }
+
+        return view('avisos.pending', [
+            'aviso' => $pendentes->first(),
+            'restantes' => $pendentes->count(),
+        ]);
+    }
+
+    /** Registra a ciência e devolve a pessoa para onde ela ia. */
+    public function acknowledge(Request $request, Aviso $aviso)
+    {
+        $request->validate(
+            ['confirm' => 'accepted'],
+            ['confirm.accepted' => 'Marque que leu o aviso para continuar.']
+        );
+
+        $user = $request->user();
+
+        // Só se confirma o que está de fato pendente para esta pessoa.
+        abort_unless(Aviso::mandatoryPendingFor($user)->whereKey($aviso->id)->exists(), 404);
+
+        AvisoAcknowledgement::firstOrCreate(
+            ['aviso_id' => $aviso->id, 'user_id' => $user->id],
+            ['acknowledged_at' => now(), 'ip_address' => $request->ip()]
+        );
+
+        // Se ainda houver outro pendente, o middleware traz de volta para cá.
+        return redirect()->intended(route('dashboard'));
+    }
+
+    /**
+     * Só coordenador de setor pode exigir leitura. Quem não é tem o campo
+     * ignorado — inclusive ao editar um aviso obrigatório de outra pessoa,
+     * que continua como estava.
+     */
+    private function mandatoryFrom(Request $request, ?Aviso $aviso = null): bool
+    {
+        if (! $request->user()->isCoordinator()) {
+            return (bool) $aviso?->mandatory;
+        }
+
+        return $request->boolean('mandatory');
     }
 
     public function create()
     {
-        $this->authorizeManage();
         $users = User::orderBy('name')->get(['id', 'name']);
         return view('avisos.create', compact('users'));
     }
 
     public function store(Request $request)
     {
-        $this->authorizeManage();
 
         $data = $request->validate([
             'title'                      => 'required|string|max:200',
@@ -91,6 +150,7 @@ class AvisoController extends Controller
         ]);
 
         $data['created_by'] = auth()->id();
+        $data['mandatory'] = $this->mandatoryFrom($request);
 
         if ($request->hasFile('image')) {
             $imageName = time() . '.' . $request->image->extension();
@@ -111,7 +171,6 @@ class AvisoController extends Controller
 
     public function edit(Aviso $aviso)
     {
-        $this->authorizeManage();
         $aviso->load('lembretes', 'tags', 'users');
         $users = User::orderBy('name')->get(['id', 'name']);
         return view('avisos.edit', compact('aviso', 'users'));
@@ -119,7 +178,6 @@ class AvisoController extends Controller
 
     public function update(Request $request, Aviso $aviso)
     {
-        $this->authorizeManage();
 
         $data = $request->validate([
             'title'                 => 'required|string|max:200',
@@ -146,6 +204,8 @@ class AvisoController extends Controller
             $data['image'] = null;
         }
 
+        $data['mandatory'] = $this->mandatoryFrom($request, $aviso);
+
         $aviso->update($data);
 
         $this->syncLembretes($aviso, $request->input('lembretes', []));
@@ -157,7 +217,6 @@ class AvisoController extends Controller
 
     public function destroy(Aviso $aviso)
     {
-        $this->authorizeManage();
         $aviso->delete();
         return redirect()->route('avisos.index')->with('success', 'Aviso removido.');
     }
@@ -210,15 +269,20 @@ class AvisoController extends Controller
         $users->each(fn($user) => $user->notify($notification));
     }
 
+    /**
+     * Quem divide ao menos um setor com o criador — a mesma régua de
+     * Aviso::scopeVisibleTo() para a privacidade "setor". (Antes era a role
+     * do Spatie, e a notificação ia para gente que nem enxergava o aviso.)
+     */
     private function usersInSameSetor(Aviso $aviso): \Illuminate\Support\Collection
     {
-        $creator = User::with('roles')->find($aviso->created_by);
-        if (!$creator || $creator->roles->isEmpty()) {
+        $creator = User::with('sectors')->find($aviso->created_by);
+        if (!$creator || $creator->sectors->isEmpty()) {
             return collect([$creator])->filter();
         }
 
-        $roleNames = $creator->roles->pluck('name');
-        return User::whereHas('roles', fn($q) => $q->whereIn('name', $roleNames))->get();
+        $sectorIds = $creator->sectors->pluck('id');
+        return User::whereHas('sectors', fn($q) => $q->whereIn('sectors.id', $sectorIds))->get();
     }
 
     private function deleteImage(?string $filename): void
@@ -226,10 +290,5 @@ class AvisoController extends Controller
         if ($filename && file_exists(public_path('images/avisos/' . $filename))) {
             unlink(public_path('images/avisos/' . $filename));
         }
-    }
-
-    private function authorizeManage(): void
-    {
-        abort_unless(auth()->user()->can('manage avisos'), 403);
     }
 }

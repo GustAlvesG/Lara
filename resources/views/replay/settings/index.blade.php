@@ -19,7 +19,6 @@
 
         @include('partials.alerts')
 
-        @include('replay.partials.tabs', ['current' => 'settings'])
 
         @forelse($rows as $row)
             @php($group = $row['group'])

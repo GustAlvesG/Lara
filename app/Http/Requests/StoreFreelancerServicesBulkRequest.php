@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\ValidatesServiceSchedule;
 use App\Models\Freelancer;
 use App\Models\FreelancerService;
 use Illuminate\Foundation\Http\FormRequest;
@@ -12,10 +13,15 @@ use Illuminate\Support\Collection;
  * planilha. Mesmas regras do registro individual, aplicadas linha a linha, e o
  * erro aponta o número da linha para quem preencheu achar onde corrigir.
  *
- * `total_hours`, `end_date` e `price` continuam sendo derivados no servidor.
+ * `total_hours`, `end_date` e `price` continuam sendo derivados no servidor. A
+ * linha de valor fixo manda `pricing_mode` = fixed e o valor em `fixed_price`.
  */
 class StoreFreelancerServicesBulkRequest extends FormRequest
 {
+    // Só as regras do valor: as do período são conferidas linha a linha, mais
+    // abaixo, e o `withValidator()` daqui é o que vale.
+    use ValidatesServiceSchedule;
+
     /** Teto de linhas por envio — segura tanto a tela quanto o POST. */
     public const MAX_ROWS = 100;
 
@@ -26,7 +32,7 @@ class StoreFreelancerServicesBulkRequest extends FormRequest
 
     public function rules(): array
     {
-        return [
+        return $this->pricingRules('services.*.') + [
             'services' => ['required', 'array', 'min:1', 'max:' . self::MAX_ROWS],
             'services.*.freelancer_id' => ['required', 'integer', 'exists:freelancers,id'],
             'services.*.function_freelancer_id' => ['required', 'integer', 'exists:function_freelancers,id'],
@@ -48,6 +54,8 @@ class StoreFreelancerServicesBulkRequest extends FormRequest
             'start_date' => 'data',
             'start_time' => 'horário de início',
             'end_time' => 'horário de término',
+            'pricing_mode' => 'forma de cálculo do valor',
+            'fixed_price' => 'valor fixo',
         ];
 
         // "linha 3: horário de término" lê melhor que "services.2.end_time".
@@ -64,7 +72,7 @@ class StoreFreelancerServicesBulkRequest extends FormRequest
 
     public function messages(): array
     {
-        return [
+        return $this->pricingMessages('services.*.') + [
             'services.required' => 'Adicione ao menos uma linha para registrar.',
             'services.max' => 'São no máximo ' . self::MAX_ROWS . ' linhas por envio.',
         ];

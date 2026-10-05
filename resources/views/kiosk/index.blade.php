@@ -14,6 +14,8 @@
     // constante do model porque o script roda em bloco literal (sem Blade), e
     // um 10 digitado à mão aqui divergiria em silêncio da regra do servidor.
     salesReasonMin: {{ \App\Models\FreelancerService::SALES_ADJUSTMENT_REASON_MIN }},
+    // Teto do valor fixo do contrato — o mesmo que o servidor confere.
+    maxFixedPrice: {{ \App\Models\FreelancerService::MAX_FIXED_PRICE }},
   };</script>
 @verbatim
   <style>
@@ -389,6 +391,7 @@
       <div class="screen-foot">
         <button class="btn btn-primary" id="cpfNext" disabled>Buscar freelancer</button>
         <button class="btn btn-ghost" id="cpfBusca">Precisa chamar alguém? Buscar por função</button>
+        <button class="btn btn-ghost" id="cpfDia">Contratos do dia · registrar falta</button>
       </div>
     </section>
 
@@ -425,6 +428,53 @@
       <div class="screen-foot">
         <button class="btn btn-ghost" id="buscaTrocar">Trocar função</button>
         <button class="btn-quiet btn" data-go="cpf">Voltar ao atendimento</button>
+      </div>
+    </section>
+
+    <!-- ===== CONTRATOS DO DIA =====
+         Um dia inteiro, de todos os freelancers: quem estava escalado, quem
+         assinou e quem não apareceu. É por aqui que se dá baixa no turno que
+         não foi cumprido — a falta devolve a vaga da semana, e o freelancer que
+         faltou na quarta pode ser contratado no sábado sem a liberação do
+         coordenador.
+
+         Só de hoje para trás: num dia que ainda não chegou não há falta a
+         registrar, e poder marcá-la seria o caminho para esvaziar a agenda da
+         semana e furar o limite. -->
+    <section class="screen" id="s-dia">
+      <div class="screen-body">
+        <p class="eyebrow">Contratos do dia</p>
+        <h2 class="title" id="diaTitle">Hoje</h2>
+        <p class="subtitle">Quem estava escalado, quem já assinou e quem não apareceu.</p>
+        <div class="chipset" id="diaDays" style="margin-top:20px">
+          <button class="opt" data-dia-day="0">Hoje</button>
+          <button class="opt" data-dia-day="-1">Ontem</button>
+        </div>
+        <p class="field-label" style="margin-top:20px">Outra data</p>
+        <input type="date" class="txt-input" id="diaDate">
+        <p class="subtitle" id="diaResumo" style="margin-top:18px"></p>
+        <div class="clist" id="diaList" style="margin-top:10px"></div>
+      </div>
+      <div class="screen-foot">
+        <button class="btn-quiet btn" data-go="cpf">Voltar ao atendimento</button>
+      </div>
+    </section>
+
+    <!-- ===== LIMITE SEMANAL: algum daqueles dias não foi trabalhado? =====
+         Antes de gastar a liberação do coordenador, a tela mostra os contratos
+         que estão ocupando as vagas da semana. Se um deles não foi cumprido, o
+         caso é marcar falta: o problema é de cadastro, não uma exceção à regra.
+         Sem nenhum candidato a falta, esta tela nem aparece. -->
+    <section class="screen" id="s-falta">
+      <div class="screen-body">
+        <p class="eyebrow">Limite semanal</p>
+        <h2 class="title">Algum destes dias não foi trabalhado?</h2>
+        <p class="subtitle" id="faltaSub"></p>
+        <div class="clist" id="faltaList" style="margin-top:18px"></div>
+      </div>
+      <div class="screen-foot">
+        <button class="btn btn-primary" id="faltaNenhum">Todos foram trabalhados · pedir liberação</button>
+        <button class="btn-quiet btn" data-go="previa">Voltar à prévia</button>
       </div>
     </section>
 
@@ -504,7 +554,7 @@
     <!-- ===== NOVO CONTRATO ===== -->
     <section class="screen" id="s-novo">
       <div class="screen-body">
-        <div class="steps" id="novoSteps"><i class="done"></i><i></i><i></i><i></i><i></i></div>
+        <div class="steps" id="novoSteps"><i class="done"></i><i></i><i></i><i></i><i></i><i></i></div>
         <div class="nstep" data-step="0">
           <h2 class="title">Quando o turno começou?</h2>
           <p class="subtitle">Dia em que o serviço teve início</p>
@@ -538,6 +588,16 @@
           <label class="subtitle" style="display:block;margin-top:22px">Descrição / justificativa <span style="opacity:.6">(opcional)</span></label>
           <textarea class="txt-input" id="descInput" rows="3" maxlength="2000" placeholder="Esclarecimentos sobre o serviço. Não vai ao contrato." style="margin-top:8px;resize:none" autocomplete="off"></textarea>
         </div>
+        <div class="nstep" data-step="5" style="display:none">
+          <h2 class="title">Valor do contrato</h2>
+          <p class="subtitle">O padrão é por horas, calculado pela função e pelo período</p>
+          <div class="chipset" id="pricingModes" style="margin-top:20px;flex-direction:column"></div>
+          <div id="fixedBox" style="display:none">
+            <div class="display" style="margin-top:20px"><div class="val placeholder" id="fixedVal">R$ 0,00</div></div>
+            <div class="hint" id="fixedHint" style="text-align:center;color:var(--brand);font-size:13px;min-height:18px">&nbsp;</div>
+            <div class="keypad" id="fixedKeypad"></div>
+          </div>
+        </div>
       </div>
       <div class="screen-foot">
         <button class="btn btn-primary" id="novoNext" disabled>Continuar</button>
@@ -550,7 +610,7 @@
       <div class="screen-body">
         <p class="eyebrow">Confira antes de gravar</p>
         <h2 class="title">Prévia do contrato</h2>
-        <p class="subtitle">Valor e término calculados pelo servidor</p>
+        <p class="subtitle">Término calculado pelo servidor; o valor também, salvo no contrato de valor fixo</p>
         <div class="receipt" id="previaReceipt" style="margin-top:18px"></div>
         <div id="previaWarn"></div>
       </div>
@@ -888,11 +948,11 @@
   }
   $$('[data-go]').forEach(b=> b.addEventListener('click', ()=> go('s-'+b.dataset.go)));
   function updateCtx(){
-    const map={'s-mode':'Escolha o modo','s-coord':'Contratos pendentes','s-lote':'Lote de aprovação','s-cpf':'Localizar freelancer','s-busca':'Buscar por função','s-busca-lista':'Buscar por função','s-cadastro':'Cadastro','s-menu':'Atendimento','s-novo':'Novo contrato','s-previa':'Prévia','s-contratos':'Contratos','s-aditivo':'Aditivo','s-adit-previa':'Prévia do aditivo','s-comissao':'Comissão de venda','s-com-previa':'Prévia da comissão','s-pix':'Conferência da chave PIX','s-assinar':'Assinatura','s-pin':'Confirmação','s-janta':'Jantar'};
+    const map={'s-mode':'Escolha o modo','s-coord':'Contratos pendentes','s-lote':'Lote de aprovação','s-cpf':'Localizar freelancer','s-busca':'Buscar por função','s-busca-lista':'Buscar por função','s-dia':'Contratos do dia','s-falta':'Limite semanal','s-cadastro':'Cadastro','s-menu':'Atendimento','s-novo':'Novo contrato','s-previa':'Prévia','s-contratos':'Contratos','s-aditivo':'Aditivo','s-adit-previa':'Prévia do aditivo','s-comissao':'Comissão de venda','s-com-previa':'Prévia da comissão','s-pix':'Conferência da chave PIX','s-assinar':'Assinatura','s-pin':'Confirmação','s-janta':'Jantar'};
     if(S.mode==='coordinator'){ $('#ctxLine').textContent='Coordenação · '+(S.operator&&S.operator.coordinator_sector||'Comercial'); return; }
-    // A busca não é atendimento de ninguém: mesmo com um freelancer ainda em
-    // memória, o topo diz o que a tela está fazendo.
-    const busca = current==='s-busca' || current==='s-busca-lista';
+    // A busca e a lista do dia não são atendimento de ninguém: mesmo com um
+    // freelancer ainda em memória, o topo diz o que a tela está fazendo.
+    const busca = current==='s-busca' || current==='s-busca-lista' || current==='s-dia';
     $('#ctxLine').textContent = (S.freelancer && !busca) ? S.freelancer.name : (map[current]||'Sessão de atendimento');
   }
 
@@ -1067,6 +1127,102 @@
   $('#cpfBusca').addEventListener('click', openBusca);
   $('#buscaTrocar').addEventListener('click', ()=> go('s-busca'));
 
+  /* ---------- Contratos do dia / falta ----------
+     A conferência do fim do expediente: os contratos de um dia, de todos os
+     freelancers, e a baixa de quem não apareceu. Marcar falta devolve a vaga
+     daquele dia na semana do freelancer — é o que destrava quem faltou na
+     quarta e veio no sábado sem precisar da liberação do coordenador.
+
+     O servidor só aceita datas até hoje, e a tela não oferece outras. */
+  const WEEKDAYS=['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+  function weekdayBr(iso){ if(!iso) return ''; const [y,m,d]=iso.split('-').map(Number); return WEEKDAYS[new Date(y,m-1,d).getDay()]; }
+  const D = { iso:null };
+  function openDia(){
+    D.iso=isoLocal(0);
+    const hoje=isoLocal(0);
+    $('#diaDate').max=hoje; $('#diaDate').value=D.iso;
+    renderDiaDays(); go('s-dia'); loadDia();
+  }
+  function renderDiaDays(){ $$('#diaDays [data-dia-day]').forEach(b=> b.classList.toggle('sel', isoLocal(+b.dataset.diaDay)===D.iso)); }
+  $$('#diaDays [data-dia-day]').forEach(b=> b.addEventListener('click', ()=>{
+    D.iso=isoLocal(+b.dataset.diaDay); $('#diaDate').value=D.iso; renderDiaDays(); loadDia();
+  }));
+  $('#diaDate').addEventListener('change', ()=>{
+    const v=$('#diaDate').value;
+    if(!v){ $('#diaDate').value=D.iso; return; }
+    // O `max` do campo não basta: teclado e colagem passam por cima dele.
+    if(v>isoLocal(0)){ toast('Só é possível consultar contratos de hoje ou de dias anteriores.',true); $('#diaDate').value=D.iso; return; }
+    D.iso=v; renderDiaDays(); loadDia();
+  });
+  async function loadDia(){
+    const list=$('#diaList'); list.innerHTML='<p class="subtitle" style="text-align:center;padding:20px 0">Carregando…</p>';
+    $('#diaResumo').textContent='';
+    try{
+      const r=await api('GET','/kiosk/services/day?date='+D.iso);
+      if(!r.ok){ list.innerHTML=`<p class="subtitle" style="text-align:center;padding:20px 0">${esc(firstError(r.data)||'Erro ao carregar.')}</p>`; return; }
+      renderDia(r.data);
+    }catch(e){ if(!e.handled) list.innerHTML='<p class="subtitle" style="text-align:center;padding:20px 0">Falha de conexão.</p>'; }
+  }
+  function renderDia(d){
+    $('#diaTitle').textContent=(d.is_today?'Hoje · ':'')+weekdayBr(d.date)+', '+brFromIso(d.date);
+    const list=$('#diaList'); list.innerHTML='';
+    if(!d.services.length){ list.innerHTML='<p class="subtitle" style="text-align:center;padding:30px 0">Nenhum contrato neste dia.</p>'; return; }
+    const faltas=d.services.filter(s=>s.is_no_show).length;
+    const abertos=d.services.filter(s=>s.can_mark_no_show).length;
+    $('#diaResumo').textContent=`${d.services.length} contrato(s) · ${abertos} sem assinatura`
+      + (faltas ? ` · ${faltas} falta(s) registrada(s)` : '');
+    d.services.forEach(s=> list.appendChild(faltaCard(s, loadDia)));
+  }
+  /**
+   * Cartão das listas que atravessam vários contratos (o dia e a semana do
+   * limite). `heading` é o que o cartão destaca: na lista do dia, de quem é o
+   * contrato; na da semana, que dia é aquele — ali o freelancer é sempre o
+   * mesmo, e o que se está escolhendo é a data.
+   */
+  function faltaCard(s, onDone, heading){
+    const el=document.createElement('div'); el.className='contract';
+    const chipClass = (s.is_no_show || s.is_cancelled) ? 'unsigned'
+                    : (s.status_label==='Assinado' ? 'done' : (s.status_label==='Não assinado' ? 'unsigned' : 'await'));
+    const titulo = heading || s.freelancer_name || '—';
+    const sub = heading ? (s.freelancer_name ? esc(s.freelancer_name)+' · ' : '') + esc(s.function||'—')
+                        : esc(s.function||'—') + ' · ' + esc(s.location||'—');
+    el.innerHTML=`<div class="row1"><span class="num">#${s.id}</span><span class="fn">${esc(titulo)}</span><span class="chip ${chipClass}">${esc(s.status_label)}</span></div>
+      <div class="loc">${sub}</div>
+      <div class="when"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
+      ${s.start_date_br} · ${s.start_time}–${s.end_time} · <b>${brl(s.price)}</b></div>
+      <div class="acts"></div>`;
+    if(s.can_mark_no_show) resetFaltaActs(el, s, onDone);
+    return el;
+  }
+  /**
+   * A falta não pede PIN: o operador saberia o próprio PIN, então ele não seria
+   * barreira contra quem quisesse usar a baixa para furar o limite — quem
+   * segura isso são as travas do servidor e o nome de quem marcou ficar
+   * gravado. O que a confirmação no cartão evita é o toque errado.
+   */
+  function resetFaltaActs(el, s, onDone){
+    const acts=el.querySelector('.acts');
+    acts.innerHTML='<button class="btn btn-ghost" data-falta>Marcar falta</button>';
+    acts.querySelector('[data-falta]').addEventListener('click', ()=> confirmFalta(el, s, onDone));
+  }
+  function confirmFalta(el, s, onDone){
+    const acts=el.querySelector('.acts');
+    const primeiro=((s.freelancer_name||'').trim().split(/\s+/)[0])||'o freelancer';
+    acts.innerHTML=`<button class="btn btn-primary" data-sim>Confirmar: ${esc(primeiro)} não trabalhou</button>`
+                  +`<button class="btn btn-ghost" data-nao>Voltar</button>`;
+    acts.querySelector('[data-nao]').addEventListener('click', ()=> resetFaltaActs(el, s, onDone));
+    acts.querySelector('[data-sim]').addEventListener('click', async ev=>{
+      const b=ev.currentTarget; b.disabled=true; b.textContent='Registrando…';
+      try{
+        const r=await api('POST',`/kiosk/service/${s.id}/no-show`);
+        if(r.ok){ toast('Falta registrada · a vaga da semana foi devolvida'); if(onDone) onDone(); return; }
+        toast((r.data&&(r.data.error||firstError(r.data)))||'Não foi possível marcar a falta.',true);
+        resetFaltaActs(el, s, onDone);
+      }catch(e){ if(!e.handled){ toast('Falha de conexão.',true); resetFaltaActs(el, s, onDone); } }
+    });
+  }
+  $('#cpfDia').addEventListener('click', openDia);
+
   /* ---------- Cadastro ---------- */
   function openCadastro(cpf){ S.newCpf=cpf; $$('#cadForm [data-f]').forEach(i=>{ if(i.dataset.f!=='nacionality') i.value=''; }); go('s-cadastro'); }
   $('#cadSave').addEventListener('click', async ()=>{
@@ -1122,7 +1278,8 @@
   /* ---------- Novo contrato ---------- */
   let nstep=0;
   async function startNovo(){
-    S.draft={ day:null, dayIso:'', start:'', end:'', fn:null, loc:'', description:'' };
+    // `pricing`: por horas (padrão) ou valor fixo, digitado em centavos.
+    S.draft={ day:null, dayIso:'', start:'', end:'', fn:null, loc:'', description:'', pricing:'hourly', fixedCents:0 };
     if(!S.functions.length){ try{ const r=await api('GET','/kiosk/functions'); if(r.ok) S.functions=r.data; }catch(e){ if(e.handled) return; } }
     nstep=0; showStep(); go('s-novo');
   }
@@ -1130,7 +1287,7 @@
     $$('#s-novo .nstep').forEach(el=> el.style.display=(+el.dataset.step===nstep)?'block':'none');
     $$('#novoSteps i').forEach((el,i)=> el.classList.toggle('done', i<=nstep));
     $('#novoBack').textContent = nstep===0?'Cancelar':'Voltar';
-    $('#novoNext').textContent = nstep===4?'Ver prévia':'Continuar';
+    $('#novoNext').textContent = nstep===5?'Ver prévia':'Continuar';
     validateStep();
   }
   function validateStep(){ const d=S.draft; let ok=false;
@@ -1139,6 +1296,7 @@
     if(nstep===2) ok=validTime(d.end);
     if(nstep===3) ok=!!d.fn;
     if(nstep===4) ok=d.loc.trim().length>1;
+    if(nstep===5) ok= d.pricing!=='fixed' || (d.fixedCents>0 && d.fixedCents/100<=MAX_FIXED_PRICE);
     $('#novoNext').disabled=!ok;
   }
   $$('#s-novo [data-day]').forEach(b=> b.addEventListener('click', ()=>{
@@ -1171,8 +1329,39 @@
   $('#locInput').addEventListener('input', ()=>{ S.draft.loc=$('#locInput').value; validateStep(); });
   $('#descInput').addEventListener('input', ()=>{ S.draft.description=$('#descInput').value; });
 
+  /* Valor do contrato: por horas é o padrão; o valor fixo é digitado aqui e
+     substitui a conta das horas. O servidor confere os dois casos. */
+  const MAX_FIXED_PRICE = KIOSK.maxFixedPrice || 100000;
+  const PRICING_MODES = {
+    hourly: { label:'Por horas (padrão)', hint:'Blocos de 15 min × valor da função' },
+    fixed:  { label:'Valor fixo',         hint:'Valor digitado, qualquer que seja a duração' }
+  };
+  function renderPricing(){
+    const d=S.draft, host=$('#pricingModes'); host.innerHTML='';
+    Object.keys(PRICING_MODES).forEach(k=>{
+      const m=PRICING_MODES[k];
+      const b=document.createElement('button');
+      b.className='opt fn-opt'+(d.pricing===k?' sel':'');
+      b.style.flexDirection='column'; b.style.alignItems='flex-start'; b.style.gap='4px'; b.style.padding='16px';
+      b.innerHTML=`<span>${m.label}</span><span class="price" style="font-size:12.5px">${m.hint}</span>`;
+      b.addEventListener('click', ()=>{ d.pricing=k; renderPricing(); });
+      host.appendChild(b);
+    });
+    $('#fixedBox').style.display = d.pricing==='fixed' ? 'block' : 'none';
+    const el=$('#fixedVal');
+    el.textContent=brl(d.fixedCents/100);
+    el.classList.toggle('placeholder', d.fixedCents===0);
+    $('#fixedHint').innerHTML = d.fixedCents/100>MAX_FIXED_PRICE
+      ? 'Valor acima do limite aceito. Confira o que foi digitado.' : '&nbsp;';
+    validateStep();
+  }
+  /* Mesmo teclado de dinheiro da comissão: os dígitos entram pelos centavos. */
+  buildKeypad($('#fixedKeypad'),
+    d=>{ if(String(S.draft.fixedCents).length<9){ S.draft.fixedCents=S.draft.fixedCents*10+Number(d); renderPricing(); } },
+    ()=>{ S.draft.fixedCents=Math.floor(S.draft.fixedCents/10); renderPricing(); });
+
   $('#novoNext').addEventListener('click', ()=>{
-    if(nstep<4){ nstep++; if(nstep===3) renderFnList(); if(nstep===4){ $('#locInput').value=S.draft.loc||''; $('#descInput').value=S.draft.description||''; } showStep(); }
+    if(nstep<5){ nstep++; if(nstep===3) renderFnList(); if(nstep===4){ $('#locInput').value=S.draft.loc||''; $('#descInput').value=S.draft.description||''; } if(nstep===5) renderPricing(); showStep(); }
     else showPrevia();
   });
   $('#novoBack').addEventListener('click', ()=>{ if(nstep===0) go('s-menu'); else { nstep--; showStep(); } });
@@ -1181,22 +1370,31 @@
   function rrow(k,v){ return `<div class="rrow"><span class="k">${k}</span><span class="v">${v}</span></div>`; }
   function showPrevia(){
     const d=S.draft, r=calc(d.start,d.end,d.fn.price);
+    const fixed = d.pricing==='fixed';
     const endIso = r.crosses ? nextDayIso(d.dayIso) : d.dayIso;
     let h=`<div class="head"><div class="fn">${esc(d.fn.name)}</div><div class="fl">${esc(S.freelancer.name)}</div></div>`;
     h+=rrow('Local', esc(d.loc));
     if(d.description && d.description.trim()) h+=rrow('Descrição', esc(d.description.trim()));
     h+=rrow('Início', `${brFromIso(d.dayIso)} · ${d.start}`);
     h+=rrow('Término', `${brFromIso(endIso)} · ${d.end}`+(r.crosses?' <span style="color:var(--warning)">(vira o dia)</span>':''));
-    if(r.paidMin!==r.dur){ h+=rrow('Duração real', fmtDur(r.dur)); h+=rrow('Horas pagas', `${fmtDur(r.paidMin)} <span class="note">(${r.blocks} blocos)</span>`); }
+    // Valor fixo: as horas não são o que se paga, então some a conta dos
+    // blocos e fica só a duração do turno.
+    if(fixed){ h+=rrow('Duração', fmtDur(r.dur)); h+=rrow('Valor', 'Valor fixo <span class="note">(digitado, não calculado pelas horas)</span>'); }
+    else if(r.paidMin!==r.dur){ h+=rrow('Duração real', fmtDur(r.dur)); h+=rrow('Horas pagas', `${fmtDur(r.paidMin)} <span class="note">(${r.blocks} blocos)</span>`); }
     else h+=rrow('Duração', `${fmtDur(r.dur)} <span class="note">(${r.blocks} blocos de 15 min)</span>`);
     // A chave aparece já aqui, antes de gravar: quem confere o contrato confere
     // também para onde ele vai ser pago. A conferência com o freelancer, essa,
     // acontece na tela própria antes da assinatura.
     h+=rrow('Pagamento', `Pix · ${esc(S.freelancer.pix_key_formatted||'—')}`);
-    h+=`<div class="rrow total"><span class="k">Valor a pagar</span><span class="v">${brl(r.price)}</span></div>`;
+    h+=`<div class="rrow total"><span class="k">Valor a pagar</span><span class="v">${brl(fixed ? d.fixedCents/100 : r.price)}</span></div>`;
     $('#previaReceipt').innerHTML=h; $('#previaWarn').innerHTML=''; go('s-previa');
   }
-  function servicePayload(){ const d=S.draft; return { freelancer_id:S.freelancer.id, function_freelancer_id:d.fn.id, location:d.loc.trim(), description:(d.description||'').trim()||null, start_date:d.dayIso, start_time:d.start, end_time:d.end }; }
+  function servicePayload(){ const d=S.draft;
+    const payload={ freelancer_id:S.freelancer.id, function_freelancer_id:d.fn.id, location:d.loc.trim(), description:(d.description||'').trim()||null, start_date:d.dayIso, start_time:d.start, end_time:d.end, pricing_mode:d.pricing };
+    // O valor só acompanha o contrato de valor fixo: digitado e depois
+    // abandonado na troca para "por horas", ele não vai junto.
+    if(d.pricing==='fixed') payload.fixed_price=d.fixedCents/100;
+    return payload; }
   $('#registrarBtn').addEventListener('click', ()=> submitService(false));
   /**
    * Acima do limite de 7 dias o servidor devolve 409 e o contrato só é gravado
@@ -1214,11 +1412,40 @@
       // Cadastro ficou incompleto (ex.: alterado noutra tela): abre o formulário
       // de completar em vez de deixar o contrato ser gravado sem dados.
       if(r.status===422 && r.data && r.data.incomplete_freelancer){ S.freelancer=r.data.freelancer; toast(r.data.error||'Cadastro incompleto.',true); openCompletar(); return false; }
-      if(r.status===409){ openPin('weekly', r.data.message, r.data.coordinator_sector); return false; }
+      if(r.status===409){ openLimite(r.data); return false; }
       if(r.status===401){ weeklyAuthFailed(r.data); return false; }
       toast((r.data && (r.data.message||firstError(r.data)))||'Não foi possível registrar.',true); return false;
     }catch(e){ if(!e.handled) toast('Falha de conexão.',true); return false; }
   }
+  /**
+   * Limite semanal batido. Antes de pedir a liberação do coordenador, a tela
+   * oferece a saída que resolve o caso mais comum: um dos contratos que ocupam
+   * a semana não foi cumprido. Marcada a falta, a vaga volta e o registro passa
+   * sozinho — a liberação fica para quem de fato vai trabalhar três dias.
+   *
+   * Sem nenhum candidato a falta (todos assinados, ou ainda por vir), vai
+   * direto para a liberação, como era antes.
+   */
+  const W = { data:null };
+  function openLimite(data){
+    W.data=data;
+    const candidatos=(data.week_services||[]).filter(s=>s.can_mark_no_show);
+    if(!candidatos.length){ openPin('weekly', data.message, data.coordinator_sector); return; }
+    $('#faltaSub').textContent=(data.message||'')
+      + ' Se um destes dias não foi trabalhado, marque a falta: a vaga volta e o contrato de hoje é registrado sem liberação.';
+    const list=$('#faltaList'); list.innerHTML='';
+    // Registrada a falta, tenta gravar de novo. Sobrando mais de um contrato na
+    // semana, o próprio 409 reabre esta tela — já sem o que foi baixado.
+    candidatos.forEach(s=> list.appendChild(
+      faltaCard(s, ()=> submitService(false), weekdayBr(s.start_date)+', '+s.start_date_br)
+    ));
+    go('s-falta');
+  }
+  $('#faltaNenhum').addEventListener('click', ()=>{
+    if(W.data) openPin('weekly', W.data.message, W.data.coordinator_sector);
+  });
+  function temCandidatoAFalta(){ return !!(W.data && (W.data.week_services||[]).some(s=>s.can_mark_no_show)); }
+
   /** Erro na liberação: volta para a matrícula ou só limpa o segredo, conforme o passo. */
   function weeklyAuthFailed(data){
     const msg=(data && data.error)||'Não foi possível liberar.';
@@ -1253,12 +1480,13 @@
       const aditChip = c.is_commission ? '<span class="chip adit">Comissão</span>'
                      : c.is_amendment ? '<span class="chip adit">Aditivo</span>'
                      : (c.is_amended ? '<span class="chip unsigned">Aditivado</span>' : '');
+      const fixChip = c.is_fixed_price && !c.is_commission ? '<span class="chip unsigned" style="margin-left:6px">Valor fixo</span>' : '';
       const acts = (c.can_be_signed ? '<button class="btn btn-primary" data-sign>Assinar</button>' : '')
                  + (c.needs_dinner_answer ? '<button class="btn btn-ghost" data-janta>Jantar</button>' : '')
                  + (c.can_be_amended ? '<button class="btn btn-ghost" data-adit>Fazer aditivo</button>' : '')
                  + (c.can_receive_commission ? '<button class="btn btn-ghost" data-com>Comissão de venda</button>' : '');
       const el=document.createElement('div'); el.className='contract';
-      el.innerHTML=`<div class="row1"><span class="num">#${c.id}</span><span class="fn">${esc(c.function||'—')}</span>${chip}${aditChip}</div>
+      el.innerHTML=`<div class="row1"><span class="num">#${c.id}</span><span class="fn">${esc(c.function||'—')}</span>${chip}${aditChip}${fixChip}</div>
         <div class="loc">${esc(c.location)}</div>
         <div class="when"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
         ${c.start_date_br} · ${c.start_time}–${c.end_time} · <b>${brl(c.price)}</b></div>
@@ -1326,6 +1554,9 @@
     const a=S.aditivo, b=a.base;
     // Quem calcula de verdade é o servidor; aqui é só a conferência na tela.
     const r=calc(a.start,a.end,b.block_price||0);
+    // Contrato de valor fixo: o aditivo herda o valor, que não depende das
+    // horas — muda o período, o valor permanece.
+    const fixed=!!b.is_fixed_price;
     const endIso = r.crosses ? nextDayIso(b.start_date) : b.start_date;
     const diff = r.paidMin - Math.floor(b.duration_minutes/15)*15;
     let h=`<div class="head"><div class="fn">Aditivo · ${esc(b.function||'—')}</div><div class="fl">${esc(S.freelancer.name)}</div></div>`;
@@ -1335,9 +1566,15 @@
     h+=rrow('Início', `<span class="was">${b.start_time}</span>${brFromIso(b.start_date)} · ${a.start}`);
     h+=rrow('Término', `<span class="was">${b.end_time}</span>${brFromIso(endIso)} · ${a.end}`
       +(r.crosses?' <span style="color:var(--warning)">(vira o dia)</span>':''));
-    h+=rrow('Horas pagas', `<span class="was">${fmtDur(Math.floor(b.duration_minutes/15)*15)}</span>${fmtDur(r.paidMin)}`
-      +(diff!==0?` <span class="note">(${diff>0?'+':'−'}${fmtDur(Math.abs(diff))})</span>`:''));
-    h+=`<div class="rrow total"><span class="k">Valor a pagar</span><span class="v"><span class="was" style="font-size:15px">${brl(b.price)}</span>${brl(r.price)}</span></div>`;
+    if(fixed){
+      h+=rrow('Duração', `<span class="was">${fmtDur(b.duration_minutes)}</span>${fmtDur(r.dur)}`);
+      h+=rrow('Valor', 'Valor fixo <span class="note">(permanece o do contrato original)</span>');
+      h+=`<div class="rrow total"><span class="k">Valor a pagar</span><span class="v">${brl(b.price)}</span></div>`;
+    } else {
+      h+=rrow('Horas pagas', `<span class="was">${fmtDur(Math.floor(b.duration_minutes/15)*15)}</span>${fmtDur(r.paidMin)}`
+        +(diff!==0?` <span class="note">(${diff>0?'+':'−'}${fmtDur(Math.abs(diff))})</span>`:''));
+      h+=`<div class="rrow total"><span class="k">Valor a pagar</span><span class="v"><span class="was" style="font-size:15px">${brl(b.price)}</span>${brl(r.price)}</span></div>`;
+    }
     $('#aditReceipt').innerHTML=h;
     $('#aditWarn').innerHTML=`<div class="banner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0z"/></svg>
       <div><b>Quem paga o turno passa a ser o aditivo</b><p>O contrato original continua valendo e sendo assinado pelas duas partes — ele só deixa de ir ao financeiro, para o turno não ser pago duas vezes. O freelancer assina o aditivo em seguida.</p></div></div>`;
@@ -1959,7 +2196,9 @@
       return weeklyVia==='code' ? showPinChoiceStep() : showPinMatStep();
     }
     if($('#pinMatStep').style.display!=='none'){ $('#pinChoiceHint').innerHTML='&nbsp;'; return showPinChoiceStep(); }
-    go('s-previa');
+    // Quando a tela da falta ficou no caminho, ela é o passo anterior à
+    // liberação — voltar para a prévia pularia a saída que resolve o caso.
+    go(temCandidatoAFalta() ? 's-falta' : 's-previa');
   });
   async function submitPin(){
     const pin=pinBuf;

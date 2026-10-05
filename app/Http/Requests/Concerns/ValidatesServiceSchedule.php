@@ -28,6 +28,35 @@ trait ValidatesServiceSchedule
         ];
     }
 
+    /**
+     * Forma de cálculo do valor. Sem `pricing_mode` o contrato é por horas, o
+     * padrão; `fixed` exige o `fixed_price`, que é o valor digitado. `price`
+     * continua não sendo aceito como entrada.
+     *
+     * `$prefix` serve ao registro em massa (`services.*.`).
+     */
+    protected function pricingRules(string $prefix = ''): array
+    {
+        return [
+            $prefix . 'pricing_mode' => ['nullable', 'string', 'in:' . implode(',', array_keys(FreelancerService::PRICING_MODES))],
+            $prefix . 'fixed_price' => [
+                'nullable',
+                'required_if:' . $prefix . 'pricing_mode,' . FreelancerService::PRICING_FIXED,
+                'numeric',
+                'min:0.01',
+                'max:' . FreelancerService::MAX_FIXED_PRICE,
+            ],
+        ];
+    }
+
+    /** O `required_if` padrão citaria "fixed", que não diz nada a quem preenche. */
+    protected function pricingMessages(string $prefix = ''): array
+    {
+        return [
+            $prefix . 'fixed_price.required_if' => 'Informe o valor fixo do contrato.',
+        ];
+    }
+
     public function withValidator($validator): void
     {
         $validator->after(function ($validator) {

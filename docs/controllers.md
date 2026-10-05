@@ -20,7 +20,7 @@ indicados como _stub_.
 - [Acessos](#accesscontroller) · [Estacionamento](#parkingcontroller)
 - [Informações](#informationcontroller) · [DataInfo](#datainfocontroller)
 - [Usuários](#usercontroller) · [Permissões](#permissioncontroller) · [Perfil](#profilecontroller)
-- [Auxiliares](#controllers-auxiliares) (Energy, VideoWall, Ftp, Email, Test, Visitor, DataInfo)
+- [Auxiliares](#controllers-auxiliares) (Energy, Ftp, Email, Test, Visitor, DataInfo)
 - [Autenticação Breeze](#controllers-de-autenticação-breeze)
 
 ---
@@ -295,8 +295,8 @@ Depende de `CompanyService`.
 
 | Método | Assinatura | Descrição | Rota |
 |--------|-----------|-----------|------|
-| `search` | `search()` | Tela de busca com a contagem do dia. → View `parking.search` | `GET /parking/search` (perm. `search parking`) |
-| `show` | `show(Request $request)` | Busca por placa/horário e exibe acessos relacionados. → View `parking.show` | `POST /parking/find` (perm. `search parking`) |
+| `search` | `search()` | Tela de busca com a contagem do dia. → View `parking.search` | `GET /parking/search` (perm. `siv.busca`) |
+| `show` | `show(Request $request)` | Busca por placa/dia e exibe as leituras com quem estava no carro: associados (catracas), externos e pedidos de carro de aplicativo (`ParkingAccessCorrelationService`). → View `parking.show` | `POST /parking/find` (perm. `siv.busca`) |
 | `create`/`store`/`edit`/`update`/`destroy` | — | _stub_. | — |
 
 ---
@@ -326,24 +326,27 @@ versionamento (toda alteração cria uma nova linha em `data_infos`) e permissõ
 
 ## UserController
 
-`app/Http/Controllers/UserController.php` — usuários administrativos. Protegido por `permission:manage users`.
+`app/Http/Controllers/UserController.php` — usuários do painel. Protegido por `can:usuarios.gerenciar`. Mudanças de acesso passam pelo `App\Authorization\AccessManager` (auditoria e travas) — ver [Usuários, setores e permissões](funcionalidades/usuarios-e-permissoes.md).
 
-| Método | Assinatura | Descrição | Rota |
-|--------|-----------|-----------|------|
-| `index` | `index()` | Lista usuários com papéis/permissões. → View `user.index` | `GET /users` |
-| `edit` | `edit(User $id)` | Edita usuário e carrega papéis. → View `user.edit` | `GET /users/{id}/edit` |
-| `update` | `update(Request $request, User $id)` | Atualiza dados/senha/e-mail/status e sincroniza papéis. → Redirect | `PUT /users/{id}` |
-| `create`/`store`/`show`/`destroy` | — | _stub_. | — |
+| Método | Descrição | Rota |
+|--------|-----------|------|
+| `index` | Lista usuários com setores e permissões individuais. | `GET /users` |
+| `create` / `store` | Cadastro, já com os setores. | `GET /users/create`, `POST /users` |
+| `edit` | Dados, setores, permissões individuais, acesso efetivo e histórico. | `GET /users/{id}/edit` |
+| `update` | Dados da conta (senha e PIN em branco mantêm). | `PUT /users/{id}` |
+| `updateSectors` | Setores e papel em cada um. | `PUT /users/{id}/sectors` |
+| `updatePermissions` | Permissões individuais. | `PUT /users/{id}/permissions` |
+| `destroy` | Tira dos setores (com as travas) e exclui (soft delete). | `DELETE /users/{id}` |
 
 ---
 
-## PermissionController
+## SectorController
 
-`app/Http/Controllers/PermissionController.php`
+`app/Http/Controllers/SectorController.php` — setores. Protegido por `can:setores.gerenciar`: dados, acesso total, o que o setor alcança (`updatePermissions`), membros e o histórico de acesso (`audit`).
 
-| Método | Assinatura | Descrição | Rota |
-|--------|-----------|-----------|------|
-| `index` | `index()` | Tela de papéis e permissões. → View | `GET /roles-permission` (perm. `manage users`) |
+## MySectorController
+
+`app/Http/Controllers/MySectorController.php` — "Meu setor": o coordenador coloca e tira colaboradores e cadastra gente nova nos setores que coordena (conferido em cada ação).
 
 ---
 
@@ -364,18 +367,13 @@ versionamento (toda alteração cria uma nova linha em `data_infos`) e permissõ
 ### EnergyController (`EnergyController.php`)
 Classe vazia (sem métodos implementados) — reservada para um futuro dashboard de energia.
 
-### VideoWallController (`VideoWallController.php`)
-Controller de recurso; apenas `index` está em uso por rota.
-
-| Método | Assinatura | Descrição | Rota |
-|--------|-----------|-----------|------|
-| `index` | `index()` | Mural de vídeos. → View | `GET /videowall` |
-| `store`/`show`/`update`/`destroy`/`test` | — | Métodos de recurso (sem rota associada no momento). | — |
-
 ### FtpController (`FtpController.php`)
 | Método | Assinatura | Descrição |
 |--------|-----------|-----------|
-| `getImage` | `static getImage($imageName)` | Recupera uma imagem via disco FTP (Flysystem FTP). |
+| `getImage` | `static getImage($imageName)` | Garante a foto do acesso (SIV) no disco local `img_car` e devolve o caminho relativo, ou `false` quando não há foto. Só vai ao disco `ftp` se a cópia local não existir. |
+| `imageUrl` | `static imageUrl($path)` | URL pública da foto (`/storage/img_car/…`), com cada trecho do caminho codificado. |
+
+Detalhes em [Placas de Carro — Foto do acesso](funcionalidades/estacionamento-placas.md#foto-do-acesso-ftp-das-câmeras).
 
 ### EmailController (`EmailController.php`)
 | Método | Assinatura | Descrição | Rota |
@@ -413,7 +411,7 @@ Em `app/Http/Controllers/Auth/`, gerados pelo Laravel Breeze (sessão web). Rota
 
 ## Replay (`app/Http/Controllers/Replay/`)
 
-Vídeos das quadras. Telas em `Web/` (permissão `manage replay`), integração em `Api/`.
+Vídeos das quadras. Telas em `Web/` (permissão `replay` do catálogo), integração em `Api/`.
 Contrato completo em [replay-api.md](replay-api.md).
 
 ### Web\SettingController

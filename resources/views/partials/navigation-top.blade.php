@@ -438,9 +438,15 @@
             <div class="mt-3 space-y-1">
                 <x-responsive-nav-link :href="route('profile.edit')">{{ __('Perfil') }}</x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('docs.index')">{{ __('Documentação') }}</x-responsive-nav-link>
-                @role('admin')
+                @can('coordinate-sector')
+                <x-responsive-nav-link :href="route('my-sector.index')">{{ __('Meu setor') }}</x-responsive-nav-link>
+                @endcan
+                @can(\App\Authorization\Permissions::USUARIOS_GERENCIAR)
                 <x-responsive-nav-link :href="route('users.index')">{{ __('Usuários') }}</x-responsive-nav-link>
-                @endrole
+                @endcan
+                @can(\App\Authorization\Permissions::SETORES_GERENCIAR)
+                <x-responsive-nav-link :href="route('sectors.index')">{{ __('Setores') }}</x-responsive-nav-link>
+                @endcan
                 <button type="button" @click="organizerOpen = true; mobileMenu = false"
                     class="block w-full border-l-4 border-transparent py-2 pe-4 ps-3 text-start text-base font-medium text-gray-600 transition hover:border-gray-300 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700">
                     {{ __('Organizar menu') }}

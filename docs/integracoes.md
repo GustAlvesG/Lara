@@ -111,7 +111,13 @@ enviado. Ver [Autorização de Ordem de Compra](funcionalidades/questor-autoriza
 ## 11.9. FTP (Flysystem)
 
 - **Pacote:** `league/flysystem-ftp`.
-- **Componente:** `FtpController::getImage($imageName)` — recupera imagens via disco FTP.
+- **Uso 1 — fotos do SIV:** `FtpController::getImage($imageName)` copia a foto da câmera do
+  disco `ftp` para o disco local `img_car` (`public/storage/img_car`) na primeira busca da
+  placa. Variáveis: `FTP_HOST`, `FTP_PORT`, `FTP_USERNAME`, `FTP_PASSWORD`, `FTP_ROOT`
+  (pasta das câmeras, padrão `Lara/lpr`), `FTP_TIMEOUT` (10s) e `FTP_PASSIVE`.
+  Guia: [Placas de Carro](funcionalidades/estacionamento-placas.md#foto-do-acesso-ftp-das-câmeras).
+- **Uso 2 — arquivo de documentos assinados:** disco `signature_archive`, no mesmo servidor
+  e conta por padrão. Guia: [Assinatura eletrônica](funcionalidades/assinatura-eletronica.md).
 
 ---
 

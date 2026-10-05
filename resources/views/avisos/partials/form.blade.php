@@ -13,62 +13,68 @@
         ->toArray() ?? [];
 
     $existingTags = old('tags', $aviso?->tags->pluck('name')->values()->toArray() ?? []);
+
+    $privacyOptions = [
+        'pessoa' => ['label' => 'Pessoal', 'desc' => 'Só você', 'icon' => 'lock'],
+        'setor' => ['label' => 'Setor', 'desc' => 'Seu setor', 'icon' => 'users'],
+        'publico' => ['label' => 'Público', 'desc' => 'Todos', 'icon' => 'globe'],
+        'grupo' => ['label' => 'Grupo', 'desc' => 'Selecionar', 'icon' => 'user-plus'],
+    ];
+
+    $label = 'mb-1.5 block text-sm font-bold text-ink';
+    $hint = 'mt-1.5 text-xs text-ink-3';
+    $error = 'mt-1 text-xs font-semibold text-danger';
+    $field = 'w-full h-11 px-3.5 rounded-xl border border-line-strong bg-surface text-ink placeholder:text-ink-3 shadow-none transition focus:border-grena focus:ring-4 focus:ring-grena-tint';
+    $chip = 'inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold';
+    $chipBox = 'flex min-h-11 flex-wrap items-center gap-2 rounded-xl border border-line-strong bg-surface p-2 transition focus-within:border-grena focus-within:ring-4 focus-within:ring-grena-tint';
+    $editorBtn = 'grid h-8 w-8 place-items-center rounded-lg text-sm text-ink-2 transition hover:bg-line hover:text-ink';
 @endphp
 
-<div class="space-y-5" x-data="{ privacy: '{{ $currentPrivacy }}' }">
+<div class="flex flex-col gap-5" x-data="{ privacy: '{{ $currentPrivacy }}' }">
 
     {{-- Título --}}
     <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Título <span class="text-red-500">*</span>
-        </label>
-        <input type="text" name="title" maxlength="200" required
+        <label for="aviso-title" class="{{ $label }}">Título <span class="text-danger">*</span></label>
+        <input type="text" id="aviso-title" name="title" maxlength="200" required
                value="{{ old('title', $aviso?->title) }}"
-               class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm focus:border-red-500 focus:ring-red-500"
+               class="{{ $field }}"
                placeholder="Título curto e direto">
         @error('title')
-            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+            <p class="{{ $error }}">{{ $message }}</p>
         @enderror
     </div>
 
-    {{-- Editor de Texto --}}
+    {{-- Editor de texto --}}
     <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Conteúdo</label>
-        <div class="flex gap-1 p-2 bg-gray-50 dark:bg-gray-700 border border-b-0 border-gray-300 dark:border-gray-600 rounded-t-lg">
-            <button type="button" onclick="editorCmd('bold')"
-                class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-600 font-bold text-gray-700 dark:text-gray-200 text-sm transition"
-                title="Negrito"><b>B</b></button>
-            <button type="button" onclick="editorCmd('italic')"
-                class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-600 italic text-gray-700 dark:text-gray-200 text-sm transition"
-                title="Itálico"><i>I</i></button>
-            <button type="button" onclick="editorCmd('underline')"
-                class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-600 underline text-gray-700 dark:text-gray-200 text-sm transition"
-                title="Sublinhado"><u>U</u></button>
-        </div>
-        <div id="aviso-editor" contenteditable="true"
-             class="min-h-32 p-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-b-lg text-gray-800 dark:text-gray-200 text-sm focus:outline-none focus:ring-1 focus:ring-red-500 focus:border-red-500"
-             style="line-height: 1.6;">
-            {!! old('content', $aviso?->content) !!}
+        <span class="{{ $label }}">Conteúdo</span>
+        <div class="overflow-hidden rounded-xl border border-line-strong bg-surface transition focus-within:border-grena focus-within:ring-4 focus-within:ring-grena-tint">
+            <div class="flex gap-1 border-b border-line bg-subtle p-2" role="toolbar" aria-label="Formatação do texto">
+                <button type="button" onclick="editorCmd('bold')" class="{{ $editorBtn }} font-bold" title="Negrito"><b>N</b></button>
+                <button type="button" onclick="editorCmd('italic')" class="{{ $editorBtn }} italic" title="Itálico"><i>I</i></button>
+                <button type="button" onclick="editorCmd('underline')" class="{{ $editorBtn }} underline" title="Sublinhado"><u>S</u></button>
+            </div>
+            <div id="aviso-editor" contenteditable="true"
+                 class="min-h-32 p-3 text-[15px] leading-relaxed text-ink focus:outline-none">
+                {!! old('content', $aviso?->content) !!}
+            </div>
         </div>
         <input type="hidden" name="content" id="aviso-content-input">
     </div>
 
     {{-- Privacidade --}}
     <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Visibilidade</label>
-        <div class="flex gap-2 flex-wrap">
-            @foreach(['pessoa' => ['label' => 'Pessoal', 'desc' => 'Só você', 'icon' => '🔒'], 'setor' => ['label' => 'Setor', 'desc' => 'Seu setor', 'icon' => '👥'], 'publico' => ['label' => 'Público', 'desc' => 'Todos', 'icon' => '🌐'], 'grupo' => ['label' => 'Grupo', 'desc' => 'Selecionar', 'icon' => '🎯']] as $value => $opt)
-                <label class="flex-1 min-w-[100px] cursor-pointer">
+        <span class="{{ $label }}">Visibilidade</span>
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            @foreach ($privacyOptions as $value => $opt)
+                <label class="cursor-pointer">
                     <input type="radio" name="privacy" value="{{ $value }}"
                            {{ $currentPrivacy === $value ? 'checked' : '' }}
                            @change="privacy = '{{ $value }}'"
-                           class="sr-only peer">
-                    <div class="flex flex-col items-center p-3 rounded-lg border-2 border-gray-200 dark:border-gray-600
-                                peer-checked:border-red-700 peer-checked:bg-red-50 dark:peer-checked:bg-red-900/20 dark:peer-checked:border-red-600
-                                hover:border-gray-300 dark:hover:border-gray-500 transition text-center">
-                        <span class="text-lg">{{ $opt['icon'] }}</span>
-                        <span class="text-sm font-medium text-gray-700 dark:text-gray-200 mt-0.5">{{ $opt['label'] }}</span>
-                        <span class="text-xs text-gray-400 dark:text-gray-500">{{ $opt['desc'] }}</span>
+                           class="peer sr-only">
+                    <div class="flex flex-col items-center gap-0.5 rounded-2xl border-[1.5px] border-line bg-surface p-3 text-center transition hover:border-line-strong peer-checked:border-grena peer-checked:bg-grena-tint peer-focus-visible:ring-4 peer-focus-visible:ring-grena-tint">
+                        <x-icon :name="$opt['icon']" class="h-5 w-5 text-ink-2" />
+                        <span class="mt-0.5 text-sm font-bold text-ink">{{ $opt['label'] }}</span>
+                        <span class="text-xs text-ink-3">{{ $opt['desc'] }}</span>
                     </div>
                 </label>
             @endforeach
@@ -78,82 +84,81 @@
         <div x-show="privacy === 'grupo'" x-transition
              x-data="usersSelector({{ $allUsers->toJson() }}, {{ json_encode($selectedUserIds) }})"
              class="mt-3">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Destinatários <span class="text-red-500">*</span>
-            </label>
+            <span class="{{ $label }}">Destinatários <span class="text-danger">*</span></span>
 
-            {{-- Chips dos selecionados --}}
-            <div class="flex flex-wrap items-center gap-2 min-h-[42px] p-2 rounded-t-lg border border-b-0 border-gray-300 dark:border-gray-600 dark:bg-gray-700 bg-white">
-                <template x-for="user in selected" :key="user.id">
-                    <span class="flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300">
-                        <input type="hidden" name="user_ids[]" :value="user.id">
-                        <span x-text="user.name"></span>
-                        <button type="button" @click="remove(user)"
-                                class="hover:text-orange-900 dark:hover:text-orange-100" title="Remover">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                        </button>
-                    </span>
-                </template>
-            </div>
-
-            {{-- Campo de busca --}}
             <div class="relative">
-                <input type="text" x-model="search" @focus="open = true" @click.outside="open = false"
-                       placeholder="Buscar usuário para adicionar…"
-                       autocomplete="off"
-                       class="w-full rounded-b-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm focus:border-red-500 focus:ring-red-500 text-sm">
+                <div class="{{ $chipBox }}" @click="$refs.userField.focus()">
+                    <template x-for="user in selected" :key="user.id">
+                        <span class="{{ $chip }} bg-area-externos text-area-externos-ink">
+                            <input type="hidden" name="user_ids[]" :value="user.id">
+                            <span x-text="user.name"></span>
+                            <button type="button" @click.stop="remove(user)" class="opacity-70 hover:opacity-100" title="Remover">
+                                <x-icon name="x" class="h-3 w-3" />
+                            </button>
+                        </span>
+                    </template>
 
-                <div x-show="open && filtered.length > 0"
-                     class="absolute z-20 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    <input type="text" x-ref="userField" x-model="search" @focus="open = true" @click.outside="open = false"
+                           placeholder="Buscar pessoa para adicionar…"
+                           autocomplete="off"
+                           class="min-w-[160px] flex-1 border-0 bg-transparent p-0 text-sm text-ink placeholder:text-ink-3 focus:ring-0">
+                </div>
+
+                <div x-show="open && filtered.length > 0" x-cloak
+                     class="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-2xl border border-line bg-surface p-1 shadow-pop">
                     <template x-for="user in filtered" :key="user.id">
                         <button type="button" @click="add(user); open = filtered.length > 0"
-                                class="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-red-50 dark:hover:bg-red-900/20 transition">
+                                class="w-full rounded-xl px-3 py-2 text-left text-sm text-ink transition hover:bg-subtle">
                             <span x-text="user.name"></span>
                         </button>
                     </template>
                 </div>
             </div>
 
-            <p x-show="selected.length === 0" class="mt-1 text-xs text-red-500">
-                Selecione ao menos um destinatário.
-            </p>
+            <p x-show="selected.length === 0" class="{{ $error }}">Selecione ao menos um destinatário.</p>
             @error('user_ids')
-                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                <p class="{{ $error }}">{{ $message }}</p>
             @enderror
         </div>
         @error('privacy')
-            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+            <p class="{{ $error }}">{{ $message }}</p>
         @enderror
     </div>
 
+    {{-- Leitura obrigatória: só coordenador de setor pode exigir. Para os
+         demais o campo nem aparece (e o servidor ignora, se vier). --}}
+    @if (auth()->user()->isCoordinator())
+        <label class="flex cursor-pointer items-start gap-3 rounded-2xl border border-line-strong p-4 transition hover:border-ink-3 has-[:checked]:border-grena has-[:checked]:bg-grena-tint/50">
+            <input type="hidden" name="mandatory" value="0">
+            <input type="checkbox" name="mandatory" value="1" @checked(old('mandatory', $aviso?->mandatory))
+                   class="mt-0.5 rounded border-line-strong text-grena focus:ring-grena-tint">
+            <span>
+                <span class="block text-sm font-bold text-ink">Leitura obrigatória</span>
+                <span class="mt-0.5 block text-sm text-ink-2">
+                    Quem recebe o aviso vê este texto em tela cheia ao entrar no sistema e só segue depois de confirmar que leu.
+                    A confirmação fica registrada com nome, data e hora.
+                </span>
+            </span>
+        </label>
+    @endif
+
     {{-- Imagem --}}
     <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Imagem (opcional)</label>
-        <input type="file" name="image" accept="image/*"
-               class="block w-full text-sm text-gray-500 dark:text-gray-400
-                      file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0
-                      file:text-sm file:font-medium file:bg-red-50 dark:file:bg-red-900/30
-                      file:text-red-800 dark:file:text-red-300 hover:file:bg-red-100 cursor-pointer">
+        <label for="aviso-image" class="{{ $label }}">Imagem (opcional)</label>
+        <x-input-file id="aviso-image" name="image" accept="image/*" />
     </div>
 
     {{-- Tags --}}
     <div x-data="tagsInput({{ json_encode(array_values($existingTags)) }})">
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Tags
-        </label>
+        <span class="{{ $label }}">Tags</span>
 
-        <div class="flex flex-wrap items-center gap-2 p-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 focus-within:border-red-500 focus-within:ring-1 focus-within:ring-red-500 transition"
-             @click="$refs.tagField.focus()">
+        <div class="{{ $chipBox }}" @click="$refs.tagField.focus()">
             <template x-for="(tag, index) in items" :key="index">
-                <span class="flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300">
-                    <span x-text="tag"></span>
+                <span class="{{ $chip }} bg-area-info text-area-info-ink">
+                    <span x-text="'#' + tag"></span>
                     <input type="hidden" name="tags[]" :value="tag">
-                    <button type="button" @click="remove(index)" class="hover:text-red-900 dark:hover:text-red-100" title="Remover tag">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
+                    <button type="button" @click.stop="remove(index)" class="opacity-70 hover:opacity-100" title="Remover tag">
+                        <x-icon name="x" class="h-3 w-3" />
                     </button>
                 </span>
             </template>
@@ -163,63 +168,51 @@
                    @keydown.,.prevent="add()"
                    @keydown.backspace="if (draft === '') removeLast()"
                    @blur="add()"
+                   aria-label="Adicionar tag"
                    placeholder="Digite e tecle Enter…"
-                   class="flex-1 min-w-[120px] border-0 p-0 bg-transparent text-sm text-gray-800 dark:text-gray-200 focus:ring-0 placeholder-gray-400">
+                   class="min-w-[120px] flex-1 border-0 bg-transparent p-0 text-sm text-ink placeholder:text-ink-3 focus:ring-0">
         </div>
-        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-            Tags inexistentes são criadas automaticamente. Não diferencia maiúsculas de minúsculas.
-        </p>
+        <p class="{{ $hint }}">Tags inexistentes são criadas automaticamente. Não diferencia maiúsculas de minúsculas.</p>
     </div>
 
     {{-- Lembretes múltiplos --}}
     <div x-data="lembretes({{ json_encode(count($existingLembretes) ? $existingLembretes : []) }})">
-        <div class="flex justify-between items-center mb-2">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Lembretes
-            </label>
-            <button type="button" @click="add()"
-                class="text-xs text-red-700 dark:text-red-400 hover:underline flex items-center gap-1">
-                + Adicionar lembrete
+        <div class="mb-1.5 flex items-center justify-between">
+            <span class="text-sm font-bold text-ink">Lembretes</span>
+            <button type="button" @click="add()" class="inline-flex items-center gap-1 text-xs font-bold text-grena-ink hover:underline">
+                <x-icon name="plus" class="h-3.5 w-3.5" /> Adicionar lembrete
             </button>
         </div>
 
-        <div class="space-y-2">
+        <div class="flex flex-col gap-2">
             <template x-for="(item, index) in items" :key="index">
-                <div class="flex gap-2 items-center">
+                <div class="flex items-center gap-2">
                     <input type="datetime-local"
                            :name="`lembretes[${index}][remind_at]`"
                            x-model="item.remind_at"
-                           class="flex-1 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm focus:border-red-500 focus:ring-red-500 text-sm">
-                    <button type="button" @click="remove(index)"
-                        class="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded transition"
-                        title="Remover lembrete">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
+                           aria-label="Data e hora do lembrete"
+                           class="{{ $field }} flex-1 font-mono text-sm">
+                    <button type="button" @click="remove(index)" title="Remover lembrete"
+                        class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink-3 transition hover:bg-danger-soft hover:text-danger">
+                        <x-icon name="x" />
                     </button>
                 </div>
             </template>
         </div>
 
-        <p x-show="items.length === 0" class="text-xs text-gray-400 dark:text-gray-500 mt-1">
-            Nenhum lembrete agendado. Clique em "+ Adicionar lembrete".
-        </p>
-        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-            Notificações serão enviadas às datas e horas definidas.
-        </p>
+        <p x-show="items.length === 0" class="{{ $hint }}">Nenhum lembrete agendado. Use "Adicionar lembrete".</p>
+        <p class="{{ $hint }}">As notificações são enviadas nas datas e horas definidas.</p>
     </div>
 
     {{-- Expiração --}}
     <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Data de expiração (opcional)
-        </label>
-        <input type="date" name="expires_at"
+        <label for="aviso-expires" class="{{ $label }}">Data de expiração (opcional)</label>
+        <input type="date" id="aviso-expires" name="expires_at"
                value="{{ old('expires_at', $aviso?->expires_at?->format('Y-m-d')) }}"
-               class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 shadow-sm focus:border-red-500 focus:ring-red-500 text-sm">
-        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">O aviso é arquivado após esta data</p>
+               class="{{ $field }} font-mono text-sm sm:max-w-xs">
+        <p class="{{ $hint }}">O aviso é arquivado depois desta data.</p>
         @error('expires_at')
-            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+            <p class="{{ $error }}">{{ $message }}</p>
         @enderror
     </div>
 

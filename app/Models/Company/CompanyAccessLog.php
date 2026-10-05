@@ -88,4 +88,31 @@ class CompanyAccessLog extends Model
                 ->orWhere('reason', 'like', 'uber%');
         });
     }
+
+    /**
+     * Busca livre dos históricos (?q=): placa ou documento lido (`target`),
+     * observação, motivo, quem entrou e de qual empresa, e — nos carros de
+     * aplicativo — quem pediu e a placa do pedido. Termo vazio não filtra.
+     */
+    public function scopeSearch($query, ?string $term)
+    {
+        $term = trim((string) $term);
+
+        if ($term === '') {
+            return $query;
+        }
+
+        $like = '%' . $term . '%';
+
+        return $query->where(function ($q) use ($like) {
+            $q->where('target', 'like', $like)
+                ->orWhere('obs', 'like', $like)
+                ->orWhere('reason', 'like', $like)
+                ->orWhereHas('worker', fn ($w) => $w->where('name', 'like', $like)->orWhere('document', 'like', $like))
+                ->orWhereHas('company', fn ($c) => $c->where('name', 'like', $like))
+                ->orWhereHas('uberRequest', fn ($u) => $u->where('requester_name', 'like', $like)
+                    ->orWhere('vehicle_plate', 'like', $like)
+                    ->orWhere('matricula', 'like', $like));
+        });
+    }
 }

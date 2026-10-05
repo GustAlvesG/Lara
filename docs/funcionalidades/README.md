@@ -28,10 +28,16 @@ rotas).
 | [Frota — Quilometragem](frota.md) | Saída e retorno dos veículos da empresa: motorista, destino e hodômetro, registrados pela portaria. |
 | [Lara — Assistente de IA](lara-ia.md) | Chat interno de pergunta e resposta sobre o estatuto, ligado à VM da IA. |
 | [WhatsApp](whatsapp.md) | Webhook, envio de mensagens e gestão de conversas/mídia. |
+| [Bot do WhatsApp (Poli)](bot-whatsapp.md) | Fluxos de atendimento editáveis na tela, com validação de respostas, transbordo para atendente e simulador. |
 | [Telegram](telegram.md) | Cadastro e consulta de contatos do Telegram. |
+| [Navegação e interface](navegacao-e-interface.md) | Os modos de navegação, o painel de Módulos, favoritos gravados na conta, busca de páginas e tema. |
 | [Usuários e Permissões](usuarios-e-permissoes.md) | Administração de usuários, papéis e permissões. |
 | [Replay — Vídeos das Quadras](replay.md) | Configuração das câmeras, layouts de logomarca e o repositório dos clipes gravados pelo botão da quadra. |
-| [Automação Home Assistant](automacao-home-assistant.md) | Iluminação automática a partir de reservas, agendamentos e controle manual. |
+| [Automação Home Assistant](automacao-home-assistant.md) | Iluminação automática a partir de reservas, agendamentos e controle manual. Inclui o autoatendimento do sócio no fim de semana. |
+| [Front-end do autoatendimento de luz (Next.js)](iluminacao-autoatendimento-prompt.md) | Contrato da API de acionamento de luz pelo sócio e o prompt de implementação da tela **do zero**. |
+| [Ajustes do front-end do autoatendimento](iluminacao-autoatendimento-ajustes-prompt.md) | Prompt de **mudança** para a tela que já existe: o que quebrou no contrato e o que ela precisa ganhar. |
+| [Assinatura Eletrônica Presencial](assinatura-eletronica.md) | Termos e contratos assinados no tablet do balcão, liberados por QR Code de uso único. |
+| Assinatura — guia do usuário | Passo a passo para quem escreve os modelos e para o atendimento. Fica **dentro do sistema**, em Assinaturas → Guia, com botão para baixar em PDF; o texto está em `resources/views/signature/guide/content.blade.php`. |
 
 ## Perfis de usuário
 

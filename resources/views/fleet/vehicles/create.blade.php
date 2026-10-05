@@ -1,40 +1,18 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            Novo Veículo
-        </h2>
-    </x-slot>
+<x-app-layout :bootstrap-grid="false">
+    <x-page narrow>
+        <x-page-title title="Novo veículo" :back="route('fleet.vehicles')" />
 
-    <x-slot name="css"></x-slot>
+        @include('fleet.vehicles.partials.errors')
 
-    <div class="py-6">
-        <div class="mx-auto sm:px-6 lg:px-8 max-w-2xl">
-            <div class="p-6 sm:p-8 bg-white dark:bg-gray-800 shadow sm:rounded-lg">
+        <form method="POST" action="{{ route('fleet.vehicles.store') }}" class="rounded-card bg-surface p-5 shadow-card sm:p-6">
+            @csrf
 
-                @if ($errors->any())
-                    <div class="mb-4 p-4 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-800 dark:text-red-300 rounded-lg">
-                        <ul class="list-disc list-inside text-sm">
-                            @foreach ($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                @endif
+            @include('fleet.vehicles.partials.form')
 
-                <form method="POST" action="{{ route('fleet.vehicles.store') }}">
-                    @csrf
-
-                    @include('fleet.vehicles.partials.form')
-
-                    <div class="flex items-center justify-end gap-4 mt-6">
-                        <a href="{{ route('fleet.vehicles') }}" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">Cancelar</a>
-                        <x-primary-button>Cadastrar</x-primary-button>
-                    </div>
-                </form>
-
+            <div class="mt-6 flex flex-wrap justify-end gap-2.5 border-t border-line pt-5">
+                <x-secondary-button-a href="{{ route('fleet.vehicles') }}">Cancelar</x-secondary-button-a>
+                <x-primary-button><x-icon name="check" /> Cadastrar</x-primary-button>
             </div>
-        </div>
-    </div>
-
-    <x-slot name="js"></x-slot>
+        </form>
+    </x-page>
 </x-app-layout>

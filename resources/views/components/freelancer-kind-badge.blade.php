@@ -12,9 +12,9 @@
     $label = $service->kindLabel();
 
     $classes = match (true) {
-        $service->isCommissionAmendment() => 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
-        $service->isAmendment() => 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
-        default => 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+        $service->isCommissionAmendment() => 'bg-ok-soft text-ok',
+        $service->isAmendment() => 'bg-grena-tint text-grena-ink',
+        default => 'bg-subtle text-ink-2',
     };
 @endphp
 
@@ -24,6 +24,6 @@
         {{ $label }}
     </span>
     @if($note && $service->kindNote())
-        <span class="block mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $service->kindNote() }}</span>
+        <span class="block mt-1 text-xs text-ink-2">{{ $service->kindNote() }}</span>
     @endif
 @endif

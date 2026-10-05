@@ -80,16 +80,19 @@ window.informationForm = function (initial) {
 
         /* --- Imagem (exibição na coluna da esquerda) --- */
 
-        placeholderUrl: function () {
-            var text = (this.title || 'InfoClube').slice(0, 60);
-            return 'https://placehold.co/600x400/7d0400/ffffff?text=' + encodeURIComponent(text);
-        },
-
+        // Sem imagem (ou marcada para remover), nulo: a tela desenha o
+        // substituto local com as iniciais, sem serviço externo.
         previewUrl: function () {
             if (this.removeImage || !this.imageUrl) {
-                return this.placeholderUrl();
+                return null;
             }
             return this.imageUrl;
+        },
+
+        // Iniciais do nome para o substituto da imagem.
+        initials: function () {
+            var parts = (this.title || '').trim().split(/\s+/).filter(Boolean).slice(0, 2);
+            return parts.map(function (part) { return part.charAt(0); }).join('').toUpperCase() || 'IC';
         },
 
         onImagePicked: function (event) {

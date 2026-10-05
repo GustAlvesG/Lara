@@ -22,6 +22,15 @@
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_STORE" value="array"/>
+        <!-- Assinatura: as opções "sem HTTPS" valem o padrão (desligadas) nos
+             testes, mesmo que o .env da máquina as ligue. -->
+        <env name="SIGNATURE_MANUAL_CODE_ENABLED" value="false"/>
+        <!-- O arquivamento no FTP fica desligado nos testes, mesmo que o .env
+             da máquina o ligue: a suíte não pode gravar na pasta de produção.
+             Os testes do arquivamento ligam por config(), com o disco falso. -->
+        <env name="SIGNATURE_ARCHIVE_ENABLED" value="false"/>
+        <env name="FREELANCER_ARCHIVE_ENABLED" value="false"/>
+        <env name="SIGNATURE_SKIP_PHOTO_WITHOUT_CAMERA" value="false"/>
         <!--
             NÃO COMENTE ESTAS DUAS LINHAS.
 

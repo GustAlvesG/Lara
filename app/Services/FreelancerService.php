@@ -137,7 +137,7 @@ class FreelancerService
     {
         $this->assertUpdatable($service);
 
-        $data = $this->withSchedule($this->withoutEmptyStatus($data));
+        $data = $this->withSchedule($this->withoutEmptyStatus($data), $service);
         $data['updated_by'] = $this->actorId($data, 'updated_by');
 
         $service->update($data);
@@ -154,6 +154,9 @@ class FreelancerService
      * mudando só horário de início, horário de término e local. Preço, horas e
      * data de término são recalculados pelo mesmo caminho de um contrato comum
      * — o aditivo vale pelo turno INTEIRO, não pela diferença.
+     *
+     * A exceção é o contrato de VALOR FIXO: o aditivo herda a forma e o valor
+     * do base. Se o valor não depende das horas, mudar o horário não o altera.
      *
      * Por isso o base é marcado como aditivado na mesma transação: os dois
      * documentos existem e os dois são assinados, mas só o aditivo é pago.
@@ -179,6 +182,8 @@ class FreelancerService
                 'location' => $data['location'],
                 'start_time' => $data['start_time'],
                 'end_time' => $data['end_time'],
+                'pricing_mode' => $base->pricingMode(),
+                'fixed_price' => $base->isFixedPrice() ? $base->price : null,
                 'created_by' => $actorId,
             ]);
 
@@ -319,8 +324,18 @@ class FreelancerService
     /**
      * Deriva os campos que não são digitados: total de horas pagas, data de
      * término (start_date, ou +1 dia quando o turno vira a meia-noite) e preço.
+     *
+     * O preço sai das horas, a menos que o contrato seja de VALOR FIXO
+     * (`pricing_mode` = fixed): aí vale o `fixed_price` digitado. `total_hours`
+     * continua sendo o do turno nos dois casos — no valor fixo ele registra a
+     * duração, e não o que se paga.
+     *
+     * `$current` é o contrato em edição. Quem edita sem dizer a forma (o `PUT`
+     * do bot, que não conhece o campo) mantém a que o contrato já tem: sem
+     * isso, corrigir o local de um contrato de valor fixo o recalcularia pelas
+     * horas em silêncio.
      */
-    private function withSchedule(array $data): array
+    private function withSchedule(array $data, ?FreelancerServiceModel $current = null): array
     {
         $blocks = FreelancerServiceModel::billedBlocks($data['start_time'], $data['end_time']);
         $crossesMidnight = FreelancerServiceModel::crossesMidnight($data['start_time'], $data['end_time']);
@@ -329,13 +344,58 @@ class FreelancerService
         $data['end_date'] = Carbon::parse($data['start_date'])
             ->addDays($crossesMidnight ? 1 : 0)
             ->toDateString();
-        $data['price'] = $this->calculatePrice(
-            $data['function_freelancer_id'],
-            $data['start_time'],
-            $data['end_time']
-        );
+
+        $mode = $data['pricing_mode'] ?? $current?->pricingMode() ?? FreelancerServiceModel::PRICING_HOURLY;
+        $fixedPrice = $data['fixed_price'] ?? null;
+
+        // `fixed_price` é só entrada: o valor mora em `price`, como o calculado.
+        unset($data['fixed_price']);
+
+        if ($mode !== FreelancerServiceModel::PRICING_FIXED) {
+            $data['pricing_mode'] = FreelancerServiceModel::PRICING_HOURLY;
+            $data['price'] = $this->calculatePrice(
+                $data['function_freelancer_id'],
+                $data['start_time'],
+                $data['end_time']
+            );
+
+            return $data;
+        }
+
+        // Edição que mantém a forma sem redigitar o valor: fica o que já estava.
+        if ($fixedPrice === null && $current?->isFixedPrice()) {
+            $fixedPrice = $current->price;
+        }
+
+        $data['pricing_mode'] = FreelancerServiceModel::PRICING_FIXED;
+        $data['price'] = $this->fixedPriceOrFail($fixedPrice);
 
         return $data;
+    }
+
+    /**
+     * O valor fixo, conferido. As telas já validam pelo FormRequest; a trava
+     * mora também aqui porque é daqui que sai o valor que vai ao documento e ao
+     * Pix, e nem todo caminho passa por um formulário.
+     */
+    private function fixedPriceOrFail($value): float
+    {
+        $price = is_numeric($value) ? round((float) $value, 2) : 0.0;
+
+        if ($price <= 0) {
+            throw ValidationException::withMessages([
+                'fixed_price' => 'Informe o valor fixo do contrato.',
+            ]);
+        }
+
+        if ($price > FreelancerServiceModel::MAX_FIXED_PRICE) {
+            throw ValidationException::withMessages([
+                'fixed_price' => 'O valor fixo não pode passar de R$ '
+                    . number_format(FreelancerServiceModel::MAX_FIXED_PRICE, 2, ',', '.') . '.',
+            ]);
+        }
+
+        return $price;
     }
 
     /* ---------------------------------------------------------------------
@@ -644,10 +704,16 @@ class FreelancerService
      * estar aditivado e volta ao lote e ao financeiro. Sem isso, um aditivo
      * criado por engano deixaria o turno sem nenhum contrato pagável.
      *
+     * `$reason` separa o cancelamento comum da falta do freelancer. As duas
+     * baixam o contrato do mesmo jeito — o motivo é para quem lê depois.
+     *
      * @throws FreelancerServiceLockedException
      */
-    public function cancelService(FreelancerServiceModel $service, ?User $user = null)
-    {
+    public function cancelService(
+        FreelancerServiceModel $service,
+        ?User $user = null,
+        string $reason = FreelancerServiceModel::CANCEL_REASON_ADMIN,
+    ) {
         if ($service->isCancelled()) {
             throw new FreelancerServiceLockedException('Contrato já está cancelado.');
         }
@@ -656,11 +722,12 @@ class FreelancerService
             throw new FreelancerServiceLockedException('Contrato já assinado não pode ser cancelado.');
         }
 
-        return DB::transaction(function () use ($service, $user) {
+        return DB::transaction(function () use ($service, $user, $reason) {
             $service->forceFill([
                 'status_id' => FreelancerServiceModel::STATUS_CANCELLED,
                 'cancelled_at' => now(),
                 'cancelled_by' => $user?->id,
+                'cancel_reason' => $reason,
             ])->save();
 
             $base = $service->isScheduleAmendment() ? $service->baseService : null;
@@ -674,6 +741,50 @@ class FreelancerService
 
             return $service;
         });
+    }
+
+    /**
+     * Registra que o freelancer NÃO cumpriu o turno. É um cancelamento com
+     * motivo próprio: o contrato sai da contagem semanal pela mesma regra que
+     * sempre excluiu o cancelado, e o dia volta a ficar disponível.
+     *
+     * É a porta que o tablet abre para o caso do freelancer que faltou na
+     * quarta e apareceu no sábado: sem ela, o contrato de quarta continuaria
+     * ocupando vaga na semana e o sábado precisaria da liberação de um
+     * coordenador — gastando a exceção com um problema de cadastro.
+     *
+     * As travas são as de `canBeMarkedNoShow()`, mais estreitas que as do
+     * cancelamento comum, porque aqui quem dá a baixa é o operador do balcão.
+     *
+     * @throws FreelancerServiceLockedException
+     */
+    public function markNoShow(FreelancerServiceModel $service, ?User $user = null)
+    {
+        if ($service->isCancelled()) {
+            throw new FreelancerServiceLockedException(
+                $service->isNoShow() ? 'Contrato já está marcado como falta.' : 'Contrato já está cancelado.'
+            );
+        }
+
+        if ($service->isSigned()) {
+            throw new FreelancerServiceLockedException(
+                'Contrato assinado não pode ser marcado como falta. Quem assinou compareceu.'
+            );
+        }
+
+        if ($service->isAmendment()) {
+            throw new FreelancerServiceLockedException(
+                'Aditivo não é um dia de trabalho próprio. Marque a falta no contrato original.'
+            );
+        }
+
+        if (!$service->canBeMarkedNoShow()) {
+            throw new FreelancerServiceLockedException(
+                'Só é possível marcar falta de um turno cujo dia já chegou.'
+            );
+        }
+
+        return $this->cancelService($service, $user, FreelancerServiceModel::CANCEL_REASON_NO_SHOW);
     }
 
     /**

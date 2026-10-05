@@ -46,7 +46,9 @@ incremental do esquema (criação de tabelas + diversos `add_column`/`fix`). Des
 - `2026_02_23_*` — torneios.
 - `2026_05_19_*` — freelancers, funções e serviços.
 - `2026_09_17_*` — Replay: configuração de vídeo, layouts de logomarca, câmeras, clipes e a
-  permissão `manage replay`.
+  permissão antiga `manage replay` (Spatie).
+  Ela ficou obsoleta com a reforma do acesso: o que vale é a permissão `replay` do
+  catálogo, que o `PermissionCatalogSeeder` cria no deploy.
 
 Para o estado completo, rode `php artisan migrate:status`.
 
@@ -56,12 +58,15 @@ Para o estado completo, rode `php artisan migrate:status`.
 `AccessSeeder`, `CompanyAccessRulesSeeder`, `CompanySeeder`, `CompanyWorkerSeeder`,
 `DataInfoSeeder`, `EmployeeSeeder`, `FreelancerSeeder`, `FreelancerServiceSeeder`,
 `FunctionFreelancerSeeder`, `InformationSeeder`, `MemberSeeder`, `OuterSeeder`,
-`ParkingSeeder`, `PlaceGroupSeeder`, `PlaceSeeder`, `RolesAndPermissionsSeeder`,
-`SchedulePaymentSeeder`, `ScheduleRulesSeeder`, `ScheduleSeeder`, `SetUserAsRoleUser`,
+`ParkingSeeder`, `PermissionCatalogSeeder` (o seed padrão, do deploy), `PlaceGroupSeeder`,
+`PlaceSeeder`, `SectorAccessSeeder`,
+`SchedulePaymentSeeder`, `ScheduleRulesSeeder`, `ScheduleSeeder`,
 `TimeAdjustmentSeeder`, `TimeEntrySeeder`, `VisitorSeeder`.
 
-> `RolesAndPermissionsSeeder` cria papéis/permissões; `SetUserAsRoleUser` associa
-> usuários a papéis.
+> A matriz inicial setor → permissão vem da migration `sync_access_catalog`. O **catálogo** de
+> permissões é mantido no banco pelo seed padrão `PermissionCatalogSeeder`, que roda em todo
+> deploy: cria as permissões novas do catálogo, sem dar nenhuma a setor e sem alterar o que já
+> está configurado. `SectorAccessSeeder` só coloca o usuário 1 na TI (desenvolvimento).
 
 ## 12.5. Factories (`database/factories/`)
 

@@ -159,4 +159,54 @@
     document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('[data-rich-editor]').forEach(initEditor);
     });
+
+    // Tela cheia: alterna a classe no root do editor. Um unico listener
+    // delegado no documento cobre todos os editores da pagina, entao o
+    // initEditor continua exatamente como estava.
+    function setFullscreen(root, on) {
+        root.classList.toggle('is-fullscreen', on);
+
+        var btn = root.querySelector('[data-action="fullscreen"]');
+        if (btn) {
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            btn.title = on ? 'Sair da tela cheia' : 'Tela cheia';
+        }
+
+        // Trava o scroll do body so enquanto algum editor estiver expandido.
+        document.body.classList.toggle(
+            'rich-editor-fullscreen-open',
+            !!document.querySelector('.rich-editor.is-fullscreen')
+        );
+
+        var content = root.querySelector('[data-rich-editor-content]');
+        if (content) {
+            content.focus();
+        }
+    }
+
+    document.addEventListener('click', function (event) {
+        var target = event.target;
+        var btn = target && target.closest ? target.closest('[data-action="fullscreen"]') : null;
+        if (!btn) {
+            return;
+        }
+
+        var root = btn.closest('[data-rich-editor]');
+        if (!root) {
+            return;
+        }
+
+        closeAnyPopover();
+        setFullscreen(root, !root.classList.contains('is-fullscreen'));
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape') {
+            return;
+        }
+
+        document.querySelectorAll('.rich-editor.is-fullscreen').forEach(function (root) {
+            setFullscreen(root, false);
+        });
+    });
 })();

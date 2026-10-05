@@ -18,7 +18,6 @@
 
         @include('partials.alerts')
 
-        @include('replay.partials.tabs', ['current' => 'videos'])
 
         <form method="GET" class="mb-6 flex flex-wrap items-end gap-3">
             <div>

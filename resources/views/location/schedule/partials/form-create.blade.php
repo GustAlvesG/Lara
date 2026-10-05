@@ -1,20 +1,3 @@
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-    tailwind.config = {
-        darkMode: 'media', // ou 'class' se você usar toggle manual
-        theme: {
-            extend: {
-                colors: {
-                    brand: {
-                        red: '#A00001',
-                        light: '#FFE0E0',
-                    }
-                }
-            }
-        }
-    }
-</script>
-
 <div class="max-w-4xl mx-auto my-10 p-6 bg-white dark:bg-gray-800 shadow-2xl rounded-2xl">
     <h1 class="text-3xl font-bold mb-6 border-b border-gray-200 dark:border-gray-700 pb-3 text-[#A00001] dark:text-white">
         Novo Agendamento

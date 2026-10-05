@@ -1,11 +1,5 @@
 <x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Usuários') }}
-        </h2>
-    </x-slot>
-
-<div class="py-12 bg-gray-50 dark:bg-gray-900 min-h-screen">
+<div class="py-6">
     <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
 
         @include('partials.alerts')
@@ -15,22 +9,22 @@
 
             <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div class="flex items-center gap-4">
-                    <a href="{{ route('users.index') }}" class="p-2 bg-white dark:bg-gray-800 rounded-xl shadow-md text-gray-400 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 border border-gray-100 dark:border-gray-700 transition">
+                    <a href="{{ route('users.index') }}" class="p-2 bg-surface rounded-xl shadow-card text-ink-3 hover:text-grena-ink border border-line transition">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
                         </svg>
                     </a>
                     <div>
-                        <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">Novo Usuário</h1>
-                        <p class="text-gray-500 dark:text-gray-400 font-medium">Cadastre um novo membro e defina suas permissões de acesso.</p>
+                        <h1 class="font-display text-2xl font-semibold tracking-tight text-ink">Novo Usuário</h1>
+                        <p class="text-ink-2 font-medium">Cadastre um novo membro e defina suas permissões de acesso.</p>
                     </div>
                 </div>
 
                 <div class="flex gap-3">
-                    <a href="{{ route('users.index') }}" class="px-6 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-bold shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition">
+                    <a href="{{ route('users.index') }}" class="px-6 py-3 bg-surface text-ink rounded-xl font-bold shadow-card hover:bg-subtle border border-line transition">
                         Cancelar
                     </a>
-                    <button type="submit" class="inline-flex items-center px-6 py-3 bg-[#A00001] text-white rounded-xl font-bold shadow-lg hover:bg-[#800000] transition duration-150 transform hover:scale-[1.02]">
+                    <button type="submit" class="inline-flex items-center px-6 py-3 bg-grena text-white rounded-xl font-bold shadow-card hover:bg-grena-hover transition duration-150 transform hover:scale-[1.02]">
                         Criar Usuário
                     </button>
                 </div>
@@ -39,27 +33,27 @@
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
                 <div class="lg:col-span-1 space-y-6">
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700 text-center">
+                    <div class="bg-surface rounded-2xl shadow-pop p-6 border border-line text-center">
                         <div class="relative inline-block mb-4">
-                            <div class="h-24 w-24 rounded-full bg-[#ff6961] dark:bg-[#A00001] text-3xl font-bold flex items-center justify-center text-black dark:text-white border-2 border-white dark:border-gray-600 shadow-sm">
+                            <div class="h-24 w-24 rounded-full bg-grena-tint text-3xl font-bold flex items-center justify-center text-grena-ink shadow-card">
                                 ?
                             </div>
-                            <span class="absolute bottom-1 right-1 h-6 w-6 bg-green-500 border-4 border-white dark:border-gray-800 rounded-full"></span>
+                            <span class="absolute bottom-1 right-1 h-6 w-6 bg-ok border-4 border-white rounded-full"></span>
                         </div>
 
-                        <h2 class="text-xl font-bold text-gray-900 dark:text-white">Novo Usuário</h2>
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Preencha os dados ao lado</p>
+                        <h2 class="text-xl font-bold text-ink">Novo Usuário</h2>
+                        <p class="text-sm text-ink-2 mb-6">Preencha os dados ao lado</p>
 
                         <div class="text-left">
-                            <label for="status" class="block text-xs font-bold text-gray-400 dark:text-gray-500 uppercase mb-1 tracking-wider">Estado da Conta</label>
-                            <select name="status" id="status" class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-semibold text-gray-700 dark:text-gray-300">
+                            <label for="status" class="block text-xs font-bold text-ink-3 uppercase mb-1 tracking-wider">Estado da Conta</label>
+                            <select name="status" id="status" class="w-full px-4 py-2 bg-subtle border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none font-semibold text-ink">
                                 <option value="1" selected>Ativo</option>
                                 <option value="2">Inativo</option>
                             </select>
                         </div>
                     </div>
 
-                    <div class="bg-[#A00001] rounded-2xl shadow-xl p-6 text-white">
+                    <div class="bg-grena rounded-2xl shadow-pop p-6 text-white">
                         <div class="flex items-center mb-3">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
@@ -73,88 +67,85 @@
                 </div>
 
                 <div class="lg:col-span-2 space-y-6">
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-                        <div class="p-6 border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50">
-                            <h2 class="text-lg font-bold text-gray-800 dark:text-white">Dados Pessoais</h2>
+                    <div class="bg-surface rounded-2xl shadow-pop border border-line overflow-hidden">
+                        <div class="p-6 border-b border-line bg-subtle">
+                            <h2 class="text-lg font-bold text-ink">Dados Pessoais</h2>
                         </div>
 
                         <div class="px-6 pb-6 grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
                             <div class="md:col-span-2">
-                                <label for="name" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Nome Completo</label>
+                                <label for="name" class="block text-sm font-bold text-ink mb-1">Nome Completo</label>
                                 <input type="text" name="name" id="name" value="{{ old('name') }}" required
-                                    class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-                                @error('name')<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+                                    class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink">
+                                @error('name')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
                             </div>
 
                             <div>
-                                <label for="email" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Endereço de E-mail</label>
+                                <label for="email" class="block text-sm font-bold text-ink mb-1">Endereço de E-mail</label>
                                 <input type="email" name="email" id="email" value="{{ old('email') }}" required
-                                    class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-                                @error('email')<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+                                    class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink">
+                                @error('email')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
                             </div>
 
                             <div>
-                                <label for="matricula" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Matrícula</label>
+                                <label for="matricula" class="block text-sm font-bold text-ink mb-1">Matrícula</label>
                                 <input type="text" name="matricula" id="matricula" value="{{ old('matricula') }}" maxlength="5"
-                                    class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                                    class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink"
                                     placeholder="Ex: 00123">
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Usada para vincular ao Banco de Horas.</p>
-                                @error('matricula')<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+                                <p class="mt-1 text-xs text-ink-2">Usada para vincular ao Banco de Horas.</p>
+                                @error('matricula')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
                             </div>
 
-                            <div>
-                                <label for="role_id" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Perfil de Acesso</label>
-                                <select name="role_id" id="role_id" required
-                                        class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition uppercase text-xs font-bold tracking-wider bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-                                    <option value="" disabled selected>Selecione um perfil</option>
-                                    @foreach($roles as $role)
-                                        <option value="{{ $role['id'] }}" {{ old('role_id') == $role['id'] ? 'selected' : '' }}>
-                                            {{ $role['name'] }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                @error('role_id')<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
-                            </div>
                         </div>
                     </div>
 
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-                        <div class="p-6 border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50">
-                            <h2 class="text-lg font-bold text-gray-800 dark:text-white">Senha de Acesso</h2>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">Defina uma senha inicial para o novo usuário.</p>
+                    <div class="bg-surface rounded-2xl shadow-pop border border-line overflow-hidden">
+                        <div class="p-6 border-b border-line bg-subtle">
+                            <h2 class="text-lg font-bold text-ink">Setores</h2>
+                            <p class="text-xs text-ink-2">O acesso vem dos setores. Sem setor, a pessoa enxerga só o que é de todo mundo logado. Permissões individuais ficam na edição, depois de criar.</p>
+                        </div>
+                        <div class="px-6 pb-2">
+                            @include('user.partials.sectors-select', ['sectors' => $sectors, 'current' => []])
+                        </div>
+                    </div>
+
+                    <div class="bg-surface rounded-2xl shadow-pop border border-line overflow-hidden">
+                        <div class="p-6 border-b border-line bg-subtle">
+                            <h2 class="text-lg font-bold text-ink">Senha de Acesso</h2>
+                            <p class="text-xs text-ink-2">Defina uma senha inicial para o novo usuário.</p>
                         </div>
 
                         <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label for="password" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Senha</label>
+                                <label for="password" class="block text-sm font-bold text-ink mb-1">Senha</label>
                                 <input type="password" name="password" id="password" autocomplete="new-password" required
                                     placeholder="••••••••"
-                                    class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-                                @error('password')<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+                                    class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink">
+                                @error('password')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
                             </div>
 
                             <div>
-                                <label for="password_confirmation" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Confirmar Senha</label>
+                                <label for="password_confirmation" class="block text-sm font-bold text-ink mb-1">Confirmar Senha</label>
                                 <input type="password" name="password_confirmation" id="password_confirmation" required
                                     placeholder="••••••••"
-                                    class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
+                                    class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink">
                             </div>
                         </div>
                     </div>
 
-                    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
-                        <div class="p-6 border-b border-gray-50 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/50">
-                            <h2 class="text-lg font-bold text-gray-800 dark:text-white">PIN de Assinatura (Tablet)</h2>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">6 dígitos usados no Kiosk de contratos: destrava a sessão e confirma cada assinatura. Opcional.</p>
+                    <div class="bg-surface rounded-2xl shadow-pop border border-line overflow-hidden">
+                        <div class="p-6 border-b border-line bg-subtle">
+                            <h2 class="text-lg font-bold text-ink">PIN de Assinatura (Tablet)</h2>
+                            <p class="text-xs text-ink-2">6 dígitos usados no Kiosk de contratos: destrava a sessão e confirma cada assinatura. Opcional.</p>
                         </div>
 
                         <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label for="pin" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">PIN (6 dígitos)</label>
+                                <label for="pin" class="block text-sm font-bold text-ink mb-1">PIN (6 dígitos)</label>
                                 <input type="text" name="pin" id="pin" inputmode="numeric" pattern="\d{6}" maxlength="6" autocomplete="off"
                                     value="{{ old('pin') }}" placeholder="••••••"
-                                    class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition bg-white dark:bg-gray-900 text-gray-900 dark:text-white tracking-[0.5em] font-mono">
-                                @error('pin')<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p>@enderror
+                                    class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink tracking-[0.5em] font-mono">
+                                @error('pin')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
                             </div>
                         </div>
                     </div>

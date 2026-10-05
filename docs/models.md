@@ -57,7 +57,7 @@ deletes, scopes globais, etc.).
 - **Relacionamentos:** nenhum definido (dados de sócio vêm também da base externa).
 
 ### User
-- **Tabela:** `users` · **SoftDeletes** · `Authenticatable`, `Notifiable`, `HasRoles` (Spatie)
+- **Tabela:** `users` · **SoftDeletes** · `Authenticatable`, `Notifiable` · acesso por setor: `access()`, `hasAccess()`, `hasFullAccess()`, `directPermissions()` (ver [Usuários, setores e permissões](funcionalidades/usuarios-e-permissoes.md))
 - **`$fillable`:** `name`, `email`, `password`, `cpf`, `matricula`, `last_login_at`, `status_id`
 - **`$casts`:** `email_verified_at`→`datetime`, `password`→`hashed`, `last_login_at`→`datetime`
 - **Relacionamentos:** `data_info()` hasMany DataInfo (`created_by`) · `information()` hasMany Information (`created_by`) · `status()` belongsTo Status · `schedulesCreated()` hasMany Schedule (`created_by_user`) · `schedulesUpdated()` hasMany Schedule (`updated_by_user`)
@@ -83,7 +83,11 @@ deletes, scopes globais, etc.).
 
 ### FreelancerService
 - **Tabela:** `freelancer_services`
-- **`$fillable`:** `freelancer_id`, `function_freelancer_id`, `start_date`, `end_date`, `price`, `pix_key`, `pix_key_confirmed_at`, `total_hours`, `status_id`
+- **`$fillable`:** `freelancer_id`, `function_freelancer_id`, `start_date`, `end_date`, `price`, `pricing_mode`, `pix_key`, `pix_key_confirmed_at`, `total_hours`, `status_id`
+- **Valor fixo:** `pricing_mode` diz de onde veio o `price` — `hourly` (blocos de 15 min × preço da
+  função, o padrão) ou `fixed` (valor digitado no registro). `isFixedPrice()` / `pricingMode()` /
+  `pricingModeLabel()`; contrato anterior à coluna é lido como `hourly`. Ver
+  [Freelancers → Valor fixo](funcionalidades/freelancers.md#valor-fixo-o-valor-digitado-no-lugar-das-horas).
 - **Chave PIX do contrato:** `pix_key` é a **cópia congelada** na assinatura do freelancer — o
   documento assinado não pode passar a citar outra chave porque o cadastro mudou. `pixKey()` cai no
   cadastro quando a cópia não existe (contratos antigos e assinaturas pela API);

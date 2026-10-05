@@ -19,7 +19,6 @@
 
         @include('partials.alerts')
 
-        @include('replay.partials.tabs', ['current' => 'cameras'])
 
         <div class="mb-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6">
             <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Nova câmera</h2>

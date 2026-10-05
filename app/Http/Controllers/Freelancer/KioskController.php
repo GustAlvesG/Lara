@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Freelancer;
 
+use App\Authorization\Permissions;
 use App\Exceptions\CoordinatorAuthorizationException;
 use App\Exceptions\FreelancerBatchException;
 use App\Exceptions\FreelancerServiceLockedException;
@@ -40,7 +41,7 @@ use Illuminate\Support\Facades\Storage;
  *
  * São dois modos, decididos pelo que o usuário é:
  *
- *  - `operator`    — quem tem a permissão `manage freelancers`. Cadastra
+ *  - `operator`    — quem tem a permissão `freelancers.assinatura`. Cadastra
  *                    freelancers, registra contratos e conduz a assinatura do
  *                    freelancer. Fica gravado em created_by / freelancer_signed_by.
  *                    A sessão dura 30 minutos OU 5 contratos, o que vier primeiro.
@@ -326,6 +327,82 @@ class KioskController extends Controller
         return $service->start_date !== null
             && Carbon::parse($service->start_date)->startOfDay()
                 ->greaterThanOrEqualTo(now()->subDays(self::COMMISSION_WINDOW_DAYS)->startOfDay());
+    }
+
+    /**
+     * Contratos de um DIA, de todos os freelancers — a conferência do fim do
+     * turno: quem estava escalado, quem assinou e quem não apareceu.
+     *
+     * Só até hoje. Serve para dar baixa no que já aconteceu, e um dia que ainda
+     * não chegou não tem falta a registrar; deixar escolher o futuro seria abrir
+     * o caminho de esvaziar a agenda da semana para furar o limite.
+     *
+     * Traz também os já baixados: sem eles a tela diria que um contrato sumiu,
+     * quando o que houve foi alguém já ter marcado a falta.
+     */
+    public function dayServices(Request $request)
+    {
+        $this->operatorModeOrFail();
+
+        $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+        ], [
+            'date.before_or_equal' => 'Só é possível consultar contratos de hoje ou de dias anteriores.',
+        ]);
+
+        $day = $request->filled('date') ? Carbon::parse($request->input('date'))->startOfDay() : today();
+
+        // Mesmas relações da lista de contratos do freelancer: `batch`,
+        // `baseService` e `amendments` entram nas regras do aditivo e da
+        // comissão, e sem elas cada linha do dia faria as próprias consultas.
+        $services = FreelancerService::with([
+            'freelancer', 'functionFreelancer', 'batch', 'baseService.functionFreelancer', 'amendments',
+        ])
+            ->whereDate('start_date', $day)
+            ->orderBy('start_time')
+            ->get()
+            ->sortBy([
+                fn(FreelancerService $s) => (string) $s->start_time,
+                fn(FreelancerService $s) => (string) $s->freelancer?->name,
+            ])
+            ->values()
+            ->map(fn(FreelancerService $s) => $this->dayServicePayload($s));
+
+        return response()->json([
+            'date' => $day->toDateString(),
+            'date_br' => $day->format('d/m/Y'),
+            'is_today' => $day->isToday(),
+            'services' => $services,
+        ]);
+    }
+
+    /**
+     * Registra a falta: o freelancer não cumpriu o turno. O contrato é baixado
+     * e deixa de ocupar vaga na semana — é o que destrava o freelancer que
+     * faltou num dia e veio em outro, sem gastar a liberação do coordenador
+     * com um problema que é de cadastro.
+     *
+     * Não pede PIN de propósito. O PIN do operador não seria barreira nenhuma
+     * contra quem quisesse usar a falta para furar o limite (ele sabe o próprio
+     * PIN); as barreiras reais são as travas de `canBeMarkedNoShow()` e o nome
+     * de quem marcou ficar gravado. Contra o toque acidental, quem protege é a
+     * confirmação na tela.
+     */
+    public function markNoShow(FreelancerService $freelancerService)
+    {
+        $operator = $this->operatorModeOrFail();
+
+        try {
+            $this->freelancerService->markNoShow($freelancerService, $operator);
+        } catch (FreelancerServiceLockedException $e) {
+            return response()->json(['error' => $e->getMessage()], 409);
+        }
+
+        return response()->json([
+            'service' => $this->dayServicePayload(
+                $freelancerService->fresh(['freelancer', 'functionFreelancer'])
+            ),
+        ]);
     }
 
     public function storeService(StoreFreelancerServiceRequest $request)
@@ -1080,7 +1157,7 @@ class KioskController extends Controller
     private function availableModes(User $user): array
     {
         return array_values(array_filter([
-            $user->can('manage freelancers') ? self::MODE_OPERATOR : null,
+            $user->can(Permissions::FREELANCERS_ASSINATURA) ? self::MODE_OPERATOR : null,
             $user->isCoordinatorOfSectorNamed(self::COORDINATOR_SECTOR) ? self::MODE_COORDINATOR : null,
         ]));
     }
@@ -1218,6 +1295,9 @@ class KioskController extends Controller
             'crosses_midnight' => ($s->start_date && $s->end_date) ? $s->start_date->ne($s->end_date) : false,
             'total_hours' => $s->total_hours,
             'price' => (float) $s->price,
+            // Valor fixo: digitado no registro, não sai das horas. A prévia do
+            // aditivo precisa saber para não recalcular o que não muda.
+            'is_fixed_price' => $s->isFixedPrice(),
             // Valor do bloco de 15 min da função: é com ele que a prévia do
             // aditivo recalcula o preço na tela, sem inventar uma segunda regra.
             'block_price' => (float) ($s->functionFreelancer?->price ?? 0),
@@ -1244,10 +1324,35 @@ class KioskController extends Controller
         ];
     }
 
+    /**
+     * Contrato na lista do dia e na lista da semana. Acrescenta ao payload
+     * comum quem é o freelancer — as duas listas atravessam vários deles — e se
+     * a falta pode ser marcada ali mesmo.
+     */
+    private function dayServicePayload(FreelancerService $s): array
+    {
+        return $this->servicePayload($s) + [
+            'freelancer_id' => $s->freelancer_id,
+            'freelancer_name' => $s->freelancer?->name,
+            'can_mark_no_show' => $s->canBeMarkedNoShow(),
+            'is_no_show' => $s->isNoShow(),
+            'is_cancelled' => $s->isCancelled(),
+            'is_signed_by_freelancer' => $s->freelancer_signed_at !== null,
+        ];
+    }
+
     private function weeklyLimitPayload(array $data): array
     {
         $count = FreelancerService::countInWeeklyWindow($data['freelancer_id'], $data['start_date']);
         $freelancer = Freelancer::find($data['freelancer_id']);
+
+        // Os contratos que estão ocupando as vagas da semana. É com eles que a
+        // tela oferece a saída certa antes da liberação: se um daqueles dias
+        // não foi trabalhado, o caso é marcar falta, não pedir exceção.
+        $weekServices = FreelancerService::weeklyWindowServices(
+            (int) $data['freelancer_id'],
+            $data['start_date'],
+        )->map(fn(FreelancerService $s) => $this->dayServicePayload($s))->values();
 
         return [
             'error' => 'Limite semanal excedido',
@@ -1262,6 +1367,7 @@ class KioskController extends Controller
             'message' => 'Com este registro, ' . ($freelancer?->name ?? 'o freelancer') . ' passa a ter '
                 . ($count + 1) . ' serviços numa janela de ' . FreelancerService::WEEKLY_WINDOW_DAYS
                 . ' dias (limite: ' . FreelancerService::WEEKLY_LIMIT . ').',
+            'week_services' => $weekServices,
         ];
     }
 

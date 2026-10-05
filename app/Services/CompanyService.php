@@ -436,6 +436,19 @@ class CompanyService
             ];
         }
 
+        return $this->uberAccessPayload($request, $plate);
+    }
+
+    /**
+     * Formato único de resposta de um pedido de Uber encontrado. Vive separado
+     * porque duas portas chegam ao mesmo pedido: a placa digitada no monitor e
+     * o clique na linha da tela de "aguardando acesso" — e o JS do monitor
+     * renderiza as duas com o mesmo código.
+     */
+    private function uberAccessPayload(UberAccessRequest $request, ?string $plate = null): array
+    {
+        $plate = $plate ?: (string) $request->vehicle_plate;
+
         return [
             'found'      => true,
             'type'       => 'uber',
@@ -505,6 +518,208 @@ class CompanyService
     }
 
     /**
+     * A fila da portaria: todos os pedidos prontos, esperando o motorista.
+     *
+     * Sem filtro e sem paginação de propósito. A validade é de 30 minutos, a
+     * fila real tem poucas linhas, e esconder linha atrás de busca ou de
+     * página esconderia justamente o pedido que se procura — o Monitor mostra
+     * a fila inteira e quem identifica o carro é a pessoa na portaria. O teto
+     * é só uma trava de segurança.
+     */
+    public function uberWaitingQueue(int $limit = 200): array
+    {
+        $waiting = UberAccessRequest::where('status', UberAccessRequest::STATUS_AGUARDANDO_ACESSO)
+            ->orderByRaw('expires_at is null')
+            ->orderBy('expires_at')
+            ->limit($limit)
+            ->get();
+
+        // Vencido continua na fila: o cron que expira roda depois, e o
+        // motorista que chegou 30s atrasado não pode ficar sem saída.
+        [$expirados, $validos] = $waiting->partition(
+            fn (UberAccessRequest $req) => $req->expires_at !== null && $req->expires_at->isPast()
+        );
+
+        // Quem ainda está respondendo o WhatsApp agora. É o outro lado do
+        // mesmo problema: o motorista chega antes de o associado terminar de
+        // preencher, e a portaria precisa saber que o pedido existe.
+        $emPreenchimento = UberAccessRequest::whereIn('status', UberAccessRequest::CAPTURE_STATUSES)
+            ->where('last_message_at', '>=', now()->subMinutes(15))
+            ->latest('last_message_at')
+            ->limit(50)
+            ->get();
+
+        return [
+            'validos'         => $validos->values(),
+            'expirados'       => $expirados->values(),
+            'emPreenchimento' => $emPreenchimento,
+        ];
+    }
+
+    /**
+     * A fila serializada para o Monitor de Acesso (aplicação Python).
+     *
+     * `expires_in_seconds` vai pronto, e negativo quando já venceu: o cliente
+     * não precisa acertar fuso nem relógio com o servidor para mostrar quanto
+     * falta — a conta é sempre a do servidor.
+     */
+    public function uberWaitingPayload(int $limit = 200): array
+    {
+        $queue = $this->uberWaitingQueue($limit);
+
+        return [
+            'generated_at' => now()->toIso8601String(),
+            'counts' => [
+                'waiting' => $queue['validos']->count(),
+                'expired' => $queue['expirados']->count(),
+                'filling' => $queue['emPreenchimento']->count(),
+            ],
+            // Válidos e vencidos na mesma lista, cada um com a sua marca: os
+            // dois são liberáveis, e separá-los em dois campos só obrigaria o
+            // cliente a percorrer duas vezes para montar uma tela só.
+            'requests' => $queue['validos']->concat($queue['expirados'])
+                ->map(fn (UberAccessRequest $req) => $this->uberWaitingItem($req))
+                ->values()
+                ->all(),
+            'filling' => $queue['emPreenchimento']
+                ->map(fn (UberAccessRequest $req) => [
+                    'id'                    => $req->id,
+                    'status'                => $req->status,
+                    'status_label'          => $req->statusLabel(),
+                    'requester_name'        => $req->requester_name,
+                    'matricula'             => $req->matricula,
+                    'contact_phone'         => $req->contact_phone,
+                    'contact_name_whatsapp' => $req->contact_name_whatsapp,
+                    'club_location'         => $req->club_location,
+                    'vehicle_plate'         => $req->vehicle_plate,
+                    'started_at'            => optional($req->created_at)->toIso8601String(),
+                    'last_message_at'       => optional($req->last_message_at)->toIso8601String(),
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    private function uberWaitingItem(UberAccessRequest $request): array
+    {
+        $expired = $request->expires_at !== null && $request->expires_at->isPast();
+
+        return [
+            'id'                    => $request->id,
+            'status'                => $request->status,
+            'expired'               => $expired,
+            'expires_at'            => optional($request->expires_at)->toIso8601String(),
+            'expires_in_seconds'    => $request->expires_at ? now()->diffInSeconds($request->expires_at, false) : null,
+            'requester_name'        => $request->requester_name,
+            'matricula'             => $request->matricula,
+            'contact_phone'         => $request->contact_phone,
+            'contact_name_whatsapp' => $request->contact_name_whatsapp,
+            'club_location'         => $request->club_location,
+            'vehicle_plate'         => $request->vehicle_plate,
+            'screenshot_url'        => $request->screenshot_url,
+            'member_validation'       => $request->member_validation,
+            'member_validation_label' => $request->memberValidationLabel(),
+            'member_validation_name'  => $request->member_validation_name,
+            'member_validation_type'  => $request->member_validation_type,
+            'requested_at'          => optional($request->completed_at ?? $request->created_at)->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Registra o acesso de um pedido escolhido na tela de "Aguardando acesso
+     * do motorista" — pelo id do pedido, não pela placa.
+     *
+     * É a saída para o erro de preenchimento no WhatsApp: quando o associado
+     * digita a placa errada, nenhuma consulta por placa acha o pedido, mas o
+     * porteiro tem o carro na frente dele e o print da corrida na tela. Quem
+     * confere aqui é a pessoa, e o que ela escolheu é um pedido específico.
+     *
+     * A validade vencida NÃO bloqueia: o pedido continua "aguardando acesso"
+     * até o cron passar, e segurar o motorista por causa de um atraso de
+     * minutos só empurraria o porteiro para fora do sistema. O log registra a
+     * diferença no `reason`.
+     */
+    public function registerUberAccessById(int $requestId): array
+    {
+        $request = UberAccessRequest::find($requestId);
+
+        if (!$request || $request->status !== UberAccessRequest::STATUS_AGUARDANDO_ACESSO) {
+            return [
+                'found'   => false,
+                'reason'  => $request ? 'uber_request_not_waiting' : 'uber_request_not_found',
+                'type'    => 'uber',
+                'plate'   => (string) ($request->vehicle_plate ?? ''),
+                'status'  => $request->status ?? null,
+                'workers' => [],
+            ];
+        }
+
+        $expired = $request->expires_at !== null && $request->expires_at->isPast();
+
+        $request->update([
+            'status'      => UberAccessRequest::STATUS_CONCLUIDO,
+            'accessed_at' => now(),
+            'expires_at'  => now(),
+        ]);
+
+        $this->notifyUberArrival($request);
+
+        $result = $this->uberAccessPayload($request);
+
+        CompanyAccessLog::create([
+            'company_id'             => null,
+            'company_worker_id'      => null,
+            'uber_access_request_id' => $request->id,
+            'target'                 => $result['plate'],
+            'screenshot_url'         => $request->screenshot_url,
+            'allowed'                => true,
+            // Liberado fora da validade continua sendo liberado, mas o
+            // histórico precisa distinguir um do outro.
+            'reason'                 => $expired ? 'uber_access_granted_expired' : 'uber_access_granted_manual',
+        ]);
+
+        return $result;
+    }
+
+    /**
+     * Corrige a placa de um pedido ainda aguardando o motorista.
+     *
+     * A placa é o único campo do fluxo que o porteiro consegue conferir com o
+     * carro à vista, e é o que mais chega errado. Corrigir aqui devolve o
+     * pedido ao caminho normal (a consulta por placa volta a achá-lo) e evita
+     * que o histórico guarde a placa de um carro que nunca entrou.
+     */
+    public function updateUberRequestPlate(int $requestId, string $plate): array
+    {
+        $request = UberAccessRequest::find($requestId);
+
+        if (!$request || $request->status !== UberAccessRequest::STATUS_AGUARDANDO_ACESSO) {
+            return [
+                'found'  => false,
+                'reason' => $request ? 'uber_request_not_waiting' : 'uber_request_not_found',
+            ];
+        }
+
+        $normalized = $this->normalizePlate($plate);
+
+        if (!$this->isPlate($normalized)) {
+            return ['found' => false, 'reason' => 'invalid_plate', 'plate' => $normalized];
+        }
+
+        $previous = $request->vehicle_plate;
+        $request->update(['vehicle_plate' => $normalized]);
+
+        Log::info('Uber: placa corrigida na portaria', [
+            'uber_access_request_id' => $request->id,
+            'de'                     => $previous,
+            'para'                   => $normalized,
+            'user_id'                => auth()->id(),
+        ]);
+
+        return ['found' => true, 'plate' => $normalized, 'previous_plate' => $previous];
+    }
+
+    /**
      * Avisa o associado, pelo WhatsApp, que o carro dele chegou.
      *
      * Enfileira e volta: o porteiro não espera a Poli responder, e a Poli fora
@@ -525,37 +740,55 @@ class CompanyService
             return;
         }
 
+        $encerrar = (bool) config('poli.messages.uber_arrival.close_after', true);
+
         SendPoliTextMessage::dispatch(
             phone: $request->contact_phone,
             text: $this->uberArrivalMessage($request),
             contactUuid: $request->contact_uuid,
             uberAccessRequestId: $request->id,
+            closeAfter: $encerrar,
         );
     }
 
     /**
-     * Os dados vêm de texto livre digitado no WhatsApp, então cada frase é
-     * condicional: sem nome vira uma saudação seca, sem local a última frase
-     * não entra. O primeiro nome basta — o WhatsApp costuma devolver o nome do
-     * contato com sufixos ("Gustavo Coordenador de TI|Gustavo").
+     * Os dados vêm de texto livre digitado no WhatsApp, então cada linha é
+     * condicional: sem nome não há saudação, sem local a linha do destino não
+     * entra. O primeiro nome basta — o WhatsApp costuma devolver o nome do
+     * contato com sufixos ("Gustavo Coordenador de TI|Gustavo") —, e sai com
+     * a inicial maiúscula mesmo quando foi digitado "GUSTAVO" ou "gustavo".
+     *
+     * Blocos separados por linha em branco: saudação, o aviso e os dados do
+     * carro. O rodapé depende de para onde o atendimento vai depois do aviso,
+     * e quem o põe é o SendPoliTextMessage, que decide isso na hora do envio.
      */
     private function uberArrivalMessage(UberAccessRequest $request): string
     {
         $textos = config('poli.messages.uber_arrival');
-        $nome = Str::of((string) $request->requester_name)->trim()->before(' ')->value();
-        $frases = [];
+        $nome = Str::of((string) $request->requester_name)->trim()->before(' ')->before('|')->value();
+        $placa = (string) $request->vehicle_plate;
+        $blocos = [];
 
         if ($nome !== '') {
-            $frases[] = str_replace(':nome', $nome, $textos['saudacao']);
+            $blocos[] = str_replace(':nome', mb_convert_case($nome, MB_CASE_TITLE, 'UTF-8'), $textos['saudacao']);
         }
 
-        $frases[] = str_replace(':placa', (string) $request->vehicle_plate, $textos['corpo']);
+        // :placa ainda vale no corpo, para quem personalizou o texto no .env
+        // antes de a placa ganhar linha própria.
+        $blocos[] = str_replace(':placa', $placa, $textos['corpo']);
 
+        $dados = [];
+        if ($placa !== '' && filled($textos['placa'] ?? null) && !str_contains($textos['corpo'], ':placa')) {
+            $dados[] = str_replace(':placa', $placa, $textos['placa']);
+        }
         if (filled($request->club_location)) {
-            $frases[] = str_replace(':local', trim($request->club_location), $textos['local']);
+            $dados[] = str_replace(':local', trim($request->club_location), $textos['local']);
+        }
+        if ($dados !== []) {
+            $blocos[] = implode("\n", $dados);
         }
 
-        return implode(' ', $frases);
+        return implode("\n\n", $blocos);
     }
 
     /* ---------------------------------------------------------------------

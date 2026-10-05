@@ -6,19 +6,23 @@ Nas quadras há uma câmera e um botão. Quem aperta o botão guarda os **últim
 
 ## Para quem
 
-- **Marketing e TI** (painel web, permissão `manage replay`): configuram formato, layouts de logomarca e câmeras; conferem e baixam os vídeos.
+- **Marketing e TI** (painel web, permissão `replay` do catálogo de acesso): configuram formato, layouts de logomarca e câmeras; conferem e baixam os vídeos.
 - **Sócio** (site de locação): recebe o e-mail e coleta os vídeos da reserva dele.
 - **Visitante do site de locação**: vê a galeria de qualquer quadra.
 - **Sistema de captura** (integração): consulta a configuração e envia os clipes.
 
 ## Pré-requisitos
 
-- Permissão `manage replay` concedida na tela de Permissões (a migration a cria e concede só ao `admin`).
+- Permissão `replay` concedida ao setor na tela de **Setores** (ou à pessoa na tela de Usuários). TI alcança pelo acesso total; o Marketing precisa recebê-la. Ver [Usuários e Permissões](usuarios-e-permissoes.md).
 - Câmera cadastrada com o **identificador** que o sistema de captura usa para o equipamento.
 - `REPLAY_PORTAL_URL` no `.env` — é para onde o e-mail do sócio aponta.
 - Limite de upload do servidor em 256M (ver [docs/replay-api.md](../replay-api.md), seção 9).
 
 ---
+
+## No menu
+
+Grupo **Replay** (área do Placar), com as quatro telas como páginas. Na navegação por **Módulos**, a capa da área mostra as quatro como abas; nos menus lateral e superior, o próprio menu leva de uma à outra. O módulo não tem mais abas próprias.
 
 ## 1. Configuração de Vídeo
 

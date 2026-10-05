@@ -1,62 +1,45 @@
-<!-- MENSAGENS DE FEEDBACK (NOVO) -->
-@if(session('success') || isset($_GET['success']))
-<div id="success-alert" class="mb-6 animate-fadeIn">
-    <div class="bg-green-600 border border-green-500 text-white px-6 py-4 rounded-2xl shadow-xl flex items-center justify-between">
-        <div class="flex items-center gap-4">
-            <div class="bg-white/20 p-2 rounded-full">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
-                </svg>
+{{--
+    Mensagens de retorno (sucesso, erro, atenção) vindas da sessão — ou de
+    ?success= / ?error= na URL, para telas que redirecionam por JavaScript.
+    Os ids ficam: há telas que removem o aviso por script.
+--}}
+@php
+    $alerts = array_filter([
+        'success' => (session('success') || isset($_GET['success']))
+            ? ['ok', 'check', 'Sucesso!', [session('success') ?? ($_GET['success'] ?? '')]]
+            : null,
+        'error' => (session('error') || isset($_GET['error']))
+            ? ['danger', 'x', 'Erro!', ['Por favor, tente novamente ou entre em contato com a TI.', session('error') ?? '']]
+            : null,
+        'warning' => session('warning')
+            ? ['warn', 'clock', 'Atenção', [session('warning')]]
+            : null,
+    ]);
+    $tones = [
+        'ok' => 'bg-ok-soft text-ok',
+        'danger' => 'bg-danger-soft text-danger',
+        'warn' => 'bg-warn-soft text-warn',
+    ];
+@endphp
+
+@foreach ($alerts as $id => [$tone, $glyph, $title, $lines])
+    <div id="{{ $id }}-alert" class="mb-6 animate-fadeIn" role="{{ $tone === 'ok' ? 'status' : 'alert' }}">
+        <div class="flex items-start justify-between gap-4 rounded-2xl px-5 py-4 {{ $tones[$tone] }}">
+            <div class="flex items-start gap-3">
+                <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-surface/70">
+                    <x-icon :name="$glyph" class="h-4 w-4" />
+                </span>
+                <div>
+                    <p class="font-bold leading-tight">{{ $title }}</p>
+                    @foreach (array_filter($lines, 'filled') as $line)
+                        <p class="mt-1 text-sm text-ink-2">{{ $line }}</p>
+                    @endforeach
+                </div>
             </div>
-            <div>
-                <p class="font-extrabold text-lg leading-none">Sucesso!</p>
-                <p class="text-sm text-green-100 mt-1">{{ session('success') ?? ($_GET['success'] ?? '') }}</p>
-            </div>
+            <button type="button" onclick="document.getElementById('{{ $id }}-alert').remove()" aria-label="Fechar aviso"
+                class="grid h-8 w-8 shrink-0 place-items-center rounded-full opacity-70 transition hover:bg-surface/70 hover:opacity-100">
+                <x-icon name="x" class="h-4 w-4" />
+            </button>
         </div>
-        <button onclick="document.getElementById('success-alert').remove()" class="text-white/60 hover:text-white transition">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-        </button>
     </div>
-</div>
-@endif
-@if(session('error') || isset($_GET['error']))
-<div id="error-alert" class="mb-6 animate-fadeIn">
-    <div class="bg-red-600 border border-red-500 text-white px-6 py-4 rounded-2xl shadow-xl flex items-center justify-between">
-        <div class="flex items-center gap-4">
-            <div class="bg-white/20 p-2 rounded-full">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path>
-                </svg>
-            </div>
-            <div>
-                <p class="font-extrabold text-lg leading-none">Erro!</p>
-                <p class="text-sm text-red-100 mt-1">Por favor, tente novamente ou entre em contato com a TI.</p>
-                <p class="text-sm text-red-100 mt-1">{{ session('error') ?? '' }}</p>
-            </div>
-        </div>
-        <button onclick="document.getElementById('error-alert').remove()" class="text-white/60 hover:text-white transition">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-        </button>
-    </div>
-</div>
-@endif
-@if(session('warning'))
-<div id="warning-alert" class="mb-6 animate-fadeIn">
-    <div class="bg-amber-500 border border-amber-400 text-white px-6 py-4 rounded-2xl shadow-xl flex items-center justify-between">
-        <div class="flex items-center gap-4">
-            <div class="bg-white/20 p-2 rounded-full">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path>
-                </svg>
-            </div>
-            <div>
-                <p class="font-extrabold text-lg leading-none">Atenção</p>
-                <p class="text-sm text-amber-50 mt-1">{{ session('warning') }}</p>
-            </div>
-        </div>
-        <button onclick="document.getElementById('warning-alert').remove()" class="text-white/60 hover:text-white transition">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-        </button>
-    </div>
-</div>
-@endif
+@endforeach

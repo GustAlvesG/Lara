@@ -10,25 +10,25 @@
      * Sem isso a tela vira um mural de etiquetas coloridas sem hierarquia.
      */
     $cores = [
-        'awaiting_signatures' => 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
-        'awaiting_release'    => 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',
-        'awaiting_batch'      => 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
-        'in_draft'            => 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
-        'awaiting_manager'    => 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-        'awaiting_director'   => 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-        'awaiting_payment'    => 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
-        'paying'              => 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
-        'partially_paid'      => 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
-        'paid'                => 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
-        'manager_rejected'    => 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-        'director_rejected'   => 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-        'closed'              => 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-        'empty'               => 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
-        'cancelled'           => 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400 line-through',
-        'amended'             => 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+        'awaiting_signatures' => 'bg-subtle text-ink',
+        'awaiting_release'    => 'bg-grena-tint text-grena-ink',
+        'awaiting_batch'      => 'bg-subtle text-ink',
+        'in_draft'            => 'bg-subtle text-ink',
+        'awaiting_manager'    => 'bg-warn-soft text-warn',
+        'awaiting_director'   => 'bg-warn-soft text-warn',
+        'awaiting_payment'    => 'bg-grena-tint text-grena-ink',
+        'paying'              => 'bg-grena-tint text-grena-ink',
+        'partially_paid'      => 'bg-grena-tint text-grena-ink',
+        'paid'                => 'bg-ok-soft text-ok',
+        'manager_rejected'    => 'bg-danger-soft text-grena-ink',
+        'director_rejected'   => 'bg-danger-soft text-grena-ink',
+        'closed'              => 'bg-danger-soft text-grena-ink',
+        'empty'               => 'bg-line text-ink-2',
+        'cancelled'           => 'bg-line text-ink-2 line-through',
+        'amended'             => 'bg-line text-ink-2',
     ];
 
-    $classe = $cores[$stage] ?? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200';
+    $classe = $cores[$stage] ?? 'bg-subtle text-ink';
     $tamanho = ($size ?? 'md') === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-3 py-1 text-xs';
 @endphp
 

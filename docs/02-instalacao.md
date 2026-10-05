@@ -129,15 +129,53 @@ php artisan queue:work
 
 ## Deploy
 
-O repositório inclui `deploy_hml.sh`, um script de deploy para o ambiente de homologação.
-Revise-o antes de executar; em produção, garanta:
+O repositório inclui `deploy_hml.sh` (homologação) e `deploy_prod.sh` (produção). O de produção
+faz, nesta ordem: backup do banco, `git pull`, `composer install`, `npm ci` + build, migrations,
+o seed padrão de permissões (`PermissionCatalogSeeder`), caches, permissões de pasta, worker de
+filas, cron e reinício do servidor web. Ele para no primeiro erro e diz em que linha parou.
 
-```bash
-php artisan config:cache
-php artisan route:cache
-php artisan migrate --force
-npm run build
-```
+### Chaves do `.env.example` que faltam no `.env`
+
+**Um worker de fila só.** Os dois scripts garantem que a fila tenha exatamente um `queue:work`,
+o programa `lara-queue` do Supervisor. A cada deploy: outro programa do Supervisor que rode o
+`queue:work` desta instalação é parado e o arquivo dele em `/etc/supervisor/conf.d/` é renomeado
+para `.desativado-<data>` (guardado, não apagado); o `numprocs` do `lara-queue` volta a 1; o
+`lara-queue` é reiniciado; e `queue:work` aberto à mão recebe `TERM` (termina o job em andamento
+e sai). No fim o script diz quantos workers ficaram no ar. Dois workers já fizeram o bot do
+WhatsApp responder com configuração antiga (o deploy reiniciava um só) e podem processar fora de
+ordem duas mensagens da mesma conversa. Um worker de fila dedicada (comando com `--queue=`) não
+é tratado como duplicata e fica.
+
+A cada deploy, logo depois do `git pull` e de novo no fim, o `deploy_prod.sh` lista as chaves
+que existem no `.env.example` e **não** existem no `.env` do servidor, cada uma com o comentário
+que a antecede no `.env.example` (o bloco de linhas com `#` logo acima; chaves seguidas sob o
+mesmo comentário o compartilham). É só aviso — o deploy não para por isso: quem decide se a chave
+precisa de valor naquele servidor é quem está fazendo o deploy, e o comentário diz para que ela
+serve. Chave comentada no `.env` (`# CHAVE=...`) conta como ausente.
+
+Por isso, **toda chave nova entra no `.env.example` com um comentário acima** dizendo para que
+serve: é esse texto que aparece no deploy.
+
+### "Há arquivos versionados alterados direto no servidor"
+
+Antes do `git pull`, o `deploy_prod.sh` confere se alguém editou arquivo versionado direto no
+servidor — e para, em vez de sobrescrever. Três coisas aparecem diferentes **sempre**, sem ninguém
+ter editado nada, e o script as trata sozinho:
+
+| O que aparece | Por quê | O que o script faz |
+|---|---|---|
+| `.gitignore` de `storage/` e `bootstrap/cache/` | o próprio deploy dá `chmod 775` nessas pastas, e o git vê a troca de permissão como alteração | `git config core.fileMode false`: modo de arquivo não conta como mudança |
+| `bootstrap/cache/packages.php` e `services.php` | cache de pacotes do Laravel, refeito pelo `composer install` | restaura antes do pull; os arquivos **não são mais versionados** |
+| `package-lock.json` | um `npm install` antigo o alterava | restaura antes do pull (o deploy usa `npm ci`, que não o altera) |
+
+Arquivo **novo**, não versionado (`??` no `git status`) — imagem enviada pelo sistema em
+`public/images`, por exemplo — não bloqueia o deploy nem entra na lista do aviso.
+
+Se o aviso aparecer mesmo assim, é alteração de verdade: confira o arquivo, e use
+`git checkout -- <arquivo>` para descartar ou `git stash` para guardar.
+
+> Arquivo gerado em tempo de execução não deve ser versionado. Se um novo aparecer nessa lista a
+> cada deploy, o conserto é tirá-lo do git (`git rm --cached`), e não acrescentar exceção.
 
 ## Testes
 

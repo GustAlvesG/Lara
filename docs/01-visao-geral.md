@@ -28,8 +28,8 @@ A aplicação está configurada em Português do Brasil (`APP_LOCALE=pt_BR`) e f
 | **Comunicação Telegram** | Cadastro/consulta de contatos do Telegram (para notificações de equipe). | `TelegramContactController`, `TelegramService`, `TelegramContact` |
 | **Controle de acesso físico** | Consulta de acessos (catracas) e estacionamento, lendo a base SQL Server externa. | `AccessController`, `ParkingController`, `Access`, `Parking`, `Visitor` |
 | **Conteúdo informativo** | InfoClube: catálogo versionado de atividades/serviços (preços, responsáveis, etc.). | `InformationController`, `Information`, `DataInfo` |
-| **Usuários e Permissões** | Gestão de usuários administrativos, papéis e permissões (Spatie). | `UserController`, `PermissionController`, `User` |
-| **Energia / VideoWall / FTP** | Painéis auxiliares (dashboard de energia, mural de vídeos, listagem FTP). | `EnergyController`, `VideoWallController`, `FtpController` |
+| **Usuários, Setores e Permissões** | Acesso por setor (com acesso total para Gerência, Diretoria e TI), permissões individuais e "Meu setor" para coordenadores. | `UserController`, `SectorController`, `MySectorController`, `App\Authorization` |
+| **Energia / FTP** | Painéis auxiliares (dashboard de energia, listagem FTP). | `EnergyController`, `FtpController` |
 
 ## Integrações externas
 

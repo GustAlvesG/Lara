@@ -342,6 +342,9 @@ class PlaceGroupController extends Controller
         $place = Place::create([
             'name'           => $validated['name'],
             'contactor_id'   => $this->contactorIdFor($request),
+            // Autoatendimento de iluminação: liberado espaço a espaço, e nunca
+            // por engano — o formulário manda um hidden 0 junto do checkbox.
+            'self_service_lighting' => $request->boolean('self_service_lighting'),
             'place_group_id' => $validated['place_group_id'],
             'image'          => $validated['image'] ?? null,
             'price'          => $validated['price'],
@@ -369,7 +372,7 @@ class PlaceGroupController extends Controller
      */
     protected function contactorIdFor(Request $request, ?Place $place = null): ?int
     {
-        if (! $request->user()?->can('manage home assistant') || ! $request->has('contactor_id')) {
+        if (! $request->user()?->can('home-assistant') || ! $request->has('contactor_id')) {
             return $place?->contactor_id;
         }
 
@@ -415,6 +418,7 @@ class PlaceGroupController extends Controller
         $place->update([
             'name'         => $validated['name'],
             'contactor_id' => $this->contactorIdFor($request, $place),
+            'self_service_lighting' => $request->boolean('self_service_lighting'),
             'price'        => $validated['price'],
             'status_id'    => $validated['status_id'],
             'image'        => $validated['image'] ?? null,

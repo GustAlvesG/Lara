@@ -1,180 +1,153 @@
-<x-app-layout>
-    <x-slot name="header">
-        <div class="flex justify-between items-center">
-            <div class="flex items-center gap-3">
-                <a href="{{ route('avisos.index') }}" class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                    </svg>
-                </a>
-                <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-                    {{ $aviso->title }}
-                </h2>
-            </div>
-            @can('manage avisos')
-                <a href="{{ route('avisos.edit', $aviso) }}"
-                   class="px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-                    Editar
-                </a>
-            @endcan
-        </div>
-    </x-slot>
+@php
+    $privacyLabels = [
+        'pessoa' => 'Pessoal',
+        'setor' => 'Setor',
+        'publico' => 'Público',
+        'grupo' => 'Grupo',
+    ];
+    $th = 'px-5 py-2.5 text-left text-xs font-bold text-ink-3';
+@endphp
 
-    <div class="py-6">
-        <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white dark:bg-gray-800 shadow sm:rounded-lg overflow-hidden">
-
-                @if($aviso->image)
-                    <img src="{{ asset('images/avisos/' . $aviso->image) }}"
-                         alt="{{ $aviso->title }}"
-                         class="w-full max-h-64 object-cover">
-                @endif
-
-                <div class="p-6 space-y-4">
-
-                    {{-- Badges de status --}}
-                    @php
-                        $privacyConfig = [
-                            'pessoa'  => ['label' => '🔒 Pessoal', 'class' => 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'],
-                            'setor'   => ['label' => '👥 Setor',   'class' => 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'],
-                            'publico' => ['label' => '🌐 Público', 'class' => 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'],
-                        ];
-                        $privacyInfo = $privacyConfig[$aviso->privacy] ?? $privacyConfig['setor'];
-                    @endphp
-                    <div class="flex flex-wrap gap-2">
-                        <span class="px-2 py-1 text-xs rounded-full {{ $privacyInfo['class'] }}">
-                            {{ $privacyInfo['label'] }}
-                        </span>
-
-                        @if($aviso->isExpired())
-                            <span class="px-2 py-1 text-xs rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                                Expirado em {{ $aviso->expires_at->format('d/m/Y') }}
-                            </span>
-                        @elseif($aviso->expires_at)
-                            <span class="px-2 py-1 text-xs rounded-full {{ $aviso->expiresSoon() ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300' : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' }}">
-                                Expira em {{ $aviso->expires_at->format('d/m/Y') }}
-                            </span>
-                        @endif
-                    </div>
-
-                    {{-- Tags --}}
-                    @if($aviso->tags->isNotEmpty())
-                        <div class="flex flex-wrap gap-1.5">
-                            @foreach($aviso->tags as $tag)
-                                <a href="{{ route('avisos.index', ['q' => $tag->name]) }}"
-                                   class="px-2.5 py-1 text-xs rounded-full bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50 transition">
-                                    #{{ $tag->name }}
-                                </a>
-                            @endforeach
-                        </div>
-                    @endif
-
-                    {{-- Conteúdo --}}
-                    @if($aviso->content)
-                        <div class="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 leading-relaxed aviso-content">
-                            {!! $aviso->content !!}
-                        </div>
-                    @endif
-
-                    {{-- Lembretes --}}
-                    @if($aviso->lembretes->isNotEmpty())
-                        <div class="pt-3 border-t border-gray-100 dark:border-gray-700">
-                            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Lembretes</p>
-                            <div class="flex flex-wrap gap-2">
-                                @foreach($aviso->lembretes as $lembrete)
-                                    <span class="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full
-                                        {{ $lembrete->sent
-                                            ? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
-                                            : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' }}">
-                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-                                        </svg>
-                                        {{ $lembrete->remind_at->format('d/m/Y H:i') }}
-                                        @if($lembrete->sent)
-                                            <span class="opacity-60">(enviado)</span>
-                                        @endif
-                                    </span>
-                                @endforeach
-                            </div>
-                        </div>
-                    @endif
-
-                    {{-- Rodapé --}}
-                    <div class="pt-4 border-t border-gray-100 dark:border-gray-700 text-sm text-gray-400 dark:text-gray-500">
-                        Publicado por
-                        <span class="font-medium text-gray-600 dark:text-gray-400">{{ $aviso->creator->name ?? '—' }}</span>
-                        em {{ $aviso->created_at->format('d/m/Y \à\s H:i') }}
-                    </div>
-                </div>
-            </div>
-
-            {{-- Histórico de acessos (somente managers/admins) --}}
-            @if($canManage && $viewHistory->isNotEmpty())
-                <div class="mt-4 bg-white dark:bg-gray-800 shadow sm:rounded-lg overflow-hidden"
-                     x-data="{ open: false }">
-                    <button type="button" @click="open = !open"
-                            class="w-full flex justify-between items-center px-6 py-4 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition">
-                        <span class="flex items-center gap-2">
-                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                            </svg>
-                            Histórico de acessos
-                            <span class="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs">
-                                {{ $viewHistory->count() }} {{ $viewHistory->count() === 1 ? 'pessoa' : 'pessoas' }}
-                            </span>
-                        </span>
-                        <svg class="w-4 h-4 text-gray-400 transition-transform" :class="{ 'rotate-180': open }"
-                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </button>
-
-                    <div x-show="open" x-collapse class="border-t border-gray-100 dark:border-gray-700">
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                    <th class="px-6 py-2 text-left font-medium">Usuário</th>
-                                    <th class="px-6 py-2 text-left font-medium">Último acesso</th>
-                                    <th class="px-6 py-2 text-right font-medium">Acessos</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
-                                @foreach($viewHistory as $entry)
-                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
-                                        <td class="px-6 py-3 text-gray-800 dark:text-gray-200 font-medium">
-                                            {{ $entry['user']->name ?? '—' }}
-                                        </td>
-                                        <td class="px-6 py-3 text-gray-500 dark:text-gray-400">
-                                            {{ $entry['last_view']->format('d/m/Y \à\s H:i') }}
-                                            <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">
-                                                ({{ $entry['last_view']->diffForHumans() }})
-                                            </span>
-                                        </td>
-                                        <td class="px-6 py-3 text-right">
-                                            <span class="px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 text-xs font-medium">
-                                                {{ $entry['count'] }}x
-                                            </span>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            @endif
-
-        </div>
-    </div>
-
+<x-app-layout :bootstrap-grid="false">
     <x-slot name="css">
         <style>
             .aviso-content b, .aviso-content strong { font-weight: 700; }
             .aviso-content i, .aviso-content em { font-style: italic; }
             .aviso-content u { text-decoration: underline; }
+            .aviso-content a { color: rgb(var(--grena-ink)); text-decoration: underline; }
         </style>
     </x-slot>
+
+    <x-page narrow>
+        <x-page-title :title="$aviso->title" :back="route('avisos.index')">
+            Publicado por {{ $aviso->creator->name ?? '—' }} em {{ $aviso->created_at->format('d/m/Y \à\s H:i') }}
+
+            @auth
+                <x-slot:actions>
+                    <x-secondary-button-a href="{{ route('avisos.edit', $aviso) }}">
+                        <x-icon name="pencil" /> Editar
+                    </x-secondary-button-a>
+                </x-slot:actions>
+            @endauth
+        </x-page-title>
+
+        <article class="overflow-hidden rounded-card bg-surface shadow-card">
+            @if ($aviso->image)
+                <x-media :src="asset('images/avisos/' . $aviso->image)" :alt="$aviso->title" area="info" icon="bell" ratio="short" />
+            @endif
+
+            <div class="flex flex-col gap-4 p-5 sm:p-6">
+                <div class="flex flex-wrap gap-1.5">
+                    <x-pill kind="info" :icon="false">{{ $privacyLabels[$aviso->privacy] ?? $privacyLabels['setor'] }}</x-pill>
+                    @if ($aviso->mandatory)
+                        <x-pill kind="warn" :icon="false"><x-icon name="eye" class="h-3.5 w-3.5" /> Leitura obrigatória</x-pill>
+                    @endif
+
+                    @if ($aviso->isExpired())
+                        <x-pill kind="off">Expirado em {{ $aviso->expires_at->format('d/m/Y') }}</x-pill>
+                    @elseif ($aviso->expires_at)
+                        <x-pill :kind="$aviso->expiresSoon() ? 'warn' : 'ok'">Expira em {{ $aviso->expires_at->format('d/m/Y') }}</x-pill>
+                    @endif
+                </div>
+
+                @if ($aviso->tags->isNotEmpty())
+                    <div class="flex flex-wrap gap-1.5">
+                        @foreach ($aviso->tags as $tag)
+                            <a href="{{ route('avisos.index', ['q' => $tag->name]) }}"
+                                class="rounded-full bg-area-info px-2.5 py-1 text-xs font-semibold text-area-info-ink no-underline hover:underline">#{{ $tag->name }}</a>
+                        @endforeach
+                    </div>
+                @endif
+
+                @if ($aviso->content)
+                    <div class="aviso-content max-w-none text-[15px] leading-relaxed text-ink">
+                        {!! $aviso->content !!}
+                    </div>
+                @endif
+
+                @if ($aviso->lembretes->isNotEmpty())
+                    <div class="border-t border-line pt-4">
+                        <p class="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-ink-3">Lembretes</p>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach ($aviso->lembretes as $lembrete)
+                                <x-pill :kind="$lembrete->sent ? 'off' : 'info'" :icon="false">
+                                    <x-icon name="bell" class="h-3 w-3" />
+                                    <span class="font-mono">{{ $lembrete->remind_at->format('d/m/Y H:i') }}</span>
+                                    @if ($lembrete->sent)
+                                        <span class="opacity-70">(enviado)</span>
+                                    @endif
+                                </x-pill>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+            </div>
+        </article>
+
+        {{-- Quem já confirmou a leitura (avisos de leitura obrigatória) --}}
+        @if ($aviso->mandatory)
+            @php $acknowledgements = $acknowledgements ?? collect(); @endphp
+            <section class="overflow-hidden rounded-card bg-surface shadow-card">
+                <div class="flex items-center justify-between gap-3 px-5 py-4">
+                    <h2 class="flex items-center gap-2 text-sm font-bold text-ink">
+                        <x-icon name="check" class="h-4 w-4 text-ok" /> Ciência registrada
+                    </h2>
+                    <span class="text-sm text-ink-2">{{ $acknowledgements->count() }} {{ $acknowledgements->count() === 1 ? 'pessoa' : 'pessoas' }}</span>
+                </div>
+                @if ($acknowledgements->isEmpty())
+                    <p class="border-t border-line px-5 py-4 text-sm text-ink-3">Ninguém confirmou a leitura ainda.</p>
+                @else
+                    <ul class="divide-y divide-line border-t border-line">
+                        @foreach ($acknowledgements as $ack)
+                            <li class="flex items-center justify-between gap-3 px-5 py-2.5 text-sm">
+                                <span class="font-semibold text-ink">{{ $ack->user->name ?? 'Usuário removido' }}</span>
+                                <span class="font-mono text-xs text-ink-2">{{ $ack->acknowledged_at?->format('d/m/Y H:i') }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </section>
+        @endif
+
+        {{-- Quem já leu --}}
+        @if ($viewHistory->isNotEmpty())
+            <section class="overflow-hidden rounded-card bg-surface shadow-card" x-data="{ open: false }">
+                <button type="button" @click="open = !open" :aria-expanded="open.toString()"
+                    class="flex w-full items-center justify-between gap-3 px-5 py-4 text-left text-sm font-bold text-ink transition hover:bg-subtle">
+                    <span class="flex items-center gap-2">
+                        <x-icon name="eye" class="h-4 w-4 text-ink-3" />
+                        Histórico de acessos
+                        <span class="rounded-full bg-subtle px-2 py-0.5 font-mono text-xs text-ink-2">
+                            {{ $viewHistory->count() }} {{ $viewHistory->count() === 1 ? 'pessoa' : 'pessoas' }}
+                        </span>
+                    </span>
+                    <x-icon name="chevron-down" class="h-4 w-4 text-ink-3 transition-transform" x-bind:class="open ? 'rotate-180' : ''" />
+                </button>
+
+                <div x-show="open" x-cloak class="overflow-x-auto border-t border-line">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-line">
+                                <th class="{{ $th }}">Pessoa</th>
+                                <th class="{{ $th }}">Último acesso</th>
+                                <th class="{{ $th }} text-right">Acessos</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($viewHistory as $entry)
+                                <tr class="border-b border-line last:border-0">
+                                    <td class="px-5 py-3 font-semibold text-ink">{{ $entry['user']->name ?? '—' }}</td>
+                                    <td class="px-5 py-3 text-ink-2">
+                                        <span class="font-mono">{{ $entry['last_view']->format('d/m/Y H:i') }}</span>
+                                        <span class="ml-1 text-xs text-ink-3">({{ $entry['last_view']->diffForHumans() }})</span>
+                                    </td>
+                                    <td class="px-5 py-3 text-right font-mono font-semibold text-ink">{{ $entry['count'] }}×</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        @endif
+    </x-page>
 </x-app-layout>

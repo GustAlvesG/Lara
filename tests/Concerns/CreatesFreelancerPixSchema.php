@@ -93,6 +93,8 @@ trait CreatesFreelancerPixSchema
             $table->dateTime('amended_at')->nullable();
             $table->dateTime('cancelled_at')->nullable();
             $table->unsignedBigInteger('cancelled_by')->nullable();
+            // Motivo da baixa: cancelamento comum ou falta do freelancer.
+            $table->string('cancel_reason', 20)->nullable();
             $table->dateTime('weekly_limit_authorized_at')->nullable();
             $table->unsignedBigInteger('weekly_limit_authorized_by')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();
@@ -134,6 +136,11 @@ trait CreatesFreelancerPixSchema
         (require base_path('database/migrations/2026_08_12_140000_add_contract_freeze_to_freelancer_services_table.php'))->up();
         (require base_path('database/migrations/2026_09_11_100000_create_freelancer_directors_table.php'))->up();
         (require base_path('database/migrations/2026_09_11_100100_add_director_signature_to_freelancer_services_table.php'))->up();
+
+        // Por horas ou valor fixo: o serviço grava a forma em todo contrato que
+        // cria, então a coluna precisa existir para qualquer teste que registre
+        // um. Migration de verdade, pelo mesmo motivo das anteriores.
+        (require base_path('database/migrations/2026_10_09_100000_add_pricing_mode_to_freelancer_services_table.php'))->up();
 
         // A migration da diretoria importa o destinatário do `.env` de quem roda
         // a suíte. O teste começa sem diretor; quem precisa de um, cria.

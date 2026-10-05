@@ -1,147 +1,94 @@
-<x-app-layout>
+{{-- Pagamentos de reservas. Busca por sócio (nome ou CPF) no servidor, junto
+     dos filtros de status e método. --}}
+@php
+    $field = 'h-11 rounded-full border border-line-strong bg-surface px-4 text-sm text-ink focus:border-grena focus:ring-4 focus:ring-grena-tint';
+    $methods = ['credit_card' => 'Cartão de crédito', 'debit_card' => 'Cartão de débito', 'pix' => 'Pix'];
+@endphp
+<x-app-layout :bootstrap-grid="false">
+    <x-page>
+        <x-page-title title="Pagamentos">
+            Consulte na Rede e estorne pagamentos de reservas.
+        </x-page-title>
 
-    <div class="max-w-full  mx-auto pt-4 pb-10 px-4">
+        @include('partials.alerts')
 
-        <!-- HEADER -->
-        <div class="mb-8 flex items-center justify-between flex-wrap gap-4">
-            <div class="flex items-center gap-4">
-                <a href="{{ route('dashboard') }}" class="p-2 bg-white rounded-xl shadow-md text-gray-400 hover:text-indigo-600 border border-gray-100 transition">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                    </svg>
-                </a>
-                <div>
-                    <h1 class="text-3xl font-extrabold text-gray-900 leading-tight">Gestão de Pagamentos</h1>
-                    <p class="text-gray-500 font-medium">Visualize, consulte na Rede e estorne pagamentos de reservas.</p>
-                </div>
-            </div>
-        </div>
-
-        @if(session('success'))
-            <div class="mb-6 p-4 rounded-2xl bg-green-50 border border-green-100 text-green-700 text-sm font-medium">
-                {{ session('success') }}
-            </div>
-        @endif
-        @if(session('error'))
-            <div class="mb-6 p-4 rounded-2xl bg-red-50 border border-red-100 text-red-700 text-sm font-medium">
-                {{ session('error') }}
-            </div>
-        @endif
-
-        <!-- FILTROS -->
-        <form method="GET" action="{{ route('payment.index') }}"
-              class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-4 items-end">
-
-                <div class="col-span-2">
-                    <label class="block text-xs font-black text-gray-400 uppercase tracking-wider mb-1.5">Sócio (nome ou CPF)</label>
-                    <input type="text" name="member" value="{{ request('member') }}" placeholder="Buscar sócio..."
-                           class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-400">
-                </div>
-
-                <div>
-                    <label class="block text-xs font-black text-gray-400 uppercase tracking-wider mb-1.5">Status</label>
-                    <select name="status_id" class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-400">
-                        <option value="">Todos</option>
-                        @foreach($statuses as $status)
-                            <option value="{{ $status->id }}" {{ (string) request('status_id') === (string) $status->id ? 'selected' : '' }}>
-                                {{ $status->portuguese ?? $status->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-black text-gray-400 uppercase tracking-wider mb-1.5">Método</label>
-                    <select name="payment_method" class="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-400">
-                        <option value="">Todos</option>
-                        @foreach(['credit_card' => 'Cartão de Crédito', 'debit_card' => 'Cartão de Débito', 'pix' => 'Pix'] as $value => $label)
-                            <option value="{{ $value }}" {{ request('payment_method') === $value ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="flex gap-2">
-                    <button type="submit" class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition shadow-sm">
-                        Filtrar
-                    </button>
-                    @if(request()->hasAny(['member','status_id','payment_method','date_from','date_to']))
-                        <a href="{{ route('payment.index') }}" class="px-3 py-2.5 bg-white border border-gray-200 text-gray-500 rounded-xl font-bold text-sm hover:bg-gray-50 transition shrink-0">
-                            ✕
-                        </a>
-                    @endif
-                </div>
-
-            </div>
-        </form>
+        <x-search-bar name="member" :filters="['status_id', 'payment_method', 'date_from', 'date_to']" placeholder="Sócio: nome ou CPF" label="Buscar sócio">
+            <x-slot:controls>
+                <label for="filtro-status" class="sr-only">Status</label>
+                <select id="filtro-status" name="status_id" class="{{ $field }} w-full sm:w-44">
+                    <option value="">Todos os status</option>
+                    @foreach($statuses as $status)
+                        <option value="{{ $status->id }}" @selected((string) request('status_id') === (string) $status->id)>{{ $status->portuguese ?? $status->name }}</option>
+                    @endforeach
+                </select>
+                <label for="filtro-metodo" class="sr-only">Método</label>
+                <select id="filtro-metodo" name="payment_method" class="{{ $field }} w-full sm:w-48">
+                    <option value="">Todos os métodos</option>
+                    @foreach($methods as $value => $label)
+                        <option value="{{ $value }}" @selected(request('payment_method') === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </x-slot:controls>
+        </x-search-bar>
 
         <!-- TABELA -->
-        <div class="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-
-            @if($payments->isEmpty())
-                <div class="py-16 text-center">
-                    <svg class="w-12 h-12 text-gray-200 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                    </svg>
-                    <p class="text-gray-400 font-medium">Nenhum pagamento encontrado com esses filtros.</p>
-                </div>
-            @else
+        @if($payments->isEmpty())
+            <x-empty-state icon="card">
+                Nenhum pagamento encontrado com esses filtros.
+                <a href="{{ route('payment.index') }}" class="font-bold text-grena-ink hover:underline">Limpar a busca</a>.
+            </x-empty-state>
+        @else
+        <div class="overflow-hidden rounded-card bg-surface shadow-card">
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead>
-                            <tr class="border-b border-gray-100 bg-gray-50/70">
-                                <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 uppercase tracking-wider">#</th>
-                                <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 uppercase tracking-wider">Sócio</th>
-                                <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 uppercase tracking-wider">Método</th>
-                                <th class="px-5 py-3.5 text-left text-[11px] font-black text-gray-400 uppercase tracking-wider">Pago em</th>
-                                <th class="px-5 py-3.5 text-center text-[11px] font-black text-gray-400 uppercase tracking-wider">Status</th>
-                                <th class="px-5 py-3.5 text-right text-[11px] font-black text-gray-400 uppercase tracking-wider">Valor Pago</th>
-                                <th class="px-5 py-3.5 text-right text-[11px] font-black text-gray-400 uppercase tracking-wider">Estornado</th>
+                            <tr class="border-b border-line bg-subtle">
+                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-ink-3 uppercase tracking-[0.08em]">#</th>
+                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-ink-3 uppercase tracking-[0.08em]">Sócio</th>
+                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-ink-3 uppercase tracking-[0.08em]">Método</th>
+                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-ink-3 uppercase tracking-[0.08em]">Pago em</th>
+                                <th class="px-5 py-3.5 text-center text-[11px] font-bold text-ink-3 uppercase tracking-[0.08em]">Status</th>
+                                <th class="px-5 py-3.5 text-right text-[11px] font-bold text-ink-3 uppercase tracking-[0.08em]">Valor Pago</th>
+                                <th class="px-5 py-3.5 text-right text-[11px] font-bold text-ink-3 uppercase tracking-[0.08em]">Estornado</th>
                                 <th class="px-5 py-3.5"></th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-50">
+                        <tbody class="divide-y divide-line">
                             @foreach($payments as $payment)
                                 @php
                                     $firstSchedule = $payment->schedules->first();
                                     $member = optional($firstSchedule)->member;
                                 @endphp
-                                <tr class="hover:bg-gray-50/50 transition">
-                                    <td class="px-5 py-3.5 font-mono text-xs text-gray-400">#{{ $payment->id }}</td>
+                                <tr class="hover:bg-subtle transition">
+                                    <td class="px-5 py-3.5 font-mono text-xs text-ink-3">#{{ $payment->id }}</td>
                                     <td class="px-5 py-3.5">
-                                        <p class="font-semibold text-gray-800">{{ $member->name ?? 'Não identificado' }}</p>
+                                        <p class="font-semibold text-ink">{{ $member->name ?? 'Não identificado' }}</p>
                                         @if($payment->schedules->count() > 1)
-                                            <p class="text-xs text-gray-400">{{ $payment->schedules->count() }} agendamentos vinculados</p>
+                                            <p class="text-xs text-ink-3">{{ $payment->schedules->count() }} agendamentos vinculados</p>
                                         @endif
                                     </td>
-                                    <td class="px-5 py-3.5 text-gray-600">{{ $payment->payment_method }}</td>
-                                    <td class="px-5 py-3.5 whitespace-nowrap text-gray-600">
+                                    <td class="px-5 py-3.5 text-ink-2">{{ $methods[$payment->payment_method] ?? $payment->payment_method }}</td>
+                                    <td class="px-5 py-3.5 whitespace-nowrap font-mono text-xs text-ink-2">
                                         {{ $payment->paid_at ? \Carbon\Carbon::parse($payment->paid_at)->format('d/m/Y H:i') : '—' }}
                                     </td>
                                     <td class="px-5 py-3.5 text-center">
                                         @php
                                             $statusLabel = $payment->status->portuguese ?? $payment->status->name ?? '?';
-                                            $statusClass = (int) $payment->status_id === 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700';
                                         @endphp
-                                        <span class="inline-block px-2.5 py-1 rounded-full text-[11px] font-black uppercase {{ $statusClass }}">
-                                            {{ $statusLabel }}
-                                        </span>
+                                        <x-pill :kind="(int) $payment->status_id === 0 ? 'danger' : 'ok'">{{ $statusLabel }}</x-pill>
                                     </td>
-                                    <td class="px-5 py-3.5 text-right font-semibold text-gray-700">
+                                    <td class="px-5 py-3.5 text-right font-mono font-semibold text-ink">
                                         R$ {{ number_format($payment->paid_amount, 2, ',', '.') }}
                                     </td>
                                     <td class="px-5 py-3.5 text-right">
                                         @if($payment->refunded_amount > 0)
-                                            <span class="font-semibold text-red-600">R$ {{ number_format($payment->refunded_amount, 2, ',', '.') }}</span>
+                                            <span class="font-mono font-semibold text-danger">R$ {{ number_format($payment->refunded_amount, 2, ',', '.') }}</span>
                                         @else
-                                            <span class="text-gray-300">—</span>
+                                            <span class="text-ink-3">—</span>
                                         @endif
                                     </td>
                                     <td class="px-5 py-3.5 text-right">
-                                        <a href="{{ route('payment.show', $payment->id) }}"
-                                           class="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-bold hover:bg-indigo-600 transition">
-                                            Ver detalhes
-                                        </a>
+                                        <x-secondary-button-a size="sm" href="{{ route('payment.show', $payment->id) }}">Detalhes</x-secondary-button-a>
                                     </td>
                                 </tr>
                             @endforeach
@@ -149,14 +96,12 @@
                     </table>
                 </div>
 
-                @if($payments->hasPages())
-                    <div class="px-5 py-4 border-t border-gray-100">
-                        {{ $payments->links() }}
-                    </div>
-                @endif
-            @endif
         </div>
 
-    </div>
+        @if($payments->hasPages())
+            {{ $payments->links() }}
+        @endif
+        @endif
+    </x-page>
 
 </x-app-layout>

@@ -35,6 +35,24 @@ class FreelancerService extends Model
     /** O valor da função é cobrado por bloco de 15 minutos. */
     const BLOCK_MINUTES = 15;
 
+    /**
+     * Como o valor do contrato é obtido (coluna `pricing_mode`). O padrão é por
+     * horas — blocos de 15 minutos × preço da função. No valor fixo, quem
+     * registra o contrato digita o valor, e as horas do turno deixam de entrar
+     * na conta. Ver a seção "Valor fixo".
+     */
+    const PRICING_HOURLY = 'hourly';
+    const PRICING_FIXED = 'fixed';
+
+    /** As duas formas, com o rótulo das telas. */
+    const PRICING_MODES = [
+        self::PRICING_HOURLY => 'Por horas',
+        self::PRICING_FIXED => 'Valor fixo',
+    ];
+
+    /** Teto do valor fixo aceito na entrada — trava contra zero a mais. */
+    const MAX_FIXED_PRICE = 100000;
+
     /* ---------------------------------------------------------------------
      | Comissão de venda
      |---------------------------------------------------------------------*/
@@ -72,6 +90,17 @@ class FreelancerService extends Model
     const STATUS_ACTIVE = 1;
 
     /**
+     * Motivos de baixa (coluna `cancel_reason`). A falta é um cancelamento com
+     * outro motivo, e não um estado novo: assim ela já sai da contagem semanal,
+     * do lote e do financeiro pelas regras que o cancelamento sempre teve.
+     *
+     * Contrato cancelado antes da coluna existir tem motivo nulo e é lido como
+     * cancelamento comum.
+     */
+    const CANCEL_REASON_ADMIN = 'admin';
+    const CANCEL_REASON_NO_SHOW = 'no_show';
+
+    /**
      * Estados de assinatura pelos quais a listagem pode ser filtrada, com o
      * rótulo que aparece na tela. São os mesmos de `signatureLabel()`: um lugar
      * só, para o filtro não passar a oferecer um estado que a coluna não mostra.
@@ -84,6 +113,10 @@ class FreelancerService extends Model
         'awaiting_freelancer' => 'Aguardando freelancer',
         'signed' => 'Assinado',
         'cancelled' => 'Cancelado',
+        // Subconjunto de "Cancelado": as baixas que o tablet registrou como
+        // falta. Ficam nos dois filtros de propósito — quem procura o que saiu
+        // da semana não precisa saber por qual porta saiu.
+        'no_show' => 'Falta do freelancer',
     ];
 
     /**
@@ -176,6 +209,8 @@ class FreelancerService extends Model
         'end_date',
         'end_time',
         'price',
+        // Por horas (padrão) ou valor fixo digitado (ver a seção "Valor fixo").
+        'pricing_mode',
         // Chave PIX conferida pelo freelancer na assinatura (ver a seção
         // "Chave PIX do pagamento").
         'pix_key',
@@ -201,6 +236,7 @@ class FreelancerService extends Model
         'paid_by',
         'cancelled_at',
         'cancelled_by',
+        'cancel_reason',
         'created_by',
         'updated_by',
         'weekly_limit_authorized_at',
@@ -237,6 +273,8 @@ class FreelancerService extends Model
         'director_rejected_at' => 'datetime',
         // Assinatura da diretoria aplicada ao documento (redação 2).
         'director_signed_at' => 'datetime',
+        // Cópia no servidor de arquivos (ver FreelancerContractArchiver).
+        'archived_at' => 'datetime',
         'paid' => 'boolean',
         'paid_at' => 'datetime',
         'cancelled_at' => 'datetime',
@@ -466,6 +504,42 @@ class FreelancerService extends Model
         $rest = $minutes % 60;
 
         return $rest === 0 ? "{$hours}h" : sprintf('%dh%02d', $hours, $rest);
+    }
+
+    /* ---------------------------------------------------------------------
+     | Valor fixo
+     |
+     | O padrão é o valor por horas: blocos de 15 minutos × preço da função. O
+     | contrato de VALOR FIXO troca só essa conta — o valor é digitado por quem
+     | registra o contrato e vale pelo dia, qualquer que seja a duração.
+     |
+     | Todo o resto continua igual, e de propósito: o turno ainda tem horário de
+     | início e término, porque é por ele que a portaria abre, que o prazo da
+     | assinatura conta e que o jantar é decidido. O corpo do instrumento também
+     | não muda — a cláusula 2 já ajusta "o valor de R$ X, por dia, previamente
+     | acordado", sem falar em horas.
+     |
+     | O aditivo de horário de um contrato de valor fixo HERDA a forma e o valor:
+     | se o valor não depende das horas, esticar ou encurtar o turno não o
+     | altera, e o termo diz que ele "permanece".
+     |---------------------------------------------------------------------*/
+
+    /** A forma gravada, ou a padrão nos contratos anteriores à coluna. */
+    public function pricingMode(): string
+    {
+        return $this->pricing_mode === self::PRICING_FIXED ? self::PRICING_FIXED : self::PRICING_HOURLY;
+    }
+
+    /** O valor foi digitado, e não calculado pelas horas do turno. */
+    public function isFixedPrice(): bool
+    {
+        return $this->pricingMode() === self::PRICING_FIXED;
+    }
+
+    /** "Por horas" · "Valor fixo". */
+    public function pricingModeLabel(): string
+    {
+        return self::PRICING_MODES[$this->pricingMode()];
     }
 
     /* ---------------------------------------------------------------------
@@ -710,6 +784,37 @@ class FreelancerService extends Model
     public function canBeCancelled(): bool
     {
         return !$this->isSigned() && !$this->isCancelled();
+    }
+
+    /** Baixado como falta do freelancer, e não como cancelamento comum. */
+    public function isNoShow(): bool
+    {
+        return $this->isCancelled() && $this->cancel_reason === self::CANCEL_REASON_NO_SHOW;
+    }
+
+    /**
+     * Pode ser baixado como FALTA no tablet? É a única baixa que o operador do
+     * balcão dá sozinho, sem coordenador, então as travas são mais estreitas
+     * que as do cancelamento comum:
+     *
+     *  - sem nenhuma assinatura (a mesma do cancelamento): contrato assinado é
+     *    documento firmado, e ninguém que assinou faltou;
+     *  - o dia já chegou. Declarar falta de um turno que ainda não aconteceu
+     *    seria esvaziar a agenda da semana para furar o limite. Hoje vale —
+     *    o freelancer que não apareceu para o turno da manhã é caso de falta
+     *    ainda no mesmo dia;
+     *  - contrato original, não aditivo: aditivo não ocupa vaga na semana nem
+     *    é um dia de trabalho próprio — se o dia não foi trabalhado, quem se
+     *    baixa é o contrato base.
+     */
+    public function canBeMarkedNoShow(?Carbon $today = null): bool
+    {
+        if (!$this->canBeCancelled() || $this->isAmendment() || $this->start_date === null) {
+            return false;
+        }
+
+        return Carbon::parse($this->start_date)->startOfDay()
+            ->lessThanOrEqualTo(($today ?? Carbon::today())->copy()->startOfDay());
     }
 
     /**
@@ -1201,6 +1306,10 @@ class FreelancerService extends Model
      * Sem isto, quem aprova vê o mesmo freelancer duas vezes no mesmo dia, com
      * dois valores, e não tem como saber se é para pagar os dois ou se alguém
      * duplicou o lançamento.
+     *
+     * O contrato de valor fixo entra aqui pelo mesmo motivo, ainda que seja o
+     * contrato do turno: o valor dele não sai de horas × função, e quem aprova
+     * precisa saber que foi digitado antes de estranhar a conta.
      */
     public function kindLabel(): ?string
     {
@@ -1208,6 +1317,7 @@ class FreelancerService extends Model
             $this->isCommissionAmendment() => 'Comissão de venda',
             $this->isAmendment() => 'Aditivo de horário',
             $this->isAmended() => 'Aditivado',
+            $this->isFixedPrice() => 'Valor fixo',
             default => null,
         };
     }
@@ -1224,11 +1334,12 @@ class FreelancerService extends Model
             $this->isAmendment() => sprintf(
                 'Substitui o contrato #%s, que foi assinado mas não é pago.',
                 $this->parent_service_id,
-            ),
+            ) . ($this->isFixedPrice() ? ' Valor fixo, mantido do contrato original.' : ''),
             $this->isAmended() => sprintf(
                 'O pagamento do turno é feito pelo aditivo #%s.',
                 $this->amendment_service_id,
             ),
+            $this->isFixedPrice() => 'Valor digitado no registro do contrato, e não calculado pelas horas do turno.',
             default => null,
         };
     }
@@ -1635,6 +1746,10 @@ class FreelancerService extends Model
         // base é assinado até o fim. Quem conta a história do aditivo é o
         // approvalLabel(), porque o que muda é o pagamento.
         return match (true) {
+            // Antes de "Cancelado": as duas baixam o contrato, mas quem lê a
+            // listagem precisa distinguir o que a empresa desmarcou do que o
+            // freelancer não cumpriu.
+            $this->isNoShow() => 'Falta',
             $this->isCancelled() => 'Cancelado',
             $this->isFullySigned() => 'Assinado',
             // Redação 2: o que falta é a validação pela web, não um traço no
@@ -1769,6 +1884,50 @@ class FreelancerService extends Model
         return $this->usesDirectorSignature()
             && !$this->isCancelled()
             && !$this->hasDirectorSignature();
+    }
+
+    /* ---------------------------------------------------------------------
+     | Arquivo no servidor de arquivos (FTP)
+     |
+     | Só vai para lá o documento que não muda mais: assinado pelas duas
+     | partes. Na redação 1 a segunda assinatura é a do coordenador; da 2 em
+     | diante é a do diretor, aplicada na aprovação do lote (a validação da
+     | coordenação não entra no documento).
+     |---------------------------------------------------------------------*/
+
+    public function isFinalDocument(): bool
+    {
+        if ($this->isCancelled() || $this->freelancer_signed_at === null) {
+            return false;
+        }
+
+        return $this->usesDirectorSignature()
+            ? $this->hasDirectorSignature()
+            : $this->coordinator_signed_at !== null;
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->archived_at !== null;
+    }
+
+    /** A fila do comando `freelancers:archive` — `isFinalDocument()` em SQL, sem cópia ainda. */
+    public function scopeAwaitingArchive($query)
+    {
+        return $query
+            ->where('status_id', self::STATUS_ACTIVE)
+            ->whereNotNull('freelancer_signed_at')
+            ->whereNull('archived_at')
+            ->where(function ($q) {
+                $q->where(function ($diretor) {
+                    $diretor->contractorSignedBy(self::CONTRACTOR_SIGNS_DIRECTOR)
+                        ->whereNotNull('director_signed_at')
+                        ->whereNotNull('freelancer_director_id');
+                })->orWhere(function ($coordenador) {
+                    $coordenador->contractorSignedBy(self::CONTRACTOR_SIGNS_COORDINATOR)
+                        ->whereNotNull('coordinator_signed_at');
+                });
+            });
     }
 
     /**
@@ -1943,6 +2102,8 @@ class FreelancerService extends Model
 
         return match ($status) {
             'cancelled' => $query->where('status_id', self::STATUS_CANCELLED),
+            'no_show' => $query->where('status_id', self::STATUS_CANCELLED)
+                ->where('cancel_reason', self::CANCEL_REASON_NO_SHOW),
             'unsigned' => $active($query)->whereNull('freelancer_signed_at')->whereNull('coordinator_signed_at'),
             'awaiting_coordinator' => $active($query)->whereNotNull('freelancer_signed_at')->whereNull('coordinator_signed_at'),
             'awaiting_freelancer' => $active($query)->whereNotNull('coordinator_signed_at')->whereNull('freelancer_signed_at'),
@@ -2296,11 +2457,46 @@ class FreelancerService extends Model
     protected static function weeklyWindowDates(int $freelancerId, Carbon $weekStart, Carbon $weekEnd): Collection
     {
         return static::where('freelancer_id', $freelancerId)
-            ->where('status_id', '!=', self::STATUS_CANCELLED)
-            ->whereNull('parent_service_id')
+            ->countsTowardWeeklyLimit()
             ->whereBetween('start_date', [$weekStart, $weekEnd])
             ->pluck('start_date')
             ->map(fn($value) => Carbon::parse($value)->startOfDay());
+    }
+
+    /**
+     * As duas exclusões da contagem semanal, num lugar só: contrato baixado
+     * (cancelado ou falta) não ocupa vaga, e aditivo não é dia novo de trabalho.
+     * Toda consulta que conta a semana passa por aqui — é o que garante que a
+     * falta suma da conta sem cada regra ter de saber que ela existe.
+     */
+    public function scopeCountsTowardWeeklyLimit($query)
+    {
+        return $query->where('status_id', '!=', self::STATUS_CANCELLED)
+            ->whereNull('parent_service_id');
+    }
+
+    /**
+     * Os contratos que ocupam as vagas da semana de $date — os mesmos que
+     * `countInWeeklyWindow()` conta, só que em vez do número devolve quais são.
+     * É o que o tablet mostra quando o limite bate: para o operador apontar
+     * qual daqueles dias não foi trabalhado.
+     *
+     * @return Collection<int, static>
+     */
+    public static function weeklyWindowServices(int $freelancerId, $date): Collection
+    {
+        [$weekStart, $weekEnd] = self::weekBounds(Carbon::parse($date)->startOfDay());
+
+        return static::where('freelancer_id', $freelancerId)
+            ->countsTowardWeeklyLimit()
+            ->whereBetween('start_date', [$weekStart, $weekEnd])
+            // As mesmas relações da lista de contratos do tablet: sem elas, cada
+            // linha do payload faz as próprias consultas para responder o que
+            // ainda cabe fazer no contrato.
+            ->with(['freelancer', 'functionFreelancer', 'batch', 'baseService.functionFreelancer', 'amendments'])
+            ->orderBy('start_date')
+            ->orderBy('start_time')
+            ->get();
     }
 
     /**
@@ -2395,8 +2591,7 @@ class FreelancerService extends Model
 
         return static::query()
             ->whereIn('freelancer_id', $freelancerIds)
-            ->where('status_id', '!=', self::STATUS_CANCELLED)
-            ->whereNull('parent_service_id')
+            ->countsTowardWeeklyLimit()
             ->whereBetween('start_date', [$weekStart, $weekEnd])
             ->groupBy('freelancer_id')
             ->selectRaw('freelancer_id, COUNT(*) as total')

@@ -24,7 +24,6 @@
 
         @include('partials.alerts')
 
-        @include('replay.partials.tabs', ['current' => 'layouts'])
 
         @unless($ffmpegAvailable)
             <div class="mb-6 px-6 py-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm">

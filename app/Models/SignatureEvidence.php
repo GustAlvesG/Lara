@@ -1,0 +1,147 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+/**
+ * O que prova que aquela pessoa assinou aquele conteúdo: traço, foto, tempo de
+ * leitura, aceite, IP e hora do servidor.
+ *
+ * Gravada na mesma transação da assinatura. Os caminhos apontam para o disco
+ * PRIVADO; nenhum deles vira URL.
+ *
+ * @property int $id
+ * @property ?array $strokes
+ */
+class SignatureEvidence extends Model
+{
+    use HasFactory;
+
+    /**
+     * O Eloquent pluraliza "Evidence" como "evidence" (substantivo incontável
+     * em inglês) e procuraria `signature_evidence`. A tabela é
+     * `signature_evidences`, no plural regular das demais do módulo.
+     */
+    protected $table = 'signature_evidences';
+
+    /**
+     * Único motivo aceito para uma foto exigida não existir: o aparelho não
+     * tem câmera — o que, na prática, quer dizer ambiente sem HTTPS, onde
+     * `getUserMedia` não existe.
+     *
+     * É uma constante, e não texto livre, porque o motivo vem do CLIENTE: sem
+     * uma lista fechada, bastaria mandar qualquer string para transformar a
+     * exigência de foto em sugestão.
+     */
+    public const PHOTO_SKIP_NO_CAMERA = 'camera_unavailable';
+
+    public const PHOTO_SKIP_LABELS = [
+        self::PHOTO_SKIP_NO_CAMERA => 'Câmera indisponível no dispositivo (conexão sem HTTPS)',
+    ];
+
+    /**
+     * O que a pessoa lê e marca no tablet para autorizar a foto. É gravado na
+     * evidência de cada assinatura (`photo_consent_text`): se a redação mudar
+     * aqui, as assinaturas antigas continuam com o texto que foi lido.
+     */
+    public const PHOTO_CONSENT_TEXT = 'Autorizo a captura da minha imagem (foto) para anexo ao contrato. '
+        . 'A imagem será armazenada pelo Clube dos Funcionários da CSN por tempo indeterminado, sem fins '
+        . 'comerciais, sendo utilizada apenas para fins relacionados ao documento que está sendo assinado.';
+
+    protected $fillable = [
+        'signature_signer_id',
+        'signature_path',
+        'initials_path',
+        'initials_strokes',
+        'strokes',
+        'photo_path',
+        'photo_skipped_reason',
+        'photo_consent',
+        'photo_consent_text',
+        'ip',
+        'user_agent',
+        'read_seconds',
+        'scrolled_to_end',
+        'accepted',
+        'viewport',
+        'server_signed_at',
+    ];
+
+    protected $casts = [
+        'signature_signer_id' => 'integer',
+        'strokes' => 'array',
+        'initials_strokes' => 'array',
+        'read_seconds' => 'integer',
+        'scrolled_to_end' => 'boolean',
+        'accepted' => 'boolean',
+        'photo_consent' => 'boolean',
+        'viewport' => 'array',
+        'server_signed_at' => 'datetime',
+    ];
+
+    /**
+     * @return BelongsTo<SignatureSigner, SignatureEvidence>
+     */
+    public function signer(): BelongsTo
+    {
+        return $this->belongsTo(SignatureSigner::class, 'signature_signer_id');
+    }
+
+    /**
+     * Quantos pontos o traço tem. É por aqui que se recusa a "assinatura" de
+     * um toque só — ver SignatureCaptureService, que chama o mesmo método
+     * ANTES de gravar.
+     *
+     * A contagem mora aqui, e não nos dois lugares, porque já estava escrita
+     * duas vezes com regras diferentes: uma entendia `[{points: [...]}]` e a
+     * outra contava os traços em vez dos pontos. O teste flagrou 1 onde eram
+     * 60 — e, num traço de verdade, as duas contas aprovariam a assinatura,
+     * então a divergência só apareceria no dia em que importasse.
+     */
+    public function strokePoints(): int
+    {
+        return self::countPoints($this->strokes);
+    }
+
+    /**
+     * Por que não há foto, em português, para o manifesto.
+     *
+     * Devolve null quando a ausência não precisa de explicação — o modelo não
+     * pedia foto. A diferença entre "não era exigida" e "era exigida e não foi
+     * possível" é justamente o que o manifesto precisa dizer.
+     */
+    public function photoSkipLabel(): ?string
+    {
+        if ($this->photo_skipped_reason === null) {
+            return null;
+        }
+
+        return self::PHOTO_SKIP_LABELS[$this->photo_skipped_reason] ?? $this->photo_skipped_reason;
+    }
+
+    /**
+     * Aceita as duas formas que o tablet pode mandar: uma lista de traços, e
+     * cada traço como `{points: [...]}` ou como a própria lista de pontos.
+     *
+     * @param  array<mixed>|null  $strokes
+     */
+    public static function countPoints(?array $strokes): int
+    {
+        $total = 0;
+
+        foreach ($strokes ?? [] as $stroke) {
+            if (!is_array($stroke)) {
+                continue;
+            }
+
+            $total += isset($stroke['points']) && is_array($stroke['points'])
+                ? count($stroke['points'])
+                : count($stroke);
+        }
+
+        return $total;
+    }
+}

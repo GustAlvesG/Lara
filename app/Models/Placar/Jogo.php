@@ -209,4 +209,26 @@ class Jogo extends Model
             $q->where('slug', $slugOuId)->orWhere('id', $slugOuId);
         });
     }
+
+    /**
+     * Busca da listagem: time (nome de exibição ou da equipe, dos dois lados),
+     * competição ou local — é por eles que se procura um jogo.
+     */
+    public function scopeBusca($query, ?string $termo)
+    {
+        $termo = trim((string) $termo);
+        if ($termo === '') {
+            return $query;
+        }
+
+        $time = fn ($t) => $t->where('nome_exibicao', 'like', "%{$termo}%")
+            ->orWhereHas('equipe', fn ($e) => $e->where('nome', 'like', "%{$termo}%"));
+
+        return $query->where(function ($q) use ($termo, $time) {
+            $q->where('local', 'like', "%{$termo}%")
+              ->orWhereHas('timeCasa', $time)
+              ->orWhereHas('timeFora', $time)
+              ->orWhereHas('competicao', fn ($c) => $c->where('nome', 'like', "%{$termo}%"));
+        });
+    }
 }

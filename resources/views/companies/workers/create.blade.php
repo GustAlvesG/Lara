@@ -12,8 +12,8 @@
             <x-slot name="header">
                 <div class="my-4 flex items-center gap-4">
                     <div>
-                        <h1 class="text-3xl font-extrabold text-gray-900 leading-tight">Cadastrar Funcionário Terceirizado</h1>
-                        <p class="text-gray-500 font-medium">Preencha os dados do funcionário terceirizado abaixo.</p>
+                        <h1 class="text-3xl font-extrabold text-ink leading-tight">Cadastrar Funcionário Terceirizado</h1>
+                        <p class="text-ink-2 font-medium">Preencha os dados do funcionário terceirizado abaixo.</p>
                     </div>
                 </div>
             </x-slot>

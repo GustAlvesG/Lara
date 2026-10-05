@@ -34,6 +34,7 @@ use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\UberAccessRequestWebhookController;
 use App\Http\Controllers\InformationSearchController;
 use App\Http\Controllers\Api\PurchaseApprovalController;
+use App\Http\Controllers\Api\MemberLightingController;
 use App\Http\Controllers\Fleet\FleetApiController;
 use App\Http\Controllers\Replay\Api\CameraController as ReplayApiCameraController;
 use App\Http\Controllers\Replay\Api\VideoController as ReplayApiVideoController;
@@ -196,6 +197,15 @@ Route::prefix('company-access')->group(function () {
     Route::post('/register-worker-access', [CompanyAccessRulesController::class, 'registerWorkerAccess'])->name('company_access.register_worker');
     Route::post('/register-freelancer-access', [CompanyAccessRulesController::class, 'registerFreelancerAccess'])->name('company_access.register_freelancer');
     Route::post('/register-one-off-access', [CompanyAccessRulesController::class, 'registerOneOffAccess'])->name('company_access.register_one_off');
+    /*
+    | Fila "Aguardando acesso do motorista", consumida pelo Monitor de Acesso
+    | (a aplicação Python da portaria). Consulta e registro trabalham pelo
+    | `id` do pedido, e não pela placa: a placa é o campo que mais chega errado
+    | do WhatsApp, e é justamente por ela que o pedido some das consultas.
+    */
+    Route::get('/uber-waiting', [CompanyAccessRulesController::class, 'uberWaitingList'])->name('company_access.uber_waiting');
+    Route::post('/register-uber-request-access', [CompanyAccessRulesController::class, 'registerUberRequestAccess'])->name('company_access.register_uber_request');
+    Route::post('/uber-request-plate', [CompanyAccessRulesController::class, 'updateUberRequestPlate'])->name('company_access.uber_request_plate');
 });
 
 /*
@@ -384,6 +394,45 @@ Route::middleware('api_token')->group(function () {
 
 
             Route::post('/time-options', [ScheduleRulesController::class, 'getTimeOptions'])->name('api.schedule.getTimeOptions')->withoutMiddleware(['login_token']);
+        });
+
+        /*
+        |------------------------------------------------------------------
+        | Iluminação — autoatendimento do sócio (app de reservas)
+        |------------------------------------------------------------------
+        |
+        | Fim de semana não tem reserva de quadra: o uso é livre, e a luz
+        | dependia de alguém do clube. Aqui o próprio sócio acende, dentro da
+        | janela de horário e com uma quadra por vez.
+        |
+        | Dentro do grupo `login_token` de propósito: a cota é por sócio, e
+        | sem sessão não há de quem seja. O `api_token` do grupo externo
+        | continua valendo — os dois são exigidos.
+        |
+        | Throttle por rota porque o de escrita é o que importa: a tela
+        | consulta a disponibilidade em laço enquanto o contador corre, e um
+        | limite único faria a consulta gastar a cota do acionamento.
+        */
+        Route::prefix('lighting')->group(function () {
+            Route::get('/availability', [MemberLightingController::class, 'availability'])
+                ->middleware('throttle:120,1')->name('api.lighting.availability');
+
+            Route::get('/groups', [MemberLightingController::class, 'groups'])
+                ->middleware('throttle:120,1')->name('api.lighting.groups');
+
+            Route::get('/groups/{group}/places', [MemberLightingController::class, 'places'])
+                ->where('group', '[0-9]+')
+                ->middleware('throttle:120,1')->name('api.lighting.places');
+
+            Route::get('/activations', [MemberLightingController::class, 'history'])
+                ->middleware('throttle:60,1')->name('api.lighting.history');
+
+            Route::post('/places/{place}/activate', [MemberLightingController::class, 'activate'])
+                ->where('place', '[0-9]+')
+                ->middleware('throttle:20,1')->name('api.lighting.activate');
+
+            Route::post('/release', [MemberLightingController::class, 'release'])
+                ->middleware('throttle:20,1')->name('api.lighting.release');
         });
     });
 });
