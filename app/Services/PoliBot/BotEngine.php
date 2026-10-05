@@ -503,14 +503,7 @@ class BotEngine
             return;
         }
 
-        // Toque num menu nosso que NÃO é a pergunta em aberto: é um menu
-        // antigo, rolado para cima. Não vale como resposta desta etapa.
-        $contexto = $message->contextMessageUuid;
-        if ($contexto !== null && $contexto !== $session->prompt_message_uuid
-            && PoliMessage::where('uuid', $contexto)
-                ->where('contact_uuid', $session->contact_uuid)
-                ->where('direction', PoliMessage::OUT)
-                ->exists()) {
+        if ($this->isStaleMenuTap($session, $message)) {
             $this->say($session, (string) config('poli.bot.messages.stale_menu'));
             $this->prompt($session, $step);
 
@@ -542,6 +535,20 @@ class BotEngine
             return;
         }
 
+        // Rajada: "Bom dia", "segue meu documento", o print — escritos antes
+        // de a pergunta aparecer na tela. Não são resposta errada, e corrigir
+        // cada uma reenviaria o menu a cada mensagem. Ficam no histórico, sem
+        // correção e sem gastar tentativa: a pergunta já está lá.
+        if ($this->writtenBeforeLastReply($session, $message)) {
+            Log::info('PoliBot: mensagem escrita antes da pergunta — sem correção', [
+                'contact_uuid' => $session->contact_uuid,
+                'message_id' => $message->messageId,
+                'step' => $session->step_key,
+            ]);
+
+            return;
+        }
+
         $session->tentativas = $session->tentativas + 1;
 
         if ($session->tentativas >= $flow->maxAttempts($step)) {
@@ -563,6 +570,64 @@ class BotEngine
         if (in_array($step['say']['type'] ?? null, ['menu', 'template'], true)) {
             $this->prompt($session, $step);
         }
+    }
+
+    /**
+     * Toque num menu nosso que NÃO é a pergunta em aberto: um menu de outra
+     * etapa, rolado para cima. Não vale como resposta desta.
+     *
+     * Menu da MESMA etapa vale: é a mesma pergunta, reenviada depois de uma
+     * correção — tocar no primeiro dos dois menus iguais na tela é escolher.
+     */
+    private function isStaleMenuTap(BotSession $session, ParsedPoliMessage $message): bool
+    {
+        $contexto = $message->contextMessageUuid;
+
+        if ($contexto === null || $contexto === $session->prompt_message_uuid) {
+            return false;
+        }
+
+        $tocado = PoliMessage::where('uuid', $contexto)
+            ->where('contact_uuid', $session->contact_uuid)
+            ->where('direction', PoliMessage::OUT)
+            ->first(['flow_slug', 'step_key']);
+
+        return $tocado !== null
+            && ($tocado->flow_slug !== $session->flow_slug || $tocado->step_key !== $session->step_key);
+    }
+
+    /**
+     * A mensagem foi escrita antes da última fala do bot (ou logo depois,
+     * dentro de poli.bot.burst_grace_seconds — o tempo de a fala aparecer e
+     * de o relógio da Poli discordar do nosso)? Então não responde a ela.
+     *
+     * A régua é a hora em que a Poli criou a mensagem, não a de chegada: a
+     * mensagem espera na fila (ordem, atraso do webhook) e seria processada
+     * sempre depois da fala. Sem essa hora, não há como dizer — vale como
+     * resposta, como sempre foi.
+     */
+    private function writtenBeforeLastReply(BotSession $session, ParsedPoliMessage $message): bool
+    {
+        if ($message->createdAt === null) {
+            return false;
+        }
+
+        // Só o que chegou ao contato: ação não é fala, e envio que falhou
+        // não apareceu na tela dele.
+        $ultima = PoliMessage::where('contact_uuid', $session->contact_uuid)
+            ->where('direction', PoliMessage::OUT)
+            ->where('type', '!=', 'ACTION')
+            ->where(fn ($q) => $q->whereNull('ack')->orWhere('ack', '!=', 'FAILED'))
+            ->orderByDesc('id')
+            ->first(['created_at']);
+
+        if ($ultima?->created_at === null) {
+            return false;
+        }
+
+        $graca = (int) config('poli.bot.burst_grace_seconds', 5);
+
+        return $message->createdAt->lte($ultima->created_at->copy()->addSeconds($graca));
     }
 
     /**

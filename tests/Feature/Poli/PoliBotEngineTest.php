@@ -169,6 +169,7 @@ class PoliBotEngineTest extends TestCase
         ?string $atendente = self::LARA,
         string $atendimento = 'att-1',
         ?int $tentativa = null,
+        ?Carbon $criadaEm = null,
     ): ParsedPoliMessage {
         return new ParsedPoliMessage(
             messageId: 'in-' . (++$this->seq),
@@ -184,7 +185,14 @@ class PoliBotEngineTest extends TestCase
             attendanceStatus: $attendanceStatus,
             attendanceAttendantUuid: $atendente,
             webhookAttempt: $tentativa,
+            createdAt: $criadaEm,
         );
+    }
+
+    /** Mensagem com a hora em que o contato a escreveu (`metadata.created_at`). */
+    private function textoEscritoEm(string $texto, Carbon $criadaEm, ?string $contexto = null): void
+    {
+        $this->bot()->handleInbound($this->msg(ParsedPoliMessage::TYPE_TEXT, $texto, null, $contexto, criadaEm: $criadaEm));
     }
 
     private function redirect(string $atendimento = 'att-lara', string $atendente = self::LARA): ParsedPoliMessage
@@ -533,6 +541,78 @@ class PoliBotEngineTest extends TestCase
         $this->assertStringContainsString('etapa anterior', implode(' ', $this->enviados()));
         $this->assertSame('matricula', $this->sessao()->step_key);
         $this->assertFalse($this->sessao()->isHuman());
+    }
+
+    public function test_toque_no_primeiro_de_dois_menus_iguais_vale(): void
+    {
+        $this->texto('oi');                        // menu = out-1
+        $this->texto('quero reclamar');            // correção = out-2, menu de novo = out-3
+        $this->assertSame('out-3', $this->sessao()->prompt_message_uuid);
+
+        $this->texto('Financeiro', 'out-1');       // o menu de cima, da mesma pergunta
+
+        $this->assertStringNotContainsString('etapa anterior', implode(' ', $this->enviados()));
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/distribute')
+            && ($r->data()['team'] ?? null) === DefaultFlows::TEAM_FINANCEIRO);
+    }
+
+    /* ---------------- rajada de abertura ---------------- */
+
+    public function test_rajada_de_abertura_recebe_um_menu_so(): void
+    {
+        // "Bom dia" > "Segue meu documento" > print, escritos juntos: o menu
+        // sai pelo primeiro, e os outros foram escritos antes de ele aparecer.
+        $this->textoEscritoEm('Bom dia', now()->subSeconds(8));
+        $this->textoEscritoEm('Segue meu documento', now()->subSeconds(6));
+        $this->bot()->handleInbound($this->msg(ParsedPoliMessage::TYPE_UNKNOWN, null, criadaEm: now()->subSeconds(5)));
+
+        $this->assertCount(1, $this->enviados());
+        $this->assertSame('menu', $this->sessao()->step_key);
+        $this->assertSame(0, $this->sessao()->tentativas);
+        $this->assertSame(3, PoliMessage::where('direction', 'IN')->count(), 'as três ficam no histórico');
+    }
+
+    public function test_rajada_logo_depois_do_menu_tambem_fica_sem_correcao(): void
+    {
+        config(['poli.bot.burst_grace_seconds' => 5]);
+
+        $this->textoEscritoEm('Bom dia', now());
+        $this->textoEscritoEm('Segue meu documento', now()->addSeconds(4));
+
+        $this->assertCount(1, $this->enviados());
+    }
+
+    public function test_opcao_valida_na_rajada_vale_como_resposta(): void
+    {
+        $this->textoEscritoEm('Bom dia', now()->subSeconds(8));
+        $this->textoEscritoEm('Financeiro', now()->subSeconds(6));
+
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/distribute')
+            && ($r->data()['team'] ?? null) === DefaultFlows::TEAM_FINANCEIRO);
+    }
+
+    public function test_resposta_errada_escrita_depois_do_menu_recebe_correcao(): void
+    {
+        $this->textoEscritoEm('Bom dia', now());
+
+        Carbon::setTestNow(now()->addSeconds(30));
+        $this->textoEscritoEm('quero reclamar', now());
+
+        $this->assertStringContainsString('Ver opções', implode(' ', $this->enviados()));
+        $this->assertSame(1, $this->sessao()->tentativas);
+    }
+
+    public function test_rajada_numa_pergunta_de_texto_tambem_fica_sem_correcao(): void
+    {
+        $this->irAtePlaca();
+        $enviadas = count($this->enviados());
+
+        // Escrita antes de "qual é a placa?" chegar.
+        $this->textoEscritoEm('é um corolla prata', now()->subSeconds(3));
+
+        $this->assertCount($enviadas, $this->enviados());
+        $this->assertSame('placa', $this->sessao()->step_key);
+        $this->assertSame(0, $this->sessao()->tentativas);
     }
 
     public function test_palavra_atendente_passa_para_humano(): void

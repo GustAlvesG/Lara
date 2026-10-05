@@ -86,6 +86,7 @@ class PoliMessageParser
             'attendanceUuid' => $value['attendance']['uuid'] ?? null,
             'type' => ParsedPoliMessage::TYPE_UNKNOWN,
             'contextMessageUuid' => $value['context']['message']['uuid'] ?? null,
+            'createdAt' => $this->extractCreatedAt($payload),
             ...$this->attendanceFields($payload),
         ]);
     }
@@ -406,6 +407,7 @@ class PoliMessageParser
             // Só existe na ENTRADA. Na saída, `value.context` guarda a
             // definição da própria lista — mesmo nome, outra coisa.
             'contextMessageUuid' => $value['context']['message']['uuid'] ?? null,
+            'createdAt' => $this->extractCreatedAt($payload),
             ...$this->attendanceFields($payload),
         ]);
     }

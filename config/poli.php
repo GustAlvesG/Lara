@@ -285,6 +285,16 @@ return [
         */
         'inbound_max_lag_seconds' => (int) env('POLI_BOT_INBOUND_MAX_LAG', 6),
 
+        /*
+        | Rajada de abertura ("Bom dia" > "segue meu documento" > print): a
+        | mensagem que não é resposta válida e foi escrita antes da última
+        | fala do bot, ou até estes segundos depois dela, fica sem correção —
+        | o contato ainda não tinha visto a pergunta. Cobre também a
+        | diferença entre o relógio da Poli e o nosso. Maior engole mais
+        | rajada e também a resposta errada de quem digita muito rápido.
+        */
+        'burst_grace_seconds' => (int) env('POLI_BOT_RAJADA_S', 5),
+
         'default_timeout_minutes' => (int) env('POLI_BOT_TIMEOUT_MINUTES', 15),
         'default_max_attempts' => (int) env('POLI_BOT_MAX_ATTEMPTS', 3),
 
