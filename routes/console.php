@@ -13,6 +13,11 @@ Schedule::command('app:expire-pending-schedules')->everyMinute();
 Schedule::command('app:expire-uber-access-requests')->everyMinute();
 Schedule::command('app:prune-uber-access-request-messages')->dailyAt('03:00');
 
+// Replay: os clipes valem 7 dias contados da gravação. Roda de madrugada,
+// fora do horário das quadras, porque apaga arquivo em disco e o mesmo disco
+// serve os vídeos que os sócios estão assistindo.
+Schedule::command('replay:prune')->dailyAt('03:30')->withoutOverlapping();
+
 // Assinatura eletrônica: QR não lido, sessão de tablet parada e documento
 // congelado que ninguém assinou. A cada minuto porque o prazo do QR é de
 // minutos — de hora em hora, a tela do atendente ficaria com contagem

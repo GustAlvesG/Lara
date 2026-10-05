@@ -42,6 +42,7 @@ Setores. "Secretaria" é o setor **Atendimento**; "Financeiro" é a
 | Freelancers › Acompanhamento | `freelancers.acompanhamento` | Comercial |
 | Freelancers › Financeiro | `freelancers.financeiro` | Contabilidade |
 | Placar Clube | `placar.cadastro`, `placar.scout` | Esporte |
+| Replay (câmeras, layouts e vídeos das quadras) | `replay` | TI (acesso total); Marketing recebe na tela de Setores |
 | Banco de Horas (administração) | `banco-horas.admin` | RH |
 | Login da API do Telegram | `telegram.login` | Comercial |
 | Locais e regras de reserva, Torneios, Sócios/Acessos | `reservas.configurar`, `torneios`, `socios.consulta` | TI (acesso total) |

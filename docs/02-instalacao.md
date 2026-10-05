@@ -99,6 +99,25 @@ SESSION_DRIVER=database
 CACHE_STORE=database
 ```
 
+### Replay (vídeos das quadras)
+```env
+# Site de locação de espaços — destino do link do e-mail do sócio.
+REPLAY_PORTAL_URL=https://locacao.clubedosfuncionarios.com.br
+# Só para compor o overlay ANIMADO (GIF -> WebM com canal alpha).
+REPLAY_FFMPEG_PATH=ffmpeg
+```
+
+Duas exigências de **servidor**, não de aplicação:
+
+1. **`upload_max_filesize` e `post_max_size` em 256M** no `php.ini`, com reinício do Apache
+   (e `LimitRequestBody` no Apache, se estiver configurado). O servidor está hoje em 30M, o que
+   recusa um clipe de 60s a 1080p **antes** de a requisição chegar ao Laravel — o sintoma é um
+   422 com corpo vazio, que não aponta para a causa.
+2. **ffmpeg instalado** — opcional. Sem ele o módulo funciona inteiro: logomarca em GIF animado
+   sai parada (primeiro quadro) e a API entrega só o PNG. A tela de layouts avisa.
+
+Token da integração com o sistema de captura: `php artisan replay:token captura-producao`.
+
 ## Filas (processamento assíncrono)
 
 O webhook do WhatsApp é processado por um **Job** (`ProcessWhatsAppWebhook`) na fila

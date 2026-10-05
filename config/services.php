@@ -84,4 +84,21 @@ return [
         'max_input_chars'   => (int) env('LARA_MAX_INPUT_CHARS', 1000),
         'fallback_message'  => env('LARA_FALLBACK_MESSAGE', 'Vou te transferir para o setor responsável, só um momento!'),
     ],
+
+    /*
+     * Replay — vídeos das quadras.
+     *
+     * `portal_url` é o site de locação de espaços, que não mora neste
+     * projeto. É para lá que o e-mail do sócio aponta: o aviso nunca leva o
+     * arquivo nem um link direto para o vídeo, leva a pessoa ao login do
+     * portal — foi assim que se decidiu tratar o vídeo de quem alugou.
+     *
+     * `ffmpeg` só é usado para compor o overlay ANIMADO (GIF vira WebM com
+     * canal alpha). O módulo inteiro funciona sem ele: sem ffmpeg, a API
+     * entrega só o PNG e a tela avisa que o GIF sairá parado.
+     */
+    'replay' => [
+        'portal_url' => env('REPLAY_PORTAL_URL'),
+        'ffmpeg' => env('REPLAY_FFMPEG_PATH', 'ffmpeg'),
+    ],
 ];

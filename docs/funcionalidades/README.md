@@ -32,6 +32,7 @@ rotas).
 | [Telegram](telegram.md) | Cadastro e consulta de contatos do Telegram. |
 | [Navegação e interface](navegacao-e-interface.md) | Os modos de navegação, o painel de Módulos, favoritos gravados na conta, busca de páginas e tema. |
 | [Usuários e Permissões](usuarios-e-permissoes.md) | Administração de usuários, papéis e permissões. |
+| [Replay — Vídeos das Quadras](replay.md) | Configuração das câmeras, layouts de logomarca e o repositório dos clipes gravados pelo botão da quadra. |
 | [Automação Home Assistant](automacao-home-assistant.md) | Iluminação automática a partir de reservas, agendamentos e controle manual. Inclui o autoatendimento do sócio no fim de semana. |
 | [Front-end do autoatendimento de luz (Next.js)](iluminacao-autoatendimento-prompt.md) | Contrato da API de acionamento de luz pelo sócio e o prompt de implementação da tela **do zero**. |
 | [Ajustes do front-end do autoatendimento](iluminacao-autoatendimento-ajustes-prompt.md) | Prompt de **mudança** para a tela que já existe: o que quebrou no contrato e o que ela precisa ganhar. |

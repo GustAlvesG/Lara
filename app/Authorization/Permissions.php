@@ -73,6 +73,11 @@ final class Permissions
     public const PLACAR_CADASTRO = 'placar.cadastro';
     public const PLACAR_SCOUT = 'placar.scout';
 
+    // Replay (vídeos das quadras): formato, layouts de logomarca, câmeras e o
+    // repositório dos clipes. Marketing e TI configuram; TI já alcança pelo
+    // acesso total, o Marketing recebe na tela de Setores.
+    public const REPLAY = 'replay';
+
     public const BANCO_HORAS_ADMIN = 'banco-horas.admin';
     public const TELEGRAM_LOGIN = 'telegram.login';
     public const TORNEIOS = 'torneios';
@@ -126,6 +131,8 @@ final class Permissions
 
         self::PLACAR_CADASTRO => ['Placar Clube', 'Cadastro (equipes, times, jogadores, jogos)'],
         self::PLACAR_SCOUT => ['Placar Clube', 'Súmulas e scout'],
+
+        self::REPLAY => ['Replay', 'Câmeras, layouts de logomarca e vídeos das quadras'],
 
         self::BANCO_HORAS_ADMIN => ['Banco de Horas', 'Importar espelho e administrar funcionários'],
 

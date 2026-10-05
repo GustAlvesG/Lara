@@ -46,6 +46,7 @@ final class LegacyPermissionMap
         'manage signature documents' => [P::ASSINATURA_DOCUMENTOS],
         'view signed documents' => [P::ASSINATURA_CONSULTAR],
         'view signature evidences' => [P::ASSINATURA_EVIDENCIAS],
+        'manage replay' => [P::REPLAY],
         // Era uma porta só para o módulo inteiro. Traduzida para o mínimo que
         // a Secretaria (Atendimento) recebe: o resto do módulo é do Comercial.
         'manage freelancers' => [P::FREELANCERS_CADASTRO, P::FREELANCERS_SERVICOS_LISTAR],

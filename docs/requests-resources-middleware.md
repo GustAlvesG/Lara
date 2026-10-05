@@ -18,6 +18,7 @@ e alguns `Store*` ainda têm regras vazias (scaffold).
 | `StoreInformationRequest` | `true` | `name` (req, max 255), `description` (req), `image` (image jpeg/png/jpg/gif/svg) |
 | `LoginRequest` | `true` | `email` (req, email), `password` (req); inclui `authenticate()` e rate limiting. |
 | `ProfileUpdateRequest` | — | `name` (req), `email` (req, email, único exceto o próprio usuário). |
+| `Replay\StoreVideoRequest` | `true` (a autorização é do Sanctum + ability `replay:operate`) | `file` (req, file, max **256MB**), `recorded_at` (req, date ISO 8601 — instante do aperto do botão), `duration_seconds` (req, int, 1–120), `external_id` (nullable, max 255 — é o que dá idempotência ao reenvio) |
 
 ### Lista completa de Form Requests
 
@@ -33,6 +34,18 @@ TimeEntry, Visitor**. Há ainda `StoreAccessRuleRequest`, `Auth/LoginRequest`,
 ---
 
 ## 9.2. Resources (`app/Http/Resources/`)
+
+### Replay\CameraConfigResource
+`toArray(Request): array` — o que uma câmera precisa saber para gravar: orientação, duração do
+clipe e o overlay já composto, com a herança **já resolvida** pelo `ReplayResolver` (o sistema de
+captura não decide nada). A configuração vem de `resolved_config`, posto pelo controller — resolver
+dentro do Resource faria uma consulta por câmera no endpoint mais chamado da API. URLs sempre
+absolutas: quem consome está em outra máquina.
+
+### Replay\VideoResource
+`toArray(Request): array` — um clipe como o site de locação o enxerga. A galeria da quadra é
+aberta a qualquer visitante, então **nada que identifique o sócio sai daqui**: `has_member` diz
+apenas que o vídeo pertence a uma reserva paga, sem dizer de quem.
 
 ### UserResource
 `toArray(Request $request): array` — transforma o usuário em array para resposta JSON.
