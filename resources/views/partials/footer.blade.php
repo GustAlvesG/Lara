@@ -33,7 +33,7 @@
         </p>
 
         <p class="flex items-center gap-2">
-            <span>Desenvolvido por {{ $authorName }}</span>
+            <span>Desenvolvido por <span class="dani-egg"><span class="dani-egg-name">{{ $authorName }}</span><span class="dani-egg-alt" aria-hidden="true">Dani Berion</span></span></span>
             <a
                 href="{{ $authorLinkedin }}"
                 target="_blank"
@@ -49,6 +49,38 @@
         </p>
     </div>
 </footer>
+
+<style>
+    /* O nome original segue no DOM e selecionado; só fica invisível enquanto
+       "Dani Berion" aparece por cima. Trocar o texto em si colapsaria a seleção. */
+    .dani-egg { position: relative; display: inline-block; }
+    .dani-egg-alt {
+        position: absolute; left: 0; top: 0; white-space: nowrap;
+        pointer-events: none; user-select: none; visibility: hidden;
+        background: Highlight; color: HighlightText;
+    }
+    .dani-egg.is-selected .dani-egg-name { color: transparent; }
+    .dani-egg.is-selected .dani-egg-name::selection { background: transparent; color: transparent; }
+    .dani-egg.is-selected .dani-egg-alt { visibility: visible; }
+</style>
+
+<script>
+    // Easter egg: selecionar o nome do autor mostra "Dani Berion"; desfazer a seleção volta ao normal.
+    (function () {
+        if (window.__daniEggReady) return;
+        window.__daniEggReady = true;
+
+        document.addEventListener('selectionchange', function () {
+            var sel = window.getSelection();
+            var range = sel && !sel.isCollapsed && sel.rangeCount ? sel.getRangeAt(0) : null;
+
+            document.querySelectorAll('.dani-egg').forEach(function (egg) {
+                var name = egg.querySelector('.dani-egg-name');
+                egg.classList.toggle('is-selected', !!(range && name && range.intersectsNode(name)));
+            });
+        });
+    })();
+</script>
 
 <script>
     // Easter egg: 10 segundos com o mouse parado sobre "Lara" revelam o recado.
