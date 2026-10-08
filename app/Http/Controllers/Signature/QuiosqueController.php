@@ -214,12 +214,14 @@ class QuiosqueController extends Controller
     {
         $solicitacao = $this->current($request);
 
+        // `cpf` nos modos de CPF; `codigo` no de código enviado por e-mail.
         $dados = $request->validate([
-            'cpf' => ['required', 'string', 'max:20'],
+            'cpf' => ['required_without:codigo', 'nullable', 'string', 'max:20'],
+            'codigo' => ['required_without:cpf', 'nullable', 'string', 'max:10'],
         ]);
 
         try {
-            $this->capture->confirmIdentity($solicitacao, $dados['cpf'], [
+            $this->capture->confirmIdentity($solicitacao, $dados['cpf'] ?? $dados['codigo'], [
                 'ip' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
@@ -228,6 +230,39 @@ class QuiosqueController extends Controller
         }
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Envia o código da conferência de identidade ao e-mail do signatário —
+     * modelo com a opção "Código enviado por e-mail". O tablet chama ao abrir a
+     * etapa e no "Reenviar código". O endereço não vem para a tela.
+     */
+    public function identityCode(Request $request, SignatureDocument $signatureDocument)
+    {
+        $solicitacao = $this->current($request);
+
+        try {
+            $this->capture->sendIdentityCode($solicitacao, [
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+        } catch (SignatureSessionException $e) {
+            return response()->json(['error' => $e->getMessage()], $e->status);
+        } catch (\Throwable $e) {
+            // SMTP fora do ar: nada ficou registrado como enviado.
+            \Illuminate\Support\Facades\Log::error('Falha ao enviar o código de identidade.', [
+                'request_id' => $solicitacao->id,
+                'erro' => $e->getMessage(),
+            ]);
+
+            return response()->json(['error' => 'Não foi possível enviar o código agora. Chame o atendente.'], 503);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'resend_seconds' => \App\Services\Signature\SignatureCaptureService::CODE_RESEND_SECONDS,
+            'sends_left' => \App\Services\Signature\SignatureCaptureService::MAX_CODE_SENDS - $solicitacao->identity_code_sends,
+        ]);
     }
 
     /**

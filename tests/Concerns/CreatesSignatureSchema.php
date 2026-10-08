@@ -45,6 +45,14 @@ trait CreatesSignatureSchema
             '2026_10_06_100000_add_uploaded_pdf_to_signature_tables.php',
             '2026_10_08_100000_add_photo_consent_to_signature_evidences.php',
             '2026_10_09_100000_add_issuer_name_to_signature_requests.php',
+            '2026_10_10_100000_create_signature_govbr_checks_table.php',
+            '2026_10_10_100100_add_govbr_to_signature_documents_and_signers.php',
+            '2026_10_10_100200_create_signature_govbr_invites_table.php',
+            '2026_10_10_100300_remove_link_from_signature_govbr_invites.php',
+            '2026_10_10_100400_add_govbr_report_to_signature_documents.php',
+            '2026_10_11_100000_create_signature_attachments.php',
+            '2026_10_11_100100_add_email_code_identity_check.php',
+            '2026_10_11_100200_drop_location_from_signature_documents.php',
         ];
 
         foreach ($migrations as $arquivo) {

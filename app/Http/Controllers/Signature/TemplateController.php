@@ -8,6 +8,7 @@ use App\Http\Requests\StoreSignatureTemplateRequest;
 use App\Models\SignatureDocument;
 use App\Models\SignatureTemplate;
 use App\Services\Signature\DocxTemplateImporter;
+use App\Services\Signature\SignatureAttachmentService;
 use App\Services\Signature\SignatureDocumentRenderer;
 use App\Services\Signature\SignatureFieldTypes;
 use App\Support\HtmlSanitizer;
@@ -179,6 +180,7 @@ class TemplateController extends Controller
                 array_values($dados['variables'] ?? []),
             )),
             'parties' => $this->parties($corpo, array_values($dados['parties'] ?? [])),
+            'attachments' => SignatureAttachmentService::normalize(array_values($dados['attachments'] ?? []), 'mod'),
             'requires_photo' => (bool) ($dados['requires_photo'] ?? false),
             'requires_initials' => (bool) ($dados['requires_initials'] ?? false),
             'identity_check' => $dados['identity_check'],

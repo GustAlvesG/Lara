@@ -68,7 +68,9 @@ use App\Http\Controllers\PoliBot\FlowController as PoliBotFlowController;
 use App\Http\Controllers\PoliBot\PoliDataController as PoliBotDataController;
 use App\Http\Controllers\PoliBot\SimulatorController as PoliBotSimulatorController;
 
+use App\Http\Controllers\Signature\AttachmentController as SignatureAttachmentController;
 use App\Http\Controllers\Signature\DocumentController as SignatureDocumentController;
+use App\Http\Controllers\Signature\GovbrController as SignatureGovbrController;
 use App\Http\Controllers\Signature\GuideController as SignatureGuideController;
 use App\Http\Controllers\Signature\LayoutController as SignatureLayoutController;
 use App\Http\Controllers\Signature\QuiosqueController;
@@ -142,6 +144,11 @@ Route::prefix('assinatura/kiosk')->name('quiosque.')->group(function () {
             // e o tablet inteiro divide um IP só.
             Route::post('/identidade', [QuiosqueController::class, 'identity'])
                 ->middleware('throttle:10,1')->name('identity');
+
+            // Código da conferência por e-mail: o serviço limita a 3 envios
+            // por liberação, um por minuto; o throttle é a trava por IP.
+            Route::post('/identidade/codigo', [QuiosqueController::class, 'identityCode'])
+                ->middleware('throttle:6,1')->name('identity-code');
 
             Route::post('/assinar', [QuiosqueController::class, 'sign'])
                 ->middleware('throttle:10,1')->name('sign');
@@ -1058,6 +1065,30 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::delete('/liberacoes/{signatureRequest}', [SignatureReleaseController::class, 'destroy'])
                 ->whereNumber('signatureRequest')
                 ->middleware('throttle:30,1')->name('release.cancel');
+
+            // Aba "Assinatura gov.br": preparar o documento para o gov.br e
+            // enviar o PDF que voltou assinado. Aprovado, o envio conclui a
+            // assinatura de quem assinou — ver GovbrCheckService.
+            Route::post('/govbr/preparar', [SignatureGovbrController::class, 'prepare'])
+                ->middleware('throttle:20,1')->name('govbr.prepare');
+            // Botão "Enviar por e-mail": o PDF a assinar; a resposta volta ao atendente.
+            Route::post('/govbr/signatarios/{signatureSigner}/convite', [SignatureGovbrController::class, 'invite'])
+                ->whereNumber('signatureSigner')
+                ->middleware('throttle:10,1')->name('govbr.invite');
+            Route::post('/govbr', [SignatureGovbrController::class, 'store'])
+                ->middleware('throttle:20,1')->name('govbr.store');
+            Route::get('/govbr/{signatureGovbrCheck}/pdf', [SignatureGovbrController::class, 'pdf'])
+                ->whereNumber('signatureGovbrCheck')->name('govbr.pdf');
+
+            // Anexos (identidade, comprovante): o atendente envia na tela do
+            // documento. Remover só em rascunho — ver SignatureAttachmentService.
+            Route::post('/anexos', [SignatureAttachmentController::class, 'store'])
+                ->middleware('throttle:30,1')->name('attachments.store');
+            Route::get('/anexos/{signatureAttachment}', [SignatureAttachmentController::class, 'show'])
+                ->whereNumber('signatureAttachment')->name('attachments.show');
+            Route::delete('/anexos/{signatureAttachment}', [SignatureAttachmentController::class, 'destroy'])
+                ->whereNumber('signatureAttachment')
+                ->middleware('throttle:30,1')->name('attachments.destroy');
         });
     });
 

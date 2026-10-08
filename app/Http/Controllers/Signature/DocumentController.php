@@ -99,7 +99,7 @@ class DocumentController extends Controller
             [
                 'title' => $dados['title'] ?? null,
                 'data' => $request->fieldData(),
-                'location' => $dados['location'] ?? null,
+                'attachment_requirements' => $request->attachmentRequirements(),
             ],
             $dados['signers'],
             auth()->id(),
@@ -135,7 +135,10 @@ class DocumentController extends Controller
         try {
             $documento = $this->documents->createFromUpload(
                 (string) file_get_contents($request->file('file')->getRealPath()),
-                ['title' => $dados['title'], 'location' => $dados['location'] ?? null],
+                [
+                    'title' => $dados['title'],
+                    'attachment_requirements' => $request->attachmentRequirements(),
+                ],
                 [
                     'identity_check' => $dados['identity_check'],
                     'requires_photo' => $dados['requires_photo'] ?? false,
@@ -179,15 +182,18 @@ class DocumentController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    public function show(SignatureDocument $signatureDocument)
+    public function show(Request $request, SignatureDocument $signatureDocument)
     {
         $this->authorize('view', $signatureDocument);
 
-        $signatureDocument->load(['template', 'signers.requests', 'signers.evidence']);
+        $signatureDocument->load(['template', 'signers.requests', 'signers.evidence', 'signers.govbrCheck', 'signers.govbrInvites', 'govbrChecks', 'attachments']);
 
         return view('signature.documents.show', [
             'document' => $signatureDocument,
             'events' => $signatureDocument->auditEvents()->get(),
+            // A aba vem pelo endereço: o envio do PDF do gov.br volta direto
+            // para ela, com o resultado na tela.
+            'aba' => $request->query('aba') === 'govbr' ? 'govbr' : 'documento',
         ]);
     }
 
@@ -215,7 +221,7 @@ class DocumentController extends Controller
                 [
                     'title' => $dados['title'] ?? null,
                     'data' => $request->fieldData(),
-                    'location' => $dados['location'] ?? null,
+                    'attachment_requirements' => $request->attachmentRequirements(),
                 ],
                 $dados['signers'],
             );
@@ -281,9 +287,11 @@ class DocumentController extends Controller
 
         // `enviado` é o PDF como o atendente o mandou, antes de qualquer
         // carimbo — é o que a tela de marcar o lugar das assinaturas mostra.
+        // `relatorio` é o relatório de validação do gov.br, à parte do final.
         $caminho = match ($versao) {
             'final' => $signatureDocument->final_path,
             'enviado' => $signatureDocument->source_path,
+            'relatorio' => $signatureDocument->report_path,
             default => $signatureDocument->original_path,
         };
 

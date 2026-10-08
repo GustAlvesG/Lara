@@ -78,6 +78,10 @@ enviado. Ver [Autorização de Ordem de Compra](funcionalidades/questor-autoriza
 - **Casos de uso:** confirmação/pendência/cancelamento de agendamento
   (`emails/schedule/*`), formulário de contato (`emails/general_contact`), pagamento
   (`emails/payment`) e redefinição de senha.
+- **Assinatura eletrônica:** a via assinada (`SignatureCopyMail`, em fila), o convite do gov.br
+  (`SignatureGovbrInviteMail`) e o código da conferência de identidade (`SignatureIdentityCodeMail`).
+  Os dois últimos saem **na hora, fora da fila**: alguém espera o resultado, e o código não pode ficar
+  gravado na tabela de jobs.
 
 ---
 
@@ -175,3 +179,23 @@ enviado. Ver [Autorização de Ordem de Compra](funcionalidades/questor-autoriza
 - **Log:** canal `sicoob` (`storage/logs/sicoob-*.log`, 180 dias). Nunca registra token nem
   senha de certificado.
 - **Guia de uso:** [Pix automático (Sicoob)](funcionalidades/pix-sicoob.md).
+
+---
+
+## 11.12. gov.br — conferência de assinatura
+
+O Lara **não chama** nenhuma API do gov.br: a API de assinatura é liberada só para órgão público. A
+pessoa assina o PDF em `assinador.iti.br` e o atendente envia o arquivo na aba **Assinatura gov.br**
+do documento. A conferência é local, com a extensão OpenSSL do PHP.
+
+- **Cadeia de confiança:** `resources/certs/govbr/cadeia-govbr.pem`, cópia da oficial
+  (`https://repo.iti.br/docs/Cadeia_GovBr-der.p7b`). **Vence em junho de 2033** — trocar antes.
+- **Revogação:** lista pública em `http://repo.iti.br/lcr/public/acf/LCRacfGovBr.crl`, ainda não
+  consultada.
+- **E-mail:** o convite para assinar sai pelo SMTP do sistema (seção 11.5), **na hora** e fora da fila —
+  com SMTP fora do ar, o atendente vê o erro e nada fica registrado como enviado. Não há link de
+  volta para o Lara (que não é acessível de fora): a pessoa responde ao e-mail, que tem `Reply-To` do
+  atendente.
+- **Validador oficial:** `validar.iti.gov.br` é citado no relatório de validação e na via por e-mail,
+  para quem quiser conferir o PDF assinado por fora. O Lara não o chama.
+- Detalhes: [Assinatura eletrônica → Assinatura pelo gov.br](funcionalidades/assinatura-eletronica.md#assinatura-pelo-govbr).

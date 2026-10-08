@@ -18,6 +18,9 @@ use Illuminate\Support\Facades\Storage;
  * carrega o código e o QR de validação, então a pessoa consegue conferir a
  * autenticidade do arquivo mesmo meses depois, sem precisar do clube.
  *
+ * Assinado pelo gov.br, o final é o arquivo do gov.br, e o relatório de
+ * validação vai como um segundo anexo — ver FinalizeSignatureDocument.
+ *
  * O corpo do e-mail NÃO repete dados pessoais: o documento já os tem, e um
  * e-mail é reencaminhado, impresso e esquecido em caixa de entrada alheia com
  * uma facilidade que o papel não tem.
@@ -57,11 +60,21 @@ class SignatureCopyMail extends Mailable
     {
         $document = $this->signer->document;
 
-        $bytes = Storage::disk(config('signature.disk'))->get($document->final_path);
+        $disk = Storage::disk(config('signature.disk'));
+        $bytes = $disk->get($document->final_path);
 
-        return [
+        $anexos = [
             Attachment::fromData(fn() => $bytes, 'documento-assinado-' . $document->validation_code . '.pdf')
                 ->withMime('application/pdf'),
         ];
+
+        if ($document->report_path && $disk->exists($document->report_path)) {
+            $relatorio = $disk->get($document->report_path);
+
+            $anexos[] = Attachment::fromData(fn() => $relatorio, 'relatorio-govbr-' . $document->validation_code . '.pdf')
+                ->withMime('application/pdf');
+        }
+
+        return $anexos;
     }
 }

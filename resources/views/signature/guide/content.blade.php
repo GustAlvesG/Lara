@@ -122,14 +122,15 @@
     <div class="bar"></div>
     <h1>Assinatura de documentos</h1>
     <p class="lead">Guia do dia a dia: como preparar um documento no Word, cadastrar o modelo, emitir o documento
-        no balcão, acompanhar a assinatura no tablet e encontrar o documento assinado depois.</p>
+        no balcão, acompanhar a assinatura no tablet — ou pelo <b>gov.br</b>, para quem não vem ao clube — e
+        encontrar o documento assinado depois.</p>
 
     <table class="flow">
         <tr>
             <td><b>1. Word</b>Escrever o texto e marcar os campos</td>
             <td><b>2. Modelo</b>Enviar o Word e ajustar os campos</td>
             <td><b>3. Documento</b>Preencher os dados e congelar</td>
-            <td><b>4. Tablet</b>A pessoa lê, confirma e assina</td>
+            <td><b>4. Tablet ou gov.br</b>A pessoa lê, confirma e assina</td>
             <td><b>5. Arquivo</b>PDF assinado, com comprovante</td>
         </tr>
     </table>
@@ -145,8 +146,9 @@
         <tr><td class="n">6</td><td><a href="#documento">Emitir um documento no balcão</a></td><td class="who">atendimento</td></tr>
         <tr><td class="n">7</td><td><a href="#tablet">O que a pessoa vê no tablet</a></td><td class="who">atendimento</td></tr>
         <tr><td class="n">8</td><td><a href="#depois">Depois de assinado: onde está o documento</a></td><td class="who">todos</td></tr>
-        <tr><td class="n">9</td><td><a href="#problemas">Problemas comuns</a></td><td class="who">todos</td></tr>
-        <tr><td class="n">10</td><td><a href="#cola">Cola rápida dos marcadores</a></td><td class="who">quem escreve os modelos</td></tr>
+        <tr><td class="n">9</td><td><a href="#govbr">Assinatura pelo gov.br (quem não vem ao balcão)</a></td><td class="who">atendimento</td></tr>
+        <tr><td class="n">10</td><td><a href="#problemas">Problemas comuns</a></td><td class="who">todos</td></tr>
+        <tr><td class="n">11</td><td><a href="#cola">Cola rápida dos marcadores</a></td><td class="who">quem escreve os modelos</td></tr>
     </table>
 </div>
 
@@ -172,21 +174,42 @@
     <h3>Onde fica cada coisa no menu</h3>
     <ul>
         <li><span class="menu">Assinaturas → Modelos</span> — cadastrar e revisar modelos; ajustar o cabeçalho e o rodapé.</li>
-        <li><span class="menu">Assinaturas → Documentos</span> — emitir um documento, acompanhar a assinatura e baixar o PDF.</li>
+        <li><span class="menu">Assinaturas → Documentos</span> — emitir um documento, acompanhar a assinatura e baixar o PDF.
+            Na página de cada documento, a aba <span class="menu">Assinatura gov.br</span> é por onde ele é
+            assinado à distância (seção 9).</li>
         <li>O <b>tablet do balcão</b> fica aberto na tela de assinatura (endereço do sistema terminado em
             <code>%%ENDERECO_DO_TABLET%%</code>) e não precisa de login.</li>
         <li>Um item do menu que não aparece para você depende de permissão: peça o acesso à TI.</li>
     </ul>
+
+    <h3>Duas formas de assinar</h3>
+    <table class="ref">
+        <tr><th style="width:24%">Forma</th><th>Quando usar</th></tr>
+        <tr>
+            <td><b>Tablet do balcão</b></td>
+            <td>A pessoa está no clube. Ela lê no tablet, confirma a identidade e assina com o dedo. É o caminho de
+                todo dia (seções 6 e 7).</td>
+        </tr>
+        <tr>
+            <td><b>gov.br</b></td>
+            <td>A pessoa não pode vir. Ela recebe o PDF por e-mail, assina com a própria conta gov.br e devolve o
+                arquivo; o sistema confere a assinatura (seção 9).</td>
+        </tr>
+    </table>
+    <p class="small">Cada documento é assinado por <b>uma</b> das duas formas: todos no tablet, ou todos pelo
+        gov.br. A seção 9 explica por quê.</p>
 
     <h3>As situações de um documento</h3>
     <table class="ref">
         <tr><th style="width:26%">Situação</th><th>O que significa</th></tr>
         <tr><td><b>Rascunho</b></td><td>Ainda pode ser editado. Não aparece no tablet.</td></tr>
         <tr><td><b>Aguardando assinatura</b></td><td>Foi congelado: o texto e os dados não mudam mais. Pode ser liberado para o tablet.</td></tr>
-        <tr><td><b>Assinado</b></td><td>Todos assinaram. O sistema está montando o PDF final (leva alguns segundos).</td></tr>
+        <tr><td><b>Assinado</b></td><td>Todos assinaram. O sistema está montando o PDF final (leva alguns segundos) — ou
+            esperando um <b>anexo obrigatório</b> que ainda não foi enviado; o quadro Anexos diz qual.</td></tr>
         <tr><td><b>Finalizado</b></td><td>O PDF assinado está pronto para baixar.</td></tr>
         <tr><td><b>Recusado, Cancelado ou Expirado</b></td><td>Encerrado sem assinatura: a pessoa recusou no tablet, o
-            atendente cancelou, ou ninguém assinou dentro do prazo (por padrão, 24 horas).</td></tr>
+            atendente cancelou, ou ninguém assinou dentro do prazo (por padrão, 24 horas no balcão e 7 dias pelo
+            gov.br).</td></tr>
     </table>
 
     <div class="box warn">
@@ -340,8 +363,9 @@
         <tr>
             <td><b>Conferência de identidade</b></td>
             <td>O que a pessoa digita no tablet antes de assinar: os <b>quatro primeiros dígitos do CPF</b> (o
-                normal) ou o <b>CPF completo</b> (para contratos). O sistema confere com o CPF informado pelo
-                atendente.</td>
+                normal), o <b>CPF completo</b> (para contratos) ou o <b>código enviado por e-mail</b> — o sistema
+                manda um código de 6 números ao e-mail do signatário, e a pessoa o digita no tablet. Nessa última,
+                todo signatário precisa ter e-mail para o documento ser congelado.</td>
         </tr>
         <tr>
             <td><b>Capturar foto na confirmação</b></td>
@@ -361,8 +385,8 @@
 
     <div class="box warn">
         <b class="h">Evite "Sem conferência" por enquanto</b>
-        A terceira opção de conferência de identidade está com um problema conhecido: documentos de modelos
-        configurados assim podem não concluir a assinatura no tablet. Use os quatro dígitos ou o CPF completo.
+        A opção "Sem conferência" está com um problema conhecido: documentos de modelos configurados assim podem
+        não concluir a assinatura no tablet. Use os quatro dígitos, o CPF completo ou o código por e-mail.
     </div>
 
     <div class="box tip">
@@ -503,7 +527,7 @@
             <td>Abra <span class="menu">Assinaturas → Documentos</span>, clique em <span class="btn">Novo documento</span>
                 e escolha o modelo.<br>
                 A tela é dividida em passos — <b>1. Documento</b>, <b>2. Signatários</b>, <b>3. Dados do
-                documento</b> —, um de cada vez. Confira o título e o local e clique em
+                documento</b>, <b>4. Anexos</b> —, um de cada vez. Confira o título e clique em
                 <span class="btn">Continuar</span>; <span class="btn2">Voltar</span> e os nomes dos passos, no alto,
                 levam de volta a um passo já visto.</td>
         </tr>
@@ -558,7 +582,8 @@
         <tr>
             <td class="n"><span class="num">9</span></td>
             <td><span class="t">Se houver outro signatário,</span> clique de novo em <span class="btn">Liberar para
-                assinatura</span>: é um QR Code por pessoa, na ordem da lista.</td>
+                assinatura</span>: é um QR Code por pessoa. <b>A ordem é livre</b> — com mais de uma pessoa
+                faltando, escolha em <b>Quem vai assinar agora</b> quem está no balcão.</td>
         </tr>
     </table>
 
@@ -572,7 +597,28 @@
         <tr><td>Percebi um erro depois de congelar</td><td>Clique em <b>Cancelar</b> no topo da página e emita um documento novo.</td></tr>
         <tr><td>O tablet não tem câmera funcionando</td><td>Se aparecer na sua tela "Sem câmera no tablet? Dite este código", dite o código de 8 caracteres; no tablet, a pessoa toca em <b>Digitar código</b>.</td></tr>
         <tr><td>O sistema não deixa congelar</td><td>Leia a mensagem: falta um campo obrigatório, um signatário, ou alguém para assinar por uma das partes.</td></tr>
+        <tr><td>Todos assinaram, mas o documento não conclui</td><td>Falta um anexo obrigatório: o quadro <b>Anexos</b> diz qual. Envie, e o documento conclui sozinho.</td></tr>
     </table>
+    </div>
+
+    <div class="keep">
+    <h3>Anexos: identidade, comprovante</h3>
+    <p>O modelo pode pedir arquivos — identidade, comprovante de residência —, e o documento pode pedir outros, só
+        dele, no passo <b>Anexos</b> do formulário (<span class="btn2">+ Pedir anexo</span>, marcando
+        <b>Obrigatório</b> se for o caso).</p>
+    <ul>
+        <li>Envie cada arquivo na página do documento, no quadro <b>Anexos</b>: escolha o arquivo e clique em
+            <span class="btn">Enviar</span>. Frente e verso? <span class="btn2">Enviar mais um arquivo</span> no
+            mesmo item. Um arquivo que ninguém pediu vai em <b>Outro anexo</b>, com o nome do que é.</li>
+        <li>Aceita <b>PDF, JPG ou PNG</b>, até 10 MB cada. Foto do celular serve.</li>
+        <li>Os anexos podem chegar antes ou depois da assinatura. Mas o documento só <b>conclui</b> com os
+            <b>obrigatórios</b>: se todos assinaram e falta algum, ele fica <b>Assinado</b>, esperando, e conclui
+            sozinho quando o último chegar.</li>
+        <li>No rascunho, dá para remover e enviar de novo. Depois de congelar, ainda dá para enviar, mas o que foi
+            enviado não sai mais. Concluído, nada muda.</li>
+        <li>Os anexos não entram no PDF assinado: ficam guardados com ele, e o manifesto lista cada um. Não vão na
+            via por e-mail.</li>
+    </ul>
     </div>
 
     <h3 style="page-break-before: always; margin-top: 0;">Documento pronto, com imagens: enviar em PDF</h3>
@@ -607,7 +653,8 @@
             <td><b>1. Leitura do QR</b>A pessoa aponta a câmera para o código na tela do atendente.</td>
             <td><span class="opt">se o modelo pedir</span><b>2. Perguntas</b>"Antes de ler, responda": as perguntas do modelo. Depois, <i>Continuar</i>.</td>
             <td><b>3. Documento</b>Rola o texto até o fim; só então o botão vira <i>Li o documento</i>.</td>
-            <td><b>4. Identidade</b>Digita os quatro primeiros dígitos do CPF (ou o CPF completo).</td>
+            <td><b>4. Identidade</b>Digita os quatro primeiros dígitos do CPF (ou o CPF completo, ou o código que
+                chegou no e-mail — se não chegar, há <b>Reenviar código</b>, depois de um minuto).</td>
         </tr>
         <tr>
             <td><b>5. Aceite</b>Marca "Li e concordo" e, quando o modelo pede foto, marca também que
@@ -657,6 +704,11 @@
         <li>O documento, com a assinatura de cada pessoa no lugar dela e, se o modelo pedir, o visto em todas as páginas.</li>
         <li>Ao final, o <b>manifesto de assinatura</b>: quem assinou, quando, a foto (se houver), o registro de cada
             etapa e um QR Code de validação. O CPF aparece mascarado.</li>
+        <li>Documento assinado <b>pelo gov.br</b> é diferente: o PDF assinado é o próprio arquivo que voltou do gov.br,
+            sem página a mais. O que seria o manifesto vem num arquivo separado, o <span class="btn2">Relatório
+            gov.br</span>, com o botão ao lado de <span class="btn">PDF assinado</span> (ver a seção 9).</li>
+        <li>Os <b>anexos</b> (identidade, comprovante) não entram no PDF: ficam guardados com o documento, e o
+            manifesto lista cada um.</li>
     </ul>
 
     <div class="keep">
@@ -665,7 +717,8 @@
         <tr><th style="width:30%">Onde</th><th>O que é</th></tr>
         <tr>
             <td><b>E-mail da pessoa</b></td>
-            <td>Quem marcou no tablet que quer a via e tem e-mail informado recebe o PDF assinado alguns instantes depois.</td>
+            <td>Quem marcou no tablet que quer a via e tem e-mail informado recebe o PDF assinado alguns instantes depois.
+                Quem assinou pelo gov.br recebe sempre, com o relatório junto.</td>
         </tr>
         <tr>
             <td><b>Pasta de rede</b><br><span class="small">(se o arquivamento estiver ligado)</span></td>
@@ -682,7 +735,9 @@
         <tr>
             <td><b>Página de validação</b></td>
             <td>Qualquer pessoa pode conferir se um documento é autêntico pelo endereço impresso no rodapé de cada
-                página, ou lendo o QR Code do manifesto. A página confirma o documento; ela não entrega o PDF.</td>
+                página, ou lendo o QR Code do manifesto. A página confirma o documento; ela não entrega o PDF.
+                Documento assinado pelo gov.br também pode ser conferido no validador oficial do governo,
+                <code>validar.iti.gov.br</code>.</td>
         </tr>
     </table>
     </div>
@@ -690,8 +745,109 @@
 </div>
 
 <!-- ====================================================== 9 -->
+<div class="section" id="govbr">
+    <h2>9. Assinatura pelo gov.br (quem não vem ao balcão)</h2>
+
+    <p>Quem não pode vir ao clube assina o PDF do documento no portal do gov.br, com a própria conta gov.br
+        (nível <b>prata ou ouro</b>), e devolve o arquivo. O sistema confere se é este documento, se nada mudou
+        depois da assinatura, se o certificado é do gov.br e se o CPF é de um dos signatários — e, se estiver tudo
+        certo, registra a assinatura, como o tablet. O sistema não é acessível de fora: o arquivo sempre volta
+        <b>por você</b>.</p>
+
+    <table class="steps">
+        <tr>
+            <td class="n"><span class="num">1</span></td>
+            <td>Prepare e <b>congele</b> o documento como sempre. Abra a aba <span class="menu">Assinatura gov.br</span>
+                e clique em <span class="btn">Preparar para o gov.br</span>.<br>
+                <span class="small">A partir daí o documento é assinado só pelo gov.br (o tablet não libera mais), a
+                data da assinatura entra no texto, se o modelo tiver esse campo, e o prazo passa a ser de 7 dias.</span></td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">2</span></td>
+            <td>A aba lista quem falta assinar. Confira o e-mail de quem vai assinar e clique em
+                <span class="btn">Enviar por e-mail</span> ao lado do nome — <b>em qualquer ordem</b>. A pessoa
+                recebe o PDF para assinar e o passo a passo.<br>
+                <span class="small">Prefere enviar por conta própria? Baixe o PDF pelo link da aba (sempre
+                <b>depois</b> de preparar) e envie como quiser.</span></td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">3</span></td>
+            <td>A pessoa abre <code>assinador.iti.br</code>, entra com a conta gov.br, envia o PDF, assina e baixa o
+                arquivo assinado. Depois, <b>responde ao e-mail</b> com esse arquivo — a resposta chega no
+                <b>seu</b> e-mail.</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">4</span></td>
+            <td>Salve o arquivo que chegou, abra a aba <span class="menu">Assinatura gov.br</span>, escolha o arquivo
+                e clique em <span class="btn">Conferir assinatura</span>. Se estiver certo, a pessoa passa a
+                <b>Assinou</b>. Se não, a aba mostra o que não passou.</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">5</span></td>
+            <td><span class="t">Tem mais alguém para assinar?</span> Clique em <span class="btn">Enviar por e-mail</span>
+                ao lado do nome dela. O e-mail já leva <b>o arquivo com as assinaturas de quem já assinou</b> — as
+                assinaturas vão se somando no mesmo arquivo. Repita os passos 3 e 4.</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">6</span></td>
+            <td>Quando todos assinaram, o documento fica <b>Assinado</b> e, em seguida, <b>Finalizado</b>: o PDF
+                assinado é o arquivo que voltou do gov.br, acompanhado do <b>relatório</b> da conferência. A via (os
+                dois arquivos) vai por e-mail a quem tem e-mail cadastrado e a cópia vai para a pasta de rede.</td>
+        </tr>
+    </table>
+
+    <div class="keep">
+    <h3>Um de cada vez, em qualquer ordem</h3>
+    <p>Não importa quem assina primeiro. O que importa é que seja <b>um de cada vez</b>: cada pessoa assina o
+        arquivo que já traz as assinaturas anteriores. Se você mandar o convite a duas pessoas ao mesmo tempo, as
+        duas recebem o mesmo arquivo; a primeira que voltar é registrada, e a segunda é <b>recusada</b>
+        ("não traz a assinatura de…"). Nesse caso, clique de novo em <span class="btn">Enviar por e-mail</span>
+        para a segunda pessoa — o e-mail novo leva o arquivo certo — e peça que assine de novo.</p>
+    </div>
+
+    <div class="keep">
+    <h3>Tablet e gov.br no mesmo documento: não dá</h3>
+    <p>Cada documento é assinado todo no tablet ou todo pelo gov.br — <b>nos dois sentidos</b>:</p>
+    <ul>
+        <li><b>gov.br e depois tablet:</b> a assinatura do gov.br fica dentro do arquivo, e qualquer mudança nele a
+            desfaz. Para pôr a assinatura do tablet, o sistema precisaria montar o PDF de novo — e isso apagaria a
+            do gov.br.</li>
+        <li><b>Tablet e depois gov.br:</b> a assinatura do tablet só é desenhada no PDF na hora de finalizar. O
+            arquivo que a pessoa assinaria no gov.br não teria a assinatura do tablet, e a finalização, ao desenhá-la,
+            apagaria a do gov.br.</li>
+    </ul>
+    <p>Por isso, quando alguém já assinou no tablet, o botão <span class="btn">Preparar para o gov.br</span> não
+        aparece; e depois de preparado, o tablet não libera mais aquele documento. Se precisar mudar de caminho,
+        cancele e emita um documento novo.</p>
+    </div>
+
+    <div class="keep">
+    <h3>O que vale saber</h3>
+    <ul>
+        <li><b>Não serve para todo documento.</b> Modelo com perguntas respondidas no tablet e modelo com visto em
+            todas as páginas são assinados só no balcão — a aba avisa.</li>
+        <li><b>O arquivo tem de ser o que saiu do gov.br, sem mexer.</b> Abrir e salvar de novo em outro programa
+            (inclusive "imprimir em PDF") desfaz a assinatura, e o arquivo é recusado.</li>
+        <li><b>Quem confere é o CPF, não o nome.</b> A assinatura de alguém que não está na lista de signatários é
+            recusada, mesmo que o nome pareça certo.</li>
+        <li><b>O e-mail não tem link para o sistema</b>, que não é acessível de fora: o arquivo sempre volta por
+            você. A aba mostra cada convite enviado, para quem e quando.</li>
+        <li><b>Foto e conferência de identidade do tablet não se aplicam:</b> a identidade é a da conta gov.br,
+            provada pelo certificado com o CPF.</li>
+        <li><b>Anexos</b> (identidade, comprovante) funcionam igual: envie-os no quadro Anexos da página do
+            documento. Sem os obrigatórios, o documento assinado não conclui.</li>
+        <li>O PDF assinado não ganha página de manifesto (acrescentar uma página desfaria as assinaturas): o registro
+            sai no <span class="btn2">Relatório gov.br</span>, que vai junto na via por e-mail e fica para baixar na
+            página do documento.</li>
+        <li>A hora da assinatura é a informada pelo gov.br. A revogação do certificado ainda não é conferida — a
+            tela diz isso; o validador oficial, <code>validar.iti.gov.br</code>, confere.</li>
+    </ul>
+    </div>
+</div>
+
+<!-- ====================================================== 10 -->
 <div class="section" id="problemas">
-    <h2>9. Problemas comuns</h2>
+    <h2>10. Problemas comuns</h2>
 
     <table class="ref">
         <tr><th style="width:38%">O que aconteceu</th><th>Causa provável e o que fazer</th></tr>
@@ -699,6 +855,21 @@
             <td>O sistema recusou o meu arquivo do Word</td>
             <td>Ele não está em <code>.docx</code>. Abra no Word e use <b>Salvar como → Documento do Word (.docx)</b>.
                 PDF e <code>.doc</code> não são aceitos.</td>
+        </tr>
+        <tr>
+            <td>O arquivo do gov.br foi recusado</td>
+            <td>Abra o envio na aba <b>Assinatura gov.br</b> e veja o item marcado com X. Os mais comuns: a pessoa
+                devolveu o PDF <b>sem assinar</b>; assinou <b>outro documento</b> (de outro atendimento, um PDF
+                baixado antes de "Preparar para o gov.br", ou um arquivo salvo de novo); ou quem assinou <b>não está na
+                lista de signatários</b>. Peça que assine de novo o PDF certo, em <code>assinador.iti.br</code>, e envie
+                o arquivo baixado de lá.</td>
+        </tr>
+        <tr>
+            <td>O arquivo do gov.br é "válido", mas não registrou a assinatura</td>
+            <td>A aba diz o motivo em amarelo. Os mais comuns: o documento não foi <b>preparado para o gov.br</b>; ou
+                a pessoa assinou o <b>original</b> (ou o mesmo arquivo que outra pessoa assinou ao mesmo tempo) em vez
+                do arquivo com as assinaturas anteriores. Reenvie o convite a ela — o e-mail novo leva o arquivo
+                certo — e peça que assine de novo.</td>
         </tr>
         <tr>
             <td>Um campo não apareceu na lista</td>
@@ -740,6 +911,11 @@
                 o arquivo está parado. Nada se perde — a assinatura está registrada.</td>
         </tr>
         <tr>
+            <td>O botão "Preparar para o gov.br" não aparece</td>
+            <td>A aba diz o motivo: alguém já assinou no tablet, o modelo tem perguntas a quem assina ou visto em
+                todas as páginas, ou o documento ainda não foi congelado.</td>
+        </tr>
+        <tr>
             <td>A pessoa não recebeu a via por e-mail</td>
             <td>Ela precisa ter marcado a opção no tablet e ter e-mail informado no documento. Você pode baixar o
                 <b>PDF assinado</b> e enviar.</td>
@@ -749,7 +925,7 @@
 
 <!-- ====================================================== 10 -->
 <div id="cola" style="padding-top: 22px;">
-    <h2>10. Cola rápida dos marcadores</h2>
+    <h2>11. Cola rápida dos marcadores</h2>
     <p>Para deixar ao lado do computador de quem escreve os modelos.</p>
 
     <table class="ref">

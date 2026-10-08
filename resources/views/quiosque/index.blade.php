@@ -30,6 +30,7 @@
       respostas: @json(route('quiosque.answers', ['signatureDocument' => '__DOC__'])),
       visualizado: @json(route('quiosque.viewed', ['signatureDocument' => '__DOC__'])),
       identidade: @json(route('quiosque.identity', ['signatureDocument' => '__DOC__'])),
+      codigoIdentidade: @json(route('quiosque.identity-code', ['signatureDocument' => '__DOC__'])),
       assinar: @json(route('quiosque.sign', ['signatureDocument' => '__DOC__'])),
       recusar: @json(route('quiosque.refuse', ['signatureDocument' => '__DOC__'])),
     },
@@ -270,6 +271,9 @@
           <input class="cpf-input" id="cpfInput" inputmode="numeric" autocomplete="off" maxlength="11" readonly>
           <div class="keypad" id="teclado"></div>
         </div>
+
+        <!-- Só na conferência por código enviado por e-mail. -->
+        <button type="button" class="btn btn-ghost hidden" id="btnReenviarCodigo" style="margin-top:16px;">Reenviar código</button>
 
         <p class="note note-danger hidden" id="erroIdentidade" style="margin-top:18px;"></p>
       </div>
@@ -1273,18 +1277,69 @@
    | Identidade
    |---------------------------------------------------------------------*/
 
+  // Quantos dígitos a etapa pede: CPF completo, quatro primeiros, ou o código do e-mail.
+  function digitosDaIdentidade() {
+    var modo = S.regras.identity_check;
+
+    return modo === 'full' ? 11 : (modo === 'email' ? 6 : 4);
+  }
+
   function preparaIdentidade() {
-    var completo = S.regras.identity_check === 'full';
+    var modo = S.regras.identity_check;
 
-    $('#identidadeInstrucao').textContent = completo
+    $('#identidadeInstrucao').textContent = modo === 'full'
       ? 'Digite o seu CPF completo, apenas números.'
-      : 'Digite os quatro primeiros dígitos do seu CPF.';
+      : (modo === 'email'
+        ? 'Enviando um código para o seu e-mail…'
+        : 'Digite os quatro primeiros dígitos do seu CPF.');
 
-    $('#cpfInput').maxLength = completo ? 11 : 4;
+    $('#cpfInput').maxLength = digitosDaIdentidade();
     S.cpfDigitado = '';
     $('#cpfInput').value = '';
     $('#btnIdentidade').disabled = true;
+    $('#btnReenviarCodigo').classList.add('hidden');
+
+    if (modo === 'email') {
+      enviaCodigo();
+    }
   }
+
+  /*
+   * Conferência por código no e-mail: o servidor manda o código ao e-mail
+   * cadastrado — o endereço nunca vem para a tela. "Reenviar" libera depois
+   * da espera que o servidor informa.
+   */
+  function enviaCodigo() {
+    $('#btnReenviarCodigo').disabled = true;
+    $('#erroIdentidade').classList.add('hidden');
+
+    api('POST', rota('codigoIdentidade'))
+      .then(function (r) {
+        $('#identidadeInstrucao').textContent =
+          'Enviamos um código de 6 números para o seu e-mail cadastrado. Digite-o abaixo.';
+
+        if (r.sends_left > 0) {
+          $('#btnReenviarCodigo').classList.remove('hidden');
+          setTimeout(function () { $('#btnReenviarCodigo').disabled = false; }, (r.resend_seconds || 60) * 1000);
+        } else {
+          $('#btnReenviarCodigo').classList.add('hidden');
+        }
+      })
+      .catch(function (e) {
+        if (trataFalha(e)) {
+          return;
+        }
+
+        $('#identidadeInstrucao').textContent = 'Digite o código enviado para o seu e-mail.';
+        $('#erroIdentidade').textContent = e.message;
+        $('#erroIdentidade').classList.remove('hidden');
+        // Os limites (envios, espera) são do servidor; a tela só deixa tentar de novo.
+        $('#btnReenviarCodigo').classList.remove('hidden');
+        $('#btnReenviarCodigo').disabled = false;
+      });
+  }
+
+  $('#btnReenviarCodigo').addEventListener('click', enviaCodigo);
 
   (function montaTeclado() {
     var teclas = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'limpar', '0', 'apagar'];
@@ -1311,7 +1366,7 @@
       } else if (tecla === 'apagar') {
         S.cpfDigitado = S.cpfDigitado.slice(0, -1);
       } else {
-        var limite = S.regras.identity_check === 'full' ? 11 : 4;
+        var limite = digitosDaIdentidade();
 
         if (S.cpfDigitado.length < limite) {
           S.cpfDigitado += tecla;
@@ -1321,15 +1376,16 @@
       $('#cpfInput').value = S.cpfDigitado;
       $('#erroIdentidade').classList.add('hidden');
 
-      var completo = S.regras.identity_check === 'full';
-      $('#btnIdentidade').disabled = S.cpfDigitado.length !== (completo ? 11 : 4);
+      $('#btnIdentidade').disabled = S.cpfDigitado.length !== digitosDaIdentidade();
     });
   })();
 
   $('#btnIdentidade').addEventListener('click', function () {
     $('#btnIdentidade').disabled = true;
 
-    api('POST', rota('identidade'), { cpf: S.cpfDigitado })
+    api('POST', rota('identidade'), S.regras.identity_check === 'email'
+      ? { codigo: S.cpfDigitado }
+      : { cpf: S.cpfDigitado })
       .then(function () {
         mostra('tela-aceite');
       })

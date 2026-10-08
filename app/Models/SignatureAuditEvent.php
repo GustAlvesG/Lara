@@ -41,6 +41,7 @@ class SignatureAuditEvent extends Model
     public const EVENT_VIEWED = 'viewed';
     public const EVENT_IDENTITY_CONFIRMED = 'identity_confirmed';
     public const EVENT_IDENTITY_FAILED = 'identity_failed';
+    public const EVENT_IDENTITY_CODE_SENT = 'identity_code_sent';
     public const EVENT_SIGNED = 'signed';
     public const EVENT_REFUSED = 'refused';
     public const EVENT_CANCELED = 'canceled';
@@ -50,6 +51,11 @@ class SignatureAuditEvent extends Model
     public const EVENT_COPY_SENT = 'copy_sent';
     public const EVENT_ARCHIVED = 'archived';
     public const EVENT_ARCHIVE_FAILED = 'archive_failed';
+    public const EVENT_GOVBR_CHECKED = 'govbr_checked';
+    public const EVENT_GOVBR_PREPARED = 'govbr_prepared';
+    public const EVENT_GOVBR_INVITE_SENT = 'govbr_invite_sent';
+    public const EVENT_ATTACHMENT_ADDED = 'attachment_added';
+    public const EVENT_ATTACHMENT_REMOVED = 'attachment_removed';
 
     public const EVENT_LABELS = [
         self::EVENT_CREATED => 'Documento criado',
@@ -66,6 +72,7 @@ class SignatureAuditEvent extends Model
         self::EVENT_VIEWED => 'Documento visualizado',
         self::EVENT_IDENTITY_CONFIRMED => 'Identidade confirmada',
         self::EVENT_IDENTITY_FAILED => 'Identidade não confirmada',
+        self::EVENT_IDENTITY_CODE_SENT => 'Código de identidade enviado por e-mail',
         self::EVENT_SIGNED => 'Assinado',
         self::EVENT_REFUSED => 'Recusado',
         self::EVENT_CANCELED => 'Cancelado',
@@ -75,6 +82,11 @@ class SignatureAuditEvent extends Model
         self::EVENT_COPY_SENT => 'Via enviada',
         self::EVENT_ARCHIVED => 'Cópia arquivada no servidor de arquivos',
         self::EVENT_ARCHIVE_FAILED => 'Falha ao arquivar no servidor de arquivos',
+        self::EVENT_GOVBR_CHECKED => 'PDF assinado pelo gov.br conferido',
+        self::EVENT_GOVBR_PREPARED => 'Preparado para assinatura pelo gov.br',
+        self::EVENT_GOVBR_INVITE_SENT => 'Convite para assinar pelo gov.br enviado por e-mail',
+        self::EVENT_ATTACHMENT_ADDED => 'Anexo enviado',
+        self::EVENT_ATTACHMENT_REMOVED => 'Anexo removido do rascunho',
     ];
 
     public const ACTOR_USER = 'user';

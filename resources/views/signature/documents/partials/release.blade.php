@@ -14,9 +14,12 @@
      | rascunho ainda tem signatário pendente, e mostrar o botão ali ofereceria
      | uma ação que o servidor recusa.
      */
-    $proximo = $document->status === \App\Models\SignatureDocument::STATUS_AWAITING_SIGNATURE
-        ? $document->nextSigner()
-        : null;
+    // Documento preparado para o gov.br não passa pelo tablet — ver SignatureSigner::releaseBlockReason.
+    // Sem ordem obrigatória: o atendente escolhe quem assina agora; vem marcado o primeiro pendente da lista.
+    $pendentes = $document->status === \App\Models\SignatureDocument::STATUS_AWAITING_SIGNATURE && !$document->isGovbr()
+        ? $document->signers->where('status', \App\Models\SignatureSigner::STATUS_PENDING)->values()
+        : collect();
+    $proximo = $pendentes->first();
 @endphp
 
 <div class="bg-surface rounded-card shadow-card p-6"
@@ -31,10 +34,21 @@
     </h3>
 
     @if($proximo)
-        <p class="text-sm text-ink-2 mb-4">
-            Próximo a assinar: <span class="font-bold text-ink">{{ $proximo->name }}</span>
-            <span class="text-ink-3">({{ $proximo->capacityLabel() }})</span>
-        </p>
+        @if($pendentes->count() > 1)
+            {{-- Em qualquer ordem: quem estiver no balcão assina primeiro. --}}
+            <label class="block text-xs font-bold text-ink-2 mb-1" for="releaseSigner">Quem vai assinar agora</label>
+            <select id="releaseSigner" data-release-signer
+                    class="w-full mb-4 rounded-xl border-line-strong text-sm">
+                @foreach($pendentes as $pendente)
+                    <option value="{{ $pendente->id }}">{{ $pendente->name }} ({{ $pendente->capacityLabel() }})</option>
+                @endforeach
+            </select>
+        @else
+            <p class="text-sm text-ink-2 mb-4">
+                Falta assinar: <span class="font-bold text-ink">{{ $proximo->name }}</span>
+                <span class="text-ink-3">({{ $proximo->capacityLabel() }})</span>
+            </p>
+        @endif
 
         <button type="button" data-release-button data-signer="{{ $proximo->id }}"
                 class="w-full px-5 py-3 bg-grena text-white rounded-full font-bold text-sm hover:bg-grena-hover transition">
@@ -47,8 +61,13 @@
                     Peça para apontarem a câmera do tablet para este código.
                 </p>
 
-                {{-- Fundo branco fixo: um QR sobre fundo escuro não é lido. --}}
-                <div class="inline-block bg-surface p-3 rounded-lg" data-qr></div>
+                {{--
+                    Fundo BRANCO FIXO (`bg-white`, e não `bg-surface`, que no tema escuro vira grafite): o leitor
+                    precisa de uma margem clara em volta do código — a "zona de silêncio", de uns 4 módulos — para
+                    achar os três quadrados de posição. Com `bg-surface`, o QR funcionava no claro e não era lido
+                    no escuro.
+                --}}
+                <div class="inline-block bg-white p-6 rounded-lg" data-qr></div>
 
                 <p class="mt-3 text-sm font-bold text-ink" data-qr-countdown></p>
                 <p class="text-xs text-ink-2" data-qr-state>Aguardando leitura…</p>
@@ -82,6 +101,11 @@
         </div>
 
         <p class="hidden mt-3 text-xs text-danger" data-release-error></p>
+    @elseif($document->status === \App\Models\SignatureDocument::STATUS_AWAITING_SIGNATURE && $document->isGovbr())
+        <p class="text-sm text-ink-2">
+            Este documento está sendo assinado pelo gov.br.
+            <a href="{{ route('signature-documents.show', [$document, 'aba' => 'govbr']) }}" class="font-bold text-grena-ink hover:underline">Abrir a aba Assinatura gov.br</a>
+        </p>
     @elseif($document->status === \App\Models\SignatureDocument::STATUS_AWAITING_SIGNATURE)
         <p class="text-sm text-ink-2">
             Todos os signatários já responderam. Aguardando o fechamento do documento.
@@ -150,6 +174,10 @@
             text: payload,
             width: 240,
             height: 240,
+            // Cores fixas, preto sobre branco, em qualquer tema: o QR é lido
+            // por uma câmera, não por quem está olhando a tela.
+            colorDark: '#000000',
+            colorLight: '#ffffff',
             correctLevel: QRCode.CorrectLevel.H,
         });
     }
@@ -257,20 +285,30 @@
             });
     }
 
+    // Quem será liberado: o escolhido na lista (vários pendentes) ou o único que falta.
+    var escolha = box.querySelector('[data-release-signer]');
+    var liberado = null;
+
+    function signatarioEscolhido(botao) {
+        return escolha ? escolha.value : botao.dataset.signer;
+    }
+
     box.querySelectorAll('[data-release-button]').forEach(function (botao) {
         botao.addEventListener('click', function () {
-            libera(botao.dataset.signer);
+            liberado = signatarioEscolhido(botao);
+            libera(liberado);
         });
     });
 
     var regenerar = box.querySelector('[data-regenerate]');
 
     if (regenerar) {
+        // "Gerar outro código" é para a MESMA pessoa do código que está na tela.
         regenerar.addEventListener('click', function () {
             var botao = box.querySelector('[data-release-button]');
 
             if (botao) {
-                libera(botao.dataset.signer);
+                libera(liberado || signatarioEscolhido(botao));
             }
         });
     }

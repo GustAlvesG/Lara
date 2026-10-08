@@ -48,8 +48,16 @@ class SendSignatureCopy implements ShouldQueue
         return [60, 300, 900];
     }
 
-    public function __construct(public int $signerId)
-    {
+    /**
+     * Quem pediu fica registrado quando é um reenvio do painel: a via que sai
+     * sozinha na finalização é do sistema; a reenviada tem um atendente por
+     * trás, e a trilha diz qual.
+     */
+    public function __construct(
+        public int $signerId,
+        public ?int $requestedBy = null,
+        public ?string $requestedByName = null,
+    ) {
     }
 
     public function handle(SignatureStateMachine $states): void
@@ -90,8 +98,12 @@ class SendSignatureCopy implements ShouldQueue
 
         $states->note($document, SignatureAuditEvent::EVENT_COPY_SENT, [
             'signer' => $signer->id,
-            'actor_type' => SignatureAuditEvent::ACTOR_SYSTEM,
-            'payload' => ['canal' => 'e-mail'],
+            'actor_type' => $this->requestedBy !== null ? SignatureAuditEvent::ACTOR_USER : SignatureAuditEvent::ACTOR_SYSTEM,
+            'actor_id' => $this->requestedBy,
+            'payload' => array_filter([
+                'canal' => 'e-mail',
+                'reenvio_pedido_por' => $this->requestedByName,
+            ]),
         ]);
     }
 

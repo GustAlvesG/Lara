@@ -141,13 +141,83 @@ class SignatureArchiver
             throw new RuntimeException("Documento {$document->id}: a cópia no servidor de arquivos ficou incompleta.");
         }
 
+        // Assinado pelo gov.br: o relatório de validação vai junto, ao lado.
+        $relatorio = $this->archiveReport($document, $origem, $disk, $destino);
+
+        // Os anexos (identidade, comprovante) também, ao lado.
+        $anexos = $this->archiveAttachments($document, $origem, $disk, $destino);
+
         $document->forceFill(['archive_path' => $destino, 'archived_at' => now()])->save();
 
         $this->states->note($document, SignatureAuditEvent::EVENT_ARCHIVED, [
             'actor_type' => SignatureAuditEvent::ACTOR_SYSTEM,
-            'payload' => ['caminho' => $destino, 'bytes' => strlen($bytes)],
+            'payload' => ['caminho' => $destino, 'bytes' => strlen($bytes)]
+                + ($relatorio ? ['relatorio' => $relatorio] : [])
+                + ($anexos ? ['anexos' => count($anexos)] : []),
         ]);
 
         return $document;
+    }
+
+    /**
+     * O relatório de validação do gov.br, ao lado do PDF assinado, com a mesma
+     * conferência de hash e tamanho. Devolve o caminho, ou null quando o
+     * documento não tem relatório (assinado no tablet).
+     *
+     * @throws RuntimeException
+     */
+    private function archiveReport(SignatureDocument $document, Filesystem $origem, Filesystem $disk, string $destino): ?string
+    {
+        if (!$document->report_path) {
+            return null;
+        }
+
+        $bytes = $origem->get($document->report_path);
+
+        if ($bytes === null || hash('sha256', $bytes) !== $document->report_sha256) {
+            throw new RuntimeException("Documento {$document->id}: o relatório do gov.br não confere com o hash gravado.");
+        }
+
+        $caminho = preg_replace('/\.pdf$/', '', $destino) . ' - relatorio gov.br.pdf';
+
+        if (!$disk->put($caminho, $bytes) || $disk->size($caminho) !== strlen($bytes)) {
+            throw new RuntimeException("Documento {$document->id}: o relatório do gov.br não foi gravado inteiro no servidor de arquivos.");
+        }
+
+        return $caminho;
+    }
+
+    /**
+     * Os anexos do documento, ao lado do PDF assinado:
+     * "… - anexo 1 - Documento de identidade.jpg". Cada um conferido contra o
+     * hash gravado no envio, como o próprio PDF. Devolve os caminhos.
+     *
+     * @return array<int, string>
+     *
+     * @throws RuntimeException
+     */
+    private function archiveAttachments(SignatureDocument $document, Filesystem $origem, Filesystem $disk, string $destino): array
+    {
+        $base = preg_replace('/\.pdf$/', '', $destino);
+        $caminhos = [];
+
+        foreach ($document->attachments()->get() as $n => $anexo) {
+            $bytes = $origem->get($anexo->path);
+
+            if ($bytes === null || hash('sha256', $bytes) !== $anexo->sha256) {
+                throw new RuntimeException("Documento {$document->id}: o anexo {$anexo->id} não confere com o hash gravado.");
+            }
+
+            $caminho = $base . ' - anexo ' . ($n + 1) . ' - '
+                . (ArchivePath::clean($anexo->label, 60) ?: 'anexo') . '.' . $anexo->extension();
+
+            if (!$disk->put($caminho, $bytes) || $disk->size($caminho) !== strlen($bytes)) {
+                throw new RuntimeException("Documento {$document->id}: o anexo {$anexo->id} não foi gravado inteiro no servidor de arquivos.");
+            }
+
+            $caminhos[] = $caminho;
+        }
+
+        return $caminhos;
     }
 }

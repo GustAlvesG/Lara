@@ -54,7 +54,7 @@ class SignatureDocumentService
      * o resto do módulo lê as regras do modelo, e assim não precisa saber que
      * este documento não veio de um.
      *
-     * @param  array<string, mixed>  $attributes  title, location
+     * @param  array<string, mixed>  $attributes  title, attachment_requirements
      * @param  array<string, mixed>  $rules       identity_check, requires_photo, requires_initials
      * @param  array<int, array<string, mixed>>  $signers
      *
@@ -139,7 +139,7 @@ class SignatureDocumentService
     /**
      * Cria o documento em rascunho, já com os signatários.
      *
-     * @param  array<string, mixed>  $attributes  title, data, location
+     * @param  array<string, mixed>  $attributes  title, data, attachment_requirements
      * @param  array<int, array<string, mixed>>  $signers
      */
     public function create(
@@ -158,7 +158,7 @@ class SignatureDocumentService
                 'template_version' => $template->version,
                 'title' => $this->titleFor($template, $attributes['title'] ?? null, $signers),
                 'data' => $attributes['data'] ?? [],
-                'location' => $attributes['location'] ?? config('signature.location'),
+                'attachment_requirements' => $attributes['attachment_requirements'] ?? [],
                 'created_by' => $userId,
                 // Retrato do nome: o manifesto precisa dizer quem atendeu, e
                 // `users` vive noutra conexão — ver a migration que criou a
@@ -244,7 +244,7 @@ class SignatureDocumentService
             $document->forceFill([
                 'title' => $attributes['title'] ?? $document->title,
                 'data' => $attributes['data'] ?? $document->data,
-                'location' => $attributes['location'] ?? $document->location,
+                'attachment_requirements' => $attributes['attachment_requirements'] ?? $document->attachment_requirements,
             ])->save();
 
             $this->syncSigners($document, $signers);
@@ -282,6 +282,19 @@ class SignatureDocumentService
             throw new SignatureDocumentLockedException(
                 'Falta informar quem assina como: ' . $semSignatario->join(', ') . '.'
             );
+        }
+
+        // Conferência por código no e-mail: sem e-mail, o tablet não teria
+        // para onde mandar o código, e a pessoa não conseguiria assinar.
+        if ($document->template->identity_check === SignatureTemplate::IDENTITY_EMAIL) {
+            $semEmail = $document->signers->filter(fn($s) => !$s->email)->pluck('name');
+
+            if ($semEmail->isNotEmpty()) {
+                throw new SignatureDocumentLockedException(
+                    'Este modelo confere a identidade por código enviado por e-mail. Informe o e-mail de: '
+                        . $semEmail->join(', ') . '.'
+                );
+            }
         }
 
         $faltando = $this->renderer->missingVariables($document->template, $document->data);

@@ -75,6 +75,12 @@ class StoreSignatureTemplateRequest extends FormRequest
             'parties.*.key' => ['required', 'string', 'max:60', 'regex:/^[a-z][a-z0-9_]*$/'],
             'parties.*.label' => ['required', 'string', 'max:120'],
 
+            // Anexos que todo documento deste modelo pede (identidade,
+            // comprovante). A chave sai do rótulo — ver SignatureAttachmentService.
+            'attachments' => ['nullable', 'array', 'max:20'],
+            'attachments.*.label' => ['nullable', 'string', 'max:120'],
+            'attachments.*.required' => ['nullable', 'boolean'],
+
             'requires_photo' => ['nullable', 'boolean'],
             'requires_initials' => ['nullable', 'boolean'],
             'identity_check' => ['required', Rule::in(array_keys(SignatureTemplate::IDENTITY_CHECKS))],

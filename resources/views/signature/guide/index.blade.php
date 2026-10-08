@@ -9,7 +9,7 @@
 <x-app-layout :bootstrap-grid="false">
     <x-page>
         <x-page-title title="Guia">
-            Passo a passo do dia a dia: preparar o Word, cadastrar o modelo, emitir o documento e encontrar o assinado.
+            Passo a passo do dia a dia: preparar o Word, cadastrar o modelo, emitir o documento, assinar no tablet ou pelo gov.br e encontrar o assinado.
             <x-slot:actions>
                 <a href="{{ route('signature-guide.pdf') }}" target="_blank"
                    class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">

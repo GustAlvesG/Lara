@@ -342,6 +342,36 @@ class SignatureDocumentRenderer
         ])->render();
     }
 
+    /**
+     * O relatório de validação do documento assinado pelo gov.br, em HTML.
+     *
+     * É o manifesto do gov.br, mas em PDF À PARTE: acrescentar páginas ao
+     * arquivo assinado desfaria as assinaturas. Sai da conferência que fechou
+     * o documento (`govbr_check_id`).
+     *
+     * @param  string  $finalSha256  hash do PDF assinado que vira o final
+     */
+    public function govbrReportHtml(SignatureDocument $document, string $finalSha256): string
+    {
+        $url = url('/validar/' . $document->validation_code);
+
+        return view('signature.pdf.govbr-report', [
+            'document' => $document,
+            'check' => $document->govbrFinalCheck,
+            'signers' => $document->signers()->with(['govbrCheck', 'govbrInvites'])->get(),
+            'events' => $document->auditEvents()->get(),
+            'finalSha256' => $finalSha256,
+            'validationUrl' => $url,
+            'qr' => $this->qrCodes->dataUri($url, 100),
+        ])->render();
+    }
+
+    /** O relatório de validação do gov.br, em PDF. Ver govbrReportHtml(). */
+    public function govbrReport(SignatureDocument $document, string $finalSha256): string
+    {
+        return $this->newPdf($this->govbrReportHtml($document, $finalSha256))->output();
+    }
+
     /** Os bytes do PDF. */
     public function pdf(SignatureDocument $document, string $mode = self::MODE_ORIGINAL): string
     {

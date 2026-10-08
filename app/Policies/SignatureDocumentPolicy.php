@@ -49,6 +49,27 @@ class SignatureDocumentPolicy
         return $user->can(P::ASSINATURA_DOCUMENTOS);
     }
 
+    /**
+     * Enviar o PDF que voltou assinado pelo gov.br para conferência. É ato de
+     * atendimento — receber o documento de volta —, da mesma permissão de
+     * quem libera a assinatura no tablet. Ver o resultado é de quem vê o
+     * documento (`view`).
+     */
+    public function checkGovbr(User $user, SignatureDocument $document): bool
+    {
+        return $user->can(P::ASSINATURA_DOCUMENTOS);
+    }
+
+    /**
+     * Enviar e remover anexos (identidade, comprovante). Ato de atendimento,
+     * da mesma permissão de quem prepara o documento; a regra de estado é do
+     * SignatureAttachmentService. Ver e baixar é de quem vê o documento.
+     */
+    public function attach(User $user, SignatureDocument $document): bool
+    {
+        return $user->can(P::ASSINATURA_DOCUMENTOS);
+    }
+
     public function cancel(User $user, SignatureDocument $document): bool
     {
         return $user->can(P::ASSINATURA_DOCUMENTOS);

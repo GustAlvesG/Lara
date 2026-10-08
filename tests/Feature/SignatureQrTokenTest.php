@@ -233,9 +233,9 @@ class SignatureQrTokenTest extends TestCase
     }
 
     /**
-     * Fila em ordem: a testemunha não assina antes de quem ela testemunha.
+     * Sem ordem obrigatória: quem chegar primeiro ao balcão assina primeiro.
      */
-    public function test_segundo_signatario_so_e_liberado_depois_do_primeiro(): void
+    public function test_segundo_signatario_pode_ser_liberado_antes_do_primeiro(): void
     {
         $documento = $this->criaDocumentoDeAssinatura();
 
@@ -249,10 +249,9 @@ class SignatureQrTokenTest extends TestCase
 
         app(SignatureDocumentService::class)->freeze($documento);
 
-        $this->expectException(SignatureDocumentLockedException::class);
-        $this->expectExceptionMessage('Antes dele assina');
+        $liberacao = $this->requests->issue($testemunha->fresh());
 
-        $this->requests->issue($testemunha->fresh());
+        $this->assertSame($testemunha->id, $liberacao['request']->signature_signer_id);
     }
 
     public function test_faixa_de_ip_restringe_o_consumo_quando_configurada(): void

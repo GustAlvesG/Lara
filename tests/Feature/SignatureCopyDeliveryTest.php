@@ -103,6 +103,24 @@ class SignatureCopyDeliveryTest extends TestCase
         ]);
     }
 
+    /** O reenvio pelo painel tem um atendente por trás, e a trilha diz qual. */
+    public function test_reenvio_registra_quem_pediu(): void
+    {
+        $documento = $this->documentoFinalizado([
+            'email' => 'maria@exemplo.com',
+            'wants_copy' => true,
+        ]);
+
+        (new SendSignatureCopy($documento->signers()->first()->id, 7, 'Ana Atendente'))
+            ->handle(app(SignatureStateMachine::class));
+
+        $evento = SignatureAuditEvent::where('event', SignatureAuditEvent::EVENT_COPY_SENT)->firstOrFail();
+
+        $this->assertSame(SignatureAuditEvent::ACTOR_USER, $evento->actor_type);
+        $this->assertSame(7, (int) $evento->actor_id);
+        $this->assertSame('Ana Atendente', $evento->payload['reenvio_pedido_por']);
+    }
+
     public function test_quem_nao_pediu_nao_recebe(): void
     {
         $documento = $this->documentoFinalizado([

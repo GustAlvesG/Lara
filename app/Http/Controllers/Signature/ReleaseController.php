@@ -116,7 +116,7 @@ class ReleaseController extends Controller
 
         $signatureSigner->forceFill(['wants_copy' => true, 'copy_sent_at' => null])->save();
 
-        SendSignatureCopy::dispatch($signatureSigner->id);
+        SendSignatureCopy::dispatch($signatureSigner->id, auth()->id(), auth()->user()?->name);
 
         return back()->with('success', 'Envio da via colocado na fila para ' . $signatureSigner->name . '.');
     }

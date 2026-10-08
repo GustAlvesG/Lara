@@ -44,7 +44,7 @@
 <div class="space-y-6">
 
     {{-- Cada cartão é um passo do formulário (partials/steps): um por vez na tela. --}}
-    <div class="bg-surface rounded-card shadow-card p-6 space-y-5" data-step="Documento" data-step-keys="title,location">
+    <div class="bg-surface rounded-card shadow-card p-6 space-y-5" data-step="Documento" data-step-keys="title">
         <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider">Documento</h3>
 
         <div>
@@ -59,14 +59,6 @@
                 </p>
             @endif
         </div>
-
-        <div>
-            <label for="location" class="block text-sm font-bold text-ink mb-1">Local do atendimento</label>
-            <input type="text" name="location" id="location" maxlength="120"
-                   value="{{ old('location', $document?->location ?? config('signature.location')) }}"
-                   class="w-full rounded-xl border-line-strong shadow-card focus:border-grena focus:ring-grena-tint">
-            <p class="mt-1 text-xs text-ink-2">Vai para a página de manifesto do documento assinado.</p>
-        </div>
     </div>
 
     {{-- Os signatários vêm ANTES dos dados: quase sempre o nome, o CPF e o contato que o texto pede são os de quem assina, e os campos abaixo os aproveitam. --}}
@@ -76,7 +68,7 @@
             <button type="button" id="addSigner" class="text-xs font-bold text-grena-ink hover:underline">+ Acrescentar signatário</button>
         </div>
         <p class="text-xs text-ink-2 mb-4">
-            Vários signatários são atendidos em sequência, na ordem desta lista — um QR Code por pessoa.
+            Vários signatários assinam um de cada vez, em qualquer ordem — um QR Code por pessoa.
             @if($partes)
                 Este modelo tem partes ({{ collect($partes)->pluck('label')->join(', ') }}): cada uma precisa de
                 ao menos um signatário para o documento ser congelado.
@@ -132,6 +124,28 @@
             @endif
         </div>
     @endif
+
+    {{-- Anexos: os do modelo aparecem para conferência; os deste documento são editados aqui. O arquivo em si é enviado na tela do documento. --}}
+    <div class="bg-surface rounded-card shadow-card p-6 space-y-3" data-step="Anexos" data-step-keys="attachments">
+        <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider">Anexos</h3>
+
+        @if($template->declaredAttachments())
+            <div class="rounded-xl bg-subtle p-4 text-xs text-ink-2">
+                <span class="font-bold">O modelo pede:</span>
+                {{ collect($template->declaredAttachments())->map(fn($a) => $a['label'] . ($a['required'] ? ' (obrigatório)' : ''))->join('; ') }}.
+            </div>
+        @endif
+
+        <p class="text-xs text-ink-2">
+            Precisa de mais algum arquivo só neste documento? Peça aqui. Os arquivos são enviados depois, na tela do
+            documento — antes ou depois da assinatura; sem os obrigatórios, o documento não conclui.
+        </p>
+
+        @include('signature.partials.attachment-requirements', [
+            'id' => 'documentAttachments',
+            'items' => old('attachments', $document?->attachment_requirements ?? []),
+        ])
+    </div>
 </div>
 
 <script>
