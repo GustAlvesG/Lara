@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * O documento de um atendimento: um modelo preenchido, congelado e assinado.
@@ -237,16 +238,38 @@ class SignatureDocument extends Model
         return $this->finalized_at?->copy()->addDay()->startOfDay();
     }
 
+    /**
+     * O termo de menores deste documento, quando ele veio do autoatendimento.
+     *
+     * @return HasOne<SignatureMinorAuthorization>
+     */
+    public function minorAuthorization(): HasOne
+    {
+        return $this->hasOne(SignatureMinorAuthorization::class);
+    }
+
+    /**
+     * Termo de menores: assinado no autoatendimento, sem atendente — e fora da
+     * revisão interna, por decisão do clube.
+     */
+    public function isMinorTerm(): bool
+    {
+        return $this->relationLoaded('minorAuthorization')
+            ? $this->minorAuthorization !== null
+            : $this->minorAuthorization()->exists();
+    }
+
     /** Concluído e ainda sem revisão "em ordem": está na fila. */
     public function awaitsReview(): bool
     {
         return $this->status === self::STATUS_FINALIZED
-            && $this->review_status !== SignatureReview::RESULT_OK;
+            && $this->review_status !== SignatureReview::RESULT_OK
+            && !$this->isMinorTerm();
     }
 
     public function reviewStatusLabel(): string
     {
-        if ($this->status !== self::STATUS_FINALIZED) {
+        if ($this->status !== self::STATUS_FINALIZED || $this->isMinorTerm()) {
             return 'Não se aplica';
         }
 

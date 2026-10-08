@@ -56,6 +56,10 @@ Base externa para sócios, acessos físicos e visitantes. Duas conexões em `con
 
 - **Componentes:** models `Access`, `Visitor`; `MemberService::queryMember()`;
   `AccessController::queryAccess()`.
+- **Termo de Menores** (`App\Services\Signature\MinorTerms\MinorTermMemberDirectory`): só leitura de
+  `dbo.Titles` (título ativo e endereço) e `dbo.Members` (nome, nascimento, CPF, RG, e-mail das pessoas
+  ativas do título). Fora do ar, o tablet diz que o cadastro não respondeu — não "título não
+  encontrado". Ver [Termo de Menores](funcionalidades/termo-de-menores.md).
 
 ### Questor — ERP de compras (`questor_sqlsrv`)
 

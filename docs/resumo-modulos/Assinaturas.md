@@ -17,7 +17,7 @@ foto; a fila monta o PDF final com **manifesto** e QR de validação pública (`
 
 ## Menu e permissões
 
-Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Revisão, Modelos, Guia.
+Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Revisão, Modelos, Termo de Menores, Guia.
 
 | Permissão (`App\Authorization\Permissions`) | Uso |
 |---|---|
@@ -27,9 +27,13 @@ Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Revisão, Modelos,
 | `assinatura.evidencias` (`ASSINATURA_EVIDENCIAS`) | Ver foto e traço do signatário |
 | `assinatura.revisar` (`ASSINATURA_REVISAR`) | Revisão interna: do dia seguinte em diante, só o que não acompanhou |
 | `assinatura.revisar-coordenacao` (`ASSINATURA_REVISAR_COORDENACAO`) | Revisa antes do prazo e os próprios (dar só a coordenadores, em Setores) |
+| `assinatura.termo-menores.gerenciar` (`ASSINATURA_TERMO_MENORES_GERENCIAR`) | Termo de Menores: cadastrar o termo de cada evento |
+| `assinatura.termo-menores.parear` (`ASSINATURA_TERMO_MENORES_PAREAR`) | Termo de Menores: parear o tablet de autoatendimento |
+| `assinatura.termo-menores.historico` (`ASSINATURA_TERMO_MENORES_HISTORICO`) | Termo de Menores: histórico (quem põe a pulseira) |
 
 - Gates compostos em `AppServiceProvider`: `acessar-documentos-assinatura` (documentos **ou** consultar) e
-  `acessar-guia-assinatura` (qualquer das três). O menu usa Gate, nunca método de model.
+  `acessar-guia-assinatura` (qualquer das três, mais o Termo de Menores), `acessar-termo-menores`
+  (qualquer das três do Termo de Menores). O menu usa Gate, nunca método de model.
 - O recorte fino por documento (editar só rascunho, ver evidência, baixar) é da `SignatureDocumentPolicy`.
 - Permissão nova: só no catálogo (`CATALOG`); o `PermissionCatalogSeeder` cria no deploy, sem setor.
   (A migration `2026_09_22_120600` é histórica — não repita o padrão.)
@@ -46,6 +50,8 @@ Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Revisão, Modelos,
 | `assinatura/papel-timbrado` → `signature-layout.*` | `assinatura.modelos` | Cabeçalho/rodapé versionados |
 | `assinatura/guia` → `signature-guide.*` | `acessar-guia-assinatura` | Página e PDF |
 | `assinatura/kiosk` → `quiosque.*` | **público** | `consumir` (throttle 10/min) dá o cookie `lara_sign`; o resto passa pelo middleware `signature_kiosk` |
+| `assinatura/kiosk/menores` → `quiosque.menores.*` | **público**, só tablet pareado | Termo de Menores no tablet: `parear` dá o cookie `lara_minor_device`; o resto passa por `signature_minor_device`; `documento` dá o `lara_sign` |
+| `assinatura/termo-menores` → `minor-terms.*` | atendente | Termos (`gerenciar`), tablets (`parear`), histórico e foto (`historico`) |
 | `/validar/{codigo}` → `signature.validate(.verify)` | **público** | Mostra pouco; PDF enviado só é hasheado e descartado |
 
 `/quiosque` redireciona para `/assinatura/kiosk`; os **nomes** `quiosque.*` ficaram. Mudou rota → refaça o
@@ -277,3 +283,39 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 - "ok" exige todos os itens; "issues" exige observação e mantém na fila; "ok" encerra. Evento `reviewed` sem a observação.
 - Fila `GET assinatura/revisao` (`ReviewController@index`), registro `POST .../{doc}/revisao` (aba `?aba=revisao`).
   Quem revisa vê o documento (`viewAny` inclui as duas permissões). Teste: `SignatureReviewTest`.
+
+## Termo de Menores (08/10/2026)
+
+Autorização de entrada de menor em evento, assinada pelo **próprio sócio** num tablet de autoatendimento.
+Doc completa: [docs/funcionalidades/termo-de-menores.md](../funcionalidades/termo-de-menores.md).
+
+- **Tablet:** `/assinatura/kiosk/menores` = a MESMA view `quiosque.index` com `$modo = 'menores'`. Telas
+  novas em `quiosque/partials/menores-telas` + `menores-js` (incluídos dentro do `@verbatim`/IIFE com
+  `@endverbatim … @verbatim`). Ganchos no JS do quiosque, todos atrás de `CFG.menores`: `prefixoEntrada`/
+  `rotaEntrada`/`aoEntrar` (no modo menores o QR PAREIA o tablet), `identity_confirmed` pula a identidade,
+  via automática, `menoresTelaVerde` no sucesso, `menoresDepoisDoAtendimento` no fim. O balcão não muda.
+- **Fluxo** (`MinorTerms\MinorTermService`): título → adultos (18+) → CPF **completo** (RateLimiter por
+  tablet+título, 5/15 min) → menores do título com sobrenome em comum (`MinorTermRules`) → `createDocument`:
+  `SignatureDocumentService::create` + `freeze` + `SignatureMinorAuthorization` + `issue` →
+  `SignatureRequestService::consumeIssued` (novo; abre a sessão sem QR) → `identity_confirmed_at` +
+  evento `identity_confirmed` (`modo = cpf_autoatendimento`). Estado do fluxo em `Cache`, chave por tablet,
+  só ids; MultiClubes relido a cada passo.
+- **Resposta de sessão comum:** trait `Signature\Concerns\RespondsWithKioskSession` (saiu do
+  `QuiosqueController`): `sessionPayload` (agora com `rules.identity_confirmed`), cookie `lara_sign`.
+- **Pareamento:** `KioskDeviceService` + `SignatureKioskDevice` (QR `LARA-PAIR:v1:`, 5 min, uso único;
+  cookie `lara_minor_device` 12 h, path `/assinatura/kiosk/menores`; só hashes no banco). Middleware
+  `EnsureMinorTermDevice` (alias `signature_minor_device`) → 401 `device_unpaired`.
+- **Termo do evento:** `SignatureMinorTerm` (raiz do modelo + `starts_on`/`ends_on`, um ativo por vez —
+  `overlapping()`); o documento usa `currentTemplate()`. Modelo validado por
+  `MinorTermFields::templateProblems` (campos Texto com as chaves do importador de Word, sem campo
+  obrigatório órfão, foto obrigatória, sem código por e-mail, sem visto, sem partes). Dado ausente e
+  pulado = "não informado" (`MinorTermFields::data`).
+- **Autorizado** = documento `signed`/`finalized` (`SignatureMinorAuthorization::scopeAuthorized`).
+  Gerar de novo para o mesmo menor/termo cancela o documento aberto anterior.
+- **Fora da revisão:** `SignatureDocument::isMinorTerm()` em `awaitsReview`, `reviewStatusLabel`,
+  `SignatureReviewService::blockReason`; `ReviewController` filtra com `whereDoesntHave('minorAuthorization')`.
+  Por isso a migration nova entrou no `CreatesSignatureSchema` (sem ela a fila de revisão quebra nos testes).
+- **MultiClubes:** `MinorTerms\MinorTermMemberDirectory::title()` — lança `MinorTermDirectoryUnavailable`
+  (não devolve vazio como a busca do atendente). Nos testes, substitua no container.
+- **Modelo do OKTOBERPET 2026:** `MinorTermTemplateSeeder` (idempotente, fora do deploy).
+- Testes: `SignatureMinorTermKioskTest`, `SignatureMinorTermPanelTest`, `Unit\MinorTermRulesTest`.

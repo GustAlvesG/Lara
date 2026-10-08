@@ -264,4 +264,31 @@ return [
         'certificate_password' => env('SIGNATURE_PADES_PASSWORD'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Termo de Menores (autoatendimento do sócio nos eventos)
+    |--------------------------------------------------------------------------
+    |
+    | device_ttl_hours        — por quanto tempo o tablet fica pareado depois
+    |                           de ler o QR de pareamento.
+    | pairing_ttl_seconds     — validade do QR de pareamento na tela do
+    |                           computador.
+    | flow_ttl_minutes        — inatividade que encerra o atendimento no tablet
+    |                           (título digitado, responsável confirmado). Vale
+    |                           também para o "Autorizar outro menor".
+    | max_cpf_attempts        — tentativas de CPF do responsável por título,
+    |                           neste tablet, a cada 15 minutos.
+    | adult_age               — idade a partir da qual a pessoa é responsável;
+    |                           abaixo dela, é menor.
+    |
+    */
+
+    'minor_terms' => [
+        'device_ttl_hours' => (int) env('SIGNATURE_MINOR_DEVICE_TTL_HOURS', 12),
+        'pairing_ttl_seconds' => (int) env('SIGNATURE_MINOR_PAIRING_TTL_SECONDS', 300),
+        'flow_ttl_minutes' => (int) env('SIGNATURE_MINOR_FLOW_TTL_MINUTES', 10),
+        'max_cpf_attempts' => (int) env('SIGNATURE_MINOR_MAX_CPF_ATTEMPTS', 5),
+        'adult_age' => 18,
+    ],
+
 ];

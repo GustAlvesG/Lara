@@ -57,6 +57,8 @@ class SignatureAuditEvent extends Model
     public const EVENT_ATTACHMENT_ADDED = 'attachment_added';
     public const EVENT_ATTACHMENT_REMOVED = 'attachment_removed';
     public const EVENT_REVIEWED = 'reviewed';
+    /** Documento gerado pelo próprio sócio no tablet do Termo de Menores. */
+    public const EVENT_SELF_SERVICE = 'self_service_started';
 
     public const EVENT_LABELS = [
         self::EVENT_CREATED => 'Documento criado',
@@ -89,6 +91,7 @@ class SignatureAuditEvent extends Model
         self::EVENT_ATTACHMENT_ADDED => 'Anexo enviado',
         self::EVENT_ATTACHMENT_REMOVED => 'Anexo removido do rascunho',
         self::EVENT_REVIEWED => 'Revisão interna registrada',
+        self::EVENT_SELF_SERVICE => 'Gerado no autoatendimento (Termo de Menores)',
     ];
 
     public const ACTOR_USER = 'user';

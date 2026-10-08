@@ -67,8 +67,11 @@ class GuideController extends Controller
         // endereço que o sistema já não usa. Entra por troca de texto porque a
         // view é um bloco verbatim só (ver o comentário no topo dela).
         return str_replace(
-            '%%ENDERECO_DO_TABLET%%',
-            e((string) parse_url(route('quiosque.index'), PHP_URL_PATH)),
+            ['%%ENDERECO_DO_TABLET%%', '%%ENDERECO_DO_TABLET_MENORES%%'],
+            [
+                e((string) parse_url(route('quiosque.index'), PHP_URL_PATH)),
+                e((string) parse_url(route('quiosque.menores.index'), PHP_URL_PATH)),
+            ],
             view('signature.guide.content')->render(),
         );
     }

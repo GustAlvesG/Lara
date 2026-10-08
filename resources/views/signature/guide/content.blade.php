@@ -147,8 +147,9 @@
         <tr><td class="n">7</td><td><a href="#tablet">O que a pessoa vê no tablet</a></td><td class="who">atendimento</td></tr>
         <tr><td class="n">8</td><td><a href="#depois">Depois de assinado: onde está o documento e a revisão</a></td><td class="who">todos</td></tr>
         <tr><td class="n">9</td><td><a href="#govbr">Assinatura pelo gov.br (quem não vem ao balcão)</a></td><td class="who">atendimento</td></tr>
-        <tr><td class="n">10</td><td><a href="#problemas">Problemas comuns</a></td><td class="who">todos</td></tr>
-        <tr><td class="n">11</td><td><a href="#cola">Cola rápida dos marcadores</a></td><td class="who">quem escreve os modelos</td></tr>
+        <tr><td class="n">10</td><td><a href="#menores">Termo de Menores (autoatendimento nos eventos)</a></td><td class="who">organização dos eventos, entrada</td></tr>
+        <tr><td class="n">11</td><td><a href="#problemas">Problemas comuns</a></td><td class="who">todos</td></tr>
+        <tr><td class="n">12</td><td><a href="#cola">Cola rápida dos marcadores</a></td><td class="who">quem escreve os modelos</td></tr>
     </table>
 </div>
 
@@ -179,6 +180,8 @@
             assinado à distância (seção 9).</li>
         <li>O <b>tablet do balcão</b> fica aberto na tela de assinatura (endereço do sistema terminado em
             <code>%%ENDERECO_DO_TABLET%%</code>) e não precisa de login.</li>
+        <li><span class="menu">Assinaturas → Termo de Menores</span> — o termo de cada evento, o pareamento do
+            tablet de autoatendimento e o histórico de menores autorizados (seção 10).</li>
         <li>Um item do menu que não aparece para você depende de permissão: peça o acesso à TI.</li>
     </ul>
 
@@ -881,8 +884,90 @@
 </div>
 
 <!-- ====================================================== 10 -->
+<div class="section" id="menores">
+    <h2>10. Termo de Menores (autoatendimento nos eventos)</h2>
+
+    <p>Nos eventos, o <b>responsável</b> autoriza a entrada de um <b>menor de idade</b> sozinho, num tablet de
+        autoatendimento — sem papel e sem atendente. É só para <b>sócios</b>: responsável e menor são do
+        <b>mesmo título</b>. Cada termo assinado é um documento como os outros: PDF com comprovante, via por e-mail
+        e cópia na pasta de rede.</p>
+
+    <h3>Antes do evento: cadastrar o termo</h3>
+    <table class="steps">
+        <tr>
+            <td class="n"><span class="num">1</span></td>
+            <td>O texto do evento (nome, local, datas) fica num <b>modelo</b>, em <span class="menu">Assinaturas →
+                Modelos</span>. Os dados da pessoa entram sozinhos, pelos campos <code>[[nome_responsavel]]</code>,
+                <code>[[e_mail_responsavel]]</code>, <code>[[cpf_responsavel]]</code>, <code>[[rg_responsavel]]</code>,
+                <code>[[endereco_responsavel]]</code>, <code>[[nome_menor]]</code>, <code>[[idade_menor]]</code>,
+                <code>[[cpf_menor]]</code> e <code>[[rg_menor]]</code> — todos do tipo <b>Texto</b>. A data vai num
+                campo do tipo <b>Data da assinatura</b>. Exija a foto e use a conferência "CPF completo".</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">2</span></td>
+            <td>Em <span class="menu">Assinaturas → Termo de Menores → Termos dos eventos</span>, informe o nome do
+                evento, o modelo e o período em que o tablet aceita termos novos. Só um termo fica disponível por
+                vez: o sistema recusa período que cruza o de outro. Se o modelo não servir, a tela diz por quê.</td>
+        </tr>
+    </table>
+
+    <h3>No dia: parear o tablet</h3>
+    <table class="steps">
+        <tr>
+            <td class="n"><span class="num">1</span></td>
+            <td>No tablet, abra o endereço do sistema terminado em <code>%%ENDERECO_DO_TABLET_MENORES%%</code>. Ele
+                mostra o leitor de QR.</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">2</span></td>
+            <td>No computador, em <span class="menu">Assinaturas → Termo de Menores → Tablet</span>, clique em
+                <span class="btn">Gerar QR de pareamento</span> e aponte a câmera do tablet para o código. O QR vale
+                5 minutos.</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">3</span></td>
+            <td>O tablet fica pareado por <b>12 horas</b>. Depois disso, ele pede o pareamento de novo. Para tirar
+                um tablet de uso antes, clique em <span class="btn2">Desparear</span> na lista da mesma tela.</td>
+        </tr>
+    </table>
+
+    <h3>O que o sócio faz no tablet</h3>
+    <ol>
+        <li>Digita o <b>número do título</b> e toca no nome do responsável (só aparecem os maiores de 18 anos).</li>
+        <li>Confirma com o <b>CPF completo</b>. São 5 tentativas.</li>
+        <li>Se faltar e-mail ou RG no cadastro do clube, o tablet pede — dá para <b>pular</b>, e o termo sai com
+            "não informado". Sem e-mail, não há via.</li>
+        <li>Escolhe o <b>menor</b>. Aparecem os menores do título com algum sobrenome igual ao do responsável. Quem
+            já tem termo no evento aparece como <b>Já autorizado ✓</b>.</li>
+        <li>Lê o termo, aceita, assina na tela e tira a foto.</li>
+        <li>Aparece a <b>tela verde</b>: "Apresente ao Representante do Clube", com o nome e a idade do menor e o
+            nome e a foto do responsável. Ela só sai quando alguém toca em <span class="btn2">Concluir</span> ou em
+            <span class="btn2">Autorizar outro menor</span> (mesmo responsável, sem CPF de novo).</li>
+    </ol>
+
+    <div class="keep">
+    <h3>Na entrada: a pulseira</h3>
+    <p>Confira na tela verde o nome do menor e a foto de quem assinou, e coloque a pulseira. Se a tela verde já
+        saiu, abra <span class="menu">Assinaturas → Termo de Menores → Histórico</span>: cada cartão repete a tela
+        verde. Busque pelo nome do menor, do responsável ou pelo número do título.</p>
+    </div>
+
+    <div class="keep">
+    <h3>O que vale saber</h3>
+    <ul>
+        <li><b>Um termo por menor.</b> Dois filhos, dois termos — o segundo sai pelo
+            <span class="btn2">Autorizar outro menor</span>.</li>
+        <li>O termo de menores <b>não passa pela revisão interna</b>.</li>
+        <li>Nada do que o sócio digita no tablet muda o cadastro do clube.</li>
+        <li>O tablet volta sozinho ao início depois de 2 minutos parado (menos na tela verde).</li>
+        <li>"Não há termo disponível hoje": não há termo cadastrado para a data, ou ele foi desativado.</li>
+    </ul>
+    </div>
+</div>
+
+<!-- ====================================================== 11 -->
 <div class="section" id="problemas">
-    <h2>10. Problemas comuns</h2>
+    <h2>11. Problemas comuns</h2>
 
     <table class="ref">
         <tr><th style="width:38%">O que aconteceu</th><th>Causa provável e o que fazer</th></tr>
@@ -967,7 +1052,7 @@
 
 <!-- ====================================================== 10 -->
 <div id="cola" style="padding-top: 22px;">
-    <h2>11. Cola rápida dos marcadores</h2>
+    <h2>12. Cola rápida dos marcadores</h2>
     <p>Para deixar ao lado do computador de quem escreve os modelos.</p>
 
     <table class="ref">

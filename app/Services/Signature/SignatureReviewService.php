@@ -57,6 +57,10 @@ class SignatureReviewService
             return 'Só documento concluído passa pela revisão.';
         }
 
+        if ($document->isMinorTerm()) {
+            return 'Termo de menores não passa pela revisão interna.';
+        }
+
         if ($document->review_status === SignatureReview::RESULT_OK) {
             return 'Este documento já foi revisado e está em ordem.';
         }
