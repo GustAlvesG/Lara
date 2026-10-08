@@ -151,6 +151,10 @@ Tela de espera → leitura do QR → formulário, se o modelo pergunta algo a qu
 → conferência de identidade → aceite explícito → assinatura no canvas → visto, se o modelo exige
 → foto → conclusão.
 
+Na **foto**, a câmera abre e mostra a imagem, mas a contagem não começa sozinha: a pessoa se ajeita
+e toca em **Tirar foto**; aí o tablet conta 3 segundos e fotografa. O botão vale um toque só, e
+encerrar o atendimento no meio da contagem cancela a foto.
+
 - **Nada fica no aparelho**: sem `localStorage`, sem `IndexedDB`. O estado vive em memória e é
   zerado ao fim de cada atendimento — o tablet é do balcão e é compartilhado.
 - **Todo horário é do servidor.** Um tablet de balcão passa meses sem sincronizar o relógio, e a
@@ -158,6 +162,24 @@ Tela de espera → leitura do QR → formulário, se o modelo pergunta algo a qu
 - **Recusar** está disponível em qualquer etapa, com motivo opcional.
 - **Inatividade**: aviso 60 segundos antes de encerrar.
 - **Erro de rede** nunca deixa o atendimento "meio assinado": a gravação é uma transação só.
+
+### Quando o tablet diz que falhou
+
+O tablet distingue três casos, e o texto na tela diz qual foi:
+
+| Mensagem | O que houve | Onde olhar |
+|---|---|---|
+| **Sem resposta do servidor…** | O pedido nem chegou: Wi-Fi do tablet, rede, servidor fora do ar | Rede do tablet |
+| **Falha na comunicação com o servidor (código N)** | Respondeu algo que não é o Lara falando: `500` erro interno, `413` corpo grande demais, `429` limite de pedidos, `502`/`504` proxy | `storage/logs/laravel.log` (500) e log de erro do Apache (413/502/504), pelo horário |
+| Uma frase do Lara (ex.: "Não foi possível gravar a assinatura no servidor") | O Lara recusou com motivo | A própria mensagem; a de gravação vai ao log com o caminho |
+
+**Gravação das evidências:** o disco `local` tem `throw => false`, então um `put` numa pasta sem
+permissão devolvia `false` calado — a assinatura era registrada sem o traço/foto e a finalização
+quebrava depois. `SignatureCaptureService::capture` agora confere cada gravação: se uma falhar,
+apaga as que gravou, registra `Assinatura no tablet: não foi possível gravar a evidência no disco`
+no log e responde `500` com mensagem; a pessoa continua no traço e pode tentar de novo. A causa
+típica é dono errado em `storage/app/signature` (comandos `artisan` rodados como outro usuário que
+não `www-data`): corrija com `chown -R www-data:www-data storage/app/signature`.
 
 ### O que o servidor decide, e o tablet não
 
@@ -465,7 +487,7 @@ A aba lista os convites enviados: para quem, e-mail mascarado, quando e por quem
 
 | Situação | Por quê |
 |---|---|
-| Modelo com **perguntas a quem assina** | As respostas entram no tablet, antes da leitura; o gov.br assina o PDF como está |
+| Documento com campo marcado em **Perguntar ao signatário** | As respostas entram no tablet, antes da leitura; o gov.br assina o PDF como está. A marcação é do documento, não do modelo: o mesmo modelo vai ao gov.br quando o atendente preenche todos os campos |
 | Modelo com **visto em todas as páginas** | O visto é desenhado no tablet; pelo gov.br, as caixas sairiam em branco |
 | **Alguém já assinou no tablet** | A assinatura do tablet vai num PDF re-renderizado e a do gov.br no arquivo original — nenhum arquivo carrega as duas. Um documento é assinado por um caminho só |
 
@@ -779,9 +801,26 @@ formulário do atendente e o do tablet passam pela mesma conferência.
 
 ### Perguntas a quem assina
 
-Um campo marcado como **Perguntar a quem assina, no tablet** sai do formulário do atendente e
-vira uma pergunta — escrita no modelo — que a pessoa responde no tablet. Em branco, a pergunta é
-o nome do campo.
+**Quem responde cada campo é decidido no DOCUMENTO, não no modelo.** O modelo só declara os
+campos (tipo, obrigatoriedade, opções e, se quiser, o texto da **Pergunta no tablet**). No
+preenchimento, o atendente vê todos os campos, e cada um tem a caixa **Perguntar ao
+signatário**: marcada, o controle some, o que estiver digitado nele é ignorado, e o campo vira
+uma pergunta que a pessoa responde no tablet (o texto escrito no modelo ou, em branco, o nome do
+campo). A obrigatoriedade de um campo perguntado é conferida no tablet, não no congelamento.
+
+- Gravado em `signature_documents.signer_field_keys` (JSON, lista de chaves), pelo
+  `StoreSignatureDocumentRequest::signerFieldKeys()` — só chaves de campos do modelo que alguém
+  preenche; automático e chave inventada não entram.
+- `SignatureDocument::fieldDefinitions()` junta os campos do modelo com essa escolha
+  (`ask_signer` por campo); `attendantFields()`, `signerFields()` e `automaticFields()` do
+  DOCUMENTO são o que o renderer, o congelamento, o tablet, a tela e o manifesto leem. O modelo
+  tem só `manualFields()` (todos os não automáticos) e `automaticFields()`.
+- **Por que mudou (08/10/2026):** com a marcação no modelo, um modelo com perguntas nunca ia ao
+  gov.br. Agora qualquer modelo sem visto vai, desde que o atendente preencha tudo.
+- **Documentos antigos:** a migration `2026_10_11_100300` criou a coluna e copiou para cada
+  documento o que o modelo dele marcava (`ask_signer` no JSON das variáveis, fora os
+  automáticos). O `ask_signer` que sobrou no JSON dos modelos não é mais lido, e a tela do
+  modelo não o grava mais.
 
 O fluxo do tablet ganha uma etapa, **antes** da leitura:
 
@@ -937,7 +976,7 @@ sessão parada e documento não assinado.
 ## Colocando para funcionar
 
 ```bash
-php artisan migrate                                   # 25 migrations do módulo
+php artisan migrate                                   # 26 migrations do módulo
 php artisan db:seed --class=SignatureTemplateSeeder   # opcional: 3 modelos iniciais
 php artisan queue:work                                # OBRIGATÓRIO — ver abaixo
 ```

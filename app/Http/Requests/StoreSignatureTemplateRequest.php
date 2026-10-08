@@ -64,7 +64,6 @@ class StoreSignatureTemplateRequest extends FormRequest
             'variables.*.required' => ['nullable', 'boolean'],
             'variables.*.type' => ['nullable', Rule::in(array_keys(SignatureFieldTypes::LABELS))],
             // Respondido por quem assina, no tablet, em vez de pelo atendente.
-            'variables.*.ask_signer' => ['nullable', 'boolean'],
             'variables.*.question' => ['nullable', 'string', 'max:200'],
             'variables.*.options' => ['nullable', 'array', 'max:30'],
             'variables.*.options.*' => ['string', 'max:120'],

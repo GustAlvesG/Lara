@@ -115,6 +115,18 @@ class SignatureKioskSessionTest extends TestCase
         );
     }
 
+    /** A foto não sai sozinha: a contagem começa no toque em "Tirar foto". */
+    public function test_foto_espera_o_toque_para_contar(): void
+    {
+        $html = $this->get(route('quiosque.index'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('id="btnFoto"', $html);
+        $this->assertStringContainsString('Tirar foto', $html);
+        $this->assertStringNotContainsString('A foto será tirada automaticamente', $html);
+        // A câmera, ao abrir, só mostra o botão; quem chama a contagem é o clique.
+        $this->assertStringNotContainsString('video.play().then(function () { contagemDaFoto(); })', $html);
+    }
+
     /** O tablet não guarda nada: é o aparelho do balcão, compartilhado. */
     public function test_tela_do_tablet_nao_usa_armazenamento_local(): void
     {

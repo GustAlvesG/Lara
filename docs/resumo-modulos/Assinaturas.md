@@ -68,7 +68,8 @@ signatário:  pending → signed | refused | canceled | expired
    5 min para ler, 15 min de sessão. Regerar torna o anterior `superseded`. Um QR por signatário, **em qualquer ordem** (o painel tem "Quem vai assinar agora"; `releaseBlockReason` não olha a posição).
 4. **Tablet** (`QuiosqueController` + `resources/views/quiosque/index.blade.php`): formulário de perguntas
    (se houver) → leitura do PDF → identidade (`Cpf::matches`, 5 tentativas) → aceite (+ autorização de imagem
-   se pede foto) → traço (≥ 30 pontos) → visto (se exigido) → foto. Gravação numa transação só
+   se pede foto) → traço (≥ 30 pontos) → visto (se exigido) → foto (botão "Tirar foto" inicia a contagem de 3 s; não é
+   automática). Gravação numa transação só
    (`SignatureCaptureService`).
 5. **Finalizar** (job `FinalizeSignatureDocument`, idempotente): PDF final re-renderizado do mesmo snapshot,
    traços no lugar, manifesto, `final_sha256`. Depois `SendSignatureCopy` (e-mail) e `ArchiveSignatureDocument` (FTP).
@@ -114,7 +115,8 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 
 - **Um caminho por documento.** Preparado para o gov.br (`govbr_sent_at`), o tablet não libera mais
   (`SignatureSigner::releaseBlockReason`); com assinatura no tablet, o gov.br não é aceito
-  (`SignatureDocument::govbrBlockReason`, que também barra modelo com perguntas a quem assina ou com visto).
+  (`SignatureDocument::govbrBlockReason`, que também barra documento com campo marcado para perguntar a quem assina
+  — `signerFields()` do documento — ou modelo com visto).
 - **Preparar** (`GovbrCheckService::prepare`): aplica a data automática (refaz original + hash), prazo de
   `signature.govbr.ttl_days`, cancela QR vivo. Baixar o PDF **depois** de preparar.
 - **Concluir** (`GovbrCheckService::conclude`), tudo ou nada: documento preparado; assinado sobre o original;
@@ -224,7 +226,7 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 
 ## Modelos de exemplo
 
-`php artisan db:seed --class=SignatureExampleTemplatesSeeder` cria 7 modelos "[Exemplo] …" (perguntas obrigatórias/opcionais, anexos, partes+visto, código por e-mail, gov.br). Idempotente, recusado em produção, fora do deploy.
+`php artisan db:seed --class=SignatureExampleTemplatesSeeder` cria 7 modelos "[Exemplo] …" (campos obrigatórios/opcionais com pergunta pronta para o tablet — a marcação é no documento —, anexos, partes+visto, código por e-mail, gov.br). Idempotente, recusado em produção, fora do deploy.
 
 ## Sem local do atendimento (08/10/2026)
 
@@ -234,3 +236,20 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
   no manifesto, no relatório gov.br e no `/validar`), `signature_requests.created_by_name` (QR),
   `signature_govbr_invites.sent_by_name` (convite) e, no reenvio da via, `SendSignatureCopy($id, $userId, $userName)`
   grava `actor_type = user` e `payload.reenvio_pedido_por` no evento `copy_sent`.
+
+## Falhas ao salvar no tablet (08/10/2026)
+
+- `api()` do quiosque: erro de rede vira "Sem resposta do servidor…"; resposta não-ok sem `error` no JSON vira
+  "Falha na comunicação com o servidor (código N)". Respostas do Lara sempre levam `error` (SignatureSessionException).
+- `SignatureCaptureService::capture` confere o retorno de cada `put` (disco `local` tem `throw => false`): falhou →
+  apaga o já gravado, `Log::error` e `SignatureSessionException(…, 500)`. Teste: `test_evidencia_que_nao_grava_recusa_a_assinatura`.
+
+## Quem responde cada campo é do documento (08/10/2026)
+
+- O modelo NÃO marca mais "perguntar a quem assina": declara os campos (+ `question` opcional). No preenchimento,
+  cada campo tem "Perguntar ao signatário" (`ask_signer[]` no form) → `signature_documents.signer_field_keys`.
+- Leia sempre do documento: `$document->fieldDefinitions()/attendantFields()/signerFields()/automaticFields()`.
+  No modelo só existem `manualFields()` e `automaticFields()`. `SignatureDocumentRenderer::body($document)` e
+  `missingVariables($document)` recebem o documento.
+- Migration `2026_10_11_100300` backfill: documentos existentes herdam o `ask_signer` legado do JSON do modelo.
+- Efeito: qualquer modelo sem visto pode ir ao gov.br, se o atendente não marcar nenhum campo para o tablet.

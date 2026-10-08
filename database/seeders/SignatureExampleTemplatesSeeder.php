@@ -50,6 +50,10 @@ class SignatureExampleTemplatesSeeder extends Seeder
     /**
      * Um campo na forma gravada (ver TemplateController::variable).
      *
+     * `$paraOTablet` só diz que o campo foi pensado para perguntar a quem
+     * assina e grava a pergunta dele: QUEM responde é marcado pelo atendente
+     * em cada documento ("Perguntar ao signatário"), não no modelo.
+     *
      * @param  array<int, string>  $options
      * @return array<string, mixed>
      */
@@ -58,7 +62,7 @@ class SignatureExampleTemplatesSeeder extends Seeder
         string $label,
         string $type = T::TEXT,
         bool $required = false,
-        bool $askSigner = false,
+        bool $paraOTablet = false,
         ?string $question = null,
         array $options = [],
     ): array {
@@ -67,8 +71,7 @@ class SignatureExampleTemplatesSeeder extends Seeder
             'label' => $label,
             'type' => $type,
             'required' => $required && !T::isAutomatic($type),
-            'ask_signer' => $askSigner,
-            'question' => $askSigner ? $question : null,
+            'question' => $paraOTablet ? $question : null,
             'options' => $options,
         ];
     }
@@ -101,10 +104,10 @@ class SignatureExampleTemplatesSeeder extends Seeder
                 'requires_photo' => true,
             ],
 
-            // 2. Campos do atendente (obrigatórios e opcionais) + perguntas a quem assina (obrigatórias e opcionais) + data automática.
+            // 2. Campos obrigatórios e opcionais, alguns com pergunta pronta para o tablet + data automática.
             [
                 'name' => '[Exemplo] 2. Reserva de espaço (campos e perguntas)',
-                'description' => 'Campos do atendente obrigatórios e opcionais; perguntas obrigatórias e opcionais no tablet; data da assinatura automática.',
+                'description' => 'Campos obrigatórios e opcionais. No documento, marque "Perguntar ao signatário" em Espaço, Telefone e Bebida (obrigatórias) e em E-mail, Itens adicionais e Comentários (opcionais) para testá-las no tablet. Data da assinatura automática.',
                 'body_html' => '<h2>Reserva de espaço</h2>'
                     . '<p>Eu, [[nome_completo]], CPF [[cpf]], reservo o espaço <b>[[espaco]]</b> para o dia [[data_evento]], '
                     . 'das [[hora_inicio]], pelo valor de [[valor]].</p>'
@@ -202,10 +205,10 @@ class SignatureExampleTemplatesSeeder extends Seeder
                 'requires_photo' => false,
             ],
 
-            // 6. Próprio para o gov.br: sem perguntas e sem visto (o gov.br não aceita esses), com data automática e anexo.
+            // 6. Próprio para o gov.br: sem visto (o gov.br não tem visto), com data automática e anexo.
             [
                 'name' => '[Exemplo] 6. Termo para o gov.br',
-                'description' => 'Sem perguntas a quem assina e sem visto, para poder ser assinado pelo gov.br. Data automática e um anexo obrigatório.',
+                'description' => 'Sem visto, para poder ser assinado pelo gov.br: preencha todos os campos no documento, sem "Perguntar ao signatário". Data automática e um anexo obrigatório.',
                 'body_html' => '<h2>Termo de adesão</h2>'
                     . '<p>Eu, [[nome]], CPF [[cpf]], declaro aderir ao [[programa]] do Clube dos Funcionários da CSN.</p>'
                     . '<p>Assinado em [[data_assinatura]].</p>[[assinatura]]',
@@ -220,10 +223,10 @@ class SignatureExampleTemplatesSeeder extends Seeder
                 'requires_photo' => true,
             ],
 
-            // 7. Só perguntas opcionais, sem foto: testa o formulário do tablet sem nada obrigatório.
+            // 7. Só campos opcionais, sem foto: marcados para o tablet, testa o formulário sem nada obrigatório.
             [
                 'name' => '[Exemplo] 7. Pesquisa de satisfação (só opcionais)',
-                'description' => 'Todas as perguntas são opcionais. Sem foto. Quatro dígitos do CPF.',
+                'description' => 'Todos os campos são opcionais; marque "Perguntar ao signatário" em todos para testar o formulário do tablet sem nada obrigatório. Sem foto. Quatro dígitos do CPF.',
                 'body_html' => '<p>Respostas da pesquisa de satisfação:</p>'
                     . '<ul><li>Nota do atendimento: [[nota]]</li><li>Indicaria o clube? [[indicaria]]</li>'
                     . '<li>Sugestões: [[sugestoes]]</li></ul>[[assinatura]]',

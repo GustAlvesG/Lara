@@ -81,8 +81,8 @@
 @endif
 
 @php
-    $doSignatario = collect($document->template?->signerFields() ?? [])->pluck('label');
-    $automaticos = collect($document->template?->automaticFields() ?? [])->pluck('label');
+    $doSignatario = collect($document->signerFields())->pluck('label');
+    $automaticos = collect($document->automaticFields())->pluck('label');
 @endphp
 
 @if($doSignatario->isNotEmpty() || $automaticos->isNotEmpty())

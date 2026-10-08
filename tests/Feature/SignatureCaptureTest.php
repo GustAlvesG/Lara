@@ -322,6 +322,44 @@ class SignatureCaptureTest extends TestCase
         $this->comSessao($cookie)->getJson(route('quiosque.session'))->assertStatus(419);
     }
 
+    /**
+     * O disco `local` não lança exceção ao falhar (sem permissão na pasta, por
+     * exemplo). A gravação que falha tem de recusar a assinatura com uma
+     * mensagem — não registrá-la sem o arquivo.
+     */
+    public function test_evidencia_que_nao_grava_recusa_a_assinatura(): void
+    {
+        ['document' => $documento, 'cookie' => $cookie] = $this->sessaoAberta();
+
+        $this->confirmaIdentidade($cookie, $documento);
+
+        $nome = config('signature.disk');
+        $real = Storage::disk($nome);
+        $disco = \Mockery::mock($real);
+        $disco->shouldReceive('put')->andReturnUsing(
+            fn(string $caminho, $bytes) => str_ends_with($caminho, '.jpg') ? false : $real->put($caminho, $bytes),
+        );
+        Storage::set($nome, $disco);
+
+        $this->comSessao($cookie)
+            ->postJson(route('quiosque.sign', $documento), [
+                'signature' => $this->pngValido(),
+                'strokes' => $this->tracos(),
+                'photo' => $this->jpegValido(), 'photo_consent' => true,
+                'accepted' => true,
+            ])
+            ->assertStatus(500)
+            ->assertJsonPath('error', 'Não foi possível gravar a assinatura no servidor. Chame o atendente.');
+
+        $signatario = $documento->signers()->first();
+
+        $this->assertSame(SignatureSigner::STATUS_PENDING, $signatario->status);
+        $this->assertNull($signatario->evidence);
+        // O traço que chegou a ser gravado não fica órfão no disco.
+        $this->assertSame([], $real->allFiles(config('signature.paths.signatures')));
+        Queue::assertNotPushed(FinalizeSignatureDocument::class);
+    }
+
     public function test_assinatura_sem_confirmar_identidade_e_recusada(): void
     {
         ['document' => $documento, 'cookie' => $cookie] = $this->sessaoAberta();

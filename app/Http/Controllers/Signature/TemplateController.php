@@ -218,8 +218,12 @@ class TemplateController extends Controller
      * Um campo como é gravado: só o que o tipo dele usa.
      *
      * Opções de um campo que deixou de ser de escolha e pergunta de um campo
-     * que voltou a ser do atendente não ficam guardadas — sobras assim
-     * reapareceriam na próxima revisão como se alguém as tivesse escrito.
+     * automático não ficam guardadas — sobras assim reapareceriam na próxima
+     * revisão como se alguém as tivesse escrito.
+     *
+     * Quem responde o campo não é do modelo: o atendente marca, em cada
+     * documento, o que vai ao tablet. A pergunta escrita aqui é só o texto que
+     * o tablet mostra quando isso acontece.
      *
      * @param  array<string, mixed>  $variavel
      * @return array<string, mixed>
@@ -227,16 +231,15 @@ class TemplateController extends Controller
     private function variable(array $variavel): array
     {
         $tipo = $variavel['type'] ?? SignatureFieldTypes::TEXT;
-        $pergunta = (bool) ($variavel['ask_signer'] ?? false) && !SignatureFieldTypes::isAutomatic($tipo);
+        $automatico = SignatureFieldTypes::isAutomatic($tipo);
 
         return [
             'key' => $variavel['key'],
             'label' => $variavel['label'],
             'type' => $tipo,
             // Campo automático nunca fica em branco: obrigatório não se aplica.
-            'required' => (bool) ($variavel['required'] ?? false) && !SignatureFieldTypes::isAutomatic($tipo),
-            'ask_signer' => $pergunta,
-            'question' => $pergunta ? (trim((string) ($variavel['question'] ?? '')) ?: null) : null,
+            'required' => (bool) ($variavel['required'] ?? false) && !$automatico,
+            'question' => $automatico ? null : (trim((string) ($variavel['question'] ?? '')) ?: null),
             'options' => SignatureFieldTypes::hasOptions($tipo) ? array_values($variavel['options'] ?? []) : [],
         ];
     }

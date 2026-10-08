@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Signature\SignatureFieldTypes;
 use App\Support\Cpf;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -60,6 +61,7 @@ class SignatureDocument extends Model
         'title',
         'data',
         'attachment_requirements',
+        'signer_field_keys',
         'signing_data',
         'signing_answered_at',
         'body_snapshot',
@@ -102,6 +104,7 @@ class SignatureDocument extends Model
         'signature_layout_id' => 'integer',
         'data' => 'array',
         'attachment_requirements' => 'array',
+        'signer_field_keys' => 'array',
         'signing_data' => 'array',
         'signing_answered_at' => 'datetime',
         'frozen_at' => 'datetime',
@@ -267,8 +270,9 @@ class SignatureDocument extends Model
 
         $template = $this->template;
 
-        if ($template !== null && $template->signerFields() !== []) {
-            return 'Este modelo tem perguntas que a pessoa responde no tablet: ele só pode ser assinado no balcão.';
+        if ($this->signerFields() !== []) {
+            return 'Há campos marcados para perguntar a quem assina, e as perguntas só existem no tablet: este '
+                . 'documento só pode ser assinado no balcão. Para o gov.br, o atendente preenche esses campos.';
         }
 
         if ($template?->requires_initials) {
@@ -364,8 +368,69 @@ class SignatureDocument extends Model
     public function signingFormPending(): bool
     {
         return $this->signing_answered_at === null
-            && $this->template !== null
-            && $this->template->signerFields() !== [];
+            && $this->signerFields() !== [];
+    }
+
+    /**
+     * As chaves dos campos que o atendente marcou para perguntar a quem assina.
+     *
+     * @return array<int, string>
+     */
+    public function signerFieldKeys(): array
+    {
+        return array_values(array_map('strval', (array) ($this->signer_field_keys ?? [])));
+    }
+
+    /**
+     * Os campos do modelo, com quem responde cada um NESTE documento: o modelo
+     * declara os campos; o atendente decide, no preenchimento, quais vão ao
+     * tablet (`ask_signer`). Automático não é perguntado a ninguém.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function fieldDefinitions(): array
+    {
+        $perguntados = $this->signerFieldKeys();
+
+        return array_map(fn(array $v) => $v + [
+            'ask_signer' => !SignatureFieldTypes::isAutomatic($v['type']) && in_array($v['key'], $perguntados, true),
+        ], $this->template?->declaredVariables() ?? []);
+    }
+
+    /**
+     * Os campos que o ATENDENTE preenche neste documento.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function attendantFields(): array
+    {
+        return array_values(array_filter(
+            $this->fieldDefinitions(),
+            fn($v) => !$v['ask_signer'] && !SignatureFieldTypes::isAutomatic($v['type']),
+        ));
+    }
+
+    /**
+     * Os campos que QUEM ASSINA responde, no tablet, antes de ler o documento.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function signerFields(): array
+    {
+        return array_values(array_filter($this->fieldDefinitions(), fn($v) => $v['ask_signer']));
+    }
+
+    /**
+     * Os campos que o servidor resolve sozinho no ato da assinatura.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function automaticFields(): array
+    {
+        return array_values(array_filter(
+            $this->fieldDefinitions(),
+            fn($v) => SignatureFieldTypes::isAutomatic($v['type']),
+        ));
     }
 
     /** Todos assinaram? É o que move o documento para `signed`. */

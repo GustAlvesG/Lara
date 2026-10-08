@@ -53,6 +53,7 @@ trait CreatesSignatureSchema
             '2026_10_11_100000_create_signature_attachments.php',
             '2026_10_11_100100_add_email_code_identity_check.php',
             '2026_10_11_100200_drop_location_from_signature_documents.php',
+            '2026_10_11_100300_add_signer_field_keys_to_signature_documents.php',
         ];
 
         foreach ($migrations as $arquivo) {

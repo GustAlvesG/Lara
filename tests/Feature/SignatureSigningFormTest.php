@@ -55,7 +55,12 @@ class SignatureSigningFormTest extends TestCase
         parent::tearDown();
     }
 
-    /** Um campo do atendente, dois de quem assina e a data automática. */
+    /**
+     * Três campos e a data automática. Quem responde é do DOCUMENTO: nos
+     * documentos deste teste, telefone e atividades vão ao tablet.
+     */
+    private const PERGUNTADOS = ['telefone', 'atividades'];
+
     private function modelo(array $attributes = []): SignatureTemplate
     {
         return $this->criaModeloDeAssinatura(array_merge([
@@ -67,11 +72,11 @@ class SignatureSigningFormTest extends TestCase
                 ['key' => 'espaco', 'label' => 'Espaço', 'required' => true, 'type' => T::TEXT],
                 [
                     'key' => 'telefone', 'label' => 'Telefone', 'required' => true, 'type' => T::PHONE,
-                    'ask_signer' => true, 'question' => 'Qual é o seu telefone?',
+                    'question' => 'Qual é o seu telefone?',
                 ],
                 [
                     'key' => 'atividades', 'label' => 'Atividades', 'required' => false, 'type' => T::CHECKBOX,
-                    'ask_signer' => true, 'options' => ['Piscina', 'Academia', 'Quadra'],
+                    'options' => ['Piscina', 'Academia', 'Quadra'],
                 ],
                 ['key' => 'data_assinatura', 'label' => 'Data da assinatura', 'type' => T::DATE_SIGNING_LONG],
             ],
@@ -83,6 +88,7 @@ class SignatureSigningFormTest extends TestCase
         return app(SignatureDocumentService::class)->freeze($this->criaDocumentoDeAssinatura([
             'template' => $modelo ?? $this->modelo(),
             'data' => ['espaco' => 'Piscina'],
+            'signer_field_keys' => self::PERGUNTADOS,
         ]));
     }
 
@@ -147,7 +153,9 @@ class SignatureSigningFormTest extends TestCase
 
     public function test_campo_obrigatorio_do_atendente_continua_barrando_o_congelamento(): void
     {
-        $rascunho = $this->criaDocumentoDeAssinatura(['template' => $this->modelo(), 'data' => []]);
+        $rascunho = $this->criaDocumentoDeAssinatura([
+            'template' => $this->modelo(), 'data' => [], 'signer_field_keys' => self::PERGUNTADOS,
+        ]);
 
         $this->expectExceptionMessage('Faltam dados obrigatórios do modelo: Espaço.');
 
@@ -197,6 +205,33 @@ class SignatureSigningFormTest extends TestCase
             1,
             $documento->auditEvents()->where('event', SignatureAuditEvent::EVENT_SIGNING_DATE_SET)->count(),
         );
+    }
+
+    /**
+     * A marcação saiu do modelo para o documento. Os documentos que já
+     * existiam herdam o que o modelo deles marcava — um documento congelado
+     * antes da mudança continua perguntando o que perguntava.
+     */
+    public function test_documento_antigo_herda_as_perguntas_do_modelo(): void
+    {
+        $modelo = $this->modelo([
+            'variables' => [
+                ['key' => 'espaco', 'label' => 'Espaço', 'type' => T::TEXT],
+                ['key' => 'telefone', 'label' => 'Telefone', 'type' => T::PHONE, 'ask_signer' => true],
+                ['key' => 'data_assinatura', 'label' => 'Data', 'type' => T::DATE_SIGNING, 'ask_signer' => true],
+            ],
+        ]);
+
+        $antigo = $this->criaDocumentoDeAssinatura(['template' => $modelo]);
+        $jaMarcado = $this->criaDocumentoDeAssinatura(['template' => $modelo, 'signer_field_keys' => []]);
+        $antigo->forceFill(['signer_field_keys' => null])->save();
+
+        (require database_path('migrations/2026_10_11_100300_add_signer_field_keys_to_signature_documents.php'))->up();
+
+        // Automático não entra: não é perguntado a ninguém.
+        $this->assertSame(['telefone'], $antigo->fresh()->signerFieldKeys());
+        // Quem já tinha a escolha gravada não é tocado.
+        $this->assertSame([], $jaMarcado->fresh()->signerFieldKeys());
     }
 
     public function test_tablet_recebe_as_perguntas_do_modelo(): void
@@ -338,7 +373,9 @@ class SignatureSigningFormTest extends TestCase
 
     public function test_depois_da_primeira_assinatura_as_respostas_nao_mudam_mais(): void
     {
-        $rascunho = $this->criaDocumentoDeAssinatura(['template' => $this->modelo(), 'data' => ['espaco' => 'Piscina']]);
+        $rascunho = $this->criaDocumentoDeAssinatura([
+            'template' => $this->modelo(), 'data' => ['espaco' => 'Piscina'], 'signer_field_keys' => self::PERGUNTADOS,
+        ]);
 
         SignatureSigner::create([
             'signature_document_id' => $rascunho->id,
@@ -380,12 +417,14 @@ class SignatureSigningFormTest extends TestCase
         $modelo = $this->modelo([
             'body_html' => '<p>Observação: [[obs]]</p>[[assinatura]]',
             'variables' => [
-                ['key' => 'obs', 'label' => 'Observação', 'type' => T::TEXT, 'ask_signer' => true],
+                ['key' => 'obs', 'label' => 'Observação', 'type' => T::TEXT],
             ],
         ]);
 
         $documento = app(SignatureSigningDataService::class)->answer(
-            app(SignatureDocumentService::class)->freeze($this->criaDocumentoDeAssinatura(['template' => $modelo])),
+            app(SignatureDocumentService::class)->freeze($this->criaDocumentoDeAssinatura([
+                'template' => $modelo, 'signer_field_keys' => ['obs'],
+            ])),
             ['obs' => '[[assinatura]] <b>negrito</b>'],
         );
 
@@ -435,6 +474,7 @@ class SignatureSigningFormTest extends TestCase
                 'variables' => [
                     [
                         'key' => 'espaco', 'label' => 'Espaço', 'type' => T::RADIO, 'required' => '1',
+                        // Mandado por uma tela antiga: quem responde não é mais do modelo.
                         'ask_signer' => '1', 'question' => 'Qual espaço você vai usar?',
                         // Como a tela manda: texto, uma opção por linha.
                         'options' => "Piscina\n\n Quadra \nPiscina",
@@ -442,9 +482,9 @@ class SignatureSigningFormTest extends TestCase
                     [
                         'key' => 'contato', 'label' => 'Contato', 'type' => T::PHONE,
                         // Sobra de quando o campo era de escolha: não é gravada.
-                        'options' => "A\nB", 'question' => 'ignorada',
+                        'options' => "A\nB",
                     ],
-                    ['key' => 'hoje', 'label' => 'Hoje', 'type' => T::DATE_SIGNING, 'required' => '1', 'ask_signer' => '1'],
+                    ['key' => 'hoje', 'label' => 'Hoje', 'type' => T::DATE_SIGNING, 'required' => '1', 'question' => 'ignorada'],
                 ],
             ])
             ->assertSessionHasNoErrors()
@@ -453,15 +493,14 @@ class SignatureSigningFormTest extends TestCase
         [$espaco, $contato, $hoje] = SignatureTemplate::firstOrFail()->variables;
 
         $this->assertSame(['Piscina', 'Quadra'], $espaco['options']);
-        $this->assertTrue($espaco['ask_signer']);
+        $this->assertArrayNotHasKey('ask_signer', $espaco);
         $this->assertSame('Qual espaço você vai usar?', $espaco['question']);
 
         $this->assertSame([], $contato['options']);
-        $this->assertFalse($contato['ask_signer']);
         $this->assertNull($contato['question']);
 
         // Campo automático não é perguntado a ninguém nem pode ficar "em branco".
-        $this->assertFalse($hoje['ask_signer']);
+        $this->assertNull($hoje['question']);
         $this->assertFalse($hoje['required']);
     }
 
@@ -488,7 +527,8 @@ class SignatureSigningFormTest extends TestCase
 
         $this->actingAs($usuario)->get(route('signature-templates.edit', $modelo))
             ->assertOk()
-            ->assertSee('Perguntar a quem assina, no tablet')
+            ->assertDontSee('Perguntar a quem assina')
+            ->assertSee('Pergunta no tablet (opcional)')
             ->assertSee(T::LABELS[T::DATE_SIGNING_LONG]);
 
         $this->actingAs($usuario)->get(route('signature-templates.show', $modelo))
@@ -585,7 +625,7 @@ class SignatureSigningFormTest extends TestCase
             'variables' => [
                 ['key' => 'cpf_responsavel', 'label' => 'CPF do responsável', 'type' => T::CPF],
                 ['key' => 'valor', 'label' => 'Valor', 'type' => T::MONEY],
-                ['key' => 'telefone', 'label' => 'Telefone', 'type' => T::PHONE, 'ask_signer' => true],
+                ['key' => 'telefone', 'label' => 'Telefone', 'type' => T::PHONE],
             ],
         ]);
 
@@ -594,15 +634,17 @@ class SignatureSigningFormTest extends TestCase
         $envio = fn(array $data) => [
             'signature_template_id' => $modelo->id,
             'data' => $data,
+            'ask_signer' => ['telefone'],
             'signers' => [['name' => 'Maria de Souza', 'cpf' => '123.456.789-09']],
         ];
 
-        // A tela oferece o campo do atendente e avisa do que não é dele.
+        // A tela oferece todos os campos, cada um com a opção de ir ao tablet.
         $this->actingAs($usuario)->get(route('signature-documents.create', ['template' => $modelo->id]))
             ->assertOk()
             ->assertSee('name="data[cpf_responsavel]"', false)
-            ->assertDontSee('name="data[telefone]"', false)
-            ->assertSee('Quem assina responde no tablet');
+            ->assertSee('name="data[telefone]"', false)
+            ->assertSee('name="ask_signer[]" value="telefone"', false)
+            ->assertSee('Perguntar ao signatário');
 
         $this->actingAs($usuario)
             ->post(route('signature-documents.store'), $envio(['cpf_responsavel' => '123.456.789-00']))
@@ -612,7 +654,7 @@ class SignatureSigningFormTest extends TestCase
             ->post(route('signature-documents.store'), $envio([
                 'cpf_responsavel' => '123.456.789-09',
                 'valor' => '1.500,00',
-                // Mandado à força pelo formulário: não é do atendente, não entra.
+                // Marcado para o tablet: o que estiver digitado nele não entra.
                 'telefone' => '24999991234',
             ]))
             ->assertSessionHasNoErrors();
@@ -620,16 +662,23 @@ class SignatureSigningFormTest extends TestCase
         $documento = SignatureDocument::firstOrFail();
 
         $this->assertSame(['cpf_responsavel' => '12345678909', 'valor' => '1500.00'], $documento->data);
+        $this->assertSame(['telefone'], $documento->signer_field_keys);
         $this->assertStringContainsString(
             '123.456.789-09 R$ 1.500,00 ' . SignatureDocumentRenderer::BLANK,
             app(SignatureDocumentRenderer::class)->resolved($documento),
         );
 
         // Reabrir para corrigir mostra o valor como a pessoa o digitaria.
-        $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
+        $edicao = $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
             ->get(route('signature-documents.edit', $documento))
             ->assertOk()
             ->assertSee('value="1.500,00"', false)
             ->assertSee('value="123.456.789-09"', false);
+
+        // E a marcação volta como estava.
+        $this->assertMatchesRegularExpression(
+            '/value="telefone" data-ask-toggle\s+checked/',
+            $edicao->getContent(),
+        );
     }
 }

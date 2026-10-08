@@ -37,7 +37,13 @@
         ? old('data.' . $campo['key'])
         : \App\Services\Signature\SignatureFieldTypes::inputValue($campo, $document?->data[$campo['key']] ?? null);
 
-    $doSignatario = $template->signerFields();
+    // Quem responde cada campo é decidido aqui, no documento: marcado em
+    // "Perguntar ao signatário", vai ao tablet; senão, o atendente preenche.
+    $perguntados = $reenvio
+        ? array_map('strval', (array) old('ask_signer', []))
+        : ($document?->signerFieldKeys() ?? []);
+
+    $manuais = $template->manualFields();
     $automaticos = $template->automaticFields();
 @endphp
 
@@ -87,7 +93,7 @@
         <div class="bg-surface rounded-card shadow-card p-6 space-y-4" data-step="Dados do documento" data-step-keys="data">
             <div class="flex items-center justify-between">
                 <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider">Dados do documento</h3>
-                @if($template->attendantFields())
+                @if($manuais)
                     <button type="button" id="fillFromSigners" class="text-xs font-bold text-grena-ink hover:underline">
                         Preencher com os dados dos signatários
                     </button>
@@ -95,25 +101,39 @@
             </div>
             <p id="fillFromSignersStatus" class="text-xs text-ink-2" hidden></p>
 
-            @foreach($template->attendantFields() as $variavel)
-                @include('signature.documents.partials.field', ['campo' => $variavel, 'valor' => $valorDe($variavel)])
+            <script>
+                // "Perguntar ao signatário": o campo some do formulário — quem responde é quem assina.
+                document.addEventListener('change', function (e) {
+                    if (!e.target.matches('[data-ask-toggle]')) {
+                        return;
+                    }
+
+                    var bloco = e.target.closest('[data-ask-field]');
+                    bloco.querySelector('[data-ask-answer]').hidden = e.target.checked;
+                    bloco.querySelector('[data-ask-note]').hidden = !e.target.checked;
+                });
+            </script>
+
+            @foreach($manuais as $variavel)
+                @include('signature.documents.partials.field', [
+                    'campo' => $variavel,
+                    'valor' => $valorDe($variavel),
+                    'perguntar' => in_array($variavel['key'], $perguntados, true),
+                ])
             @endforeach
 
-            @if($template->attendantFields())
+            @if($manuais)
                 <p class="text-xs text-ink-2">
                     Os campos obrigatórios podem ficar em branco no rascunho — são conferidos no congelamento.
+                    Marcando <b>Perguntar ao signatário</b>, quem assina responde no tablet, antes de ler o
+                    documento (e a obrigatoriedade é conferida lá). Documento com pergunta ao signatário só pode
+                    ser assinado no tablet: para o gov.br, preencha tudo aqui.
                 </p>
             @endif
 
-            @if($doSignatario || $automaticos)
+            @if($automaticos)
                 {{-- O que NÃO é do atendente aparece aqui para ele não procurar onde digitar. --}}
                 <div class="rounded-xl bg-subtle p-4 text-xs text-ink-2 space-y-1">
-                    @if($doSignatario)
-                        <div>
-                            <span class="font-bold">Quem assina responde no tablet:</span>
-                            {{ collect($doSignatario)->pluck('label')->join(', ') }}.
-                        </div>
-                    @endif
                     @if($automaticos)
                         <div>
                             <span class="font-bold">O sistema preenche na assinatura:</span>

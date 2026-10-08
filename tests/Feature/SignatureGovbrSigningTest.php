@@ -127,6 +127,34 @@ class SignatureGovbrSigningTest extends TestCase
         $this->assertNull($documento->fresh()->govbr_sent_at);
     }
 
+    /**
+     * Quem responde cada campo é do documento: o mesmo modelo vai ao gov.br
+     * quando o atendente preenche tudo, e fica no balcão quando ele manda um
+     * campo para o tablet.
+     */
+    public function test_o_mesmo_modelo_vai_ao_gov_br_conforme_o_preenchimento(): void
+    {
+        $modelo = $this->criaModeloDeAssinatura([
+            'body_html' => '<p>Telefone: [[telefone]]</p>[[assinatura]]',
+            'variables' => [['key' => 'telefone', 'label' => 'Telefone', 'type' => 'phone', 'required' => true]],
+        ]);
+
+        $preenchido = app(SignatureDocumentService::class)->freeze($this->criaDocumentoDeAssinatura([
+            'template' => $modelo, 'data' => ['telefone' => '24999991234'],
+        ]));
+
+        $this->assertNull($preenchido->govbrBlockReason());
+        $this->prepara($preenchido)->assertSessionHas('success');
+
+        $perguntado = app(SignatureDocumentService::class)->freeze($this->criaDocumentoDeAssinatura([
+            'template' => $modelo, 'signer_field_keys' => ['telefone'],
+        ]));
+
+        $this->assertStringContainsString('perguntar a quem assina', (string) $perguntado->govbrBlockReason());
+        $this->prepara($perguntado)->assertSessionHas('warning');
+        $this->assertNull($perguntado->fresh()->govbr_sent_at);
+    }
+
     public function test_documento_ja_assinado_no_tablet_nao_vai_para_o_gov_br(): void
     {
         $documento = $this->documentoComDois();

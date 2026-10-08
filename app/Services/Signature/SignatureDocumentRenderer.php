@@ -66,17 +66,18 @@ class SignatureDocumentRenderer
      *  - os dos campos respondidos por quem assina e os automáticos, que só
      *    têm valor no ato da assinatura — ver `resolved()`.
      *
-     * @param  array<string, mixed>|null  $data
+     * Quem responde cada campo é decisão do documento (o atendente marca o que
+     * vai ao tablet) — por isso recebe o documento, e não só o modelo.
      */
-    public function body(SignatureTemplate $template, ?array $data): string
+    public function body(SignatureDocument $document): string
     {
-        $corpo = $template->body_html;
-        $data ??= [];
+        $corpo = $document->template->body_html;
+        $data = $document->data ?? [];
 
         $doAtendente = [];
         $deOutros = [];
 
-        foreach ($template->declaredVariables() as $campo) {
+        foreach ($document->fieldDefinitions() as $campo) {
             if ($campo['ask_signer'] || SignatureFieldTypes::isAutomatic($campo['type'])) {
                 $deOutros[$campo['key']] = true;
             } else {
@@ -121,11 +122,11 @@ class SignatureDocumentRenderer
     public function resolved(SignatureDocument $document): string
     {
         $corpo = $document->body_snapshot
-            ?? $this->body($document->template, $document->data);
+            ?? $this->body($document);
 
         $valores = $document->signing_data ?? [];
 
-        foreach ($document->template->declaredVariables() as $campo) {
+        foreach ($document->fieldDefinitions() as $campo) {
             if (!$campo['ask_signer'] && !SignatureFieldTypes::isAutomatic($campo['type'])) {
                 continue;
             }
@@ -162,14 +163,14 @@ class SignatureDocumentRenderer
      * Os que quem assina responde não entram: a obrigatoriedade deles é
      * conferida no tablet, quando a resposta chega.
      *
-     * @param  array<string, mixed>|null  $data
      * @return array<int, string>
      */
-    public function missingVariables(SignatureTemplate $template, ?array $data): array
+    public function missingVariables(SignatureDocument $document): array
     {
+        $data = $document->data ?? [];
         $faltando = [];
 
-        foreach ($template->attendantFields() as $variavel) {
+        foreach ($document->attendantFields() as $variavel) {
             if ($variavel['required'] && SignatureFieldTypes::isEmpty($data[$variavel['key']] ?? null)) {
                 $faltando[] = $variavel['label'];
             }

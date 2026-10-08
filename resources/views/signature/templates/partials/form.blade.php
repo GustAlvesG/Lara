@@ -10,9 +10,9 @@
      * HTML continua existindo — é o que se grava —, mas fica recolhido para
      * quem quiser ajustar à mão.
      *
-     * Cada campo tem um TIPO (texto, CPF, valor, data, escolha…) e uma
-     * origem: o atendente preenche ao preparar o documento, quem assina
-     * responde no tablet, ou o sistema preenche sozinho (data da assinatura).
+     * Cada campo tem um TIPO (texto, CPF, valor, data, escolha…). Quem o
+     * preenche — o atendente ou quem assina, no tablet — é decidido em cada
+     * documento, não aqui; os automáticos o sistema preenche sozinho.
      *
      * Os campos são geridos em JavaScript puro (cartões clonados de um
      * <template>), no padrão das demais telas do projeto — sem componente de
@@ -93,8 +93,8 @@
             <iframe id="bodyPreview" sandbox="" title="Prévia do documento"
                     class="w-full rounded-xl border border-line-strong bg-white" style="height: 30rem;"></iframe>
             <p class="mt-1 text-xs text-ink-2">
-                Destacados: em amarelo, o que o atendente preenche; em azul, o que quem assina responde no
-                tablet; em cinza, o que o sistema preenche sozinho.
+                Destacados: em amarelo, os campos preenchidos no documento (pelo atendente ou por quem assina,
+                no tablet); em cinza, o que o sistema preenche sozinho.
             </p>
         </div>
 
@@ -121,9 +121,9 @@
         </div>
         <p class="text-xs text-ink-2 mb-3">
             Cada campo é um <code class="font-mono">[[marcador]]</code> do texto. Vindo do Word, a lista já chega
-            pronta. Escolha o <strong>tipo</strong> de cada um e quem preenche: por padrão é o atendente, ao
-            preparar o documento; marcando <strong>Perguntar a quem assina</strong>, a pessoa responde no
-            tablet, antes de ler o documento.
+            pronta. Escolha o <strong>tipo</strong> de cada um. Quem preenche é decidido em cada documento: o
+            atendente preenche, ou marca <strong>Perguntar ao signatário</strong> e a pessoa responde no tablet,
+            antes de ler o documento.
         </p>
 
         @foreach($errors->get('variables.*') as $mensagens)
@@ -180,21 +180,19 @@
                                class="rounded border-line-strong text-grena-ink focus:ring-grena-tint">
                         Obrigatório
                     </label>
-                    <label class="flex items-center gap-2 text-xs text-ink" data-manual-only>
-                        <input type="hidden" data-field="ask_signer" data-off value="0">
-                        <input type="checkbox" data-field="ask_signer" value="1"
-                               class="rounded border-line-strong text-grena-ink focus:ring-grena-tint">
-                        Perguntar a quem assina, no tablet
-                    </label>
                     <button type="button" class="text-xs text-danger hover:underline" data-remove-variable>Remover campo</button>
                 </div>
 
-                <div data-question-box hidden>
-                    <label class="block text-xs font-bold text-ink-2 mb-1">Pergunta mostrada no tablet</label>
+                {{-- Quem responde o campo é decidido em cada documento: o atendente pode mandá-lo ao tablet. --}}
+                <div data-question-box data-manual-only>
+                    <label class="block text-xs font-bold text-ink-2 mb-1">Pergunta no tablet (opcional)</label>
                     <input type="text" data-field="question" maxlength="200"
                            placeholder="Ex.: Qual é o seu telefone para contato?"
                            class="w-full rounded-lg border-line-strong text-sm">
-                    <p class="mt-1 text-xs text-ink-2">Em branco, a pergunta é o nome do campo.</p>
+                    <p class="mt-1 text-xs text-ink-2">
+                        Usada quando o atendente marca, no documento, “Perguntar ao signatário”. Em branco, a
+                        pergunta é o nome do campo.
+                    </p>
                 </div>
             </div>
         </template>
@@ -408,8 +406,8 @@
         return row.querySelector('[data-field="' + nome + '"]:not([data-off])');
     }
 
-    // Mostra só o que o tipo usa: opções para os de escolha, a pergunta para
-    // o que vai ao tablet, e nada disso para o que o sistema preenche.
+    // Mostra só o que o tipo usa: opções para os de escolha, e nem a pergunta
+    // nem a obrigatoriedade para o que o sistema preenche.
     function ajusta(row) {
         var tipo = campo(row, 'type').value;
         var automatico = automaticos.indexOf(tipo) !== -1;
@@ -421,7 +419,6 @@
             el.hidden = automatico;
         });
 
-        row.querySelector('[data-question-box]').hidden = automatico || !campo(row, 'ask_signer').checked;
     }
 
     // Os valores entram por propriedade, e não por concatenação no HTML: o
@@ -440,7 +437,6 @@
         campo(row, 'label').value = variavel.label || '';
         campo(row, 'type').value = variavel.type || 'text';
         campo(row, 'required').checked = sim(variavel.required);
-        campo(row, 'ask_signer').checked = sim(variavel.ask_signer);
         campo(row, 'question').value = variavel.question || '';
         campo(row, 'options').value = Array.isArray(variavel.options)
             ? variavel.options.join('\n')
@@ -463,7 +459,6 @@
                 label: campo(row, 'label').value.trim(),
                 type: campo(row, 'type').value,
                 required: campo(row, 'required').checked,
-                ask_signer: campo(row, 'ask_signer').checked,
                 question: campo(row, 'question').value,
                 options: campo(row, 'options').value
             };
@@ -509,7 +504,7 @@
         'td,th{border:1px solid #d8cbc9;padding:5px 7px;font-size:12px;vertical-align:top}' +
         'th{background:#f2ecea;text-align:left}' +
         'mark{background:#fde9a8;border-radius:3px;padding:0 3px}' +
-        'mark.tablet{background:#cfe4fb}mark.auto{background:#e4e0e0}' +
+        'mark.auto{background:#e4e0e0}' +
         '.sig{margin:22px 0 6px;border:1px dashed #A00001;color:#A00001;border-radius:6px;' +
         'padding:14px;text-align:center;font-size:12px}';
 
@@ -559,8 +554,6 @@
 
             if (v && automaticos.indexOf(v.type) !== -1) {
                 classe = 'auto';
-            } else if (v && v.ask_signer) {
-                classe = 'tablet';
             }
 
             return '<mark class="' + classe + '">' + escapa((v && v.label) || chave) + '</mark>';

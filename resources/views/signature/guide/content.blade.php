@@ -338,8 +338,8 @@
             <td class="n"><span class="num">4</span></td>
             <td><span class="t">Confira a lista "Campos do documento".</span><br>
                 Para cada campo, veja o <b>Tipo</b> (o sistema sugere um pelo nome — troque se estiver errado),
-                marque <b>Obrigatório</b> se não puder ficar em branco e, se quiser, <b>Perguntar a quem assina, no
-                tablet</b>. O capítulo 4 explica cada opção.</td>
+                marque <b>Obrigatório</b> se não puder ficar em branco e, se quiser, escreva a <b>Pergunta no
+                tablet</b>. Quem responde cada campo não se decide aqui: é no documento. O capítulo 4 explica.</td>
         </tr>
         <tr>
             <td class="n"><span class="num">5</span></td>
@@ -407,13 +407,15 @@
         <tr><th style="width:30%">Quem</th><th>Como configurar</th><th style="width:30%">Quando usar</th></tr>
         <tr>
             <td><b>O atendente</b>, ao preparar o documento</td>
-            <td>É o padrão: não marque nada.</td>
+            <td>É o padrão: no documento, preencha o campo.</td>
             <td>Dados do atendimento: espaço, data do evento, valor.</td>
         </tr>
         <tr>
             <td><b>Quem assina</b>, no tablet</td>
-            <td>Marque <b>Perguntar a quem assina, no tablet</b> e escreva a pergunta em <b>Pergunta mostrada no
-                tablet</b> (por exemplo "Qual é o seu telefone para contato?").</td>
+            <td>No <b>documento</b>, marque <b>Perguntar ao signatário</b> ao lado do campo. No modelo, escreva, se
+                quiser, a <b>Pergunta no tablet</b> (por exemplo "Qual é o seu telefone para contato?"); em branco,
+                a pergunta é o nome do campo. Documento com pergunta ao signatário só é assinado no tablet — para
+                o gov.br, preencha todos os campos.</td>
             <td>Dados que só a pessoa sabe ou que ela precisa declarar: telefone, e-mail, opções de uso.</td>
         </tr>
         <tr>
@@ -545,8 +547,10 @@
         <tr>
             <td class="n"><span class="num">3</span></td>
             <td><span class="t">Preencha os "Dados do documento".</span><br>
-                Só aparecem os campos que são seus. Os campos com <b>*</b> são obrigatórios. Um aviso logo abaixo
-                mostra o que a pessoa vai responder no tablet e o que o sistema preenche — esses você não digita.<br>
+                Aparecem todos os campos do modelo; os com <b>*</b> são obrigatórios. Para que a própria pessoa
+                responda um campo no tablet, marque <b>Perguntar ao signatário</b> ao lado dele: o campo some e vira
+                pergunta. Se o documento for para o <b>gov.br</b>, não marque nenhum — lá não há perguntas. Um aviso
+                logo abaixo mostra o que o sistema preenche sozinho.<br>
                 Quase sempre o nome, o CPF e o contato pedidos são os de quem assina: clique em
                 <span class="btn2">Preencher com os dados dos signatários</span> e confira os campos destacados.
                 O que não for preenchido sozinho tem, embaixo, a lista <b>Usar dados do signatário…</b> — escolha
@@ -662,7 +666,7 @@
                 via por e-mail.</td>
             <td><b>6. Assinatura</b>Assina com o dedo ou a caneta. <i>Limpar</i> apaga e deixa refazer.</td>
             <td><span class="opt">se o modelo pedir</span><b>7. Visto</b>"Agora faça o seu visto": a rubrica que vai em todas as páginas.</td>
-            <td><span class="opt">se o modelo pedir</span><b>8. Foto</b>O tablet conta 3 segundos e fotografa. Depois: "Assinatura concluída".</td>
+            <td><span class="opt">se o modelo pedir</span><b>8. Foto</b>A câmera abre; a pessoa toca em <span class="btn">Tirar foto</span> quando estiver pronta, e o tablet conta 3 segundos e fotografa. Depois: "Assinatura concluída".</td>
         </tr>
     </table>
 
@@ -857,6 +861,12 @@
                 PDF e <code>.doc</code> não são aceitos.</td>
         </tr>
         <tr>
+            <td>O tablet disse "Falha na comunicação com o servidor (código …)" ao salvar</td>
+            <td>A assinatura <b>não</b> foi gravada: o tablet volta ao traço e a pessoa pode tentar de novo. Se repetir,
+                anote o <b>código</b> e o horário e passe à TI — é um erro do servidor, não da conexão. "Sem resposta
+                do servidor" é que é problema de rede (Wi-Fi do tablet).</td>
+        </tr>
+        <tr>
             <td>O arquivo do gov.br foi recusado</td>
             <td>Abra o envio na aba <b>Assinatura gov.br</b> e veja o item marcado com X. Os mais comuns: a pessoa
                 devolveu o PDF <b>sem assinar</b>; assinou <b>outro documento</b> (de outro atendimento, um PDF
@@ -912,8 +922,9 @@
         </tr>
         <tr>
             <td>O botão "Preparar para o gov.br" não aparece</td>
-            <td>A aba diz o motivo: alguém já assinou no tablet, o modelo tem perguntas a quem assina ou visto em
-                todas as páginas, ou o documento ainda não foi congelado.</td>
+            <td>A aba diz o motivo: alguém já assinou no tablet, há campo marcado em <b>Perguntar ao
+                signatário</b>, o modelo tem visto em todas as páginas, ou o documento ainda não foi congelado.
+                Campo marcado: cancele e refaça o documento preenchendo esse campo você mesmo.</td>
         </tr>
         <tr>
             <td>A pessoa não recebeu a via por e-mail</td>
