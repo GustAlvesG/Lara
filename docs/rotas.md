@@ -9,6 +9,13 @@ As rotas estão divididas em quatro arquivos, registrados em `bootstrap/app.php`
 
 > Nota: as rotas de freelancer ficam em `api.php` (grupo `/api/telegram/freelancer/*`).
 
+> **Limite de pedidos (`throttle:N,M`) é POR ROTA.** O alias `throttle` aponta para
+> `App\Http\Middleware\ThrottleRequestsPerRoute` (registrado em `bootstrap/app.php`), que acrescenta
+> a rota à chave. O do Laravel conta só por usuário/IP, e todas as rotas com `throttle:N,M` dividiam
+> UM contador: o tablet de assinatura, que confere a sessão a cada 5 s, estourava o limite de
+> "assinar" (10/min) e a pessoa via **429** ao salvar. Limitadores nomeados (`throttle:nome`, de
+> `RateLimiter::for`) não mudam. Teste: `SignatureCaptureTest::test_conferir_a_sessao_nao_gasta_o_limite_de_assinar`.
+
 > **Permissões:** a coluna de middleware desta página é anterior à reforma do acesso e não
 > lista todas as permissões. A fonte da verdade é `php artisan route:list` e o `routes/web.php`,
 > onde cada rota do painel tem `can:<permissão do catálogo>` — ver
