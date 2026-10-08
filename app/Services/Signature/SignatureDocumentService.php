@@ -139,7 +139,7 @@ class SignatureDocumentService
     /**
      * Cria o documento em rascunho, já com os signatários.
      *
-     * @param  array<string, mixed>  $attributes  title, data, attachment_requirements
+     * @param  array<string, mixed>  $attributes  title, data, attachment_requirements, signer_field_keys
      * @param  array<int, array<string, mixed>>  $signers
      */
     public function create(
@@ -159,6 +159,7 @@ class SignatureDocumentService
                 'title' => $this->titleFor($template, $attributes['title'] ?? null, $signers),
                 'data' => $attributes['data'] ?? [],
                 'attachment_requirements' => $attributes['attachment_requirements'] ?? [],
+                'signer_field_keys' => $attributes['signer_field_keys'] ?? [],
                 'created_by' => $userId,
                 // Retrato do nome: o manifesto precisa dizer quem atendeu, e
                 // `users` vive noutra conexão — ver a migration que criou a
@@ -245,6 +246,7 @@ class SignatureDocumentService
                 'title' => $attributes['title'] ?? $document->title,
                 'data' => $attributes['data'] ?? $document->data,
                 'attachment_requirements' => $attributes['attachment_requirements'] ?? $document->attachment_requirements,
+                'signer_field_keys' => $attributes['signer_field_keys'] ?? $document->signer_field_keys,
             ])->save();
 
             $this->syncSigners($document, $signers);
@@ -297,7 +299,7 @@ class SignatureDocumentService
             }
         }
 
-        $faltando = $this->renderer->missingVariables($document->template, $document->data);
+        $faltando = $this->renderer->missingVariables($document);
 
         if ($faltando !== []) {
             throw new SignatureDocumentLockedException(
@@ -311,7 +313,7 @@ class SignatureDocumentService
          | versões e o cadastro já tiver mudado.
          */
         $document->forceFill([
-            'body_snapshot' => $this->renderer->body($document->template, $document->data),
+            'body_snapshot' => $this->renderer->body($document),
             'validation_code' => $this->generateValidationCode(),
             // O papel timbrado vigente AGORA fica preso ao documento: o PDF
             // final, montado depois, tem de sair com a mesma cara do original.

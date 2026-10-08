@@ -57,14 +57,14 @@ class SignatureExampleTemplatesSeederTest extends TestCase
 
         $modelo = fn(string $n) => SignatureTemplate::where('name', 'like', "[Exemplo] {$n}.%")->firstOrFail();
 
-        $this->assertNotEmpty($modelo('2')->signerFields());
+        // As perguntas prontas para o tablet; quem responde é marcado no documento.
+        $this->assertSame('Qual é o seu telefone para contato?', collect($modelo('2')->declaredVariables())->firstWhere('key', 'telefone')['question']);
         $this->assertNotEmpty($modelo('2')->automaticFields());
         $this->assertCount(3, $modelo('3')->declaredAttachments());
         $this->assertTrue($modelo('4')->requires_initials);
         $this->assertSame(SignatureTemplate::IDENTITY_EMAIL, $modelo('5')->identity_check);
 
-        // O do gov.br precisa poder ir para o gov.br: sem perguntas e sem visto.
-        $this->assertSame([], $modelo('6')->signerFields());
+        // O do gov.br precisa poder ir para o gov.br: sem visto.
         $this->assertFalse($modelo('6')->requires_initials);
     }
 

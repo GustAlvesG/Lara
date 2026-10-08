@@ -230,12 +230,16 @@ class SignatureTemplate extends Model
      * tablet são montados a partir disto.
      *
      * Um modelo gravado antes de os campos terem tipo só traz chave, rótulo e
-     * obrigatoriedade: vale como texto, preenchido pelo atendente — que é
-     * exatamente o que ele era.
+     * obrigatoriedade: vale como texto — que é exatamente o que ele era.
+     *
+     * Quem responde cada campo (atendente ou quem assina) NÃO é do modelo: é
+     * marcado no preenchimento de cada documento — ver
+     * `SignatureDocument::fieldDefinitions()`. Um `ask_signer` antigo que
+     * tenha ficado no JSON não é lido.
      *
      * @return array<int, array{
      *     key: string, label: string, required: bool, type: string,
-     *     ask_signer: bool, question: string, options: array<int, string>
+     *     question: string, options: array<int, string>
      * }>
      */
     public function declaredVariables(): array
@@ -250,8 +254,7 @@ class SignatureTemplate extends Model
                     'label' => $rotulo,
                     'required' => (bool) ($v['required'] ?? false),
                     'type' => $tipo,
-                    // Campo automático não é perguntado a ninguém.
-                    'ask_signer' => (bool) ($v['ask_signer'] ?? false) && !SignatureFieldTypes::isAutomatic($tipo),
+                    // Como perguntar, se o atendente mandar o campo ao tablet.
                     // Sem pergunta escrita, a pergunta é o rótulo.
                     'question' => trim((string) ($v['question'] ?? '')) ?: $rotulo,
                     'options' => SignatureFieldTypes::hasOptions($tipo)
@@ -265,26 +268,18 @@ class SignatureTemplate extends Model
     }
 
     /**
-     * Os campos que o ATENDENTE preenche, ao preparar o documento.
+     * Os campos que ALGUÉM preenche — o atendente, ou quem assina quando o
+     * atendente os marca para perguntar no tablet. Só os automáticos ficam de
+     * fora.
      *
      * @return array<int, array<string, mixed>>
      */
-    public function attendantFields(): array
+    public function manualFields(): array
     {
         return array_values(array_filter(
             $this->declaredVariables(),
-            fn($v) => !$v['ask_signer'] && !SignatureFieldTypes::isAutomatic($v['type']),
+            fn($v) => !SignatureFieldTypes::isAutomatic($v['type']),
         ));
-    }
-
-    /**
-     * Os campos que QUEM ASSINA responde, no tablet, antes de ler o documento.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    public function signerFields(): array
-    {
-        return array_values(array_filter($this->declaredVariables(), fn($v) => $v['ask_signer']));
     }
 
     /**

@@ -25,6 +25,13 @@ class StoreSignatureDocumentRequest extends FormRequest
      */
     private array $fieldData = [];
 
+    /**
+     * Os campos que o atendente marcou para perguntar a quem assina.
+     *
+     * @var array<int, string>
+     */
+    private array $signerFieldKeys = [];
+
     public function authorize(): bool
     {
         return true;
@@ -32,14 +39,27 @@ class StoreSignatureDocumentRequest extends FormRequest
 
     /**
      * O que vai para `data`: só os campos que o ATENDENTE preenche, já
-     * conferidos. Os de quem assina e os automáticos não saem daqui nem que o
-     * formulário os mande — eles têm outra porta (SignatureSigningDataService).
+     * conferidos. Os marcados para perguntar a quem assina e os automáticos
+     * não saem daqui nem que o formulário os mande — eles têm outra porta
+     * (SignatureSigningDataService).
      *
      * @return array<string, mixed>
      */
     public function fieldData(): array
     {
         return $this->fieldData;
+    }
+
+    /**
+     * As chaves marcadas em "Perguntar ao signatário", só entre os campos do
+     * modelo que alguém preenche: chave inventada ou de campo automático não
+     * entra.
+     *
+     * @return array<int, string>
+     */
+    public function signerFieldKeys(): array
+    {
+        return $this->signerFieldKeys;
     }
 
     /**
@@ -75,8 +95,17 @@ class StoreSignatureDocumentRequest extends FormRequest
             }
 
             $bruto = (array) $this->input('data', []);
+            $marcados = array_map('strval', array_filter((array) $this->input('ask_signer', []), 'is_scalar'));
 
-            foreach ($modelo->attendantFields() as $campo) {
+            foreach ($modelo->manualFields() as $campo) {
+                // Vai ao tablet: quem responde é quem assina, e o que o
+                // atendente tenha digitado nele não é gravado.
+                if (in_array($campo['key'], $marcados, true)) {
+                    $this->signerFieldKeys[] = $campo['key'];
+
+                    continue;
+                }
+
                 [$valor, $erro] = SignatureFieldTypes::parse($campo, $bruto[$campo['key']] ?? null);
 
                 if ($erro !== null) {
@@ -109,6 +138,7 @@ class StoreSignatureDocumentRequest extends FormRequest
         return [
             'signature_template_id' => ['required', 'integer', 'exists:signature_templates,id'],
             'title' => ['nullable', 'string', 'max:200'],
+            'ask_signer' => ['nullable', 'array'],
 
             // Valores das variáveis do modelo. A obrigatoriedade de cada uma é
             // do MODELO, e é conferida no congelamento — aqui o rascunho pode

@@ -15,6 +15,7 @@ use App\Support\Cpf;
 use App\Support\EmailMask;
 use App\Support\PngTrimmer;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
@@ -342,24 +343,44 @@ class SignatureCaptureService
         $caminhoAssinatura = config('signature.paths.signatures') . '/' . $document->id
             . '/signer_' . $signer->id . '.png';
 
-        $disk->put($caminhoAssinatura, $assinatura);
+        $caminhoVisto = $visto !== null
+            ? config('signature.paths.signatures') . '/' . $document->id . '/signer_' . $signer->id . '_visto.png'
+            : null;
 
-        $caminhoVisto = null;
+        $caminhoFoto = $foto !== null
+            ? config('signature.paths.photos') . '/' . $document->id . '/signer_' . $signer->id . '.jpg'
+            : null;
 
-        if ($visto !== null) {
-            $caminhoVisto = config('signature.paths.signatures') . '/' . $document->id
-                . '/signer_' . $signer->id . '_visto.png';
+        /*
+         | O disco `local` tem `throw => false`: sem permissão na pasta, o put
+         | devolve false calado — e a assinatura seria registrada sem o traço,
+         | e a finalização quebraria depois, longe daqui. Confere cada gravação
+         | e recusa enquanto a pessoa ainda está no balcão.
+         */
+        $gravados = [];
 
-            $disk->put($caminhoVisto, $visto);
-        }
+        foreach (array_filter([
+            $caminhoAssinatura => $assinatura,
+            $caminhoVisto => $visto,
+            $caminhoFoto => $foto,
+        ], fn($bytes, $caminho) => $caminho !== '' && $bytes !== null, ARRAY_FILTER_USE_BOTH) as $caminho => $bytes) {
+            if (!$disk->put($caminho, $bytes)) {
+                $disk->delete($gravados);
 
-        $caminhoFoto = null;
+                Log::error('Assinatura no tablet: não foi possível gravar a evidência no disco.', [
+                    'document_id' => $document->id,
+                    'signer_id' => $signer->id,
+                    'caminho' => $caminho,
+                    'disco' => config('signature.disk'),
+                ]);
 
-        if ($foto !== null) {
-            $caminhoFoto = config('signature.paths.photos') . '/' . $document->id
-                . '/signer_' . $signer->id . '.jpg';
+                throw new SignatureSessionException(
+                    'Não foi possível gravar a assinatura no servidor. Chame o atendente.',
+                    500,
+                );
+            }
 
-            $disk->put($caminhoFoto, $foto);
+            $gravados[] = $caminho;
         }
 
         $fechouODocumento = false;

@@ -1,15 +1,20 @@
 @php
     /**
      * Um campo do modelo no formulário do ATENDENTE, com o controle do tipo
-     * dele. Recebe `$campo` (de `attendantFields()`) e `$valor` — o que o
+     * dele. Recebe `$campo` (de `manualFields()`), `$valor` — o que o
      * atendente digitou num envio recusado, ou o valor guardado, já na forma
-     * de formulário (`SignatureFieldTypes::inputValue`).
+     * de formulário (`SignatureFieldTypes::inputValue`) — e `$perguntar`: se o
+     * campo está marcado para perguntar a quem assina.
+     *
+     * Marcado, o controle some e o servidor ignora o que estiver nele: quem
+     * responde é quem assina, no tablet.
      *
      * A conferência é do servidor (StoreSignatureDocumentRequest); os
      * atributos daqui só ajudam a digitar.
      */
     use App\Services\Signature\SignatureFieldTypes as T;
 
+    $perguntar = $perguntar ?? false;
     $nome = 'data[' . $campo['key'] . ']';
     $id = 'data_' . $campo['key'];
     $classe = 'w-full rounded-xl border-line-strong shadow-card focus:border-grena focus:ring-grena-tint';
@@ -41,11 +46,25 @@
     };
 @endphp
 
-<div>
-    <label for="{{ $id }}" class="block text-sm font-bold text-ink mb-1">
-        {{ $campo['label'] }}
-        @if($campo['required'])<span class="text-grena-ink">*</span>@endif
-    </label>
+<div data-ask-field>
+    <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-1">
+        <label for="{{ $id }}" class="block text-sm font-bold text-ink">
+            {{ $campo['label'] }}
+            @if($campo['required'])<span class="text-grena-ink">*</span>@endif
+        </label>
+        <label class="flex items-center gap-2 text-xs text-ink-2">
+            <input type="checkbox" name="ask_signer[]" value="{{ $campo['key'] }}" data-ask-toggle
+                   @checked($perguntar)
+                   class="rounded border-line-strong text-grena-ink focus:ring-grena-tint">
+            Perguntar ao signatário
+        </label>
+    </div>
+
+    <p data-ask-note class="text-xs text-ink-2 rounded-lg bg-subtle px-3 py-2" @if(!$perguntar) hidden @endif>
+        Quem assina responde no tablet{{ $campo['question'] !== $campo['label'] ? ': “' . $campo['question'] . '”' : '' }}.
+    </p>
+
+    <div data-ask-answer @if($perguntar) hidden @endif>
 
     @if($campo['type'] === T::TEXTAREA)
         <textarea name="{{ $nome }}" id="{{ $id }}" rows="4" class="{{ $classe }}">{{ is_string($valor) ? $valor : '' }}</textarea>
@@ -93,6 +112,7 @@
     @elseif($campo['type'] === T::DATE_LONG)
         <p class="mt-1 text-xs text-ink-2">Sai no documento por extenso: 3 de outubro de 2026.</p>
     @endif
+    </div>
 
     @error('data.' . $campo['key'])<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
 </div>

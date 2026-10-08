@@ -48,7 +48,7 @@ class SignatureSigningDataService
      */
     public function form(SignatureDocument $document): ?array
     {
-        $campos = $document->template->signerFields();
+        $campos = $document->signerFields();
 
         if ($campos === [] || !$document->signingDataIsOpen()) {
             return null;
@@ -113,7 +113,7 @@ class SignatureSigningDataService
      */
     public function answer(SignatureDocument $document, array $answers, array $context = []): SignatureDocument
     {
-        $campos = $document->template->signerFields();
+        $campos = $document->signerFields();
 
         if ($campos === []) {
             throw new SignatureSessionException('Este documento não tem perguntas a responder.', 409);
@@ -166,7 +166,7 @@ class SignatureSigningDataService
     {
         $valores = [];
 
-        foreach ($document->template->automaticFields() as $campo) {
+        foreach ($document->automaticFields() as $campo) {
             $valores[$campo['key']] = SignatureFieldTypes::automaticValue($campo['type'], now());
         }
 

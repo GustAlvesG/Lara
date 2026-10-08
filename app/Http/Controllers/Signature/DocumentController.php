@@ -99,6 +99,7 @@ class DocumentController extends Controller
             [
                 'title' => $dados['title'] ?? null,
                 'data' => $request->fieldData(),
+                'signer_field_keys' => $request->signerFieldKeys(),
                 'attachment_requirements' => $request->attachmentRequirements(),
             ],
             $dados['signers'],
@@ -221,6 +222,7 @@ class DocumentController extends Controller
                 [
                     'title' => $dados['title'] ?? null,
                     'data' => $request->fieldData(),
+                    'signer_field_keys' => $request->signerFieldKeys(),
                     'attachment_requirements' => $request->attachmentRequirements(),
                 ],
                 $dados['signers'],

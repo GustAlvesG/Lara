@@ -340,9 +340,11 @@
     <section class="screen" id="tela-foto">
       <div class="cam-wrap">
         <h2>Registro da assinatura</h2>
-        <p class="lead" style="margin-bottom:4px;">Olhe para a câmera. A foto será tirada automaticamente.</p>
+        <p class="lead" style="margin-bottom:4px;">Ajeite-se de frente para a câmera e toque em <b>Tirar foto</b>. A foto sai depois de 3 segundos.</p>
         <div class="cam-view"><video id="camVideo" playsinline muted></video></div>
-        <div class="cam-count" id="camContagem">3</div>
+        <!-- A contagem só começa no toque: a pessoa decide quando está pronta. -->
+        <button type="button" class="btn btn-primary hidden" id="btnFoto" style="flex:0 0 auto;width:min(82vw,380px);">Tirar foto</button>
+        <div class="cam-count hidden" id="camContagem">3</div>
         <p class="note note-danger hidden" id="erroFoto"></p>
       </div>
     </section>
@@ -481,10 +483,16 @@
         'X-Requested-With': 'XMLHttpRequest',
       },
       body: corpo ? JSON.stringify(corpo) : undefined,
+    }).catch(function () {
+      // Nem chegou resposta: rede, Wi-Fi do tablet, servidor fora do ar.
+      throw new Error('Sem resposta do servidor. Confira a conexão do tablet e tente de novo.');
     }).then(function (resposta) {
       return resposta.json().catch(function () { return {}; }).then(function (dados) {
         if (!resposta.ok) {
-          var falha = new Error(dados.error || 'Falha na comunicação com o servidor.');
+          // Sem `error` no corpo, quem respondeu não foi o Lara de propósito
+          // (erro interno, limite do servidor, proxy): o código HTTP na tela é
+          // o que permite ao atendente e à TI achar a causa no log.
+          var falha = new Error(dados.error || ('Falha na comunicação com o servidor (código ' + resposta.status + ').'));
           falha.status = resposta.status;
           // Erros por pergunta do formulário (chave do campo => mensagem).
           falha.campos = dados.errors || null;
@@ -1660,9 +1668,13 @@
    |---------------------------------------------------------------------*/
 
   var streamFoto = null;
+  var timerFoto = null;
 
   function iniciaFoto() {
     $('#erroFoto').classList.add('hidden');
+    $('#btnFoto').classList.add('hidden');
+    $('#btnFoto').disabled = false;
+    $('#camContagem').classList.add('hidden');
 
     if (!temCamera()) {
       $('#erroFoto').textContent = 'Câmera indisponível (é preciso HTTPS). Chame o atendente.';
@@ -1676,7 +1688,8 @@
         var video = $('#camVideo');
         video.srcObject = stream;
 
-        return video.play().then(function () { contagemDaFoto(); });
+        // Câmera no ar: a pessoa se vê e toca no botão quando estiver pronta.
+        return video.play().then(function () { $('#btnFoto').classList.remove('hidden'); });
       })
       .catch(function () {
         $('#erroFoto').textContent = 'Não foi possível abrir a câmera frontal. Chame o atendente.';
@@ -1684,16 +1697,29 @@
       });
   }
 
+  $('#btnFoto').addEventListener('click', function () {
+    // Um toque só: um segundo toque não pode abrir outra contagem.
+    if (timerFoto || !streamFoto) {
+      return;
+    }
+
+    $('#btnFoto').disabled = true;
+    $('#btnFoto').classList.add('hidden');
+    contagemDaFoto();
+  });
+
   function contagemDaFoto() {
     var restante = 3;
     $('#camContagem').textContent = restante;
+    $('#camContagem').classList.remove('hidden');
 
-    var t = setInterval(function () {
+    timerFoto = setInterval(function () {
       restante--;
       $('#camContagem').textContent = restante > 0 ? restante : '📷';
 
       if (restante <= 0) {
-        clearInterval(t);
+        clearInterval(timerFoto);
+        timerFoto = null;
         capturaFoto();
       }
     }, 1000);
@@ -1724,6 +1750,10 @@
   }
 
   function desligaCamera() {
+    // Atendimento encerrado no meio da contagem: a foto não sai depois.
+    clearInterval(timerFoto);
+    timerFoto = null;
+
     if (streamFoto) {
       streamFoto.getTracks().forEach(function (t) { t.stop(); });
       streamFoto = null;

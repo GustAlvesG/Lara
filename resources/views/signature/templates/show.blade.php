@@ -89,9 +89,9 @@
                                         </span>
                                         @if(\App\Services\Signature\SignatureFieldTypes::isAutomatic($variavel['type']))
                                             <span class="block text-[10px] text-ink-2">preenchido pelo sistema</span>
-                                        @elseif($variavel['ask_signer'])
+                                        @elseif($variavel['question'] !== $variavel['label'])
                                             <span class="block text-[10px] text-ink-2">
-                                                quem assina responde: {{ $variavel['question'] }}
+                                                no tablet: {{ $variavel['question'] }}
                                             </span>
                                         @endif
                                         @if($variavel['options'])
