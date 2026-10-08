@@ -124,6 +124,19 @@
                         </ul>
                     @endif
                 </div>
+
+                <div class="bg-surface rounded-card shadow-card p-6" data-template-review-items>
+                    <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider mb-4">Itens da revisão</h3>
+                    @if(empty($template->declaredReviewItems()))
+                        <p class="text-sm text-ink-2">Nenhum: a revisão registra só o resultado e a observação.</p>
+                    @else
+                        <ul class="space-y-2 text-sm text-ink list-disc pl-5">
+                            @foreach($template->declaredReviewItems() as $item)
+                                <li>{{ $item['label'] }}</li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </div>
             </div>
         </div>
 

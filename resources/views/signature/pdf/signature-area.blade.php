@@ -16,7 +16,9 @@
     @foreach($signers as $signer)
         <div class="sig-block">
             @if($mode === SignatureDocumentRenderer::MODE_FINAL && isset($signatureImages[$signer->id]))
-                <img src="{{ $signatureImages[$signer->id] }}" alt="Assinatura" class="sig-img">
+                @php $imagem = $signatureImages[$signer->id]; @endphp
+                <img src="{{ $imagem['src'] }}" alt="Assinatura" class="sig-img"
+                     style="width: {{ $imagem['width'] }}px; height: {{ $imagem['height'] }}px;">
             @endif
 
             <div class="sig-line">

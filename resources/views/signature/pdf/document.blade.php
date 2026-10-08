@@ -60,7 +60,8 @@
         /* Área de assinatura — ver signature-area.blade.php. */
         .sig-area { margin-top: 30px; page-break-inside: avoid; }
         .sig-block { margin-top: 26px; page-break-inside: avoid; }
-        .sig-img { height: 68px; margin-bottom: -6px; }
+        /* Tamanho no style de cada imagem: o traço recortado, na caixa de 280×100 (ver SignatureDocumentRenderer). */
+        .sig-img { display: block; margin-bottom: 2px; }
         .sig-line { border-top: 1px solid #1f1819; width: 300px; padding-top: 5px; }
         .sig-name { font-size: 10.5px; font-weight: bold; }
         .sig-meta { font-size: 9px; color: #6d6062; }

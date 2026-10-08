@@ -75,6 +75,7 @@ use App\Http\Controllers\Signature\GuideController as SignatureGuideController;
 use App\Http\Controllers\Signature\LayoutController as SignatureLayoutController;
 use App\Http\Controllers\Signature\QuiosqueController;
 use App\Http\Controllers\Signature\ReleaseController as SignatureReleaseController;
+use App\Http\Controllers\Signature\ReviewController as SignatureReviewController;
 use App\Http\Controllers\Signature\TemplateController as SignatureTemplateController;
 use App\Http\Controllers\Signature\ValidationController as SignatureValidationController;
 
@@ -1013,6 +1014,12 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             });
         });
 
+    // Revisão interna dos documentos assinados: a fila. O registro da revisão
+    // é por documento, junto das demais ações dele.
+    Route::get('assinatura/revisao', [SignatureReviewController::class, 'index'])
+        ->middleware('can:acessar-revisao-assinatura')
+        ->name('signature-reviews.index');
+
     Route::prefix('assinatura/documentos')->name('signature-documents.')->group(function () {
         Route::get('/', [SignatureDocumentController::class, 'index'])->name('index');
 
@@ -1089,6 +1096,10 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::delete('/anexos/{signatureAttachment}', [SignatureAttachmentController::class, 'destroy'])
                 ->whereNumber('signatureAttachment')
                 ->middleware('throttle:30,1')->name('attachments.destroy');
+
+            // Revisão interna (aba "Revisão"): ver SignatureReviewService.
+            Route::post('/revisao', [SignatureReviewController::class, 'store'])
+                ->middleware('throttle:30,1')->name('review');
         });
     });
 

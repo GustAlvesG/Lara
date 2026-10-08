@@ -56,6 +56,7 @@ class SignatureAuditEvent extends Model
     public const EVENT_GOVBR_INVITE_SENT = 'govbr_invite_sent';
     public const EVENT_ATTACHMENT_ADDED = 'attachment_added';
     public const EVENT_ATTACHMENT_REMOVED = 'attachment_removed';
+    public const EVENT_REVIEWED = 'reviewed';
 
     public const EVENT_LABELS = [
         self::EVENT_CREATED => 'Documento criado',
@@ -87,6 +88,7 @@ class SignatureAuditEvent extends Model
         self::EVENT_GOVBR_INVITE_SENT => 'Convite para assinar pelo gov.br enviado por e-mail',
         self::EVENT_ATTACHMENT_ADDED => 'Anexo enviado',
         self::EVENT_ATTACHMENT_REMOVED => 'Anexo removido do rascunho',
+        self::EVENT_REVIEWED => 'Revisão interna registrada',
     ];
 
     public const ACTOR_USER = 'user';

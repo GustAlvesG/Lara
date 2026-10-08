@@ -88,10 +88,21 @@
                             <span class="font-mono text-[11px] text-ink-3">{{ $document->govbrChecks->count() }}</span>
                         @endif
                     </a>
+                    @if($document->status === \App\Models\SignatureDocument::STATUS_FINALIZED)
+                        <a href="{{ route('signature-documents.show', [$document, 'aba' => 'revisao']) }}" role="tab"
+                           aria-selected="{{ $aba === 'revisao' ? 'true' : 'false' }}" class="{{ $tabClasses }}">
+                            Revisão
+                            @if($document->awaitsReview())
+                                <span class="inline-block h-2 w-2 rounded-full {{ $document->review_status ? 'bg-danger' : 'bg-warn' }}" aria-label="{{ $document->reviewStatusLabel() }}"></span>
+                            @endif
+                        </a>
+                    @endif
                 </div>
 
                 @if($aba === 'govbr')
                     @include('signature.documents.partials.govbr', ['document' => $document])
+                @elseif($aba === 'revisao')
+                    @include('signature.documents.partials.review', ['document' => $document])
                 @else
 
                 <div class="bg-surface rounded-card shadow-card p-6">

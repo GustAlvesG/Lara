@@ -28,6 +28,8 @@ uma trilha de auditoria encadeada.
 | Atendimento | Cria documentos, congela e libera para o tablet | `assinatura.documentos` |
 | Consulta | Abre documentos assinados e baixa o PDF | `assinatura.consultar` |
 | Auditoria | Vê a foto e o traço do signatário | `assinatura.evidencias` |
+| Revisão | Revisa os documentos assinados: do dia seguinte em diante, só os que não acompanhou | `assinatura.revisar` |
+| Coordenação da revisão | Revisa antes do prazo e os próprios documentos — **dê em Setores só aos coordenadores** | `assinatura.revisar-coordenacao` |
 
 As quatro permissões são criadas no banco pelo seed padrão `PermissionCatalogSeeder`, que o
 script de deploy roda. Elas nascem **sem setor**: quem as recebe é configurado na tela de
@@ -267,6 +269,13 @@ com o traço no lugar do campo, mais uma **página de manifesto** com signatári
 data e hora do servidor, o usuário que gerou o documento e o que gerou cada QR, IP e dispositivo, tempo de leitura, miniatura da
 foto, o `original_sha256`, a trilha de eventos e o **QR de validação**.
 
+**Tamanho do traço no documento:** o tablet manda a tela de desenho inteira, quase toda vazia. O
+`SignatureDocumentRenderer::signatureImages` recorta a imagem ao traço (`PngTrimmer`, o mesmo do
+PDF enviado pronto) e a imprime no maior tamanho que cabe em **280×100px**
+(`SIGNATURE_BOX_WIDTH`/`HEIGHT`), sem distorcer. Até 08/10/2026 a tela inteira saía espremida em
+68px de altura, e o traço ficava pequeno. A evidência gravada não muda: o recorte é só para
+imprimir. Documentos já finalizados ficam como estão: o PDF final deles foi gravado e tem hash.
+
 > **Documento assinado pelo gov.br: o manifesto é um PDF à parte.** O PDF final é o arquivo que
 > voltou do gov.br, **byte a byte** (`govbr_check_id`), conferido contra o hash da conferência antes
 > de ser gravado. Re-renderizar, carimbar, acrescentar página ou lacrar quebraria as assinaturas. Por
@@ -293,6 +302,29 @@ foto, o `original_sha256`, a trilha de eventos e o **QR de validação**.
 
 O job é idempotente (reentrega da fila não gera um segundo arquivo) e falha sem perder evidência:
 assinatura, traço, foto e trilha já estão gravados — falta só o arquivo, que pode ser refeito.
+
+## Revisão interna
+
+Todo documento **concluído** passa por uma revisão interna: outra pessoa, que **não acompanhou** a
+assinatura, confere se os processos internos daquele atendimento foram feitos. Não mexe no
+documento assinado (nem PDF, nem hash): é registro interno, com evento na trilha.
+
+| Regra | Como |
+|---|---|
+| **O que conferir** | Os **Itens da revisão** do modelo (`signature_templates.review_items`, chave `rev_…` a partir do rótulo — `SignatureReviewService::normalize`). Modelo sem itens: a revisão registra só resultado e observação |
+| **Quando** | A partir do **dia seguinte** à conclusão (`SignatureDocument::reviewAvailableAt()` = `finalized_at` + 1 dia, 00:00) |
+| **Quem não revisa** | Quem acompanhou: gerou o documento (`created_by`), gerou algum QR (`signature_requests.created_by`), enviou convite (`signature_govbr_invites.sent_by`) ou conferiu arquivo do gov.br (`signature_govbr_checks.checked_by`) — `SignatureDocument::involvedUserIds()` |
+| **Coordenação** | Com `assinatura.revisar-coordenacao`, as duas regras acima caem; a revisão grava `early` (antes do prazo) e `own` (de quem acompanhou), e a tela mostra |
+| **Resultado** | "Tudo em ordem" exige **todos** os itens feitos; "Com pendência" exige **observação**. Pendência mantém o documento na fila; uma revisão em ordem encerra (não há outra depois) |
+| **Registro** | `signature_reviews` (itens com `done`, observação, quem, flags) + `signature_documents.review_status`/`reviewed_at` (retrato da última) + evento `reviewed` (resultado, itens pendentes pelo rótulo, quem — **sem** a observação, que é texto livre) |
+
+**Onde:** menu **Assinaturas → Revisão** (`signature-reviews.index`, Gate `acessar-revisao-assinatura`) lista
+"A revisar" (concluídos sem revisão em ordem, o mais antigo primeiro, com o motivo quando a pessoa ainda
+não pode revisar) e "Revisados em ordem". A revisão é registrada na aba **Revisão** do documento
+(`?aba=revisao`, rota `signature-documents.review`), que mostra também o histórico. Quem revisa abre o
+documento mesmo sem `assinatura.documentos`/`consultar` (`SignatureDocumentPolicy::viewAny`).
+
+Migration `2026_10_11_100400_create_signature_reviews`. Testes: `SignatureReviewTest`.
 
 ## Página pública de validação
 
@@ -981,7 +1013,7 @@ sessão parada e documento não assinado.
 ## Colocando para funcionar
 
 ```bash
-php artisan migrate                                   # 26 migrations do módulo
+php artisan migrate                                   # 27 migrations do módulo
 php artisan db:seed --class=SignatureTemplateSeeder   # opcional: 3 modelos iniciais
 php artisan queue:work                                # OBRIGATÓRIO — ver abaixo
 ```

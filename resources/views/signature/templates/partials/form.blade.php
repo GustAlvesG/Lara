@@ -258,6 +258,18 @@
         ])
     </div>
 
+    <div>
+        <label class="block text-sm font-bold text-ink mb-2">Itens da revisão</label>
+        <p class="text-xs text-ink-2 mb-3">
+            O que a <strong>revisão interna</strong> confere em todo documento deste modelo, depois de assinado — os
+            processos internos do atendimento ("Cadastro atualizado no sistema", "Pagamento lançado"). A revisão é
+            feita por outra pessoa, a partir do dia seguinte, em <strong>Assinaturas → Revisão</strong>.
+        </p>
+        @include('signature.partials.review-items', [
+            'items' => old('review_items', $template?->review_items ?? []),
+        ])
+    </div>
+
     <div class="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2 border-t border-line">
         <div>
             <label for="identity_check" class="block text-sm font-bold text-ink mb-1">

@@ -9,6 +9,7 @@ use App\Models\SignatureDocument;
 use App\Models\SignatureEvidence;
 use App\Models\SignatureRequest;
 use App\Models\SignatureSigner;
+use App\Services\Signature\SignatureDocumentRenderer;
 use App\Services\Signature\SignatureDocumentService;
 use App\Services\Signature\SignatureRequestService;
 use Illuminate\Support\Facades\Queue;
@@ -320,6 +321,39 @@ class SignatureCaptureTest extends TestCase
 
         // A sessão acabou junto com o atendimento.
         $this->comSessao($cookie)->getJson(route('quiosque.session'))->assertStatus(419);
+    }
+
+    /**
+     * O tablet manda a tela de desenho inteira. No documento, o traço sai
+     * recortado e no tamanho da caixa — não a tela toda espremida em 68px.
+     */
+    public function test_traco_sai_recortado_e_grande_no_documento(): void
+    {
+        // Tela de 1200×400 com o traço num canto de 300×100.
+        $tela = imagecreatetruecolor(1200, 400);
+        imagesavealpha($tela, true);
+        imagefill($tela, 0, 0, imagecolorallocatealpha($tela, 0, 0, 0, 127));
+        imagefilledrectangle($tela, 100, 250, 399, 349, imagecolorallocate($tela, 0, 0, 0));
+        ob_start();
+        imagepng($tela);
+        $png = 'data:image/png;base64,' . base64_encode((string) ob_get_clean());
+
+        ['document' => $documento, 'cookie' => $cookie] = $this->sessaoAberta(['requires_photo' => false]);
+
+        $this->confirmaIdentidade($cookie, $documento);
+
+        $this->comSessao($cookie)
+            ->postJson(route('quiosque.sign', $documento), [
+                'signature' => $png,
+                'strokes' => $this->tracos(),
+                'accepted' => true,
+            ])
+            ->assertOk();
+
+        $html = app(SignatureDocumentRenderer::class)->html($documento->fresh(), SignatureDocumentRenderer::MODE_FINAL);
+
+        // Recortado (~3:1) e esticado até a caixa: largura cheia, ~100px de altura.
+        $this->assertMatchesRegularExpression('/class="sig-img"\s+style="width: 280px; height: 9\dpx;"/', $html);
     }
 
     /**

@@ -145,7 +145,7 @@
         <tr><td class="n">5</td><td><a href="#revisar">Revisar um modelo e ajustar o papel timbrado</a></td><td class="who">quem escreve os modelos</td></tr>
         <tr><td class="n">6</td><td><a href="#documento">Emitir um documento no balcão</a></td><td class="who">atendimento</td></tr>
         <tr><td class="n">7</td><td><a href="#tablet">O que a pessoa vê no tablet</a></td><td class="who">atendimento</td></tr>
-        <tr><td class="n">8</td><td><a href="#depois">Depois de assinado: onde está o documento</a></td><td class="who">todos</td></tr>
+        <tr><td class="n">8</td><td><a href="#depois">Depois de assinado: onde está o documento e a revisão</a></td><td class="who">todos</td></tr>
         <tr><td class="n">9</td><td><a href="#govbr">Assinatura pelo gov.br (quem não vem ao balcão)</a></td><td class="who">atendimento</td></tr>
         <tr><td class="n">10</td><td><a href="#problemas">Problemas comuns</a></td><td class="who">todos</td></tr>
         <tr><td class="n">11</td><td><a href="#cola">Cola rápida dos marcadores</a></td><td class="who">quem escreve os modelos</td></tr>
@@ -687,7 +687,7 @@
 
 <!-- ====================================================== 8 -->
 <div class="section" id="depois">
-    <h2>8. Depois de assinado: onde está o documento</h2>
+    <h2>8. Depois de assinado: onde está o documento e a revisão</h2>
 
     <h3>No sistema</h3>
     <table class="steps">
@@ -744,6 +744,37 @@
                 <code>validar.iti.gov.br</code>.</td>
         </tr>
     </table>
+    </div>
+
+    <div class="keep">
+    <h3>A revisão interna</h3>
+    <p>Todo documento concluído passa por uma <b>revisão</b>: outra pessoa confere se os processos internos daquele
+        atendimento foram feitos. O que conferir vem do modelo, em <b>Itens da revisão</b> (por exemplo "Cadastro
+        atualizado no sistema", "Pagamento lançado").</p>
+    <table class="steps">
+        <tr>
+            <td class="n"><span class="num">1</span></td>
+            <td>Abra <span class="menu">Assinaturas → Revisão</span>. A lista traz os documentos concluídos que ainda
+                não foram revisados, o mais antigo primeiro.</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">2</span></td>
+            <td>Clique em <span class="btn2">Revisar</span>. Na aba <b>Revisão</b> do documento, marque cada item que foi
+                feito, escolha <b>Tudo em ordem</b> ou <b>Com pendência</b> e clique em
+                <span class="btn">Registrar revisão</span>. Com pendência, escreva na observação o que falta.</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">3</span></td>
+            <td>Com pendência, o documento continua na lista. Resolvido o que faltava, revise de novo e marque
+                <b>Tudo em ordem</b>.</td>
+        </tr>
+    </table>
+    <div class="box tip">
+        <b class="h">Regras</b> O documento fica disponível para revisão <b>a partir do dia seguinte</b> à conclusão, e quem
+        acompanhou a assinatura (gerou o documento, o QR Code, o convite ou conferiu o arquivo do gov.br)
+        <b>não</b> revisa — a lista diz o motivo. A <b>coordenação</b> pode revisar antes do prazo e também os
+        próprios documentos; a revisão fica marcada assim.
+    </div>
     </div>
 
 </div>

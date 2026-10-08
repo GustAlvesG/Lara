@@ -79,6 +79,8 @@ class StoreSignatureTemplateRequest extends FormRequest
             'attachments' => ['nullable', 'array', 'max:20'],
             'attachments.*.label' => ['nullable', 'string', 'max:120'],
             'attachments.*.required' => ['nullable', 'boolean'],
+            'review_items' => ['nullable', 'array', 'max:30'],
+            'review_items.*.label' => ['nullable', 'string', 'max:120'],
 
             'requires_photo' => ['nullable', 'boolean'],
             'requires_initials' => ['nullable', 'boolean'],

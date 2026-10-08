@@ -5,6 +5,7 @@ namespace App\Services\Signature;
 use App\Models\SignatureDocument;
 use App\Models\SignatureLayout;
 use App\Models\SignatureTemplate;
+use App\Support\PngTrimmer;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -578,7 +579,13 @@ class SignatureDocumentRenderer
      * pessoa não tem URL — a mesma decisão da assinatura do diretor nos
      * contratos de freelancer.
      *
-     * @return array<int, string>
+     * O tablet manda a tela de desenho inteira, quase toda vazia: reduzida à
+     * área de assinatura, ela virava um risquinho. A imagem é RECORTADA ao
+     * traço (como no PDF enviado pronto, ver SignaturePdfStamper) e ganha o
+     * tamanho que cabe na caixa SIGNATURE_BOX_*, sem distorcer. O arquivo
+     * gravado (a evidência) não muda: o recorte é só para imprimir.
+     *
+     * @return array<int, array{src: string, width: int, height: int}>
      */
     private function signatureImages(SignatureDocument $document): array
     {
@@ -592,9 +599,41 @@ class SignatureDocumentRenderer
                 continue;
             }
 
-            $imagens[$signatario->id] = 'data:image/png;base64,' . base64_encode($disk->get($caminho));
+            $bytes = PngTrimmer::trim((string) $disk->get($caminho));
+            [$largura, $altura] = $this->fitSignature($bytes);
+
+            $imagens[$signatario->id] = [
+                'src' => 'data:image/png;base64,' . base64_encode($bytes),
+                'width' => $largura,
+                'height' => $altura,
+            ];
         }
 
         return $imagens;
+    }
+
+    /** A caixa em que o traço é impresso, em px do PDF. A linha de assinatura tem 300px. */
+    public const SIGNATURE_BOX_WIDTH = 280;
+
+    public const SIGNATURE_BOX_HEIGHT = 100;
+
+    /**
+     * O maior tamanho que cabe na caixa mantendo a proporção do traço.
+     * Sem ler a imagem, a caixa inteira de altura e largura proporcional
+     * de uma assinatura comum (3:1).
+     *
+     * @return array{0: int, 1: int}
+     */
+    private function fitSignature(string $png): array
+    {
+        $info = @getimagesizefromstring($png);
+
+        if (!$info || $info[0] < 1 || $info[1] < 1) {
+            return [min(self::SIGNATURE_BOX_WIDTH, self::SIGNATURE_BOX_HEIGHT * 3), self::SIGNATURE_BOX_HEIGHT];
+        }
+
+        $escala = min(self::SIGNATURE_BOX_WIDTH / $info[0], self::SIGNATURE_BOX_HEIGHT / $info[1]);
+
+        return [max(1, (int) round($info[0] * $escala)), max(1, (int) round($info[1] * $escala))];
     }
 }

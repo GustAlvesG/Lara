@@ -187,14 +187,28 @@ class DocumentController extends Controller
     {
         $this->authorize('view', $signatureDocument);
 
-        $signatureDocument->load(['template', 'signers.requests', 'signers.evidence', 'signers.govbrCheck', 'signers.govbrInvites', 'govbrChecks', 'attachments']);
+        $signatureDocument->load(['template', 'signers.requests', 'signers.evidence', 'signers.govbrCheck', 'signers.govbrInvites', 'govbrChecks', 'attachments', 'reviews']);
+
+        $aba = in_array($request->query('aba'), ['govbr', 'revisao'], true) ? $request->query('aba') : 'documento';
+
+        // Revisão: só de documento concluído. O motivo de não poder revisar
+        // vai à tela — o prazo e "você acompanhou" são regra, não 403.
+        $podeRevisar = $request->user()->can('review', $signatureDocument);
 
         return view('signature.documents.show', [
             'document' => $signatureDocument,
             'events' => $signatureDocument->auditEvents()->get(),
-            // A aba vem pelo endereço: o envio do PDF do gov.br volta direto
-            // para ela, com o resultado na tela.
-            'aba' => $request->query('aba') === 'govbr' ? 'govbr' : 'documento',
+            // A aba vem pelo endereço: o envio do PDF do gov.br e a revisão
+            // voltam direto para a aba deles, com o resultado na tela.
+            'aba' => $aba === 'revisao' && $signatureDocument->status !== SignatureDocument::STATUS_FINALIZED ? 'documento' : $aba,
+            'podeRevisar' => $podeRevisar,
+            'bloqueioRevisao' => $podeRevisar
+                ? app(\App\Services\Signature\SignatureReviewService::class)->blockReason(
+                    $signatureDocument,
+                    $request->user()->id,
+                    $request->user()->can(\App\Authorization\Permissions::ASSINATURA_REVISAR_COORDENACAO),
+                )
+                : null,
         ]);
     }
 

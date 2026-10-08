@@ -181,6 +181,7 @@ class TemplateController extends Controller
             )),
             'parties' => $this->parties($corpo, array_values($dados['parties'] ?? [])),
             'attachments' => SignatureAttachmentService::normalize(array_values($dados['attachments'] ?? []), 'mod'),
+            'review_items' => \App\Services\Signature\SignatureReviewService::normalize(array_values($dados['review_items'] ?? [])),
             'requires_photo' => (bool) ($dados['requires_photo'] ?? false),
             'requires_initials' => (bool) ($dados['requires_initials'] ?? false),
             'identity_check' => $dados['identity_check'],

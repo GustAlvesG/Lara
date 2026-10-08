@@ -62,6 +62,8 @@ class SignatureDocument extends Model
         'data',
         'attachment_requirements',
         'signer_field_keys',
+        'review_status',
+        'reviewed_at',
         'signing_data',
         'signing_answered_at',
         'body_snapshot',
@@ -105,6 +107,7 @@ class SignatureDocument extends Model
         'data' => 'array',
         'attachment_requirements' => 'array',
         'signer_field_keys' => 'array',
+        'reviewed_at' => 'datetime',
         'signing_data' => 'array',
         'signing_answered_at' => 'datetime',
         'frozen_at' => 'datetime',
@@ -213,6 +216,64 @@ class SignatureDocument extends Model
     public function govbrChecks(): HasMany
     {
         return $this->hasMany(SignatureGovbrCheck::class)->orderByDesc('id');
+    }
+
+    /**
+     * As revisões internas, a mais recente primeiro.
+     *
+     * @return HasMany<SignatureReview>
+     */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(SignatureReview::class)->orderByDesc('id');
+    }
+
+    /**
+     * Quando o documento fica disponível para revisão: o começo do dia
+     * seguinte à conclusão. Null enquanto não concluído.
+     */
+    public function reviewAvailableAt(): ?\Illuminate\Support\Carbon
+    {
+        return $this->finalized_at?->copy()->addDay()->startOfDay();
+    }
+
+    /** Concluído e ainda sem revisão "em ordem": está na fila. */
+    public function awaitsReview(): bool
+    {
+        return $this->status === self::STATUS_FINALIZED
+            && $this->review_status !== SignatureReview::RESULT_OK;
+    }
+
+    public function reviewStatusLabel(): string
+    {
+        if ($this->status !== self::STATUS_FINALIZED) {
+            return 'Não se aplica';
+        }
+
+        return match ($this->review_status) {
+            SignatureReview::RESULT_OK => 'Revisado',
+            SignatureReview::RESULT_ISSUES => 'Revisado com pendência',
+            default => 'Aguardando revisão',
+        };
+    }
+
+    /**
+     * Quem acompanhou a assinatura deste documento: quem o gerou, quem gerou
+     * algum QR, quem enviou convite ou conferiu arquivo do gov.br. Nenhum
+     * deles revisa (salvo com a permissão de coordenação).
+     *
+     * @return array<int, int>
+     */
+    public function involvedUserIds(): array
+    {
+        $signatarios = $this->signers()->pluck('id');
+
+        $ids = collect([$this->created_by])
+            ->merge(SignatureRequest::whereIn('signature_signer_id', $signatarios)->pluck('created_by'))
+            ->merge(SignatureGovbrInvite::whereIn('signature_signer_id', $signatarios)->pluck('sent_by'))
+            ->merge($this->govbrChecks()->pluck('checked_by'));
+
+        return $ids->filter()->map(fn($id) => (int) $id)->unique()->values()->all();
     }
 
     /**

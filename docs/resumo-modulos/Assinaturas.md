@@ -17,7 +17,7 @@ foto; a fila monta o PDF final com **manifesto** e QR de validação pública (`
 
 ## Menu e permissões
 
-Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Modelos, Guia.
+Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Revisão, Modelos, Guia.
 
 | Permissão (`App\Authorization\Permissions`) | Uso |
 |---|---|
@@ -25,6 +25,8 @@ Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Modelos, Guia.
 | `assinatura.documentos` (`ASSINATURA_DOCUMENTOS`) | Criar, congelar, liberar, cancelar |
 | `assinatura.consultar` (`ASSINATURA_CONSULTAR`) | Ver assinados e baixar PDF |
 | `assinatura.evidencias` (`ASSINATURA_EVIDENCIAS`) | Ver foto e traço do signatário |
+| `assinatura.revisar` (`ASSINATURA_REVISAR`) | Revisão interna: do dia seguinte em diante, só o que não acompanhou |
+| `assinatura.revisar-coordenacao` (`ASSINATURA_REVISAR_COORDENACAO`) | Revisa antes do prazo e os próprios (dar só a coordenadores, em Setores) |
 
 - Gates compostos em `AppServiceProvider`: `acessar-documentos-assinatura` (documentos **ou** consultar) e
   `acessar-guia-assinatura` (qualquer das três). O menu usa Gate, nunca método de model.
@@ -259,3 +261,19 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 - `throttle:N,M` é contado POR ROTA (`App\Http\Middleware\ThrottleRequestsPerRoute`, alias em `bootstrap/app.php`).
   Antes, um contador só por IP/usuário: o batimento do tablet (`/sessao` a cada 5 s) estourava o `/assinar` (10/min) → 429.
   Ao criar rota nova com polling, o limite dela não afeta mais as outras.
+
+## Tamanho do traço no PDF (08/10/2026)
+
+- `SignatureDocumentRenderer::signatureImages()` devolve `{src, width, height}`: PNG recortado (`PngTrimmer`) e
+  encaixado em 280×100px (`SIGNATURE_BOX_*`); `signature-area.blade.php` põe o tamanho no `style`. Antes era a tela
+  inteira com `height: 68px` (traço minúsculo). O PDF enviado pronto (`SignaturePdfStamper`) já recortava.
+
+## Revisão interna (08/10/2026)
+
+- `SignatureReviewService` (`blockReason`, `review`), `SignatureReview` (tabela `signature_reviews`),
+  `signature_documents.review_status` (null|ok|issues) + `reviewed_at`, `signature_templates.review_items`.
+- Regras: só `finalized`; a partir de `finalized_at`+1 dia 00:00; não quem acompanhou (`involvedUserIds()`: criador,
+  QR, convite e conferência gov.br). `assinatura.revisar-coordenacao` dispensa as duas e grava `early`/`own`.
+- "ok" exige todos os itens; "issues" exige observação e mantém na fila; "ok" encerra. Evento `reviewed` sem a observação.
+- Fila `GET assinatura/revisao` (`ReviewController@index`), registro `POST .../{doc}/revisao` (aba `?aba=revisao`).
+  Quem revisa vê o documento (`viewAny` inclui as duas permissões). Teste: `SignatureReviewTest`.

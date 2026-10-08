@@ -47,6 +47,7 @@ class SignatureTemplate extends Model
         'variables',
         'parties',
         'attachments',
+        'review_items',
         'signature_placeholder',
         'signature_position',
         'requires_photo',
@@ -81,6 +82,7 @@ class SignatureTemplate extends Model
         'variables' => 'array',
         'parties' => 'array',
         'attachments' => 'array',
+        'review_items' => 'array',
         'signature_position' => 'array',
         'requires_photo' => 'boolean',
         'requires_initials' => 'boolean',
@@ -148,6 +150,7 @@ class SignatureTemplate extends Model
                 'variables',
                 'parties',
                 'attachments',
+                'review_items',
                 'signature_placeholder',
                 'signature_position',
                 'requires_photo',
@@ -196,6 +199,21 @@ class SignatureTemplate extends Model
                 'label' => (string) ($p['label'] ?? ($p['key'] ?? '')),
             ])
             ->filter(fn($p) => $p['key'] !== '')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * O que a revisão interna confere neste modelo ("Cadastro atualizado",
+     * "Pagamento lançado"). Ver SignatureReviewService.
+     *
+     * @return array<int, array{key: string, label: string}>
+     */
+    public function declaredReviewItems(): array
+    {
+        return collect($this->review_items ?? [])
+            ->filter(fn($i) => ($i['key'] ?? '') !== '' && ($i['label'] ?? '') !== '')
+            ->map(fn($i) => ['key' => (string) $i['key'], 'label' => (string) $i['label']])
             ->values()
             ->all();
     }

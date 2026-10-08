@@ -127,6 +127,16 @@ class AppServiceProvider extends ServiceProvider
         );
 
         /**
+         * A fila de revisão interna dos documentos assinados: a revisão comum
+         * ou a da coordenação (ver SignatureReviewService).
+         */
+        Gate::define(
+            'acessar-revisao-assinatura',
+            fn (User $user) => $user->can(Permissions::ASSINATURA_REVISAR)
+                || $user->can(Permissions::ASSINATURA_REVISAR_COORDENACAO),
+        );
+
+        /**
          * O guia do módulo de assinatura abre para quem alcança QUALQUER parte
          * dele — quem atende, quem consulta e quem escreve os modelos leem o
          * mesmo passo a passo.
@@ -135,7 +145,9 @@ class AppServiceProvider extends ServiceProvider
             'acessar-guia-assinatura',
             fn (User $user) => $user->can(Permissions::ASSINATURA_DOCUMENTOS)
                 || $user->can(Permissions::ASSINATURA_CONSULTAR)
-                || $user->can(Permissions::ASSINATURA_MODELOS),
+                || $user->can(Permissions::ASSINATURA_MODELOS)
+                || $user->can(Permissions::ASSINATURA_REVISAR)
+                || $user->can(Permissions::ASSINATURA_REVISAR_COORDENACAO),
         );
 
         /**

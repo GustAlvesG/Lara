@@ -23,7 +23,26 @@ class SignatureDocumentPolicy
     public function viewAny(User $user): bool
     {
         return $user->can(P::ASSINATURA_DOCUMENTOS)
-            || $user->can(P::ASSINATURA_CONSULTAR);
+            || $user->can(P::ASSINATURA_CONSULTAR)
+            // Quem revisa precisa abrir o documento que confere.
+            || $this->reviewAny($user);
+    }
+
+    /** Alcança a revisão interna (a comum ou a da coordenação). */
+    public function reviewAny(User $user): bool
+    {
+        return $user->can(P::ASSINATURA_REVISAR)
+            || $user->can(P::ASSINATURA_REVISAR_COORDENACAO);
+    }
+
+    /**
+     * Registrar a revisão deste documento. A regra do prazo e de quem
+     * acompanhou é do SignatureReviewService::blockReason — a tela diz o
+     * motivo, em vez de um 403 mudo.
+     */
+    public function review(User $user, SignatureDocument $document): bool
+    {
+        return $this->reviewAny($user);
     }
 
     public function view(User $user, SignatureDocument $document): bool

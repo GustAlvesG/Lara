@@ -69,6 +69,12 @@ final class Permissions
     public const ASSINATURA_DOCUMENTOS = 'assinatura.documentos';
     public const ASSINATURA_CONSULTAR = 'assinatura.consultar';
     public const ASSINATURA_EVIDENCIAS = 'assinatura.evidencias';
+    // Revisão interna do documento assinado: a comum (do dia seguinte em
+    // diante, só documento que a pessoa não acompanhou) e a da coordenação
+    // (antes do prazo e os próprios). A segunda é para dar, em Setores, só aos
+    // coordenadores.
+    public const ASSINATURA_REVISAR = 'assinatura.revisar';
+    public const ASSINATURA_REVISAR_COORDENACAO = 'assinatura.revisar-coordenacao';
 
     public const PLACAR_CADASTRO = 'placar.cadastro';
     public const PLACAR_SCOUT = 'placar.scout';
@@ -128,6 +134,8 @@ final class Permissions
         self::ASSINATURA_CONSULTAR => ['Assinaturas', 'Consultar documentos assinados e baixar o PDF'],
         self::ASSINATURA_MODELOS => ['Assinaturas', 'Criar e revisar os modelos de documento'],
         self::ASSINATURA_EVIDENCIAS => ['Assinaturas', 'Ver as evidências (foto do signatário e traço)'],
+        self::ASSINATURA_REVISAR => ['Assinaturas', 'Revisar documentos assinados (do dia seguinte em diante, só os que não acompanhou)'],
+        self::ASSINATURA_REVISAR_COORDENACAO => ['Assinaturas', 'Revisar antes do prazo e os próprios documentos (dê só aos coordenadores)'],
 
         self::PLACAR_CADASTRO => ['Placar Clube', 'Cadastro (equipes, times, jogadores, jogos)'],
         self::PLACAR_SCOUT => ['Placar Clube', 'Súmulas e scout'],
