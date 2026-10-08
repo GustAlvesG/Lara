@@ -57,10 +57,15 @@
     <h2>Relatório de assinatura pelo gov.br</h2>
 
     <p class="muted" style="font-size:9.5px;margin:0 0 12px;">
-        O documento foi assinado digitalmente pelo portal gov.br (assinatura eletrônica avançada, Lei 14.063/2020),
-        com a conta gov.br de cada signatário. As assinaturas estão <b>no próprio PDF assinado</b> — por isso este
-        relatório é um arquivo separado: acrescentar páginas ao PDF desfaria as assinaturas. Qualquer pessoa pode
-        conferir o PDF assinado no validador oficial do governo, em <b>validar.iti.gov.br</b>.
+        O documento foi assinado digitalmente por cada signatário — pelo portal gov.br (assinatura eletrônica
+        avançada, Lei 14.063/2020) ou com certificado ICP-Brasil (assinatura qualificada); o tipo de cada uma está
+        abaixo. As assinaturas estão <b>no próprio PDF assinado</b> — por isso este relatório é um arquivo separado:
+        acrescentar páginas ao PDF desfaria as assinaturas. Qualquer pessoa pode conferir o PDF assinado no
+        validador oficial do governo, em <b>validar.iti.gov.br</b>, sem acesso ao sistema do clube.
+        @if(config('signature.pades.enabled'))
+            O PDF assinado e este relatório levam ainda o <b>lacre digital do clube</b> (certificado ICP-Brasil{{ config('signature.pades.tsa_url') ? ', com carimbo de tempo' : '' }}),
+            acrescentado depois das assinaturas sem alterá-las.
+        @endif
     </p>
 
     <table>
@@ -93,7 +98,7 @@
         <b>PDF original (SHA-256)</b> — o arquivo enviado para assinar, antes de qualquer assinatura<br>
         <span class="mono">{{ $document->original_sha256 }}</span>
         <br><br>
-        <b>PDF assinado (SHA-256)</b> — o arquivo que voltou do gov.br, guardado sem nenhuma alteração<br>
+        <b>PDF assinado (SHA-256)</b> — @if(config('signature.pades.enabled')) o arquivo que voltou assinado, com o lacre do clube acrescentado ao fim (o conteúdo assinado não muda) @else o arquivo que voltou assinado, guardado sem nenhuma alteração @endif<br>
         <span class="mono">{{ $finalSha256 }}</span>
     </div>
 
@@ -140,6 +145,7 @@
                 <td colspan="3">
                     <b style="font-size:10px;">Assinatura {{ $assinatura['order'] }}: {{ $assinatura['name'] ?? 'sem certificado' }}</b><br>
                     <span class="muted">
+                        @if($tipo = \App\Services\Signature\Govbr\GovbrSignatureValidator::kindLabel($assinatura['kind'] ?? null)) <b>{{ $tipo }}</b><br> @endif
                         @if($assinatura['cpf']) CPF {{ $assinatura['cpf'] }}<br> @endif
                         @if($assinatura['signer_name']) Signatário do documento: {{ $assinatura['signer_name'] }}<br> @endif
                         @if($assinatura['signed_at'])
@@ -222,7 +228,9 @@
     <p style="font-size:8px;color:#777;margin-top:10px;line-height:1.5;">
         A trilha acima é gravada em tabela somente inserção, com cada evento encadeado ao anterior por hash —
         uma alteração feita por fora do sistema quebra a conferência e fica detectável. A revogação dos
-        certificados não foi consultada pelo sistema; o validador oficial (validar.iti.gov.br) a confere.
+        certificados foi consultada na conferência, na lista de certificados revogados de cada AC (resultado na
+        linha "Certificado não revogado" de cada assinatura); o validador oficial (validar.iti.gov.br) a confere
+        de novo a qualquer momento.
     </p>
 </body>
 </html>

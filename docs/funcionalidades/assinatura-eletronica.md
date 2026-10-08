@@ -277,9 +277,10 @@ PDF enviado pronto) e a imprime no maior tamanho que cabe em **280×100px**
 imprimir. Documentos já finalizados ficam como estão: o PDF final deles foi gravado e tem hash.
 
 > **Documento assinado pelo gov.br: o manifesto é um PDF à parte.** O PDF final é o arquivo que
-> voltou do gov.br, **byte a byte** (`govbr_check_id`), conferido contra o hash da conferência antes
-> de ser gravado. Re-renderizar, carimbar, acrescentar página ou lacrar quebraria as assinaturas. Por
-> isso o que seria a página de manifesto sai como **relatório de validação**
+> voltou do gov.br (`govbr_check_id`), conferido contra o hash da conferência antes de ser gravado.
+> Re-renderizar, carimbar ou acrescentar página quebraria as assinaturas; o **lacre** (seção abaixo)
+> não quebra, porque só acrescenta uma revisão nova ao fim do arquivo. Por isso o que seria a página
+> de manifesto sai como **relatório de validação**
 > (`documents/{id}/relatorio-govbr.pdf`, colunas `report_path` / `report_sha256`, view
 > `signature/pdf/govbr-report.blade.php`, `SignatureDocumentRenderer::govbrReport`): os dois hashes
 > (original e assinado), a conferência do arquivo e de cada assinatura, os signatários (CPF
@@ -297,11 +298,139 @@ imprimir. Documentos já finalizados ficam como estão: o PDF final deles foi gr
 
 > **O PDF final é re-renderizado, não carimbado.** O dompdf não edita PDF pronto. As duas versões
 > saem do mesmo `body_snapshot`, então o texto é o mesmo; o que prova qual arquivo a pessoa leu é
-> o `original_sha256`, calculado antes de qualquer assinatura e impresso no manifesto. O ponto de
-> troca por um carimbo cirúrgico (FPDI) é o `SignaturePdfSealer`.
+> o `original_sha256`, calculado antes de qualquer assinatura e impresso no manifesto.
 
 O job é idempotente (reentrega da fila não gera um segundo arquivo) e falha sem perder evidência:
 assinatura, traço, foto e trilha já estão gravados — falta só o arquivo, que pode ser refeito.
+
+## Lacre do clube (e-CNPJ) e carimbo de tempo
+
+Com `SIGNATURE_PADES_ENABLED=true`, **todo PDF que sai finalizado** recebe uma assinatura digital do
+**clube**, com o certificado A1 (e-CNPJ ICP-Brasil, `.pfx`): o final do tablet, o final do gov.br e
+o relatório do gov.br. O lacre **não assina pela pessoa**. Prova outra coisa: que o arquivo não mudou
+depois de emitido pelo clube, e quando. Qualquer pessoa confere em `validar.iti.gov.br`, **sem
+acesso ao Lara**, que não é acessível de fora. É a resposta para os links `/validar` do e-mail e do
+manifesto, que só abrem de dentro da rede.
+
+| Peça | Papel |
+|---|---|
+| `SignaturePdfSealer` | Abre o `.pfx` (`certificate()`: arquivo, senha, validade), monta o CMS destacado (`openssl_cms_sign`, com a cadeia do `.pfx`) e, com ACT, acrescenta o carimbo de tempo |
+| `Pki\PdfSignatureWriter` | Escreve a assinatura por **atualização incremental**: catálogo com o campo no `/AcroForm` (`/SigFlags 3`), widget invisível na 1ª página, `/Sig` com `/Contents` reservado (`SIGNATURE_PADES_RESERVE_BYTES`), `/ByteRange`, tabela xref clássica e trailer com `/Prev`. Nada do que existia é reescrito |
+| `Pki\TimestampClient` | Pedido RFC 3161 à ACT (`SIGNATURE_TSA_URL`, autenticação básica opcional, nonce, `certReq`). Confere status, resumo, nonce e a assinatura do carimbo antes de usá-lo |
+| `Pki\Der` | Escritor DER mínimo (pedido de carimbo e o atributo não assinado no CMS) |
+
+- **Formato:** `/SubFilter adbe.pkcs7.detached` (o mesmo do gov.br), sha256. O carimbo vai como
+  atributo **não assinado** `id-aa-signatureTimeStampToken` (`1.2.840.113549.1.9.16.2.14`) sobre o
+  valor da assinatura — ele não muda o que a assinatura cobre.
+- **No PDF do gov.br**, o lacre é mais uma assinatura: as das pessoas continuam válidas. O DocMDP que
+  o gov.br grava (`/P 2`) permite acrescentar assinaturas. Conferido com o pyHanko na amostra real em
+  08/10/2026: a assinatura da pessoa segue íntegra (`docmdp_ok`), o lacre cobre o arquivo inteiro e o
+  carimbo é válido.
+- **`final_sha256` é o do arquivo lacrado.** A página `/validar` aceita também o arquivo que a pessoa
+  baixou do gov.br, sem o lacre (`govbrFinalCheck->file_sha256`): é a mesma via assinada.
+- **Falha alto:** ligado sem certificado, com senha errada, certificado vencido, ACT fora do ar ou
+  carimbo de outro resumo → exceção; o job tenta de novo (`backoff`) e, esgotado, registra
+  `finalization_failed`. O documento fica "Assinado", com toda a evidência. Um lacre que
+  silenciosamente não acontece é pior que nenhum.
+- **Limites:** só PDF com tabela xref clássica e sem criptografia (o dompdf, a FPDI e o gov.br gravam
+  assim). xref stream → recusado, com a mensagem dizendo isso.
+- O evento `finalized` leva `lacrado` e `carimbo_de_tempo`. O manifesto, o relatório, a via por e-mail
+  e o guia citam o lacre e o `validar.iti.gov.br` quando ele está ligado.
+- **Não é** a assinatura qualificada da política ICP-Brasil (DOC-ICP-15: sem identificador de política
+  nem `signingCertificateV2`). O validador do ITI mostra a assinatura e o carimbo. Se algum dia for
+  preciso o selo de política, o ponto é o `cms()` do `SignaturePdfSealer`.
+- **Sem a marca ICP-Brasil.** O Selo de Homologação (o logotipo "ICP Brasil" com a chave e o número
+  HHHH-AA-XXXX/YY) é só de sistema **homologado pelo ITI** (DOC-ICP-10, item 4), e o Lara não é — nem
+  precisa ser: a homologação só é obrigatória para quem integra a ICP-Brasil (AC, AR), e a validade da
+  assinatura vem do certificado, não da plataforma. Em tela, PDF, e-mail e guia, diga "certificado
+  ICP-Brasil" e "validador oficial (validar.iti.gov.br)"; nunca "homologado" nem o logotipo. Conferido
+  em 08/10/2026: nenhuma tela usa a marca.
+
+### Instalar o certificado (passo a passo)
+
+Precisa de um **e-CNPJ A1 do clube** (`.pfx`/`.p12` + senha). e-CPF de uma pessoa lacraria tudo no
+nome dela; o `seal-check` mostra o titular. A ACT é opcional (sem ela, lacre sem carimbo).
+
+**1. Conferir o arquivo** (na sua máquina, com o OpenSSL do Git Bash):
+
+```bash
+openssl pkcs12 -in certificado.pfx -nokeys -clcerts | openssl x509 -noout -subject -issuer -enddate
+```
+
+Se der `unsupported` / `RC2-40-CBC`, o `.pfx` usa criptografia antiga (comum em A1 de certificadora),
+que o OpenSSL 3 do PHP não abre. Converta **uma vez** e use o arquivo novo, com a mesma senha:
+
+```bash
+openssl pkcs12 -legacy -in certificado.pfx -nodes -out tmp.pem
+openssl pkcs12 -export -in tmp.pem -out clube.pfx -certpbe AES-256-CBC -keypbe AES-256-CBC -macalg sha256
+rm tmp.pem     # tem a chave privada SEM senha: apague na hora
+```
+
+O `seal-check` também reconhece esse caso e mostra os comandos.
+
+**Embutir a cadeia**, se `openssl pkcs12 -in clube.pfx -nokeys | grep -c "BEGIN CERTIFICATE"` der 1.
+As ACs estão no pacote oficial do ITI
+(`http://acraiz.icpbrasil.gov.br/credenciadas/CertificadosAC-ICP-Brasil/ACcompactado.zip`). Use **http**: em
+08/10/2026 o HTTPS do `acraiz` mandava a cadeia TLS incompleta (sem a intermediária Let's Encrypt), e o
+curl do Linux recusa (erro 60). Pelo HTTP, a garantia são as impressões digitais abaixo — confira sempre. O e-CNPJ
+do clube (emitido em 2026, vence em 21/07/2027) é da **AC SAFEWEB RFB v5** (sha256 `7B:3A:4B:E4…E0:53:EA`), emitida pela
+**AC Secretaria da Receita Federal do Brasil v4** (sha256 `2C:7A:8A:D7…31:5E:21`), sob a Raiz v5:
+
+```bash
+unzip -j ACcompactado.zip AC_SAFEWEB_RFB_v5.crt AC_Secretaria_da_Receita_Federal_do_Brasil_v4.crt
+cat AC_SAFEWEB_RFB_v5.crt AC_Secretaria_da_Receita_Federal_do_Brasil_v4.crt > cadeia.pem
+openssl pkcs12 -in clube.pfx -nodes -out tmp.pem
+openssl pkcs12 -export -in tmp.pem -certfile cadeia.pem -out clube-com-cadeia.pfx -certpbe AES-256-CBC -keypbe AES-256-CBC -macalg sha256
+shred -u tmp.pem
+```
+
+Na renovação, a AC pode mudar: veja o `issuer` do certificado novo e pegue a AC correspondente no pacote.
+
+**2. Copiar para o servidor**, para fora de `public/` e do git (`storage/certificates/` já é ignorado):
+
+```bash
+scp clube.pfx usuario@servidor:/tmp/
+# no servidor:
+sudo mkdir -p /var/www/html/Lara/storage/certificates
+sudo mv /tmp/clube.pfx /var/www/html/Lara/storage/certificates/
+sudo chown www-data:www-data /var/www/html/Lara/storage/certificates/clube.pfx
+sudo chmod 600 /var/www/html/Lara/storage/certificates/clube.pfx
+```
+
+(Homologação: `/home/administrator/Lara`.) O `deploy_prod.sh` refaz `chown` da pasta toda, mas não
+mexe no `chmod 600` do arquivo.
+
+**3. Preencher o `.env` do servidor** (a senha nunca vai para o git, chat ou ticket):
+
+```dotenv
+SIGNATURE_PADES_ENABLED=true
+SIGNATURE_PADES_CERTIFICATE=/var/www/html/Lara/storage/certificates/clube.pfx
+SIGNATURE_PADES_PASSWORD="a senha do pfx"
+SIGNATURE_TSA_URL=
+```
+
+**4. Recarregar e conferir**, como o usuário do Apache (é ele que lê o arquivo na finalização):
+
+```bash
+cd /var/www/html/Lara
+sudo -u www-data php artisan config:cache
+sudo -u www-data php artisan signature:seal-check
+```
+
+Saída esperada: titular (o clube), emissor, validade, cadeia ≥ 1 e o aviso "Sem ACT". Anote a
+validade: vencido, a finalização para (ver Pendências no resumo do módulo).
+
+**5. Reiniciar o worker da fila**, que guarda a configuração antiga em memória:
+`sudo supervisorctl restart 'lara-queue:*'`.
+
+**6. Conferir um documento:** finalize um documento de teste, baixe o PDF assinado e envie em
+`validar.iti.gov.br`. O lacre aparece como assinatura do clube.
+
+Se algo der errado, desligue com `SIGNATURE_PADES_ENABLED=false` + `config:cache` + reiniciar a
+fila. Documento que ficou em "Assinado" por falha do lacre finaliza na próxima tentativa do job.
+
+Exporte o `.pfx` **com a cadeia** da AC (o `seal-check` avisa quando não há): sem ela, o validador de
+quem abre o PDF precisa buscá-la sozinho.
 
 ## Revisão interna
 
@@ -483,6 +612,19 @@ documento fecha e o arquivo que voltou vira o PDF final.
 A API de assinatura do gov.br (em que o sistema pede a assinatura em nome da pessoa) só é liberada
 para órgão público — por isso o caminho é a pessoa assinar por fora e devolver o arquivo.
 
+**Certificado ICP-Brasil na mesma aba.** Quem tem e-CPF (A1, A3 ou em nuvem) pode assinar o mesmo PDF
+no programa do certificado (qualquer um que faça atualização incremental, como o Adobe Reader ou o
+assinador da AC) e devolvê-lo do mesmo jeito. A conferência é a mesma; muda a âncora (as raízes da
+ICP-Brasil) e o tipo, que a aba, o relatório e a trilha mostram (`kind`):
+
+| `kind` | Âncora | Lei 14.063/2020 |
+|---|---|---|
+| `govbr` | AC Raiz do Governo Federal do Brasil v1 (`resources/certs/govbr`) | Assinatura **avançada** |
+| `icp-brasil` | AC Raiz ICP-Brasil v5, v6, v7, v10 a v13 (`resources/certs/icp-brasil`) | Assinatura **qualificada** |
+
+Nada mais muda: mesma aba, mesma "um de cada vez", mesmo CPF no otherName `2.16.76.1.3.1` (o e-CPF
+usa o mesmo leiaute). Gov.br e ICP-Brasil podem se somar no mesmo arquivo.
+
 ### O fluxo
 
 1. **Congelar** o documento, como sempre.
@@ -549,7 +691,9 @@ A aba lista os convites enviados: para quem, e-mail mascarado, quando e por quem
 
 O segundo sentido é o único viável no futuro: gerar um PDF intermediário com os traços do tablet já
 desenhados, o gov.br assinar ESSE arquivo e a finalização não re-renderizar (relatório à parte, como
-no gov.br puro). O primeiro exigiria escrever atualização incremental de PDF, que o módulo não faz.
+no gov.br puro). O primeiro exigiria mudar o conteúdo da página depois da assinatura, o que o DocMDP
+do gov.br (`/P 2`) proíbe: a atualização incremental que o módulo escreve (lacre) só acrescenta
+assinatura.
 | Documento não congelado, ou fora de "Aguardando assinatura" | Não há o que assinar |
 
 **Foto e conferência de CPF na tela não existem no gov.br.** Um modelo que pede foto pode ser
@@ -580,11 +724,11 @@ leva `via: gov.br`, o número de série e o emissor do certificado.
 | Tem assinatura digital | Há ao menos um `/ByteRange` | Devolveram o PDF sem assinar, ou impresso e escaneado |
 | A assinatura cobre o documento inteiro | O primeiro trecho do `ByteRange` começa no byte 0 e contém todo o PDF de referência | A assinatura cobre só parte |
 | A assinatura confere com o conteúdo | `openssl_cms_verify` dos bytes do `ByteRange` contra o CMS | Alguém mexeu no arquivo depois de assinado |
-| Certificado emitido pelo gov.br | Cadeia subida à mão, elo por elo (`openssl_x509_verify`), até a **AC Raiz do gov.br** guardada no repositório, com a validade de cada elo conferida **na hora da assinatura** | Certificado de outra AC (inclusive ICP-Brasil, nesta versão) |
+| Certificado do gov.br ou da ICP-Brasil | Cadeia subida à mão, elo por elo (`openssl_x509_verify`), até uma raiz guardada no repositório (gov.br ou ICP-Brasil), com a validade de cada elo conferida **na hora da assinatura e na da conferência**. Elo que falta é buscado no AIA do certificado | Certificado de outra AC; elo que não confere; certificado vencido |
 | Assinada por um signatário deste documento | CPF do certificado (otherName `2.16.76.1.3.1`) comparado com o CPF dos signatários — **nunca o nome** | Quem assinou não está na lista |
-| Assinada depois de o documento ser congelado | `signingTime` do CMS ≥ `frozen_at` (com 5 min de folga de relógio) | Hora anterior ao congelamento |
+| Assinada depois de o documento ser congelado | `signingTime` do CMS (gov.br) ou, sem ele, o `/M` do dicionário da assinatura (PAdES proíbe `signingTime`) ≥ `frozen_at`, com 5 min de folga de relógio. A tela diz de onde veio a hora | Hora anterior ao congelamento |
 | Nada foi alterado depois da última assinatura | A última assinatura cobre o arquivo até o último byte | Bytes acrescentados depois dela |
-| Certificado não revogado | **Não conferido nesta versão** — aparece como "não conferido", não como aprovado | — |
+| Certificado não revogado (por assinatura) | LCR de cada certificado da cadeia, assinada pela AC de cima e em vigor — ver "Revogação" | Certificado na lista, **qualquer que seja a data** (a hora da assinatura é declarada, não carimbada). Lista indisponível: "não conferido", sem reprovar — a menos que `SIGNATURE_PKI_REVOCATION_REQUIRED` |
 
 Com vários signatários, cada um assina **o arquivo devolvido pelo anterior**: as assinaturas se
 acumulam no mesmo PDF, e o Lara confere todas, na ordem em que foram feitas. A ordem dos signatários
@@ -606,7 +750,7 @@ desenho usa:
 - **Certificado.** Emitido para a conta e reaproveitado (validade de 3 anos na amostra), cadeia
   Raiz → Intermediária → AC Final do Governo Federal do Brasil v1, política `2.16.76.3.2.1.1`.
 - **Revogação.** Lista pública em `http://repo.iti.br/lcr/public/acf/LCRacfGovBr.crl` (~3 MB, ~71
-  mil seriais, atualizada a cada 2 h). Ainda não consultada pelo Lara.
+  mil seriais, atualizada a cada 2 h). Consultada desde 08/10/2026 (ver "Revogação").
 
 As amostras **não** estão no repositório: têm CPF e e-mail reais.
 
@@ -625,6 +769,47 @@ arquivo precisa ser trocado pela cadeia nova do ITI.
 | AC Intermediaria do Governo Federal do Brasil v1 | `C9:6F:8B:6D:E0:22:11:97:17:DF:D2:AE:B6:33:4E:98:03:6A:AE:B5:C3:81:8B:4D:84:BE:1D:26:79:26:D2:E7` |
 | AC Final do Governo Federal do Brasil v1 | `96:BB:5C:41:85:9F:C5:1D:88:F3:05:51:7B:E6:41:D9:EF:4A:5D:60:1B:1B:B2:35:2E:71:61:E9:7F:F8:B8:52` |
 
+**Raízes da ICP-Brasil** (`resources/certs/icp-brasil/raizes-icp-brasil.pem`, config
+`signature.icp_brasil.trust_bundle`): v5, v6, v7, v10, v11, v12 e v13, baixadas de
+`https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasil<versao>.crt` em 08/10/2026. A v2 venceu
+em 2023 e ficou de fora. As impressões digitais e as datas de vencimento estão no cabeçalho do próprio
+arquivo (a v5 vence em **março de 2029**). Raiz nova do ITI → acrescente ao arquivo. As ACs
+intermediárias (são dezenas) não ficam no repositório: vêm embutidas na assinatura ou são baixadas do
+endereço **AIA** (`caIssuers`) do certificado (`Pki\PkiRepository::issuers`, guardadas
+`SIGNATURE_PKI_ISSUER_CACHE_DAYS` dias). Elo baixado só serve se a chave conferir, e a âncora
+continua sendo só o repositório.
+
+Os dois `.pem` são exceção explícita ao `*.pem` do `.gitignore` (só certificados públicos de AC).
+
+### Revogação
+
+`Pki\RevocationChecker` confere cada certificado da cadeia (menos a raiz) na **LCR** que ele declara
+(CRL Distribution Points):
+
+1. `Pki\PkiRepository::crl` devolve a lista guardada (disco das assinaturas, `signature/pki/lcr/`)
+   enquanto `nextUpdate` não passou; senão baixa (`SIGNATURE_PKI_TIMEOUT_SECONDS`). Download falhou →
+   devolve a guardada, mesmo vencida, e quem decide é o checker.
+2. A lista só vale se a **assinatura dela confere com a chave da AC de cima** e se está em vigor.
+3. `Pki\CertificateRevocationList` lê a LCR (DER, com o `Govbr\Asn1`) e indexa as séries uma vez —
+   a do gov.br (~71 mil entradas) em ~0,4 s e ~28 MB, com cursor, sem montar todos os nós.
+
+| Resultado | Quando |
+|---|---|
+| `true` | Todos os certificados com LCR declarada conferidos em lista válida, e nenhum nela |
+| `false` | Algum certificado está na lista — **reprova**, e o detalhe diz a data da revogação |
+| `null` | Certificado do signatário sem LCR declarada, lista fora do ar sem cópia em vigor, lista assinada por outra chave, consulta desligada. Não reprova — com `SIGNATURE_PKI_REVOCATION_REQUIRED=true`, reprova |
+
+- **Por que reprovar mesmo revogado depois da assinatura:** a hora da assinatura é declarada (pelo
+  serviço do gov.br, ou pelo programa de quem assinou), não vem de carimbo de tempo independente. Quem
+  teve o certificado revogado assina de novo.
+- **Rede:** a conferência é a única parte do módulo que sai para a internet (LCR e AIA, HTTP do ITI e
+  das ACs). `SIGNATURE_PKI_NETWORK=false` onde o servidor não sai: a conferência segue com o que já
+  foi baixado. A suíte de testes roda com ela desligada (`phpunit.xml`).
+- **`signature:crl`** (de hora em hora, e no deploy) renova as listas do gov.br
+  (`signature.pki.crl_urls`) e todas as já consultadas (`signature/pki/lcr/indice.json`), só as
+  vencidas; `--forcar` baixa todas. Assim a aba não espera o download de 3 MB. Medido em 08/10/2026
+  com a amostra real: conferência com download em ~1,2 s.
+
 ### Onde fica o quê
 
 | Peça | Papel |
@@ -640,6 +825,8 @@ arquivo precisa ser trocado pela cadeia nova do ITI.
 | `SignatureGovbrInviteMail` (`emails/signature-govbr-invite`) | O e-mail do convite, com o PDF anexo e `Reply-To` do atendente |
 | `GovbrController` | `POST …/{doc}/govbr/preparar`, `POST …/{doc}/govbr` (envio) — ambos `throttle:20,1` —, `POST …/{doc}/govbr/signatarios/{s}/convite` (`throttle:10,1`) e `GET …/{doc}/govbr/{conferencia}/pdf` (o arquivo, preso ao documento) |
 | `documents/partials/govbr.blade.php` | A aba, aberta por `?aba=govbr` |
+| `Pki\Certificates`, `Pki\CertificateRevocationList`, `Pki\PkiRepository`, `Pki\RevocationChecker` | PEM/DER/PKCS#7, endereços de LCR e AIA, leitura da LCR, download com cache, consulta de revogação |
+| `resources/certs/govbr`, `resources/certs/icp-brasil` | As âncoras de confiança (públicas, versionadas) |
 
 - **Quem prepara e envia:** `assinatura.documentos` (policy `checkGovbr`) — é a mesma operação de
   quem libera o tablet. **Quem vê** o resultado e baixa o arquivo: quem vê o documento.
@@ -1010,7 +1197,18 @@ Tudo em `config/signature.php`, com as variáveis documentadas no `.env.example`
 | `SIGNATURE_ARCHIVE_ROOT` | `Lara/DocumentosAssinados` | Pasta-raiz do arquivo, criada se não existir |
 | `SIGNATURE_FTP_SSL` | `false` | FTPS na conexão do arquivo |
 | `SIGNATURE_DELIVERY_WHATSAPP` | `false` | Não implementado |
-| `SIGNATURE_PADES_ENABLED` | `false` | Lacre A1/PAdES — **não implementado**; ligar falha alto |
+| `SIGNATURE_PADES_ENABLED` | `false` | Lacre dos PDFs finalizados com o e-CNPJ do clube (ver "Lacre do clube") |
+| `SIGNATURE_PADES_CERTIFICATE` / `SIGNATURE_PADES_PASSWORD` | vazio | Caminho absoluto do `.pfx`/`.p12` e a senha |
+| `SIGNATURE_PADES_REASON` | `Lacre do documento emitido pelo Lara` | `/Reason` do lacre (o código de validação é acrescentado) |
+| `SIGNATURE_PADES_RESERVE_BYTES` | `32768` | Espaço reservado no PDF para o CMS do lacre |
+| `SIGNATURE_TSA_URL` | vazio | ACT (RFC 3161) do carimbo de tempo; vazio = lacre sem carimbo |
+| `SIGNATURE_TSA_USER` / `SIGNATURE_TSA_PASSWORD` / `SIGNATURE_TSA_POLICY` | vazio | Autenticação básica e OID de política, se a ACT pedir |
+| `SIGNATURE_TSA_TIMEOUT_SECONDS` | `30` | Espera pela ACT |
+| `SIGNATURE_PKI_NETWORK` | `true` | Conferência pode baixar LCR e AC intermediária |
+| `SIGNATURE_PKI_REVOCATION` | `true` | Consultar a LCR |
+| `SIGNATURE_PKI_REVOCATION_REQUIRED` | `false` | Lista indisponível reprova |
+| `SIGNATURE_PKI_TIMEOUT_SECONDS` | `30` | Espera por LCR/AC |
+| `SIGNATURE_PKI_ISSUER_CACHE_DAYS` | `30` | Por quanto tempo a AC baixada pelo AIA fica guardada |
 | `SIGNATURE_GOVBR_MAX_UPLOAD_KB` | `20480` | Tamanho máximo do PDF assinado pelo gov.br enviado na aba |
 | `SIGNATURE_GOVBR_TTL_DAYS` | `7` | Prazo do documento preparado para o gov.br, contado do "Preparar" |
 | `SIGNATURE_ATTACHMENT_MAX_KB` | `10240` | Tamanho máximo de cada anexo do documento (PDF, JPG ou PNG) |
@@ -1024,7 +1222,8 @@ Nunca aponte `SIGNATURE_DISK` para `public` ou `placar`: os dois servem arquivo 
 passar por autorização nenhuma.
 
 O comando `signature:expire` roda **a cada minuto** (`routes/console.php`) e encerra QR não lido,
-sessão parada e documento não assinado.
+sessão parada e documento não assinado. O `signature:crl` roda **de hora em hora** (e no deploy) e
+renova as listas de revogação. O `signature:seal-check` (manual) confere o certificado do lacre e a ACT.
 
 ## Colocando para funcionar
 
@@ -1167,6 +1366,15 @@ assinatura sobre o PDF final do tablet, assinatura anterior ao congelamento, rev
 conferido" (sem reprovar), rascunho, arquivo que não é PDF e as permissões. Fica de fora o
 certificado **vencido na hora da assinatura**: a extensão OpenSSL do PHP só emite certificado válido
 a partir de agora, e a AC de teste não consegue produzir um no passado.
+`SignatureGovbrRevocationTest` cobre a rede (sempre com `Http::fake` e `preventStrayRequests`): LCR com
+o certificado (reprova), sem ele (passa), fora do ar (não conferido; reprova se exigido), assinada por
+outra AC, vencida, guardada sem novo download, o `signature:crl`; certificado ICP-Brasil como
+qualificada (e a aba), AC intermediária baixada pelo AIA, sem rede, embutida na assinatura, e a hora
+pelo `/M` quando não há `signingTime`. `SignaturePdfSealTest` cobre o lacre: PDF do tablet lacrado
+(CMS confere, cobre até o fim, hash, evento), lacre desligado, lacre sobre lacre, PDF do gov.br lacrado
+mantendo a assinatura da pessoa (e o relatório lacrado, e o `/validar` aceitando o arquivo sem lacre),
+carimbo de tempo de uma ACT de teste (atributo não assinado, sem alterar a assinatura), carimbo de outro
+resumo, ACT fora do ar, senha errada, xref stream, o `signature:seal-check` e o aviso no manifesto.
 `SignatureGovbrSigningTest` cobre a conclusão: preparar (prazo, QR cancelado, tablet bloqueado),
 os bloqueios (visto, assinatura no tablet), um signatário até o PDF final e a via, dois em
 sequência, o segundo assinando o original, ordem livre (o 2º da lista assinando antes), reenvio do mesmo arquivo, sem preparar,
@@ -1203,11 +1411,11 @@ modelo que não serve, desativar, QR de pareamento) e `Unit\MinorTermRulesTest`,
 | Camada | Arquivos |
 |---|---|
 | Models | `SignatureTemplate`, `SignatureDocument`, `SignatureSigner`, `SignatureRequest`, `SignatureEvidence`, `SignatureAuditEvent`, `SignatureGovbrCheck`, `SignatureGovbrInvite`, `SignatureAttachment`, `SignatureMinorTerm`, `SignatureMinorAuthorization`, `SignatureKioskDevice` |
-| Services | `app/Services/Signature/` — `SignatureStateMachine`, `SignatureAuditor`, `SignatureDocumentService`, `SignatureDocumentRenderer`, `SignatureRequestService`, `SignatureCaptureService`, `SignatureQrCode`, `SignaturePdfSealer`, `SignatureAttachmentService`; `app/Services/Signature/Govbr/` — `GovbrSignatureValidator`, `GovbrValidationResult`, `GovbrCheckService`, `Asn1`; `app/Services/Signature/MinorTerms/` — Termo de Menores |
+| Services | `app/Services/Signature/` — `SignatureStateMachine`, `SignatureAuditor`, `SignatureDocumentService`, `SignatureDocumentRenderer`, `SignatureRequestService`, `SignatureCaptureService`, `SignatureQrCode`, `SignaturePdfSealer`, `SignatureAttachmentService`; `app/Services/Signature/Govbr/` — `GovbrSignatureValidator`, `GovbrValidationResult`, `GovbrCheckService`, `Asn1`; `app/Services/Signature/Pki/` — `Certificates`, `CertificateRevocationList`, `PkiRepository`, `RevocationChecker`, `TimestampClient`, `PdfSignatureWriter`, `Der`; `app/Services/Signature/MinorTerms/` — Termo de Menores |
 | Controllers | `app/Http/Controllers/Signature/` — `TemplateController`, `DocumentController`, `ReleaseController`, `QuiosqueController`, `ValidationController`, `GovbrController`, `AttachmentController`, `MinorTermController`, `MinorTermKioskController`; trait `Concerns\RespondsWithKioskSession` |
 | Middleware | `EnsureSignatureKioskSession` (alias `signature_kiosk`), `EnsureMinorTermDevice` (alias `signature_minor_device`) |
 | Jobs | `FinalizeSignatureDocument`, `SendSignatureCopy` |
-| Comando | `signature:expire` |
+| Comando | `signature:expire`, `signature:archive`, `signature:crl`, `signature:seal-check` |
 | Telas | `resources/views/signature/` (painel, guia e PDF), `resources/views/quiosque/index.blade.php` (tablet, servido em `/assinatura/kiosk`) |
 | Policy | `SignatureDocumentPolicy` |
 
@@ -1230,3 +1438,6 @@ auditoria **na mesma transação**. Nenhum outro ponto do módulo faz `update(['
   requisição nenhuma;
 - `html5-qrcode`, `pdf.js` e `qrcodejs` por **CDN**, como o `webcam.js` e o `chart.js` que o
   projeto já carrega assim. O tablet e o computador do atendente precisam alcançar o CDN.
+- **Nenhuma biblioteca de PKI ou PDF assinado:** LCR, carimbo de tempo e assinatura incremental são
+  código do módulo (`Pki\`) sobre a extensão OpenSSL do PHP e o `Govbr\Asn1`. As opções em PHP eram
+  comerciais (SetaPDF) ou só assinam o PDF que elas mesmas geram (TCPDF).

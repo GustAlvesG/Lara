@@ -4,6 +4,9 @@ namespace App\Services\Signature\Govbr;
 
 use App\Models\SignatureDocument;
 use App\Models\SignatureSigner;
+use App\Services\Signature\Pki\Certificates;
+use App\Services\Signature\Pki\PkiRepository;
+use App\Services\Signature\Pki\RevocationChecker;
 use App\Support\Cpf;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -28,16 +31,31 @@ use Throwable;
  *    próprio (otherName 2.16.76.1.3.1, leiaute ICP-Brasil: 8 dígitos de
  *    nascimento + CPF + NIS + RG), e ele é comparado com o CPF dos
  *    signatários — nunca o nome. O certificado tem de subir, assinatura por
- *    assinatura, até a AC Raiz do gov.br guardada no repositório
- *    (`resources/certs/govbr`), válido na hora em que assinou.
+ *    assinatura, até uma raiz guardada no repositório, válido na hora em que
+ *    assinou e na hora da conferência, e não pode estar revogado.
  *
- * Tudo o que está aqui foi confirmado numa amostra real na Fase 0 (ver
+ * **Duas âncoras, dois tipos de assinatura** (Lei 14.063/2020):
+ *
+ *  - a raiz do gov.br (`resources/certs/govbr`) — assinatura **avançada**,
+ *    a do portal assinador.iti.br;
+ *  - as raízes da ICP-Brasil (`resources/certs/icp-brasil`) — assinatura
+ *    **qualificada**, a de quem assina com e-CPF (A1, A3 ou em nuvem) em
+ *    qualquer programa que faça atualização incremental do PDF. O CPF fica no
+ *    mesmo otherName. A AC intermediária que a assinatura não trouxer é
+ *    buscada no endereço que o próprio certificado declara (AIA).
+ *
+ * O nome da classe ficou do primeiro caso; o resultado diz qual dos dois
+ * (`kind`: `govbr` ou `icp-brasil`).
+ *
+ * O formato do gov.br foi confirmado numa amostra real na Fase 0 (ver
  * docs/funcionalidades/assinatura-eletronica.md): CMS em BER com comprimento
  * indefinido, `adbe.pkcs7.detached`, sha256 + RSA, hora no atributo assinado
- * `signingTime`, sem carimbo de tempo.
+ * `signingTime`, sem carimbo de tempo. Assinaturas PAdES (`ETSI.CAdES.detached`)
+ * não levam `signingTime`: a hora vem do `/M` do dicionário da assinatura.
  *
- * A revogação NÃO é conferida nesta versão — o resultado diz isso com todas as
- * letras, em vez de ficar calado.
+ * A revogação é conferida pela LCR de cada certificado da cadeia
+ * (Pki\RevocationChecker) — e é a ÚNICA parte que usa a rede. Lista fora do ar
+ * não reprova (a menos que a instalação exija), mas aparece como não conferida.
  *
  * Não grava nada: quem guarda o arquivo e o resultado é o GovbrCheckService.
  */
@@ -45,6 +63,10 @@ class GovbrSignatureValidator
 {
     /** CPF no certificado (leiaute ICP-Brasil, que o gov.br também usa). */
     public const OID_CPF = '2.16.76.1.3.1';
+
+    /** De que raiz veio o certificado — e, com isso, o tipo de assinatura. */
+    public const KIND_GOVBR = 'govbr';
+    public const KIND_ICP_BRASIL = 'icp-brasil';
 
     private const OID_SUBJECT_ALT_NAME = '2.5.29.17';
     private const OID_SIGNING_TIME = '1.2.840.113549.1.9.5';
@@ -54,6 +76,22 @@ class GovbrSignatureValidator
      * congelamento por poucos segundos é relógio, não fraude.
      */
     private const CLOCK_SKEW_SECONDS = 300;
+
+    public function __construct(
+        private RevocationChecker $revocation,
+        private PkiRepository $repository,
+    ) {
+    }
+
+    /** Rótulo do tipo de assinatura, para tela e relatório. */
+    public static function kindLabel(?string $kind): ?string
+    {
+        return match ($kind) {
+            self::KIND_GOVBR => 'gov.br — assinatura eletrônica avançada',
+            self::KIND_ICP_BRASIL => 'Certificado ICP-Brasil — assinatura eletrônica qualificada',
+            default => null,
+        };
+    }
 
     public function validate(string $pdf, SignatureDocument $document): GovbrValidationResult
     {
@@ -119,13 +157,6 @@ class GovbrSignatureValidator
                 : 'Há ' . (strlen($pdf) - $fim) . ' bytes acrescentados depois da última assinatura.',
         );
 
-        $checks[] = $this->check(
-            'revogacao',
-            'Certificado não revogado',
-            null,
-            'Não conferido nesta versão. A lista de revogação do gov.br é pública e pode ser consultada à parte.',
-        );
-
         return new GovbrValidationResult($checks, $resultado, $base['tipo'] ?? null);
     }
 
@@ -178,17 +209,17 @@ class GovbrSignatureValidator
      * As assinaturas do PDF, na ordem em que foram feitas (a revisão que cada
      * uma cobre termina mais adiante no arquivo).
      *
-     * @return array<int, array{range: array{0: int, 1: int, 2: int, 3: int}, cms: ?string}>
+     * @return array<int, array{range: array{0: int, 1: int, 2: int, 3: int}, cms: ?string, m: ?int}>
      */
     private function signatures(string $pdf): array
     {
-        preg_match_all('/\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/', $pdf, $achados, PREG_SET_ORDER);
+        preg_match_all('/\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/', $pdf, $achados, PREG_SET_ORDER | PREG_OFFSET_CAPTURE);
 
         $tamanho = strlen($pdf);
         $assinaturas = [];
 
         foreach ($achados as $m) {
-            $range = [(int) $m[1], (int) $m[2], (int) $m[3], (int) $m[4]];
+            $range = [(int) $m[1][0], (int) $m[2][0], (int) $m[3][0], (int) $m[4][0]];
             [, $b, $c, $d] = $range;
 
             // O buraco entre os dois trechos é o /Contents: <hex da assinatura>.
@@ -198,12 +229,48 @@ class GovbrSignatureValidator
             $assinaturas[] = [
                 'range' => $range,
                 'cms' => $geometriaOk ? $this->cms(substr($pdf, $b + 1, $c - $b - 2)) : null,
+                'm' => $this->declaredTime($pdf, $m[0][1]),
             ];
         }
 
         usort($assinaturas, fn(array $x, array $y) => ($x['range'][2] + $x['range'][3]) <=> ($y['range'][2] + $y['range'][3]));
 
         return $assinaturas;
+    }
+
+    /**
+     * O `/M` do dicionário da assinatura que contém o /ByteRange em $posicao —
+     * a hora que o programa de assinatura declarou. É a fonte da hora quando o
+     * CMS não traz `signingTime` (PAdES, `ETSI.CAdES.detached`, proíbe o
+     * atributo).
+     *
+     * O dicionário é o trecho entre o "obj" anterior e o "endobj" seguinte.
+     */
+    private function declaredTime(string $pdf, int $posicao): ?int
+    {
+        $inicio = strrpos(substr($pdf, max(0, $posicao - 4096), min($posicao, 4096)), ' obj');
+        $inicio = $inicio === false ? max(0, $posicao - 4096) : max(0, $posicao - 4096) + $inicio;
+        $fim = strpos($pdf, 'endobj', $posicao);
+        $trecho = substr($pdf, $inicio, ($fim === false ? $posicao + 4096 : $fim) - $inicio);
+
+        // O /Contents é hex e não tem parênteses; o /M é a única data do dicionário.
+        if (!preg_match("/\/M\s*\(D:(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?([Zz+\-])?(\d{2})?'?(\d{2})?'?\)/", $trecho, $d)) {
+            return null;
+        }
+
+        $data = sprintf(
+            '%s-%s-%s %s:%s:%s',
+            $d[1], $d[2] ?: '01', $d[3] ?: '01', $d[4] ?: '00', $d[5] ?: '00', $d[6] ?: '00',
+        );
+
+        $sinal = $d[7] ?? '';
+        $fuso = in_array($sinal, ['+', '-'], true)
+            ? $sinal . ($d[8] ?? '00') . ':' . (($d[9] ?? '') !== '' ? $d[9] : '00')
+            : '+00:00';
+
+        $quando = \DateTimeImmutable::createFromFormat('Y-m-d H:i:sP', $data . $fuso);
+
+        return $quando === false ? null : $quando->getTimestamp();
     }
 
     /**
@@ -236,7 +303,7 @@ class GovbrSignatureValidator
      * @param  array{range: array{0: int, 1: int, 2: int, 3: int}, cms: ?string}  $assinatura
      * @param  array{tipo: string, tamanho: int}|null  $base
      * @param  Collection<int, SignatureSigner>  $signers
-     * @param  array{roots: array<int, string>, intermediates: array<int, string>}  $confianca
+     * @param  array{roots: array<string, array{pem: string, kind: string}>, intermediates: array<int, string>}  $confianca
      * @return array<string, mixed>
      */
     private function inspect(
@@ -260,6 +327,7 @@ class GovbrSignatureValidator
             'signed_at' => null,
             'issuer' => null,
             'serial' => null,
+            'kind' => null,
             'checks' => [],
         ];
 
@@ -306,16 +374,34 @@ class GovbrSignatureValidator
         }
 
         $info = openssl_x509_parse($certificado) ?: [];
+
+        // A hora: o atributo assinado `signingTime` (gov.br) ou, sem ele, o /M
+        // do dicionário (PAdES). As duas são DECLARADAS por quem assinou.
         $quando = $this->signingTime($assinatura['cms']);
+        $fonteHora = 'signingTime';
+
+        if ($quando === null && $assinatura['m'] !== null) {
+            $quando = $assinatura['m'];
+            $fonteHora = 'pdf';
+        }
 
         $saida['name'] = $this->first($info['subject']['CN'] ?? null);
         $saida['issuer'] = $this->first($info['issuer']['CN'] ?? null);
         $saida['serial'] = $info['serialNumberHex'] ?? null;
         $saida['signed_at'] = $quando === null ? null : date(DATE_ATOM, $quando);
 
-        [$cadeiaOk, $cadeiaDetalhe] = $this->chain($certificado, $embutidos, $confianca, $quando ?? time());
+        [$cadeiaOk, $cadeiaDetalhe, $caminho, $tipo] = $this->chain($certificado, $embutidos, $confianca, $quando ?? time());
 
-        $checks[] = $this->check('cadeia', 'Certificado emitido pelo gov.br', $cadeiaOk, $cadeiaDetalhe);
+        $saida['kind'] = $cadeiaOk ? $tipo : null;
+
+        $checks[] = $this->check('cadeia', 'Certificado do gov.br ou da ICP-Brasil', $cadeiaOk, $cadeiaDetalhe);
+
+        // Revogação só faz sentido com a cadeia montada: é a AC de cima que
+        // assina a lista do certificado de baixo.
+        if ($cadeiaOk) {
+            $revogacao = $this->revocation->check($caminho);
+            $checks[] = $this->check('revogacao', 'Certificado não revogado', $revogacao['ok'], $revogacao['detail']);
+        }
 
         $cpf = $this->cpf($certificado);
         $signer = $cpf === null ? null : $signers->first(fn(SignatureSigner $s) => Cpf::digits($s->cpf) === $cpf);
@@ -341,9 +427,12 @@ class GovbrSignatureValidator
             'data',
             'Assinada depois de o documento ser congelado',
             $quando === null || $congelado === null ? null : $quando >= $congelado - self::CLOCK_SKEW_SECONDS,
-            $quando === null
-                ? 'A assinatura não declara a hora em que foi feita.'
-                : 'Assinada em ' . date('d/m/Y H:i:s', $quando) . ' (hora declarada pelo gov.br).',
+            match (true) {
+                $quando === null => 'A assinatura não declara a hora em que foi feita.',
+                $fonteHora === 'pdf' => 'Assinada em ' . date('d/m/Y H:i:s', $quando) . ' (hora declarada no PDF pelo programa de assinatura).',
+                $tipo === self::KIND_GOVBR => 'Assinada em ' . date('d/m/Y H:i:s', $quando) . ' (hora declarada pelo gov.br).',
+                default => 'Assinada em ' . date('d/m/Y H:i:s', $quando) . ' (hora declarada na assinatura).',
+            },
         );
 
         $saida['checks'] = $checks;
@@ -409,61 +498,103 @@ class GovbrSignatureValidator
     }
 
     /**
-     * Sobe do certificado do signatário até a raiz do gov.br, conferindo a
-     * assinatura de cada elo com a chave do emissor e a validade de cada um na
-     * HORA DA ASSINATURA.
+     * Sobe do certificado do signatário até uma raiz do repositório (gov.br ou
+     * ICP-Brasil), conferindo a assinatura de cada elo com a chave do emissor
+     * e a validade de cada um na HORA DA ASSINATURA e na hora da conferência —
+     * a hora da assinatura é declarada por quem assinou, e não pode ser a
+     * única garantia de que o certificado valia.
      *
-     * Um certificado embutido no CMS pode servir de elo, mas não de âncora: a
-     * âncora é só a raiz do arquivo do repositório. Um elo forjado com o nome
-     * da AC do gov.br não passa, porque a chave dele não confere com a de cima.
+     * Um certificado embutido no CMS, ou baixado do endereço que o próprio
+     * certificado declara (AIA), pode servir de elo, mas não de âncora: a
+     * âncora é só uma raiz dos arquivos do repositório. Um elo forjado com o
+     * nome de uma AC não passa, porque a chave dele não confere com a de cima.
      *
      * @param  array<int, string>  $embutidos
-     * @param  array{roots: array<int, string>, intermediates: array<int, string>}  $confianca
-     * @return array{0: bool, 1: string}
+     * @param  array{roots: array<string, array{pem: string, kind: string}>, intermediates: array<int, string>}  $confianca
+     * @return array{0: bool, 1: string, 2: array<int, string>, 3: ?string}  ok, detalhe, cadeia (do signatário à raiz), tipo
      */
     private function chain(string $certificado, array $embutidos, array $confianca, int $quando): array
     {
         if ($confianca['roots'] === []) {
-            return [false, 'A cadeia do gov.br não está instalada no Lara (resources/certs/govbr).'];
+            return [false, 'Nenhuma raiz de confiança instalada no Lara (resources/certs).', [], null];
         }
 
-        $raizes = array_map(fn(string $pem) => openssl_x509_fingerprint($pem, 'sha256'), $confianca['roots']);
-        $candidatos = array_merge($confianca['roots'], $confianca['intermediates'], $embutidos);
+        $candidatos = array_merge(array_column($confianca['roots'], 'pem'), $confianca['intermediates'], $embutidos);
         $atual = $certificado;
+        $caminho = [];
+        $agora = time();
 
-        for ($nivel = 0; $nivel < 6; $nivel++) {
+        for ($nivel = 0; $nivel < 8; $nivel++) {
             $info = openssl_x509_parse($atual) ?: [];
             $nome = $this->first($info['subject']['CN'] ?? null) ?? 'certificado';
+            $caminho[] = $atual;
 
-            if ($quando < ($info['validFrom_time_t'] ?? PHP_INT_MAX) || $quando > ($info['validTo_time_t'] ?? 0)) {
-                return [false, 'O certificado "' . $nome . '" não era válido em ' . date('d/m/Y H:i', $quando) . '.'];
+            foreach (array_unique([$quando, $agora]) as $momento) {
+                if ($momento < ($info['validFrom_time_t'] ?? PHP_INT_MAX) || $momento > ($info['validTo_time_t'] ?? 0)) {
+                    return [false, 'O certificado "' . $nome . '" não era válido em ' . date('d/m/Y H:i', $momento) . '.', $caminho, null];
+                }
             }
 
-            if (in_array(openssl_x509_fingerprint($atual, 'sha256'), $raizes, true)) {
-                return [true, 'Cadeia até a AC Raiz do gov.br, válida na hora da assinatura.'];
+            $raiz = $confianca['roots'][openssl_x509_fingerprint($atual, 'sha256')] ?? null;
+
+            if ($raiz !== null) {
+                return [
+                    true,
+                    $raiz['kind'] === self::KIND_GOVBR
+                        ? 'Cadeia até a AC Raiz do gov.br, válida na hora da assinatura.'
+                        : 'Cadeia até a "' . $nome . '" (ICP-Brasil), válida na hora da assinatura.',
+                    $caminho,
+                    $raiz['kind'],
+                ];
             }
 
-            $emissor = null;
+            $emissor = $this->issuerAmong($atual, $info, $candidatos);
 
-            foreach ($candidatos as $candidato) {
-                $ci = openssl_x509_parse($candidato) ?: [];
+            // Faltou elo: a AC intermediária que a assinatura não trouxe é
+            // buscada onde o próprio certificado diz (AIA). Só serve se a
+            // chave conferir — e a âncora continua sendo a do repositório.
+            if ($emissor === null) {
+                foreach (Certificates::issuerUrls($atual) as $url) {
+                    $baixados = $this->repository->issuers($url);
+                    $candidatos = array_merge($candidatos, $baixados);
+                    $emissor = $this->issuerAmong($atual, $info, $baixados);
 
-                if (($ci['subject'] ?? null) == ($info['issuer'] ?? null)
-                    && str_contains((string) ($ci['extensions']['basicConstraints'] ?? ''), 'CA:TRUE')
-                    && openssl_x509_verify($atual, $candidato) === 1) {
-                    $emissor = $candidato;
-                    break;
+                    if ($emissor !== null) {
+                        break;
+                    }
                 }
             }
 
             if ($emissor === null) {
-                return [false, 'O certificado não foi emitido pela AC do gov.br.'];
+                return [false, 'O certificado não foi emitido pelo gov.br nem por uma AC da ICP-Brasil.', $caminho, null];
             }
 
             $atual = $emissor;
         }
 
-        return [false, 'Cadeia de certificados longa demais.'];
+        return [false, 'Cadeia de certificados longa demais.', $caminho, null];
+    }
+
+    /**
+     * O certificado de AC, entre os candidatos, que emitiu $atual: nome do
+     * emissor igual, é AC, e a assinatura confere com a chave dele.
+     *
+     * @param  array<string, mixed>  $info  openssl_x509_parse de $atual
+     * @param  array<int, string>  $candidatos
+     */
+    private function issuerAmong(string $atual, array $info, array $candidatos): ?string
+    {
+        foreach ($candidatos as $candidato) {
+            $ci = openssl_x509_parse($candidato) ?: [];
+
+            if (($ci['subject'] ?? null) == ($info['issuer'] ?? null)
+                && str_contains((string) ($ci['extensions']['basicConstraints'] ?? ''), 'CA:TRUE')
+                && openssl_x509_verify($atual, $candidato) === 1) {
+                return $candidato;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -573,26 +704,31 @@ class GovbrSignatureValidator
     }
 
     /**
-     * A cadeia do gov.br guardada no repositório: raízes (auto-assinadas) e
-     * intermediárias.
+     * As âncoras guardadas no repositório: a cadeia do gov.br e as raízes da
+     * ICP-Brasil. Cada raiz (auto-assinada) leva o tipo de assinatura que
+     * ancora; o resto do arquivo vira elo intermediário.
      *
-     * @return array{roots: array<int, string>, intermediates: array<int, string>}
+     * @return array{roots: array<string, array{pem: string, kind: string}>, intermediates: array<int, string>}
      */
     private function trust(): array
     {
-        $arquivo = (string) config('signature.govbr.trust_bundle');
-        $pems = is_file($arquivo) ? $this->pems((string) file_get_contents($arquivo)) : [];
+        $arquivos = [
+            self::KIND_GOVBR => (string) config('signature.govbr.trust_bundle'),
+            self::KIND_ICP_BRASIL => (string) config('signature.icp_brasil.trust_bundle'),
+        ];
 
         $roots = [];
         $intermediates = [];
 
-        foreach ($pems as $pem) {
-            $info = openssl_x509_parse($pem) ?: [];
+        foreach ($arquivos as $tipo => $arquivo) {
+            $pems = $arquivo !== '' && is_file($arquivo) ? $this->pems((string) file_get_contents($arquivo)) : [];
 
-            if (($info['subject'] ?? null) == ($info['issuer'] ?? null) && openssl_x509_verify($pem, $pem) === 1) {
-                $roots[] = $pem;
-            } else {
-                $intermediates[] = $pem;
+            foreach ($pems as $pem) {
+                if (Certificates::isSelfSigned($pem)) {
+                    $roots[(string) openssl_x509_fingerprint($pem, 'sha256')] = ['pem' => $pem, 'kind' => $tipo];
+                } else {
+                    $intermediates[] = $pem;
+                }
             }
         }
 

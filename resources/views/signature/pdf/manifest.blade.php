@@ -214,3 +214,12 @@
     uma alteração feita por fora do sistema quebra a conferência e fica detectável. A rolagem até o fim do
     documento é informada pelo navegador do tablet: o servidor registra o que recebeu, com o horário dele.
 </p>
+
+@if(config('signature.pades.enabled'))
+    {{-- O lacre entra DEPOIS de este manifesto ser montado (SignaturePdfSealer), como assinatura digital do arquivo. --}}
+    <p style="font-size:8px;color:#777;margin-top:6px;line-height:1.5;">
+        Este PDF é lacrado digitalmente pelo clube, com certificado ICP-Brasil{{ config('signature.pades.tsa_url') ? ' e carimbo de tempo' : '' }}:
+        qualquer alteração depois da emissão invalida o lacre. Confira enviando o arquivo ao validador oficial do
+        governo, em validar.iti.gov.br — sem precisar de acesso ao sistema do clube.
+    </p>
+@endif

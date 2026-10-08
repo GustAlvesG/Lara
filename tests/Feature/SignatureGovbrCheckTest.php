@@ -281,7 +281,8 @@ class SignatureGovbrCheckTest extends TestCase
             ->get(route('signature-documents.show', [$documento, 'aba' => 'govbr']))
             ->assertOk()
             ->assertSee('Válido')
-            ->assertSee('Certificado emitido pelo gov.br')
+            ->assertSee('Certificado do gov.br ou da ICP-Brasil')
+            ->assertSee('gov.br — assinatura eletrônica avançada')
             ->assertSee('123.***.**9-09')
             ->assertDontSee('12345678909');
     }
@@ -321,17 +322,23 @@ class SignatureGovbrCheckTest extends TestCase
         $this->assertSame(['data'], $this->reprovados($conferencia));
     }
 
-    public function test_revogacao_aparece_como_nao_conferida_sem_reprovar(): void
+    /**
+     * Certificado que não diz onde está a lista de revogação: a linha aparece
+     * como "não conferida", em cada assinatura, e não reprova. A consulta de
+     * verdade está em SignatureGovbrRevocationTest.
+     */
+    public function test_revogacao_sem_lista_declarada_aparece_como_nao_conferida_sem_reprovar(): void
     {
         $documento = $this->documentoCongelado();
 
         $this->envia($documento, $this->govbrAssina($this->original($documento), $this->govbrCertificado($this->ac, '12345678909')));
 
         $conferencia = SignatureGovbrCheck::sole();
-        $revogacao = collect($conferencia->checks())->firstWhere('key', 'revogacao');
+        $revogacao = collect($conferencia->signatures()[0]['checks'])->firstWhere('key', 'revogacao');
 
         $this->assertNotNull($revogacao);
         $this->assertNull($revogacao['ok']);
+        $this->assertStringContainsString('não informa onde está a lista de revogação', $revogacao['detail']);
         $this->assertTrue($conferencia->valid);
     }
 }

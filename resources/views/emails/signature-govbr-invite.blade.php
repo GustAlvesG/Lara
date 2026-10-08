@@ -40,6 +40,11 @@
       </li>
     </ol>
 
+    <p style="font-size:13px;line-height:1.6;color:#6d6062;margin:0 0 14px;">
+      Tem certificado digital ICP-Brasil (e-CPF)? Você também pode assinar o PDF no programa do seu certificado,
+      em vez do gov.br, e devolver o arquivo assinado do mesmo jeito.
+    </p>
+
     @if($document->expires_at)
       <p style="font-size:13px;line-height:1.6;color:#6d6062;margin:0 0 6px;">
         Prazo para assinar: até <b>{{ $document->expires_at->format('d/m/Y \à\s H:i') }}</b>.

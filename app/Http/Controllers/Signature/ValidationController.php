@@ -58,6 +58,10 @@ class ValidationController extends Controller
 
         $resultado = match (true) {
             $documento && $hash === $documento->final_sha256 => 'final',
+            // Assinado pelo gov.br com o lacre ligado: o final é o arquivo
+            // aprovado MAIS o lacre do clube. O arquivo que a pessoa baixou do
+            // gov.br (sem o lacre) continua sendo a via assinada.
+            $documento && $documento->govbr_check_id && $hash === $documento->govbrFinalCheck?->file_sha256 => 'final',
             $documento && $hash === $documento->original_sha256 => 'original',
             default => 'divergente',
         };

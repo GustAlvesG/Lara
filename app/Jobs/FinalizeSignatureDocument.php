@@ -21,9 +21,14 @@ use Throwable;
  * Monta o PDF final: documento assinado + página de manifesto.
  *
  * Exceção: documento assinado pelo gov.br (`govbr_check_id`). Ali o final é o
- * arquivo que voltou do gov.br, sem tocar — ver govbrFile() —, e o manifesto
- * vira um PDF À PARTE, o relatório de validação (`report_path`): acrescentar
- * uma página ao arquivo assinado desfaria as assinaturas.
+ * arquivo que voltou do gov.br, sem reescrever — ver govbrFile() —, e o
+ * manifesto vira um PDF À PARTE, o relatório de validação (`report_path`):
+ * acrescentar uma página ao arquivo assinado desfaria as assinaturas.
+ *
+ * Lacre (SignaturePdfSealer, `signature.pades.enabled`): os três PDFs — o
+ * final do tablet, o final do gov.br e o relatório — recebem a assinatura do
+ * clube (e-CNPJ) por atualização incremental, com carimbo de tempo se houver
+ * ACT. O `final_sha256` é o do arquivo JÁ lacrado.
  *
  * Roda em fila porque gerar PDF leva segundos e a pessoa está no balcão — o
  * tablet mostra "assinatura concluída" assim que a gravação entra, e o arquivo
@@ -110,15 +115,17 @@ class FinalizeSignatureDocument implements ShouldQueue
 
         if ($document->govbr_check_id !== null) {
             /*
-             | Assinado pelo gov.br: o final é o ARQUIVO QUE VOLTOU, byte a byte —
-             | ele carrega as assinaturas. Re-renderizar, carimbar, acrescentar
-             | manifesto ou lacrar quebraria todas elas. O que seria o manifesto
-             | sai como relatório, num PDF separado, com o hash dele.
+             | Assinado pelo gov.br: o final é o ARQUIVO QUE VOLTOU — ele carrega
+             | as assinaturas. Re-renderizar, carimbar ou acrescentar manifesto
+             | quebraria todas elas. O lacre (se ligado) entra por atualização
+             | incremental, como mais uma assinatura, e não as desfaz. O que
+             | seria o manifesto sai como relatório, num PDF separado, com o
+             | hash do final já lacrado.
              */
-            $bytes = $this->govbrFile($document);
+            $bytes = $sealer->seal($this->govbrFile($document), $document);
             $origem = 'gov.br';
 
-            $relatorioBytes = $renderer->govbrReport($document, hash('sha256', $bytes));
+            $relatorioBytes = $sealer->seal($renderer->govbrReport($document, hash('sha256', $bytes)), $document);
             $relatorio = [
                 'report_path' => $pasta . '/relatorio-govbr.pdf',
                 'report_sha256' => hash('sha256', $relatorioBytes),
@@ -128,8 +135,8 @@ class FinalizeSignatureDocument implements ShouldQueue
         } else {
             $bytes = $renderer->pdf($document, SignatureDocumentRenderer::MODE_FINAL);
 
-            // Lacre com certificado (PAdES). Desligado nesta entrega; devolve os
-            // mesmos bytes. Ver config/signature.php.
+            // Lacre com o e-CNPJ do clube (PAdES), se ligado; desligado devolve
+            // os mesmos bytes. Ver config/signature.php.
             $bytes = $sealer->seal($bytes, $document);
             $origem = 'tablet';
         }
@@ -151,7 +158,8 @@ class FinalizeSignatureDocument implements ShouldQueue
                 'actor_type' => SignatureAuditEvent::ACTOR_SYSTEM,
                 'payload' => [
                     'bytes' => strlen($bytes),
-                    'lacrado' => $origem === 'tablet' && $sealer->isEnabled(),
+                    'lacrado' => $sealer->isEnabled(),
+                    'carimbo_de_tempo' => $sealer->timestampsEnabled(),
                     'origem' => $origem,
                 ] + ($relatorio ? ['relatorio_sha256' => $relatorio['report_sha256']] : []),
             ],

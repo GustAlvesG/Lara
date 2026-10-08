@@ -34,3 +34,5 @@ storage/certificates
 # Exceção: a cadeia PÚBLICA do gov.br (só certificados de AC, nenhuma chave).
 # Sem ela no repositório, a conferência de assinatura gov.br recusa tudo.
 !resources/certs/govbr/cadeia-govbr.pem
+# Idem: as raízes PÚBLICAS da ICP-Brasil (assinatura qualificada na mesma aba).
+!resources/certs/icp-brasil/raizes-icp-brasil.pem
