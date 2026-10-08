@@ -143,7 +143,7 @@ class SignatureRequestService
             throw SignatureSessionException::invalidToken();
         }
 
-        return $this->open($request, $ip, $userAgent, manual: false);
+        return $this->open($request, $ip, $userAgent, via: 'qr_code');
     }
 
     /**
@@ -191,7 +191,28 @@ class SignatureRequestService
             throw SignatureSessionException::expired();
         }
 
-        return $this->open($request, $ip, $userAgent, manual: true);
+        return $this->open($request, $ip, $userAgent, via: 'codigo_digitado');
+    }
+
+    /**
+     * Abre a sessão de uma liberação que o PRÓPRIO tablet acabou de gerar — o
+     * autoatendimento do Termo de Menores, em que não há atendente nem QR.
+     *
+     * O segredo em claro nunca sai do servidor: a liberação é emitida e
+     * consumida na mesma requisição, e o tablet recebe só o cookie da sessão.
+     * As travas são as mesmas da leitura do QR (uso único, prazo, faixa de IP).
+     *
+     * @return array{request: SignatureRequest, session_token: string}
+     *
+     * @throws SignatureSessionException
+     */
+    public function consumeIssued(
+        SignatureRequest $request,
+        ?string $ip = null,
+        ?string $userAgent = null,
+        string $via = 'autoatendimento',
+    ): array {
+        return $this->open($request, $ip, $userAgent, via: $via);
     }
 
     /**
@@ -209,7 +230,7 @@ class SignatureRequestService
         SignatureRequest $request,
         ?string $ip,
         ?string $userAgent,
-        bool $manual,
+        string $via,
     ): array {
         $signer = $request->signer;
         $documentId = $signer?->signature_document_id;
@@ -294,7 +315,7 @@ class SignatureRequestService
                 'user_agent' => $userAgent,
                 // Como o segredo chegou ao tablet fica na trilha: meses depois,
                 // é o que explica um atendimento sem foto.
-                'payload' => ['via' => $manual ? 'codigo_digitado' : 'qr_code'],
+                'payload' => ['via' => $via],
             ],
         );
 

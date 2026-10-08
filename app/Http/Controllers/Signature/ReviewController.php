@@ -39,8 +39,10 @@ class ReviewController extends Controller
         $usuario = $request->user();
         $coordenacao = $usuario->can(P::ASSINATURA_REVISAR_COORDENACAO);
 
-        $documentos = SignatureDocument::with(['template', 'signers'])
+        $documentos = SignatureDocument::with(['template', 'signers', 'minorAuthorization'])
             ->where('status', SignatureDocument::STATUS_FINALIZED)
+            // Termo de menores não passa pela revisão (ver SignatureReviewService).
+            ->whereDoesntHave('minorAuthorization')
             ->when(
                 $situacao === 'revisados',
                 fn($q) => $q->where('review_status', SignatureReview::RESULT_OK),

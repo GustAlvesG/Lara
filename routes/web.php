@@ -73,6 +73,8 @@ use App\Http\Controllers\Signature\DocumentController as SignatureDocumentContro
 use App\Http\Controllers\Signature\GovbrController as SignatureGovbrController;
 use App\Http\Controllers\Signature\GuideController as SignatureGuideController;
 use App\Http\Controllers\Signature\LayoutController as SignatureLayoutController;
+use App\Http\Controllers\Signature\MinorTermController;
+use App\Http\Controllers\Signature\MinorTermKioskController;
 use App\Http\Controllers\Signature\QuiosqueController;
 use App\Http\Controllers\Signature\ReleaseController as SignatureReleaseController;
 use App\Http\Controllers\Signature\ReviewController as SignatureReviewController;
@@ -122,6 +124,39 @@ Route::prefix('assinatura/kiosk')->name('quiosque.')->group(function () {
 
     Route::post('/consumir', [QuiosqueController::class, 'consume'])
         ->middleware('throttle:10,1')->name('consume');
+
+    /*
+    | Termo de Menores — autoatendimento do sócio nos eventos. A mesma tela do
+    | quiosque, no modo "menores": o próprio tablet gera o documento (título →
+    | responsável → CPF → menor) e recebe o cookie `lara_sign`; dali em diante
+    | usa as rotas do quiosque abaixo. Só responde a tablet pareado
+    | (`signature_minor_device`, pareamento por QR em Assinaturas → Termo de
+    | Menores). Ver MinorTermKioskController.
+    */
+    Route::prefix('/menores')->name('menores.')->group(function () {
+        Route::get('/', [MinorTermKioskController::class, 'index'])->name('index');
+
+        // Leitura do QR de pareamento — token adivinhável só por força bruta.
+        Route::post('/parear', [MinorTermKioskController::class, 'pair'])
+            ->middleware('throttle:10,1')->name('pair');
+
+        Route::middleware('signature_minor_device')->group(function () {
+            Route::get('/estado', [MinorTermKioskController::class, 'state'])
+                ->middleware('throttle:120,1')->name('state');
+            Route::post('/titulo', [MinorTermKioskController::class, 'title'])
+                ->middleware('throttle:30,1')->name('title');
+            // O serviço conta as tentativas de CPF por título; o throttle é a
+            // trava por IP.
+            Route::post('/responsavel', [MinorTermKioskController::class, 'responsible'])
+                ->middleware('throttle:20,1')->name('responsible');
+            Route::get('/lista', [MinorTermKioskController::class, 'minors'])
+                ->middleware('throttle:60,1')->name('minors');
+            Route::post('/documento', [MinorTermKioskController::class, 'document'])
+                ->middleware('throttle:20,1')->name('document');
+            Route::post('/encerrar', [MinorTermKioskController::class, 'end'])
+                ->middleware('throttle:60,1')->name('end');
+        });
+    });
 
     Route::middleware('signature_kiosk')->group(function () {
         Route::get('/sessao', [QuiosqueController::class, 'session'])
@@ -1019,6 +1054,41 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
     Route::get('assinatura/revisao', [SignatureReviewController::class, 'index'])
         ->middleware('can:acessar-revisao-assinatura')
         ->name('signature-reviews.index');
+
+    // Termo de Menores (autoatendimento do sócio nos eventos): o termo de
+    // cada evento, o pareamento do tablet e o histórico de quem foi
+    // autorizado. Cada tela pede a sua permissão; o item do menu, qualquer
+    // uma das três. O tablet mora no prefixo público `/assinatura/kiosk/menores`.
+    Route::prefix('assinatura/termo-menores')->name('minor-terms.')->group(function () {
+        Route::get('/', [MinorTermController::class, 'index'])
+            ->middleware('can:acessar-termo-menores')->name('index');
+
+        Route::middleware('can:' . P::ASSINATURA_TERMO_MENORES_GERENCIAR)->group(function () {
+            Route::get('/termos', [MinorTermController::class, 'terms'])->name('terms');
+            Route::post('/termos', [MinorTermController::class, 'store'])->name('store');
+            Route::get('/termos/{signatureMinorTerm}/editar', [MinorTermController::class, 'edit'])
+                ->whereNumber('signatureMinorTerm')->name('edit');
+            Route::put('/termos/{signatureMinorTerm}', [MinorTermController::class, 'update'])
+                ->whereNumber('signatureMinorTerm')->name('update');
+        });
+
+        Route::middleware('can:' . P::ASSINATURA_TERMO_MENORES_PAREAR)->group(function () {
+            Route::get('/tablets', [MinorTermController::class, 'devices'])->name('devices');
+            Route::post('/tablets', [MinorTermController::class, 'startPairing'])
+                ->middleware('throttle:20,1')->name('devices.pair');
+            // Polling da tela de pareamento: o QR foi lido?
+            Route::get('/tablets/{signatureKioskDevice}/status', [MinorTermController::class, 'deviceStatus'])
+                ->whereNumber('signatureKioskDevice')->middleware('throttle:120,1')->name('devices.status');
+            Route::delete('/tablets/{signatureKioskDevice}', [MinorTermController::class, 'revoke'])
+                ->whereNumber('signatureKioskDevice')->name('devices.revoke');
+        });
+
+        Route::middleware('can:' . P::ASSINATURA_TERMO_MENORES_HISTORICO)->group(function () {
+            Route::get('/historico', [MinorTermController::class, 'history'])->name('history');
+            Route::get('/historico/{signatureMinorAuthorization}/foto', [MinorTermController::class, 'photo'])
+                ->whereNumber('signatureMinorAuthorization')->name('history.photo');
+        });
+    });
 
     Route::prefix('assinatura/documentos')->name('signature-documents.')->group(function () {
         Route::get('/', [SignatureDocumentController::class, 'index'])->name('index');

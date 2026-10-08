@@ -147,7 +147,19 @@ class AppServiceProvider extends ServiceProvider
                 || $user->can(Permissions::ASSINATURA_CONSULTAR)
                 || $user->can(Permissions::ASSINATURA_MODELOS)
                 || $user->can(Permissions::ASSINATURA_REVISAR)
-                || $user->can(Permissions::ASSINATURA_REVISAR_COORDENACAO),
+                || $user->can(Permissions::ASSINATURA_REVISAR_COORDENACAO)
+                || $user->can('acessar-termo-menores'),
+        );
+
+        /**
+         * Termo de Menores: o item do menu abre para quem tem qualquer uma das
+         * três permissões (termos, tablet, histórico); cada tela confere a sua.
+         */
+        Gate::define(
+            'acessar-termo-menores',
+            fn (User $user) => $user->can(Permissions::ASSINATURA_TERMO_MENORES_GERENCIAR)
+                || $user->can(Permissions::ASSINATURA_TERMO_MENORES_PAREAR)
+                || $user->can(Permissions::ASSINATURA_TERMO_MENORES_HISTORICO),
         );
 
         /**

@@ -326,6 +326,18 @@ documento mesmo sem `assinatura.documentos`/`consultar` (`SignatureDocumentPolic
 
 Migration `2026_10_11_100400_create_signature_reviews`. Testes: `SignatureReviewTest`.
 
+**Termo de Menores fica fora da revisão** (decisão do clube): `SignatureDocument::isMinorTerm()` — a
+fila não lista, a aba mostra "Não se aplica" e `blockReason` recusa. Ver [Termo de Menores](termo-de-menores.md).
+
+## Termo de Menores (autoatendimento)
+
+Autorização de entrada de menor nos eventos, assinada pelo **próprio sócio** num tablet de
+autoatendimento pareado (`/assinatura/kiosk/menores`): título → responsável → CPF completo → menor →
+documento gerado pelo próprio tablet → leitura, aceite, traço e foto do quiosque de sempre → tela
+verde. Cada termo é um documento comum deste módulo. Menu **Assinaturas → Termo de Menores** (termos
+dos eventos, pareamento do tablet, histórico). Documentação completa:
+[Termo de Menores](termo-de-menores.md).
+
 ## Página pública de validação
 
 `/validar/{codigo}` — sem login, porque quem chega veio do QR impresso. Mostra título, data,
@@ -1003,6 +1015,10 @@ Tudo em `config/signature.php`, com as variáveis documentadas no `.env.example`
 | `SIGNATURE_GOVBR_TTL_DAYS` | `7` | Prazo do documento preparado para o gov.br, contado do "Preparar" |
 | `SIGNATURE_ATTACHMENT_MAX_KB` | `10240` | Tamanho máximo de cada anexo do documento (PDF, JPG ou PNG) |
 | `SIGNATURE_IDENTITY_CODE_TTL_MINUTES` | `10` | Validade do código da conferência de identidade por e-mail |
+| `SIGNATURE_MINOR_DEVICE_TTL_HOURS` | `12` | Termo de Menores: horas que o tablet fica pareado |
+| `SIGNATURE_MINOR_PAIRING_TTL_SECONDS` | `300` | Termo de Menores: validade do QR de pareamento |
+| `SIGNATURE_MINOR_FLOW_TTL_MINUTES` | `10` | Termo de Menores: inatividade que encerra o atendimento |
+| `SIGNATURE_MINOR_MAX_CPF_ATTEMPTS` | `5` | Termo de Menores: tentativas de CPF por título, por tablet, a cada 15 min |
 
 Nunca aponte `SIGNATURE_DISK` para `public` ou `placar`: os dois servem arquivo estático, sem
 passar por autorização nenhuma.
@@ -1013,8 +1029,9 @@ sessão parada e documento não assinado.
 ## Colocando para funcionar
 
 ```bash
-php artisan migrate                                   # 27 migrations do módulo
+php artisan migrate                                   # 28 migrations do módulo
 php artisan db:seed --class=SignatureTemplateSeeder   # opcional: 3 modelos iniciais
+php artisan db:seed --class=MinorTermTemplateSeeder   # opcional: modelo do Termo de Menores (OKTOBERPET 2026)
 php artisan queue:work                                # OBRIGATÓRIO — ver abaixo
 ```
 
@@ -1169,6 +1186,13 @@ arquivo preso ao documento, permissão, manifesto com o hash e o servidor de arq
 (sem o endereço na tela, sem o código no banco nem na trilha), CPF no lugar do código, código errado
 gastando tentativa, código vencido, espera e teto de reenvio, código substituído, falha de SMTP, modelo
 de CPF que não envia, signatário sem e-mail travando o congelamento e o manifesto.
+`SignatureMinorTermKioskTest` cobre o Termo de Menores no tablet: pareamento (uso único, prazo do QR,
+12 h, revogação), tablet sem pareamento, só adultos como responsável, menor como responsável recusado,
+CPF errado contando por título, MultiClubes fora do ar, sem termo vigente, menores por sobrenome,
+dados que faltam (digitados, inválidos e pulados), fluxo completo até assinado com a via, "já
+autorizado", documento abandonado cancelado, "Concluir", histórico com a foto e a revisão de fora.
+`SignatureMinorTermPanelTest` cobre as telas do computador (permissões, cadastro, vigência que cruza,
+modelo que não serve, desativar, QR de pareamento) e `Unit\MinorTermRulesTest`, sobrenome e maioridade.
 
 > As tabelas são criadas pelo trait `Tests\Concerns\CreatesSignatureSchema`, que aplica as
 > migrations **de verdade** — a cadeia completa de migrations não roda na suíte, e nenhuma tabela
@@ -1178,10 +1202,10 @@ de CPF que não envia, signatário sem e-mail travando o congelamento e o manife
 
 | Camada | Arquivos |
 |---|---|
-| Models | `SignatureTemplate`, `SignatureDocument`, `SignatureSigner`, `SignatureRequest`, `SignatureEvidence`, `SignatureAuditEvent`, `SignatureGovbrCheck`, `SignatureGovbrInvite`, `SignatureAttachment` |
-| Services | `app/Services/Signature/` — `SignatureStateMachine`, `SignatureAuditor`, `SignatureDocumentService`, `SignatureDocumentRenderer`, `SignatureRequestService`, `SignatureCaptureService`, `SignatureQrCode`, `SignaturePdfSealer`, `SignatureAttachmentService`; `app/Services/Signature/Govbr/` — `GovbrSignatureValidator`, `GovbrValidationResult`, `GovbrCheckService`, `Asn1` |
-| Controllers | `app/Http/Controllers/Signature/` — `TemplateController`, `DocumentController`, `ReleaseController`, `QuiosqueController`, `ValidationController`, `GovbrController`, `AttachmentController` |
-| Middleware | `EnsureSignatureKioskSession` (alias `signature_kiosk`) |
+| Models | `SignatureTemplate`, `SignatureDocument`, `SignatureSigner`, `SignatureRequest`, `SignatureEvidence`, `SignatureAuditEvent`, `SignatureGovbrCheck`, `SignatureGovbrInvite`, `SignatureAttachment`, `SignatureMinorTerm`, `SignatureMinorAuthorization`, `SignatureKioskDevice` |
+| Services | `app/Services/Signature/` — `SignatureStateMachine`, `SignatureAuditor`, `SignatureDocumentService`, `SignatureDocumentRenderer`, `SignatureRequestService`, `SignatureCaptureService`, `SignatureQrCode`, `SignaturePdfSealer`, `SignatureAttachmentService`; `app/Services/Signature/Govbr/` — `GovbrSignatureValidator`, `GovbrValidationResult`, `GovbrCheckService`, `Asn1`; `app/Services/Signature/MinorTerms/` — Termo de Menores |
+| Controllers | `app/Http/Controllers/Signature/` — `TemplateController`, `DocumentController`, `ReleaseController`, `QuiosqueController`, `ValidationController`, `GovbrController`, `AttachmentController`, `MinorTermController`, `MinorTermKioskController`; trait `Concerns\RespondsWithKioskSession` |
+| Middleware | `EnsureSignatureKioskSession` (alias `signature_kiosk`), `EnsureMinorTermDevice` (alias `signature_minor_device`) |
 | Jobs | `FinalizeSignatureDocument`, `SendSignatureCopy` |
 | Comando | `signature:expire` |
 | Telas | `resources/views/signature/` (painel, guia e PDF), `resources/views/quiosque/index.blade.php` (tablet, servido em `/assinatura/kiosk`) |

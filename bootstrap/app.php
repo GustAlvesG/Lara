@@ -24,6 +24,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // Sessão do tablet de assinatura: cookie próprio (`lara_sign`),
             // vinculado a UM documento pela leitura do QR. Não é a sessão web.
             'signature_kiosk' => \App\Http\Middleware\EnsureSignatureKioskSession::class,
+            // Tablet de autoatendimento do Termo de Menores: só responde ao
+            // aparelho pareado (cookie `lara_minor_device`, 12 h).
+            'signature_minor_device' => \App\Http\Middleware\EnsureMinorTermDevice::class,
             // Aviso de leitura obrigatória pendente desvia a navegação para a
             // tela de ciência (ver o middleware e routes/web.php).
             'avisos_obrigatorios' => \App\Http\Middleware\EnsureMandatoryAvisosAcknowledged::class,

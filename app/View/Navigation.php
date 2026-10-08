@@ -120,6 +120,7 @@ final class Navigation
                     ['route' => 'signature-documents.index', 'label' => 'Documentos', 'permission' => 'acessar-documentos-assinatura', 'active' => 'signature-documents.*'],
                     ['route' => 'signature-reviews.index', 'label' => 'Revisão', 'permission' => 'acessar-revisao-assinatura', 'active' => 'signature-reviews.*'],
                     ['route' => 'signature-templates.index', 'label' => 'Modelos', 'permission' => P::ASSINATURA_MODELOS, 'active' => 'signature-templates.*'],
+                    ['route' => 'minor-terms.index', 'label' => 'Termo de Menores', 'permission' => 'acessar-termo-menores', 'active' => 'minor-terms.*'],
                     ['route' => 'signature-guide.index', 'label' => 'Guia', 'permission' => 'acessar-guia-assinatura', 'active' => 'signature-guide.*'],
                 ]],
             ['label' => 'Freelancers', 'area' => 'freela', 'glyph' => 'user',

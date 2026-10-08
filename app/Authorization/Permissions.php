@@ -75,6 +75,12 @@ final class Permissions
     // coordenadores.
     public const ASSINATURA_REVISAR = 'assinatura.revisar';
     public const ASSINATURA_REVISAR_COORDENACAO = 'assinatura.revisar-coordenacao';
+    // Termo de Menores (autoatendimento de sócio nos eventos): cadastrar o
+    // termo de cada evento, parear o tablet e consultar o histórico — este
+    // último é o de quem põe a pulseira na entrada.
+    public const ASSINATURA_TERMO_MENORES_GERENCIAR = 'assinatura.termo-menores.gerenciar';
+    public const ASSINATURA_TERMO_MENORES_PAREAR = 'assinatura.termo-menores.parear';
+    public const ASSINATURA_TERMO_MENORES_HISTORICO = 'assinatura.termo-menores.historico';
 
     public const PLACAR_CADASTRO = 'placar.cadastro';
     public const PLACAR_SCOUT = 'placar.scout';
@@ -136,6 +142,9 @@ final class Permissions
         self::ASSINATURA_EVIDENCIAS => ['Assinaturas', 'Ver as evidências (foto do signatário e traço)'],
         self::ASSINATURA_REVISAR => ['Assinaturas', 'Revisar documentos assinados (do dia seguinte em diante, só os que não acompanhou)'],
         self::ASSINATURA_REVISAR_COORDENACAO => ['Assinaturas', 'Revisar antes do prazo e os próprios documentos (dê só aos coordenadores)'],
+        self::ASSINATURA_TERMO_MENORES_GERENCIAR => ['Assinaturas', 'Termo de Menores: cadastrar o termo de cada evento'],
+        self::ASSINATURA_TERMO_MENORES_PAREAR => ['Assinaturas', 'Termo de Menores: parear o tablet de autoatendimento'],
+        self::ASSINATURA_TERMO_MENORES_HISTORICO => ['Assinaturas', 'Termo de Menores: consultar o histórico de autorizações'],
 
         self::PLACAR_CADASTRO => ['Placar Clube', 'Cadastro (equipes, times, jogadores, jogos)'],
         self::PLACAR_SCOUT => ['Placar Clube', 'Súmulas e scout'],

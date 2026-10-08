@@ -1,10 +1,39 @@
+@php
+    /*
+     | Dois modos, a mesma tela:
+     |  - balcao  (/assinatura/kiosk): lê o QR que o atendente gerou;
+     |  - menores (/assinatura/kiosk/menores): autoatendimento do Termo de
+     |    Menores — o sócio informa o título, escolhe o responsável, confirma o
+     |    CPF e escolhe o menor; o próprio tablet gera o documento. Leitura,
+     |    aceite, traço e foto são os mesmos. Ver MinorTermKioskController.
+     */
+    $modo = $modo ?? 'balcao';
+    $menores = $modo === 'menores';
+
+    $configMenores = $menores ? [
+        'pareado' => (bool) ($pareado ?? false),
+        'prefixoPareamento' => \App\Models\SignatureKioskDevice::PAIRING_PREFIX,
+        'rotas' => [
+            'parear' => route('quiosque.menores.pair'),
+            'estado' => route('quiosque.menores.state'),
+            'titulo' => route('quiosque.menores.title'),
+            'responsavel' => route('quiosque.menores.responsible'),
+            'lista' => route('quiosque.menores.minors'),
+            'documento' => route('quiosque.menores.document'),
+            'encerrar' => route('quiosque.menores.end'),
+        ],
+        // Inatividade, em segundos, que devolve o tablet ao início nas telas
+        // de antes do documento: o próximo sócio não vê os nomes do anterior.
+        'ociosoSegundos' => 120,
+    ] : null;
+@endphp
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Assinatura de Documentos — CFCSN</title>
+  <title>{{ $menores ? 'Termo de Menores' : 'Assinatura de Documentos' }} — CFCSN</title>
   <link rel="icon" href="{{ asset('favicon.ico') }}" type="image/x-icon" />
 
   {{--
@@ -47,6 +76,8 @@
     // O texto da autorização da foto. Vem do servidor porque é o MESMO que a
     // evidência grava — e o corpo desta página não passa pelo Blade.
     textoAutorizacaoFoto: @json(\App\Models\SignatureEvidence::PHOTO_CONSENT_TEXT),
+    // Autoatendimento do Termo de Menores; null no balcão.
+    menores: @json($configMenores),
   };</script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
@@ -180,6 +211,28 @@
   .sheet p{margin:0 0 16px;font-size:15px;color:var(--ink-2);line-height:1.5;}
   .sheet textarea{width:100%;min-height:96px;border-radius:14px;border:1px solid var(--border-strong);padding:12px;font-family:inherit;font-size:15px;background:var(--surface-2);color:var(--ink);}
   .sheet .row{display:flex;gap:10px;margin-top:16px;}
+
+  /* Termo de Menores (autoatendimento): listas de pessoas e a tela verde */
+  .lista{display:flex;flex-direction:column;gap:10px;}
+  .pessoa{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;min-height:72px;padding:14px 18px;border-radius:var(--r);border:2px solid var(--border-strong);background:var(--surface-2);color:var(--ink);font-family:inherit;font-size:19px;font-weight:700;text-align:left;cursor:pointer;}
+  .pessoa:active{transform:scale(.99);}
+  .pessoa small{display:block;font-size:14px;font-weight:500;color:var(--ink-2);margin-top:2px;}
+  .pessoa .selo{flex:0 0 auto;font-size:13.5px;font-weight:800;padding:6px 12px;border-radius:999px;background:var(--success-tint);color:var(--success);}
+  .pessoa.feito{border-color:color-mix(in srgb,var(--success) 45%, var(--border));background:var(--success-tint);}
+  .campo-grande{width:100%;min-height:72px;border-radius:var(--r);border:2px solid var(--border-strong);background:var(--surface-2);color:var(--ink);font-family:inherit;font-size:28px;font-weight:800;letter-spacing:3px;text-align:center;padding:10px 16px;text-transform:uppercase;}
+  .campo-grande:focus{outline:none;border-color:var(--brand);}
+  .evento{display:inline-block;margin-bottom:14px;font-size:14px;font-weight:800;padding:7px 14px;border-radius:999px;background:var(--brand-tint);color:var(--brand);}
+  #tela-verde{background:var(--success);color:#fff;}
+  #tela-verde .verde{flex:1 1 auto;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;padding:24px;}
+  #tela-verde .check{width:84px;height:84px;border-radius:50%;background:#fff;color:var(--success);display:grid;place-items:center;font-size:46px;font-weight:800;}
+  #tela-verde .apresente{font-family:var(--display);font-size:24px;font-weight:700;line-height:1.25;margin:6px 0 4px;}
+  #tela-verde .foto{width:168px;height:168px;border-radius:24px;object-fit:cover;border:4px solid #fff;background:rgba(255,255,255,.2);}
+  #tela-verde .rotulo{font-size:12.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;opacity:.85;margin-top:8px;}
+  #tela-verde .nome{font-size:26px;font-weight:800;line-height:1.2;}
+  #tela-verde .sub{font-size:17px;font-weight:600;opacity:.95;}
+  #tela-verde .foot{background:var(--success);border-top-color:rgba(255,255,255,.35);}
+  #tela-verde .btn-primary{background:#fff;color:var(--success);}
+  #tela-verde .btn-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.7);}
 
   .hidden{display:none !important;}
   </style>
@@ -364,6 +417,12 @@
       </div>
     </section>
 
+@endverbatim
+@if($menores)
+    @include('quiosque.partials.menores-telas')
+@endif
+@verbatim
+
     <!-- Recusa -->
     <div class="sheet" id="sheetRecusa">
       <div class="card">
@@ -497,6 +556,10 @@
           // Erros por pergunta do formulário (chave do campo => mensagem).
           falha.campos = dados.errors || null;
           falha.sessaoEncerrada = !!dados.session_ended || resposta.status === 419;
+          // Autoatendimento do Termo de Menores: atendimento encerrado (volta
+          // ao início) e tablet sem pareamento (volta ao pareamento).
+          falha.recomecar = !!dados.restart;
+          falha.despareado = !!dados.device_unpaired;
           throw falha;
         }
 
@@ -620,26 +683,52 @@
      * cardápio, de nota fiscal ou de um site qualquer não vira requisição — e,
      * principalmente, o tablet nunca navega para uma URL que apareceu num QR.
      */
-    if (texto.indexOf(CFG.prefixoQr) !== 0) {
-      $('#dicaLeitor').textContent = 'Este código não é de assinatura. Peça o QR ao atendente.';
+    if (texto.indexOf(prefixoEntrada()) !== 0) {
+      $('#dicaLeitor').textContent = CFG.menores
+        ? 'Este código não é de pareamento. Gere o QR em Assinaturas → Termo de Menores → Tablet.'
+        : 'Este código não é de assinatura. Peça o QR ao atendente.';
       return;
     }
 
     processandoQr = true;
-    $('#dicaLeitor').textContent = 'Abrindo o documento…';
+    $('#dicaLeitor').textContent = CFG.menores ? 'Pareando o tablet…' : 'Abrindo o documento…';
 
-    api('POST', CFG.rotas.consumir, { payload: texto })
+    api('POST', rotaEntrada(), { payload: texto })
       .then(function (dados) {
-        return paraLeitor().then(function () { abreAtendimento(dados); });
+        return paraLeitor().then(function () { aoEntrar(dados); });
       })
       .catch(function (e) {
-        $('#dicaLeitor').textContent = 'Aponte a câmera para o QR Code exibido pelo atendente.';
+        $('#dicaLeitor').textContent = CFG.menores
+          ? 'Aponte a câmera para o QR de pareamento exibido no computador.'
+          : 'Aponte a câmera para o QR Code exibido pelo atendente.';
         erro(e.message, 'QR Code não aceito');
       })
       .then(function () {
         // Pausa curta para não reprocessar o mesmo quadro.
         setTimeout(function () { processandoQr = false; }, 1500);
       });
+  }
+
+  /*
+   * A porta de entrada da câmera e do código digitado. No balcão, o QR libera
+   * um documento; no Termo de Menores, o QR PAREIA o tablet (o documento é o
+   * próprio tablet que gera, depois).
+   */
+  function prefixoEntrada() {
+    return CFG.menores ? CFG.menores.prefixoPareamento : CFG.prefixoQr;
+  }
+
+  function rotaEntrada() {
+    return CFG.menores ? CFG.menores.rotas.parear : CFG.rotas.consumir;
+  }
+
+  function aoEntrar(dados) {
+    if (CFG.menores) {
+      menoresPareado(dados);
+      return;
+    }
+
+    abreAtendimento(dados);
   }
 
   /* ---------------------------------------------------------------------
@@ -721,9 +810,9 @@
   $('#btnCodigo').addEventListener('click', function () {
     $('#btnCodigo').disabled = true;
 
-    api('POST', CFG.rotas.consumir, { code: codigoDigitado })
+    api('POST', rotaEntrada(), { code: codigoDigitado })
       .then(function (dados) {
-        abreAtendimento(dados);
+        aoEntrar(dados);
       })
       .catch(function (e) {
         codigoDigitado = '';
@@ -760,6 +849,13 @@
     // A via por e-mail só é oferecida a quem tem e-mail cadastrado. O tablet
     // sabe SE existe, nunca QUAL é.
     $('#viaBox').classList.toggle('hidden', !S.signatario.has_email);
+
+    // Termo de Menores: a via vai sempre que há e-mail (o do cadastro ou o
+    // digitado no início) — sem caixa para marcar.
+    if (CFG.menores) {
+      $('#viaBox').classList.add('hidden');
+      S.querVia = !!S.signatario.has_email;
+    }
 
     iniciaContagem();
     iniciaBatimento();
@@ -1080,6 +1176,11 @@
 
     S = null;
 
+    if (CFG.menores) {
+      menoresDepoisDoAtendimento(opcoes);
+      return;
+    }
+
     mostra('tela-espera');
     $('#dicaLeitor').textContent = 'Procurando o código…';
 
@@ -1130,7 +1231,9 @@
 
       if (S.sessao.restante <= 0) {
         encerraAtendimento({
-          mensagem: 'O tempo do atendimento terminou. Peça ao atendente que gere um novo QR Code.',
+          mensagem: CFG.menores
+            ? 'O tempo do atendimento terminou. Recomece pelo número do título.'
+            : 'O tempo do atendimento terminou. Peça ao atendente que gere um novo QR Code.',
           titulo: 'Tempo esgotado',
         });
       }
@@ -1272,7 +1375,9 @@
       scrolled_to_end: S.leitura.ateOFim,
     }).catch(function (e) { trataFalha(e); });
 
-    if (S.regras.identity_check === 'none') {
+    // 'none' no modelo, ou já conferida antes do documento (o CPF completo do
+    // autoatendimento do Termo de Menores).
+    if (S.regras.identity_check === 'none' || S.regras.identity_confirmed) {
       mostra('tela-aceite');
       return;
     }
@@ -1803,6 +1908,13 @@
         pararContagem();
         pararBatimento();
 
+        // Termo de Menores: a tela verde, que só sai no "Concluir" ou no
+        // "Autorizar outro menor" — é ela que a pessoa mostra na entrada.
+        if (CFG.menores) {
+          menoresTelaVerde(dados);
+          return;
+        }
+
         // Volta sozinho à tela de espera — o balcão não pode depender de
         // alguém lembrar de tocar em "concluir".
         setTimeout(function () {
@@ -1847,7 +1959,9 @@
     api('POST', rota('recusar'), { reason: motivo || null })
       .then(function () {
         encerraAtendimento({
-          mensagem: 'A assinatura foi recusada. Devolva o tablet ao atendente.',
+          mensagem: CFG.menores
+            ? 'O termo não foi assinado. Se quiser, comece de novo.'
+            : 'A assinatura foi recusada. Devolva o tablet ao atendente.',
           titulo: 'Assinatura recusada',
         });
       })
@@ -1858,6 +1972,12 @@
       });
   });
 
+@endverbatim
+@if($menores)
+    @include('quiosque.partials.menores-js')
+@endif
+@verbatim
+
   /* ---------------------------------------------------------------------
    | Início
    |---------------------------------------------------------------------*/
@@ -1867,7 +1987,14 @@
   // ponto seguro para recomeçar.
   api('GET', CFG.rotas.sessao)
     .then(function (dados) { abreAtendimento(dados); })
-    .catch(function () { iniciaLeitor(); });
+    .catch(function () {
+      if (CFG.menores) {
+        menoresInicia();
+        return;
+      }
+
+      iniciaLeitor();
+    });
 
   // Recarregar por engano no meio do atendimento não pode deixar traço na
   // tela seguinte.
