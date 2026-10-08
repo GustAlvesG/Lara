@@ -323,6 +323,48 @@ class SignatureCaptureTest extends TestCase
     }
 
     /**
+     * O tablet confere a sessão a cada 5 segundos. Com o contador do throttle
+     * dividido entre as rotas, um minuto de leitura já estourava o limite de
+     * "assinar" (10/min), e a pessoa via 429 ao salvar.
+     */
+    public function test_conferir_a_sessao_nao_gasta_o_limite_de_assinar(): void
+    {
+        ['document' => $documento, 'cookie' => $cookie] = $this->sessaoAberta(['requires_photo' => false]);
+
+        $this->confirmaIdentidade($cookie, $documento);
+
+        // Um minuto e meio lendo: 18 batimentos.
+        for ($i = 0; $i < 18; $i++) {
+            $this->comSessao($cookie)->getJson(route('quiosque.session'))->assertOk();
+        }
+
+        $this->comSessao($cookie)
+            ->postJson(route('quiosque.sign', $documento), [
+                'signature' => $this->pngValido(),
+                'strokes' => $this->tracos(),
+                'accepted' => true,
+            ])
+            ->assertOk();
+    }
+
+    /** Cada rota segue com o SEU limite: o de assinar continua valendo. */
+    public function test_limite_de_cada_rota_continua_valendo(): void
+    {
+        ['document' => $documento, 'cookie' => $cookie] = $this->sessaoAberta();
+
+        for ($i = 0; $i < 10; $i++) {
+            $this->comSessao($cookie)->postJson(route('quiosque.sign', $documento), ['accepted' => true]);
+        }
+
+        $this->comSessao($cookie)
+            ->postJson(route('quiosque.sign', $documento), ['accepted' => true])
+            ->assertStatus(429);
+
+        // E a conferência da sessão, que tem o seu, não foi afetada.
+        $this->comSessao($cookie)->getJson(route('quiosque.session'))->assertOk();
+    }
+
+    /**
      * O disco `local` não lança exceção ao falhar (sem permissão na pasta, por
      * exemplo). A gravação que falha tem de recusar a assinatura com uma
      * mensagem — não registrá-la sem o arquivo.

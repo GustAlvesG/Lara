@@ -173,6 +173,11 @@ O tablet distingue três casos, e o texto na tela diz qual foi:
 | **Falha na comunicação com o servidor (código N)** | Respondeu algo que não é o Lara falando: `500` erro interno, `413` corpo grande demais, `429` limite de pedidos, `502`/`504` proxy | `storage/logs/laravel.log` (500) e log de erro do Apache (413/502/504), pelo horário |
 | Uma frase do Lara (ex.: "Não foi possível gravar a assinatura no servidor") | O Lara recusou com motivo | A própria mensagem; a de gravação vai ao log com o caminho |
 
+**O 429 ao salvar (corrigido em 08/10/2026):** o `throttle:N,1` do Laravel contava por IP para
+TODAS as rotas juntas. O batimento do tablet (`/sessao`, a cada 5 s) somava no mesmo contador
+do `/assinar` (10/min), e depois de um minuto lendo o documento a assinatura levava 429. O alias
+`throttle` agora é `ThrottleRequestsPerRoute`, que conta por rota — ver [Rotas](../rotas.md).
+
 **Gravação das evidências:** o disco `local` tem `throw => false`, então um `put` numa pasta sem
 permissão devolvia `false` calado — a assinatura era registrada sem o traço/foto e a finalização
 quebrava depois. `SignatureCaptureService::capture` agora confere cada gravação: se uma falhar,

@@ -253,3 +253,9 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
   `missingVariables($document)` recebem o documento.
 - Migration `2026_10_11_100300` backfill: documentos existentes herdam o `ask_signer` legado do JSON do modelo.
 - Efeito: qualquer modelo sem visto pode ir ao gov.br, se o atendente não marcar nenhum campo para o tablet.
+
+## Throttle por rota (08/10/2026)
+
+- `throttle:N,M` é contado POR ROTA (`App\Http\Middleware\ThrottleRequestsPerRoute`, alias em `bootstrap/app.php`).
+  Antes, um contador só por IP/usuário: o batimento do tablet (`/sessao` a cada 5 s) estourava o `/assinar` (10/min) → 429.
+  Ao criar rota nova com polling, o limite dela não afeta mais as outras.

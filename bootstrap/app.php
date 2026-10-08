@@ -13,6 +13,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
+            // `throttle:N,M` contado por rota, e não um contador só por
+            // usuário/IP para o sistema inteiro — ver a classe.
+            'throttle' => \App\Http\Middleware\ThrottleRequestsPerRoute::class,
             'api_token' => \App\Http\Middleware\APIToken::class,
             // Aprovador externo de ordem de compra (site em DMZ). JWT com
             // escopo próprio — não confunde com o token de sócio.
