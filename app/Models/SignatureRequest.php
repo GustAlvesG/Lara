@@ -52,6 +52,10 @@ class SignatureRequest extends Model
         'consumed_user_agent',
         'identity_confirmed_at',
         'identity_attempts',
+        'identity_code_hash',
+        'identity_code_expires_at',
+        'identity_code_sent_at',
+        'identity_code_sends',
         'status',
         'created_by',
         // Retrato do nome de quem gerou o QR Code (ver a migration da coluna).
@@ -74,6 +78,9 @@ class SignatureRequest extends Model
         'session_expires_at' => 'datetime',
         'identity_confirmed_at' => 'datetime',
         'identity_attempts' => 'integer',
+        'identity_code_expires_at' => 'datetime',
+        'identity_code_sent_at' => 'datetime',
+        'identity_code_sends' => 'integer',
         'created_by' => 'integer',
     ];
 
@@ -85,6 +92,7 @@ class SignatureRequest extends Model
         'token_hash',
         'manual_code_hash',
         'session_hash',
+        'identity_code_hash',
     ];
 
     /**

@@ -114,17 +114,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Atendimento
-    |--------------------------------------------------------------------------
-    |
-    | Local que vai para o manifesto: onde a assinatura aconteceu.
-    |
-    */
-
-    'location' => env('SIGNATURE_LOCATION', 'Balcão de atendimento — CFCSN'),
-
-    /*
-    |--------------------------------------------------------------------------
     | Evidências
     |--------------------------------------------------------------------------
     |
@@ -204,6 +193,55 @@ return [
         'email' => (bool) env('SIGNATURE_DELIVERY_EMAIL', true),
         'whatsapp' => (bool) env('SIGNATURE_DELIVERY_WHATSAPP', false),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Assinatura pelo gov.br (conferência do PDF devolvido)
+    |--------------------------------------------------------------------------
+    |
+    | O atendente prepara o documento para o gov.br, a pessoa assina o PDF no
+    | portal do gov.br (assinador.iti.br) e o devolve, e o atendente o envia na
+    | aba "Assinatura gov.br" da tela do documento. O Lara confere — é este
+    | documento, nada mudou depois, o certificado é do gov.br e o CPF é de um
+    | signatário — e, aprovado, conclui a assinatura. Ver
+    | GovbrSignatureValidator e GovbrCheckService.
+    |
+    | `ttl_days` é o prazo do documento preparado para o gov.br: o vaivém por
+    | e-mail leva dias, e o prazo do balcão (`document_ttl_hours`) é de horas.
+    |
+    | `trust_bundle` é a cadeia oficial do gov.br (Raiz → Intermediária →
+    | Final), baixada de https://repo.iti.br/docs/Cadeia_GovBr-der.p7b e
+    | guardada no repositório. É a ÚNICA âncora de confiança: o que não sobe
+    | até a raiz deste arquivo é recusado. Os certificados vencem em 2033.
+    |
+    */
+
+    'govbr' => [
+        'trust_bundle' => resource_path('certs/govbr/cadeia-govbr.pem'),
+        'max_upload_kb' => (int) env('SIGNATURE_GOVBR_MAX_UPLOAD_KB', 20480),
+        'ttl_days' => (int) env('SIGNATURE_GOVBR_TTL_DAYS', 7),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Anexos do documento
+    |--------------------------------------------------------------------------
+    |
+    | Identidade, comprovante — o que o modelo ou o documento pedir. O
+    | atendente envia na tela do documento; aceita PDF, JPG e PNG (pelo
+    | conteúdo, não pela extensão). Ver SignatureAttachmentService.
+    |
+    */
+
+    'attachments' => [
+        'max_kb' => (int) env('SIGNATURE_ATTACHMENT_MAX_KB', 10240),
+    ],
+
+    /*
+    | Conferência de identidade por código enviado por e-mail (opção do
+    | modelo): minutos de validade do código de 6 números.
+    */
+    'identity_code_ttl_minutes' => (int) env('SIGNATURE_IDENTITY_CODE_TTL_MINUTES', 10),
 
     /*
     |--------------------------------------------------------------------------

@@ -24,7 +24,14 @@
     </p>
 
     <p style="font-size:15px;line-height:1.6;margin:0 0 14px;">
-      O arquivo traz uma página de manifesto com o registro da assinatura e um código de validação.
+      @if($document->govbr_check_id)
+        O arquivo é o documento com as assinaturas feitas pelo gov.br, sem nenhuma alteração. Vai junto um
+        segundo arquivo, o relatório do que o clube conferiu nas assinaturas. O documento assinado também pode
+        ser conferido no validador oficial do governo, em
+        <a href="https://validar.iti.gov.br" style="color:#A00001;">validar.iti.gov.br</a>.
+      @else
+        O arquivo traz uma página de manifesto com o registro da assinatura e um código de validação.
+      @endif
       Para conferir a autenticidade a qualquer momento, acesse:
     </p>
 
@@ -39,8 +46,12 @@
     </p>
 
     <p style="font-size:12.5px;line-height:1.6;color:#6d6062;margin:18px 0 0;border-top:1px solid #e8dedd;padding-top:14px;">
-      Esta mensagem foi enviada porque você pediu a via no momento da assinatura, no atendimento do clube.
-      Não é necessário responder.
+      @if($signer->govbr_check_id)
+        Esta mensagem foi enviada porque você assinou este documento pelo gov.br. Não é necessário responder.
+      @else
+        Esta mensagem foi enviada porque você pediu a via no momento da assinatura, no atendimento do clube.
+        Não é necessário responder.
+      @endif
     </p>
   </div>
 </body>

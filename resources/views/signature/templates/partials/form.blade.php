@@ -246,6 +246,20 @@
         </template>
     </div>
 
+    <div>
+        <label class="block text-sm font-bold text-ink mb-2">Anexos pedidos</label>
+        <p class="text-xs text-ink-2 mb-3">
+            Arquivos que todo documento deste modelo pede — identidade, comprovante de residência. O atendente
+            envia cada um na tela do documento, antes ou depois da assinatura. Sem os <strong>obrigatórios</strong>, o
+            documento não conclui: fica "Assinado", à espera deles.
+            Um documento pode pedir anexos a mais, só dele.
+        </p>
+        @include('signature.partials.attachment-requirements', [
+            'id' => 'templateAttachments',
+            'items' => old('attachments', $template?->attachments ?? []),
+        ])
+    </div>
+
     <div class="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2 border-t border-line">
         <div>
             <label for="identity_check" class="block text-sm font-bold text-ink mb-1">

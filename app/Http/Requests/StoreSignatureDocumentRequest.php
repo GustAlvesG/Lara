@@ -43,6 +43,19 @@ class StoreSignatureDocumentRequest extends FormRequest
     }
 
     /**
+     * Os anexos pedidos por este documento, na forma gravada.
+     *
+     * @return array<int, array{key: string, label: string, required: bool}>
+     */
+    public function attachmentRequirements(): array
+    {
+        return \App\Services\Signature\SignatureAttachmentService::normalize(
+            array_values((array) $this->input('attachments', [])),
+            'doc',
+        );
+    }
+
+    /**
      * Confere cada campo pelo TIPO dele. Em branco passa — a obrigatoriedade é
      * do congelamento, para o rascunho poder ficar incompleto —, mas um CPF
      * preenchido errado é recusado já aqui.
@@ -96,12 +109,16 @@ class StoreSignatureDocumentRequest extends FormRequest
         return [
             'signature_template_id' => ['required', 'integer', 'exists:signature_templates,id'],
             'title' => ['nullable', 'string', 'max:200'],
-            'location' => ['nullable', 'string', 'max:120'],
 
             // Valores das variáveis do modelo. A obrigatoriedade de cada uma é
             // do MODELO, e é conferida no congelamento — aqui o rascunho pode
             // ficar incompleto de propósito, para o atendente salvar e voltar.
             'data' => ['nullable', 'array'],
+
+            // Anexos pedidos só por ESTE documento, além dos do modelo.
+            'attachments' => ['nullable', 'array', 'max:20'],
+            'attachments.*.label' => ['nullable', 'string', 'max:120'],
+            'attachments.*.required' => ['nullable', 'boolean'],
 
             'signers' => ['required', 'array', 'min:1', 'max:5'],
             'signers.*.name' => ['required', 'string', 'max:150'],

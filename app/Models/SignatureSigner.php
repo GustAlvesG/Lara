@@ -67,6 +67,7 @@ class SignatureSigner extends Model
         'signed_at',
         'refused_at',
         'refusal_reason',
+        'govbr_check_id',
     ];
 
     /**
@@ -89,6 +90,7 @@ class SignatureSigner extends Model
         'copy_sent_at' => 'datetime',
         'signed_at' => 'datetime',
         'refused_at' => 'datetime',
+        'govbr_check_id' => 'integer',
     ];
 
     /**
@@ -134,6 +136,32 @@ class SignatureSigner extends Model
     public function evidence(): HasOne
     {
         return $this->hasOne(SignatureEvidence::class);
+    }
+
+    /**
+     * A conferência do gov.br pela qual esta pessoa assinou. Nula para quem
+     * assinou no tablet.
+     *
+     * @return BelongsTo<SignatureGovbrCheck, SignatureSigner>
+     */
+    public function govbrCheck(): BelongsTo
+    {
+        return $this->belongsTo(SignatureGovbrCheck::class, 'govbr_check_id');
+    }
+
+    /**
+     * Convites por e-mail para assinar pelo gov.br, o mais recente primeiro.
+     *
+     * @return HasMany<SignatureGovbrInvite>
+     */
+    public function govbrInvites(): HasMany
+    {
+        return $this->hasMany(SignatureGovbrInvite::class)->orderByDesc('id');
+    }
+
+    public function signedViaGovbr(): bool
+    {
+        return $this->status === self::STATUS_SIGNED && $this->govbr_check_id !== null;
     }
 
     public function statusLabel(): string
@@ -190,20 +218,14 @@ class SignatureSigner extends Model
                 . ': não é possível liberar a assinatura.';
         }
 
-        /*
-         | A fila é em ordem: liberar o segundo signatário antes do primeiro
-         | produziria um documento em que a testemunha assina um ato que ainda
-         | não aconteceu.
-         */
-        $anterior = static::where('signature_document_id', $this->signature_document_id)
-            ->where('position', '<', $this->position)
-            ->where('status', self::STATUS_PENDING)
-            ->orderBy('position')
-            ->first();
-
-        if ($anterior) {
-            return 'Antes dele assina ' . $anterior->name . ' (' . $anterior->roleLabel() . ').';
+        // Preparado para o gov.br, assina-se só por lá: um PDF não carrega a
+        // assinatura do tablet e a do gov.br ao mesmo tempo.
+        if ($document->isGovbr()) {
+            return 'Este documento está sendo assinado pelo gov.br: a assinatura não é liberada no tablet.';
         }
+
+        // Sem ordem: qualquer signatário pendente pode ser liberado — quem
+        // chegar primeiro ao balcão assina primeiro.
 
         return null;
     }

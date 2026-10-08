@@ -11,3 +11,5 @@ Como fazer: declare a permissão no catálogo `App\Authorization\Permissions` (a
 Sempre atualizar o que for pertinente. Uma mudança só está pronta quando tudo o que depende dela acompanha: documentação em `docs/`, guia do usuário, testes, catálogo de permissões e seed padrão, scripts de deploy, `.env.example` e configuração, e o cache de rotas quando uma rota muda.
 
 Para cada módulo, crie um resumo do funcionamento dele em markdown para orientar outro agente claude code que vá fazer alguma nova implementação. Esse markdown de resumo deve ficar dentro docs/resumo-modulos e nomeado com o nome do módulo que aparece no Menu
+
+Sempre se refira ao sistema como "O Lara", nunca "A Lara".

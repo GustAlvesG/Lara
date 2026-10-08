@@ -10,7 +10,7 @@
      * quem confere é o servidor. Sem JavaScript, os cartões aparecem todos,
      * como antes.
      *
-     * - `data-step-keys="title,location"` diz que erros de validação são
+     * - `data-step-keys="title,signers"` diz que erros de validação são
      *   daquele passo: depois de um envio recusado, a tela abre nele.
      * - `data-steps-free` no <form> (edição do rascunho) libera ir a qualquer
      *   passo e gravar de qualquer um: ali tudo já foi preenchido uma vez.

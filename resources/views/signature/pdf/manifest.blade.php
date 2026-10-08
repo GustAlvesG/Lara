@@ -37,8 +37,7 @@
                 @endif
                 Congelado em: {{ $document->frozen_at?->format('d/m/Y H:i:s') }}<br>
                 Finalizado em: {{ $document->finalized_at?->format('d/m/Y H:i:s') ?? now()->format('d/m/Y H:i:s') }}<br>
-                Documento gerado por: {{ $document->created_by_name ?? 'não registrado' }} (usuário do sistema)<br>
-                Local: {{ $document->location ?? 'não informado' }}
+                Documento gerado por: {{ $document->created_by_name ?? 'não registrado' }} (usuário do sistema)
             </span>
         </td>
         <td style="width:38%;border:1px solid #d8cbc9;padding:8px;text-align:center;vertical-align:top;">
@@ -101,6 +100,22 @@
     </div>
 @endif
 
+@php $anexos = $document->attachments()->get(); @endphp
+@if($anexos->isNotEmpty())
+    {{-- Os anexos não estão dentro deste PDF: ficam guardados à parte. O hash de cada um é o que os liga a este documento. --}}
+    <div style="border:1px solid #d8cbc9;padding:8px;margin-bottom:14px;font-size:9px;">
+        <b style="font-size:10px;">Anexos do documento</b>
+        <span style="color:#6d6062;">— arquivos guardados à parte, com a impressão digital (SHA-256) de cada um</span>
+        @foreach($anexos as $anexo)
+            <div style="margin-top:5px;">
+                {{ $anexo->label }} ({{ $anexo->sizeLabel() }}), enviado em {{ $anexo->created_at?->format('d/m/Y H:i:s') }}
+                por {{ $anexo->uploaded_by_name ?? 'não registrado' }}<br>
+                <span style="font-size:8px;font-family:DejaVu Sans Mono, monospace;word-break:break-all;">{{ $anexo->sha256 }}</span>
+            </div>
+        @endforeach
+    </div>
+@endif
+
 <h3 style="font-size:11.5px;margin:0 0 6px;">Signatários e evidências</h3>
 
 @foreach($signers as $signer)
@@ -131,6 +146,7 @@
                         Tempo de leitura: {{ $evidencia->read_seconds !== null ? $evidencia->read_seconds . ' segundo(s)' : 'não registrado' }}<br>
                         Rolou o documento até o fim: {{ $evidencia->scrolled_to_end ? 'sim' : 'não' }}
                         (informado pelo navegador do tablet)<br>
+                        Conferência de identidade: {{ \App\Models\SignatureTemplate::IDENTITY_CHECKS[$document->template?->identity_check] ?? 'não registrada' }}{{ $document->template?->identity_check === \App\Models\SignatureTemplate::IDENTITY_EMAIL && $signer->email ? ' (' . \App\Support\EmailMask::of($signer->email) . ')' : '' }}<br>
                         Aceite explícito dos termos: {{ $evidencia->accepted ? 'sim' : 'não' }}<br>
                         @if($evidencia->photo_consent)
                             {{-- O texto é o que a pessoa leu no tablet, gravado na evidência. --}}

@@ -4,14 +4,18 @@ namespace App\Services\Signature;
 
 use App\Exceptions\SignatureSessionException;
 use App\Jobs\FinalizeSignatureDocument;
+use App\Mail\SignatureIdentityCodeMail;
 use App\Models\SignatureAuditEvent;
 use App\Models\SignatureDocument;
 use App\Models\SignatureEvidence;
 use App\Models\SignatureRequest;
 use App\Models\SignatureSigner;
+use App\Models\SignatureTemplate;
 use App\Support\Cpf;
+use App\Support\EmailMask;
 use App\Support\PngTrimmer;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -35,8 +39,14 @@ use Illuminate\Support\Facades\Storage;
  */
 class SignatureCaptureService
 {
-    /** Tentativas de CPF antes de a sessão ser encerrada. */
+    /** Tentativas de CPF (ou de código) antes de a sessão ser encerrada. */
     private const MAX_IDENTITY_ATTEMPTS = 5;
+
+    /** Envios do código por e-mail numa mesma liberação. */
+    public const MAX_CODE_SENDS = 3;
+
+    /** Espera mínima, em segundos, entre dois envios do código. */
+    public const CODE_RESEND_SECONDS = 60;
 
     public function __construct(
         private SignatureStateMachine $states,
@@ -70,7 +80,11 @@ class SignatureCaptureService
             );
         }
 
-        if (!Cpf::matches($typed, $signer->cpf, $modo)) {
+        $confere = $modo === SignatureTemplate::IDENTITY_EMAIL
+            ? $this->codeMatches($request, $typed)
+            : Cpf::matches($typed, $signer->cpf, $modo);
+
+        if (!$confere) {
             $request->forceFill(['identity_attempts' => $request->identity_attempts + 1])->save();
 
             $this->states->note($signer->signature_document_id, SignatureAuditEvent::EVENT_IDENTITY_FAILED, [
@@ -92,7 +106,12 @@ class SignatureCaptureService
             );
         }
 
-        $request->forceFill(['identity_confirmed_at' => now()])->save();
+        // Código usado não vale de novo.
+        $request->forceFill([
+            'identity_confirmed_at' => now(),
+            'identity_code_hash' => null,
+            'identity_code_expires_at' => null,
+        ])->save();
 
         $this->states->note($signer->signature_document_id, SignatureAuditEvent::EVENT_IDENTITY_CONFIRMED, [
             'signer' => $signer->id,
@@ -104,6 +123,88 @@ class SignatureCaptureService
         ]);
 
         return $request;
+    }
+
+    /**
+     * Envia ao e-mail do signatário o código da conferência de identidade —
+     * para o modelo com a opção "Código enviado por e-mail".
+     *
+     * Um código vivo por liberação: reenviar troca o anterior. O banco guarda
+     * só o HMAC (com a chave do app e o id da liberação), porque 6 números em
+     * sha256 puro se descobrem em segundos. O e-mail sai na hora e fora da
+     * fila: a pessoa espera no balcão, e o código em claro não pode ficar na
+     * tabela de jobs. Até MAX_CODE_SENDS envios, com CODE_RESEND_SECONDS entre
+     * eles.
+     *
+     * @param  array<string, mixed>  $context
+     *
+     * @throws SignatureSessionException
+     */
+    public function sendIdentityCode(SignatureRequest $request, array $context = []): SignatureRequest
+    {
+        $signer = $request->signer;
+
+        if ($signer->document->template->identity_check !== SignatureTemplate::IDENTITY_EMAIL) {
+            throw new SignatureSessionException('Este documento não usa código por e-mail.', 422);
+        }
+
+        if (!$signer->email) {
+            throw new SignatureSessionException('Não há e-mail cadastrado para enviar o código. Chame o atendente.', 422);
+        }
+
+        if ($request->identity_confirmed_at !== null) {
+            throw new SignatureSessionException('A identidade já foi confirmada.', 409);
+        }
+
+        if ($request->identity_code_sends >= self::MAX_CODE_SENDS) {
+            throw new SignatureSessionException('O código já foi enviado ' . self::MAX_CODE_SENDS . ' vezes. Chame o atendente.', 429);
+        }
+
+        if ($request->identity_code_sent_at && $request->identity_code_sent_at->diffInSeconds(now()) < self::CODE_RESEND_SECONDS) {
+            throw new SignatureSessionException('Aguarde um minuto antes de pedir outro código.', 429);
+        }
+
+        $codigo = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $minutos = (int) config('signature.identity_code_ttl_minutes', 10);
+
+        DB::transaction(function () use ($request, $signer, $codigo, $minutos, $context) {
+            $request->forceFill([
+                'identity_code_hash' => $this->codeHash($request, $codigo),
+                'identity_code_expires_at' => now()->addMinutes($minutos),
+                'identity_code_sent_at' => now(),
+                'identity_code_sends' => $request->identity_code_sends + 1,
+            ])->save();
+
+            // Dentro da transação: SMTP fora do ar desfaz o registro do envio.
+            Mail::to($signer->email)->send(new SignatureIdentityCodeMail($signer, $codigo, $minutos));
+
+            $this->states->note($signer->signature_document_id, SignatureAuditEvent::EVENT_IDENTITY_CODE_SENT, [
+                'signer' => $signer->id,
+                'request' => $request->id,
+                'actor_type' => SignatureAuditEvent::ACTOR_KIOSK,
+                'ip' => $context['ip'] ?? null,
+                'user_agent' => $context['user_agent'] ?? null,
+                'payload' => ['email' => EmailMask::of($signer->email), 'envio' => $request->identity_code_sends],
+            ]);
+        });
+
+        return $request;
+    }
+
+    /** O código digitado é o vivo desta liberação, dentro do prazo? */
+    private function codeMatches(SignatureRequest $request, ?string $typed): bool
+    {
+        $digitos = preg_replace('/\D/', '', (string) $typed);
+
+        return $request->identity_code_hash !== null
+            && $request->identity_code_expires_at?->isFuture()
+            && strlen($digitos) === 6
+            && hash_equals($request->identity_code_hash, $this->codeHash($request, $digitos));
+    }
+
+    private function codeHash(SignatureRequest $request, string $code): string
+    {
+        return hash_hmac('sha256', $request->id . ':' . $code, (string) config('app.key'));
     }
 
     /**

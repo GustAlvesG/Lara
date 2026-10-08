@@ -39,6 +39,7 @@ Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Modelos, Guia.
 | `assinatura/documentos` → `signature-documents.*` | atendente (`auth`) | `novo`, `enviar` (PDF pronto), `associados` (busca) declaradas **antes** de `/{signatureDocument}` |
 | `.../{doc}/congelar`, `cancelar`, `posicoes`, `pdf` | atendente | `DocumentController` |
 | `.../{doc}/status`, `signatarios/{s}/liberar`, `signatarios/{s}/via`, `liberacoes/{r}` (DELETE) | atendente | `ReleaseController`; `status` é polling (não há broadcasting) |
+| `.../{doc}/govbr/preparar`, `.../{doc}/govbr` (POST), `.../{doc}/govbr/signatarios/{s}/convite`, `.../{doc}/govbr/{conferencia}/pdf` → `signature-documents.govbr.*` | atendente | `GovbrController`: aba **Assinatura gov.br** (`?aba=govbr`); preparar, enviar e convidar pedem `checkGovbr` (`assinatura.documentos`) |
 | `assinatura/modelos` → `signature-templates.*` | `assinatura.modelos` | `PUT` cria **nova versão**; `importar-docx` converte e não grava |
 | `assinatura/papel-timbrado` → `signature-layout.*` | `assinatura.modelos` | Cabeçalho/rodapé versionados |
 | `assinatura/guia` → `signature-guide.*` | `acessar-guia-assinatura` | Página e PDF |
@@ -64,7 +65,7 @@ signatário:  pending → signed | refused | canceled | expired
 2. **Congelar**: `body_snapshot` + PDF original + `original_sha256` + código de validação +
    `signature_layout_id`. Depois disso **nada se edita**; corrige-se cancelando e emitindo outro.
 3. **Liberar** (`SignatureRequestService`): token de 64 chars, banco guarda só `sha256`, QR `LARA-SIGN:v1:<token>`,
-   5 min para ler, 15 min de sessão. Regerar torna o anterior `superseded`. Um QR por signatário, **em sequência**.
+   5 min para ler, 15 min de sessão. Regerar torna o anterior `superseded`. Um QR por signatário, **em qualquer ordem** (o painel tem "Quem vai assinar agora"; `releaseBlockReason` não olha a posição).
 4. **Tablet** (`QuiosqueController` + `resources/views/quiosque/index.blade.php`): formulário de perguntas
    (se houver) → leitura do PDF → identidade (`Cpf::matches`, 5 tentativas) → aceite (+ autorização de imagem
    se pede foto) → traço (≥ 30 pontos) → visto (se exigido) → foto. Gravação numa transação só
@@ -73,6 +74,78 @@ signatário:  pending → signed | refused | canceled | expired
    traços no lugar, manifesto, `final_sha256`. Depois `SendSignatureCopy` (e-mail) e `ArchiveSignatureDocument` (FTP).
 
 **Sem `queue:work` o documento para em "Assinado"** — evidência gravada, mas sem PDF final.
+
+## Conferência de identidade por código no e-mail
+
+Opção `email` do modelo (`SignatureTemplate::IDENTITY_EMAIL`; enum migrado em `2026_10_11_100100`). O tablet chama
+`quiosque.identity-code` ao abrir a etapa; `SignatureCaptureService::sendIdentityCode` gera 6 dígitos, grava **HMAC**
+(app key + id da liberação) em `signature_requests.identity_code_*`, manda `SignatureIdentityCodeMail` **síncrono, na
+transação** (falha → 503, nada contado). `confirmIdentity` aceita `codigo` nesse modo. 3 envios/liberação, 60 s entre
+eles, validade `signature.identity_code_ttl_minutes`; mesmas 5 tentativas do CPF. Sem e-mail, o `freeze` trava. Endereço
+nunca vai ao tablet; trilha `identity_code_sent` com e-mail mascarado (`App\Support\EmailMask`). Testes:
+`SignatureIdentityEmailCodeTest`.
+
+## Anexos do documento
+
+Identidade, comprovante: itens pedidos (rótulo + obrigatório) no **modelo** (`signature_templates.attachments`,
+chave `mod_…`, versionado) e no **documento** (`signature_documents.attachment_requirements`, chave `doc_…`, passo
+"Anexos" do formulário). Chave sai do rótulo em `SignatureAttachmentService::normalize`. O atendente envia na tela do
+documento (`AttachmentController`, policy `attach` = `assinatura.documentos`); arquivos em `signature_attachments` +
+disco privado `documents/{id}/anexos/`, com SHA-256.
+- Rascunho: envia e remove. Aguardando assinatura e Assinado: só envia. Finalizado/encerrado: nada.
+- Obrigatório trava a **conclusão** (não o `freeze`): `FinalizeSignatureDocument` sai cedo se
+  `missingAttachments()` não está vazio, e o documento fica `signed`; o envio que completa a lista despacha o job.
+- Tipo pelo conteúdo (`finfo`): PDF, JPG, PNG; `signature.attachments.max_kb`.
+- Trilha `attachment_added`/`attachment_removed` **sem o nome do arquivo**. Manifesto e relatório gov.br imprimem o
+  hash; FTP leva os arquivos ao lado do PDF; a via por e-mail **não** leva anexo.
+- Índice composto com nome curto (`sig_attachments_doc_key_idx`): o automático passa de 64 caracteres no MySQL — o
+  SQLite dos testes não pega isso.
+- Testes: `SignatureAttachmentTest`.
+
+## Assinatura pelo gov.br
+
+Caminho para quem não vem ao balcão: o atendente **prepara** o documento para o gov.br, a pessoa assina o PDF
+do Lara em `assinador.iti.br` e o devolve, e o atendente envia na aba **Assinatura gov.br**. Aprovado, o
+envio **registra a assinatura** (signatário → `signed`, pela máquina de estados) e, com todos assinados, fecha
+o documento: o PDF final é **o arquivo que voltou, byte a byte** — sem re-render (quebraria as assinaturas). O
+manifesto vira um **relatório de validação em PDF à parte** (`report_path`/`report_sha256`,
+`SignatureDocumentRenderer::govbrReport`, view `signature/pdf/govbr-report`), que segue o final na via (2º anexo),
+no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
+
+- **Um caminho por documento.** Preparado para o gov.br (`govbr_sent_at`), o tablet não libera mais
+  (`SignatureSigner::releaseBlockReason`); com assinatura no tablet, o gov.br não é aceito
+  (`SignatureDocument::govbrBlockReason`, que também barra modelo com perguntas a quem assina ou com visto).
+- **Preparar** (`GovbrCheckService::prepare`): aplica a data automática (refaz original + hash), prazo de
+  `signature.govbr.ttl_days`, cancela QR vivo. Baixar o PDF **depois** de preparar.
+- **Concluir** (`GovbrCheckService::conclude`), tudo ou nada: documento preparado; assinado sobre o original;
+  quem já assinou pelo gov.br continua no arquivo (o próximo assina o arquivo do anterior). **Ordem livre**, mas um de
+  cada vez: dois assinando o mesmo arquivo em paralelo → o segundo é recusado pela regra anterior. O motivo de não
+  concluir fica em `signature_govbr_checks.conclusion` e aparece na aba.
+- **Convite por e-mail** (`GovbrInviteService`, um botão por pendente na aba, qualquer ordem): PDF a assinar anexado
+  (`SignatureDocument::govbrFileToSign` — original, ou o arquivo do anterior) + passo a passo. **Sem link**: o Lara
+  não é acessível de fora; a pessoa responde ao e-mail (`Reply-To` = atendente que enviou) e o atendente envia o
+  arquivo na aba. E-mail **síncrono, dentro da transação** (falhou → nada registrado). `signature_govbr_invites`
+  só registra para quem/quando/por quem. A migration `2026_10_10_100300` tirou da homologação as colunas do link e
+  o valor `signer` do enum da trilha (uma versão anterior tinha link público).
+- `signed_at` = hora declarada na assinatura do gov.br; `signature_signers.govbr_check_id` diz que foi pelo
+  gov.br; `signature_documents.govbr_check_id` aponta o arquivo final (o `FinalizeSignatureDocument` o confere
+  contra o hash da conferência).
+
+- `app/Services/Signature/Govbr/GovbrSignatureValidator.php` — o núcleo. "É este documento" = o arquivo
+  **começa byte a byte** pelo `original` ou `final` do Lara (o gov.br só acrescenta, atualização incremental);
+  "pessoa certa" = CPF do otherName `2.16.76.1.3.1` (posições 8–18 dos 45 dígitos) igual ao de um signatário,
+  certificado subindo até a raiz em `resources/certs/govbr/cadeia-govbr.pem` (única âncora, vence 2033),
+  validade na hora do `signingTime`. Revogação: **não conferida** (`ok = null`, que não aprova nem reprova).
+- `Asn1.php` — leitor **BER**: o CMS do gov.br tem comprimento indefinido; não troque por leitor DER nem
+  corte os zeros do `/Contents`.
+- `GovbrCheckService` grava arquivo (também os recusados) + conferência + evento; o evento não leva nome nem CPF.
+- Recusa e "não concluiu" voltam como flash `warning` ("Atenção"), não `error` (que manda procurar a TI).
+- Testes: `SignatureGovbrCheckTest` (conferência), `SignatureGovbrSigningTest` (conclusão), `SignatureGovbrInviteTest`
+  (convite) e `SignatureGovbrFinalizationTest` (relatório e entrega), com AC de teste. Rode com
+  `php -d memory_limit=1G vendor/bin/phpunit --filter Signature` (o `artisan test` não passa o limite ao subprocesso)
+  (`Tests\Concerns\BuildsGovbrSignedPdf`). As amostras reais ficam fora do git (`storage/app/govbr-amostras/`,
+  com o inspetor da Fase 0) — têm CPF real.
+- Não há API do gov.br envolvida: ela é só para órgão público. Nenhuma chamada de rede na conferência.
 
 ## Peças
 
@@ -92,8 +165,9 @@ signatário:  pending → signed | refused | canceled | expired
 | `SignaturePageGeometry.php` | Margens, cabeçalho, rodapé e faixa do visto — CSS e desenho do visto leem daqui. |
 | `SignatureArchiver.php` + `App\Support\ArchivePath` | Cópia no FTP: tipo → pessoa, nome com data e código. |
 | `SignatureQrCode.php` | QR do manifesto no servidor (`bacon/bacon-qr-code`). |
+| `Govbr/GovbrSignatureValidator.php`, `Govbr/GovbrCheckService.php`, `Govbr/GovbrInviteService.php`, `Govbr/Asn1.php` | Assinatura pelo gov.br — ver a seção acima. |
 | `app/Http/Middleware/EnsureSignatureKioskSession.php` | Alias `signature_kiosk`: resolve o cookie, confere prazo, amarra ao documento (outro id → 403 + evento). |
-| Models | `SignatureTemplate` (versionado por linha), `SignatureDocument`, `SignatureSigner`, `SignatureRequest`, `SignatureEvidence`, `SignatureAuditEvent` (recusa update/delete com exceção), `SignatureLayout` (versionado). |
+| Models | `SignatureTemplate` (versionado por linha), `SignatureDocument`, `SignatureSigner`, `SignatureRequest`, `SignatureEvidence`, `SignatureAuditEvent` (recusa update/delete com exceção), `SignatureLayout` (versionado), `SignatureGovbrCheck` (conferências gov.br). |
 | Exceções | `InvalidSignatureTransitionException`, `SignatureDocumentLockedException`, `SignatureFormException`, `SignatureSessionException`. |
 | Views | `resources/views/signature/` (`documents`, `templates`, `layout`, `guide`, `pdf`, `validate`). Os passos do formulário são só apresentação (`documents/partials/steps.blade.php`). |
 | `config/signature.php` | Prazos, mínimos de pontos, disco, flags (arquivo FTP, modo sem HTTPS, e-mail). Variáveis no `.env.example`. |
@@ -114,6 +188,8 @@ signatário:  pending → signed | refused | canceled | expired
 - **Validação pública:** código inexistente e rascunho respondem igual ("não encontrado").
 - **PDF pronto:** posição da assinatura é fração da página (0–1); editar signatários do rascunho apaga as
   posições; PDF com object/xref streams é recusado (limite da FPDI livre).
+- **QR do atendente:** fundo `bg-white` fixo e cores fixas no `QRCode` (`partials/release.blade.php`). Não troque
+  por token do tema (`bg-surface`): no escuro o código fica ilegível para a câmera. `SignatureReleaseQrThemeTest` trava isso.
 - **WhatsApp não entrega a via** de propósito (a Poli responde 200 sem entregar). Não ligue sem confirmação real.
 - **Visto** é desenhado via `page_script` do dompdf, fora do manifesto — por isso o PDF final com visto é
   montado duas vezes.
@@ -145,3 +221,16 @@ signatário:  pending → signed | refused | canceled | expired
   linha no manifesto (`resources/views/signature/pdf/manifest.blade.php`) e na trilha.
 - Nova config → `config/signature.php` + `.env.example` + tabela "Configuração" da doc completa.
 - Sempre: doc completa, guia do usuário e este resumo.
+
+## Modelos de exemplo
+
+`php artisan db:seed --class=SignatureExampleTemplatesSeeder` cria 7 modelos "[Exemplo] …" (perguntas obrigatórias/opcionais, anexos, partes+visto, código por e-mail, gov.br). Idempotente, recusado em produção, fora do deploy.
+
+## Sem local do atendimento (08/10/2026)
+
+- O campo `location` saiu de todo o circuito (formulário, request, service, tela, manifesto, `/validar`,
+  `config('signature.location')`, `SIGNATURE_LOCATION`). Migration `2026_10_11_100200` derruba a coluna. Não recrie.
+- O que identifica o atendimento são os usuários: `signature_documents.created_by_name` ("Gerado por" na tela,
+  no manifesto, no relatório gov.br e no `/validar`), `signature_requests.created_by_name` (QR),
+  `signature_govbr_invites.sent_by_name` (convite) e, no reenvio da via, `SendSignatureCopy($id, $userId, $userName)`
+  grava `actor_type = user` e `payload.reenvio_pedido_por` no evento `copy_sent`.

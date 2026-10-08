@@ -30,6 +30,14 @@
                     </a>
                 @endif
 
+                @if($document->report_path)
+                    {{-- Assinado pelo gov.br: o manifesto é este PDF à parte — ver FinalizeSignatureDocument. --}}
+                    <a href="{{ route('signature-documents.pdf', [$document, 'versao' => 'relatorio']) }}" target="_blank"
+                       class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
+                        Relatório gov.br
+                    </a>
+                @endif
+
                 @can('update', $document)
                     <a href="{{ route('signature-documents.edit', $document) }}"
                        class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
@@ -63,6 +71,28 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             <div class="lg:col-span-2 space-y-6">
+
+                {{-- Abas pelo endereço (?aba=govbr), e não por script: o envio do PDF do gov.br volta direto para a aba dele. --}}
+                @php
+                    $tabClasses = 'inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-bold text-ink-2 transition aria-selected:bg-surface aria-selected:text-ink aria-selected:shadow-card';
+                @endphp
+                <div class="flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-subtle p-1" role="tablist" aria-label="Seções do documento">
+                    <a href="{{ route('signature-documents.show', $document) }}" role="tab"
+                       aria-selected="{{ $aba === 'documento' ? 'true' : 'false' }}" class="{{ $tabClasses }}">
+                        Documento
+                    </a>
+                    <a href="{{ route('signature-documents.show', [$document, 'aba' => 'govbr']) }}" role="tab"
+                       aria-selected="{{ $aba === 'govbr' ? 'true' : 'false' }}" class="{{ $tabClasses }}">
+                        Assinatura gov.br
+                        @if($document->govbrChecks->isNotEmpty())
+                            <span class="font-mono text-[11px] text-ink-3">{{ $document->govbrChecks->count() }}</span>
+                        @endif
+                    </a>
+                </div>
+
+                @if($aba === 'govbr')
+                    @include('signature.documents.partials.govbr', ['document' => $document])
+                @else
 
                 <div class="bg-surface rounded-card shadow-card p-6">
                     <div class="flex items-start justify-between gap-4 mb-5">
@@ -170,6 +200,8 @@
                     @include('signature.documents.partials.positions', ['document' => $document])
                 @endif
 
+                @include('signature.documents.partials.attachments', ['document' => $document])
+
                 <div class="bg-surface rounded-card shadow-card overflow-hidden">
                     <div class="px-6 py-4 border-b border-line">
                         <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider">Trilha de auditoria</h3>
@@ -199,6 +231,8 @@
                         @endforelse
                     </ul>
                 </div>
+
+                @endif
             </div>
 
             <div class="space-y-6">
@@ -234,6 +268,9 @@
                                 @if($signer->signed_at)
                                     <div class="mt-2 text-[11px] text-ink-2">
                                         Assinou em {{ $signer->signed_at->format('d/m/Y H:i:s') }}
+                                        @if($signer->signedViaGovbr())
+                                            pelo gov.br — conferido por {{ $signer->govbrCheck?->checked_by_name ?? 'não registrado' }}
+                                        @endif
                                     </div>
                                 @endif
 
@@ -289,8 +326,8 @@
                     <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider mb-4">Atendimento</h3>
                     <dl class="space-y-3 text-sm">
                         <div>
-                            <dt class="text-xs text-ink-2">Local</dt>
-                            <dd class="font-semibold text-ink">{{ $document->location ?? '—' }}</dd>
+                            <dt class="text-xs text-ink-2">Gerado por</dt>
+                            <dd class="font-semibold text-ink">{{ $document->created_by_name ?? 'não registrado' }}</dd>
                         </div>
                         @if($document->expires_at)
                             <div>

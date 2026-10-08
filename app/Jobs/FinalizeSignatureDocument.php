@@ -14,10 +14,16 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 use Throwable;
 
 /**
  * Monta o PDF final: documento assinado + página de manifesto.
+ *
+ * Exceção: documento assinado pelo gov.br (`govbr_check_id`). Ali o final é o
+ * arquivo que voltou do gov.br, sem tocar — ver govbrFile() —, e o manifesto
+ * vira um PDF À PARTE, o relatório de validação (`report_path`): acrescentar
+ * uma página ao arquivo assinado desfaria as assinaturas.
  *
  * Roda em fila porque gerar PDF leva segundos e a pessoa está no balcão — o
  * tablet mostra "assinatura concluída" assim que a gravação entra, e o arquivo
@@ -88,15 +94,49 @@ class FinalizeSignatureDocument implements ShouldQueue
             return;
         }
 
-        $bytes = $renderer->pdf($document, SignatureDocumentRenderer::MODE_FINAL);
+        /*
+         | Anexo obrigatório sem arquivo: o documento fica "Assinado", à espera.
+         | Não é falha — o atendente envia o anexo na tela do documento, e o
+         | envio que completa a lista despacha este job de novo
+         | (SignatureAttachmentService).
+         */
+        if ($document->missingAttachments() !== []) {
+            return;
+        }
 
-        // Lacre com certificado (PAdES). Desligado nesta entrega; devolve os
-        // mesmos bytes. Ver config/signature.php.
-        $bytes = $sealer->seal($bytes, $document);
+        $disk = Storage::disk(config('signature.disk'));
+        $pasta = config('signature.paths.documents') . '/' . $document->id;
+        $relatorio = [];
 
-        $path = config('signature.paths.documents') . '/' . $document->id . '/final.pdf';
+        if ($document->govbr_check_id !== null) {
+            /*
+             | Assinado pelo gov.br: o final é o ARQUIVO QUE VOLTOU, byte a byte —
+             | ele carrega as assinaturas. Re-renderizar, carimbar, acrescentar
+             | manifesto ou lacrar quebraria todas elas. O que seria o manifesto
+             | sai como relatório, num PDF separado, com o hash dele.
+             */
+            $bytes = $this->govbrFile($document);
+            $origem = 'gov.br';
 
-        Storage::disk(config('signature.disk'))->put($path, $bytes);
+            $relatorioBytes = $renderer->govbrReport($document, hash('sha256', $bytes));
+            $relatorio = [
+                'report_path' => $pasta . '/relatorio-govbr.pdf',
+                'report_sha256' => hash('sha256', $relatorioBytes),
+            ];
+
+            $disk->put($relatorio['report_path'], $relatorioBytes);
+        } else {
+            $bytes = $renderer->pdf($document, SignatureDocumentRenderer::MODE_FINAL);
+
+            // Lacre com certificado (PAdES). Desligado nesta entrega; devolve os
+            // mesmos bytes. Ver config/signature.php.
+            $bytes = $sealer->seal($bytes, $document);
+            $origem = 'tablet';
+        }
+
+        $path = $pasta . '/final.pdf';
+
+        $disk->put($path, $bytes);
 
         $states->documentTo(
             $document,
@@ -106,13 +146,14 @@ class FinalizeSignatureDocument implements ShouldQueue
                 'final_path' => $path,
                 'final_sha256' => hash('sha256', $bytes),
                 'finalized_at' => now(),
-            ],
+            ] + $relatorio,
             [
                 'actor_type' => SignatureAuditEvent::ACTOR_SYSTEM,
                 'payload' => [
                     'bytes' => strlen($bytes),
-                    'lacrado' => $sealer->isEnabled(),
-                ],
+                    'lacrado' => $origem === 'tablet' && $sealer->isEnabled(),
+                    'origem' => $origem,
+                ] + ($relatorio ? ['relatorio_sha256' => $relatorio['report_sha256']] : []),
             ],
         );
 
@@ -131,6 +172,31 @@ class FinalizeSignatureDocument implements ShouldQueue
         if (config('signature.archive.enabled')) {
             ArchiveSignatureDocument::dispatch($document->id);
         }
+    }
+
+    /**
+     * O arquivo da conferência do gov.br que fechou o documento, conferido
+     * contra o hash gravado na conferência: o final não pode ser um arquivo
+     * diferente do que foi aprovado.
+     *
+     * @throws RuntimeException  arquivo ausente ou diferente do conferido
+     */
+    private function govbrFile(SignatureDocument $document): string
+    {
+        $conferencia = $document->govbrFinalCheck;
+        $disk = Storage::disk(config('signature.disk'));
+
+        if (!$conferencia || !$disk->exists($conferencia->file_path)) {
+            throw new RuntimeException("Documento {$document->id}: o arquivo do gov.br que fechou o documento não foi encontrado.");
+        }
+
+        $bytes = (string) $disk->get($conferencia->file_path);
+
+        if (!hash_equals($conferencia->file_sha256, hash('sha256', $bytes))) {
+            throw new RuntimeException("Documento {$document->id}: o arquivo do gov.br não confere com o hash da conferência.");
+        }
+
+        return $bytes;
     }
 
     /**

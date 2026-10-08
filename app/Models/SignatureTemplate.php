@@ -28,10 +28,13 @@ class SignatureTemplate extends Model
     public const IDENTITY_PARTIAL = 'partial';
     public const IDENTITY_FULL = 'full';
     public const IDENTITY_NONE = 'none';
+    /** Código de 6 números enviado ao e-mail do signatário, digitado no tablet. */
+    public const IDENTITY_EMAIL = 'email';
 
     public const IDENTITY_CHECKS = [
         self::IDENTITY_PARTIAL => 'Quatro primeiros dígitos do CPF',
         self::IDENTITY_FULL => 'CPF completo',
+        self::IDENTITY_EMAIL => 'Código enviado por e-mail',
         self::IDENTITY_NONE => 'Sem conferência',
     ];
 
@@ -43,6 +46,7 @@ class SignatureTemplate extends Model
         'body_html',
         'variables',
         'parties',
+        'attachments',
         'signature_placeholder',
         'signature_position',
         'requires_photo',
@@ -76,6 +80,7 @@ class SignatureTemplate extends Model
         'version' => 'integer',
         'variables' => 'array',
         'parties' => 'array',
+        'attachments' => 'array',
         'signature_position' => 'array',
         'requires_photo' => 'boolean',
         'requires_initials' => 'boolean',
@@ -142,6 +147,7 @@ class SignatureTemplate extends Model
                 'body_html',
                 'variables',
                 'parties',
+                'attachments',
                 'signature_placeholder',
                 'signature_position',
                 'requires_photo',
@@ -190,6 +196,25 @@ class SignatureTemplate extends Model
                 'label' => (string) ($p['label'] ?? ($p['key'] ?? '')),
             ])
             ->filter(fn($p) => $p['key'] !== '')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Os anexos que este modelo pede — identidade, comprovante. Cada item tem
+     * chave, rótulo e se é obrigatório. Ver SignatureAttachmentService.
+     *
+     * @return array<int, array{key: string, label: string, required: bool}>
+     */
+    public function declaredAttachments(): array
+    {
+        return collect($this->attachments ?? [])
+            ->filter(fn($a) => ($a['key'] ?? '') !== '' && ($a['label'] ?? '') !== '')
+            ->map(fn($a) => [
+                'key' => (string) $a['key'],
+                'label' => (string) $a['label'],
+                'required' => (bool) ($a['required'] ?? false),
+            ])
             ->values()
             ->all();
     }

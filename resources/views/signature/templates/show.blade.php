@@ -106,6 +106,24 @@
                         </ul>
                     @endif
                 </div>
+
+                <div class="bg-surface rounded-card shadow-card p-6" data-template-attachments>
+                    <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider mb-4">Anexos pedidos</h3>
+                    @if(empty($template->declaredAttachments()))
+                        <p class="text-sm text-ink-2">Nenhum.</p>
+                    @else
+                        <ul class="space-y-2 text-sm">
+                            @foreach($template->declaredAttachments() as $anexo)
+                                <li class="flex items-start justify-between gap-2">
+                                    <span class="text-ink">{{ $anexo['label'] }}</span>
+                                    <span class="text-[10px] {{ $anexo['required'] ? 'font-bold text-grena-ink' : 'text-ink-2' }}">
+                                        {{ $anexo['required'] ? 'obrigatório' : 'opcional' }}
+                                    </span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </div>
             </div>
         </div>
 

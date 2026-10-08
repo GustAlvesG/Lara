@@ -524,7 +524,7 @@ class SignatureSigningFormTest extends TestCase
         // A tela é dividida em passos, um cartão por vez, nesta ordem; os botões da
         // tela é que ganham "Voltar" e "Continuar".
         preg_match_all('/data-step="([^"]+)"/', $html, $passos);
-        $this->assertSame(['Documento', 'Signatários', 'Dados do documento'], $passos[1]);
+        $this->assertSame(['Documento', 'Signatários', 'Dados do documento', 'Anexos'], $passos[1]);
         $this->assertStringContainsString('data-step-actions', $html);
 
         // Texto aceita qualquer dado do signatário; CPF, só CPF; valor e data, nenhum.

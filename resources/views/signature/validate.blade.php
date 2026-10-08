@@ -106,8 +106,8 @@
           <dd>{{ $document->finalized_at->format('d/m/Y \à\s H:i') }}</dd>
         @endif
 
-        <dt>Local do atendimento</dt>
-        <dd>{{ $document->location ?? 'não informado' }}</dd>
+        <dt>Gerado por</dt>
+        <dd>{{ $document->created_by_name ?? 'não registrado' }}</dd>
       </dl>
 
       <dt style="margin-top:18px;">Signatários</dt>
@@ -121,7 +121,10 @@
               <td>{{ $signatario['name'] }}</td>
               <td>{{ $signatario['cpf'] }}</td>
               <td>{{ $signatario['status'] }}</td>
-              <td>{{ $signatario['signed_at'] ?? '—' }}</td>
+              <td>
+                {{ $signatario['signed_at'] ?? '—' }}
+                @if($signatario['via'] === 'gov.br') <br><small>pelo gov.br</small> @endif
+              </td>
             </tr>
           @endforeach
         </tbody>
