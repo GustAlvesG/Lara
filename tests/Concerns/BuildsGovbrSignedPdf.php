@@ -2,6 +2,9 @@
 
 namespace Tests\Concerns;
 
+use App\Services\Signature\Govbr\Asn1;
+use App\Services\Signature\Pki\Certificates;
+use App\Services\Signature\Pki\Der;
 use RuntimeException;
 
 /**
@@ -52,17 +55,90 @@ trait BuildsGovbrSignedPdf
         config(['signature.govbr.trust_bundle' => $arquivo]);
     }
 
+    /** Faz da AC a raiz ICP-Brasil do validador (assinatura qualificada). */
+    protected function icpConfiaEm(array $ac): void
+    {
+        $arquivo = tempnam(sys_get_temp_dir(), 'icp-ac');
+        file_put_contents($arquivo, $ac['cert']);
+
+        config(['signature.icp_brasil.trust_bundle' => $arquivo]);
+    }
+
+    /**
+     * Uma AC intermediária emitida pela raiz — o elo que a assinatura pode não
+     * trazer, e que o validador busca pelo AIA.
+     *
+     * @param  array{cert: string, key: string}  $raiz
+     * @param  array<int, string>  $extensoes  linhas de openssl.cnf (ex.: "crlDistributionPoints = URI:...")
+     * @return array{cert: string, key: string}
+     */
+    protected function govbrAcIntermediaria(array $raiz, string $nome = 'AC Intermediaria de Teste', array $extensoes = []): array
+    {
+        $config = $this->govbrOpensslConfig('0', [], $extensoes);
+        $chave = $this->govbrChave($config);
+
+        $csr = openssl_csr_new(['C' => 'BR', 'O' => 'Teste', 'CN' => $nome], $chave, ['config' => $config, 'digest_alg' => 'sha256']);
+        $cert = openssl_csr_sign($csr, $raiz['cert'], $raiz['key'], 3650, ['config' => $config, 'x509_extensions' => 'ac', 'digest_alg' => 'sha256'], random_int(1, PHP_INT_MAX));
+
+        openssl_x509_export($cert, $certPem);
+        openssl_pkey_export($chave, $chavePem, null, ['config' => $config]);
+
+        return ['cert' => $certPem, 'key' => $chavePem];
+    }
+
+    /**
+     * Uma Lista de Certificados Revogados assinada pela AC (DER), como a do
+     * gov.br: v2, sha256 + RSA.
+     *
+     * @param  array{cert: string, key: string}  $ac
+     * @param  array<int, string>  $certificadosRevogados  PEM dos certificados que entram na lista
+     */
+    protected function govbrLcr(array $ac, array $certificadosRevogados = [], int $venceEmSegundos = 7200, int $emitidaHaSegundos = 60): string
+    {
+        $hora = fn(int $t) => Der::tlv(0x17, gmdate('ymdHis', $t) . 'Z');
+        $algoritmo = Der::sequence(Der::oid('1.2.840.113549.1.1.11'), Der::null());
+
+        // O emissor da lista é o "subject" da AC, byte a byte.
+        $der = Certificates::pemToDer($ac['cert']);
+        $tbsCert = Asn1::children($der, Asn1::node($der))[0];
+        $campos = Asn1::children($der, $tbsCert);
+        $emissor = Asn1::raw($der, $campos[$campos[0]['tag'] === 0xA0 ? 5 : 4]);
+
+        $entradas = '';
+        foreach ($certificadosRevogados as $pem) {
+            $serie = Certificates::serial($pem);
+            $entradas .= Der::sequence(
+                Der::unsignedInteger((string) hex2bin(strlen($serie) % 2 ? '0' . $serie : $serie)),
+                $hora(time() - 3600),
+            );
+        }
+
+        $tbs = Der::sequence(
+            Der::integer(1),
+            $algoritmo,
+            $emissor,
+            $hora(time() - $emitidaHaSegundos),
+            $hora(time() + $venceEmSegundos),
+            $entradas === '' ? '' : Der::sequence($entradas),
+        );
+
+        openssl_sign($tbs, $assinatura, $ac['key'], OPENSSL_ALGO_SHA256);
+
+        return Der::sequence($tbs, $algoritmo, Der::tlv(0x03, "\0" . $assinatura));
+    }
+
     /**
      * Certificado de pessoa física emitido pela AC, com o CPF no otherName.
      *
      * @param  array{cert: string, key: string}  $ac
+     * @param  array<int, string>  $extensoes  linhas de openssl.cnf a mais (LCR, AIA)
      * @return array{cert: string, key: string}
      */
-    protected function govbrCertificado(array $ac, string $cpf, string $nome = 'MARIA DE SOUZA', int $dias = 365): array
+    protected function govbrCertificado(array $ac, string $cpf, string $nome = 'MARIA DE SOUZA', int $dias = 365, array $extensoes = []): array
     {
         // Leiaute ICP-Brasil: nascimento (8) + CPF (11) + NIS (11) + RG (15).
         $valor = '01011990' . $cpf . str_repeat('0', 26);
-        $config = $this->govbrOpensslConfig($valor);
+        $config = $this->govbrOpensslConfig($valor, $extensoes);
         $chave = $this->govbrChave($config);
 
         $csr = openssl_csr_new(['CN' => $nome], $chave, ['config' => $config, 'digest_alg' => 'sha256']);
@@ -77,9 +153,13 @@ trait BuildsGovbrSignedPdf
     /**
      * Acrescenta uma assinatura ao fim do PDF, como o assinador do gov.br.
      *
+     * `$semAtributos` assina sem atributos assinados (sem `signingTime`), como
+     * uma assinatura PAdES: a hora fica só no /M do dicionário.
+     *
      * @param  array{cert: string, key: string}  $certificado
+     * @param  array<int, string>  $cadeia  certificados de AC a embutir no CMS
      */
-    protected function govbrAssina(string $pdf, array $certificado): string
+    protected function govbrAssina(string $pdf, array $certificado, bool $semAtributos = false, array $cadeia = []): string
     {
         $antes = $pdf
             . "\n" . random_int(900, 9999) . " 0 obj\n<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached"
@@ -96,20 +176,23 @@ trait BuildsGovbrSignedPdf
         $saida = tempnam($dir, 'govbr');
         $cert = tempnam($dir, 'govbr');
         $chave = tempnam($dir, 'govbr');
+        $extras = tempnam($dir, 'govbr');
 
         try {
             file_put_contents($conteudo, $antes . $depois);
             file_put_contents($cert, $certificado['cert']);
             file_put_contents($chave, $certificado['key']);
+            file_put_contents($extras, implode("\n", $cadeia));
 
             if (!openssl_cms_sign($conteudo, $saida, 'file://' . $cert, 'file://' . $chave, [],
-                OPENSSL_CMS_DETACHED | OPENSSL_CMS_BINARY, OPENSSL_ENCODING_DER)) {
+                OPENSSL_CMS_DETACHED | OPENSSL_CMS_BINARY | ($semAtributos ? OPENSSL_CMS_NOATTR : 0),
+                OPENSSL_ENCODING_DER, $cadeia === [] ? null : $extras)) {
                 throw new RuntimeException('Falha ao assinar o PDF de teste: ' . openssl_error_string());
             }
 
             $hex = str_pad(bin2hex((string) file_get_contents($saida)), $this->govbrReserva, '0');
         } finally {
-            foreach ([$conteudo, $saida, $cert, $chave] as $arquivo) {
+            foreach ([$conteudo, $saida, $cert, $chave, $extras] as $arquivo) {
                 @unlink($arquivo);
             }
         }
@@ -131,9 +214,11 @@ trait BuildsGovbrSignedPdf
      * Um openssl.cnf com as extensões da AC e do certificado de pessoa física.
      * Sem ele, o PHP no Windows não acha configuração nenhuma.
      */
-    private function govbrOpensslConfig(string $valorCpf = '0'): string
+    private function govbrOpensslConfig(string $valorCpf = '0', array $extrasFolha = [], array $extrasAc = []): string
     {
         $arquivo = tempnam(sys_get_temp_dir(), 'govbr-cnf');
+        $folha = implode("\n", $extrasFolha);
+        $ac = implode("\n", $extrasAc);
 
         file_put_contents($arquivo, <<<CNF
             [ req ]
@@ -143,10 +228,12 @@ trait BuildsGovbrSignedPdf
             basicConstraints = critical,CA:TRUE
             keyUsage = critical,keyCertSign,cRLSign
             subjectKeyIdentifier = hash
+            {$ac}
             [ folha ]
             basicConstraints = CA:FALSE
             keyUsage = digitalSignature
             subjectAltName = otherName:2.16.76.1.3.1;OCTETSTRING:{$valorCpf}
+            {$folha}
             CNF);
 
         return $arquivo;

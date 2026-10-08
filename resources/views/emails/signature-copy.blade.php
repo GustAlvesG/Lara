@@ -31,6 +31,10 @@
         <a href="https://validar.iti.gov.br" style="color:#A00001;">validar.iti.gov.br</a>.
       @else
         O arquivo traz uma página de manifesto com o registro da assinatura e um código de validação.
+        @if(config('signature.pades.enabled'))
+          Ele é lacrado digitalmente pelo clube, com certificado ICP-Brasil: confira no validador oficial do
+          governo, em <a href="https://validar.iti.gov.br" style="color:#A00001;">validar.iti.gov.br</a>.
+        @endif
       @endif
       Para conferir a autenticidade a qualquer momento, acesse:
     </p>

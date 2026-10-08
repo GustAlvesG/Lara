@@ -31,6 +31,11 @@
         <env name="SIGNATURE_ARCHIVE_ENABLED" value="false"/>
         <env name="FREELANCER_ARCHIVE_ENABLED" value="false"/>
         <env name="SIGNATURE_SKIP_PHOTO_WITHOUT_CAMERA" value="false"/>
+        <!-- Conferência de assinatura: nada de LCR nem AC baixada da internet nos testes.
+             Quem testa a rede liga a config e usa Http::fake. -->
+        <env name="SIGNATURE_PKI_NETWORK" value="false"/>
+        <env name="SIGNATURE_PADES_ENABLED" value="false"/>
+        <env name="SIGNATURE_TSA_URL" value=""/>
         <!--
             NÃO COMENTE ESTAS DUAS LINHAS.
 

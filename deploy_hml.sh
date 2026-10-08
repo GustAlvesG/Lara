@@ -65,6 +65,12 @@ php artisan db:seed --class=PermissionCatalogSeeder --force
 php artisan config:cache
 php artisan route:cache
 
+# Listas de certificados revogados (gov.br e ICP-Brasil) da conferência do PDF
+# assinado: baixa já as que faltam, para a primeira conferência não esperar o
+# download (~3 MB). Depois, o scheduler as renova de hora em hora. Sem rede, o
+# comando só avisa — não para o deploy.
+php artisan signature:crl || echo "⚠️ Listas de revogação não renovadas agora; o scheduler tenta de hora em hora."
+
 # 8. Supervisor — instalar e configurar se necessário
 echo "⚙️ Verificando Supervisor..."
 

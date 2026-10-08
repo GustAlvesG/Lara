@@ -186,20 +186,47 @@ enviado. Ver [Autorização de Ordem de Compra](funcionalidades/questor-autoriza
 
 ---
 
-## 11.12. gov.br — conferência de assinatura
+## 11.12. gov.br e ICP-Brasil — conferência de assinatura
 
 O Lara **não chama** nenhuma API do gov.br: a API de assinatura é liberada só para órgão público. A
-pessoa assina o PDF em `assinador.iti.br` e o atendente envia o arquivo na aba **Assinatura gov.br**
-do documento. A conferência é local, com a extensão OpenSSL do PHP.
+pessoa assina o PDF em `assinador.iti.br` (ou com o próprio e-CPF ICP-Brasil, no programa do
+certificado) e o atendente envia o arquivo na aba **Assinatura gov.br** do documento. A conferência é
+local, com a extensão OpenSSL do PHP; só a revogação e a AC intermediária que faltar vêm da rede.
 
-- **Cadeia de confiança:** `resources/certs/govbr/cadeia-govbr.pem`, cópia da oficial
-  (`https://repo.iti.br/docs/Cadeia_GovBr-der.p7b`). **Vence em junho de 2033** — trocar antes.
-- **Revogação:** lista pública em `http://repo.iti.br/lcr/public/acf/LCRacfGovBr.crl`, ainda não
-  consultada.
+- **Âncoras de confiança (no repositório):** `resources/certs/govbr/cadeia-govbr.pem`, cópia da oficial
+  (`https://repo.iti.br/docs/Cadeia_GovBr-der.p7b`), que **vence em junho de 2033**; e
+  `resources/certs/icp-brasil/raizes-icp-brasil.pem`, raízes v5, v6, v7 e v10 a v13 da ICP-Brasil
+  (`acraiz.icpbrasil.gov.br`). A v5 **vence em março de 2029**. Trocar ou acrescentar antes.
+- **Revogação (HTTP, sai para a internet):** a LCR que cada certificado declara. As do gov.br são
+  `http://repo.iti.br/lcr/public/acf/LCRacfGovBr.crl` (~3 MB, renovada a cada 2 h) e
+  `http://repo.iti.br/lcr/public/aci/LCRaciGovBr.crl`. Guardadas em `signature/pki/lcr/` no disco das
+  assinaturas e renovadas pelo `signature:crl` (de hora em hora e no deploy). Fora do ar = "não
+  conferido", sem reprovar (`SIGNATURE_PKI_REVOCATION_REQUIRED` muda isso).
+- **AC intermediária (HTTP):** baixada do endereço AIA do certificado quando a assinatura não a traz
+  (comum no e-CPF); guardada `SIGNATURE_PKI_ISSUER_CACHE_DAYS` dias. Sem saída para a internet:
+  `SIGNATURE_PKI_NETWORK=false`.
 - **E-mail:** o convite para assinar sai pelo SMTP do sistema (seção 11.5), **na hora** e fora da fila —
   com SMTP fora do ar, o atendente vê o erro e nada fica registrado como enviado. Não há link de
   volta para o Lara (que não é acessível de fora): a pessoa responde ao e-mail, que tem `Reply-To` do
   atendente.
-- **Validador oficial:** `validar.iti.gov.br` é citado no relatório de validação e na via por e-mail,
-  para quem quiser conferir o PDF assinado por fora. O Lara não o chama.
+- **Validador oficial:** `validar.iti.gov.br` é citado no relatório de validação, no manifesto (com o
+  lacre ligado), na via por e-mail e no guia, para quem quiser conferir o PDF por fora. O Lara não o chama.
 - Detalhes: [Assinatura eletrônica → Assinatura pelo gov.br](funcionalidades/assinatura-eletronica.md#assinatura-pelo-govbr).
+
+---
+
+## 11.13. Autoridade de Carimbo do Tempo (ACT) — lacre dos PDFs
+
+Com o lacre ligado (`SIGNATURE_PADES_ENABLED`), cada PDF finalizado é assinado com o e-CNPJ A1 do
+clube e, com `SIGNATURE_TSA_URL`, carimbado por uma **ACT credenciada na ICP-Brasil**, contratada à
+parte.
+
+- **Protocolo:** RFC 3161 por HTTP POST (`application/timestamp-query`), autenticação básica opcional
+  (`SIGNATURE_TSA_USER`/`PASSWORD`), OID de política opcional (`SIGNATURE_TSA_POLICY`). Só o
+  **resumo SHA-256** da assinatura sai do servidor — nunca o documento.
+- **Na finalização, dentro do job:** ACT fora do ar faz a finalização falhar e tentar de novo; o
+  documento fica "Assinado" até lá.
+- **Certificado:** `.pfx` em `SIGNATURE_PADES_CERTIFICATE` (fora de `public/` e do git; `storage/certificates`
+  é ignorado), senha em `SIGNATURE_PADES_PASSWORD`. Renovação anual (A1): trocar o arquivo e rodar
+  `php artisan signature:seal-check`.
+- Detalhes: [Assinatura eletrônica → Lacre do clube](funcionalidades/assinatura-eletronica.md#lacre-do-clube-e-cnpj-e-carimbo-de-tempo).

@@ -28,6 +28,11 @@ Schedule::command('signature:expire')->everyMinute()->withoutOverlapping();
 // faz nada com o arquivamento desligado.
 Schedule::command('signature:archive')->hourly()->withoutOverlapping();
 
+// Listas de certificados revogados (gov.br e ICP-Brasil) usadas na conferência
+// do PDF assinado: só baixa a que venceu. A do gov.br muda a cada 2 h e tem
+// ~3 MB — mantida fresca aqui, a aba não espera o download.
+Schedule::command('signature:crl')->hourly()->withoutOverlapping();
+
 // Contratos de freelancer assinados pelas duas partes: gera o PDF e manda a
 // cópia ao mesmo servidor de arquivos. É o único caminho desse arquivamento, e
 // também não faz nada desligado.

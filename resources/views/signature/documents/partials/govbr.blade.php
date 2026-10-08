@@ -24,9 +24,10 @@
     <div>
         <h3 class="text-lg font-bold text-ink">Assinatura pelo gov.br</h3>
         <p class="text-sm text-ink-2 mt-1">
-            Para quem não vem ao balcão: a pessoa assina o PDF deste documento no portal do gov.br e o devolve.
-            O Lara confere se é este documento, se nada mudou depois da assinatura, se o certificado é do gov.br
-            e se o CPF é de um dos signatários — e, aprovado, registra a assinatura.
+            Para quem não vem ao balcão: a pessoa assina o PDF deste documento no portal do gov.br — ou com o
+            próprio certificado digital ICP-Brasil (e-CPF) — e o devolve. O Lara confere se é este documento, se
+            nada mudou depois da assinatura, se o certificado é do gov.br ou da ICP-Brasil e não foi revogado, e se
+            o CPF é de um dos signatários — e, aprovado, registra a assinatura.
         </p>
     </div>
 
@@ -96,7 +97,10 @@
                     @endif
                     Envie como foi baixado: salvo de novo por outro programa, ele é recusado.
                 </li>
-                <li>A pessoa assina em <span class="font-mono">assinador.iti.br</span>, com conta gov.br prata ou ouro, e devolve o arquivo baixado de lá.</li>
+                <li>
+                    A pessoa assina em <span class="font-mono">assinador.iti.br</span>, com conta gov.br prata ou ouro, e devolve o arquivo baixado de lá.
+                    Quem tem e-CPF (certificado ICP-Brasil) pode assinar no programa do próprio certificado — vale como assinatura qualificada.
+                </li>
                 <li>Envie esse arquivo aqui.</li>
             </ol>
         @endif
@@ -229,6 +233,9 @@
                                 · {{ \Illuminate\Support\Carbon::parse($assinatura['signed_at'])->format('d/m/Y H:i:s') }}
                             @endif
                         </div>
+                        @if($tipo = \App\Services\Signature\Govbr\GovbrSignatureValidator::kindLabel($assinatura['kind'] ?? null))
+                            <div class="text-xs font-semibold text-ink mt-0.5" data-govbr-kind="{{ $assinatura['kind'] }}">{{ $tipo }}</div>
+                        @endif
                         @if($assinatura['issuer'])
                             <div class="text-[11px] text-ink-3">Emitido por {{ $assinatura['issuer'] }} · série {{ $assinatura['serial'] }}</div>
                         @endif

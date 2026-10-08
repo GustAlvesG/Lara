@@ -195,18 +195,18 @@ class SignatureFinalizationTest extends TestCase
     }
 
     /**
-     * O lacre PAdES não está implementado. Ligá-lo sem implementar falha alto,
-     * na hora — um lacre que silenciosamente não acontece é pior que nenhum,
-     * porque alguém passa a contar com ele.
+     * Lacre ligado sem certificado falha alto, na hora — um lacre que
+     * silenciosamente não acontece é pior que nenhum, porque alguém passa a
+     * contar com ele. O lacre de verdade está em SignaturePdfSealTest.
      */
-    public function test_lacre_pades_ligado_sem_implementacao_falha_alto(): void
+    public function test_lacre_ligado_sem_certificado_falha_alto(): void
     {
-        config(['signature.pades.enabled' => true]);
+        config(['signature.pades.enabled' => true, 'signature.pades.certificate_path' => null]);
 
         $documento = $this->documentoAssinado();
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('ainda não foi implementado');
+        $this->expectExceptionMessage('Lacre sem certificado');
 
         (new FinalizeSignatureDocument($documento->id))->handle(
             app(\App\Services\Signature\SignatureDocumentRenderer::class),

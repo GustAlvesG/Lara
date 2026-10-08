@@ -144,8 +144,16 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 - `app/Services/Signature/Govbr/GovbrSignatureValidator.php` — o núcleo. "É este documento" = o arquivo
   **começa byte a byte** pelo `original` ou `final` do Lara (o gov.br só acrescenta, atualização incremental);
   "pessoa certa" = CPF do otherName `2.16.76.1.3.1` (posições 8–18 dos 45 dígitos) igual ao de um signatário,
-  certificado subindo até a raiz em `resources/certs/govbr/cadeia-govbr.pem` (única âncora, vence 2033),
-  validade na hora do `signingTime`. Revogação: **não conferida** (`ok = null`, que não aprova nem reprova).
+  certificado subindo até uma raiz do repositório — `resources/certs/govbr/cadeia-govbr.pem` (vence 2033) ou
+  `resources/certs/icp-brasil/raizes-icp-brasil.pem` (v5…v13; v5 vence 2029) —, validade na hora da assinatura
+  **e** na da conferência. O resultado diz o tipo: `kind` = `govbr` (avançada) ou `icp-brasil` (qualificada,
+  e-CPF assinado no programa do certificado e devolvido pela mesma aba). Elo que falta: AIA
+  (`PkiRepository::issuers`). Hora: `signingTime` ou, sem ele, `/M` do dicionário (`declaredTime`).
+- **Revogação** (por assinatura, chave `revogacao`): `Pki\RevocationChecker` confere cada elo na LCR declarada,
+  assinada pela AC de cima e em vigor. Na lista → **reprova** (qualquer data). Indisponível → `null`
+  (não reprova), salvo `SIGNATURE_PKI_REVOCATION_REQUIRED`. LCR guardada em `signature/pki/lcr/` até o
+  `nextUpdate`; `signature:crl` (hora em hora + deploy) renova. A do gov.br tem ~71 mil séries:
+  `CertificateRevocationList` indexa com cursor (não troque por `Asn1::children`, passa de 50 MB).
 - `Asn1.php` — leitor **BER**: o CMS do gov.br tem comprimento indefinido; não troque por leitor DER nem
   corte os zeros do `/Contents`.
 - `GovbrCheckService` grava arquivo (também os recusados) + conferência + evento; o evento não leva nome nem CPF.
@@ -155,7 +163,27 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
   `php -d memory_limit=1G vendor/bin/phpunit --filter Signature` (o `artisan test` não passa o limite ao subprocesso)
   (`Tests\Concerns\BuildsGovbrSignedPdf`). As amostras reais ficam fora do git (`storage/app/govbr-amostras/`,
   com o inspetor da Fase 0) — têm CPF real.
-- Não há API do gov.br envolvida: ela é só para órgão público. Nenhuma chamada de rede na conferência.
+- Não há API do gov.br envolvida: ela é só para órgão público. A rede da conferência é só LCR e AIA
+  (`SIGNATURE_PKI_NETWORK=false` desliga; a suíte roda desligada pelo `phpunit.xml` — teste que precisa
+  liga a config e usa `Http::fake` + `preventStrayRequests`). Testes: `SignatureGovbrRevocationTest`.
+- Helper de testes ampliado (`BuildsGovbrSignedPdf`): `icpConfiaEm`, `govbrAcIntermediaria`, `govbrLcr`
+  (LCR assinada pela AC de teste), extensões no certificado (LCR/AIA) e `govbrAssina(..., $semAtributos, $cadeia)`.
+
+## Lacre do clube (e-CNPJ) + carimbo de tempo
+
+- `SIGNATURE_PADES_ENABLED`: `FinalizeSignatureDocument` passa pelo `SignaturePdfSealer` o final do tablet,
+  o final do gov.br **e** o relatório. `final_sha256` = arquivo lacrado; o `/validar` também aceita o arquivo
+  da conferência gov.br sem lacre.
+- `Pki\PdfSignatureWriter`: assinatura por **atualização incremental** (só xref clássica, sem criptografia),
+  campo invisível na 1ª página. Preserva as assinaturas do gov.br (DocMDP `/P 2` permite). Conferido com
+  pyHanko em 08/10/2026 nas amostras reais.
+- `Pki\TimestampClient`: RFC 3161 na ACT (`SIGNATURE_TSA_*`); o token entra como atributo NÃO assinado.
+  Confere resumo, nonce e assinatura do carimbo.
+- Falha alto (sem .pfx, senha, vencido, ACT fora) → o job tenta de novo. `php artisan signature:seal-check`
+  confere tudo sem finalizar nada. Evento `finalized`: `lacrado`, `carimbo_de_tempo`.
+- Testes: `SignaturePdfSealTest` (ACT de teste que lê o pedido e devolve carimbo assinado).
+- **Não use a marca/selo ICP-Brasil** em tela, PDF ou e-mail: o selo é só de sistema homologado no ITI
+  (DOC-ICP-10, item 4), e o Lara não é. Diga "certificado ICP-Brasil", nunca "homologado".
 
 ## Peças
 
@@ -171,7 +199,8 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 | `SignatureFieldTypes.php` | Tipos de campo: validação, forma canônica, formatação. Único lugar que sabe o que é CPF/CNPJ válido. |
 | `DocxTemplateImporter.php` | `.docx` → `body_html` + campos (`[[Rótulo]]`, `[[assinatura: Parte]]`). |
 | `SignaturePdfStamper.php` | Carimba por cima do PDF enviado pronto (FPDI): validação, vistos, assinaturas, folha final. |
-| `SignaturePdfSealer.php` | Ponto de troca para lacre real (PAdES não implementado). |
+| `SignaturePdfSealer.php` | Lacre PAdES com o e-CNPJ do clube + carimbo de tempo (ver seção acima). |
+| `Pki/*` | `Certificates`, `CertificateRevocationList`, `PkiRepository`, `RevocationChecker`, `TimestampClient`, `PdfSignatureWriter`, `Der`. |
 | `SignaturePageGeometry.php` | Margens, cabeçalho, rodapé e faixa do visto — CSS e desenho do visto leem daqui. |
 | `SignatureArchiver.php` + `App\Support\ArchivePath` | Cópia no FTP: tipo → pessoa, nome com data e código. |
 | `SignatureQrCode.php` | QR do manifesto no servidor (`bacon/bacon-qr-code`). |
@@ -209,6 +238,8 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 - `signature:expire` — a cada minuto: QR não lido, sessão parada, documento esquecido.
 - `signature:archive` — de hora em hora: reenvia cópias pendentes ao FTP; `--testar` só confere a conexão.
   Desligado por padrão (`SIGNATURE_ARCHIVE_ENABLED=false`).
+- `signature:crl` — de hora em hora e no deploy: renova as LCR (gov.br + as já consultadas); `--forcar`.
+- `signature:seal-check` — manual: certificado do lacre e carimbo de teste na ACT.
 - `SignatureTemplateSeeder` — 3 modelos iniciais, idempotente, **fora** do `DatabaseSeeder` de propósito.
 
 ## Testes
@@ -319,3 +350,19 @@ Doc completa: [docs/funcionalidades/termo-de-menores.md](../funcionalidades/term
   (não devolve vazio como a busca do atendente). Nos testes, substitua no container.
 - **Modelo do OKTOBERPET 2026:** `MinorTermTemplateSeeder` (idempotente, fora do deploy).
 - Testes: `SignatureMinorTermKioskTest`, `SignatureMinorTermPanelTest`, `Unit\MinorTermRulesTest`.
+## Pendências (atualizado em 08/10/2026)
+
+Em aberto, por ordem de impacto. Ao resolver uma, tire daqui e atualize a doc completa.
+
+| # | Pendência | Situação / o que fazer |
+|---|---|---|
+| 1 | **Carimbo de tempo (ACT) não contratado** | Decisão do usuário (08/10): seguir **só com o `.pfx` A1** por enquanto. O lacre sai sem carimbo, com a hora do servidor. Sem carimbo, depois que o A1 vencer (1 ano), um validador pode marcar o lacre como não verificável. Ao contratar uma ACT credenciada na ICP-Brasil (em geral a própria certificadora vende): preencher `SIGNATURE_TSA_URL`/`USER`/`PASSWORD`, `config:cache`, `signature:seal-check`. Não muda código |
+| 2 | **Lacre ainda não ligado em produção** | Instalar o `.pfx` no servidor (passo a passo em "Lacre do clube" na doc completa) e conferir com `sudo -u www-data php artisan signature:seal-check` |
+| 3 | **Conferir um PDF lacrado de verdade no `validar.iti.gov.br`** | Não feito: sem navegador nesta máquina, e o site é externo. Validado só com pyHanko. Ver se o ITI reclama da falta de política ICP-Brasil (DOC-ICP-15: sem identificador de política nem `signingCertificateV2`). Se reclamar, o ponto é o `cms()` do `SignaturePdfSealer` |
+| 4 | **Sem aviso de vencimento do A1** | Vencido, a finalização **falha** (de propósito) e os documentos param em "Assinado". Falta um aviso com antecedência (ex.: o `signature:seal-check` agendado avisando 30 dias antes). Hoje: anotar a data que o `seal-check` mostra |
+| 5 | **Âncoras com prazo** | Raiz ICP-Brasil v5 vence em **03/2029**; a cadeia do gov.br, em **06/2033**. Trocar ou acrescentar antes (`resources/certs/`) |
+| 6 | **Links `/validar` apontam para o Lara**, que não é acessível de fora (e-mail da via e manifesto do tablet) | Mitigado: com o lacre ligado, o texto manda para o `validar.iti.gov.br`. Decidir se o link interno continua |
+| 7 | **Flag `SIGNATURE_GOVBR_ENABLED`** (estava no plano do gov.br) | Não criada: pergunta em aberto ao usuário. Hoje a aba existe sempre |
+| 8 | **Tablet → gov.br no mesmo documento** | Não feito. Seria viável com um PDF intermediário com os traços do tablet; hoje é proibido nos dois sentidos |
+| 9 | **Teste de certificado vencido na hora da assinatura** | Fora da suíte: a extensão OpenSSL não emite certificado no passado |
+| 10 | Retenção sem exclusão física; via por WhatsApp desligada | Conhecidos e de propósito (ver doc completa) |

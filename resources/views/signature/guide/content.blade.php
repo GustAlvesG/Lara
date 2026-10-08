@@ -716,6 +716,13 @@
             gov.br</span>, com o botão ao lado de <span class="btn">PDF assinado</span> (ver a seção 9).</li>
         <li>Os <b>anexos</b> (identidade, comprovante) não entram no PDF: ficam guardados com o documento, e o
             manifesto lista cada um.</li>
+        @if(config('signature.pades.enabled'))
+            <li><b>Lacre do clube:</b> todo PDF assinado (e o relatório do gov.br) sai lacrado digitalmente com o
+                certificado ICP-Brasil do clube{{ config('signature.pades.tsa_url') ? ', com carimbo de tempo' : '' }}.
+                O lacre não assina por ninguém: prova que o arquivo não mudou depois de emitido. Qualquer pessoa
+                confere em <code>validar.iti.gov.br</code>. O lacre não aparece na página: ele está no painel de
+                assinaturas do leitor de PDF.</li>
+        @endif
     </ul>
 
     <div class="keep">
@@ -743,8 +750,9 @@
             <td><b>Página de validação</b></td>
             <td>Qualquer pessoa pode conferir se um documento é autêntico pelo endereço impresso no rodapé de cada
                 página, ou lendo o QR Code do manifesto. A página confirma o documento; ela não entrega o PDF.
-                Documento assinado pelo gov.br também pode ser conferido no validador oficial do governo,
-                <code>validar.iti.gov.br</code>.</td>
+                Ela só abre de dentro da rede do clube. De qualquer lugar, use o validador oficial do governo,
+                <code>validar.iti.gov.br</code>: ele confere as assinaturas do gov.br e de certificado ICP-Brasil e,
+                quando o lacre do clube está ligado, também o lacre de qualquer PDF finalizado.</td>
         </tr>
     </table>
     </div>
@@ -788,9 +796,14 @@
 
     <p>Quem não pode vir ao clube assina o PDF do documento no portal do gov.br, com a própria conta gov.br
         (nível <b>prata ou ouro</b>), e devolve o arquivo. O sistema confere se é este documento, se nada mudou
-        depois da assinatura, se o certificado é do gov.br e se o CPF é de um dos signatários — e, se estiver tudo
-        certo, registra a assinatura, como o tablet. O sistema não é acessível de fora: o arquivo sempre volta
-        <b>por você</b>.</p>
+        depois da assinatura, se o certificado é do gov.br e não foi revogado, e se o CPF é de um dos signatários —
+        e, se estiver tudo certo, registra a assinatura, como o tablet. O sistema não é acessível de fora: o arquivo
+        sempre volta <b>por você</b>.</p>
+
+    <p>Quem tem <b>certificado digital ICP-Brasil</b> (e-CPF, em cartão, token ou na nuvem) pode assinar o mesmo
+        PDF no programa do certificado, em vez do gov.br, e devolvê-lo do mesmo jeito: a aba é a mesma e a
+        conferência também. A tela mostra o tipo de cada assinatura: <b>gov.br</b> é assinatura eletrônica
+        <b>avançada</b>; <b>certificado ICP-Brasil</b> é <b>qualificada</b>, a de maior valor na lei.</p>
 
     <table class="steps">
         <tr>
@@ -877,8 +890,12 @@
         <li>O PDF assinado não ganha página de manifesto (acrescentar uma página desfaria as assinaturas): o registro
             sai no <span class="btn2">Relatório gov.br</span>, que vai junto na via por e-mail e fica para baixar na
             página do documento.</li>
-        <li>A hora da assinatura é a informada pelo gov.br. A revogação do certificado ainda não é conferida — a
-            tela diz isso; o validador oficial, <code>validar.iti.gov.br</code>, confere.</li>
+        <li>A hora da assinatura é a informada pelo gov.br (ou, no certificado ICP-Brasil, pelo programa que
+            assinou).</li>
+        <li><b>Certificado revogado é recusado.</b> O sistema consulta a lista de certificados revogados de cada
+            certificado. Se a lista estiver fora do ar, a linha "Certificado não revogado" aparece como <b>não
+            conferida</b> e a assinatura não é recusada por isso; o validador oficial, <code>validar.iti.gov.br</code>,
+            confere de novo a qualquer momento.</li>
     </ul>
     </div>
 </div>
@@ -987,8 +1004,8 @@
             <td>Abra o envio na aba <b>Assinatura gov.br</b> e veja o item marcado com X. Os mais comuns: a pessoa
                 devolveu o PDF <b>sem assinar</b>; assinou <b>outro documento</b> (de outro atendimento, um PDF
                 baixado antes de "Preparar para o gov.br", ou um arquivo salvo de novo); ou quem assinou <b>não está na
-                lista de signatários</b>. Peça que assine de novo o PDF certo, em <code>assinador.iti.br</code>, e envie
-                o arquivo baixado de lá.</td>
+                lista de signatários</b>; ou o certificado foi <b>revogado</b>. Peça que assine de novo o PDF certo, em
+                <code>assinador.iti.br</code>, e envie o arquivo baixado de lá.</td>
         </tr>
         <tr>
             <td>O arquivo do gov.br é "válido", mas não registrou a assinatura</td>

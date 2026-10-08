@@ -224,6 +224,60 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Certificado ICP-Brasil (assinatura qualificada) na mesma aba
+    |--------------------------------------------------------------------------
+    |
+    | Quem tem e-CPF (A1, A3 ou em nuvem) pode assinar o PDF em qualquer
+    | programa que faça atualização incremental e devolvê-lo pela mesma aba. A
+    | conferência é a mesma do gov.br; muda a âncora: as raízes da ICP-Brasil,
+    | baixadas do ITI e guardadas no repositório (v5, v6, v7, v10 a v13 — a
+    | origem e as impressões digitais estão no cabeçalho do arquivo). As ACs
+    | intermediárias vêm na assinatura ou são baixadas do endereço que o
+    | certificado declara (ver `pki` abaixo).
+    |
+    */
+
+    'icp_brasil' => [
+        'trust_bundle' => resource_path('certs/icp-brasil/raizes-icp-brasil.pem'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Consultas de PKI na rede (revogação e ACs intermediárias)
+    |--------------------------------------------------------------------------
+    |
+    | A conferência do PDF assinado consulta a Lista de Certificados Revogados
+    | (LCR) de cada certificado e, quando falta uma AC intermediária, baixa o
+    | certificado dela. Tudo o que vem da rede é conferido pela assinatura de
+    | quem o emitiu; fica guardado no disco das assinaturas, em `cache_path`.
+    |
+    | `network`              — desligue onde o servidor não sai para a internet:
+    |                          a conferência segue só com o que já está guardado.
+    | `revocation`           — consultar a LCR.
+    | `revocation_required`  — lista indisponível REPROVA (o padrão é mostrar
+    |                          "não conferido" e não reprovar).
+    |
+    | O comando `signature:crl` (agendado de hora em hora) renova as listas já
+    | conhecidas, para a conferência não esperar o download da do gov.br (~3 MB).
+    |
+    */
+
+    'pki' => [
+        'network' => (bool) env('SIGNATURE_PKI_NETWORK', true),
+        'revocation' => (bool) env('SIGNATURE_PKI_REVOCATION', true),
+        'revocation_required' => (bool) env('SIGNATURE_PKI_REVOCATION_REQUIRED', false),
+        'timeout_seconds' => (int) env('SIGNATURE_PKI_TIMEOUT_SECONDS', 30),
+        'issuer_cache_days' => (int) env('SIGNATURE_PKI_ISSUER_CACHE_DAYS', 30),
+        'cache_path' => 'signature/pki',
+        // Sempre renovadas pelo `signature:crl`, mesmo antes da primeira conferência.
+        'crl_urls' => [
+            'http://repo.iti.br/lcr/public/acf/LCRacfGovBr.crl',
+            'http://repo.iti.br/lcr/public/aci/LCRaciGovBr.crl',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Anexos do documento
     |--------------------------------------------------------------------------
     |
@@ -245,16 +299,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Lacre com certificado (PAdES) — não implementado
+    | Lacre do PDF final com o e-CNPJ do clube (PAdES) + carimbo de tempo
     |--------------------------------------------------------------------------
     |
-    | A entrega de hoje é assinatura eletrônica AVANÇADA (Lei 14.063/2020),
-    | baseada em evidências. Assinar o PDF final com o certificado A1 do clube
-    | lacraria o arquivo, mas não é o que dá valor jurídico à assinatura da
-    | pessoa — por isso ficou fora.
+    | Ligado, todo PDF que sai finalizado — o do tablet, o do gov.br (por
+    | atualização incremental, sem desfazer as assinaturas das pessoas) e o
+    | relatório do gov.br — recebe uma assinatura digital do CLUBE, com o
+    | certificado A1 (e-CNPJ ICP-Brasil, arquivo .pfx/.p12). Ela não assina
+    | pela pessoa: LACRA o arquivo — prova que não mudou depois de emitido e
+    | quem o emitiu — e qualquer um confere em validar.iti.gov.br.
     |
-    | A flag existe para o ponto de extensão (SignaturePdfSealer) ter onde ser
-    | ligado no dia em que o certificado for adquirido.
+    | `tsa_url` é a Autoridade de Carimbo do Tempo (ACT) credenciada na
+    | ICP-Brasil, contratada à parte (RFC 3161, HTTP). Com ela, o lacre leva a
+    | hora de um terceiro, e não a do servidor. Usuário e senha, se a ACT pedir
+    | autenticação básica. Vazio = lacre sem carimbo.
+    |
+    | Falha alto: lacre ligado sem certificado, com senha errada, certificado
+    | vencido ou carimbo que não volta faz a finalização falhar e tentar de
+    | novo (FinalizeSignatureDocument). Um lacre que silenciosamente não
+    | acontece é pior que nenhum, porque alguém passa a contar com ele.
+    | Confira a configuração com `php artisan signature:seal-check`.
     |
     */
 
@@ -262,6 +326,15 @@ return [
         'enabled' => (bool) env('SIGNATURE_PADES_ENABLED', false),
         'certificate_path' => env('SIGNATURE_PADES_CERTIFICATE'),
         'certificate_password' => env('SIGNATURE_PADES_PASSWORD'),
+        'reason' => env('SIGNATURE_PADES_REASON', 'Lacre do documento emitido pelo Lara'),
+        'tsa_url' => env('SIGNATURE_TSA_URL'),
+        'tsa_user' => env('SIGNATURE_TSA_USER'),
+        'tsa_password' => env('SIGNATURE_TSA_PASSWORD'),
+        // OID da política da ACT, se o contrato exigir; vazio = a padrão da ACT.
+        'tsa_policy' => env('SIGNATURE_TSA_POLICY'),
+        'tsa_timeout_seconds' => (int) env('SIGNATURE_TSA_TIMEOUT_SECONDS', 30),
+        // Bytes reservados no PDF para a assinatura (CMS + cadeia + carimbo).
+        'reserve_bytes' => (int) env('SIGNATURE_PADES_RESERVE_BYTES', 32768),
     ],
 
     /*
