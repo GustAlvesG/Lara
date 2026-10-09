@@ -33,6 +33,13 @@ class SignatureAuditEvent extends Model
     public const EVENT_QR_ISSUED = 'qr_issued';
     public const EVENT_QR_REISSUED = 'qr_reissued';
     public const EVENT_QR_CONSUMED = 'qr_consumed';
+    /**
+     * Fim do atendimento no tablet (assinou ou recusou). Até 08/10/2026 o
+     * encerramento era gravado como `qr_consumed`, e a trilha mostrava "QR lido
+     * pelo tablet" depois de "Assinado". Registros antigos ficam como estão:
+     * a trilha é só inserção.
+     */
+    public const EVENT_SESSION_COMPLETED = 'session_completed';
     public const EVENT_QR_REUSE_BLOCKED = 'qr_reuse_blocked';
     public const EVENT_QR_IP_BLOCKED = 'qr_ip_blocked';
     public const EVENT_ACCESS_DENIED = 'access_denied';
@@ -67,6 +74,7 @@ class SignatureAuditEvent extends Model
         self::EVENT_QR_ISSUED => 'QR gerado',
         self::EVENT_QR_REISSUED => 'QR regerado',
         self::EVENT_QR_CONSUMED => 'QR lido pelo tablet',
+        self::EVENT_SESSION_COMPLETED => 'Atendimento no tablet encerrado',
         self::EVENT_QR_REUSE_BLOCKED => 'Releitura de QR bloqueada',
         self::EVENT_QR_IP_BLOCKED => 'Leitura bloqueada por IP',
         self::EVENT_ACCESS_DENIED => 'Acesso negado à sessão',

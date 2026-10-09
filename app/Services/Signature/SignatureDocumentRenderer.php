@@ -47,6 +47,7 @@ class SignatureDocumentRenderer
     public function __construct(
         private SignatureQrCode $qrCodes,
         private SignaturePdfStamper $stamper,
+        private SignatureValidationLink $links,
     ) {
     }
 
@@ -202,6 +203,12 @@ class SignatureDocumentRenderer
                 ? null
                 : $this->placeSignatures($this->resolved($document), $document, $mode),
             'mode' => $mode,
+            // Rodapé: o final lacrado aponta para o validador oficial; o
+            // original (o que o tablet mostra), para o /validar do Lara.
+            'validationUrl' => $document->validation_code
+                ? ($mode === self::MODE_FINAL ? $this->links->forFinal($document) : $this->links->internal($document))
+                : null,
+            'validationIti' => $mode === self::MODE_FINAL && $this->links->finalUsesIti($document),
             'geometry' => $this->geometry($document),
             // A página de manifesto só existe no PDF final: é o relatório das
             // evidências, e não parte do que a pessoa leu e assinou.
@@ -332,7 +339,7 @@ class SignatureDocumentRenderer
             }
         }
 
-        $url = url('/validar/' . $document->validation_code);
+        $url = $this->links->forFinal($document);
 
         return view('signature.pdf.manifest', [
             'document' => $document,
@@ -340,6 +347,7 @@ class SignatureDocumentRenderer
             'events' => $document->auditEvents()->get(),
             'photos' => $fotos,
             'validationUrl' => $url,
+            'validationIti' => $this->links->finalUsesIti($document),
             'qr' => $this->qrCodes->dataUri($url, 108),
         ])->render();
     }
@@ -355,9 +363,10 @@ class SignatureDocumentRenderer
      */
     public function govbrReportHtml(SignatureDocument $document, string $finalSha256): string
     {
-        $url = url('/validar/' . $document->validation_code);
+        $url = $this->links->forFinal($document);
 
         return view('signature.pdf.govbr-report', [
+            'validationIti' => $this->links->finalUsesIti($document),
             'document' => $document,
             'check' => $document->govbrFinalCheck,
             'signers' => $document->signers()->with(['govbrCheck', 'govbrInvites'])->get(),

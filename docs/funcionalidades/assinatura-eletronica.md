@@ -269,6 +269,12 @@ com o traço no lugar do campo, mais uma **página de manifesto** com signatári
 data e hora do servidor, o usuário que gerou o documento e o que gerou cada QR, IP e dispositivo, tempo de leitura, miniatura da
 foto, o `original_sha256`, a trilha de eventos e o **QR de validação**.
 
+O `original_sha256` do manifesto é o do documento **antes** das assinaturas, e o manifesto avisa que
+não é o hash do PDF assinado: um arquivo não pode trazer o próprio hash. O hash que o `validar.iti.gov.br`
+mostra é o do arquivo final (`final_sha256`), exibido no `/validar` como "impressão digital da via
+assinada". O fim do atendimento no tablet entra na trilha como **"Atendimento no tablet encerrado"**
+(`session_completed`); antes de 08/10/2026 aparecia, por engano, como um segundo "QR lido pelo tablet".
+
 **Tamanho do traço no documento:** o tablet manda a tela de desenho inteira, quase toda vazia. O
 `SignatureDocumentRenderer::signatureImages` recorta a imagem ao traço (`PngTrimmer`, o mesmo do
 PDF enviado pronto) e a imprime no maior tamanho que cabe em **280×100px**
@@ -336,9 +342,11 @@ manifesto, que só abrem de dentro da rede.
   assim). xref stream → recusado, com a mensagem dizendo isso.
 - O evento `finalized` leva `lacrado` e `carimbo_de_tempo`. O manifesto, o relatório, a via por e-mail
   e o guia citam o lacre e o `validar.iti.gov.br` quando ele está ligado.
-- **Não é** a assinatura qualificada da política ICP-Brasil (DOC-ICP-15: sem identificador de política
-  nem `signingCertificateV2`). O validador do ITI mostra a assinatura e o carimbo. Se algum dia for
-  preciso o selo de política, o ponto é o `cms()` do `SignaturePdfSealer`.
+- **Conferido no ITI (08/10/2026):** um PDF do tablet lacrado com o e-CNPJ do clube foi enviado ao
+  `validar.iti.gov.br`: **"Assinatura aprovada"**, selo **"Assinatura eletrônica qualificada"** (MP
+  2.200-2/01 e Lei 14.063/20), titular e CNPJ do clube, CPF do representante mascarado. O CMS não leva
+  identificador de política (DOC-ICP-15) nem `signingCertificateV2`, e o validador não reprovou por
+  isso. Se algum dia for exigida uma política (AD-RB etc.), o ponto é o `cms()` do `SignaturePdfSealer`.
 - **Sem a marca ICP-Brasil.** O Selo de Homologação (o logotipo "ICP Brasil" com a chave e o número
   HHHH-AA-XXXX/YY) é só de sistema **homologado pelo ITI** (DOC-ICP-10, item 4), e o Lara não é — nem
   precisa ser: a homologação só é obrigatória para quem integra a ICP-Brasil (AC, AR), e a validade da
@@ -476,6 +484,22 @@ hash. Não mostra foto, traço, contato, nem entrega o documento: quem tem o có
 Código inexistente e rascunho respondem a mesma coisa — "não encontrado" —, para a página não
 confirmar a existência de documentos alheios. O arquivo enviado é lido do diretório temporário,
 hasheado e descartado.
+
+**Para onde o QR aponta** (`SignatureValidationLink`, desde 09/10/2026). O `/validar` só abre dentro
+da rede do clube, então o PDF que vai para a casa da pessoa aponta para o validador oficial quando
+ele consegue conferir o arquivo:
+
+| PDF | QR, rodapé e linha carimbada | Por quê |
+|---|---|---|
+| Final, com o lacre ligado | `https://validar.iti.gov.br` + "envie este PDF" + o código | O lacre é assinatura digital: o ITI confere de qualquer lugar |
+| Final assinado pelo gov.br (com ou sem lacre) | `https://validar.iti.gov.br` | As assinaturas das pessoas estão no arquivo |
+| Final do tablet, sem lacre | `/validar/{codigo}` | Sem assinatura digital, o ITI diria "não assinado" |
+| Original (o que o tablet mostra) | `/validar/{codigo}` | Não é lacrado; o hash dele é conferido no Lara |
+
+O botão "Validar documento" do e-mail da via segue a mesma regra. O código de validação continua
+impresso em todos: dentro da rede, o `/validar` segue funcionando. O endereço do `/validar` vem do
+`APP_URL` do ambiente que gera o PDF; em produção, ele precisa ser o endereço que os computadores
+do clube usam.
 
 ## Envio da via
 

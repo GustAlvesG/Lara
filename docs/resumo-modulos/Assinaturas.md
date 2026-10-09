@@ -204,6 +204,7 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 | `SignaturePageGeometry.php` | Margens, cabeçalho, rodapé e faixa do visto — CSS e desenho do visto leem daqui. |
 | `SignatureArchiver.php` + `App\Support\ArchivePath` | Cópia no FTP: tipo → pessoa, nome com data e código. |
 | `SignatureQrCode.php` | QR do manifesto no servidor (`bacon/bacon-qr-code`). |
+| `SignatureValidationLink.php` | Para onde apontam o QR, o rodapé, a linha carimbada e o botão da via: ITI no final lacrado ou do gov.br; `/validar` no resto. |
 | `Govbr/GovbrSignatureValidator.php`, `Govbr/GovbrCheckService.php`, `Govbr/GovbrInviteService.php`, `Govbr/Asn1.php` | Assinatura pelo gov.br — ver a seção acima. |
 | `app/Http/Middleware/EnsureSignatureKioskSession.php` | Alias `signature_kiosk`: resolve o cookie, confere prazo, amarra ao documento (outro id → 403 + evento). |
 | Models | `SignatureTemplate` (versionado por linha), `SignatureDocument`, `SignatureSigner`, `SignatureRequest`, `SignatureEvidence`, `SignatureAuditEvent` (recusa update/delete com exceção), `SignatureLayout` (versionado), `SignatureGovbrCheck` (conferências gov.br). |
@@ -221,6 +222,12 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 - **O servidor decide:** CPF nunca vai à tela; imagem conferida pelos bytes; motivo de foto ausente é lista
   fechada (`camera_unavailable`) e só vale com a flag ligada; foto sem `photo_consent` → 422.
 - **Hora é sempre do servidor**; o tablet não guarda nada (`localStorage`/`IndexedDB` proibidos).
+- **Encerramento da sessão do tablet** (`SignatureRequestService::complete`) grava `session_completed`
+  ("Atendimento no tablet encerrado"). Até 08/10/2026 gravava `qr_consumed`, e o manifesto mostrava "QR lido
+  pelo tablet" depois de "Assinado". Documentos antigos ficam assim (trilha só-inserção).
+- **Hash no manifesto ≠ hash do PDF:** o manifesto imprime o `original_sha256` (antes das assinaturas). O hash
+  que um validador (ITI) mostra é o do arquivo final (`final_sha256`, "impressão digital da via assinada" no
+  `/validar`) — um PDF não pode trazer o próprio hash. O manifesto diz isso desde 08/10/2026.
 - **Trilha não vaza dado:** eventos guardam chaves respondidas, nunca valores; CPF mascarado no manifesto e
   na validação; nome de quem gerou documento/QR é retrato (`created_by_name`).
 - **Disco privado:** `SIGNATURE_DISK` nunca `public`/`placar`; imagens e PDFs servidos por rota com policy.
@@ -350,19 +357,23 @@ Doc completa: [docs/funcionalidades/termo-de-menores.md](../funcionalidades/term
   (não devolve vazio como a busca do atendente). Nos testes, substitua no container.
 - **Modelo do OKTOBERPET 2026:** `MinorTermTemplateSeeder` (idempotente, fora do deploy).
 - Testes: `SignatureMinorTermKioskTest`, `SignatureMinorTermPanelTest`, `Unit\MinorTermRulesTest`.
-## Pendências (atualizado em 08/10/2026)
+## Pendências (atualizado em 09/10/2026)
 
 Em aberto, por ordem de impacto. Ao resolver uma, tire daqui e atualize a doc completa.
+
+Resolvidas em 08/10/2026: lacre instalado em produção (e-CNPJ A1 do clube, AC SAFEWEB RFB v5, `.pfx`
+convertido do formato RC2 antigo e com a cadeia embutida, em `storage/certificates/clube.pfx`) e PDF
+lacrado conferido no `validar.iti.gov.br`: "Assinatura aprovada", classificada como **assinatura
+eletrônica qualificada**, sem queixa da falta de política ICP-Brasil (DOC-ICP-15).
+Resolvida em 09/10/2026: QR, rodapé, linha carimbada e botão da via apontam para o `validar.iti.gov.br`
+quando o PDF final é lacrado ou assinado pelo gov.br (`SignatureValidationLink`); o original segue no `/validar`.
 
 | # | Pendência | Situação / o que fazer |
 |---|---|---|
 | 1 | **Carimbo de tempo (ACT) não contratado** | Decisão do usuário (08/10): seguir **só com o `.pfx` A1** por enquanto. O lacre sai sem carimbo, com a hora do servidor. Sem carimbo, depois que o A1 vencer (1 ano), um validador pode marcar o lacre como não verificável. Ao contratar uma ACT credenciada na ICP-Brasil (em geral a própria certificadora vende): preencher `SIGNATURE_TSA_URL`/`USER`/`PASSWORD`, `config:cache`, `signature:seal-check`. Não muda código |
-| 2 | **Lacre ainda não ligado em produção** | Instalar o `.pfx` no servidor (passo a passo em "Lacre do clube" na doc completa) e conferir com `sudo -u www-data php artisan signature:seal-check` |
-| 3 | **Conferir um PDF lacrado de verdade no `validar.iti.gov.br`** | Não feito: sem navegador nesta máquina, e o site é externo. Validado só com pyHanko. Ver se o ITI reclama da falta de política ICP-Brasil (DOC-ICP-15: sem identificador de política nem `signingCertificateV2`). Se reclamar, o ponto é o `cms()` do `SignaturePdfSealer` |
-| 4 | **Sem aviso de vencimento do A1** | Vencido, a finalização **falha** (de propósito) e os documentos param em "Assinado". Falta um aviso com antecedência (ex.: o `signature:seal-check` agendado avisando 30 dias antes). Hoje: anotar a data que o `seal-check` mostra |
-| 5 | **Âncoras com prazo** | Raiz ICP-Brasil v5 vence em **03/2029**; a cadeia do gov.br, em **06/2033**. Trocar ou acrescentar antes (`resources/certs/`) |
-| 6 | **Links `/validar` apontam para o Lara**, que não é acessível de fora (e-mail da via e manifesto do tablet) | Mitigado: com o lacre ligado, o texto manda para o `validar.iti.gov.br`. Decidir se o link interno continua |
-| 7 | **Flag `SIGNATURE_GOVBR_ENABLED`** (estava no plano do gov.br) | Não criada: pergunta em aberto ao usuário. Hoje a aba existe sempre |
-| 8 | **Tablet → gov.br no mesmo documento** | Não feito. Seria viável com um PDF intermediário com os traços do tablet; hoje é proibido nos dois sentidos |
-| 9 | **Teste de certificado vencido na hora da assinatura** | Fora da suíte: a extensão OpenSSL não emite certificado no passado |
-| 10 | Retenção sem exclusão física; via por WhatsApp desligada | Conhecidos e de propósito (ver doc completa) |
+| 2 | **Sem aviso de vencimento do A1** (e-CNPJ do clube vence em **21/07/2027**) | Vencido, a finalização **falha** (de propósito) e os documentos param em "Assinado". Falta um aviso com antecedência (ex.: o `signature:seal-check` agendado avisando 30 dias antes). Hoje: anotar a data que o `seal-check` mostra |
+| 3 | **Âncoras com prazo** | Raiz ICP-Brasil v5 vence em **03/2029**; a cadeia do gov.br, em **06/2033**. Trocar ou acrescentar antes (`resources/certs/`) |
+| 4 | **Flag `SIGNATURE_GOVBR_ENABLED`** (estava no plano do gov.br) | Não criada: pergunta em aberto ao usuário. Hoje a aba existe sempre |
+| 5 | **Tablet → gov.br no mesmo documento** | Não feito. Seria viável com um PDF intermediário com os traços do tablet; hoje é proibido nos dois sentidos |
+| 6 | **Teste de certificado vencido na hora da assinatura** | Fora da suíte: a extensão OpenSSL não emite certificado no passado |
+| 7 | Retenção sem exclusão física; via por WhatsApp desligada | Conhecidos e de propósito (ver doc completa) |

@@ -47,6 +47,10 @@ class SignaturePdfStamper
     /** @var array<int, string> arquivos temporários das imagens, apagados ao fim */
     private array $temporarios = [];
 
+    public function __construct(private SignatureValidationLink $links)
+    {
+    }
+
     /**
      * Confere que o PDF pode ser aproveitado e devolve o número de páginas.
      *
@@ -121,7 +125,7 @@ class SignaturePdfStamper
                 $pdf->AddPage($tamanho['orientation'], [$tamanho['width'], $tamanho['height']]);
                 $pdf->useTemplate($pagina);
 
-                $this->validationLine($pdf, $document, $tamanho['width'], $tamanho['height']);
+                $this->validationLine($pdf, $document, $final, $tamanho['width'], $tamanho['height']);
 
                 if ($comVisto) {
                     $this->initials($pdf, $signers, $final, $tamanho['width'], $tamanho['height']);
@@ -175,17 +179,22 @@ class SignaturePdfStamper
      * de quem o enviou, mas quem o recebe impresso precisa do código para
      * conferir a autenticidade.
      */
-    private function validationLine(Fpdi $pdf, SignatureDocument $document, float $largura, float $altura): void
+    private function validationLine(Fpdi $pdf, SignatureDocument $document, bool $final, float $largura, float $altura): void
     {
         if (!$document->validation_code) {
             return;
         }
 
+        // O final lacrado é conferido no validador oficial, de qualquer lugar;
+        // o original, no /validar do Lara (ver SignatureValidationLink).
+        $texto = $final && $this->links->finalUsesIti($document)
+            ? 'Documento eletrônico lacrado — confira enviando este PDF em ' . SignatureValidationLink::ITI_URL
+                . ' — código ' . $document->validation_code
+            : 'Documento eletrônico — autenticidade: ' . $this->links->internal($document);
+
         $pdf->SetFont('Helvetica', '', 5.5);
         $pdf->SetTextColor(110, 100, 100);
-        $pdf->Text(8, $altura - 3.5, $this->t(
-            'Documento eletrônico — autenticidade: ' . url('/validar/' . $document->validation_code)
-        ));
+        $pdf->Text(8, $altura - 3.5, $this->t($texto));
     }
 
     /**
@@ -251,7 +260,7 @@ class SignaturePdfStamper
      */
     private function signatureSheet(Fpdi $pdf, SignatureDocument $document, Collection $signers, bool $final): void
     {
-        $novaPagina = function () use ($pdf, $document) {
+        $novaPagina = function () use ($pdf, $document, $final) {
             $pdf->AddPage('P', [210, 297]);
 
             $pdf->SetTextColor(36, 26, 29);
@@ -266,7 +275,7 @@ class SignaturePdfStamper
             $pdf->SetLineWidth(0.5);
             $pdf->Line(20, 35, 190, 35);
 
-            $this->validationLine($pdf, $document, 210, 297);
+            $this->validationLine($pdf, $document, $final, 210, 297);
         };
 
         $novaPagina();

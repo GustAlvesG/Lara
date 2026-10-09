@@ -356,6 +356,46 @@ class SignaturePdfSealTest extends TestCase
             ->assertFailed();
     }
 
+    /**
+     * O Lara não abre de fora da rede: com o lacre, o QR, o rodapé e o botão
+     * da via levam ao validador oficial. O original (o que o tablet mostra,
+     * sem lacre) continua apontando para o /validar do Lara.
+     */
+    public function test_pdf_final_lacrado_aponta_para_o_validador_oficial(): void
+    {
+        $documento = $this->documentoAssinadoNoTablet();
+        $renderer = app(SignatureDocumentRenderer::class);
+        $interno = '/validar/' . $documento->validation_code;
+
+        $final = $renderer->html($documento, SignatureDocumentRenderer::MODE_FINAL);
+        $this->assertStringContainsString('https://validar.iti.gov.br', $final);
+        $this->assertStringContainsString('Documento eletrônico lacrado', $final);
+        $this->assertStringContainsString('envie <b>este PDF</b> ao validador oficial', $final);
+        $this->assertStringNotContainsString($interno, $final);
+
+        $original = $renderer->html($documento, SignatureDocumentRenderer::MODE_ORIGINAL);
+        $this->assertStringContainsString($interno, $original);
+        $this->assertStringNotContainsString('https://validar.iti.gov.br', $original);
+
+        // A via anexa o PDF final: só existe depois da finalização.
+        $documento = $this->finaliza($documento);
+        $via = (new \App\Mail\SignatureCopyMail($documento->signers()->first()))->render();
+        $this->assertStringContainsString('href="https://validar.iti.gov.br"', $via);
+        $this->assertStringContainsString('envie o PDF anexo', $via);
+        $this->assertStringNotContainsString($interno, $via);
+    }
+
+    public function test_sem_lacre_o_pdf_final_segue_no_validar_do_lara(): void
+    {
+        config(['signature.pades.enabled' => false]);
+
+        $documento = $this->documentoAssinadoNoTablet();
+        $final = app(SignatureDocumentRenderer::class)->html($documento, SignatureDocumentRenderer::MODE_FINAL);
+
+        $this->assertStringContainsString('/validar/' . $documento->validation_code, $final);
+        $this->assertStringNotContainsString('Documento eletrônico lacrado', $final);
+    }
+
     public function test_manifesto_avisa_do_lacre_e_do_validador_oficial(): void
     {
         $documento = $this->documentoAssinadoNoTablet();
