@@ -321,6 +321,17 @@ class SignatureCaptureTest extends TestCase
 
         // A sessão acabou junto com o atendimento.
         $this->comSessao($cookie)->getJson(route('quiosque.session'))->assertStatus(419);
+
+        // Na trilha, o encerramento tem nome próprio: "QR lido pelo tablet" só
+        // uma vez, na leitura, e não de novo depois de "Assinado".
+        $eventos = SignatureAuditEvent::where('signature_document_id', $documento->id)
+            ->orderBy('id')->pluck('event')->all();
+        $this->assertSame(1, count(array_keys($eventos, SignatureAuditEvent::EVENT_QR_CONSUMED)));
+        $this->assertContains(SignatureAuditEvent::EVENT_SESSION_COMPLETED, $eventos);
+        $this->assertGreaterThan(
+            array_search(SignatureAuditEvent::EVENT_SIGNED, $eventos),
+            array_search(SignatureAuditEvent::EVENT_SESSION_COMPLETED, $eventos),
+        );
     }
 
     /**

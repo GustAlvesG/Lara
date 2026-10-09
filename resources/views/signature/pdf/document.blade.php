@@ -98,8 +98,12 @@
         @if($geometry->footerText())
             <div class="company">{{ $geometry->footerText() }}</div>
         @endif
-        @if($document->validation_code)
-            Documento eletrônico. Confira a autenticidade em {{ config('app.url') }}/validar/{{ $document->validation_code }}
+        @if($document->validation_code && ($validationIti ?? false))
+            {{-- PDF final lacrado: o validador oficial confere de qualquer lugar (SignatureValidationLink). --}}
+            Documento eletrônico lacrado. Confira a autenticidade enviando este PDF em {{ $validationUrl }}
+            — código {{ $document->validation_code }}.
+        @elseif($document->validation_code)
+            Documento eletrônico. Confira a autenticidade em {{ $validationUrl ?? config('app.url') . '/validar/' . $document->validation_code }}
             — código {{ $document->validation_code }}.
         @else
             Documento eletrônico — prévia não congelada, sem valor de via assinada.

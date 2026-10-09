@@ -90,6 +90,9 @@
                 <img src="{{ $qr }}" alt="QR de validação" style="width:100px;height:100px;margin:4px 0;"><br>
                 <span class="muted" style="font-size:8px;word-break:break-all;">{{ $validationUrl }}</span><br>
                 <b style="font-size:11px;letter-spacing:1px;">{{ $document->validation_code }}</b>
+                @if($validationIti ?? false)
+                    <br><span style="font-size:8px;color:#6d6062;">Leia o QR e envie <b>este PDF</b> ao validador oficial do governo.</span>
+                @endif
             </td>
         </tr>
     </table>

@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\SignatureSigner;
+use App\Services\Signature\SignatureValidationLink;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Attachment;
@@ -43,12 +44,17 @@ class SignatureCopyMail extends Mailable
 
     public function content(): Content
     {
+        $links = app(SignatureValidationLink::class);
+
         return new Content(
             view: 'emails.signature-copy',
             with: [
                 'signer' => $this->signer,
                 'document' => $this->signer->document,
-                'validationUrl' => url('/validar/' . $this->signer->document->validation_code),
+                // Quem recebe está fora da rede do clube: com o PDF lacrado (ou
+                // assinado pelo gov.br), o botão leva ao validador oficial.
+                'validationUrl' => $links->forFinal($this->signer->document),
+                'validationIti' => $links->finalUsesIti($this->signer->document),
             ],
         );
     }

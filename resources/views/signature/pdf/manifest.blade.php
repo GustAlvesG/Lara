@@ -45,6 +45,9 @@
             <img src="{{ $qr }}" alt="QR de validação" style="width:108px;height:108px;margin:4px 0;"><br>
             <span style="font-size:8.5px;color:#6d6062;word-break:break-all;">{{ $validationUrl }}</span><br>
             <b style="font-size:11px;letter-spacing:1px;">{{ $document->validation_code }}</b>
+            @if($validationIti ?? false)
+                <br><span style="font-size:8px;color:#6d6062;">Leia o QR e envie <b>este PDF</b> ao validador oficial do governo.</span>
+            @endif
         </td>
     </tr>
 </table>
@@ -63,6 +66,11 @@
             É o hash do arquivo exibido no tablet, calculado no momento do congelamento — antes de qualquer
             assinatura. Confira-o na página de validação.
         @endif
+        {{-- Um arquivo não pode trazer o próprio hash: qualquer texto a mais muda o hash. Sem este aviso, quem
+             compara com o hash mostrado por um validador (ex.: validar.iti.gov.br) acha que o documento foi alterado. --}}
+        <br><b>Não é o hash deste PDF assinado:</b> este arquivo, com as assinaturas e este manifesto{{ config('signature.pades.enabled') ? ' e o lacre' : '' }},
+        só existe depois e tem outra impressão digital — a "impressão digital da via assinada", mostrada na página de
+        validação. Um arquivo não pode trazer o próprio hash impresso.
     </div>
 </div>
 

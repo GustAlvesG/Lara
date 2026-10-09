@@ -36,7 +36,11 @@
           governo, em <a href="https://validar.iti.gov.br" style="color:#A00001;">validar.iti.gov.br</a>.
         @endif
       @endif
-      Para conferir a autenticidade a qualquer momento, acesse:
+      @if($validationIti ?? false)
+        Para conferir a autenticidade a qualquer momento, abra o validador oficial e envie o PDF anexo:
+      @else
+        Para conferir a autenticidade a qualquer momento, acesse:
+      @endif
     </p>
 
     <p style="margin:0 0 18px;">

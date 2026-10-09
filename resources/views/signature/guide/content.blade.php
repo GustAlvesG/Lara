@@ -750,7 +750,9 @@
             <td><b>Página de validação</b></td>
             <td>Qualquer pessoa pode conferir se um documento é autêntico pelo endereço impresso no rodapé de cada
                 página, ou lendo o QR Code do manifesto. A página confirma o documento; ela não entrega o PDF.
-                Ela só abre de dentro da rede do clube. De qualquer lugar, use o validador oficial do governo,
+                Ela só abre de dentro da rede do clube. Por isso, no PDF assinado com o lacre do clube (e no assinado
+                pelo gov.br), o QR Code e o rodapé já levam ao validador oficial: basta ler o QR e enviar o PDF.
+                De qualquer lugar, use o validador oficial do governo,
                 <code>validar.iti.gov.br</code>: ele confere as assinaturas do gov.br e de certificado ICP-Brasil e,
                 quando o lacre do clube está ligado, também o lacre de qualquer PDF finalizado.</td>
         </tr>

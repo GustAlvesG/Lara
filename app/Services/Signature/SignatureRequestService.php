@@ -349,7 +349,7 @@ class SignatureRequestService
         return $this->states->requestTo(
             $request,
             SignatureRequest::STATUS_COMPLETED,
-            SignatureAuditEvent::EVENT_QR_CONSUMED,
+            SignatureAuditEvent::EVENT_SESSION_COMPLETED,
             ['session_expires_at' => now()],
             array_merge(['actor_type' => SignatureAuditEvent::ACTOR_KIOSK], $context),
         );
