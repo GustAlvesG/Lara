@@ -1,32 +1,36 @@
-# Replay — Vídeos das Quadras
+# RePET — Vídeos das Quadras
+
+> **Nome:** no sistema (menu, títulos, catálogo de permissões e e-mail) o módulo se chama
+> **RePET** desde 13/10/2026. No código ele continua `Replay`: namespaces, rotas `replay.*`,
+> permissão `replay`, tabelas `replay_*` e a API `/api/replay`.
 
 ## O que é
 
-Nas quadras há uma câmera e um botão. Quem aperta o botão guarda os **últimos segundos** de jogo. A captura, o corte e a queima das logomarcas são feitos por **outro sistema**; o Lara é quem **manda nas regras** (formato, duração, logomarcas), **guarda os vídeos** e **entrega ao sócio**.
+Nas quadras há uma câmera e um botão. Quem aperta o botão guarda os **últimos segundos** de jogo. A captura, o corte e a queima das logomarcas são feitos por **outro sistema**, que grava o clipe no **servidor de arquivos (FTP)**, na pasta `Lara/Repet`; o Lara é quem **manda nas regras** (formato, duração, logomarcas), **registra e serve os vídeos** a partir do FTP e **entrega ao sócio**.
 
 ## Para quem
 
 - **Marketing e TI** (painel web, permissão `replay` do catálogo de acesso): configuram formato, layouts de logomarca e câmeras; conferem e baixam os vídeos.
 - **Sócio** (site de locação): recebe o e-mail e coleta os vídeos da reserva dele.
 - **Visitante do site de locação**: vê a galeria de qualquer quadra.
-- **Sistema de captura** (integração): consulta a configuração e envia os clipes.
+- **Sistema de captura** (integração): consulta a configuração, grava os clipes no FTP e avisa o Lara do caminho de cada um.
 
 ## Pré-requisitos
 
 - Permissão `replay` concedida ao setor na tela de **Setores** (ou à pessoa na tela de Usuários). TI alcança pelo acesso total; o Marketing precisa recebê-la. Ver [Usuários e Permissões](usuarios-e-permissoes.md).
 - Câmera cadastrada com o **identificador** que o sistema de captura usa para o equipamento.
 - `REPLAY_PORTAL_URL` no `.env` — é para onde o e-mail do sócio aponta.
-- Limite de upload do servidor em 256M (ver [docs/replay-api.md](../replay-api.md), seção 9).
+- Pasta `Lara/Repet` no FTP, com a conta do Lara podendo ler e apagar nela (`REPLAY_FTP_ROOT`; servidor e conta são os do SIV, salvo `REPLAY_FTP_*`). Ver [docs/replay-api.md](../replay-api.md), seção 9.
 
 ---
 
 ## No menu
 
-Grupo **Replay** (área do Placar), com as quatro telas como páginas. Na navegação por **Módulos**, a capa da área mostra as quatro como abas; nos menus lateral e superior, o próprio menu leva de uma à outra. O módulo não tem mais abas próprias.
+Grupo **RePET** (área do Placar), com as quatro telas como páginas. Na navegação por **Módulos**, a capa da área mostra as quatro como abas; nos menus lateral e superior, o próprio menu leva de uma à outra. O módulo não tem mais abas próprias.
 
 ## 1. Configuração de Vídeo
 
-Tela: **Replay › Configuração de Vídeo**.
+Tela: **RePET › Configuração de Vídeo**.
 
 | Campo | Função |
 |---|---|
@@ -39,13 +43,13 @@ A configuração vale por **esporte** (PlaceGroup) ou por **quadra** (Place), e 
 configuração da quadra  >  configuração do esporte  >  padrão do sistema (horizontal, 30s)
 ```
 
-A tela mostra, em cada quadra, a configuração **efetiva** e de onde ela veio (`própria`, `herdado do esporte`, `padrão do sistema`). "Voltar a herdar" apaga a exceção da quadra — não desliga o Replay dela.
+A tela mostra, em cada quadra, a configuração **efetiva** e de onde ela veio (`própria`, `herdado do esporte`, `padrão do sistema`). "Voltar a herdar" apaga a exceção da quadra — não desliga o RePET dela.
 
 > Quem resolve a herança é o `ReplayResolver`, e é o **mesmo** que a API usa. É isso que garante que o que a tela mostra é o que a câmera recebe.
 
 ## 2. Layouts de Logomarca
 
-Tela: **Replay › Layouts de Logomarca**.
+Tela: **RePET › Layouts de Logomarca**.
 
 Um layout pertence a um esporte **ou** a uma quadra, e vale para **uma orientação** — um desenho pensado para 9:16 não serve para 16:9. A herança é a mesma da configuração.
 
@@ -67,7 +71,7 @@ O sistema de captura aplica o arquivo em (0,0), sem calcular nada. As posições
 
 ## 3. Câmeras
 
-Tela: **Replay › Câmeras**.
+Tela: **RePET › Câmeras**.
 
 | Campo | Função |
 |---|---|
@@ -82,9 +86,27 @@ A tela mostra também **como cada câmera está gravando** (orientação, duraç
 
 ## 4. Vídeos
 
-Tela: **Replay › Vídeos**.
+Tela: **RePET › Vídeos**.
 
 Galeria com player, filtros (esporte, quadra, data, com/sem reserva), download e exclusão manual. Cada card mostra quantos dias faltam para o vídeo expirar.
+
+A exclusão manual apaga o clipe **do FTP** e a cópia do Lara. Com o FTP fora do ar, nada é apagado: a tela avisa e é só tentar de novo.
+
+---
+
+## Onde os vídeos ficam
+
+O **original** de cada clipe fica no FTP, onde o sistema de captura gravou. Como o FTP não serve
+vídeo para navegador, o Lara guarda uma **cópia** em `public/storage/replay/videos`, feita no
+momento em que o clipe é avisado (é o mesmo download que confere se o arquivo é MP4 ou WebM). É
+essa cópia que a tela e o site de locação tocam.
+
+Se a cópia sumir, o link do vídeo passa por `/replay/arquivo/{uuid}`, que traz o clipe de novo
+do FTP e segue para a cópia. Com o FTP fora do ar, esse link dá erro até o servidor voltar; os
+vídeos que já têm cópia continuam tocando normalmente.
+
+Os vídeos recebidos antes de 13/10/2026, que tinham chegado por upload, foram descartados na
+troca para o FTP (migration `2026_10_13_100100`).
 
 ---
 
@@ -107,7 +129,7 @@ Se o sócio não tiver e-mail válido, o envio é registrado no log e o fluxo se
 
 ## Retenção
 
-**7 dias contados da gravação**, sem exceção. O comando `replay:prune` roda às 03:30 e apaga arquivo e registro — arquivo primeiro, registro depois, porque registro órfão alguém vê e resolve, arquivo órfão ocupa disco em silêncio.
+**7 dias contados da gravação**, sem exceção. O comando `replay:prune` roda às 03:30 e apaga o clipe no FTP, a cópia e o registro — arquivo primeiro, registro depois, porque registro órfão alguém vê e resolve, arquivo órfão ocupa disco em silêncio. Pelo mesmo motivo, com o FTP fora do ar o expurgo para, sai com falha e deixa o resto para a noite seguinte.
 
 Material para campanha deve ser **baixado antes do prazo**.
 
@@ -133,6 +155,10 @@ reserva paga cobrindo o horário sorteado, o vídeo é amarrado a ela — mesma 
 Todo clipe nasce com `external_id` prefixado por `demo-`, e é só isso que o `--only-clear`
 alcança: ele nunca toca em um vídeo vindo da câmera. Em produção o comando exige `--force`.
 
+Os clipes de demonstração **não vão ao FTP** (é o mesmo servidor das câmeras de verdade): existem
+só como cópia local, e o `file_path` deles (`demo-videos/...`) não existe lá — o expurgo os
+conta como "já sem arquivo no FTP" e segue.
+
 ## Regras de negócio, em uma lista
 
 1. Duração entre 5 e 60 segundos, sempre anteriores ao botão.
@@ -141,7 +167,7 @@ alcança: ele nunca toca em um vídeo vindo da câmera. Em produção o comando 
 4. Máximo de 2 câmeras por quadra; `external_id` é único em todo o clube.
 5. Só reserva paga vincula sócio.
 6. Um e-mail por reserva, com link para o login do portal.
-7. Reenvio do mesmo `external_id` de clipe não duplica nada.
+7. Reenvio do mesmo `external_id` de clipe, ou do mesmo caminho no FTP, não duplica nada.
 8. Expiração conta da gravação, não do envio.
 9. A galeria da quadra é pública; "meus vídeos" exige login.
 10. Nenhuma listagem pública revela quem é o sócio de uma reserva.
@@ -149,14 +175,15 @@ alcança: ele nunca toca em um vídeo vindo da câmera. Em produção o comando 
 ## Integrações
 
 - **Sistema de captura das quadras** — pull, Sanctum, ability `replay:operate`. Contrato completo em [docs/replay-api.md](../replay-api.md).
+- **Servidor de arquivos (FTP)** — disco `replay_ftp`, pasta `Lara/Repet`: o original dos clipes.
 - **Site de locação de espaços** — galeria pública com `api_token`; área do sócio com o JWT de sempre.
 - **E-mail** — `EmailService` + `ContactMail` (tipo `replay.available`).
 
 ## Referência técnica
 
 - Models: `App\Models\Replay\{Setting, Layout, LayoutItem, Camera, Video, MemberNotification, ApiClient}`
-- Services: `ReplayResolver` (herança), `OverlayRenderer` (composição), `MediaService` (mídia), `VideoIntakeService` (recepção e expurgo)
-- Controllers: `App\Http\Controllers\Replay\{Web,Api}`
+- Services: `ReplayResolver` (herança), `OverlayRenderer` (composição), `MediaService` (mídia), `VideoIntakeService` (recepção e expurgo), `RemoteVideoStore` (FTP e cópia local)
+- Controllers: `App\Http\Controllers\Replay\{Web,Api}` e `Replay\VideoFileController` (refaz a cópia)
 - Comandos: `replay:token`, `replay:prune`, `replay:demo-videos` (só desenvolvimento)
 - Job: `SendReplayVideosMail`
 - Testes: `tests/Feature/Replay`

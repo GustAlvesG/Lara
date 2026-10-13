@@ -63,6 +63,7 @@ use App\Http\Controllers\Replay\Web\SettingController as ReplaySettingController
 use App\Http\Controllers\Replay\Web\LayoutController as ReplayLayoutController;
 use App\Http\Controllers\Replay\Web\CameraController as ReplayCameraController;
 use App\Http\Controllers\Replay\Web\VideoController as ReplayVideoWebController;
+use App\Http\Controllers\Replay\VideoFileController as ReplayVideoFileController;
 
 use App\Http\Controllers\PoliBot\FlowController as PoliBotFlowController;
 use App\Http\Controllers\PoliBot\PoliDataController as PoliBotDataController;
@@ -210,6 +211,16 @@ Route::post('/validar/{codigo}/conferir', [SignatureValidationController::class,
     ->where('codigo', '[A-Za-z0-9]{6,24}')
     ->middleware('throttle:30,1')
     ->name('signature.validate.verify');
+
+/*
+| Replay — clipe cuja cópia local sumiu. Pública como a galeria da quadra no
+| site de locação, que aponta para cá: refaz a cópia a partir do FTP e
+| redireciona para o arquivo estático. Endereçado pelo uuid, nunca pelo id.
+*/
+Route::get('/replay/arquivo/{uuid}', [ReplayVideoFileController::class, 'show'])
+    ->whereUuid('uuid')
+    ->middleware('throttle:120,1')
+    ->name('replay.videos.file');
 
 // Kiosk de assinatura (tablet) — AUTENTICAÇÃO PRÓPRIA, fora da sessão web.
 // Entra-se com matrícula + PIN; a própria sessão de kiosk (operator_id + mode)

@@ -8,21 +8,25 @@ use App\Models\Replay\MemberNotification;
 use App\Models\Replay\Video;
 use App\Models\Schedule;
 use Carbon\Carbon;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 /**
- * Recebe o clipe do sistema de captura, arquiva e amarra a quem for de
- * direito.
+ * Recebe o aviso de clipe novo do sistema de captura, traz a cópia do FTP e
+ * amarra a quem for de direito.
+ *
+ * O clipe em si mora no servidor de arquivos (FTP): o sistema de captura
+ * grava lá e manda só o caminho. O Lara baixa uma cópia para servir pelo
+ * servidor web — ver RemoteVideoStore.
  *
  * Três decisões moram aqui:
  *
- *  1. IDEMPOTÊNCIA pelo `external_id`. O outro sistema tem fila e retenta;
- *     receber o mesmo clipe duas vezes não pode gerar dois arquivos nem dois
- *     e-mails.
+ *  1. IDEMPOTÊNCIA pelo `external_id` e pelo caminho no FTP. O outro sistema
+ *     tem fila e retenta; avisar o mesmo clipe duas vezes não pode gerar dois
+ *     registros nem dois e-mails — e dois registros do mesmo arquivo fariam o
+ *     expurgo de um apagar o vídeo do outro.
  *  2. O vínculo com o sócio sai da RESERVA PAGA (status_id = 1) que cobria o
  *     instante da gravação. Reserva pendente ou cancelada não vincula: o
  *     vídeo fica só na galeria da quadra.
@@ -35,26 +39,34 @@ class VideoIntakeService
     /** Formatos aceitos, conferidos pelos bytes reais do container. */
     const EXTENSIONS = ['mp4', 'webm'];
 
-    public function __construct(private ReplayResolver $resolver)
-    {
+    public function __construct(
+        private ReplayResolver $resolver,
+        private RemoteVideoStore $remote,
+    ) {
     }
 
     /**
      * @return array{video: Video, duplicated: bool}
+     *
+     * @throws InvalidArgumentException  caminho inválido, arquivo ausente no FTP ou formato não aceito
+     * @throws RemoteStorageUnavailable  FTP fora do ar — o outro lado deve retentar
      */
     public function store(
         Camera $camera,
-        UploadedFile $file,
+        string $remotePath,
         Carbon $recordedAt,
         int $durationSeconds,
         ?string $externalId,
     ): array {
-        if ($externalId) {
-            $existing = Video::where('external_id', $externalId)->first();
+        $remotePath = $this->remote->normalizePath($remotePath);
 
-            if ($existing) {
-                return ['video' => $existing, 'duplicated' => true];
-            }
+        $existing = Video::query()
+            ->where('file_path', $remotePath)
+            ->when($externalId, fn ($q) => $q->orWhere('external_id', $externalId))
+            ->first();
+
+        if ($existing) {
+            return ['video' => $existing, 'duplicated' => true];
         }
 
         $place = $camera->place;
@@ -63,21 +75,28 @@ class VideoIntakeService
             throw new InvalidArgumentException('A câmera não está vinculada a nenhuma quadra.');
         }
 
-        $extension = $this->detectExtension($file);
-
         $uuid = (string) Str::uuid();
         // Uma pasta por mês: sete dias de retenção cabem em duas pastas, e o
         // diretório nunca acumula dezenas de milhares de arquivos — o que
         // deixa lento até um `ls` no servidor.
-        $path = MediaService::VIDEO_DIR . '/' . $recordedAt->format('Y/m') . "/{$uuid}.{$extension}";
+        $dir = MediaService::VIDEO_DIR . '/' . $recordedAt->format('Y/m');
+        $download = "{$dir}/{$uuid}.download";
 
-        // O tamanho é lido ANTES de guardar: depois de o arquivo temporário
-        // sair das mãos do PHP, `getSize()` pode não ter mais o que medir.
-        $sizeBytes = (int) ($file->getSize() ?: 0);
+        // O download que confere o formato é o mesmo que vira a cópia
+        // servida: o adaptador FTP só sabe ler o arquivo inteiro.
+        $this->remote->download($remotePath, $download);
 
-        // Stream, e não file_get_contents: um clipe de 60s a 1080p não precisa
-        // caber na memória do PHP para ser gravado em disco.
-        MediaService::disk()->putFileAs(dirname($path), $file, basename($path));
+        try {
+            $extension = $this->detectExtension(MediaService::absolutePath($download));
+        } catch (InvalidArgumentException $e) {
+            MediaService::disk()->delete($download);
+
+            throw $e;
+        }
+
+        $sizeBytes = (int) (MediaService::disk()->size($download) ?: 0);
+        $localPath = "{$dir}/{$uuid}.{$extension}";
+        MediaService::disk()->move($download, $localPath);
 
         $schedule = $this->paidScheduleFor($place->id, $recordedAt);
 
@@ -94,7 +113,8 @@ class VideoIntakeService
             'recorded_at' => $recordedAt,
             'duration_seconds' => $durationSeconds,
             'orientation' => $this->resolver->settingFor($place)['orientation'],
-            'file_path' => $path,
+            'file_path' => $remotePath,
+            'local_path' => $localPath,
             'size_bytes' => $sizeBytes,
             'expires_at' => $recordedAt->copy()->addDays(Video::RETENTION_DAYS),
         ]);
@@ -167,13 +187,12 @@ class VideoIntakeService
     }
 
     /**
-     * O tipo sai da assinatura do container, nunca do Content-Type nem da
-     * extensão do nome — os dois são declarados pelo cliente. Mesma postura
-     * do VideoService do Placar.
+     * O tipo sai da assinatura do container, nunca da extensão do nome — ela
+     * é escolhida por quem gravou. Mesma postura do VideoService do Placar.
      */
-    private function detectExtension(UploadedFile $file): string
+    private function detectExtension(string $absolutePath): string
     {
-        $handle = fopen($file->getRealPath(), 'rb');
+        $handle = @fopen($absolutePath, 'rb');
         $header = $handle ? fread($handle, 32) : '';
 
         if ($handle) {
@@ -198,25 +217,31 @@ class VideoIntakeService
     }
 
     /**
-     * Apaga arquivo e registro dos clipes vencidos.
+     * Apaga arquivo (no FTP e a cópia local) e registro dos clipes vencidos.
      *
      * Arquivo primeiro, registro depois: um registro órfão aparece na tela e
      * alguém resolve; um arquivo órfão fica ocupando disco em silêncio até o
-     * servidor encher.
+     * servidor encher. Pelo mesmo motivo, com o FTP fora do ar o expurgo
+     * PARA e deixa os registros para a rodada seguinte.
      *
-     * @return array{deleted: int, missing: int}
+     * @return array{deleted: int, missing: int, ftp_unavailable: bool}
      */
     public function prune(): array
     {
         $deleted = 0;
         $missing = 0;
+        $unavailable = false;
 
-        Video::expired()->chunkById(200, function ($videos) use (&$deleted, &$missing) {
+        Video::expired()->chunkById(200, function ($videos) use (&$deleted, &$missing, &$unavailable) {
             foreach ($videos as $video) {
-                if (MediaService::disk()->exists($video->file_path)) {
-                    MediaService::disk()->delete($video->file_path);
-                } else {
-                    $missing++;
+                try {
+                    if (! $this->remote->delete($video)) {
+                        $missing++;
+                    }
+                } catch (RemoteStorageUnavailable) {
+                    $unavailable = true;
+
+                    return false;
                 }
 
                 DB::transaction(fn () => $video->delete());
@@ -224,6 +249,6 @@ class VideoIntakeService
             }
         });
 
-        return ['deleted' => $deleted, 'missing' => $missing];
+        return ['deleted' => $deleted, 'missing' => $missing, 'ftp_unavailable' => $unavailable];
     }
 }

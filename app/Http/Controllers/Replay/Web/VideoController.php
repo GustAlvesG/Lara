@@ -6,7 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Place;
 use App\Models\PlaceGroup;
 use App\Models\Replay\Video;
-use App\Services\Replay\MediaService;
+use App\Services\Replay\RemoteStorageUnavailable;
+use App\Services\Replay\RemoteVideoStore;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -22,7 +23,7 @@ class VideoController extends Controller
 {
     const PER_PAGE = 24;
 
-    public function __construct(private MediaService $media)
+    public function __construct(private RemoteVideoStore $remote)
     {
     }
 
@@ -48,13 +49,19 @@ class VideoController extends Controller
 
     /**
      * Exclusão manual, para quando alguém aperta o botão por engano ou grava
-     * algo que não deveria ficar no ar. Apaga o arquivo junto: deixar o
-     * arquivo com a linha removida é exatamente o órfão que o expurgo não
-     * pega mais.
+     * algo que não deveria ficar no ar. Apaga o arquivo junto — no FTP e a
+     * cópia local: deixar o arquivo com a linha removida é exatamente o
+     * órfão que o expurgo não pega mais. Por isso, com o FTP fora, nada é
+     * apagado.
      */
     public function destroy(Video $video): RedirectResponse
     {
-        $this->media->remove($video->file_path);
+        try {
+            $this->remote->delete($video);
+        } catch (RemoteStorageUnavailable) {
+            return back()->with('error', 'Servidor de arquivos (FTP) indisponível. O vídeo não foi removido; tente de novo em instantes.');
+        }
+
         $video->delete();
 
         return back()->with('success', 'Vídeo removido.');

@@ -145,9 +145,9 @@ final class Navigation
                     ['route' => 'placar.scout.jogos', 'label' => 'Súmulas (Scout)', 'permission' => P::PLACAR_SCOUT],
                 ],
             ],
-            // Replay: as quatro telas são as etapas do mesmo trabalho — definir o
+            // RePET (módulo Replay no código): as quatro telas são as etapas do mesmo trabalho — definir o
             // formato, desenhar o layout, ligar a câmera e conferir os vídeos.
-            ['label' => 'Replay', 'area' => 'placar', 'glyph' => 'monitor',
+            ['label' => 'RePET', 'area' => 'placar', 'glyph' => 'monitor',
                 'icon' => 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z',
                 'children' => [
                     ['route' => 'replay.settings.index', 'label' => 'Configuração de Vídeo', 'permission' => P::REPLAY, 'active' => 'replay.settings.*'],

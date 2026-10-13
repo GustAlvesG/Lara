@@ -149,7 +149,7 @@ final class Permissions
         self::PLACAR_CADASTRO => ['Placar Clube', 'Cadastro (equipes, times, jogadores, jogos)'],
         self::PLACAR_SCOUT => ['Placar Clube', 'Súmulas e scout'],
 
-        self::REPLAY => ['Replay', 'Câmeras, layouts de logomarca e vídeos das quadras'],
+        self::REPLAY => ['RePET', 'Câmeras, layouts de logomarca e vídeos das quadras'],
 
         self::BANCO_HORAS_ADMIN => ['Banco de Horas', 'Importar espelho e administrar funcionários'],
 

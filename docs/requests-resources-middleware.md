@@ -18,7 +18,7 @@ e alguns `Store*` ainda têm regras vazias (scaffold).
 | `StoreInformationRequest` | `true` | `name` (req, max 255), `description` (req), `image` (image jpeg/png/jpg/gif/svg) |
 | `LoginRequest` | `true` | `email` (req, email), `password` (req); inclui `authenticate()` e rate limiting. |
 | `ProfileUpdateRequest` | — | `name` (req), `email` (req, email, único exceto o próprio usuário). |
-| `Replay\StoreVideoRequest` | `true` (a autorização é do Sanctum + ability `replay:operate`) | `file` (req, file, max **256MB**), `recorded_at` (req, date ISO 8601 — instante do aperto do botão), `duration_seconds` (req, int, 1–120), `external_id` (nullable, max 255 — é o que dá idempotência ao reenvio) |
+| `Replay\StoreVideoRequest` | `true` (a autorização é do Sanctum + ability `replay:operate`) | `path` (req, string, max 255 — caminho do clipe no FTP; o arquivo não vem na requisição), `recorded_at` (req, date ISO 8601 — instante do aperto do botão), `duration_seconds` (req, int, 1–120), `external_id` (nullable, max 255 — com o `path`, é o que dá idempotência ao reenvio) |
 
 ### Lista completa de Form Requests
 

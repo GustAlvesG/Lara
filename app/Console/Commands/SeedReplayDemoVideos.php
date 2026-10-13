@@ -25,6 +25,8 @@ use Illuminate\Support\Str;
  *  - **Não cria nem altera reserva.** Se já existir uma reserva PAGA cobrindo
  *    o horário sorteado, o vídeo é amarrado a ela — mesma regra da produção —,
  *    mas nenhuma reserva é inventada para forçar o vínculo.
+ *  - **Não grava no FTP.** O clipe fica só na cópia local que o servidor web
+ *    entrega; o FTP é o mesmo das câmeras de verdade.
  *
  * Todo vídeo criado aqui nasce com `external_id` prefixado por `demo-`, que é
  * o que torna `--clear` seguro: ele nunca alcança um clipe de verdade.
@@ -154,7 +156,12 @@ class SeedReplayDemoVideos extends Command
         string $ffmpeg,
     ): ?Video {
         $uuid = (string) Str::uuid();
+        // Só a cópia local: o clipe de demonstração nunca vai ao FTP, que é
+        // o mesmo servidor das câmeras de verdade. `file_path` aponta para
+        // um caminho que não existe lá — o expurgo conta como "já sem
+        // arquivo" e segue.
         $path = MediaService::VIDEO_DIR . '/' . $recordedAt->format('Y/m') . "/{$uuid}.mp4";
+        $remotePath = self::DEMO_PREFIX . "videos/{$uuid}.mp4";
         $absolute = MediaService::absolutePath($path);
 
         @mkdir(dirname($absolute), 0775, true);
@@ -197,7 +204,8 @@ class SeedReplayDemoVideos extends Command
             'recorded_at' => $recordedAt,
             'duration_seconds' => $seconds,
             'orientation' => $orientation,
-            'file_path' => $path,
+            'file_path' => $remotePath,
+            'local_path' => $path,
             'size_bytes' => filesize($absolute) ?: 0,
             'expires_at' => $recordedAt->copy()->addDays(Video::RETENTION_DAYS),
         ]);
@@ -219,7 +227,8 @@ class SeedReplayDemoVideos extends Command
         $demos = Video::where('external_id', 'like', self::DEMO_PREFIX . '%')->get();
 
         foreach ($demos as $video) {
-            $media->remove($video->file_path);
+            // Só a cópia local: o demo nunca gravou no FTP.
+            $media->remove($video->local_path);
             $video->delete();
         }
 

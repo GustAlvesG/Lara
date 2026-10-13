@@ -82,6 +82,7 @@ trait CreatesReplaySchema
             '2026_09_17_100400_create_replay_videos_table.php',
             '2026_09_17_100500_create_replay_member_notifications_table.php',
             '2026_09_17_100600_create_replay_api_clients_table.php',
+            '2026_10_13_100000_add_local_path_to_replay_videos_table.php',
         ] as $migration) {
             (require base_path("database/migrations/{$migration}"))->up();
         }

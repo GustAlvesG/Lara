@@ -60,7 +60,7 @@ class ReplayScreensTest extends TestCase
         foreach ($telas as $rota => [$view, $data]) {
             $html = $this->tela($this->quemConfigura(), $rota, [], $view, $data);
 
-            $this->assertStringContainsString('aria-label="Páginas de Replay"', $html, $rota);
+            $this->assertStringContainsString('aria-label="Páginas de RePET"', $html, $rota);
             $this->assertMatchesRegularExpression('#href="' . preg_quote(route($rota), '#') . '"\s+aria-current="page"#', $html, $rota);
 
             foreach (array_keys($telas) as $irma) {
@@ -76,18 +76,18 @@ class ReplayScreensTest extends TestCase
         $com = Navigation::build($this->quemConfigura(), $request);
         $sem = Navigation::build($this->usuario(new UserAccess([])), $request);
 
-        $grupo = collect($com['links'])->firstWhere('label', 'Replay');
+        $grupo = collect($com['links'])->firstWhere('label', 'RePET');
         $this->assertNotNull($grupo);
         $this->assertSame('replay.settings.index', $grupo['route']);
         $this->assertCount(4, $grupo['children']);
 
-        $this->assertNull(collect($sem['links'])->firstWhere('label', 'Replay'));
+        $this->assertNull(collect($sem['links'])->firstWhere('label', 'RePET'));
     }
 
     public function test_replay_esta_no_catalogo_e_no_de_para_da_permissao_antiga(): void
     {
         $this->assertTrue(P::exists(P::REPLAY));
-        $this->assertSame('Replay', P::group(P::REPLAY));
+        $this->assertSame('RePET', P::group(P::REPLAY));
         $this->assertSame([P::REPLAY], \App\Authorization\LegacyPermissionMap::PERMISSIONS['manage replay']);
     }
 }

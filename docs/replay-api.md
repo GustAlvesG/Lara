@@ -56,9 +56,10 @@ Sem token → `401`. Token sem a ability → `403`.
 |---|---|
 | `GET /replay/cameras`, `/cameras/{id}`, heartbeat | 120/min |
 | `POST /replay/cameras/{id}/videos` | 300/min |
+| `GET /replay/arquivo/{uuid}` (web, pública) | 120/min |
 | `GET /replay/ping` | 60/min |
 
-O envio é folgado de propósito: o botão é apertado em rajada durante um jogo, e a fila do outro lado despeja o acumulado de uma vez quando a rede volta.
+O aviso de clipe é folgado de propósito: o botão é apertado em rajada durante um jogo, e a fila do outro lado despeja o acumulado de uma vez quando a rede volta.
 
 ---
 
@@ -158,16 +159,33 @@ ffmpeg -i clipe.mp4 -stream_loop -1 -i overlay.webm \
 
 ## 6. Envio do clipe
 
+O clipe **não trafega pela API**. O sistema de captura grava o arquivo no **servidor de arquivos
+(FTP)**, na pasta do Replay (`Lara/Repet/`, a mesma conta das fotos do SIV), e só então avisa o
+Lara com o caminho dele. O Lara confere o arquivo no FTP, baixa uma cópia para servir pelo
+servidor web e faz o vínculo com a reserva.
+
 ### `POST /replay/cameras/{external_id}/videos`
 
-`multipart/form-data`:
+JSON (ou formulário), sem arquivo:
 
 | Campo | Obrigatório | Descrição |
 |---|---|---|
-| `file` | sim | O clipe. **MP4 (H.264) ou WebM**, até **256MB**. O tipo é conferido pela assinatura do container, não pelo nome nem pelo `Content-Type`. |
+| `path` | sim | Caminho do clipe no FTP, até 255 caracteres. Relativo à pasta do Replay (`quadra1/2026-09-17/clip-001.mp4`) ou com ela na frente (`Lara/Repet/quadra1/...`) — os dois chegam ao mesmo arquivo, e o Lara guarda a forma relativa. `..` é recusado. O arquivo precisa **já estar completo** no FTP quando o aviso chega. |
 | `recorded_at` | sim | ISO 8601. **Instante do aperto do botão** (fim do clipe). |
 | `duration_seconds` | sim | Inteiro, 1 a 120. |
-| `external_id` | não, mas **envie** | Id do clipe no sistema de captura. É o que garante idempotência. |
+| `external_id` | não, mas **envie** | Id do clipe no sistema de captura. Junto com o `path`, é o que garante idempotência. |
+
+O arquivo continua tendo de ser **MP4 (H.264) ou WebM**, e o tipo é conferido pela assinatura do
+container — o Lara lê os bytes da cópia que baixou —, não pela extensão do nome.
+
+```jsonc
+{
+  "path": "quadra1/2026-09-17/clip-001.mp4",
+  "recorded_at": "2026-09-17T14:32:10-03:00",
+  "duration_seconds": 30,
+  "external_id": "clip-001"
+}
+```
 
 Resposta `201`:
 
@@ -175,6 +193,7 @@ Resposta `201`:
 {
   "uuid": "6f1d2c44-9f2e-4a11-9b3e-7c2a51d0e8aa",
   "url": "https://lara.exemplo/storage/replay/videos/2026/09/6f1d2c44-....mp4",
+  "path": "quadra1/2026-09-17/clip-001.mp4",
   "place": { "id": 12, "name": "Quadra 1" },
   "recorded_at": "2026-09-17T14:32:10-03:00",
   "expires_at": "2026-09-24T14:32:10-03:00",
@@ -183,7 +202,9 @@ Resposta `201`:
 }
 ```
 
-**Idempotência:** reenviar o mesmo `external_id` devolve `200` com `"duplicated": true` e **não** cria um segundo vídeo nem dispara outro e-mail. Sem `external_id` não há idempotência — um retry vira um clipe duplicado. Mande sempre.
+**Idempotência:** reenviar o mesmo `external_id` **ou** o mesmo `path` devolve `200` com `"duplicated": true` e **não** cria um segundo vídeo nem dispara outro e-mail. Dois registros do mesmo arquivo fariam o expurgo de um apagar o vídeo do outro, por isso o caminho também conta. Mande o `external_id` mesmo assim.
+
+**O arquivo no FTP passa a ser do Lara:** depois do `201`, não apague nem mova o clipe. O Lara apaga do FTP no expurgo (7 dias) ou quando alguém exclui o vídeo na tela.
 
 **`recorded_at` importa mais do que parece:** dele saem tanto o vínculo com a reserva quanto a expiração. Um clipe que ficou preso na fila por dois dias chega com **cinco** dias de vida, não sete — sete dias é a promessa feita ao sócio sobre o jogo dele, contada da gravação.
 
@@ -196,11 +217,11 @@ Resposta `201`:
 | `401` | sem token | conferir `REPLAY_API_TOKEN` |
 | `403` | token sem a ability | gerar outro com `replay:token` |
 | `404` | `external_id` desconhecido ou câmera inativa | conferir o cadastro de câmeras no Lara |
-| `413` / `422` com corpo vazio | arquivo maior que o `post_max_size` do PHP | **ver a seção 9** — é limite de servidor, não da aplicação |
-| `422` | formato não aceito, campo faltando, data inválida | ler `message` |
+| `422` | arquivo não encontrado no FTP, caminho inválido, formato não aceito, campo faltando, data inválida | ler `message` |
 | `429` | limite de requisições | repetir com backoff |
+| `503` | o Lara não conseguiu falar com o FTP | repetir com backoff — o aviso está certo |
 
-**Recomendação de fila:** guarde o clipe localmente e retente com backoff até receber `201` ou `200`. Um `422` de formato não adianta retentar — registre e siga.
+**Recomendação de fila:** grave o clipe no FTP, avise e retente o aviso com backoff até receber `201` ou `200`. Um `503` é para retentar; um `422` de formato ou de caminho não adianta retentar — registre e siga.
 
 ---
 
@@ -256,13 +277,20 @@ Exige o cabeçalho `Session` com o JWT do sócio. Devolve `{"videos": [...]}` no
 
 ### Os arquivos
 
-`url` é um **arquivo estático**, servido pelo próprio servidor web. Isso dá *range request*, e com ele a possibilidade de avançar o vídeo no player em vez de assistir do começo. Use a URL direto no `<video src>` e no botão de download (`<a download>`).
+O original do clipe mora no FTP, mas o FTP não fala HTTP: o Lara guarda uma **cópia** e `url` é
+essa cópia, um **arquivo estático** servido pelo próprio servidor web. Isso dá *range request*,
+e com ele a possibilidade de avançar o vídeo no player em vez de assistir do começo. Use a URL
+direto no `<video src>` e no botão de download (`<a download>`).
+
+Se a cópia tiver sumido, `url` vem como `/replay/arquivo/{uuid}`: essa rota pública traz o clipe
+de novo do FTP e **redireciona** para o arquivo estático — o player segue o redirecionamento
+sem nada de especial. Com o FTP fora do ar ela responde `503`.
 
 ---
 
 ## 8. Retenção
 
-Todo clipe vive **7 dias contados da gravação** e é apagado por `replay:prune` (agendado às 03:30). **Não há exceção** — nem para material de campanha, que deve ser baixado antes do prazo.
+Todo clipe vive **7 dias contados da gravação** e é apagado por `replay:prune` (agendado às 03:30) — **do FTP** e da cópia local, e só então o registro. Com o FTP fora do ar, o expurgo para e deixa os restantes para a noite seguinte. **Não há exceção** — nem para material de campanha, que deve ser baixado antes do prazo.
 
 Para o consumidor isso significa: `url` pode virar 404 a partir de `expires_at`. Não guarde a URL como se fosse permanente.
 
@@ -270,17 +298,25 @@ Para o consumidor isso significa: `url` pode virar 404 a partir de `expires_at`.
 
 ## 9. Requisitos de servidor
 
-Duas mudanças são necessárias e **não** estão no código:
-
-1. **Limite de upload.** O servidor está hoje com `upload_max_filesize` / `post_max_size` = **30M**, o que recusa um clipe de 60s a 1080p **antes** de a requisição chegar à aplicação (o Laravel recebe corpo vazio e devolve 422 sem explicação útil). Subir os dois no `php.ini` para **256M** e reiniciar o Apache. Se houver `LimitRequestBody` configurado no Apache, subir junto (o padrão é ilimitado).
+1. **FTP dos clipes.** A pasta `Lara/Repet` precisa existir no FTP (o driver não cria a raiz), e
+   a conta usada pelo Lara precisa **ler e apagar** nela — apagar é o expurgo. O sistema de
+   captura precisa **gravar** nela. Por padrão é o mesmo servidor e conta das fotos do SIV
+   (`FTP_*`).
 
 2. **ffmpeg** (opcional, só para overlay animado). O projeto não o tinha por decisão explícita. Sem ele, o módulo funciona inteiro — GIF animado sai parado (primeiro quadro) e `animated_url` vem `null`. Caminho configurável em `REPLAY_FFMPEG_PATH`.
+
+O limite de upload do PHP (256M) que esta seção pedia **deixou de ser necessário** em
+13/10/2026: o clipe não passa mais pela API.
 
 Variáveis de ambiente do Lara:
 
 ```
 REPLAY_PORTAL_URL=https://locacao.clubedosfuncionarios.com.br
 REPLAY_FFMPEG_PATH=ffmpeg
+REPLAY_FTP_ROOT=Lara/Repet
+# Só se o FTP dos clipes não for o mesmo das variáveis FTP_*:
+# REPLAY_FTP_HOST= / REPLAY_FTP_PORT= / REPLAY_FTP_USERNAME= / REPLAY_FTP_PASSWORD=
+# REPLAY_FTP_PASSIVE=true / REPLAY_FTP_TIMEOUT=15
 ```
 
 ---
@@ -291,8 +327,8 @@ REPLAY_FFMPEG_PATH=ffmpeg
 2. Monta o layout de logomarcas arrastando as peças sobre o preview. O Lara compõe o PNG (e o WebM, se houver GIF animado).
 3. TI cadastra a câmera com o `external_id` combinado com quem instalou.
 4. O sistema de captura consulta `GET /replay/cameras`, vê o `config_hash` mudar, baixa os overlays e reconfigura.
-5. Alguém aperta o botão na quadra. O sistema corta os últimos `clip_seconds`, queima o overlay e envia por `POST /replay/cameras/{id}/videos`.
-6. O Lara arquiva, descobre se havia reserva **paga** naquele instante e, havendo, amarra o clipe ao sócio.
+5. Alguém aperta o botão na quadra. O sistema corta os últimos `clip_seconds`, queima o overlay, grava o clipe no FTP (`Lara/Repet/...`) e avisa por `POST /replay/cameras/{id}/videos` com o caminho.
+6. O Lara confere o arquivo no FTP, guarda uma cópia para servir, descobre se havia reserva **paga** naquele instante e, havendo, amarra o clipe ao sócio.
 7. Cinco minutos depois do fim da reserva, **um** e-mail leva o sócio ao login do portal — com a contagem de clipes, nunca com o arquivo.
 8. O visitante do portal encontra o vídeo na galeria da quadra; o sócio encontra os dele também em "meus vídeos".
-9. Sete dias depois da gravação, `replay:prune` apaga arquivo e registro.
+9. Sete dias depois da gravação, `replay:prune` apaga o clipe do FTP, a cópia e o registro.

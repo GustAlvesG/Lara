@@ -1,11 +1,11 @@
 # Prompt para o agent do site de locação de espaços
 
 > Cole o conteúdo abaixo (da linha `---` em diante) em um Claude Code aberto no repositório do
-> **site de locação de espaços**. Ele descreve a API do Replay no Lara e as telas a construir.
+> **site de locação de espaços**. Ele descreve a API do RePET (no código, Replay) no Lara e as telas a construir.
 
 ---
 
-Você vai construir, neste site, a área de **Replay**: os vídeos gravados nas quadras do clube.
+Você vai construir, neste site, a área do **RePET**: os vídeos gravados nas quadras do clube.
 O back-end já está pronto no Lara (a mesma API que este site já consome para espaços,
 horários e reservas). Sua tarefa é a interface e a integração — **nenhuma regra de vídeo é
 decidida aqui**.
@@ -76,7 +76,7 @@ removíveis com `--only-clear` e não disparam e-mail para ninguém.
 
 ### 1. Galeria pública — lista de quadras
 
-Entrada da área de Replay. Consome `GET /places`. Mostre nome da quadra, esporte,
+Entrada da área do RePET. Consome `GET /places`. Mostre nome da quadra, esporte,
 `videos_count` e quando foi o último vídeo (`last_recorded_at`).
 
 Só vêm quadras **com vídeo disponível** — não invente uma lista completa de quadras a partir de
@@ -111,6 +111,10 @@ A `url` é um **arquivo estático**, servido direto pelo servidor do Lara. Isso 
   back-end: o arquivo estático suporta *range request*, e é isso que permite ao visitante
   avançar o vídeo em vez de assistir do começo.
 - Download é um `<a href="{url}" download>` simples.
+- Às vezes a `url` vem como `.../replay/arquivo/{uuid}` em vez de `.../storage/...`: o Lara
+  está trazendo o vídeo do servidor de arquivos e **redireciona** para o arquivo estático. O
+  navegador segue sozinho; não trate esse caso. Se ela responder `503`, o servidor de arquivos
+  está fora — mostre "vídeo indisponível no momento".
 - `preload="none"` nos cards da grade. São 24 vídeos por página; deixar o navegador buscar
   todos puxaria centenas de MB à toa.
 

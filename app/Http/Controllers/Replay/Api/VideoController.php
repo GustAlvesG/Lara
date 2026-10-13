@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Replay\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Replay\StoreVideoRequest;
 use App\Models\Replay\Camera;
+use App\Services\Replay\RemoteStorageUnavailable;
 use App\Services\Replay\VideoIntakeService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -13,15 +14,12 @@ use InvalidArgumentException;
 /**
  * Recepção dos clipes gravados nas quadras.
  *
- * O clipe chega por POST multipart — uma requisição, sem FTP, sem pasta
- * compartilhada e sem o Lara precisar alcançar a rede das quadras. No volume
- * do clube (50 a 100 clipes/dia) isso é de longe o arranjo mais simples que
- * funciona.
+ * O sistema de captura grava o clipe no servidor de arquivos (FTP) e avisa
+ * por aqui, com o caminho e os metadados. O Lara confere o arquivo no FTP,
+ * traz a cópia que vai servir e amarra à reserva. O arquivo não trafega pela
+ * API — o limite de upload do PHP deixou de importar.
  *
- * Atenção de operação: o teto real do upload é o `post_max_size` /
- * `upload_max_filesize` do PHP. Com os 30M do servidor, um clipe de 60s a
- * 1080p é recusado ANTES de chegar aqui — o Laravel recebe um corpo vazio e
- * devolve 422 sem explicação útil. Ver docs/replay-api.md.
+ * FTP fora do ar é 503, não 422: o aviso está certo e deve ser repetido.
  */
 class VideoController extends Controller
 {
@@ -40,13 +38,15 @@ class VideoController extends Controller
         try {
             $result = $this->intake->store(
                 $camera,
-                $request->file('file'),
+                (string) $request->input('path'),
                 Carbon::parse($request->input('recorded_at')),
                 (int) $request->input('duration_seconds'),
                 $request->input('external_id'),
             );
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
+        } catch (RemoteStorageUnavailable $e) {
+            return response()->json(['message' => 'Servidor de arquivos (FTP) indisponível. Tente de novo.'], 503);
         }
 
         $video = $result['video'];
@@ -54,6 +54,7 @@ class VideoController extends Controller
         return response()->json([
             'uuid' => $video->uuid,
             'url' => $video->url(),
+            'path' => $video->file_path,
             'place' => [
                 'id' => $video->place_id,
                 'name' => $video->place?->name,
@@ -64,7 +65,7 @@ class VideoController extends Controller
             // para o log dele; nenhum dado do sócio sai por aqui.
             'linked_to_member' => $video->member_id !== null,
             'duplicated' => $result['duplicated'],
-        // 200 no reenvio do mesmo external_id: a requisição está correta, o
+        // 200 no reenvio do mesmo clipe: a requisição está correta, o
         // recurso já existia. 201 só quando algo novo foi criado.
         ], $result['duplicated'] ? 200 : 201);
     }

@@ -45,7 +45,8 @@ class ReplayPortalApiTest extends TestCase
             'recorded_at' => now()->subHour(),
             'duration_seconds' => 30,
             'orientation' => Orientation::HORIZONTAL,
-            'file_path' => 'replay/videos/2026/09/' . Str::uuid() . '.mp4',
+            'file_path' => 'quadra1/' . Str::uuid() . '.mp4',
+            'local_path' => 'replay/videos/2026/09/' . Str::uuid() . '.mp4',
             'size_bytes' => 1024,
             'expires_at' => now()->addDays(6),
         ], $overrides));

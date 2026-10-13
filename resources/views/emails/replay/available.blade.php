@@ -1,6 +1,6 @@
 @php
     /*
-     | Aviso de vídeos do Replay prontos.
+     | Aviso de vídeos do RePET prontos.
      |
      | Não leva o arquivo nem link direto para o vídeo: leva ao login do
      | portal de locação. Foi a decisão de quem opera — o vídeo de quem
@@ -48,7 +48,7 @@
             <p style="margin-top: 0;">Olá, <strong>{{ $data['member_name'] ?? 'Sócio' }}</strong>,</p>
 
             <p>
-                Os replays gravados durante a sua reserva já estão disponíveis para assistir e baixar
+                Os vídeos do RePET gravados durante a sua reserva já estão disponíveis para assistir e baixar
                 no site de locação de espaços.
             </p>
 
@@ -87,7 +87,7 @@
         </div>
 
         <div class="footer">
-            Este é um e-mail automático do Replay — não é necessário responder.
+            Este é um e-mail automático do RePET — não é necessário responder.
         </div>
     </div>
 </body>

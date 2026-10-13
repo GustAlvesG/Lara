@@ -105,14 +105,15 @@ CACHE_STORE=database
 REPLAY_PORTAL_URL=https://locacao.clubedosfuncionarios.com.br
 # Só para compor o overlay ANIMADO (GIF -> WebM com canal alpha).
 REPLAY_FFMPEG_PATH=ffmpeg
+# Pasta dos clipes no FTP (mesmo servidor e conta das FTP_*, salvo REPLAY_FTP_*).
+REPLAY_FTP_ROOT=Lara/Repet
 ```
 
 Duas exigências de **servidor**, não de aplicação:
 
-1. **`upload_max_filesize` e `post_max_size` em 256M** no `php.ini`, com reinício do Apache
-   (e `LimitRequestBody` no Apache, se estiver configurado). O servidor está hoje em 30M, o que
-   recusa um clipe de 60s a 1080p **antes** de a requisição chegar ao Laravel — o sintoma é um
-   422 com corpo vazio, que não aponta para a causa.
+1. **Pasta `Lara/Repet` no FTP**, já existente (o driver não cria a raiz), com a conta do Lara
+   podendo **ler e apagar** nela e o sistema de captura podendo gravar. O clipe não passa mais
+   pelo upload do PHP: o limite de 256M antes exigido deixou de ser necessário (13/10/2026).
 2. **ffmpeg instalado** — opcional. Sem ele o módulo funciona inteiro: logomarca em GIF animado
    sai parada (primeiro quadro) e a API entrega só o PNG. A tela de layouts avisa.
 

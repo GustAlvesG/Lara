@@ -25,6 +25,7 @@ class MediaService
 
     const LOGO_DIR = 'replay/logos';
     const OVERLAY_DIR = 'replay/overlays';
+    /** Cópia local dos clipes; o original mora no FTP (ver RemoteVideoStore). */
     const VIDEO_DIR = 'replay/videos';
 
     const MAX_LOGO_BYTES = 8 * 1024 * 1024;

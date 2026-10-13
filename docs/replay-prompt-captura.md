@@ -2,16 +2,17 @@
 
 > Cole o conteúdo abaixo (da linha `---` em diante) em um Claude Code aberto no repositório
 > do **sistema que grava as quadras** (câmera + botão + corte do clipe). Ele descreve a API
-> do Replay no Lara e o que construir do lado de lá.
+> do RePET (no código, Replay) no Lara e o que construir do lado de lá.
 
 ---
 
 Você vai integrar este sistema de captura ao **Lara**, o sistema de gestão do clube. O Lara
 passa a ser a **fonte de verdade da configuração** (formato do vídeo, duração do clipe e
-logomarcas) e o **repositório dos clipes**. A captura, o botão e o corte continuam sendo
+logomarcas) e quem **registra e entrega os clipes**, que ficam no servidor de arquivos (FTP)
+do clube. A captura, o botão e o corte continuam sendo
 responsabilidade deste sistema — nada disso muda.
 
-Sua tarefa tem duas metades: **puxar a configuração** e **enviar o clipe**.
+Sua tarefa tem duas metades: **puxar a configuração** e **gravar o clipe no FTP e avisar o Lara**.
 
 ## Contexto de negócio
 
@@ -51,7 +52,7 @@ Base: `<host do Lara>/api/replay`
 | GET | `/cameras` | Configuração de todas as câmeras ativas, já resolvida |
 | GET | `/cameras/{external_id}` | O mesmo, para uma câmera |
 | POST | `/cameras/{external_id}/heartbeat` | Sinal de vida do equipamento |
-| POST | `/cameras/{external_id}/videos` | Envia o clipe |
+| POST | `/cameras/{external_id}/videos` | Avisa de um clipe já gravado no FTP |
 
 O contrato completo, com todos os campos e exemplos de corpo, está em `docs/replay-api.md`
 no repositório do Lara. Peça o arquivo — ele é a referência, e este prompt é o resumo.
@@ -117,33 +118,43 @@ ffmpeg -i clipe.mp4 -stream_loop -1 -i overlay.webm \
   -c:a copy saida.mp4
 ```
 
-## Metade 2 — enviar o clipe
+## Metade 2 — gravar o clipe no FTP e avisar o Lara
 
-`POST /cameras/{external_id}/videos`, `multipart/form-data`:
+O clipe **não vai pela API**. Grave-o no **servidor de arquivos (FTP)** do clube, na pasta
+`Lara/Repet/` (servidor e credenciais: peça ao time do Lara), com a organização de subpastas e
+o nome que fizerem sentido aqui. Só depois de o arquivo estar **completo** no FTP, avise:
+
+`POST /cameras/{external_id}/videos`, JSON:
 
 | Campo | Descrição |
 |---|---|
-| `file` | O clipe **já com o overlay queimado**. MP4 (H.264) ou WebM, até 256MB |
+| `path` | Caminho do clipe no FTP, relativo a `Lara/Repet/` (ou com ela na frente). O clipe **já com o overlay queimado**, MP4 (H.264) ou WebM. Até 255 caracteres |
 | `recorded_at` | ISO 8601 — **instante do aperto do botão** (fim do clipe) |
 | `duration_seconds` | Inteiro |
 | `external_id` | **Id do clipe neste sistema.** Sempre envie |
 
-Resposta `201` com `uuid`, `url` e `expires_at`.
+Resposta `201` com `uuid`, `url`, `path` e `expires_at`. O Lara baixa o arquivo do FTP nesse
+momento para conferir o formato: se ele ainda estiver sendo escrito, o aviso falha (`422`).
+Grave com um nome temporário e renomeie no fim, ou só avise depois do upload concluído.
+
+**Depois do `201`, o arquivo é do Lara:** não apague nem mova. O Lara apaga do FTP aos 7 dias
+ou quando alguém exclui o vídeo na tela.
 
 ### Três coisas que não podem sair erradas
 
-1. **Mande sempre o `external_id` do clipe.** É o que torna o envio idempotente: reenviar o
-   mesmo id devolve `200` com `"duplicated": true` e não cria um segundo vídeo. **Sem ele, cada
-   retry vira um clipe duplicado** na galeria do sócio.
+1. **Mande sempre o `external_id` do clipe.** É o que torna o aviso idempotente: reenviar o
+   mesmo id (ou o mesmo `path`) devolve `200` com `"duplicated": true` e não cria um segundo
+   vídeo.
 
 2. **`recorded_at` é o instante real da gravação, não o do envio.** Dele saem duas coisas no
    Lara: a descoberta de qual sócio alugou a quadra naquele momento e a data de expiração. Um
    clipe que ficou dois dias na sua fila precisa chegar com a data original — ele terá 5 dias
    de vida, não 7, e isso está certo.
 
-3. **Fila com repetição.** Grave o clipe em disco local primeiro e só então tente enviar.
-   Retente com backoff até receber `201` ou `200`. Um `422` de formato inválido não adianta
-   retentar — registre e siga em frente.
+3. **Fila com repetição.** Grave o clipe no FTP e só então avise. Retente o aviso com backoff
+   até receber `201` ou `200` — um `503` significa que o Lara não alcançou o FTP, e é para
+   retentar. Um `422` de formato inválido ou de arquivo não encontrado não adianta retentar
+   sem corrigir — registre e siga em frente.
 
 ### Erros
 
@@ -151,9 +162,9 @@ Resposta `201` com `uuid`, `url` e `expires_at`.
 |---|---|---|
 | `401` / `403` | token ausente, inválido ou sem ability | conferir o `.env`; pedir novo token |
 | `404` | `external_id` desconhecido ou câmera inativa no Lara | conferir o cadastro com quem administra |
-| `413`, ou `422` com corpo vazio | arquivo acima do limite do servidor web | avisar a operação do Lara (é limite de servidor, não da aplicação) |
-| `422` | formato, campo faltando ou data inválida | ler `message`; não retentar |
+| `422` | arquivo não encontrado no FTP, caminho inválido, formato, campo faltando ou data inválida | ler `message`; não retentar sem corrigir |
 | `429` | limite de requisições | backoff |
+| `503` | o Lara não alcançou o FTP | backoff e repetir o aviso |
 
 ## Heartbeat
 
@@ -170,6 +181,8 @@ interromper nada: registre e siga.
 - Não guardar a `url` do vídeo devolvida pelo Lara como se fosse permanente — ela expira em 7
   dias.
 - Não enviar sem `external_id` de clipe.
+- Não mandar o arquivo pela API, nem avisar antes de o upload ao FTP terminar.
+- Não apagar nem mover no FTP um clipe que o Lara já aceitou.
 
 ## Entregue no fim
 

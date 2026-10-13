@@ -34,7 +34,11 @@ class Video extends Model
         'recorded_at',
         'duration_seconds',
         'orientation',
+        // Caminho do clipe no FTP (disco `replay_ftp`), como o sistema de
+        // captura informou.
         'file_path',
+        // Cópia servida pelo servidor web (disco `replay`).
+        'local_path',
         'size_bytes',
         'expires_at',
         'download_count',
@@ -83,9 +87,20 @@ class Video extends Model
         return $this->belongsTo(Schedule::class, 'schedule_id')->withoutGlobalScopes();
     }
 
+    /**
+     * URL do clipe para o player e o download.
+     *
+     * Com a cópia local presente, é o arquivo estático (range request, sem
+     * PHP no caminho). Sem ela, a rota que refaz a cópia a partir do FTP e
+     * redireciona para o estático — o FTP não fala HTTP.
+     */
     public function url(): ?string
     {
-        return MediaService::url($this->file_path);
+        if ($this->local_path && MediaService::disk()->exists($this->local_path)) {
+            return MediaService::url($this->local_path);
+        }
+
+        return route('replay.videos.file', ['uuid' => $this->uuid]);
     }
 
     /** Dias inteiros que faltam para o expurgo — o que a tela mostra. */

@@ -445,7 +445,12 @@ publicado nunca fica atrasado em relação à tela.
 | Método | Assinatura | Descrição |
 |--------|-----------|-----------|
 | `index` | `index(Request)` | Galeria interna com filtros (esporte, quadra, data, com/sem reserva) e dias restantes. |
-| `destroy` | `destroy(Video)` | Exclusão manual — apaga arquivo e registro juntos. |
+| `destroy` | `destroy(Video)` | Exclusão manual — apaga do FTP, a cópia local e o registro. FTP fora → nada é apagado e a tela avisa. |
+
+### VideoFileController
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `show` | `show(string $uuid, RemoteVideoStore)` | Rota **pública** `replay.videos.file`. Refaz a cópia local do clipe a partir do FTP e redireciona para o arquivo estático. Vencido ou ausente no FTP → 404; FTP fora → 503. |
 
 ### Api\CameraController
 | Método | Assinatura | Descrição |
@@ -457,7 +462,7 @@ publicado nunca fica atrasado em relação à tela.
 ### Api\VideoController
 | Método | Assinatura | Descrição |
 |--------|-----------|-----------|
-| `store` | `store(StoreVideoRequest, string $externalId)` | Recebe o clipe (multipart). `201` para clipe novo, `200` com `duplicated: true` no reenvio do mesmo `external_id`. |
+| `store` | `store(StoreVideoRequest, string $externalId)` | Recebe o **aviso** do clipe já gravado no FTP (`path`, sem arquivo). `201` para clipe novo, `200` com `duplicated: true` no reenvio do mesmo `external_id` ou `path`, `422` para arquivo ausente/formato não aceito, `503` com o FTP fora. |
 
 ### Api\PortalController
 | Método | Assinatura | Descrição |

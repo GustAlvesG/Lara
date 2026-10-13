@@ -336,12 +336,29 @@ Ponto único sobre a mídia do Replay: disco, URL e o que é um arquivo aceitáv
 | `storeLogo` | `storeLogo(UploadedFile): array` | Valida (PNG/GIF, 8MB), detecta GIF animado pela contagem de blocos de controle, normaliza o PNG e grava. |
 | `remove` | `remove(?string): void` | Apaga do disco. |
 
+`VIDEO_DIR` (`replay/videos`) guarda só a **cópia local** dos clipes; o original está no FTP (ver `RemoteVideoStore`).
+
 O tipo sai sempre dos **bytes reais**, nunca do `Content-Type` ou da extensão do nome.
 
 ### VideoIntakeService
-Recebe o clipe, arquiva e amarra a quem for de direito.
+Recebe o aviso de clipe novo (o arquivo já está no FTP), traz a cópia e amarra a quem for de direito.
 
 | Método | Assinatura | Descrição |
 |--------|-----------|-----------|
-| `store` | `store(Camera, UploadedFile, Carbon, int, ?string): array` | Idempotente pelo `external_id`. Grava em stream, resolve a reserva **paga** que cobria o instante, define a expiração a partir da **gravação** e agenda o aviso único da reserva. |
-| `prune` | `prune(): array` | Apaga arquivo e registro dos vencidos — arquivo primeiro: registro órfão alguém vê, arquivo órfão ocupa disco em silêncio. |
+| `store` | `store(Camera, string $remotePath, Carbon, int, ?string): array` | Idempotente pelo `external_id` **e** pelo caminho. Baixa o clipe do FTP para a cópia local, confere o tipo pelos bytes, resolve a reserva **paga** que cobria o instante, define a expiração a partir da **gravação** e agenda o aviso único da reserva. Lança `InvalidArgumentException` (422) ou `RemoteStorageUnavailable` (503). |
+| `prune` | `prune(): array` | Apaga do FTP, a cópia e o registro dos vencidos — arquivo primeiro: registro órfão alguém vê, arquivo órfão ocupa disco em silêncio. FTP fora → para e devolve `ftp_unavailable: true`. |
+
+### RemoteVideoStore
+Os clipes no FTP (disco `replay_ftp`, raiz `REPLAY_FTP_ROOT`) e a cópia local deles (disco `replay`).
+
+| Método | Assinatura | Descrição |
+|--------|-----------|-----------|
+| `normalizePath` | `normalizePath(string): string` | Caminho relativo à raiz, aceitando-o com ou sem a raiz na frente. Recusa `..`, `.` e trechos vazios. |
+| `download` | `download(string $remote, string $local): void` | Baixa para `.part` e renomeia no fim. Arquivo ausente → `InvalidArgumentException`. |
+| `ensureLocal` | `ensureLocal(Video): ?string` | Devolve a cópia, refazendo-a do FTP se sumiu; null se o clipe não está mais lá. |
+| `delete` | `delete(Video): bool` | Apaga do FTP e a cópia; false se já não estava no FTP. |
+
+Falha de conexão (ou qualquer recusa do driver) vira `RemoteStorageUnavailable` e marca o FTP
+como fora por 60 s (`replay:ftp-offline`), para os pedidos seguintes não esperarem o timeout.
+O adaptador FTP só lê o arquivo inteiro (`readStream` baixa tudo): por isso a validação na
+recepção já produz a cópia que vai ser servida.

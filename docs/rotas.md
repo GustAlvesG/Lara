@@ -147,6 +147,7 @@ Quatro telas, quatro etapas do mesmo trabalho: formato, layout, câmera, vídeos
 | DELETE | `/replay/cameras/{camera}` | Replay\Web\CameraController@destroy | replay.cameras.destroy |
 | GET | `/replay/videos` | Replay\Web\VideoController@index | replay.videos.index |
 | DELETE | `/replay/videos/{video}` | Replay\Web\VideoController@destroy | replay.videos.destroy |
+| GET | `/replay/arquivo/{uuid}` | Replay\VideoFileController@show — **pública**, 120/min; refaz a cópia do FTP e redireciona | replay.videos.file |
 
 ---
 

@@ -46,7 +46,16 @@ class PruneReplayVideos extends Command
         $this->info("Apagados: {$result['deleted']} vídeo(s).");
 
         if ($result['missing'] > 0) {
-            $this->warn("{$result['missing']} registro(s) já estavam sem arquivo em disco.");
+            $this->warn("{$result['missing']} registro(s) já estavam sem arquivo no FTP.");
+        }
+
+        // FTP fora: os registros restantes ficam para a próxima rodada, com o
+        // arquivo ainda lá. Falha de verdade, para o agendador registrar.
+        if ($result['ftp_unavailable']) {
+            Log::warning('Replay: expurgo interrompido — FTP dos clipes fora do ar.', $result);
+            $this->error('FTP dos clipes fora do ar: o expurgo parou e os vencidos restantes ficam para a próxima rodada.');
+
+            return self::FAILURE;
         }
 
         return self::SUCCESS;

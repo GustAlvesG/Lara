@@ -38,7 +38,7 @@ Disparado por `FreelancerService::requestPixForMany()` (botão "Dar baixa" do fi
 ### SendReplayVideosMail
 
 `implements ShouldQueue` — avisa o sócio que os vídeos da reserva dele estão prontos.
-Ver [Replay](funcionalidades/replay.md).
+Ver [RePET](funcionalidades/replay.md).
 
 | Método | Assinatura | Descrição |
 |--------|-----------|-----------|
@@ -132,7 +132,7 @@ Notificação de redefinição de senha (canal e-mail), em Português.
 Enviado por `EmailService::processContactForm()` (formulário de contato → endereço
 administrativo) e por `EmailService::sendScheduleMail()` (agendamento → e-mail do sócio). O
 campo `type` dos dados escolhe a view: `schedule.confirm`, `schedule.pending`, `schedule.cancel`,
-`replay.available` (vídeos do Replay prontos, enviado pelo Job `SendReplayVideosMail`) ou o
+`replay.available` (vídeos do RePET prontos, enviado pelo Job `SendReplayVideosMail`) ou o
 template de contato. Os tipos transacionais não levam o prefixo `[Contato]` no assunto.
 
 ---

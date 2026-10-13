@@ -83,7 +83,9 @@ class ReplayDemoVideosCommandTest extends TestCase
         $this->assertSame(4, Video::count());
 
         foreach (Video::all() as $video) {
-            Storage::disk('replay')->assertExists($video->file_path);
+            Storage::disk('replay')->assertExists($video->local_path);
+            // Nada no FTP: o caminho remoto do demo não existe lá.
+            $this->assertStringStartsWith('demo-', $video->file_path);
             $this->assertGreaterThan(0, $video->size_bytes);
             $this->assertStringStartsWith('demo-', $video->external_id);
         }
@@ -130,17 +132,18 @@ class ReplayDemoVideosCommandTest extends TestCase
             'recorded_at' => now()->subHour(),
             'duration_seconds' => 30,
             'orientation' => Orientation::HORIZONTAL,
-            'file_path' => MediaService::VIDEO_DIR . '/2026/09/real.mp4',
+            'file_path' => 'quadra1/real.mp4',
+            'local_path' => MediaService::VIDEO_DIR . '/2026/09/real.mp4',
             'size_bytes' => 1024,
             'expires_at' => now()->addDays(6),
         ]);
-        Storage::disk('replay')->put($real->file_path, 'conteudo');
+        Storage::disk('replay')->put($real->local_path, 'conteudo');
 
         $this->artisan('replay:demo-videos', ['--only-clear' => true, '--force' => true])->assertSuccessful();
 
         $this->assertSame(1, Video::count());
         $this->assertSame($real->id, Video::first()->id);
-        Storage::disk('replay')->assertExists($real->file_path);
+        Storage::disk('replay')->assertExists($real->local_path);
     }
 
     public function test_pode_limitar_a_uma_quadra(): void

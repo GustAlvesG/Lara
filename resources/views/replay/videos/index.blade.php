@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Replay — Vídeos') }}
+            {{ __('RePET — Vídeos') }}
         </h2>
     </x-slot>
 

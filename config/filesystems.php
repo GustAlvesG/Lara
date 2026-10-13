@@ -101,6 +101,34 @@ return [
             'throw' => true,
         ],
 
+        /*
+         * Clipes do Replay no servidor de arquivos (FTP).
+         *
+         * O sistema de captura grava o clipe aqui e só avisa o Lara do
+         * caminho; o Lara nunca recebe o arquivo pela API. É a fonte do clipe:
+         * a cópia em `public/storage/replay/videos` (disco `replay`) é só o
+         * cache que o servidor web entrega com *range request*.
+         *
+         * Por padrão é o MESMO servidor e a mesma conta das fotos do SIV; as
+         * variáveis REPLAY_FTP_* trocam isso sem mexer no outro. `root` é a
+         * pasta dos clipes e precisa existir — o driver não a cria.
+         */
+        'replay_ftp' => [
+            'driver' => 'ftp',
+            'host' => env('REPLAY_FTP_HOST', env('FTP_HOST')),
+            'username' => env('REPLAY_FTP_USERNAME', env('FTP_USERNAME')),
+            'password' => env('REPLAY_FTP_PASSWORD', env('FTP_PASSWORD')),
+            'port' => (int) env('REPLAY_FTP_PORT', env('FTP_PORT', 21)),
+            'root' => env('REPLAY_FTP_ROOT', 'Lara/Repet'),
+            'passive' => (bool) env('REPLAY_FTP_PASSIVE', env('FTP_PASSIVE', true)),
+            // Curto: a recepção do clipe espera por ele, e com o FTP fora o
+            // sistema de captura precisa receber o 503 e retentar, não ficar
+            // pendurado os 90s do padrão do driver.
+            'timeout' => (int) env('REPLAY_FTP_TIMEOUT', 15),
+            // Falha vira exceção: é o que separa "FTP fora" de "arquivo não existe".
+            'throw' => true,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
@@ -131,8 +159,9 @@ return [
         ],
 
         /*
-         * Mídia do Replay (logomarcas, overlays compostos e os clipes das
-         * quadras).
+         * Mídia do Replay (logomarcas, overlays compostos e a CÓPIA LOCAL dos
+         * clipes das quadras — o original dos clipes mora no disco
+         * `replay_ftp`).
          *
          * Mesma decisão do disco `placar`, e pelos mesmos dois motivos: este
          * projeto nunca usou o `storage:link` (o `public/storage` já é um

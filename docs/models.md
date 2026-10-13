@@ -424,7 +424,11 @@ o `ReplayResolver`; os models não sabem nada de herança.
 - **Tabela:** `replay_videos` · `UNIQUE (uuid)`, `UNIQUE (external_id)`
 - **`$fillable`:** `uuid`, `place_id`, `place_group_id`, `replay_camera_id`, `schedule_id`,
   `member_id`, `external_id`, `recorded_at`, `duration_seconds`, `orientation`, `file_path`,
-  `size_bytes`, `expires_at`, `download_count`
+  `local_path`, `size_bytes`, `expires_at`, `download_count`
+- **`file_path`** é o caminho do clipe **no FTP** (disco `replay_ftp`, relativo a
+  `REPLAY_FTP_ROOT`); **`local_path`** é a cópia servida pelo servidor web (disco `replay`).
+  `url()` devolve a cópia quando ela existe e, senão, a rota pública `replay.videos.file`, que
+  a refaz a partir do FTP.
 - **Relacionamentos:** `place()` · `group()` · `camera()` · `member()` · `schedule()`
   (**`withoutGlobalScopes()`** — Schedule esconde os expirados por padrão, e a reserva do vídeo
   já terminou)

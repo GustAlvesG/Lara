@@ -76,7 +76,7 @@ class SendReplayVideosMail implements ShouldQueue
         $sent = $emails->sendScheduleMail([
             'type' => 'replay.available',
             'email' => $member->email,
-            'subject' => 'Seus vídeos do Replay estão disponíveis',
+            'subject' => 'Seus vídeos do RePET estão disponíveis',
             'member_name' => $member->name ?? 'Sócio',
             'place_name' => $first->place?->name ?? 'sua quadra',
             'videos_count' => $videos->count(),
