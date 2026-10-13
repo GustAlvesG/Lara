@@ -550,7 +550,8 @@
         <tr>
             <td class="n"><span class="num">3</span></td>
             <td><span class="t">Preencha os "Dados do documento".</span><br>
-                Aparecem todos os campos do modelo; os com <b>*</b> são obrigatórios. Para que a própria pessoa
+                Aparecem todos os campos do modelo, cada um com a mesma pergunta que o tablet faz (o nome do campo
+                fica embaixo, em letra pequena, quando é diferente); os com <b>*</b> são obrigatórios. Para que a própria pessoa
                 responda um campo no tablet, marque <b>Perguntar ao signatário</b> ao lado dele: o campo some e vira
                 pergunta. Se o documento for para o <b>gov.br</b>, não marque nenhum — lá não há perguntas. Um aviso
                 logo abaixo mostra o que o sistema preenche sozinho.<br>

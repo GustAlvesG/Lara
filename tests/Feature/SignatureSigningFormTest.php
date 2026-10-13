@@ -681,4 +681,29 @@ class SignatureSigningFormTest extends TestCase
             $edicao->getContent(),
         );
     }
+
+    /**
+     * O atendente costuma preencher lendo a pergunta em voz alta para a pessoa:
+     * a tela mostra a mesma pergunta do tablet, e o nome do campo só miúdo.
+     */
+    public function test_formulario_do_atendente_mostra_a_pergunta_do_tablet(): void
+    {
+        $html = $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
+            ->get(route('signature-documents.create', ['template' => $this->modelo()->id]))
+            ->assertOk()
+            ->getContent();
+
+        // Com pergunta escrita: ela é o título, e o nome do campo vem embaixo, pequeno.
+        $this->assertMatchesRegularExpression(
+            '#<label for="data_telefone"[^>]*>\s*Qual é o seu telefone\?\s*<span class="text-grena-ink">\*</span>\s*'
+                . '<span class="block text-xs font-normal text-ink-3">Telefone</span>#u',
+            $html,
+        );
+
+        // Sem pergunta escrita, a pergunta é o nome — sem repetir embaixo.
+        $this->assertMatchesRegularExpression('#<label for="data_espaco"[^>]*>\s*Espaço\s*<span class="text-grena-ink">\*</span>\s*</label>#u', $html);
+
+        // A nota de "perguntar ao signatário" não repete a pergunta que já é o título.
+        $this->assertStringNotContainsString('responde no tablet: “', $html);
+    }
 }

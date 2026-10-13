@@ -299,6 +299,9 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
   `missingVariables($document)` recebem o documento.
 - Migration `2026_10_11_100300` backfill: documentos existentes herdam o `ask_signer` legado do JSON do modelo.
 - Efeito: qualquer modelo sem visto pode ir ao gov.br, se o atendente não marcar nenhum campo para o tablet.
+- **Título do campo na web = pergunta do tablet (13/10/2026):** `field.blade.php` mostra `$campo['question']`
+  (que já cai no rótulo quando está em branco — `SignatureTemplate`); o rótulo vai miúdo embaixo só se for
+  diferente. Não volte a mostrar o rótulo como título. `data-fill-label` segue com o rótulo (palpite do dado).
 
 ## Throttle por rota (08/10/2026)
 

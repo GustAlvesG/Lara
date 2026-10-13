@@ -1068,6 +1068,13 @@ signatário**: marcada, o controle some, o que estiver digitado nele é ignorado
 uma pergunta que a pessoa responde no tablet (o texto escrito no modelo ou, em branco, o nome do
 campo). A obrigatoriedade de um campo perguntado é conferida no tablet, não no congelamento.
 
+**A tela do atendente usa a mesma pergunta (13/10/2026).** No formulário do documento
+(`documents/partials/field.blade.php`), o título de cada campo é a `question` — a mesma frase que
+o tablet mostra —, para o atendente preencher lendo a pergunta para a pessoa. Quando a pergunta é
+diferente do nome do campo, o nome aparece embaixo, em letra pequena, só para conferir com o
+modelo. O "Usar dados do signatário" continua usando o nome do campo (`data-fill-label`) para
+adivinhar o dado. Teste: `test_formulario_do_atendente_mostra_a_pergunta_do_tablet`.
+
 - Gravado em `signature_documents.signer_field_keys` (JSON, lista de chaves), pelo
   `StoreSignatureDocumentRequest::signerFieldKeys()` — só chaves de campos do modelo que alguém
   preenche; automático e chave inventada não entram.

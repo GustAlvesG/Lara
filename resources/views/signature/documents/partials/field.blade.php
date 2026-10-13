@@ -48,9 +48,13 @@
 
 <div data-ask-field>
     <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 mb-1">
+        {{-- O título é a mesma pergunta que o tablet mostra; o nome do campo fica miúdo, só para conferir com o modelo. --}}
         <label for="{{ $id }}" class="block text-sm font-bold text-ink">
-            {{ $campo['label'] }}
+            {{ $campo['question'] }}
             @if($campo['required'])<span class="text-grena-ink">*</span>@endif
+            @if($campo['question'] !== $campo['label'])
+                <span class="block text-xs font-normal text-ink-3">{{ $campo['label'] }}</span>
+            @endif
         </label>
         <label class="flex items-center gap-2 text-xs text-ink-2">
             <input type="checkbox" name="ask_signer[]" value="{{ $campo['key'] }}" data-ask-toggle
@@ -61,7 +65,7 @@
     </div>
 
     <p data-ask-note class="text-xs text-ink-2 rounded-lg bg-subtle px-3 py-2" @if(!$perguntar) hidden @endif>
-        Quem assina responde no tablet{{ $campo['question'] !== $campo['label'] ? ': “' . $campo['question'] . '”' : '' }}.
+        Quem assina responde no tablet, com a pergunta acima.
     </p>
 
     <div data-ask-answer @if($perguntar) hidden @endif>
