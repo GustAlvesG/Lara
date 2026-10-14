@@ -272,6 +272,14 @@ return [
         'handoff_confirm_seconds' => (int) env('POLI_BOT_CONFIRMAR_TRANSBORDO_S', 10),
 
         /*
+        | Na mesma conferência, com o transbordo feito: marca a conversa como
+        | não lida para o atendente que a recebeu. As mensagens que o O Lara
+        | manda pela API deixam a conversa como lida, e ela chegaria ao
+        | atendente como já visualizada.
+        */
+        'mark_unread_on_handoff' => (bool) env('POLI_BOT_MARCAR_NAO_LIDA', true),
+
+        /*
         | Reconciliação: a lista da Poli com mais conversas que isto não é
         | tratada — é sinal de que o filtro por atendente foi ignorado.
         */

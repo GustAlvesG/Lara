@@ -1563,8 +1563,15 @@ class BotEngine
             return;
         }
 
-        if ($atual === null || ($atual['status'] ?? null) === 'CLOSED'
-            || !$this->isLaraAttendant(is_string($atual['attendant']['uuid'] ?? null) ? $atual['attendant']['uuid'] : null)) {
+        if ($atual === null || ($atual['status'] ?? null) === 'CLOSED') {
+            return;
+        }
+
+        $atendente = is_string($atual['attendant']['uuid'] ?? null) ? $atual['attendant']['uuid'] : null;
+
+        if (!$this->isLaraAttendant($atendente)) {
+            $this->markUnreadForAttendant($session, $atendente);
+
             return;
         }
 
@@ -1577,6 +1584,23 @@ class BotEngine
         $this->say($session, (string) config('poli.bot.messages.handoff_failed'));
         $session->toEnding((int) config('poli.bot.close_after_minutes', 10));
         $session->save();
+    }
+
+    /**
+     * O transbordo pegou. As mensagens que o O Lara mandou pela API deixam a
+     * conversa como lida, e o atendente a receberia como já visualizada: a
+     * conversa volta a ser não lida, para quem a recebeu (sem atendente —
+     * esperando na fila do time —, para a conversa). Falha só fica no
+     * registro: o transbordo já está feito.
+     */
+    private function markUnreadForAttendant(BotSession $session, ?string $atendente): void
+    {
+        if (!config('poli.bot.mark_unread_on_handoff', true)) {
+            return;
+        }
+
+        $this->out = $this->outbox->live(true);
+        $this->out->unread($session, $atendente);
     }
 
     /**

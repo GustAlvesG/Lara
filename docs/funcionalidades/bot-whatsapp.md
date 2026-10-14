@@ -113,6 +113,14 @@ conferir e salvar.
   passo "fora do horário" (do fluxo atual, ou do fluxo de boas-vindas se o atual não tem
   horário). Depois do distribute, um job confere em ~10 s (`POLI_BOT_CONFIRMAR_TRANSBORDO_S`)
   se o atendimento saiu mesmo do O Lara; se não saiu, o contato é avisado e a falha vai para o log.
+- **Não lida depois do transbordo:** as mensagens que O Lara manda pela API deixam a conversa como
+  lida, e o atendente a receberia como já visualizada. Na mesma conferência, com o transbordo
+  feito, O Lara marca a conversa como **não lida** (`POST /contacts/{uuid}/unread`) com o
+  `user_uuid` do atendente que a recebeu; se ela ainda estiver na fila do time, sem atendente, vai
+  sem usuário. Se a Poli recusar o corpo com usuário (422), O Lara tenta sem corpo. Falha não
+  desfaz o transbordo: fica como ação `unread` com ack `FAILED` em `poli_messages` e no log.
+  `POLI_BOT_MARCAR_NAO_LIDA=false` desliga. Endpoint tirado da documentação e ainda não medido
+  em produção — confira no painel da Poli na primeira transferência.
 - **Fim do fluxo:** a conclusão sai e a conversa fica em `ending`. Se o contato escrever em até
   `POLI_BOT_ENCERRAR_APOS_MIN` (10) minutos, recebe o menu; senão a Lara encerra. Encerrar na hora
   prende a próxima mensagem do contato no atendimento fechado (medido em 29/09/2026). A ação
@@ -167,7 +175,7 @@ conferir e salvar.
 ## Integrações
 
 API v3 da Poli — `App\Services\Poli\PoliClient` (envio, templates, times, encerrar,
-distribuir, encaminhar, atendimento atual, chats atribuídos). Webhook de entrada:
+distribuir, encaminhar, marcar como não lida, atendimento atual, chats atribuídos). Webhook de entrada:
 `POST /api/webhooks/whatsapp` (o mesmo do fluxo do Uber). Reenvio da Poli
 (`X-Webhook-Attempt` > 1) faz a Lara conferir o dono na API antes de agir.
 

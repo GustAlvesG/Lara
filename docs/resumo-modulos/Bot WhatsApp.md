@@ -4,7 +4,7 @@ Documentação completa (regras, modos, rollback): [docs/funcionalidades/bot-wha
 
 ## Em uma frase
 
-A Poli é o canal do WhatsApp; a Lara decide o que responder nas conversas atribuídas ao usuário
+A Poli é o canal do WhatsApp; O Lara decide o que responder nas conversas atribuídas ao usuário
 **O Lara** da Poli (`poli.bot.user_uuid`), seguindo **fluxos** (JSON em `bot_flows`) editados na
 tela **Bot WhatsApp** (`poli-bot.*`, permissão `bot-whatsapp`).
 
@@ -48,6 +48,9 @@ tela **Bot WhatsApp** (`poli-bot.*`, permissão `bot-whatsapp`).
   `poli.bot.burst_grace_seconds`, padrão 5 s, depois) não recebe correção nem gasta tentativa
   (`writtenBeforeLastReply`). Depende de `ParsedPoliMessage::createdAt`; sem ele, comportamento antigo.
 - **Correção de menu** reenvia o menu (nova `prompt_message_uuid`).
+- **Transbordo:** `distribute` → `ConfirmPoliBotHandoff` (~10 s) confere na API. Não saiu do
+  O Lara: avisa o contato. Saiu: marca a conversa como não lida para o atendente
+  (`PoliClient::marcarComoNaoLida`, ação `unread` em `poli_messages`; `poli.bot.mark_unread_on_handoff`).
 - Nada no motor lança: erro vira log. A trava por contato é de quem chama (não é reentrante).
 
 ## Testes

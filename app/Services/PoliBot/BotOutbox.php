@@ -94,6 +94,17 @@ class BotOutbox
     }
 
     /**
+     * Marca a conversa como não lida para quem a recebeu no transbordo.
+     *
+     * @return bool true se a Poli aceitou
+     */
+    public function unread(BotSession $session, ?string $userUuid): bool
+    {
+        return $this->action($session, 'unread' . ($userUuid ? " usuario={$userUuid}" : ' sem usuario'),
+            fn () => $this->poli->marcarComoNaoLida($session->contact_uuid, $userUuid))->ack === 'DONE';
+    }
+
+    /**
      * O que o contato mandou (ou a transferência dele, `REDIRECT`), com o
      * texto mascarado. A linha é também a trava de idempotência: o uuid da
      * mensagem é único.

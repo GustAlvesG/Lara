@@ -242,6 +242,35 @@ class PoliClient
         $this->enviar('POST', "/contacts/{$contactUuid}/read");
     }
 
+    /**
+     * Marca a conversa como não lida — para o atendente que recebe o
+     * transbordo ver a conversa como nova, e não como já visualizada (as
+     * mensagens que o O Lara mandou pela API zeram as não lidas).
+     *
+     * A documentação manda `user_uuid` (ou `application_uuid`) no corpo e
+     * responde 204, mas a descrição é cópia da do forward, como a do /close.
+     * Com usuário, tenta com ele; um 422 (corpo recusado) cai para o POST sem
+     * corpo. Ainda não exercitado de verdade.
+     */
+    public function marcarComoNaoLida(string $contactUuid, ?string $userUuid = null): void
+    {
+        $caminho = "/contacts/{$contactUuid}/unread";
+
+        if (filled($userUuid)) {
+            try {
+                $this->post($caminho, ['user_uuid' => $userUuid]);
+
+                return;
+            } catch (RequestException $e) {
+                if ($e->response->status() !== 422) {
+                    throw $e;
+                }
+            }
+        }
+
+        $this->enviar('POST', $caminho);
+    }
+
     /* ---------------------------------------------------------------------
      | Telefone
      |---------------------------------------------------------------------*/

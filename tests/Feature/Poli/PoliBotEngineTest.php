@@ -53,6 +53,12 @@ class PoliBotEngineTest extends TestCase
     /** O que o GET /accounts/{acc}/chats devolve. */
     private array $chatsNaApi = [];
 
+    /** O /unread recusa (422) o corpo com user_uuid. */
+    private bool $unreadRecusaUsuario = false;
+
+    /** O /unread responde 500. */
+    private bool $unreadFalha = false;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -127,6 +133,17 @@ class PoliBotEngineTest extends TestCase
 
             if ($r->method() === 'GET' && str_contains($r->url(), '/contacts/')) {
                 return Http::response(['uuid' => 'x', 'current_attendance' => $this->atendimentoNaApi], 200);
+            }
+
+            // Pela documentação: 204, sem corpo.
+            if (str_ends_with($r->url(), '/unread')) {
+                if ($this->unreadFalha) {
+                    return Http::response(['message' => 'erro'], 500);
+                }
+
+                return $this->unreadRecusaUsuario && isset($r->data()['user_uuid'])
+                    ? Http::response(['message' => 'user_uuid inválido'], 422)
+                    : Http::response(null, 204);
             }
 
             // Medido em 29/09/2026: as ações de atendimento respondem 200
@@ -1022,6 +1039,72 @@ class PoliBotEngineTest extends TestCase
 
         $this->assertCount($antes, $this->enviados());
         $this->assertTrue($this->sessao()->isHuman());
+    }
+
+    public function test_transbordo_que_pegou_marca_a_conversa_como_nao_lida_para_o_atendente(): void
+    {
+        $this->texto('oi');
+        $this->texto('Financeiro');
+        Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/unread'));
+
+        $this->atendimentoNaApi = ['uuid' => 'att-1', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => 'atendente-ana']];
+        (new ConfirmPoliBotHandoff(self::CONTACT))->handle($this->bot());
+
+        $this->assertTrue($this->enviouPara('unread', fn ($corpo) => ($corpo['user_uuid'] ?? null) === 'atendente-ana'));
+        $this->assertSame('DONE', PoliMessage::where('texto', 'unread usuario=atendente-ana')->value('ack'));
+    }
+
+    public function test_transbordo_na_fila_do_time_marca_nao_lida_sem_usuario(): void
+    {
+        $this->texto('oi');
+        $this->texto('Financeiro');
+
+        $this->atendimentoNaApi = ['uuid' => 'att-1', 'status' => 'PENDING', 'attendant' => null];
+        (new ConfirmPoliBotHandoff(self::CONTACT))->handle($this->bot());
+
+        $this->assertTrue($this->enviouPara('unread', fn ($corpo) => !isset($corpo['user_uuid'])));
+    }
+
+    public function test_nao_lida_recusada_com_usuario_tenta_sem_corpo(): void
+    {
+        $this->unreadRecusaUsuario = true;
+        $this->texto('oi');
+        $this->texto('Financeiro');
+
+        $this->atendimentoNaApi = ['uuid' => 'att-1', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => 'atendente-ana']];
+        (new ConfirmPoliBotHandoff(self::CONTACT))->handle($this->bot());
+
+        $this->assertTrue($this->enviouPara('unread', fn ($corpo) => !isset($corpo['user_uuid'])));
+        $this->assertSame('DONE', PoliMessage::where('texto', 'unread usuario=atendente-ana')->value('ack'));
+    }
+
+    public function test_falha_ao_marcar_nao_lida_nao_desfaz_o_transbordo(): void
+    {
+        $this->texto('oi');
+        $this->texto('Financeiro');
+
+        $this->atendimentoNaApi = ['uuid' => 'att-1', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => 'atendente-ana']];
+        $this->unreadFalha = true;
+        (new ConfirmPoliBotHandoff(self::CONTACT))->handle($this->bot());
+
+        $this->assertTrue($this->sessao()->isHuman());
+        $this->assertSame('FAILED', PoliMessage::where('texto', 'like', 'unread%')->value('ack'));
+    }
+
+    public function test_transbordo_que_nao_pegou_ou_config_desligada_nao_marca_nao_lida(): void
+    {
+        $this->texto('oi');
+        $this->texto('Financeiro');
+
+        $this->atendimentoNaApi = ['uuid' => 'att-1', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => self::LARA]];
+        (new ConfirmPoliBotHandoff(self::CONTACT))->handle($this->bot());
+        Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/unread'));
+
+        config(['poli.bot.mark_unread_on_handoff' => false]);
+        $this->texto('Atendente');
+        $this->atendimentoNaApi = ['uuid' => 'att-1', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => 'atendente-ana']];
+        (new ConfirmPoliBotHandoff(self::CONTACT))->handle($this->bot());
+        Http::assertNotSent(fn (Request $r) => str_ends_with($r->url(), '/unread'));
     }
 
     /* ---------------- fim do fluxo e agendamento ---------------- */
