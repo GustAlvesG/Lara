@@ -20,16 +20,19 @@
 
                 <div>
                     <x-input-label for="category" :value="__('Tipo de Espaço')" />
+                    @php $category = old('category', $item->category ?? \App\Models\PlaceGroup::CATEGORY_SPORT) ?: \App\Models\PlaceGroup::CATEGORY_SPORT; @endphp
                     <select name="category" id="category" class="w-full mt-1 px-3 py-2 border border-line-strong rounded-lg shadow-card focus:border-grena focus:ring-grena-tint bg-surface text-ink">
-                        <option value="esportiva" {{ (old('category', $item->category ?? '') == 'esportiva') ? 'selected' : '' }}>Esportiva</option>
-                        <option value="social" {{ (old('category', $item->category ?? '') == 'social') ? 'selected' : '' }} disabled>Social (Em breve)</option>
+                        @foreach (\App\Models\PlaceGroup::CATEGORIES as $value => $label)
+                            <option value="{{ $value }}" @selected($category === $value)>{{ $label }}</option>
+                        @endforeach
                     </select>
+                    <p class="mt-1 text-xs text-ink-3">Esportiva: reserva por horário, paga na hora. Social: o dia inteiro, com pré-reserva, contrato e aprovação da equipe.</p>
                 </div>
             </div>
         </div>
 
-        <!-- Secção 2: Horários de Operação e Vendas -->
-        <div class="bg-surface p-6 rounded-2xl shadow-card border border-line">
+        <!-- Secção 2: Horários de Operação e Vendas (só quadras: o espaço social é o dia inteiro) -->
+        <div class="bg-surface p-6 rounded-2xl shadow-card border border-line" data-sport-only>
             <div class="flex items-center gap-2 mb-6">
                 <div class="p-2 bg-warn-soft rounded-lg text-warn">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -90,16 +93,18 @@
                     <x-text-input name="maximum_antecedence" id="maximum_antecedence" type="number" class="block mt-1 w-full" :value="old('maximum_antecedence', $item->maximum_antecedence ?? '0')" />
                 </div>
 
-                <div>
+                <div data-sport-only>
                     <x-input-label for="duration" :value="__('Duração')" />
                     <x-text-input name="duration" id="duration" type="time" class="block mt-1 w-full" :value="old('duration', $item->duration ?? '01:00')" required />
                 </div>
 
-                <div>
+                <div data-sport-only>
                     <x-input-label for="daily_limit" :value="__('Limite Diário')" />
                     <x-text-input name="daily_limit" id="daily_limit" type="number" class="block mt-1 w-full" :value="old('daily_limit', $item->daily_limit ?? '1')" required />
                 </div>
             </div>
+
+            <p class="mt-3 text-xs text-ink-3" data-social-only>No espaço social, a data precisa estar entre hoje + antecedência mínima e hoje + antecedência máxima (em dias). Máxima 0 = sem limite.</p>
 
             <!-- Dias da Semana -->
             <div class="mt-8 pt-6 border-t border-line">
@@ -123,6 +128,44 @@
                     </label>
                     @endforeach
                 </div>
+            </div>
+        </div>
+
+        <!-- Secção 4: só espaço social -->
+        <div class="bg-surface p-6 rounded-2xl shadow-card border border-line" data-social-only>
+            <div class="flex items-center gap-2 mb-6">
+                <div class="p-2 bg-grena-tint rounded-lg text-grena-ink">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M9 20H4v-2a3 3 0 015.356-1.857M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                </div>
+                <h3 class="text-lg font-bold text-ink uppercase tracking-tight">Espaço social</h3>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div>
+                    <x-input-label for="social_payment_days" :value="__('Prazo p/ pagar (d)')" />
+                    <x-text-input name="social_payment_days" id="social_payment_days" type="number" min="1" class="block mt-1 w-full" :value="old('social_payment_days', $item->social_payment_days ?? \App\Models\PlaceGroup::DEFAULT_SOCIAL_PAYMENT_DAYS)" />
+                </div>
+                <div>
+                    <x-input-label for="social_active_limit" :value="__('Ativas ao mesmo tempo')" />
+                    <x-text-input name="social_active_limit" id="social_active_limit" type="number" min="1" class="block mt-1 w-full" :value="old('social_active_limit', $item->social_active_limit ?? '')" placeholder="Sem limite" />
+                </div>
+                <div>
+                    <x-input-label for="social_limit_count" :value="__('Máx. de reservas')" />
+                    <x-text-input name="social_limit_count" id="social_limit_count" type="number" min="1" class="block mt-1 w-full" :value="old('social_limit_count', $item->social_limit_count ?? '')" placeholder="Sem limite" />
+                </div>
+                <div>
+                    <x-input-label for="social_limit_days" :value="__('A cada (dias)')" />
+                    <x-text-input name="social_limit_days" id="social_limit_days" type="number" min="1" class="block mt-1 w-full" :value="old('social_limit_days', $item->social_limit_days ?? '')" placeholder="Sem limite" />
+                </div>
+            </div>
+            <p class="mt-3 text-xs text-ink-3">
+                O prazo para pagar conta da aprovação e nunca passa da véspera do evento. Os limites valem por sócio, no grupo; em branco, não se aplicam.
+                "Máx. de reservas a cada X dias" usa as datas dos eventos (ex.: 1 a cada 30 dias).
+            </p>
+
+            <div class="mt-6">
+                <x-input-label for="social_rules" :value="__('Regras mostradas ao sócio (app e e-mail)')" />
+                <textarea name="social_rules" id="social_rules" rows="4" class="mt-1 w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink shadow-card focus:border-grena focus:ring-grena-tint" placeholder="Ex.: Crianças com idade inferior a 4 anos não são contabilizadas como convidados.">{{ old('social_rules', $item->social_rules ?? '') }}</textarea>
             </div>
         </div>
     </div>
@@ -162,3 +205,35 @@
         </div>
     </div>
 </div>
+<script>
+    // Quadra x espaço social: cada categoria mostra só o que usa. O que some
+    // deixa de ser obrigatório, mas continua sendo enviado — horários vazios
+    // ganham o dia inteiro, que é o que o espaço social ocupa.
+    (function () {
+        const select = document.getElementById('category');
+        if (!select) return;
+
+        const apply = () => {
+            const social = select.value === 'social';
+            document.querySelectorAll('[data-sport-only]').forEach(el => {
+                el.classList.toggle('hidden', social);
+                el.querySelectorAll('input').forEach(input => {
+                    if (input.dataset.wasRequired === undefined) input.dataset.wasRequired = input.required ? '1' : '0';
+                    input.required = !social && input.dataset.wasRequired === '1';
+                });
+            });
+            document.querySelectorAll('[data-social-only]').forEach(el => el.classList.toggle('hidden', !social));
+
+            if (social) {
+                const fill = (id, value) => { const el = document.getElementById(id); if (el && !el.value) el.value = value; };
+                fill('start_time', '00:00');
+                fill('end_time', '23:59');
+                fill('duration', '23:59');
+                fill('daily_limit', '1');
+            }
+        };
+
+        select.addEventListener('change', apply);
+        apply();
+    })();
+</script>

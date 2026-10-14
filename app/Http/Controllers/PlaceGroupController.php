@@ -62,7 +62,9 @@ class PlaceGroupController extends Controller
 
     public function index_api($none = null)
     {
-        $groups = PlaceGroup::all();
+        // Só quadras: o app lista estes grupos na reserva por horário. Os
+        // sociais têm rota própria (`/api/social/groups`).
+        $groups = PlaceGroup::sport()->get();
         //Order by name
         $groups = $groups->sortBy('name');
 
@@ -325,6 +327,8 @@ class PlaceGroupController extends Controller
             'place_group' => $group,
             'rules'       => $rules,
             'contactors'  => Contactor::orderBy('name')->get(),
+            'conflictOptions' => Place::with('group')->get(),
+            'selectedConflicts' => [],
         ]);
     }
 
@@ -339,7 +343,9 @@ class PlaceGroupController extends Controller
             $validated['image'] = $imageName;
         }
 
-        $place = Place::create([
+        $group = PlaceGroup::find($validated['place_group_id']);
+
+        $place = Place::create(array_merge([
             'name'           => $validated['name'],
             'contactor_id'   => $this->contactorIdFor($request),
             // Autoatendimento de iluminação: liberado espaço a espaço, e nunca
@@ -349,7 +355,9 @@ class PlaceGroupController extends Controller
             'image'          => $validated['image'] ?? null,
             'price'          => $validated['price'],
             'status_id'      => $validated['status_id'],
-        ]);
+        ], $this->socialAttributes($request, $group)));
+
+        $this->syncConflicts($place, $request->input('conflicts', []));
 
         //Check if has rules
         if (!isset($validated['rules']) || empty($validated['rules'])) {
@@ -361,6 +369,63 @@ class PlaceGroupController extends Controller
         }
 
         return redirect()->route('place-group.show', ['place_group' => $validated['place_group_id']]);
+    }
+
+    /**
+     * Campos do espaço social. Espaço social não tem contator nem
+     * autoatendimento de luz: a reserva dele ocupa o dia inteiro, e um
+     * contator ligado deixaria a luz acesa 24 horas pela automação.
+     */
+    protected function socialAttributes(Request $request, ?PlaceGroup $group): array
+    {
+        if (! $group || ! $group->isSocial()) {
+            return [];
+        }
+
+        $data = $request->validate([
+            'description' => 'nullable|string|max:2000',
+            'amenities' => 'nullable|string|max:2000',
+            'capacity' => 'nullable|integer|min:1|max:100000',
+            'max_guests' => 'required|integer|min:0|max:100000',
+            'extra_guests' => 'nullable|integer|min:0|max:100000',
+            'extra_guest_price' => 'nullable|numeric|min:0|max:99999',
+        ]);
+
+        return [
+            'description' => $data['description'] ?? null,
+            'amenities' => $data['amenities'] ?? null,
+            'capacity' => $data['capacity'] ?? null,
+            'max_guests' => (int) $data['max_guests'],
+            'extra_guests' => (int) ($data['extra_guests'] ?? 0),
+            'extra_guest_price' => (float) ($data['extra_guest_price'] ?? 0),
+            'contactor_id' => null,
+            'self_service_lighting' => false,
+        ];
+    }
+
+    /**
+     * Grava os espaços que não podem ser usados no mesmo dia que este. O par
+     * vale nos dois sentidos, então a lista do formulário substitui todos os
+     * pares em que este espaço aparece — dos dois lados.
+     */
+    protected function syncConflicts(Place $place, array $ids): void
+    {
+        $ids = collect($ids)->map(fn ($id) => (int) $id)->filter(fn ($id) => $id > 0 && $id !== $place->id)->unique()->values();
+
+        DB::transaction(function () use ($place, $ids) {
+            DB::table('place_conflicts')
+                ->where('place_id', $place->id)
+                ->orWhere('conflicting_place_id', $place->id)
+                ->delete();
+
+            $now = now();
+            DB::table('place_conflicts')->insert($ids->map(fn ($id) => [
+                'place_id' => $place->id,
+                'conflicting_place_id' => $id,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->all());
+        });
     }
 
     /**
@@ -398,6 +463,8 @@ class PlaceGroupController extends Controller
             'place'      => $place,
             'rules'      => $this->filterRules($place->group),
             'contactors' => Contactor::orderBy('name')->get(),
+            'conflictOptions' => Place::with('group')->where('id', '!=', $place->id)->get(),
+            'selectedConflicts' => Place::conflictingPlaceIds($place->id),
         ]);
     }
 
@@ -415,14 +482,16 @@ class PlaceGroupController extends Controller
             $validated['image'] = $place->image;
         }
 
-        $place->update([
+        $place->update(array_merge([
             'name'         => $validated['name'],
             'contactor_id' => $this->contactorIdFor($request, $place),
             'self_service_lighting' => $request->boolean('self_service_lighting'),
             'price'        => $validated['price'],
             'status_id'    => $validated['status_id'],
             'image'        => $validated['image'] ?? null,
-        ]);
+        ], $this->socialAttributes($request, $place->group)));
+
+        $this->syncConflicts($place, $request->input('conflicts', []));
 
         $place->scheduleRules()->detach();
         //Check if has rules

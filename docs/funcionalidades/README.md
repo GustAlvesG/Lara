@@ -16,6 +16,8 @@ rotas).
 | [Placas de Carro / Estacionamento](estacionamento-placas.md) | Busca de veículos por placa e identificação do condutor provável. |
 | [Agendamento de Espaços](agendamento.md) | Reserva de quadras/salões pelo sócio: horários, colisão, limite e pagamento. |
 | [Espaços e Grupos (admin)](espacos-e-grupos.md) | Cadastro de grupos, espaços e regras de disponibilidade. |
+| [Reservas de Espaços Sociais](espacos-sociais.md) | Churrasqueiras e salões: pré-reserva do dia, contrato, aprovação com desconto, pagamento no app, convidados na portaria. |
+| [Front-end dos espaços sociais (Next.js)](../reservas-sociais-prompt-site-locacao.md) | Contrato da API `/api/social/*` e o prompt para o agente do site de locação. |
 | [Sócios](socios.md) | Login, registro, foto e autenticação JWT (integração MultiClubes). |
 | [Freelancers](freelancers.md) | Cadastro de freelancers, funções e serviços prestados. |
 | [Pix automático (Sicoob)](pix-sicoob.md) | **Movimenta dinheiro real:** o "Dar baixa" do financeiro transfere o valor do contrato via Pix. |

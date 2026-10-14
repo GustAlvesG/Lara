@@ -11,6 +11,10 @@ use App\Models\Member;
 use App\Models\Status;
 use App\Services\RedeItauService;
 use App\Services\SchedulesService;
+use App\Exceptions\SocialBookingException;
+use App\Models\Social\SocialBooking;
+use App\Services\Social\SocialBookingNotifier;
+use App\Services\Social\SocialBookingService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Client\RequestException;
 //use DB
@@ -21,8 +25,12 @@ class SchedulePaymentController extends Controller
     protected RedeItauService $redeItauService;
     protected SchedulesService $schedulesService;
 
-    public function __construct(RedeItauService $redeItauService, SchedulesService $schedulesService)
-    {
+    public function __construct(
+        RedeItauService $redeItauService,
+        SchedulesService $schedulesService,
+        protected SocialBookingService $socialBookings,
+        protected SocialBookingNotifier $socialNotifier,
+    ) {
         $this->redeItauService = $redeItauService;
         $this->schedulesService = $schedulesService;
     }
@@ -123,6 +131,18 @@ class SchedulePaymentController extends Controller
             return response()->json(['message' => 'Um ou mais agendamentos já foram pagos.'], 409);
         }
 
+        // 1.3 Reserva de espaço social: só depois de aprovada, dentro do prazo,
+        // sozinha no pagamento e pelo valor exato do total aprovado.
+        $socialBooking = null;
+        $socialBookings = SocialBooking::whereIn('schedule_id', $scheduleIds)->get();
+        if ($socialBookings->isNotEmpty()) {
+            try {
+                $socialBooking = $this->socialBookings->assertPayable($socialBookings, $scheduleIds, (float) $validated['paid_amount']);
+            } catch (SocialBookingException $e) {
+                return response()->json($e->toArray(), $e->status);
+            }
+        }
+
         // Verifica a colisão, usando o novo método auxiliar
         $collidingSchedules = $this->checkSchedulesForCollisions($scheduleIds);
         if ($collidingSchedules->isNotEmpty()) {
@@ -139,7 +159,7 @@ class SchedulePaymentController extends Controller
 
         try {
             // 2. Garante que todas as operações de DB ocorram em uma transação.
-            $schedulePayment = DB::transaction(function () use ($validated, $scheduleIds) {
+            $schedulePayment = DB::transaction(function () use ($validated, $scheduleIds, $socialBooking) {
                 
                 // A. Prepara os dados: remove 'schedule_ids' para a criação do Payment
                 $paymentData = array_diff_key($validated, array_flip(['schedule_ids']));
@@ -159,6 +179,11 @@ class SchedulePaymentController extends Controller
                         'status_id' => $schedulePayment->status_id
                     ]);
                 }
+
+                // D. Reserva social paga: estágio confirmado e convidados na portaria.
+                if ($socialBooking) {
+                    $this->socialBookings->markPaid($socialBooking, $schedulePayment);
+                }
                 
                 return $schedulePayment;
             });
@@ -171,7 +196,9 @@ class SchedulePaymentController extends Controller
             // Fora da transação e sem propagar falha: e-mail não desfaz pagamento.
             // Só notifica quando o pagamento de fato confirmou a reserva — um
             // pagamento que a mantenha pendente reenviaria o e-mail de pendência.
-            if ((int) $schedulePayment->status_id === 1) {
+            if ((int) $schedulePayment->status_id === 1 && $socialBooking) {
+                $this->socialNotifier->notify($socialBooking->fresh(), SocialBookingNotifier::CONFIRMED);
+            } elseif ((int) $schedulePayment->status_id === 1) {
                 try {
                     $this->schedulesService->notifyScheduleStatus(
                         Schedule::withoutGlobalScopes()->whereIn('id', $scheduleIds)->get(),

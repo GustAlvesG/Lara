@@ -89,6 +89,12 @@ class ScheduleRulesService
         $place = Place::find($place_id);
         $place_group = $place->group;
 
+        // Espaço social não tem grade de horários: é o dia inteiro, com
+        // pré-reserva (SocialAvailabilityService).
+        if ($place_group && $place_group->isSocial()) {
+            return [];
+        }
+
         //Check if date is in the weekdays of place group
         if ($place_group->weekdays && !$place_group->weekdays->contains('id', $weekday)) {
             return [];

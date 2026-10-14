@@ -60,6 +60,13 @@ Agendado pelo `VideoIntakeService` para 5 minutos depois do fim da reserva.
 
 ## 10.1.1. Comandos agendados relacionados
 
+### `social:expire-bookings`
+
+A cada 5 minutos (`routes/console.php`). Expira a reserva de espaço social aprovada e não paga
+até `payment_due_at`: estágio `expired`, schedule em status 4 (data livre) e e-mail
+`social.expired`. A pré-reserva em análise não expira sozinha. O `app:expire-pending-schedules`
+(hold de 10 minutos das quadras) deixa a reserva social de fora.
+
 ### `sicoob:pix-reconciliar`
 
 `app/Console/Commands/ReconcilePixPayments.php` — agendado a cada minuto

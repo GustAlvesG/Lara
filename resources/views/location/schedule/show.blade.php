@@ -202,6 +202,18 @@
 
             <!-- COLUNA DA DIREITA: FORMULÁRIO DE AÇÃO -->
             <div class="lg:col-span-7">
+                @if ($data['schedule']->socialBooking)
+                    {{-- Reserva de espaço social: estágio, convidados na portaria e
+                         estorno têm regra própria; mudar só o status daqui os deixaria
+                         para trás (o serviço também recusa). --}}
+                    <div class="bg-surface rounded-3xl shadow-pop border border-line p-8">
+                        <p class="text-sm font-black uppercase tracking-widest text-ink-3">Reserva de espaço social</p>
+                        <p class="mt-2 text-ink-2">Este dia inteiro pertence à reserva social #{{ $data['schedule']->socialBooking->id }} ({{ $data['schedule']->socialBooking->stageLabel() }}). Aprovar, cancelar e cuidar dos convidados é pela tela dela.</p>
+                        @can(\App\Authorization\Permissions::RESERVAS_SOCIAIS)
+                            <x-primary-button-a class="mt-4" href="{{ route('social-booking.show', $data['schedule']->socialBooking) }}">Abrir reserva social</x-primary-button-a>
+                        @endcan
+                    </div>
+                @else
                 <form action="{{ route('schedule.update') }}" method="POST" class="space-y-6">
                     @csrf
                     @method('PUT')
@@ -371,6 +383,7 @@
                         </div>
                     @endcan
                 </form>
+                @endif
             </div>
 
         </div>

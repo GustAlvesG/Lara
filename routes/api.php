@@ -35,6 +35,7 @@ use App\Http\Controllers\UberAccessRequestWebhookController;
 use App\Http\Controllers\InformationSearchController;
 use App\Http\Controllers\Api\PurchaseApprovalController;
 use App\Http\Controllers\Api\MemberLightingController;
+use App\Http\Controllers\Api\SocialBookingApiController;
 use App\Http\Controllers\Fleet\FleetApiController;
 use App\Http\Controllers\Replay\Api\CameraController as ReplayApiCameraController;
 use App\Http\Controllers\Replay\Api\VideoController as ReplayApiVideoController;
@@ -376,6 +377,24 @@ Route::middleware('api_token')->group(function () {
         | número daria acesso aos vídeos de outro sócio.
         */
         Route::get('/replay/my-videos', [ReplayPortalController::class, 'myVideos'])->name('api.replay.my-videos');
+
+        /*
+        | Espaços sociais (churrasqueiras, salões) — pré-reserva pelo app. O
+        | sócio sai sempre do JWT; o pagamento é o /schedule/payment de sempre.
+        */
+        Route::prefix('social')->group(function () {
+            Route::get('/groups', [SocialBookingApiController::class, 'groups'])->name('api.social.groups');
+            Route::get('/groups/{group}/places', [SocialBookingApiController::class, 'places'])->whereNumber('group')->name('api.social.places');
+            Route::get('/availability', [SocialBookingApiController::class, 'availability'])->name('api.social.availability');
+            Route::get('/beverages', [SocialBookingApiController::class, 'beverages'])->name('api.social.beverages');
+            Route::get('/limits', [SocialBookingApiController::class, 'limits'])->name('api.social.limits');
+            Route::get('/bookings', [SocialBookingApiController::class, 'index'])->name('api.social.bookings.index');
+            Route::post('/bookings', [SocialBookingApiController::class, 'store'])->middleware('throttle:20,1')->name('api.social.bookings.store');
+            Route::get('/bookings/{id}', [SocialBookingApiController::class, 'show'])->whereNumber('id')->name('api.social.bookings.show');
+            Route::put('/bookings/{id}', [SocialBookingApiController::class, 'update'])->whereNumber('id')->middleware('throttle:30,1')->name('api.social.bookings.update');
+            Route::put('/bookings/{id}/guests', [SocialBookingApiController::class, 'updateGuests'])->whereNumber('id')->middleware('throttle:30,1')->name('api.social.bookings.guests');
+            Route::delete('/bookings/{id}', [SocialBookingApiController::class, 'destroy'])->whereNumber('id')->name('api.social.bookings.destroy');
+        });
 
         Route::prefix('schedule')->group(function () {
 

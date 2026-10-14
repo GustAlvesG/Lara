@@ -9,6 +9,7 @@ use App\Models\Place;
 use App\Models\Member;
 use App\Models\Status;
 use App\Models\SchedulePayment;
+use App\Models\Social\SocialBooking;
 
 class Schedule extends Model
 {
@@ -67,6 +68,26 @@ class Schedule extends Model
     public function schedulePayment()
     {
         return $this->belongsTo(SchedulePayment::class, 'schedule_payment_id', 'id');
+    }
+
+    /** Reserva de espaço social que esta ocupação representa, se for uma. */
+    public function socialBooking()
+    {
+        return $this->hasOne(SocialBooking::class);
+    }
+
+    /**
+     * Só as ocupações que não são de espaço social. A reserva social ocupa o
+     * dia inteiro, e não pode contar como "o sócio já tem horário" nem ser
+     * expirada pelo hold de 10 minutos das quadras.
+     */
+    public function scopeWithoutSocial($query)
+    {
+        return $query->whereNotExists(function ($sub) {
+            $sub->selectRaw('1')
+                ->from('social_bookings')
+                ->whereColumn('social_bookings.schedule_id', 'schedules.id');
+        });
     }
 
     public function creator()

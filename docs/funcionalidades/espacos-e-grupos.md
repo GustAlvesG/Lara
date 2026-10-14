@@ -17,7 +17,7 @@ horário e reserva.
 
 | Campo | Função |
 |-------|--------|
-| `name`, `category` | Identificação e tipo (esportiva/social). |
+| `name`, `category` | Identificação e tipo: `esportiva` (reserva por horário) ou `social` (dia inteiro, com aprovação — ver [Espaços Sociais](espacos-sociais.md)). Grupo sem categoria é tratado como esportivo; a migration de 14/10/2026 preencheu os vazios. |
 | `image_vertical`, `image_horizontal` | Imagens de destaque. |
 | `icon`, `vertices` | Ícone e dados de mapa/localização. |
 | `duration` | Duração de cada slot (ex.: 01:00). |
@@ -27,8 +27,17 @@ horário e reserva.
 | `start_time` / `end_time` | Horário de funcionamento. |
 | `start_time_sales` / `end_time_sales` | Janela de vendas para o mesmo dia. |
 | `weekdays` | Dias da semana em que o grupo funciona. |
+| `social_payment_days` | *(social)* Prazo para pagar após a aprovação, em dias (padrão 7). |
+| `social_active_limit` | *(social)* Máximo de reservas futuras ativas por sócio no grupo. |
+| `social_limit_count` / `social_limit_days` | *(social)* No máximo N reservas a cada X dias por sócio. |
+| `social_rules` | *(social)* Texto de regras mostrado no app e nos e-mails. |
 
-**Telas:** `GET /place-group` (lista), `…/create`, `…/{id}/edit`. O serviço
+No grupo social, o formulário esconde horário, janela de vendas, duração e limite diário (eles
+seguem gravados com o dia inteiro) e lê a antecedência como "entre hoje + mínima e hoje +
+máxima; máxima 0 = sem limite".
+
+**Telas:** aba **Reservas › Locais e Grupos** (permissão `reservas.configurar`; o botão
+Configurações da agenda leva ao mesmo lugar) — `GET /place-group` (lista), `…/create`, `…/{id}/edit`. O serviço
 `PlaceGroupService` salva o grupo e sincroniza os dias da semana (relação N:N com `Weekday`).
 
 ## 2. Espaços (Place)
@@ -42,6 +51,14 @@ Um espaço é um local específico dentro de um grupo (ex.: "Quadra 1").
 | `price` | Preço por slot/hora. |
 | `status_id` | Ativo/inativo. |
 | `image` | Foto do espaço. |
+| `description`, `amenities` | *(social)* Observações/restrições e itens fornecidos, mostrados no app. |
+| `capacity` | *(social)* Total de pessoas (sócios + não sócios). |
+| `max_guests` | *(social)* Convidados não sócios incluídos no preço. |
+| `extra_guests`, `extra_guest_price` | *(social)* Quantos não sócios a mais podem ser contratados e o preço de cada. |
+| Conflitos (`place_conflicts`) | "Não pode ser usado no mesmo dia que": par de espaços, válido nos dois sentidos. Uma reserva ativa em um ocupa o outro (espaço combinado, salão que ocupa quadra). |
+
+Espaço de grupo social não tem contator nem autoatendimento de luz: o controller grava os dois
+vazios, porque a reserva do dia inteiro deixaria a luz acesa 24 horas.
 
 **Telas:** criados/editados a partir do grupo — `place-group.createPlace`,
 `place-group.storePlace`, `…editPlace`, `…updatePlace`, `…destroyPlace`. Um espaço pode ser

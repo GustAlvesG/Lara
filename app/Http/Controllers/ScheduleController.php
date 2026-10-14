@@ -197,8 +197,11 @@ class ScheduleController extends Controller
 
     public function destroyPending(Request $request)
     {
+        // A pré-reserva social não some por aqui: ela tem estágio, convidados e
+        // o próprio caminho de desistência (DELETE /api/social/bookings/{id}).
         $schedule = Schedule::where('id', $request->id)
             ->where('status_id', '3')
+            ->whereDoesntHave('socialBooking')
             ->first();
         if (empty($schedule)) {
             return response()->json(['message' => 'No pending schedules found with the provided ID.'], 404);
@@ -211,7 +214,7 @@ class ScheduleController extends Controller
 
     public function show($id)
     {
-        $schedule = Schedule::with(['status','place.group','member', 'creator', 'editor', 'schedulePayment'])->find($id);
+        $schedule = Schedule::with(['status','place.group','member', 'creator', 'editor', 'schedulePayment', 'socialBooking'])->find($id);
 
         if (!$schedule) {
             return response()->json(['message' => 'Schedule not founds.'], 404);

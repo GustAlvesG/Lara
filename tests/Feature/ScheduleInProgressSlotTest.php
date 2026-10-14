@@ -244,6 +244,14 @@ class ScheduleInProgressSlotTest extends TestCase
             $table->timestamps();
         });
 
+        // Lida pela colisão (Place::conflictingPlaceIds) desde os espaços sociais.
+        Schema::create('place_conflicts', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('place_id');
+            $table->unsignedBigInteger('conflicting_place_id');
+            $table->timestamps();
+        });
+
         Schema::create('schedules', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('place_id');

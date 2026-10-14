@@ -6,6 +6,11 @@ Permite que um **sócio reserve um horário** em um espaço (quadra, salão, etc
 calcula os horários disponíveis aplicando regras, antecedência e limites, detecta conflitos
 e, quando há cobrança, gera pagamento e envia e-mails de confirmação/pendência.
 
+> **Espaço social** (churrasqueira, salão) não usa esta grade: é reservado pelo dia inteiro,
+> com pré-reserva, contrato e aprovação — ver [Reservas de Espaços Sociais](espacos-sociais.md).
+> `getTimeOptions` devolve vazio para ele, `POST /api/schedule` recusa e a agenda do painel não
+> o lista.
+
 ## Para quem
 
 - **Sócios** (app móvel), via API autenticada por token JWT (`login_token`).
@@ -83,10 +88,14 @@ vêm na resposta da criação, não recalcular `nº de horários × preço da qu
 
 ## Detecção de colisão (`checkColide`)
 
-Compara apenas as **horas** (ignora a data) dos agendamentos ativos/pendentes do espaço. Dois
+Compara apenas as **horas** (ignora a data) dos agendamentos ativos/pendentes do espaço **e dos
+espaços em conflito com ele** (`Place::conflictingPlaceIds`, cadastrados em "Não pode ser usado
+no mesmo dia que"). Assim, uma reserva de espaço social vinculado à quadra (o dia inteiro)
+ocupa todos os horários da quadra, com a mensagem "Espaço bloqueado por reserva em …". Dois
 horários colidem quando se sobrepõem: `!(fimSlot <= inícioExistente || inícioSlot >= fimExistente)`.
 Agendamentos com status **cancelado (0)** ou **expirado (4)** não ocupam o horário. Se o
-próprio sócio já tem reserva no horário, retorna "Você já possui um agendamento nesse horário".
+próprio sócio já tem reserva no horário, retorna "Você já possui um agendamento nesse horário" —
+reserva de espaço social do sócio não conta aqui (a festa dele não o impede de jogar).
 
 ## Limite diário
 
@@ -114,6 +123,13 @@ requisição — `SchedulesService::notifyScheduleStatus()` é o ponto único de
   (forma, valor pago, data e transação).
 - Cancelamento pelo painel → status **0** → e-mail **`schedule.cancel`**, com o motivo digitado
   pelo administrador, a data/hora do cancelamento e o pagamento original.
+
+**Espaço social:** quando o `schedule_id` pago é de uma reserva social, o mesmo endpoint confere
+estágio, prazo e valor exato (`SocialBookingService::assertPayable`, recusa com `reason`
+`payment_mismatch`), confirma a reserva, libera os convidados na portaria e envia o e-mail
+próprio (`social.confirmed`), não o `schedule.confirm`. O hold de 10 minutos
+(`app:expire-pending-schedules`) não alcança a reserva social, e o cancelamento por
+`PUT /schedule/update` a recusa — ela é cancelada pela tela de Espaços Sociais.
 
 **Fluxo do app externo:** a reserva nasce em `POST /api/schedule` já como pendente (3) — só o
 e-mail de pendência sai nesse momento. A confirmação acontece em

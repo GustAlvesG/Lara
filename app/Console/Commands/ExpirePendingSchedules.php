@@ -37,7 +37,11 @@ class ExpirePendingSchedules extends Command
      */
     public function handle()
     {
+        // A reserva de espaço social também fica em 3 enquanto não paga, mas o
+        // prazo dela é outro (dias, não minutos): quem expira é
+        // `social:expire-bookings`.
         $expired = Schedule::withoutGlobalScopes()
+            ->withoutSocial()
             ->where('status_id', 3)
             ->where('created_at', '<', now()->subMinutes($this->holdMinutes))
             ->update(['status_id' => 4]);

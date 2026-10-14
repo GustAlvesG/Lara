@@ -14,7 +14,7 @@
     <a href="{{ route('place-group.show', $item->id) }}" class="font-display text-base font-semibold tracking-tight text-ink hover:text-grena-ink">
         {{ $item['name'] }}
     </a>
-    <p class="text-xs font-bold capitalize text-ink-3">{{ $item['category'] }}</p>
+    <p class="text-xs font-bold text-ink-3">{{ \App\Models\PlaceGroup::CATEGORIES[$item['category']] ?? ucfirst((string) $item['category']) }}</p>
 
     <x-slot:footer>
         <span class="text-sm text-ink-2">{{ $placeCount }} {{ $placeCount === 1 ? 'local' : 'locais' }}</span>

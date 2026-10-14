@@ -86,6 +86,31 @@ banco e integrações externas. Os controllers delegam a essas classes.
 
 ---
 
+## Social\SocialBookingService
+
+`app/Services/Social/SocialBookingService.php` — fluxo da reserva de espaço social.
+
+| Método | Descrição |
+|--------|-----------|
+| `request(Place, memberId, data, ?userId)` | Pré-reserva: trava o espaço, confere disponibilidade e limites, cria o `Schedule` do dia inteiro (status 3) e a reserva com itens e convidados. |
+| `updateDetails(booking, data, ?userId)` | Edita a pré-reserva (tudo menos data e espaço; ausente = mantém; `items`/`guests` substituem) enquanto em análise e antes do contrato ok — depois, `contract_closed`. Bebida já contratada mantém o preço. |
+| `markContract` | Contrato ok (+ anexo). |
+| `approve(booking, discount, reason, userId)` | Exige contrato; aplica desconto (com motivo), fixa total e `payment_due_at` (N dias do grupo, até a véspera). Total zero confirma na hora. |
+| `refuse` / `cancelByMember` / `cancel` | Recusa; desistência do sócio (só antes de pagar); cancelamento da equipe com estorno opcional pela Rede. |
+| `assertPayable` / `markPaid` | Usados por `SchedulePaymentController::store`. |
+| `expireOverdue` | Comando `social:expire-bookings`. |
+| `replaceGuests` / `syncGuestAccesses` | Lista de convidados e as liberações pontuais (`OneOffAccess`) na data do evento. |
+
+## Social\SocialAvailabilityService
+
+`app/Services/Social/SocialAvailabilityService.php` — `month()`/`dayStatus()` (`available`, `reserved`, `blocked`, `out_of_window`, considerando `place_conflicts`), `limits()` e `assertWithinLimits()` (ativas ao mesmo tempo; N a cada X dias).
+
+## Social\SocialBookingNotifier
+
+`app/Services/Social/SocialBookingNotifier.php` — e-mails `social.requested|approved|refused|confirmed|expired|cancelled`, template `emails.social.status`, enviados por `EmailService::sendScheduleMail`.
+
+---
+
 ## MemberService
 
 `app/Services/MemberService.php` — sócios, com integração ao SQL Server (MultiClubes).

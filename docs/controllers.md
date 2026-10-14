@@ -53,7 +53,32 @@ indicados como _stub_.
 
 | Método | Assinatura | Descrição | Rota |
 |--------|-----------|-----------|------|
-| `store` | `store(StoreSchedulePaymentRequest $request)` | Registra um pagamento de agendamento (via `SchedulePaymentService`, em transação). | `POST /api/schedule/payment` |
+| `store` | `store(StoreSchedulePaymentRequest $request)` | Registra um pagamento de agendamento (via `SchedulePaymentService`, em transação). Se o schedule é de reserva social, confere estágio/prazo/valor (`SocialBookingService::assertPayable`, recusa com `reason`) e confirma a reserva (`markPaid`). | `POST /api/schedule/payment` |
+
+---
+
+## Social\SocialBookingController
+
+`app/Http/Controllers/Social/SocialBookingController.php` — painel dos espaços sociais. Regras em `SocialBookingService`.
+
+| Método | Descrição | Rota |
+|--------|-----------|------|
+| `index` | Lista com filtros (situação, espaço, período, sócio) e contadores da fila. | `GET /social-bookings` |
+| `create` / `store` | Pré-reserva no balcão (sócio pelo MultiClubes via `MemberService::memberByCpf`). | `GET /social-bookings/create`, `POST /social-bookings` |
+| `show` | Detalhe com as ações do estágio. | `GET /social-bookings/{booking}` |
+| `updateDetails` | Edita a pré-reserva: evento, pessoas, extras, observações e bebidas (em análise, antes do contrato ok). | `PUT …/details` |
+| `contract` / `downloadContract` | Contrato ok + anexo opcional no disco `local` (`social-contracts/`). | `POST`/`GET …/contract` |
+| `approve` / `refuse` / `cancel` | Decisão; o cancelamento estorna pela Rede se pedido (exige `reservas.pagamentos.estornar`). | `POST …/approve`, `…/refuse`, `…/cancel` |
+| `updateGuests` / `guestsPdf` | Lista de convidados (equipe, sem prazo) e PDF para a portaria. | `PUT …/guests`, `GET …/guests.pdf` |
+| `availability` | Calendário do mês (JSON) para a tela de pré-reserva. | `GET /social-bookings/availability` |
+
+## Social\SocialBeverageController
+
+`app/Http/Controllers/Social/SocialBeverageController.php` — catálogo de bebidas (nome, unidade, Código MV, preço, ativo). `index`/`store`/`update`/`destroy` em `/social-bookings/bebidas`.
+
+## Api\SocialBookingApiController
+
+`app/Http/Controllers/Api/SocialBookingApiController.php` — `/api/social/*` para o app de locação (T + L). O sócio sai do JWT; reserva alheia = 404; recusas como `{message, reason}`. Contrato em [reservas-sociais-prompt-site-locacao.md](reservas-sociais-prompt-site-locacao.md).
 
 ---
 

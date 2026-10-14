@@ -33,13 +33,27 @@ deletes, scopes globais, etc.).
 
 ### Place
 - **Tabela:** `places` · **SoftDeletes** · **scope global:** ordena por `name` asc
-- **`$fillable`:** `name`, `image`, `place_group_id`, `price`, `status_id`
-- **Relacionamentos:** `group()` belongsTo PlaceGroup (`place_group_id`) · `schedule()` hasMany Schedule · `scheduleRules()` belongsToMany ScheduleRules (pivô `place_schedule_rule`)
+- **`$fillable`:** `name`, `description`, `amenities`, `contactor_id`, `self_service_lighting`, `image`, `place_group_id`, `price`, `capacity`, `max_guests`, `extra_guests`, `extra_guest_price`, `status_id`
+- **Relacionamentos:** `group()` belongsTo PlaceGroup (`place_group_id`) · `schedule()` hasMany Schedule · `scheduleRules()` belongsToMany ScheduleRules (pivô `place_schedule_rule`) · `conflicts()` belongsToMany Place (pivô `place_conflicts`)
+- **Helpers:** `Place::conflictingPlaceIds($id)` (conflitos nos dois sentidos) · `isSocial()`
 
 ### PlaceGroup
 - **Tabela:** `place_groups` · **SoftDeletes**
 - **`$fillable`:** `name`, `category`, `image_vertical`, `image_horizontal`, `status`, `vertices`, `icon`, `minimum_antecedence`, `maximum_antecedence`, `duration`, `interval`, `daily_limit`, `start_time`, `end_time`, `start_time_sales`, `end_time_sales`
+- **Campos sociais:** `social_payment_days`, `social_limit_count`, `social_limit_days`, `social_active_limit`, `social_rules`
+- **Constantes:** `CATEGORY_SPORT` (`esportiva`), `CATEGORY_SOCIAL` (`social`), `CATEGORIES` · scopes `sport()` e `social()` · `isSocial()`, `socialPaymentDays()`
 - **Relacionamentos:** `places()` hasMany Place · `tournaments()` hasMany Tournament (`group_id`) · `weekdays()` belongsToMany Weekday (pivô `week_days_place_group`)
+
+### Social\SocialBooking
+- **Tabela:** `social_bookings` — reserva de espaço social; `schedule_id` (1:1, a ocupação do dia inteiro), `member_id`, `place_id`, `event_date`, `stage`, dados do evento, `base_price`/`extra_guests`/`extra_guest_price`/`extras_total`/`items_total`/`discount`/`total`, contrato, aprovação, `payment_due_at`, recusa e cancelamento.
+- **Constantes:** `STAGE_*`, `ACTIVE_STAGES`, `STAGE_LABELS`, `SCHEDULE_STATUS` (estágio → status do schedule).
+- **Relacionamentos:** `schedule()`, `place()`, `member()`, `items()`, `guests()`, `approver()`, `contractChecker()`, `refuser()`, `canceller()`, `creator()`.
+- **Helpers:** `guestLimit()`, `grossTotal()`, `canPay()`, `canMemberEditGuests()`, `guestsEditableUntil()`, `isUnpaid()`.
+
+### Social\SocialBookingItem / SocialBookingGuest / SocialBeverage
+- `social_booking_items`: cópia da bebida (nome, unidade, `mv_code`, `unit_price`, `quantity`, `subtotal`).
+- `social_booking_guests`: convidado não sócio (`name`, `cpf` só dígitos, `one_off_access_id`).
+- `social_beverages` (SoftDeletes): catálogo — `name`, `unit`, `mv_code` (Código MV, manual), `price`, `active`.
 
 ### Weekday
 - **Tabela:** `weekdays` · `timestamps = false`

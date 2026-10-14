@@ -16,7 +16,8 @@ Visão geral do esquema: migrações, seeders e factories. Os detalhes de cada e
 |-------|---------|
 | **Usuários/Auth** | `users`, `password_reset_tokens`, `sessions`, `permissions`, `roles`, `model_has_roles`, `model_has_permissions`, `role_has_permissions` (Spatie) |
 | **Sócios** | `members` |
-| **Espaços** | `place_groups`, `places`, `weekdays`, `week_days_place_group` (pivô) |
+| **Espaços** | `place_groups`, `places`, `weekdays`, `week_days_place_group` (pivô), `place_conflicts` (pares de espaços que não podem ser usados no mesmo dia) |
+| **Espaços sociais** | `social_bookings`, `social_booking_items`, `social_booking_guests`, `social_beverages` |
 | **Agendamento** | `schedule_rules`, `place_schedule_rule` (pivô), `week_days_schedule_rule` (pivô), `schedules`, `schedule_payments`, `status`, `status_config` |
 | **Freelancers** | `freelancers`, `function_freelancers`, `freelancer_services` |
 | **Banco de horas** | `employees`, `time_entries`, `time_adjustments`, `banco_de_horas` |

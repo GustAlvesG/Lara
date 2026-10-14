@@ -6,7 +6,7 @@ colisão, preço proporcional, e-mails), [espacos-e-grupos.md](../funcionalidade
 
 ## Em uma frase
 
-O sócio reserva quadras e salões pelo **app/site de locação** (Next.js, API com `api_token` +
+O sócio reserva quadras (por horário) e **espaços sociais** (o dia inteiro, com aprovação) pelo **app/site de locação** (Next.js, API com `api_token` +
 JWT `login_token`); o painel do Lara mostra a agenda, cria reservas no balcão, cancela com
 estorno na **Rede (Itaú)** e configura grupos, espaços e regras. A reserva confirmada também
 acende a luz (Home Assistant) e é o que vincula os clipes do RePET.
@@ -19,7 +19,10 @@ acende a luz (Home Assistant) e é o que vincula os clipes do RePET.
 | Todos os Agendamentos | `schedule.list`, `schedule.show`, `schedule.update` (cancelar) | `reservas.agendamentos` |
 | Pagamentos | `payment.index`, `payment.show` (consulta ao vivo na Rede) | `reservas.pagamentos` |
 | Estorno | `payment.refund` | `reservas.pagamentos.estornar` |
-| Locais, grupos e regras (fora do menu) | `place-group.*`, `schedule-rules.store` | `reservas.configurar` |
+| Espaços Sociais | `social-booking.index/create/store/show/details/guests/guests.pdf/contract.download/availability` | `reservas.sociais` |
+| Espaços Sociais — decidir | `social-booking.contract/approve/refuse/cancel` (estornar pede também `reservas.pagamentos.estornar`) | `reservas.sociais.aprovar` |
+| Bebidas dos espaços sociais (botão na lista) | `social-booking.beverages.*` | `reservas.configurar` |
+| Locais e Grupos (aba desde 14/10/2026; também pelo botão Configurações da agenda) | `place-group.*`, `schedule-rules.store` | `reservas.configurar` |
 
 Pagamentos é sub-aba de Reservas, mas a URL continua `/payments`.
 
@@ -32,6 +35,32 @@ Pagamentos é sub-aba de Reservas, mas a URL continua `/payments`.
   `Status`, `Member` (sócio local; dados vêm do MultiClubes).
 - **Status:** 0 cancelado, 1 confirmado, 3 pendente, 4 expirado. O **4 é escondido por global
   scope** do `Schedule` — consultas que precisam dele usam `withoutGlobalScopes`.
+
+## Espaços sociais (desde 14/10/2026)
+
+Guia completo: [espacos-sociais.md](../funcionalidades/espacos-sociais.md). Pontos para quem mexe:
+
+- `PlaceGroup.category` = `esportiva` | `social` (constantes `CATEGORY_*`, scopes `sport()`/`social()`).
+  Tudo que é de quadra filtra `sport()`: agenda do painel, `index_api` (`/api/places/group`),
+  `getTimeOptions` (devolve `[]` para social), `createSchedule` (recusa social).
+- Fluxo em `App\Services\Social\SocialBookingService`: `requested` → (contrato ok + `approve`) →
+  `awaiting_payment` → (`markPaid`, chamado por `SchedulePaymentController::store`) → `confirmed`;
+  saídas `refused`, `cancelled`, `expired` (`social:expire-bookings`, 5 min).
+- A ocupação é um `Schedule` 00:00–23:59:59 ligado 1:1 (`social_bookings.schedule_id`); o status
+  dele segue `SocialBooking::SCHEDULE_STATUS`. `ExpirePendingSchedules` usa `withoutSocial()`;
+  `updateSchedulesStatus` e `destroyPending` recusam schedule social.
+- Edição da pré-reserva (`updateDetails`, painel e `PUT /api/social/bookings/{id}`): tudo menos
+  data e espaço, só em `requested` **e antes do contrato ok** (`SocialBooking::isEditable()`;
+  depois, `contract_closed`). Campo ausente fica; `items`/`guests` substituem a lista.
+- Valor = `base_price` + `extras_total` + `items_total` − `discount` (desconto só na aprovação,
+  com motivo). Preços congelados na pré-reserva (itens copiam nome, código MV e preço).
+- Convidados: lista até `max_guests` + `extra_guests` contratados; confirmada → `OneOffAccess` na
+  data (Monitor de Acesso). Sócio edita pelo app até a véspera.
+- `place_conflicts` vale nos dois sentidos (`Place::conflictingPlaceIds`) e entra no `checkColide`
+  e na disponibilidade social. É também como se monta espaço combinado ("Sauna + Tênis").
+- Recusas são `SocialBookingException` com `reason` estável; a API devolve `{message, reason}`.
+- E-mails `social.*` num template só (`emails.social.status`) via `SocialBookingNotifier`.
+- Espaço social não tem contator (o controller zera): a reserva acenderia a luz 24 h.
 
 ## Regras que costumam pegar
 
@@ -58,6 +87,7 @@ Pagamentos é sub-aba de Reservas, mas a URL continua `/payments`.
 |---|---|
 | `/api/places*`, `/api/place/{id}` | Grupos e espaços para o app. |
 | `/api/schedule*` | Criar, listar por espaço/sócio, mudar status, excluir pendente. |
+| `/api/social/*` | Espaços sociais: grupos, espaços, calendário, bebidas, limites, pré-reserva, convidados, desistência (`Api\SocialBookingApiController`, exige `login_token`). |
 | `POST /api/schedule/payment` | Pagamento (`SchedulePaymentController::store`) — confirma e manda o e-mail. |
 | `GET /api/schedule/generate-pdf` | PDF da agenda do dia. |
 | `/api/login`, `/api/register`, `/api/check-member`… | Sócio (`MemberAuthController`); JWT no header `Session`, vence no fim do dia. |
@@ -74,10 +104,15 @@ Rede: `RedeItauService` (token em cache 55 s, `getTransaction`, `refundPayment` 
 | `app/Services/SchedulesService.php`, `ScheduleRulesService.php`, `SchedulePricingService.php`, `PlaceGroupService.php`, `PlaceService.php` | Regras. |
 | `app/Services/RedeItauService.php`, `SchedulePaymentService.php` | Pagamento. |
 | `app/Console/Commands/ExpirePendingSchedules.php` | Expira o hold (agendado). |
+| `app/Services/Social/*`, `app/Models/Social/*`, `app/Http/Controllers/Social/*`, `Api/SocialBookingApiController.php` | Espaços sociais. |
+| `app/Console/Commands/ExpireSocialBookings.php` | Expira reserva social aprovada e não paga no prazo. |
+| `resources/views/location/social/*`, `emails/social/status.blade.php` | Telas e e-mail dos espaços sociais. |
 | `resources/views/location/*` (agenda, `schedule/`, `placeGroup/`, `place/`, `rule/`), `payments/*` | Telas. |
 
 ## Testes
 
 `tests/Feature/ScheduleInProgressSlotTest.php`, `tests/Unit/ScheduleProportionalPriceTest.php`,
-`tests/Unit/ScheduleNotificationTest.php`, `tests/Feature/Rebrand/ReservasScreensTest.php`.
+`tests/Unit/ScheduleNotificationTest.php`, `tests/Feature/Rebrand/ReservasScreensTest.php`,
+`tests/Feature/Social/*` (fluxo e API, sobre as migrations reais via `Tests\Concerns\CreatesSocialBookingSchema`),
+`tests/Feature/Rebrand/EspacosSociaisScreensTest.php`.
 Confira o isolamento SQLite do `phpunit.xml` antes de rodar.
