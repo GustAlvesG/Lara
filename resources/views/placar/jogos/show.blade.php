@@ -18,7 +18,7 @@
                     @endif
                 </h1>
                 <p class="text-ink-2 font-medium">
-                    {{ $jogo->modalidade->nome }} · {{ $jogo->data_hora->format('d/m/Y H:i') }}
+                    {{ $jogo->modalidade->nome }} · {{ $jogo->timeCasa->categoria }} · {{ $jogo->data_hora->format('d/m/Y H:i') }}
                     @if($jogo->competicao) · {{ $jogo->competicao->nome }} @endif
                 </p>
             </div>

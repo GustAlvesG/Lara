@@ -280,27 +280,20 @@ class ServiceController extends Controller
 
         if ($exceeding) {
             if (!$request->boolean('confirm_weekly_limit')) {
-                return back()
-                    ->withInput($request->except('coordinator_pin'))
-                    ->with('confirm_weekly_limit', $this->bulkWeeklyLimitMessage($exceeding));
+                return $this->backToBulkConfirmation($request, $exceeding);
             }
 
             try {
-                // O código de e-mail é preso a um contrato; num lote com várias
-                // linhas ele não serve, e a liberação é pelo PIN. Com uma linha
-                // só, o código daquela linha vale.
-                $single = count($exceeding) === 1 && count($rows) === 1 ? $rows[0] : null;
-
-                $coordinator = $this->authorizeCommercialCoordinator(
+                // PIN do coordenador, ou o código do lote pedido por e-mail
+                // (sendBulkWeeklyLimitCode), que cobre todas as linhas que
+                // passam do limite.
+                $coordinator = $this->authorizeCommercialCoordinatorFor(
                     $request->input('coordinator_matricula'),
                     $request->input('coordinator_pin'),
-                    $single ? (int) $single['freelancer_id'] : null,
-                    $single['start_date'] ?? null,
+                    $this->exceedingContracts($rows, $exceeding),
                 );
             } catch (CoordinatorAuthorizationException $e) {
-                return back()
-                    ->withInput($request->except('coordinator_pin'))
-                    ->with('confirm_weekly_limit', $this->bulkWeeklyLimitMessage($exceeding))
+                return $this->backToBulkConfirmation($request, $exceeding)
                     ->with('error', $e->getMessage());
             }
 
@@ -325,6 +318,73 @@ class ServiceController extends Controller
 
         return redirect()->route('freelancer-services.index')
             ->with('success', $created . ' serviço(s) registrado(s) com sucesso.');
+    }
+
+    /**
+     * Pede por e-mail UM código para o lote inteiro: o mesmo número libera
+     * todas as linhas que passam do limite. Como no registro individual, o
+     * botão é do próprio formulário (`formaction`), então as linhas voltam
+     * intactas.
+     */
+    public function sendBulkWeeklyLimitCode(StoreFreelancerServicesBulkRequest $request, WeeklyLimitCodeService $codes)
+    {
+        $rows = array_values($request->validated()['services']);
+        $exceeding = FreelancerService::rowsExceedingWeeklyLimit($rows);
+
+        if (!$exceeding) {
+            return back()
+                ->withInput($request->except('coordinator_pin'))
+                ->with('success', 'Nenhuma linha passa do limite: o lote pode ser registrado sem liberação.');
+        }
+
+        try {
+            $issued = $codes->issueForContracts($this->exceedingContracts($rows, $exceeding), auth()->user());
+        } catch (CoordinatorAuthorizationException $e) {
+            return $this->backToBulkConfirmation($request, $exceeding)->with('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->backToBulkConfirmation($request, $exceeding)
+                ->with('error', 'Não foi possível enviar o e-mail com o código. Verifique o servidor de e-mail e tente novamente.');
+        }
+
+        $first = $issued->first();
+
+        return $this->backToBulkConfirmation($request, $exceeding)->with(
+            'success',
+            'Código enviado aos coordenadores do setor ' . self::COORDINATOR_SECTOR . ' ('
+                . WeeklyLimitCodeService::maskEmails($first->sent_to) . '). Ele libera todas as linhas '
+                . 'acima do limite e vale até ' . WeeklyLimitCodeService::formatExpiry($first->expires_at)
+                . '. Peça a qualquer um deles que dite o número.'
+        );
+    }
+
+    /**
+     * Volta ao formulário em massa com o bloco de liberação aberto e tudo o
+     * que foi digitado — menos o PIN.
+     *
+     * @param  array<int, int>  $exceeding
+     */
+    private function backToBulkConfirmation(Request $request, array $exceeding)
+    {
+        return back()
+            ->withInput($request->except('coordinator_pin'))
+            ->with('confirm_weekly_limit', $this->bulkWeeklyLimitMessage($exceeding));
+    }
+
+    /**
+     * Contratos (freelancer + data) das linhas que passam do limite — é a
+     * eles que o código do lote fica preso.
+     *
+     * @param  array<int, int>  $exceeding  índices das linhas
+     * @return array<int, array{0: int, 1: string}>
+     */
+    private function exceedingContracts(array $rows, array $exceeding): array
+    {
+        return WeeklyLimitCodeService::distinctContracts(array_map(
+            fn(int $index) => [(int) $rows[$index]['freelancer_id'], $rows[$index]['start_date']],
+            $exceeding,
+        ));
     }
 
     /** @param  array<int, int>  $exceeding  índices das linhas */

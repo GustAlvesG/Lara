@@ -50,7 +50,7 @@ Assinatura (Tablet), Acompanhamento, Financeiro.
 |---|---|---|
 | `freelancers.*`, `freelancer-functions.*` | web | CRUD + `import/template`, `import` (antes de `/{id}`) |
 | `freelancer-services.index` | web, `servicos.listar` | Filtros na URL (`q`, `signature`, `issue`, `from/to`, `sort/dir`), 20/página |
-| `freelancer-services.*` (create, `em-massa`, import, show, `document`, `signature/{party}`, cancel, `weekly-limit-code`) | web, `servicos.gerenciar` | Rotas fixas **antes** de `/{freelancerService}` |
+| `freelancer-services.*` (create, `em-massa`, `em-massa/weekly-limit-code`, import, show, `document`, `signature/{party}`, cancel, `weekly-limit-code`) | web, `servicos.gerenciar` | Rotas fixas **antes** de `/{freelancerService}` |
 | `freelancer-batches.*` (`lotes`, `lotes/aprovacao`, `lotes/{batch}/analise`, `/diretoria/email`, `/diretoria`) | web, `servicos.gerenciar` + cargo | Código da diretoria: `throttle:10,1` |
 | `freelancer-validation.*` (`freelancer-services/validacao`) | web, Gate Comercial | Marca de abertura na sessão, uma validação por tela |
 | `freelancer-director.*` (`freelancer-services/diretoria`) | web, Gate Gerência | Cadastro versionado + imagem da assinatura |
@@ -109,6 +109,13 @@ Não há máquina de estados central: o estado é **derivado** das colunas (`*_s
   gravação). Aditivo não conta no limite semanal nem tem prazo de assinatura.
 - **Limite semanal:** 2 por semana **seg–dom** (`WEEKLY_LIMIT`); o 3º grava só com PIN do coordenador
   do Comercial ou código por e-mail (preso a freelancer + data, uso único, hash). Cancelado/falta não contam.
+  No registro em massa, **um código só cobre o lote**: `issueForContracts()` grava uma linha por
+  contrato acima do limite com o mesmo hash, e `consumeAll()` só queima se servir para todos. No trait,
+  `authorizeCommercialCoordinatorFor($matricula, $segredo, $contratos)` é a forma em lote, e
+  `authorizeCommercialCoordinator()` delega para ela com um contrato.
+- **Selects montados por `x-for` precisam de `:selected`** na `<option>`: o `x-model` aplica o valor
+  antes de as opções existirem, e a linha devolvida pelo servidor voltava desmarcada (bug do registro
+  em massa).
 - **Assinatura do diretor** é a imagem do cadastro de **quem recebeu o e-mail** (`freelancer_service_batches.freelancer_director_id`),
   em data URI, disco privado. Sem imagem, lote com redação 2 não vai à diretoria.
 - **Códigos da diretoria** cifrados (não hash: o reenvio repete os mesmos), `hash_equals`, `$hidden`.

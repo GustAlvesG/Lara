@@ -75,13 +75,44 @@ trait AuthorizesCommercialCoordinator
         ?int $freelancerId = null,
         $startDate = null,
     ): ?User {
+        $contracts = $freelancerId !== null && $startDate !== null ? [[$freelancerId, $startDate]] : [];
+
+        return $this->authorizeCommercialCoordinatorFor($matricula, $secret, $contracts);
+    }
+
+    /**
+     * A mesma regra, para vários contratos de uma vez — o registro em massa.
+     * O código vale se for o código do lote (WeeklyLimitCodeService::
+     * issueForContracts), que cobre todos os contratos listados; o PIN vale
+     * para qualquer quantidade.
+     *
+     * @param  array<int, array{0: int, 1: mixed}>  $contracts  [freelancer_id, data]
+     *
+     * @throws CoordinatorAuthorizationException
+     */
+    protected function authorizeCommercialCoordinatorFor(
+        ?string $matricula,
+        ?string $secret,
+        array $contracts,
+    ): ?User {
         $codes = $this->weeklyLimitCodes();
-        $boundToContract = $freelancerId !== null && $startDate !== null;
+
+        // Um contrato só passa pelo consume() de sempre; vários, pelo
+        // consumeAll(), que só aceita se o código servir para todos.
+        $consumeCode = function () use ($codes, $contracts, $secret): bool {
+            if ($contracts === []) {
+                return false;
+            }
+
+            return count($contracts) === 1
+                ? $codes->consume((int) $contracts[0][0], $contracts[0][1], $secret)
+                : $codes->consumeAll($contracts, $secret);
+        };
 
         // Sem matrícula, só o código libera — é o caminho de quem recebeu o
         // e-mail. Nada a conferir contra uma pessoa, e nada a atribuir.
         if (!filled($matricula)) {
-            if ($boundToContract && $codes->consume($freelancerId, $startDate, $secret)) {
+            if ($consumeCode()) {
                 return null;
             }
 
@@ -103,7 +134,7 @@ trait AuthorizesCommercialCoordinator
         // Ainda pode ser o código: informar a matrícula não impede que quem
         // ditou tenha sido outro coordenador. Só se tenta depois do PIN, para
         // que o uso normal do PIN não gaste as tentativas do código.
-        if ($boundToContract && $codes->consume($freelancerId, $startDate, $secret)) {
+        if ($consumeCode()) {
             return null;
         }
 

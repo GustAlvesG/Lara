@@ -44,10 +44,7 @@
                 </div>
             </div>
 
-            <div class="mt-6 flex justify-end gap-3">
-                <a href="{{ route('placar.competicoes.index') }}" class="px-6 py-3 rounded-xl font-bold text-ink-2 hover:bg-subtle transition">Cancelar</a>
-                <button type="submit" class="px-6 py-3 bg-grena text-white rounded-full font-bold shadow-card hover:bg-grena-hover transition">Cadastrar</button>
-            </div>
+            @include('placar.partials.botoes-cadastro', ['voltar' => route('placar.competicoes.index')])
         </form>
     </div>
 </div>

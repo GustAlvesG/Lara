@@ -21,6 +21,35 @@ Para incluir uma tela no menu, acrescente o item em `Navigation::links()` com a 
 catálogo (`App\Authorization\Permissions`) ou um Gate. O layout renderiza em toda tela, então a
 permissão é sempre perguntada por `can()` — nunca por método do model que consulte o banco.
 
+## Capa e página atual
+
+No modo Módulos, toda tela de um módulo abre com a **capa**: nome e cor do módulo, as páginas
+irmãs como abas e a estrela de favoritar. É por ela que a pessoa favorita a página, então nenhuma
+tela de módulo pode ficar sem capa. `Navigation::current()` descobre a página atual em duas
+etapas:
+
+1. **Pela rota**: o nome da rota é o do item do menu, ou casa com o `active` dele.
+2. **Pelo endereço**: não casou? Vale o item do menu cujo endereço é o começo **mais longo** do
+   endereço atual, em segmentos inteiros. É o que leva criar, editar e detalhe à aba do recurso:
+   `/placar/times/create` cai em Times; `/company/one-off-accesses/create` em Liberação Pontual
+   (e não em Empresas, que é `/company`); os lotes (`freelancer-batches.*`) caem em Serviços /
+   Contratos porque moram em `/freelancer-services/lotes`.
+
+Tela nova dentro do endereço do módulo não precisa de nada. Só use `active` quando a tela mora em
+outro endereço e se abre por uma página do módulo — é o caso do papel timbrado (aba Modelos, em
+Assinaturas) e das modalidades `place-group` (aba Novo Agendamento, em Reservas).
+
+- **Item solto** do menu (Home Assistant, Lara, Bot WhatsApp) tem capa sem abas, com a estrela.
+- **Conta** (Perfil, Documentação, Meu setor, Usuários, Setores) entra como grupo só para a capa:
+  as abas são os atalhos da conta que a pessoa alcança. Não aparece nos menus.
+- **Fora de qualquer módulo** (a vitrine de componentes, Banco de Horas e Questor, que saíram do
+  menu) não há página atual nem capa.
+- O **Dashboard** dispensa a capa (`:cover="false"`): é o início, e a saudação faz esse papel.
+  Qualquer outra tela que dispense a capa perde também a estrela.
+
+Nas telas de criar e editar, a estrela favorita a aba do recurso (a lista), porque favorito é
+sempre um destino do menu.
+
 ## Modos de navegação
 
 A pessoa escolhe no menu da conta, em **Navegação**:
@@ -94,5 +123,5 @@ faz isso a cada deploy.
 
 ## Testes
 
-`tests/Feature/Rebrand/ShellTest.php` (menu, capa e modos), `NavPreferencesTest.php` (favoritos
+`tests/Feature/Rebrand/ShellTest.php` (menu, capa, página atual em criar/editar e modos), `NavPreferencesTest.php` (favoritos
 na conta) e `tests/Feature/Authorization/NavigationMenuTest.php` (o que cada setor enxerga).

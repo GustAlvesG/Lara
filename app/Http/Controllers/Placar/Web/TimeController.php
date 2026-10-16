@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Placar\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Placar\Api\Concerns\UploadsPlacarImagem;
+use App\Http\Controllers\Placar\Web\Concerns\RedirecionaAposCadastro;
 use App\Http\Requests\Placar\UploadImagemRequest;
 use App\Models\Placar\Equipe;
 use App\Models\Placar\Jogador;
@@ -21,7 +22,7 @@ use InvalidArgumentException;
  */
 class TimeController extends Controller
 {
-    use UploadsPlacarImagem;
+    use RedirecionaAposCadastro, UploadsPlacarImagem;
 
     public function index(Request $request)
     {
@@ -80,8 +81,16 @@ class TimeController extends Controller
             'ativo' => true,
         ]);
 
-        return redirect()->route('placar.times.show', $time)
-            ->with('success', 'Time cadastrado com sucesso.');
+        // "Criar outro" mantém equipe e modalidade e a categoria: o caso
+        // comum é cadastrar as categorias de um clube em sequência, e
+        // manter a categoria também atende a quem cadastra o mesmo Sub-15
+        // para vários clubes.
+        return $this->aposCadastrar(
+            $request, 'times',
+            "Time \"{$time->load('equipe')->nomeExibicaoResolvido()}\" cadastrado com sucesso.",
+            manter: ['equipe_id', 'modalidade_id', 'categoria'],
+            link: ['url' => route('placar.times.show', $time), 'label' => 'Montar o elenco deste time'],
+        );
     }
 
     public function show(Request $request, Time $time)

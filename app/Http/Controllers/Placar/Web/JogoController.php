@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Placar\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Placar\Web\Concerns\RedirecionaAposCadastro;
 use App\Models\Placar\Competicao;
 use App\Models\Placar\Jogo;
 use App\Models\Placar\Modalidade;
@@ -20,6 +21,8 @@ use Illuminate\Validation\Rule;
  */
 class JogoController extends Controller
 {
+    use RedirecionaAposCadastro;
+
     public function index(Request $request)
     {
         $jogos = Jogo::query()
@@ -59,7 +62,34 @@ class JogoController extends Controller
             ->sortBy(fn (Time $time) => $this->chaveAlfabetica($time->nomeExibicaoResolvido()))
             ->values();
 
-        return view('placar.jogos.create', compact('modalidades', 'times', 'competicoes'));
+        $categorias = $this->categoriasDosTimes($times);
+
+        return view('placar.jogos.create', compact('modalidades', 'times', 'competicoes', 'categorias'));
+    }
+
+    /**
+     * Categorias para o filtro do Novo Jogo, só as que têm time ativo, cada
+     * uma com as modalidades em que existe (a tela esconde, por exemplo, o
+     * Sub-11 se só houver Sub-11 de futsal e a modalidade for vôlei).
+     *
+     * Agrupadas pela chave do CategoriaService — a mesma comparação que o
+     * store usa para barrar categorias diferentes —, então "Sub 15" antigo
+     * e "Sub-15" aparecem como uma opção só. Ordem natural: Sub-9 antes de
+     * Sub-11.
+     *
+     * @return \Illuminate\Support\Collection<int, array{chave: string, nome: string, modalidades: array<int, int>}>
+     */
+    private function categoriasDosTimes($times)
+    {
+        return $times
+            ->groupBy(fn (Time $time) => CategoriaService::chave($time->categoria))
+            ->map(fn ($doGrupo, $chave) => [
+                'chave' => (string) $chave,
+                'nome' => $doGrupo->first()->categoria,
+                'modalidades' => $doGrupo->pluck('modalidade_id')->unique()->values()->all(),
+            ])
+            ->sortBy('nome', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
     }
 
     /**
@@ -111,8 +141,14 @@ class JogoController extends Controller
             'criado_em_campo' => false,
         ]);
 
-        return redirect()->route('placar.jogos.show', $jogo)
-            ->with('success', 'Jogo cadastrado com sucesso.');
+        // "Criar outro" mantém o que uma rodada tem em comum: modalidade,
+        // categoria, competição, data e local. Os times, nunca.
+        return $this->aposCadastrar(
+            $request, 'jogos',
+            "Jogo {$casa->nomeExibicaoResolvido()} x {$fora->nomeExibicaoResolvido()} ({$casa->categoria}) cadastrado com sucesso.",
+            manter: ['modalidade_id', 'categoria', 'competicao_id', 'data_hora', 'local'],
+            link: ['url' => route('placar.jogos.escalacao.edit', $jogo), 'label' => 'Montar a escalação'],
+        );
     }
 
     public function show(Jogo $jogo)

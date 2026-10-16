@@ -207,7 +207,13 @@
                                             class="w-full min-w-[11rem] px-3 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none bg-surface text-ink">
                                             <option value="">Selecione...</option>
                                             <template x-for="f in freelancers" :key="f.id">
+                                                {{-- :selected, além do x-model: as opções nascem
+                                                     do x-for DEPOIS que o x-model aplicou o valor,
+                                                     e sem isto a linha devolvida pelo servidor
+                                                     (pedido de PIN, erro de validação) voltava
+                                                     com o freelancer desmarcado. --}}
                                                 <option :value="f.id" :disabled="f.incomplete"
+                                                    :selected="String(f.id) === String(row.freelancer_id)"
                                                     x-text="f.name + (f.incomplete ? ' — cadastro incompleto' : '')"></option>
                                             </template>
                                         </select>
@@ -218,7 +224,8 @@
                                             class="w-full min-w-[10rem] px-3 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none bg-surface text-ink">
                                             <option value="">Selecione...</option>
                                             <template x-for="f in functions" :key="f.id">
-                                                <option :value="f.id" x-text="f.name + ' (' + brl(f.price) + ' / ' + blockMinutes + 'min)'"></option>
+                                                <option :value="f.id" :selected="String(f.id) === String(row.function_freelancer_id)"
+                                                    x-text="f.name + ' (' + brl(f.price) + ' / ' + blockMinutes + 'min)'"></option>
                                             </template>
                                         </select>
                                     </td>
@@ -295,33 +302,60 @@
             </div>
 
             {{-- Mesma liberação do registro individual, pedida uma vez para o
-                 lote. Aqui só pelo PIN: o código de e-mail é preso a um contrato
-                 e não cobre um lote com várias linhas. --}}
-            @if(session('confirm_weekly_limit'))
+                 lote: o PIN do coordenador, ou UM código por e-mail que cobre
+                 todas as linhas acima do limite (sendBulkWeeklyLimitCode).
+
+                 O campo escondido mantém o bloco na tela quando o pedido de
+                 código volta por erro de validação, que não reenvia o flash. --}}
+            @php $weeklyLimitPending = session('confirm_weekly_limit') || old('weekly_limit_pending'); @endphp
+            @if($weeklyLimitPending)
                 <div class="mt-6 bg-surface rounded-2xl shadow-pop border-2 border-warn/40 overflow-hidden">
+                    <input type="hidden" name="weekly_limit_pending" value="1">
                     <div class="p-6 border-b border-line bg-warn-soft">
                         <h2 class="text-lg font-bold text-ink">Liberação do coordenador do setor Comercial</h2>
                         <p class="mt-1 text-sm text-ink-2">
-                            Peça que um coordenador informe a <b>própria matrícula</b> e o <b>próprio PIN</b>.
-                            O código por e-mail não serve aqui: ele vale para um contrato de cada vez — para
-                            esse caminho, use o registro individual.
+                            Somente um coordenador do setor Comercial pode liberar este lote.
+                            <b>Presencialmente</b>, ele informa a própria matrícula e o próprio PIN.
+                            <b>À distância</b>, envie o código: um número só, que libera todas as linhas
+                            acima do limite. Ele vai para todos os coordenadores do setor e qualquer um
+                            deles pode ditar — nesse caso a matrícula não é necessária.
                         </p>
                     </div>
 
-                    <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label class="block text-sm font-bold text-ink mb-1">Matrícula do coordenador <span class="text-danger">*</span></label>
-                            <input type="text" name="coordinator_matricula" value="{{ old('coordinator_matricula') }}"
-                                inputmode="numeric" autocomplete="off" required
-                                class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-warn-soft focus:border-warn outline-none transition bg-surface text-ink">
+                    <div class="p-6 space-y-6">
+                        {{-- Mesmo formulário, outro destino: as linhas voltam
+                             intactas depois do pedido. --}}
+                        <div class="flex flex-wrap items-center gap-3">
+                            <button type="submit" formaction="{{ route('freelancer-services.bulk.weekly-limit-code') }}"
+                                formnovalidate
+                                class="inline-flex items-center px-4 py-2 bg-warn-soft text-warn rounded-xl font-bold border border-warn/40 hover:bg-warn/20 transition">
+                                Nenhum coordenador presente? Enviar código por e-mail
+                            </button>
+                            <span class="text-xs text-ink-2">
+                                Um código para o lote todo. Se mudar as linhas, peça outro.
+                            </span>
                         </div>
 
-                        <div>
-                            <label class="block text-sm font-bold text-ink mb-1">PIN do coordenador <span class="text-danger">*</span></label>
-                            <input type="password" name="coordinator_pin" inputmode="numeric" maxlength="6"
-                                pattern="[0-9]{6}" autocomplete="new-password" required placeholder="••••••"
-                                class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-warn-soft focus:border-warn outline-none transition bg-surface text-ink tracking-[0.4em]">
-                            <p class="mt-1 text-xs text-ink-3">6 dígitos. Não fica guardado na tela.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-bold text-ink mb-1">Matrícula do coordenador</label>
+                                <input type="text" name="coordinator_matricula" value="{{ old('coordinator_matricula') }}"
+                                    inputmode="numeric" autocomplete="off"
+                                    class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-warn-soft focus:border-warn outline-none transition bg-surface text-ink">
+                                <p class="mt-1 text-xs text-ink-3">
+                                    Só para liberar com o PIN. Deixe em branco ao usar o código do e-mail.
+                                </p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-bold text-ink mb-1">PIN ou código <span class="text-danger">*</span></label>
+                                <input type="password" name="coordinator_pin" inputmode="numeric" maxlength="6"
+                                    pattern="[0-9]{6}" autocomplete="new-password" required placeholder="••••••"
+                                    class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-warn-soft focus:border-warn outline-none transition bg-surface text-ink tracking-[0.4em]">
+                                <p class="mt-1 text-xs text-ink-3">
+                                    6 dígitos: o PIN do coordenador, ou o código enviado por e-mail. Não fica guardado na tela.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -329,7 +363,7 @@
 
             <div class="mt-6 flex justify-end gap-3">
                 <a href="{{ route('freelancer-services.index') }}" class="px-6 py-3 rounded-xl font-bold text-ink-2 hover:bg-subtle transition">Cancelar</a>
-                @if(session('confirm_weekly_limit'))
+                @if($weeklyLimitPending)
                     <button type="submit" name="confirm_weekly_limit" value="1" class="px-6 py-3 bg-warn text-white dark:text-canvas rounded-xl font-bold shadow-card hover:bg-warn/90 transition">Liberar e registrar tudo</button>
                 @else
                     <button type="submit" class="px-6 py-3 bg-grena text-white rounded-xl font-bold shadow-card hover:bg-grena-hover transition">

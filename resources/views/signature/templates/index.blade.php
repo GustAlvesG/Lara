@@ -64,8 +64,12 @@
                                 </td>
                                 <td class="whitespace-nowrap px-5 py-3.5">
                                     <div class="flex items-center justify-end gap-1">
+                                        {{-- Emitir só de modelo ativo, como na tela do modelo.
+                                             "Revisar" fica dentro do "Ver". --}}
+                                        @if($template->active)
+                                            <x-secondary-button-a size="sm" href="{{ route('signature-documents.create', ['template' => $template->id]) }}"><x-icon name="doc" /> Emitir Documento</x-secondary-button-a>
+                                        @endif
                                         <x-secondary-button-a size="sm" href="{{ route('signature-templates.show', $template) }}"><x-icon name="eye" /> Ver</x-secondary-button-a>
-                                        <x-secondary-button-a size="sm" href="{{ route('signature-templates.edit', $template) }}"><x-icon name="pencil" /> Revisar</x-secondary-button-a>
                                         <form method="POST" action="{{ route('signature-templates.destroy', $template) }}"
                                               onsubmit="return confirm('Excluir (ou desativar, se já usado) o modelo \'{{ $template->name }}\'?')">
                                             @csrf

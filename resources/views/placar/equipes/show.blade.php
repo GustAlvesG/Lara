@@ -58,7 +58,7 @@
         <div class="bg-surface rounded-2xl shadow-pop border border-line overflow-hidden">
             <div class="p-6 border-b border-line flex items-center justify-between">
                 <h2 class="text-lg font-bold text-ink">Times</h2>
-                <a href="{{ route('placar.times.create') }}" class="text-sm font-bold text-grena-ink hover:underline">+ Novo time</a>
+                <a href="{{ route('placar.times.create', ['equipe_id' => $equipe->id]) }}" class="text-sm font-bold text-grena-ink hover:underline">+ Novo time</a>
             </div>
             @if($equipe->times->isEmpty())
                 <div class="p-6 text-sm text-ink-2">Nenhum time cadastrado para esta equipe.</div>

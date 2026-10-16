@@ -49,7 +49,7 @@
                             <tr>
                                 <th class="px-6 py-3">Data</th>
                                 <th class="px-6 py-3">Confronto</th>
-                                <th class="px-6 py-3">Modalidade</th>
+                                <th class="px-6 py-3">Modalidade · Categoria</th>
                                 <th class="px-6 py-3">Status</th>
                                 <th class="px-6 py-3 text-right">Ações</th>
                             </tr>
@@ -64,7 +64,7 @@
                                         <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-warn-soft text-warn">Criado em campo</span>
                                     @endif
                                 </td>
-                                <td class="px-6 py-4 text-ink">{{ $jogo->modalidade->nome }}</td>
+                                <td class="px-6 py-4 text-ink">{{ $jogo->modalidade->nome }} <span class="text-ink-3">· {{ $jogo->timeCasa->categoria }}</span></td>
                                 <td class="px-6 py-4">
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold
                                         @class([

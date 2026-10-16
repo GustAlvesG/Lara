@@ -734,6 +734,9 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             // antes de /{freelancerService} para não cair na rota do serviço.
             Route::get('/em-massa', [FreelancerServiceWebController::class, 'bulkCreate'])->name('freelancer-services.bulk');
             Route::post('/em-massa', [FreelancerServiceWebController::class, 'bulkStore'])->name('freelancer-services.bulk.store');
+            // Um código de liberação só para o lote inteiro (dispara e-mail).
+            Route::post('/em-massa/weekly-limit-code', [FreelancerServiceWebController::class, 'sendBulkWeeklyLimitCode'])
+                ->middleware('throttle:6,1')->name('freelancer-services.bulk.weekly-limit-code');
             Route::post('/', [FreelancerServiceWebController::class, 'store'])->name('freelancer-services.store');
             // Código de liberação do limite semanal por e-mail — declarado antes
             // de /{freelancerService} e com throttle baixo (dispara e-mail).

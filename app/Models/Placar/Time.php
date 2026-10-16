@@ -91,6 +91,18 @@ class Time extends Model
     }
 
     /**
+     * Rótulo para escolher o time numa lista (Novo Jogo): nome exibido +
+     * equipe, modalidade e categoria. A categoria vai sempre explícita
+     * porque o nome exibido só a contém quando é montado automaticamente —
+     * com `nome_exibicao` próprio ("Flamengo"), Sub-15 e Adulto ficavam
+     * indistinguíveis. Requer `equipe` e `modalidade` carregadas.
+     */
+    public function rotuloParaEscolha(): string
+    {
+        return "{$this->nomeExibicaoResolvido()} ({$this->equipe->nome} · {$this->modalidade->nome} · {$this->categoria})";
+    }
+
+    /**
      * URL absoluta da logo — própria se houver, senão cai para a da equipe.
      * Resolvido aqui (e não no cliente) por pedido explícito da API.
      */

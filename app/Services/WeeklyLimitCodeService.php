@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\CoordinatorAuthorizationException;
+use App\Mail\WeeklyLimitBatchCodeMail;
 use App\Mail\WeeklyLimitCodeMail;
 use App\Models\Freelancer;
 use App\Models\FreelancerWeeklyLimitCode;
@@ -10,6 +11,7 @@ use App\Models\User;
 use App\Models\FreelancerService as FreelancerServiceModel;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -28,7 +30,9 @@ use Illuminate\Support\Facades\Mail;
  * liberação veio de quem tem acesso à caixa de um coordenador.
  *
  * Ele vale para um contrato só (freelancer + data), uma vez só, por poucos
- * minutos e com um teto de tentativas.
+ * minutos e com um teto de tentativas. A exceção é o registro em massa
+ * (issueForContracts / consumeAll): um código só cobre os contratos do lote
+ * que passam do limite, e só é queimado quando serve para todos eles.
  */
 class WeeklyLimitCodeService
 {
@@ -128,6 +132,160 @@ class WeeklyLimitCodeService
             'requested_by' => $requestedBy?->id,
             'expires_at' => $expiresAt,
         ]);
+    }
+
+    /**
+     * Um código só para o registro em massa: o mesmo número libera todos os
+     * contratos do lote que passam do limite. Grava uma linha por contrato
+     * (freelancer + data), todas com o mesmo hash e a mesma validade, e manda
+     * UM e-mail por coordenador listando os contratos — ditar um código por
+     * linha numa lista grande não é viável.
+     *
+     * Com um contrato só, é o mesmo que issue(), inclusive o e-mail.
+     *
+     * @param  array<int, array{0: int, 1: string}>  $contracts  [freelancer_id, data Y-m-d]
+     * @return Collection<int, FreelancerWeeklyLimitCode>
+     *
+     * @throws CoordinatorAuthorizationException
+     */
+    public function issueForContracts(array $contracts, ?User $requestedBy = null): Collection
+    {
+        $contracts = self::distinctContracts($contracts);
+
+        if (count($contracts) === 1) {
+            return collect([$this->issue($contracts[0][0], $contracts[0][1], $requestedBy)]);
+        }
+
+        if ($contracts === []) {
+            throw new CoordinatorAuthorizationException('Nenhum contrato do lote precisa de liberação.');
+        }
+
+        $recipients = $this->recipients();
+
+        if ($recipients->isEmpty()) {
+            throw new CoordinatorAuthorizationException(
+                'Nenhum coordenador do setor ' . self::COORDINATOR_SECTOR . ' com e-mail cadastrado. '
+                . 'Cadastre o e-mail no painel (Usuários) ou libere presencialmente com o PIN.'
+            );
+        }
+
+        $freelancers = Freelancer::whereIn('id', array_column($contracts, 0))->get()->keyBy('id');
+
+        if ($freelancers->count() !== count(array_unique(array_column($contracts, 0)))) {
+            throw new CoordinatorAuthorizationException('Freelancer não encontrado.');
+        }
+
+        foreach ($contracts as [$freelancerId, $startDate]) {
+            FreelancerWeeklyLimitCode::for($freelancerId, $startDate)
+                ->whereNull('used_at')
+                ->update(['expires_at' => now()->subSecond()]);
+        }
+
+        $code = $this->randomCode();
+        $expiresAt = now()->addMinutes($this->ttlMinutes());
+
+        $listed = array_map(fn(array $contract) => [
+            'freelancer' => $freelancers[$contract[0]]->name,
+            'date' => Carbon::parse($contract[1]),
+        ], $contracts);
+
+        $delivered = $recipients->filter(function (User $coordinator) use ($listed, $code, $expiresAt, $requestedBy) {
+            try {
+                Mail::to($coordinator->email)->send(new WeeklyLimitBatchCodeMail(
+                    coordinator: $coordinator,
+                    contracts: $listed,
+                    code: $code,
+                    expiresAt: $expiresAt,
+                    requestedBy: $requestedBy,
+                ));
+
+                return true;
+            } catch (\Throwable $e) {
+                Log::warning('Falha ao enviar código de liberação do limite semanal (lote).', [
+                    'coordinator_id' => $coordinator->id,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return false;
+            }
+        })->map(fn(User $coordinator) => $coordinator->email)->values();
+
+        if ($delivered->isEmpty()) {
+            throw new CoordinatorAuthorizationException(
+                'Não foi possível enviar o e-mail com o código a nenhum coordenador do setor '
+                . self::COORDINATOR_SECTOR . '. Verifique o servidor de e-mail.'
+            );
+        }
+
+        $hash = Hash::make($code);
+
+        return collect($contracts)->map(fn(array $contract) => FreelancerWeeklyLimitCode::create([
+            'coordinator_id' => null,
+            'freelancer_id' => $contract[0],
+            'start_date' => $contract[1],
+            'code_hash' => $hash,
+            'sent_to' => $delivered->implode(', '),
+            'requested_by' => $requestedBy?->id,
+            'expires_at' => $expiresAt,
+        ]));
+    }
+
+    /**
+     * Confere o código ditado contra TODOS os contratos do lote, e só queima
+     * se servir para todos — liberar metade do lote não serve para nada, já
+     * que o lote grava tudo ou nada. Errou, conta uma tentativa em cada
+     * código pendente, como no consume().
+     *
+     * Um contrato só cai no consume(), que é o caminho de sempre.
+     *
+     * @param  array<int, array{0: int, 1: string}>  $contracts
+     */
+    public function consumeAll(array $contracts, ?string $code): bool
+    {
+        $contracts = self::distinctContracts($contracts);
+
+        if (count($contracts) === 1) {
+            return $this->consume($contracts[0][0], $contracts[0][1], $code);
+        }
+
+        if ($contracts === []) {
+            return false;
+        }
+
+        return DB::transaction(function () use ($contracts, $code) {
+            $pending = array_map(fn(array $contract) => $this->pending($contract[0], $contract[1]), $contracts);
+            $found = array_filter($pending);
+
+            $allMatch = count($found) === count($contracts)
+                && collect($found)->every(fn(FreelancerWeeklyLimitCode $pendingCode) => $pendingCode->matches($code));
+
+            foreach ($found as $pendingCode) {
+                $allMatch
+                    ? $pendingCode->forceFill(['used_at' => now()])->save()
+                    : $pendingCode->increment('attempts');
+            }
+
+            return $allMatch;
+        });
+    }
+
+    /**
+     * Pares freelancer + data sem repetição e com a data normalizada: duas
+     * linhas do mesmo freelancer no mesmo dia são o mesmo código.
+     *
+     * @param  array<int, array{0: int|string, 1: mixed}>  $contracts
+     * @return array<int, array{0: int, 1: string}>
+     */
+    public static function distinctContracts(array $contracts): array
+    {
+        $unique = [];
+
+        foreach ($contracts as [$freelancerId, $startDate]) {
+            $date = Carbon::parse($startDate)->toDateString();
+            $unique[(int) $freelancerId . '|' . $date] = [(int) $freelancerId, $date];
+        }
+
+        return array_values($unique);
     }
 
     /** Há um código válido esperando para ser digitado? */

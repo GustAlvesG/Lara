@@ -878,9 +878,22 @@ quem calcula de verdade continua sendo o servidor.
   do mesmo freelancer na mesma semana estouram ainda que ele não tenha nada gravado. Estourando, o
   lote inteiro só grava com a liberação do coordenador do Comercial, pedida **uma vez** para o
   envio; `weekly_limit_authorized_by` fica gravado **só nas linhas que a exigiram**.
-- A liberação aqui é **pelo PIN**. O código por e-mail é preso a um contrato (coordenador +
-  freelancer + data) e não cobre um lote com várias linhas — para esse caminho, use o registro
-  individual.
+- A liberação aceita o **PIN** (matrícula + PIN do coordenador) ou **um código por e-mail para o
+  lote inteiro**. O botão *Nenhum coordenador presente? Enviar código por e-mail*
+  (`POST /freelancer-services/em-massa/weekly-limit-code`, `throttle:6,1`, botão do próprio
+  formulário via `formaction`) manda **um e-mail por coordenador listando todos os contratos acima
+  do limite**, com um número só. Esse número libera todas essas linhas de uma vez, sem matrícula.
+  - Por baixo, é uma linha em `freelancer_weekly_limit_codes` por contrato (freelancer + data),
+    todas com o mesmo hash e a mesma validade (`WeeklyLimitCodeService::issueForContracts`).
+  - A conferência (`consumeAll`) só aceita se o código servir para **todos** os contratos do lote, e
+    só então queima todos. Errou, conta uma tentativa em cada um.
+  - Se as linhas mudarem depois do pedido (outro freelancer ou outra data acima do limite), o código
+    não cobre o lote novo e é preciso pedir outro.
+  - Lote com um único contrato acima do limite usa o código individual de sempre (o mesmo e-mail do
+    registro individual).
+- Quando a tela volta pedindo a liberação (ou com erro), **todas as linhas voltam preenchidas**,
+  inclusive os selects de freelancer e função. Antes esses dois voltavam em branco, porque as
+  opções são montadas pelo Alpine depois do valor; agora cada opção tem `:selected`.
 
 ### Importação em massa por planilha
 As telas **Novo Freelancer** e **Novo Serviço** trazem um bloco "Importar por planilha", com o

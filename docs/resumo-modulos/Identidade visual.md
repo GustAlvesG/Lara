@@ -153,9 +153,12 @@ nos dois temas em `app.css`, a chave em `AreaColor::AREAS` e em `AREAS` do `tail
 
 - **`:bootstrap-grid="false"`** em toda tela nova. O grid do Bootstrap (`row`, `col-*`) só fica
   ligado (padrão `true`) nas telas antigas que ainda dependem dele.
-- **Capa do módulo** (`x-area-cover`): entra **sozinha** pelo layout, no modo Módulos, quando a
-  rota está no menu e o grupo tem abas. A tela não a chama. Ações na capa: `<x-slot name="coverActions">`.
-  Para dispensar: `<x-app-layout :cover="false">`.
+- **Capa do módulo** (`x-area-cover`): entra **sozinha** pelo layout, no modo Módulos, em toda
+  tela que pertence a um módulo — inclusive criar, editar e detalhe, que caem na aba do recurso
+  (regras em `docs/funcionalidades/navegacao-e-interface.md`, "Capa e página atual"). Item solto
+  do menu (Home Assistant, Bot WhatsApp) tem capa sem abas. A tela não a chama. Ações na capa:
+  `<x-slot name="coverActions">`. Para dispensar: `<x-app-layout :cover="false">` — só o
+  Dashboard faz isso; dispensar a capa tira também a estrela de favoritar.
 - **Tabela**, quando for o caso: dentro de `rounded-card bg-surface shadow-card`, cabeçalho com a
   classe de rótulo de seção, linhas `divide-y divide-line` com `hover:bg-subtle`, números e datas
   em `font-mono`. Paginação: `{{ $lista->links() }}` (já no visual novo, em

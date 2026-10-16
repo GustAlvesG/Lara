@@ -491,9 +491,11 @@
                 :class="navMode === 'side' ? (collapsed ? 'sm:ml-20' : 'sm:ml-64') : ''"
             >
                 {{-- Capa da área da página atual, com as páginas irmãs como
-                     abas. Só nas Módulos: nos menus de antes, quem leva às irmãs
-                     é o próprio menu. Tela fora do menu não tem capa. --}}
-                @if ($cover && $navCurrent && $navCurrent['tabs'])
+                     abas e a estrela de favoritar. Só nas Módulos: nos menus de
+                     antes, quem leva às irmãs é o próprio menu. Item solto do
+                     menu (Home Assistant) tem capa sem abas; criar/editar caem
+                     na aba do recurso (ver Navigation::current()). --}}
+                @if ($cover && $navCurrent)
                     <div class="nav-only-areas">
                         <x-area-cover
                             :area="$navCurrent['group']['area']"

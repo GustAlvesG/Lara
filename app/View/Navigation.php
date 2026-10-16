@@ -65,7 +65,8 @@ final class Navigation
             ['label' => 'Reservas', 'area' => 'reservas', 'glyph' => 'calendar',
                 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
                 'children' => [
-                    ['route' => 'schedule.index', 'label' => 'Novo Agendamento', 'permission' => P::RESERVAS_AGENDAMENTOS],
+                    // As modalidades (place-group) abrem pelo Novo Agendamento.
+                    ['route' => 'schedule.index', 'label' => 'Novo Agendamento', 'permission' => P::RESERVAS_AGENDAMENTOS, 'active' => ['schedule.index', 'place-group.*']],
                     ['route' => 'schedule.list', 'label' => 'Todos os Agendamentos', 'permission' => P::RESERVAS_AGENDAMENTOS],
                     ['route' => 'payment.index', 'label' => 'Pagamentos', 'permission' => P::RESERVAS_PAGAMENTOS, 'active' => 'payment.*'],
                 ],
@@ -119,7 +120,8 @@ final class Navigation
                 'children' => [
                     ['route' => 'signature-documents.index', 'label' => 'Documentos', 'permission' => 'acessar-documentos-assinatura', 'active' => 'signature-documents.*'],
                     ['route' => 'signature-reviews.index', 'label' => 'Revisão', 'permission' => 'acessar-revisao-assinatura', 'active' => 'signature-reviews.*'],
-                    ['route' => 'signature-templates.index', 'label' => 'Modelos', 'permission' => P::ASSINATURA_MODELOS, 'active' => 'signature-templates.*'],
+                    // O papel timbrado abre pela tela de Modelos.
+                    ['route' => 'signature-templates.index', 'label' => 'Modelos', 'permission' => P::ASSINATURA_MODELOS, 'active' => ['signature-templates.*', 'signature-layout.*']],
                     ['route' => 'minor-terms.index', 'label' => 'Termo de Menores', 'permission' => 'acessar-termo-menores', 'active' => 'minor-terms.*'],
                     ['route' => 'signature-guide.index', 'label' => 'Guia', 'permission' => 'acessar-guia-assinatura', 'active' => 'signature-guide.*'],
                 ]],
@@ -267,41 +269,88 @@ final class Navigation
             'links' => $links,
             'groups' => $groups,
             'index' => array_values($index),
-            'current' => self::current($links, $request),
+            'current' => self::current($links, array_values(array_filter(self::accountLinks(), $allowed)), $request),
         ];
     }
 
     /**
      * A página atual dentro do menu: o grupo dela (para a capa e o "você está
-     * em") e as páginas irmãs (as abas). Nulo fora do menu — perfil, telas de
-     * detalhe sem padrão `active`, a vitrine de componentes.
+     * em") e as páginas irmãs (as abas). É a capa que leva a estrela de
+     * favoritar, então toda tela que pertence a um módulo precisa cair aqui —
+     * inclusive as de criar, editar e detalhe, que não estão no menu.
+     *
+     * Nulo só fora de qualquer módulo: a vitrine de componentes, telas que
+     * saíram do menu (Banco de Horas, Questor).
+     *
+     * @param  list<array<string, mixed>>  $account  Atalhos da conta que a pessoa alcança.
      */
-    private static function current(array $links, Request $request): ?array
+    private static function current(array $links, array $account, Request $request): ?array
     {
+        // A conta não é módulo do menu, mas Perfil, Usuários e Setores
+        // também têm capa e estrela: entra como grupo só aqui.
+        if ($account !== []) {
+            $links[] = [
+                'label' => self::ACCOUNT_GROUP,
+                'area' => AreaColor::normalize('inicio'),
+                'glyph' => 'user',
+                'route' => $account[0]['route'],
+                'children' => $account,
+            ];
+        }
+
+        // 1) A rota é a do item, ou casa com o `active` dele.
         foreach ($links as $link) {
-            $items = $link['children'] ?? [$link];
-
-            foreach ($items as $item) {
-                if (! $request->routeIs($item['active'] ?? $item['route'])) {
-                    continue;
+            foreach ($link['children'] ?? [$link] as $item) {
+                if ($request->routeIs($item['active'] ?? $item['route'])) {
+                    return self::place($link, $item);
                 }
-
-                $tabs = array_map(fn ($child) => [
-                    'label' => __($child['label']),
-                    'href' => route($child['route']),
-                    'active' => $child['route'] === $item['route'],
-                ], $link['children'] ?? []);
-
-                return [
-                    'group' => $link,
-                    'key' => $item['route'],
-                    'label' => __($item['label']),
-                    'tabs' => $tabs,
-                ];
             }
         }
 
-        return null;
+        // 2) Criar, editar e detalhe: vale o item cujo endereço é o começo
+        //    mais longo do endereço atual. /placar/times/create cai em Times,
+        //    /freelancer-services/financeiro/lote/3 em Financeiro (e não em
+        //    Serviços), /company/5/worker/2 em Empresas. Pelo endereço, e não
+        //    pelo nome da rota, porque há telas do mesmo módulo com nome de
+        //    outro prefixo (freelancer-batches mora em /freelancer-services).
+        $path = trim($request->path(), '/');
+        $best = null;
+        $bestLength = 0;
+
+        foreach ($links as $link) {
+            foreach ($link['children'] ?? [$link] as $item) {
+                $itemPath = trim((string) parse_url(route($item['route'], [], false), PHP_URL_PATH), '/');
+
+                if ($itemPath === '' || strlen($itemPath) <= $bestLength) {
+                    continue;
+                }
+
+                if ($path === $itemPath || str_starts_with($path, $itemPath . '/')) {
+                    $best = [$link, $item];
+                    $bestLength = strlen($itemPath);
+                }
+            }
+        }
+
+        return $best ? self::place(...$best) : null;
+    }
+
+    private static function place(array $link, array $item): array
+    {
+        // Item solto (Home Assistant, Bot WhatsApp) não tem irmãs: capa sem
+        // abas, mas com a estrela.
+        $tabs = array_map(fn ($child) => [
+            'label' => __($child['label']),
+            'href' => route($child['route']),
+            'active' => $child['route'] === $item['route'],
+        ], $link['children'] ?? []);
+
+        return [
+            'group' => $link,
+            'key' => $item['route'],
+            'label' => __($item['label']),
+            'tabs' => $tabs,
+        ];
     }
 
     private static function entry(array $item, ?string $group, array $parent): array

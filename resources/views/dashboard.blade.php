@@ -5,7 +5,8 @@
     Leve de propósito — é a primeira tela de todo mundo: só números e listas
     curtas, sem gráfico e sem script de terceiros. Ver DashboardController.
 --}}
-<x-app-layout :bootstrap-grid="false">
+{{-- Sem capa: é o início, a saudação faz esse papel e o logo já leva aqui. --}}
+<x-app-layout :bootstrap-grid="false" :cover="false">
     <x-page class="gap-8">
 
         {{-- Boas-vindas --}}

@@ -34,6 +34,12 @@
                     @foreach (array_filter($lines, 'filled') as $line)
                         <p class="mt-1 text-sm text-ink-2">{{ $line }}</p>
                     @endforeach
+                    {{-- Atalho opcional para o próximo passo (ex.: "montar o elenco") --}}
+                    @if ($id === 'success' && is_array(session('success_link')))
+                        <a href="{{ session('success_link')['url'] }}" class="mt-2 inline-block text-sm font-bold underline hover:no-underline">
+                            {{ session('success_link')['label'] }} →
+                        </a>
+                    @endif
                 </div>
             </div>
             <button type="button" onclick="document.getElementById('{{ $id }}-alert').remove()" aria-label="Fechar aviso"

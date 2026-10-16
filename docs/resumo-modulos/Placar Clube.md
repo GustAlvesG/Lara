@@ -21,6 +21,23 @@ Cadastro escreve, scout só lê — por isso duas permissões. Cuidado com a ord
 `jogadores/import` e `jogos/{jogo}/escalacao` ficam **antes** do resource, e `->parameters()`
 corrige o singular (`jogadores` → `{jogador}`, `competicoes` → `{competicao}`).
 
+Não há rota `edit`: o `show` de cada cadastro **é** o formulário de edição. Por isso o `store`
+não redireciona para o `show`. Todo `store` web termina em
+`RedirecionaAposCadastro::aposCadastrar()` (`Placar/Web/Concerns`), que lê `acao` do request:
+`salvar` (ou ausente) volta para a lista, e `continuar` reabre o `create` com
+`withInput($manter)`. Nunca use `withInput()` sem campos, porque devolveria o nome do registro
+criado. O atalho do próximo passo vai em `success_link` (`['url', 'label']`), que o
+`partials/alerts` mostra embaixo do aviso de sucesso. Os botões são o partial
+`placar/partials/botoes-cadastro` ("Cadastrar" vem primeiro no HTML para o Enter acioná-lo).
+Guia do usuário: [funcionalidades/placar-clube.md](../funcionalidades/placar-clube.md).
+
+Novo Jogo: `JogoController::create` monta `$categorias` (agrupadas por
+`CategoriaService::chave`, cada uma com suas modalidades). A tela filtra times e competições
+com `<template x-if>` em volta de cada `<option>`, não com `x-show`, que o Safari ignora em
+`<option>`. O rótulo do time é `Time::rotuloParaEscolha()`, que sempre traz a categoria. O
+campo `categoria` do formulário é só filtro: não é validado nem gravado (a regra de mesma
+categoria continua no `store`).
+
 ## API para o Node (`/api/placar/*`)
 
 - Sanctum, token pessoal do `ApiCliente`, ability única `placar:operar`
@@ -71,6 +88,7 @@ Comandos: `placar:token {nome}`, `placar:migrar-midia [--dry-run]`.
 
 `tests/Feature/Placar/Api/*` (autenticação, eventos em lote, substituição/tempo, scout, mídia,
 criação em campo), `tests/Feature/Placar/Web/*`, `tests/Feature/Placar/*` (súmula por período e
-por time, importação, elenco), `tests/Unit/Placar/PlacarGatesTest.php`,
+por time, importação, elenco), `tests/Feature/Placar/Web/CadastroEmSequenciaTest.php` (os dois
+botões do cadastro), `tests/Unit/Placar/PlacarGatesTest.php`,
 `tests/Feature/Rebrand/FreelancersPlacarScreensTest.php`. Confira o isolamento SQLite do
 `phpunit.xml` antes de rodar e rode só a pasta: `php -d memory_limit=1G vendor/bin/phpunit tests/Feature/Placar`.

@@ -971,6 +971,10 @@ Ninguém precisa escrever HTML. O caminho da tela é **enviar o documento do Wor
 3. Em **Assinaturas → Modelos → Novo modelo**, clique em **Escolher arquivo .docx**. A tela
    preenche o texto, monta a lista de campos e mostra a prévia. Nada é gravado até salvar.
 
+Na lista de **Assinaturas → Modelos**, cada linha tem **Emitir Documento** (só em modelo ativo;
+abre a emissão já com o modelo escolhido) e **Ver**. O **Revisar** fica dentro do **Ver**, na
+tela do modelo.
+
 Revisar um modelo é o mesmo gesto: corrige-se o `.docx`, envia-se de novo em **Revisar** e
 salva-se — nasce a versão seguinte. Os rótulos e a obrigatoriedade já ajustados na tela são
 mantidos para os campos que continuam existindo.

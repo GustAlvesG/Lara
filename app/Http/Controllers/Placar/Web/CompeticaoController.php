@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Placar\Web;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Placar\Web\Concerns\RedirecionaAposCadastro;
 use App\Models\Placar\Competicao;
 use App\Models\Placar\Modalidade;
 use Illuminate\Http\Request;
 
 class CompeticaoController extends Controller
 {
+    use RedirecionaAposCadastro;
+
     public function index(Request $request)
     {
         $competicoes = Competicao::query()
@@ -40,8 +43,12 @@ class CompeticaoController extends Controller
 
         $competicao = Competicao::create([...$data, 'ativo' => true]);
 
-        return redirect()->route('placar.competicoes.show', $competicao)
-            ->with('success', "Competição \"{$competicao->nome}\" cadastrada com sucesso.");
+        return $this->aposCadastrar(
+            $request, 'competicoes',
+            "Competição \"{$competicao->nome}\" cadastrada com sucesso.",
+            manter: ['modalidade_id', 'temporada'],
+            link: ['url' => route('placar.competicoes.show', $competicao), 'label' => 'Abrir a competição'],
+        );
     }
 
     public function show(Competicao $competicao)

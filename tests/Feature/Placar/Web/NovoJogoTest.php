@@ -126,7 +126,7 @@ class NovoJogoTest extends TestCase
      * Antes de escolher a modalidade a lista aparece inteira, e "CF Adulto"
      * de futsal e de vôlei eram rótulos idênticos.
      */
-    public function test_a_opcao_mostra_a_equipe_e_a_modalidade(): void
+    public function test_a_opcao_mostra_a_equipe_a_modalidade_e_a_categoria(): void
     {
         $this->time('Clube dos Funcionários', 'CF', 'Adulto', $this->futsal);
         $this->time('Clube dos Funcionários', 'CF', 'Adulto', $this->volei);
@@ -134,7 +134,55 @@ class NovoJogoTest extends TestCase
         $this->actingAs($this->usuarioDoSetorEsporte())
             ->get(route('placar.jogos.create'))
             ->assertOk()
-            ->assertSee('CF Adulto (Clube dos Funcionários · Futsal)', false)
-            ->assertSee('CF Adulto (Clube dos Funcionários · Vôlei)', false);
+            ->assertSee('CF Adulto (Clube dos Funcionários · Futsal · Adulto)', false)
+            ->assertSee('CF Adulto (Clube dos Funcionários · Vôlei · Adulto)', false);
+    }
+
+    /**
+     * O nome exibido só traz a categoria quando é montado automaticamente.
+     * Com nome próprio, Sub-15 e Adulto do mesmo clube tinham o mesmo
+     * rótulo — era impossível saber qual escolher.
+     */
+    public function test_time_com_nome_proprio_ainda_mostra_a_categoria(): void
+    {
+        $adulto = $this->time('Clube dos Funcionários', 'CF', 'Adulto', $this->volei);
+        $sub15 = $this->time('Clube dos Funcionários', 'CF', 'Sub-15', $this->volei);
+        $adulto->update(['nome_exibicao' => 'Funcionários']);
+        $sub15->update(['nome_exibicao' => 'Funcionários']);
+
+        $this->actingAs($this->usuarioDoSetorEsporte())
+            ->get(route('placar.jogos.create'))
+            ->assertOk()
+            ->assertSee('Funcionários (Clube dos Funcionários · Vôlei · Adulto)', false)
+            ->assertSee('Funcionários (Clube dos Funcionários · Vôlei · Sub-15)', false);
+    }
+
+    /**
+     * O filtro de categoria tem uma opção por categoria com time ativo,
+     * unificando grafias equivalentes, em ordem natural (Sub-9 antes de
+     * Sub-11).
+     */
+    public function test_filtro_de_categoria_unifica_grafias_e_ordena_natural(): void
+    {
+        $this->time('Atibaia Esporte Clube', 'Atibaia', 'Sub-11', $this->futsal);
+        $this->time('Zebra Futebol Clube', 'Zebra', 'Sub-9', $this->futsal);
+        $this->time('Marília Vôlei', 'Marília', 'Sub 11', $this->volei);
+
+        $html = $this->tela();
+
+        $this->assertSame(1, substr_count($html, '<option value="sub11"'));
+        $this->assertLessThan($this->posicao($html, '<option value="sub11"'), $this->posicao($html, '<option value="sub9"'));
+    }
+
+    /** "Criar outro" volta com a categoria escolhida, e o filtro já a seleciona. */
+    public function test_categoria_mantida_volta_selecionada(): void
+    {
+        $this->time('Atibaia Esporte Clube', 'Atibaia', 'Sub-15', $this->futsal);
+
+        $this->actingAs($this->usuarioDoSetorEsporte())
+            ->withSession(['_old_input' => ['categoria' => 'sub15']])
+            ->get(route('placar.jogos.create'))
+            ->assertOk()
+            ->assertSee('<option value="sub15" selected', false);
     }
 }

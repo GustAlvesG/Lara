@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Placar\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Placar\Api\Concerns\UploadsPlacarImagem;
+use App\Http\Controllers\Placar\Web\Concerns\RedirecionaAposCadastro;
 use App\Http\Requests\Placar\UploadImagemRequest;
 use App\Models\Placar\Equipe;
 use App\Services\Placar\ImagemService;
@@ -17,7 +18,7 @@ use InvalidArgumentException;
  */
 class EquipeController extends Controller
 {
-    use UploadsPlacarImagem;
+    use RedirecionaAposCadastro, UploadsPlacarImagem;
 
     public function index(Request $request)
     {
@@ -54,8 +55,13 @@ class EquipeController extends Controller
             'ativo' => $request->boolean('ativo', true),
         ]);
 
-        return redirect()->route('placar.equipes.show', $equipe)
-            ->with('success', "Equipe \"{$equipe->nome}\" cadastrada com sucesso.");
+        // Nada a manter no "criar outro": cada equipe é um clube diferente.
+        // O próximo passo natural é criar os times dela.
+        return $this->aposCadastrar(
+            $request, 'equipes',
+            "Equipe \"{$equipe->nome}\" cadastrada com sucesso.",
+            link: ['url' => route('placar.times.create', ['equipe_id' => $equipe->id]), 'label' => 'Criar um time desta equipe'],
+        );
     }
 
     public function show(Equipe $equipe)

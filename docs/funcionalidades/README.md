@@ -21,6 +21,7 @@ rotas).
 | [Pix automático (Sicoob)](pix-sicoob.md) | **Movimenta dinheiro real:** o "Dar baixa" do financeiro transfere o valor do contrato via Pix. |
 | [Banco de Horas](banco-de-horas.md) | Importação de ponto, cálculo de saldo e ajustes. |
 | [Torneios](torneios.md) | Torneios, categorias, times, inscrições e pagamentos. |
+| [Placar Clube — cadastro](placar-clube.md) | Equipes, times, jogadores, competições e jogos do placar eletrônico; "Cadastrar" × "Cadastrar e criar outro"; Novo Jogo filtrado por categoria. |
 | [Empresas e Controle de Acesso](empresas.md) | Empresas terceirizadas, trabalhadores e regras de acesso. |
 | [Autorização de Ordem de Compra (Questor)](questor-autorizacao-compra.md) | Fila de ordens de compra do ERP Questor, com fluxo de aprovação em três níveis. |
 | [Front-end da aprovação (Next.js)](questor-frontend-prompt.md) | Contrato da API de aprovação externa e o prompt de implementação do site em DMZ. |
