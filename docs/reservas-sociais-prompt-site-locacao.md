@@ -7,6 +7,9 @@
 > **Estado:** implementado no Lara na branch `espacos-sociais` (14/10/2026). O contrato abaixo
 > é o do código (`App\Http\Controllers\Api\SocialBookingApiController`); se a API mudar, ajuste
 > aqui antes de colar.
+>
+> **Depois deste**, cole também [reservas-sociais-ajustes-prompt.md](reservas-sociais-ajustes-prompt.md)
+> (16/10/2026: mesas e cadeiras, horário do evento e aviso do prazo de contato).
 
 ---
 

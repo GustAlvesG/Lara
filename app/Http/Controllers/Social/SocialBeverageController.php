@@ -19,7 +19,7 @@ class SocialBeverageController extends Controller
     public function index(Request $request): View
     {
         return view('location.social.beverages', [
-            'beverages' => SocialBeverage::orderByDesc('active')->orderBy('name')->get(),
+            'beverages' => SocialBeverage::orderBy('category')->orderByDesc('active')->orderBy('name')->get(),
             'editing' => $request->filled('edit') ? SocialBeverage::find($request->input('edit')) : null,
         ]);
     }
@@ -49,13 +49,25 @@ class SocialBeverageController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:255',
+            'category' => 'required|in:' . implode(',', array_keys(SocialBeverage::CATEGORIES)),
             'unit' => 'nullable|string|max:60',
             'mv_code' => 'nullable|string|max:60',
             'price' => 'required|numeric|min:0|max:99999',
+            'tables_per_unit' => 'nullable|integer|min:0|max:100',
+            'chairs_per_unit' => 'nullable|integer|min:0|max:100',
+            'max_quantity' => 'nullable|integer|min:1|max:9999',
         ], [], [
             'mv_code' => 'Código MV',
+            'tables_per_unit' => 'mesas por unidade',
+            'chairs_per_unit' => 'cadeiras por unidade',
+            'max_quantity' => 'máximo por reserva',
         ]);
 
+        // Bebida não traz mesa nem cadeira, mesmo que o campo venha preenchido.
+        $furniture = $data['category'] === SocialBeverage::CATEGORY_FURNITURE;
+        $data['tables_per_unit'] = $furniture ? (int) ($data['tables_per_unit'] ?? 0) : 0;
+        $data['chairs_per_unit'] = $furniture ? (int) ($data['chairs_per_unit'] ?? 0) : 0;
+        $data['max_quantity'] = $data['max_quantity'] ?? null;
         $data['active'] = $request->boolean('active');
 
         return $data;

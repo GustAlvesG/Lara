@@ -509,6 +509,7 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::put('/{booking}/guests', [SocialBookingController::class, 'updateGuests'])->name('guests');
             Route::get('/{booking}/guests.pdf', [SocialBookingController::class, 'guestsPdf'])->name('guests.pdf');
             Route::get('/{booking}/contract', [SocialBookingController::class, 'downloadContract'])->name('contract.download');
+            Route::post('/{booking}/contact', [SocialBookingController::class, 'contact'])->name('contact');
         });
 
         Route::middleware('can:' . P::RESERVAS_SOCIAIS_APROVAR)->group(function () {

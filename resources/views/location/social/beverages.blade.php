@@ -1,13 +1,14 @@
-{{-- Catálogo de bebidas das reservas sociais. Preço e Código MV mudados aqui
-     não alteram reservas já feitas: cada uma guarda a cópia do item. --}}
+{{-- Catálogo das reservas sociais: bebidas e mobiliário (mesa, cadeira, jogo
+     completo). Preço, Código MV e o que cada unidade traz, mudados aqui, não
+     alteram reservas já feitas: cada uma guarda a cópia do item. --}}
 @php
     $item = $editing;
     $money = fn ($v) => 'R$ ' . number_format((float) $v, 2, ',', '.');
 @endphp
 <x-app-layout :bootstrap-grid="false">
     <x-page>
-        <x-page-title title="Bebidas dos espaços sociais" :back="route('social-booking.index')">
-            O que o sócio pode somar à locação. O Código MV é digitado à mão, para quem lança a venda no MV.
+        <x-page-title title="Bebidas e mobiliário" :back="route('social-booking.index')">
+            O que o sócio pode somar à locação: bebidas e mesas, cadeiras ou jogos completos além dos que o espaço já inclui. O Código MV é digitado à mão, para quem lança a venda no MV.
         </x-page-title>
 
         @include('partials.alerts')
@@ -18,14 +19,25 @@
         @endif
 
         <section class="rounded-card bg-surface p-5 shadow-card">
-            <h2 class="mb-4 text-sm font-black uppercase tracking-widest text-ink-3">{{ $item ? 'Editar ' . $item->name : 'Nova bebida' }}</h2>
+            <h2 class="mb-4 text-sm font-black uppercase tracking-widest text-ink-3">{{ $item ? 'Editar ' . $item->name : 'Novo item' }}</h2>
             <form method="POST" action="{{ $item ? route('social-booking.beverages.update', $item) : route('social-booking.beverages.store') }}" class="grid grid-cols-1 gap-4 sm:grid-cols-5 sm:items-end">
                 @csrf
                 @if ($item) @method('PUT') @endif
-                <div class="sm:col-span-2"><x-input-label for="name" value="Nome" /><x-text-input id="name" name="name" class="mt-1" :value="old('name', $item->name ?? '')" required maxlength="255" /></div>
+                <div class="sm:col-span-2"><x-input-label for="name" value="Nome" /><x-text-input id="name" name="name" class="mt-1" :value="old('name', $item->name ?? '')" required maxlength="255" placeholder="Ex.: Jogo completo (mesa + 4 cadeiras)" /></div>
+                <div>
+                    <x-input-label for="category" value="Categoria" />
+                    <select id="category" name="category" class="mt-1 h-11 w-full rounded-xl border border-line-strong bg-surface px-3 text-ink">
+                        @foreach (\App\Models\Social\SocialBeverage::CATEGORIES as $value => $label)
+                            <option value="{{ $value }}" @selected(old('category', $item->category ?? 'bebida') === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <div><x-input-label for="unit" value="Unidade" /><x-text-input id="unit" name="unit" class="mt-1" :value="old('unit', $item->unit ?? '')" maxlength="60" placeholder="Ex.: fardo 12 un." /></div>
                 <div><x-input-label for="mv_code" value="Código MV" /><x-text-input id="mv_code" name="mv_code" class="mt-1 font-mono" :value="old('mv_code', $item->mv_code ?? '')" maxlength="60" /></div>
                 <div><x-input-label for="price" value="Preço (R$)" /><x-text-input type="number" step="0.01" min="0" id="price" name="price" class="mt-1" :value="old('price', $item->price ?? '')" required /></div>
+                <div data-furniture-only><x-input-label for="tables_per_unit" value="Mesas por unidade" /><x-text-input type="number" min="0" id="tables_per_unit" name="tables_per_unit" class="mt-1" :value="old('tables_per_unit', $item->tables_per_unit ?? 0)" /></div>
+                <div data-furniture-only><x-input-label for="chairs_per_unit" value="Cadeiras por unidade" /><x-text-input type="number" min="0" id="chairs_per_unit" name="chairs_per_unit" class="mt-1" :value="old('chairs_per_unit', $item->chairs_per_unit ?? 0)" /></div>
+                <div><x-input-label for="max_quantity" value="Máximo por reserva" /><x-text-input type="number" min="1" id="max_quantity" name="max_quantity" class="mt-1" :value="old('max_quantity', $item->max_quantity ?? '')" placeholder="Sem limite" /></div>
                 <label class="flex items-center gap-2 text-sm font-semibold text-ink sm:col-span-2">
                     <input type="checkbox" name="active" value="1" @checked(old('active', $item->active ?? true)) class="h-4 w-4 rounded border-line-strong text-grena-ink">
                     Disponível para novas reservas
@@ -38,14 +50,15 @@
         </section>
 
         @if ($beverages->isEmpty())
-            <x-empty-state icon="tag">Nenhuma bebida cadastrada.</x-empty-state>
+            <x-empty-state icon="tag">Nenhum item cadastrado.</x-empty-state>
         @else
             <div class="overflow-hidden rounded-card bg-surface shadow-card">
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
                         <thead>
                             <tr class="border-b border-line bg-subtle">
-                                <th class="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">Bebida</th>
+                                <th class="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">Item</th>
+                                <th class="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">Categoria</th>
                                 <th class="px-5 py-3.5 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">Código MV</th>
                                 <th class="px-5 py-3.5 text-right text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">Preço</th>
                                 <th class="px-5 py-3.5 text-center text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">Situação</th>
@@ -55,7 +68,11 @@
                         <tbody class="divide-y divide-line">
                             @foreach ($beverages as $beverage)
                                 <tr>
-                                    <td class="px-5 py-3.5"><p class="font-semibold text-ink">{{ $beverage->name }}</p><p class="text-xs text-ink-3">{{ $beverage->unit }}</p></td>
+                                    <td class="px-5 py-3.5"><p class="font-semibold text-ink">{{ $beverage->name }}</p><p class="text-xs text-ink-3">{{ $beverage->unit }}{{ $beverage->max_quantity ? ' · máx. ' . $beverage->max_quantity . ' por reserva' : '' }}</p></td>
+                                    <td class="px-5 py-3.5 text-ink-2">
+                                        {{ \App\Models\Social\SocialBeverage::CATEGORIES[$beverage->category] ?? $beverage->category }}
+                                        @if ($beverage->isFurniture())<span class="block text-xs text-ink-3">+{{ $beverage->tables_per_unit }} mesa(s), +{{ $beverage->chairs_per_unit }} cadeira(s)</span>@endif
+                                    </td>
                                     <td class="px-5 py-3.5 font-mono text-ink-2">{{ $beverage->mv_code ?: '—' }}</td>
                                     <td class="px-5 py-3.5 text-right font-mono font-semibold">{{ $money($beverage->price) }}</td>
                                     <td class="px-5 py-3.5 text-center"><x-pill :kind="$beverage->active ? 'ok' : 'off'">{{ $beverage->active ? 'Ativa' : 'Inativa' }}</x-pill></td>
@@ -74,4 +91,14 @@
             </div>
         @endif
     </x-page>
+
+    <script>
+        // Mesas/cadeiras por unidade só fazem sentido para mobiliário.
+        (function () {
+            const select = document.getElementById('category');
+            const apply = () => document.querySelectorAll('[data-furniture-only]').forEach(el => el.classList.toggle('hidden', select.value !== 'mobiliario'));
+            select.addEventListener('change', apply);
+            apply();
+        })();
+    </script>
 </x-app-layout>

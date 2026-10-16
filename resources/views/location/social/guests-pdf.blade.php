@@ -19,7 +19,7 @@
 <body>
     <h1>Convidados — {{ optional($booking->place)->name }}</h1>
     <div class="meta">
-        {{ $booking->event_date->format('d/m/Y') }} · {{ $booking->event_type }} · reserva #{{ $booking->id }} ({{ $booking->stageLabel() }})<br>
+        {{ $booking->event_date->format('d/m/Y') }}{{ $booking->timeLabel() ? ' · ' . $booking->timeLabel() : '' }} · {{ $booking->event_type }} · reserva #{{ $booking->id }} ({{ $booking->stageLabel() }})<br>
         Sócio responsável: {{ optional($booking->member)->name ?? '—' }} {{ optional($booking->member)->title ? '— matrícula ' . $booking->member->title : '' }}<br>
         {{ $booking->guests->count() }} convidado(s) não sócio(s) de {{ $booking->guestLimit() }} permitidos.
     </div>

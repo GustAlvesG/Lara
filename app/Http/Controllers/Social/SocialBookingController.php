@@ -49,6 +49,11 @@ class SocialBookingController extends Controller
         if ($request->filled('stage')) {
             $query->where('stage', $request->input('stage'));
         }
+        if ($request->input('contact') === 'pending') {
+            $query->pendingContact();
+        } elseif ($request->input('contact') === 'overdue') {
+            $query->pendingContact()->where('contact_due_at', '<', now());
+        }
         if ($request->filled('place_id')) {
             $query->where('place_id', $request->input('place_id'));
         }
@@ -68,6 +73,8 @@ class SocialBookingController extends Controller
             'places' => $this->socialPlaces(),
             'stages' => SocialBooking::STAGE_LABELS,
             'counts' => SocialBooking::selectRaw('stage, count(*) as total')->groupBy('stage')->pluck('total', 'stage'),
+            'awaitingContact' => SocialBooking::pendingContact()->count(),
+            'overdueContact' => SocialBooking::pendingContact()->where('contact_due_at', '<', now())->count(),
         ]);
     }
 
@@ -75,7 +82,7 @@ class SocialBookingController extends Controller
     {
         return view('location.social.create', [
             'places' => $this->socialPlaces(activeOnly: true),
-            'beverages' => SocialBeverage::active()->orderBy('name')->get(),
+            'beverages' => SocialBeverage::active()->orderBy('category')->orderBy('name')->get(),
         ]);
     }
 
@@ -85,6 +92,7 @@ class SocialBookingController extends Controller
         $data = $request->validate([
             'place_id' => 'required|integer|exists:places,id',
             'date' => 'required|date_format:Y-m-d',
+            'start_time' => 'nullable|date_format:H:i',
             'event_type' => 'required|string|max:120',
             'expected_guests' => 'nullable|integer|min:1|max:10000',
             'extra_guests' => 'nullable|integer|min:0|max:1000',
@@ -125,17 +133,18 @@ class SocialBookingController extends Controller
 
     public function show(SocialBooking $booking): View
     {
-        $booking->load(['place.group', 'member', 'items', 'guests.oneOffAccess', 'schedule.schedulePayment', 'approver', 'contractChecker', 'refuser', 'canceller', 'creator']);
+        $booking->load(['place.group', 'member', 'items', 'guests.oneOffAccess', 'schedule.schedulePayment', 'approver', 'contractChecker', 'refuser', 'canceller', 'creator', 'contactedBy']);
 
         return view('location.social.show', [
             'booking' => $booking,
-            'beverages' => SocialBeverage::active()->orderBy('name')->get(),
+            'beverages' => SocialBeverage::active()->orderBy('category')->orderBy('name')->get(),
         ]);
     }
 
     public function updateDetails(Request $request, SocialBooking $booking): RedirectResponse
     {
         $data = $request->validate([
+            'start_time' => 'nullable|date_format:H:i',
             'event_type' => 'required|string|max:120',
             'expected_guests' => 'nullable|integer|min:1|max:10000',
             'extra_guests' => 'nullable|integer|min:0|max:1000',
@@ -151,6 +160,14 @@ class SocialBookingController extends Controller
         $data['expected_guests'] = $data['expected_guests'] ?? null;
 
         return $this->attempt(fn () => $this->bookings->updateDetails($booking, $data, $request->user()->id), $booking, 'Dados da reserva atualizados.');
+    }
+
+    /** Registro de que a equipe falou com o sócio (encerra o prazo de contato). */
+    public function contact(Request $request, SocialBooking $booking): RedirectResponse
+    {
+        $data = $request->validate(['contact_notes' => 'nullable|string|max:1000']);
+
+        return $this->attempt(fn () => $this->bookings->registerContact($booking, $request->user()->id, $data['contact_notes'] ?? null), $booking, 'Contato registrado.');
     }
 
     public function contract(Request $request, SocialBooking $booking): RedirectResponse

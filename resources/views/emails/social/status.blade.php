@@ -69,7 +69,13 @@
                 <table class="details">
                     <tr><td class="label">Espaço</td><td class="value">{{ $data['place_name'] }}</td></tr>
                     <tr><td class="label">Data</td><td class="value">{{ $data['date'] }} <span style="font-weight: 400; color: #64748b;">({{ $data['weekday'] }})</span></td></tr>
+                    @if (!empty($data['time']))
+                        <tr><td class="label">Horário</td><td class="value">{{ $data['time'] }}</td></tr>
+                    @endif
                     <tr><td class="label">Evento</td><td class="value">{{ $data['event_type'] }}</td></tr>
+                    @if (isset($data['tables_total']))
+                        <tr><td class="label">Mesas e cadeiras</td><td class="value">{{ $data['tables_total'] }} mesa(s) · {{ $data['chairs_total'] }} cadeira(s)</td></tr>
+                    @endif
                     <tr><td class="label">Situação</td><td class="value">{{ $data['stage_label'] }}</td></tr>
                     <tr><td class="label">Locação do espaço</td><td class="value">R$ {{ $data['base_price'] }}</td></tr>
                     @if (($data['extra_guests'] ?? 0) > 0)

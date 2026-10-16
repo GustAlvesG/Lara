@@ -80,6 +80,30 @@
                 <label for="extra_guest_price" class="block text-sm font-semibold text-ink mb-1">Preço por convidado extra</label>
                 <x-text-input type="number" step="0.01" min="0" name="extra_guest_price" id="extra_guest_price" class="w-full" value="{{ old('extra_guest_price', $item->extra_guest_price ?? 0) }}" />
             </div>
+            <div>
+                <label for="base_tables" class="block text-sm font-semibold text-ink mb-1">Mesas incluídas</label>
+                <x-text-input type="number" min="0" name="base_tables" id="base_tables" class="w-full" value="{{ old('base_tables', $item->base_tables ?? '') }}" />
+            </div>
+            <div>
+                <label for="base_chairs" class="block text-sm font-semibold text-ink mb-1">Cadeiras incluídas</label>
+                <x-text-input type="number" min="0" name="base_chairs" id="base_chairs" class="w-full" value="{{ old('base_chairs', $item->base_chairs ?? '') }}" />
+                <p class="mt-1 text-xs text-ink-3">Mesas, cadeiras e jogos a mais vêm do catálogo (Espaços Sociais › Bebidas e mobiliário).</p>
+            </div>
+            <div>
+                <label for="event_duration_hours" class="block text-sm font-semibold text-ink mb-1">Duração do evento (horas)</label>
+                <x-text-input type="number" min="1" max="24" name="event_duration_hours" id="event_duration_hours" class="w-full" value="{{ old('event_duration_hours', $item->event_duration_hours ?? '') }}" />
+                <p class="mt-1 text-xs text-ink-3">Preenchido, o sócio informa o início e o fim é início + duração. Vazio, sem horário.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label for="event_earliest_start" class="block text-sm font-semibold text-ink mb-1">Início a partir de</label>
+                    <x-text-input type="time" name="event_earliest_start" id="event_earliest_start" class="w-full" value="{{ old('event_earliest_start', isset($item->event_earliest_start) ? substr($item->event_earliest_start, 0, 5) : '') }}" />
+                </div>
+                <div>
+                    <label for="event_latest_start" class="block text-sm font-semibold text-ink mb-1">Início até</label>
+                    <x-text-input type="time" name="event_latest_start" id="event_latest_start" class="w-full" value="{{ old('event_latest_start', isset($item->event_latest_start) ? substr($item->event_latest_start, 0, 5) : '') }}" />
+                </div>
+            </div>
             <div class="sm:col-span-2">
                 <label for="amenities" class="block text-sm font-semibold text-ink mb-1">Itens fornecidos</label>
                 <textarea name="amenities" id="amenities" rows="2" class="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink shadow-card focus:border-grena focus:ring-grena-tint" placeholder="Ex.: 15 jogos de mesa com 4 cadeiras, fogão e geladeira.">{{ old('amenities', $item->amenities ?? '') }}</textarea>

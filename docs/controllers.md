@@ -69,6 +69,7 @@ indicados como _stub_.
 | `updateDetails` | Edita a pré-reserva: evento, pessoas, extras, observações e bebidas (em análise, antes do contrato ok). | `PUT …/details` |
 | `contract` / `downloadContract` | Contrato ok + anexo opcional no disco `local` (`social-contracts/`). | `POST`/`GET …/contract` |
 | `approve` / `refuse` / `cancel` | Decisão; o cancelamento estorna pela Rede se pedido (exige `reservas.pagamentos.estornar`). | `POST …/approve`, `…/refuse`, `…/cancel` |
+| `contact` | Registra o contato com o sócio (encerra o prazo de 2 dias úteis). | `POST …/contact` |
 | `updateGuests` / `guestsPdf` | Lista de convidados (equipe, sem prazo) e PDF para a portaria. | `PUT …/guests`, `GET …/guests.pdf` |
 | `availability` | Calendário do mês (JSON) para a tela de pré-reserva. | `GET /social-bookings/availability` |
 

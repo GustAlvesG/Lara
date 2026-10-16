@@ -94,16 +94,34 @@ class SocialBookingApiController extends Controller
         ]);
     }
 
+    /** Bebidas ativas (só a categoria bebida, como antes do mobiliário). */
     public function beverages(): JsonResponse
     {
         return response()->json(
-            SocialBeverage::active()->orderBy('name')->get()->map(fn (SocialBeverage $b) => [
-                'id' => $b->id,
-                'name' => $b->name,
-                'unit' => $b->unit,
-                'price' => (float) $b->price,
-            ])
+            SocialBeverage::active()->beverages()->orderBy('name')->get()->map(fn (SocialBeverage $b) => $this->presentCatalogItem($b))
         );
+    }
+
+    /** Mesas, cadeiras e jogos completos ativos, com o que cada unidade acrescenta. */
+    public function furniture(): JsonResponse
+    {
+        return response()->json(
+            SocialBeverage::active()->furniture()->orderBy('name')->get()->map(fn (SocialBeverage $b) => $this->presentCatalogItem($b))
+        );
+    }
+
+    private function presentCatalogItem(SocialBeverage $item): array
+    {
+        return [
+            'id' => $item->id,
+            'category' => $item->category,
+            'name' => $item->name,
+            'unit' => $item->unit,
+            'price' => (float) $item->price,
+            'tables_per_unit' => (int) $item->tables_per_unit,
+            'chairs_per_unit' => (int) $item->chairs_per_unit,
+            'max_quantity' => $item->max_quantity,
+        ];
     }
 
     public function limits(Request $request): JsonResponse
@@ -158,12 +176,14 @@ class SocialBookingApiController extends Controller
         $data = Validator::make($request->except(['user', 'member_id', 'cpf']), [
             'place_id' => 'required|integer',
             'date' => 'required|date_format:Y-m-d',
+            'start_time' => 'nullable|date_format:H:i',
             'event_type' => 'required|string|max:120',
             'expected_guests' => 'nullable|integer|min:1|max:10000',
             'extra_guests' => 'nullable|integer|min:0|max:1000',
             'notes' => 'nullable|string|max:2000',
             'items' => 'nullable|array|max:50',
-            'items.*.beverage_id' => 'required|integer',
+            'items.*.item_id' => 'required_without:items.*.beverage_id|integer',
+            'items.*.beverage_id' => 'required_without:items.*.item_id|integer',
             'items.*.quantity' => 'required|integer|min:1|max:999',
             'guests' => 'nullable|array|max:500',
             'guests.*.name' => 'required|string|max:255',
@@ -219,13 +239,15 @@ class SocialBookingApiController extends Controller
             return $error;
         }
 
-        $data = Validator::make($request->only(['event_type', 'expected_guests', 'extra_guests', 'notes', 'items', 'guests']), [
+        $data = Validator::make($request->only(['start_time', 'event_type', 'expected_guests', 'extra_guests', 'notes', 'items', 'guests']), [
+            'start_time' => 'sometimes|nullable|date_format:H:i',
             'event_type' => 'sometimes|required|string|max:120',
             'expected_guests' => 'sometimes|nullable|integer|min:1|max:10000',
             'extra_guests' => 'sometimes|nullable|integer|min:0|max:1000',
             'notes' => 'sometimes|nullable|string|max:2000',
             'items' => 'sometimes|present|array|max:50',
-            'items.*.beverage_id' => 'required|integer',
+            'items.*.item_id' => 'required_without:items.*.beverage_id|integer',
+            'items.*.beverage_id' => 'required_without:items.*.item_id|integer',
             'items.*.quantity' => 'required|integer|min:0|max:999',
             'guests' => 'sometimes|present|array|max:500',
             'guests.*.name' => 'required|string|max:255',
@@ -270,6 +292,10 @@ class SocialBookingApiController extends Controller
             'stage' => $booking->stage,
             'stage_label' => $booking->stageLabel(),
             'date' => $booking->event_date->toDateString(),
+            'start_time' => $booking->start_time ? substr($booking->start_time, 0, 5) : null,
+            'end_time' => $booking->end_time ? substr($booking->end_time, 0, 5) : null,
+            'duration_hours' => $booking->duration_hours,
+            'ends_next_day' => $booking->endsNextDay(),
             'place' => [
                 'id' => $booking->place?->id,
                 'name' => $booking->place?->name,
@@ -284,13 +310,21 @@ class SocialBookingApiController extends Controller
             'extra_guests' => (int) $booking->extra_guests,
             'extra_guest_price' => (float) $booking->extra_guest_price,
             'extras_total' => (float) $booking->extras_total,
+            'base_tables' => (int) $booking->base_tables,
+            'base_chairs' => (int) $booking->base_chairs,
+            'tables_total' => $booking->tablesTotal(),
+            'chairs_total' => $booking->chairsTotal(),
             'items' => $booking->items->map(fn ($item) => [
+                'item_id' => $item->social_beverage_id,
                 'beverage_id' => $item->social_beverage_id,
+                'category' => $item->category,
                 'name' => $item->name,
                 'unit' => $item->unit,
                 'unit_price' => (float) $item->unit_price,
                 'quantity' => $item->quantity,
                 'subtotal' => (float) $item->subtotal,
+                'tables_per_unit' => (int) $item->tables_per_unit,
+                'chairs_per_unit' => (int) $item->chairs_per_unit,
             ])->values(),
             'items_total' => (float) $booking->items_total,
             'discount' => (float) $booking->discount,
@@ -325,6 +359,11 @@ class SocialBookingApiController extends Controller
             'max_guests' => (int) $place->max_guests,
             'extra_guests' => (int) $place->extra_guests,
             'extra_guest_price' => (float) $place->extra_guest_price,
+            'base_tables' => (int) $place->base_tables,
+            'base_chairs' => (int) $place->base_chairs,
+            'event_duration_hours' => $place->event_duration_hours,
+            'event_earliest_start' => $place->event_earliest_start ? substr($place->event_earliest_start, 0, 5) : null,
+            'event_latest_start' => $place->event_latest_start ? substr($place->event_latest_start, 0, 5) : null,
         ];
     }
 

@@ -90,7 +90,12 @@ class EspacosSociaisScreensTest extends TestCase
             'places' => collect(),
             'stages' => SocialBooking::STAGE_LABELS,
             'counts' => collect(['requested' => 3, 'awaiting_payment' => 1]),
+            'awaitingContact' => 2,
+            'overdueContact' => 1,
         ]);
+
+        $this->assertStringContainsString('1 com contato atrasado', $html);
+        $this->assertStringContainsString('2 aguardando contato', $html);
 
         $this->assertStringContainsString('3 em análise', $html);
         $this->assertStringContainsString('1 aguardando pagamento', $html);
@@ -108,6 +113,8 @@ class EspacosSociaisScreensTest extends TestCase
             'places' => collect(),
             'stages' => SocialBooking::STAGE_LABELS,
             'counts' => collect(),
+            'awaitingContact' => 0,
+            'overdueContact' => 0,
         ]);
 
         $this->assertStringNotContainsString(route('social-booking.beverages.index'), $html);
@@ -167,6 +174,23 @@ class EspacosSociaisScreensTest extends TestCase
         $this->assertStringNotContainsString(route('social-booking.details', 5), $comContrato);
     }
 
+    public function test_detalhe_mostra_horario_mesas_e_prazo_de_contato(): void
+    {
+        $booking = $this->booking();
+        $booking->forceFill(['start_time' => '20:00:00', 'end_time' => '02:00:00', 'duration_hours' => 6, 'base_tables' => 15, 'base_chairs' => 60, 'contact_due_at' => '2026-10-10 23:59:59']);
+        $booking->setRelation('contactedBy', null);
+
+        $html = $this->tela($this->atendente(), 'social-booking.show', ['booking' => 5], 'location.social.show', [
+            'booking' => $booking,
+            'beverages' => $this->beverages(),
+        ]);
+
+        $this->assertStringContainsString('20:00 às 02:00 (dia seguinte)', $html);
+        $this->assertStringContainsString('15 mesa(s) · 60 cadeira(s)', $html);
+        $this->assertStringContainsString('Atrasado: o prazo era 10/10/2026 23:59', $html);
+        $this->assertStringContainsString(route('social-booking.contact', 5), $html);
+    }
+
     public function test_quem_so_atende_nao_decide(): void
     {
         $html = $this->tela($this->atendente(), 'social-booking.show', ['booking' => 5], 'location.social.show', [
@@ -200,6 +224,9 @@ class EspacosSociaisScreensTest extends TestCase
         ]);
 
         $this->assertStringContainsString('Código MV', $html);
+        $this->assertStringContainsString('name="category"', $html);
+        $this->assertStringContainsString('name="chairs_per_unit"', $html);
+        $this->assertStringContainsString('name="max_quantity"', $html);
         $this->assertStringContainsString('name="mv_code"', $html);
         $this->assertStringContainsString('MV-123', $html);
     }
@@ -220,7 +247,7 @@ class EspacosSociaisScreensTest extends TestCase
             'selectedConflicts' => [],
         ]);
 
-        foreach (['name="capacity"', 'name="max_guests"', 'name="extra_guests"', 'name="extra_guest_price"', 'name="amenities"', 'name="conflicts[]"'] as $field) {
+        foreach (['name="base_tables"', 'name="base_chairs"', 'name="event_duration_hours"', 'name="event_earliest_start"', 'name="event_latest_start"', 'name="capacity"', 'name="max_guests"', 'name="extra_guests"', 'name="extra_guest_price"', 'name="amenities"', 'name="conflicts[]"'] as $field) {
             $this->assertStringContainsString($field, $html);
         }
         $this->assertStringContainsString('Tênis – Quadra 1', $html);

@@ -389,6 +389,11 @@ class PlaceGroupController extends Controller
             'max_guests' => 'required|integer|min:0|max:100000',
             'extra_guests' => 'nullable|integer|min:0|max:100000',
             'extra_guest_price' => 'nullable|numeric|min:0|max:99999',
+            'base_tables' => 'nullable|integer|min:0|max:10000',
+            'base_chairs' => 'nullable|integer|min:0|max:100000',
+            'event_duration_hours' => 'nullable|integer|min:1|max:24',
+            'event_earliest_start' => 'nullable|date_format:H:i',
+            'event_latest_start' => 'nullable|date_format:H:i',
         ]);
 
         return [
@@ -398,6 +403,11 @@ class PlaceGroupController extends Controller
             'max_guests' => (int) $data['max_guests'],
             'extra_guests' => (int) ($data['extra_guests'] ?? 0),
             'extra_guest_price' => (float) ($data['extra_guest_price'] ?? 0),
+            'base_tables' => $data['base_tables'] ?? null,
+            'base_chairs' => $data['base_chairs'] ?? null,
+            'event_duration_hours' => $data['event_duration_hours'] ?? null,
+            'event_earliest_start' => $data['event_earliest_start'] ?? null,
+            'event_latest_start' => $data['event_latest_start'] ?? null,
             'contactor_id' => null,
             'self_service_lighting' => false,
         ];

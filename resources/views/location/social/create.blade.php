@@ -45,6 +45,11 @@
                                 data-extra-guests="{{ (int) $place->extra_guests }}"
                                 data-extra-price="{{ (float) $place->extra_guest_price }}"
                                 data-capacity="{{ $place->capacity }}"
+                                data-base-tables="{{ (int) $place->base_tables }}"
+                                data-base-chairs="{{ (int) $place->base_chairs }}"
+                                data-duration="{{ (int) $place->event_duration_hours }}"
+                                data-earliest="{{ $place->event_earliest_start ? substr($place->event_earliest_start, 0, 5) : '' }}"
+                                data-latest="{{ $place->event_latest_start ? substr($place->event_latest_start, 0, 5) : '' }}"
                                 @selected((string) old('place_id') === (string) $place->id)>
                                 {{ optional($place->group)->name }} – {{ $place->name }} (R$ {{ number_format((float) $place->price, 2, ',', '.') }})
                             </option>
@@ -65,6 +70,11 @@
                         <x-pill kind="off" :icon="false">Fora da janela</x-pill>
                     </div>
                     <p class="mt-3 text-sm font-bold text-ink">Data escolhida: <span id="date-label" class="font-mono">{{ old('date') ? \Illuminate\Support\Carbon::parse(old('date'))->format('d/m/Y') : '—' }}</span></p>
+                    <div id="start-time-box" class="mt-4 hidden">
+                        <x-input-label for="start_time" value="Horário de início" />
+                        <x-text-input type="time" name="start_time" id="start_time" class="mt-1 sm:w-40" :value="old('start_time')" />
+                        <p id="start-time-info" class="mt-1 text-xs text-ink-3"></p>
+                    </div>
                 </section>
 
                 {{-- Sócio --}}
@@ -99,23 +109,14 @@
                     </div>
                 </section>
 
-                {{-- Bebidas --}}
+                {{-- Bebidas e mobiliário --}}
                 <section class="rounded-card bg-surface p-5 shadow-card">
-                    <h2 class="mb-4 text-sm font-black uppercase tracking-widest text-ink-3">Bebidas</h2>
-                    @forelse ($beverages as $i => $beverage)
-                        <div class="flex items-center justify-between gap-3 border-b border-line py-2 last:border-0">
-                            <div>
-                                <p class="font-semibold text-ink">{{ $beverage->name }}</p>
-                                <p class="text-xs text-ink-3">{{ $beverage->unit }} · R$ {{ number_format((float) $beverage->price, 2, ',', '.') }}</p>
-                            </div>
-                            <input type="hidden" name="items[{{ $i }}][beverage_id]" value="{{ $beverage->id }}">
-                            <input type="number" min="0" max="999" name="items[{{ $i }}][quantity]" value="{{ old('items.' . $i . '.quantity', 0) }}"
-                                data-beverage-price="{{ (float) $beverage->price }}"
-                                class="beverage-qty h-10 w-24 rounded-xl border border-line-strong bg-surface px-3 text-right text-ink" aria-label="Quantidade de {{ $beverage->name }}">
-                        </div>
-                    @empty
-                        <p class="text-sm text-ink-3">Nenhuma bebida ativa no catálogo.</p>
-                    @endforelse
+                    <h2 class="mb-1 text-sm font-black uppercase tracking-widest text-ink-3">Bebidas, mesas e cadeiras</h2>
+                    <p id="furniture-info" class="mb-4 text-xs text-ink-3"></p>
+                    @include('location.social.partials.catalog-items', [
+                        'catalog' => $beverages,
+                        'quantities' => collect(old('items', []))->pluck('quantity', 'beverage_id'),
+                    ])
                 </section>
 
                 {{-- Convidados --}}
@@ -143,9 +144,10 @@
                     <dl class="space-y-2 text-sm">
                         <div class="flex justify-between"><dt class="text-ink-2">Locação</dt><dd class="font-mono" id="sum-base">R$ 0,00</dd></div>
                         <div class="flex justify-between"><dt class="text-ink-2">Convidados extras</dt><dd class="font-mono" id="sum-extras">R$ 0,00</dd></div>
-                        <div class="flex justify-between"><dt class="text-ink-2">Bebidas</dt><dd class="font-mono" id="sum-items">R$ 0,00</dd></div>
+                        <div class="flex justify-between"><dt class="text-ink-2">Bebidas e mobiliário</dt><dd class="font-mono" id="sum-items">R$ 0,00</dd></div>
                         <div class="flex justify-between border-t border-line pt-2 text-base font-bold"><dt>Total</dt><dd class="font-mono" id="sum-total">R$ 0,00</dd></div>
                     </dl>
+                    <p class="mt-3 text-sm text-ink-2" id="sum-furniture"></p>
                     <p class="mt-3 text-xs text-ink-3">Desconto, se houver, é dado na aprovação.</p>
                     <x-primary-button class="mt-5 w-full" id="submit-social">Registrar pré-reserva</x-primary-button>
                 </section>
@@ -175,14 +177,39 @@
                 const base = opt && opt.value ? parseFloat(opt.dataset.price) : 0;
                 const extraPrice = opt && opt.value ? parseFloat(opt.dataset.extraPrice) : 0;
                 const extras = (parseInt(document.getElementById('extra_guests').value) || 0) * extraPrice;
-                let items = 0;
-                document.querySelectorAll('.beverage-qty').forEach(i => items += (parseInt(i.value) || 0) * parseFloat(i.dataset.beveragePrice));
+                let items = 0, tables = 0, chairs = 0;
+                document.querySelectorAll('.catalog-qty').forEach(i => {
+                    const qty = parseInt(i.value) || 0;
+                    items += qty * parseFloat(i.dataset.price);
+                    tables += qty * parseInt(i.dataset.tables);
+                    chairs += qty * parseInt(i.dataset.chairs);
+                });
                 document.getElementById('sum-base').innerText = money(base);
                 document.getElementById('sum-extras').innerText = money(extras);
                 document.getElementById('sum-items').innerText = money(items);
                 document.getElementById('sum-total').innerText = money(base + extras + items);
 
+                const box = document.getElementById('start-time-box');
+                const duration = opt && opt.value ? parseInt(opt.dataset.duration) || 0 : 0;
+                box.classList.toggle('hidden', !duration);
+                document.getElementById('start_time').required = !!duration;
+                if (duration) {
+                    const start = document.getElementById('start_time').value;
+                    let info = `Duração de ${duration} h`;
+                    if (opt.dataset.earliest || opt.dataset.latest) info += `; início ${opt.dataset.earliest ? 'a partir das ' + opt.dataset.earliest : ''}${opt.dataset.earliest && opt.dataset.latest ? ' e ' : ''}${opt.dataset.latest ? 'até as ' + opt.dataset.latest : ''}`;
+                    if (start) {
+                        const [h, m] = start.split(':').map(Number);
+                        const endH = (h + duration) % 24;
+                        info += ` — termina às ${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}${h + duration >= 24 ? ' (dia seguinte)' : ''}`;
+                    }
+                    document.getElementById('start-time-info').innerText = info + '.';
+                }
+
                 if (opt && opt.value) {
+                    const baseTables = parseInt(opt.dataset.baseTables) || 0;
+                    const baseChairs = parseInt(opt.dataset.baseChairs) || 0;
+                    document.getElementById('furniture-info').innerText = `O espaço inclui ${baseTables} mesa(s) e ${baseChairs} cadeira(s).`;
+                    document.getElementById('sum-furniture').innerText = `Mesas: ${baseTables + tables} · Cadeiras: ${baseChairs + chairs}`;
                     const extraField = document.getElementById('extra_guests');
                     extraField.max = opt.dataset.extraGuests;
                     const limit = parseInt(opt.dataset.maxGuests) + (parseInt(extraField.value) || 0);

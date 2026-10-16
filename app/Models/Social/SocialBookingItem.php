@@ -14,19 +14,29 @@ class SocialBookingItem extends Model
     protected $fillable = [
         'social_booking_id',
         'social_beverage_id',
+        'category',
         'name',
         'unit',
         'mv_code',
         'unit_price',
         'quantity',
         'subtotal',
+        'tables_per_unit',
+        'chairs_per_unit',
     ];
 
     protected $casts = [
         'unit_price' => 'decimal:2',
         'quantity' => 'integer',
         'subtotal' => 'decimal:2',
+        'tables_per_unit' => 'integer',
+        'chairs_per_unit' => 'integer',
     ];
+
+    public function isFurniture(): bool
+    {
+        return $this->category === SocialBeverage::CATEGORY_FURNITURE;
+    }
 
     public function booking()
     {

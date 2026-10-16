@@ -73,4 +73,35 @@ class AccessResolver
 
         return new UserAccess(array_keys($sources), $fullAccess, $sources);
     }
+
+    /**
+     * Ids de quem recebeu a permissão de fato: por setor (respeitando
+     * `coordinators_only`) ou individualmente. Quem só a tem pelo **acesso
+     * total** fica de fora de propósito — é para avisar a equipe que cuida do
+     * assunto, não Gerência, Diretoria e TI inteiras a cada evento.
+     *
+     * @return array<int, int>
+     */
+    public function holderIds(string $permission): array
+    {
+        $db = DB::connection((new User())->getConnectionName());
+
+        $viaSector = $db->table('sector_permission')
+            ->join('permissions', 'permissions.id', '=', 'sector_permission.permission_id')
+            ->join('user_sector', 'user_sector.sector_id', '=', 'sector_permission.sector_id')
+            ->where('permissions.name', $permission)
+            ->where(function ($q) {
+                $q->where('sector_permission.coordinators_only', false)
+                    ->orWhere('user_sector.role', 'coordinator');
+            })
+            ->pluck('user_sector.user_id');
+
+        $direct = $db->table('model_has_permissions')
+            ->join('permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
+            ->where('permissions.name', $permission)
+            ->where('model_has_permissions.model_type', (new User())->getMorphClass())
+            ->pluck('model_has_permissions.model_id');
+
+        return $viaSector->merge($direct)->map(fn ($id) => (int) $id)->unique()->values()->all();
+    }
 }

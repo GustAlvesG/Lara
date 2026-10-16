@@ -73,9 +73,19 @@ class SocialBooking extends Model
         'place_id',
         'member_id',
         'event_date',
+        'start_time',
+        'end_time',
+        'duration_hours',
         'stage',
+        'contact_due_at',
+        'contacted_at',
+        'contacted_by',
+        'contact_notes',
+        'contact_overdue_notified_at',
         'event_type',
         'expected_guests',
+        'base_tables',
+        'base_chairs',
         'notes',
         'base_price',
         'extra_guests',
@@ -103,6 +113,12 @@ class SocialBooking extends Model
     protected $casts = [
         'event_date' => 'date',
         'expected_guests' => 'integer',
+        'base_tables' => 'integer',
+        'base_chairs' => 'integer',
+        'duration_hours' => 'integer',
+        'contact_due_at' => 'datetime',
+        'contacted_at' => 'datetime',
+        'contact_overdue_notified_at' => 'datetime',
         'base_price' => 'decimal:2',
         'extra_guests' => 'integer',
         'extra_guest_price' => 'decimal:2',
@@ -163,6 +179,11 @@ class SocialBooking extends Model
         return $this->belongsTo(User::class, 'cancelled_by');
     }
 
+    public function contactedBy()
+    {
+        return $this->belongsTo(User::class, 'contacted_by');
+    }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by_user');
@@ -199,6 +220,55 @@ class SocialBooking extends Model
     public function isUnpaid(): bool
     {
         return in_array($this->stage, [self::STAGE_REQUESTED, self::STAGE_AWAITING_PAYMENT], true);
+    }
+
+    /** Pré-reserva esperando o primeiro contato da equipe. */
+    public function awaitingContact(): bool
+    {
+        return $this->stage === self::STAGE_REQUESTED && $this->contacted_at === null;
+    }
+
+    /** Passou do prazo (N dias úteis) sem contato registrado. */
+    public function contactOverdue(?Carbon $now = null): bool
+    {
+        return $this->awaitingContact()
+            && $this->contact_due_at !== null
+            && ($now ?? Carbon::now())->gt($this->contact_due_at);
+    }
+
+    public function scopePendingContact(Builder $query): Builder
+    {
+        return $query->where('stage', self::STAGE_REQUESTED)->whereNull('contacted_at');
+    }
+
+    /** Mesas do evento: a base do espaço (copiada na pré-reserva) + o mobiliário contratado. */
+    public function tablesTotal(): int
+    {
+        return (int) $this->base_tables + (int) $this->items->sum(fn ($item) => $item->quantity * $item->tables_per_unit);
+    }
+
+    public function chairsTotal(): int
+    {
+        return (int) $this->base_chairs + (int) $this->items->sum(fn ($item) => $item->quantity * $item->chairs_per_unit);
+    }
+
+    /** "18:00 às 00:00" / "20:00 às 02:00 (dia seguinte)"; null sem horário. */
+    public function timeLabel(): ?string
+    {
+        if (! $this->start_time) {
+            return null;
+        }
+
+        $start = substr($this->start_time, 0, 5);
+        $end = $this->end_time ? substr($this->end_time, 0, 5) : null;
+
+        return $start . ($end ? ' às ' . $end : '') . ($this->endsNextDay() ? ' (dia seguinte)' : '');
+    }
+
+    /** O fim cai depois da meia-noite (início + duração passa de 24h). */
+    public function endsNextDay(): bool
+    {
+        return $this->start_time && $this->end_time && $this->end_time <= $this->start_time;
     }
 
     /** Quantos não sócios podem estar na lista: os incluídos no preço + os extras contratados. */

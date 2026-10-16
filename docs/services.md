@@ -105,6 +105,12 @@ banco e integrações externas. Os controllers delegam a essas classes.
 
 `app/Services/Social/SocialAvailabilityService.php` — `month()`/`dayStatus()` (`available`, `reserved`, `blocked`, `out_of_window`, considerando `place_conflicts`), `limits()` e `assertWithinLimits()` (ativas ao mesmo tempo; N a cada X dias).
 
+## Social\SocialStaffNotifier
+
+`app/Services/Social/SocialStaffNotifier.php` — sino da equipe: `requested(booking)` (pré-reserva
+do app) e `overdue()` (comando `social:contact-reminders`). Destinatários por
+`AccessResolver::holderIds(reservas.sociais)` — setor ou individual, sem acesso total.
+
 ## Social\SocialBookingNotifier
 
 `app/Services/Social/SocialBookingNotifier.php` — e-mails `social.requested|approved|refused|confirmed|expired|cancelled`, template `emails.social.status`, enviados por `EmailService::sendScheduleMail`.

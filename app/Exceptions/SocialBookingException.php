@@ -34,6 +34,12 @@ class SocialBookingException extends RuntimeException
     /** Bebida inexistente ou fora do catálogo ativo. */
     public const BEVERAGE_UNAVAILABLE = 'beverage_unavailable';
 
+    /** Quantidade de um item do catálogo acima do máximo por reserva. */
+    public const ITEM_LIMIT = 'item_limit';
+
+    /** Horário de início ausente, mal formado ou fora da faixa do espaço. */
+    public const INVALID_TIME = 'invalid_time';
+
     /** Convidado sem nome, com CPF inválido ou repetido. */
     public const INVALID_GUEST = 'invalid_guest';
 

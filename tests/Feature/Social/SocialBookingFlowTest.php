@@ -458,6 +458,114 @@ class SocialBookingFlowTest extends TestCase
         $this->assertSame(0.0, (float) $edited->extras_total);
     }
 
+    public function test_mesas_e_cadeiras_somam_a_base_do_espaco(): void
+    {
+        $this->sauna->update(['base_tables' => 10, 'base_chairs' => 40]);
+        $set = SocialBeverage::create(['name' => 'Jogo completo', 'category' => SocialBeverage::CATEGORY_FURNITURE, 'price' => 25, 'tables_per_unit' => 1, 'chairs_per_unit' => 4, 'max_quantity' => 5, 'active' => true]);
+        $chair = SocialBeverage::create(['name' => 'Cadeira avulsa', 'category' => SocialBeverage::CATEGORY_FURNITURE, 'price' => 3, 'chairs_per_unit' => 1, 'active' => true]);
+
+        $booking = $this->request(['items' => [
+            ['item_id' => $set->id, 'quantity' => 2],
+            ['beverage_id' => $chair->id, 'quantity' => 6], // o nome antigo do campo continua valendo
+            ['beverage_id' => $this->water->id, 'quantity' => 1],
+        ]]);
+
+        $this->assertSame(10, $booking->base_tables);
+        $this->assertSame(12, $booking->tablesTotal());
+        $this->assertSame(54, $booking->chairsTotal()); // 40 + 2×4 + 6
+        // 800 + 2 extras × 15 + 2 × 25 + 6 × 3 + 30
+        $this->assertSame(928.0, (float) $booking->total);
+        $this->assertSame(SocialBeverage::CATEGORY_FURNITURE, $booking->items->firstWhere('name', 'Jogo completo')->category);
+
+        // A base é copiada: mudar o espaço depois não muda o evento.
+        $this->sauna->update(['base_tables' => 0]);
+        $this->assertSame(12, $booking->fresh('items')->tablesTotal());
+
+        $this->assertRefused(SocialBookingException::ITEM_LIMIT, fn () => $this->request(['date' => '2026-12-20', 'items' => [['item_id' => $set->id, 'quantity' => 6]]]));
+    }
+
+    public function test_espaco_com_duracao_pede_o_inicio_e_calcula_o_fim(): void
+    {
+        $this->sauna->update(['event_duration_hours' => 6, 'event_earliest_start' => '10:00', 'event_latest_start' => '20:00']);
+
+        $this->assertRefused(SocialBookingException::INVALID_TIME, fn () => $this->request());
+        $this->assertRefused(SocialBookingException::INVALID_TIME, fn () => $this->request(['start_time' => '09:30']));
+        $this->assertRefused(SocialBookingException::INVALID_TIME, fn () => $this->request(['start_time' => '20:30']));
+
+        $booking = $this->request(['start_time' => '20:00']);
+        $this->assertSame('20:00:00', $booking->start_time);
+        $this->assertSame('02:00:00', $booking->end_time);
+        $this->assertSame(6, $booking->duration_hours);
+        $this->assertTrue($booking->endsNextDay());
+        $this->assertSame('20:00 às 02:00 (dia seguinte)', $booking->timeLabel());
+
+        // O início é editável; a ocupação continua sendo o dia inteiro.
+        $edited = $this->service()->updateDetails($booking, ['start_time' => '12:00']);
+        $this->assertSame('12:00 às 18:00', $edited->timeLabel());
+        $this->assertSame(self::EVENT . ' 00:00:00', $edited->schedule->start_schedule->format('Y-m-d H:i:s'));
+    }
+
+    public function test_espaco_sem_duracao_nao_tem_horario(): void
+    {
+        $booking = $this->request(['start_time' => '15:00']);
+
+        $this->assertNull($booking->start_time);
+        $this->assertNull($booking->timeLabel());
+    }
+
+    public function test_prazo_de_contato_em_dias_uteis(): void
+    {
+        // Quarta 14/10 → quinta (1º) e sexta (2º).
+        $booking = $this->request();
+        $this->assertSame('2026-10-16 23:59:59', $booking->contact_due_at->format('Y-m-d H:i:s'));
+        $this->assertTrue($booking->awaitingContact());
+
+        Carbon::setTestNow('2026-10-16 15:00:00'); // sexta → segunda e terça
+        $friday = $this->request(['date' => '2026-12-20']);
+        $this->assertSame('2026-10-20 23:59:59', $friday->contact_due_at->format('Y-m-d H:i:s'));
+    }
+
+    public function test_pre_reserva_no_balcao_ja_nasce_contatada(): void
+    {
+        $booking = $this->service()->request($this->sauna, $this->memberId, ['date' => self::EVENT, 'event_type' => 'Aniversário'], 9);
+
+        $this->assertNotNull($booking->contacted_at);
+        $this->assertSame(9, (int) $booking->contacted_by);
+        $this->assertFalse($booking->awaitingContact());
+    }
+
+    public function test_contato_registrado_ou_contrato_encerram_o_prazo(): void
+    {
+        $first = $this->request();
+        $this->service()->registerContact($first, 9, 'Liguei, vem amanhã assinar.');
+        $this->assertFalse($first->fresh()->awaitingContact());
+        $this->assertSame('Liguei, vem amanhã assinar.', $first->fresh()->contact_notes);
+
+        $second = $this->request(['date' => '2026-12-20']);
+        $this->service()->markContract($second, 9);
+        $this->assertNotNull($second->fresh()->contacted_at);
+    }
+
+    public function test_contato_atrasado_e_marcado_uma_vez(): void
+    {
+        $booking = $this->request();
+
+        Carbon::setTestNow('2026-10-16 23:00:00');
+        $this->artisan('social:contact-reminders')->assertSuccessful();
+        $this->assertNull($booking->fresh()->contact_overdue_notified_at);
+        $this->assertFalse($booking->fresh()->contactOverdue());
+
+        Carbon::setTestNow('2026-10-17 08:00:00');
+        $this->assertTrue($booking->fresh()->contactOverdue());
+        $this->artisan('social:contact-reminders')->assertSuccessful();
+        $notifiedAt = $booking->fresh()->contact_overdue_notified_at;
+        $this->assertNotNull($notifiedAt);
+
+        Carbon::setTestNow('2026-10-17 09:00:00');
+        $this->artisan('social:contact-reminders')->assertSuccessful();
+        $this->assertEquals($notifiedAt, $booking->fresh()->contact_overdue_notified_at);
+    }
+
     /** CPFs válidos distintos para encher a lista. */
     private function validCpf(int $seed): string
     {

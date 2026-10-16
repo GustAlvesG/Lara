@@ -20,6 +20,12 @@
         @include('partials.alerts')
 
         <div class="flex flex-wrap gap-2">
+            <a href="{{ route('social-booking.index', ['contact' => 'overdue']) }}" class="no-underline">
+                <x-pill :kind="$overdueContact ? 'danger' : 'off'">{{ $overdueContact }} com contato atrasado</x-pill>
+            </a>
+            <a href="{{ route('social-booking.index', ['contact' => 'pending']) }}" class="no-underline">
+                <x-pill :kind="$awaitingContact ? 'warn' : 'off'">{{ $awaitingContact }} aguardando contato</x-pill>
+            </a>
             <a href="{{ route('social-booking.index', ['stage' => 'requested']) }}" class="no-underline">
                 <x-pill kind="info">{{ $pending }} em análise</x-pill>
             </a>
@@ -28,7 +34,7 @@
             </a>
         </div>
 
-        <x-search-bar name="member" :filters="['stage', 'place_id', 'date_from', 'date_to']" placeholder="Sócio: nome ou CPF" label="Buscar sócio">
+        <x-search-bar name="member" :filters="['stage', 'contact', 'place_id', 'date_from', 'date_to']" placeholder="Sócio: nome ou CPF" label="Buscar sócio">
             <x-slot:controls>
                 <label for="filtro-estagio" class="sr-only">Situação</label>
                 <select id="filtro-estagio" name="stage" class="{{ $field }} w-full sm:w-52">
@@ -76,7 +82,7 @@
                                 <tr class="hover:bg-subtle transition">
                                     <td class="px-5 py-3.5 font-mono text-xs text-ink-3">#{{ $booking->id }}</td>
                                     <td class="px-5 py-3.5 whitespace-nowrap">
-                                        <p class="font-semibold text-ink">{{ $booking->event_date->format('d/m/Y') }}</p>
+                                        <p class="font-semibold text-ink">{{ $booking->event_date->format('d/m/Y') }}{{ $booking->start_time ? ' · ' . substr($booking->start_time, 0, 5) : '' }}</p>
                                         <p class="text-xs text-ink-3">{{ $booking->event_type }}</p>
                                     </td>
                                     <td class="px-5 py-3.5">
@@ -89,6 +95,11 @@
                                     </td>
                                     <td class="px-5 py-3.5 text-center">
                                         <x-pill :kind="$booking->stageKind()">{{ $booking->stageLabel() }}</x-pill>
+                                        @if ($booking->contactOverdue())
+                                            <p class="mt-1 text-[11px] font-bold text-danger">contato atrasado ({{ $booking->contact_due_at->format('d/m H:i') }})</p>
+                                        @elseif ($booking->awaitingContact() && $booking->contact_due_at)
+                                            <p class="mt-1 text-[11px] text-warn">contatar até {{ $booking->contact_due_at->format('d/m H:i') }}</p>
+                                        @endif
                                         @if ($booking->stage === 'awaiting_payment' && $booking->payment_due_at)
                                             <p class="mt-1 text-[11px] text-ink-3">até {{ $booking->payment_due_at->format('d/m H:i') }}</p>
                                         @endif

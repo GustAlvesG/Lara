@@ -202,6 +202,39 @@ class SocialBookingApiTest extends TestCase
             ->assertStatus(409)->assertJsonPath('reason', 'contract_closed');
     }
 
+    public function test_mobiliario_e_horario_pela_api(): void
+    {
+        $this->place->update(['base_tables' => 10, 'base_chairs' => 40, 'event_duration_hours' => 5, 'event_earliest_start' => '09:00', 'event_latest_start' => '19:00']);
+        $set = SocialBeverage::create(['name' => 'Jogo completo', 'category' => 'mobiliario', 'price' => 25, 'tables_per_unit' => 1, 'chairs_per_unit' => 4, 'max_quantity' => 3, 'active' => true]);
+
+        // Bebidas e mobiliário em listas separadas; /beverages continua só com bebida.
+        $this->withHeaders($this->headers())->getJson('/api/social/beverages')->assertOk()->assertJsonCount(1)->assertJsonPath('0.name', 'Água');
+        $this->withHeaders($this->headers())->getJson('/api/social/furniture')->assertOk()
+            ->assertJsonCount(1)->assertJsonPath('0.chairs_per_unit', 4)->assertJsonPath('0.max_quantity', 3);
+
+        $this->withHeaders($this->headers())->getJson("/api/social/groups/{$this->group->id}/places")->assertOk()
+            ->assertJsonPath('places.0.base_tables', 10)
+            ->assertJsonPath('places.0.event_duration_hours', 5)
+            ->assertJsonPath('places.0.event_earliest_start', '09:00');
+
+        $this->book(['items' => [['item_id' => $set->id, 'quantity' => 1]]])->assertStatus(422)->assertJsonPath('reason', 'invalid_time');
+        $this->book(['start_time' => '08:00'])->assertStatus(422)->assertJsonPath('reason', 'invalid_time');
+        $this->book(['start_time' => '14:00', 'items' => [['item_id' => $set->id, 'quantity' => 4]]])->assertStatus(422)->assertJsonPath('reason', 'item_limit');
+
+        $id = $this->book(['start_time' => '14:00', 'items' => [['item_id' => $set->id, 'quantity' => 2], ['beverage_id' => $this->water->id, 'quantity' => 1]]])
+            ->assertCreated()
+            ->assertJsonPath('start_time', '14:00')
+            ->assertJsonPath('end_time', '19:00')
+            ->assertJsonPath('ends_next_day', false)
+            ->assertJsonPath('tables_total', 12)
+            ->assertJsonPath('chairs_total', 48)
+            ->assertJsonPath('total', 485) // 390 + 15 + 2 × 25 + 30
+            ->json('id');
+
+        $this->withHeaders($this->headers())->putJson("/api/social/bookings/{$id}", ['start_time' => '18:00'])
+            ->assertOk()->assertJsonPath('end_time', '23:00');
+    }
+
     public function test_pagamento_pelo_endpoint_de_sempre(): void
     {
         $booking = SocialBooking::find($this->book()->json('id'));

@@ -60,6 +60,14 @@ Agendado pelo `VideoIntakeService` para 5 minutos depois do fim da reserva.
 
 ## 10.1.1. Comandos agendados relacionados
 
+### `social:contact-reminders`
+
+A cada 15 minutos. Pré-reserva de espaço social em análise, sem contato registrado e com
+`contact_due_at` vencido (2 dias úteis, `SOCIAL_CONTACT_BUSINESS_DAYS`): notificação
+`SocialBookingContactOverdue` (canal `database`, sino do painel) para quem tem `reservas.sociais`
+por setor ou individualmente. Uma vez por pré-reserva. A chegada da pré-reserva pelo app já
+manda `SocialBookingRequested`.
+
 ### `social:expire-bookings`
 
 A cada 5 minutos (`routes/console.php`). Expira a reserva de espaço social aprovada e não paga

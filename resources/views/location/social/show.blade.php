@@ -18,7 +18,7 @@
 <x-app-layout :bootstrap-grid="false">
     <x-page>
         <x-page-title :title="'Reserva social #' . $booking->id" :back="route('social-booking.index')">
-            {{ optional($booking->place)->name }} · {{ $booking->event_date->locale('pt_BR')->isoFormat('dddd, DD/MM/YYYY') }}
+            {{ optional($booking->place)->name }} · {{ $booking->event_date->locale('pt_BR')->isoFormat('dddd, DD/MM/YYYY') }}{{ $booking->timeLabel() ? ' · ' . $booking->timeLabel() : '' }}
             <x-slot:actions>
                 <x-pill :kind="$booking->stageKind()">{{ $booking->stageLabel() }}</x-pill>
             </x-slot:actions>
@@ -41,6 +41,8 @@
                         <div><dt class="text-xs font-bold uppercase text-ink-3">Contato</dt><dd class="text-ink">{{ optional($booking->member)->email ?? '—' }}</dd></div>
                         <div><dt class="text-xs font-bold uppercase text-ink-3">Espaço</dt><dd class="font-semibold text-ink">{{ optional(optional($booking->place)->group)->name }} – {{ optional($booking->place)->name }}</dd></div>
                         <div><dt class="text-xs font-bold uppercase text-ink-3">Evento</dt><dd class="text-ink">{{ $booking->event_type }}{{ $booking->expected_guests ? ' · ' . $booking->expected_guests . ' pessoas' : '' }}</dd></div>
+                        <div><dt class="text-xs font-bold uppercase text-ink-3">Horário</dt><dd class="text-ink">{{ $booking->timeLabel() ?? 'Dia inteiro (espaço sem duração definida)' }}{{ $booking->duration_hours ? ' · ' . $booking->duration_hours . ' h' : '' }}</dd></div>
+                        <div><dt class="text-xs font-bold uppercase text-ink-3">Mesas e cadeiras</dt><dd class="text-ink">{{ $booking->tablesTotal() }} mesa(s) · {{ $booking->chairsTotal() }} cadeira(s) <span class="text-xs text-ink-3">(base {{ (int) $booking->base_tables }} + {{ (int) $booking->base_chairs }})</span></dd></div>
                         @if ($booking->notes)
                             <div class="sm:col-span-2"><dt class="text-xs font-bold uppercase text-ink-3">Observações</dt><dd class="whitespace-pre-line text-ink">{{ $booking->notes }}</dd></div>
                         @endif
@@ -67,6 +69,12 @@
                         <p class="mt-2 text-xs text-ink-3">Data e espaço não mudam: para isso, cancele e faça outra pré-reserva. Convidados ficam no quadro abaixo. Depois do contrato ok, nada mais muda — nem aqui, nem pelo app.</p>
                         <form method="POST" action="{{ route('social-booking.details', $booking) }}" class="mt-4 space-y-4">
                             @csrf @method('PUT')
+                            @if (optional($booking->place)->event_duration_hours)
+                                <div>
+                                    <x-input-label for="start_time" value="Horário de início ({{ $booking->place->event_duration_hours }} h de duração)" />
+                                    <x-text-input type="time" id="start_time" name="start_time" class="mt-1 sm:w-40" :value="old('start_time', $booking->start_time ? substr($booking->start_time, 0, 5) : '')" required />
+                                </div>
+                            @endif
                             <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
                                 <div><x-input-label for="event_type" value="Tipo de evento" /><x-text-input id="event_type" name="event_type" class="mt-1" :value="old('event_type', $booking->event_type)" required maxlength="120" /></div>
                                 <div><x-input-label for="expected_guests" value="Pessoas (total)" /><x-text-input type="number" min="1" id="expected_guests" name="expected_guests" class="mt-1" :value="old('expected_guests', $booking->expected_guests)" /></div>
@@ -74,25 +82,12 @@
                             </div>
                             <div><x-input-label for="notes" value="Observações" /><textarea id="notes" name="notes" rows="2" class="{{ $textarea }}">{{ old('notes', $booking->notes) }}</textarea></div>
                             <div>
-                                <p class="mb-2 text-sm font-bold text-ink">Bebidas</p>
-                                @php $listed = $beverages->pluck('id')->all(); $row = 0; @endphp
-                                @foreach ($beverages as $beverage)
-                                    <div class="flex items-center justify-between gap-3 py-1.5">
-                                        <span class="text-sm text-ink">{{ $beverage->name }} <span class="text-xs text-ink-3">{{ $beverage->unit }} · {{ $money($beverage->price) }}</span></span>
-                                        <input type="hidden" name="items[{{ $row }}][beverage_id]" value="{{ $beverage->id }}">
-                                        <input type="number" min="0" max="999" name="items[{{ $row }}][quantity]" value="{{ $itemQty[$beverage->id] ?? 0 }}" class="h-9 w-24 rounded-xl border border-line-strong bg-surface px-3 text-right" aria-label="Quantidade de {{ $beverage->name }}">
-                                    </div>
-                                    @php $row++; @endphp
-                                @endforeach
-                                {{-- Item que saiu do catálogo continua editável pelo preço contratado. --}}
-                                @foreach ($booking->items->whereNotIn('social_beverage_id', $listed) as $item)
-                                    <div class="flex items-center justify-between gap-3 py-1.5">
-                                        <span class="text-sm text-ink">{{ $item->name }} <span class="text-xs text-ink-3">fora do catálogo · {{ $money($item->unit_price) }}</span></span>
-                                        <input type="hidden" name="items[{{ $row }}][beverage_id]" value="{{ $item->social_beverage_id }}">
-                                        <input type="number" min="0" max="999" name="items[{{ $row }}][quantity]" value="{{ $item->quantity }}" class="h-9 w-24 rounded-xl border border-line-strong bg-surface px-3 text-right">
-                                    </div>
-                                    @php $row++; @endphp
-                                @endforeach
+                                <p class="mb-2 text-sm font-bold text-ink">Bebidas, mesas e cadeiras</p>
+                                @include('location.social.partials.catalog-items', [
+                                    'catalog' => $beverages,
+                                    'quantities' => $itemQty,
+                                    'kept' => $booking->items->whereNotIn('social_beverage_id', $beverages->pluck('id')->all()),
+                                ])
                             </div>
                             <x-primary-button size="sm">Salvar alterações</x-primary-button>
                         </form>
@@ -159,6 +154,27 @@
                         </p>
                     @endif
                 </section>
+
+                {{-- Contato com o sócio: N dias úteis depois da pré-reserva --}}
+                @if ($booking->isActive())
+                    <section class="{{ $box }}">
+                        <h2 class="{{ $h2 }}">Contato com o sócio</h2>
+                        @if ($booking->contacted_at)
+                            <p class="text-sm text-ok"><x-icon name="check" class="inline h-4 w-4" /> Feito em {{ $booking->contacted_at->format('d/m/Y H:i') }} por {{ optional($booking->contactedBy)->name ?? '—' }}</p>
+                            @if ($booking->contact_notes)<p class="mt-1 whitespace-pre-line text-xs text-ink-2">{{ $booking->contact_notes }}</p>@endif
+                        @else
+                            <p class="text-sm {{ $booking->contactOverdue() ? 'font-bold text-danger' : 'text-warn' }}">
+                                {{ $booking->contactOverdue() ? 'Atrasado: o prazo era' : 'Contatar até' }} {{ optional($booking->contact_due_at)->format('d/m/Y H:i') ?? '—' }}
+                            </p>
+                            <form method="POST" action="{{ route('social-booking.contact', $booking) }}" class="mt-3 space-y-2">
+                                @csrf
+                                <textarea name="contact_notes" rows="2" maxlength="1000" class="{{ $textarea }}" placeholder="Como foi o contato (opcional)" aria-label="Anotação do contato">{{ old('contact_notes') }}</textarea>
+                                <x-secondary-button type="submit" size="sm">Registrar contato</x-secondary-button>
+                            </form>
+                            <p class="mt-2 text-xs text-ink-3">Contrato ok, aprovação e recusa também contam como contato.</p>
+                        @endif
+                    </section>
+                @endif
 
                 {{-- Contrato --}}
                 <section class="{{ $box }}">

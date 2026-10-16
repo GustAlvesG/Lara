@@ -27,9 +27,14 @@ trait CreatesSocialBookingSchema
         '2026_10_14_100100_create_place_conflicts_table.php',
         '2026_10_14_100200_create_social_beverages_table.php',
         '2026_10_14_100300_create_social_bookings_tables.php',
+        '2026_10_16_100000_add_furniture_duration_and_contact_to_social_bookings.php',
     ];
 
-    protected function createSocialBookingSchema(): void
+    /**
+     * `$withUsers = false` quando o teste já migrou o acesso de verdade
+     * (MigratesAccessSchema), que cria `users` completo.
+     */
+    protected function createSocialBookingSchema(bool $withUsers = true): void
     {
         Schema::create('place_groups', function (Blueprint $table) {
             $table->id();
@@ -157,11 +162,13 @@ trait CreatesSocialBookingSchema
             $table->timestamps();
         });
 
-        Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->timestamps();
-        });
+        if ($withUsers) {
+            Schema::create('users', function (Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->timestamps();
+            });
+        }
 
         foreach (self::SOCIAL_MIGRATIONS as $file) {
             (require database_path('migrations/' . $file))->up();

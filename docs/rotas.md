@@ -140,6 +140,7 @@ Guia: [Reservas de Espaços Sociais](funcionalidades/espacos-sociais.md). Rotas 
 | PUT | `/social-bookings/{booking}/guests` | Social\SocialBookingController@updateGuests | social-booking.guests | auth, can:reservas.sociais |
 | GET | `/social-bookings/{booking}/guests.pdf` | Social\SocialBookingController@guestsPdf | social-booking.guests.pdf | auth, can:reservas.sociais |
 | GET | `/social-bookings/{booking}/contract` | Social\SocialBookingController@downloadContract | social-booking.contract.download | auth, can:reservas.sociais |
+| POST | `/social-bookings/{booking}/contact` | Social\SocialBookingController@contact | social-booking.contact | auth, can:reservas.sociais |
 | POST | `/social-bookings/{booking}/contract` | Social\SocialBookingController@contract | social-booking.contract | auth, can:reservas.sociais.aprovar |
 | POST | `/social-bookings/{booking}/approve` | Social\SocialBookingController@approve | social-booking.approve | auth, can:reservas.sociais.aprovar |
 | POST | `/social-bookings/{booking}/refuse` | Social\SocialBookingController@refuse | social-booking.refuse | auth, can:reservas.sociais.aprovar |
@@ -277,7 +278,8 @@ id na URL, para que trocar um número não dê acesso aos vídeos de outro.
 | GET | `/api/social/groups` | Api\SocialBookingApiController@groups | grupos de categoria `social` |
 | GET | `/api/social/groups/{group}/places` | Api\SocialBookingApiController@places | espaços ativos do grupo social |
 | GET | `/api/social/availability` | Api\SocialBookingApiController@availability | `?place_id&month=YYYY-MM` → status de cada dia |
-| GET | `/api/social/beverages` | Api\SocialBookingApiController@beverages | catálogo ativo |
+| GET | `/api/social/beverages` | Api\SocialBookingApiController@beverages | bebidas ativas |
+| GET | `/api/social/furniture` | Api\SocialBookingApiController@furniture | mobiliário ativo (mesas, cadeiras, jogos) |
 | GET | `/api/social/limits` | Api\SocialBookingApiController@limits | `?place_group_id` → limites do sócio |
 | GET | `/api/social/bookings` | Api\SocialBookingApiController@index | reservas sociais do sócio |
 | POST | `/api/social/bookings` | Api\SocialBookingApiController@store | pré-reserva; `throttle:20,1` |
@@ -315,6 +317,7 @@ id na URL, para que trocar um número não dê acesso aos vídeos de outro.
 | Comando | Descrição | Agendamento |
 |---------|-----------|-------------|
 | `inspire` | Exibe uma frase inspiradora (comando padrão do Laravel). | — |
+| `social:contact-reminders` | Avisa no sino quem tem `reservas.sociais` das pré-reservas com prazo de contato vencido (uma vez cada). | a cada 15 minutos |
 | `social:expire-bookings` | Expira reserva de espaço social aprovada e não paga até `payment_due_at` (libera a data e avisa o sócio). | a cada 5 minutos |
 
 > Não há comandos de console customizados (`app/Console/Commands/` não contém classes próprias).

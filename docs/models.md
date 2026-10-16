@@ -53,7 +53,9 @@ deletes, scopes globais, etc.).
 ### Social\SocialBookingItem / SocialBookingGuest / SocialBeverage
 - `social_booking_items`: cópia da bebida (nome, unidade, `mv_code`, `unit_price`, `quantity`, `subtotal`).
 - `social_booking_guests`: convidado não sócio (`name`, `cpf` só dígitos, `one_off_access_id`).
-- `social_beverages` (SoftDeletes): catálogo — `name`, `unit`, `mv_code` (Código MV, manual), `price`, `active`.
+- `social_beverages` (SoftDeletes): catálogo — `name`, `category` (`bebida`|`mobiliario`), `unit`, `mv_code` (Código MV, manual), `price`, `tables_per_unit`, `chairs_per_unit`, `max_quantity`, `active`. Scopes `beverages()`/`furniture()`.
+- `places` (social): `base_tables`, `base_chairs`, `event_duration_hours`, `event_earliest_start`, `event_latest_start`.
+- `social_bookings` (16/10/2026): `start_time`, `end_time`, `duration_hours`, `base_tables`, `base_chairs`, `contact_due_at`, `contacted_at`, `contacted_by`, `contact_notes`, `contact_overdue_notified_at`; helpers `tablesTotal()`, `chairsTotal()`, `timeLabel()`, `endsNextDay()`, `awaitingContact()`, `contactOverdue()`; scope `pendingContact()`.
 
 ### Weekday
 - **Tabela:** `weekdays` · `timestamps = false`

@@ -387,6 +387,7 @@ Route::middleware('api_token')->group(function () {
             Route::get('/groups/{group}/places', [SocialBookingApiController::class, 'places'])->whereNumber('group')->name('api.social.places');
             Route::get('/availability', [SocialBookingApiController::class, 'availability'])->name('api.social.availability');
             Route::get('/beverages', [SocialBookingApiController::class, 'beverages'])->name('api.social.beverages');
+            Route::get('/furniture', [SocialBookingApiController::class, 'furniture'])->name('api.social.furniture');
             Route::get('/limits', [SocialBookingApiController::class, 'limits'])->name('api.social.limits');
             Route::get('/bookings', [SocialBookingApiController::class, 'index'])->name('api.social.bookings.index');
             Route::post('/bookings', [SocialBookingApiController::class, 'store'])->middleware('throttle:20,1')->name('api.social.bookings.store');

@@ -29,6 +29,11 @@ class Place extends Model
         'max_guests',
         'extra_guests',
         'extra_guest_price',
+        'base_tables',
+        'base_chairs',
+        'event_duration_hours',
+        'event_earliest_start',
+        'event_latest_start',
         'status_id',
     ];
 
@@ -38,6 +43,9 @@ class Place extends Model
         'max_guests' => 'integer',
         'extra_guests' => 'integer',
         'extra_guest_price' => 'decimal:2',
+        'base_tables' => 'integer',
+        'base_chairs' => 'integer',
+        'event_duration_hours' => 'integer',
     ];
 
     //Order by name

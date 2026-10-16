@@ -11,6 +11,7 @@ use App\Models\Social\SocialBeverage;
 use App\Models\Social\SocialBooking;
 use App\Models\Social\SocialBookingGuest;
 use App\Services\RedeItauService;
+use App\Support\BusinessDays;
 use App\Support\Cpf;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -38,6 +39,12 @@ use Illuminate\Support\Facades\Log;
  *   que pergunta aqui se pode (assertPayable) e avisa quando pagou (markPaid).
  * - Convidados não sócios viram liberações pontuais na data do evento quando a
  *   reserva é confirmada (syncGuestAccesses).
+ * - Mesas e cadeiras: a base do espaço é copiada na pré-reserva; mobiliário do
+ *   catálogo (mesa, cadeira, jogo completo) soma a ela.
+ * - Horário: espaço com `event_duration_hours` pede o início; o fim é início +
+ *   duração. A ocupação continua sendo o dia inteiro.
+ * - Contato: a equipe tem N dias úteis (`contact_due_at`) para falar com o
+ *   sócio; pré-reserva do app avisa a equipe no sino (SocialStaffNotifier).
  *
  * Toda recusa sai como SocialBookingException, com `reason` estável para o app.
  */
@@ -47,13 +54,17 @@ class SocialBookingService
         private SocialAvailabilityService $availability,
         private SocialBookingNotifier $notifier,
         private RedeItauService $rede,
+        private SocialStaffNotifier $staff,
     ) {
     }
 
     /**
      * Cria a pré-reserva.
      *
-     * @param  array{date: string, event_type: string, expected_guests?: ?int, extra_guests?: ?int, notes?: ?string, items?: array, guests?: array}  $data
+     * Lançada no balcão (`$userId`), o contato já aconteceu — o sócio está ali.
+     * Vinda do app, avisa a equipe e começa a contar o prazo de contato.
+     *
+     * @param  array{date: string, start_time?: ?string, event_type: string, expected_guests?: ?int, extra_guests?: ?int, notes?: ?string, items?: array, guests?: array}  $data
      *
      * @throws SocialBookingException
      */
@@ -73,6 +84,7 @@ class SocialBookingService
 
             $extraGuests = $this->extraGuests($place, $data['extra_guests'] ?? 0);
             $this->assertCapacity($place, $data['expected_guests'] ?? null);
+            $times = $this->resolveTimes($place, $data['start_time'] ?? null);
             $items = $this->buildItems($data['items'] ?? []);
             $guests = $this->normalizeGuests($data['guests'] ?? [], (int) $place->max_guests + $extraGuests);
 
@@ -98,7 +110,15 @@ class SocialBookingService
                 'place_id' => $place->id,
                 'member_id' => $memberId,
                 'event_date' => $date->toDateString(),
+                'start_time' => $times['start_time'],
+                'end_time' => $times['end_time'],
+                'duration_hours' => $times['duration_hours'],
                 'stage' => SocialBooking::STAGE_REQUESTED,
+                'contact_due_at' => BusinessDays::deadline($now, (int) config('social_bookings.contact_business_days', 2)),
+                'contacted_at' => $userId ? $now : null,
+                'contacted_by' => $userId,
+                'base_tables' => $place->base_tables,
+                'base_chairs' => $place->base_chairs,
                 'event_type' => trim($data['event_type']),
                 'expected_guests' => $data['expected_guests'] ?? null,
                 'notes' => $data['notes'] ?? null,
@@ -120,7 +140,39 @@ class SocialBookingService
 
         $this->notifier->notify($booking, SocialBookingNotifier::REQUESTED);
 
+        if (! $userId) {
+            $this->staff->requested($booking);
+        }
+
         return $booking->fresh(['items', 'guests', 'place.group']);
+    }
+
+    /**
+     * A equipe registra que falou com o sócio — encerra o prazo de contato.
+     * Contrato ok, aprovação e recusa também contam como contato.
+     *
+     * @throws SocialBookingException
+     */
+    public function registerContact(SocialBooking $booking, int $userId, ?string $notes = null): SocialBooking
+    {
+        $this->assertStage($booking, SocialBooking::ACTIVE_STAGES, 'Esta reserva já está encerrada.');
+
+        $booking->forceFill([
+            'contacted_at' => $booking->contacted_at ?? Carbon::now(),
+            'contacted_by' => $booking->contacted_by ?? $userId,
+            'contact_notes' => trim((string) $notes) !== '' ? trim($notes) : $booking->contact_notes,
+        ])->save();
+
+        return $booking;
+    }
+
+    /** Primeiro contato, se ainda não houve: qualquer decisão da equipe passa por falar com o sócio. */
+    private function touchContact(SocialBooking $booking, int $userId): void
+    {
+        if ($booking->contacted_at === null) {
+            $booking->contacted_at = Carbon::now();
+            $booking->contacted_by = $userId;
+        }
     }
 
     /**
@@ -135,7 +187,7 @@ class SocialBookingService
      * entra pelo preço do catálogo, bebida que já estava mantém o preço
      * contratado.
      *
-     * @param  array{event_type?: string, expected_guests?: ?int, extra_guests?: ?int, notes?: ?string, items?: array, guests?: array}  $data
+     * @param  array{start_time?: ?string, event_type?: string, expected_guests?: ?int, extra_guests?: ?int, notes?: ?string, items?: array, guests?: array}  $data
      *
      * @throws SocialBookingException
      */
@@ -179,6 +231,13 @@ class SocialBookingService
                 $booking->items_total = round($items->sum('subtotal'), 2);
             }
 
+            if (array_key_exists('start_time', $data) || ($place->event_duration_hours && ! $booking->start_time)) {
+                $times = $this->resolveTimes($place, $data['start_time'] ?? $booking->start_time);
+                $booking->start_time = $times['start_time'];
+                $booking->end_time = $times['end_time'];
+                $booking->duration_hours = $times['duration_hours'];
+            }
+
             if (array_key_exists('event_type', $data) && trim((string) $data['event_type']) !== '') {
                 $booking->event_type = trim($data['event_type']);
             }
@@ -203,6 +262,7 @@ class SocialBookingService
     {
         $this->assertStage($booking, [SocialBooking::STAGE_REQUESTED, SocialBooking::STAGE_AWAITING_PAYMENT, SocialBooking::STAGE_CONFIRMED], 'Reserva encerrada.');
 
+        $this->touchContact($booking, $userId);
         $booking->forceFill([
             'contract_ok_at' => Carbon::now(),
             'contract_ok_by' => $userId,
@@ -248,6 +308,7 @@ class SocialBookingService
             $booking->total = $this->totalOf($booking);
             $booking->approved_at = $now;
             $booking->approved_by = $userId;
+            $this->touchContact($booking, $userId);
 
             if ((float) $booking->total <= 0) {
                 $booking->stage = SocialBooking::STAGE_CONFIRMED;
@@ -278,6 +339,7 @@ class SocialBookingService
         $this->assertStage($booking, [SocialBooking::STAGE_REQUESTED], 'Só a pré-reserva em análise pode ser recusada.');
 
         DB::transaction(function () use ($booking, $reason, $userId) {
+            $this->touchContact($booking, $userId);
             $booking->forceFill([
                 'stage' => SocialBooking::STAGE_REFUSED,
                 'refused_at' => Carbon::now(),
@@ -657,9 +719,13 @@ class SocialBookingService
     }
 
     /**
-     * Linhas de bebida a partir de [{beverage_id, quantity}]. Ao editar, uma
-     * bebida que já estava na reserva mantém o preço contratado, mesmo que
-     * tenha saído do catálogo ou mudado de preço.
+     * Linhas do catálogo (bebidas e mobiliário) a partir de
+     * [{item_id|beverage_id, quantity}] — `beverage_id` é o nome de quando o
+     * catálogo era só de bebidas, e continua aceito.
+     *
+     * Item novo precisa estar ativo e respeita o máximo por reserva. Ao editar,
+     * o que já estava na reserva mantém o preço e o que trazia de mesas/cadeiras,
+     * mesmo que tenha saído do catálogo ou mudado.
      *
      * @return Collection<int, array<string, mixed>>
      *
@@ -669,49 +735,104 @@ class SocialBookingService
     {
         $wanted = collect($items)
             ->map(fn ($item) => [
-                'beverage_id' => (int) ($item['beverage_id'] ?? 0),
+                'id' => (int) ($item['item_id'] ?? $item['beverage_id'] ?? 0),
                 'quantity' => (int) ($item['quantity'] ?? 0),
             ])
-            ->filter(fn ($item) => $item['quantity'] > 0)
-            ->groupBy('beverage_id')
-            ->map(fn ($rows, $id) => ['beverage_id' => (int) $id, 'quantity' => $rows->sum('quantity')]);
+            ->filter(fn ($item) => $item['quantity'] > 0 && $item['id'] > 0)
+            ->groupBy('id')
+            ->map(fn ($rows, $id) => ['id' => (int) $id, 'quantity' => $rows->sum('quantity')]);
 
         if ($wanted->isEmpty()) {
             return collect();
         }
 
         $previous = $booking ? $booking->items()->get()->keyBy('social_beverage_id') : collect();
-        $catalog = SocialBeverage::active()->whereIn('id', $wanted->keys())->get()->keyBy('id');
+        $catalog = SocialBeverage::withTrashed()->whereIn('id', $wanted->keys())->get()->keyBy('id');
 
         return $wanted->values()->map(function ($item) use ($catalog, $previous) {
-            if ($item['quantity'] > 999) {
-                throw new SocialBookingException(SocialBookingException::BEVERAGE_UNAVAILABLE, 'Quantidade de bebida acima do permitido.');
-            }
+            $source = $previous->get($item['id']);
+            $entry = $catalog->get($item['id']);
 
-            $source = $previous->get($item['beverage_id']);
-            $beverage = $catalog->get($item['beverage_id']);
-
-            if (! $source && ! $beverage) {
+            if (! $source && (! $entry || ! $entry->active || $entry->trashed())) {
                 throw new SocialBookingException(
                     SocialBookingException::BEVERAGE_UNAVAILABLE,
-                    'Uma das bebidas escolhidas não está mais disponível.',
+                    'Um dos itens escolhidos não está mais disponível.',
                     422,
-                    ['beverage_id' => $item['beverage_id']]
+                    ['item_id' => $item['id']]
                 );
             }
 
-            $unitPrice = round((float) ($source ? $source->unit_price : $beverage->price), 2);
+            $max = $entry?->max_quantity ?: 999;
+            if ($item['quantity'] > $max) {
+                throw new SocialBookingException(
+                    SocialBookingException::ITEM_LIMIT,
+                    'Quantidade acima do permitido para ' . ($source->name ?? $entry->name) . " (máximo {$max}).",
+                    422,
+                    ['item_id' => $item['id'], 'max_quantity' => $max]
+                );
+            }
+
+            $unitPrice = round((float) ($source ? $source->unit_price : $entry->price), 2);
 
             return [
-                'social_beverage_id' => $item['beverage_id'],
-                'name' => $source->name ?? $beverage->name,
-                'unit' => $source ? $source->unit : $beverage->unit,
-                'mv_code' => $source ? $source->mv_code : $beverage->mv_code,
+                'social_beverage_id' => $item['id'],
+                'category' => $source ? $source->category : $entry->category,
+                'name' => $source->name ?? $entry->name,
+                'unit' => $source ? $source->unit : $entry->unit,
+                'mv_code' => $source ? $source->mv_code : $entry->mv_code,
                 'unit_price' => $unitPrice,
                 'quantity' => $item['quantity'],
                 'subtotal' => round($unitPrice * $item['quantity'], 2),
+                'tables_per_unit' => (int) ($source ? $source->tables_per_unit : $entry->tables_per_unit),
+                'chairs_per_unit' => (int) ($source ? $source->chairs_per_unit : $entry->chairs_per_unit),
             ];
         });
+    }
+
+    /**
+     * Início e fim do evento. Espaço com duração fixa exige o início (HH:MM),
+     * dentro da faixa `event_earliest_start`–`event_latest_start` se houver; o
+     * fim é início + duração e pode passar da meia-noite. Espaço sem duração
+     * configurada não tem horário.
+     *
+     * @return array{start_time: ?string, end_time: ?string, duration_hours: ?int}
+     *
+     * @throws SocialBookingException
+     */
+    private function resolveTimes(Place $place, ?string $start): array
+    {
+        $hours = (int) $place->event_duration_hours;
+
+        if ($hours <= 0) {
+            return ['start_time' => null, 'end_time' => null, 'duration_hours' => null];
+        }
+
+        $start = $start !== null ? substr(trim($start), 0, 5) : null;
+
+        if (! $start || ! preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $start)) {
+            throw new SocialBookingException(
+                SocialBookingException::INVALID_TIME,
+                'Informe o horário de início do evento (HH:MM).',
+                422,
+                ['duration_hours' => $hours]
+            );
+        }
+
+        $earliest = $place->event_earliest_start ? substr($place->event_earliest_start, 0, 5) : null;
+        $latest = $place->event_latest_start ? substr($place->event_latest_start, 0, 5) : null;
+
+        if (($earliest && $start < $earliest) || ($latest && $start > $latest)) {
+            throw new SocialBookingException(
+                SocialBookingException::INVALID_TIME,
+                'O evento neste espaço pode começar ' . ($earliest && $latest ? "entre {$earliest} e {$latest}" : ($earliest ? "a partir das {$earliest}" : "até as {$latest}")) . '.',
+                422,
+                ['earliest_start' => $earliest, 'latest_start' => $latest]
+            );
+        }
+
+        $end = Carbon::createFromFormat('H:i', $start)->addHours($hours)->format('H:i');
+
+        return ['start_time' => $start . ':00', 'end_time' => $end . ':00', 'duration_hours' => $hours];
     }
 
     /**

@@ -61,6 +61,21 @@ Guia completo: [espacos-sociais.md](../funcionalidades/espacos-sociais.md). Pont
 - Recusas são `SocialBookingException` com `reason` estável; a API devolve `{message, reason}`.
 - E-mails `social.*` num template só (`emails.social.status`) via `SocialBookingNotifier`.
 - Espaço social não tem contator (o controller zera): a reserva acenderia a luz 24 h.
+- Mobiliário (16/10/2026): mesmo catálogo das bebidas (`social_beverages.category` =
+  `bebida`|`mobiliario`, `tables_per_unit`, `chairs_per_unit`, `max_quantity`); o nome da classe
+  `SocialBeverage` é histórico. Base do espaço (`places.base_tables/base_chairs`) copiada na
+  reserva; totais em `SocialBooking::tablesTotal()/chairsTotal()`. API: `/api/social/furniture`;
+  `items[].item_id` (alias de `beverage_id`). Recusa `item_limit`.
+- Horário: `places.event_duration_hours` (+ faixa `event_earliest_start/latest_start`) exige
+  `start_time`; `end_time` = início + duração (pode virar o dia; `endsNextDay()`). A ocupação
+  segue o dia inteiro. Recusa `invalid_time`.
+- Prazo de contato: `contact_due_at` = `BusinessDays::deadline(criação, config social_bookings.contact_business_days)`
+  (seg–sex, sem feriados). Pré-reserva do app avisa no sino quem tem `reservas.sociais` por setor
+  ou individual (`AccessResolver::holderIds`, sem acesso total) — `SocialStaffNotifier`;
+  vencido, `social:contact-reminders` avisa uma vez (`contact_overdue_notified_at`).
+  Balcão nasce contatado; `registerContact`, contrato ok, aprovação e recusa marcam
+  `contacted_at`. Scope `SocialBooking::pendingContact()` (não confundir com o método de
+  instância `awaitingContact()`).
 
 ## Regras que costumam pegar
 
