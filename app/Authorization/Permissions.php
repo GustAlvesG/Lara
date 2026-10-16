@@ -51,6 +51,9 @@ final class Permissions
 
     public const LARA = 'lara';
     public const BOT_WHATSAPP = 'bot-whatsapp';
+    // Só ver o diário de transferências e encerramentos do O Lara — para quem
+    // acompanha o atendimento sem editar fluxo.
+    public const BOT_WHATSAPP_OCORRENCIAS = 'bot-whatsapp.ocorrencias';
     public const COMPRAS = 'compras';
     public const CARTEIRINHAS = 'carteirinhas';
 
@@ -125,6 +128,7 @@ final class Permissions
 
         self::LARA => ['Lara (IA)', 'Chat com a Lara'],
         self::BOT_WHATSAPP => ['Bot WhatsApp', 'Editar os fluxos do bot'],
+        self::BOT_WHATSAPP_OCORRENCIAS => ['Bot WhatsApp', 'Ver transferências e encerramentos'],
         self::COMPRAS => ['Compras', 'Mapas de cotação e ordens de compra'],
         self::CARTEIRINHAS => ['Carteirinhas', 'Emissão e modelos'],
 

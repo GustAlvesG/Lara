@@ -3,6 +3,7 @@
 namespace App\Services\PoliBot;
 
 use App\Jobs\ConfirmPoliBotHandoff;
+use App\Models\BotAttendanceEvent;
 use App\Models\BotFlow;
 use App\Models\BotSession;
 use App\Models\PoliMessage;
@@ -73,6 +74,7 @@ class BotEngine
         private readonly BotOutbox $outbox,
         private readonly UberAccessRequestFlow $uber,
         private readonly PoliClient $poli,
+        private readonly AttendanceJournal $journal,
     ) {}
 
     public function mode(): string
@@ -321,7 +323,7 @@ class BotEngine
         Log::info('PoliBot: piloto — número fora da lista de teste encaminhado', ['contact_uuid' => $session->contact_uuid]);
 
         $this->say($session, (string) config('poli.bot.messages.test_others'));
-        $feito = $this->out->handoff($session, config('poli.bot.test_others_team_uuid') ?: DefaultFlows::TEAM_SECRETARIA);
+        $feito = $this->distribute($session, config('poli.bot.test_others_team_uuid') ?: DefaultFlows::TEAM_SECRETARIA, 'piloto');
         $session->toHuman();
 
         if ($feito) {
@@ -353,6 +355,47 @@ class BotEngine
         return $atual !== null
             && ($atual['status'] ?? null) !== 'CLOSED'
             && $this->isLaraAttendant(is_string($atual['attendant']['uuid'] ?? null) ? $atual['attendant']['uuid'] : null);
+    }
+
+    /**
+     * A API diz que o atendimento já não está com O Lara (outro atendente,
+     * encerrado)? Sem resposta dela: não — vale o evento, e a conversa do O
+     * Lara não fica sem resposta.
+     */
+    private function leftLara(string $contactUuid): bool
+    {
+        try {
+            $atual = $this->poli->atendimentoAtual($contactUuid);
+        } catch (Throwable $e) {
+            Log::warning('PoliBot: transferência sem conferência na API — segue o evento', ['contact_uuid' => $contactUuid, 'erro' => $e->getMessage()]);
+
+            return false;
+        }
+
+        return $atual === null
+            || ($atual['status'] ?? null) === 'CLOSED'
+            || !$this->isLaraAttendant(is_string($atual['attendant']['uuid'] ?? null) ? $atual['attendant']['uuid'] : null);
+    }
+
+    /**
+     * O transbordo voltou para O Lara: o contato recebe o aviso de que não
+     * deu (o mesmo da conferência do transbordo) e a conversa espera o
+     * encerramento diferido — se ele escrever antes, recomeça pelo menu.
+     */
+    private function handoffReturned(BotSession $session, ParsedPoliMessage $redirect): void
+    {
+        Log::warning('PoliBot: a Poli devolveu o transbordo para O Lara', [
+            'contact_uuid' => $session->contact_uuid,
+            'attendance_uuid' => $redirect->attendanceUuid,
+        ]);
+
+        $session->reset();
+        $session->lara_owned = true;
+        $session->attendance_uuid = $redirect->attendanceUuid;
+
+        $this->say($session, (string) config('poli.bot.messages.handoff_failed'));
+        $session->toEnding((int) config('poli.bot.close_after_minutes', 10), 'transbordo_devolvido');
+        $this->save($session);
     }
 
     /**
@@ -471,12 +514,18 @@ class BotEngine
         $session->closed_attendance_uuid = null;
         $session->closed_at = null;
 
-        if ($this->out->isLive() && !$this->out->forward($session, (string) $this->botUserUuid())) {
-            Log::warning('PoliBot: resgate sem forward — a mensagem fica no atendimento encerrado', [
-                'contact_uuid' => $session->contact_uuid,
-            ]);
+        if ($this->out->isLive()) {
+            $evento = $this->journal->forwarding($session->contact_uuid, 'resgate', $session);
+            $feito = $this->out->forward($session, (string) $this->botUserUuid());
+            $this->journal->forwarded($evento, $feito);
 
-            return;
+            if (!$feito) {
+                Log::warning('PoliBot: resgate sem forward — a mensagem fica no atendimento encerrado', [
+                    'contact_uuid' => $session->contact_uuid,
+                ]);
+
+                return;
+            }
         }
 
         if (!$this->out->isLive()) {
@@ -553,7 +602,7 @@ class BotEngine
 
         if ($session->tentativas >= $flow->maxAttempts($step)) {
             $this->say($session, (string) config('poli.bot.messages.too_many_attempts'));
-            $this->runAction($session, $flow, $flow->onMaxAttempts());
+            $this->runAction($session, $flow, $flow->onMaxAttempts(), 'tentativas');
 
             return;
         }
@@ -697,19 +746,20 @@ class BotEngine
 
     /**
      * @param array<string, mixed> $action
+     * @param string $motivo 'fluxo' (passo do fluxo) ou 'tentativas' (onMaxAttempts) — vai para o diário
      * @return FlowDefinition|bool false quando a conversa sai do bot; o fluxo
      *                             de destino num goto; true para seguir.
      */
-    private function runAction(BotSession $session, FlowDefinition $flow, array $action): FlowDefinition|bool
+    private function runAction(BotSession $session, FlowDefinition $flow, array $action, string $motivo = 'fluxo'): FlowDefinition|bool
     {
         switch ($action['type'] ?? null) {
             case 'handoff':
-                $this->handoff($session, $flow, $action['team_uuid'] ?? config('poli.bot.fallback_team_uuid'));
+                $this->handoff($session, $flow, $action['team_uuid'] ?? config('poli.bot.fallback_team_uuid'), $motivo);
 
                 return false;
 
             case 'close':
-                $this->close($session);
+                $this->close($session, $motivo === 'tentativas' ? 'tentativas' : 'acao_do_fluxo');
 
                 return false;
 
@@ -745,7 +795,7 @@ class BotEngine
      * horário. Depois do distribute, um job confere se o atendimento saiu
      * mesmo do O Lara.
      */
-    private function handoff(BotSession $session, ?FlowDefinition $flow, ?string $teamUuid, ?string $aviso = null): void
+    private function handoff(BotSession $session, ?FlowDefinition $flow, ?string $teamUuid, string $motivo, ?string $aviso = null): void
     {
         if (($fora = $this->outOfHoursStep($flow)) !== null) {
             [$destino, $passo] = $fora;
@@ -760,13 +810,28 @@ class BotEngine
             $this->say($session, $aviso);
         }
 
-        $feito = $this->out->handoff($session, $teamUuid);
+        $feito = $this->distribute($session, $teamUuid, $motivo);
         $session->toHuman();
 
         if ($feito && $session->lara_owned) {
             ConfirmPoliBotHandoff::dispatch($session->contact_uuid)
                 ->delay(now()->addSeconds((int) config('poli.bot.handoff_confirm_seconds', 10)));
         }
+    }
+
+    /**
+     * O distribute, com a linha do diário escrita ANTES: a Poli pode devolver
+     * a conversa para O Lara ("pelo sistema") enquanto o pedido ainda está no
+     * ar, e é por essa linha pendente que a devolução é reconhecida. Na
+     * sombra nada sai, e nada vai para o diário.
+     */
+    private function distribute(BotSession $session, ?string $teamUuid, string $motivo): bool
+    {
+        $evento = $this->out->isLive() ? $this->journal->handoffStarted($session, $teamUuid, $motivo) : null;
+        $feito = $this->out->handoff($session, $teamUuid);
+        $this->journal->handoffSent($evento, $feito, $teamUuid);
+
+        return $feito;
     }
 
     /**
@@ -803,9 +868,14 @@ class BotEngine
         return null;
     }
 
-    private function close(BotSession $session): void
+    /** @param string $motivo chave de BotAttendanceEvent::REASONS[encerramento] */
+    private function close(BotSession $session, string $motivo): void
     {
-        $this->out->close($session) ? $session->markClosedByLara() : $session->reset();
+        $evento = $this->out->isLive() ? $this->journal->closing($session->contact_uuid, $motivo, $session) : null;
+        $feito = $this->out->close($session);
+        $this->journal->closed($evento, $feito);
+
+        $feito ? $session->markClosedByLara() : $session->reset();
     }
 
     /**
@@ -912,13 +982,40 @@ class BotEngine
         ], 'filled'));
 
         // Um humano estava com a conversa (observeEvent a marcou quando ele
-        // assumiu): a transferência veio de um setor, não do bot da Poli.
+        // assumiu, ou o próprio transbordo da Lara): a transferência veio de
+        // um setor, ou é a Poli devolvendo o transbordo, ou é velha.
         $veioDeSetor = $session->isHuman() && !$this->humanExpired($session);
 
         $this->out = $this->outbox->live($this->liveFor(true));
+
+        // Transferência velha: este job espera alguns segundos, e nesse meio
+        // tempo a mensagem do contato pode ter sido processada e transbordada
+        // (16/10/2026: o menu foi para uma conversa que já estava com a
+        // Thais). O evento diz O Lara; quem decide é a API.
+        if ($veioDeSetor && $this->leftLara($redirect->contactUuid)) {
+            Log::info('PoliBot: transferência para O Lara superada — o atendimento já saiu dele', [
+                'contact_uuid' => $redirect->contactUuid,
+                'message_id' => $redirect->messageId,
+            ]);
+            $this->out->recordInboundRow($session, $redirect->messageId, 'REDIRECT', '[transferido para O Lara — já tinha saído, ignorada]');
+
+            return;
+        }
+
         $gatilho = $this->lastInboundBeforeRedirect($session, $redirect, $ultima);
 
         $this->out->recordInboundRow($session, $redirect->messageId, 'REDIRECT', '[transferido para O Lara]');
+
+        // A Poli devolveu o transbordo que a Lara acabou de fazer ("pelo
+        // sistema", segundos depois do distribute — 16/10/2026, nos horários
+        // sem atendente). Não é um setor devolvendo a conversa: reabrir o
+        // menu só levaria o contato a escolher o mesmo time e voltar, em
+        // ciclo. Ele fica sabendo, e a conversa fecha se ele não escrever.
+        if ($veioDeSetor && $this->journal->isReturnedHandoff($redirect->messageId)) {
+            $this->handoffReturned($session, $redirect);
+
+            return;
+        }
 
         // A conversa já andou neste atendimento: a mensagem do contato foi
         // processada antes, ou foi a própria Lara quem encaminhou (resgate,
@@ -1224,14 +1321,14 @@ class BotEngine
         };
 
         if ($casa('atendente')) {
-            $this->handoff($session, $fluxoAtual, config('poli.bot.fallback_team_uuid'), (string) config('poli.bot.messages.handoff'));
+            $this->handoff($session, $fluxoAtual, config('poli.bot.fallback_team_uuid'), 'pediu_atendente', (string) config('poli.bot.messages.handoff'));
 
             return true;
         }
 
         if ($casa('sair')) {
             $this->say($session, (string) config('poli.bot.messages.goodbye'));
-            $this->close($session);
+            $this->close($session, 'sair');
 
             return true;
         }
@@ -1377,6 +1474,10 @@ class BotEngine
         $tipo = $value['type'] ?? null;
         $atendimento = is_array($value['attendance'] ?? null) ? $value['attendance'] : [];
 
+        // Transferência e encerramento vão para o diário com a sessão como
+        // estava antes deste evento — é ela que diz se O Lara conduzia.
+        $this->journal->observe($payload, $session);
+
         // Atendimento encerrado — por atendente, pelo sistema ou pelo bot:
         // a próxima mensagem do contato é conversa nova. O registro do que a
         // Lara encerrou fica na sessão (é dele que o resgate precisa).
@@ -1506,7 +1607,9 @@ class BotEngine
                 return null;
             }
 
-            $this->close($session);
+            // Por que ela estava esperando: fim do fluxo, transbordo que não
+            // pegou, aviso do carro.
+            $this->close($session, $session->ending_reason ?? 'fim_do_fluxo');
             $session->save();
 
             return 'encerradas';
@@ -1526,14 +1629,14 @@ class BotEngine
         // Sem resposta a uma pergunta opcional: o fluxo tinha terminado, e
         // fecha como no encerramento diferido — sem "não tivemos resposta".
         if (!empty($flow?->step($session->step_key)['optional'])) {
-            $this->close($session);
+            $this->close($session, 'pergunta_opcional');
             $session->save();
 
             return 'encerradas';
         }
 
         $this->say($session, (string) config('poli.bot.messages.abandoned'));
-        $this->close($session);
+        $this->close($session, 'abandono');
         $session->save();
 
         return 'abandonadas';
@@ -1570,6 +1673,13 @@ class BotEngine
         $atendente = is_string($atual['attendant']['uuid'] ?? null) ? $atual['attendant']['uuid'] : null;
 
         if (!$this->isLaraAttendant($atendente)) {
+            // O webhook da transferência costuma chegar antes e já ter dito
+            // quem pegou; aqui só fecha o que ficou aguardando.
+            $this->journal->handoffChecked(
+                $contactUuid,
+                $atendente === null ? BotAttendanceEvent::FILA : BotAttendanceEvent::ATENDENTE,
+                is_string($atual['attendant']['attributes']['name'] ?? null) ? $atual['attendant']['attributes']['name'] : $atendente,
+            );
             $this->markUnreadForAttendant($session, $atendente);
 
             return;
@@ -1580,9 +1690,10 @@ class BotEngine
             'attendance_uuid' => $atual['uuid'] ?? $session->attendance_uuid,
         ]);
 
+        $this->journal->handoffChecked($contactUuid, BotAttendanceEvent::DEVOLVIDO, 'O Lara');
         $this->out = $this->outbox->live(true);
         $this->say($session, (string) config('poli.bot.messages.handoff_failed'));
-        $session->toEnding((int) config('poli.bot.close_after_minutes', 10));
+        $session->toEnding((int) config('poli.bot.close_after_minutes', 10), 'transbordo_falhou');
         $session->save();
     }
 
@@ -1693,10 +1804,10 @@ class BotEngine
         $this->out = $this->outbox->live(true);
 
         if ($devolverPara !== null) {
-            $this->out->handoff($session, $devolverPara);
+            $this->distribute($session, $devolverPara, 'devolucao');
             $session->toHuman();
         } else {
-            $this->close($session);
+            $this->close($session, 'reconciliacao');
         }
 
         $session->save();
@@ -1712,7 +1823,7 @@ class BotEngine
     public function awaitReplyAfterNotice(string $contactUuid, ?string $attendanceUuid = null): void
     {
         $session = BotSession::find($contactUuid) ?? new BotSession(['contact_uuid' => $contactUuid]);
-        $session->toEnding((int) config('poli.bot.close_after_minutes', 10));
+        $session->toEnding((int) config('poli.bot.close_after_minutes', 10), 'aviso_carro');
         $session->attendance_uuid = $attendanceUuid;
         $session->last_interaction_at = now();
         $session->save();

@@ -6,12 +6,17 @@ Documentação completa (regras, modos, rollback): [docs/funcionalidades/bot-wha
 
 A Poli é o canal do WhatsApp; O Lara decide o que responder nas conversas atribuídas ao usuário
 **O Lara** da Poli (`poli.bot.user_uuid`), seguindo **fluxos** (JSON em `bot_flows`) editados na
-tela **Bot WhatsApp** (`poli-bot.*`, permissão `bot-whatsapp`).
+tela **Bot WhatsApp › Fluxos** (`poli-bot.*`, permissão `bot-whatsapp`). A tela **Bot WhatsApp ›
+Transferências e encerramentos** (`poli-bot.events.index`, permissão `bot-whatsapp.ocorrencias`)
+mostra o diário `bot_attendance_events`: por que cada conversa chegou ao O Lara, saiu dele ou foi
+encerrada.
 
 ## Caminho de uma mensagem
 
 1. `POST /api/webhooks/whatsapp` → `UberAccessRequestWebhookController::handle`
-   - indexa menu enviado, chama `BotEngine::observe()` (estado: humano assumiu, encerrado, ACK);
+   - indexa menu enviado, chama `BotEngine::observe()` (estado: humano assumiu, encerrado, ACK;
+     e `AttendanceJournal::observe()`, que classifica transferência/encerramento no diário — ANTES
+     de o job da transferência existir);
    - grava a linha em `uber_access_request_messages` (dedup por `poli_message_id`);
    - entrada: agenda `ProcessUberAccessRequestMessage` com atraso (`poli.bot.inbound_max_lag_seconds`
      na conversa do O Lara, `poli.inbound.max_delivery_lag_seconds` nas outras), ancorado na
@@ -34,6 +39,9 @@ tela **Bot WhatsApp** (`poli-bot.*`, permissão `bot-whatsapp`).
 | `app/Services/PoliBot/FlowDefinition.php` | Formato do JSON do fluxo (docblock) e validação ao salvar. |
 | `app/Services/PoliBot/DefaultFlows.php` | Fluxos padrão (`poli:bot-fluxos --instalar`); usados nos testes. |
 | `app/Services/PoliBot/BotOutbox.php` | Envio e registro em `poli_messages` (com `flow_slug`/`step_key`). |
+| `app/Services/PoliBot/AttendanceJournal.php` | Diário `bot_attendance_events`: O Lara anota o que faz antes de pedir à Poli; o webhook confirma ou cria a linha. Não lança. |
+| `app/Models/BotAttendanceEvent.php` | Tipos (`recebida`/`enviada`/`encerramento`), motivos e rótulos (`REASONS`), resultados do transbordo. |
+| `app/Http/Controllers/PoliBot/AttendanceEventController.php` | Tela do diário (`resources/views/poli-bot/events.blade.php`). |
 | `app/Services/Poli/PoliMessageParser.php` / `ParsedPoliMessage` | Payload da Poli → mensagem (texto, contexto do toque, atendente, `createdAt`). |
 | `app/Models/BotSession.php` | Estado por contato: `idle`/`flow`/`human`/`ending`, `prompt_message_uuid`, `tentativas`. |
 | `config/poli.php` (`bot`) | Modo, prazos, palavras de escape e textos de correção. |
@@ -51,13 +59,28 @@ tela **Bot WhatsApp** (`poli-bot.*`, permissão `bot-whatsapp`).
 - **Transbordo:** `distribute` → `ConfirmPoliBotHandoff` (~10 s) confere na API. Não saiu do
   O Lara: avisa o contato. Saiu: marca a conversa como não lida para o atendente
   (`PoliClient::marcarComoNaoLida`, ação `unread` em `poli_messages`; `poli.bot.mark_unread_on_handoff`).
+- **Transbordo devolvido:** a Poli às vezes devolve o distribute para O Lara "pelo sistema"
+  (`direction = EMPTY`) ~1 s depois. O diário marca a volta como `retorno_transbordo` (transbordo
+  `aguardando` do contato há até `poli.bot.handoff_return_seconds`); `startFromRedirect` lê isso
+  (`isReturnedHandoff`) e avisa o contato (`handoff_failed`) + `toEnding('transbordo_devolvido')`,
+  sem reabrir o menu. Transferência "por Fulano" (`SYSTEM` com autor) é setor.
+- **Transferência velha:** com a sessão em `human`, `startFromRedirect` confere na API
+  (`leftLara`) antes de agir; se já saiu do O Lara, só registra. Testes de setor precisam de
+  `atendimentoNaApi` com O Lara (`oLaraNaApi()`).
+- **Motivo no diário:** `handoff()`/`distribute()` e `close()` do motor exigem o motivo (chave de
+  `BotAttendanceEvent::REASONS`). O close diferido usa `bot_sessions.ending_reason`, gravado por
+  `toEnding($min, $motivo)`. Motivo novo = constante em `REASONS` + chamada com ele.
 - Nada no motor lança: erro vira log. A trava por contato é de quem chama (não é reentrante).
 
 ## Testes
 
 - `tests/Feature/Poli/PoliBotEngineTest.php` (motor com `DefaultFlows`, Http fake; envios
   devolvem `out-1`, `out-2`…), `PoliBotWebhookTest.php` (ponta a ponta pelo webhook),
-  `PoliBotEditorTest.php` (tela), `tests/Unit/PoliMessageParserTest.php`.
+  `PoliBotEditorTest.php` (tela), `PoliBotEventsScreenTest.php` (tela do diário),
+  `tests/Unit/PoliMessageParserTest.php`. Os helpers `transferido()` e `encerrado()` do
+  `PoliBotEngineTest` montam os eventos de sistema no formato medido em produção.
+- Teste que usa `bot_sessions` precisa rodar também a migration
+  `2026_10_16_150000_create_bot_attendance_events_table` (`ending_reason`).
 - Sem `RefreshDatabase`: as migrations necessárias rodam no `setUp`. Confira o isolamento SQLite
   do `phpunit.xml` antes de rodar. Rode só a pasta: `php -d memory_limit=1G vendor/bin/phpunit tests/Feature/Poli`.
 - Para simular a hora em que o contato escreveu, passe `criadaEm:` ao helper `msg()` (ou use `textoEscritoEm`).

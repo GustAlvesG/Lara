@@ -22,10 +22,16 @@ Quem tem a permissão **`bot-whatsapp`** — na matriz inicial, o coordenador do
  Salvar um fluxo ativo é **publicar**: ele vale na
 próxima mensagem dos associados.
 
+A tela **Transferências e encerramentos** tem permissão própria,
+**`bot-whatsapp.ocorrencias`**: é de quem acompanha o atendimento, sem precisar editar fluxo.
+Nasce sem setor (só o acesso total alcança); dê aos setores pertinentes na tela de Setores.
+
 ## Pré-requisitos
 
-- Tabelas: `php artisan migrate` (bot_flows, bot_sessions, poli_messages, bot_flow_versions).
-- Permissão: `bot-whatsapp`, do catálogo de acesso (ver [Usuários, setores e permissões](usuarios-e-permissoes.md)).
+- Tabelas: `php artisan migrate` (bot_flows, bot_sessions, poli_messages, bot_flow_versions,
+  bot_attendance_events).
+- Permissões: `bot-whatsapp` e `bot-whatsapp.ocorrencias`, do catálogo de acesso (ver
+  [Usuários, setores e permissões](usuarios-e-permissoes.md)); o deploy cria as que faltam.
 - Fluxos iniciais, equivalentes ao bot da Poli de hoje: `php artisan poli:bot-fluxos --instalar`.
 - Modo do bot no `.env` (`POLI_BOT_MODE`), ver abaixo.
 
@@ -59,6 +65,77 @@ um menu de retorno.
 - **Sem fluxo ativo com esse início**, a transferência de um setor abre como antes: pela última
   mensagem do contato ou pelo fluxo de boas-vindas.
 - No modo `shadow`, quem não está na lista de teste continua indo para a Secretaria.
+
+### Transbordo devolvido pela Poli
+
+Em 16/10/2026 o transbordo para a Secretaria e o Financeiro voltava para O Lara um segundo
+depois do `distribute` ("Contato redirecionado para O Lara **pelo sistema**"), sempre nos horários
+sem atendente: abertura, almoço, fim do dia e noite. O Lara não está nos times e a Poli não
+mostra a opção de distribuição que explique isso. Antes, a Lara tratava a volta como transferência
+de setor e reabria o menu; o contato escolhia o mesmo time e voltava, em ciclo.
+
+Agora a volta **pelo sistema** até `POLI_BOT_DEVOLUCAO_S` (120) segundos depois de um transbordo do
+O Lara que ninguém pegou é **devolução**:
+
+- o contato recebe *"Não consegui te transferir para um atendente agora…"* e o menu **não** reabre;
+- a conversa espera o encerramento diferido (`POLI_BOT_ENCERRAR_APOS_MIN`) — se o contato
+  escrever antes, recomeça pelo menu;
+- vai para o diário: o transbordo com resultado **Voltou para O Lara**, a volta como **A Poli
+  devolveu o transbordo** e, depois, o encerramento com o mesmo motivo.
+
+Um **atendente** que pega a conversa e a devolve para O Lara (transferência "por Fulano") continua
+sendo transferência de setor, mesmo logo depois.
+
+### Transferência velha
+
+O job da transferência para O Lara espera alguns segundos. Se nesse meio tempo o O Lara já passou a
+conversa adiante (a mensagem do contato foi processada antes e transbordou), a transferência
+chegaria com um menu numa conversa que já está com um atendente. Por isso, quando a conversa está
+com atendente, a Lara **confere na API** antes de agir: se o atendimento já não está com O Lara, a
+transferência fica só no histórico (`poli_messages`, "ignorada"). Sem resposta da API, vale o
+evento.
+
+## Transferências e encerramentos (tela)
+
+**Bot WhatsApp › Transferências e encerramentos** mostra, para um período (padrão: hoje; até 31
+dias), cada vez que uma conversa:
+
+- **chegou ao O Lara** (recebida),
+- **saiu dele** (enviada), com o resultado: com atendente, na fila do time, voltou para O Lara,
+  a Poli recusou, aguardando,
+- **foi encerrada** (encerramento),
+
+com o **motivo**, quem fez, para onde foi, o fluxo e passo, e o texto de sistema da Poli. O resumo no
+topo conta cada motivo no período; clicar num motivo filtra a lista. A busca aceita nome, telefone
+(com ou sem máscara), atendente ou uuid; clicar no contato mostra só o histórico dele.
+
+| Tipo | Motivo | Quando |
+|---|---|---|
+| Recebida | Entrada pela Poli | Transferência "pelo sistema" sem transbordo pendente (bot da Poli, distribuição). |
+| Recebida | A Poli devolveu o transbordo | Ver *Transbordo devolvido pela Poli*. |
+| Recebida | Um atendente transferiu | Transferência "por Fulano" para O Lara. |
+| Recebida | Resgate / Aviso do carro | Forward que o próprio O Lara faz. |
+| Recebida | Transferida pela API | Forward da API sem anotação do O Lara (ex.: `poli:teste-envio`). |
+| Enviada | Passo de transbordo do fluxo | A opção ou o passo "Passar p/ time". |
+| Enviada | O contato pediu atendente | Palavra de escape `atendente`/`0`. |
+| Enviada | Respostas inválidas demais | `max_attempts` esgotado. |
+| Enviada | Número fora da lista de teste | Piloto (`shadow`). |
+| Enviada | Devolução manual | `poli:bot-reconciliar --devolver`. |
+| Enviada | Tirada do O Lara | Um atendente ou a Poli tirou a conversa no meio do fluxo. |
+| Encerramento | Fluxo concluído / pergunta final sem resposta | Encerramento diferido do fim do fluxo. |
+| Encerramento | Transbordo devolvido / não saiu do O Lara | Depois do aviso ao contato. |
+| Encerramento | O contato parou de responder | Abandono no meio do fluxo. |
+| Encerramento | O contato pediu para sair · Passo "encerrar" · Respostas inválidas | Close na hora. |
+| Encerramento | Reconciliação | `poli:bot-reconciliar`. |
+| Encerramento | Depois do aviso do carro | Aviso de chegada do Uber (close logo depois, ou diferido no `on`). |
+| Encerramento | Encerrado por um atendente / pela API / pela Poli | Encerramentos da conta que não foram do O Lara. |
+
+Como se sabe quem agiu: o O Lara anota o que ele mesmo faz **antes** de pedir à Poli; a mensagem
+de sistema da Poli que chega pelo webhook confirma a mesma linha. O que a Poli ou um atendente faz
+entra pelo webhook: `ATTENDANCE_REDIRECTED` com `direction = EMPTY` é a Poli sozinha; com
+`SYSTEM`, alguém pediu (autor com uuid = atendente; sem uuid = API). Transferências entre
+atendentes, sem O Lara no meio, ficam de fora. Com `POLI_BOT_MODE=off` nada é registrado. O
+registro começou em 16/10/2026: dias anteriores aparecem vazios.
 
 ## Modos (`POLI_BOT_MODE`)
 
@@ -113,6 +190,8 @@ conferir e salvar.
   passo "fora do horário" (do fluxo atual, ou do fluxo de boas-vindas se o atual não tem
   horário). Depois do distribute, um job confere em ~10 s (`POLI_BOT_CONFIRMAR_TRANSBORDO_S`)
   se o atendimento saiu mesmo do O Lara; se não saiu, o contato é avisado e a falha vai para o log.
+  A volta "pelo sistema" que costuma chegar antes disso tem regra própria (ver *Transbordo
+  devolvido pela Poli*).
 - **Não lida depois do transbordo:** as mensagens que O Lara manda pela API deixam a conversa como
   lida, e o atendente a receberia como já visualizada. Na mesma conferência, com o transbordo
   feito, O Lara marca a conversa como **não lida** (`POST /contacts/{uuid}/unread`) com o
@@ -161,7 +240,8 @@ conferir e salvar.
   30 min do fluxo escutado. Cria o pedido em toda conversa do O Lara (nunca no simulador); a escuta do
   Uber ignora as conversas do O Lara, para não duplicar.
 - **Histórico:** tudo que o bot recebe e envia fica em `poli_messages`, com CPF e datas
-  mascarados.
+  mascarados. Transferências e encerramentos, com o motivo, ficam em `bot_attendance_events`
+  (tela **Transferências e encerramentos**).
 
 ## Mensagens e erros
 
@@ -189,9 +269,11 @@ para a Secretaria; `--devolver=<uuid>` escolhe outro time, `--simular` só lista
 
 - Motor: `app/Services/PoliBot/BotEngine.php`; validação de resposta: `AnswerValidator`;
   formato do fluxo: `FlowDefinition` (docblock descreve o JSON); envio: `BotOutbox`; aviso do
-  Uber: `UberArrivalHandover`.
+  Uber: `UberArrivalHandover`; diário de transferências e encerramentos: `AttendanceJournal`
+  (model `BotAttendanceEvent`, motivos e rótulos em `BotAttendanceEvent::REASONS`).
 - Jobs: `ProcessPoliBotRedirect` (transferência para O Lara), `ConfirmPoliBotHandoff`.
-- Tela: `app/Http/Controllers/PoliBot/*`, `resources/views/poli-bot/*`, rotas `poli-bot.*`.
+- Tela: `app/Http/Controllers/PoliBot/*`, `resources/views/poli-bot/*`, rotas `poli-bot.*`
+  (`poli-bot.events.index` = Transferências e encerramentos, `GET /bot-whatsapp/ocorrencias`).
 - Terminal: `php artisan poli:bot-fluxos`, `poli:bot-simular`, `poli:teste-envio`,
   `poli:bot-expirar` (agendado a cada minuto), `poli:bot-reconciliar` (a cada 10 minutos).
 - Configuração: bloco `bot` de `config/poli.php`.

@@ -148,7 +148,7 @@ class SendPoliTextMessage implements ShouldQueue
         $plano ??= $handover->prepare($contato);
 
         if ($plano === UberArrivalHandover::ENCERRAR) {
-            $poli->closeChat($contato);
+            $handover->close($poli, $contato);
         }
     }
 

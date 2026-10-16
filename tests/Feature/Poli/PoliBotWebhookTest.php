@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Poli;
 
+use App\Models\BotAttendanceEvent;
 use App\Models\BotFlow;
 use App\Models\BotSession;
 use App\Models\PoliListMessage;
@@ -44,6 +45,7 @@ class PoliBotWebhookTest extends TestCase
             '2026_01_05_141304_banco_de_horas.php',
             '2026_09_25_160000_create_poli_bot_tables.php',
             '2026_09_29_120000_add_lara_owner_to_bot_sessions.php',
+            '2026_10_16_150000_create_bot_attendance_events_table.php',
         ] as $migration) {
             (require base_path('database/migrations/' . $migration))->up();
         }
@@ -368,5 +370,44 @@ class PoliBotWebhookTest extends TestCase
 
         $this->assertSame(0, PoliMessage::count());
         $this->assertSame(0, BotSession::count());
+        $this->assertSame(0, BotAttendanceEvent::count());
+    }
+
+    /**
+     * O caso de 16/10/2026, 11:50, pelo caminho de produção: o contato
+     * escolhe o time, O Lara faz o distribute e a Poli devolve a conversa
+     * "pelo sistema" um segundo depois. O webhook classifica a volta antes de
+     * o job da transferência rodar; o job avisa o contato em vez de mandar o
+     * menu de novo.
+     */
+    public function test_transbordo_devolvido_pela_poli_nao_reabre_o_menu(): void
+    {
+        $this->webhook($this->recebida('CHAT', ['body' => ['text' => 'oi']]))->assertOk();
+        $this->webhook($this->recebida('CHAT', ['body' => ['text' => 'Financeiro']]))->assertOk();
+        $this->assertTrue(BotSession::find(self::CONTACT)->isHuman());
+        $templates = PoliMessage::where('type', 'TEMPLATE')->count();
+
+        $this->atendimentoNaApi = ['uuid' => 'att-1', 'status' => null, 'attendant' => ['uuid' => self::LARA]];
+        $this->webhook([
+            'object' => 'message', 'event' => 'received', 'account_uuid' => 'acc-uuid', 'uuid' => 'sys-volta',
+            'value' => [
+                'uuid' => 'sys-volta', 'event' => 'SYSTEM', 'type' => 'ATTENDANCE_REDIRECTED', 'direction' => 'EMPTY',
+                'author' => ['type' => 'USER', 'uuid' => self::LARA, 'attributes' => ['name' => 'O Lara']],
+                'contact' => ['uuid' => self::CONTACT, 'attributes' => ['name' => 'Gustavo', 'phone' => '5524992542363']],
+                'components' => ['body' => ['text' => 'Contato redirecionado para O Lara pelo sistema em 23/09/2026 às 10:00']],
+                'attendance' => ['uuid' => 'att-1', 'type' => 'INITIATED_BY_CONTACT', 'status' => null, 'attendant' => ['uuid' => self::LARA, 'attributes' => ['name' => 'O Lara']]],
+            ],
+        ])->assertOk();
+
+        $this->assertSame($templates, PoliMessage::where('type', 'TEMPLATE')->count(), 'o menu não reabre');
+        $this->assertStringContainsString(
+            'Não consegui te transferir',
+            PoliMessage::where('direction', 'OUT')->where('type', 'TEXT')->orderByDesc('id')->value('texto'),
+        );
+        $this->assertSame(BotSession::STATE_ENDING, BotSession::find(self::CONTACT)->state);
+        $this->assertSame(
+            ['enviada:fluxo:devolvido', 'recebida:retorno_transbordo:'],
+            BotAttendanceEvent::orderBy('id')->get()->map(fn ($e) => "{$e->kind}:{$e->reason}:{$e->outcome}")->all(),
+        );
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Services\PoliBot;
 
 use App\Services\Poli\PoliClient;
+use App\Services\Poli\PoliMessageService;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -30,6 +31,7 @@ class UberArrivalHandover
     public function __construct(
         private readonly PoliClient $poli,
         private readonly BotEngine $bot,
+        private readonly AttendanceJournal $journal,
     ) {}
 
     /**
@@ -64,6 +66,8 @@ class UberArrivalHandover
             return self::ENCERRAR;
         }
 
+        $evento = null;
+
         try {
             // A sessão antes do forward: a transferência que ele gera encontra
             // a conversa já adotada e não abre o menu por cima do aviso.
@@ -73,9 +77,12 @@ class UberArrivalHandover
             ));
 
             if (!$comOLara) {
+                $evento = $this->journal->forwarding($contactUuid, 'aviso_carro');
                 $this->poli->encaminhar($contactUuid, userUuid: $this->bot->botUserUuid());
             }
         } catch (Throwable $e) {
+            $this->journal->forwarded($evento, false);
+
             Log::warning('Poli: aviso do Uber não passou a conversa para O Lara — encerra depois do aviso', [
                 'contact_uuid' => $contactUuid,
                 'erro' => $e->getMessage(),
@@ -85,6 +92,13 @@ class UberArrivalHandover
         }
 
         return self::LARA;
+    }
+
+    /** O close logo depois do aviso (ENCERRAR), anotado no diário dos atendimentos. */
+    public function close(PoliMessageService $poli, string $contactUuid): void
+    {
+        $evento = $this->journal->closing($contactUuid, 'aviso_carro');
+        $this->journal->closed($evento, $poli->closeChat($contactUuid)->success);
     }
 
     /** O rodapé do aviso para cada destino: ele diz ao sócio o que vem depois. */

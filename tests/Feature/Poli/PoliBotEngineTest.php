@@ -3,6 +3,7 @@
 namespace Tests\Feature\Poli;
 
 use App\Jobs\ConfirmPoliBotHandoff;
+use App\Models\BotAttendanceEvent;
 use App\Models\BotFlow;
 use App\Models\BotSession;
 use App\Models\PoliMessage;
@@ -75,6 +76,7 @@ class PoliBotEngineTest extends TestCase
             '2026_01_05_141304_banco_de_horas.php',
             '2026_09_25_160000_create_poli_bot_tables.php',
             '2026_09_29_120000_add_lara_owner_to_bot_sessions.php',
+            '2026_10_16_150000_create_bot_attendance_events_table.php',
         ] as $migration) {
             (require base_path('database/migrations/' . $migration))->up();
         }
@@ -959,6 +961,7 @@ class PoliBotEngineTest extends TestCase
         $this->bot()->observe($this->redirecionado('atendente-ana'));
         $this->assertTrue($this->sessao()->isHuman());
 
+        $this->oLaraNaApi();
         $this->bot()->handleRedirect($this->redirect());
 
         $s = $this->sessao();
@@ -966,7 +969,7 @@ class PoliBotEngineTest extends TestCase
         $this->assertSame('retorno-do-setor', $s->flow_slug);
         $this->assertSame('pergunta', $s->step_key);
         $this->assertStringContainsString('voltou para mim', $this->ultimoEnviado());
-        Http::assertSentCount(1);
+        Http::assertSentCount(2);   // a conferência na API e a pergunta
     }
 
     /** O que o contato disse ao atendente não é gatilho de fluxo nenhum. */
@@ -976,6 +979,7 @@ class PoliBotEngineTest extends TestCase
         $this->texto("Carro de Aplicativo\nCarro, moto ou táxi", atendente: 'atendente-ana');
         $this->bot()->observe($this->redirecionado('atendente-ana'));
 
+        $this->oLaraNaApi();
         $this->bot()->handleRedirect($this->redirect());
 
         $this->assertSame('retorno-do-setor', $this->sessao()->flow_slug);
@@ -995,6 +999,7 @@ class PoliBotEngineTest extends TestCase
     {
         $this->bot()->observe($this->redirecionado('atendente-ana'));
 
+        $this->oLaraNaApi();
         $this->bot()->handleRedirect($this->redirect());
 
         $this->assertSame('atendimento', $this->sessao()->flow_slug);
@@ -1007,6 +1012,7 @@ class PoliBotEngineTest extends TestCase
         $this->fluxoDeTransferencia(ativo: false);
         $this->bot()->observe($this->redirecionado('atendente-ana'));
 
+        $this->oLaraNaApi();
         $this->bot()->handleRedirect($this->redirect());
 
         $this->assertSame('atendimento', $this->sessao()->flow_slug);
@@ -1702,6 +1708,269 @@ class PoliBotEngineTest extends TestCase
         $this->imagem();
 
         $this->assertSame(BotSession::STATE_ENDING, $this->sessao()->state);
+    }
+
+    /* ---------------- transbordo devolvido pela Poli ---------------- */
+
+    /**
+     * 16/10/2026: o distribute para a Secretaria voltava "pelo sistema" para O
+     * Lara segundos depois, e a Lara reabria o menu — o contato escolhia a
+     * Secretaria de novo e voltava, em ciclo.
+     */
+    public function test_transbordo_devolvido_pela_poli_avisa_o_contato_e_nao_reabre_o_menu(): void
+    {
+        $menus = $this->transbordoDevolvido();
+
+        $this->assertStringContainsString('Não consegui te transferir', $this->ultimoEnviado());
+        $this->assertSame($menus, $this->menusEnviados(), 'o menu não reabre');
+
+        $s = $this->sessao();
+        $this->assertSame(BotSession::STATE_ENDING, $s->state);
+        $this->assertSame('transbordo_devolvido', $s->ending_reason);
+        $this->assertTrue($s->lara_owned);
+
+        $enviada = BotAttendanceEvent::where('kind', BotAttendanceEvent::ENVIADA)->sole();
+        $this->assertSame('fluxo', $enviada->reason);
+        $this->assertSame(BotAttendanceEvent::DEVOLVIDO, $enviada->outcome);
+        $this->assertSame('financeiro', $enviada->step_key);
+
+        $recebida = BotAttendanceEvent::where('kind', BotAttendanceEvent::RECEBIDA)->sole();
+        $this->assertSame('retorno_transbordo', $recebida->reason);
+        $this->assertSame('Contato redirecionado para O Lara pelo sistema', $recebida->poli_text);
+    }
+
+    public function test_conversa_do_transbordo_devolvido_fecha_com_esse_motivo(): void
+    {
+        $this->transbordoDevolvido();
+
+        Carbon::setTestNow(now()->addMinutes(11));
+        $this->bot()->expireSessions();
+
+        $fechamento = BotAttendanceEvent::where('kind', BotAttendanceEvent::ENCERRAMENTO)->sole();
+        $this->assertSame('transbordo_devolvido', $fechamento->reason);
+        $this->assertSame('O Lara', $fechamento->actor);
+        $this->assertTrue($this->enviouPara('close'));
+    }
+
+    /** Depois do aviso, quem escreve recomeça pelo menu — como no fim de fluxo. */
+    public function test_quem_escreve_depois_do_transbordo_devolvido_recebe_o_menu(): void
+    {
+        $menus = $this->transbordoDevolvido();
+
+        $this->texto('oi de novo');
+
+        $this->assertSame($menus + 1, $this->menusEnviados());
+        $this->assertSame('menu', $this->sessao()->step_key);
+    }
+
+    /** O atendente pegou e devolveu para O Lara: é transferência de setor, mesmo logo depois. */
+    public function test_atendente_que_devolve_para_o_lara_depois_do_transbordo_e_transferencia_de_setor(): void
+    {
+        $this->fluxoDeTransferencia();
+        $this->texto('oi');
+        $this->texto('Financeiro');
+        $this->bot()->observe($this->transferido('sys-pegou', 'atendente-ana'));
+
+        $volta = $this->redirect('att-1');
+        $this->bot()->observe($this->transferido($volta->messageId, self::LARA, autor: 'atendente-ana'));
+        $this->oLaraNaApi();
+        $this->bot()->handleRedirect($volta);
+
+        $this->assertSame('retorno-do-setor', $this->sessao()->flow_slug, 'abre o fluxo de setor, não o aviso de devolução');
+
+        $enviada = BotAttendanceEvent::where('kind', BotAttendanceEvent::ENVIADA)->sole();
+        $this->assertSame(BotAttendanceEvent::ATENDENTE, $enviada->outcome);
+        $this->assertSame('Ana', $enviada->outcome_detail);
+
+        $recebida = BotAttendanceEvent::where('kind', BotAttendanceEvent::RECEBIDA)->sole();
+        $this->assertSame('atendente', $recebida->reason);
+        $this->assertSame('Ana', $recebida->actor);
+    }
+
+    /**
+     * 16/10/2026, 14:17: a transferência de entrada e o toque chegaram
+     * juntos; o toque foi processado antes e já transbordou para a Thais. A
+     * transferência, processada depois, não pode mandar o menu.
+     */
+    public function test_transferencia_velha_processada_depois_do_transbordo_nao_manda_o_menu(): void
+    {
+        $this->texto('oi');
+        $this->texto('Financeiro');
+        $antes = count($this->enviados());
+
+        $this->atendimentoNaApi = ['uuid' => 'att-1', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => 'atendente-ana']];
+        $this->bot()->handleRedirect($this->redirect('att-1'));
+
+        $this->assertCount($antes, $this->enviados());
+        $this->assertTrue($this->sessao()->isHuman());
+        $this->assertStringContainsString('ignorada', PoliMessage::where('type', 'REDIRECT')->value('texto'));
+    }
+
+    /** Sem a API, vale o evento: conversa do O Lara não fica sem resposta. */
+    public function test_transferencia_de_setor_sem_a_api_segue_o_evento(): void
+    {
+        $this->bot()->observe($this->redirecionado('atendente-ana'));
+        $this->poliForaDoAr = true;
+
+        $this->bot()->handleRedirect($this->redirect());
+
+        $this->assertSame('atendimento', $this->sessao()->flow_slug);
+    }
+
+    /* ---------------- diário: transferências e encerramentos ---------------- */
+
+    public function test_entrada_pela_poli_vai_para_o_diario(): void
+    {
+        $this->bot()->observe($this->transferido('sys-entrada', self::LARA));
+
+        $e = BotAttendanceEvent::sole();
+        $this->assertSame([BotAttendanceEvent::RECEBIDA, 'entrada', 'Poli (sistema)', 'O Lara'], [$e->kind, $e->reason, $e->actor, $e->target]);
+        $this->assertSame(self::PHONE, $e->contact_phone);
+    }
+
+    public function test_evento_reenviado_pela_poli_entra_uma_vez_so(): void
+    {
+        $this->bot()->observe($this->transferido('sys-entrada', self::LARA));
+        $this->bot()->observe($this->transferido('sys-entrada', self::LARA));
+
+        $this->assertSame(1, BotAttendanceEvent::count());
+    }
+
+    public function test_conferencia_do_transbordo_registra_quem_pegou(): void
+    {
+        $this->texto('oi');
+        $this->texto('Financeiro');
+
+        $this->atendimentoNaApi = ['uuid' => 'att-1', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => 'atendente-ana', 'attributes' => ['name' => 'Ana']]];
+        (new ConfirmPoliBotHandoff(self::CONTACT))->handle($this->bot());
+
+        $enviada = BotAttendanceEvent::where('kind', BotAttendanceEvent::ENVIADA)->sole();
+        $this->assertSame([BotAttendanceEvent::ATENDENTE, 'Ana'], [$enviada->outcome, $enviada->outcome_detail]);
+    }
+
+    public function test_transbordo_que_ficou_no_o_lara_na_conferencia_fecha_com_esse_motivo(): void
+    {
+        $this->texto('oi');
+        $this->texto('Financeiro');
+
+        $this->oLaraNaApi();
+        (new ConfirmPoliBotHandoff(self::CONTACT))->handle($this->bot());
+
+        $this->assertSame(BotAttendanceEvent::DEVOLVIDO, BotAttendanceEvent::where('kind', BotAttendanceEvent::ENVIADA)->value('outcome'));
+        $this->assertSame('transbordo_falhou', $this->sessao()->ending_reason);
+    }
+
+    public function test_pedir_atendente_vai_para_o_diario_com_o_motivo(): void
+    {
+        $this->texto('oi');
+        $this->texto('atendente');
+
+        $this->assertSame('pediu_atendente', BotAttendanceEvent::where('kind', BotAttendanceEvent::ENVIADA)->value('reason'));
+    }
+
+    /** O close do O Lara é anotado antes; a mensagem de sistema da Poli completa a mesma linha. */
+    public function test_sair_registra_o_encerramento_e_a_poli_confirma_na_mesma_linha(): void
+    {
+        $this->texto('oi');
+        $this->texto('sair');
+
+        $this->bot()->observe($this->encerrado('sys-fim'));
+
+        $e = BotAttendanceEvent::sole();
+        $this->assertSame([BotAttendanceEvent::ENCERRAMENTO, 'sair', 'O Lara'], [$e->kind, $e->reason, $e->actor]);
+        $this->assertSame('sys-fim', $e->poli_message_id);
+        $this->assertStringStartsWith('Chat finalizado por Lara', $e->poli_text);
+    }
+
+    public function test_abandono_e_fim_do_fluxo_tem_motivos_proprios(): void
+    {
+        $this->texto('oi');
+        Carbon::setTestNow(now()->addHour());
+        $this->bot()->expireSessions();
+
+        $this->assertSame('abandono', BotAttendanceEvent::where('kind', BotAttendanceEvent::ENCERRAMENTO)->value('reason'));
+    }
+
+    public function test_encerramento_por_atendente_registra_quem_encerrou(): void
+    {
+        $this->bot()->observe($this->encerrado('sys-fim', por: 'atendente-ana'));
+
+        $e = BotAttendanceEvent::sole();
+        $this->assertSame(['atendente', 'Ana', 'FINISHED_BY_USER'], [$e->reason, $e->actor, $e->detail]);
+    }
+
+    public function test_conversa_tirada_do_o_lara_no_meio_do_fluxo_vai_para_o_diario(): void
+    {
+        $this->texto('oi');
+        $this->bot()->observe($this->transferido('sys-tirou', 'atendente-ana', autor: 'atendente-ana'));
+
+        $e = BotAttendanceEvent::sole();
+        $this->assertSame([BotAttendanceEvent::ENVIADA, 'retirada', 'Ana', 'Ana'], [$e->kind, $e->reason, $e->actor, $e->target]);
+    }
+
+    /** Transferência entre atendentes, sem O Lara no meio, não é assunto do diário. */
+    public function test_transferencia_entre_atendentes_fica_fora_do_diario(): void
+    {
+        $this->bot()->observe($this->transferido('sys-x', 'atendente-ana', autor: 'atendente-ana'));
+
+        $this->assertSame(0, BotAttendanceEvent::count());
+    }
+
+    /** O transbordo do contato que entrou pelo menu e caiu de volta no O Lara. */
+    private function transbordoDevolvido(): int
+    {
+        $this->texto('oi');
+        $this->texto('Financeiro');
+        $this->assertTrue($this->sessao()->isHuman());
+        $menus = $this->menusEnviados();
+
+        $volta = $this->redirect('att-1');
+        $this->bot()->observe($this->transferido($volta->messageId, self::LARA));
+        $this->oLaraNaApi();
+        $this->bot()->handleRedirect($volta);
+
+        return $menus;
+    }
+
+    private function menusEnviados(): int
+    {
+        return PoliMessage::where('direction', 'OUT')->where('template_uuid', DefaultFlows::TPL_DEPARTAMENTOS)->count();
+    }
+
+    private function oLaraNaApi(): void
+    {
+        $this->atendimentoNaApi = ['uuid' => 'att-1', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => self::LARA]];
+    }
+
+    /**
+     * ATTENDANCE_REDIRECTED como a Poli manda (medido em 15–16/10/2026): sem
+     * `$autor`, "pelo sistema" — direction EMPTY e o autor é o novo atendente;
+     * com, alguém pediu — direction SYSTEM e o autor é quem pediu.
+     */
+    private function transferido(string $id, string $para, ?string $autor = null): array
+    {
+        $nomes = [self::LARA => 'O Lara', 'atendente-ana' => 'Ana'];
+
+        return ['object' => 'message', 'event' => 'received', 'value' => [
+            'uuid' => $id, 'event' => 'SYSTEM', 'type' => 'ATTENDANCE_REDIRECTED',
+            'direction' => $autor === null ? 'EMPTY' : 'SYSTEM',
+            'author' => ['type' => 'USER', 'uuid' => $autor ?? $para, 'attributes' => ['name' => $nomes[$autor ?? $para]]],
+            'contact' => ['uuid' => self::CONTACT, 'attributes' => ['name' => 'Gustavo', 'phone' => self::PHONE]],
+            'components' => ['body' => ['text' => 'Contato redirecionado para ' . $nomes[$para] . ($autor === null ? ' pelo sistema' : ' por ' . $nomes[$autor])]],
+            'attendance' => ['uuid' => 'att-1', 'status' => null, 'attendant' => ['uuid' => $para, 'attributes' => ['name' => $nomes[$para]]]],
+        ]];
+    }
+
+    /** ATTENDANCE_CLOSED: sem `$por`, pela API (autor sem uuid); com, por um atendente. */
+    private function encerrado(string $id, ?string $por = null): array
+    {
+        return ['object' => 'message', 'event' => 'received', 'value' => [
+            'uuid' => $id, 'event' => 'SYSTEM', 'type' => 'ATTENDANCE_CLOSED', 'direction' => 'SYSTEM',
+            'author' => $por === null ? ['type' => 'USER'] : ['type' => 'USER', 'uuid' => $por],
+            'contact' => ['uuid' => self::CONTACT],
+            'components' => ['body' => ['text' => 'Chat finalizado por ' . ($por === null ? 'Lara' : 'Ana') . ' em 23/09/2026 às 10:00']],
+            'attendance' => ['uuid' => 'att-1', 'status' => 'CLOSED', 'closed_reason' => 'FINISHED_BY_USER'],
+        ]];
     }
 
     private function fluxoDeTransferencia(bool $ativo = true): void

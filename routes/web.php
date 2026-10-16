@@ -65,6 +65,7 @@ use App\Http\Controllers\Replay\Web\CameraController as ReplayCameraController;
 use App\Http\Controllers\Replay\Web\VideoController as ReplayVideoWebController;
 use App\Http\Controllers\Replay\VideoFileController as ReplayVideoFileController;
 
+use App\Http\Controllers\PoliBot\AttendanceEventController as PoliBotAttendanceEventController;
 use App\Http\Controllers\PoliBot\FlowController as PoliBotFlowController;
 use App\Http\Controllers\PoliBot\PoliDataController as PoliBotDataController;
 use App\Http\Controllers\PoliBot\SimulatorController as PoliBotSimulatorController;
@@ -904,6 +905,13 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         Route::get('/poli/templates', [PoliBotDataController::class, 'templates'])->middleware('throttle:30,1')->name('poli.templates');
         Route::get('/poli/times', [PoliBotDataController::class, 'teams'])->middleware('throttle:30,1')->name('poli.teams');
     });
+
+    // Diário dos atendimentos do O Lara: transferências recebidas e enviadas
+    // e encerramentos, com o motivo. Permissão própria — é de quem acompanha
+    // o atendimento, não necessariamente de quem edita fluxo.
+    Route::get('/bot-whatsapp/ocorrencias', [PoliBotAttendanceEventController::class, 'index'])
+        ->middleware('can:' . P::BOT_WHATSAPP_OCORRENCIAS)
+        ->name('poli-bot.events.index');
 
     // Notificações
     Route::get('/notifications/unread-json', [NotificationController::class, 'unreadJson'])->name('notifications.unreadJson');

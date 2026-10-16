@@ -272,6 +272,15 @@ return [
         'handoff_confirm_seconds' => (int) env('POLI_BOT_CONFIRMAR_TRANSBORDO_S', 10),
 
         /*
+        | Transferência "pelo sistema" para O Lara até este tanto depois de um
+        | distribute dele, sem ninguém ter pegado a conversa no meio, é a Poli
+        | devolvendo o transbordo (medido em 16/10/2026: ~1 s depois, nos
+        | horários sem atendente). O contato é avisado e o menu não reabre.
+        | Arredondado para minutos inteiros.
+        */
+        'handoff_return_seconds' => (int) env('POLI_BOT_DEVOLUCAO_S', 120),
+
+        /*
         | Na mesma conferência, com o transbordo feito: marca a conversa como
         | não lida para o atendente que a recebeu. As mensagens que o O Lara
         | manda pela API deixam a conversa como lida, e ela chegaria ao

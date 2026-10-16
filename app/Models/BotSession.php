@@ -40,6 +40,7 @@ class BotSession extends Model
         'contact_name',
         'human_since',
         'ending_at',
+        'ending_reason',
         'last_interaction_at',
     ];
 
@@ -89,6 +90,7 @@ class BotSession extends Model
         $this->prompt_message_uuid = null;
         $this->human_since = null;
         $this->ending_at = null;
+        $this->ending_reason = null;
     }
 
     /** O atendimento acabou: a próxima mensagem é conversa nova, de quem for. */
@@ -107,14 +109,16 @@ class BotSession extends Model
 
     /**
      * Conversa do O Lara sem pergunta em aberto: fecha no prazo se o contato
-     * não escrever.
+     * não escrever. `$reason` é o motivo desse close no diário
+     * (BotAttendanceEvent::REASONS[encerramento]).
      */
-    public function toEnding(int $minutes): void
+    public function toEnding(int $minutes, string $reason = 'fim_do_fluxo'): void
     {
         $this->reset();
         $this->state = self::STATE_ENDING;
         $this->lara_owned = true;
         $this->ending_at = now()->addMinutes($minutes);
+        $this->ending_reason = $reason;
     }
 
     /** A própria Lara encerrou este atendimento. */

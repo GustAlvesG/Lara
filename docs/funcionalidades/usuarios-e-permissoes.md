@@ -31,7 +31,8 @@ Setores. "Secretaria" é o setor **Atendimento**; "Financeiro" é a
 | Externos › Histórico | `externos.historico` | Atendimento, Portaria |
 | Externos › Carros de Aplicativo (e a fila "Aguardando Motorista", por dentro) | `externos.carros-aplicativo` | Atendimento, Portaria |
 | Lara (IA) | `lara` | TI (acesso total) |
-| Bot WhatsApp | `bot-whatsapp` | Atendimento, **só coordenador** |
+| Bot WhatsApp › Fluxos | `bot-whatsapp` | Atendimento, **só coordenador** |
+| Bot WhatsApp › Transferências e encerramentos | `bot-whatsapp.ocorrencias` | TI (acesso total); os demais setores recebem na tela de Setores |
 | Compras | `compras` | Contabilidade |
 | Carteirinhas | `carteirinhas` | RH |
 | Freelancers › Freelancers | `freelancers.cadastro` | Atendimento, Comercial |
