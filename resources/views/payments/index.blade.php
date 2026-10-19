@@ -2,12 +2,14 @@
      dos filtros de status e método. --}}
 @php
     $field = 'h-11 rounded-full border border-line-strong bg-surface px-4 text-sm text-ink focus:border-grena focus:ring-4 focus:ring-grena-tint';
-    $methods = ['credit_card' => 'Cartão de crédito', 'debit_card' => 'Cartão de débito', 'pix' => 'Pix'];
+    // Filtro: as formas que o site grava (credit/debit) e as da baixa manual,
+    // mais "toda baixa manual".
+    $methods = ['credit' => 'Cartão de crédito', 'debit' => 'Cartão de débito', 'manual' => 'Baixa manual (todas)'] + \App\Models\SchedulePayment::MANUAL_METHODS;
 @endphp
 <x-app-layout :bootstrap-grid="false">
     <x-page>
         <x-page-title title="Pagamentos">
-            Consulte na Rede e estorne pagamentos de reservas.
+            Consulte na Rede e estorne pagamentos de reservas. As baixas manuais (pago fora da plataforma) também aparecem aqui.
         </x-page-title>
 
         @include('partials.alerts')
@@ -67,7 +69,10 @@
                                             <p class="text-xs text-ink-3">{{ $payment->schedules->count() }} agendamentos vinculados</p>
                                         @endif
                                     </td>
-                                    <td class="px-5 py-3.5 text-ink-2">{{ $methods[$payment->payment_method] ?? $payment->payment_method }}</td>
+                                    <td class="px-5 py-3.5 text-ink-2">
+                                        {{ $payment->methodLabel() }}
+                                        @if($payment->is_manual)<span class="block text-[11px] font-bold uppercase text-ink-3">Baixa manual</span>@endif
+                                    </td>
                                     <td class="px-5 py-3.5 whitespace-nowrap font-mono text-xs text-ink-2">
                                         {{ $payment->paid_at ? \Carbon\Carbon::parse($payment->paid_at)->format('d/m/Y H:i') : '—' }}
                                     </td>

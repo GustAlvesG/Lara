@@ -43,7 +43,17 @@ final class Permissions
     public const RESERVAS_AGENDAMENTOS = 'reservas.agendamentos';
     public const RESERVAS_PAGAMENTOS = 'reservas.pagamentos';
     public const RESERVAS_PAGAMENTOS_ESTORNAR = 'reservas.pagamentos.estornar';
+    // Baixa manual: marcar como pago o que foi recebido fora da plataforma
+    // (dinheiro, Pix direto, maquininha da secretaria). Mexe em caixa, por
+    // isso é separada de quem só agenda.
+    public const RESERVAS_PAGAMENTOS_BAIXA_MANUAL = 'reservas.pagamentos.baixa-manual';
     public const RESERVAS_CONFIGURAR = 'reservas.configurar';
+    // Espaços sociais (churrasqueiras, salões): o dia a dia (pré-reserva no
+    // balcão, consulta, lista de convidados) e a decisão (contrato, aprovar
+    // com desconto, recusar, cancelar com estorno), que costuma ser só da
+    // secretaria/coordenação.
+    public const RESERVAS_SOCIAIS = 'reservas.sociais';
+    public const RESERVAS_SOCIAIS_APROVAR = 'reservas.sociais.aprovar';
 
     public const EXTERNOS_LIBERACAO_PONTUAL = 'externos.liberacao-pontual';
     public const EXTERNOS_HISTORICO = 'externos.historico';
@@ -120,7 +130,10 @@ final class Permissions
         self::RESERVAS_AGENDAMENTOS => ['Reservas', 'Agendamentos (criar, ver e editar)'],
         self::RESERVAS_PAGAMENTOS => ['Reservas', 'Pagamentos'],
         self::RESERVAS_PAGAMENTOS_ESTORNAR => ['Reservas', 'Estornar pagamento'],
+        self::RESERVAS_PAGAMENTOS_BAIXA_MANUAL => ['Reservas', 'Baixa manual de pagamento (pago fora da plataforma)'],
         self::RESERVAS_CONFIGURAR => ['Reservas', 'Locais, grupos e regras de reserva'],
+        self::RESERVAS_SOCIAIS => ['Reservas', 'Espaços sociais: consultar, pré-reservar e lista de convidados'],
+        self::RESERVAS_SOCIAIS_APROVAR => ['Reservas', 'Espaços sociais: contrato, aprovar, recusar e cancelar'],
 
         self::EXTERNOS_LIBERACAO_PONTUAL => ['Externos', 'Liberação pontual'],
         self::EXTERNOS_HISTORICO => ['Externos', 'Histórico de acessos'],

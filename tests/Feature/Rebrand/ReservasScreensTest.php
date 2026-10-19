@@ -154,6 +154,21 @@ class ReservasScreensTest extends TestCase
         $this->assertStringContainsString(route('place-group.show', 3), $html);
         $this->assertStringNotContainsString('placehold.co', $html);
         $this->assertStringNotContainsString('pagination.js', $html);
+        // Aba própria no menu de Reservas, não só o botão da agenda.
+        $this->assertStringContainsString('Locais e Grupos', $html);
+    }
+
+    public function test_aba_locais_e_grupos_so_para_quem_configura(): void
+    {
+        $semConfigurar = $this->usuario(new UserAccess([P::RESERVAS_AGENDAMENTOS]));
+
+        $html = $this->tela($semConfigurar, 'schedule.list', [], 'location.schedule.index', [
+            'schedules' => new LengthAwarePaginator([], 0, 25),
+            'places' => collect(),
+            'statuses' => collect(),
+        ]);
+
+        $this->assertStringNotContainsString('Locais e Grupos', $html);
     }
 
     public function test_cartao_de_torneio_edita_o_torneio_e_nao_um_local(): void

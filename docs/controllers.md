@@ -53,7 +53,35 @@ indicados como _stub_.
 
 | Método | Assinatura | Descrição | Rota |
 |--------|-----------|-----------|------|
-| `store` | `store(StoreSchedulePaymentRequest $request)` | Registra um pagamento de agendamento (via `SchedulePaymentService`, em transação). | `POST /api/schedule/payment` |
+| `store` | `store(StoreSchedulePaymentRequest $request)` | Registra um pagamento de agendamento (via `SchedulePaymentService`, em transação). Se o schedule é de reserva social, confere estágio/prazo/valor (`SocialBookingService::assertPayable`, recusa com `reason`) e confirma a reserva (`markPaid`). | `POST /api/schedule/payment` |
+| `storeManual` | `storeManual(Request, ManualPaymentService)` | Baixa manual (pago fora da plataforma): `schedule_ids[]`, `payment_method`, `amount`, `paid_at`, `manual_notes`. Volta para a reserva social ou para o agendamento. | `POST /payments/manual` (`can:reservas.pagamentos.baixa-manual`) |
+| `index` / `show` | — | Lista (filtro de forma inclui "Baixa manual (todas)") e detalhe; baixa manual não mostra consulta nem estorno na Rede. | `GET /payments`, `GET /payments/{id}` |
+
+---
+
+## Social\SocialBookingController
+
+`app/Http/Controllers/Social/SocialBookingController.php` — painel dos espaços sociais. Regras em `SocialBookingService`.
+
+| Método | Descrição | Rota |
+|--------|-----------|------|
+| `index` | Lista com filtros (situação, espaço, período, sócio) e contadores da fila. | `GET /social-bookings` |
+| `create` / `store` | Pré-reserva no balcão (sócio pelo MultiClubes via `MemberService::memberByCpf`). Com `complete` (pede `reservas.sociais.aprovar`) fecha a reserva de uma vez — contrato (anexo opcional), aprovação com desconto — via `SocialCounterBookingService`; com `paid_now` (pede também `reservas.pagamentos.baixa-manual`) registra o pagamento recebido. | `GET /social-bookings/create`, `POST /social-bookings` |
+| `show` | Detalhe com as ações do estágio. | `GET /social-bookings/{booking}` |
+| `updateDetails` | Edita a pré-reserva: evento, pessoas, extras, observações e bebidas (em análise, antes do contrato ok). | `PUT …/details` |
+| `contract` / `downloadContract` | Contrato ok + anexo opcional no disco `local` (`social-contracts/`). | `POST`/`GET …/contract` |
+| `approve` / `refuse` / `cancel` | Decisão; o cancelamento estorna pela Rede se pedido (exige `reservas.pagamentos.estornar`). | `POST …/approve`, `…/refuse`, `…/cancel` |
+| `contact` | Registra o contato com o sócio (encerra o prazo de 2 dias úteis). | `POST …/contact` |
+| `updateGuests` / `guestsPdf` | Lista de convidados (equipe, sem prazo) e PDF para a portaria. | `PUT …/guests`, `GET …/guests.pdf` |
+| `availability` | Calendário do mês (JSON) para a tela de pré-reserva. | `GET /social-bookings/availability` |
+
+## Social\SocialBeverageController
+
+`app/Http/Controllers/Social/SocialBeverageController.php` — catálogo de bebidas (nome, unidade, Código MV, preço, ativo). `index`/`store`/`update`/`destroy` em `/social-bookings/bebidas`.
+
+## Api\SocialBookingApiController
+
+`app/Http/Controllers/Api/SocialBookingApiController.php` — `/api/social/*` para o app de locação (T + L). O sócio sai do JWT; reserva alheia = 404; recusas como `{message, reason}`. Contrato em [reservas-sociais-prompt-site-locacao.md](reservas-sociais-prompt-site-locacao.md).
 
 ---
 
@@ -83,7 +111,7 @@ indicados como _stub_.
 | `store` | `store(Request $request)` | Cria grupo (via service). → Redirect |
 | `show` | `show(PlaceGroup $placeGroup)` | Exibe grupo com suas regras. → View |
 | `edit` | `edit(PlaceGroup $placeGroup)` | Formulário de edição. → View |
-| `update` | `update(UpdatePlaceGroupRequest $request, PlaceGroup $placeGroup)` | Atualiza grupo. → Redirect |
+| `update` | `update(UpdatePlaceGroupRequest $request, PlaceGroup $placeGroup)` | Atualiza grupo; `image_vertical`/`image_horizontal` por arquivo ou por link (`*_url`), resolvidas antes da transação (`PlaceGroupService::resolveImages`). → Redirect |
 | `scheduleRules` | `scheduleRules($id)` | Retorna as regras de agendamento do grupo. → JSON |
 | `createScheduleRule` | `createScheduleRule($group_id)` | Formulário de criação de regra. → View |
 | `storeScheduleRule` | `storeScheduleRule(Request $request)` | Cria regra com dias da semana e espaços. → Redirect |
@@ -91,9 +119,9 @@ indicados como _stub_.
 | `updateScheduleRule` | `updateScheduleRule(Request $request, $id)` | Atualiza regra (em transação). → Redirect |
 | `destroyScheduleRule` | `destroyScheduleRule($id)` | Remove regra. → Redirect |
 | `createPlace` | `createPlace($group_id)` | Formulário de criação de espaço no grupo. → View |
-| `storePlace` | `storePlace(Request $request)` | Cria espaço com upload de imagem. → Redirect |
+| `storePlace` | `storePlace(Request $request)` | Cria espaço; imagem por arquivo (`image`) ou link (`image_url`), via `ImageSource::resolve`. → Redirect |
 | `editPlace` | `editPlace($place_id)` | Formulário de edição de espaço. → View |
-| `updatePlace` | `updatePlace(Request $request, $place_id)` | Atualiza espaço (imagem opcional). → Redirect |
+| `updatePlace` | `updatePlace(Request $request, $place_id)` | Atualiza espaço; arquivo ou link novo trocam a imagem, sem nenhum fica a atual. → Redirect |
 | `destroyPlace` | `destroyPlace($place_id)` | Remove espaço. → Redirect |
 
 ---

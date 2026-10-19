@@ -24,8 +24,10 @@ deletes, scopes globais, etc.).
 
 ### SchedulePayment
 - **Tabela:** `schedule_payments`
-- **`$fillable`:** `payment_method`, `paid_amount`, `paid_at`, `payment_integration_id`, `status_id`
-- **Relacionamentos:** `schedule()` hasMany Schedule (`schedule_payment_id`)
+- **`$fillable`:** `payment_method`, `paid_amount`, `paid_at`, `payment_integration_id`, `status_id`, `refunded_amount`, `refunded_by`, `refunded_at`
+- **Baixa manual (19/10/2026):** `is_manual`, `recorded_by`, `manual_notes` — **fora do fillable** (o pagamento do site não cria baixa manual; o `ManualPaymentService` grava com `forceFill`). Formas em `MANUAL_METHODS` (`manual_cash`, `manual_pix`, `manual_card`, `manual_transfer`, `manual_other`), rótulos em `METHOD_LABELS`.
+- **Métodos:** `methodLabel()`; `isOnline()` (da Rede: não manual e com `payment_integration_id` — só esse se consulta e estorna).
+- **Relacionamentos:** `schedule()`/`schedules()` hasMany Schedule (`schedule_payment_id`) · `status()` · `refunder()` · `recorder()` belongsTo User (`recorded_by`)
 
 ---
 
@@ -33,13 +35,29 @@ deletes, scopes globais, etc.).
 
 ### Place
 - **Tabela:** `places` · **SoftDeletes** · **scope global:** ordena por `name` asc
-- **`$fillable`:** `name`, `image`, `place_group_id`, `price`, `status_id`
-- **Relacionamentos:** `group()` belongsTo PlaceGroup (`place_group_id`) · `schedule()` hasMany Schedule · `scheduleRules()` belongsToMany ScheduleRules (pivô `place_schedule_rule`)
+- **`$fillable`:** `name`, `description`, `amenities`, `contactor_id`, `self_service_lighting`, `image`, `place_group_id`, `price`, `capacity`, `max_guests`, `extra_guests`, `extra_guest_price`, `status_id`
+- **Relacionamentos:** `group()` belongsTo PlaceGroup (`place_group_id`) · `schedule()` hasMany Schedule · `scheduleRules()` belongsToMany ScheduleRules (pivô `place_schedule_rule`) · `conflicts()` belongsToMany Place (pivô `place_conflicts`)
+- **Helpers:** `Place::conflictingPlaceIds($id)` (conflitos nos dois sentidos) · `isSocial()`
 
 ### PlaceGroup
 - **Tabela:** `place_groups` · **SoftDeletes**
 - **`$fillable`:** `name`, `category`, `image_vertical`, `image_horizontal`, `status`, `vertices`, `icon`, `minimum_antecedence`, `maximum_antecedence`, `duration`, `interval`, `daily_limit`, `start_time`, `end_time`, `start_time_sales`, `end_time_sales`
+- **Campos sociais:** `social_payment_days`, `social_limit_count`, `social_limit_days`, `social_active_limit`, `social_rules`
+- **Constantes:** `CATEGORY_SPORT` (`esportiva`), `CATEGORY_SOCIAL` (`social`), `CATEGORIES` · scopes `sport()` e `social()` · `isSocial()`, `socialPaymentDays()`
 - **Relacionamentos:** `places()` hasMany Place · `tournaments()` hasMany Tournament (`group_id`) · `weekdays()` belongsToMany Weekday (pivô `week_days_place_group`)
+
+### Social\SocialBooking
+- **Tabela:** `social_bookings` — reserva de espaço social; `schedule_id` (1:1, a ocupação do dia inteiro), `member_id`, `place_id`, `event_date`, `stage`, dados do evento, `base_price`/`extra_guests`/`extra_guest_price`/`extras_total`/`items_total`/`discount`/`total`, contrato, aprovação, `payment_due_at`, recusa e cancelamento.
+- **Constantes:** `STAGE_*`, `ACTIVE_STAGES`, `STAGE_LABELS`, `SCHEDULE_STATUS` (estágio → status do schedule).
+- **Relacionamentos:** `schedule()`, `place()`, `member()`, `items()`, `guests()`, `approver()`, `contractChecker()`, `refuser()`, `canceller()`, `creator()`.
+- **Helpers:** `guestLimit()`, `grossTotal()`, `canPay()`, `canMemberEditGuests()`, `guestsEditableUntil()`, `isUnpaid()`.
+
+### Social\SocialBookingItem / SocialBookingGuest / SocialBeverage
+- `social_booking_items`: cópia da bebida (nome, unidade, `mv_code`, `unit_price`, `quantity`, `subtotal`).
+- `social_booking_guests`: convidado não sócio (`name`, `cpf` só dígitos, `one_off_access_id`).
+- `social_beverages` (SoftDeletes): catálogo — `name`, `category` (`bebida`|`mobiliario`), `unit`, `mv_code` (Código MV, manual), `price`, `tables_per_unit`, `chairs_per_unit`, `max_quantity`, `active`. Scopes `beverages()`/`furniture()`.
+- `places` (social): `base_tables`, `base_chairs`, `event_duration_hours`, `event_earliest_start`, `event_latest_start`.
+- `social_bookings` (16/10/2026): `start_time`, `end_time`, `duration_hours`, `base_tables`, `base_chairs`, `contact_due_at`, `contacted_at`, `contacted_by`, `contact_notes`, `contact_overdue_notified_at`; helpers `tablesTotal()`, `chairsTotal()`, `timeLabel()`, `endsNextDay()`, `awaitingContact()`, `contactOverdue()`; scope `pendingContact()`.
 
 ### Weekday
 - **Tabela:** `weekdays` · `timestamps = false`

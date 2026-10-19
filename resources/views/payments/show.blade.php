@@ -55,7 +55,7 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div class="p-4 bg-subtle rounded-2xl border border-line">
                                 <p class="text-[10px] font-black text-ink-3 uppercase mb-1">Método</p>
-                                <p class="text-sm font-bold text-ink">{{ $schedulePayment->payment_method }}</p>
+                                <p class="text-sm font-bold text-ink">{{ $schedulePayment->methodLabel() }}</p>
                             </div>
                             <div class="p-4 bg-subtle rounded-2xl border border-line">
                                 <p class="text-[10px] font-black text-ink-3 uppercase mb-1">Pago em</p>
@@ -63,10 +63,20 @@
                                     {{ $schedulePayment->paid_at ? \Carbon\Carbon::parse($schedulePayment->paid_at)->format('d/m/Y H:i') : '—' }}
                                 </p>
                             </div>
-                            <div class="p-4 bg-subtle rounded-2xl border border-line col-span-2">
-                                <p class="text-[10px] font-black text-ink-3 uppercase mb-1">ID da Transação (Rede)</p>
-                                <p class="text-sm font-bold text-ink font-mono break-all">{{ $schedulePayment->payment_integration_id ?? '—' }}</p>
-                            </div>
+                            @if($schedulePayment->is_manual)
+                                <div class="p-4 bg-warn-soft rounded-2xl border border-warn/40 col-span-2">
+                                    <p class="text-[10px] font-black text-warn uppercase mb-1">Baixa manual — pago fora da plataforma</p>
+                                    <p class="text-sm font-bold text-ink">Registrada por {{ optional($schedulePayment->recorder)->name ?? '—' }} em {{ $schedulePayment->created_at?->format('d/m/Y H:i') }}</p>
+                                    @if($schedulePayment->manual_notes)
+                                        <p class="text-xs text-ink-2 mt-1">{{ $schedulePayment->manual_notes }}</p>
+                                    @endif
+                                </div>
+                            @else
+                                <div class="p-4 bg-subtle rounded-2xl border border-line col-span-2">
+                                    <p class="text-[10px] font-black text-ink-3 uppercase mb-1">ID da Transação (Rede)</p>
+                                    <p class="text-sm font-bold text-ink font-mono break-all">{{ $schedulePayment->payment_integration_id ?? '—' }}</p>
+                                </div>
+                            @endif
                         </div>
 
                         @if($schedulePayment->refunded_amount > 0)
@@ -82,7 +92,8 @@
                             </div>
                         @endif
 
-                        <!-- Consulta ao vivo na Rede -->
+                        <!-- Consulta ao vivo na Rede (baixa manual não passou por ela) -->
+                        @if($schedulePayment->isOnline())
                         <div class="pt-2 border-t border-line">
                             <a href="{{ route('payment.show', ['schedulePayment' => $schedulePayment->id, 'consultar_rede' => 1]) }}"
                                class="w-full inline-flex items-center justify-center gap-2 py-3 bg-subtle border border-line rounded-xl font-bold text-xs uppercase tracking-wide text-ink-2 hover:bg-subtle transition">
@@ -130,10 +141,15 @@
                                 </div>
                             @endif
                         </div>
+                        @endif
 
                         <!-- Estorno -->
                         @can('reservas.pagamentos.estornar')
-                            @if($remaining > 0 && $schedulePayment->payment_integration_id)
+                            @if($schedulePayment->is_manual)
+                                <div class="pt-4 border-t border-line text-xs text-ink-3">
+                                    Baixa manual não tem estorno pela Rede. Se houver devolução, ela é feita fora do Lara.
+                                </div>
+                            @elseif($remaining > 0 && $schedulePayment->payment_integration_id)
                                 <form method="POST" action="{{ route('payment.refund', $schedulePayment->id) }}"
                                       class="pt-4 border-t border-line space-y-3"
                                       onsubmit="return confirm('Confirma o estorno deste pagamento na Rede? Essa ação não pode ser desfeita.');">

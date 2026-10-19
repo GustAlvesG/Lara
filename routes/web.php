@@ -18,6 +18,8 @@ use App\Http\Controllers\PlaceController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\SchedulePaymentController;
 use App\Http\Controllers\ScheduleRulesController;
+use App\Http\Controllers\Social\SocialBookingController;
+use App\Http\Controllers\Social\SocialBeverageController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SectorController;
 use App\Http\Controllers\MySectorController;
@@ -485,6 +487,40 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         Route::post('/store/web', [ScheduleController::class, 'store'])->name('schedule.store.web');
     });
 
+    // Reservas de espaços sociais (churrasqueiras, salões). Pré-reserva →
+    // contrato → aprovação → pagamento no app. Rotas fixas antes de
+    // /{booking}, senão o segmento é lido como reserva. O catálogo de bebidas
+    // é configuração (`reservas.configurar`), mas mora sob o mesmo prefixo
+    // para a tela abrir com as abas de Reservas.
+    Route::group(['prefix' => 'social-bookings', 'as' => 'social-booking.'], function () {
+        Route::middleware('can:' . P::RESERVAS_CONFIGURAR)->prefix('bebidas')->as('beverages.')->group(function () {
+            Route::get('/', [SocialBeverageController::class, 'index'])->name('index');
+            Route::post('/', [SocialBeverageController::class, 'store'])->name('store');
+            Route::put('/{beverage}', [SocialBeverageController::class, 'update'])->name('update');
+            Route::delete('/{beverage}', [SocialBeverageController::class, 'destroy'])->name('destroy');
+        });
+
+        Route::middleware('can:' . P::RESERVAS_SOCIAIS)->group(function () {
+            Route::get('/', [SocialBookingController::class, 'index'])->name('index');
+            Route::get('/create', [SocialBookingController::class, 'create'])->name('create');
+            Route::post('/', [SocialBookingController::class, 'store'])->name('store');
+            Route::get('/availability', [SocialBookingController::class, 'availability'])->name('availability');
+            Route::get('/{booking}', [SocialBookingController::class, 'show'])->name('show');
+            Route::put('/{booking}/details', [SocialBookingController::class, 'updateDetails'])->name('details');
+            Route::put('/{booking}/guests', [SocialBookingController::class, 'updateGuests'])->name('guests');
+            Route::get('/{booking}/guests.pdf', [SocialBookingController::class, 'guestsPdf'])->name('guests.pdf');
+            Route::get('/{booking}/contract', [SocialBookingController::class, 'downloadContract'])->name('contract.download');
+            Route::post('/{booking}/contact', [SocialBookingController::class, 'contact'])->name('contact');
+        });
+
+        Route::middleware('can:' . P::RESERVAS_SOCIAIS_APROVAR)->group(function () {
+            Route::post('/{booking}/contract', [SocialBookingController::class, 'contract'])->name('contract');
+            Route::post('/{booking}/approve', [SocialBookingController::class, 'approve'])->name('approve');
+            Route::post('/{booking}/refuse', [SocialBookingController::class, 'refuse'])->name('refuse');
+            Route::post('/{booking}/cancel', [SocialBookingController::class, 'cancel'])->name('cancel');
+        });
+    });
+
     // Pagamentos das reservas (visualização + estorno via Rede). No menu é
     // uma sub-aba de Reservas; a URL continua a mesma.
     Route::group(['prefix' => 'payments'], function () {
@@ -494,6 +530,10 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         });
         Route::post('/{schedulePayment}/refund', [SchedulePaymentController::class, 'refund'])
             ->middleware('can:' . P::RESERVAS_PAGAMENTOS_ESTORNAR)->name('payment.refund');
+        // Baixa manual (pago fora da plataforma). Os botões ficam na tela do
+        // agendamento e na da reserva social; não pede ver Pagamentos.
+        Route::post('/manual', [SchedulePaymentController::class, 'storeManual'])
+            ->middleware('can:' . P::RESERVAS_PAGAMENTOS_BAIXA_MANUAL)->name('payment.manual');
     });
 
     // Gestão de acesso. Usuários e Setores são de quem tem a permissão (na

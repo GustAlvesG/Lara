@@ -1,4 +1,10 @@
 <input type="hidden" name="place_group_id" value="{{ $place_group->id ?? $item->group->id ?? '' }}">
+@php
+    $formGroup = $place_group ?? ($item->group ?? null);
+    $isSocial = $formGroup && $formGroup->isSocial();
+    $conflictOptions = $conflictOptions ?? collect();
+    $selectedConflicts = collect(old('conflicts', $selectedConflicts ?? []))->map(fn ($id) => (int) $id)->all();
+@endphp
 
 <div class="space-y-5">
 
@@ -45,6 +51,99 @@
         </div>
     </div>
 
+    @if ($isSocial)
+    {{-- ─── Espaço social ─────────────────────────────────────────────── --}}
+    {{--
+        O que o app mostra e o que o Lara confere na pré-reserva: preço (acima)
+        é a diária; não sócios incluídos e extras pagos formam o limite da
+        lista nominal; capacidade é o total de pessoas (sócios + não sócios).
+    --}}
+    <div class="rounded-2xl border border-grena/40 overflow-hidden">
+        <div class="px-5 py-3 bg-grena-tint border-b border-grena/40">
+            <p class="text-[10px] font-black uppercase tracking-widest text-grena-ink">Espaço social</p>
+        </div>
+        <div class="px-5 py-5 bg-surface grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label for="capacity" class="block text-sm font-semibold text-ink mb-1">Capacidade total (pessoas)</label>
+                <x-text-input type="number" min="1" name="capacity" id="capacity" class="w-full" value="{{ old('capacity', $item->capacity ?? '') }}" />
+                <p class="mt-1 text-xs text-ink-3">Sócios + não sócios.</p>
+            </div>
+            <div>
+                <label for="max_guests" class="block text-sm font-semibold text-ink mb-1">Não sócios incluídos no preço</label>
+                <x-text-input type="number" min="0" name="max_guests" id="max_guests" class="w-full" value="{{ old('max_guests', $item->max_guests ?? 0) }}" required />
+            </div>
+            <div>
+                <label for="extra_guests" class="block text-sm font-semibold text-ink mb-1">Não sócios extras (máximo)</label>
+                <x-text-input type="number" min="0" name="extra_guests" id="extra_guests" class="w-full" value="{{ old('extra_guests', $item->extra_guests ?? 0) }}" />
+            </div>
+            <div>
+                <label for="extra_guest_price" class="block text-sm font-semibold text-ink mb-1">Preço por convidado extra</label>
+                <x-text-input type="number" step="0.01" min="0" name="extra_guest_price" id="extra_guest_price" class="w-full" value="{{ old('extra_guest_price', $item->extra_guest_price ?? 0) }}" />
+            </div>
+            <div>
+                <label for="base_tables" class="block text-sm font-semibold text-ink mb-1">Mesas incluídas</label>
+                <x-text-input type="number" min="0" name="base_tables" id="base_tables" class="w-full" value="{{ old('base_tables', $item->base_tables ?? '') }}" />
+            </div>
+            <div>
+                <label for="base_chairs" class="block text-sm font-semibold text-ink mb-1">Cadeiras incluídas</label>
+                <x-text-input type="number" min="0" name="base_chairs" id="base_chairs" class="w-full" value="{{ old('base_chairs', $item->base_chairs ?? '') }}" />
+                <p class="mt-1 text-xs text-ink-3">Mesas, cadeiras e jogos a mais vêm do catálogo (Espaços Sociais › Bebidas e mobiliário).</p>
+            </div>
+            <div>
+                <label for="event_duration_hours" class="block text-sm font-semibold text-ink mb-1">Duração do evento (horas)</label>
+                <x-text-input type="number" min="1" max="24" name="event_duration_hours" id="event_duration_hours" class="w-full" value="{{ old('event_duration_hours', $item->event_duration_hours ?? '') }}" />
+                <p class="mt-1 text-xs text-ink-3">Preenchido, o sócio informa o início e o fim é início + duração. Vazio, sem horário.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label for="event_earliest_start" class="block text-sm font-semibold text-ink mb-1">Início a partir de</label>
+                    <x-text-input type="time" name="event_earliest_start" id="event_earliest_start" class="w-full" value="{{ old('event_earliest_start', isset($item->event_earliest_start) ? substr($item->event_earliest_start, 0, 5) : '') }}" />
+                </div>
+                <div>
+                    <label for="event_latest_start" class="block text-sm font-semibold text-ink mb-1">Início até</label>
+                    <x-text-input type="time" name="event_latest_start" id="event_latest_start" class="w-full" value="{{ old('event_latest_start', isset($item->event_latest_start) ? substr($item->event_latest_start, 0, 5) : '') }}" />
+                </div>
+            </div>
+            <div class="sm:col-span-2">
+                <label for="amenities" class="block text-sm font-semibold text-ink mb-1">Itens fornecidos</label>
+                <textarea name="amenities" id="amenities" rows="2" class="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink shadow-card focus:border-grena focus:ring-grena-tint" placeholder="Ex.: 15 jogos de mesa com 4 cadeiras, fogão e geladeira.">{{ old('amenities', $item->amenities ?? '') }}</textarea>
+            </div>
+            <div class="sm:col-span-2">
+                <label for="description" class="block text-sm font-semibold text-ink mb-1">Observações</label>
+                <textarea name="description" id="description" rows="2" class="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink shadow-card focus:border-grena focus:ring-grena-tint" placeholder="Ex.: Proibida a utilização de fogão.">{{ old('description', $item->description ?? '') }}</textarea>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    {{-- ─── Conflitos de uso ─────────────────────────────────────────── --}}
+    {{--
+        Vale nos dois sentidos (Place::conflictingPlaceIds): marcar aqui a
+        quadra que o salão ocupa também faz a reserva da quadra bloquear o
+        salão. É também como se monta um espaço combinado ("Sauna + Tênis"):
+        ele conflita com cada um dos dois.
+    --}}
+    <div class="rounded-2xl border border-line overflow-hidden">
+        <div class="px-5 py-3 bg-subtle border-b border-line">
+            <p class="text-[10px] font-black uppercase tracking-widest text-ink-3">Não pode ser usado no mesmo dia que</p>
+        </div>
+        <div class="px-5 py-4 bg-surface">
+            <select name="conflicts[]" id="conflicts" multiple size="6"
+                class="w-full px-3 py-2 border border-line-strong rounded-lg shadow-card focus:border-grena focus:ring-grena-tint bg-surface text-ink text-sm">
+                @foreach ($conflictOptions as $option)
+                    <option value="{{ $option->id }}" @selected(in_array($option->id, $selectedConflicts, true))>
+                        {{ optional($option->group)->name }} – {{ $option->name }}
+                    </option>
+                @endforeach
+            </select>
+            <p class="mt-1.5 text-xs text-ink-3">
+                Uma reserva ativa em qualquer um dos espaços marcados ocupa este no dia (e vice-versa).
+                Segure Ctrl para marcar mais de um. Deixe vazio se o espaço é independente.
+            </p>
+        </div>
+    </div>
+
+    @unless ($isSocial)
     {{-- ─── Home Assistant ───────────────────────────────────────────── --}}
     @php
         $canManageHA = auth()->user()->can('home-assistant');
@@ -136,6 +235,7 @@
             </label>
         </div>
     </div>
+    @endunless
 
     {{-- ─── Imagem ────────────────────────────────────────────────────── --}}
     <div class="rounded-2xl border border-line overflow-hidden">
@@ -146,28 +246,10 @@
         </div>
         <div class="px-5 py-5 bg-surface">
             <p class="text-sm text-ink-2 mb-4">
-                Imagem para exibição no site.
+                Imagem para exibição no site: envie o arquivo ou cole o link (imgur, postimg…).
             </p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
-                <div>
-                    <label for="image" style="cursor: pointer;"
-                        class="inline-flex items-center gap-2 px-4 py-2 bg-surface border border-line-strong
-                               rounded-xl font-semibold text-xs text-ink uppercase tracking-widest shadow-card
-                               hover:bg-subtle focus:outline-none focus:ring-2 focus:ring-grena-tint
-                               focus:ring-offset-2 transition ease-in-out duration-150">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                        </svg>
-                        Selecionar imagem
-                    </label>
-                    <input value="{{ $item->image ?? '' }}" type="file"
-                        class="image-upload" name="image" id="image"
-                        style="opacity: 0; position: absolute; z-index: -1;" />
-                </div>
-                <div>
-                    @include('partials.imagePreview', ['id_preview' => 'image'])
-                </div>
+            <div class="max-w-md">
+                @include('partials.image-source', ['name' => 'image', 'label' => 'Imagem do espaço', 'current' => $item->image ?? null, 'ratio' => 'aspect-square'])
             </div>
         </div>
     </div>

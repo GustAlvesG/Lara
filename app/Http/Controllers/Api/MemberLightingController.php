@@ -9,6 +9,7 @@ use App\Models\Member;
 use App\Models\MemberLightingActivation;
 use App\Models\Place;
 use App\Services\HomeAssistant\SelfServiceLightingService;
+use App\Support\ImageSource;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -127,6 +128,9 @@ class MemberLightingController extends Controller
                     'id'        => $place->id,
                     'name'      => $place->name,
                     'image'     => $place->image,
+                    // Pronta para o <img>: a imagem pode ser arquivo do Lara
+                    // ou link externo (imgur, postimg), e `image` cru não diz qual.
+                    'image_url' => ImageSource::url($place->image),
                     'open'      => $open !== null,
                     'window'    => $open?->toArray(),
                     // Quanto dá para pedir nesta quadra agora: o teto aparado

@@ -255,8 +255,9 @@ Segundo passo.
   quer dizer fechada.
 - `next_window` — quando esta quadra volta a abrir. Use no lugar de esconder a
   quadra: "abre às 17:00" responde a pergunta que sumir não responde.
-- `image` é o nome do arquivo, no mesmo formato dos outros endpoints de espaço do
-  app — monte a URL como o app já monta.
+- `image_url` é a imagem pronta para o `<img>` (ou `null`). Use este campo: desde
+  19/10/2026 a imagem pode ser link externo (imgur, postimg), e `image`, que segue cru
+  (nome do arquivo ou URL), não diz qual — ver [imagens-por-link-prompt.md](../imagens-por-link-prompt.md).
 - **`lit: true` NÃO quer dizer indisponível.** A quadra continua acionável, e
   acionar uma quadra acesa é exatamente como se prolonga a luz. O `lit_until`
   muda o *texto* do botão ("Prolongar — acesa até 20:00"), não a existência dele.

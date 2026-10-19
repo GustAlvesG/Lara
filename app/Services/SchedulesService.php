@@ -75,6 +75,12 @@ class SchedulesService
         $payments_ids = [];
         $cancelled = [];
         $isCancelling = isset($data['action_status']) && (int) $data['action_status'] === 0;
+        // A reserva social tem estágio próprio (e convidados na portaria) que
+        // mudar só o status do schedule deixaria para trás.
+        if (Schedule::whereIn('id', $data['selected_reservations'])->whereHas('socialBooking')->exists()) {
+            throw new \Exception('Reserva de espaço social: cancele pela tela de Espaços Sociais.');
+        }
+
         foreach ($data['selected_reservations'] as $schedule_id) {
             $schedule = Schedule::find($schedule_id);
             if ($schedule) {
@@ -156,7 +162,11 @@ class SchedulesService
             $date = Carbon::now()->toDateString();
         }
 
-        $allPlacesAndTimes = Place::where('status_id', 1)->with(['group'])->get();
+        // A agenda de horários é das quadras; espaço social tem a própria tela.
+        $allPlacesAndTimes = Place::where('status_id', 1)
+            ->whereHas('group', fn ($q) => $q->sport())
+            ->with(['group'])
+            ->get();
 
         foreach ($allPlacesAndTimes as $place) {
             $options = $this->scheduleRulesService->getTimeOptions($place->id, $date);
@@ -172,6 +182,14 @@ class SchedulesService
 
     public function createSchedule(Request $request)
     {
+        // Espaço social não se reserva por horário: tem pré-reserva, análise da
+        // equipe e prazo de pagamento (SocialBookingService). Deixar passar aqui
+        // seria um atalho por fora da aprovação.
+        $requestedPlace = Place::with('group')->find($request['place_id']);
+        if ($requestedPlace && $requestedPlace->isSocial()) {
+            throw new \Exception('Espaço social é reservado pela tela de Espaços Sociais.');
+        }
+
         if (isset($request['cpf'])) { 
             //Clean cpf to have only numbers
             $request['member_id'] = $this->memberService->memberByCpf($request);
@@ -491,8 +509,11 @@ class SchedulesService
         $slotStart = strtotime($slotStartTime);
         $slotEnd = strtotime($slotEndTime);
 
-        // Fetch existing schedules for the given place
-        $existingSchedules = Schedule::where('place_id', $place_id)
+        // O próprio espaço e os que conflitam com ele (ex.: a quadra ocupada
+        // por um evento no salão ao lado — ver Place::conflictingPlaceIds).
+        $placeIds = array_merge([(int) $place_id], Place::conflictingPlaceIds((int) $place_id));
+
+        $existingSchedules = Schedule::whereIn('place_id', $placeIds)
             ->whereNotIn('status_id', [0, 4]) // Exclude cancelled and pending schedules
             ->whereDate('start_schedule', $date)
             ->get();
@@ -505,12 +526,17 @@ class SchedulesService
             // Check for overlap
             if (!($slotEnd <= $scheduleStart || $slotStart >= $scheduleEnd)) {
                 $member = Member::find($schedule->member_id);
-                return [$member, $schedule->status_id, "Horário reservado por outro associado.", $schedule]; // Collision detected
+                $description = (int) $schedule->place_id === (int) $place_id
+                    ? "Horário reservado por outro associado."
+                    : "Espaço bloqueado por reserva em " . (optional(Place::find($schedule->place_id))->name ?? 'espaço vinculado') . ".";
+                return [$member, $schedule->status_id, $description, $schedule]; // Collision detected
             }
         }
         if ($member_id) {
             // Check for member-specific schedules
+            // A festa do sócio no salão (o dia inteiro) não o impede de jogar.
             $memberSchedules = Schedule::where('member_id', $member_id)
+                ->withoutSocial()
                 ->whereIn('status_id', [1, 3]) 
                 ->whereDate('start_schedule', $date)
                 ->get();

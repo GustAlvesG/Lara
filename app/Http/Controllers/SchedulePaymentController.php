@@ -11,6 +11,13 @@ use App\Models\Member;
 use App\Models\Status;
 use App\Services\RedeItauService;
 use App\Services\SchedulesService;
+use App\Exceptions\ManualPaymentException;
+use App\Exceptions\SocialBookingException;
+use App\Models\Social\SocialBooking;
+use App\Services\ManualPaymentService;
+use Illuminate\Validation\Rule;
+use App\Services\Social\SocialBookingNotifier;
+use App\Services\Social\SocialBookingService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Client\RequestException;
 //use DB
@@ -21,8 +28,12 @@ class SchedulePaymentController extends Controller
     protected RedeItauService $redeItauService;
     protected SchedulesService $schedulesService;
 
-    public function __construct(RedeItauService $redeItauService, SchedulesService $schedulesService)
-    {
+    public function __construct(
+        RedeItauService $redeItauService,
+        SchedulesService $schedulesService,
+        protected SocialBookingService $socialBookings,
+        protected SocialBookingNotifier $socialNotifier,
+    ) {
         $this->redeItauService = $redeItauService;
         $this->schedulesService = $schedulesService;
     }
@@ -38,7 +49,10 @@ class SchedulePaymentController extends Controller
             $query->where('status_id', $request->input('status_id'));
         }
 
-        if ($request->filled('payment_method')) {
+        // "manual" = toda baixa manual, qualquer que seja a forma.
+        if ($request->input('payment_method') === 'manual') {
+            $query->where('is_manual', true);
+        } elseif ($request->filled('payment_method')) {
             $query->where('payment_method', $request->input('payment_method'));
         }
 
@@ -123,6 +137,18 @@ class SchedulePaymentController extends Controller
             return response()->json(['message' => 'Um ou mais agendamentos já foram pagos.'], 409);
         }
 
+        // 1.3 Reserva de espaço social: só depois de aprovada, dentro do prazo,
+        // sozinha no pagamento e pelo valor exato do total aprovado.
+        $socialBooking = null;
+        $socialBookings = SocialBooking::whereIn('schedule_id', $scheduleIds)->get();
+        if ($socialBookings->isNotEmpty()) {
+            try {
+                $socialBooking = $this->socialBookings->assertPayable($socialBookings, $scheduleIds, (float) $validated['paid_amount']);
+            } catch (SocialBookingException $e) {
+                return response()->json($e->toArray(), $e->status);
+            }
+        }
+
         // Verifica a colisão, usando o novo método auxiliar
         $collidingSchedules = $this->checkSchedulesForCollisions($scheduleIds);
         if ($collidingSchedules->isNotEmpty()) {
@@ -139,7 +165,7 @@ class SchedulePaymentController extends Controller
 
         try {
             // 2. Garante que todas as operações de DB ocorram em uma transação.
-            $schedulePayment = DB::transaction(function () use ($validated, $scheduleIds) {
+            $schedulePayment = DB::transaction(function () use ($validated, $scheduleIds, $socialBooking) {
                 
                 // A. Prepara os dados: remove 'schedule_ids' para a criação do Payment
                 $paymentData = array_diff_key($validated, array_flip(['schedule_ids']));
@@ -159,6 +185,11 @@ class SchedulePaymentController extends Controller
                         'status_id' => $schedulePayment->status_id
                     ]);
                 }
+
+                // D. Reserva social paga: estágio confirmado e convidados na portaria.
+                if ($socialBooking) {
+                    $this->socialBookings->markPaid($socialBooking, $schedulePayment);
+                }
                 
                 return $schedulePayment;
             });
@@ -171,7 +202,9 @@ class SchedulePaymentController extends Controller
             // Fora da transação e sem propagar falha: e-mail não desfaz pagamento.
             // Só notifica quando o pagamento de fato confirmou a reserva — um
             // pagamento que a mantenha pendente reenviaria o e-mail de pendência.
-            if ((int) $schedulePayment->status_id === 1) {
+            if ((int) $schedulePayment->status_id === 1 && $socialBooking) {
+                $this->socialNotifier->notify($socialBooking->fresh(), SocialBookingNotifier::CONFIRMED);
+            } elseif ((int) $schedulePayment->status_id === 1) {
                 try {
                     $this->schedulesService->notifyScheduleStatus(
                         Schedule::withoutGlobalScopes()->whereIn('id', $scheduleIds)->get(),
@@ -204,12 +237,12 @@ class SchedulePaymentController extends Controller
      */
     public function show(Request $request, SchedulePayment $schedulePayment)
     {
-        $schedulePayment->load(['status', 'refunder', 'schedules.place.group', 'schedules.member']);
+        $schedulePayment->load(['status', 'refunder', 'recorder', 'schedules.place.group', 'schedules.member']);
 
         $redeSummary = null;
         $redeError = null;
 
-        if ($request->boolean('consultar_rede') && $schedulePayment->payment_integration_id) {
+        if ($request->boolean('consultar_rede') && $schedulePayment->isOnline()) {
             try {
                 $redeTransaction = $this->redeItauService->getTransaction($schedulePayment->payment_integration_id);
                 $redeSummary = $this->summarizeRedeTransaction($redeTransaction);
@@ -263,6 +296,45 @@ class SchedulePaymentController extends Controller
     public function destroy(SchedulePayment $schedulePayment)
     {
         //
+    }
+
+    /**
+     * Baixa manual: marca como pago o que foi recebido fora da plataforma.
+     * Vale para quadras (um ou mais agendamentos do mesmo sócio) e para a
+     * reserva de espaço social aprovada. As regras estão em ManualPaymentService.
+     */
+    public function storeManual(Request $request, ManualPaymentService $manualPayments)
+    {
+        $data = $request->validate([
+            'schedule_ids' => 'required|array|min:1',
+            'schedule_ids.*' => 'integer',
+            'payment_method' => ['required', Rule::in(array_keys(SchedulePayment::MANUAL_METHODS))],
+            'amount' => 'nullable|numeric|min:0',
+            'paid_at' => 'nullable|date|before_or_equal:now',
+            'manual_notes' => 'nullable|string|max:500',
+        ], [
+            'schedule_ids.required' => 'Escolha o agendamento a dar baixa.',
+            'payment_method.required' => 'Escolha a forma em que o pagamento foi recebido.',
+            'paid_at.before_or_equal' => 'A data do pagamento não pode estar no futuro.',
+        ]);
+
+        try {
+            $payment = $manualPayments->record($data['schedule_ids'], [
+                'payment_method' => $data['payment_method'],
+                'amount' => $data['amount'] ?? null,
+                'paid_at' => $data['paid_at'] ?? null,
+                'notes' => $data['manual_notes'] ?? null,
+            ], $request->user()->id);
+        } catch (ManualPaymentException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        $message = 'Pagamento de R$ ' . number_format((float) $payment->paid_amount, 2, ',', '.') . ' registrado (' . $payment->methodLabel() . ').';
+        $social = SocialBooking::where('schedule_id', (int) $data['schedule_ids'][0])->first();
+
+        return $social
+            ? redirect()->route('social-booking.show', $social)->with('success', $message . ' Reserva confirmada.')
+            : redirect()->route('schedule.show', (int) $data['schedule_ids'][0])->with('success', $message);
     }
 
     /**

@@ -22,6 +22,29 @@ class Cpf
         return preg_replace('/\D/', '', (string) $cpf) ?? '';
     }
 
+    /** Onze dígitos com os dois verificadores certos (e não todos iguais). */
+    public static function isValid(?string $cpf): bool
+    {
+        $cpf = self::digits($cpf);
+
+        if (strlen($cpf) !== 11 || preg_match('/^(\d)\1{10}$/', $cpf)) {
+            return false;
+        }
+
+        for ($t = 9; $t < 11; $t++) {
+            $d = 0;
+            for ($c = 0; $c < $t; $c++) {
+                $d += (int) $cpf[$c] * (($t + 1) - $c);
+            }
+            $d = ((10 * $d) % 11) % 10;
+            if ((int) $cpf[$t] !== $d) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /** 123.456.789-00 — para quem pode ver o cadastro. */
     public static function format(?string $cpf): string
     {

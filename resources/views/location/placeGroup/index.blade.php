@@ -1,10 +1,10 @@
 {{-- Modalidades (grupos de espaços) em cartões. A lista vem inteira: a busca filtra na página. --}}
 <x-app-layout :bootstrap-grid="false">
     <x-page>
-        <x-page-title title="Modalidades" :back="route('schedule.index')">
-            Grupos de espaços reserváveis, com seus locais, regras e preços.
+        <x-page-title title="Locais e grupos">
+            Grupos de espaços reserváveis — modalidades esportivas e espaços sociais — com seus locais, regras e preços.
             <x-slot:actions>
-                <x-primary-button-a href="{{ route('place-group.create') }}"><x-icon name="plus" /> Nova modalidade</x-primary-button-a>
+                <x-primary-button-a href="{{ route('place-group.create') }}"><x-icon name="plus" /> Novo grupo</x-primary-button-a>
             </x-slot:actions>
         </x-page-title>
 

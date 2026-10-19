@@ -121,6 +121,32 @@ Todas, salvo `/`, `/members` e `/dashboard`, estão sob o middleware `auth`.
 | PUT | `/tournaments/categories/{id}` | TournamentController@updateCategory | categories.update | auth |
 | DELETE | `/tournaments/categories/{id}` | TournamentController@destroyCategory | categories.destroy | auth |
 
+### Espaços sociais (`social-booking.*`)
+
+Guia: [Reservas de Espaços Sociais](funcionalidades/espacos-sociais.md). Rotas fixas antes de `/{booking}`.
+
+| Método | URI | Ação | Nome | Middleware |
+|--------|-----|------|------|------------|
+| GET | `/social-bookings/bebidas` | Social\SocialBeverageController@index | social-booking.beverages.index | auth, can:reservas.configurar |
+| POST | `/social-bookings/bebidas` | Social\SocialBeverageController@store | social-booking.beverages.store | auth, can:reservas.configurar |
+| PUT | `/social-bookings/bebidas/{beverage}` | Social\SocialBeverageController@update | social-booking.beverages.update | auth, can:reservas.configurar |
+| DELETE | `/social-bookings/bebidas/{beverage}` | Social\SocialBeverageController@destroy | social-booking.beverages.destroy | auth, can:reservas.configurar |
+| GET | `/social-bookings` | Social\SocialBookingController@index | social-booking.index | auth, can:reservas.sociais |
+| GET | `/social-bookings/create` | Social\SocialBookingController@create | social-booking.create | auth, can:reservas.sociais |
+| POST | `/social-bookings` | Social\SocialBookingController@store | social-booking.store | auth, can:reservas.sociais |
+| GET | `/social-bookings/availability` | Social\SocialBookingController@availability | social-booking.availability | auth, can:reservas.sociais |
+| GET | `/social-bookings/{booking}` | Social\SocialBookingController@show | social-booking.show | auth, can:reservas.sociais |
+| PUT | `/social-bookings/{booking}/details` | Social\SocialBookingController@updateDetails | social-booking.details | auth, can:reservas.sociais |
+| PUT | `/social-bookings/{booking}/guests` | Social\SocialBookingController@updateGuests | social-booking.guests | auth, can:reservas.sociais |
+| GET | `/social-bookings/{booking}/guests.pdf` | Social\SocialBookingController@guestsPdf | social-booking.guests.pdf | auth, can:reservas.sociais |
+| GET | `/social-bookings/{booking}/contract` | Social\SocialBookingController@downloadContract | social-booking.contract.download | auth, can:reservas.sociais |
+| POST | `/social-bookings/{booking}/contact` | Social\SocialBookingController@contact | social-booking.contact | auth, can:reservas.sociais |
+| POST | `/social-bookings/{booking}/contract` | Social\SocialBookingController@contract | social-booking.contract | auth, can:reservas.sociais.aprovar |
+| POST | `/social-bookings/{booking}/approve` | Social\SocialBookingController@approve | social-booking.approve | auth, can:reservas.sociais.aprovar |
+| POST | `/social-bookings/{booking}/refuse` | Social\SocialBookingController@refuse | social-booking.refuse | auth, can:reservas.sociais.aprovar |
+| POST | `/social-bookings/{booking}/cancel` | Social\SocialBookingController@cancel | social-booking.cancel | auth, can:reservas.sociais.aprovar (estorno pede também reservas.pagamentos.estornar) |
+| POST | `/payments/manual` | SchedulePaymentController@storeManual | payment.manual | auth, can:reservas.pagamentos.baixa-manual (baixa manual: pago fora da plataforma; quadras e espaço social aprovado) |
+
 ### Replay — vídeos das quadras (`can:replay`)
 
 Quatro telas, quatro etapas do mesmo trabalho: formato, layout, câmera, vídeos gravados.
@@ -250,6 +276,18 @@ id na URL, para que trocar um número não dê acesso aos vídeos de outro.
 | GET | `/api/lighting/activations` | Api\MemberLightingController@history | últimos 30 do sócio; `throttle:60,1` |
 | POST | `/api/lighting/places/{place}/activate` | Api\MemberLightingController@activate | acende a luz; `throttle:20,1` |
 | POST | `/api/lighting/release` | Api\MemberLightingController@release | devolve a quadra; `throttle:20,1` |
+| GET | `/api/social/groups` | Api\SocialBookingApiController@groups | grupos de categoria `social` |
+| GET | `/api/social/groups/{group}/places` | Api\SocialBookingApiController@places | espaços ativos do grupo social |
+| GET | `/api/social/availability` | Api\SocialBookingApiController@availability | `?place_id&month=YYYY-MM` → status de cada dia |
+| GET | `/api/social/beverages` | Api\SocialBookingApiController@beverages | bebidas ativas |
+| GET | `/api/social/furniture` | Api\SocialBookingApiController@furniture | mobiliário ativo (mesas, cadeiras, jogos) |
+| GET | `/api/social/limits` | Api\SocialBookingApiController@limits | `?place_group_id` → limites do sócio |
+| GET | `/api/social/bookings` | Api\SocialBookingApiController@index | reservas sociais do sócio |
+| POST | `/api/social/bookings` | Api\SocialBookingApiController@store | pré-reserva; `throttle:20,1` |
+| GET | `/api/social/bookings/{id}` | Api\SocialBookingApiController@show | 404 se não for do sócio |
+| PUT | `/api/social/bookings/{id}` | Api\SocialBookingApiController@update | edita a pré-reserva (menos data e espaço) até o contrato ok; `throttle:30,1` |
+| PUT | `/api/social/bookings/{id}/guests` | Api\SocialBookingApiController@updateGuests | lista inteira; até a véspera; `throttle:30,1` |
+| DELETE | `/api/social/bookings/{id}` | Api\SocialBookingApiController@destroy | desistência, só antes de pagar |
 
 ---
 
@@ -280,5 +318,7 @@ id na URL, para que trocar um número não dê acesso aos vídeos de outro.
 | Comando | Descrição | Agendamento |
 |---------|-----------|-------------|
 | `inspire` | Exibe uma frase inspiradora (comando padrão do Laravel). | — |
+| `social:contact-reminders` | Avisa no sino quem tem `reservas.sociais` das pré-reservas com prazo de contato vencido (uma vez cada). | a cada 15 minutos |
+| `social:expire-bookings` | Expira reserva de espaço social aprovada e não paga até `payment_due_at` (libera a data e avisa o sócio). | a cada 5 minutos |
 
 > Não há comandos de console customizados (`app/Console/Commands/` não contém classes próprias).

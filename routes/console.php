@@ -10,6 +10,11 @@ Artisan::command('inspire', function () {
 
 Schedule::command('avisos:process-notifications')->everyMinute();
 Schedule::command('app:expire-pending-schedules')->everyMinute();
+// Espaço social: o prazo de pagamento é em dias e vence no fim do dia; a cada
+// 5 minutos é preciso de sobra.
+Schedule::command('social:expire-bookings')->everyFiveMinutes()->withoutOverlapping();
+// Pré-reserva sem contato da equipe dentro dos dias úteis: aviso no sino.
+Schedule::command('social:contact-reminders')->everyFifteenMinutes()->withoutOverlapping();
 Schedule::command('app:expire-uber-access-requests')->everyMinute();
 Schedule::command('app:prune-uber-access-request-messages')->dailyAt('03:00');
 

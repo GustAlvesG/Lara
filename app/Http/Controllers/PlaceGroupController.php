@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use App\Services\PlaceGroupService;
 use App\Services\ScheduleRulesService;
 use App\Models\Contactor;
+use App\Support\ImageSource;
 
 class PlaceGroupController extends Controller
 {
@@ -62,7 +63,9 @@ class PlaceGroupController extends Controller
 
     public function index_api($none = null)
     {
-        $groups = PlaceGroup::all();
+        // Só quadras: o app lista estes grupos na reserva por horário. Os
+        // sociais têm rota própria (`/api/social/groups`).
+        $groups = PlaceGroup::sport()->get();
         //Order by name
         $groups = $groups->sortBy('name');
 
@@ -106,8 +109,12 @@ class PlaceGroupController extends Controller
      */
     public function store(Request $request)
     {
+        // Fora do try: link de imagem inválido volta ao formulário como erro
+        // de validação, no campo dele.
+        $images = $this->placeGroupService->resolveImages($request);
+
         try {
-            $this->placeGroupService->store($request);
+            $this->placeGroupService->store($request, $images);
         } catch (\Exception $e) {
             // Handle the exception or log it
             return redirect()->back()->withErrors(['error' => 'Failed to create Place Group: ' . $e->getMessage()]);
@@ -162,8 +169,10 @@ class PlaceGroupController extends Controller
      */
     public function update(UpdatePlaceGroupRequest $request, PlaceGroup $placeGroup)
     {
+        $images = $this->placeGroupService->resolveImages($request, $placeGroup);
+
         try {
-            $this->placeGroupService->update($request, $placeGroup);
+            $this->placeGroupService->update($request, $placeGroup, $images);
         } catch (\Exception $e) {
             // Handle the exception or log it
             return redirect()->back()->withErrors(['error' => 'Failed to update Place Group: ' . $e->getMessage()]);
@@ -325,6 +334,8 @@ class PlaceGroupController extends Controller
             'place_group' => $group,
             'rules'       => $rules,
             'contactors'  => Contactor::orderBy('name')->get(),
+            'conflictOptions' => Place::with('group')->get(),
+            'selectedConflicts' => [],
         ]);
     }
 
@@ -332,14 +343,12 @@ class PlaceGroupController extends Controller
     {
         
         $validated = $request->all();
+        // Arquivo enviado ou link web da imagem (ImageSource).
+        $validated['image'] = ImageSource::resolve($request, 'image');
 
-         if ($request->hasFile('image')) {
-            $imageName = time().'.'.$request->image->extension();
-            $request->image->move(public_path('images'), $imageName);
-            $validated['image'] = $imageName;
-        }
+        $group = PlaceGroup::find($validated['place_group_id']);
 
-        $place = Place::create([
+        $place = Place::create(array_merge([
             'name'           => $validated['name'],
             'contactor_id'   => $this->contactorIdFor($request),
             // Autoatendimento de iluminação: liberado espaço a espaço, e nunca
@@ -349,7 +358,9 @@ class PlaceGroupController extends Controller
             'image'          => $validated['image'] ?? null,
             'price'          => $validated['price'],
             'status_id'      => $validated['status_id'],
-        ]);
+        ], $this->socialAttributes($request, $group)));
+
+        $this->syncConflicts($place, $request->input('conflicts', []));
 
         //Check if has rules
         if (!isset($validated['rules']) || empty($validated['rules'])) {
@@ -361,6 +372,73 @@ class PlaceGroupController extends Controller
         }
 
         return redirect()->route('place-group.show', ['place_group' => $validated['place_group_id']]);
+    }
+
+    /**
+     * Campos do espaço social. Espaço social não tem contator nem
+     * autoatendimento de luz: a reserva dele ocupa o dia inteiro, e um
+     * contator ligado deixaria a luz acesa 24 horas pela automação.
+     */
+    protected function socialAttributes(Request $request, ?PlaceGroup $group): array
+    {
+        if (! $group || ! $group->isSocial()) {
+            return [];
+        }
+
+        $data = $request->validate([
+            'description' => 'nullable|string|max:2000',
+            'amenities' => 'nullable|string|max:2000',
+            'capacity' => 'nullable|integer|min:1|max:100000',
+            'max_guests' => 'required|integer|min:0|max:100000',
+            'extra_guests' => 'nullable|integer|min:0|max:100000',
+            'extra_guest_price' => 'nullable|numeric|min:0|max:99999',
+            'base_tables' => 'nullable|integer|min:0|max:10000',
+            'base_chairs' => 'nullable|integer|min:0|max:100000',
+            'event_duration_hours' => 'nullable|integer|min:1|max:24',
+            'event_earliest_start' => 'nullable|date_format:H:i',
+            'event_latest_start' => 'nullable|date_format:H:i',
+        ]);
+
+        return [
+            'description' => $data['description'] ?? null,
+            'amenities' => $data['amenities'] ?? null,
+            'capacity' => $data['capacity'] ?? null,
+            'max_guests' => (int) $data['max_guests'],
+            'extra_guests' => (int) ($data['extra_guests'] ?? 0),
+            'extra_guest_price' => (float) ($data['extra_guest_price'] ?? 0),
+            'base_tables' => $data['base_tables'] ?? null,
+            'base_chairs' => $data['base_chairs'] ?? null,
+            'event_duration_hours' => $data['event_duration_hours'] ?? null,
+            'event_earliest_start' => $data['event_earliest_start'] ?? null,
+            'event_latest_start' => $data['event_latest_start'] ?? null,
+            'contactor_id' => null,
+            'self_service_lighting' => false,
+        ];
+    }
+
+    /**
+     * Grava os espaços que não podem ser usados no mesmo dia que este. O par
+     * vale nos dois sentidos, então a lista do formulário substitui todos os
+     * pares em que este espaço aparece — dos dois lados.
+     */
+    protected function syncConflicts(Place $place, array $ids): void
+    {
+        $ids = collect($ids)->map(fn ($id) => (int) $id)->filter(fn ($id) => $id > 0 && $id !== $place->id)->unique()->values();
+
+        DB::transaction(function () use ($place, $ids) {
+            DB::table('place_conflicts')
+                ->where('place_id', $place->id)
+                ->orWhere('conflicting_place_id', $place->id)
+                ->delete();
+
+            $now = now();
+            DB::table('place_conflicts')->insert($ids->map(fn ($id) => [
+                'place_id' => $place->id,
+                'conflicting_place_id' => $id,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->all());
+        });
     }
 
     /**
@@ -398,6 +476,8 @@ class PlaceGroupController extends Controller
             'place'      => $place,
             'rules'      => $this->filterRules($place->group),
             'contactors' => Contactor::orderBy('name')->get(),
+            'conflictOptions' => Place::with('group')->where('id', '!=', $place->id)->get(),
+            'selectedConflicts' => Place::conflictingPlaceIds($place->id),
         ]);
     }
 
@@ -407,22 +487,19 @@ class PlaceGroupController extends Controller
 
         $place = Place::find($place_id);
 
-        if ($request->hasFile('image')) {
-            $imageName = time().'.'.$request->image->extension();
-            $request->image->move(public_path('images'), $imageName);
-            $validated['image'] = $imageName;
-        } else {
-            $validated['image'] = $place->image;
-        }
+        // Arquivo novo ou link novo trocam a imagem; sem nenhum, fica a atual.
+        $validated['image'] = ImageSource::resolve($request, 'image', $place->image);
 
-        $place->update([
+        $place->update(array_merge([
             'name'         => $validated['name'],
             'contactor_id' => $this->contactorIdFor($request, $place),
             'self_service_lighting' => $request->boolean('self_service_lighting'),
             'price'        => $validated['price'],
             'status_id'    => $validated['status_id'],
             'image'        => $validated['image'] ?? null,
-        ]);
+        ], $this->socialAttributes($request, $place->group)));
+
+        $this->syncConflicts($place, $request->input('conflicts', []));
 
         $place->scheduleRules()->detach();
         //Check if has rules

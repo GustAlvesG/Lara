@@ -68,7 +68,11 @@ final class Navigation
                     // As modalidades (place-group) abrem pelo Novo Agendamento.
                     ['route' => 'schedule.index', 'label' => 'Novo Agendamento', 'permission' => P::RESERVAS_AGENDAMENTOS, 'active' => ['schedule.index', 'place-group.*']],
                     ['route' => 'schedule.list', 'label' => 'Todos os Agendamentos', 'permission' => P::RESERVAS_AGENDAMENTOS],
+                    ['route' => 'social-booking.index', 'label' => 'Espaços Sociais', 'permission' => P::RESERVAS_SOCIAIS, 'active' => 'social-booking.*'],
                     ['route' => 'payment.index', 'label' => 'Pagamentos', 'permission' => P::RESERVAS_PAGAMENTOS, 'active' => 'payment.*'],
+                    // Cadastro dos grupos (quadras e espaços sociais), espaços e
+                    // regras. Antes só se chegava pelo botão Configurações da agenda.
+                    ['route' => 'place-group.index', 'label' => 'Locais e Grupos', 'permission' => P::RESERVAS_CONFIGURAR, 'active' => ['place-group.*', 'schedule-rules.*']],
                 ],
             ],
             // Aguardando Motorista saiu do menu: abre pela tela de Carros de
