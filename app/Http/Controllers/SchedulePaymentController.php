@@ -11,8 +11,11 @@ use App\Models\Member;
 use App\Models\Status;
 use App\Services\RedeItauService;
 use App\Services\SchedulesService;
+use App\Exceptions\ManualPaymentException;
 use App\Exceptions\SocialBookingException;
 use App\Models\Social\SocialBooking;
+use App\Services\ManualPaymentService;
+use Illuminate\Validation\Rule;
 use App\Services\Social\SocialBookingNotifier;
 use App\Services\Social\SocialBookingService;
 use Illuminate\Http\Request;
@@ -46,7 +49,10 @@ class SchedulePaymentController extends Controller
             $query->where('status_id', $request->input('status_id'));
         }
 
-        if ($request->filled('payment_method')) {
+        // "manual" = toda baixa manual, qualquer que seja a forma.
+        if ($request->input('payment_method') === 'manual') {
+            $query->where('is_manual', true);
+        } elseif ($request->filled('payment_method')) {
             $query->where('payment_method', $request->input('payment_method'));
         }
 
@@ -231,12 +237,12 @@ class SchedulePaymentController extends Controller
      */
     public function show(Request $request, SchedulePayment $schedulePayment)
     {
-        $schedulePayment->load(['status', 'refunder', 'schedules.place.group', 'schedules.member']);
+        $schedulePayment->load(['status', 'refunder', 'recorder', 'schedules.place.group', 'schedules.member']);
 
         $redeSummary = null;
         $redeError = null;
 
-        if ($request->boolean('consultar_rede') && $schedulePayment->payment_integration_id) {
+        if ($request->boolean('consultar_rede') && $schedulePayment->isOnline()) {
             try {
                 $redeTransaction = $this->redeItauService->getTransaction($schedulePayment->payment_integration_id);
                 $redeSummary = $this->summarizeRedeTransaction($redeTransaction);
@@ -290,6 +296,45 @@ class SchedulePaymentController extends Controller
     public function destroy(SchedulePayment $schedulePayment)
     {
         //
+    }
+
+    /**
+     * Baixa manual: marca como pago o que foi recebido fora da plataforma.
+     * Vale para quadras (um ou mais agendamentos do mesmo sócio) e para a
+     * reserva de espaço social aprovada. As regras estão em ManualPaymentService.
+     */
+    public function storeManual(Request $request, ManualPaymentService $manualPayments)
+    {
+        $data = $request->validate([
+            'schedule_ids' => 'required|array|min:1',
+            'schedule_ids.*' => 'integer',
+            'payment_method' => ['required', Rule::in(array_keys(SchedulePayment::MANUAL_METHODS))],
+            'amount' => 'nullable|numeric|min:0',
+            'paid_at' => 'nullable|date|before_or_equal:now',
+            'manual_notes' => 'nullable|string|max:500',
+        ], [
+            'schedule_ids.required' => 'Escolha o agendamento a dar baixa.',
+            'payment_method.required' => 'Escolha a forma em que o pagamento foi recebido.',
+            'paid_at.before_or_equal' => 'A data do pagamento não pode estar no futuro.',
+        ]);
+
+        try {
+            $payment = $manualPayments->record($data['schedule_ids'], [
+                'payment_method' => $data['payment_method'],
+                'amount' => $data['amount'] ?? null,
+                'paid_at' => $data['paid_at'] ?? null,
+                'notes' => $data['manual_notes'] ?? null,
+            ], $request->user()->id);
+        } catch (ManualPaymentException $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        $message = 'Pagamento de R$ ' . number_format((float) $payment->paid_amount, 2, ',', '.') . ' registrado (' . $payment->methodLabel() . ').';
+        $social = SocialBooking::where('schedule_id', (int) $data['schedule_ids'][0])->first();
+
+        return $social
+            ? redirect()->route('social-booking.show', $social)->with('success', $message . ' Reserva confirmada.')
+            : redirect()->route('schedule.show', (int) $data['schedule_ids'][0])->with('success', $message);
     }
 
     /**

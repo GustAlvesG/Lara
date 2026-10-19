@@ -26,6 +26,7 @@ Setores. "Secretaria" é o setor **Atendimento**; "Financeiro" é a
 | Home Assistant | `home-assistant` | Atendimento |
 | Reservas › Agendamentos | `reservas.agendamentos` | Atendimento, Comercial |
 | Reservas › Pagamentos (e estorno) | `reservas.pagamentos`, `reservas.pagamentos.estornar` | Atendimento, Contabilidade |
+| Reservas › Baixa manual de pagamento (pago fora da plataforma, quadras e espaços sociais) | `reservas.pagamentos.baixa-manual` | nasce sem setor (desde 19/10/2026) — dar na tela de Setores |
 | Reservas › Espaços Sociais (consultar, pré-reservar, convidados) | `reservas.sociais` | nasce sem setor (desde 14/10/2026) — dar na tela de Setores |
 | Reservas › Espaços Sociais (contrato, aprovar, recusar, cancelar) | `reservas.sociais.aprovar` | nasce sem setor — dar na tela de Setores |
 | Externos › Empresas e Monitor de Acesso | — (todo mundo logado) | — |

@@ -246,28 +246,10 @@
         </div>
         <div class="px-5 py-5 bg-surface">
             <p class="text-sm text-ink-2 mb-4">
-                Imagem para exibição no site.
+                Imagem para exibição no site: envie o arquivo ou cole o link (imgur, postimg…).
             </p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 items-start">
-                <div>
-                    <label for="image" style="cursor: pointer;"
-                        class="inline-flex items-center gap-2 px-4 py-2 bg-surface border border-line-strong
-                               rounded-xl font-semibold text-xs text-ink uppercase tracking-widest shadow-card
-                               hover:bg-subtle focus:outline-none focus:ring-2 focus:ring-grena-tint
-                               focus:ring-offset-2 transition ease-in-out duration-150">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                        </svg>
-                        Selecionar imagem
-                    </label>
-                    <input value="{{ $item->image ?? '' }}" type="file"
-                        class="image-upload" name="image" id="image"
-                        style="opacity: 0; position: absolute; z-index: -1;" />
-                </div>
-                <div>
-                    @include('partials.imagePreview', ['id_preview' => 'image'])
-                </div>
+            <div class="max-w-md">
+                @include('partials.image-source', ['name' => 'image', 'label' => 'Imagem do espaço', 'current' => $item->image ?? null, 'ratio' => 'aspect-square'])
             </div>
         </div>
     </div>

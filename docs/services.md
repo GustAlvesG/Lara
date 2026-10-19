@@ -92,14 +92,45 @@ banco e integrações externas. Os controllers delegam a essas classes.
 
 | Método | Descrição |
 |--------|-----------|
-| `request(Place, memberId, data, ?userId)` | Pré-reserva: trava o espaço, confere disponibilidade e limites, cria o `Schedule` do dia inteiro (status 3) e a reserva com itens e convidados. |
+| `request(Place, memberId, data, ?userId, ?now, notify = true)` | Pré-reserva: trava o espaço, confere disponibilidade e limites, cria o `Schedule` do dia inteiro (status 3) e a reserva com itens e convidados. |
 | `updateDetails(booking, data, ?userId)` | Edita a pré-reserva (tudo menos data e espaço; ausente = mantém; `items`/`guests` substituem) enquanto em análise e antes do contrato ok — depois, `contract_closed`. Bebida já contratada mantém o preço. |
 | `markContract` | Contrato ok (+ anexo). |
-| `approve(booking, discount, reason, userId)` | Exige contrato; aplica desconto (com motivo), fixa total e `payment_due_at` (N dias do grupo, até a véspera). Total zero confirma na hora. |
+| `approve(booking, discount, reason, userId, ?now, notify = true)` | Exige contrato; aplica desconto (com motivo), fixa total e `payment_due_at` (N dias do grupo, até a véspera). Total zero confirma na hora. Aprovada, aparece para pagar no perfil do sócio no site. |
 | `refuse` / `cancelByMember` / `cancel` | Recusa; desistência do sócio (só antes de pagar); cancelamento da equipe com estorno opcional pela Rede. |
-| `assertPayable` / `markPaid` | Usados por `SchedulePaymentController::store`. |
+| `assertPayable` / `markPaid` | Usados por `SchedulePaymentController::store`; `markPaid` também pela baixa manual (`ManualPaymentService`). |
 | `expireOverdue` | Comando `social:expire-bookings`. |
 | `replaceGuests` / `syncGuestAccesses` | Lista de convidados e as liberações pontuais (`OneOffAccess`) na data do evento. |
+
+## Support\ImageSource
+
+`app/Support/ImageSource.php` — imagem por arquivo ou link web (grupos e espaços).
+
+| Método | Descrição |
+|--------|-----------|
+| `resolve(Request, field, ?current)` | Arquivo em `field` (vai para `public/images` com `hashName`), senão link em `{field}_url` (normalizado), senão `current`. Link ou arquivo inválido: `ValidationException`. |
+| `normalizeLink(link, errorKey)` | Exige https; `imgur.com/<id>` → `i.imgur.com/<id>.jpg`; página do postimg → `og:image` (só esse domínio é lido, com timeout de 8 s); outros precisam de extensão de imagem; até 255 caracteres. |
+| `url(?value)` / `isRemote(?value)` | URL para exibir (link como está, arquivo via `asset`). |
+
+## PlaceGroupService (imagens)
+
+`resolveImages(Request, ?PlaceGroup)` resolve as duas imagens antes da transação; `store` e
+`update` recebem o resultado e ignoram os campos de upload/link do request.
+
+## Social\SocialCounterBookingService
+
+`app/Services/Social/SocialCounterBookingService.php` — reserva social feita **por completo** no
+balcão. `book(Place, memberId, data, userId, close, ?payment)`: `request` + `markContract` +
+`approve` (+ `ManualPaymentService::record` quando `payment` vem) numa transação só, com os
+e-mails dos passos desligados e um só no fim (`social.approved` ou `social.confirmed`). Qualquer
+recusa desfaz tudo, inclusive a data presa.
+
+## ManualPaymentService
+
+`app/Services/ManualPaymentService.php` — baixa manual de pagamento (pago fora da plataforma).
+
+| Método | Descrição |
+|--------|-----------|
+| `record(scheduleIds, data, userId, notify = true)` | Cria `SchedulePayment` status 1 com `is_manual`, `recorded_by`, `manual_notes` (sem transação na Rede), liga os schedules e põe status 1. Aceita schedules do mesmo sócio, status 1 ou 3, sem pagamento; social só sozinho, em `awaiting_payment` e pelo `total` (chama `markPaid`). `data`: `payment_method` (de `SchedulePayment::MANUAL_METHODS`), `amount` (padrão = soma), `paid_at` (não futuro), `notes`. E-mail: `social.confirmed` ou `schedule.confirm` dos que estavam pendentes. Recusa com `ManualPaymentException`. |
 
 ## Social\SocialAvailabilityService
 
@@ -306,6 +337,8 @@ câmera aos externos registrados na portaria e aos pedidos de carro de aplicativ
 | `authenticate` | `authenticate(): string` | Autentica na API (OAuth, client credentials) e retorna o token. |
 | `getTransaction` | `getTransaction(string $tid): array` | Consulta os detalhes de uma transação. |
 | `beginRefund` | `beginRefund(array $payments_ids)` | Inicia o estorno de pagamentos. |
+
+`refundPayment` recusa pagamento de baixa manual (`is_manual`) com `InvalidArgumentException`: não passou pela Rede.
 
 ---
 

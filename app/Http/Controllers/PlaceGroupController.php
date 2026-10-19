@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use App\Services\PlaceGroupService;
 use App\Services\ScheduleRulesService;
 use App\Models\Contactor;
+use App\Support\ImageSource;
 
 class PlaceGroupController extends Controller
 {
@@ -108,8 +109,12 @@ class PlaceGroupController extends Controller
      */
     public function store(Request $request)
     {
+        // Fora do try: link de imagem inválido volta ao formulário como erro
+        // de validação, no campo dele.
+        $images = $this->placeGroupService->resolveImages($request);
+
         try {
-            $this->placeGroupService->store($request);
+            $this->placeGroupService->store($request, $images);
         } catch (\Exception $e) {
             // Handle the exception or log it
             return redirect()->back()->withErrors(['error' => 'Failed to create Place Group: ' . $e->getMessage()]);
@@ -164,8 +169,10 @@ class PlaceGroupController extends Controller
      */
     public function update(UpdatePlaceGroupRequest $request, PlaceGroup $placeGroup)
     {
+        $images = $this->placeGroupService->resolveImages($request, $placeGroup);
+
         try {
-            $this->placeGroupService->update($request, $placeGroup);
+            $this->placeGroupService->update($request, $placeGroup, $images);
         } catch (\Exception $e) {
             // Handle the exception or log it
             return redirect()->back()->withErrors(['error' => 'Failed to update Place Group: ' . $e->getMessage()]);
@@ -336,12 +343,8 @@ class PlaceGroupController extends Controller
     {
         
         $validated = $request->all();
-
-         if ($request->hasFile('image')) {
-            $imageName = time().'.'.$request->image->extension();
-            $request->image->move(public_path('images'), $imageName);
-            $validated['image'] = $imageName;
-        }
+        // Arquivo enviado ou link web da imagem (ImageSource).
+        $validated['image'] = ImageSource::resolve($request, 'image');
 
         $group = PlaceGroup::find($validated['place_group_id']);
 
@@ -484,13 +487,8 @@ class PlaceGroupController extends Controller
 
         $place = Place::find($place_id);
 
-        if ($request->hasFile('image')) {
-            $imageName = time().'.'.$request->image->extension();
-            $request->image->move(public_path('images'), $imageName);
-            $validated['image'] = $imageName;
-        } else {
-            $validated['image'] = $place->image;
-        }
+        // Arquivo novo ou link novo trocam a imagem; sem nenhum, fica a atual.
+        $validated['image'] = ImageSource::resolve($request, 'image', $place->image);
 
         $place->update(array_merge([
             'name'         => $validated['name'],

@@ -50,6 +50,12 @@ incremental do esquema (criação de tabelas + diversos `add_column`/`fix`). Des
   permissão antiga `manage replay` (Spatie).
   Ela ficou obsoleta com a reforma do acesso: o que vale é a permissão `replay` do
   catálogo, que o `PermissionCatalogSeeder` cria no deploy.
+- `2026_10_14_*` — espaços sociais: campos sociais de `place_groups`/`places`, `place_conflicts`,
+  `social_beverages`, `social_bookings` (+ itens e convidados).
+- `2026_10_16_100000_*` — mesas e cadeiras (base do espaço e mobiliário no catálogo), duração do
+  evento por espaço e prazo de contato da equipe (`social_bookings.contact_due_at` e afins).
+- `2026_10_19_100000_add_manual_fields_to_schedule_payments` — baixa manual de pagamento:
+  `schedule_payments.is_manual`, `recorded_by`, `manual_notes`.
 
 Para o estado completo, rode `php artisan migrate:status`.
 

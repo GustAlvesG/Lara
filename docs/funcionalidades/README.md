@@ -17,8 +17,8 @@ rotas).
 | [Agendamento de Espaços](agendamento.md) | Reserva de quadras/salões pelo sócio: horários, colisão, limite e pagamento. |
 | [Espaços e Grupos (admin)](espacos-e-grupos.md) | Cadastro de grupos, espaços e regras de disponibilidade. |
 | [Reservas de Espaços Sociais](espacos-sociais.md) | Churrasqueiras e salões: pré-reserva do dia, contrato, aprovação com desconto, pagamento no app, convidados na portaria. |
-| [Front-end dos espaços sociais (Next.js)](../reservas-sociais-prompt-site-locacao.md) | Contrato da API `/api/social/*` e o prompt para o agente do site de locação. |
-| [Ajuste do front-end dos espaços sociais](../reservas-sociais-ajustes-prompt.md) | Prompt de **mudança** (16/10/2026): mesas e cadeiras, horário do evento e aviso do prazo de contato. |
+| [Imagens por link — ajuste dos fronts](../imagens-por-link-prompt.md) | Prompts de **mudança** (19/10/2026) para o site de locação e o front da iluminação: imagens de grupo/espaço por link externo e o `image_url` da iluminação. |
+| [Front-end dos espaços sociais (Next.js)](../reservas-sociais-prompt-site-locacao.md) | Contrato da API `/api/social/*` e o prompt para o agente do site de locação (um prompt só, com mesas, horário, contato, reserva do balcão e baixa manual). |
 | [Sócios](socios.md) | Login, registro, foto e autenticação JWT (integração MultiClubes). |
 | [Freelancers](freelancers.md) | Cadastro de freelancers, funções e serviços prestados. |
 | [Pix automático (Sicoob)](pix-sicoob.md) | **Movimenta dinheiro real:** o "Dar baixa" do financeiro transfere o valor do contrato via Pix. |

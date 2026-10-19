@@ -1,9 +1,13 @@
 {{-- Pré-reserva de espaço social lançada no balcão, em nome do sócio. O
      calendário vem de social-booking.availability (mesma regra do app); o
      sócio é buscado no MultiClubes pela matrícula, como na agenda das quadras.
-     O valor mostrado é estimativa: o servidor recalcula ao gravar. --}}
+     O valor mostrado é estimativa: o servidor recalcula ao gravar.
+     Quem aprova pode fechar a reserva de uma vez (contrato + aprovação); quem
+     dá baixa manual pode, além disso, registrar o pagamento já recebido. --}}
 @php
     $field = 'w-full h-11 px-3.5 rounded-xl border border-line-strong bg-surface text-ink focus:border-grena focus:ring-4 focus:ring-grena-tint';
+    $canClose = auth()->user()->can(\App\Authorization\Permissions::RESERVAS_SOCIAIS_APROVAR);
+    $canRecordPayment = $canClose && auth()->user()->can(\App\Authorization\Permissions::RESERVAS_PAGAMENTOS_BAIXA_MANUAL);
     $oldGuests = old('guests', []);
 @endphp
 <x-app-layout :bootstrap-grid="false">
@@ -24,7 +28,7 @@
                 Nenhum espaço social ativo. Cadastre um grupo com categoria <strong>Social</strong> e os espaços dele em Reservas › Locais e Grupos.
             </x-empty-state>
         @else
-        <form method="POST" action="{{ route('social-booking.store') }}" id="social-form" class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <form method="POST" action="{{ route('social-booking.store') }}" id="social-form" enctype="multipart/form-data" class="grid grid-cols-1 gap-6 lg:grid-cols-3">
             @csrf
             <input type="hidden" name="cpf" value="{{ old('cpf') }}">
             <input type="hidden" name="title" value="{{ old('title') }}">
@@ -135,6 +139,53 @@
                         @include('location.social.partials.guest-row', ['i' => '__I__', 'guest' => []])
                     </template>
                 </section>
+
+                {{-- Fechar agora: contrato + aprovação (+ pagamento recebido) no mesmo envio --}}
+                @if ($canClose)
+                    <section class="rounded-card bg-surface p-5 shadow-card">
+                        <label class="flex items-start gap-3">
+                            <input type="checkbox" name="complete" value="1" id="complete" class="mt-1 h-5 w-5 rounded border-line-strong text-grena focus:ring-grena-tint" @checked(old('complete'))>
+                            <span>
+                                <span class="block text-sm font-black uppercase tracking-widest text-ink-3">Fechar a reserva agora</span>
+                                <span class="block text-xs text-ink-3">O contrato já está assinado: a reserva sai aprovada e o pagamento vai para o perfil do sócio no site. Sem marcar, fica como pré-reserva em análise.</span>
+                            </span>
+                        </label>
+
+                        <div id="complete-box" class="mt-4 hidden space-y-4">
+                            <div>
+                                <x-input-label for="contract_file" value="Contrato assinado (opcional)" />
+                                <input type="file" name="contract_file" id="contract_file" accept=".pdf,.jpg,.jpeg,.png" class="mt-1 block w-full text-xs text-ink-2">
+                            </div>
+                            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div><x-input-label for="discount" value="Desconto (R$)" /><x-text-input type="number" step="0.01" min="0" id="discount" name="discount" class="mt-1" :value="old('discount', 0)" /></div>
+                                <div><x-input-label for="discount_reason" value="Motivo do desconto" /><x-text-input id="discount_reason" name="discount_reason" class="mt-1" :value="old('discount_reason')" maxlength="255" /></div>
+                            </div>
+
+                            @if ($canRecordPayment)
+                                <label class="flex items-start gap-3 border-t border-line pt-4">
+                                    <input type="checkbox" name="paid_now" value="1" id="paid_now" class="mt-1 h-5 w-5 rounded border-line-strong text-grena focus:ring-grena-tint" @checked(old('paid_now'))>
+                                    <span>
+                                        <span class="block text-sm font-bold text-ink">O sócio já pagou, fora da plataforma</span>
+                                        <span class="block text-xs text-ink-3">Baixa manual pelo total: a reserva sai confirmada e os convidados liberados na portaria.</span>
+                                    </span>
+                                </label>
+                                <div id="paid-box" class="hidden grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                    <div>
+                                        <x-input-label for="payment_method" value="Forma de pagamento" />
+                                        <select name="payment_method" id="payment_method" class="{{ $field }} mt-1">
+                                            <option value="">Escolha…</option>
+                                            @foreach (\App\Models\SchedulePayment::MANUAL_METHODS as $value => $label)
+                                                <option value="{{ $value }}" @selected(old('payment_method') === $value)>{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div><x-input-label for="paid_at" value="Pago em" /><x-text-input type="datetime-local" id="paid_at" name="paid_at" class="mt-1" :value="old('paid_at', now()->format('Y-m-d\TH:i'))" /></div>
+                                    <div class="sm:col-span-2"><x-input-label for="payment_notes" value="Comprovante / observação" /><x-text-input id="payment_notes" name="payment_notes" class="mt-1" :value="old('payment_notes')" maxlength="500" placeholder="Ex.: Pix ID E123…, recibo 456" /></div>
+                                </div>
+                            @endif
+                        </div>
+                    </section>
+                @endif
             </div>
 
             {{-- Resumo --}}
@@ -148,7 +199,7 @@
                         <div class="flex justify-between border-t border-line pt-2 text-base font-bold"><dt>Total</dt><dd class="font-mono" id="sum-total">R$ 0,00</dd></div>
                     </dl>
                     <p class="mt-3 text-sm text-ink-2" id="sum-furniture"></p>
-                    <p class="mt-3 text-xs text-ink-3">Desconto, se houver, é dado na aprovação.</p>
+                    <p class="mt-3 text-xs text-ink-3" id="sum-discount-note">Desconto, se houver, é dado na aprovação.</p>
                     <x-primary-button class="mt-5 w-full" id="submit-social">Registrar pré-reserva</x-primary-button>
                 </section>
             </aside>
@@ -187,7 +238,26 @@
                 document.getElementById('sum-base').innerText = money(base);
                 document.getElementById('sum-extras').innerText = money(extras);
                 document.getElementById('sum-items').innerText = money(items);
-                document.getElementById('sum-total').innerText = money(base + extras + items);
+                // Fechar agora: o desconto entra já, e o botão diz o que vai acontecer.
+                const complete = document.getElementById('complete');
+                const closing = !!(complete && complete.checked);
+                const paidNow = closing && !!document.getElementById('paid_now')?.checked;
+                const discount = closing ? (parseFloat(document.getElementById('discount').value) || 0) : 0;
+                document.getElementById('sum-total').innerText = money(Math.max(0, base + extras + items - discount));
+                document.getElementById('sum-discount-note').innerText = closing
+                    ? (discount > 0 ? `Com desconto de ${money(discount)}.` : 'Sem desconto.')
+                    : 'Desconto, se houver, é dado na aprovação.';
+                if (complete) {
+                    document.getElementById('complete-box').classList.toggle('hidden', !closing);
+                    const paidBox = document.getElementById('paid-box');
+                    if (paidBox) {
+                        paidBox.classList.toggle('hidden', !paidNow);
+                        document.getElementById('payment_method').required = paidNow;
+                    }
+                }
+                document.getElementById('submit-social').innerText = paidNow
+                    ? 'Registrar reserva paga'
+                    : (closing ? 'Aprovar e enviar para pagamento' : 'Registrar pré-reserva');
 
                 const box = document.getElementById('start-time-box');
                 const duration = opt && opt.value ? parseInt(opt.dataset.duration) || 0 : 0;
@@ -261,6 +331,7 @@
             document.getElementById('next-month').addEventListener('click', () => shiftMonth(1));
             placeSelect.addEventListener('change', () => { dateInput.value = ''; document.getElementById('date-label').innerText = '—'; updateSummary(); loadCalendar(); });
             form.addEventListener('input', updateSummary);
+            form.addEventListener('change', updateSummary);
 
             // Convidados: linhas a partir do <template>, com índice único.
             let guestIndex = {{ count($oldGuests) }};

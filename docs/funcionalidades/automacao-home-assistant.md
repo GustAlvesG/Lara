@@ -182,7 +182,7 @@ Daí três consequências que o código honra explicitamente:
 |--------|-----|-----------|
 | GET | `/api/lighting/availability` | Se **alguma** quadra está aberta, a próxima a abrir, os limites de duração e o acionamento vigente do sócio. |
 | GET | `/api/lighting/groups` | Grupos que têm ao menos uma quadra liberada. |
-| GET | `/api/lighting/groups/{group}/places` | Quadras do grupo, cada uma com a própria janela, `available_minutes`, `lit` e `lit_until`. |
+| GET | `/api/lighting/groups/{group}/places` | Quadras do grupo, cada uma com a própria janela, `available_minutes`, `lit`, `lit_until` e `image_url` (imagem pronta para exibir: arquivo do Lara ou link externo; `image` segue cru). |
 | POST | `/api/lighting/places/{place}/activate` | Acende pelos `minutes` pedidos. `201` novo, `200` prolongando. |
 | POST | `/api/lighting/release` | Devolve a quadra antes da hora. |
 | GET | `/api/lighting/activations` | Histórico do sócio (30 últimos). |

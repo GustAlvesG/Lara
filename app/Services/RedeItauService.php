@@ -85,6 +85,12 @@ class RedeItauService
      */
     public function refundPayment(SchedulePayment $payment, ?float $amount, ?int $actorUserId): array
     {
+        // Baixa manual: o dinheiro não passou pela Rede, então não há o que
+        // estornar por ela — a devolução, se houver, é feita fora do Lara.
+        if ($payment->is_manual) {
+            throw new InvalidArgumentException('Pagamento registrado por baixa manual (pago fora da plataforma): não há estorno pela Rede. Se houver devolução, ela é feita fora do Lara.');
+        }
+
         if (empty($payment->payment_integration_id)) {
             throw new InvalidArgumentException('Pagamento sem identificador de transação na Rede (payment_integration_id).');
         }

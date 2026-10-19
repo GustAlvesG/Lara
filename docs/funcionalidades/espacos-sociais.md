@@ -19,8 +19,12 @@ pré-reserva ──► em análise ──► contrato ok + aprovação ──►
 3. A equipe **aprova** (com desconto, se for o caso) ou **recusa**. Aprovar fixa o valor final e
    libera o **pagamento no app**, com prazo.
 4. O sócio paga online, pela Rede, no mesmo fluxo de pagamento das quadras. Pago, a reserva fica
-   **confirmada** e os convidados não sócios passam a constar na portaria.
+   **confirmada** e os convidados não sócios passam a constar na portaria. Se ele pagar fora da
+   plataforma (dinheiro, Pix direto, maquininha), a equipe dá **baixa manual** no painel.
 5. Sem pagamento dentro do prazo, a reserva **expira** e a data volta a ficar livre.
+
+No balcão, a equipe também pode fazer a reserva **por completo** de uma vez — contrato, aprovação
+e, se o sócio já pagou, a baixa — ver [Reserva completa no balcão](#reserva-completa-no-balcão).
 
 ## Para quem
 
@@ -29,6 +33,7 @@ pré-reserva ──► em análise ──► contrato ok + aprovação ──►
 | Atendimento / secretaria | Consulta as reservas, lança pré-reserva no balcão, cuida da lista de convidados, imprime a lista da portaria | `reservas.sociais` |
 | Quem decide | Contrato ok, aprovar com desconto, recusar, cancelar | `reservas.sociais.aprovar` |
 | Quem estorna | Valor devolvido no cancelamento de reserva paga | `reservas.pagamentos.estornar` (a mesma do estorno das quadras) |
+| Quem dá baixa | Marcar como paga a reserva recebida fora da plataforma | `reservas.pagamentos.baixa-manual` (a mesma das quadras) |
 | Quem configura | Grupos, espaços, conflitos e catálogo de bebidas e mobiliário | `reservas.configurar` |
 | Sócio | Pré-reserva, convidados, pagamento e desistência (antes de pagar) pelo app | JWT do app |
 
@@ -168,14 +173,37 @@ No detalhe da reserva (Abrir):
    o e-mail com o valor e o prazo. Desconto igual ao total confirma na hora, sem cobrança.
 4. Ou **Recusar**, com motivo (vai no e-mail).
 
+### Reserva completa no balcão
+
+Na **Nova pré-reserva**, quem tem `reservas.sociais.aprovar` vê **Fechar a reserva agora**: o
+contrato já está assinado, então o mesmo envio faz pré-reserva, contrato ok (anexo opcional) e
+aprovação (com desconto e motivo, se houver), tudo em nome do sócio escolhido.
+
+- Sem mais nada, a reserva sai **aguardando pagamento**, com o prazo do grupo, e o pagamento
+  aparece no **perfil do sócio no site** para ele pagar — a reserva é dele (a mesma do app).
+- Quem também tem `reservas.pagamentos.baixa-manual` pode marcar **O sócio já pagou, fora da
+  plataforma** (forma, data e comprovante): a reserva sai **confirmada**, com os convidados
+  liberados na portaria.
+- É tudo ou nada: se um passo recusa (data ocupada, desconto inválido, limite do sócio), nada fica
+  gravado, nem a data presa.
+- O sócio recebe **um e-mail só**, do estado final (aprovada para pagar ou confirmada).
+- Desconto igual ao total confirma sem cobrança, como na aprovação normal.
+
 ### Depois de aprovada
 
 - O sócio paga pelo app até o prazo. Pago: "Reserva confirmada" por e-mail, e cada convidado
   vira uma **liberação pontual na data do evento** no Monitor de Acesso (Externos).
+- **Baixa manual de pagamento**: pagou fora da plataforma? No detalhe, quem tem
+  `reservas.pagamentos.baixa-manual` informa a forma (dinheiro, Pix direto ao clube, cartão na
+  maquininha, transferência, outro), a data e o comprovante. A baixa é sempre pelo **total
+  aprovado** e tem o mesmo efeito do pagamento online: confirma, libera os convidados e manda o
+  e-mail; o site deixa de cobrar. Só cabe em reserva aprovada (aguardando pagamento) — em análise,
+  aprove antes para fixar o valor.
 - **Lista para a portaria**: PDF com nome e CPF completo de cada convidado.
 - **Cancelar**: em qualquer estágio ativo, com motivo. Se houver pagamento, informe quanto
   estornar (0 = nada). O estorno é pela Rede, total ou parcial. Se a Rede recusar, o cancelamento
-  fica gravado e a tela mostra o erro; o e-mail não promete devolução.
+  fica gravado e a tela mostra o erro; o e-mail não promete devolução. Reserva paga por **baixa
+  manual** não tem estorno pela Rede: a devolução, se houver, é feita fora do Lara.
 
 ### Convidados
 
@@ -204,7 +232,10 @@ No detalhe da reserva (Abrir):
 - **O hold de 10 minutos das quadras não expira** a pré-reserva. Em análise não há prazo; o
   único prazo automático é o do pagamento (`social:expire-bookings`, a cada 5 minutos).
 - **Pagamento**: só uma reserva social por pagamento, no estágio "aguardando pagamento", dentro
-  do prazo e pelo valor exato do total.
+  do prazo e pelo valor exato do total. A baixa manual segue o mesmo (sozinha, aprovada, pelo
+  total), e uma reserva já paga — online ou manual — não aceita outro pagamento.
+- **Dono da reserva**: o sócio (`member_id`), venha ela do app ou do balcão. Por isso a reserva
+  do balcão aparece no perfil dele no site, com `origin: "secretaria"`.
 - A festa do sócio não o impede de reservar quadra no mesmo dia (salvo quadra vinculada ao
   espaço).
 - O espaço social não aparece na agenda de horários das quadras nem em `/api/places/group`.
@@ -219,11 +250,10 @@ houve).
 ## Integrações
 
 - **App de locação (Next.js)**: API `/api/social/*` — contrato e prompt em
-  [reservas-sociais-prompt-site-locacao.md](../reservas-sociais-prompt-site-locacao.md); o ajuste
-  de 16/10/2026 (mesas, horário, contato) em
-  [reservas-sociais-ajustes-prompt.md](../reservas-sociais-ajustes-prompt.md).
+  [reservas-sociais-prompt-site-locacao.md](../reservas-sociais-prompt-site-locacao.md) (um
+  prompt só, com tudo até 19/10/2026: mesas, horário, contato, reserva do balcão e baixa manual).
 - **Sino do painel**: notificações `social_booking_requested` e `social_booking_contact_overdue`.
-- **Rede (Itaú)**: pagamento pelo app e estorno no cancelamento.
+- **Rede (Itaú)**: pagamento pelo app e estorno no cancelamento (não para baixa manual).
 - **Monitor de Acesso (Externos)**: convidados como liberação pontual.
 
 ## Referência técnica
@@ -231,11 +261,14 @@ houve).
 - Resumo para agentes: [docs/resumo-modulos/Reservas.md](../resumo-modulos/Reservas.md)
 - Serviços: `App\Services\Social\SocialBookingService` (fluxo), `SocialAvailabilityService`
   (calendário e limites), `SocialBookingNotifier` (e-mails), `SocialStaffNotifier` (sino da
-  equipe); `App\Support\BusinessDays`; `AccessResolver::holderIds()`.
+  equipe), `SocialCounterBookingService` (reserva completa no balcão);
+  `App\Services\ManualPaymentService` (baixa manual); `App\Support\BusinessDays`;
+  `AccessResolver::holderIds()`.
 - Models: `App\Models\Social\SocialBooking`, `SocialBookingItem`, `SocialBookingGuest`,
   `SocialBeverage`; `Place::conflictingPlaceIds()`.
 - Controllers: `Social\SocialBookingController`, `Social\SocialBeverageController`,
-  `Api\SocialBookingApiController`; pagamento em `SchedulePaymentController::store`.
+  `Api\SocialBookingApiController`; pagamento em `SchedulePaymentController::store` (site) e
+  `storeManual` (baixa manual, rota `payment.manual`).
 - Comandos: `social:expire-bookings`, `social:contact-reminders`.
-- Testes: `tests/Feature/Social/*`, `tests/Feature/Rebrand/EspacosSociaisScreensTest.php`,
-  `tests/Unit/BusinessDaysTest.php`.
+- Testes: `tests/Feature/Social/*`, `tests/Feature/Payments/ManualPaymentTest.php`,
+  `tests/Feature/Rebrand/EspacosSociaisScreensTest.php`, `tests/Unit/BusinessDaysTest.php`.

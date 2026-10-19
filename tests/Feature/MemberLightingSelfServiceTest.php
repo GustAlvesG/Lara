@@ -397,6 +397,23 @@ class MemberLightingSelfServiceTest extends TestCase
         $this->assertNull($places[1]['lit_until']);
     }
 
+    public function test_imagem_da_quadra_vem_pronta_em_image_url(): void
+    {
+        // `image` continua cru (nome do arquivo ou link); `image_url` é o que vai no <img>.
+        DB::table('places')->where('id', 10)->update(['image' => 'quadra1.jpg']);
+        DB::table('places')->where('id', 20)->update(['image' => 'https://i.imgur.com/abc1234.jpg']);
+
+        $places = collect($this->withHeaders($this->headers(self::CPF_BRUNO))
+            ->getJson('/api/lighting/groups/1/places')
+            ->assertOk()
+            ->json('places'))->keyBy('id');
+
+        $this->assertSame('quadra1.jpg', $places[10]['image']);
+        $this->assertSame(asset('images/quadra1.jpg'), $places[10]['image_url']);
+        $this->assertSame('https://i.imgur.com/abc1234.jpg', $places[20]['image']);
+        $this->assertSame('https://i.imgur.com/abc1234.jpg', $places[20]['image_url']);
+    }
+
     /* ─────────────────────────── Acionamento ─────────────────────────── */
 
     public function test_acionamento_acende_a_luz_para_o_home_assistant(): void

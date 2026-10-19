@@ -145,6 +145,7 @@ Guia: [Reservas de Espaços Sociais](funcionalidades/espacos-sociais.md). Rotas 
 | POST | `/social-bookings/{booking}/approve` | Social\SocialBookingController@approve | social-booking.approve | auth, can:reservas.sociais.aprovar |
 | POST | `/social-bookings/{booking}/refuse` | Social\SocialBookingController@refuse | social-booking.refuse | auth, can:reservas.sociais.aprovar |
 | POST | `/social-bookings/{booking}/cancel` | Social\SocialBookingController@cancel | social-booking.cancel | auth, can:reservas.sociais.aprovar (estorno pede também reservas.pagamentos.estornar) |
+| POST | `/payments/manual` | SchedulePaymentController@storeManual | payment.manual | auth, can:reservas.pagamentos.baixa-manual (baixa manual: pago fora da plataforma; quadras e espaço social aprovado) |
 
 ### Replay — vídeos das quadras (`can:replay`)
 

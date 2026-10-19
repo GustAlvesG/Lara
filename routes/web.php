@@ -529,6 +529,10 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         });
         Route::post('/{schedulePayment}/refund', [SchedulePaymentController::class, 'refund'])
             ->middleware('can:' . P::RESERVAS_PAGAMENTOS_ESTORNAR)->name('payment.refund');
+        // Baixa manual (pago fora da plataforma). Os botões ficam na tela do
+        // agendamento e na da reserva social; não pede ver Pagamentos.
+        Route::post('/manual', [SchedulePaymentController::class, 'storeManual'])
+            ->middleware('can:' . P::RESERVAS_PAGAMENTOS_BAIXA_MANUAL)->name('payment.manual');
     });
 
     // Gestão de acesso. Usuários e Setores são de quem tem a permissão (na

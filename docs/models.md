@@ -24,8 +24,10 @@ deletes, scopes globais, etc.).
 
 ### SchedulePayment
 - **Tabela:** `schedule_payments`
-- **`$fillable`:** `payment_method`, `paid_amount`, `paid_at`, `payment_integration_id`, `status_id`
-- **Relacionamentos:** `schedule()` hasMany Schedule (`schedule_payment_id`)
+- **`$fillable`:** `payment_method`, `paid_amount`, `paid_at`, `payment_integration_id`, `status_id`, `refunded_amount`, `refunded_by`, `refunded_at`
+- **Baixa manual (19/10/2026):** `is_manual`, `recorded_by`, `manual_notes` — **fora do fillable** (o pagamento do site não cria baixa manual; o `ManualPaymentService` grava com `forceFill`). Formas em `MANUAL_METHODS` (`manual_cash`, `manual_pix`, `manual_card`, `manual_transfer`, `manual_other`), rótulos em `METHOD_LABELS`.
+- **Métodos:** `methodLabel()`; `isOnline()` (da Rede: não manual e com `payment_integration_id` — só esse se consulta e estorna).
+- **Relacionamentos:** `schedule()`/`schedules()` hasMany Schedule (`schedule_payment_id`) · `status()` · `refunder()` · `recorder()` belongsTo User (`recorded_by`)
 
 ---
 

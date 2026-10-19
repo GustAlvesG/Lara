@@ -6,6 +6,7 @@
     $P = \App\Authorization\Permissions::class;
     $canDecide = auth()->user()->can($P::RESERVAS_SOCIAIS_APROVAR);
     $canRefund = auth()->user()->can($P::RESERVAS_PAGAMENTOS_ESTORNAR);
+    $canRecordPayment = auth()->user()->can($P::RESERVAS_PAGAMENTOS_BAIXA_MANUAL);
     $money = fn ($v) => 'R$ ' . number_format((float) $v, 2, ',', '.');
     $payment = optional($booking->schedule)->schedulePayment;
     $refundable = $payment ? round((float) $payment->paid_amount - (float) $payment->refunded_amount, 2) : 0;
@@ -148,12 +149,32 @@
                     </dl>
                     @if ($payment)
                         <p class="mt-3 text-xs text-ink-3">
-                            Pago {{ $money($payment->paid_amount) }} em {{ optional($payment->paid_at)->format('d/m/Y H:i') }}
+                            Pago {{ $money($payment->paid_amount) }} em {{ optional($payment->paid_at)->format('d/m/Y H:i') }} · {{ $payment->methodLabel() }}
+                            @if ($payment->is_manual) · baixa manual por {{ optional($payment->recorder)->name ?? '—' }} @endif
                             @if ((float) $payment->refunded_amount > 0) · estornado {{ $money($payment->refunded_amount) }} @endif
-                            · <a class="font-bold text-grena-ink hover:underline" href="{{ route('payment.show', $payment->id) }}">ver pagamento</a>
+                            @can($P::RESERVAS_PAGAMENTOS) · <a class="font-bold text-grena-ink hover:underline" href="{{ route('payment.show', $payment->id) }}">ver pagamento</a>@endcan
                         </p>
+                        @if ($payment->manual_notes)<p class="mt-1 text-xs text-ink-2">{{ $payment->manual_notes }}</p>@endif
+                    @elseif ($booking->stage === 'awaiting_payment')
+                        <p class="mt-3 text-xs text-ink-3">Aguardando o sócio pagar pelo site{{ $booking->payment_due_at ? ' até ' . $booking->payment_due_at->format('d/m/Y H:i') : '' }}.</p>
                     @endif
                 </section>
+
+                {{-- Baixa manual: pago fora da plataforma --}}
+                @if (! $payment && $booking->stage === 'awaiting_payment' && $canRecordPayment)
+                    <section class="{{ $box }}">
+                        <h2 class="{{ $h2 }}">Baixa manual de pagamento</h2>
+                        <p class="mb-3 text-xs text-ink-3">Para pagamento recebido fora da plataforma. Marca a reserva como paga pelo total ({{ $money($booking->total) }}): ela é confirmada, os convidados são liberados na portaria e o site deixa de cobrar.</p>
+                        <form method="POST" action="{{ route('payment.manual') }}" class="space-y-3"
+                              onsubmit="return confirm('Confirma que {{ $money($booking->total) }} foram recebidos fora da plataforma?');">
+                            @csrf
+                            <input type="hidden" name="schedule_ids[]" value="{{ $booking->schedule_id }}">
+                            <input type="hidden" name="amount" value="{{ number_format((float) $booking->total, 2, '.', '') }}">
+                            @include('payments.partials.manual-fields')
+                            <x-primary-button size="sm">Marcar como pago</x-primary-button>
+                        </form>
+                    </section>
+                @endif
 
                 {{-- Contato com o sócio: N dias úteis depois da pré-reserva --}}
                 @if ($booking->isActive())
@@ -224,7 +245,9 @@
                         <form method="POST" action="{{ route('social-booking.cancel', $booking) }}" class="space-y-3">
                             @csrf
                             <textarea name="cancel_reason" rows="2" required maxlength="1000" class="{{ $textarea }}" placeholder="Motivo (vai no e-mail ao sócio)" aria-label="Motivo do cancelamento">{{ old('cancel_reason') }}</textarea>
-                            @if ($payment && $refundable > 0)
+                            @if ($payment && $payment->is_manual)
+                                <p class="text-xs text-ink-3">Pago por baixa manual: não há estorno pela Rede. Se houver devolução, ela é feita fora do Lara.</p>
+                            @elseif ($payment && $refundable > 0)
                                 <div>
                                     <x-input-label for="refund_amount" value="Estornar (R$) — disponível {{ $money($refundable) }}" />
                                     <x-text-input type="number" step="0.01" min="0" max="{{ $refundable }}" id="refund_amount" name="refund_amount" class="mt-1" :value="old('refund_amount', 0)" :disabled="! $canRefund" />

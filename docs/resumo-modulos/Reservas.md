@@ -8,7 +8,8 @@ colisão, preço proporcional, e-mails), [espacos-e-grupos.md](../funcionalidade
 
 O sócio reserva quadras (por horário) e **espaços sociais** (o dia inteiro, com aprovação) pelo **app/site de locação** (Next.js, API com `api_token` +
 JWT `login_token`); o painel do Lara mostra a agenda, cria reservas no balcão, cancela com
-estorno na **Rede (Itaú)** e configura grupos, espaços e regras. A reserva confirmada também
+estorno na **Rede (Itaú)**, dá baixa manual do que foi pago fora da plataforma e configura
+grupos, espaços e regras. A reserva confirmada também
 acende a luz (Home Assistant) e é o que vincula os clipes do RePET.
 
 ## Telas e permissões
@@ -19,6 +20,7 @@ acende a luz (Home Assistant) e é o que vincula os clipes do RePET.
 | Todos os Agendamentos | `schedule.list`, `schedule.show`, `schedule.update` (cancelar) | `reservas.agendamentos` |
 | Pagamentos | `payment.index`, `payment.show` (consulta ao vivo na Rede) | `reservas.pagamentos` |
 | Estorno | `payment.refund` | `reservas.pagamentos.estornar` |
+| Baixa manual (pago fora da plataforma; botões no detalhe do agendamento e da reserva social) | `payment.manual` | `reservas.pagamentos.baixa-manual` |
 | Espaços Sociais | `social-booking.index/create/store/show/details/guests/guests.pdf/contract.download/availability` | `reservas.sociais` |
 | Espaços Sociais — decidir | `social-booking.contract/approve/refuse/cancel` (estornar pede também `reservas.pagamentos.estornar`) | `reservas.sociais.aprovar` |
 | Bebidas dos espaços sociais (botão na lista) | `social-booking.beverages.*` | `reservas.configurar` |
@@ -76,6 +78,38 @@ Guia completo: [espacos-sociais.md](../funcionalidades/espacos-sociais.md). Pont
   Balcão nasce contatado; `registerContact`, contrato ok, aprovação e recusa marcam
   `contacted_at`. Scope `SocialBooking::pendingContact()` (não confundir com o método de
   instância `awaitingContact()`).
+- Reserva completa no balcão (19/10/2026): `SocialCounterBookingService::book` faz `request` +
+  `markContract` + `approve` (+ `ManualPaymentService::record`) numa transação, com `notify:
+  false` nos passos e um e-mail só no fim. Sem baixa, termina `awaiting_payment` e o site
+  mostra para o sócio pagar (dono = `member_id`). Formulário: `complete` (pede
+  `reservas.sociais.aprovar`) e `paid_now` (pede também `reservas.pagamentos.baixa-manual`).
+- API: `origin` (`site` | `secretaria`, por `created_by_user`) e `payment` (null ou
+  `{paid_amount, paid_at, method, method_label, manual, refunded_amount}`).
+
+## Baixa manual de pagamento (desde 19/10/2026)
+
+- `App\Services\ManualPaymentService::record(scheduleIds, data, userId, notify)`: cria um
+  `SchedulePayment` status 1 com `is_manual`, `recorded_by`, `manual_notes`, sem
+  `payment_integration_id`; liga os schedules e põe status 1. Linhas travadas com
+  `lockForUpdate` (corrida com o pagamento do site).
+- Aceita schedules do mesmo sócio, em status 1 ou 3, sem pagamento. Social: sozinho, em
+  `awaiting_payment`, valor = `total`; chama `SocialBookingService::markPaid`.
+- E-mail: social → `social.confirmed`; quadra → `schedule.confirm` só para os que estavam
+  pendentes (3). Recusas são `ManualPaymentException` (mensagem de tela).
+- Formas: `SchedulePayment::MANUAL_METHODS` (`manual_cash`, `manual_pix`, `manual_card`,
+  `manual_transfer`, `manual_other`); rótulos em `METHOD_LABELS` / `methodLabel()`.
+  `is_manual` está **fora do fillable**: o `POST /api/schedule/payment` não cria baixa manual.
+- Sem Rede: `isOnline()` esconde consulta/estorno; `RedeItauService::refundPayment` recusa
+  pagamento manual com `InvalidArgumentException`.
+
+## Imagens de grupo e espaço (desde 19/10/2026)
+
+`image_vertical`, `image_horizontal` e `places.image` guardam **nome de arquivo** (`public/images`)
+**ou URL** `https://` (imgur, postimg…). Grave com `ImageSource::resolve($request, $campo, $atual)`
+(arquivo em `$campo`, link em `{$campo}_url`; páginas do imgur/postimg viram link direto; erro
+como `ValidationException` no `{$campo}_url`) e leia com `ImageSource::url()`. As leituras
+antigas com `str_contains(..., 'http')` continuam certas. Na API da iluminação há `image_url`.
+`PlaceGroupService::store` passou a gravar as imagens (antes gravava o objeto do upload).
 
 ## Regras que costumam pegar
 
@@ -115,9 +149,10 @@ Rede: `RedeItauService` (token em cache 55 s, `getTransaction`, `refundPayment` 
 | Arquivo | Papel |
 |---|---|
 | `app/Http/Controllers/ScheduleController.php`, `ScheduleRulesController.php`, `PlaceGroupController.php`, `PlaceController.php` | Painel e API. |
-| `app/Http/Controllers/SchedulePaymentController.php` | Pagamento, consulta na Rede, estorno. |
+| `app/Http/Controllers/SchedulePaymentController.php` | Pagamento, baixa manual (`storeManual`), consulta na Rede, estorno. |
 | `app/Services/SchedulesService.php`, `ScheduleRulesService.php`, `SchedulePricingService.php`, `PlaceGroupService.php`, `PlaceService.php` | Regras. |
-| `app/Services/RedeItauService.php`, `SchedulePaymentService.php` | Pagamento. |
+| `app/Services/RedeItauService.php`, `SchedulePaymentService.php`, `ManualPaymentService.php` | Pagamento. |
+| `resources/views/payments/partials/manual-fields.blade.php` | Campos da baixa manual (forma, data, comprovante). |
 | `app/Console/Commands/ExpirePendingSchedules.php` | Expira o hold (agendado). |
 | `app/Services/Social/*`, `app/Models/Social/*`, `app/Http/Controllers/Social/*`, `Api/SocialBookingApiController.php` | Espaços sociais. |
 | `app/Console/Commands/ExpireSocialBookings.php` | Expira reserva social aprovada e não paga no prazo. |
@@ -129,5 +164,6 @@ Rede: `RedeItauService` (token em cache 55 s, `getTransaction`, `refundPayment` 
 `tests/Feature/ScheduleInProgressSlotTest.php`, `tests/Unit/ScheduleProportionalPriceTest.php`,
 `tests/Unit/ScheduleNotificationTest.php`, `tests/Feature/Rebrand/ReservasScreensTest.php`,
 `tests/Feature/Social/*` (fluxo e API, sobre as migrations reais via `Tests\Concerns\CreatesSocialBookingSchema`),
-`tests/Feature/Rebrand/EspacosSociaisScreensTest.php`.
+`tests/Feature/Rebrand/EspacosSociaisScreensTest.php`, `tests/Feature/Payments/ManualPaymentTest.php`,
+`tests/Feature/Rebrand/BaixaManualScreensTest.php`.
 Confira o isolamento SQLite do `phpunit.xml` antes de rodar.

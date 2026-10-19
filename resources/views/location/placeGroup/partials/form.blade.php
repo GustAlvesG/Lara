@@ -176,31 +176,12 @@
             <h3 class="text-sm font-black text-grena-ink uppercase tracking-widest mb-4">Mídia e Design</h3>
             
             <div class="space-y-8">
-                <!-- Imagem Vertical -->
-                <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <p class="text-xs font-bold text-ink-2 uppercase tracking-tight">Imagem Vertical</p>
-                        <label for="image_vertical" class="cursor-pointer text-[10px] font-black text-grena-ink hover:text-grena uppercase">Alterar</label>
-                    </div>
-                    <input type="file" name="image_vertical" id="image_vertical" class="hidden image-upload" accept="image/*" />
-                    <div class="rounded-xl overflow-hidden bg-subtle border border-line">
-                        @include('partials.imagePreview', ['id_preview' => 'image_vertical'])
-                    </div>
-                </div>
+                {{-- Cada imagem por arquivo ou por link web (imgur, postimg…) --}}
+                @include('partials.image-source', ['name' => 'image_vertical', 'label' => 'Imagem vertical', 'current' => $item->image_vertical ?? null, 'ratio' => 'aspect-[3/4]'])
 
                 <div class="border-t border-line"></div>
 
-                <!-- Imagem Horizontal -->
-                <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <p class="text-xs font-bold text-ink-2 uppercase tracking-tight">Imagem Horizontal</p>
-                        <label for="image_horizontal" class="cursor-pointer text-[10px] font-black text-grena-ink hover:text-grena uppercase">Alterar</label>
-                    </div>
-                    <input type="file" name="image_horizontal" id="image_horizontal" class="hidden image-upload" accept="image/*" />
-                    <div class="rounded-xl overflow-hidden bg-subtle border border-line">
-                        @include('partials.imagePreview', ['id_preview' => 'image_horizontal'])
-                    </div>
-                </div>
+                @include('partials.image-source', ['name' => 'image_horizontal', 'label' => 'Imagem horizontal', 'current' => $item->image_horizontal ?? null, 'ratio' => 'aspect-video'])
             </div>
         </div>
     </div>

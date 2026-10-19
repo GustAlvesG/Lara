@@ -149,12 +149,35 @@ Os valores do e-mail vêm dos agendamentos gravados (soma dos `price` de cada ho
 preço enviado pelo cliente — que nesse fluxo sequer é aceito. O destinatário é sempre o e-mail
 do sócio; sem endereço válido, o envio é registrado em log e o fluxo segue.
 
+### Baixa manual de pagamento
+
+Para o que foi pago **fora da plataforma** (dinheiro, Pix direto ao clube, cartão na maquininha
+da secretaria, transferência). No detalhe do agendamento (`GET /schedule/{id}`), quem tem
+`reservas.pagamentos.baixa-manual` vê **Baixa manual de pagamento**:
+
+- Entra o agendamento aberto e, se marcados, os do mesmo sócio no mesmo dia que ainda não têm
+  pagamento. O valor começa pela soma dos agendamentos marcados e pode ser ajustado.
+- Informe a forma, a data (não pode ser futura) e o comprovante/observação.
+- Gera um pagamento como o da Rede (aparece em **Pagamentos**, com o filtro "Baixa manual"), só
+  que marcado como manual, com quem deu a baixa, e sem transação na Rede.
+- Pendente (3) passa a **confirmado** (1) e o sócio recebe o `schedule.confirm`. Confirmado no
+  balcão só ganha o pagamento (o e-mail de confirmação já saiu na criação).
+- Recusa: agendamento que já tem pagamento, cancelado ou expirado, ou de sócios diferentes na
+  mesma baixa.
+- **Não há estorno pela Rede** de baixa manual: no cancelamento a opção de estorno some, e a
+  devolução, se houver, é feita fora do Lara.
+- Reserva de **espaço social** também recebe baixa (pela tela dela), sempre sozinha, aprovada e
+  pelo total — ver [Espaços Sociais](espacos-sociais.md#depois-de-aprovada).
+
+Regras em `App\Services\ManualPaymentService`; rota `POST /payments/manual` (`payment.manual`).
+
 ## Gerenciamento (admin)
 
 - `GET /schedule` — agenda do dia (status em cores).
 - `GET /schedule/{id}` — detalhes do agendamento e demais reservas do sócio no dia.
 - `PUT /schedule/update` / `PUT /api/schedule/update-status` — altera status (ex.: cancelar,
   com estorno opcional).
+- `POST /payments/manual` — baixa manual de pagamento (pago fora da plataforma).
 - `DELETE /api/schedule/delete-pending` — remove uma reserva pendente.
 - `GET /api/schedule/generate-pdf` — PDF da agenda diária.
 

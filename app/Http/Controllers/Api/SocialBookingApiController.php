@@ -11,6 +11,7 @@ use App\Models\Social\SocialBeverage;
 use App\Models\Social\SocialBooking;
 use App\Services\Social\SocialAvailabilityService;
 use App\Services\Social\SocialBookingService;
+use App\Support\ImageSource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -283,14 +284,18 @@ class SocialBookingApiController extends Controller
     /** Formato da reserva para o app (contrato descrito em docs/reservas-sociais-prompt-site-locacao.md). */
     private function present(SocialBooking $booking): array
     {
-        $booking->loadMissing(['place.group', 'items', 'guests']);
+        $booking->loadMissing(['place.group', 'items', 'guests', 'schedule.schedulePayment']);
         $now = Carbon::now();
+        $payment = $booking->schedule?->schedulePayment;
 
         return [
             'id' => $booking->id,
             'schedule_id' => $booking->schedule_id,
             'stage' => $booking->stage,
             'stage_label' => $booking->stageLabel(),
+            // Feita pelo sócio no site ou pela secretaria no balcão (em nome
+            // dele). A do balcão pode já chegar aprovada, para pagar, ou paga.
+            'origin' => $booking->created_by_user ? 'secretaria' : 'site',
             'date' => $booking->event_date->toDateString(),
             'start_time' => $booking->start_time ? substr($booking->start_time, 0, 5) : null,
             'end_time' => $booking->end_time ? substr($booking->end_time, 0, 5) : null,
@@ -330,6 +335,16 @@ class SocialBookingApiController extends Controller
             'discount' => (float) $booking->discount,
             'total' => (float) $booking->total,
             'payment_due_at' => $booking->payment_due_at?->toIso8601String(),
+            // Pagamento registrado: pelo site (Rede) ou baixa manual da
+            // secretaria (pago fora da plataforma). Null enquanto não pago.
+            'payment' => $payment ? [
+                'paid_amount' => (float) $payment->paid_amount,
+                'paid_at' => $payment->paid_at?->toIso8601String(),
+                'method' => $payment->payment_method,
+                'method_label' => $payment->methodLabel(),
+                'manual' => (bool) $payment->is_manual,
+                'refunded_amount' => (float) $payment->refunded_amount,
+            ] : null,
             'guest_limit' => $booking->guestLimit(),
             'guests' => $booking->guests->map(fn ($guest) => [
                 'id' => $guest->id,
@@ -410,10 +425,7 @@ class SocialBookingApiController extends Controller
 
     private function imageUrl(?string $image): ?string
     {
-        if (! $image) {
-            return null;
-        }
-
-        return str_contains($image, 'http') ? $image : asset('images/' . $image);
+        // Arquivo do Lara ou link externo (imgur, postimg…).
+        return ImageSource::url($image);
     }
 }

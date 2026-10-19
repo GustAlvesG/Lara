@@ -18,7 +18,7 @@ horário e reserva.
 | Campo | Função |
 |-------|--------|
 | `name`, `category` | Identificação e tipo: `esportiva` (reserva por horário) ou `social` (dia inteiro, com aprovação — ver [Espaços Sociais](espacos-sociais.md)). Grupo sem categoria é tratado como esportivo; a migration de 14/10/2026 preencheu os vazios. |
-| `image_vertical`, `image_horizontal` | Imagens de destaque. |
+| `image_vertical`, `image_horizontal` | Imagens de destaque — arquivo enviado ou link web (ver [Imagens](#imagens-arquivo-ou-link)). |
 | `icon`, `vertices` | Ícone e dados de mapa/localização. |
 | `duration` | Duração de cada slot (ex.: 01:00). |
 | `interval` | Intervalo entre slots. |
@@ -50,7 +50,7 @@ Um espaço é um local específico dentro de um grupo (ex.: "Quadra 1").
 | `place_group_id` | Grupo ao qual pertence. |
 | `price` | Preço por slot/hora. |
 | `status_id` | Ativo/inativo. |
-| `image` | Foto do espaço. |
+| `image` | Foto do espaço — arquivo enviado ou link web (ver [Imagens](#imagens-arquivo-ou-link)). |
 | `description`, `amenities` | *(social)* Observações/restrições e itens fornecidos, mostrados no app. |
 | `capacity` | *(social)* Total de pessoas (sócios + não sócios). |
 | `max_guests` | *(social)* Convidados não sócios incluídos no preço. |
@@ -88,10 +88,35 @@ Ao consultar horários, o sócio recebe a grade gerada a partir de:
 `slots base (duration)` → filtro de **dias** → **janela de vendas** → **antecedência** →
 **inclusões/exclusões** → **colisões**. Veja o detalhe no [guia de Agendamento](agendamento.md).
 
+## Imagens: arquivo ou link
+
+Cada imagem (as duas do grupo e a do espaço) tem duas origens, escolhidas no próprio campo:
+
+- **Enviar arquivo** — JPG, PNG, WEBP ou GIF; vai para `public/images` com nome único.
+- **Usar link** — o endereço de uma imagem já hospedada (imgur, postimg, site do clube…). O
+  campo guarda a URL e as telas e a API a usam como está, sem baixar nada.
+
+Regras do link:
+
+- Tem de começar com `https://` (o site de locação é https; imagem em http não aparece).
+- Precisa ser o link **da imagem**, não da página. Por conveniência, as páginas que as pessoas
+  mais copiam são convertidas ao salvar: `imgur.com/<id>` vira `i.imgur.com/<id>.jpg`, e a
+  página do postimg (`postimg.cc/<id>`) é lida para achar o link direto (`i.postimg.cc/…`).
+  Álbum ou galeria do imgur não servem (não são uma imagem só).
+- Qualquer outro endereço precisa terminar em `.jpg`, `.jpeg`, `.png`, `.webp` ou `.gif`.
+- Até 255 caracteres. Link recusado volta ao formulário com a mensagem no campo.
+
+Arquivo e link no mesmo envio: vale o arquivo. Sem nenhum dos dois, a imagem atual fica. A
+prévia mostra a imagem atual e a nova antes de salvar; se o link não carregar, o campo avisa.
+
+Quem lê usa `App\Support\ImageSource::url()` (link como está, arquivo em `asset('images/…')`).
+Na API da iluminação (`/api/lighting/groups/{id}/places`), `image` continua cru e `image_url`
+traz a URL pronta.
+
 ## Fluxo recomendado de configuração
 
-1. Criar o **grupo** (horários, antecedência, limite diário, dias da semana, imagens).
-2. Criar os **espaços** do grupo (nome, preço, status, imagem).
+1. Criar o **grupo** (horários, antecedência, limite diário, dias da semana, imagens por arquivo ou link).
+2. Criar os **espaços** do grupo (nome, preço, status, imagem por arquivo ou link).
 3. Criar as **regras** de inclusão/exclusão conforme necessário.
 4. Validar abrindo a tela de agendamento e conferindo os horários gerados.
 
@@ -100,3 +125,6 @@ Ao consultar horários, o sócio recebe a grade gerada a partir de:
 - Controllers: [`PlaceGroupController`, `PlaceController`, `ScheduleRulesController`](../controllers.md#placegroupcontroller)
 - Services: [`PlaceGroupService`, `PlaceService`, `ScheduleRulesService`](../services.md#placegroupservice)
 - Models: [`PlaceGroup`, `Place`, `ScheduleRules`, `Weekday`](../models.md#espaços)
+- Imagens: `App\Support\ImageSource` (`resolve`, `url`, `normalizeLink`); campo de tela
+  `resources/views/partials/image-source.blade.php`.
+- Testes: `tests/Feature/Locations/PlaceImageSourceTest.php`.

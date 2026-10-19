@@ -37,6 +37,10 @@ use Illuminate\Support\Facades\Log;
  *   `expected_guests` (sócios + não sócios) não passa da `capacity` do espaço.
  * - O pagamento é o mesmo endpoint das quadras (`POST /api/schedule/payment`),
  *   que pergunta aqui se pode (assertPayable) e avisa quando pagou (markPaid).
+ *   Pago fora da plataforma, a equipe dá baixa manual no painel
+ *   (ManualPaymentService), que também chama markPaid.
+ * - No balcão, a reserva pode ser fechada de uma vez — pré-reserva, contrato,
+ *   aprovação e, se já pago, baixa (SocialCounterBookingService).
  * - Convidados não sócios viram liberações pontuais na data do evento quando a
  *   reserva é confirmada (syncGuestAccesses).
  * - Mesas e cadeiras: a base do espaço é copiada na pré-reserva; mobiliário do
@@ -64,11 +68,14 @@ class SocialBookingService
      * Lançada no balcão (`$userId`), o contato já aconteceu — o sócio está ali.
      * Vinda do app, avisa a equipe e começa a contar o prazo de contato.
      *
+     * `$notify = false` não manda o e-mail ao sócio: é a reserva fechada de uma
+     * vez no balcão (SocialCounterBookingService), que manda um só no fim.
+     *
      * @param  array{date: string, start_time?: ?string, event_type: string, expected_guests?: ?int, extra_guests?: ?int, notes?: ?string, items?: array, guests?: array}  $data
      *
      * @throws SocialBookingException
      */
-    public function request(Place $place, int $memberId, array $data, ?int $userId = null, ?Carbon $now = null): SocialBooking
+    public function request(Place $place, int $memberId, array $data, ?int $userId = null, ?Carbon $now = null, bool $notify = true): SocialBooking
     {
         $now ??= Carbon::now();
         $date = Carbon::parse($data['date'])->startOfDay();
@@ -138,7 +145,9 @@ class SocialBookingService
             return $booking;
         });
 
-        $this->notifier->notify($booking, SocialBookingNotifier::REQUESTED);
+        if ($notify) {
+            $this->notifier->notify($booking, SocialBookingNotifier::REQUESTED);
+        }
 
         if (! $userId) {
             $this->staff->requested($booking);
@@ -277,9 +286,12 @@ class SocialBookingService
      * com prazo. Valor zero (desconto integral) confirma na hora — não há o
      * que cobrar na Rede.
      *
+     * Aprovada, a reserva aparece para pagar no perfil do sócio no site (o
+     * dono é o `member_id`, venha ela do app ou do balcão).
+     *
      * @throws SocialBookingException
      */
-    public function approve(SocialBooking $booking, float $discount, ?string $discountReason, int $userId, ?Carbon $now = null): SocialBooking
+    public function approve(SocialBooking $booking, float $discount, ?string $discountReason, int $userId, ?Carbon $now = null, bool $notify = true): SocialBooking
     {
         $now ??= Carbon::now();
         $this->assertStage($booking, [SocialBooking::STAGE_REQUESTED], 'Só a pré-reserva em análise pode ser aprovada.');
@@ -328,7 +340,9 @@ class SocialBookingService
             return $booking->stage === SocialBooking::STAGE_CONFIRMED;
         });
 
-        $this->notifier->notify($booking, $confirmed ? SocialBookingNotifier::CONFIRMED : SocialBookingNotifier::APPROVED);
+        if ($notify) {
+            $this->notifier->notify($booking, $confirmed ? SocialBookingNotifier::CONFIRMED : SocialBookingNotifier::APPROVED);
+        }
 
         return $booking;
     }

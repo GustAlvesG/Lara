@@ -3,19 +3,24 @@
 namespace App\Http\Controllers\Social;
 
 use App\Authorization\Permissions as P;
+use App\Exceptions\ManualPaymentException;
 use App\Exceptions\SocialBookingException;
 use App\Http\Controllers\Controller;
 use App\Models\Place;
+use App\Models\SchedulePayment;
 use App\Models\Social\SocialBeverage;
 use App\Models\Social\SocialBooking;
 use App\Services\MemberService;
 use App\Services\Social\SocialAvailabilityService;
 use App\Services\Social\SocialBookingService;
+use App\Services\Social\SocialCounterBookingService;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use PDF;
@@ -27,6 +32,8 @@ use PDF;
  * convidados; `reservas.sociais.aprovar` decide — contrato, aprovação com
  * desconto, recusa e cancelamento. Estornar no cancelamento pede também
  * `reservas.pagamentos.estornar`, a mesma porta do estorno das quadras.
+ * Registrar pagamento recebido fora da plataforma (baixa manual) é de
+ * `reservas.pagamentos.baixa-manual`, pela rota payment.manual.
  *
  * As regras estão em SocialBookingService; aqui é tradução de formulário e
  * mensagem de tela.
@@ -86,8 +93,16 @@ class SocialBookingController extends Controller
         ]);
     }
 
-    /** Pré-reserva lançada no balcão em nome do sócio. */
-    public function store(Request $request, MemberService $members): RedirectResponse
+    /**
+     * Reserva lançada no balcão em nome do sócio.
+     *
+     * Por padrão é uma pré-reserva, que segue o fluxo normal. Com `complete`
+     * (quem aprova), a equipe fecha tudo de uma vez — contrato ok e aprovação
+     * com desconto — e a reserva vai para o perfil do sócio no site, para ele
+     * pagar. Com `paid_now` (quem dá baixa manual), o pagamento recebido fora
+     * da plataforma já é registrado e a reserva sai confirmada.
+     */
+    public function store(Request $request, MemberService $members, SocialCounterBookingService $counter): RedirectResponse
     {
         $data = $request->validate([
             'place_id' => 'required|integer|exists:places,id',
@@ -106,9 +121,29 @@ class SocialBookingController extends Controller
             'cpf' => 'required|string',
             'title' => 'nullable|string',
             'birthDate' => 'nullable|string',
+            'complete' => 'nullable|boolean',
+            'discount' => 'nullable|numeric|min:0',
+            'discount_reason' => 'nullable|string|max:255',
+            'contract_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
+            'paid_now' => 'nullable|boolean',
+            'payment_method' => ['nullable', 'required_if:paid_now,1', Rule::in(array_keys(SchedulePayment::MANUAL_METHODS))],
+            'paid_at' => 'nullable|date|before_or_equal:now',
+            'payment_notes' => 'nullable|string|max:500',
         ], [
             'cpf.required' => 'Escolha o sócio.',
+            'payment_method.required_if' => 'Escolha a forma em que o pagamento foi recebido.',
+            'paid_at.before_or_equal' => 'A data do pagamento não pode estar no futuro.',
         ]);
+
+        $complete = $request->boolean('complete');
+        $paidNow = $complete && $request->boolean('paid_now');
+
+        if ($complete && ! $request->user()->can(P::RESERVAS_SOCIAIS_APROVAR)) {
+            return back()->withInput()->with('error', 'Fechar a reserva de uma vez (contrato e aprovação) pede a permissão de aprovar espaços sociais.');
+        }
+        if ($paidNow && ! $request->user()->can(P::RESERVAS_PAGAMENTOS_BAIXA_MANUAL)) {
+            return back()->withInput()->with('error', 'Registrar o pagamento pede a permissão de baixa manual de pagamento.');
+        }
 
         try {
             $memberId = $members->memberByCpf(new Request($request->only(['cpf', 'title', 'birthDate'])));
@@ -121,19 +156,50 @@ class SocialBookingController extends Controller
         }
 
         $data['guests'] = $this->filledGuests($data['guests'] ?? []);
+        $place = Place::with('group')->findOrFail($data['place_id']);
+
+        if (! $complete) {
+            try {
+                $booking = $this->bookings->request($place, (int) $memberId, $data, $request->user()->id);
+            } catch (SocialBookingException $e) {
+                return back()->withInput()->with('error', $e->getMessage());
+            }
+
+            return redirect()->route('social-booking.show', $booking)->with('success', 'Pré-reserva registrada. Falta o contrato e a aprovação.');
+        }
+
+        $file = $request->hasFile('contract_file') ? $this->storeContract($request->file('contract_file'), 'balcao') : null;
 
         try {
-            $booking = $this->bookings->request(Place::with('group')->findOrFail($data['place_id']), (int) $memberId, $data, $request->user()->id);
-        } catch (SocialBookingException $e) {
+            $booking = $counter->book($place, (int) $memberId, $data, $request->user()->id, [
+                'discount' => (float) ($data['discount'] ?? 0),
+                'discount_reason' => $data['discount_reason'] ?? null,
+                'contract_file' => $file,
+            ], $paidNow ? [
+                'payment_method' => $data['payment_method'],
+                'paid_at' => $data['paid_at'] ?? null,
+                'notes' => $data['payment_notes'] ?? null,
+            ] : null);
+        } catch (SocialBookingException|ManualPaymentException $e) {
+            // Nada foi gravado (transação desfeita): o anexo também não fica.
+            if ($file) {
+                Storage::disk('local')->delete($file);
+            }
+
             return back()->withInput()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('social-booking.show', $booking)->with('success', 'Pré-reserva registrada. Falta o contrato e a aprovação.');
+        $message = match ($booking->stage) {
+            SocialBooking::STAGE_CONFIRMED => $paidNow ? 'Reserva confirmada, com o pagamento registrado.' : 'Reserva confirmada (valor zerado pelo desconto).',
+            default => 'Reserva aprovada. O pagamento já está no perfil do sócio no site, com prazo até ' . optional($booking->payment_due_at)->format('d/m/Y H:i') . '.',
+        };
+
+        return redirect()->route('social-booking.show', $booking)->with('success', $message);
     }
 
     public function show(SocialBooking $booking): View
     {
-        $booking->load(['place.group', 'member', 'items', 'guests.oneOffAccess', 'schedule.schedulePayment', 'approver', 'contractChecker', 'refuser', 'canceller', 'creator', 'contactedBy']);
+        $booking->load(['place.group', 'member', 'items', 'guests.oneOffAccess', 'schedule.schedulePayment.recorder','approver', 'contractChecker', 'refuser', 'canceller', 'creator', 'contactedBy']);
 
         return view('location.social.show', [
             'booking' => $booking,
@@ -176,15 +242,7 @@ class SocialBookingController extends Controller
             'contract_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
         ]);
 
-        $file = null;
-        if ($request->hasFile('contract_file')) {
-            $upload = $request->file('contract_file');
-            $file = $upload->storeAs(
-                self::CONTRACT_DIR,
-                'reserva-' . $booking->id . '-' . Str::random(8) . '.' . $upload->extension(),
-                'local'
-            );
-        }
+        $file = $request->hasFile('contract_file') ? $this->storeContract($request->file('contract_file'), (string) $booking->id) : null;
 
         return $this->attempt(fn () => $this->bookings->markContract($booking, $request->user()->id, $file), $booking, 'Contrato registrado.');
     }
@@ -309,6 +367,15 @@ class SocialBookingController extends Controller
         }
 
         return redirect()->route('social-booking.show', $booking)->with('success', $success);
+    }
+
+    private function storeContract(UploadedFile $upload, string $tag): string
+    {
+        return $upload->storeAs(
+            self::CONTRACT_DIR,
+            'reserva-' . $tag . '-' . Str::random(8) . '.' . $upload->extension(),
+            'local'
+        );
     }
 
     /** Linhas em branco do formulário (o "adicionar convidado" deixa sobras) não são convidados. */

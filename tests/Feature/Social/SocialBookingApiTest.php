@@ -266,6 +266,51 @@ class SocialBookingApiTest extends TestCase
             ->assertStatus(409)->assertJsonPath('reason', 'invalid_stage');
     }
 
+    public function test_reserva_fechada_no_balcao_vai_para_o_perfil_do_socio_pagar(): void
+    {
+        $booking = app(\App\Services\Social\SocialCounterBookingService::class)->book($this->place, 1, [
+            'date' => self::EVENT,
+            'event_type' => 'Formatura',
+        ], 9, ['discount' => 40, 'discount_reason' => 'Cortesia']);
+
+        $this->withHeaders($this->headers())->getJson('/api/social/bookings')
+            ->assertOk()
+            ->assertJsonPath('0.id', $booking->id)
+            ->assertJsonPath('0.origin', 'secretaria')
+            ->assertJsonPath('0.stage', 'awaiting_payment')
+            ->assertJsonPath('0.total', 350)
+            ->assertJsonPath('0.can_pay', true)
+            ->assertJsonPath('0.payment', null);
+        Mail::assertQueued(\App\Mail\ContactMail::class, fn ($mail) => $mail->data['type'] === 'social.approved');
+        Mail::assertNotQueued(\App\Mail\ContactMail::class, fn ($mail) => $mail->data['type'] === 'social.requested');
+
+        // O sócio pagou na secretaria: baixa manual, e o site para de cobrar.
+        app(\App\Services\ManualPaymentService::class)->record([$booking->schedule_id], ['payment_method' => 'manual_pix'], 9);
+
+        $this->withHeaders($this->headers())->getJson("/api/social/bookings/{$booking->id}")
+            ->assertOk()
+            ->assertJsonPath('stage', 'confirmed')
+            ->assertJsonPath('can_pay', false)
+            ->assertJsonPath('payment.manual', true)
+            ->assertJsonPath('payment.method', 'manual_pix')
+            ->assertJsonPath('payment.method_label', 'Pix direto ao clube')
+            ->assertJsonPath('payment.paid_amount', 350);
+
+        $this->withHeaders($this->headers())->postJson('/api/schedule/payment', [
+            'schedule_ids' => [$booking->schedule_id],
+            'status_id' => 1,
+            'payment_method' => 'credit',
+            'paid_amount' => 350,
+            'payment_integration_id' => 'tid-999',
+            'paid_at' => '2026-10-14T10:30:00-03:00',
+        ])->assertStatus(409);
+    }
+
+    public function test_reserva_do_proprio_site_tem_origem_site(): void
+    {
+        $this->book()->assertCreated()->assertJsonPath('origin', 'site')->assertJsonPath('payment', null);
+    }
+
     public function test_espaco_social_nao_entra_pela_reserva_de_quadra(): void
     {
         $this->withHeaders($this->headers())->postJson('/api/schedule', [

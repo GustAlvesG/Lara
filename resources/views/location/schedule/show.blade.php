@@ -365,7 +365,8 @@
                                         <span class="text-sm font-bold text-danger group-hover:text-grena-ink transition">Confirmo que desejo cancelar permanentemente</span>
                                     </label>
 
-                                    @if($isViaSite && !$isPending)
+                                    {{-- Só pagamento da Rede se estorna por aqui; baixa manual não. --}}
+                                    @if($isViaSite && !$isPending && optional($schedule->schedulePayment)->isOnline())
                                     <label class="flex items-center gap-3 cursor-pointer group">
                                         <input type="checkbox" name="refund_payment" value="1" class="w-5 h-5 text-danger border-danger/40 rounded focus:ring-grena-tint transition">
                                         <span class="text-sm font-bold text-danger group-hover:text-grena-ink transition">Solicitar estorno do valor pago (Agendamento via Site)</span>
@@ -383,6 +384,57 @@
                         </div>
                     @endcan
                 </form>
+
+                {{-- Baixa manual: pagamento recebido fora da plataforma. Entra o
+                     agendamento atual e, se marcados, os do mesmo sócio no dia
+                     ainda sem pagamento. --}}
+                @php
+                    $manualEligible = collect($otherSchedules)->filter(fn ($s) => ! $s->schedule_payment_id
+                        && in_array((int) $s->status_id, [1, 3], true)
+                        && ! $s->socialBooking);
+                @endphp
+                @can(\App\Authorization\Permissions::RESERVAS_PAGAMENTOS_BAIXA_MANUAL)
+                    @if($manualEligible->contains('id', $schedule->id))
+                        <form method="POST" action="{{ route('payment.manual') }}" class="mt-6 bg-surface rounded-3xl shadow-pop border border-line p-8 space-y-4"
+                              onsubmit="return confirm('Confirma que este pagamento foi recebido fora da plataforma?');">
+                            @csrf
+                            <div class="flex items-center gap-3">
+                                <div class="p-2 bg-ok rounded-lg text-white dark:text-canvas">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-xl font-extrabold text-ink">Baixa manual de pagamento</h3>
+                                    <p class="text-xs text-ink-3">Pago fora da plataforma (dinheiro, Pix direto, maquininha). {{ $isPending ? 'O agendamento pendente passa a confirmado.' : '' }}</p>
+                                </div>
+                            </div>
+
+                            <div class="space-y-2">
+                                @foreach($manualEligible as $eligible)
+                                    <label class="flex items-center gap-3 rounded-2xl border border-line p-3 text-sm">
+                                        <input type="checkbox" name="schedule_ids[]" value="{{ $eligible->id }}" data-price="{{ (float) $eligible->price }}"
+                                               class="manual-schedule w-5 h-5 rounded border-line-strong text-grena"
+                                               @checked($eligible->id === $schedule->id) @if($eligible->id === $schedule->id) onclick="return false;" @endif>
+                                        <span class="font-bold text-ink">#{{ $eligible->id }} — {{ \Carbon\Carbon::parse($eligible->start_schedule)->format('H:i') }} às {{ \Carbon\Carbon::parse($eligible->end_schedule)->format('H:i') }}</span>
+                                        <span class="text-ink-2">{{ optional($eligible->place)->name }}</span>
+                                        <span class="ml-auto font-mono text-ink">R$ {{ number_format((float) $eligible->price, 2, ',', '.') }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+
+                            <div>
+                                <x-input-label for="manual_amount" value="Valor recebido (R$)" />
+                                <x-text-input type="number" step="0.01" min="0" id="manual_amount" name="amount" class="mt-1 sm:w-48" :value="old('amount', number_format((float) $schedule->price, 2, '.', ''))" />
+                                <p class="mt-1 text-xs text-ink-3">Começa pela soma dos agendamentos marcados.</p>
+                            </div>
+
+                            @include('payments.partials.manual-fields')
+
+                            <button type="submit" class="w-full py-4 bg-ok text-white dark:text-canvas rounded-2xl font-black uppercase tracking-widest shadow-pop hover:opacity-90 transition">
+                                Marcar como pago
+                            </button>
+                        </form>
+                    @endif
+                @endcan
                 @endif
             </div>
 
@@ -390,6 +442,12 @@
     </div>
 
     <script>
+        // Baixa manual: o valor acompanha a soma dos agendamentos marcados.
+        document.querySelectorAll('.manual-schedule').forEach(box => box.addEventListener('change', () => {
+            const total = [...document.querySelectorAll('.manual-schedule:checked')].reduce((sum, b) => sum + parseFloat(b.dataset.price || 0), 0);
+            document.getElementById('manual_amount').value = total.toFixed(2);
+        }));
+
         function handleActionChange(select) {
             const cancelOptions = document.getElementById('cancel-options');
             const confirmCheckbox = document.querySelector('input[name="confirm_cancel"]');
