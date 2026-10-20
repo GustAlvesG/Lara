@@ -11,13 +11,25 @@
 @endphp
 <x-app-layout :bootstrap-grid="false">
 <style>
+    /* Na impressão sai só uma cópia dos cartões pendurada direto no <body> (#card-print-sheet).
+       Esconder o resto com `visibility` não basta: o layout continua ocupando largura, o
+       navegador encolhe a página inteira para caber no cartão e o cartão sai pequeno, com
+       sobra branca à direita e embaixo. Com `display: none` nada além do cartão tem tamanho. */
+    #card-print-sheet { display: none; }
     @media print {
-        body * { visibility: hidden; }
-        #print-area, #print-area * { visibility: visible; }
-        #print-area { position: absolute; top: 0; left: 0; margin: 0; padding: 0; }
-        .card-page { page-break-after: always; box-shadow: none !important; border: none !important; }
+        html, body {
+            margin: 0 !important; padding: 0 !important; width: auto !important; min-width: 0 !important;
+            height: auto !important; overflow: visible !important; background: #fff !important;
+        }
+        body > *:not(#card-print-sheet) { display: none !important; }
+        #card-print-sheet { display: block !important; }
+        #card-print-sheet .card-page {
+            margin: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+            break-after: page; page-break-after: always;
+            -webkit-print-color-adjust: exact; print-color-adjust: exact;
+        }
+        #card-print-sheet .card-page:last-child { break-after: auto; page-break-after: auto; }
     }
-    .card-page { width: 220px; aspect-ratio: 54 / 85.6; }
 </style>
 
 <div x-data="cardIssuer({{ Js::from($templatesJson) }})">
@@ -112,7 +124,7 @@
                 <div class="flex flex-col items-center gap-6">
                     <style x-ref="printSizeStyle"></style>
 
-                    <div id="print-area" class="flex flex-col items-center gap-6">
+                    <div id="print-area" x-ref="printArea" class="flex flex-col items-center gap-6">
                         <!-- FRENTE -->
                         <div class="card-page relative rounded-xl overflow-hidden bg-line shadow-pop border border-line">
                             <template x-if="selectedTemplate">
@@ -204,11 +216,11 @@
                 const t = this.selectedTemplate;
                 const w = t ? t.card_width_mm : 54.0;
                 const h = t ? t.card_height_mm : 85.6;
+                // A prévia usa o mesmo tamanho físico da impressão: o font_size dos campos é em px,
+                // então só assim o texto ocupa no cartão impresso a mesma proporção que na tela.
                 this.$refs.printSizeStyle.textContent = `
                     @page { size: ${w}mm ${h}mm; margin: 0; }
-                    @media print {
-                        .card-page { width: ${w}mm !important; height: ${h}mm !important; aspect-ratio: unset !important; }
-                    }
+                    .card-page { width: ${w}mm; height: ${h}mm; }
                 `;
             },
 
@@ -263,8 +275,20 @@
                 this.cameraOn = false;
             },
 
-            printCard() {
+            async printCard() {
                 if (!this.canPrint) return;
+
+                document.getElementById('card-print-sheet')?.remove();
+                const sheet = document.createElement('div');
+                sheet.id = 'card-print-sheet';
+                sheet.setAttribute('x-ignore', ''); // cópia estática: o Alpine não deve inicializá-la
+                this.$refs.printArea.querySelectorAll('.card-page').forEach(card => sheet.appendChild(card.cloneNode(true)));
+                document.body.appendChild(sheet);
+
+                // Imagem clonada ainda não decodificada sai em branco no diálogo de impressão.
+                await Promise.all([...sheet.querySelectorAll('img')].map(img => img.decode().catch(() => {})));
+
+                window.addEventListener('afterprint', () => sheet.remove(), { once: true });
                 window.print();
             },
         };

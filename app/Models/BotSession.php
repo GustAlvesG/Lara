@@ -20,6 +20,13 @@ class BotSession extends Model
     /** Fluxo concluído; o atendimento fecha em `ending_at` se ninguém escrever. */
     public const STATE_ENDING = 'ending';
 
+    /**
+     * Fila de espera: a Poli devolveu o transbordo (ninguém disponível no
+     * time). O Lara tenta de novo em `queue_next_at`, em silêncio, até
+     * `queued_until` (o fim do horário de atendimento).
+     */
+    public const STATE_QUEUED = 'queued';
+
     protected $primaryKey = 'contact_uuid';
     public $incrementing = false;
     protected $keyType = 'string';
@@ -41,6 +48,11 @@ class BotSession extends Model
         'human_since',
         'ending_at',
         'ending_reason',
+        'handoff_team_uuid',
+        'queued_at',
+        'queued_until',
+        'queue_next_at',
+        'queue_attempts',
         'last_interaction_at',
     ];
 
@@ -51,6 +63,10 @@ class BotSession extends Model
         'human_since' => 'datetime',
         'ending_at' => 'datetime',
         'closed_at' => 'datetime',
+        'queued_at' => 'datetime',
+        'queued_until' => 'datetime',
+        'queue_next_at' => 'datetime',
+        'queue_attempts' => 'integer',
         'last_interaction_at' => 'datetime',
     ];
 
@@ -75,10 +91,16 @@ class BotSession extends Model
         return $this->state === self::STATE_ENDING;
     }
 
+    public function isQueued(): bool
+    {
+        return $this->state === self::STATE_QUEUED;
+    }
+
     /**
      * Sai de qualquer fluxo e esquece as respostas — dentro da mesma conversa
      * (menu, prazo vencido): quem é o dono não muda. O registro do último
-     * atendimento que a Lara encerrou fica: é dele que o resgate precisa.
+     * atendimento que a Lara encerrou fica: é dele que o resgate precisa. O
+     * time do último transbordo também fica: é para ele que a fila tenta.
      */
     public function reset(): void
     {
@@ -91,6 +113,10 @@ class BotSession extends Model
         $this->human_since = null;
         $this->ending_at = null;
         $this->ending_reason = null;
+        $this->queued_at = null;
+        $this->queued_until = null;
+        $this->queue_next_at = null;
+        $this->queue_attempts = 0;
     }
 
     /** O atendimento acabou: a próxima mensagem é conversa nova, de quem for. */
@@ -98,6 +124,18 @@ class BotSession extends Model
     {
         $this->reset();
         $this->lara_owned = false;
+        $this->handoff_team_uuid = null;
+    }
+
+    /** A Poli devolveu o transbordo: espera na fila, com O Lara, até `$until`. */
+    public function toQueue(\DateTimeInterface $until, \DateTimeInterface $nextAt): void
+    {
+        $this->reset();
+        $this->state = self::STATE_QUEUED;
+        $this->lara_owned = true;
+        $this->queued_at = now();
+        $this->queued_until = $until;
+        $this->queue_next_at = $nextAt;
     }
 
     public function toHuman(): void

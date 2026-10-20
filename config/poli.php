@@ -281,6 +281,21 @@ return [
         'handoff_return_seconds' => (int) env('POLI_BOT_DEVOLUCAO_S', 120),
 
         /*
+        | Fila de espera: transbordo devolvido (ninguém disponível no time) não
+        | encerra a conversa. O Lara tenta o mesmo time de novo a cada
+        | `retry_minutes`, em silêncio, até alguém pegar ou o horário de
+        | atendimento do fluxo de boas-vindas acabar — só então o contato
+        | recebe `messages.queue_expired` e a conversa encerra. Fluxo sem
+        | horário: espera até `max_minutes`. `enabled=false` volta ao aviso
+        | "não consegui te transferir" + encerramento em 10 minutos.
+        */
+        'queue' => [
+            'enabled' => (bool) env('POLI_BOT_FILA', true),
+            'retry_minutes' => max(1, (int) env('POLI_BOT_FILA_INTERVALO_MIN', 3)),
+            'max_minutes' => (int) env('POLI_BOT_FILA_MAX_MIN', 240),
+        ],
+
+        /*
         | Na mesma conferência, com o transbordo feito: marca a conversa como
         | não lida para o atendente que a recebeu. As mensagens que o O Lara
         | manda pela API deixam a conversa como lida, e ela chegaria ao
@@ -368,6 +383,7 @@ return [
             'test_others' => 'Esta opção ainda está em desenvolvimento. Vou te encaminhar para a *Secretaria*, que continua com você em instantes.',
             'abandoned' =>'Como não tivemos resposta, vou encerrar este atendimento. Sempre que precisar, é só chamar!',
             'handoff_failed' => 'Não consegui te transferir para um atendente agora. Tente de novo em alguns minutos, por favor.',
+            'queue_expired' => 'Nosso horário de atendimento terminou antes que um atendente pudesse continuar com você. Por favor, chame de novo no próximo horário de atendimento.',
         ],
     ],
 

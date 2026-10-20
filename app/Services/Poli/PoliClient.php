@@ -141,6 +141,20 @@ class PoliClient
     }
 
     /**
+     * Os membros de um time, como estão agora. Medido em 19/10/2026: cada um
+     * vem com `uuid`, `attributes.name`, `status` (ONLINE/OFFLINE) e
+     * `status_of_service` (AVAILABLE/UNAVAILABLE).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function membrosDoTime(string $teamUuid): array
+    {
+        $time = $this->desembrulhar($this->get("/teams/{$teamUuid}", ['include' => 'users,attributes']));
+
+        return array_values(array_filter((array) ($time['users'] ?? []), 'is_array'));
+    }
+
+    /**
      * Uma mensagem, com o ACK. A resposta pode vir embrulhada em `data`.
      */
     public function mensagem(string $uuid): array

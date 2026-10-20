@@ -42,11 +42,13 @@ class BotAttendanceEvent extends Model
             'tentativas' => 'Respostas inválidas demais',
             'piloto' => 'Número fora da lista de teste (piloto)',
             'devolucao' => 'Devolução manual (poli:bot-reconciliar --devolver)',
+            'fila_de_espera' => 'Nova tentativa da fila de espera',
             'retirada' => 'Tirada do O Lara no meio da conversa',
         ],
         self::ENCERRAMENTO => [
             'fim_do_fluxo' => 'Fluxo concluído e o contato não escreveu mais',
             'transbordo_devolvido' => 'Transbordo devolvido pela Poli; contato avisado',
+            'fila_expirou' => 'Fila de espera: o horário de atendimento acabou',
             'transbordo_falhou' => 'Transbordo não saiu do O Lara; contato avisado',
             'abandono' => 'O contato parou de responder no meio do fluxo',
             'pergunta_opcional' => 'Fluxo concluído; pergunta final sem resposta',
@@ -86,6 +88,10 @@ class BotAttendanceEvent extends Model
         'detail',
         'actor',
         'target',
+        'team_size',
+        'team_online',
+        'team_available',
+        'team_snapshot',
         'outcome',
         'outcome_detail',
         'poli_message_id',
@@ -94,9 +100,25 @@ class BotAttendanceEvent extends Model
         'step_key',
     ];
 
+    /**
+     * `team_snapshot`: quem estava no time no momento do transbordo (só das
+     * enviadas) — lista de {uuid, name, status, service}, como a Poli
+     * informou. Ver App\Services\PoliBot\TeamAvailability.
+     */
     protected $casts = [
         'occurred_at' => 'datetime',
+        'team_snapshot' => 'array',
+        'team_size' => 'integer',
+        'team_online' => 'integer',
+        'team_available' => 'integer',
     ];
+
+    /** @return list<array{uuid: ?string, name: ?string, status: ?string, service: ?string}> */
+    public function availableMembers(): array
+    {
+        return array_values(array_filter((array) $this->team_snapshot, fn ($m) => is_array($m)
+            && \App\Services\PoliBot\TeamAvailability::isAvailable(['status' => $m['status'] ?? null, 'service' => $m['service'] ?? null])));
+    }
 
     public function reasonLabel(): string
     {

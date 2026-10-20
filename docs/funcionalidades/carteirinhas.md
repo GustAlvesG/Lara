@@ -77,13 +77,27 @@ funcionário de empresa parceira — `getUserMedia` + `canvas` — com fallback 
 arquivo de imagem). A pré-visualização (frente e verso) é renderizada ao vivo com o `layout`
 do modelo escolhido.
 
-**Impressão:** ao clicar em "Imprimir", a mesma área de pré-visualização (não há uma segunda
-cópia do HTML) é impressa via `window.print()`. CSS `@page` define o tamanho físico exato do
-cartão (padrão CR-80 em **retrato**: 54mm de largura × 85,6mm de altura — configurável por
-modelo via `card_width_mm`/`card_height_mm`) e uma regra `@media print` esconde todo o resto
-da página, deixando só a frente e o verso, uma por página. A impressora (ex.: SD260) precisa
-estar instalada como uma impressora comum do Windows — o operador a seleciona no diálogo
-nativo de impressão do navegador. Não há integração com SDK/driver da impressora.
+**Impressão:** ao clicar em "Imprimir", os cartões da pré-visualização são clonados (cópia
+estática, com `x-ignore`) para um `#card-print-sheet` pendurado direto no `<body>`, e a página
+é impressa via `window.print()`; o clone é removido no `afterprint`. CSS `@page` define o
+tamanho físico exato do cartão (padrão CR-80 em **retrato**: 54mm de largura × 85,6mm de
+altura — configurável por modelo via `card_width_mm`/`card_height_mm`) com margem zero, e a
+regra `@media print` aplica `display: none` em todo filho do `<body>` que não seja o clone,
+deixando só a frente e o verso, uma por página, sem cantos arredondados.
+
+> **Por que `display: none` e não `visibility: hidden`:** com `visibility` o layout do Lara
+> (menu, container de 1200px) continuava ocupando largura; o navegador encolhia a página
+> inteira para caber no cartão e ele saía pequeno, com sobra branca à direita e embaixo.
+
+A pré-visualização na tela tem o mesmo tamanho físico do cartão (`width`/`height` em mm),
+porque o `font_size` dos campos é em px: assim o texto ocupa no cartão impresso a mesma
+proporção que na tela.
+
+A impressora (ex.: SD260) precisa estar instalada como uma impressora comum do Windows — o
+operador a seleciona no diálogo nativo de impressão do navegador. No diálogo, deixe
+**Margens: Nenhuma** e **Escala: Padrão (100%)**; se ainda sobrar um filete branco, é a
+configuração de impressão borda a borda (*edge-to-edge*) do driver. Não há integração com
+SDK/driver da impressora.
 
 ## Imagens de frente/verso (recomendações)
 

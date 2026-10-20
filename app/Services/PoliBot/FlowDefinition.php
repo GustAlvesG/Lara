@@ -174,21 +174,49 @@ class FlowDefinition
             return true;
         }
 
+        $intervalo = $this->intervalOn($momento);
+
+        if ($intervalo === null) {
+            return false;
+        }
+
+        $agora = $this->local($momento)->format('H:i');
+
+        return $agora >= $intervalo[0] && $agora < $intervalo[1];
+    }
+
+    /**
+     * Quando o atendimento de hoje fecha, se agora ele está aberto. Null sem
+     * horário configurado ou já fechado. É o prazo da fila de espera.
+     */
+    public function closesAt(\DateTimeInterface $momento): ?\Illuminate\Support\Carbon
+    {
+        if (!$this->hasHours() || !$this->isOpenAt($momento)) {
+            return null;
+        }
+
+        [$hora, $minuto] = array_map('intval', explode(':', $this->intervalOn($momento)[1]));
+
+        return $this->local($momento)->setTime($hora, $minuto);
+    }
+
+    /** O intervalo ["HH:MM", "HH:MM"] do dia (ou do feriado), ou null se fechado o dia todo. */
+    private function intervalOn(\DateTimeInterface $momento): ?array
+    {
         $horas = $this->definition['hours'];
-        $quando = \Illuminate\Support\Carbon::instance($momento)->setTimezone(config('app.timezone'));
+        $quando = $this->local($momento);
 
         $feriado = in_array($quando->format('Y-m-d'), (array) ($horas['holidays'] ?? []), true);
         $intervalo = $feriado
             ? ($horas['holiday'] ?? null)
             : ($horas['days'][(string) $quando->isoWeekday()] ?? $horas['days'][$quando->isoWeekday()] ?? null);
 
-        if (!is_array($intervalo) || count($intervalo) !== 2) {
-            return false;
-        }
+        return is_array($intervalo) && count($intervalo) === 2 ? array_values($intervalo) : null;
+    }
 
-        $agora = $quando->format('H:i');
-
-        return $agora >= $intervalo[0] && $agora < $intervalo[1];
+    private function local(\DateTimeInterface $momento): \Illuminate\Support\Carbon
+    {
+        return \Illuminate\Support\Carbon::instance($momento)->setTimezone(config('app.timezone'));
     }
 
     /**

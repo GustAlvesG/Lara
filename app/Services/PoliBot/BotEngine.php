@@ -75,6 +75,7 @@ class BotEngine
         private readonly UberAccessRequestFlow $uber,
         private readonly PoliClient $poli,
         private readonly AttendanceJournal $journal,
+        private readonly TeamAvailability $availability,
     ) {}
 
     public function mode(): string
@@ -822,12 +823,17 @@ class BotEngine
     /**
      * O distribute, com a linha do diário escrita ANTES: a Poli pode devolver
      * a conversa para O Lara ("pelo sistema") enquanto o pedido ainda está no
-     * ar, e é por essa linha pendente que a devolução é reconhecida. Na
+     * ar, e é por essa linha pendente que a devolução é reconhecida. A linha
+     * leva a foto de quem do time estava disponível naquele momento. Na
      * sombra nada sai, e nada vai para o diário.
      */
-    private function distribute(BotSession $session, ?string $teamUuid, string $motivo): bool
+    private function distribute(BotSession $session, ?string $teamUuid, string $motivo, ?string $detalhe = null): bool
     {
-        $evento = $this->out->isLive() ? $this->journal->handoffStarted($session, $teamUuid, $motivo) : null;
+        $session->handoff_team_uuid = $teamUuid;
+
+        $evento = $this->out->isLive()
+            ? $this->journal->handoffStarted($session, $teamUuid, $motivo, $this->availability->snapshot($teamUuid), $detalhe)
+            : null;
         $feito = $this->out->handoff($session, $teamUuid);
         $this->journal->handoffSent($evento, $feito, $teamUuid);
 

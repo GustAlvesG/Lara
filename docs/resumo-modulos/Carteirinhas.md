@@ -22,9 +22,12 @@ permissão `carteirinhas`.
   obrigatórias na validação (`StoreCardTemplateRequest` / `UpdateCardTemplateRequest`).
 - O editor de posicionamento é Alpine puro com eventos `pointer*`, sem biblioteca
   (`resources/views/card-templates/partials/form.blade.php`).
-- **Impressão = `window.print()`** da própria pré-visualização: `@page` com o tamanho físico do
-  modelo (`card_width_mm` × `card_height_mm`, padrão CR-80 retrato 54 × 85,6 mm) e `@media print`
-  escondendo o resto. Nenhuma integração com SDK/driver da impressora.
+- **Impressão = `window.print()`** de um clone dos cartões (`#card-print-sheet`, filho direto do
+  `<body>`, removido no `afterprint`): `@page` com o tamanho físico do modelo (`card_width_mm` ×
+  `card_height_mm`, padrão CR-80 retrato 54 × 85,6 mm) e `@media print` com `display: none` no
+  resto. **Não volte para `visibility: hidden`**: o layout invisível mantém largura, o navegador
+  encolhe a página e o cartão sai pequeno com sobra branca à direita/embaixo. A prévia na tela
+  também é em mm, porque `font_size` é px. Nenhuma integração com SDK/driver da impressora.
 - Webcam com `getUserMedia` + `canvas`, com fallback de arquivo (mesma técnica do cadastro de
   prestador em Externos).
 - Imagens de frente/verso em `public/images` (`storeUploadedImage`, `move(public_path(...))`) —

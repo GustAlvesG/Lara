@@ -47,15 +47,25 @@ class AttendanceJournal
      | O que O Lara faz
      |---------------------------------------------------------------------*/
 
-    /** O distribute para um time, antes de ele sair. */
-    public function handoffStarted(BotSession $session, ?string $teamUuid, string $reason): ?Evento
+    /**
+     * O distribute para um time, antes de ele sair, com a foto de quem do
+     * time estava disponível naquele momento (TeamAvailability::snapshot).
+     *
+     * @param array{size: int, online: int, available: int, members: array}|null $time
+     */
+    public function handoffStarted(BotSession $session, ?string $teamUuid, string $reason, ?array $time = null, ?string $detail = null): ?Evento
     {
         return $this->write($session->contact_uuid, $session, [
             'kind' => Evento::ENVIADA,
             'reason' => $reason,
+            'detail' => $detail,
             'actor' => self::O_LARA,
             'target' => $teamUuid,
             'outcome' => Evento::AGUARDANDO,
+            'team_size' => $time['size'] ?? null,
+            'team_online' => $time['online'] ?? null,
+            'team_available' => $time['available'] ?? null,
+            'team_snapshot' => $time['members'] ?? null,
         ]);
     }
 
@@ -218,6 +228,14 @@ class AttendanceJournal
 
             if (!$pedida && $transbordo !== null) {
                 $this->update($transbordo, ['outcome' => Evento::DEVOLVIDO, 'outcome_detail' => self::O_LARA]);
+
+                // Nova tentativa da fila voltando: o resultado na própria
+                // tentativa basta — uma linha "recebida" a cada 3 minutos
+                // só enterraria o resto do diário.
+                if ($transbordo->reason === 'fila_de_espera') {
+                    return;
+                }
+
                 $this->write($contato, null, [
                     ...$poli,
                     'kind' => Evento::RECEBIDA,
