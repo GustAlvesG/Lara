@@ -8,6 +8,7 @@ use App\Models\BotFlow;
 use App\Models\BotSession;
 use App\Models\PoliMessage;
 use App\Models\UberAccessRequest;
+use App\Models\UberAccessRequestMessage;
 use App\Services\MultiClubes\TitleMemberLookup;
 use App\Services\Poli\ParsedPoliMessage;
 use App\Services\PoliBot\BotEngine;
@@ -60,6 +61,15 @@ class PoliBotEngineTest extends TestCase
     /** O /unread responde 500. */
     private bool $unreadFalha = false;
 
+    /** `attributes` do contato no GET /contacts/{uuid} (nome e telefone). */
+    private array $contatoNaApi = [];
+
+    /** O que o GET /teams/{uuid}?include=users devolve em `users`. */
+    private array $membrosDoTime = [];
+
+    /** O GET /teams/{uuid} responde 500. */
+    private bool $timesForaDoAr = false;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -73,10 +83,12 @@ class PoliBotEngineTest extends TestCase
             '2026_07_21_120000_add_matricula_to_uber_access_requests.php',
             '2026_08_27_170000_add_member_validation_to_uber_access_requests.php',
             '2026_09_10_100000_add_member_validation_type_to_uber_access_requests.php',
+            '2026_09_24_120000_add_ordering_to_uber_access_request_messages.php',
             '2026_01_05_141304_banco_de_horas.php',
             '2026_09_25_160000_create_poli_bot_tables.php',
             '2026_09_29_120000_add_lara_owner_to_bot_sessions.php',
             '2026_10_16_150000_create_bot_attendance_events_table.php',
+            '2026_10_19_180000_add_waiting_queue_and_team_availability.php',
         ] as $migration) {
             (require base_path('database/migrations/' . $migration))->up();
         }
@@ -129,12 +141,18 @@ class PoliBotEngineTest extends TestCase
                 return Http::response(['data' => $this->chatsNaApi], 200);
             }
 
+            if ($r->method() === 'GET' && str_contains($r->url(), '/teams/')) {
+                return $this->timesForaDoAr
+                    ? Http::response(['message' => 'fora do ar'], 500)
+                    : Http::response(['uuid' => 'time', 'attributes' => ['name' => 'Time'], 'users' => $this->membrosDoTime], 200);
+            }
+
             if ($this->contatoInexistente !== null && str_contains($r->url(), '/contacts/' . $this->contatoInexistente . '?')) {
                 return Http::response(['message' => 'Not found'], 404);
             }
 
             if ($r->method() === 'GET' && str_contains($r->url(), '/contacts/')) {
-                return Http::response(['uuid' => 'x', 'current_attendance' => $this->atendimentoNaApi], 200);
+                return Http::response(['uuid' => 'x', 'attributes' => $this->contatoNaApi, 'current_attendance' => $this->atendimentoNaApi], 200);
             }
 
             // Pela documentação: 204, sem corpo.
@@ -1020,8 +1038,10 @@ class PoliBotEngineTest extends TestCase
 
     /* ---------------- transbordo: conferência ---------------- */
 
-    public function test_transbordo_que_nao_trocou_o_atendente_avisa_o_contato_e_registra(): void
+    /** Sem a fila de espera (POLI_BOT_FILA=false): o aviso e o encerramento de antes. */
+    public function test_transbordo_que_nao_trocou_o_atendente_sem_fila_avisa_o_contato_e_registra(): void
     {
+        config(['poli.bot.queue.enabled' => false]);
         Log::spy();
         $this->texto('oi');
         $this->texto('Financeiro');
@@ -1717,17 +1737,25 @@ class PoliBotEngineTest extends TestCase
      * Lara segundos depois, e a Lara reabria o menu — o contato escolhia a
      * Secretaria de novo e voltava, em ciclo.
      */
-    public function test_transbordo_devolvido_pela_poli_avisa_o_contato_e_nao_reabre_o_menu(): void
+    /**
+     * 19/10/2026: a devolução não encerra mais. A conversa entra na fila de
+     * espera em silêncio — o contato já ouviu "vou te encaminhar" — até o fim
+     * do horário de atendimento do fluxo de boas-vindas (quarta: 19:50).
+     */
+    public function test_transbordo_devolvido_pela_poli_entra_na_fila_em_silencio(): void
     {
         $menus = $this->transbordoDevolvido();
+        $falas = count($this->enviados());
 
-        $this->assertStringContainsString('Não consegui te transferir', $this->ultimoEnviado());
+        $this->assertStringContainsString('Vou te encaminhar', $this->ultimoEnviado());
         $this->assertSame($menus, $this->menusEnviados(), 'o menu não reabre');
 
         $s = $this->sessao();
-        $this->assertSame(BotSession::STATE_ENDING, $s->state);
-        $this->assertSame('transbordo_devolvido', $s->ending_reason);
+        $this->assertSame(BotSession::STATE_QUEUED, $s->state);
         $this->assertTrue($s->lara_owned);
+        $this->assertSame(DefaultFlows::TEAM_FINANCEIRO, $s->handoff_team_uuid);
+        $this->assertSame('2026-09-23 19:50', $s->queued_until->format('Y-m-d H:i'));
+        $this->assertSame('2026-09-23 10:03', $s->queue_next_at->format('Y-m-d H:i'));
 
         $enviada = BotAttendanceEvent::where('kind', BotAttendanceEvent::ENVIADA)->sole();
         $this->assertSame('fluxo', $enviada->reason);
@@ -1737,10 +1765,28 @@ class PoliBotEngineTest extends TestCase
         $recebida = BotAttendanceEvent::where('kind', BotAttendanceEvent::RECEBIDA)->sole();
         $this->assertSame('retorno_transbordo', $recebida->reason);
         $this->assertSame('Contato redirecionado para O Lara pelo sistema', $recebida->poli_text);
+
+        // A conferência do transbordo, 10 s depois, não fala nada.
+        (new ConfirmPoliBotHandoff(self::CONTACT))->handle($this->bot());
+        $this->assertCount($falas, $this->enviados());
+        $this->assertTrue($this->sessao()->isQueued());
     }
 
-    public function test_conversa_do_transbordo_devolvido_fecha_com_esse_motivo(): void
+    /** Sem a fila de espera (POLI_BOT_FILA=false): o aviso e o encerramento de antes. */
+    public function test_transbordo_devolvido_sem_fila_avisa_o_contato_e_nao_reabre_o_menu(): void
     {
+        config(['poli.bot.queue.enabled' => false]);
+        $menus = $this->transbordoDevolvido();
+
+        $this->assertStringContainsString('Não consegui te transferir', $this->ultimoEnviado());
+        $this->assertSame($menus, $this->menusEnviados(), 'o menu não reabre');
+        $this->assertSame(BotSession::STATE_ENDING, $this->sessao()->state);
+        $this->assertSame('transbordo_devolvido', $this->sessao()->ending_reason);
+    }
+
+    public function test_conversa_do_transbordo_devolvido_sem_fila_fecha_com_esse_motivo(): void
+    {
+        config(['poli.bot.queue.enabled' => false]);
         $this->transbordoDevolvido();
 
         Carbon::setTestNow(now()->addMinutes(11));
@@ -1752,9 +1798,10 @@ class PoliBotEngineTest extends TestCase
         $this->assertTrue($this->enviouPara('close'));
     }
 
-    /** Depois do aviso, quem escreve recomeça pelo menu — como no fim de fluxo. */
-    public function test_quem_escreve_depois_do_transbordo_devolvido_recebe_o_menu(): void
+    /** Sem fila, depois do aviso, quem escreve recomeça pelo menu — como no fim de fluxo. */
+    public function test_sem_fila_quem_escreve_depois_do_transbordo_devolvido_recebe_o_menu(): void
     {
+        config(['poli.bot.queue.enabled' => false]);
         $menus = $this->transbordoDevolvido();
 
         $this->texto('oi de novo');
@@ -1848,8 +1895,24 @@ class PoliBotEngineTest extends TestCase
         $this->assertSame([BotAttendanceEvent::ATENDENTE, 'Ana'], [$enviada->outcome, $enviada->outcome_detail]);
     }
 
-    public function test_transbordo_que_ficou_no_o_lara_na_conferencia_fecha_com_esse_motivo(): void
+    /** A conferência viu que ficou no O Lara (sem o webhook da volta): também vai para a fila. */
+    public function test_transbordo_que_ficou_no_o_lara_na_conferencia_entra_na_fila(): void
     {
+        $this->texto('oi');
+        $this->texto('Financeiro');
+        $falas = count($this->enviados());
+
+        $this->oLaraNaApi();
+        (new ConfirmPoliBotHandoff(self::CONTACT))->handle($this->bot());
+
+        $this->assertSame(BotAttendanceEvent::DEVOLVIDO, BotAttendanceEvent::where('kind', BotAttendanceEvent::ENVIADA)->value('outcome'));
+        $this->assertTrue($this->sessao()->isQueued());
+        $this->assertCount($falas, $this->enviados());
+    }
+
+    public function test_sem_fila_transbordo_que_ficou_no_o_lara_na_conferencia_fecha_com_esse_motivo(): void
+    {
+        config(['poli.bot.queue.enabled' => false]);
         $this->texto('oi');
         $this->texto('Financeiro');
 
@@ -1858,6 +1921,182 @@ class PoliBotEngineTest extends TestCase
 
         $this->assertSame(BotAttendanceEvent::DEVOLVIDO, BotAttendanceEvent::where('kind', BotAttendanceEvent::ENVIADA)->value('outcome'));
         $this->assertSame('transbordo_falhou', $this->sessao()->ending_reason);
+    }
+
+    /* ---------------- fila de espera ---------------- */
+
+    public function test_fila_tenta_de_novo_a_cada_tres_minutos_sem_falar_com_o_contato(): void
+    {
+        $this->transbordoDevolvido();
+        $falas = count($this->enviados());
+
+        Carbon::setTestNow(now()->addMinutes(2));
+        $this->assertSame(['tentativas' => 0, 'expiradas' => 0], $this->bot()->retryQueue(), 'antes da hora não tenta');
+
+        Carbon::setTestNow(now()->addMinute());
+        $this->assertSame(['tentativas' => 1, 'expiradas' => 0], $this->bot()->retryQueue());
+
+        $this->assertSame(2, $this->distribuicoes());
+        $this->assertCount($falas, $this->enviados(), 'em silêncio');
+
+        $s = $this->sessao();
+        $this->assertTrue($s->isQueued());
+        $this->assertSame(1, $s->queue_attempts);
+        $this->assertSame('10:06', $s->queue_next_at->format('H:i'));
+
+        $tentativa = BotAttendanceEvent::where('reason', 'fila_de_espera')->sole();
+        $this->assertSame(DefaultFlows::TEAM_FINANCEIRO, $tentativa->target);
+        $this->assertSame(BotAttendanceEvent::AGUARDANDO, $tentativa->outcome);
+        $this->assertSame('Tentativa 1, na fila desde 10:00', $tentativa->detail);
+        Queue::assertPushed(ConfirmPoliBotHandoff::class, 2);
+    }
+
+    /** A Poli devolve a nova tentativa: a fila continua, em silêncio, sem linha "recebida" nova. */
+    public function test_tentativa_devolvida_continua_na_fila_em_silencio(): void
+    {
+        $this->transbordoDevolvido();
+        $falas = count($this->enviados());
+        Carbon::setTestNow(now()->addMinutes(3));
+        $this->bot()->retryQueue();
+
+        $volta = $this->redirect('att-1');
+        $this->bot()->observe($this->transferido($volta->messageId, self::LARA));
+        $this->bot()->handleRedirect($volta);
+        (new ConfirmPoliBotHandoff(self::CONTACT))->handle($this->bot());
+
+        $this->assertCount($falas, $this->enviados());
+        $this->assertTrue($this->sessao()->isQueued());
+        $this->assertSame(BotAttendanceEvent::DEVOLVIDO, BotAttendanceEvent::where('reason', 'fila_de_espera')->value('outcome'));
+        $this->assertSame(1, BotAttendanceEvent::where('kind', BotAttendanceEvent::RECEBIDA)->count());
+    }
+
+    /** A nova tentativa pegou: a conversa sai da fila e fica não lida para quem recebeu. */
+    public function test_tentativa_que_pegou_tira_da_fila_e_marca_nao_lida(): void
+    {
+        $this->transbordoDevolvido();
+        Carbon::setTestNow(now()->addMinutes(3));
+        $this->bot()->retryQueue();
+
+        $this->bot()->observe($this->transferido('sys-pegou', 'atendente-ana'));
+        $this->assertTrue($this->sessao()->isHuman());
+
+        $this->atendimentoNaApi = ['uuid' => 'att-1', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => 'atendente-ana', 'attributes' => ['name' => 'Ana']]];
+        (new ConfirmPoliBotHandoff(self::CONTACT))->handle($this->bot());
+
+        $this->assertTrue($this->enviouPara('unread', fn ($corpo) => ($corpo['user_uuid'] ?? null) === 'atendente-ana'));
+        $tentativa = BotAttendanceEvent::where('reason', 'fila_de_espera')->sole();
+        $this->assertSame([BotAttendanceEvent::ATENDENTE, 'Ana'], [$tentativa->outcome, $tentativa->outcome_detail]);
+    }
+
+    /** Alguém pegou pelo painel entre uma tentativa e outra: a fila confere na API e para. */
+    public function test_fila_para_quando_a_api_mostra_outro_atendente(): void
+    {
+        $this->transbordoDevolvido();
+        Carbon::setTestNow(now()->addMinutes(3));
+
+        $this->atendimentoNaApi = ['uuid' => 'att-1', 'status' => 'IN_PROGRESS', 'attendant' => ['uuid' => 'atendente-ana']];
+        $this->bot()->retryQueue();
+
+        $this->assertSame(1, $this->distribuicoes(), 'não distribui de novo');
+        $this->assertTrue($this->sessao()->isHuman());
+        $this->assertTrue($this->enviouPara('unread'));
+    }
+
+    /** Fim do horário de atendimento: a única mensagem da fila, e o encerramento. */
+    public function test_fila_que_chega_ao_fim_do_horario_avisa_e_encerra(): void
+    {
+        $this->transbordoDevolvido();
+
+        Carbon::setTestNow('2026-09-23 19:50:00');
+        $this->assertSame(['tentativas' => 0, 'expiradas' => 1], $this->bot()->retryQueue());
+
+        $this->assertStringContainsString('horário de atendimento terminou', $this->ultimoEnviado());
+        $this->assertTrue($this->enviouPara('close'));
+        $this->assertSame('fila_expirou', BotAttendanceEvent::where('kind', BotAttendanceEvent::ENCERRAMENTO)->value('reason'));
+        $this->assertSame(BotSession::STATE_IDLE, $this->sessao()->state);
+    }
+
+    /** O que o contato escreve na fila é para o atendente: a Lara não responde. */
+    public function test_mensagem_do_contato_na_fila_nao_tem_resposta(): void
+    {
+        $this->transbordoDevolvido();
+        $falas = count($this->enviados());
+
+        $this->texto('alguém aí?');
+
+        $this->assertCount($falas, $this->enviados());
+        $this->assertTrue($this->sessao()->isQueued());
+    }
+
+    public function test_sair_na_fila_encerra(): void
+    {
+        $this->transbordoDevolvido();
+
+        $this->texto('sair');
+
+        $this->assertTrue($this->enviouPara('close'));
+        $this->assertSame('sair', BotAttendanceEvent::where('kind', BotAttendanceEvent::ENCERRAMENTO)->value('reason'));
+        $this->assertFalse($this->sessao()->isQueued());
+    }
+
+    /** A reconciliação encerra conversa do O Lara sem condução — a da fila está sendo conduzida. */
+    public function test_reconciliacao_poupa_a_conversa_na_fila(): void
+    {
+        $this->transbordoDevolvido();
+        Carbon::setTestNow(now()->addMinutes(30));
+        $this->chatsNaApi = [['uuid' => self::CONTACT]];
+
+        $this->assertSame([], $this->bot()->reconcile());
+        $this->assertTrue($this->sessao()->isQueued());
+    }
+
+    /* ---------------- disponibilidade do time no transbordo ---------------- */
+
+    public function test_transbordo_guarda_quem_estava_disponivel_no_time(): void
+    {
+        $this->membrosDoTime = [
+            ['uuid' => 'u-1', 'status' => 'ONLINE', 'status_of_service' => 'AVAILABLE', 'attributes' => ['name' => 'Ana Beatriz']],
+            ['uuid' => 'u-2', 'status' => 'ONLINE', 'status_of_service' => 'UNAVAILABLE', 'attributes' => ['name' => 'Julio']],
+            ['uuid' => 'u-3', 'status' => 'OFFLINE', 'status_of_service' => 'AVAILABLE', 'attributes' => ['name' => 'Cristiane']],
+        ];
+
+        $this->texto('oi');
+        $this->texto('Financeiro');
+
+        $e = BotAttendanceEvent::where('kind', BotAttendanceEvent::ENVIADA)->sole();
+        $this->assertSame([3, 2, 1], [$e->team_size, $e->team_online, $e->team_available]);
+        $this->assertSame(['Ana Beatriz'], array_column($e->availableMembers(), 'name'));
+        $this->assertSame(['uuid' => 'u-2', 'name' => 'Julio', 'status' => 'ONLINE', 'service' => 'UNAVAILABLE'], $e->fresh()->team_snapshot[1]);
+        Http::assertSent(fn (Request $r) => str_ends_with(parse_url($r->url(), PHP_URL_PATH), '/teams/' . DefaultFlows::TEAM_FINANCEIRO));
+    }
+
+    /** Cada nova tentativa da fila leva a sua foto. */
+    public function test_cada_tentativa_da_fila_guarda_a_sua_foto_do_time(): void
+    {
+        $this->transbordoDevolvido();
+        $this->membrosDoTime = [['uuid' => 'u-1', 'status' => 'ONLINE', 'status_of_service' => 'AVAILABLE', 'attributes' => ['name' => 'Ana']]];
+
+        Carbon::setTestNow(now()->addMinutes(3));
+        $this->bot()->retryQueue();
+
+        $this->assertSame(
+            [0, 1],
+            BotAttendanceEvent::where('kind', BotAttendanceEvent::ENVIADA)->orderBy('id')->pluck('team_available')->all(),
+        );
+    }
+
+    /** Sem a Poli para dizer quem está no time, o transbordo sai do mesmo jeito, sem foto. */
+    public function test_transbordo_sai_sem_foto_quando_a_poli_nao_informa_o_time(): void
+    {
+        $this->timesForaDoAr = true;
+
+        $this->texto('oi');
+        $this->texto('Financeiro');
+
+        $e = BotAttendanceEvent::where('kind', BotAttendanceEvent::ENVIADA)->sole();
+        $this->assertNull($e->team_size);
+        $this->assertTrue($this->sessao()->isHuman());
+        $this->assertSame(1, $this->distribuicoes());
     }
 
     public function test_pedir_atendente_vai_para_o_diario_com_o_motivo(): void
@@ -1916,6 +2155,161 @@ class PoliBotEngineTest extends TestCase
         $this->assertSame(0, BotAttendanceEvent::count());
     }
 
+    /* ---------------- conversa sem atendente ---------------- */
+
+    public function test_conversa_sem_atendente_em_duas_verificacoes_seguidas_vai_para_a_secretaria(): void
+    {
+        $this->semAtendente();
+
+        $this->assertSame(['abertas' => 1, 'sem_atendente' => 1, 'direcionadas' => 0], $this->bot()->checkUnassigned());
+        $this->assertSame(0, $this->distribuicoes(), 'na primeira, só anota');
+
+        Carbon::setTestNow(now()->addMinutes(3));
+        $this->artisan('poli:bot-sem-atendente')->assertSuccessful();
+
+        $this->assertSame(1, $this->distribuicoes());
+        $this->assertTrue($this->enviouPara('distribute'));
+        $e = BotAttendanceEvent::where('kind', BotAttendanceEvent::ENVIADA)->sole();
+        $this->assertSame(['sem_atendente', DefaultFlows::TEAM_SECRETARIA, BotAttendanceEvent::AGUARDANDO], [$e->reason, $e->target, $e->outcome]);
+        $this->assertSame('Sem atendente desde 10:00 (2 verificações seguidas)', $e->detail);
+        $this->assertSame('Contato Solto', $e->contact_name);
+        $this->assertSame(0, $e->team_size, 'com a foto do time');
+
+        $s = $this->sessao();
+        $this->assertTrue($s->isHuman());
+        $this->assertTrue($s->lara_owned);
+        $this->assertSame(DefaultFlows::TEAM_SECRETARIA, $s->handoff_team_uuid);
+        $this->assertSame([], $this->enviados(), 'nada ao contato');
+        Queue::assertPushed(ConfirmPoliBotHandoff::class);
+
+        // Já direcionada: a próxima verificação começa do zero.
+        Carbon::setTestNow(now()->addMinutes(3));
+        $this->bot()->checkUnassigned();
+        $this->assertSame(1, $this->distribuicoes());
+    }
+
+    public function test_atendente_entre_as_verificacoes_zera_a_contagem(): void
+    {
+        $this->semAtendente();
+        $this->bot()->checkUnassigned();
+
+        Carbon::setTestNow(now()->addMinutes(3));
+        $this->atendimentoNaApi['attendant'] = ['uuid' => 'atendente-ana'];
+        $this->bot()->checkUnassigned();
+
+        Carbon::setTestNow(now()->addMinutes(3));
+        $this->atendimentoNaApi['attendant'] = null;
+        $this->bot()->checkUnassigned();
+
+        $this->assertSame(0, $this->distribuicoes());
+    }
+
+    public function test_outro_atendimento_ou_verificacao_perdida_zera_a_contagem(): void
+    {
+        $this->semAtendente();
+        $this->bot()->checkUnassigned();
+
+        Carbon::setTestNow(now()->addMinutes(3));
+        $this->atendimentoNaApi['uuid'] = 'att-novo';
+        $this->bot()->checkUnassigned();
+        $this->assertSame(0, $this->distribuicoes(), 'outro atendimento');
+
+        Carbon::setTestNow(now()->addMinutes(10));
+        $this->bot()->checkUnassigned();
+        $this->assertSame(0, $this->distribuicoes(), 'a anterior foi há mais de duas verificações');
+    }
+
+    public function test_fora_do_horario_de_atendimento_nao_direciona(): void
+    {
+        Carbon::setTestNow('2026-09-23 20:00:00');
+        $this->semAtendente();
+
+        $this->bot()->checkUnassigned();
+        Carbon::setTestNow(now()->addMinutes(3));
+
+        $this->assertSame(['abertas' => 0, 'sem_atendente' => 0, 'direcionadas' => 0], $this->bot()->checkUnassigned());
+        $this->assertSame(0, $this->distribuicoes());
+    }
+
+    /** Aviso ou cobrança da empresa sem resposta não é conversa perdida — só depois que o contato responde. */
+    public function test_conversa_aberta_pela_empresa_so_conta_depois_da_resposta_do_contato(): void
+    {
+        $this->semAtendente(tipo: 'INITIATED_BY_BUSINESS');
+
+        $this->bot()->checkUnassigned();
+        Carbon::setTestNow(now()->addMinutes(3));
+        $this->assertSame(0, $this->bot()->checkUnassigned()['sem_atendente']);
+
+        UberAccessRequestMessage::create([
+            'poli_message_id' => 'wamid-resposta', 'contact_uuid' => self::CONTACT, 'processed_at' => now(),
+            'raw_payload' => ['object' => 'message', 'event' => 'received', 'value' => ['event' => 'MESSAGE', 'direction' => 'IN', 'contact' => ['uuid' => self::CONTACT]]],
+        ]);
+
+        $this->bot()->checkUnassigned();
+        Carbon::setTestNow(now()->addMinutes(3));
+        $this->bot()->checkUnassigned();
+
+        $this->assertSame(1, $this->distribuicoes());
+    }
+
+    /** Ninguém disponível na Secretaria: a Poli devolve, e a conversa cai na fila de espera. */
+    public function test_direcionada_que_volta_para_o_lara_entra_na_fila(): void
+    {
+        $this->semAtendente();
+        $this->bot()->checkUnassigned();
+        Carbon::setTestNow(now()->addMinutes(3));
+        $this->bot()->checkUnassigned();
+
+        $volta = $this->redirect('att-solta');
+        $this->bot()->observe($this->transferido($volta->messageId, self::LARA));
+        $this->oLaraNaApi();
+        $this->bot()->handleRedirect($volta);
+
+        $s = $this->sessao();
+        $this->assertTrue($s->isQueued());
+        $this->assertSame(DefaultFlows::TEAM_SECRETARIA, $s->handoff_team_uuid);
+        $this->assertSame([], $this->enviados());
+    }
+
+    public function test_conversa_com_atendente_ou_com_o_lara_nao_e_sem_atendente(): void
+    {
+        $this->semAtendente();
+        $this->atendimentoNaApi['attendant'] = ['uuid' => self::LARA];
+
+        $this->bot()->checkUnassigned();
+        Carbon::setTestNow(now()->addMinutes(3));
+
+        $this->assertSame(0, $this->bot()->checkUnassigned()['sem_atendente']);
+    }
+
+    public function test_sem_atendente_desligado_ou_modo_off_nao_faz_nada(): void
+    {
+        $this->semAtendente();
+
+        config(['poli.bot.unassigned.enabled' => false]);
+        $this->bot()->checkUnassigned();
+        Carbon::setTestNow(now()->addMinutes(3));
+        $this->bot()->checkUnassigned();
+
+        config(['poli.bot.unassigned.enabled' => true, 'poli.bot.mode' => BotEngine::MODE_OFF]);
+        $this->bot()->checkUnassigned();
+        Carbon::setTestNow(now()->addMinutes(3));
+        $this->bot()->checkUnassigned();
+
+        Http::assertNothingSent();
+    }
+
+    /** Uma conversa aberta, sem atendente, e a listagem da Poli com ela. */
+    private function semAtendente(string $tipo = 'INITIATED_BY_FORWARDING'): void
+    {
+        $this->chatsNaApi = [['uuid' => self::CONTACT, 'attendance_origin' => $tipo]];
+        $this->contatoNaApi = ['name' => 'Contato Solto', 'phone' => '5524999990000'];
+        $this->atendimentoNaApi = [
+            'uuid' => 'att-solta', 'status' => 'IN_PROGRESS', 'type' => $tipo, 'attendant' => null,
+            'metadata' => ['created_at' => now()->subMinutes(5)->toIso8601String()],
+        ];
+    }
+
     /** O transbordo do contato que entrou pelo menu e caiu de volta no O Lara. */
     private function transbordoDevolvido(): int
     {
@@ -1930,6 +2324,12 @@ class PoliBotEngineTest extends TestCase
         $this->bot()->handleRedirect($volta);
 
         return $menus;
+    }
+
+    /** Quantos POST /contacts/{uuid}/distribute saíram. */
+    private function distribuicoes(): int
+    {
+        return Http::recorded(fn (Request $r) => $r->method() === 'POST' && str_ends_with($r->url(), '/distribute'))->count();
     }
 
     private function menusEnviados(): int

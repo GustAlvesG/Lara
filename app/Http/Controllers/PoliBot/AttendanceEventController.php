@@ -4,6 +4,7 @@ namespace App\Http\Controllers\PoliBot;
 
 use App\Http\Controllers\Controller;
 use App\Models\BotAttendanceEvent as Evento;
+use App\Models\BotSession;
 use App\Services\Poli\PoliClient;
 use App\Services\PoliBot\DefaultFlows;
 use Illuminate\Http\Request;
@@ -18,14 +19,19 @@ use Throwable;
  * transferência recebida, enviada e de cada encerramento.
  *
  * Só leitura. O período padrão é o dia de hoje; o resumo por motivo conta o
- * período inteiro, com os mesmos filtros da lista.
+ * período inteiro, com os mesmos filtros da lista. Cada transferência enviada
+ * mostra quem do time estava disponível naquele momento; o quadro "Na fila
+ * agora" lista as conversas esperando na fila de espera.
  */
 class AttendanceEventController extends Controller
 {
     private const POR_PAGINA = 50;
 
-    /** O período mais longo de uma consulta: o diário cresce algumas centenas de linhas por dia. */
-    private const MAX_DIAS = 31;
+    /**
+     * O período mais longo de uma consulta. O diário não tem expurgo — fica
+     * guardado para sempre; o limite é só do que a tela soma de uma vez.
+     */
+    private const MAX_DIAS = 366;
 
     public function index(Request $request, PoliClient $poli): View
     {
@@ -101,7 +107,14 @@ class AttendanceEventController extends Controller
             ->paginate(self::POR_PAGINA)
             ->withQueryString();
 
+        // Quem está esperando agora, independente do período e dos filtros.
+        $fila = BotSession::where('state', BotSession::STATE_QUEUED)
+            ->where('lara_owned', true)
+            ->orderBy('queued_at')
+            ->get();
+
         return view('poli-bot.events', [
+            'fila' => $fila,
             'eventos' => $eventos,
             'resumo' => $resumo,
             'resultados' => $resultados,

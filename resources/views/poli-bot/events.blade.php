@@ -2,7 +2,9 @@
     Bot WhatsApp › Transferências e encerramentos. O diário dos atendimentos
     do O Lara: o que chegou a ele, o que saiu dele e o que foi encerrado, com
     o motivo (App\Services\PoliBot\AttendanceJournal). O resumo conta o
-    período inteiro; clicar num motivo filtra a lista por ele.
+    período inteiro; clicar num motivo filtra a lista por ele. Cada enviada
+    mostra quem do time estava disponível no distribute; "Na fila agora" são
+    os transbordos devolvidos que O Lara tenta de novo.
 --}}
 @php
     use App\Models\BotAttendanceEvent as Evento;
@@ -53,6 +55,33 @@
                 @endif
             </x-slot:controls>
         </x-search-bar>
+
+        {{-- Fila de espera: transbordos devolvidos que O Lara tenta de novo, em silêncio --}}
+        @if ($fila->isNotEmpty())
+            <section class="rounded-card bg-surface p-4 shadow-card" id="fila">
+                <div class="flex flex-wrap items-baseline justify-between gap-2">
+                    <h2 class="text-sm font-bold text-ink">Na fila agora</h2>
+                    <p class="text-xs text-ink-3">O Lara tenta o time de novo a cada {{ config('poli.bot.queue.retry_minutes', 3) }} min, sem mensagem ao contato.</p>
+                </div>
+                <ul class="mt-2 divide-y divide-line text-sm">
+                    @foreach ($fila as $s)
+                        <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2">
+                            <a href="{{ $filtro(['q' => $s->contact_uuid, 'tipo' => null, 'motivo' => null, 'page' => null]) }}" class="font-semibold text-ink hover:text-grena-ink">
+                                {{ $s->contact_name ?: 'Sem nome' }}
+                                @if ($s->contact_phone) <span class="font-mono text-xs font-normal text-ink-3">{{ $s->contact_phone }}</span> @endif
+                            </a>
+                            <span class="text-ink-2">
+                                {{ $nome($s->handoff_team_uuid) ?? '—' }}
+                                · desde <span class="font-mono">{{ $s->queued_at?->format('H:i') }}</span>
+                                · {{ $s->queue_attempts }} {{ $s->queue_attempts === 1 ? 'tentativa' : 'tentativas' }}
+                                · próxima <span class="font-mono">{{ $s->queue_next_at?->format('H:i') }}</span>
+                                · até <span class="font-mono">{{ $s->queued_until?->format('H:i') }}</span>
+                            </span>
+                        </li>
+                    @endforeach
+                </ul>
+            </section>
+        @endif
 
         {{-- Resumo do período, por motivo --}}
         <div class="grid grid-cols-1 gap-3 lg:grid-cols-3" id="resumo">
@@ -149,6 +178,25 @@
                                         {{ $e->actor ?? '—' }}
                                         @if ($e->target)
                                             → <span class="text-ink">{{ $nome($e->target) }}</span>
+                                        @endif
+                                        @if ($e->team_size !== null)
+                                            {{-- Quem do time estava disponível no momento do distribute --}}
+                                            <details class="mt-1 text-xs" data-time="{{ $e->id }}">
+                                                <summary class="cursor-pointer {{ $e->team_available === 0 ? 'font-semibold text-danger' : 'text-ink-2' }}">
+                                                    {{ $e->team_available }} de {{ $e->team_size }} disponíveis ({{ $e->team_online }} online)
+                                                </summary>
+                                                <ul class="mt-1 space-y-0.5">
+                                                    @foreach ((array) $e->team_snapshot as $m)
+                                                        @php $livre = ($m['status'] ?? null) === 'ONLINE' && ($m['service'] ?? null) === 'AVAILABLE'; @endphp
+                                                        <li class="{{ $livre ? 'text-ok' : 'text-ink-3' }}">
+                                                            {{ $m['name'] ?? $m['uuid'] ?? '?' }}
+                                                            <span class="font-mono">· {{ $m['status'] ?? '?' }} / {{ $m['service'] ?? '?' }}</span>
+                                                        </li>
+                                                    @endforeach
+                                                </ul>
+                                            </details>
+                                        @elseif ($e->kind === Evento::ENVIADA && $e->reason !== 'retirada')
+                                            <p class="mt-1 text-xs text-ink-3">Sem a foto do time</p>
                                         @endif
                                     </td>
                                     <td class="px-4 py-3">

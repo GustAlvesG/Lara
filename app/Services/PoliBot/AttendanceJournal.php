@@ -274,7 +274,7 @@ class AttendanceJournal
 
         // Saiu do O Lara no meio da conversa, sem ele pedir. Transferência
         // entre atendentes não é assunto do diário.
-        if ($session !== null && $session->lara_owned && ($session->inFlow() || $session->isEnding())) {
+        if ($session !== null && $session->lara_owned && ($session->inFlow() || $session->isEnding() || $session->isQueued())) {
             $this->write($contato, $session, [
                 ...$poli,
                 'kind' => Evento::ENVIADA,

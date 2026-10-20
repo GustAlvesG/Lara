@@ -74,17 +74,74 @@ sem atendente: abertura, almoço, fim do dia e noite. O Lara não está nos time
 mostra a opção de distribuição que explique isso. Antes, a Lara tratava a volta como transferência
 de setor e reabria o menu; o contato escolhia o mesmo time e voltava, em ciclo.
 
-Agora a volta **pelo sistema** até `POLI_BOT_DEVOLUCAO_S` (120) segundos depois de um transbordo do
-O Lara que ninguém pegou é **devolução**:
-
-- o contato recebe *"Não consegui te transferir para um atendente agora…"* e o menu **não** reabre;
-- a conversa espera o encerramento diferido (`POLI_BOT_ENCERRAR_APOS_MIN`) — se o contato
-  escrever antes, recomeça pelo menu;
-- vai para o diário: o transbordo com resultado **Voltou para O Lara**, a volta como **A Poli
-  devolveu o transbordo** e, depois, o encerramento com o mesmo motivo.
+A volta **pelo sistema** até `POLI_BOT_DEVOLUCAO_S` (120) segundos depois de um transbordo do
+O Lara que ninguém pegou é **devolução**. A conferência do transbordo (~10 s depois) que encontra a
+conversa ainda com O Lara também conta como devolução. O menu **não** reabre, e o diário registra o
+transbordo com resultado **Voltou para O Lara** e a volta como **A Poli devolveu o transbordo**.
 
 Um **atendente** que pega a conversa e a devolve para O Lara (transferência "por Fulano") continua
 sendo transferência de setor, mesmo logo depois.
+
+### Fila de espera
+
+Desde 19/10/2026 a devolução não encerra a conversa: ela entra na **fila de espera**, com O Lara.
+
+- **Em silêncio.** O contato já ouviu *"Vou te encaminhar para…"*; nenhuma mensagem nova sai na
+  devolução nem nas tentativas.
+- **A cada `POLI_BOT_FILA_INTERVALO_MIN` (3) minutos**, o agendamento (`poli:bot-expirar`, a cada
+  minuto) confere o atendimento na API e, ainda com O Lara, faz o `distribute` para o **mesmo
+  time** de novo. Cada tentativa vai para o diário (*Nova tentativa da fila de espera*), com a foto
+  do time (abaixo).
+- **Alguém pegou** (pela tentativa ou pelo painel): a conversa sai da fila, fica com o atendente e é
+  marcada como não lida para ele.
+- **Fim do horário de atendimento** do fluxo de boas-vindas (no fluxo padrão, 19:50 de segunda a
+  sexta; o que vale é o horário configurado na tela do fluxo): o contato
+  recebe *"Nosso horário de atendimento terminou antes que um atendente pudesse continuar com
+  você…"* e a conversa encerra (*Fila de espera: o horário de atendimento acabou*). Fluxo sem
+  horário: a fila espera até `POLI_BOT_FILA_MAX_MIN` (240).
+- **O contato escreve na fila:** a mensagem fica na conversa para o atendente; a Lara não responde.
+  Só `sair` (e as outras palavras de saída) encerra.
+- A reconciliação (`poli:bot-reconciliar`) não encerra conversa na fila.
+- `POLI_BOT_FILA=false` volta ao comportamento de 16/10: o contato recebe *"Não consegui te
+  transferir para um atendente agora…"* e a conversa encerra em `POLI_BOT_ENCERRAR_APOS_MIN`.
+
+A tela **Transferências e encerramentos** mostra o quadro **Na fila agora**: quem espera, para qual
+time, desde quando, quantas tentativas, a próxima e até quando.
+
+### Conversa sem atendente
+
+Às vezes uma conversa aberta fica **"Sem atendente"** no painel da Poli, sem motivo aparente, e se
+perde se não houver um supervisor para direcioná-la. Desde 20/10/2026, O Lara confere isso sozinho:
+
+- **A cada 3 minutos** (`poli:bot-sem-atendente`), lista as conversas abertas da conta
+  (`/chats?status=OPEN` — de todos os atendentes, não só as do O Lara) e o atendimento atual de
+  cada uma.
+- A conversa **aberta e sem atendente em 2 verificações seguidas** (`POLI_BOT_SEM_ATENDENTE_VERIFICACOES`),
+  no mesmo atendimento, vai para a **Secretaria** (`POLI_BOT_SEM_ATENDENTE_TIME` troca o time). Se
+  alguém pegar entre uma verificação e outra, ou o atendimento mudar, a contagem recomeça.
+- Vai como um transbordo do O Lara: com a foto de quem estava disponível no time, no diário com o
+  motivo **Conversa estava sem atendente** ("Sem atendente desde HH:MM"), e marcada como não lida
+  para quem pegar. Se a Poli devolver (ninguém disponível), a conversa cai na **fila de espera**.
+  Nenhuma mensagem vai para o contato.
+- **Só no horário de atendimento** do fluxo de boas-vindas: fora dele não há quem pegue. A
+  conversa que ficar sem atendente de noite é direcionada nas duas primeiras verificações do dia.
+- **Conversa aberta pela empresa** (aviso, cobrança — `INITIATED_BY_BUSINESS`) só conta depois que
+  o contato responde; sem isso, toda notificação do sistema iria para a Secretaria. A resposta é
+  conferida no webhook gravado.
+- Os atendimentos "fantasmas" da fase do bot da Poli (status nulo, sem atendente, de semanas atrás)
+  não aparecem na lista de conversas abertas da Poli e não são tocados.
+- Listagem maior que `POLI_BOT_SEM_ATENDENTE_MAX` (200) aborta a rodada (log); `POLI_BOT_SEM_ATENDENTE=false`
+  desliga.
+
+### Quem estava disponível no time
+
+Antes de **cada** `distribute` do O Lara — transbordo do fluxo, pedido de atendente, piloto,
+devolução manual e cada nova tentativa da fila, dê certo ou não —, O Lara lê os membros do time na
+Poli (`GET /teams/{uuid}?include=users`) e guarda no diário, **para sempre**, a foto daquele
+momento: cada membro com `status` (ONLINE/OFFLINE) e `status_of_service` (AVAILABLE/UNAVAILABLE),
+e as contagens. **Disponível** = ONLINE **e** AVAILABLE. Se é exatamente esse o critério da
+distribuição da Poli não está documentado; a foto guarda os dois campos para conferir. Sem resposta
+da Poli, o transbordo sai do mesmo jeito, sem foto ("Sem a foto do time" na tela).
 
 ### Transferência velha
 
@@ -97,15 +154,17 @@ evento.
 
 ## Transferências e encerramentos (tela)
 
-**Bot WhatsApp › Transferências e encerramentos** mostra, para um período (padrão: hoje; até 31
-dias), cada vez que uma conversa:
+**Bot WhatsApp › Transferências e encerramentos** mostra, para um período (padrão: hoje; até 366
+dias por consulta — o registro não é apagado), cada vez que uma conversa:
 
 - **chegou ao O Lara** (recebida),
 - **saiu dele** (enviada), com o resultado: com atendente, na fila do time, voltou para O Lara,
   a Poli recusou, aguardando,
 - **foi encerrada** (encerramento),
 
-com o **motivo**, quem fez, para onde foi, o fluxo e passo, e o texto de sistema da Poli. O resumo no
+com o **motivo**, quem fez, para onde foi, o fluxo e passo, e o texto de sistema da Poli. Cada
+enviada mostra *"X de N disponíveis (Y online)"* — em vermelho quando ninguém estava disponível — e,
+ao clicar, o time inteiro com o status de cada um naquele momento. O resumo no
 topo conta cada motivo no período; clicar num motivo filtra a lista. A busca aceita nome, telefone
 (com ou sem máscara), atendente ou uuid; clicar no contato mostra só o histórico dele.
 
@@ -121,9 +180,12 @@ topo conta cada motivo no período; clicar num motivo filtra a lista. A busca ac
 | Enviada | Respostas inválidas demais | `max_attempts` esgotado. |
 | Enviada | Número fora da lista de teste | Piloto (`shadow`). |
 | Enviada | Devolução manual | `poli:bot-reconciliar --devolver`. |
+| Enviada | Nova tentativa da fila de espera | A cada 3 min, enquanto a conversa espera (ver *Fila de espera*). |
+| Enviada | Conversa estava sem atendente | Aberta sem atendente em 2 verificações seguidas (ver *Conversa sem atendente*). |
 | Enviada | Tirada do O Lara | Um atendente ou a Poli tirou a conversa no meio do fluxo. |
 | Encerramento | Fluxo concluído / pergunta final sem resposta | Encerramento diferido do fim do fluxo. |
-| Encerramento | Transbordo devolvido / não saiu do O Lara | Depois do aviso ao contato. |
+| Encerramento | Fila de espera: o horário de atendimento acabou | Ninguém pegou até o fim do horário. |
+| Encerramento | Transbordo devolvido / não saiu do O Lara | Só com `POLI_BOT_FILA=false`, depois do aviso ao contato. |
 | Encerramento | O contato parou de responder | Abandono no meio do fluxo. |
 | Encerramento | O contato pediu para sair · Passo "encerrar" · Respostas inválidas | Close na hora. |
 | Encerramento | Reconciliação | `poli:bot-reconciliar`. |
@@ -189,9 +251,9 @@ conferir e salvar.
 - **Transbordo:** o horário é conferido **na hora do transbordo** — fora dele a conversa vai para o
   passo "fora do horário" (do fluxo atual, ou do fluxo de boas-vindas se o atual não tem
   horário). Depois do distribute, um job confere em ~10 s (`POLI_BOT_CONFIRMAR_TRANSBORDO_S`)
-  se o atendimento saiu mesmo do O Lara; se não saiu, o contato é avisado e a falha vai para o log.
-  A volta "pelo sistema" que costuma chegar antes disso tem regra própria (ver *Transbordo
-  devolvido pela Poli*).
+  se o atendimento saiu mesmo do O Lara; se não saiu, a conversa vai para a fila de espera. A volta
+  "pelo sistema" que costuma chegar antes disso tem a mesma regra (ver *Transbordo devolvido pela
+  Poli* e *Fila de espera*).
 - **Não lida depois do transbordo:** as mensagens que O Lara manda pela API deixam a conversa como
   lida, e o atendente a receberia como já visualizada. Na mesma conferência, com o transbordo
   feito, O Lara marca a conversa como **não lida** (`POST /contacts/{uuid}/unread`) com o
@@ -275,5 +337,9 @@ para a Secretaria; `--devolver=<uuid>` escolhe outro time, `--simular` só lista
 - Tela: `app/Http/Controllers/PoliBot/*`, `resources/views/poli-bot/*`, rotas `poli-bot.*`
   (`poli-bot.events.index` = Transferências e encerramentos, `GET /bot-whatsapp/ocorrencias`).
 - Terminal: `php artisan poli:bot-fluxos`, `poli:bot-simular`, `poli:teste-envio`,
-  `poli:bot-expirar` (agendado a cada minuto), `poli:bot-reconciliar` (a cada 10 minutos).
+  `poli:bot-expirar` (agendado a cada minuto: encerramentos e a fila de espera),
+  `poli:bot-sem-atendente` (a cada 3 minutos), `poli:bot-reconciliar` (a cada 10 minutos).
+- Conversa sem atendente: `BotEngine::checkUnassigned()`; listagem `PoliClient::contatosComConversaAberta`.
+- Fila de espera: `BotEngine::retryQueue()`; foto do time: `TeamAvailability`
+  (`PoliClient::membrosDoTime`), em `bot_attendance_events.team_*`.
 - Configuração: bloco `bot` de `config/poli.php`.

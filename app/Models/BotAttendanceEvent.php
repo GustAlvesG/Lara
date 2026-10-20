@@ -43,6 +43,7 @@ class BotAttendanceEvent extends Model
             'piloto' => 'Número fora da lista de teste (piloto)',
             'devolucao' => 'Devolução manual (poli:bot-reconciliar --devolver)',
             'fila_de_espera' => 'Nova tentativa da fila de espera',
+            'sem_atendente' => 'Conversa estava sem atendente',
             'retirada' => 'Tirada do O Lara no meio da conversa',
         ],
         self::ENCERRAMENTO => [

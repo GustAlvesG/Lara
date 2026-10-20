@@ -46,6 +46,7 @@ class PoliBotWebhookTest extends TestCase
             '2026_09_25_160000_create_poli_bot_tables.php',
             '2026_09_29_120000_add_lara_owner_to_bot_sessions.php',
             '2026_10_16_150000_create_bot_attendance_events_table.php',
+            '2026_10_19_180000_add_waiting_queue_and_team_availability.php',
         ] as $migration) {
             (require base_path('database/migrations/' . $migration))->up();
         }
@@ -377,10 +378,11 @@ class PoliBotWebhookTest extends TestCase
      * O caso de 16/10/2026, 11:50, pelo caminho de produção: o contato
      * escolhe o time, O Lara faz o distribute e a Poli devolve a conversa
      * "pelo sistema" um segundo depois. O webhook classifica a volta antes de
-     * o job da transferência rodar; o job avisa o contato em vez de mandar o
-     * menu de novo.
+     * o job da transferência rodar; o job põe a conversa na fila de espera,
+     * em silêncio, em vez de mandar o menu de novo. Três minutos depois, o
+     * agendamento (poli:bot-expirar) tenta o time de novo, também calado.
      */
-    public function test_transbordo_devolvido_pela_poli_nao_reabre_o_menu(): void
+    public function test_transbordo_devolvido_pela_poli_vai_para_a_fila_e_o_agendamento_tenta_de_novo(): void
     {
         $this->webhook($this->recebida('CHAT', ['body' => ['text' => 'oi']]))->assertOk();
         $this->webhook($this->recebida('CHAT', ['body' => ['text' => 'Financeiro']]))->assertOk();
@@ -399,15 +401,27 @@ class PoliBotWebhookTest extends TestCase
             ],
         ])->assertOk();
 
+        $falas = fn () => PoliMessage::where('direction', 'OUT')->whereIn('type', ['TEXT', 'TEMPLATE'])->count();
+        $antes = $falas();
+
         $this->assertSame($templates, PoliMessage::where('type', 'TEMPLATE')->count(), 'o menu não reabre');
         $this->assertStringContainsString(
-            'Não consegui te transferir',
+            'Vou te encaminhar',
             PoliMessage::where('direction', 'OUT')->where('type', 'TEXT')->orderByDesc('id')->value('texto'),
+            'nenhuma mensagem nova ao contato',
         );
-        $this->assertSame(BotSession::STATE_ENDING, BotSession::find(self::CONTACT)->state);
+        $this->assertSame(BotSession::STATE_QUEUED, BotSession::find(self::CONTACT)->state);
         $this->assertSame(
             ['enviada:fluxo:devolvido', 'recebida:retorno_transbordo:'],
             BotAttendanceEvent::orderBy('id')->get()->map(fn ($e) => "{$e->kind}:{$e->reason}:{$e->outcome}")->all(),
         );
+
+        \Illuminate\Support\Carbon::setTestNow(now()->addMinutes(3));
+        $this->artisan('poli:bot-expirar')->assertSuccessful();
+
+        $this->assertSame($antes, $falas(), 'a nova tentativa é calada');
+        $this->assertSame(2, PoliMessage::where('type', 'ACTION')->where('texto', 'like', 'handoff%')->count());
+        $this->assertSame(1, BotAttendanceEvent::where('reason', 'fila_de_espera')->count());
+        $this->assertSame(1, BotSession::find(self::CONTACT)->queue_attempts);
     }
 }

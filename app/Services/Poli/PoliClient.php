@@ -173,10 +173,59 @@ class PoliClient
      */
     public function atendimentoAtual(string $contactUuid): ?array
     {
+        $atendimento = $this->contatoComAtendimento($contactUuid)['current_attendance'] ?? null;
+
+        return is_array($atendimento) ? $atendimento : null;
+    }
+
+    /**
+     * O contato (nome e telefone em `attributes`) com o atendimento em curso
+     * em `current_attendance` (ou null). Mesma chamada de atendimentoAtual().
+     *
+     * @return array<string, mixed>
+     */
+    public function contatoComAtendimento(string $contactUuid): array
+    {
         $contato = $this->desembrulhar($this->get("/contacts/{$contactUuid}", ['include' => 'current_attendance']));
         $atendimento = $contato['current_attendance'] ?? null;
+        $contato['current_attendance'] = is_array($atendimento) ? $this->desembrulhar($atendimento) : null;
 
-        return is_array($atendimento) ? $this->desembrulhar($atendimento) : null;
+        return $contato;
+    }
+
+    /**
+     * Os contatos com conversa aberta na conta, de todos os atendentes e sem
+     * atendente. Medido em 20/10/2026: `status=OPEN` filtra de verdade (36
+     * abertas contra centenas fechadas) e cada item é o contato — {id, uuid,
+     * contact_origin, attendance_origin, from_campaign}. O atendimento de
+     * cada um sai de atendimentoAtual(). Os atendimentos de status nulo da
+     * fase do bot da Poli que ficaram para trás não aparecem aqui.
+     *
+     * @return list<string> uuids dos contatos
+     */
+    public function contatosComConversaAberta(int $maxPaginas = 5): array
+    {
+        $contatos = [];
+
+        for ($pagina = 1; $pagina <= $maxPaginas; $pagina++) {
+            $itens = $this->desembrulhar($this->get("/accounts/{$this->conta()}/chats", [
+                'status' => 'OPEN',
+                'per_page' => 100,
+                'page' => $pagina,
+            ]));
+
+            foreach ($itens as $item) {
+                if (is_array($item) && is_string($item['uuid'] ?? null) && $item['uuid'] !== '') {
+                    $contatos[$item['uuid']] = true;
+                }
+            }
+
+            if (count($itens) < 100) {
+                break;
+            }
+        }
+
+        return array_keys($contatos);
     }
 
     /**

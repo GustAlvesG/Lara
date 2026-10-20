@@ -37,6 +37,7 @@ class PoliBotEditorTest extends TestCase
             '2026_09_26_100000_create_bot_flow_versions_table.php',
             '2026_09_29_120000_add_lara_owner_to_bot_sessions.php',
             '2026_10_16_150000_create_bot_attendance_events_table.php',
+            '2026_10_19_180000_add_waiting_queue_and_team_availability.php',
         ] as $migration) {
             (require base_path('database/migrations/' . $migration))->up();
         }

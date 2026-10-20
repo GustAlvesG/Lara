@@ -7,9 +7,12 @@ use App\Models\BotAttendanceEvent;
 use App\Models\BotFlow;
 use App\Models\BotSession;
 use App\Models\PoliMessage;
+use App\Models\UberAccessRequestMessage;
 use App\Services\Poli\ParsedPoliMessage;
 use App\Services\Poli\PoliClient;
 use App\Services\UberAccessRequestFlow;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -55,6 +58,9 @@ class BotEngine
 
     /** Conversa sem sessão ativa, parada há menos que isto, não é reconciliada. */
     private const RECONCILE_GRACE_MINUTES = 10;
+
+    /** Quem foi visto sem atendente na verificação anterior (checkUnassigned). */
+    private const UNASSIGNED_CACHE = 'poli-bot:sem-atendente';
 
     private const DONO_LARA = 'lara';
     private const DONO_RESGATE = 'resgate';
@@ -286,6 +292,15 @@ class BotEngine
 
         $session->lara_owned = true;
 
+        // Na fila de espera o contato já ouviu "vou te encaminhar": o que ele
+        // escreve agora é para o atendente, que vai ver na conversa. A Lara
+        // não responde — só "sair" vale, e encerra.
+        if ($session->isQueued()) {
+            $this->whileQueued($session, $message);
+
+            return;
+        }
+
         if ($this->sentOutOfPilot($session)) {
             $this->save($session);
 
@@ -305,6 +320,79 @@ class BotEngine
 
         $this->converse($session, $message);
         $this->save($session);
+    }
+
+    private function whileQueued(BotSession $session, ParsedPoliMessage $message): void
+    {
+        $sair = $message->type === ParsedPoliMessage::TYPE_TEXT && in_array(
+            AnswerValidator::normalize($message->text),
+            array_map(fn ($p) => AnswerValidator::normalize((string) $p), (array) (config('poli.bot.escape.sair') ?? [])),
+            true,
+        );
+
+        if ($sair) {
+            $this->say($session, (string) config('poli.bot.messages.goodbye'));
+            $this->close($session, 'sair');
+            $this->save($session);
+
+            return;
+        }
+
+        Log::info('PoliBot: mensagem na fila de espera — fica para o atendente', [
+            'contact_uuid' => $session->contact_uuid,
+            'message_id' => $message->messageId,
+        ]);
+
+        $this->save($session);
+    }
+
+    /**
+     * A Poli devolveu o transbordo: a conversa espera na fila, em silêncio —
+     * o contato já ouviu "vou te encaminhar". O agendamento (retryQueue)
+     * tenta o mesmo time de novo até o fim do horário de atendimento.
+     *
+     * @return bool false se a fila não se aplica (desligada, sem time, fora
+     *              do horário): quem chama segue com o aviso e o encerramento
+     */
+    private function enterQueue(BotSession $session): bool
+    {
+        $time = $session->handoff_team_uuid;
+        $ate = $this->queueDeadline();
+
+        if (!config('poli.bot.queue.enabled', true) || blank($time) || $ate === null) {
+            return false;
+        }
+
+        $session->toQueue($ate, now()->addMinutes($this->queueRetryMinutes()));
+
+        Log::info('PoliBot: transbordo devolvido — conversa na fila de espera', [
+            'contact_uuid' => $session->contact_uuid,
+            'team_uuid' => $time,
+            'ate' => $ate->toDateTimeString(),
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Até quando a fila espera: o fechamento de hoje no horário do fluxo de
+     * boas-vindas; sem horário, `poli.bot.queue.max_minutes`. Já fechado:
+     * null — fora do horário não há fila.
+     */
+    private function queueDeadline(): ?\Illuminate\Support\Carbon
+    {
+        $fluxo = $this->defaultFlow();
+
+        if ($fluxo === null || !$fluxo->hasHours()) {
+            return now()->addMinutes(max(1, (int) config('poli.bot.queue.max_minutes', 240)));
+        }
+
+        return $fluxo->closesAt(now());
+    }
+
+    private function queueRetryMinutes(): int
+    {
+        return max(1, (int) config('poli.bot.queue.retry_minutes', 3));
     }
 
     /**
@@ -379,9 +467,11 @@ class BotEngine
     }
 
     /**
-     * O transbordo voltou para O Lara: o contato recebe o aviso de que não
-     * deu (o mesmo da conferência do transbordo) e a conversa espera o
-     * encerramento diferido — se ele escrever antes, recomeça pelo menu.
+     * O transbordo voltou para O Lara: a conversa entra na fila de espera, em
+     * silêncio. Sem fila (desligada, sem time, fora do horário), o contato
+     * recebe o aviso de que não deu (o mesmo da conferência do transbordo) e
+     * a conversa espera o encerramento diferido — se ele escrever antes,
+     * recomeça pelo menu.
      */
     private function handoffReturned(BotSession $session, ParsedPoliMessage $redirect): void
     {
@@ -390,10 +480,16 @@ class BotEngine
             'attendance_uuid' => $redirect->attendanceUuid,
         ]);
 
-        $session->reset();
         $session->lara_owned = true;
         $session->attendance_uuid = $redirect->attendanceUuid;
 
+        if ($this->enterQueue($session)) {
+            $session->save();
+
+            return;
+        }
+
+        $session->reset();
         $this->say($session, (string) config('poli.bot.messages.handoff_failed'));
         $session->toEnding((int) config('poli.bot.close_after_minutes', 10), 'transbordo_devolvido');
         $this->save($session);
@@ -993,6 +1089,16 @@ class BotEngine
         $veioDeSetor = $session->isHuman() && !$this->humanExpired($session);
 
         $this->out = $this->outbox->live($this->liveFor(true));
+
+        // Na fila de espera: é a Poli devolvendo uma nova tentativa. Fica no
+        // histórico, e a fila continua — em silêncio.
+        if ($session->isQueued() && $session->lara_owned) {
+            $this->out->recordInboundRow($session, $redirect->messageId, 'REDIRECT', '[transferido para O Lara — fila de espera]');
+            $session->attendance_uuid = $redirect->attendanceUuid ?? $session->attendance_uuid;
+            $session->save();
+
+            return;
+        }
 
         // Transferência velha: este job espera alguns segundos, e nesse meio
         // tempo a mensagem do contato pode ter sido processada e transbordada
@@ -1650,7 +1756,9 @@ class BotEngine
 
     /**
      * Confere, depois do distribute, se o atendimento saiu mesmo do O Lara.
-     * Se não saiu, o contato fica sabendo e a conversa volta para a Lara.
+     * Se não saiu, a conversa entra na fila de espera (ou, sem fila, o
+     * contato fica sabendo e a conversa volta para a Lara). Vale também para
+     * as novas tentativas da fila: a que pegou tira a conversa da fila.
      */
     public function confirmHandoff(string $contactUuid): void
     {
@@ -1660,7 +1768,7 @@ class BotEngine
 
         $session = BotSession::find($contactUuid);
 
-        if ($session === null || !$session->isHuman() || !$session->lara_owned) {
+        if ($session === null || !($session->isHuman() || $session->isQueued()) || !$session->lara_owned) {
             return;
         }
 
@@ -1687,6 +1795,20 @@ class BotEngine
                 is_string($atual['attendant']['attributes']['name'] ?? null) ? $atual['attendant']['attributes']['name'] : $atendente,
             );
             $this->markUnreadForAttendant($session, $atendente);
+            $this->leaveQueue($session);
+
+            return;
+        }
+
+        $this->journal->handoffChecked($contactUuid, BotAttendanceEvent::DEVOLVIDO, 'O Lara');
+
+        // Nova tentativa da fila que não pegou: a fila segue, em silêncio.
+        if ($session->isQueued()) {
+            return;
+        }
+
+        if ($this->enterQueue($session)) {
+            $session->save();
 
             return;
         }
@@ -1696,11 +1818,340 @@ class BotEngine
             'attendance_uuid' => $atual['uuid'] ?? $session->attendance_uuid,
         ]);
 
-        $this->journal->handoffChecked($contactUuid, BotAttendanceEvent::DEVOLVIDO, 'O Lara');
         $this->out = $this->outbox->live(true);
         $this->say($session, (string) config('poli.bot.messages.handoff_failed'));
         $session->toEnding((int) config('poli.bot.close_after_minutes', 10), 'transbordo_falhou');
         $session->save();
+    }
+
+    /** Alguém pegou a conversa que estava na fila: ela é do atendente agora. */
+    private function leaveQueue(BotSession $session): void
+    {
+        if (!$session->isQueued()) {
+            return;
+        }
+
+        Log::info('PoliBot: conversa saiu da fila de espera — atendente pegou', [
+            'contact_uuid' => $session->contact_uuid,
+            'tentativas' => $session->queue_attempts,
+            'esperou_min' => $session->queued_at?->diffInMinutes(now()),
+        ]);
+
+        $session->toHuman();
+        $session->save();
+    }
+
+    /**
+     * A fila de espera: para cada conversa na hora da nova tentativa,
+     * confere na API, e — ainda com O Lara — tenta o mesmo time de novo, sem
+     * mensagem ao contato. Vencido o horário de atendimento, avisa e encerra.
+     * Agendado a cada minuto, com o poli:bot-expirar.
+     *
+     * @return array{tentativas: int, expiradas: int}
+     */
+    public function retryQueue(): array
+    {
+        $contagem = ['tentativas' => 0, 'expiradas' => 0];
+
+        if ($this->mode() === self::MODE_OFF) {
+            return $contagem;
+        }
+
+        $candidatas = BotSession::where('state', BotSession::STATE_QUEUED)
+            ->where('lara_owned', true)
+            ->where('queue_next_at', '<=', now())
+            ->pluck('contact_uuid');
+
+        foreach ($candidatas as $contato) {
+            try {
+                $resultado = Cache::lock('poli-bot:contato:' . $contato, 60)->get(fn () => $this->retryQueuedOne($contato));
+            } catch (Throwable $e) {
+                Log::error('PoliBot: falha na fila de espera', ['contact_uuid' => $contato, 'erro' => $e->getMessage()]);
+                $resultado = null;
+            }
+
+            if (is_string($resultado)) {
+                $contagem[$resultado]++;
+            }
+        }
+
+        return $contagem;
+    }
+
+    /** @return string|null 'tentativas', 'expiradas' ou null (nada a fazer, ou a conversa saiu da fila) */
+    private function retryQueuedOne(string $contato): ?string
+    {
+        $session = BotSession::find($contato);
+
+        if ($session === null || !$session->isQueued() || !$session->lara_owned
+            || ($session->queue_next_at !== null && $session->queue_next_at->isFuture())) {
+            return null;
+        }
+
+        $this->desviouPorHorario = false;
+        $this->out = $this->outbox->live($this->liveFor(true));
+
+        // O horário acabou: é a única mensagem da fila.
+        if ($session->queued_until === null || !$session->queued_until->isFuture()) {
+            Log::info('PoliBot: fila de espera venceu no fim do horário', [
+                'contact_uuid' => $contato,
+                'tentativas' => $session->queue_attempts,
+            ]);
+
+            $this->say($session, (string) config('poli.bot.messages.queue_expired'));
+            $this->close($session, 'fila_expirou');
+            $session->save();
+
+            return 'expiradas';
+        }
+
+        try {
+            $atual = $this->poli->atendimentoAtual($contato);
+        } catch (Throwable $e) {
+            Log::warning('PoliBot: fila de espera sem conferir a API — tenta no próximo ciclo', ['contact_uuid' => $contato, 'erro' => $e->getMessage()]);
+            $session->queue_next_at = now()->addMinutes($this->queueRetryMinutes());
+            $session->save();
+
+            return null;
+        }
+
+        // Encerrado por fora (atendente, contato): a fila acabou.
+        if ($atual === null || ($atual['status'] ?? null) === 'CLOSED') {
+            $session->endConversation();
+            $session->save();
+
+            return null;
+        }
+
+        $atendente = is_string($atual['attendant']['uuid'] ?? null) ? $atual['attendant']['uuid'] : null;
+
+        // Alguém pegou sem a Lara ver a transferência (ou ela ainda vem).
+        if (!$this->isLaraAttendant($atendente)) {
+            $this->journal->handoffChecked(
+                $contato,
+                $atendente === null ? BotAttendanceEvent::FILA : BotAttendanceEvent::ATENDENTE,
+                is_string($atual['attendant']['attributes']['name'] ?? null) ? $atual['attendant']['attributes']['name'] : $atendente,
+            );
+            $this->markUnreadForAttendant($session, $atendente);
+            $this->leaveQueue($session);
+
+            return null;
+        }
+
+        $session->queue_attempts = $session->queue_attempts + 1;
+        $session->queue_next_at = now()->addMinutes($this->queueRetryMinutes());
+        $session->attendance_uuid = is_string($atual['uuid'] ?? null) ? $atual['uuid'] : $session->attendance_uuid;
+
+        $feito = $this->distribute(
+            $session,
+            $session->handoff_team_uuid,
+            'fila_de_espera',
+            "Tentativa {$session->queue_attempts}, na fila desde " . $session->queued_at?->format('H:i'),
+        );
+        $session->save();
+
+        if ($feito) {
+            ConfirmPoliBotHandoff::dispatch($contato)
+                ->delay(now()->addSeconds((int) config('poli.bot.handoff_confirm_seconds', 10)));
+        }
+
+        return 'tentativas';
+    }
+
+    /**
+     * Conversas "Sem atendente" no painel da Poli: abertas, sem ninguém, e
+     * que só um supervisor redistribuiria. A cada verificação (agendada a
+     * cada 3 minutos), O Lara confere as conversas abertas da conta; a que
+     * estiver sem atendente em `poli.bot.unassigned.sightings` verificações
+     * seguidas — o mesmo atendimento — vai para a Secretaria.
+     *
+     * Ficam de fora: fora do horário de atendimento (não há quem pegue, e a
+     * devolução da Poli abriria o menu de madrugada) e a conversa aberta pela
+     * empresa (aviso, cobrança) em que o contato ainda não respondeu — senão
+     * toda notificação do sistema iria para a Secretaria.
+     *
+     * Quem já foi visto sem atendente fica no cache entre uma verificação e
+     * a seguinte; o que fica guardado para sempre é o direcionamento, no
+     * diário (motivo `sem_atendente`, com a foto do time).
+     *
+     * @return array{abertas: int, sem_atendente: int, direcionadas: int}
+     */
+    public function checkUnassigned(): array
+    {
+        $contagem = ['abertas' => 0, 'sem_atendente' => 0, 'direcionadas' => 0];
+
+        if ($this->mode() === self::MODE_OFF || !config('poli.bot.unassigned.enabled', true) || $this->botUserUuid() === null) {
+            return $contagem;
+        }
+
+        $fluxo = $this->defaultFlow();
+
+        if ($fluxo !== null && !$fluxo->isOpenAt(now())) {
+            Cache::forget(self::UNASSIGNED_CACHE);
+
+            return $contagem;
+        }
+
+        try {
+            $contatos = $this->poli->contatosComConversaAberta();
+        } catch (Throwable $e) {
+            Log::warning('PoliBot: verificação de sem atendente sem a lista da Poli', ['erro' => $e->getMessage()]);
+
+            return $contagem;
+        }
+
+        $contagem['abertas'] = count($contatos);
+        $teto = (int) config('poli.bot.unassigned.max_chats', 200);
+
+        if (count($contatos) > $teto) {
+            Log::warning('PoliBot: verificação de sem atendente abortada — conversas abertas demais', ['conversas' => count($contatos), 'teto' => $teto]);
+
+            return $contagem;
+        }
+
+        $vistas = (array) Cache::get(self::UNASSIGNED_CACHE, []);
+        $agora = [];
+        $janela = now()->subMinutes(2 * max(1, (int) config('poli.bot.unassigned.every_minutes', 3)));
+        $precisa = max(2, (int) config('poli.bot.unassigned.sightings', 2));
+
+        foreach ($contatos as $contato) {
+            try {
+                $dados = $this->poli->contatoComAtendimento($contato);
+            } catch (Throwable $e) {
+                Log::warning('PoliBot: sem atendente — contato não conferido', ['contact_uuid' => $contato, 'erro' => $e->getMessage()]);
+
+                continue;
+            }
+
+            $atual = $dados['current_attendance'] ?? null;
+
+            if (!$this->isUnassigned($contato, $atual)) {
+                continue;
+            }
+
+            $contagem['sem_atendente']++;
+            $anterior = $vistas[$contato] ?? null;
+            $seguida = is_array($anterior)
+                && ($anterior['attendance'] ?? null) === ($atual['uuid'] ?? null)
+                && Carbon::parse($anterior['last'])->greaterThanOrEqualTo($janela);
+
+            $registro = [
+                'attendance' => $atual['uuid'] ?? null,
+                'first' => $seguida ? $anterior['first'] : now()->toIso8601String(),
+                'last' => now()->toIso8601String(),
+                'count' => $seguida ? $anterior['count'] + 1 : 1,
+            ];
+
+            if ($registro['count'] < $precisa) {
+                $agora[$contato] = $registro;
+
+                continue;
+            }
+
+            try {
+                $direcionou = Cache::lock('poli-bot:contato:' . $contato, 60)
+                    ->get(fn () => $this->directUnassigned($contato, $dados, Carbon::parse($registro['first']), $registro['count']));
+            } catch (Throwable $e) {
+                Log::error('PoliBot: falha ao direcionar conversa sem atendente', ['contact_uuid' => $contato, 'erro' => $e->getMessage()]);
+                $direcionou = false;
+            }
+
+            if ($direcionou) {
+                $contagem['direcionadas']++;
+            } else {
+                $agora[$contato] = $registro;   // tenta na próxima
+            }
+        }
+
+        Cache::put(self::UNASSIGNED_CACHE, $agora, now()->addHour());
+
+        return $contagem;
+    }
+
+    /**
+     * Aberto, sem atendente — e, se a empresa abriu a conversa, com o contato
+     * tendo respondido depois disso.
+     *
+     * @param array<string, mixed>|null $atual
+     */
+    private function isUnassigned(string $contato, ?array $atual): bool
+    {
+        if ($atual === null || ($atual['status'] ?? null) === 'CLOSED' || filled($atual['attendant']['uuid'] ?? null)) {
+            return false;
+        }
+
+        if (($atual['type'] ?? null) !== 'INITIATED_BY_BUSINESS') {
+            return true;
+        }
+
+        $desde = $atual['metadata']['created_at'] ?? null;
+
+        return $this->contactWroteSince($contato, is_string($desde) ? Carbon::parse($desde) : now()->subDay());
+    }
+
+    /**
+     * O contato mandou mensagem desde `$desde`? Pelo webhook gravado
+     * (uber_access_request_messages, que guarda o último dia).
+     */
+    private function contactWroteSince(string $contato, CarbonInterface $desde): bool
+    {
+        return UberAccessRequestMessage::where('contact_uuid', $contato)
+            ->where('created_at', '>=', $desde->copy()->subMinute())
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get(['raw_payload'])
+            ->contains(fn ($linha) => ($linha->raw_payload['value']['direction'] ?? null) === 'IN'
+                && ($linha->raw_payload['value']['event'] ?? null) === 'MESSAGE');
+    }
+
+    /**
+     * Direciona a conversa sem atendente para a Secretaria, como um
+     * transbordo do O Lara: foto do time, diário, conferência em ~10 s. Se a
+     * Poli devolver (ninguém disponível), a conversa cai na fila de espera.
+     *
+     * @param array<string, mixed> $dados o contato com `current_attendance`
+     */
+    private function directUnassigned(string $contato, array $dados, CarbonInterface $desde, int $verificacoes): bool
+    {
+        // Confere de novo dentro da trava: alguém pode ter pegado agora.
+        $atual = $this->poli->atendimentoAtual($contato);
+
+        if (!$this->isUnassigned($contato, $atual)) {
+            return false;
+        }
+
+        $session = BotSession::find($contato) ?? new BotSession(['contact_uuid' => $contato]);
+        $session->fill(array_filter([
+            'contact_name' => is_string($dados['attributes']['name'] ?? null) ? $dados['attributes']['name'] : null,
+            'contact_phone' => is_string($dados['attributes']['phone'] ?? null) ? $dados['attributes']['phone'] : null,
+        ], 'filled'));
+        $session->attendance_uuid = is_string($atual['uuid'] ?? null) ? $atual['uuid'] : $session->attendance_uuid;
+
+        $this->desviouPorHorario = false;
+        $this->out = $this->outbox->live($this->liveFor(true));
+
+        $time = config('poli.bot.unassigned.team_uuid') ?: DefaultFlows::TEAM_SECRETARIA;
+
+        Log::info('PoliBot: conversa sem atendente direcionada', [
+            'contact_uuid' => $contato,
+            'team_uuid' => $time,
+            'desde' => $desde->toDateTimeString(),
+        ]);
+
+        $feito = $this->distribute($session, $time, 'sem_atendente', "Sem atendente desde {$desde->format('H:i')} ({$verificacoes} verificações seguidas)");
+
+        // Como num transbordo do O Lara: a volta "pelo sistema" vira fila de
+        // espera, e a conferência marca como não lida para quem pegou.
+        $session->toHuman();
+        $session->lara_owned = true;
+        $session->save();
+
+        if ($feito) {
+            ConfirmPoliBotHandoff::dispatch($contato)
+                ->delay(now()->addSeconds((int) config('poli.bot.handoff_confirm_seconds', 10)));
+        }
+
+        return $feito;
     }
 
     /**
@@ -1784,7 +2235,7 @@ class BotEngine
         $session = BotSession::find($contato);
 
         if ($devolverPara === null && $session !== null) {
-            $ativa = $session->lara_owned && ($session->inFlow() || $session->isEnding());
+            $ativa = $session->lara_owned && ($session->inFlow() || $session->isEnding() || $session->isQueued());
             $recente = $session->last_interaction_at?->copy()->addMinutes(self::RECONCILE_GRACE_MINUTES)->isFuture();
 
             if ($ativa || $recente) {

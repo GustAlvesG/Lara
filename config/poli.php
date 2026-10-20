@@ -296,6 +296,24 @@ return [
         ],
 
         /*
+        | Conversa aberta "Sem atendente" no painel da Poli: a cada
+        | `every_minutes` (poli:bot-sem-atendente) O Lara confere as conversas
+        | abertas da conta; a que estiver sem atendente em `sightings`
+        | verificações seguidas (o mesmo atendimento) vai para `team_uuid`
+        | (padrão: Secretaria). Só no horário de atendimento do fluxo de
+        | boas-vindas. Conversa aberta pela empresa (aviso, cobrança) só conta
+        | depois que o contato responde. `max_chats` é a trava contra uma
+        | listagem que viesse grande demais.
+        */
+        'unassigned' => [
+            'enabled' => (bool) env('POLI_BOT_SEM_ATENDENTE', true),
+            'team_uuid' => env('POLI_BOT_SEM_ATENDENTE_TIME'),
+            'sightings' => max(2, (int) env('POLI_BOT_SEM_ATENDENTE_VERIFICACOES', 2)),
+            'every_minutes' => 3,
+            'max_chats' => (int) env('POLI_BOT_SEM_ATENDENTE_MAX', 200),
+        ],
+
+        /*
         | Na mesma conferência, com o transbordo feito: marca a conversa como
         | não lida para o atendente que a recebeu. As mensagens que o O Lara
         | manda pela API deixam a conversa como lida, e ela chegaria ao

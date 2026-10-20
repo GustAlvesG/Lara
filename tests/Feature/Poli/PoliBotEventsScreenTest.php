@@ -32,6 +32,7 @@ class PoliBotEventsScreenTest extends TestCase
             '2026_09_25_160000_create_poli_bot_tables.php',
             '2026_09_29_120000_add_lara_owner_to_bot_sessions.php',
             '2026_10_16_150000_create_bot_attendance_events_table.php',
+            '2026_10_19_180000_add_waiting_queue_and_team_availability.php',
         ] as $migration) {
             (require base_path('database/migrations/' . $migration))->up();
         }
@@ -93,6 +94,51 @@ class PoliBotEventsScreenTest extends TestCase
             ->assertSee('Encerrado por um atendente')
             ->assertSee('Thais Silva')
             ->assertSee('atendimento › secretaria');
+    }
+
+    public function test_mostra_quem_do_time_estava_disponivel_no_transbordo(): void
+    {
+        $this->evento(['kind' => 'enviada', 'reason' => 'fila_de_espera', 'actor' => 'O Lara', 'target' => DefaultFlows::TEAM_SECRETARIA,
+            'outcome' => 'devolvido', 'detail' => 'Tentativa 2, na fila desde 12:01',
+            'team_size' => 3, 'team_online' => 1, 'team_available' => 0, 'team_snapshot' => [
+                ['uuid' => 'u1', 'name' => 'Thais Silva', 'status' => 'OFFLINE', 'service' => 'UNAVAILABLE'],
+                ['uuid' => 'u2', 'name' => 'Karine Marques', 'status' => 'ONLINE', 'service' => 'UNAVAILABLE'],
+                ['uuid' => 'u3', 'name' => 'Leticia Rocha', 'status' => 'OFFLINE', 'service' => 'AVAILABLE'],
+            ]]);
+        $this->evento(['kind' => 'enviada', 'reason' => 'fluxo', 'actor' => 'O Lara', 'target' => DefaultFlows::TEAM_FINANCEIRO, 'outcome' => 'atendente']);
+
+        $this->actingAs($this->usuario())
+            ->get(route('poli-bot.events.index'))
+            ->assertOk()
+            ->assertSee('Nova tentativa da fila de espera')
+            ->assertSee('0 de 3 disponíveis (1 online)')
+            ->assertSee('Karine Marques')
+            ->assertSee('ONLINE / UNAVAILABLE')
+            ->assertSee('Sem a foto do time');
+    }
+
+    public function test_quadro_da_fila_mostra_quem_esta_esperando(): void
+    {
+        \App\Models\BotSession::create([
+            'contact_uuid' => 'contato-fila', 'contact_name' => 'Contato Na Fila', 'contact_phone' => '5524999990000',
+            'state' => 'queued', 'lara_owned' => true, 'handoff_team_uuid' => DefaultFlows::TEAM_SECRETARIA,
+            'queued_at' => now()->setTime(12, 1), 'queue_next_at' => now()->setTime(15, 3),
+            'queued_until' => now()->setTime(19, 50), 'queue_attempts' => 2,
+        ]);
+
+        $this->actingAs($this->usuario())
+            ->get(route('poli-bot.events.index'))
+            ->assertOk()
+            ->assertSee('Na fila agora')
+            ->assertSee('Contato Na Fila')
+            ->assertSeeInOrder(['Secretaria', '12:01', '2 tentativas', '15:03', '19:50']);
+    }
+
+    public function test_sem_fila_o_quadro_nao_aparece(): void
+    {
+        $this->actingAs($this->usuario())
+            ->get(route('poli-bot.events.index'))
+            ->assertDontSee('Na fila agora');
     }
 
     public function test_filtro_por_motivo_e_resumo_do_periodo(): void
