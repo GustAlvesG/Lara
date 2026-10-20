@@ -400,6 +400,8 @@ class UberAccessRequestFlow
             'member_validation' => $validation->status,
             'member_validation_name' => $validation->matchedName,
             'member_validation_type' => $validation->type,
+            'member_validation_detail' => $validation->detail,
+            'employee_id' => $validation->employeeId,
             'member_validated_at' => $completedAt,
             'completed_at' => $completedAt,
             'expires_at' => $completedAt->copy()->addMinutes(self::ACCESS_VALIDITY_MINUTES),

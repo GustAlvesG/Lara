@@ -2,15 +2,36 @@
 
 namespace App\Models;
 
+use App\Support\Cpf;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * Funcionário do clube — cadastro do módulo Funcionários (RH).
+ *
+ * Não é usuário do painel: tem matrícula, CPF e setor, e só vira "o mesmo"
+ * que um usuário quando as matrículas casam (ver user()). É quem se
+ * identifica no pedido de carro de aplicativo e quem dirige a frota; para os
+ * dois, só vale o funcionário **apto** — ver scopeEligible() e blockReason().
+ */
 class Employee extends Model
 {
     /** @use HasFactory<\Database\Factories\EmployeeFactory> */
     use HasFactory, SoftDeletes;
+
+    /** De onde veio o cadastro (coluna `source`, só auditoria). */
+    public const SOURCE_IMPORT = 'import';
+    public const SOURCE_MANUAL = 'manual';
+    public const SOURCE_SPREADSHEET = 'planilha';
+
+    public const SOURCES = [
+        self::SOURCE_IMPORT => 'Espelho de ponto',
+        self::SOURCE_MANUAL => 'Cadastro manual',
+        self::SOURCE_SPREADSHEET => 'Planilha do RH',
+    ];
 
     protected $table = 'employees';
 
@@ -24,12 +45,26 @@ class Employee extends Model
         'sector_id',
         'termination_date',
         'termination_reason',
+        'source',
     ];
 
     protected $casts = [
         'admission_date'    => 'date',
         'termination_date'  => 'date',
     ];
+
+    /**
+     * CPF gravado sempre só com dígitos. O espelho de ponto mandava com e sem
+     * máscara, e comparar texto cru errava em silêncio — a migration
+     * `prepare_employees_for_registry` acertou o legado, e daqui em diante
+     * ninguém grava de outro jeito. Para exibir, use Cpf::format().
+     */
+    protected function cpf(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value) => Cpf::digits($value),
+        );
+    }
 
     public function timeEntries()
     {
@@ -104,6 +139,52 @@ class Employee extends Model
     }
 
     /**
+     * Por que o funcionário NÃO pode pedir carro de aplicativo nem dirigir a
+     * frota na data informada (hoje, por padrão) — ou null se pode.
+     *
+     * Bloqueia: cadastro excluído, rescisão já em vigor, e férias ou
+     * afastamento vigentes (decisão do RH: quem está fora da casa não usa
+     * nada da casa). O texto vai para a portaria e para a tela, então é
+     * frase pronta.
+     */
+    public function blockReason($date = null): ?string
+    {
+        $date = ($date ? \Carbon\Carbon::parse($date) : now())->startOfDay();
+
+        if ($this->trashed()) {
+            return 'Cadastro excluído';
+        }
+
+        if (!$this->isActiveOn($date)) {
+            return 'Desligado em ' . $this->termination_date->format('d/m/Y');
+        }
+
+        if ($absence = $this->absenceOn($date)) {
+            return $absence->type_label . ($absence->end_date
+                ? ' até ' . $absence->end_date->format('d/m/Y')
+                : ' (sem data de retorno)');
+        }
+
+        return null;
+    }
+
+    public function isEligible($date = null): bool
+    {
+        return $this->blockReason($date) === null;
+    }
+
+    /**
+     * Aptos na data informada: não excluídos (o SoftDeletes já cuida), sem
+     * rescisão em vigor e sem férias ou afastamento vigente. Mesma regra de
+     * blockReason(), em SQL — é o que o Uber e a Frota consultam.
+     */
+    public function scopeEligible(Builder $query, $date = null): Builder
+    {
+        return $query->active($date)
+            ->whereDoesntHave('absences', fn (Builder $q) => $q->current($date));
+    }
+
+    /**
      * Funcionários ativos na data informada (hoje, por padrão).
      *
      * Rescisão é informativa — não esconde ninguém das telas do Banco de Horas,
@@ -117,7 +198,7 @@ class Employee extends Model
 
         return $query->where(function (Builder $q) use ($date) {
             $q->whereNull('termination_date')
-              ->orWhere('termination_date', '>', $date->startOfDay()->toDateString());
+              ->orWhereDate('termination_date', '>', $date->startOfDay()->toDateString());
         });
     }
 
@@ -127,6 +208,6 @@ class Employee extends Model
         $date = $date ? \Carbon\Carbon::parse($date) : now();
 
         return $query->whereNotNull('termination_date')
-            ->where('termination_date', '<=', $date->startOfDay()->toDateString());
+            ->whereDate('termination_date', '<=', $date->startOfDay()->toDateString());
     }
 }

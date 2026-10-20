@@ -695,17 +695,28 @@ class CompTimeService
         $code = $row['employee_code'];
 
         if (!isset($cache[$code])) {
-            $cache[$code] = Employee::updateOrCreate(
-                ['employee_code' => $code],
-                [
-                    'name'           => $row['employee_name'],
-                    'position'       => $row['position'],
-                    'department'     => $row['department'],
-                    'sector_id'      => $this->resolveSectorId($row['department']),
-                    'cpf'            => $row['cpf'],
-                    'admission_date' => $row['admission_date'],
-                ]
-            );
+            // withTrashed: a matrícula é única contando os excluídos, então
+            // procurar só entre os ativos estouraria o índice ao recriar.
+            $employee = Employee::withTrashed()->firstOrNew(['employee_code' => $code]);
+
+            $employee->fill([
+                'name'           => $row['employee_name'],
+                'position'       => $row['position'],
+                'department'     => $row['department'],
+                // O CPF é gravado só com dígitos pelo próprio model.
+                'cpf'            => $row['cpf'],
+                'admission_date' => $row['admission_date'],
+            ]);
+
+            // O setor é do RH (módulo Funcionários): a importação só o
+            // preenche em quem ainda não tem, e nunca troca o escolhido.
+            if (!$employee->sector_id) {
+                $employee->sector_id = $this->resolveSectorId($row['department']);
+            }
+
+            $employee->save();
+
+            $cache[$code] = $employee;
         }
 
         return $cache[$code];

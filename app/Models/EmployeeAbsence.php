@@ -79,9 +79,11 @@ class EmployeeAbsence extends Model
     {
         $date = ($date ? \Carbon\Carbon::parse($date) : now())->startOfDay()->toDateString();
 
-        return $query->where('start_date', '<=', $date)
+        // whereDate, e não where: comparar a coluna como texto erra no SQLite,
+        // onde a data é gravada com hora ("2026-10-20 00:00:00" < "2026-10-20").
+        return $query->whereDate('start_date', '<=', $date)
             ->where(function (Builder $q) use ($date) {
-                $q->whereNull('end_date')->orWhere('end_date', '>=', $date);
+                $q->whereNull('end_date')->orWhereDate('end_date', '>=', $date);
             });
     }
 }

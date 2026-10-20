@@ -137,6 +137,16 @@ class SectorController extends Controller
                 ->with('error', 'Não é possível excluir o setor "' . $sector->name . '" pois possui membros vinculados.');
         }
 
+        // Todo funcionário tem setor: excluir este deixaria funcionário sem
+        // setor (o banco também recusa — chave restrictOnDelete). Conta os
+        // excluídos também, porque restaurar um deles traria o setor de volta.
+        $employees = $sector->employees()->withTrashed()->count();
+
+        if ($employees > 0) {
+            return redirect()->route('sectors.index')
+                ->with('error', 'Não é possível excluir o setor "' . $sector->name . '" pois ' . $employees . ' funcionário(s) estão nele. Mude-os de setor em Funcionários antes.');
+        }
+
         $sectorName = $sector->name;
         AccessAuditLog::record(AccessAuditLog::SECTOR_DELETED, null, $sector->id, null, [
             'name' => $sectorName,

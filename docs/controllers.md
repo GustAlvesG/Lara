@@ -224,6 +224,25 @@ Autenticação e dados de sócios; integra com a base externa (SQL Server) e ger
 
 ---
 
+## EmployeeController
+
+`app/Http/Controllers/EmployeeController.php` — módulo [Funcionários](funcionalidades/funcionarios.md),
+rotas `employees.*` sob `/funcionarios`, todas com `can:funcionarios.gerenciar`. Depende de
+`EmployeeSectorSync`; valida com `EmployeeRequest`; importa com `EmployeeImport`.
+
+| Método | Descrição | Rota |
+|--------|-----------|------|
+| `index` | Lista paginada com busca (nome, matrícula, CPF) e filtros de setor e situação. | `GET /funcionarios` |
+| `create` | Formulário + bloco de importação. | `GET /funcionarios/novo` |
+| `store` | Cadastra (`source = manual`) e aplica a regra de setor do usuário. | `POST /funcionarios` |
+| `show` | Ficha (abre também o excluído). | `GET /funcionarios/{employee}` |
+| `update` | Edita cadastro e rescisão; reaplica a regra de setor se setor/matrícula/rescisão mudaram. | `PUT /funcionarios/{employee}` |
+| `destroy` / `restore` | Soft delete / restauração. | `DELETE /funcionarios/{employee}`, `POST /funcionarios/{employee}/restaurar` |
+| `importTemplate` / `import` | Modelo .xlsx e importação tudo-ou-nada (cria ou atualiza pela matrícula). | `GET /funcionarios/import/template`, `POST /funcionarios/import` |
+| `storeAbsence` / `destroyAbsence` | Férias e afastamentos. | `POST /funcionarios/{employee}/ausencias`, `DELETE …/ausencias/{absence}` |
+
+---
+
 ## TournamentController  (`app/Http/Controllers/Tournament/`)
 
 Depende de `TournamentService`. Gerencia torneios e categorias.

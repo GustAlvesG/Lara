@@ -75,8 +75,13 @@ veículo.
   que a saída, ou salto acima de `fleet.max_trip_km` (1500 km por padrão) são **recusados
   com aviso**, não bloqueados: reenviar com `force: true` grava e marca a viagem como
   *km a conferir* (`odometer_alert`), que tem filtro próprio no histórico.
-- **Motorista fora da folha entra.** Nome digitado que não corresponde a nenhum
-  funcionário é gravado assim mesmo — nem todo mundo que leva o carro está no cadastro.
+- **O cadastro de [Funcionários](funcionarios.md) autentica o motorista.** Funcionário
+  identificado que está desligado, de férias, afastado ou excluído é **recusado** com
+  `driver_blocked` e o motivo — por matrícula, CPF, nome ou `employee_id`. O `force` não passa
+  por cima. O CPF é comparado só pelos dígitos.
+- **Motorista fora da folha entra** — enquanto `FLEET_REQUIRE_EMPLOYEE=false` (padrão). Nome
+  digitado que não corresponde a nenhum funcionário é gravado assim mesmo. Com a chave ligada
+  (depois da carga do RH), é recusado com `driver_not_employee`.
   A exceção é um **número** (matrícula/CPF) que não encontra ninguém: isso é erro de
   digitação, e é recusado com `driver_not_found`.
 - **Homônimo não vincula.** Nome que encontra mais de um funcionário grava o texto sem
@@ -126,6 +131,8 @@ que fazer, nunca pelo texto da mensagem.
 | `vehicle_already_out` | 409 | Já há saída em aberto | Mostra a `trip` devolvida e oferece registrar o retorno |
 | `driver_required` | 422 | Motorista não informado | Corrige o envio |
 | `driver_not_found` | 404 | Matrícula/CPF não encontrados | Pede o nome (`driver_name`) |
+| `driver_blocked` | 403 | Funcionário desligado, de férias, afastado ou excluído (`reason` traz o motivo) | Mostra a mensagem; não há "forçar" |
+| `driver_not_employee` | 422 | Só com `FLEET_REQUIRE_EMPLOYEE=true`: motorista não está no cadastro | Pede matrícula, CPF ou nome completo |
 | `destination_required` | 422 | Destino vazio | Corrige o envio |
 | `odometer_required` | 422 | Km ausente | Corrige o envio |
 | `odometer_below_last` | 422 | Km de saída menor que a última | Confirma com `force` |
@@ -148,7 +155,7 @@ Base `/api/fleet`, autenticada pelo header `Authorization: Bearer <token>` (midd
 | GET | `/api/fleet/vehicles` | Situação da frota (`?all=1` inclui inativos) |
 | GET | `/api/fleet/trips/open` | Viagens aguardando baixa |
 | GET | `/api/fleet/trips` | Histórico paginado (`vehicle`, `status`, `driver`, `date_from`, `date_to`, `per_page`) |
-| GET | `/api/fleet/drivers?q=` | Autocomplete de motorista (nome, matrícula, CPF) |
+| GET | `/api/fleet/drivers?q=` | Autocomplete de motorista (nome, matrícula, CPF). Só funcionários aptos; cada item traz `sector` |
 | POST | `/api/fleet/departure` | Registra a saída |
 | POST | `/api/fleet/return` | Registra o retorno |
 | POST | `/api/fleet/trips/{trip}/cancel` | Cancela uma saída registrada por engano |

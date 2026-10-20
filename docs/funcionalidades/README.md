@@ -22,6 +22,8 @@ rotas).
 | [Sócios](socios.md) | Login, registro, foto e autenticação JWT (integração MultiClubes). |
 | [Freelancers](freelancers.md) | Cadastro de freelancers, funções e serviços prestados. |
 | [Pix automático (Sicoob)](pix-sicoob.md) | **Movimenta dinheiro real:** o "Dar baixa" do financeiro transfere o valor do contrato via Pix. |
+| [Funcionários](funcionarios.md) | Cadastro do RH (CRUD e planilha .xlsx) com matrícula, CPF e setor; férias, afastamentos e rescisão bloqueiam. Autentica o pedido de carro de aplicativo e o motorista da frota; o setor do funcionário coloca o usuário de mesma matrícula no setor. |
+| [Funcionários — ajuste da portaria](../funcionarios-prompt-portaria.md) | Prompt de **mudança** (20/10/2026) para a aplicação da guarita: `funcionario_bloqueado` no carro de aplicativo e `driver_blocked`/`driver_not_employee` na frota. |
 | [Banco de Horas](banco-de-horas.md) | Importação de ponto, cálculo de saldo e ajustes. |
 | [Torneios](torneios.md) | Torneios, categorias, times, inscrições e pagamentos. |
 | [Placar Clube — cadastro](placar-clube.md) | Equipes, times, jogadores, competições e jogos do placar eletrônico; "Cadastrar" × "Cadastrar e criar outro"; Novo Jogo filtrado por categoria. |

@@ -67,7 +67,10 @@ resposta.
   `fleet.clock_skew_minutes`). Nada fecha sozinho; aberta há mais de
   `fleet.open_trip_alert_hours` fica destacada.
 - Motorista: nome/matrícula/CPF; número que não acha ninguém é erro (`driver_not_found`);
-  homônimo grava texto sem vínculo. Funcionários vêm de `employees` (ver memória: CPF misto).
+  homônimo grava texto sem vínculo. Funcionários vêm do módulo [Funcionários](Funcion%C3%A1rios.md):
+desligado, de férias ou afastado é recusado (`driver_blocked`, 403) e não aparece na busca;
+com `FLEET_REQUIRE_EMPLOYEE=true` quem não está no cadastro também (`driver_not_employee`). CPF é
+gravado só com dígitos desde 20/10/2026.
 - Veículo com viagem não se exclui, só desativa — e desativar tira a liberação da cancela.
 
 ## Peças

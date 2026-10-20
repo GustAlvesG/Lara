@@ -103,7 +103,11 @@
 
                             <div class="mt-3 flex flex-wrap items-center gap-3 text-sm">
                                 @if ($appCar->memberValidationLabel())
-                                    <x-pill :kind="$appCar->member_validation === \App\Models\UberAccessRequest::MEMBER_VALIDATION_VALIDADO ? 'ok' : 'warn'">{{ $appCar->memberValidationLabel() }}</x-pill>
+                                    <x-pill :kind="match ($appCar->member_validation) {
+                                        \App\Models\UberAccessRequest::MEMBER_VALIDATION_VALIDADO => 'ok',
+                                        \App\Models\UberAccessRequest::MEMBER_VALIDATION_FUNCIONARIO_BLOQUEADO => 'danger',
+                                        default => 'warn',
+                                    }">{{ $appCar->memberValidationLabel() }}{{ $appCar->member_validation_detail ? ' — ' . $appCar->member_validation_detail : '' }}</x-pill>
                                 @endif
                                 @if ($appCar->screenshot_url)
                                     <a href="{{ $appCar->screenshot_url }}" target="_blank" rel="noopener" class="font-bold text-grena-ink no-underline hover:underline">Abrir print da corrida</a>

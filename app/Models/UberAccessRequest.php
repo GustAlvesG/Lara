@@ -39,8 +39,12 @@ class UberAccessRequest extends Model
     public const MEMBER_VALIDATION_VALIDADO = 'validado';
     public const MEMBER_VALIDATION_NAO_ENCONTRADO = 'nao_encontrado';
     public const MEMBER_VALIDATION_INDISPONIVEL = 'indisponivel';
+    // Nome e matrícula/CPF conferem com um funcionário, mas ele está
+    // desligado, de férias ou afastado — o motivo vai em
+    // `member_validation_detail`.
+    public const MEMBER_VALIDATION_FUNCIONARIO_BLOQUEADO = 'funcionario_bloqueado';
 
-    /** Quem conferiu, quando member_validation é "validado". */
+    /** Quem conferiu, quando member_validation é "validado" (ou funcionário bloqueado). */
     public const MEMBER_TYPE_SOCIO = 'socio';
     public const MEMBER_TYPE_FUNCIONARIO = 'funcionario';
 
@@ -48,6 +52,15 @@ class UberAccessRequest extends Model
         self::MEMBER_VALIDATION_VALIDADO        => 'Sócio confere',
         self::MEMBER_VALIDATION_NAO_ENCONTRADO  => 'Nome/matrícula/CPF não confere',
         self::MEMBER_VALIDATION_INDISPONIVEL    => 'Não foi possível conferir',
+        self::MEMBER_VALIDATION_FUNCIONARIO_BLOQUEADO => 'Funcionário bloqueado',
+    ];
+
+    /** Cor do selo da conferência nas telas (classes de token). */
+    public const MEMBER_VALIDATION_COLORS = [
+        self::MEMBER_VALIDATION_VALIDADO        => 'bg-ok-soft text-ok',
+        self::MEMBER_VALIDATION_NAO_ENCONTRADO  => 'bg-warn-soft text-warn',
+        self::MEMBER_VALIDATION_INDISPONIVEL    => 'bg-subtle text-ink-2',
+        self::MEMBER_VALIDATION_FUNCIONARIO_BLOQUEADO => 'bg-danger-soft text-danger',
     ];
 
     public function memberValidationLabel(): ?string
@@ -107,6 +120,8 @@ class UberAccessRequest extends Model
         'member_validation',
         'member_validation_name',
         'member_validation_type',
+        'member_validation_detail',
+        'employee_id',
         'member_validated_at',
         'completed_at',
         'expires_at',

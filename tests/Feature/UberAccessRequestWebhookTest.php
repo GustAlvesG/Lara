@@ -6,12 +6,14 @@ use App\Exceptions\PoliListMessageNotIndexedException;
 use App\Jobs\CloseUberCaptureSession;
 use App\Jobs\ProcessUberAccessRequestMessage;
 use App\Models\Employee;
+use App\Models\EmployeeAbsence;
 use App\Models\UberAccessRequest;
 use App\Models\UberAccessRequestMessage;
 use App\Services\MultiClubes\TitleMemberLookup;
 use App\Services\Poli\ParsedPoliMessage;
 use App\Services\UberAccessRequestFlow;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
@@ -49,6 +51,16 @@ class UberAccessRequestWebhookTest extends TestCase
         // Funcionários também podem pedir: a conferência consulta a tabela
         // employees de verdade (é banco local), só o MultiClubes é falso.
         (require base_path('database/migrations/2026_01_05_141304_banco_de_horas.php'))->up();
+
+        // O cadastro de Funcionários: setor, rescisão, férias/afastamento (que
+        // bloqueiam) e o funcionário gravado no pedido.
+        Schema::withoutForeignKeyConstraints(function () {
+            (require base_path('database/migrations/2026_06_05_102714_create_sectors_table.php'))->up();
+            (require base_path('database/migrations/2026_09_01_090200_add_sector_and_employment_to_employees.php'))->up();
+            (require base_path('database/migrations/2026_09_01_090300_create_employee_absences_table.php'))->up();
+            (require base_path('database/migrations/2026_10_20_100000_prepare_employees_for_registry.php'))->up();
+            (require base_path('database/migrations/2026_10_20_100100_add_employee_to_uber_access_requests.php'))->up();
+        });
 
         // Sem SQL Server nos testes: por padrão o título não devolve ninguém.
         // Cada teste que precisa sobrescreve com fakeTitleMembers().
@@ -917,6 +929,37 @@ class UberAccessRequestWebhookTest extends TestCase
 
         $this->assertSame(UberAccessRequest::MEMBER_VALIDATION_NAO_ENCONTRADO, $request->member_validation);
         $this->assertNull($request->member_validation_type);
+    }
+
+    public function test_validated_employee_is_recorded_on_the_request(): void
+    {
+        $employee = $this->makeEmployee('12152', '121.983.027-56', 'DANIELLE TRINDADE BERION');
+
+        $request = $this->completeFlow(name: 'Danielle', matricula: '12152');
+
+        $this->assertSame($employee->id, $request->employee_id);
+        $this->assertNull($request->member_validation_detail);
+    }
+
+    public function test_employee_on_vacation_or_terminated_is_flagged_as_blocked(): void
+    {
+        $onVacation = $this->makeEmployee('12152', '121.983.027-56', 'DANIELLE TRINDADE BERION');
+        EmployeeAbsence::create([
+            'employee_id' => $onVacation->id,
+            'type' => EmployeeAbsence::TYPE_VACATION,
+            'start_date' => now()->subDay()->toDateString(),
+            'end_date' => now()->addDays(10)->toDateString(),
+        ]);
+
+        $request = $this->completeFlow(name: 'Danielle', matricula: '12152');
+
+        $this->assertSame(UberAccessRequest::MEMBER_VALIDATION_FUNCIONARIO_BLOQUEADO, $request->member_validation);
+        $this->assertSame(UberAccessRequest::MEMBER_TYPE_FUNCIONARIO, $request->member_validation_type);
+        $this->assertSame('Férias até ' . now()->addDays(10)->format('d/m/Y'), $request->member_validation_detail);
+        $this->assertSame($onVacation->id, $request->employee_id);
+        $this->assertSame('Funcionário bloqueado', $request->memberValidationLabel());
+        // Não trava o pedido: quem decide é a portaria, que vê o motivo.
+        $this->assertSame(UberAccessRequest::STATUS_AGUARDANDO_ACESSO, $request->status);
     }
 
     public function test_media_out_of_order_does_not_advance_state(): void

@@ -20,7 +20,8 @@ Visão geral do esquema: migrações, seeders e factories. Os detalhes de cada e
 | **Espaços sociais** | `social_bookings`, `social_booking_items`, `social_booking_guests`, `social_beverages` |
 | **Agendamento** | `schedule_rules`, `place_schedule_rule` (pivô), `week_days_schedule_rule` (pivô), `schedules`, `schedule_payments`, `status`, `status_config` |
 | **Freelancers** | `freelancers`, `function_freelancers`, `freelancer_services` |
-| **Banco de horas** | `employees`, `time_entries`, `time_adjustments`, `banco_de_horas` |
+| **Funcionários** | `employees` (cadastro do RH; CPF só dígitos, `sector_id` obrigatório, `source`), `employee_absences` |
+| **Banco de horas** | `time_entries`, `time_adjustments`, `banco_de_horas` (e `employees`, acima) |
 | **Empresas** | `companies`, `company_workers`, `company_access_rules`, `week_days_company_access_rule` (pivô), `access`, `access_rules`, `outers` |
 | **Torneios** | `tournaments`, `categories`, `tournaments_categories` (pivô), `teams`, `team_member` (pivô), `tournament_subscription`, `tournament_subscription_payment` |
 | **WhatsApp** | `contacts`, `conversations`, `messages`, `media_attachments`, `templates`, `webhook_logs` |

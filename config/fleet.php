@@ -53,4 +53,18 @@ return [
     */
     'gate_validity_years' => (int) env('FLEET_GATE_VALIDITY_YEARS', 10),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Motorista precisa ser funcionário cadastrado
+    |--------------------------------------------------------------------------
+    |
+    | Funcionário desligado, de férias ou afastado é sempre recusado. Esta
+    | chave vai além: recusa também quem não está no cadastro de Funcionários
+    | (nome digitado sem vínculo). Desligada até o RH terminar a carga dos
+    | funcionários pela planilha — ligada antes disso, a portaria deixaria de
+    | registrar saídas legítimas.
+    |
+    */
+    'require_employee' => (bool) env('FLEET_REQUIRE_EMPLOYEE', false),
+
 ];

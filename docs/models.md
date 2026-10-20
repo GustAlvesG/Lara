@@ -163,9 +163,17 @@ deletes, scopes globais, etc.).
 ## Banco de horas
 
 ### Employee
+Cadastro do módulo [Funcionários](funcionalidades/funcionarios.md) (também usado pelo Banco de Horas).
 - **Tabela:** `employees` · **SoftDeletes**
-- **`$fillable`:** `employee_code`, `name`, `cpf`, `admission_date`, `position`, `department`
-- **Relacionamentos:** `timeEntries()` hasMany TimeEntry
+- **`$fillable`:** `employee_code`, `name`, `cpf`, `admission_date`, `position`, `department`, `sector_id`, `termination_date`, `termination_reason`, `source`
+- **Mutator:** `cpf` gravado só com dígitos (`Cpf::digits`).
+- **Relacionamentos:** `timeEntries()` hasMany TimeEntry · `sector()` belongsTo Sector · `absences()` hasMany EmployeeAbsence · `user()` hasOne User pela matrícula (`users.matricula` = `employee_code`, sem FK)
+- **Regras:** `blockReason($data)` (motivo do bloqueio ou null: excluído, desligado, férias, afastamento) · `isEligible()` · escopos `eligible()`, `active()`, `terminated()`
+- **Constantes:** `SOURCE_IMPORT`, `SOURCE_MANUAL`, `SOURCE_SPREADSHEET`, `SOURCES`
+
+### EmployeeAbsence
+- **Tabela:** `employee_absences` · `type` (`vacation`/`leave`), `start_date`, `end_date` (nula = em aberto), `notes`, `created_by`
+- **Escopo:** `current($data)` — vigentes na data (compara com `whereDate`)
 
 ### TimeEntry
 - **Tabela:** `time_entries`

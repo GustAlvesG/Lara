@@ -7,6 +7,7 @@ use App\Authorization\AccessManager;
 use App\Models\AccessAuditLog;
 use App\Models\Sector;
 use App\Models\User;
+use App\Services\Employees\EmployeeSectorSync;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -30,8 +31,10 @@ use Illuminate\Support\Facades\Hash;
  */
 class MySectorController extends Controller
 {
-    public function __construct(private readonly AccessManager $access)
-    {
+    public function __construct(
+        private readonly AccessManager $access,
+        private readonly EmployeeSectorSync $employeeSectors,
+    ) {
     }
 
     public function index(Request $request)
@@ -128,7 +131,10 @@ class MySectorController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return back()->with('success', 'Usuário "' . $user->name . '" cadastrado e colocado no setor.');
+        // Matrícula de funcionário: o setor dele (módulo Funcionários) vale também.
+        $joined = $this->employeeSectors->syncUser($user);
+
+        return back()->with('success', trim('Usuário "' . $user->name . '" cadastrado e colocado no setor. ' . $joined));
     }
 
     public function removeMember(Request $request, Sector $sector, User $user)

@@ -50,17 +50,26 @@ class MemberValidatorTest extends \Tests\TestCase
             }
         };
 
+        // Funcionário: o nome (apto) ou ['name' => ..., 'blocked' => motivo].
         $employees = new class($employeesByCode, $employeesByCpf) extends EmployeeLookup {
             public function __construct(private array $byCode, private array $byCpf) {}
 
-            public function namesForCode(string $code): array
+            public function forCode(string $code): array
             {
-                return $this->byCode;
+                return $this->rows($this->byCode);
             }
 
-            public function namesForCpf(string $cpfDigits): array
+            public function forCpf(string $cpfDigits): array
             {
-                return $this->byCpf;
+                return $this->rows($this->byCpf);
+            }
+
+            private function rows(array $employees): array
+            {
+                return array_map(fn ($employee, $i) => is_array($employee)
+                    ? ['id' => $i + 1, 'name' => $employee['name'], 'blocked' => $employee['blocked'] ?? null]
+                    : ['id' => $i + 1, 'name' => $employee, 'blocked' => null],
+                    $employees, array_keys($employees));
             }
         };
 
@@ -230,6 +239,59 @@ class MemberValidatorTest extends \Tests\TestCase
             UberAccessRequest::MEMBER_TYPE_SOCIO,
             $validator()->validate('12152', 'Hilda')
         );
+    }
+
+    // --- Funcionário bloqueado (desligado, férias, afastamento) ---------------
+
+    public function test_blocked_employee_by_cpf_is_reported_with_the_reason(): void
+    {
+        $result = $this->validator(employeesByCpf: [['name' => 'DANIELLE TRINDADE BERION', 'blocked' => 'Férias até 25/10/2026']])
+            ->validate('12198302756', 'Danielle');
+
+        $this->assertResult(UberAccessRequest::MEMBER_VALIDATION_FUNCIONARIO_BLOQUEADO, UberAccessRequest::MEMBER_TYPE_FUNCIONARIO, $result);
+        $this->assertSame('Férias até 25/10/2026', $result->detail);
+        $this->assertSame(1, $result->employeeId);
+    }
+
+    public function test_blocked_employee_does_not_hide_a_member_with_the_same_code(): void
+    {
+        // Mesmo número dos dois lados: a sócia que confere não tem nada com as
+        // férias da funcionária.
+        $result = $this->validator(
+            titleNames: ['DANIELLE AQUINO'],
+            employeesByCode: [['name' => 'DANIELLE TRINDADE BERION', 'blocked' => 'Desligado em 01/10/2026']]
+        )->validate('12152', 'Danielle');
+
+        $this->assertResult(UberAccessRequest::MEMBER_VALIDATION_VALIDADO, UberAccessRequest::MEMBER_TYPE_SOCIO, $result);
+    }
+
+    public function test_blocked_employee_by_code_wins_over_not_found_and_outage(): void
+    {
+        $blocked = [['name' => 'DANIELLE TRINDADE BERION', 'blocked' => 'Desligado em 01/10/2026']];
+
+        $this->assertResult(
+            UberAccessRequest::MEMBER_VALIDATION_FUNCIONARIO_BLOQUEADO,
+            UberAccessRequest::MEMBER_TYPE_FUNCIONARIO,
+            $this->validator(employeesByCode: $blocked)->validate('12152', 'Danielle')
+        );
+
+        $this->assertResult(
+            UberAccessRequest::MEMBER_VALIDATION_FUNCIONARIO_BLOQUEADO,
+            UberAccessRequest::MEMBER_TYPE_FUNCIONARIO,
+            $this->validator(new RuntimeException('sql server unreachable'), $blocked)->validate('12152', 'Danielle')
+        );
+    }
+
+    public function test_eligible_employee_wins_over_blocked_one(): void
+    {
+        $result = $this->validator(employeesByCode: [
+            ['name' => 'DANIELLE ANTIGA', 'blocked' => 'Cadastro excluído'],
+            'DANIELLE TRINDADE BERION',
+        ])->validate('12152', 'Danielle');
+
+        $this->assertResult(UberAccessRequest::MEMBER_VALIDATION_VALIDADO, UberAccessRequest::MEMBER_TYPE_FUNCIONARIO, $result);
+        $this->assertSame('DANIELLE TRINDADE BERION', $result->matchedName);
+        $this->assertNull($result->detail);
     }
 
     public function test_employee_still_validates_when_multiclubes_is_down(): void

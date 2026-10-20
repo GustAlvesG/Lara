@@ -52,6 +52,12 @@ onde veio cada permissão (usado no painel "Acesso efetivo" da tela de Usuários
   não decide acesso.
 - Menu e layout: nunca método do model que consulte banco (quebra testes com `User` mockado) —
   use `can()`.
+- **Setor também vem do funcionário.** O setor de um funcionário ([Funcionários](Funcion%C3%A1rios.md))
+  coloca o usuário de mesma matrícula nele, como colaborador
+  (`AccessManager::addMemberFromEmployee`, auditado com `details.via = funcionarios`). Só
+  acrescenta: tirar daqui é manual. Disparado pela tela de Funcionários, pela planilha, pela tela
+  de Usuários e pelo "Meu setor" quando há matrícula.
+- **Setor com funcionário não pode ser excluído** (contando os funcionários excluídos).
 
 ## Meu setor
 

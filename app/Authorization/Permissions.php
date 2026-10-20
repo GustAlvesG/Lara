@@ -103,6 +103,11 @@ final class Permissions
     // acesso total, o Marketing recebe na tela de Setores.
     public const REPLAY = 'replay';
 
+    // Cadastro de funcionários (RH): criar, editar, desligar, excluir, férias
+    // e afastamentos e a importação por planilha. É o cadastro que autentica
+    // quem pede carro de aplicativo e quem dirige a frota.
+    public const FUNCIONARIOS_GERENCIAR = 'funcionarios.gerenciar';
+
     public const BANCO_HORAS_ADMIN = 'banco-horas.admin';
     public const TELEGRAM_LOGIN = 'telegram.login';
     public const TORNEIOS = 'torneios';
@@ -168,7 +173,9 @@ final class Permissions
 
         self::REPLAY => ['RePET', 'Câmeras, layouts de logomarca e vídeos das quadras'],
 
-        self::BANCO_HORAS_ADMIN => ['Banco de Horas', 'Importar espelho e administrar funcionários'],
+        self::FUNCIONARIOS_GERENCIAR => ['Funcionários', 'Cadastro de funcionários, férias, afastamentos e importação por planilha'],
+
+        self::BANCO_HORAS_ADMIN => ['Banco de Horas', 'Importar espelho de ponto'],
 
         self::TELEGRAM_LOGIN => ['Integrações', 'Login pela API do Telegram'],
         self::TORNEIOS => ['Outros', 'Torneios e categorias'],

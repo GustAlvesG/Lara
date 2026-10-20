@@ -467,6 +467,8 @@ class CompanyService
                 'member_validation_label' => $request->memberValidationLabel(),
                 'member_validation_name'  => $request->member_validation_name,
                 'member_validation_type'  => $request->member_validation_type,
+                'member_validation_detail' => $request->member_validation_detail,
+                'employee_id'             => $request->employee_id,
             ],
             'workers'    => [[
                 'id'        => $request->id,
@@ -621,7 +623,9 @@ class CompanyService
             'member_validation_label' => $request->memberValidationLabel(),
             'member_validation_name'  => $request->member_validation_name,
             'member_validation_type'  => $request->member_validation_type,
-            'requested_at'          => optional($request->completed_at ?? $request->created_at)->toIso8601String(),
+            'member_validation_detail' => $request->member_validation_detail,
+            'employee_id'             => $request->employee_id,
+            'requested_at'         => optional($request->completed_at ?? $request->created_at)->toIso8601String(),
         ];
     }
 

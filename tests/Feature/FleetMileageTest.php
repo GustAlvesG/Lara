@@ -24,6 +24,11 @@ class FleetMileageTest extends TestCase
         Schema::withoutForeignKeyConstraints(function () {
             (require base_path('database/migrations/2026_01_05_141304_banco_de_horas.php'))->up();
             (require base_path('database/migrations/2026_08_28_100000_create_fleet_tables.php'))->up();
+            // Cadastro de Funcionários: rescisão e férias/afastamento bloqueiam o motorista.
+            (require base_path('database/migrations/2026_06_05_102714_create_sectors_table.php'))->up();
+            (require base_path('database/migrations/2026_09_01_090200_add_sector_and_employment_to_employees.php'))->up();
+            (require base_path('database/migrations/2026_09_01_090300_create_employee_absences_table.php'))->up();
+            (require base_path('database/migrations/2026_10_20_100000_prepare_employees_for_registry.php'))->up();
         });
     }
 
@@ -72,6 +77,71 @@ class FleetMileageTest extends TestCase
 
         $this->assertSame(45210, $vehicle->fresh()->current_odometer);
         $this->assertSame('out', $result['vehicle']['status']);
+    }
+
+    private function departureWith(array $driver): array
+    {
+        $this->vehicle('Celta');
+
+        return $this->service()->registerDeparture($driver + [
+            'vehicle'     => 'celta',
+            'destination' => 'Banco',
+            'odometer'    => 100,
+        ]);
+    }
+
+    public function test_motorista_por_cpf_com_ou_sem_mascara_vincula_o_funcionario(): void
+    {
+        // Gravado com máscara (como vinha do espelho de ponto): o model guarda só os dígitos.
+        $employee = $this->employee(['cpf' => '123.456.789-09']);
+
+        $result = $this->departureWith(['driver' => '123.456.789-09']);
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame($employee->id, $result['trip']['driver']['employee_id']);
+        $this->assertSame('12345678909', $result['trip']['driver']['document']);
+    }
+
+    public function test_motorista_desligado_ou_de_ferias_e_recusado(): void
+    {
+        $this->employee(['employee_code' => '1234', 'termination_date' => now()->subDay()->toDateString()]);
+        $onLeave = $this->employee(['employee_code' => '5678', 'cpf' => '52998224725', 'name' => 'Ana Lima']);
+        \App\Models\EmployeeAbsence::create([
+            'employee_id' => $onLeave->id,
+            'type' => \App\Models\EmployeeAbsence::TYPE_LEAVE,
+            'start_date' => now()->toDateString(),
+        ]);
+
+        $terminated = $this->departureWith(['driver' => '1234']);
+        $this->assertFalse($terminated['ok']);
+        $this->assertSame('driver_blocked', $terminated['error']);
+        $this->assertStringContainsString('Desligado em', $terminated['message']);
+        $this->assertSame(403, FleetService::ERROR_STATUS['driver_blocked']);
+
+        $absent = $this->service()->registerDeparture([
+            'vehicle' => 'celta', 'employee_id' => $onLeave->id, 'destination' => 'Banco', 'odometer' => 100,
+        ]);
+        $this->assertSame('driver_blocked', $absent['error']);
+        $this->assertSame('Afastamento (sem data de retorno)', $absent['reason']);
+
+        $this->assertSame(0, FleetTrip::count());
+        // Nem aparece na busca da portaria.
+        $this->assertSame([], $this->service()->searchDrivers('Ana'));
+    }
+
+    public function test_exigir_funcionario_recusa_nome_sem_cadastro(): void
+    {
+        config(['fleet.require_employee' => true]);
+
+        $result = $this->departureWith(['driver' => 'Visitante Qualquer']);
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('driver_not_employee', $result['error']);
+
+        config(['fleet.require_employee' => false]);
+        $this->assertTrue($this->service()->registerDeparture([
+            'vehicle' => 'celta', 'driver' => 'Visitante Qualquer', 'destination' => 'Banco', 'odometer' => 100,
+        ])['ok']);
     }
 
     public function test_veiculo_resolve_por_nome_sem_acento_e_por_placa(): void

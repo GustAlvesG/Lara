@@ -58,11 +58,7 @@
         </div>
 
         @php
-            $validationColors = [
-                \App\Models\UberAccessRequest::MEMBER_VALIDATION_VALIDADO       => 'bg-ok-soft text-ok',
-                \App\Models\UberAccessRequest::MEMBER_VALIDATION_NAO_ENCONTRADO => 'bg-warn-soft text-warn',
-                \App\Models\UberAccessRequest::MEMBER_VALIDATION_INDISPONIVEL   => 'bg-subtle text-ink-2',
-            ];
+            $validationColors = \App\Models\UberAccessRequest::MEMBER_VALIDATION_COLORS;
         @endphp
 
         @if($validos->isNotEmpty() || $expirados->isNotEmpty() || $emPreenchimento->isNotEmpty())

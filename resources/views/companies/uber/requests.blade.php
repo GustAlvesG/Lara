@@ -180,11 +180,7 @@
                 'expirado'          => 'bg-danger-soft text-danger',
             ];
 
-            $validationColors = [
-                \App\Models\UberAccessRequest::MEMBER_VALIDATION_VALIDADO       => 'bg-ok-soft text-ok',
-                \App\Models\UberAccessRequest::MEMBER_VALIDATION_NAO_ENCONTRADO => 'bg-warn-soft text-warn',
-                \App\Models\UberAccessRequest::MEMBER_VALIDATION_INDISPONIVEL   => 'bg-subtle text-ink-2',
-            ];
+            $validationColors = \App\Models\UberAccessRequest::MEMBER_VALIDATION_COLORS;
         @endphp
 
         <!-- Tabela -->
@@ -269,6 +265,9 @@
                                         </span>
                                         @if($req->member_validation_name)
                                             <p class="text-xs text-ink-3 mt-0.5">{{ $req->member_validation_name }}</p>
+                                        @endif
+                                        @if($req->member_validation_detail)
+                                            <p class="text-xs font-bold text-danger mt-0.5">{{ $req->member_validation_detail }}</p>
                                         @endif
                                     @else
                                         <span class="text-ink-3">—</span>

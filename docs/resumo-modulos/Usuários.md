@@ -20,6 +20,10 @@ onde se responde "por que fulano leva 403".
   Perfil (`profile.pin.update`), e lá pede a senha atual de propósito.
 - Login do painel por **e-mail ou matrícula** (`LoginRequest::identifierField()`, aba escolhida no
   formulário).
+- A matrícula também casa a conta com o **funcionário** de mesma matrícula
+  ([Funcionários](Funcion%C3%A1rios.md)): ao criar o usuário ou trocar a matrícula, o
+  `UserController` chama `EmployeeSectorSync::syncUser`, que coloca a pessoa no setor do
+  funcionário (colaborador; só acrescenta). O contrário não existe.
 - **O model está preso à conexão `mysql`.** Tabelas em outra conexão não têm FK para `users`
   (guardam id e nome como retrato), e testes precisam de mock ou de
   `tests/Concerns/SharesSqliteWithUserConnection.php`.

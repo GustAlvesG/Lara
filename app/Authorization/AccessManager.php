@@ -125,6 +125,38 @@ class AccessManager
         }, [$sector->id]);
     }
 
+    /**
+     * Coloca o usuário no setor do funcionário de mesma matrícula, como
+     * colaborador. Só acrescenta: quem já está no setor (com qualquer papel)
+     * fica como está, e nada é tirado — mudar o funcionário de setor não tira
+     * o usuário do setor antigo, porque o acesso do usuário pode ter sido
+     * dado ali de propósito. O caminho inverso (setor do usuário → setor do
+     * funcionário) não existe.
+     *
+     * Dispensa as travas de guarded(): acrescentar membro não esvazia setor
+     * nem tira acesso de ninguém. Fica registrado como qualquer outra entrada.
+     *
+     * @return bool se o usuário entrou agora no setor
+     */
+    public function addMemberFromEmployee(Sector $sector, User $user, string $employeeCode): bool
+    {
+        if ($sector->users()->where('users.id', $user->id)->exists()) {
+            return false;
+        }
+
+        $sector->users()->attach($user->id, ['role' => Sector::ROLE_COLLABORATOR]);
+
+        AccessAuditLog::record(AccessAuditLog::SECTOR_MEMBER_ADDED, $user->id, $sector->id, null, [
+            'role' => Sector::ROLE_COLLABORATOR,
+            'via' => 'funcionarios',
+            'matricula' => $employeeCode,
+        ]);
+
+        $user->forgetAccess();
+
+        return true;
+    }
+
     public function setFullAccess(User $actor, Sector $sector, bool $fullAccess): void
     {
         if ($sector->full_access === $fullAccess) {

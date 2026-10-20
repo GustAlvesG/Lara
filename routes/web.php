@@ -24,7 +24,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\SectorController;
 use App\Http\Controllers\MySectorController;
 use App\Http\Controllers\CompTimeController;
-use App\Http\Controllers\CompTimeEmployeeController;
+use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\Fleet\FleetController;
 use App\Http\Controllers\DocumentationController;
@@ -593,14 +593,32 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::get('/import-status/{uuid}/complete', [CompTimeController::class, 'importComplete'])->name('comp-time.import-complete');
             Route::get('/import-preview/{uuid}', [CompTimeController::class, 'showImportPreview'])->name('comp-time.import-preview');
             Route::post('/confirm-import/{uuid}', [CompTimeController::class, 'confirmImport'])->name('comp-time.confirm-import');
-
-            Route::get('/employees', [CompTimeEmployeeController::class, 'index'])->name('comp-time.employees.index');
-            Route::get('/employees/{employee}', [CompTimeEmployeeController::class, 'show'])->name('comp-time.employees.show');
-            Route::put('/employees/{employee}', [CompTimeEmployeeController::class, 'update'])->name('comp-time.employees.update');
-            Route::post('/employees/{employee}/absences', [CompTimeEmployeeController::class, 'storeAbsence'])->name('comp-time.employees.absences.store');
-            Route::delete('/employees/{employee}/absences/{absence}', [CompTimeEmployeeController::class, 'destroyAbsence'])->name('comp-time.employees.absences.destroy');
         });
+
+        // O cadastro de funcionários saiu daqui para o módulo Funcionários;
+        // os endereços antigos só redirecionam.
+        Route::redirect('/employees', '/funcionarios')->name('comp-time.employees.index');
+        Route::redirect('/employees/{employee}', '/funcionarios/{employee}')->name('comp-time.employees.show');
     });
+
+    // Funcionários: o cadastro do RH. É ele que autentica quem pede carro de
+    // aplicativo (Bot WhatsApp) e quem dirige a frota (SIV) — ver
+    // docs/funcionalidades/funcionarios.md. `import` antes de `{employee}`
+    // para não casar como id.
+    Route::prefix('funcionarios')->name('employees.')->middleware('can:' . P::FUNCIONARIOS_GERENCIAR)
+        ->controller(EmployeeController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/novo', 'create')->name('create');
+            Route::post('/', 'store')->name('store');
+            Route::get('/import/template', 'importTemplate')->name('import.template');
+            Route::post('/import', 'import')->name('import');
+            Route::get('/{employee}', 'show')->name('show')->withTrashed();
+            Route::put('/{employee}', 'update')->name('update');
+            Route::delete('/{employee}', 'destroy')->name('destroy');
+            Route::post('/{employee}/restaurar', 'restore')->name('restore')->withTrashed();
+            Route::post('/{employee}/ausencias', 'storeAbsence')->name('absences.store');
+            Route::delete('/{employee}/ausencias/{absence}', 'destroyAbsence')->name('absences.destroy');
+        });
 
 
     // Frota: painel de saída/retorno, histórico de quilometragem e cadastro

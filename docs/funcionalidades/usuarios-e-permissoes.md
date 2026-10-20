@@ -47,12 +47,17 @@ Setores. "Secretaria" é o setor **Atendimento**; "Financeiro" é a
 | Freelancers › Financeiro | `freelancers.financeiro` | Contabilidade |
 | Placar Clube | `placar.cadastro`, `placar.scout` | Esporte |
 | RePET (câmeras, layouts e vídeos das quadras) | `replay` | TI (acesso total); Marketing recebe na tela de Setores |
-| Banco de Horas (administração) | `banco-horas.admin` | RH |
+| Funcionários (cadastro, planilha, férias, afastamentos, rescisão) | `funcionarios.gerenciar` | nasce sem setor (desde 20/10/2026) — dar ao RH na tela de Setores |
+| Banco de Horas (importação do espelho de ponto) | `banco-horas.admin` | RH |
 | Login da API do Telegram | `telegram.login` | Comercial |
 | Locais e regras de reserva, Torneios, Sócios/Acessos | `reservas.configurar`, `torneios`, `socios.consulta` | TI (acesso total) |
 | Usuários, Setores | `usuarios.gerenciar`, `setores.gerenciar` | acesso total |
 
 O Smart Panel saiu do sistema.
+
+Além da tela, um setor também chega a um usuário pelo **funcionário de mesma matrícula**: o setor
+do funcionário (módulo [Funcionários](funcionarios.md)) coloca o usuário nele como colaborador,
+com registro na auditoria. Só acrescenta; tirar continua sendo pela tela de Setores.
 
 ### O que o acesso total não dá
 

@@ -8,6 +8,7 @@ use App\Authorization\Permissions;
 use App\Models\AccessAuditLog;
 use App\Models\Sector;
 use App\Models\User;
+use App\Services\Employees\EmployeeSectorSync;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -25,8 +26,10 @@ use Illuminate\Validation\Rule;
  */
 class UserController extends Controller
 {
-    public function __construct(private readonly AccessManager $access)
-    {
+    public function __construct(
+        private readonly AccessManager $access,
+        private readonly EmployeeSectorSync $employeeSectors,
+    ) {
     }
 
     public function index()
@@ -74,8 +77,11 @@ class UserController extends Controller
             return redirect()->route('users.edit', $user->id)->with('error', $e->getMessage());
         }
 
+        // Matrícula de funcionário: o setor dele vale para o usuário também.
+        $joined = $this->employeeSectors->syncUser($user);
+
         return redirect()->route('users.edit', $user->id)
-            ->with('success', 'Usuário "' . $user->name . '" criado. Confira o acesso efetivo abaixo.');
+            ->with('success', trim('Usuário "' . $user->name . '" criado. ' . $joined . ' Confira o acesso efetivo abaixo.'));
     }
 
     public function edit(User $id)
@@ -124,10 +130,14 @@ class UserController extends Controller
             $user->pin = $request->input('pin');
         }
 
+        $matriculaChanged = $user->isDirty('matricula');
+
         $user->save();
 
+        $joined = $matriculaChanged ? $this->employeeSectors->syncUser($user) : null;
+
         return redirect()->route('users.edit', $user->id)
-            ->with('success', 'Dados de "' . $user->name . '" atualizados.');
+            ->with('success', trim('Dados de "' . $user->name . '" atualizados. ' . $joined));
     }
 
     /** Setores do usuário: sectors[sector_id] = coordinator | collaborator | '' (fora). */

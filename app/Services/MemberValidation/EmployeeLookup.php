@@ -3,46 +3,49 @@
 namespace App\Services\MemberValidation;
 
 use App\Models\Employee;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
- * Consulta de funcionários do clube (tabela local `employees`, alimentada pela
- * importação do banco de horas).
+ * Consulta de funcionários do clube (cadastro do módulo Funcionários).
  *
  * O funcionário pode se identificar pela matrícula (employee_code) ou pelo
- * CPF. Funcionário desligado com soft delete não aparece — o escopo padrão do
- * model já o exclui.
+ * CPF. Funcionário excluído (soft delete) não aparece — o escopo padrão do
+ * model já o exclui. Desligado, de férias ou afastado aparece, mas com o
+ * motivo do bloqueio: quem decide o que fazer com ele é o MemberValidator.
  */
 class EmployeeLookup
 {
     /**
-     * O CPF chega gravado dos dois jeitos (com e sem máscara), então a
-     * comparação remove a pontuação dos dois lados.
+     * O CPF é gravado só com dígitos (ver Employee::cpf()), então a
+     * comparação é direta.
      *
-     * @return string[]
+     * @return list<array{id: int, name: string, blocked: ?string}>
      */
-    public function namesForCpf(string $cpfDigits): array
+    public function forCpf(string $cpfDigits): array
     {
-        return $this->names(
-            Employee::whereRaw("REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ?", [$cpfDigits])
-        );
+        return $this->matches(Employee::where('cpf', $cpfDigits));
     }
 
-    /** @return string[] */
-    public function namesForCode(string $code): array
+    /** @return list<array{id: int, name: string, blocked: ?string}> */
+    public function forCode(string $code): array
     {
         $digits = preg_replace('/\D/', '', $code);
 
-        return $this->names(
+        return $this->matches(
             Employee::whereIn('employee_code', array_values(array_unique(array_filter([$code, $digits]))))
         );
     }
 
-    /** @return string[] */
-    private function names($query): array
+    /** @return list<array{id: int, name: string, blocked: ?string}> */
+    private function matches(Builder $query): array
     {
-        return $query->pluck('name')
-            ->map(fn ($name) => trim((string) $name))
-            ->filter()
+        return $query->with('absences')->get()
+            ->map(fn (Employee $employee) => [
+                'id' => $employee->id,
+                'name' => trim((string) $employee->name),
+                'blocked' => $employee->blockReason(),
+            ])
+            ->filter(fn (array $employee) => $employee['name'] !== '')
             ->values()
             ->all();
     }

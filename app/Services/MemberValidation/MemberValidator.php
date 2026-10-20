@@ -12,7 +12,9 @@ use Throwable;
  * um sócio ou a um funcionário do clube.
  *
  *   - Sócio: identificador é a matrícula do título no MultiClubes.
- *   - Funcionário: identificador é a matrícula (employee_code) ou o CPF.
+ *   - Funcionário: identificador é a matrícula (employee_code) ou o CPF, no
+ *     cadastro do módulo Funcionários. Só o apto "confere"; desligado, de
+ *     férias ou afastado sai como "funcionário bloqueado", com o motivo.
  *
  * A consulta nunca derruba o fluxo: se o SQL Server estiver fora, o resultado
  * é "indisponível" e o pedido segue — quem decide o que fazer com um pedido
@@ -43,23 +45,24 @@ class MemberValidator
         $digits = preg_replace('/\D/', '', $identifier);
 
         if (strlen($digits) === self::CPF_LENGTH) {
-            $employee = $this->firstMatch($this->employees->namesForCpf($digits), $informedName);
+            [$eligible, $blocked] = $this->matchEmployee($this->employees->forCpf($digits), $informedName);
 
-            return $employee !== null
-                ? MemberValidationResult::funcionario($employee)
-                : MemberValidationResult::naoEncontrado();
+            return $this->employeeResult($eligible ?? $blocked) ?? MemberValidationResult::naoEncontrado();
         }
 
         // Matrícula de funcionário e código de título têm o mesmo formato
         // (5 dígitos), então o mesmo número pode existir dos dois lados.
-        // Funcionário primeiro: é banco local, e assim uma queda do
+        // Funcionário apto primeiro: é banco local, e assim uma queda do
         // MultiClubes não esconde um funcionário que confere.
-        $employee = $this->firstMatch($this->employees->namesForCode($identifier), $informedName);
+        [$eligible, $blocked] = $this->matchEmployee($this->employees->forCode($identifier), $informedName);
 
-        if ($employee !== null) {
-            return MemberValidationResult::funcionario($employee);
+        if ($eligible !== null) {
+            return $this->employeeResult($eligible);
         }
 
+        // Funcionário bloqueado só depois do título: o mesmo número pode ser
+        // de um sócio com o mesmo primeiro nome, e ele não tem nada com as
+        // férias do funcionário.
         try {
             $memberNames = $this->titles->namesForTitle($identifier);
         } catch (Throwable $e) {
@@ -68,14 +71,55 @@ class MemberValidator
                 'error' => $e->getMessage(),
             ]);
 
-            return MemberValidationResult::indisponivel();
+            return $this->employeeResult($blocked) ?? MemberValidationResult::indisponivel();
         }
 
         $member = $this->firstMatch($memberNames, $informedName);
 
-        return $member !== null
-            ? MemberValidationResult::socio($member)
-            : MemberValidationResult::naoEncontrado();
+        if ($member !== null) {
+            return MemberValidationResult::socio($member);
+        }
+
+        return $this->employeeResult($blocked) ?? MemberValidationResult::naoEncontrado();
+    }
+
+    /**
+     * Funcionários cujo primeiro nome confere: o primeiro apto e o primeiro
+     * bloqueado (a mesma matrícula/CPF quase sempre é uma pessoa só, mas a
+     * busca por matrícula tenta o texto cru e só os dígitos).
+     *
+     * @param  list<array{id: int, name: string, blocked: ?string}>  $employees
+     * @return array{0: ?array, 1: ?array}
+     */
+    private function matchEmployee(array $employees, string $informedName): array
+    {
+        $eligible = null;
+        $blocked = null;
+
+        foreach ($employees as $employee) {
+            if (!$this->namesMatch($informedName, $employee['name'])) {
+                continue;
+            }
+
+            if ($employee['blocked'] === null) {
+                $eligible ??= $employee;
+            } else {
+                $blocked ??= $employee;
+            }
+        }
+
+        return [$eligible, $blocked];
+    }
+
+    private function employeeResult(?array $employee): ?MemberValidationResult
+    {
+        if ($employee === null) {
+            return null;
+        }
+
+        return $employee['blocked'] === null
+            ? MemberValidationResult::funcionario($employee['name'], $employee['id'])
+            : MemberValidationResult::funcionarioBloqueado($employee['name'], $employee['id'], $employee['blocked']);
     }
 
     /**

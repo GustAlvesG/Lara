@@ -62,6 +62,9 @@
                         @if($req->member_validation_name)
                             <span class="text-xs text-ink-3 ml-1">{{ $req->member_validation_name }}</span>
                         @endif
+                        @if($req->member_validation_detail)
+                            <p class="mt-1 text-xs font-bold text-danger">{{ $req->member_validation_detail }}</p>
+                        @endif
                     </div>
                 @endif
             </div>

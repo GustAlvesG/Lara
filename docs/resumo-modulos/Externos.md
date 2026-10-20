@@ -55,8 +55,11 @@ O `target` digitado decide o tipo (`registerAccess` / `validateTryToAccess`):
   `contact_uuid`: matrícula → nome → local → placa → print → `aguardando_acesso`. Sem resposta
   por `SESSION_TIMEOUT_SECONDS` (200 s) o pedido expira; um novo gatilho recomeça do zero. No
   bot do Lara, o mesmo pedido nasce pela ação `uber_request` (`registrarPedidoDoBot`).
-- O sócio é conferido no MultiClubes (`MemberValidator`): `validado`, `nao_encontrado` ou
-  `indisponivel` — é informativo, não bloqueia.
+- O sócio é conferido no MultiClubes e o funcionário no cadastro de
+  [Funcionários](Funcion%C3%A1rios.md) (`MemberValidator`): `validado`, `nao_encontrado`,
+  `indisponivel` ou `funcionario_bloqueado` (desligado, férias, afastamento — motivo em
+  `member_validation_detail`, funcionário em `employee_id`). É informativo, não bloqueia; o
+  bloqueado sai em vermelho na fila e na API da portaria.
 - A portaria libera **pelo id** do pedido (`GET /api/company-access/uber-waiting` +
   `POST register-uber-request-access`), não pela placa — a placa é o campo que mais chega
   errado. `POST uber-request-plate` corrige a placa.

@@ -85,6 +85,13 @@ class PoliBotEngineTest extends TestCase
             '2026_09_10_100000_add_member_validation_type_to_uber_access_requests.php',
             '2026_09_24_120000_add_ordering_to_uber_access_request_messages.php',
             '2026_01_05_141304_banco_de_horas.php',
+            // Cadastro de Funcionários: a conferência do pedido consulta férias e
+            // afastamentos e grava o funcionário e o motivo do bloqueio.
+            '2026_06_05_102714_create_sectors_table.php',
+            '2026_09_01_090200_add_sector_and_employment_to_employees.php',
+            '2026_09_01_090300_create_employee_absences_table.php',
+            '2026_10_20_100000_prepare_employees_for_registry.php',
+            '2026_10_20_100100_add_employee_to_uber_access_requests.php',
             '2026_09_25_160000_create_poli_bot_tables.php',
             '2026_09_29_120000_add_lara_owner_to_bot_sessions.php',
             '2026_10_16_150000_create_bot_attendance_events_table.php',

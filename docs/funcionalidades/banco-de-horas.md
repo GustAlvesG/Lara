@@ -136,29 +136,32 @@ php artisan tinker --execute="echo DB::table('jobs')->count();"
 
 Job com `attempts = 0` e `created_at` antigo é worker ausente, não job travado.
 
-## Cadastro de funcionários (aba do RH)
+## Cadastro de funcionários
 
-`GET /comp-time/employees` — lista com filtro por setor, busca (nome, matrícula, CPF) e
-situação (ativos / desligados / todos). `GET /comp-time/employees/{employee}` abre a ficha.
+Desde 20/10/2026 o cadastro é o módulo **[Funcionários](funcionarios.md)** (`/funcionarios`,
+permissão `funcionarios.gerenciar`): CRUD, importação por planilha, setor, rescisão, férias e
+afastamentos. Os endereços antigos `/comp-time/employees[/{employee}]` redirecionam para lá, e o
+botão "Funcionários" da tela de importação leva ao módulo (só para quem tem a permissão).
 
-O que se edita aqui:
+Para o Banco de Horas, rescisão, férias e afastamento continuam **informativos**: não
+interferem na importação nem no cálculo de saldo. Fora daqui eles **bloqueiam** o funcionário
+no carro de aplicativo e na frota (ver o guia de Funcionários).
 
-- **Setor** — é por ele que o coordenador enxerga a equipe.
-- **Rescisão** — data e motivo. Limpar a data limpa o motivo.
-- **Férias e afastamento** (`employee_absences`) — data de início obrigatória, data de fim
-  **opcional**. Sem fim, o período é lido como **em aberto**: vale dali em diante até alguém
-  fechar. É o estado normal de um afastamento recém-registrado.
+A importação do espelho de ponto continua criando e atualizando funcionários (nome, CPF, cargo,
+estrutura, admissão), com duas mudanças:
 
-Os três são **informativos**: não interferem na importação nem no cálculo de saldo, e a ficha
-de quem saiu continua inteira. Existem para o cadastro e para o módulo de consulta de
-funcionários ativos que vem depois — que deve usar `Employee::scopeActive()` e
-`EmployeeAbsence::scopeCurrent()`.
+- **não troca o setor** de quem já tem setor — o setor é do RH; só preenche o de quem não tem;
+- o CPF é gravado só com dígitos (o model tira a máscara);
+- procura a matrícula também entre os excluídos, para não estourar o índice único.
+
+Ela **não** coloca o usuário de mesma matrícula no setor — isso é feito pelo módulo
+Funcionários.
 
 ## Campos principais
 
 | Tabela | Campos |
 |--------|--------|
-| `employees` | `employee_code` (único), `name`, `cpf`, `admission_date`, `position`, `department`, `sector_id`, `termination_date`, `termination_reason` |
+| `employees` | `employee_code` (único), `name`, `cpf` (só dígitos), `admission_date`, `position`, `department` (os três aceitam nulo desde 20/10/2026), `sector_id`, `termination_date`, `termination_reason`, `source` — ver [Funcionários](funcionarios.md) |
 | `employee_absences` | `employee_id`, `type` (`vacation`/`leave`), `start_date`, `end_date` (nullable), `notes`, `created_by` |
 | `time_entries` | `employee_id`, `entry_date`, `reference_time`, `entry_times`, `type`, `amount_minutes`, `balance_minutes`, `due_date`, `status_id`, `written_off` |
 | `time_adjustments` | `entry_time_to_adjust_id`, `entry_time_adjusted_id`, `amount_minutes`, `before_adjustment_minutes`, `after_adjustment_minutes`, `reason` |
@@ -177,8 +180,7 @@ funcionários ativos que vem depois — que deve usar `Employee::scopeActive()` 
 | GET | `/comp-time/import-status/{uuid}` (+ `/api`, `/complete`) | dono da importação |
 | GET | `/comp-time/import-preview/{uuid}` | dono da importação |
 | POST | `/comp-time/confirm-import/{uuid}` | dono da importação |
-| GET/PUT | `/comp-time/employees[/{employee}]` | `can:manage-comp-time` |
-| POST/DELETE | `/comp-time/employees/{employee}/absences[/{absence}]` | `can:manage-comp-time` |
+| GET | `/comp-time/employees[/{employee}]` | redireciona para `/funcionarios[/{employee}]` (módulo Funcionários) |
 
 Dar e desfazer baixa recalcula o saldo do funcionário: o lançamento sai (ou volta) da
 compensação, e sem o recálculo a ficha mostraria um total que não corresponde mais aos
@@ -195,6 +197,6 @@ por isso fica fora da suíte em SQLite — mesma limitação registrada nos outr
 
 ## Referência técnica
 
-- Controllers: [`CompTimeController`](../controllers.md#comptimecontroller), `CompTimeEmployeeController`
+- Controllers: [`CompTimeController`](../controllers.md#comptimecontroller) (o antigo `CompTimeEmployeeController` saiu; o cadastro é o `EmployeeController` do módulo Funcionários)
 - Service: [`CompTimeService`](../services.md#comptimeservice)
 - Models: [`Employee`, `EmployeeAbsence`, `TimeEntry`, `TimeAdjustment`, `CompTimeImport`](../models.md#banco-de-horas)

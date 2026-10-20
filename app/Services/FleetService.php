@@ -37,6 +37,8 @@ class FleetService
         'vehicle_already_out'      => 409,
         'driver_required'          => 422,
         'driver_not_found'         => 404,
+        'driver_blocked'           => 403,
+        'driver_not_employee'      => 422,
         'destination_required'     => 422,
         'odometer_required'        => 422,
         'odometer_below_last'      => 422,
@@ -151,7 +153,11 @@ class FleetService
         ];
     }
 
-    /** Autocomplete de motorista na portaria: nome ou matrícula. */
+    /**
+     * Autocomplete de motorista na portaria: nome, matrícula ou CPF. Só
+     * funcionários aptos — desligado, de férias ou afastado nem aparece,
+     * porque a saída dele seria recusada (resolveDriver).
+     */
     public function searchDrivers(string $term, int $limit = 10): array
     {
         $term = trim($term);
@@ -163,6 +169,8 @@ class FleetService
         $digits = preg_replace('/\D/', '', $term);
 
         return Employee::query()
+            ->eligible()
+            ->with('sector')
             ->where(function ($query) use ($term, $digits) {
                 $query->where('name', 'like', "%{$term}%")
                     ->orWhere('employee_code', 'like', "%{$term}%");
@@ -179,6 +187,7 @@ class FleetService
                 'name'          => $employee->name,
                 'employee_code' => $employee->employee_code,
                 'department'    => $employee->department,
+                'sector'        => $employee->sector?->name,
                 'position'      => $employee->position,
             ])
             ->all();
@@ -516,9 +525,45 @@ class FleetService
      * é erro de digitação, não um nome, e gravá-lo como motorista deixaria a
      * viagem sem dono identificável.
      *
+     * O cadastro de Funcionários autentica o motorista:
+     *   - funcionário desligado, de férias ou afastado é recusado
+     *     (`driver_blocked`, com o motivo) — vale para qualquer forma de
+     *     identificação, inclusive `employee_id`;
+     *   - com `fleet.require_employee` ligado, quem não é funcionário
+     *     cadastrado também é recusado (`driver_not_employee`). Desligado por
+     *     padrão até o RH terminar a carga dos funcionários.
+     *
      * @return array{ok: bool, employee?: ?Employee, name?: string, document?: ?string, error?: string, message?: string}
      */
     public function resolveDriver(array $data): array
+    {
+        $result = $this->identifyDriver($data);
+
+        if (!$result['ok']) {
+            return $result;
+        }
+
+        $employee = $result['employee'];
+
+        if ($employee && ($reason = $employee->blockReason()) !== null) {
+            return $this->fail(
+                'driver_blocked',
+                "{$employee->name} não pode retirar veículo da frota: {$reason}.",
+                ['reason' => $reason, 'employee_id' => $employee->id]
+            );
+        }
+
+        if (!$employee && config('fleet.require_employee')) {
+            return $this->fail(
+                'driver_not_employee',
+                'O motorista precisa ser um funcionário cadastrado. Informe a matrícula, o CPF ou o nome completo.'
+            );
+        }
+
+        return $result;
+    }
+
+    private function identifyDriver(array $data): array
     {
         $explicitName = trim((string) ($data['driver_name'] ?? ''));
         $raw = trim((string) ($data['driver'] ?? ''));
@@ -546,7 +591,7 @@ class FleetService
 
         if ($isNumeric) {
             $employee = strlen($digits) === 11
-                ? $this->findEmployeeByCpf($digits, $raw)
+                ? $this->findEmployeeByCpf($digits)
                 : $this->findEmployeeByCode($raw, $digits);
 
             if ($employee) {
@@ -573,9 +618,10 @@ class FleetService
         ];
     }
 
-    private function findEmployeeByCpf(string $digits, string $raw): ?Employee
+    /** O CPF é gravado só com dígitos (ver Employee::cpf()). */
+    private function findEmployeeByCpf(string $digits): ?Employee
     {
-        return Employee::where('cpf', $digits)->orWhere('cpf', $raw)->first();
+        return Employee::where('cpf', $digits)->first();
     }
 
     private function findEmployeeByCode(string $raw, string $digits): ?Employee

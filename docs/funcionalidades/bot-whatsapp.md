@@ -299,7 +299,9 @@ conferir e salvar.
   *HorarioAtendimento* diz 07:10 no fim de semana; vale o *Opções*, que é o que o bot envia).
 - **Pedido de carro de aplicativo** (ação `uber_request`): usa as respostas `matricula`, `nome`,
   `local`, `placa` e `print`, e passa pela mesma conferência de sócio/funcionário e validade de
-  30 min do fluxo escutado. Cria o pedido em toda conversa do O Lara (nunca no simulador); a escuta do
+  30 min do fluxo escutado. O funcionário é conferido no cadastro de
+  [Funcionários](funcionarios.md): desligado, de férias ou afastado sai como
+  `funcionario_bloqueado`, com o motivo, para a portaria decidir. Cria o pedido em toda conversa do O Lara (nunca no simulador); a escuta do
   Uber ignora as conversas do O Lara, para não duplicar.
 - **Histórico:** tudo que o bot recebe e envia fica em `poli_messages`, com CPF e datas
   mascarados. Transferências e encerramentos, com o motivo, ficam em `bot_attendance_events`

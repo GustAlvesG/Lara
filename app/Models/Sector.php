@@ -42,9 +42,10 @@ class Sector extends Model
     }
 
     /**
-     * Funcionários do Banco de Horas lotados neste setor. É o outro lado de
-     * Employee::sector() — o vínculo que substituiu a comparação por texto
-     * entre `employees.department` e `sectors.name`.
+     * Funcionários lotados neste setor (módulo Funcionários). É o outro lado
+     * de Employee::sector() — o vínculo que substituiu a comparação por texto
+     * entre `employees.department` e `sectors.name`. Funcionário no setor
+     * impede excluir o setor (SectorController::destroy).
      */
     public function employees()
     {
