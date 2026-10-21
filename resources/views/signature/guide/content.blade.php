@@ -148,8 +148,9 @@
         <tr><td class="n">8</td><td><a href="#depois">Depois de assinado: onde está o documento e a revisão</a></td><td class="who">todos</td></tr>
         <tr><td class="n">9</td><td><a href="#govbr">Assinatura pelo gov.br (quem não vem ao balcão)</a></td><td class="who">atendimento</td></tr>
         <tr><td class="n">10</td><td><a href="#menores">Termo de Menores (autoatendimento nos eventos)</a></td><td class="who">organização dos eventos, entrada</td></tr>
-        <tr><td class="n">11</td><td><a href="#problemas">Problemas comuns</a></td><td class="who">todos</td></tr>
-        <tr><td class="n">12</td><td><a href="#cola">Cola rápida dos marcadores</a></td><td class="who">quem escreve os modelos</td></tr>
+        <tr><td class="n">11</td><td><a href="#diretoria">Assinatura da Diretoria (diretores no tablet)</a></td><td class="who">atendimento, diretoria</td></tr>
+        <tr><td class="n">12</td><td><a href="#problemas">Problemas comuns</a></td><td class="who">todos</td></tr>
+        <tr><td class="n">13</td><td><a href="#cola">Cola rápida dos marcadores</a></td><td class="who">quem escreve os modelos</td></tr>
     </table>
 </div>
 
@@ -182,6 +183,8 @@
             <code>%%ENDERECO_DO_TABLET%%</code>) e não precisa de login.</li>
         <li><span class="menu">Assinaturas → Termo de Menores</span> — o termo de cada evento, o pareamento do
             tablet de autoatendimento e o histórico de menores autorizados (seção 10).</li>
+        <li><span class="menu">Assinaturas → Diretoria</span> — as áreas da diretoria e quem assina por cada uma,
+            titular e substitutos (seção 11).</li>
         <li>Um item do menu que não aparece para você depende de permissão: peça o acesso à TI.</li>
     </ul>
 
@@ -211,8 +214,8 @@
             esperando um <b>anexo obrigatório</b> que ainda não foi enviado; o quadro Anexos diz qual.</td></tr>
         <tr><td><b>Finalizado</b></td><td>O PDF assinado está pronto para baixar.</td></tr>
         <tr><td><b>Recusado, Cancelado ou Expirado</b></td><td>Encerrado sem assinatura: a pessoa recusou no tablet, o
-            atendente cancelou, ou ninguém assinou dentro do prazo (por padrão, 24 horas no balcão e 7 dias pelo
-            gov.br).</td></tr>
+            atendente cancelou, ou ninguém assinou dentro do prazo (por padrão, 24 horas no balcão, 7 dias pelo
+            gov.br e 7 dias quando há diretor entre os signatários).</td></tr>
     </table>
 
     <div class="box warn">
@@ -814,7 +817,9 @@
             <td>Prepare e <b>congele</b> o documento como sempre. Abra a aba <span class="menu">Assinatura gov.br</span>
                 e clique em <span class="btn">Preparar para o gov.br</span>.<br>
                 <span class="small">A partir daí o documento é assinado só pelo gov.br (o tablet não libera mais), a
-                data da assinatura entra no texto, se o modelo tiver esse campo, e o prazo passa a ser de 7 dias.</span></td>
+                data da assinatura entra no texto, se o modelo tiver esse campo, e o prazo passa a ser de 7 dias. Se o
+                modelo pede <b>visto</b>, ele é retirado deste documento: a assinatura do gov.br vale para o arquivo
+                inteiro.</span></td>
         </tr>
         <tr>
             <td class="n"><span class="num">2</span></td>
@@ -878,8 +883,11 @@
     <div class="keep">
     <h3>O que vale saber</h3>
     <ul>
-        <li><b>Não serve para todo documento.</b> Modelo com perguntas respondidas no tablet e modelo com visto em
-            todas as páginas são assinados só no balcão — a aba avisa.</li>
+        <li><b>Não serve para todo documento.</b> Documento com perguntas respondidas no tablet é assinado só no
+            balcão — a aba avisa.</li>
+        <li><b>Modelo com visto também vai ao gov.br:</b> ao preparar, o visto sai deste documento (o PDF é refeito
+            sem as caixas de visto). Por isso, baixe ou envie o PDF <b>depois</b> de preparar — um arquivo baixado
+            antes ainda tinha as caixas e é recusado.</li>
         <li><b>O arquivo tem de ser o que saiu do gov.br, sem mexer.</b> Abrir e salvar de novo em outro programa
             (inclusive "imprimir em PDF") desfaz a assinatura, e o arquivo é recusado.</li>
         <li><b>Quem confere é o CPF, não o nome.</b> A assinatura de alguém que não está na lista de signatários é
@@ -986,8 +994,84 @@
 </div>
 
 <!-- ====================================================== 11 -->
+<div class="section" id="diretoria">
+    <h2>11. Assinatura da Diretoria (diretores no tablet)</h2>
+
+    <p>Diretores do clube assinam documentos <b>sem passar pelo atendente</b>: no tablet do balcão, tocam em
+        <span class="btn">Assinatura da Diretoria</span>, entram com a <b>matrícula e o PIN do Lara</b> e veem todos
+        os documentos que esperam a assinatura deles.</p>
+
+    <h3>Antes: cadastrar as áreas</h3>
+    <table class="steps">
+        <tr>
+            <td class="n"><span class="num">1</span></td>
+            <td>Em <span class="menu">Assinaturas → Diretoria</span>, crie cada área ("Diretoria Financeira",
+                "Diretoria Social"). O nome sai impresso sob o nome de quem assina.</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">2</span></td>
+            <td>Em cada área, inclua o <b>titular</b> e, se houver, os <b>substitutos</b>. Só aparecem diretores do
+                setor <b>Diretoria</b>, ativos e com matrícula. Um titular novo encerra o anterior; o histórico fica na
+                tela.<br>
+                <span class="small">O diretor precisa de <b>CPF</b> no cadastro: em <span class="menu">Usuários</span>,
+                abra o usuário e preencha o campo <b>CPF</b> (ou cadastre-o em <span class="menu">Funcionários</span>,
+                com a mesma matrícula). Sem CPF, ele aparece na lista do documento como "sem CPF no cadastro" e não
+                pode ser escolhido.</span></td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">3</span></td>
+            <td><span class="t">Opcional, no modelo:</span> numa parte de assinatura (por exemplo "Clube"), escolha
+                <b>Assinada pela diretoria</b> e a área. Todo documento desse modelo já nasce com o titular dela.</td>
+        </tr>
+    </table>
+
+    <h3>No balcão: emitir o documento</h3>
+    <ul>
+        <li>No signatário, use <b>Diretor do clube</b> e escolha o <b>titular ou um substituto</b>. Nome, CPF e e-mail
+            vêm do cadastro do Lara — não é preciso digitar.</li>
+        <li>A pessoa escolhida é a que assina: o nome e o CPF dela vão impressos no documento. Se ela não puder
+            assinar, <b>cancele e emita de novo</b> com quem a substitui.</li>
+        <li>Ao congelar, o diretor recebe um <b>e-mail de aviso</b> (sem link) e o documento ganha <b>7 dias</b> de
+            prazo. A lista <span class="menu">Documentos</span> tem o filtro <b>Aguardando diretoria</b>.</li>
+    </ul>
+
+    <h3>No tablet: o diretor assina</h3>
+    <table class="steps">
+        <tr>
+            <td class="n"><span class="num">1</span></td>
+            <td>Na tela de espera, toque em <span class="btn">Assinatura da Diretoria</span> e entre com a matrícula
+                e o <b>PIN</b>. Sem PIN? Cadastre no seu <b>Perfil</b>, no Lara.</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">2</span></td>
+            <td>Toque no documento da lista. Leia até o fim, aceite, assine, faça o visto (se o documento pedir) e
+                tire a <b>foto</b> — para o diretor ela é sempre obrigatória. Não há conferência de CPF: o PIN já
+                identificou você.</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">3</span></td>
+            <td>Assinado, o tablet volta à sua lista. Toque em <span class="btn">Sair</span> ao terminar — e, se
+                esquecer, ele sai sozinho depois de {{ app(\App\Services\Signature\Directors\DirectorKioskService::class)->idleSeconds() }}
+                segundos parado.</td>
+        </tr>
+    </table>
+
+    <div class="keep">
+    <h3>O que vale saber</h3>
+    <ul>
+        <li>Errar o PIN cinco vezes trava a matrícula por 15 minutos.</li>
+        <li>O diretor <b>não</b> assina pelo QR Code do atendente: só pela entrada com matrícula e PIN — o painel nem
+            oferece o QR para ele. A outra forma é o <b>gov.br</b>: documento preparado para o gov.br sai da lista do
+            tablet e segue a seção 9.</li>
+        <li>O comprovante do PDF assinado registra que o próprio diretor abriu o documento no tablet, com a
+            matrícula e o PIN.</li>
+    </ul>
+    </div>
+</div>
+
+<!-- ====================================================== 12 -->
 <div class="section" id="problemas">
-    <h2>11. Problemas comuns</h2>
+    <h2>12. Problemas comuns</h2>
 
     <table class="ref">
         <tr><th style="width:38%">O que aconteceu</th><th>Causa provável e o que fazer</th></tr>
@@ -1072,7 +1156,7 @@
 
 <!-- ====================================================== 10 -->
 <div id="cola" style="padding-top: 22px;">
-    <h2>12. Cola rápida dos marcadores</h2>
+    <h2>13. Cola rápida dos marcadores</h2>
     <p>Para deixar ao lado do computador de quem escreve os modelos.</p>
 
     <table class="ref">

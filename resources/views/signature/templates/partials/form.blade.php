@@ -209,7 +209,8 @@
             <code class="font-mono">[[assinatura: Contratante]]</code> e
             <code class="font-mono">[[assinatura: Contratado]]</code> onde cada uma assina — em linhas
             seguidas ou numa tabela, elas saem lado a lado. O nome da parte é impresso sob o nome de quem
-            assina. Documento de uma pessoa só não precisa disto: basta
+            assina. Em <b>Assinada pela diretoria</b>, a parte já vem, no documento, com o titular da área escolhido
+            (Assinaturas → Diretoria). Documento de uma pessoa só não precisa disto: basta
             <code class="font-mono">[[assinatura]]</code>.
         </p>
 
@@ -227,17 +228,27 @@
 
         <template id="partyRowTemplate">
             <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end" data-party-row>
-                <div class="md:col-span-5">
+                <div class="md:col-span-4">
                     <label class="block text-xs font-bold text-ink-2 mb-1">Nome da parte</label>
                     <input type="text" data-field="label" maxlength="120" placeholder="Contratante"
                            class="w-full rounded-lg border-line-strong text-sm">
                 </div>
-                <div class="md:col-span-4">
+                <div class="md:col-span-3">
                     <label class="block text-xs font-bold text-ink-2 mb-1">Marcador no texto</label>
                     <input type="text" data-field="key" maxlength="60" placeholder="contratante"
                            class="w-full rounded-lg border-line-strong text-xs font-mono">
                 </div>
+                {{-- Assinatura Diretoria: a parte que é sempre de uma área da diretoria já nasce, no documento, com o titular dela. --}}
                 <div class="md:col-span-3">
+                    <label class="block text-xs font-bold text-ink-2 mb-1">Assinada pela diretoria</label>
+                    <select data-field="director_area_id" class="w-full rounded-lg border-line-strong text-sm">
+                        <option value="">— não —</option>
+                        @foreach($areasDaDiretoria ?? [] as $areaDaDiretoria)
+                            <option value="{{ $areaDaDiretoria->id }}">{{ $areaDaDiretoria->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="md:col-span-2">
                     <button type="button" class="text-xs text-danger hover:underline pb-2" data-remove-party>Remover parte</button>
                 </div>
             </div>
@@ -377,7 +388,8 @@
         return Array.prototype.map.call(caixaPartes.querySelectorAll('[data-party-row]'), function (row) {
             return {
                 key: row.querySelector('[data-field="key"]').value.trim(),
-                label: row.querySelector('[data-field="label"]').value.trim()
+                label: row.querySelector('[data-field="label"]').value.trim(),
+                director_area_id: row.querySelector('[data-field="director_area_id"]').value
             };
         });
     }

@@ -57,7 +57,13 @@
                         <div>
                             <dt class="text-xs text-ink-2">Quem assina</dt>
                             <dd class="font-semibold text-ink">
-                                {{ collect($template->declaredParties())->pluck('label')->join(', ') ?: 'Sem partes — todos no mesmo lugar' }}
+                                @php
+                                    // Parte assinada por uma área da diretoria: o nome da área entre parênteses.
+                                    $areasDasPartes = \App\Models\SignatureDirectorArea::whereIn('id', collect($template->declaredParties())->pluck('director_area_id')->filter())->pluck('name', 'id');
+                                @endphp
+                                {{ collect($template->declaredParties())
+                                    ->map(fn($p) => $p['label'] . ($p['director_area_id'] && isset($areasDasPartes[$p['director_area_id']]) ? ' (' . $areasDasPartes[$p['director_area_id']] . ')' : ''))
+                                    ->join(', ') ?: 'Sem partes — todos no mesmo lugar' }}
                             </dd>
                         </div>
                         <div>

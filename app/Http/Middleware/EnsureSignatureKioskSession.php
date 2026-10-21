@@ -59,7 +59,9 @@ class EnsureSignatureKioskSession
          | assinou por outro caminho. O tablet cai aqui na requisição seguinte
          | — é o que faz o cancelamento valer "em tempo real" sem broadcasting.
          */
-        if ($motivo = $signatario->releaseBlockReason()) {
+        if ($motivo = $signatario->releaseBlockReason(
+            $solicitacao->identity_method === \App\Models\SignatureRequest::IDENTITY_METHOD_DIRECTOR_PIN,
+        )) {
             return $this->deny($request, 409, $motivo);
         }
 

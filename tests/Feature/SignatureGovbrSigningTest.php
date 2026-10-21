@@ -116,15 +116,61 @@ class SignatureGovbrSigningTest extends TestCase
         $this->assertStringContainsString('gov.br', (string) $documento->signers()->first()->releaseBlockReason());
     }
 
-    public function test_documento_com_visto_nao_pode_ir_para_o_gov_br(): void
+    /**
+     * Modelo com visto vai ao gov.br: o visto sai DESTE documento ao preparar
+     * (o original é refeito sem a faixa, com hash novo e evento), e a
+     * assinatura do gov.br sobre o original novo conclui.
+     */
+    public function test_modelo_com_visto_vai_ao_gov_br_e_o_visto_sai_do_documento(): void
     {
         $modelo = $this->criaModeloDeAssinatura(['requires_initials' => true]);
         $documento = app(SignatureDocumentService::class)
             ->freeze($this->criaDocumentoDeAssinatura(['template' => $modelo]));
 
-        $this->prepara($documento)->assertSessionHas('warning');
+        $this->assertTrue($documento->requiresInitials());
+        $this->assertNull($documento->govbrBlockReason());
 
-        $this->assertNull($documento->fresh()->govbr_sent_at);
+        $hashAntes = $documento->original_sha256;
+        $bytesAntes = $this->original($documento);
+
+        $this->prepara($documento)->assertSessionHas('success');
+
+        $documento->refresh();
+
+        $this->assertNotNull($documento->govbr_sent_at);
+        $this->assertNotNull($documento->initials_waived_at);
+        $this->assertFalse($documento->requiresInitials());
+        $this->assertTrue($modelo->fresh()->requires_initials, 'O modelo não muda: a dispensa é do documento.');
+
+        // O original foi refeito sem a faixa do visto: outro arquivo, outro hash.
+        $this->assertNotSame($hashAntes, $documento->original_sha256);
+        $this->assertNotSame($bytesAntes, $this->original($documento));
+        $this->assertSame($documento->original_sha256, hash('sha256', $this->original($documento)));
+
+        $evento = SignatureAuditEvent::where('event', SignatureAuditEvent::EVENT_INITIALS_WAIVED)->sole();
+        $this->assertSame($hashAntes, $evento->payload['hash_anterior']);
+        $this->assertTrue(SignatureAuditEvent::where('event', SignatureAuditEvent::EVENT_GOVBR_PREPARED)->sole()->payload['visto_dispensado']);
+
+        // Assinado pelo gov.br sobre o original novo, conclui.
+        $this->envia($documento, $this->assinaMaria($this->original($documento)))->assertSessionHas('success');
+
+        $this->assertSame(SignatureSigner::STATUS_SIGNED, $documento->signers()->first()->status);
+    }
+
+    /** PDF baixado ANTES de preparar ainda tinha a faixa do visto: não é o documento. */
+    public function test_pdf_com_visto_baixado_antes_de_preparar_nao_conclui(): void
+    {
+        $modelo = $this->criaModeloDeAssinatura(['requires_initials' => true]);
+        $documento = app(SignatureDocumentService::class)
+            ->freeze($this->criaDocumentoDeAssinatura(['template' => $modelo]));
+
+        $antigo = $this->original($documento);
+
+        $this->prepara($documento)->assertSessionHas('success');
+
+        $this->envia($documento, $this->assinaMaria($antigo));
+
+        $this->assertSame(SignatureSigner::STATUS_PENDING, $documento->signers()->first()->status);
     }
 
     /**

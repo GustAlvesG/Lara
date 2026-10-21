@@ -26,6 +26,20 @@
         // de antes do documento: o próximo sócio não vê os nomes do anterior.
         'ociosoSegundos' => 120,
     ] : null;
+
+    // Assinatura da Diretoria: só no balcão. O diretor entra com matrícula e
+    // PIN e vê os documentos dele. Ver DirectorKioskController.
+    $configDiretoria = $menores ? null : [
+        'rotas' => [
+            'entrar' => route('quiosque.diretoria.login'),
+            'pendentes' => route('quiosque.diretoria.pending'),
+            'abrir' => route('quiosque.diretoria.open', ['signatureSigner' => '__SIGNER__']),
+            'sair' => route('quiosque.diretoria.logout'),
+        ],
+        // Sem toque na lista por este tempo, a entrada do diretor acaba
+        // (SIGNATURE_DIRECTOR_IDLE_SECONDS).
+        'ociosoSegundos' => app(\App\Services\Signature\Directors\DirectorKioskService::class)->idleSeconds(),
+    ];
 @endphp
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -78,6 +92,8 @@
     textoAutorizacaoFoto: @json(\App\Models\SignatureEvidence::PHOTO_CONSENT_TEXT),
     // Autoatendimento do Termo de Menores; null no balcão.
     menores: @json($configMenores),
+    // Assinatura da Diretoria; null no Termo de Menores.
+    diretoria: @json($configDiretoria),
   };</script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
@@ -262,6 +278,8 @@
         <div class="err hidden" id="erroLeitor"></div>
         <button type="button" class="btn btn-ghost hidden" id="trocarCamera" style="margin-top:16px;">Trocar de câmera</button>
         <button type="button" class="btn btn-ghost hidden" id="abrirCodigo" style="margin-top:12px;">Digitar código</button>
+        <!-- Só no balcão: o diretor entra com matrícula e PIN e vê os documentos dele. -->
+        <button type="button" class="btn btn-ghost hidden" id="abrirDiretoria" style="margin-top:12px;">Assinatura da Diretoria</button>
       </div>
     </section>
 
@@ -420,6 +438,8 @@
 @endverbatim
 @if($menores)
     @include('quiosque.partials.menores-telas')
+@else
+    @include('quiosque.partials.diretoria-telas')
 @endif
 @verbatim
 
@@ -560,6 +580,8 @@
           // ao início) e tablet sem pareamento (volta ao pareamento).
           falha.recomecar = !!dados.restart;
           falha.despareado = !!dados.device_unpaired;
+          // Assinatura da Diretoria: a entrada do diretor acabou.
+          falha.diretorEncerrado = !!dados.director_ended;
           throw falha;
         }
 
@@ -592,6 +614,7 @@
      * que existe mas não foca também é um atendimento parado.
      */
     $('#abrirCodigo').classList.toggle('hidden', !CFG.codigoManual);
+    $('#abrirDiretoria').classList.toggle('hidden', !CFG.diretoria);
 
     if (typeof Html5Qrcode === 'undefined') {
       $('#erroLeitor').textContent = 'Leitor de QR indisponível. Verifique a conexão do tablet.';
@@ -1181,6 +1204,12 @@
       return;
     }
 
+    // Assinatura da Diretoria: com a entrada do diretor valendo, volta à lista dele.
+    if (CFG.diretoria && diretoriaAtiva()) {
+      diretoriaDepoisDoAtendimento(opcoes);
+      return;
+    }
+
     mostra('tela-espera');
     $('#dicaLeitor').textContent = 'Procurando o código…';
 
@@ -1233,7 +1262,9 @@
         encerraAtendimento({
           mensagem: CFG.menores
             ? 'O tempo do atendimento terminou. Recomece pelo número do título.'
-            : 'O tempo do atendimento terminou. Peça ao atendente que gere um novo QR Code.',
+            : (CFG.diretoria && diretoriaAtiva()
+              ? 'O tempo do atendimento terminou. Abra o documento de novo na lista.'
+              : 'O tempo do atendimento terminou. Peça ao atendente que gere um novo QR Code.'),
           titulo: 'Tempo esgotado',
         });
       }
@@ -1899,7 +1930,9 @@
     })
       .then(function (dados) {
         $('#sucessoDetalhe').textContent = 'Assinado em ' + dados.signed_at
-          + '. Você pode devolver o tablet ao atendente.';
+          + (CFG.diretoria && diretoriaAtiva()
+            ? '. Toque em Concluir para voltar aos seus documentos.'
+            : '. Você pode devolver o tablet ao atendente.');
 
         $('#sucessoVia').textContent = S.querVia
           ? 'A via assinada será enviada ao seu e-mail cadastrado em alguns instantes.'
@@ -1961,7 +1994,9 @@
         encerraAtendimento({
           mensagem: CFG.menores
             ? 'O termo não foi assinado. Se quiser, comece de novo.'
-            : 'A assinatura foi recusada. Devolva o tablet ao atendente.',
+            : (CFG.diretoria && diretoriaAtiva()
+              ? 'A assinatura foi recusada. O documento foi encerrado.'
+              : 'A assinatura foi recusada. Devolva o tablet ao atendente.'),
           titulo: 'Assinatura recusada',
         });
       })
@@ -1975,6 +2010,8 @@
 @endverbatim
 @if($menores)
     @include('quiosque.partials.menores-js')
+@else
+    @include('quiosque.partials.diretoria-js')
 @endif
 @verbatim
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Signature;
 use App\Exceptions\DocxImportException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSignatureTemplateRequest;
+use App\Models\SignatureDirectorArea;
 use App\Models\SignatureDocument;
 use App\Models\SignatureTemplate;
 use App\Services\Signature\DocxTemplateImporter;
@@ -57,7 +58,7 @@ class TemplateController extends Controller
 
     public function create()
     {
-        return view('signature.templates.create');
+        return view('signature.templates.create', ['areasDaDiretoria' => $this->directorAreas()]);
     }
 
     public function store(StoreSignatureTemplateRequest $request)
@@ -112,7 +113,16 @@ class TemplateController extends Controller
 
     public function edit(SignatureTemplate $signatureTemplate)
     {
-        return view('signature.templates.edit', ['template' => $signatureTemplate]);
+        return view('signature.templates.edit', [
+            'template' => $signatureTemplate,
+            'areasDaDiretoria' => $this->directorAreas(),
+        ]);
+    }
+
+    /** As áreas da diretoria que uma parte do modelo pode apontar. */
+    private function directorAreas()
+    {
+        return SignatureDirectorArea::where('active', true)->orderBy('name')->get(['id', 'name']);
     }
 
     /**
@@ -203,7 +213,13 @@ class TemplateController extends Controller
         $partes = [];
 
         foreach ($declaradas as $parte) {
-            $partes[$parte['key']] = ['key' => $parte['key'], 'label' => $parte['label']];
+            $partes[$parte['key']] = array_filter([
+                'key' => $parte['key'],
+                'label' => $parte['label'],
+                // Parte assinada por uma área da diretoria: o documento já
+                // nasce com o titular dela (Assinatura Diretoria).
+                'director_area_id' => !empty($parte['director_area_id']) ? (int) $parte['director_area_id'] : null,
+            ], fn($v) => $v !== null);
         }
 
         preg_match_all('/\[\[assinatura:([a-z][a-z0-9_]{0,59})\]\]/', $corpo, $achados);

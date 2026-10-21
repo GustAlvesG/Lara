@@ -17,6 +17,12 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * assina só com nome e CPF. Não há foreign key para `members` porque aquele
  * model fixa a conexão `mysql`.
  *
+ * Diretor do clube (Assinatura Diretoria): `user_id` aponta o usuário do Lara
+ * escolhido pelo atendente — titular ou substituto da área — e
+ * `director_area_name`/`director_role` são o retrato da área e do papel na
+ * criação. Ele assina no tablet entrando com matrícula e PIN (a lista dos
+ * documentos dele), ou pelo gov.br como qualquer signatário.
+ *
  * @property int $id
  * @property string $cpf dígitos, sem máscara
  * @property string $status
@@ -54,6 +60,11 @@ class SignatureSigner extends Model
         'name',
         'cpf',
         'member_id',
+        'user_id',
+        'director_area_id',
+        'director_area_name',
+        'director_role',
+        'director_notified_at',
         'email',
         'phone',
         'wants_copy',
@@ -84,6 +95,9 @@ class SignatureSigner extends Model
     protected $casts = [
         'signature_document_id' => 'integer',
         'member_id' => 'integer',
+        'user_id' => 'integer',
+        'director_area_id' => 'integer',
+        'director_notified_at' => 'datetime',
         'position' => 'integer',
         'signature_position' => 'array',
         'wants_copy' => 'boolean',
@@ -182,7 +196,49 @@ class SignatureSigner extends Model
      */
     public function capacityLabel(): string
     {
+        if ($this->isDirector()) {
+            return collect([$this->party_label, $this->directorLabel()])->filter()->join(' — ');
+        }
+
         return $this->party_label ?: $this->roleLabel();
+    }
+
+    /**
+     * Diretor do clube, escolhido de uma área da diretoria (Assinatura
+     * Diretoria). Assina no tablet com matrícula e PIN, sem conferência de
+     * CPF, e a foto é sempre obrigatória.
+     */
+    public function isDirector(): bool
+    {
+        return $this->director_area_id !== null && $this->user_id !== null;
+    }
+
+    /** "Diretoria Financeira" ou "Diretoria Financeira (substituto)". */
+    public function directorLabel(): ?string
+    {
+        if (!$this->isDirector()) {
+            return null;
+        }
+
+        return $this->director_area_name
+            . ($this->director_role === SignatureDirectorAreaHolder::ROLE_SUBSTITUTE ? ' (substituto)' : '');
+    }
+
+    /**
+     * A foto é exigida? A regra é do modelo — salvo para o diretor, que entra
+     * no tablet com matrícula e PIN e tem a foto como evidência sempre.
+     */
+    public function requiresPhoto(): bool
+    {
+        return $this->isDirector() || (bool) $this->document?->template?->requires_photo;
+    }
+
+    /**
+     * @return BelongsTo<SignatureDirectorArea, SignatureSigner>
+     */
+    public function directorArea(): BelongsTo
+    {
+        return $this->belongsTo(SignatureDirectorArea::class, 'director_area_id');
     }
 
     public function maskedCpf(): string
@@ -192,8 +248,12 @@ class SignatureSigner extends Model
 
     /**
      * Por que este signatário não pode receber um QR agora. null = pode.
+     *
+     * `$directorLogin`: a liberação vem da entrada do próprio diretor no
+     * tablet (matrícula + PIN). Diretor só assina por ela — nunca pelo QR do
+     * atendente (decisão do usuário, 21/10/2026).
      */
-    public function releaseBlockReason(): ?string
+    public function releaseBlockReason(bool $directorLogin = false): ?string
     {
         if ($this->status === self::STATUS_SIGNED) {
             return 'Este signatário já assinou.';
@@ -222,6 +282,10 @@ class SignatureSigner extends Model
         // assinatura do tablet e a do gov.br ao mesmo tempo.
         if ($document->isGovbr()) {
             return 'Este documento está sendo assinado pelo gov.br: a assinatura não é liberada no tablet.';
+        }
+
+        if ($this->isDirector() && !$directorLogin) {
+            return 'Diretor assina só no tablet, em "Assinatura da Diretoria", com a matrícula e o PIN do Lara — não pelo QR Code.';
         }
 
         // Sem ordem: qualquer signatário pendente pode ser liberado — quem

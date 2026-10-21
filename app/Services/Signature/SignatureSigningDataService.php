@@ -160,6 +160,42 @@ class SignatureSigningDataService
     }
 
     /**
+     * Dispensa o visto neste documento e refaz o original sem ele.
+     *
+     * É o caminho do gov.br para modelo com visto: lá a pessoa assina o PDF
+     * inteiro, e a faixa do visto (que muda as margens e, com elas, a
+     * paginação) e as caixas de rubrica não têm quem as preencha. Como a data
+     * automática, só vale antes da primeira assinatura — e muda o hash, com
+     * evento.
+     *
+     * @param  array<string, mixed>  $context  contexto da auditoria
+     *
+     * @throws SignatureSessionException
+     */
+    public function waiveInitials(SignatureDocument $document, array $context = []): SignatureDocument
+    {
+        if (!$document->requiresInitials()) {
+            return $document;
+        }
+
+        if (!$document->signingDataIsOpen()) {
+            throw new SignatureSessionException(
+                'Este documento já recebeu uma assinatura: o visto não pode mais ser dispensado.',
+                409,
+            );
+        }
+
+        return $this->store(
+            $document,
+            $document->signing_data ?? [],
+            ['initials_waived_at' => now()],
+            SignatureAuditEvent::EVENT_INITIALS_WAIVED,
+            $context,
+            ['motivo' => 'assinatura pelo gov.br'],
+        );
+    }
+
+    /**
      * @return array<string, string>
      */
     private function automaticValues(SignatureDocument $document): array

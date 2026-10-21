@@ -10,6 +10,7 @@ use App\Http\Requests\StoreUploadedSignatureDocumentRequest;
 use App\Models\Member;
 use App\Models\SignatureDocument;
 use App\Models\SignatureTemplate;
+use App\Services\Signature\Directors\DirectorAreaService;
 use App\Services\Signature\SignatureDocumentService;
 use App\Services\Signature\SignatureMemberDirectory;
 use App\Support\Cpf;
@@ -43,7 +44,13 @@ class DocumentController extends Controller
         $busca = trim((string) $request->query('q', ''));
 
         $documentos = SignatureDocument::with(['template', 'signers'])
-            ->when($status, fn($query) => $query->where('status', $status))
+            // "Aguardando diretoria": aguardando assinatura e com diretor pendente.
+            ->when($status === 'diretoria', fn($query) => $query
+                ->where('status', SignatureDocument::STATUS_AWAITING_SIGNATURE)
+                ->whereHas('signers', fn($s) => $s
+                    ->whereNotNull('director_area_id')
+                    ->where('status', \App\Models\SignatureSigner::STATUS_PENDING)))
+            ->when($status && $status !== 'diretoria', fn($query) => $query->where('status', $status))
             ->when($busca !== '', function ($query) use ($busca) {
                 $digitos = Cpf::digits($busca);
 
@@ -83,6 +90,7 @@ class DocumentController extends Controller
         return view('signature.documents.create', [
             'templates' => $modelos,
             'template' => $escolhido,
+            'diretoria' => $escolhido ? $this->directorOptions() : [],
         ]);
     }
 
@@ -124,6 +132,7 @@ class DocumentController extends Controller
 
         return view('signature.documents.upload', [
             'template' => new SignatureTemplate(['name' => '']),
+            'diretoria' => $this->directorOptions(),
         ]);
     }
 
@@ -221,7 +230,20 @@ class DocumentController extends Controller
         return view('signature.documents.edit', [
             'document' => $signatureDocument,
             'template' => $signatureDocument->template,
+            'diretoria' => $this->directorOptions(),
         ]);
+    }
+
+    /**
+     * Os diretores que o atendente pode escolher, por área (Assinatura
+     * Diretoria). Vazio quando não há área com titular ou substituto — e aí o
+     * formulário nem mostra a escolha.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function directorOptions(): array
+    {
+        return app(DirectorAreaService::class)->options();
     }
 
     public function update(StoreSignatureDocumentRequest $request, SignatureDocument $signatureDocument)

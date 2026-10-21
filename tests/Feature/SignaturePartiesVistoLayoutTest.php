@@ -209,8 +209,8 @@ class SignaturePartiesVistoLayoutTest extends TestCase
         $modelo = SignatureTemplate::firstOrFail();
 
         $this->assertSame([
-            ['key' => 'contratante', 'label' => 'CONTRATANTE'],
-            ['key' => 'fiador', 'label' => 'Fiador'],
+            ['key' => 'contratante', 'label' => 'CONTRATANTE', 'director_area_id' => null],
+            ['key' => 'fiador', 'label' => 'Fiador', 'director_area_id' => null],
         ], $modelo->declaredParties());
 
         $this->assertTrue($modelo->requires_initials);

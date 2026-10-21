@@ -76,6 +76,12 @@ class GovbrCheckService
                 $this->requests->cancel($liberacao, $userId);
             }
 
+            // Modelo com visto: o visto sai deste documento (só existe no
+            // tablet, e a assinatura do gov.br cobre o arquivo inteiro). Refaz
+            // o original sem a faixa e as caixas, com evento.
+            $vistoDispensado = $document->requiresInitials();
+            $this->signingData->waiveInitials($document, ['actor_id' => $userId]);
+
             // A data da assinatura entra no texto ANTES de o PDF sair para a
             // pessoa — refaz o original e o hash, com evento, como no tablet.
             $this->signingData->prepare($document, ['actor_id' => $userId]);
@@ -91,6 +97,7 @@ class GovbrCheckService
                 'payload' => [
                     'prazo' => $prazo->toDateTimeString(),
                     'liberacoes_canceladas' => $vivas->count(),
+                    'visto_dispensado' => $vistoDispensado,
                     'sha256_original' => $document->fresh()->original_sha256,
                     'preparado_por' => $userName,
                 ],

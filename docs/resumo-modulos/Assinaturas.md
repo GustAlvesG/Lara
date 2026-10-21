@@ -17,7 +17,7 @@ foto; a fila monta o PDF final com **manifesto** e QR de validação pública (`
 
 ## Menu e permissões
 
-Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Revisão, Modelos, Termo de Menores, Guia.
+Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Revisão, Modelos, Termo de Menores, Diretoria, Guia.
 
 | Permissão (`App\Authorization\Permissions`) | Uso |
 |---|---|
@@ -30,6 +30,7 @@ Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Revisão, Modelos,
 | `assinatura.termo-menores.gerenciar` (`ASSINATURA_TERMO_MENORES_GERENCIAR`) | Termo de Menores: cadastrar o termo de cada evento |
 | `assinatura.termo-menores.parear` (`ASSINATURA_TERMO_MENORES_PAREAR`) | Termo de Menores: parear o tablet de autoatendimento |
 | `assinatura.termo-menores.historico` (`ASSINATURA_TERMO_MENORES_HISTORICO`) | Termo de Menores: histórico (quem põe a pulseira) |
+| `assinatura.diretoria` (`ASSINATURA_DIRETORIA`) | Diretoria: áreas, titulares e substitutos (escolher o diretor no documento é de `assinatura.documentos`) |
 
 - Gates compostos em `AppServiceProvider`: `acessar-documentos-assinatura` (documentos **ou** consultar) e
   `acessar-guia-assinatura` (qualquer das três, mais o Termo de Menores), `acessar-termo-menores`
@@ -53,6 +54,8 @@ Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Revisão, Modelos,
 | `assinatura/kiosk/menores` → `quiosque.menores.*` | **público**, só tablet pareado | Termo de Menores no tablet: `parear` dá o cookie `lara_minor_device`; o resto passa por `signature_minor_device`; `documento` dá o `lara_sign` |
 | `assinatura/termo-menores` → `minor-terms.*` | atendente | Termos (`gerenciar`), tablets (`parear`), histórico e foto (`historico`) |
 | `/validar/{codigo}` → `signature.validate(.verify)` | **público** | Mostra pouco; PDF enviado só é hasheado e descartado |
+| `assinatura/kiosk/diretoria` → `quiosque.diretoria.*` | **público** | `entrar` (matrícula + PIN → cookie `lara_director`), `pendentes`, `abrir/{signer}` (devolve o `lara_sign`), `sair`. `DirectorKioskController` |
+| `assinatura/diretoria` → `signature-directors.*` | `assinatura.diretoria` | Áreas e mandatos. `DirectorAreaController` |
 
 `/quiosque` redireciona para `/assinatura/kiosk`; os **nomes** `quiosque.*` ficaram. Mudou rota → refaça o
 `route:cache` (um nome que não resolve no menu derruba todas as telas).
@@ -124,9 +127,14 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 - **Um caminho por documento.** Preparado para o gov.br (`govbr_sent_at`), o tablet não libera mais
   (`SignatureSigner::releaseBlockReason`); com assinatura no tablet, o gov.br não é aceito
   (`SignatureDocument::govbrBlockReason`, que também barra documento com campo marcado para perguntar a quem assina
-  — `signerFields()` do documento — ou modelo com visto).
+  — `signerFields()` do documento). **Modelo com visto NÃO barra** (desde 20/10/2026): ver o próximo item.
 - **Preparar** (`GovbrCheckService::prepare`): aplica a data automática (refaz original + hash), prazo de
   `signature.govbr.ttl_days`, cancela QR vivo. Baixar o PDF **depois** de preparar.
+- **Visto dispensado no gov.br:** modelo com visto, ao preparar, ganha `signature_documents.initials_waived_at`
+  (`SignatureSigningDataService::waiveInitials`, evento `initials_waived`, original e hash refeitos sem a faixa).
+  O modelo não muda. **Toda leitura do visto passa por `SignatureDocument::requiresInitials()`** (renderer/geometria,
+  stamper, captura, payload do tablet) — nunca `template->requires_initials` direto (o `MinorTermFields` valida o
+  modelo, e esse fica). Relatório gov.br e `/validar` mostram "Visto dispensado". Migration `2026_10_20_120000`.
 - **Concluir** (`GovbrCheckService::conclude`), tudo ou nada: documento preparado; assinado sobre o original;
   quem já assinou pelo gov.br continua no arquivo (o próximo assina o arquivo do anterior). **Ordem livre**, mas um de
   cada vez: dois assinando o mesmo arquivo em paralelo → o segundo é recusado pela regra anterior. O motivo de não
@@ -207,7 +215,8 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 | `SignatureValidationLink.php` | Para onde apontam o QR, o rodapé, a linha carimbada e o botão da via: ITI no final lacrado ou do gov.br; `/validar` no resto. |
 | `Govbr/GovbrSignatureValidator.php`, `Govbr/GovbrCheckService.php`, `Govbr/GovbrInviteService.php`, `Govbr/Asn1.php` | Assinatura pelo gov.br — ver a seção acima. |
 | `app/Http/Middleware/EnsureSignatureKioskSession.php` | Alias `signature_kiosk`: resolve o cookie, confere prazo, amarra ao documento (outro id → 403 + evento). |
-| Models | `SignatureTemplate` (versionado por linha), `SignatureDocument`, `SignatureSigner`, `SignatureRequest`, `SignatureEvidence`, `SignatureAuditEvent` (recusa update/delete com exceção), `SignatureLayout` (versionado), `SignatureGovbrCheck` (conferências gov.br). |
+| Models | `SignatureTemplate` (versionado por linha), `SignatureDocument`, `SignatureSigner`, `SignatureRequest`, `SignatureEvidence`, `SignatureAuditEvent` (recusa update/delete com exceção), `SignatureLayout` (versionado), `SignatureGovbrCheck` (conferências gov.br), `SignatureDirectorArea` e `SignatureDirectorAreaHolder` (Assinatura Diretoria). |
+| `Directors/DirectorAreaService.php`, `Directors/DirectorKioskService.php` | Assinatura Diretoria — ver a seção dela. |
 | Exceções | `InvalidSignatureTransitionException`, `SignatureDocumentLockedException`, `SignatureFormException`, `SignatureSessionException`. |
 | Views | `resources/views/signature/` (`documents`, `templates`, `layout`, `guide`, `pdf`, `validate`). Os passos do formulário são só apresentação (`documents/partials/steps.blade.php`). |
 | `config/signature.php` | Prazos, mínimos de pontos, disco, flags (arquivo FTP, modo sem HTTPS, e-mail). Variáveis no `.env.example`. |
@@ -298,7 +307,7 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
   No modelo só existem `manualFields()` e `automaticFields()`. `SignatureDocumentRenderer::body($document)` e
   `missingVariables($document)` recebem o documento.
 - Migration `2026_10_11_100300` backfill: documentos existentes herdam o `ask_signer` legado do JSON do modelo.
-- Efeito: qualquer modelo sem visto pode ir ao gov.br, se o atendente não marcar nenhum campo para o tablet.
+- Efeito: qualquer modelo pode ir ao gov.br, se o atendente não marcar nenhum campo para o tablet (o visto, se houver, é dispensado no documento ao preparar — 20/10/2026).
 - **Título do campo na web = pergunta do tablet (13/10/2026):** `field.blade.php` mostra `$campo['question']`
   (que já cai no rótulo quando está em branco — `SignatureTemplate`); o rótulo vai miúdo embaixo só se for
   diferente. Não volte a mostrar o rótulo como título. `data-fill-label` segue com o rótulo (palpite do dado).
@@ -360,6 +369,45 @@ Doc completa: [docs/funcionalidades/termo-de-menores.md](../funcionalidades/term
   (não devolve vazio como a busca do atendente). Nos testes, substitua no container.
 - **Modelo do OKTOBERPET 2026:** `MinorTermTemplateSeeder` (idempotente, fora do deploy).
 - Testes: `SignatureMinorTermKioskTest`, `SignatureMinorTermPanelTest`, `Unit\MinorTermRulesTest`.
+## Assinatura Diretoria (20/10/2026)
+
+Diretor do clube assina no tablet do balcão entrando com **matrícula + PIN do Lara** e vê a lista dos documentos
+pendentes dele. Doc completa: seção "Assinatura Diretoria" de `docs/funcionalidades/assinatura-eletronica.md`.
+
+- **Áreas e mandatos:** `SignatureDirectorArea` (`signature_director_areas`) e `SignatureDirectorAreaHolder`
+  (`signature_director_area_holders`, `role` = `primary`|`substitute`, vigente = `ended_at` nulo; titular novo
+  encerra o anterior; não se edita nem apaga). Regras em `Services\Signature\Directors\DirectorAreaService`
+  (elegível = ativo + matrícula + setor Diretoria via `User::isDirector()`; CPF de `users.cpf` ou do funcionário).
+  `users.cpf` se edita em **Usuários → Editar/Novo** (`UserController::cpfRules`: só dígitos, válido, único) —
+  campo criado em 21/10/2026; antes não havia tela que gravasse a coluna. Teste: `UserCpfTest`.
+- **Decisões do usuário:** login por **matrícula + PIN** (`users.pin`), não senha do painel nem `approval_password`;
+  **sem ordem**; identidade = PIN (sem CPF/código), **foto sempre obrigatória** (`SignatureSigner::requiresPhoto`);
+  e-mail de aviso **sem link**; **o atendente escolhe a pessoa (titular ou substituto) ao criar o documento** —
+  o original imprime nome e CPF dela; se faltar, cancela e emite outro (não troque signatário de congelado).
+- **No documento:** `signers[i][director]` = "área:usuário"; `StoreSignatureDocumentRequest::prepareForValidation`
+  resolve no servidor (`DirectorAreaService::signerData`) e descarta nome/CPF/`user_id`/`director_*` do formulário.
+  Signatário ganha `user_id`, `director_area_id`, retrato `director_area_name`/`director_role`, `director_notified_at`
+  (`isDirector()`, `directorLabel()`, `capacityLabel()`). O `role` continua `signer` (enum intocado).
+  Parte do modelo pode ter `director_area_id` (JSON `parties`): o formulário já traz o titular.
+- **Congelar:** prazo `signature.directors.ttl_days`; job `NotifySignatureDirector` (fila, `afterCommit`) manda
+  `SignatureDirectorPendingMail`, grava `director_notified_at` e o evento `director_notified`.
+- **Tablet:** `DirectorKioskService` — limite por matrícula (`RateLimiter`, 15 min), sessão do diretor em `Cache`
+  (hash do cookie `lara_director`), lista = pendentes do diretor, aguardando, no prazo e **sem `govbr_sent_at`**;
+  `open` faz `issue` + `consumeIssued`, grava `identity_confirmed_at` e `signature_requests.identity_method =
+  matricula_pin` (o manifesto imprime "Matrícula e PIN do Lara" e "aberto pelo próprio diretor"). JS em
+  `quiosque/partials/diretoria-telas` + `diretoria-js` (só no modo balcão; gancho `diretoriaDepoisDoAtendimento`
+  em `encerraAtendimento`, `diretoriaAtiva()` nos textos).
+- **Sem QR para diretor** (21/10/2026): `SignatureSigner::releaseBlockReason($directorLogin)` recusa liberar diretor
+  pelo atendente; só a liberação com `identity_method = matricula_pin` (gravado na emissão:
+  `SignatureRequestService::issue(..., $identityMethod)`) passa — na emissão, na leitura (`open`) e no middleware
+  `EnsureSignatureKioskSession`. `partials/release` tira o diretor da lista "Quem vai assinar agora".
+- **gov.br:** documento preparado sai da lista; o diretor assina pelo mecanismo do gov.br (CPF dele).
+- **Painel:** tela Assinaturas → Diretoria (áreas, mandatos, histórico, pendentes de quem saiu do mandato); filtro
+  "Aguardando diretoria" (`status=diretoria`) na lista de documentos; aviso no cartão do signatário-diretor.
+- Config: `SIGNATURE_DIRECTOR_TTL_DAYS`, `SIGNATURE_DIRECTOR_SESSION_MINUTES`, `SIGNATURE_DIRECTOR_MAX_LOGIN_ATTEMPTS`,
+  `SIGNATURE_DIRECTOR_IDLE_SECONDS` (inatividade da lista no tablet; vai à tela como `CFG.diretoria.ociosoSegundos`).
+- Testes: `SignatureDirectorTest` (usuários reais com `SharesSqliteWithUserConnection` + `MigratesAccessSchema`).
+
 ## Pendências (atualizado em 09/10/2026)
 
 Em aberto, por ordem de impacto. Ao resolver uma, tire daqui e atualize a doc completa.

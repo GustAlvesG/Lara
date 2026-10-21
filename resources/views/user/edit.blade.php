@@ -75,6 +75,13 @@
                         </div>
 
                         <div>
+                            <label for="cpf" class="block text-sm font-bold text-ink mb-1">CPF</label>
+                            <input type="text" name="cpf" id="cpf" value="{{ old('cpf', $user->cpf ? \App\Support\Cpf::format($user->cpf) : '') }}" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" class="{{ $inputClass }}">
+                            <p class="mt-1 text-xs text-ink-2">Obrigatório para diretor assinar documentos (Assinaturas → Diretoria). Em branco, vale o do cadastro de funcionário.</p>
+                            @error('cpf')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
+                        </div>
+
+                        <div>
                             <label for="status" class="block text-sm font-bold text-ink mb-1">Estado da Conta</label>
                             <select name="status" id="status" class="{{ $inputClass }}">
                                 <option value="1" @selected($user->status_id == '1')>Ativo</option>

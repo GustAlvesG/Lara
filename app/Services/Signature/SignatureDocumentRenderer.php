@@ -229,7 +229,7 @@ class SignatureDocumentRenderer
             ? $document->layout
             : ($document->isFrozen() ? null : SignatureLayout::current());
 
-        return new SignaturePageGeometry($layout, (bool) $document->template->requires_initials);
+        return new SignaturePageGeometry($layout, $document->requiresInitials());
     }
 
     /**

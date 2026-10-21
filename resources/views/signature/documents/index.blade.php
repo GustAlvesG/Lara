@@ -35,6 +35,8 @@
                     @foreach(Doc::STATUS_LABELS as $valor => $rotulo)
                         <option value="{{ $valor }}" @selected($status === $valor)>{{ $rotulo }}</option>
                     @endforeach
+                    {{-- Aguardando a assinatura de um diretor (Assinatura Diretoria). --}}
+                    <option value="diretoria" @selected($status === 'diretoria')>Aguardando diretoria</option>
                 </select>
             </x-slot:controls>
         </x-search-bar>

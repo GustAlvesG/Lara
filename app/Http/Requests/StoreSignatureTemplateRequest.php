@@ -73,6 +73,8 @@ class StoreSignatureTemplateRequest extends FormRequest
             'parties' => ['nullable', 'array', 'max:10'],
             'parties.*.key' => ['required', 'string', 'max:60', 'regex:/^[a-z][a-z0-9_]*$/'],
             'parties.*.label' => ['required', 'string', 'max:120'],
+            // Assinatura Diretoria: a área cujo titular já vem escolhido para a parte.
+            'parties.*.director_area_id' => ['nullable', 'integer', 'exists:signature_director_areas,id'],
 
             // Anexos que todo documento deste modelo pede (identidade,
             // comprovante). A chave sai do rótulo — ver SignatureAttachmentService.

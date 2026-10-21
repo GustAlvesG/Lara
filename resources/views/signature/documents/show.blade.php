@@ -193,7 +193,7 @@
                             <h4 class="text-xs font-bold text-ink-3 uppercase tracking-wider mb-3">Documento enviado em PDF</h4>
                             O arquivo é aproveitado na íntegra: texto, imagens e diagramação ficam como foram enviados.
                             O sistema acrescenta a linha de validação no pé de cada página
-                            @if($document->template?->requires_initials), os campos de visto @endif
+                            @if($document->requiresInitials()), os campos de visto @endif
                             e as assinaturas — no lugar marcado abaixo, ou numa folha de assinaturas ao fim.
                         </div>
                     @else
@@ -272,6 +272,19 @@
                                         {{ $signer->statusLabel() }}
                                     </span>
                                 </div>
+
+                                @if($signer->isDirector() && $signer->status === \App\Models\SignatureSigner::STATUS_PENDING)
+                                    {{-- Assinatura Diretoria: o diretor abre o documento no tablet com matrícula e PIN; o QR continua possível no balcão. --}}
+                                    <div class="mt-2 rounded-lg bg-subtle px-3 py-2 text-[11px] text-ink-2" data-signer-director>
+                                        Diretor: assina só no tablet, em <b>Assinatura da Diretoria</b>, com a matrícula e o PIN do
+                                        Lara — sem QR (ou pelo gov.br, se o documento for preparado para lá).
+                                        @if($signer->director_notified_at)
+                                            Avisado por e-mail em {{ $signer->director_notified_at->format('d/m/Y H:i') }}.
+                                        @elseif($document->isFrozen())
+                                            Aviso por e-mail ainda não enviado.
+                                        @endif
+                                    </div>
+                                @endif
 
                                 {{-- Atualizado pelo acompanhamento ao vivo (ver partials/release). --}}
                                 <div class="mt-2 text-[11px] text-ink-2 hidden" data-signer-live></div>

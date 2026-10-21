@@ -9,6 +9,7 @@ use App\Models\AccessAuditLog;
 use App\Models\Sector;
 use App\Models\User;
 use App\Services\Employees\EmployeeSectorSync;
+use App\Support\Cpf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -48,10 +49,13 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
+        $this->normalizeCpf($request);
+
         $data = $request->validate([
             'name'       => 'required|string|max:255',
             'email'      => 'required|string|email|max:255|unique:users,email',
             'matricula'  => 'nullable|string|max:5|unique:users,matricula',
+            'cpf'        => $this->cpfRules(),
             'password'   => 'required|string|min:8|confirmed',
             'pin'        => 'nullable|digits:6',
             'status'     => 'nullable|in:1,2',
@@ -63,6 +67,7 @@ class UserController extends Controller
             'name'      => $data['name'],
             'email'     => $data['email'],
             'matricula' => ($data['matricula'] ?? null) ?: null,
+            'cpf'       => ($data['cpf'] ?? null) ?: null,
             'password'  => Hash::make($data['password']),
             // Cast 'hashed' no model aplica o hash automaticamente.
             'pin'       => $request->filled('pin') ? $data['pin'] : null,
@@ -107,10 +112,13 @@ class UserController extends Controller
     {
         $user = $id;
 
+        $this->normalizeCpf($request);
+
         $request->validate([
             'name'      => 'required|string|max:255',
             'email'     => 'required|string|email|max:255|unique:users,email,' . $user->id,
             'matricula' => 'nullable|string|max:5|unique:users,matricula,' . $user->id,
+            'cpf'       => $this->cpfRules($user),
             'status'    => 'required|in:1,2',
             'password'  => 'nullable|string|min:8|confirmed',
             'pin'       => 'nullable|digits:6',
@@ -119,6 +127,7 @@ class UserController extends Controller
         $user->name      = $request->input('name');
         $user->email     = $request->input('email');
         $user->matricula = $request->input('matricula') ?: null;
+        $user->cpf       = $request->input('cpf') ?: null;
         $user->status_id = $request->input('status');
 
         if ($request->filled('password')) {
@@ -138,6 +147,32 @@ class UserController extends Controller
 
         return redirect()->route('users.edit', $user->id)
             ->with('success', trim('Dados de "' . $user->name . '" atualizados. ' . $joined));
+    }
+
+    /**
+     * CPF do usuário, gravado só com dígitos. É o que a Assinatura Diretoria
+     * imprime no documento do diretor (e o que o gov.br confere); sem ele, vale
+     * o CPF do cadastro de funcionário pela matrícula.
+     */
+    private function normalizeCpf(Request $request): void
+    {
+        if ($request->has('cpf')) {
+            $request->merge(['cpf' => Cpf::digits($request->input('cpf')) ?: null]);
+        }
+    }
+
+    private function cpfRules(?User $user = null): array
+    {
+        return [
+            'nullable',
+            'digits:11',
+            Rule::unique('users', 'cpf')->ignore($user?->id),
+            function ($attribute, $value, $fail) {
+                if (!Cpf::isValid($value)) {
+                    $fail('CPF inválido.');
+                }
+            },
+        ];
     }
 
     /** Setores do usuário: sectors[sector_id] = coordinator | collaborator | '' (fora). */
