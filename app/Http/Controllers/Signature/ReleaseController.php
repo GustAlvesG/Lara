@@ -173,6 +173,8 @@ class ReleaseController extends Controller
                         'id' => $ultima->id,
                         'status' => $ultima->status,
                         'status_label' => $ultima->statusLabel(),
+                        // Aberta pelo link de assinatura remota, e não no tablet.
+                        'remote' => $ultima->isRemote(),
                         'expires_in' => $ultima->secondsToExpire(),
                         'session_remaining' => $ultima->secondsToSessionEnd(),
                     ] : null,

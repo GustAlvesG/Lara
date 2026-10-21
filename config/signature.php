@@ -392,4 +392,43 @@ return [
         'idle_seconds' => (int) env('SIGNATURE_DIRECTOR_IDLE_SECONDS', 90),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Assinatura remota (link por e-mail, tela no site externo)
+    |--------------------------------------------------------------------------
+    |
+    | O atendente envia um link por e-mail; a pessoa abre a tela de assinatura
+    | no site externo (Next.js, na DMZ), sem login, e assina com CPF completo e
+    | foto obrigatória. O Lara continua fechado: o navegador fala com o site, e
+    | o SERVIDOR do site fala com a API `/api/assinatura/remota/*`. Ver
+    | RemoteSignatureService.
+    |
+    | site_url        — endereço do site; o link do e-mail é
+    |                   `{site_url}/assinar/{token}`. Vazio = botão
+    |                   desligado no painel.
+    | api_token       — token PRÓPRIO do site para esta API, no header
+    |                   `Authorization: Bearer`. Não é o `API_TOKEN` das
+    |                   reservas: um vazamento lá não pode abrir assinatura.
+    | allowed_ips     — IPs (ou CIDR) de onde a API aceita chamadas: o servidor
+    |                   do site. Vazio = qualquer origem com o token. É também
+    |                   o que autoriza confiar nos headers `X-Signer-Ip` e
+    |                   `X-Signer-User-Agent` (o IP e o navegador de quem
+    |                   assina, repassados pelo site).
+    | link_ttl_hours  — validade do link. O prazo do documento é estendido até
+    |                   o fim do link, se for menor.
+    | session_minutes — cada abertura do link vale por este tempo de sessão.
+    |
+    */
+
+    'remote' => [
+        'site_url' => rtrim((string) env('SIGNATURE_REMOTE_SITE_URL', ''), '/'),
+        'api_token' => (string) env('SIGNATURE_REMOTE_API_TOKEN', ''),
+        'allowed_ips' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('SIGNATURE_REMOTE_ALLOWED_IPS', '')),
+        ))),
+        'link_ttl_hours' => (int) env('SIGNATURE_REMOTE_TTL_HOURS', 72),
+        'session_minutes' => (int) env('SIGNATURE_REMOTE_SESSION_MINUTES', 30),
+    ],
+
 ];

@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Auth\Events\Login;
 use App\Listeners\UpdateLastLoginAt;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -177,5 +178,20 @@ class AppServiceProvider extends ServiceProvider
             (string) config('poli.rate_limit.name', 'poli-outbound'),
             fn () => Limit::perMinute((int) config('poli.rate_limit_per_minute', 50)),
         );
+
+        /**
+         * API da assinatura remota (routes/api.php, `assinatura/remota`). Toda
+         * chamada sai do MESMO IP — o servidor do site, na DMZ —, e um limite
+         * por IP faria uma pessoa trancar as outras. A chave é o IP de QUEM
+         * ASSINA, repassado pelo site em `X-Signer-Ip`, mais a rota. O limite
+         * que importa de verdade é por link (5 tentativas de CPF, em
+         * RemoteSignatureService); estes são tetos de inundação.
+         */
+        $chaveRemota = fn (Request $request) => 'sig-remote|'
+            . ($request->header('X-Signer-Ip') ?: $request->ip())
+            . '|' . ($request->route()?->getName() ?? $request->path());
+
+        RateLimiter::for('signature-remote', fn (Request $request) => Limit::perMinute(120)->by($chaveRemota($request)));
+        RateLimiter::for('signature-remote-open', fn (Request $request) => Limit::perMinute(20)->by($chaveRemota($request)));
     }
 }

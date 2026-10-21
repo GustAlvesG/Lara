@@ -86,6 +86,15 @@ Guia completo: [espacos-sociais.md](../funcionalidades/espacos-sociais.md). Pont
 - API: `origin` (`site` | `secretaria`, por `created_by_user`) e `payment` (null ou
   `{paid_amount, paid_at, method, method_label, manual, refunded_amount}`).
 
+## Copiar a configuração social entre bancos
+
+`social:copy-config --from=lara_hml --to=lara [--dry-run] [--force]`
+(`app/Console/Commands/CopySocialConfig.php`): grupos sociais + `week_days_place_group`, espaços,
+`place_conflicts` e `social_beverages`, casando por nome (upsert, nunca apaga, ignora excluídos e
+reservas). Colunas = interseção dos dois esquemas, sem id/carimbos; espaço social sai sem
+contator. `--dry-run` só lê (não abre transação no destino). Teste:
+`tests/Feature/Social/CopySocialConfigTest.php` (duas conexões SQLite).
+
 ## Baixa manual de pagamento (desde 19/10/2026)
 
 - `App\Services\ManualPaymentService::record(scheduleIds, data, userId, notify)`: cria um

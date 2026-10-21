@@ -43,7 +43,9 @@ class EnsureSignatureKioskSession
     {
         $solicitacao = $this->requests->fromSessionToken($request->cookie(self::COOKIE));
 
-        if (!$solicitacao) {
+        // A sessão aberta pelo link remoto é da API do site
+        // (EnsureSignatureRemoteSession), e não abre o tablet.
+        if (!$solicitacao || $solicitacao->isRemote()) {
             return $this->deny($request, 419, 'A sessão expirou. Peça ao atendente que gere um novo QR Code.');
         }
 

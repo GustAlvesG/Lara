@@ -12,6 +12,8 @@ Sempre atualizar o que for pertinente. Uma mudança só está pronta quando tudo
 
 Os módulos Freelancers, Tercerizados, Home Assistant, Reservas se comunicam com aplicações externas via API. Sempre que qualquer alteração for feita, gere um prompt para orientar outro agent Claude Code das alterações necessárias na outra aplicação.
 
+O módulo Assinaturas também se comunica com aplicação externa desde 21/10/2026: a assinatura remota por link usa o site externo em Next.js (o mesmo das Reservas) pela API `/api/assinatura/remota/*`. A mesma regra vale: mudou essa API ou o fluxo de quem assina, atualize `docs/funcionalidades/assinatura-remota-prompt-site.md` e gere o prompt para o agent do site.
+
 Para cada módulo, crie um resumo do funcionamento dele em markdown para orientar outro agente claude code que vá fazer alguma nova implementação. Esse markdown de resumo deve ficar dentro docs/resumo-modulos e nomeado com o nome do módulo que aparece no Menu
 
 Sempre se refira ao sistema como "O Lara", nunca "A Lara".

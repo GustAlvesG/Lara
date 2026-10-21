@@ -71,15 +71,23 @@ class SignatureRequestService
         ?int $userId = null,
         ?string $userName = null,
         ?string $identityMethod = null,
+        ?int $remoteLinkId = null,
     ): array {
         $doDiretor = $identityMethod === SignatureRequest::IDENTITY_METHOD_DIRECTOR_PIN;
+        $remota = $identityMethod === SignatureRequest::IDENTITY_METHOD_REMOTE_LINK;
 
         if ($motivo = $signer->releaseBlockReason($doDiretor)) {
             throw new SignatureDocumentLockedException($motivo);
         }
 
-        return DB::transaction(function () use ($signer, $userId, $userName, $identityMethod) {
-            $anteriores = $this->supersedePending($signer, $userId);
+        return DB::transaction(function () use ($signer, $userId, $userName, $identityMethod, $remoteLinkId, $remota) {
+            /*
+             | A abertura do link remoto não derruba o QR que está na tela do
+             | atendente: são dois caminhos para a mesma pessoa, e quem assinar
+             | primeiro encerra o outro (releaseBlockReason). O QR regerado
+             | continua derrubando o anterior, como sempre.
+             */
+            $anteriores = $remota ? 0 : $this->supersedePending($signer, $userId);
 
             // Str::random usa random_bytes — aleatoriedade criptográfica, e não
             // o mt_rand que um `rand()` daria.
@@ -88,7 +96,7 @@ class SignatureRequestService
             // O código digitado só existe quando o modo sem HTTPS está ligado.
             // Desligado, a coluna fica nula e não há segredo curto nenhum para
             // ser adivinhado — ver config/signature.php.
-            $manualCode = $this->manualCodeEnabled() ? $this->generateManualCode() : null;
+            $manualCode = $this->manualCodeEnabled() && !$remota ? $this->generateManualCode() : null;
 
             $request = SignatureRequest::create([
                 'signature_signer_id' => $signer->id,
@@ -102,7 +110,20 @@ class SignatureRequestService
                 // Entrada do diretor (matrícula + PIN): é o que autoriza a
                 // liberação de um signatário-diretor — ver releaseBlockReason.
                 'identity_method' => $identityMethod,
+                'signature_remote_link_id' => $remoteLinkId,
             ]);
+
+            // O envio do link já está na trilha (remote_link_sent), e a abertura
+            // entra como remote_opened: um "QR gerado" aqui seria falso.
+            if ($remota) {
+                return [
+                    'request' => $request,
+                    'token' => $token,
+                    'payload' => SignatureRequest::qrPayload($token),
+                    'manual_code' => null,
+                    'manual_code_expires_in' => null,
+                ];
+            }
 
             $this->states->note(
                 $signer->signature_document_id,
@@ -287,7 +308,9 @@ class SignatureRequestService
             throw SignatureSessionException::expired();
         }
 
-        if (!$this->ipIsAllowed($ip)) {
+        // A faixa de IP é a rede do clube. O link remoto é aberto de fora dela
+        // por definição: quem o protege é o token do e-mail e o CPF.
+        if (!$request->isRemote() && !$this->ipIsAllowed($ip)) {
             $this->states->note($documentId, SignatureAuditEvent::EVENT_QR_IP_BLOCKED, [
                 'signer' => $signer?->id,
                 'request' => $request->id,
@@ -307,16 +330,22 @@ class SignatureRequestService
 
         $sessionToken = Str::random(self::TOKEN_LENGTH);
 
+        // No celular de casa a leitura é mais lenta que no balcão: a sessão
+        // remota tem prazo próprio.
+        $minutos = $request->isRemote()
+            ? (int) config('signature.remote.session_minutes', 30)
+            : (int) config('signature.session_ttl_minutes', 15);
+
         $this->states->requestTo(
             $request,
             SignatureRequest::STATUS_CONSUMED,
-            SignatureAuditEvent::EVENT_QR_CONSUMED,
+            $request->isRemote() ? SignatureAuditEvent::EVENT_REMOTE_OPENED : SignatureAuditEvent::EVENT_QR_CONSUMED,
             [
                 'consumed_at' => now(),
                 'consumed_ip' => $ip,
                 'consumed_user_agent' => $userAgent === null ? null : mb_substr($userAgent, 0, 255),
                 'session_hash' => $this->hash($sessionToken),
-                'session_expires_at' => now()->addMinutes((int) config('signature.session_ttl_minutes', 15)),
+                'session_expires_at' => now()->addMinutes(max(1, $minutos)),
             ],
             [
                 'actor_type' => SignatureAuditEvent::ACTOR_KIOSK,
@@ -544,44 +573,6 @@ class SignatureRequestService
             return true;
         }
 
-        if ($ip === null) {
-            return false;
-        }
-
-        foreach ($faixas as $faixa) {
-            if ($this->ipMatches($ip, (string) $faixa)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /** IP solto ou CIDR (IPv4). */
-    private function ipMatches(string $ip, string $range): bool
-    {
-        if (!str_contains($range, '/')) {
-            return $ip === $range;
-        }
-
-        [$rede, $bits] = explode('/', $range, 2);
-
-        $ipLong = ip2long($ip);
-        $redeLong = ip2long($rede);
-
-        if ($ipLong === false || $redeLong === false) {
-            return false;
-        }
-
-        $bits = (int) $bits;
-
-        if ($bits < 0 || $bits > 32) {
-            return false;
-        }
-
-        // /0 pega tudo; o shift de 32 é indefinido em PHP, por isso o caso à parte.
-        $mascara = $bits === 0 ? 0 : -1 << (32 - $bits);
-
-        return ($ipLong & $mascara) === ($redeLong & $mascara);
+        return \App\Support\IpRange::inAny($ip, $faixas);
     }
 }

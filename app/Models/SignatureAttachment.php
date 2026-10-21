@@ -41,12 +41,15 @@ class SignatureAttachment extends Model
         'sha256',
         'uploaded_by',
         'uploaded_by_name',
+        // Enviado pelo próprio signatário, na tela do link remoto.
+        'uploaded_by_signer_id',
     ];
 
     protected $casts = [
         'signature_document_id' => 'integer',
         'bytes' => 'integer',
         'uploaded_by' => 'integer',
+        'uploaded_by_signer_id' => 'integer',
     ];
 
     /**

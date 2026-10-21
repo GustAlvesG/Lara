@@ -27,6 +27,10 @@ return Application::configure(basePath: dirname(__DIR__))
             // Tablet de autoatendimento do Termo de Menores: só responde ao
             // aparelho pareado (cookie `lara_minor_device`, 12 h).
             'signature_minor_device' => \App\Http\Middleware\EnsureMinorTermDevice::class,
+            // Assinatura remota: o servidor do site externo (token próprio +
+            // origem) e a sessão aberta pelo link do e-mail (header).
+            'signature_remote_api' => \App\Http\Middleware\EnsureSignatureRemoteClient::class,
+            'signature_remote_session' => \App\Http\Middleware\EnsureSignatureRemoteSession::class,
             // Aviso de leitura obrigatória pendente desvia a navegação para a
             // tela de ciência (ver o middleware e routes/web.php).
             'avisos_obrigatorios' => \App\Http\Middleware\EnsureMandatoryAvisosAcknowledged::class,

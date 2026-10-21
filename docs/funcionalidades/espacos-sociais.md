@@ -214,6 +214,32 @@ aprovação (com desconto e motivo, se houver), tudo em nome do sócio escolhido
   cancelada (se não usada), quem entrou ganha uma.
 - A liberação vale **uma entrada** no dia do evento, como toda liberação pontual.
 
+## Levar a configuração da homologação para a produção
+
+Grupos, espaços e catálogo cadastrados em homologação não precisam ser refeitos à mão:
+
+```bash
+# no servidor de produção, depois do deploy (as migrations precisam estar aplicadas)
+php artisan social:copy-config --from=lara_hml --to=lara --dry-run   # mostra o que faria, não grava
+php artisan social:copy-config --from=lara_hml --to=lara             # pede confirmação e grava
+```
+
+- Copia os **grupos sociais** (com dias da semana, prazo de pagamento, limites e regras), os
+  **espaços** deles (preço, convidados, capacidade, mesas e cadeiras, horário, imagens), os
+  **conflitos** entre espaços e o **catálogo** de bebidas e mobiliário.
+- **Não copia** reservas, convidados nem pagamentos (são testes da homologação), nem o que
+  está excluído na origem.
+- Casa **pelo nome** (grupo social; espaço dentro do grupo; item pelo nome e categoria): o que
+  já existe no destino é atualizado, o resto é criado. Pode rodar de novo depois de ajustar a
+  homologação. **Nunca apaga** nada no destino.
+- Conflito com uma quadra casa pelo nome da quadra e do grupo; se ela não existir no destino, o
+  comando avisa e pula.
+- Imagem que é arquivo precisa estar em `public/images` do servidor de destino (as enviadas pelo
+  painel ficam no repositório e chegam pelo deploy); o comando lista as que faltam. Link
+  externo vai como está.
+- `--from`/`--to` são bancos no mesmo servidor e usuário da conexão `mysql` (ou o nome de uma
+  conexão configurada). Os dias da semana precisam ter os mesmos ids nos dois bancos.
+
 ## Regras de negócio
 
 - **Valor** = locação + extras × preço do extra + bebidas + mobiliário − desconto. Preço do
@@ -269,6 +295,6 @@ houve).
 - Controllers: `Social\SocialBookingController`, `Social\SocialBeverageController`,
   `Api\SocialBookingApiController`; pagamento em `SchedulePaymentController::store` (site) e
   `storeManual` (baixa manual, rota `payment.manual`).
-- Comandos: `social:expire-bookings`, `social:contact-reminders`.
+- Comandos: `social:expire-bookings`, `social:contact-reminders`, `social:copy-config` (manual).
 - Testes: `tests/Feature/Social/*`, `tests/Feature/Payments/ManualPaymentTest.php`,
   `tests/Feature/Rebrand/EspacosSociaisScreensTest.php`, `tests/Unit/BusinessDaysTest.php`.

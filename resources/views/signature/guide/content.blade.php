@@ -122,7 +122,8 @@
     <div class="bar"></div>
     <h1>Assinatura de documentos</h1>
     <p class="lead">Guia do dia a dia: como preparar um documento no Word, cadastrar o modelo, emitir o documento
-        no balcão, acompanhar a assinatura no tablet — ou pelo <b>gov.br</b>, para quem não vem ao clube — e
+        no balcão, acompanhar a assinatura no tablet — ou a distância, por <b>link</b> ou pelo <b>gov.br</b>, para quem
+        não vem ao clube — e
         encontrar o documento assinado depois.</p>
 
     <table class="flow">
@@ -130,7 +131,7 @@
             <td><b>1. Word</b>Escrever o texto e marcar os campos</td>
             <td><b>2. Modelo</b>Enviar o Word e ajustar os campos</td>
             <td><b>3. Documento</b>Preencher os dados e congelar</td>
-            <td><b>4. Tablet ou gov.br</b>A pessoa lê, confirma e assina</td>
+            <td><b>4. Tablet, link ou gov.br</b>A pessoa lê, confirma e assina</td>
             <td><b>5. Arquivo</b>PDF assinado, com comprovante</td>
         </tr>
     </table>
@@ -147,10 +148,11 @@
         <tr><td class="n">7</td><td><a href="#tablet">O que a pessoa vê no tablet</a></td><td class="who">atendimento</td></tr>
         <tr><td class="n">8</td><td><a href="#depois">Depois de assinado: onde está o documento e a revisão</a></td><td class="who">todos</td></tr>
         <tr><td class="n">9</td><td><a href="#govbr">Assinatura pelo gov.br (quem não vem ao balcão)</a></td><td class="who">atendimento</td></tr>
-        <tr><td class="n">10</td><td><a href="#menores">Termo de Menores (autoatendimento nos eventos)</a></td><td class="who">organização dos eventos, entrada</td></tr>
-        <tr><td class="n">11</td><td><a href="#diretoria">Assinatura da Diretoria (diretores no tablet)</a></td><td class="who">atendimento, diretoria</td></tr>
-        <tr><td class="n">12</td><td><a href="#problemas">Problemas comuns</a></td><td class="who">todos</td></tr>
-        <tr><td class="n">13</td><td><a href="#cola">Cola rápida dos marcadores</a></td><td class="who">quem escreve os modelos</td></tr>
+        <tr><td class="n">10</td><td><a href="#remota">Assinatura a distância por link (sem gov.br)</a></td><td class="who">atendimento</td></tr>
+        <tr><td class="n">11</td><td><a href="#menores">Termo de Menores (autoatendimento nos eventos)</a></td><td class="who">organização dos eventos, entrada</td></tr>
+        <tr><td class="n">12</td><td><a href="#diretoria">Assinatura da Diretoria (diretores no tablet)</a></td><td class="who">atendimento, diretoria</td></tr>
+        <tr><td class="n">13</td><td><a href="#problemas">Problemas comuns</a></td><td class="who">todos</td></tr>
+        <tr><td class="n">14</td><td><a href="#cola">Cola rápida dos marcadores</a></td><td class="who">quem escreve os modelos</td></tr>
     </table>
 </div>
 
@@ -177,18 +179,18 @@
     <ul>
         <li><span class="menu">Assinaturas → Modelos</span> — cadastrar e revisar modelos; ajustar o cabeçalho e o rodapé.</li>
         <li><span class="menu">Assinaturas → Documentos</span> — emitir um documento, acompanhar a assinatura e baixar o PDF.
-            Na página de cada documento, a aba <span class="menu">Assinatura gov.br</span> é por onde ele é
-            assinado à distância (seção 9).</li>
+            Na página de cada documento, o quadro <span class="menu">Assinatura remota</span> envia o link por e-mail
+            (seção 10), e a aba <span class="menu">Assinatura gov.br</span> é o caminho pelo gov.br (seção 9).</li>
         <li>O <b>tablet do balcão</b> fica aberto na tela de assinatura (endereço do sistema terminado em
             <code>%%ENDERECO_DO_TABLET%%</code>) e não precisa de login.</li>
         <li><span class="menu">Assinaturas → Termo de Menores</span> — o termo de cada evento, o pareamento do
-            tablet de autoatendimento e o histórico de menores autorizados (seção 10).</li>
+            tablet de autoatendimento e o histórico de menores autorizados (seção 11).</li>
         <li><span class="menu">Assinaturas → Diretoria</span> — as áreas da diretoria e quem assina por cada uma,
-            titular e substitutos (seção 11).</li>
+            titular e substitutos (seção 12).</li>
         <li>Um item do menu que não aparece para você depende de permissão: peça o acesso à TI.</li>
     </ul>
 
-    <h3>Duas formas de assinar</h3>
+    <h3>Três formas de assinar</h3>
     <table class="ref">
         <tr><th style="width:24%">Forma</th><th>Quando usar</th></tr>
         <tr>
@@ -197,13 +199,18 @@
                 todo dia (seções 6 e 7).</td>
         </tr>
         <tr>
+            <td><b>Link por e-mail</b></td>
+            <td>A pessoa não pode vir. Ela recebe um link, abre no celular ou no computador, confirma o CPF, assina na
+                tela e tira uma foto (seção 10).</td>
+        </tr>
+        <tr>
             <td><b>gov.br</b></td>
-            <td>A pessoa não pode vir. Ela recebe o PDF por e-mail, assina com a própria conta gov.br e devolve o
-                arquivo; o sistema confere a assinatura (seção 9).</td>
+            <td>A pessoa não pode vir e prefere a conta gov.br. Ela recebe o PDF por e-mail, assina no gov.br e devolve
+                o arquivo; o sistema confere a assinatura (seção 9).</td>
         </tr>
     </table>
-    <p class="small">Cada documento é assinado por <b>uma</b> das duas formas: todos no tablet, ou todos pelo
-        gov.br. A seção 9 explica por quê.</p>
+    <p class="small">Tablet e link podem ser usados no mesmo documento, um para cada pessoa. O gov.br não se mistura:
+        quando um documento vai para o gov.br, todos assinam por lá. A seção 9 explica por quê.</p>
 
     <h3>As situações de um documento</h3>
     <table class="ref">
@@ -390,9 +397,9 @@
     </div>
 
     <div class="box warn">
-        <b class="h">Evite "Sem conferência" por enquanto</b>
-        A opção "Sem conferência" está com um problema conhecido: documentos de modelos configurados assim podem
-        não concluir a assinatura no tablet. Use os quatro dígitos, o CPF completo ou o código por e-mail.
+        <b class="h">"Sem conferência" é a opção mais fraca</b>
+        Com ela, o tablet não pede nada para confirmar quem assina: a única prova é o atendente ter liberado o
+        documento para aquela pessoa. Prefira os quatro dígitos, o CPF completo ou o código por e-mail.
     </div>
 
     <div class="box tip">
@@ -916,8 +923,76 @@
 </div>
 
 <!-- ====================================================== 10 -->
+<div class="section" id="remota">
+    <h2>10. Assinatura a distância por link (sem gov.br)</h2>
+
+    <p>Quem não pode vir ao clube também pode assinar por um <b>link enviado por e-mail</b>. O link abre uma tela
+        no <b>site do clube</b> (o mesmo das reservas), sem login. A pessoa digita o <b>CPF completo</b>, lê o
+        documento, aceita, assina na tela com o dedo ou o mouse e tira uma <b>foto</b>. É o mesmo registro do tablet:
+        o PDF assinado sai igual, com o manifesto.</p>
+
+    <table class="steps">
+        <tr>
+            <td class="n"><span class="num">1</span></td>
+            <td>Prepare e <b>congele</b> o documento como sempre. Na página dele, abaixo de
+                <span class="menu">Assinatura no tablet</span>, fica o quadro <span class="menu">Assinatura remota</span>.</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">2</span></td>
+            <td>Confira o e-mail de quem vai assinar (ele vem preenchido com o do cadastro e pode ser corrigido) e clique
+                em <span class="btn">Enviar link</span>. A pessoa recebe o e-mail na hora.<br>
+                <span class="small">O link vale <b>72 horas</b>. O prazo do documento é estendido até lá.</span></td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">3</span></td>
+            <td>A pessoa abre o link num <b>celular ou computador com câmera</b>, digita o CPF e segue as telas. Se o
+                documento pede <b>anexos</b> (identidade, comprovante), ela mesma envia por lá. O quadro mostra quantas
+                vezes o link foi aberto e se o CPF errou. Enquanto ela assina, o cartão dela mostra
+                <b>Assinando a distância, pelo link</b>.</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">4</span></td>
+            <td>Assinou: a pessoa passa a <b>Assinou</b>. Com todos assinados, o documento fica <b>Assinado</b> e depois
+                <b>Finalizado</b>, como no tablet.</td>
+        </tr>
+    </table>
+
+    <div class="keep">
+    <h3>O que vale saber</h3>
+    <ul>
+        <li><b>Serve para qualquer documento</b>, inclusive com perguntas a quem assina e com visto.</li>
+        <li><b>Tablet e link no mesmo documento: pode.</b> Uma pessoa assina no balcão e outra pelo link. Se a mesma
+            pessoa tiver o QR na tela e o link no e-mail, vale o que ela usar primeiro.</li>
+        <li><b>A conferência é sempre pelo CPF completo</b>, mesmo que o modelo peça só os quatro primeiros dígitos.
+            São <b>5 tentativas por link</b>, somadas mesmo que a pessoa feche e abra de novo. Na quinta errada o link
+            é <b>bloqueado</b>: envie um novo.</li>
+        <li><b>A foto é sempre obrigatória</b> no link, mesmo que o modelo não peça foto no balcão: ninguém do clube
+            está vendo quem assina. Sem câmera, a pessoa não consegue concluir.</li>
+        <li><b>Anexos:</b> a pessoa envia pela tela do link os anexos que o documento pede (foto ou PDF). <b>Anexo
+            obrigatório faltando impede a assinatura pelo link</b> — diferente do balcão, onde ele só segura a
+            conclusão. Se você já tiver o arquivo, envie pela página do documento: ele conta para ela também. Ela pode
+            trocar ou apagar o que ela mesma enviou, até assinar; o que você enviou ela vê, mas não apaga. Na página do
+            documento, o anexo aparece como enviado por "nome (signatário, pelo link)".</li>
+        <li>A pessoa pode abrir o link mais de uma vez dentro das 72 horas. Abrir num segundo aparelho fecha a tela do
+            primeiro.</li>
+        <li><span class="btn">Enviar novo link</span> faz o anterior <b>parar de valer</b>. Use quando a pessoa perdeu o
+            e-mail, o link venceu ou foi bloqueado.</li>
+        <li><span class="btn2">Revogar link</span> faz o link parar de abrir na hora, e quem estiver com a tela aberta
+            é desconectado.</li>
+        <li>Se você <b>preparar o documento para o gov.br</b>, os links enviados param de valer: aquele documento passa
+            a ser assinado só pelo gov.br.</li>
+        <li><b>Diretor</b> não recebe link (assina no tablet, seção 12), e o <b>Termo de Menores</b> é assinado no tablet
+            do evento.</li>
+        <li>O manifesto do PDF assinado diz que foi <b>assinatura remota</b>, para qual e-mail o link foi, quem enviou e
+            de qual endereço de internet a pessoa assinou.</li>
+        <li>O quadro só aparece quando o site está configurado no servidor. Não apareceu? Fale com a TI.</li>
+    </ul>
+    </div>
+</div>
+
+<!-- ====================================================== 11 -->
 <div class="section" id="menores">
-    <h2>10. Termo de Menores (autoatendimento nos eventos)</h2>
+    <h2>11. Termo de Menores (autoatendimento nos eventos)</h2>
 
     <p>Nos eventos, o <b>responsável</b> autoriza a entrada de um <b>menor de idade</b> sozinho, num tablet de
         autoatendimento — sem papel e sem atendente. É só para <b>sócios</b>: responsável e menor são do
@@ -999,7 +1074,7 @@
 
 <!-- ====================================================== 11 -->
 <div class="section" id="diretoria">
-    <h2>11. Assinatura da Diretoria (diretores no tablet)</h2>
+    <h2>12. Assinatura da Diretoria (diretores no tablet)</h2>
 
     <p>Diretores do clube assinam documentos <b>sem passar pelo atendente</b>: no tablet do balcão, tocam em
         <span class="btn">Assinatura da Diretoria</span>, entram com a <b>matrícula e o PIN do Lara</b> e veem todos
@@ -1075,7 +1150,7 @@
 
 <!-- ====================================================== 12 -->
 <div class="section" id="problemas">
-    <h2>12. Problemas comuns</h2>
+    <h2>13. Problemas comuns</h2>
 
     <table class="ref">
         <tr><th style="width:38%">O que aconteceu</th><th>Causa provável e o que fazer</th></tr>
@@ -1160,7 +1235,7 @@
 
 <!-- ====================================================== 10 -->
 <div id="cola" style="padding-top: 22px;">
-    <h2>13. Cola rápida dos marcadores</h2>
+    <h2>14. Cola rápida dos marcadores</h2>
     <p>Para deixar ao lado do computador de quem escreve os modelos.</p>
 
     <table class="ref">

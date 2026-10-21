@@ -10,6 +10,8 @@ Assinatura eletrônica **avançada** (Lei 14.063/2020, sem ICP-Brasil) num **tab
 prepara e **congela** um documento no computador, gera um **QR de uso único** por signatário, o tablet
 (`/assinatura/kiosk`, público) lê o QR, mostra o PDF, confere a identidade, colhe aceite, traço, visto e
 foto; a fila monta o PDF final com **manifesto** e QR de validação pública (`/validar/{codigo}`).
+Quem não vem ao balcão assina por um **link enviado por e-mail**, numa tela do site externo (Next.js,
+o mesmo das reservas), sem login — ver "Assinatura remota" abaixo — ou pelo gov.br.
 
 > **Não é o `/kiosk` dos freelancers.** Aquele tem login de operador (matrícula + PIN) e mora no módulo
 > Freelancers (`app/Http/Controllers/Freelancer/KioskController.php`). O item "Assinatura (Tablet)" do menu
@@ -56,6 +58,8 @@ Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Revisão, Modelos,
 | `/validar/{codigo}` → `signature.validate(.verify)` | **público** | Mostra pouco; PDF enviado só é hasheado e descartado |
 | `assinatura/kiosk/diretoria` → `quiosque.diretoria.*` | **público** | `entrar` (matrícula + PIN → cookie `lara_director`), `pendentes`, `abrir/{signer}` (devolve o `lara_sign`), `sair`. `DirectorKioskController` |
 | `assinatura/diretoria` → `signature-directors.*` | `assinatura.diretoria` | Áreas e mandatos. `DirectorAreaController` |
+| `.../{doc}/signatarios/{s}/link-remoto` (POST), `.../{doc}/links-remotos/{link}` (DELETE) → `signature-documents.remote-link.*` | atendente (`release`) | Enviar e revogar o link de assinatura remota. `RemoteLinkController` |
+| `/api/assinatura/remota/*` → `api.assinatura-remota.*` | **servidor do site** (token próprio) | `link`, `abrir` (token no corpo); `sessao`, `pdf`, `respostas`, `visualizado`, `identidade`, `assinar`, `recusar`, `encerrar` (header `X-Signature-Session`). `Api\RemoteSignatureApiController` |
 
 `/quiosque` redireciona para `/assinatura/kiosk`; os **nomes** `quiosque.*` ficaram. Mudou rota → refaça o
 `route:cache` (um nome que não resolve no menu derruba todas as telas).
@@ -115,6 +119,8 @@ chave `mod_…`, versionado) e no **documento** (`signature_documents.attachment
 documento (`AttachmentController`, policy `attach` = `assinatura.documentos`); arquivos em `signature_attachments` +
 disco privado `documents/{id}/anexos/`, com SHA-256.
 - Rascunho: envia e remove. Aguardando assinatura e Assinado: só envia. Finalizado/encerrado: nada.
+- Assinatura remota: a própria pessoa envia pela tela do link e troca o que ela enviou; lá o obrigatório
+  trava a assinatura — ver "Assinatura remota".
 - Obrigatório trava a **conclusão** (não o `freeze`): `FinalizeSignatureDocument` sai cedo se
   `missingAttachments()` não está vazio, e o documento fica `signed`; o envio que completa a lista despacha o job.
 - Tipo pelo conteúdo (`finfo`): PDF, JPG, PNG; `signature.attachments.max_kb`.
@@ -211,7 +217,8 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 | `SignatureAuditor.php` | Trilha `signature_audit_events` encadeada por hash, só inserção; `verify()` confere a cadeia. |
 | `SignatureDocumentService.php` | Criar/editar rascunho, título padrão (`titleFor`), congelar. |
 | `SignatureRequestService.php` | Emitir/consumir/cancelar QR e código digitado; sessão do tablet. |
-| `SignatureCaptureService.php` | Identidade, aceite, traço, visto, foto, recusa. Recusa assinar com formulário pendente. |
+| `SignatureCaptureService.php` | Identidade, aceite, traço, visto, foto, recusa (`refuse`, comum ao tablet e ao link remoto). Recusa assinar com formulário pendente. |
+| `RemoteSignatureService.php` | Assinatura remota por link — ver a seção dela. |
 | `SignatureSigningDataService.php` | Respostas do signatário e data automática (`signing_data`); refaz PDF e hash antes da leitura. |
 | `SignatureDocumentRenderer.php` | HTML do documento a partir do snapshot; resolve `[[campos]]`, posiciona assinaturas por parte (`placeSignatures`). Fonte única do que o tablet mostra e do que o PDF imprime. |
 | `SignatureFieldTypes.php` | Tipos de campo: validação, forma canônica, formatação. Único lugar que sabe o que é CPF/CNPJ válido. |
@@ -256,6 +263,10 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 - **QR do atendente:** fundo `bg-white` fixo e cores fixas no `QRCode` (`partials/release.blade.php`). Não troque
   por token do tema (`bg-surface`): no escuro o código fica ilegível para a câmera. `SignatureReleaseQrThemeTest` trava isso.
 - **WhatsApp não entrega a via** de propósito (a Poli responde 200 sem entregar). Não ligue sem confirmação real.
+- **"Sem conferência" (`IDENTITY_NONE`)**: o tablet pula a etapa de identidade, e o `SignatureCaptureService::capture`
+  confirma a liberação do balcão ali mesmo (evento `identity_confirmed`, `modo = none`). Até 21/10/2026 a assinatura
+  parava em "Confirme a identidade" (documento 31 de produção). O remoto nunca usa `none` (exige CPF completo).
+  Teste: `test_modelo_sem_conferencia_assina_sem_a_etapa_de_identidade`.
 - **Visto** é desenhado via `page_script` do dompdf, fora do manifesto — por isso o PDF final com visto é
   montado duas vezes.
 
@@ -417,6 +428,52 @@ pendentes dele. Doc completa: seção "Assinatura Diretoria" de `docs/funcionali
 - Config: `SIGNATURE_DIRECTOR_TTL_DAYS`, `SIGNATURE_DIRECTOR_SESSION_MINUTES`, `SIGNATURE_DIRECTOR_MAX_LOGIN_ATTEMPTS`,
   `SIGNATURE_DIRECTOR_IDLE_SECONDS` (inatividade da lista no tablet; vai à tela como `CFG.diretoria.ociosoSegundos`).
 - Testes: `SignatureDirectorTest` (usuários reais com `SharesSqliteWithUserConnection` + `MigratesAccessSchema`).
+
+## Assinatura remota (21/10/2026)
+
+Link por e-mail → tela de quem assina no **site externo** (Next.js na DMZ, o mesmo das reservas), sem
+login. Doc completa: seção "Assinatura remota" de `docs/funcionalidades/assinatura-eletronica.md`.
+Prompt do site: `docs/funcionalidades/assinatura-remota-prompt-site.md`. **Mudou a API → atualize o
+prompt e gere um novo para o agente do site** (regra do CLAUDE.md).
+
+- **Decisões do usuário:** CPF **completo** sempre (qualquer regra do modelo), 5 tentativas **no link**
+  (somadas entre aberturas; a quinta bloqueia), link de **72 h**, **qualquer documento** (sem opção no
+  modelo), **foto sempre obrigatória**. Diretoria e Termo de Menores fora. O Lara segue fechado: o
+  navegador fala com o site; o servidor do site chama a API.
+- `RemoteSignatureService`: `send` (substitui o anterior, estende `expires_at` do documento até o fim do
+  link, e-mail síncrono na transação), `revoke`, `revokeForDocument` (chamado pelo
+  `GovbrCheckService::prepare`), `resolve`/`summary` (página de entrada), `open` (emite **e** consome uma
+  `SignatureRequest` com `identity_method = link_email` + `signature_remote_link_id`; sessão de
+  `remote.session_minutes`; abrir de novo derruba a anterior), `confirmIdentity` (leva as tentativas ao
+  link), `sign`/`refuse` (marcam o link `used`).
+- **CPF antes do documento:** na API, `pdf`, `respostas`, `visualizado` e `anexos` pedem a identidade
+  confirmada (409 `identity_required`). O tablet não tem essa trava (o atendente vê quem assina).
+- **Anexos pela pessoa** (decisões do usuário, 21/10): `GET/POST /anexos`, `DELETE /anexos/{id}`.
+  `SignatureAttachmentService::store(..., via: $request, context: ...)` grava
+  `uploaded_by_signer_id` e o nome "Fulano (signatário, pelo link)"; `removeOwn` só para o que ela
+  enviou e antes de assinar. **No remoto o obrigatório trava a assinatura**
+  (`RemoteSignatureService::sign`, 409 `attachments_missing`); no balcão continua travando só a conclusão.
+  `RemoteSignatureService::attachments()` monta a lista (vem também no estado da sessão, depois do CPF).
+  Itens são do documento, não por signatário.
+- Modelo `SignatureRemoteLink` (`signature_remote_links`, só o sha256 do token; vencido = `active` com
+  `expires_at` passado, `isExpired()`), status `active|used|revoked|superseded|locked`.
+- Ganchos no código comum, todos por `SignatureRequest::isRemote()`: `SignatureRequestService::issue`
+  (não derruba o QR do tablet, sem evento `qr_issued`), `open` (sem a faixa de IP do clube, evento
+  `remote_opened`), `SignatureCaptureService::confirmIdentity` (modo `full`, "peça um novo link"),
+  `capture` (foto obrigatória, sem `camera_unavailable`), `SignatureSigner::requiresPhoto($via)`,
+  `RespondsWithKioskSession::sessionPayload` (`pdf_url` nulo, `pdf_version`, `identity_check = full`),
+  `EnsureSignatureKioskSession` (sessão remota não abre o tablet), manifesto (texto e origem "Link remoto").
+- A recusa saiu do `QuiosqueController` para `SignatureCaptureService::refuse` (comum aos dois).
+- API: middlewares `signature_remote_api` (Bearer `SIGNATURE_REMOTE_API_TOKEN`, origem
+  `SIGNATURE_REMOTE_ALLOWED_IPS`, contexto de quem assina de `X-Signer-Ip`/`X-Signer-User-Agent` —
+  **nunca use `$request->ip()` nessa API**, é o do site) e `signature_remote_session`. Limitadores
+  nomeados `signature-remote`/`signature-remote-open` por IP de quem assina + rota. Recusas
+  `{error, reason}` (`SignatureRemoteLinkException::reason`).
+- `App\Support\IpRange` (saiu do `SignatureRequestService`): faixas de IP do tablet e do site.
+- Painel: cartão `partials/remote.blade.php`, só com `SIGNATURE_REMOTE_SITE_URL`; o status do
+  acompanhamento leva `request.remote` ("Assinando a distância, pelo link").
+- Config `signature.remote.*` e `SIGNATURE_REMOTE_*` no `.env.example`. Migration `2026_10_21_120000`
+  (no `CreatesSignatureSchema`). Testes: `SignatureRemoteLinkTest`.
 
 ## Pendências (atualizado em 09/10/2026)
 

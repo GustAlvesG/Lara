@@ -173,6 +173,16 @@ class SignatureSigner extends Model
         return $this->hasMany(SignatureGovbrInvite::class)->orderByDesc('id');
     }
 
+    /**
+     * Links de assinatura remota enviados por e-mail, o mais recente primeiro.
+     *
+     * @return HasMany<SignatureRemoteLink>
+     */
+    public function remoteLinks(): HasMany
+    {
+        return $this->hasMany(SignatureRemoteLink::class)->orderByDesc('id');
+    }
+
     public function signedViaGovbr(): bool
     {
         return $this->status === self::STATUS_SIGNED && $this->govbr_check_id !== null;
@@ -226,11 +236,15 @@ class SignatureSigner extends Model
 
     /**
      * A foto é exigida? A regra é do modelo — salvo para o diretor, que entra
-     * no tablet com matrícula e PIN e tem a foto como evidência sempre.
+     * no tablet com matrícula e PIN e tem a foto como evidência sempre, e para
+     * quem assina pelo link remoto (`$via`): ninguém do clube vê a pessoa, e
+     * a foto passa a ser a principal evidência de quem assinou.
      */
-    public function requiresPhoto(): bool
+    public function requiresPhoto(?SignatureRequest $via = null): bool
     {
-        return $this->isDirector() || (bool) $this->document?->template?->requires_photo;
+        return $this->isDirector()
+            || (bool) $via?->isRemote()
+            || (bool) $this->document?->template?->requires_photo;
     }
 
     /**
