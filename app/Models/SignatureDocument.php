@@ -151,6 +151,47 @@ class SignatureDocument extends Model
     }
 
     /**
+     * Busca da lista de documentos. Cada palavra digitada precisa aparecer em
+     * algum lugar — "maria piscina" acha o termo da piscina da Maria —, e cada
+     * uma pode vir de um campo diferente: título, nome do modelo, código de
+     * validação (inteiro ou um pedaço), quem gerou, nome ou e-mail de um
+     * signatário. Palavra com 3 dígitos ou mais também procura no CPF, como
+     * pedaço: "247" acha "529.982.247-25". A pontuação do CPF não atrapalha.
+     *
+     * Acento e maiúscula: o MySQL compara pela collation (`utf8mb4_unicode_ci`
+     * ignora os dois).
+     */
+    public function scopeSearch($query, ?string $busca)
+    {
+        $termos = preg_split('/\s+/u', trim((string) $busca), -1, PREG_SPLIT_NO_EMPTY);
+
+        foreach (array_slice($termos, 0, 8) as $termo) {
+            $like = '%' . addcslashes($termo, '%_\\') . '%';
+            $digitos = Cpf::digits($termo);
+            // "529.982.247-25" é um termo só e conta como número; "ap12" não.
+            $soNumero = $digitos !== '' && preg_match('/^[\d.\-\/]+$/', $termo);
+
+            $query->where(function ($q) use ($like, $termo, $digitos, $soNumero) {
+                $q->where('title', 'like', $like)
+                    ->orWhere('validation_code', 'like', '%' . mb_strtoupper(addcslashes($termo, '%_\\')) . '%')
+                    ->orWhere('created_by_name', 'like', $like)
+                    ->orWhereHas('template', fn($t) => $t->where('name', 'like', $like))
+                    ->orWhereHas('signers', function ($s) use ($like, $digitos, $soNumero) {
+                        $s->where(function ($s) use ($like, $digitos, $soNumero) {
+                            $s->where('name', 'like', $like)->orWhere('email', 'like', $like);
+
+                            if ($soNumero && strlen($digitos) >= 3) {
+                                $s->orWhere('cpf', 'like', '%' . $digitos . '%');
+                            }
+                        });
+                    });
+            });
+        }
+
+        return $query;
+    }
+
+    /**
      * @return HasMany<SignatureAuditEvent>
      */
     public function auditEvents(): HasMany

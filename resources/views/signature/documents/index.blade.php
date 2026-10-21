@@ -1,6 +1,8 @@
 {{--
-    Documentos da assinatura eletrônica. Lista paginada: a busca (título,
-    signatário, CPF ou código de validação) e a situação vão ao servidor.
+    Documentos da assinatura eletrônica. Lista paginada: a busca
+    (SignatureDocument::scopeSearch — cada palavra em título, modelo, código,
+    quem gerou, nome/e-mail/CPF do signatário) e os filtros (situação, modelo,
+    período, gerados por mim) vão ao servidor.
 --}}
 @php
     use App\Models\SignatureDocument as Doc;
@@ -27,7 +29,7 @@
 
         @include('partials.alerts')
 
-        <x-search-bar :filters="['status']" placeholder="Título, nome do signatário, CPF ou código de validação">
+        <x-search-bar :filters="['status', 'modelo', 'de', 'ate', 'meus']" placeholder="Título, modelo, signatário, e-mail, CPF, código ou quem gerou">
             <x-slot:controls>
                 <label for="status" class="sr-only">Situação</label>
                 <select name="status" id="status" class="{{ $field }} w-full sm:w-56">
@@ -38,12 +40,42 @@
                     {{-- Aguardando a assinatura de um diretor (Assinatura Diretoria). --}}
                     <option value="diretoria" @selected($status === 'diretoria')>Aguardando diretoria</option>
                 </select>
+
+                <label for="modelo" class="sr-only">Modelo</label>
+                <select name="modelo" id="modelo" class="{{ $field }} w-full sm:w-64">
+                    <option value="">Todos os modelos</option>
+                    @foreach($modelos as $opcao)
+                        <option value="{{ $opcao->root_id }}" @selected($modelo === (string) $opcao->root_id)>
+                            {{ $opcao->name }}{{ $opcao->active ? '' : ' (inativo)' }}
+                        </option>
+                    @endforeach
+                    <option value="avulso" @selected($modelo === 'avulso')>Documento enviado pronto (PDF)</option>
+                </select>
+
+                <div class="flex w-full items-center gap-2 sm:w-auto">
+                    <label for="de" class="text-xs font-bold text-ink-3">De</label>
+                    <input type="date" name="de" id="de" value="{{ $de }}" class="{{ $field }} flex-1 sm:w-40">
+                    <label for="ate" class="text-xs font-bold text-ink-3">até</label>
+                    <input type="date" name="ate" id="ate" value="{{ $ate }}" class="{{ $field }} flex-1 sm:w-40">
+                </div>
+
+                <label class="inline-flex items-center gap-2 whitespace-nowrap px-1 text-sm text-ink">
+                    <input type="checkbox" name="meus" value="1" @checked($meus)
+                           class="rounded border-line-strong text-grena-ink focus:ring-grena-tint">
+                    Gerados por mim
+                </label>
             </x-slot:controls>
         </x-search-bar>
 
+        @if($documents->isNotEmpty() && (filled($busca) || filled($status) || filled($modelo) || $de || $ate || $meus))
+            <p class="px-1 text-[13px] text-ink-3" aria-live="polite">
+                {{ $documents->total() }} {{ $documents->total() === 1 ? 'documento encontrado' : 'documentos encontrados' }}
+            </p>
+        @endif
+
         @if($documents->isEmpty())
             <x-empty-state icon="doc">
-                @if(filled($busca) || filled($status))
+                @if(filled($busca) || filled($status) || filled($modelo) || $de || $ate || $meus)
                     Nenhum documento com esses filtros.
                     <a href="{{ route('signature-documents.index') }}" class="font-bold text-grena-ink hover:underline">Limpar a busca</a>.
                 @else
@@ -86,8 +118,11 @@
                                     <td class="px-5 py-3.5">
                                         <x-pill :kind="$statusKind($document->status)">{{ $document->statusLabel() }}</x-pill>
                                     </td>
-                                    <td class="whitespace-nowrap px-5 py-3.5 font-mono text-xs text-ink-2">
-                                        {{ $document->created_at?->format('d/m/Y H:i') }}
+                                    <td class="whitespace-nowrap px-5 py-3.5 text-xs text-ink-2">
+                                        <span class="font-mono">{{ $document->created_at?->format('d/m/Y H:i') }}</span>
+                                        @if($document->created_by_name)
+                                            <div>por {{ $document->created_by_name }}</div>
+                                        @endif
                                     </td>
                                     <td class="whitespace-nowrap px-5 py-3.5 text-right">
                                         <x-secondary-button-a size="sm" href="{{ route('signature-documents.show', $document) }}">Abrir</x-secondary-button-a>

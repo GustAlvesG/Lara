@@ -60,6 +60,16 @@ Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Revisão, Modelos,
 `/quiosque` redireciona para `/assinatura/kiosk`; os **nomes** `quiosque.*` ficaram. Mudou rota → refaça o
 `route:cache` (um nome que não resolve no menu derruba todas as telas).
 
+## Listas do painel (21/10/2026)
+
+- **Modelos:** abas **Ativos** / **Inativos** pelo endereço (`?aba=inativos`, `TemplateController::index`); a busca de
+  cada aba é na página (`x-search-bar mode="client"`).
+- **Documentos:** busca no servidor por `SignatureDocument::scopeSearch` — cada palavra (até 8) precisa casar em
+  algum campo: título, nome do modelo, código de validação (pedaço), `created_by_name`, nome/e-mail do signatário;
+  palavra só de dígitos e pontuação (≥ 3 dígitos) procura pedaço do CPF. Filtros: `status` (inclui `diretoria`),
+  `modelo` (= `root_id`, todas as versões; `avulso` = `single_use`), `de`/`ate` (`created_at`, data inválida é
+  ignorada) e `meus` (`created_by`). Teste: `SignatureDocumentSearchTest`.
+
 ## Ciclo de vida
 
 ```

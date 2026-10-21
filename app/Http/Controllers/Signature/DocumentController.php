@@ -16,6 +16,7 @@ use App\Services\Signature\SignatureMemberDirectory;
 use App\Support\Cpf;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -42,8 +43,19 @@ class DocumentController extends Controller
 
         $status = $request->query('status');
         $busca = trim((string) $request->query('q', ''));
+        // Modelo: a raiz (todas as versões dele) ou "avulso" (PDF enviado pronto).
+        $modelo = (string) $request->query('modelo', '');
+        $de = $this->queryDate($request, 'de');
+        $ate = $this->queryDate($request, 'ate');
+        $meus = $request->boolean('meus');
 
         $documentos = SignatureDocument::with(['template', 'signers'])
+            ->search($busca)
+            ->when($modelo === 'avulso', fn($query) => $query->whereHas('template', fn($t) => $t->where('single_use', true)))
+            ->when(ctype_digit($modelo), fn($query) => $query->whereHas('template', fn($t) => $t->where('root_id', (int) $modelo)))
+            ->when($de, fn($query) => $query->where('created_at', '>=', $de->startOfDay()))
+            ->when($ate, fn($query) => $query->where('created_at', '<=', $ate->endOfDay()))
+            ->when($meus, fn($query) => $query->where('created_by', $request->user()->id))
             // "Aguardando diretoria": aguardando assinatura e com diretor pendente.
             ->when($status === 'diretoria', fn($query) => $query
                 ->where('status', SignatureDocument::STATUS_AWAITING_SIGNATURE)
@@ -51,30 +63,48 @@ class DocumentController extends Controller
                     ->whereNotNull('director_area_id')
                     ->where('status', \App\Models\SignatureSigner::STATUS_PENDING)))
             ->when($status && $status !== 'diretoria', fn($query) => $query->where('status', $status))
-            ->when($busca !== '', function ($query) use ($busca) {
-                $digitos = Cpf::digits($busca);
-
-                $query->where(function ($q) use ($busca, $digitos) {
-                    $q->where('title', 'like', '%' . $busca . '%')
-                        ->orWhere('validation_code', mb_strtoupper($busca))
-                        ->orWhereHas('signers', function ($s) use ($busca, $digitos) {
-                            $s->where('name', 'like', '%' . $busca . '%');
-
-                            if ($digitos !== '') {
-                                $s->orWhere('cpf', $digitos);
-                            }
-                        });
-                });
-            })
             ->orderByDesc('id')
             ->paginate(20)
             ->withQueryString();
+
+        // Um item por modelo (a versão mais nova dá o nome), ativos e inativos:
+        // documento antigo também se procura pelo modelo que saiu de uso.
+        $modelos = SignatureTemplate::whereIn('id', fn($q) => $q->selectRaw('MAX(id)')
+            ->from('signature_templates')
+            ->groupBy('root_id'))
+            ->where('single_use', false)
+            ->orderBy('name')
+            ->get(['id', 'root_id', 'name', 'active']);
 
         return view('signature.documents.index', [
             'documents' => $documentos,
             'status' => $status,
             'busca' => $busca,
+            'modelos' => $modelos,
+            'modelo' => $modelo,
+            'de' => $de?->toDateString(),
+            'ate' => $ate?->toDateString(),
+            'meus' => $meus,
         ]);
+    }
+
+    /** Data do filtro (AAAA-MM-DD do campo de data); inválida = sem filtro. */
+    private function queryDate(Request $request, string $key): ?Carbon
+    {
+        $valor = (string) $request->query($key, '');
+
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $valor)) {
+            return null;
+        }
+
+        try {
+            $data = Carbon::createFromFormat('!Y-m-d', $valor);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        // "2026-13-45" não lança: vira outra data. Só vale a que volta igual.
+        return $data->format('Y-m-d') === $valor ? $data : null;
     }
 
     public function create(Request $request)

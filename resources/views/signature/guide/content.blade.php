@@ -496,7 +496,8 @@
         foram gerados; os próximos usam a nova. O histórico de versões fica na página do modelo.
     </div>
 
-    <p>Um modelo que já gerou documentos não é apagado: ao excluí-lo, ele fica <b>inativo</b>.</p>
+    <p>Um modelo que já gerou documentos não é apagado: ao excluí-lo, ele fica <b>inativo</b>. Os inativos saem da
+        lista principal e ficam na aba <b>Inativos</b> de <span class="menu">Assinaturas → Modelos</span>.</p>
 
     <h3>Cabeçalho e rodapé da empresa</h3>
     <p>O papel timbrado é <b>um só</b> para todos os documentos.</p>
@@ -700,8 +701,11 @@
     <table class="steps">
         <tr>
             <td class="n"><span class="num">1</span></td>
-            <td>Abra <span class="menu">Assinaturas → Documentos</span>. A busca aceita título, nome do signatário, CPF ou
-                código de validação, e há filtro por situação.</td>
+            <td>Abra <span class="menu">Assinaturas → Documentos</span>. A busca aceita título, nome do modelo, nome ou
+                e-mail do signatário, CPF (inteiro ou um pedaço), código de validação e o nome de quem gerou. Digite
+                várias palavras para estreitar: <code>maria piscina</code> acha o termo da piscina da Maria.<br>
+                Ao lado da busca há filtros por <b>situação</b>, <b>modelo</b> (inclusive os inativos e os documentos
+                enviados prontos em PDF), <b>período</b> de criação e <b>Gerados por mim</b>.</td>
         </tr>
         <tr>
             <td class="n"><span class="num">2</span></td>

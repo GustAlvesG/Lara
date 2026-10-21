@@ -1,6 +1,11 @@
-{{-- Modelos de documento da assinatura. A lista vem inteira: a busca filtra na página. --}}
+{{--
+    Modelos de documento da assinatura. Abas pelo endereço (?aba=inativos):
+    os desativados saem da lista do dia a dia. A lista de cada aba vem
+    inteira: a busca filtra na página.
+--}}
 @php
     $th = 'px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3';
+    $tabClasses = 'inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-bold text-ink-2 transition aria-selected:bg-surface aria-selected:text-ink aria-selected:shadow-card';
 @endphp
 <x-app-layout :bootstrap-grid="false">
     <x-page>
@@ -18,10 +23,25 @@
 
         @include('partials.alerts')
 
+        <div class="flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-subtle p-1" role="tablist" aria-label="Situação dos modelos">
+            <a href="{{ route('signature-templates.index') }}" role="tab"
+               aria-selected="{{ $aba === 'ativos' ? 'true' : 'false' }}" class="{{ $tabClasses }}">
+                Ativos <span class="font-mono text-[11px] text-ink-3">{{ $totalAtivos }}</span>
+            </a>
+            <a href="{{ route('signature-templates.index', ['aba' => 'inativos']) }}" role="tab"
+               aria-selected="{{ $aba === 'inativos' ? 'true' : 'false' }}" class="{{ $tabClasses }}">
+                Inativos <span class="font-mono text-[11px] text-ink-3">{{ $totalInativos }}</span>
+            </a>
+        </div>
+
         @if($templates->isEmpty())
             <x-empty-state icon="doc">
-                Nenhum modelo cadastrado.
-                <a href="{{ route('signature-templates.create') }}" class="font-bold text-grena-ink hover:underline">Criar o primeiro</a>.
+                @if($aba === 'inativos')
+                    Nenhum modelo inativo.
+                @else
+                    Nenhum modelo ativo.
+                    <a href="{{ route('signature-templates.create') }}" class="font-bold text-grena-ink hover:underline">Criar um modelo</a>.
+                @endif
             </x-empty-state>
         @else
             <x-search-bar mode="client" target="#modelos-assinatura" placeholder="Buscar modelo" />

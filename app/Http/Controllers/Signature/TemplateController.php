@@ -29,7 +29,7 @@ use Illuminate\Support\Facades\DB;
  */
 class TemplateController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         /*
          | Uma linha por modelo: a maior versão de cada `root_id`. A subconsulta
@@ -50,8 +50,16 @@ class TemplateController extends Controller
             ->groupBy('signature_template_id')
             ->pluck('total', 'signature_template_id');
 
+        // Ativos e inativos em abas separadas (?aba=inativos): os desativados
+        // ficam guardados, mas fora da lista do dia a dia.
+        $aba = $request->query('aba') === 'inativos' ? 'inativos' : 'ativos';
+        [$ativos, $inativos] = $vigentes->partition(fn(SignatureTemplate $t) => $t->active);
+
         return view('signature.templates.index', [
-            'templates' => $vigentes,
+            'templates' => $aba === 'inativos' ? $inativos->values() : $ativos->values(),
+            'aba' => $aba,
+            'totalAtivos' => $ativos->count(),
+            'totalInativos' => $inativos->count(),
             'usos' => $usos,
         ]);
     }
