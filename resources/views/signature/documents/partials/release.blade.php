@@ -374,7 +374,7 @@
                         var linha = '';
 
                         if (signatario.request && signatario.request.status === 'consumed') {
-                            linha = 'Tablet conectado';
+                            linha = signatario.request.remote ? 'Assinando a distância, pelo link' : 'Tablet conectado';
 
                             if (signatario.last_event) {
                                 linha += ' · ' + signatario.last_event.label + ' às ' + signatario.last_event.at;

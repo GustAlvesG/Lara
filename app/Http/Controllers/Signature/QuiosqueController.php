@@ -10,7 +10,6 @@ use App\Http\Middleware\EnsureSignatureKioskSession;
 use App\Models\SignatureAuditEvent;
 use App\Models\SignatureDocument;
 use App\Models\SignatureRequest;
-use App\Models\SignatureSigner;
 use App\Services\Signature\SignatureCaptureService;
 use App\Services\Signature\SignatureRequestService;
 use App\Services\Signature\SignatureSigningDataService;
@@ -329,11 +328,8 @@ class QuiosqueController extends Controller
     }
 
     /**
-     * Recusa — disponível em qualquer etapa, com motivo opcional.
-     *
-     * Recusar não é erro nem abandono: é uma resposta, e o documento inteiro
-     * vai para `refused`. Tentar seguir com os demais signatários depois de
-     * uma recusa produziria um documento que ninguém pediu.
+     * Recusa — disponível em qualquer etapa, com motivo opcional. A regra é do
+     * SignatureCaptureService::refuse, comum ao tablet e ao link remoto.
      */
     public function refuse(Request $request, SignatureDocument $signatureDocument)
     {
@@ -343,36 +339,7 @@ class QuiosqueController extends Controller
             'reason' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $signatario = $solicitacao->signer;
-
-        $this->states->signerTo(
-            $signatario,
-            SignatureSigner::STATUS_REFUSED,
-            SignatureAuditEvent::EVENT_REFUSED,
-            ['refused_at' => now(), 'refusal_reason' => $dados['reason'] ?? null],
-            [
-                'request' => $solicitacao->id,
-                'actor_type' => SignatureAuditEvent::ACTOR_KIOSK,
-                'ip' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'payload' => ['motivo' => $dados['reason'] ?? null],
-            ],
-        );
-
-        $this->states->documentTo(
-            $signatureDocument,
-            SignatureDocument::STATUS_REFUSED,
-            SignatureAuditEvent::EVENT_REFUSED,
-            [],
-            [
-                'signer' => $signatario->id,
-                'actor_type' => SignatureAuditEvent::ACTOR_KIOSK,
-                'ip' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-            ],
-        );
-
-        $this->requests->complete($solicitacao, [
+        $this->capture->refuse($solicitacao, $dados['reason'] ?? null, [
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);

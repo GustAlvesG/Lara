@@ -70,6 +70,13 @@ class SignatureAuditEvent extends Model
     public const EVENT_REVIEWED = 'reviewed';
     /** Documento gerado pelo próprio sócio no tablet do Termo de Menores. */
     public const EVENT_SELF_SERVICE = 'self_service_started';
+    /* Assinatura remota — o link enviado por e-mail (ver RemoteSignatureService). */
+    public const EVENT_REMOTE_LINK_SENT = 'remote_link_sent';
+    public const EVENT_REMOTE_LINK_REVOKED = 'remote_link_revoked';
+    /** Tentativas de CPF esgotadas: o link deixa de abrir. */
+    public const EVENT_REMOTE_LINK_LOCKED = 'remote_link_locked';
+    /** O link foi aberto no site e a sessão de assinatura começou. */
+    public const EVENT_REMOTE_OPENED = 'remote_opened';
 
     public const EVENT_LABELS = [
         self::EVENT_CREATED => 'Documento criado',
@@ -106,6 +113,10 @@ class SignatureAuditEvent extends Model
         self::EVENT_ATTACHMENT_REMOVED => 'Anexo removido do rascunho',
         self::EVENT_REVIEWED => 'Revisão interna registrada',
         self::EVENT_SELF_SERVICE => 'Gerado no autoatendimento (Termo de Menores)',
+        self::EVENT_REMOTE_LINK_SENT => 'Link de assinatura remota enviado por e-mail',
+        self::EVENT_REMOTE_LINK_REVOKED => 'Link de assinatura remota revogado',
+        self::EVENT_REMOTE_LINK_LOCKED => 'Link de assinatura remota bloqueado (tentativas de CPF esgotadas)',
+        self::EVENT_REMOTE_OPENED => 'Link de assinatura remota aberto',
     ];
 
     public const ACTOR_USER = 'user';

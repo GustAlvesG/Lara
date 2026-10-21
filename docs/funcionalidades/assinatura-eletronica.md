@@ -7,6 +7,9 @@ assinados num **tablet no balcão de atendimento**, em vez de impressos. O atend
 documento no computador, mostra um **QR Code** na tela, o associado lê esse código com o tablet,
 lê o documento, confirma quem é, aceita os termos e assina com o dedo.
 
+Quem não vem ao balcão assina por um **link enviado por e-mail**, numa tela do site do clube (ver
+[Assinatura remota](#assinatura-remota-link-por-e-mail)), ou pelo gov.br.
+
 O nível jurídico alvo é a **assinatura eletrônica avançada** da Lei 14.063/2020: ela não usa
 certificado ICP-Brasil, e sim **evidências** que ligam a assinatura àquela pessoa e àquele
 conteúdo — identidade conferida, aceite explícito, traço da mão, foto, hora do servidor, IP e
@@ -559,6 +562,130 @@ Documento preparado para o gov.br sai da lista do tablet: o diretor assina pelo 
 
 Migration `2026_10_20_120100_create_signature_director_areas`. Testes: `SignatureDirectorTest`.
 
+## Assinatura remota (link por e-mail)
+
+Para quem não vem ao balcão e não quer usar o gov.br. O atendente envia, pela tela do documento, um
+**link especial por e-mail**. O link abre a tela de quem assina numa **área separada** do servidor
+Next.js da DMZ (o mesmo que hospeda as reservas e a `/aprovacao` de Compras), **sem login**: layout
+próprio, sem relação com sócio nem reserva, não indexada e sem link a partir do site. A pessoa lê o documento, confere o CPF, aceita, assina com o
+dedo ou o mouse e tira uma foto. O PDF final é montado do mesmo jeito que o do tablet.
+
+Decisões do usuário (21/10/2026): o link mais o **CPF completo**, com 5 tentativas; validade de
+**72 horas**; **qualquer documento** pode ir pelo link (sem opção no modelo); **foto sempre
+obrigatória**. Diretoria e Termo de Menores ficam fora.
+
+### O Lara continua fechado
+
+O navegador da pessoa fala só com o site. O **servidor** do site chama a API
+`/api/assinatura/remota/*` do Lara, como o site de aprovação de Compras já faz. A API tem **token
+próprio** (`SIGNATURE_REMOTE_API_TOKEN`), que não é o `API_TOKEN` das reservas, e pode ser limitada
+ao IP do servidor do site (`SIGNATURE_REMOTE_ALLOWED_IPS`).
+
+O site repassa o IP e o navegador de quem assina nos headers `X-Signer-Ip` e
+`X-Signer-User-Agent`. São esses valores que vão para a evidência, a trilha e o manifesto. Sem
+eles, ficaria gravado o IP do servidor do site como se fosse o da pessoa. IP inválido ou ausente
+fica "não registrado".
+
+### Na tela do documento
+
+O cartão **Assinatura remota** fica abaixo da liberação no tablet e só aparece com
+`SIGNATURE_REMOTE_SITE_URL` preenchido. Ele lista cada signatário pendente, menos o diretor, com
+o e-mail do cadastro já preenchido (pode ser corrigido; o informado passa a ser o do signatário,
+como no convite do gov.br) e o botão **Enviar link**. O cartão mostra também o estado do último
+link: para quem foi, por quem, até quando vale, quantas vezes foi aberto e quantas vezes o CPF
+errou. O botão **Revogar link** está ali também.
+
+- Mesma permissão de liberar o QR (`release` = `assinatura.documentos`). Sem permissão nova.
+- **Enviar de novo substitui o anterior** (`superseded`).
+- O e-mail sai **na hora, dentro da transação**: SMTP fora do ar → nada fica registrado.
+- O prazo do documento (24 h do balcão) é **estendido até o fim do link**, se for menor. Um
+  prazo maior (gov.br, diretoria) fica como está.
+- Recusas: site não configurado, diretor, Termo de Menores, documento fora de "aguardando",
+  preparado para o gov.br, signatário que já respondeu, CPF inválido no cadastro.
+
+### Na API
+
+| Rota | Sessão | O que faz |
+|---|---|---|
+| `POST /api/assinatura/remota/link` `{token}` | não | Página de entrada: título, nome, até quando vale, exigências. Não abre sessão |
+| `POST /api/assinatura/remota/abrir` `{token}` | não | Abre a sessão e devolve `session_token` + o estado (o mesmo do tablet) |
+| `GET /sessao` | sim | Estado da sessão (contagem, perguntas, regras) |
+| `GET /pdf` | sim | O PDF original que a pessoa lê, os mesmos bytes do hash |
+| `POST /respostas` `{answers}` | sim | Perguntas a quem assina, antes da leitura |
+| `POST /visualizado` | sim | Tempo de leitura e rolagem até o fim |
+| `POST /identidade` `{cpf}` | sim | CPF completo; devolve `attempts_left` quando erra |
+| `GET /anexos` | sim | Itens de anexo pedidos, arquivos já enviados, o que falta (também vem no estado da sessão) |
+| `POST /anexos` (multipart `file` + `key`) | sim | A pessoa envia o arquivo de um item pedido |
+| `DELETE /anexos/{id}` | sim | A pessoa apaga um arquivo que ela mesma enviou, antes de assinar |
+| `POST /assinar` | sim | Traço, visto, foto (obrigatória), aceite: tudo numa requisição |
+| `POST /recusar` `{reason}` | sim | Recusa: o documento inteiro vai para recusado |
+| `POST /encerrar` | sim | Sai sem assinar; o link continua valendo |
+
+A sessão vai no header `X-Signature-Session`. O token do e-mail vai sempre no **corpo**, nunca na
+URL da API, para não acabar em log de acesso. Toda recusa responde `{error, reason}`, com
+`reason` estável: `invalid_link`, `link_expired`, `link_superseded`, `link_revoked`, `link_used`,
+`link_locked`, `document_unavailable`, `session_ended`, `identity_required`, `identity_failed`,
+`attachments_missing`, `attachment_refused`, `too_many_attempts`,
+`invalid`, `conflict`, `unauthorized`. O contrato completo, com exemplos, está no prompt do site:
+[assinatura-remota-prompt-site.md](assinatura-remota-prompt-site.md).
+
+### Regras
+
+- **O link abre várias vezes** até a pessoa assinar ou recusar, dentro das 72 h. Cada abertura é
+  uma liberação nova (`signature_requests`, `identity_method = link_email`,
+  `signature_remote_link_id`) com sessão de `SIGNATURE_REMOTE_SESSION_MINUTES` (30 min),
+  emitida e consumida na hora. Abrir de novo derruba a sessão anterior (outra aba, outro aparelho).
+- **CPF completo, sempre**, qualquer que seja a regra do modelo (`SignatureCaptureService::confirmIdentity`).
+- **O CPF vem antes do documento.** Sem a identidade confirmada, `pdf`, `respostas` e `visualizado`
+  respondem 409 `identity_required`: quem tem o e-mail tem o link, e o documento não abre só com ele.
+  Ordem no site: CPF → perguntas → anexos → leitura → aceite → traço → visto → foto. (No tablet a ordem é
+  outra, porque o atendente vê quem pega o aparelho.)
+- **Anexos pela própria pessoa** (decisões do usuário, 21/10/2026): ela envia os itens pedidos pelo modelo
+  e pelo documento (nunca avulso), com as mesmas regras do atendente (PDF, JPG ou PNG pelo conteúdo,
+  `SIGNATURE_ATTACHMENT_MAX_KB`, SHA-256, trilha sem o nome do arquivo). **No remoto, o obrigatório trava a
+  ASSINATURA** (409 `attachments_missing`), não só a conclusão: não há atendente para correr atrás do
+  arquivo. Vale arquivo de quem quer que seja, inclusive o enviado pelo atendente. A pessoa **troca ou
+  apaga só o que ela mesma enviou** (`signature_attachments.uploaded_by_signer_id`), e só até assinar. O
+  que o atendente enviou aparece para ela, sem poder apagar. Na tela do documento e no manifesto, o
+  anexo sai como enviado por "Nome (signatário, pelo link)"; a trilha leva o IP de quem assina. Os itens
+  são do documento, não de cada signatário: com dois signatários remotos, o primeiro a assinar precisa
+  dos obrigatórios completos.
+- **As 5 tentativas contam no link**, somadas entre as aberturas. A quinta errada **bloqueia** o
+  link (`locked`, evento `remote_link_locked`). Para recomeçar, o atendente envia um novo link.
+- **Foto sempre obrigatória** (`SignatureSigner::requiresPhoto($via)`). O "sem câmera" do modo sem
+  HTTPS não vale aqui: o site é HTTPS.
+- **Tablet e link no mesmo documento**: pode. A captura é a mesma, e quem assinar primeiro encerra
+  o outro caminho. A abertura do link não derruba o QR que está na tela do atendente.
+- **gov.br continua exclusivo**: preparar o documento para o gov.br **revoga** os links ativos
+  (`GovbrCheckService::prepare`, `links_remotos_revogados` no evento).
+- **A sessão remota não abre o tablet**, nem o contrário: o `lara_sign` recusa liberação remota,
+  e a API remota recusa liberação do tablet.
+- Limites por IP de quem assina + rota (`signature-remote`, 120/min; `signature-remote-open`,
+  20/min — `AppServiceProvider`), porque tudo chega do mesmo IP do site.
+
+### Trilha e manifesto
+
+Eventos novos: `remote_link_sent` (e-mail mascarado, validade, prazo do documento, quem enviou),
+`remote_link_revoked`, `remote_link_locked` e `remote_opened` (no lugar do "QR lido pelo tablet").
+O manifesto imprime "Assinatura remota, pelo link enviado a m\*\*\*a@… por <atendente> em <data>;
+aberto pelo signatário em <data>". A conferência sai como "CPF completo, digitado por quem abriu o
+link de assinatura remota enviado por e-mail", e a origem dos eventos como **Link remoto** (e não
+Tablet), com o IP de quem assinou.
+
+### Onde fica o quê
+
+| Peça | Papel |
+|---|---|
+| `App\Services\Signature\RemoteSignatureService` | Enviar, revogar, resolver o token, abrir a sessão, CPF com tentativas no link, assinar e recusar |
+| `App\Models\SignatureRemoteLink` (`signature_remote_links`) | O link: hash do token, e-mail, validade, status, tentativas, aberturas |
+| `App\Http\Controllers\Signature\RemoteLinkController` | Painel: `signature-documents.remote-link.store` / `.destroy` |
+| `App\Http\Controllers\Api\RemoteSignatureApiController` | API `api.assinatura-remota.*` |
+| `EnsureSignatureRemoteClient` (`signature_remote_api`) / `EnsureSignatureRemoteSession` (`signature_remote_session`) | Token e origem do site; sessão em header |
+| `App\Mail\SignatureRemoteLinkMail` + `emails/signature-remote-link` | O e-mail com o botão |
+| `signature/documents/partials/remote.blade.php` | O cartão na tela do documento |
+
+Migration `2026_10_21_120000_create_signature_remote_links`. Testes: `SignatureRemoteLinkTest`.
+
 ## Página pública de validação
 
 `/validar/{codigo}` — sem login, porque quem chega veio do QR impresso. Mostra título, data,
@@ -670,6 +797,9 @@ ele. Funciona como as perguntas: **o que se pede** é uma lista de itens, cada u
 
 A chave sai do rótulo (`SignatureAttachmentService::normalize`), com o prefixo de quem pediu, para as
 duas listas não colidirem. `SignatureDocument::attachmentRequirements()` junta as duas (modelo antes).
+
+Na **assinatura remota**, a própria pessoa também envia os itens pedidos, pela tela do link, e lá o
+obrigatório trava a assinatura — ver [Assinatura remota](#assinatura-remota-link-por-e-mail).
 
 **Quem envia é o atendente, na tela do documento** (cartão "Anexos"): um envio por item — um item pode
 receber mais de um arquivo (frente e verso) — e **Outro anexo**, avulso, com o nome digitado.
@@ -1357,6 +1487,11 @@ Tudo em `config/signature.php`, com as variáveis documentadas no `.env.example`
 | `SIGNATURE_DIRECTOR_SESSION_MINUTES` | `10` | Assinatura Diretoria: inatividade que encerra a entrada do diretor no tablet |
 | `SIGNATURE_DIRECTOR_MAX_LOGIN_ATTEMPTS` | `5` | Assinatura Diretoria: tentativas de matrícula + PIN por matrícula, a cada 15 min |
 | `SIGNATURE_DIRECTOR_IDLE_SECONDS` | `90` | Assinatura Diretoria: segundos sem toque na lista que fazem o tablet encerrar a entrada do diretor |
+| `SIGNATURE_REMOTE_SITE_URL` | vazio | Assinatura remota: endereço do site; o link é `{url}/assinar/{token}`. Vazio = cartão escondido |
+| `SIGNATURE_REMOTE_API_TOKEN` | vazio | Assinatura remota: token próprio do site para `/api/assinatura/remota/*`. Vazio = API fechada |
+| `SIGNATURE_REMOTE_ALLOWED_IPS` | vazio | Assinatura remota: IP (ou CIDR) do servidor do site; vazio = qualquer origem com o token |
+| `SIGNATURE_REMOTE_TTL_HOURS` | `72` | Assinatura remota: validade do link (o prazo do documento é estendido até lá) |
+| `SIGNATURE_REMOTE_SESSION_MINUTES` | `30` | Assinatura remota: sessão de cada abertura do link |
 
 Nunca aponte `SIGNATURE_DISK` para `public` ou `placar`: os dois servem arquivo estático, sem
 passar por autorização nenhuma.
@@ -1542,6 +1677,15 @@ dados que faltam (digitados, inválidos e pulados), fluxo completo até assinado
 autorizado", documento abandonado cancelado, "Concluir", histórico com a foto e a revisão de fora.
 `SignatureMinorTermPanelTest` cobre as telas do computador (permissões, cadastro, vigência que cruza,
 modelo que não serve, desativar, QR de pareamento) e `Unit\MinorTermRulesTest`, sobrenome e maioridade.
+`SignatureRemoteLinkTest` cobre a assinatura remota: envio (só o hash no banco, e-mail corrigido,
+prazo do documento estendido, trilha sem o token), site não configurado, SMTP fora do ar, token
+próprio e origem da API, fluxo completo (CPF completo mesmo em modelo de quatro dígitos, foto
+obrigatória mesmo em modelo sem foto, IP de quem assina na evidência, link usado), tentativas
+somadas entre aberturas até o bloqueio, link substituído, vencido e inválido, revogação derrubando
+a sessão, sessão remota que não abre o tablet, recusa, gov.br revogando o link, diretor fora, o
+manifesto e o cartão do painel; e os anexos pelo link (obrigatório travando a assinatura até o envio,
+trilha com o IP de quem assina, troca do próprio anexo sem poder apagar o do atendente, CPF antes,
+item não pedido e tipo pelo conteúdo).
 
 > As tabelas são criadas pelo trait `Tests\Concerns\CreatesSignatureSchema`, que aplica as
 > migrations **de verdade** — a cadeia completa de migrations não roda na suíte, e nenhuma tabela

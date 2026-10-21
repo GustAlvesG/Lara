@@ -76,6 +76,11 @@ class GovbrCheckService
                 $this->requests->cancel($liberacao, $userId);
             }
 
+            // O link de assinatura remota também: no e-mail da pessoa, ele
+            // levaria a uma tela que agora recusa (um caminho por documento).
+            $linksRevogados = app(\App\Services\Signature\RemoteSignatureService::class)
+                ->revokeForDocument($document, $userId, $userName);
+
             // Modelo com visto: o visto sai deste documento (só existe no
             // tablet, e a assinatura do gov.br cobre o arquivo inteiro). Refaz
             // o original sem a faixa e as caixas, com evento.
@@ -97,6 +102,7 @@ class GovbrCheckService
                 'payload' => [
                     'prazo' => $prazo->toDateTimeString(),
                     'liberacoes_canceladas' => $vivas->count(),
+                    'links_remotos_revogados' => $linksRevogados,
                     'visto_dispensado' => $vistoDispensado,
                     'sha256_original' => $document->fresh()->original_sha256,
                     'preparado_por' => $userName,

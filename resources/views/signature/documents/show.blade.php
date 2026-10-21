@@ -300,7 +300,14 @@
 
                                 {{-- O QR Code pelo qual a pessoa assinou; sem assinatura, o último gerado. --}}
                                 @php $liberacao = $signer->signingRequest() ?? $signer->requests->first(); @endphp
-                                @if($liberacao)
+                                @if($liberacao?->isRemote())
+                                    {{-- Aberta pelo link do e-mail, no site — o "gerado por" é quem enviou o link. --}}
+                                    <div class="mt-1 text-[11px] text-ink-2">
+                                        {{ $signer->signed_at ? 'Assinou a distância, pelo' : 'Abriu o' }} link enviado por
+                                        {{ $liberacao->created_by_name ?? 'não registrado' }}
+                                        ({{ $liberacao->consumed_at?->format('d/m/Y H:i:s') }})
+                                    </div>
+                                @elseif($liberacao)
                                     <div class="mt-1 text-[11px] text-ink-2">
                                         QR Code gerado por {{ $liberacao->created_by_name ?? 'não registrado' }}
                                         em {{ $liberacao->created_at?->format('d/m/Y H:i:s') }}
@@ -344,6 +351,7 @@
 
                 @can('release', $document)
                     @include('signature.documents.partials.release')
+                    @include('signature.documents.partials.remote')
                 @endcan
 
                 <div class="bg-surface rounded-card shadow-card p-6">

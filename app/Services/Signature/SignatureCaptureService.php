@@ -40,8 +40,11 @@ use Illuminate\Support\Facades\Storage;
  */
 class SignatureCaptureService
 {
-    /** Tentativas de CPF (ou de código) antes de a sessão ser encerrada. */
-    private const MAX_IDENTITY_ATTEMPTS = 5;
+    /**
+     * Tentativas de CPF (ou de código) antes de a sessão ser encerrada. No
+     * link remoto, contadas no LINK, somadas entre as aberturas.
+     */
+    public const MAX_IDENTITY_ATTEMPTS = 5;
 
     /** Envios do código por e-mail numa mesma liberação. */
     public const MAX_CODE_SENDS = 3;
@@ -70,13 +73,21 @@ class SignatureCaptureService
     public function confirmIdentity(SignatureRequest $request, ?string $typed, array $context = []): SignatureRequest
     {
         $signer = $request->signer;
-        $modo = $signer->document->template->identity_check;
+
+        /*
+         | No link remoto o CPF é sempre o COMPLETO, qualquer que seja a regra do
+         | modelo: no balcão o atendente vê a pessoa, e lá ninguém vê. "Quatro
+         | dígitos" ou "sem conferência" deixariam o link sozinho como prova.
+         */
+        $modo = $request->isRemote()
+            ? SignatureTemplate::IDENTITY_FULL
+            : $signer->document->template->identity_check;
 
         if ($request->identity_attempts >= self::MAX_IDENTITY_ATTEMPTS) {
             $this->requests->cancel($request);
 
             throw new SignatureSessionException(
-                'Número de tentativas excedido. Peça ao atendente que gere um novo QR Code.',
+                'Número de tentativas excedido. ' . $this->restartHint($request),
                 429,
             );
         }
@@ -102,7 +113,7 @@ class SignatureCaptureService
             throw new SignatureSessionException(
                 'Os dados não conferem. ' . ($restantes > 0
                     ? 'Tente novamente (' . $restantes . ' tentativa(s) restante(s)).'
-                    : 'Peça ao atendente que gere um novo QR Code.'),
+                    : $this->restartHint($request)),
                 422,
             );
         }
@@ -192,6 +203,14 @@ class SignatureCaptureService
         return $request;
     }
 
+    /** O que fazer para recomeçar: no balcão, outro QR; no remoto, outro link. */
+    private function restartHint(SignatureRequest $request): string
+    {
+        return $request->isRemote()
+            ? 'Peça ao clube que envie um novo link de assinatura.'
+            : 'Peça ao atendente que gere um novo QR Code.';
+    }
+
     /** O código digitado é o vivo desta liberação, dentro do prazo? */
     private function codeMatches(SignatureRequest $request, ?string $typed): bool
     {
@@ -239,6 +258,22 @@ class SignatureCaptureService
          */
         if ($signer->status === SignatureSigner::STATUS_SIGNED) {
             return $signer;
+        }
+
+        /*
+         | Modelo "Sem conferência": o tablet pula a etapa de identidade (não há
+         | o que digitar), então ninguém chamava o `confirmIdentity` e a
+         | assinatura parava aqui com "Confirme a identidade" — documento 31 de
+         | produção, 21/10/2026. Sem conferência, a liberação do balcão conta
+         | como conferida neste momento, com o evento na trilha (modo `none`),
+         | como se a etapa tivesse acontecido. O remoto sempre exige o CPF
+         | completo e não entra aqui.
+         */
+        if ($request->identity_confirmed_at === null
+            && !$request->isRemote()
+            && $document->template->identity_check === SignatureTemplate::IDENTITY_NONE) {
+            $this->confirmIdentity($request, null, $context);
+            $request->refresh();
         }
 
         if ($request->identity_confirmed_at === null) {
@@ -309,9 +344,18 @@ class SignatureCaptureService
         $foto = null;
         $motivoSemFoto = null;
 
-        // A regra é do modelo — e, para o diretor, a foto é sempre exigida
-        // (ver SignatureSigner::requiresPhoto).
-        if ($signer->requiresPhoto()) {
+        // A regra é do modelo — e, para o diretor e para o link remoto, a foto
+        // é sempre exigida (ver SignatureSigner::requiresPhoto).
+        if ($signer->requiresPhoto($request)) {
+            if (($payload['photo'] ?? '') === '' && $request->isRemote()) {
+                // O site é HTTPS: "sem câmera" ali é aparelho sem câmera, e a
+                // foto é a evidência que substitui o atendente. Sem ela, não.
+                throw new SignatureSessionException(
+                    'A foto é obrigatória para assinar a distância. Use um aparelho com câmera.',
+                    422,
+                );
+            }
+
             if (($payload['photo'] ?? '') === '') {
                 // Sem câmera (ambiente sem HTTPS): a evidência fica registrada
                 // como AUSENTE, com o motivo — nunca silenciada.
@@ -496,6 +540,58 @@ class SignatureCaptureService
         }
 
         return $assinado;
+    }
+
+    /**
+     * Recusa — disponível em qualquer etapa, com motivo opcional, no tablet e
+     * no link remoto.
+     *
+     * Recusar não é erro nem abandono: é uma resposta, e o documento inteiro
+     * vai para `refused`. Tentar seguir com os demais signatários depois de
+     * uma recusa produziria um documento que ninguém pediu.
+     *
+     * @param  array{ip?: ?string, user_agent?: ?string}  $context
+     */
+    public function refuse(SignatureRequest $request, ?string $reason, array $context = []): SignatureSigner
+    {
+        $signatario = $request->signer;
+        $documento = $signatario->document;
+
+        DB::transaction(function () use ($request, $signatario, $documento, $reason, $context) {
+            $this->states->signerTo(
+                $signatario,
+                SignatureSigner::STATUS_REFUSED,
+                SignatureAuditEvent::EVENT_REFUSED,
+                ['refused_at' => now(), 'refusal_reason' => $reason],
+                [
+                    'request' => $request->id,
+                    'actor_type' => SignatureAuditEvent::ACTOR_KIOSK,
+                    'ip' => $context['ip'] ?? null,
+                    'user_agent' => $context['user_agent'] ?? null,
+                    'payload' => ['motivo' => $reason],
+                ],
+            );
+
+            $this->states->documentTo(
+                $documento,
+                SignatureDocument::STATUS_REFUSED,
+                SignatureAuditEvent::EVENT_REFUSED,
+                [],
+                [
+                    'signer' => $signatario->id,
+                    'actor_type' => SignatureAuditEvent::ACTOR_KIOSK,
+                    'ip' => $context['ip'] ?? null,
+                    'user_agent' => $context['user_agent'] ?? null,
+                ],
+            );
+
+            $this->requests->complete($request, [
+                'ip' => $context['ip'] ?? null,
+                'user_agent' => $context['user_agent'] ?? null,
+            ]);
+        });
+
+        return $signatario->fresh();
     }
 
     /**
