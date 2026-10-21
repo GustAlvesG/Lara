@@ -88,6 +88,7 @@ class SignatureDocument extends Model
         'expires_at',
         'govbr_sent_at',
         'govbr_check_id',
+        'initials_waived_at',
     ];
 
     /**
@@ -118,6 +119,7 @@ class SignatureDocument extends Model
         'created_by' => 'integer',
         'govbr_sent_at' => 'datetime',
         'govbr_check_id' => 'integer',
+        'initials_waived_at' => 'datetime',
     ];
 
     /**
@@ -334,13 +336,33 @@ class SignatureDocument extends Model
     }
 
     /**
+     * Este documento pede visto em todas as páginas?
+     *
+     * O visto é regra do modelo, mas é dispensado no documento que vai ao
+     * gov.br (`initials_waived_at`): a assinatura de lá cobre o arquivo
+     * inteiro, e o visto só existe no tablet. Quem desenha a faixa, carimba as
+     * caixas ou cobra a rubrica pergunta AQUI — nunca direto ao modelo.
+     */
+    public function requiresInitials(): bool
+    {
+        return (bool) $this->template?->requires_initials && $this->initials_waived_at === null;
+    }
+
+    /** O modelo pedia visto e ele foi dispensado neste documento (gov.br). */
+    public function initialsWaived(): bool
+    {
+        return $this->initials_waived_at !== null;
+    }
+
+    /**
      * Por que este documento não pode ser assinado pelo gov.br. null = pode.
      *
      * O gov.br assina o PDF como ele está: o que o tablet acrescenta na hora
-     * (respostas de quem assina, visto em cada página) não tem como entrar.
-     * E um documento é assinado por um caminho só — a assinatura do tablet
-     * vai num PDF re-renderizado, a do gov.br no arquivo original, e não há
-     * um arquivo que contenha as duas.
+     * (respostas de quem assina) não tem como entrar. O visto do modelo NÃO
+     * barra: ao preparar, ele é dispensado neste documento
+     * (`GovbrCheckService::prepare`). E um documento é assinado por um caminho
+     * só — a assinatura do tablet vai num PDF re-renderizado, a do gov.br no
+     * arquivo original, e não há um arquivo que contenha as duas.
      */
     public function govbrBlockReason(): ?string
     {
@@ -352,15 +374,9 @@ class SignatureDocument extends Model
             return 'Documento em ' . mb_strtolower($this->statusLabel()) . ': não há assinatura a colher.';
         }
 
-        $template = $this->template;
-
         if ($this->signerFields() !== []) {
             return 'Há campos marcados para perguntar a quem assina, e as perguntas só existem no tablet: este '
                 . 'documento só pode ser assinado no balcão. Para o gov.br, o atendente preenche esses campos.';
-        }
-
-        if ($template?->requires_initials) {
-            return 'Este documento exige visto em todas as páginas, que só existe no tablet: ele só pode ser assinado no balcão.';
         }
 
         $peloTablet = $this->signers()

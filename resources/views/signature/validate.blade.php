@@ -108,6 +108,11 @@
 
         <dt>Gerado por</dt>
         <dd>{{ $document->created_by_name ?? 'não registrado' }}</dd>
+
+        @if($document->initialsWaived())
+          <dt>Visto</dt>
+          <dd>Dispensado — assinado pelo gov.br</dd>
+        @endif
       </dl>
 
       <dt style="margin-top:18px;">Signatários</dt>

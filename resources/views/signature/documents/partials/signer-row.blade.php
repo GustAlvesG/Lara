@@ -29,6 +29,31 @@
         </div>
     @endif
 
+    @if($diretoria ?? [])
+        {{-- Assinatura Diretoria: o diretor escolhido aqui assina no tablet com matrícula e PIN. Os dados vêm do cadastro do Lara (o servidor regrava). --}}
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
+            <div class="md:col-span-6">
+                <label class="block text-xs font-bold text-ink-2 mb-1">Diretor do clube</label>
+                <select name="signers[{{ $i }}][director]" data-signer-director class="w-full rounded-lg border-line-strong text-sm">
+                    <option value="">— não é diretor —</option>
+                    @foreach($diretoria as $area)
+                        <optgroup label="{{ $area['area'] }}">
+                            @foreach($area['holders'] as $h)
+                                @php $valor = $area['area_id'] . ':' . $h['user_id']; @endphp
+                                <option value="{{ $valor }}" @selected(($signer['director'] ?? '') === $valor) @disabled($h['blocked'])
+                                        data-name="{{ $h['name'] }}" data-cpf="{{ $h['cpf_masked'] }}"
+                                        data-email="{{ $h['email'] }}" data-phone="{{ $h['phone'] }}">
+                                    {{ $h['name'] }} — {{ $h['role_label'] }}{{ $h['blocked'] ? ' (' . $h['blocked'] . ')' : '' }}
+                                </option>
+                            @endforeach
+                        </optgroup>
+                    @endforeach
+                </select>
+                @error('signers.' . $i . '.director')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
+            </div>
+        </div>
+    @endif
+
     <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
         <div class="md:col-span-5">
             <label class="block text-xs font-bold text-ink-2 mb-1">Nome</label>

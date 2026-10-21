@@ -30,6 +30,7 @@ uma trilha de auditoria encadeada.
 | Auditoria | Vê a foto e o traço do signatário | `assinatura.evidencias` |
 | Revisão | Revisa os documentos assinados: do dia seguinte em diante, só os que não acompanhou | `assinatura.revisar` |
 | Coordenação da revisão | Revisa antes do prazo e os próprios documentos — **dê em Setores só aos coordenadores** | `assinatura.revisar-coordenacao` |
+| Cadastro da diretoria | Cadastra as áreas da diretoria e quem assina por cada uma (titular e substitutos) — ver [Assinatura Diretoria](#assinatura-diretoria) | `assinatura.diretoria` |
 
 As quatro permissões são criadas no banco pelo seed padrão `PermissionCatalogSeeder`, que o
 script de deploy roda. Elas nascem **sem setor**: quem as recebe é configurado na tela de
@@ -475,6 +476,89 @@ verde. Cada termo é um documento comum deste módulo. Menu **Assinaturas → Te
 dos eventos, pareamento do tablet, histórico). Documentação completa:
 [Termo de Menores](termo-de-menores.md).
 
+## Assinatura Diretoria
+
+Diretores do clube assinam documentos sem passar pelo atendente: no tablet do balcão, em
+**Assinatura da Diretoria**, entram com a **matrícula e o PIN do Lara** e veem todos os documentos
+pendentes da assinatura deles.
+
+### Áreas, titular e substitutos
+
+Menu **Assinaturas → Diretoria** (`signature-directors.*`, permissão `assinatura.diretoria`):
+
+- **Área** (`signature_director_areas`): "Diretoria Financeira", "Diretoria Social". Não se apaga
+  (os documentos a citam); desativa-se. Renomear não muda documento já emitido.
+- **Mandato** (`signature_director_area_holders`): um usuário numa área, como **titular** (um por
+  vez) ou **substituto** (quantos houver). Não se edita: **Encerrar** grava `ended_at`; incluir um
+  titular novo encerra o anterior. Vigente = `ended_at` nulo. O histórico fica na tela.
+- **Quem pode:** usuário **ativo**, com **matrícula**, do setor **Diretoria** (`User::isDirector()`,
+  o mesmo critério da aprovação de compras). O CPF vem de `users.cpf` ou, sem ele, do cadastro de
+  funcionário pela matrícula; sem CPF válido a pessoa aparece no documento mas não pode ser escolhida.
+
+Regras em `App\Services\Signature\Directors\DirectorAreaService`.
+
+### O diretor no documento
+
+- No formulário do documento, cada signatário tem **Diretor do clube** (área → titular/substitutos).
+  Escolhido, nome, CPF, e-mail e telefone saem do **cadastro do Lara** — o
+  `StoreSignatureDocumentRequest::prepareForValidation` resolve no servidor e descarta o que o
+  formulário mandar nesses campos (e `user_id`/`director_*` soltos).
+- **O atendente escolhe a pessoa ao criar o documento** (decisão do usuário, 20/10/2026): o PDF
+  original imprime o nome e o CPF dela. Se ela não puder assinar, cancela-se e emite-se outro com
+  quem assume. A tela da área lista os documentos pendentes de quem saiu do mandato.
+- No modelo, uma parte pode ser **Assinada pela diretoria** (`parties[].director_area_id`): o
+  documento nasce com o titular da área escolhido, e o atendente pode trocar por um substituto.
+- O signatário guarda `user_id`, `director_area_id` e o retrato `director_area_name`/`director_role`.
+  Sob o nome sai "Parte — Diretoria Financeira" ou "Diretoria Financeira (substituto)"
+  (`SignatureSigner::capacityLabel`).
+
+### Congelamento: prazo e aviso
+
+- Documento com diretor recebe prazo de `SIGNATURE_DIRECTOR_TTL_DAYS` (7 dias), e não as horas do
+  balcão: o diretor assina quando passar pelo tablet.
+- O job `NotifySignatureDirector` (fila, depois do commit) manda ao diretor o e-mail
+  `SignatureDirectorPendingMail` — título, quem gerou, prazo, "entre com matrícula e PIN". **Sem
+  link** (o Lara é fechado). Grava `director_notified_at` e o evento `director_notified` (e-mail
+  mascarado). Não reenvia; não avisa de documento que já foi ao gov.br.
+
+### No tablet
+
+Rotas públicas `/assinatura/kiosk/diretoria/*` (`quiosque.diretoria.*`, `DirectorKioskController`,
+regras em `DirectorKioskService`):
+
+1. **Entrar** — matrícula + PIN (`User::checkPin`). Limite de
+   `SIGNATURE_DIRECTOR_MAX_LOGIN_ATTEMPTS` (5) tentativas **por matrícula** a cada 15 min (o tablet
+   divide um IP). Uma resposta só para matrícula inexistente, usuário inativo, sem PIN e PIN errado;
+   "não é da Diretoria" (403) só depois do PIN certo. Abre a entrada do diretor: cookie
+   `lara_director` (httpOnly, SameSite=Strict, só no caminho do tablet), hash no cache, prazo de
+   `SIGNATURE_DIRECTOR_SESSION_MINUTES` (10) renovado a cada uso. Cada passo reconfere usuário
+   ativo e do setor.
+2. **Lista** — signatários pendentes do diretor em documentos aguardando assinatura, no prazo e
+   **fora do gov.br**. Sem toque por `SIGNATURE_DIRECTOR_IDLE_SECONDS` (90 s), o tablet sai sozinho.
+3. **Abrir** — emite e consome a liberação no servidor (`issue` + `consumeIssued`, como o Termo de
+   Menores) e devolve o `lara_sign` de sempre. A identidade fica confirmada pelo PIN:
+   `signature_requests.identity_method = matricula_pin` e evento `identity_confirmed` com
+   `{modo: matricula_pin, matricula}`. **Sem CPF e sem código por e-mail.**
+4. Leitura, aceite, traço, visto (se o documento pedir) e **foto, sempre obrigatória** para o
+   diretor, mesmo que o modelo dispense (`SignatureSigner::requiresPhoto`). Terminado, volta à lista.
+
+O manifesto diz "Documento aberto pelo próprio diretor no tablet" e "Conferência de identidade:
+Matrícula e PIN do Lara".
+
+**Diretor não recebe QR do atendente** (decisão do usuário, 21/10/2026): `SignatureSigner::releaseBlockReason`
+recusa a liberação de um signatário-diretor, salvo a emitida pela entrada dele
+(`signature_requests.identity_method = matricula_pin`, gravado já na emissão por
+`SignatureRequestService::issue(..., $identityMethod)`); a mesma conferência vale na leitura e em cada
+requisição do tablet (`EnsureSignatureKioskSession`). O painel não oferece QR para o diretor e diz
+que ele assina em "Assinatura da Diretoria".
+
+### Pelo gov.br
+
+Documento preparado para o gov.br sai da lista do tablet: o diretor assina pelo mecanismo do gov.br
+(convite + aba), como qualquer signatário — a conferência é pelo CPF dele.
+
+Migration `2026_10_20_120100_create_signature_director_areas`. Testes: `SignatureDirectorTest`.
+
 ## Página pública de validação
 
 `/validar/{codigo}` — sem login, porque quem chega veio do QR impresso. Mostra título, data,
@@ -659,7 +743,14 @@ usa o mesmo leiaute). Gov.br e ICP-Brasil podem se somar no mesmo arquivo.
    - muda o prazo do documento para `SIGNATURE_GOVBR_TTL_DAYS` (7 dias): o vaivém por e-mail leva
      dias, e o prazo do balcão é de horas;
    - cancela o QR Code aberto e faz o tablet **parar de liberar** este documento
-     (`SignatureSigner::releaseBlockReason`).
+     (`SignatureSigner::releaseBlockReason`);
+   - **modelo com visto:** retira o visto **deste documento** (`signature_documents.initials_waived_at`,
+     `SignatureSigningDataService::waiveInitials`) e refaz o PDF original e o hash sem a faixa do visto,
+     com o evento `initials_waived` (e `visto_dispensado` no `govbr_prepared`). A assinatura do gov.br
+     cobre o arquivo inteiro, e o visto por página só existe no tablet. O modelo não muda; quem lê o
+     visto pergunta ao documento (`SignatureDocument::requiresInitials()`). O relatório gov.br e o
+     `/validar` dizem "Visto dispensado". Um PDF baixado **antes** de preparar ainda tinha a faixa e não
+     é aceito (não é prefixo do original novo).
    Pode ser repetido: renova o prazo. Não tem volta para o tablet — para isso, cancela-se e emite-se
    outro documento.
 3. **Enviar por e-mail** (botão na aba, ao lado de cada pendente, em qualquer ordem): o Lara manda o PDF a assinar e o
@@ -703,8 +794,10 @@ A aba lista os convites enviados: para quem, e-mail mascarado, quando e por quem
 | Situação | Por quê |
 |---|---|
 | Documento com campo marcado em **Perguntar ao signatário** | As respostas entram no tablet, antes da leitura; o gov.br assina o PDF como está. A marcação é do documento, não do modelo: o mesmo modelo vai ao gov.br quando o atendente preenche todos os campos |
-| Modelo com **visto em todas as páginas** | O visto é desenhado no tablet; pelo gov.br, as caixas sairiam em branco |
 | **Alguém já assinou no tablet** | A assinatura do tablet vai num PDF re-renderizado e a do gov.br no arquivo original — nenhum arquivo carrega as duas. Um documento é assinado por um caminho só |
+
+Modelo com **visto** NÃO barra mais (desde 20/10/2026): o visto é dispensado no documento ao preparar
+(ver "O fluxo", passo 2).
 
 **Por que não dá para misturar, em nenhum sentido:**
 
@@ -1087,7 +1180,8 @@ adivinhar o dado. Teste: `test_formulario_do_atendente_mostra_a_pergunta_do_tabl
   DOCUMENTO são o que o renderer, o congelamento, o tablet, a tela e o manifesto leem. O modelo
   tem só `manualFields()` (todos os não automáticos) e `automaticFields()`.
 - **Por que mudou (08/10/2026):** com a marcação no modelo, um modelo com perguntas nunca ia ao
-  gov.br. Agora qualquer modelo sem visto vai, desde que o atendente preencha tudo.
+  gov.br. Agora qualquer modelo vai, desde que o atendente preencha tudo (o visto, se houver, é
+  dispensado no documento ao preparar — desde 20/10/2026).
 - **Documentos antigos:** a migration `2026_10_11_100300` criou a coluna e copiou para cada
   documento o que o modelo dele marcava (`ask_signer` no JSON das variáveis, fora os
   automáticos). O `ask_signer` que sobrou no JSON dos modelos não é mais lido, e a tela do
@@ -1154,7 +1248,9 @@ Regras de posicionamento (`SignatureDocumentRenderer::placeSignatures`):
 
 Um QR por pessoa, em qualquer ordem. Quem assina
 pelo clube assina no tablet, como qualquer signatário — não há assinatura pré-cadastrada neste
-módulo.
+módulo. Quando quem assina pelo clube é um **diretor**, a parte pode ser ligada a uma área da
+diretoria ("Assinada pela diretoria"): o documento já nasce com o titular da área escolhido, e o
+diretor assina só no tablet, com matrícula e PIN (sem QR) — ver [Assinatura Diretoria](#assinatura-diretoria).
 
 ### Visto em todas as páginas
 
@@ -1174,6 +1270,11 @@ O visto é desenhado direto na página depois de o PDF estar montado (`page_scri
 não como bloco fixo do HTML — um bloco fixo se repetiria também no manifesto. Por isso o PDF
 final de um modelo com visto é montado duas vezes: uma só para saber em que página o manifesto
 começa.
+
+**Pelo gov.br, o visto é dispensado no documento** (não no modelo): ao preparar, o original é refeito
+sem a faixa e sem as caixas, e `SignatureDocument::requiresInitials()` passa a responder `false`. Toda
+leitura do visto (geometria da página, caixas do PDF enviado pronto, cobrança na captura, regras do
+tablet) passa por esse método — nunca direto por `template->requires_initials`.
 
 ### Papel timbrado (cabeçalho e rodapé)
 
@@ -1252,6 +1353,10 @@ Tudo em `config/signature.php`, com as variáveis documentadas no `.env.example`
 | `SIGNATURE_MINOR_PAIRING_TTL_SECONDS` | `300` | Termo de Menores: validade do QR de pareamento |
 | `SIGNATURE_MINOR_FLOW_TTL_MINUTES` | `10` | Termo de Menores: inatividade que encerra o atendimento |
 | `SIGNATURE_MINOR_MAX_CPF_ATTEMPTS` | `5` | Termo de Menores: tentativas de CPF por título, por tablet, a cada 15 min |
+| `SIGNATURE_DIRECTOR_TTL_DAYS` | `7` | Assinatura Diretoria: prazo do documento com diretor, contado do congelamento |
+| `SIGNATURE_DIRECTOR_SESSION_MINUTES` | `10` | Assinatura Diretoria: inatividade que encerra a entrada do diretor no tablet |
+| `SIGNATURE_DIRECTOR_MAX_LOGIN_ATTEMPTS` | `5` | Assinatura Diretoria: tentativas de matrícula + PIN por matrícula, a cada 15 min |
+| `SIGNATURE_DIRECTOR_IDLE_SECONDS` | `90` | Assinatura Diretoria: segundos sem toque na lista que fazem o tablet encerrar a entrada do diretor |
 
 Nunca aponte `SIGNATURE_DISK` para `public` ou `placar`: os dois servem arquivo estático, sem
 passar por autorização nenhuma.
@@ -1411,7 +1516,8 @@ mantendo a assinatura da pessoa (e o relatório lacrado, e o `/validar` aceitand
 carimbo de tempo de uma ACT de teste (atributo não assinado, sem alterar a assinatura), carimbo de outro
 resumo, ACT fora do ar, senha errada, xref stream, o `signature:seal-check` e o aviso no manifesto.
 `SignatureGovbrSigningTest` cobre a conclusão: preparar (prazo, QR cancelado, tablet bloqueado),
-os bloqueios (visto, assinatura no tablet), um signatário até o PDF final e a via, dois em
+modelo com visto (dispensa no documento, original e hash novos, PDF antigo recusado), o bloqueio da
+assinatura no tablet, um signatário até o PDF final e a via, dois em
 sequência, o segundo assinando o original, ordem livre (o 2º da lista assinando antes), reenvio do mesmo arquivo, sem preparar,
 prazo vencido e as telas. `SignatureGovbrInviteTest` cobre o convite: anexo e `Reply-To` do atendente, e-mail
 sem link para o Lara, sem preparar, qualquer pendente em qualquer ordem, falha de SMTP sem registro, reenvio e o segundo

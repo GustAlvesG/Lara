@@ -142,7 +142,11 @@
                         {{ $signer->statusLabel() }}<br>
                     @endif
 
-                    @if($liberacao = $signer->signingRequest())
+                    @php $liberacao = $signer->signingRequest(); @endphp
+                    @if($liberacao && $liberacao->identity_method === \App\Models\SignatureRequest::IDENTITY_METHOD_DIRECTOR_PIN)
+                        {{-- Diretor: não houve QR — ele entrou no tablet com a matrícula e o PIN dele. --}}
+                        Documento aberto pelo próprio diretor no tablet, em {{ $liberacao->created_at?->format('d/m/Y H:i:s') }}<br>
+                    @elseif($liberacao)
                         {{-- Rastreio: o usuário do sistema que liberou a assinatura desta pessoa. --}}
                         QR Code gerado por: {{ $liberacao->created_by_name ?? 'não registrado' }}
                         (usuário do sistema), em {{ $liberacao->created_at?->format('d/m/Y H:i:s') }}<br>
@@ -154,7 +158,11 @@
                         Tempo de leitura: {{ $evidencia->read_seconds !== null ? $evidencia->read_seconds . ' segundo(s)' : 'não registrado' }}<br>
                         Rolou o documento até o fim: {{ $evidencia->scrolled_to_end ? 'sim' : 'não' }}
                         (informado pelo navegador do tablet)<br>
-                        Conferência de identidade: {{ \App\Models\SignatureTemplate::IDENTITY_CHECKS[$document->template?->identity_check] ?? 'não registrada' }}{{ $document->template?->identity_check === \App\Models\SignatureTemplate::IDENTITY_EMAIL && $signer->email ? ' (' . \App\Support\EmailMask::of($signer->email) . ')' : '' }}<br>
+                        @if($liberacao && isset(\App\Models\SignatureRequest::IDENTITY_METHOD_LABELS[$liberacao->identity_method]))
+                            Conferência de identidade: {{ \App\Models\SignatureRequest::IDENTITY_METHOD_LABELS[$liberacao->identity_method] }}<br>
+                        @else
+                            Conferência de identidade: {{ \App\Models\SignatureTemplate::IDENTITY_CHECKS[$document->template?->identity_check] ?? 'não registrada' }}{{ $document->template?->identity_check === \App\Models\SignatureTemplate::IDENTITY_EMAIL && $signer->email ? ' (' . \App\Support\EmailMask::of($signer->email) . ')' : '' }}<br>
+                        @endif
                         Aceite explícito dos termos: {{ $evidencia->accepted ? 'sim' : 'não' }}<br>
                         @if($evidencia->photo_consent)
                             {{-- O texto é o que a pessoa leu no tablet, gravado na evidência. --}}

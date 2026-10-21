@@ -96,6 +96,15 @@
                                 @error('matricula')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
                             </div>
 
+                            <div>
+                                <label for="cpf" class="block text-sm font-bold text-ink mb-1">CPF</label>
+                                <input type="text" name="cpf" id="cpf" value="{{ old('cpf') }}" inputmode="numeric" maxlength="14"
+                                    class="w-full px-4 py-2 border border-line rounded-lg focus:ring-2 focus:ring-grena-tint outline-none transition bg-surface text-ink"
+                                    placeholder="000.000.000-00">
+                                <p class="mt-1 text-xs text-ink-2">Obrigatório para diretor assinar documentos. Opcional para os demais.</p>
+                                @error('cpf')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
+                            </div>
+
                         </div>
                     </div>
 

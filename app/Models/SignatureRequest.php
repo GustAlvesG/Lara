@@ -40,6 +40,16 @@ class SignatureRequest extends Model
     /** Prefixo do conteúdo do QR. O leitor do tablet ignora o que não casa. */
     public const TOKEN_PREFIX = 'LARA-SIGN:v1:';
 
+    /**
+     * Identidade conferida pela entrada do diretor no tablet (matrícula + PIN
+     * do Lara), e não pela regra do modelo. Ver DirectorKioskService.
+     */
+    public const IDENTITY_METHOD_DIRECTOR_PIN = 'matricula_pin';
+
+    public const IDENTITY_METHOD_LABELS = [
+        self::IDENTITY_METHOD_DIRECTOR_PIN => 'Matrícula e PIN do Lara (entrada do diretor no tablet)',
+    ];
+
     protected $fillable = [
         'signature_signer_id',
         'token_hash',
@@ -52,6 +62,7 @@ class SignatureRequest extends Model
         'consumed_user_agent',
         'identity_confirmed_at',
         'identity_attempts',
+        'identity_method',
         'identity_code_hash',
         'identity_code_expires_at',
         'identity_code_sent_at',

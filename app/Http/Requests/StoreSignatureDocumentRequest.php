@@ -4,6 +4,8 @@ namespace App\Http\Requests;
 
 use App\Models\SignatureSigner;
 use App\Models\SignatureTemplate;
+use App\Services\Signature\Directors\DirectorAreaService;
+use App\Services\Signature\Directors\DirectorException;
 use App\Services\Signature\SignatureFieldTypes;
 use App\Support\Cpf;
 use Illuminate\Foundation\Http\FormRequest;
@@ -31,6 +33,13 @@ class StoreSignatureDocumentRequest extends FormRequest
      * @var array<int, string>
      */
     private array $signerFieldKeys = [];
+
+    /**
+     * Diretor escolhido que não pôde ser resolvido: índice da linha => motivo.
+     *
+     * @var array<int|string, string>
+     */
+    private array $directorErrors = [];
 
     public function authorize(): bool
     {
@@ -83,6 +92,10 @@ class StoreSignatureDocumentRequest extends FormRequest
     public function withValidator(\Illuminate\Validation\Validator $validator): void
     {
         $validator->after(function ($validator) {
+            foreach ($this->directorErrors as $i => $mensagem) {
+                $validator->errors()->add('signers.' . $i . '.director', $mensagem);
+            }
+
             // Na correção o modelo é o do documento: ele não muda depois de criado.
             $documento = $this->route('signatureDocument');
 
@@ -117,13 +130,48 @@ class StoreSignatureDocumentRequest extends FormRequest
         });
     }
 
+    /**
+     * Normaliza o CPF e resolve o DIRETOR escolhido.
+     *
+     * Diretor (Assinatura Diretoria) chega como `director` = "área:usuário".
+     * Nome, CPF, e-mail e o vínculo com a área saem do cadastro do Lara, aqui
+     * no servidor — o que o formulário mande nesses campos é descartado, e
+     * `user_id`/`director_*` que chegarem soltos (sem escolha válida) também:
+     * só o servidor diz quem é diretor.
+     */
     protected function prepareForValidation(): void
     {
+        $diretoria = app(DirectorAreaService::class);
+
         $signers = collect($this->input('signers', []))
-            ->map(function ($signer) {
+            ->map(function ($signer, $i) use ($diretoria) {
+                $signer = is_array($signer) ? $signer : [];
+
+                unset($signer['user_id'], $signer['director_area_id'], $signer['director_area_name'], $signer['director_role']);
+
                 $signer['cpf'] = Cpf::digits($signer['cpf'] ?? '');
 
-                return $signer;
+                $escolha = trim((string) ($signer['director'] ?? ''));
+
+                if ($escolha === '') {
+                    return $signer;
+                }
+
+                [$area, $usuario] = array_pad(explode(':', $escolha, 2), 2, null);
+
+                if (!ctype_digit((string) $area) || !ctype_digit((string) $usuario)) {
+                    $this->directorErrors[$i] = 'Escolha o diretor de novo.';
+
+                    return $signer;
+                }
+
+                try {
+                    return array_merge($signer, $diretoria->signerData((int) $area, (int) $usuario));
+                } catch (DirectorException $e) {
+                    $this->directorErrors[$i] = $e->getMessage();
+
+                    return $signer;
+                }
             })
             ->all();
 
@@ -160,6 +208,13 @@ class StoreSignatureDocumentRequest extends FormRequest
             // A parte do modelo pela qual a pessoa assina ("contratante"). Se o
             // modelo não a declara, o serviço a descarta.
             'signers.*.party' => ['nullable', 'string', 'max:60'],
+            // Diretor do clube: a escolha ("área:usuário") e o que o servidor
+            // resolveu a partir dela em prepareForValidation.
+            'signers.*.director' => ['nullable', 'string', 'max:40'],
+            'signers.*.user_id' => ['nullable', 'integer'],
+            'signers.*.director_area_id' => ['nullable', 'integer'],
+            'signers.*.director_area_name' => ['nullable', 'string', 'max:120'],
+            'signers.*.director_role' => ['nullable', 'string', 'max:20'],
         ];
     }
 
@@ -184,6 +239,7 @@ class StoreSignatureDocumentRequest extends FormRequest
             'title' => 'título',
             'signers.*.name' => 'nome do signatário',
             'signers.*.cpf' => 'CPF do signatário',
+            'signers.*.director' => 'diretor',
         ];
     }
 }

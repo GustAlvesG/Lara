@@ -13,10 +13,28 @@
     $document = $document ?? null;
     $partes = $template->declaredParties();
 
+    // Assinatura Diretoria: os diretores que podem ser escolhidos, por área
+    // (DirectorAreaService::options). Vazio = o formulário não oferece.
+    $diretoria = $diretoria ?? [];
+
+    // A parte que o modelo liga a uma área já nasce com o TITULAR dela
+    // escolhido — o atendente pode trocar por um substituto.
+    $titularDaArea = function ($areaId) use ($diretoria): string {
+        $area = collect($diretoria)->firstWhere('area_id', (int) $areaId);
+        $titular = collect($area['holders'] ?? [])
+            ->first(fn($h) => $h['role'] === \App\Models\SignatureDirectorAreaHolder::ROLE_PRIMARY && !$h['blocked']);
+
+        return $titular ? $area['area_id'] . ':' . $titular['user_id'] : '';
+    };
+
     // Documento novo de um modelo com partes já nasce com uma linha por parte:
     // é o que o contrato pede, e o atendente não precisa lembrar de quantas são.
     $linhasIniciais = $partes
-        ? array_map(fn(array $parte) => ['role' => \App\Models\SignatureSigner::ROLE_SIGNER, 'party' => $parte['key']], $partes)
+        ? array_map(fn(array $parte) => [
+            'role' => \App\Models\SignatureSigner::ROLE_SIGNER,
+            'party' => $parte['key'],
+            'director' => $titularDaArea($parte['director_area_id'] ?? null),
+        ], $partes)
         : [['role' => \App\Models\SignatureSigner::ROLE_SIGNER]];
 
     $signers = old('signers', $document?->signers->map(fn($s) => [
@@ -27,6 +45,7 @@
         'phone' => $s->phone,
         'role' => $s->role,
         'party' => $s->party,
+        'director' => $s->isDirector() ? $s->director_area_id . ':' . $s->user_id : '',
     ])->all() ?? $linhasIniciais);
 
     // Depois de um envio recusado vale o que o atendente digitou, cru; fora
@@ -75,6 +94,10 @@
         </div>
         <p class="text-xs text-ink-2 mb-4">
             Vários signatários assinam um de cada vez, em qualquer ordem — um QR Code por pessoa.
+            @if($diretoria)
+                Para um diretor do clube, use <b>Diretor do clube</b>: os dados vêm do cadastro do Lara, e ele assina no
+                tablet com a matrícula e o PIN dele, sem QR.
+            @endif
             @if($partes)
                 Este modelo tem partes ({{ collect($partes)->pluck('label')->join(', ') }}): cada uma precisa de
                 ao menos um signatário para o documento ser congelado.
@@ -181,6 +204,84 @@
 
     var papeis = @json(\App\Models\SignatureSigner::ROLE_LABELS);
     var partes = @json($partes);
+    var diretoria = @json($diretoria);
+
+    // "Diretor do clube" da linha nova — o mesmo seletor que o Blade monta em
+    // signer-row. Montado por DOM: os nomes vêm do cadastro.
+    function seletorDeDiretor(i) {
+        var caixa = document.createElement('div');
+        caixa.className = 'grid grid-cols-1 md:grid-cols-12 gap-3';
+        caixa.innerHTML =
+            '<div class="md:col-span-6"><label class="block text-xs font-bold text-ink-2 mb-1">Diretor do clube</label>' +
+            '<select name="signers[' + i + '][director]" data-signer-director class="w-full rounded-lg border-line-strong text-sm">' +
+            '<option value="">— não é diretor —</option></select></div>';
+
+        var select = caixa.querySelector('select');
+
+        diretoria.forEach(function (area) {
+            var grupo = document.createElement('optgroup');
+            grupo.label = area.area;
+
+            area.holders.forEach(function (h) {
+                var opcao = new Option(h.name + ' — ' + h.role_label + (h.blocked ? ' (' + h.blocked + ')' : ''), area.area_id + ':' + h.user_id);
+                opcao.disabled = !!h.blocked;
+                opcao.setAttribute('data-name', h.name || '');
+                opcao.setAttribute('data-cpf', h.cpf_masked || '');
+                opcao.setAttribute('data-email', h.email || '');
+                opcao.setAttribute('data-phone', h.phone || '');
+                grupo.appendChild(opcao);
+            });
+
+            select.appendChild(grupo);
+        });
+
+        return caixa;
+    }
+
+    /*
+     * Diretor escolhido: nome, CPF e contato vêm do cadastro do Lara (o
+     * servidor os regrava de lá). Os campos ficam só para leitura e a busca de
+     * associado some; desfeita a escolha, voltam a ser digitáveis.
+     */
+    function aplicaDiretor(linha) {
+        var select = linha.querySelector('[data-signer-director]');
+
+        if (!select) {
+            return;
+        }
+
+        var opcao = select.options[select.selectedIndex];
+        var escolhido = !!select.value;
+
+        ['name', 'cpf', 'email', 'phone'].forEach(function (campo) {
+            var input = linha.querySelector('[data-signer-' + campo + ']');
+
+            if (!input) {
+                return;
+            }
+
+            if (escolhido) {
+                input.value = opcao.getAttribute('data-' + campo) || '';
+            } else if (input.readOnly) {
+                input.value = '';
+            }
+
+            input.readOnly = escolhido;
+            input.classList.toggle('bg-subtle', escolhido);
+        });
+
+        var membro = linha.querySelector('[data-signer-member]');
+
+        if (membro && escolhido) {
+            membro.value = '';
+        }
+
+        var busca = linha.querySelector('[data-member-search]');
+
+        if (busca) {
+            busca.parentNode.classList.toggle('hidden', escolhido);
+        }
+    }
 
     // O seletor "Assina como" da linha nova. Montado por DOM: o nome da parte
     // vem do modelo e não é interpretado como HTML.
@@ -248,6 +349,10 @@
         // "Assina como" vem logo depois do título do cartão: é ele que dá nome ao cartão.
         if (partes.length) {
             div.insertBefore(seletorDeParte(i), div.children[1]);
+        }
+
+        if (diretoria.length) {
+            div.insertBefore(seletorDeDiretor(i), div.children[partes.length ? 2 : 1]);
         }
 
         return div;
@@ -525,7 +630,16 @@
     });
 
     container.addEventListener('input', atualizaFontes);
-    container.addEventListener('change', atualizaFontes);
+    container.addEventListener('change', function (event) {
+        if (event.target.matches('[data-signer-director]')) {
+            aplicaDiretor(event.target.closest('[data-signer-row]'));
+        }
+
+        atualizaFontes();
+    });
+
+    // Linhas que já nascem com diretor (parte ligada a uma área, rascunho reaberto).
+    Array.prototype.forEach.call(container.querySelectorAll('[data-signer-row]'), aplicaDiretor);
 
     if (botaoPreencher) {
         botaoPreencher.addEventListener('click', function () {

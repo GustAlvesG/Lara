@@ -56,6 +56,8 @@ trait CreatesSignatureSchema
             '2026_10_11_100300_add_signer_field_keys_to_signature_documents.php',
             '2026_10_11_100400_create_signature_reviews.php',
             '2026_10_12_100000_create_signature_minor_terms.php',
+            '2026_10_20_120000_add_initials_waived_to_signature_documents.php',
+            '2026_10_20_120100_create_signature_director_areas.php',
         ];
 
         foreach ($migrations as $arquivo) {

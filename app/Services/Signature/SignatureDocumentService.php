@@ -3,6 +3,7 @@
 namespace App\Services\Signature;
 
 use App\Exceptions\SignatureDocumentLockedException;
+use App\Jobs\NotifySignatureDirector;
 use App\Models\SignatureAuditEvent;
 use App\Models\SignatureDocument;
 use App\Models\SignatureLayout;
@@ -328,7 +329,17 @@ class SignatureDocumentService
 
         Storage::disk(config('signature.disk'))->put($path, $bytes);
 
-        return $this->states->documentTo(
+        /*
+         | Diretor não está no balcão: assina quando passar pelo tablet, com
+         | matrícula e PIN. O prazo de horas do balcão venceria antes disso.
+         */
+        $diretores = $document->signers->filter(fn(SignatureSigner $s) => $s->isDirector());
+
+        $prazo = $diretores->isNotEmpty()
+            ? now()->addDays(max(1, (int) config('signature.directors.ttl_days', 7)))
+            : now()->addHours((int) config('signature.document_ttl_hours', 24));
+
+        $congelado = $this->states->documentTo(
             $document,
             SignatureDocument::STATUS_AWAITING_SIGNATURE,
             SignatureAuditEvent::EVENT_FROZEN,
@@ -336,7 +347,7 @@ class SignatureDocumentService
                 'original_path' => $path,
                 'original_sha256' => hash('sha256', $bytes),
                 'frozen_at' => now(),
-                'expires_at' => now()->addHours((int) config('signature.document_ttl_hours', 24)),
+                'expires_at' => $prazo,
             ],
             [
                 'actor_id' => $userId,
@@ -346,6 +357,14 @@ class SignatureDocumentService
                 ],
             ],
         );
+
+        // O aviso ao diretor vai pela fila, depois do commit: ninguém espera
+        // por ele, e SMTP fora do ar não pode desfazer o congelamento.
+        foreach ($diretores as $diretor) {
+            NotifySignatureDirector::dispatch($diretor->id)->afterCommit();
+        }
+
+        return $congelado;
     }
 
     /**
@@ -419,6 +438,12 @@ class SignatureDocumentService
                 'name' => trim((string) ($signer['name'] ?? '')),
                 'cpf' => Cpf::digits($signer['cpf'] ?? ''),
                 'member_id' => $signer['member_id'] ?? null,
+                // Diretor do clube: o vínculo vem do request, resolvido no
+                // servidor a partir do cadastro (ver StoreSignatureDocumentRequest).
+                'user_id' => $signer['user_id'] ?? null,
+                'director_area_id' => $signer['director_area_id'] ?? null,
+                'director_area_name' => $signer['director_area_name'] ?? null,
+                'director_role' => $signer['director_role'] ?? null,
                 'email' => $signer['email'] ?? null,
                 'phone' => $signer['phone'] ?? null,
                 'role' => $signer['role'] ?? SignatureSigner::ROLE_SIGNER,

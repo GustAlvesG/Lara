@@ -66,13 +66,19 @@ class SignatureRequestService
      *
      * @throws SignatureDocumentLockedException
      */
-    public function issue(SignatureSigner $signer, ?int $userId = null, ?string $userName = null): array
-    {
-        if ($motivo = $signer->releaseBlockReason()) {
+    public function issue(
+        SignatureSigner $signer,
+        ?int $userId = null,
+        ?string $userName = null,
+        ?string $identityMethod = null,
+    ): array {
+        $doDiretor = $identityMethod === SignatureRequest::IDENTITY_METHOD_DIRECTOR_PIN;
+
+        if ($motivo = $signer->releaseBlockReason($doDiretor)) {
             throw new SignatureDocumentLockedException($motivo);
         }
 
-        return DB::transaction(function () use ($signer, $userId, $userName) {
+        return DB::transaction(function () use ($signer, $userId, $userName, $identityMethod) {
             $anteriores = $this->supersedePending($signer, $userId);
 
             // Str::random usa random_bytes — aleatoriedade criptográfica, e não
@@ -93,6 +99,9 @@ class SignatureRequestService
                 // Rastreio: quem gerou este QR Code, pelo nome, como estava
                 // no dia. Vai ao manifesto do documento assinado.
                 'created_by_name' => $userName,
+                // Entrada do diretor (matrícula + PIN): é o que autoriza a
+                // liberação de um signatário-diretor — ver releaseBlockReason.
+                'identity_method' => $identityMethod,
             ]);
 
             $this->states->note(
@@ -292,7 +301,7 @@ class SignatureRequestService
 
         // O documento pode ter sido cancelado entre a geração do QR e a
         // leitura — a tela do atendente e o tablet são dois aparelhos.
-        if ($motivo = $signer?->releaseBlockReason()) {
+        if ($motivo = $signer?->releaseBlockReason($request->identity_method === SignatureRequest::IDENTITY_METHOD_DIRECTOR_PIN)) {
             throw new SignatureSessionException($motivo, 409);
         }
 

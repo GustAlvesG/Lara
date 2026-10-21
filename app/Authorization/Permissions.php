@@ -94,6 +94,10 @@ final class Permissions
     public const ASSINATURA_TERMO_MENORES_GERENCIAR = 'assinatura.termo-menores.gerenciar';
     public const ASSINATURA_TERMO_MENORES_PAREAR = 'assinatura.termo-menores.parear';
     public const ASSINATURA_TERMO_MENORES_HISTORICO = 'assinatura.termo-menores.historico';
+    // Assinatura Diretoria: cadastrar as áreas da diretoria e quem responde
+    // por cada uma (titular e substitutos). Escolher o diretor num documento
+    // é parte de `assinatura.documentos`.
+    public const ASSINATURA_DIRETORIA = 'assinatura.diretoria';
 
     public const PLACAR_CADASTRO = 'placar.cadastro';
     public const PLACAR_SCOUT = 'placar.scout';
@@ -167,6 +171,7 @@ final class Permissions
         self::ASSINATURA_TERMO_MENORES_GERENCIAR => ['Assinaturas', 'Termo de Menores: cadastrar o termo de cada evento'],
         self::ASSINATURA_TERMO_MENORES_PAREAR => ['Assinaturas', 'Termo de Menores: parear o tablet de autoatendimento'],
         self::ASSINATURA_TERMO_MENORES_HISTORICO => ['Assinaturas', 'Termo de Menores: consultar o histórico de autorizações'],
+        self::ASSINATURA_DIRETORIA => ['Assinaturas', 'Diretoria: áreas da diretoria, titulares e substitutos que assinam documentos'],
 
         self::PLACAR_CADASTRO => ['Placar Clube', 'Cadastro (equipes, times, jogadores, jogos)'],
         self::PLACAR_SCOUT => ['Placar Clube', 'Súmulas e scout'],

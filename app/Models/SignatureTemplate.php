@@ -189,7 +189,10 @@ class SignatureTemplate extends Model
      * rótulo que sai impresso sob o nome de quem assina por ela. Vazio para o
      * modelo de sempre: um `[[assinatura]]` só, com todos os signatários.
      *
-     * @return array<int, array{key: string, label: string}>
+     * `director_area_id`: a parte é assinada por uma área da diretoria, e o
+     * documento já nasce com o titular dela escolhido (Assinatura Diretoria).
+     *
+     * @return array<int, array{key: string, label: string, director_area_id: ?int}>
      */
     public function declaredParties(): array
     {
@@ -197,6 +200,7 @@ class SignatureTemplate extends Model
             ->map(fn($p) => [
                 'key' => (string) ($p['key'] ?? ''),
                 'label' => (string) ($p['label'] ?? ($p['key'] ?? '')),
+                'director_area_id' => !empty($p['director_area_id']) ? (int) $p['director_area_id'] : null,
             ])
             ->filter(fn($p) => $p['key'] !== '')
             ->values()

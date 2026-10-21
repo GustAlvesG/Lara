@@ -364,4 +364,32 @@ return [
         'adult_age' => 18,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Assinatura Diretoria (diretor assina no tablet com matrícula e PIN)
+    |--------------------------------------------------------------------------
+    |
+    | ttl_days              — prazo do documento que tem diretor entre os
+    |                         signatários, contado do congelamento. O diretor
+    |                         não está no balcão: o prazo de horas
+    |                         (`document_ttl_hours`) venceria antes de ele
+    |                         passar pelo tablet.
+    | session_minutes       — inatividade que encerra a entrada do diretor no
+    |                         tablet (a lista dos documentos dele). Cada
+    |                         consulta renova.
+    | max_login_attempts    — tentativas de matrícula + PIN por matrícula, a
+    |                         cada 15 minutos.
+    | idle_seconds          — sem toque na lista dos documentos por este
+    |                         tempo, o tablet encerra a entrada do diretor
+    |                         (o próximo a pegar o tablet não vê a lista).
+    |
+    */
+
+    'directors' => [
+        'ttl_days' => (int) env('SIGNATURE_DIRECTOR_TTL_DAYS', 7),
+        'session_minutes' => (int) env('SIGNATURE_DIRECTOR_SESSION_MINUTES', 10),
+        'max_login_attempts' => (int) env('SIGNATURE_DIRECTOR_MAX_LOGIN_ATTEMPTS', 5),
+        'idle_seconds' => (int) env('SIGNATURE_DIRECTOR_IDLE_SECONDS', 90),
+    ],
+
 ];

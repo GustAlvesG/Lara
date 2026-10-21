@@ -81,6 +81,9 @@
                     @endif
                     Congelado em: {{ $document->frozen_at?->format('d/m/Y H:i:s') }}<br>
                     Preparado para o gov.br em: {{ $document->govbr_sent_at?->format('d/m/Y H:i:s') ?? 'não registrado' }}<br>
+                    @if($document->initialsWaived())
+                        Visto dispensado: o modelo pede visto, que só existe no tablet; assinado pelo gov.br, que cobre o arquivo inteiro<br>
+                    @endif
                     Finalizado em: {{ $document->finalized_at?->format('d/m/Y H:i:s') ?? now()->format('d/m/Y H:i:s') }}<br>
                     Documento gerado por: {{ $document->created_by_name ?? 'não registrado' }} (usuário do sistema)
                 </span>

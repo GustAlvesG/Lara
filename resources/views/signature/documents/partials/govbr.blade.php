@@ -130,12 +130,21 @@
                 <li>põe no documento a data da assinatura, se o modelo tiver esse campo — por isso, baixe o PDF <span class="font-bold">depois</span> de preparar;</li>
                 <li>muda o prazo para {{ (int) config('signature.govbr.ttl_days', 7) }} dias;</li>
                 <li>cancela o QR Code que estiver aberto e faz o tablet parar de liberar este documento.</li>
+                @if($document->requiresInitials())
+                    <li data-govbr-initials-warning>
+                        <span class="font-bold text-ink">retira o visto deste documento.</span> O modelo pede visto em todas
+                        as páginas, e o visto só existe no tablet; no gov.br a assinatura cobre o arquivo inteiro. O PDF é
+                        refeito sem a faixa do visto, e o documento não volta para o tablet.
+                    </li>
+                @endif
             </ul>
         </div>
 
         @can('checkGovbr', $document)
             <form method="POST" action="{{ route('signature-documents.govbr.prepare', $document) }}"
-                  onsubmit="return confirm('Preparar para o gov.br? A partir daqui este documento não é mais assinado no tablet.')">
+                  onsubmit="return confirm(@js($document->requiresInitials()
+                      ? 'Preparar para o gov.br? O visto será retirado deste documento e ele não é mais assinado no tablet.'
+                      : 'Preparar para o gov.br? A partir daqui este documento não é mais assinado no tablet.'))">
                 @csrf
                 <button type="submit" class="px-5 py-2.5 bg-grena text-white rounded-full font-bold text-sm hover:bg-grena-hover transition">
                     Preparar para o gov.br

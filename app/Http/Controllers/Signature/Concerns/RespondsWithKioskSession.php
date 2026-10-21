@@ -55,8 +55,9 @@ trait RespondsWithKioskSession
             ],
             'rules' => [
                 'identity_check' => $modelo->identity_check,
-                'requires_photo' => (bool) $modelo->requires_photo,
-                'requires_initials' => (bool) $modelo->requires_initials,
+                // Do modelo, salvo para o diretor: para ele a foto é sempre exigida.
+                'requires_photo' => $signatario->requiresPhoto(),
+                'requires_initials' => $documento->requiresInitials(),
                 // Já conferida antes de o documento existir — o CPF completo
                 // digitado no autoatendimento do Termo de Menores. O tablet
                 // pula a etapa de identidade.

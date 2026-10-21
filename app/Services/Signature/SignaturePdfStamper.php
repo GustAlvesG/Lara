@@ -107,7 +107,7 @@ class SignaturePdfStamper
 
         $final = $mode === SignatureDocumentRenderer::MODE_FINAL;
         $signers = $document->signers()->with('evidence')->get()->values();
-        $comVisto = (bool) $document->template?->requires_initials;
+        $comVisto = $document->requiresInitials();
 
         try {
             $pdf = new Fpdi('P', 'mm');

@@ -129,6 +129,7 @@ final class Navigation
                     // O papel timbrado abre pela tela de Modelos.
                     ['route' => 'signature-templates.index', 'label' => 'Modelos', 'permission' => P::ASSINATURA_MODELOS, 'active' => ['signature-templates.*', 'signature-layout.*']],
                     ['route' => 'minor-terms.index', 'label' => 'Termo de Menores', 'permission' => 'acessar-termo-menores', 'active' => 'minor-terms.*'],
+                    ['route' => 'signature-directors.index', 'label' => 'Diretoria', 'permission' => P::ASSINATURA_DIRETORIA, 'active' => 'signature-directors.*'],
                     ['route' => 'signature-guide.index', 'label' => 'Guia', 'permission' => 'acessar-guia-assinatura', 'active' => 'signature-guide.*'],
                 ]],
             ['label' => 'Freelancers', 'area' => 'freela', 'glyph' => 'user',

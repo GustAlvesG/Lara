@@ -61,6 +61,10 @@ class SignatureAuditEvent extends Model
     public const EVENT_GOVBR_CHECKED = 'govbr_checked';
     public const EVENT_GOVBR_PREPARED = 'govbr_prepared';
     public const EVENT_GOVBR_INVITE_SENT = 'govbr_invite_sent';
+    /** Visto do modelo dispensado no documento preparado para o gov.br. */
+    public const EVENT_INITIALS_WAIVED = 'initials_waived';
+    /** Aviso por e-mail ao diretor de que há documento para ele assinar. */
+    public const EVENT_DIRECTOR_NOTIFIED = 'director_notified';
     public const EVENT_ATTACHMENT_ADDED = 'attachment_added';
     public const EVENT_ATTACHMENT_REMOVED = 'attachment_removed';
     public const EVENT_REVIEWED = 'reviewed';
@@ -96,6 +100,8 @@ class SignatureAuditEvent extends Model
         self::EVENT_GOVBR_CHECKED => 'PDF assinado pelo gov.br conferido',
         self::EVENT_GOVBR_PREPARED => 'Preparado para assinatura pelo gov.br',
         self::EVENT_GOVBR_INVITE_SENT => 'Convite para assinar pelo gov.br enviado por e-mail',
+        self::EVENT_INITIALS_WAIVED => 'Visto dispensado (assinatura pelo gov.br)',
+        self::EVENT_DIRECTOR_NOTIFIED => 'Diretor avisado por e-mail',
         self::EVENT_ATTACHMENT_ADDED => 'Anexo enviado',
         self::EVENT_ATTACHMENT_REMOVED => 'Anexo removido do rascunho',
         self::EVENT_REVIEWED => 'Revisão interna registrada',

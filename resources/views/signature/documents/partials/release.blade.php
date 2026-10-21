@@ -16,9 +16,12 @@
      */
     // Documento preparado para o gov.br não passa pelo tablet — ver SignatureSigner::releaseBlockReason.
     // Sem ordem obrigatória: o atendente escolhe quem assina agora; vem marcado o primeiro pendente da lista.
-    $pendentes = $document->status === \App\Models\SignatureDocument::STATUS_AWAITING_SIGNATURE && !$document->isGovbr()
+    // Diretor não entra aqui: assina só pela entrada dele no tablet (matrícula + PIN).
+    $aguardando = $document->status === \App\Models\SignatureDocument::STATUS_AWAITING_SIGNATURE && !$document->isGovbr()
         ? $document->signers->where('status', \App\Models\SignatureSigner::STATUS_PENDING)->values()
         : collect();
+    $pendentes = $aguardando->reject(fn($s) => $s->isDirector())->values();
+    $diretoresPendentes = $aguardando->filter(fn($s) => $s->isDirector())->values();
     $proximo = $pendentes->first();
 @endphp
 
@@ -101,6 +104,18 @@
         </div>
 
         <p class="hidden mt-3 text-xs text-danger" data-release-error></p>
+
+        @if($diretoresPendentes->isNotEmpty())
+            <p class="mt-4 text-xs text-ink-2" data-release-directors>
+                {{ $diretoresPendentes->pluck('name')->join(', ') }} {{ $diretoresPendentes->count() > 1 ? 'assinam' : 'assina' }}
+                no tablet, em <b>Assinatura da Diretoria</b>, com matrícula e PIN — sem QR.
+            </p>
+        @endif
+    @elseif($diretoresPendentes->isNotEmpty())
+        <p class="text-sm text-ink-2" data-release-directors>
+            Falta a assinatura da diretoria: <span class="font-bold text-ink">{{ $diretoresPendentes->pluck('name')->join(', ') }}</span>.
+            O diretor assina no tablet, em <b>Assinatura da Diretoria</b>, com a matrícula e o PIN do Lara — não há QR a gerar.
+        </p>
     @elseif($document->status === \App\Models\SignatureDocument::STATUS_AWAITING_SIGNATURE && $document->isGovbr())
         <p class="text-sm text-ink-2">
             Este documento está sendo assinado pelo gov.br.

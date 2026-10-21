@@ -73,6 +73,8 @@ use App\Http\Controllers\PoliBot\PoliDataController as PoliBotDataController;
 use App\Http\Controllers\PoliBot\SimulatorController as PoliBotSimulatorController;
 
 use App\Http\Controllers\Signature\AttachmentController as SignatureAttachmentController;
+use App\Http\Controllers\Signature\DirectorAreaController as SignatureDirectorAreaController;
+use App\Http\Controllers\Signature\DirectorKioskController as SignatureDirectorKioskController;
 use App\Http\Controllers\Signature\DocumentController as SignatureDocumentController;
 use App\Http\Controllers\Signature\GovbrController as SignatureGovbrController;
 use App\Http\Controllers\Signature\GuideController as SignatureGuideController;
@@ -160,6 +162,24 @@ Route::prefix('assinatura/kiosk')->name('quiosque.')->group(function () {
             Route::post('/encerrar', [MinorTermKioskController::class, 'end'])
                 ->middleware('throttle:60,1')->name('end');
         });
+    });
+
+    /*
+    | Assinatura da Diretoria — o diretor entra no tablet com matrícula e PIN
+    | do Lara (cookie `lara_director`), vê os documentos pendentes da
+    | assinatura dele e abre um, recebendo o `lara_sign` como na leitura do QR.
+    | O limite de tentativas de PIN é por MATRÍCULA, no serviço; o throttle é a
+    | trava por IP. Ver DirectorKioskController.
+    */
+    Route::prefix('/diretoria')->name('diretoria.')->group(function () {
+        Route::post('/entrar', [SignatureDirectorKioskController::class, 'login'])
+            ->middleware('throttle:20,1')->name('login');
+        Route::get('/pendentes', [SignatureDirectorKioskController::class, 'pending'])
+            ->middleware('throttle:120,1')->name('pending');
+        Route::post('/abrir/{signatureSigner}', [SignatureDirectorKioskController::class, 'open'])
+            ->whereNumber('signatureSigner')->middleware('throttle:20,1')->name('open');
+        Route::post('/sair', [SignatureDirectorKioskController::class, 'logout'])
+            ->middleware('throttle:60,1')->name('logout');
     });
 
     Route::middleware('signature_kiosk')->group(function () {
@@ -1127,6 +1147,22 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
                 Route::put('/', [SignatureTemplateController::class, 'update'])->name('update');
                 Route::delete('/', [SignatureTemplateController::class, 'destroy'])->name('destroy');
             });
+        });
+
+    // Assinatura Diretoria: as áreas da diretoria e quem responde por cada
+    // uma (titular e substitutos). O diretor escolhido no documento assina no
+    // tablet com matrícula e PIN — ver o prefixo público `/assinatura/kiosk/diretoria`.
+    Route::prefix('assinatura/diretoria')->name('signature-directors.')
+        ->middleware('can:' . P::ASSINATURA_DIRETORIA)
+        ->group(function () {
+            Route::get('/', [SignatureDirectorAreaController::class, 'index'])->name('index');
+            Route::post('/', [SignatureDirectorAreaController::class, 'store'])->name('store');
+            Route::put('/{signatureDirectorArea}', [SignatureDirectorAreaController::class, 'update'])
+                ->whereNumber('signatureDirectorArea')->name('update');
+            Route::post('/{signatureDirectorArea}/mandatos', [SignatureDirectorAreaController::class, 'assign'])
+                ->whereNumber('signatureDirectorArea')->name('assign');
+            Route::delete('/mandatos/{signatureDirectorAreaHolder}', [SignatureDirectorAreaController::class, 'end'])
+                ->whereNumber('signatureDirectorAreaHolder')->name('end');
         });
 
     // Revisão interna dos documentos assinados: a fila. O registro da revisão

@@ -230,7 +230,6 @@ class SignatureCaptureService
     {
         $signer = $request->signer;
         $document = $signer->document;
-        $template = $document->template;
 
         /*
          | Reenvio depois de uma falha de rede: a assinatura já entrou. Devolve
@@ -288,7 +287,7 @@ class SignatureCaptureService
         $visto = null;
         $tracosDoVisto = null;
 
-        if ($template->requires_initials) {
+        if ($document->requiresInitials()) {
             $tracosDoVisto = $payload['initials_strokes'] ?? null;
 
             if (($payload['initials'] ?? '') === ''
@@ -310,7 +309,9 @@ class SignatureCaptureService
         $foto = null;
         $motivoSemFoto = null;
 
-        if ($template->requires_photo) {
+        // A regra é do modelo — e, para o diretor, a foto é sempre exigida
+        // (ver SignatureSigner::requiresPhoto).
+        if ($signer->requiresPhoto()) {
             if (($payload['photo'] ?? '') === '') {
                 // Sem câmera (ambiente sem HTTPS): a evidência fica registrada
                 // como AUSENTE, com o motivo — nunca silenciada.
