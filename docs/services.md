@@ -163,6 +163,77 @@ do app) e `overdue()` (comando `social:contact-reminders`). Destinatários por
 
 ---
 
+## MultiClubes\MemberProfileLookup
+
+`app/Services/MultiClubes/MemberProfileLookup.php` — sócio no MultiClubes para os torneios (nome, CPF, matrícula, nascimento, sexo, e-mail, titular), com parâmetros ligados. Mesmo critério do cadastro: título ativo e fora dos tipos especiais (`TitleMemberLookup::EXCLUDED_TITLE_TYPES`).
+
+| Método | Descrição |
+|--------|-----------|
+| `byCpf($cpf)` | Lista de `MemberProfile`: o mesmo CPF pode estar em mais de um título. CPF inválido devolve `[]` sem consultar (há CPF de preenchimento `00000000000` no MultiClubes). |
+| `byTitle($title)` | Todos do título (titular primeiro). |
+| `find($cpf, $title)` | O registro daquele CPF naquela matrícula (o sócio logado). |
+| `static genderFromSex($sex)` | `dbo.Members.Sex`: **0 = `male`, 1 = `female`** (regra fixada em 22/10/2026); outro valor = null. |
+
+---
+
+## Tournament\TournamentRegistrationService
+
+`app/Services/Tournament/TournamentRegistrationService.php` — inscrição individual e pagamento. Regras em [torneios.md](funcionalidades/torneios.md#inscrição-e-pagamento-tournamentregistrationservice).
+
+| Método | Descrição |
+|--------|-----------|
+| `profileFor($member)` | Perfil do MultiClubes por `find(cpf, matrícula)`; sem ele, `member_not_found`. |
+| `eligibility($tournament, $profile, $member)` | Por categoria: elegível, motivo e inscrição ativa. |
+| `register($tournament, $member, $profile, $categoryIds, $override = null)` | Cria as inscrições (tudo ou nada), com trava na categoria; preço zero nasce paga; `$override` = [User, motivo] libera sexo/idade. |
+| `pay($member, $registrationIds, $data)` | Pagamento eRede: posse, pendência, período, vaga, valor exato; reenvio do tid devolve o existente. |
+| `recordManual($registrationIds, $data, $user)` | Baixa manual (mesma pessoa, `MANUAL_METHODS`). |
+| `withdraw($registration, $member)` | Desistência do sócio, só pendente. |
+| `cancel($registration, $user, $reason, $refund)` | Cancelamento pelo organizador; estorno do valor da inscrição pela eRede antes de cancelar. |
+
+Exceção de regra: `App\Exceptions\TournamentException` (`reason` estável).
+
+## Tournament\TournamentTeamService
+
+Times (F4): `create()`, `addMember()`, `removeMember()`, `setCaptain()`, `update()`, `cancel()` (organizador, recusas como `ValidationException`); `draw()` (pagos sem time, só times inteiros, devolve `leftover`); `afterPaid()` (individual vira time; recalcula o time do pagante); `detach()` (saída da inscrição); `refresh()` (completo = cheio e todos pagos); `occupied()` (pessoas + convites pendentes); `unassigned()`.
+
+## Tournament\TournamentInviteService
+
+Modo capitão pelo site: `createTeam()`, `lookup()` (por matrícula ou CPF, devolve `ref` cifrada e CPF mascarado), `invite()` (confere elegibilidade, vaga e duplicidade; e-mail `tournament.invite`), `accept()` (inscreve se preciso e põe no time, pendente), `decline()`, `cancel()`. Só dentro do período de inscrição.
+
+## Tournament\TournamentBracketService
+
+Chaveamento (F5): `generate()` (sorteio ou à mão; todos os times não desfeitos; gera de novo só sem resultado e tira do site), `clear()`, `publish()`, `schedule()`, `outdated()` (times fora da chave / desfeitos na chave), `standings()` (classificação do grupo; ordem final do organizador prevalece), `advance()` (vencedor ao próximo jogo, perdedor da semifinal ao 3º lugar). Contas estáticas: `bracketSize()`, `seedOrder()` (posições-padrão), `crossRanks()` (cruzado padrão), `roundLabel()`, `groupName()`.
+
+## Tournament\TournamentResultService
+
+Resultados (F6): `record()` (placar por sets/games ou W.O., origem `lara`/`site`; Lara trava; correção que muda vencedor exige o jogo seguinte sem resultado; histórico; `advance`), `clear()`, `closeGroup()` (ordem final, preenche o mata-mata, avança os "passa direto"), `reopenGroup()`, `static score()` (conferência do placar). Recusas como `TournamentException`.
+
+## Tournament\TournamentResultCodeService
+
+Código de lançamento pelo site: `generate()` (8 caracteres, só o sha256 no banco, vence no fim do último dia), `revoke()`, `check()`, `normalize()`, `format()`.
+
+## Tournament\TournamentBracketPresenter
+
+O chaveamento em JSON para o site: `category($categoria, staff: bool)` e `match()`; com `staff`, cada jogo traz `editable`, `locked`, `result_origin`.
+
+## Tournament\TournamentFinanceService
+
+Relatório financeiro por inscrição: `summary()` (por categoria e total: recebido eRede/manual, estornado, líquido, a receber), `payments()`, `overview()`, `csv()`, `methodLabel()`.
+
+## Members\SiteAccountService
+
+Contas do site: `search()`, `duplicatedCpfs()`, `diagnose()`, `update()`, `pullFromMultiClubes()`, `temporaryPassword()`, `createManual()`, `deactivate()`, `restore()`, `static siteHash()` (a senha do site chega em SHA256: `Hash::make(sha256(texto))`). Ver [contas-do-site.md](funcionalidades/contas-do-site.md).
+
+## Tournament\TournamentSetupService
+
+Montagem do torneio: `changeStatus()` (rascunho → publicado → em andamento → encerrado; cancelado; volta a rascunho só sem inscrição; publicar pede categoria), `attachCategory()` (copia do catálogo do grupo), `updateCategory()` (com chaveamento gerado, o formato não muda), `detachCategory()` (só sem inscrição), `linkRules()`.
+
+## Tournament\TournamentNotifier
+
+E-mails `tournament.registered`, `tournament.paid`, `tournament.cancelled` (template `emails.tournament.status`), um por pessoa e torneio, via `EmailService::sendScheduleMail`.
+
+---
+
 ## FreelancerService
 
 `app/Services/FreelancerService.php`
@@ -280,28 +351,6 @@ câmera aos externos registrados na portaria e aos pedidos de carro de aplicativ
 |--------|-----------|-----------|
 | `validate` | `validate($rule, $data)` | Valida a regra contra a data/hora atual. |
 | `isBetweenOrGreaterDates` | `isBetweenOrGreaterDates($currentDate, $startDate = null, $endDate = null)` | Verifica o intervalo de datas. |
-
----
-
-## TournamentService
-
-`app/Services/TournamentService.php` — CRUD de torneios, times e categorias (com transações).
-
-| Método | Assinatura | Descrição |
-|--------|-----------|-----------|
-| `getAllTournaments` | `getAllTournaments()` | Lista paginada de torneios (status + categorias). |
-| `getTournamentById` | `getTournamentById($id)` | Torneio com relacionamentos. |
-| `createTournament` | `createTournament(array $data)` | Cria torneio (transação). |
-| `updateTournament` | `updateTournament($id, array $data)` | Atualiza torneio (transação). |
-| `deleteTournament` | `deleteTournament($id)` | Remove torneio (transação). |
-| `getAllTeams` | `getAllTeams()` | Lista paginada de times (com membros). |
-| `createTeam` | `createTeam(array $data)` | Cria time. |
-| `updateTeam` | `updateTeam($id, array $data)` | Atualiza time. |
-| `deleteTeam` | `deleteTeam($id)` | Remove time. |
-| `getAllCategories` | `getAllCategories()` | Lista categorias. |
-| `createCategory` | `createCategory(array $data)` | Cria categoria. |
-| `updateCategory` | `updateCategory($id, array $data)` | Atualiza categoria. |
-| `deleteCategory` | `deleteCategory($id)` | Remove categoria. |
 
 ---
 

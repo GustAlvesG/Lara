@@ -44,7 +44,7 @@ deletes, scopes globais, etc.).
 - **`$fillable`:** `name`, `category`, `image_vertical`, `image_horizontal`, `status`, `vertices`, `icon`, `minimum_antecedence`, `maximum_antecedence`, `duration`, `interval`, `daily_limit`, `start_time`, `end_time`, `start_time_sales`, `end_time_sales`
 - **Campos sociais:** `social_payment_days`, `social_limit_count`, `social_limit_days`, `social_active_limit`, `social_rules`
 - **Constantes:** `CATEGORY_SPORT` (`esportiva`), `CATEGORY_SOCIAL` (`social`), `CATEGORIES` · scopes `sport()` e `social()` · `isSocial()`, `socialPaymentDays()`
-- **Relacionamentos:** `places()` hasMany Place · `tournaments()` hasMany Tournament (`group_id`) · `weekdays()` belongsToMany Weekday (pivô `week_days_place_group`)
+- **Relacionamentos:** `places()` hasMany Place · `weekdays()` belongsToMany Weekday (pivô `week_days_place_group`)
 
 ### Social\SocialBooking
 - **Tabela:** `social_bookings` — reserva de espaço social; `schedule_id` (1:1, a ocupação do dia inteiro), `member_id`, `place_id`, `event_date`, `stage`, dados do evento, `base_price`/`extra_guests`/`extra_guest_price`/`extras_total`/`items_total`/`discount`/`total`, contrato, aprovação, `payment_due_at`, recusa e cancelamento.
@@ -73,6 +73,7 @@ deletes, scopes globais, etc.).
 - **`$fillable`:** `Id`, `title`, `cpf`, `birth_date`, `Barcode`, `Name`, `Titular`, `telephone`, `Email`, `Password`
 - **`$hidden`:** `password`, `created_at`, `updated_at`, `deleted_at`
 - **Relacionamentos:** nenhum definido (dados de sócio vêm também da base externa).
+- **SoftDeletes** desde 23/10/2026 (Contas do site desativa a conta duplicada); `accountLogs()` → **MemberAccountLog** (`member_account_logs`: `action`, `details`, quem fez).
 
 ### User
 - **Tabela:** `users` · **SoftDeletes** · `Authenticatable`, `Notifiable` · acesso por setor: `access()`, `hasAccess()`, `hasFullAccess()`, `directPermissions()` (ver [Usuários, setores e permissões](funcionalidades/usuarios-e-permissoes.md))
@@ -243,34 +244,17 @@ Cadastro do módulo [Funcionários](funcionalidades/funcionarios.md) (também us
 
 ## Torneios (`app/Models/Tournament/`)
 
-### Tournament
-- **`$fillable`:** `title`, `description`, `start_date`, `end_date`, `start_date_subscription`, `end_date_subscription`, `max_teams`, `status_id`, `group_id`
-- **`$casts`:** `start_date`, `end_date`, `start_date_subscription`, `end_date_subscription` → `datetime`
-- **Relacionamentos:** `categories()` belongsToMany Category (pivô `tournaments_categories`) · `status()` belongsTo Status
+Módulo em construção desde 22/10/2026 — regras em [torneios.md](funcionalidades/torneios.md). Situações gravadas como texto, em constantes `STATUS_*` com `STATUS_LABELS`.
 
-### Category
-- **`$fillable`:** `name`, `member_by_team`
-- **Relacionamentos:** `tournaments()` belongsToMany Tournament
-
-### TournamentCategory
-- **Tabela:** `tournaments_categories`
-- **`$fillable`:** `tournament_id`, `category_id`, `entry_price`
-- **Relacionamentos:** `tournament()` belongsTo Tournament · `category()` belongsTo Category · `subscriptions()` hasMany TournamentSubscription
-
-### Team
-- **`$fillable`:** `name`, `member_id`
-- **Relacionamentos:** `owner()` belongsTo (responsável) · `members()` belongsToMany · `subscriptions()` hasMany TournamentSubscription
-
-### TournamentSubscription
-- **Tabela:** `tournament_subscription`
-- **`$fillable`:** `team_id`, `tournament_category_id`, `status_id`
-- **Relacionamentos:** `team()` belongsTo Team · `tournamentCategory()` belongsTo TournamentCategory · `payments()` hasMany TournamentSubscriptionPayment
-
-### TournamentSubscriptionPayment
-- **Tabela:** `tournament_subscription_payment`
-- **`$fillable`:** `tournament_subscription_id`, `payment_method`, `paid_amount`, `payment_integration_id`, `paid_at`, `status_id`
-- **`$casts`:** `paid_at` → `datetime`
-- **Relacionamentos:** `subscription()` belongsTo TournamentSubscription
+- **TournamentCategoryTemplate** (SoftDeletes) — catálogo do grupo: `place_group_id`, `name`, `team_size` (1 = individual), `gender` (`GENDERS`: `male`, `female`, `any`), `min_age`, `max_age`, `active`; `summary()`.
+- **Tournament** (SoftDeletes) — `place_group_id`, `title`, `description`, `rules`, `image`, `registration_starts_at/ends_at`, `starts_on`, `ends_on`, `audience` (`members`), `status` (`draft`, `published`, `in_progress`, `finished`, `cancelled`); `registrationOpen()`. Relações: `placeGroup`, `categories`, `creator`.
+- **TournamentCategory** — vínculo torneio × catálogo, com cópia de `name`, `team_size`, `gender`, `min_age`, `max_age`; `price`, `max_registrations` (nulo = sem limite), `team_formation` (`FORMATIONS`), `format` (`FORMATS`), `groups_count`, `qualifiers_per_group`, `third_place_match`, `sets_to_win`, `sort_order`, `bracket_published_at` (chaveamento divulgado no site; F5); `matches()` (hasManyThrough pelas fases). `ineligibilityReason($gender, $birthDate, $onDate)` devolve `INELIGIBLE_*` ou null; `ageOn()`; `describe()`.
+- **Tournament** — também `results_code_hash` (oculto), `results_code_expires_at`, `results_code_created_at/by` (código de lançamento pelo site, F6; fora do fillable) e `resultsCodeActive()`.
+- **TournamentRegistration** — `refunded_amount` (estorno desta inscrição, F7); inscrição individual: categoria, `member_id`, cópia de `cpf`, `title`, `name`, `email`, `birth_date`, `gender`; `amount`; `status` (`pending_payment`, `paid`, `withdrawn`, `cancelled`; `ACTIVE_STATUSES`, scope `active()`); liberação de elegibilidade; pagamento; desistência e cancelamento.
+- **TournamentPayment** — eRede ou baixa manual, mesmo desenho do `SchedulePayment` (`is_manual`, `recorded_by`, `manual_notes` fora do fillable); `status` `paid`/`refunded`/`partially_refunded`.
+- **TournamentTeam** — `name`, `captain_registration_id` (opcional), `origin` (`organizer`, `draw`, `captain`, `individual`), `status` (`forming`, `complete`, `cancelled`), `seed`. **TournamentTeamMember**: inscrição no time (única). **TournamentTeamInvite**: convite do capitão por CPF (`pending`, `accepted`, `declined`, `cancelled`, `expired`).
+- **TournamentStage** (`group`/`knockout`, `generation` `draw`/`manual`) → **TournamentGroup** → **TournamentGroupTeam** (`final_position`, definida pelo organizador).
+- **TournamentMatch** — `round`, `position`, lados, `next_match_id`/`next_slot`, `third_place` (jogo do 3º lugar, recebe os perdedores das semifinais; F5), `scheduled_at`/`location_note`, origem do classificado (`*_source_group_id/position`), `status` (`pending`, `finished`, `walkover`, `bye`), `home_sets`/`away_sets`, `winner_team_id`, `locked_by_lara`, `result_origin` (`lara`/`site`), `result_user_id`. **TournamentMatchSet**: games e tie-break por set. **TournamentMatchResultLog**: histórico (só acrescenta).
 
 ---
 

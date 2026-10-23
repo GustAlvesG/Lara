@@ -46,11 +46,13 @@ Setores. "Secretaria" é o setor **Atendimento**; "Financeiro" é a
 | Freelancers › Acompanhamento | `freelancers.acompanhamento` | Comercial |
 | Freelancers › Financeiro | `freelancers.financeiro` | Contabilidade |
 | Placar Clube | `placar.cadastro`, `placar.scout` | Esporte |
+| Torneios (catálogo de categorias, torneios, chaveamento, inscrições, times, resultados e código de lançamento pelo site, baixa manual, estorno, financeiro) | `torneios.gerenciar`, `torneios.inscricoes`, `torneios.resultados`, `torneios.pagamentos.baixa-manual`, `torneios.pagamentos.estornar`, `torneios.financeiro` | nascem sem setor (desde 22/10/2026; `financeiro` desde 23/10) — dar ao Esporte na tela de Setores |
+| Reservas › Contas do site (senha provisória, e-mail, cadastro manual, duplicadas) | `reservas.contas-site` | nasce sem setor (23/10/2026) — dar a quem atende os sócios |
 | RePET (câmeras, layouts e vídeos das quadras) | `replay` | TI (acesso total); Marketing recebe na tela de Setores |
 | Funcionários (cadastro, planilha, férias, afastamentos, rescisão) | `funcionarios.gerenciar` | nasce sem setor (desde 20/10/2026) — dar ao RH na tela de Setores |
 | Banco de Horas (importação do espelho de ponto) | `banco-horas.admin` | RH |
 | Login da API do Telegram | `telegram.login` | Comercial |
-| Locais e regras de reserva, Torneios, Sócios/Acessos | `reservas.configurar`, `torneios`, `socios.consulta` | TI (acesso total) |
+| Locais e regras de reserva, Sócios/Acessos | `reservas.configurar`, `socios.consulta` | TI (acesso total) |
 | Usuários, Setores | `usuarios.gerenciar`, `setores.gerenciar` | acesso total |
 
 O Smart Panel saiu do sistema.

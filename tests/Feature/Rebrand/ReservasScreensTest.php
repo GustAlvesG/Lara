@@ -170,17 +170,4 @@ class ReservasScreensTest extends TestCase
 
         $this->assertStringNotContainsString('Locais e Grupos', $html);
     }
-
-    public function test_cartao_de_torneio_edita_o_torneio_e_nao_um_local(): void
-    {
-        $this->requisicaoEm('place-group.index');
-        $tournament = new \App\Models\Tournament\Tournament;
-        $tournament->forceFill(['id' => 4, 'title' => 'Copa de Primavera', 'price' => 50, 'status_id' => 1, 'image' => null]);
-
-        $html = (string) $this->view('location.placeGroup.partials.tournament-card', ['tournament' => $tournament]);
-
-        $this->assertStringContainsString(route('tournaments.edit', 4), $html);
-        $this->assertStringContainsString(route('tournaments.destroy', 4), $html);
-        $this->assertStringNotContainsString(route('place-group.editPlace', 4), $html);
-    }
 }

@@ -37,6 +37,8 @@ use App\Http\Controllers\Api\PurchaseApprovalController;
 use App\Http\Controllers\Api\MemberLightingController;
 use App\Http\Controllers\Api\SocialBookingApiController;
 use App\Http\Controllers\Api\RemoteSignatureApiController;
+use App\Http\Controllers\Api\TournamentApiController;
+use App\Http\Controllers\Api\TournamentStaffApiController;
 use App\Http\Controllers\Fleet\FleetApiController;
 use App\Http\Controllers\Replay\Api\CameraController as ReplayApiCameraController;
 use App\Http\Controllers\Replay\Api\VideoController as ReplayApiVideoController;
@@ -391,6 +393,22 @@ Route::middleware('api_token')->group(function () {
 
     Route::post('send-email', [EmailController::class, 'submit']);
 
+    /*
+    | Torneios — consulta pelo site sem login (só o `api_token`). Inscrição e
+    | pagamento ficam no grupo `login_token`, logo abaixo.
+    */
+    Route::get('/tournaments', [TournamentApiController::class, 'index'])->name('api.tournaments.index');
+    Route::get('/tournaments/{id}', [TournamentApiController::class, 'show'])->whereNumber('id')->name('api.tournaments.show');
+    Route::get('/tournaments/{id}/categories/{categoryId}/bracket', [TournamentApiController::class, 'bracket'])->whereNumber(['id', 'categoryId'])->name('api.tournaments.bracket');
+
+    // Equipe do clube lançando resultado pelo site: código de lançamento do
+    // torneio (header `Tournament-Code`), gerado no Lara.
+    Route::prefix('/tournaments/{id}/staff')->whereNumber('id')->group(function () {
+        Route::post('/check', [TournamentStaffApiController::class, 'check'])->middleware('throttle:10,1')->name('api.tournaments.staff.check');
+        Route::get('/matches', [TournamentStaffApiController::class, 'matches'])->middleware('throttle:60,1')->name('api.tournaments.staff.matches');
+        Route::put('/matches/{matchId}/result', [TournamentStaffApiController::class, 'record'])->whereNumber('matchId')->middleware('throttle:60,1')->name('api.tournaments.staff.result');
+    });
+
     Route::middleware('login_token')->group(function () {
         Route::get('/verify-token', [LoginTokenController::class, 'validate']);
 
@@ -438,6 +456,28 @@ Route::middleware('api_token')->group(function () {
             Route::put('/bookings/{id}', [SocialBookingApiController::class, 'update'])->whereNumber('id')->middleware('throttle:30,1')->name('api.social.bookings.update');
             Route::put('/bookings/{id}/guests', [SocialBookingApiController::class, 'updateGuests'])->whereNumber('id')->middleware('throttle:30,1')->name('api.social.bookings.guests');
             Route::delete('/bookings/{id}', [SocialBookingApiController::class, 'destroy'])->whereNumber('id')->name('api.social.bookings.destroy');
+        });
+
+        /*
+        | Torneios — inscrição individual do sócio e pagamento eRede. O sócio
+        | sai sempre do JWT. Desistir pelo site só antes de pagar.
+        */
+        Route::prefix('tournaments')->group(function () {
+            Route::get('/my-registrations', [TournamentApiController::class, 'mine'])->name('api.tournaments.mine');
+            Route::get('/{id}/eligibility', [TournamentApiController::class, 'eligibility'])->whereNumber('id')->name('api.tournaments.eligibility');
+            Route::post('/{id}/registrations', [TournamentApiController::class, 'register'])->whereNumber('id')->middleware('throttle:20,1')->name('api.tournaments.register');
+            Route::post('/payment', [TournamentApiController::class, 'pay'])->middleware('throttle:20,1')->name('api.tournaments.pay');
+            Route::delete('/registrations/{id}', [TournamentApiController::class, 'withdraw'])->whereNumber('id')->name('api.tournaments.withdraw');
+
+            // Times (F4): capitão cria e convida; convidado aceita ou recusa.
+            Route::get('/my-teams', [TournamentApiController::class, 'myTeams'])->name('api.tournaments.teams.mine');
+            Route::post('/categories/{id}/teams', [TournamentApiController::class, 'createTeam'])->whereNumber('id')->middleware('throttle:20,1')->name('api.tournaments.teams.store');
+            Route::get('/member-lookup', [TournamentApiController::class, 'lookup'])->middleware('throttle:30,1')->name('api.tournaments.lookup');
+            Route::post('/teams/{id}/invites', [TournamentApiController::class, 'invite'])->whereNumber('id')->middleware('throttle:20,1')->name('api.tournaments.invites.store');
+            Route::get('/my-invites', [TournamentApiController::class, 'myInvites'])->name('api.tournaments.invites.mine');
+            Route::post('/invites/{id}/accept', [TournamentApiController::class, 'acceptInvite'])->whereNumber('id')->name('api.tournaments.invites.accept');
+            Route::post('/invites/{id}/decline', [TournamentApiController::class, 'declineInvite'])->whereNumber('id')->name('api.tournaments.invites.decline');
+            Route::delete('/invites/{id}', [TournamentApiController::class, 'cancelInvite'])->whereNumber('id')->name('api.tournaments.invites.destroy');
         });
 
         Route::prefix('schedule')->group(function () {

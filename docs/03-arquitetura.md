@@ -79,14 +79,14 @@ Providers carregados: `JwtServiceProvider` e `AppServiceProvider`.
 app/
 ├── Console/            (Kernel padrão; sem comandos customizados)
 ├── Http/
-│   ├── Controllers/    (raiz + Auth/, Company/, Tournament/)
+│   ├── Controllers/    (raiz + Auth/, Company/)
 │   ├── Middleware/      (APIToken, JwtMiddleware, AdminAccessMiddleware)
 │   ├── Requests/        (pares Store*/Update* por entidade)
 │   └── Resources/       (UserResource)
 ├── Jobs/                (ProcessWhatsAppWebhook)
 ├── Listeners/           (UpdateLastLoginAt)
 ├── Mail/                (ContactMail)
-├── Models/              (raiz + Company/, Tournament/, WhatsApp/)
+├── Models/              (raiz + Company/, WhatsApp/)
 ├── Notifications/       (ResetPasswordNotification)
 ├── Policies/            (uma por entidade)
 ├── Providers/           (AppServiceProvider, JwtServiceProvider, Services/JwtService)

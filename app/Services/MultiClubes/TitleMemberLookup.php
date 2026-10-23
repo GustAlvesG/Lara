@@ -15,9 +15,10 @@ class TitleMemberLookup
 {
     /**
      * Tipos de título especiais, excluídos de qualquer validação de sócio.
-     * Mesma lista usada por MemberService::queryMember() no cadastro.
+     * Mesma lista usada por MemberService::queryMember() no cadastro e por
+     * MemberProfileLookup (torneios).
      */
-    private const EXCLUDED_TITLE_TYPES = [
+    public const EXCLUDED_TITLE_TYPES = [
         374, 375, 693320, 1297904, 3804861, 4062070,
         6736996, 6736997, 6736998, 6737000,
     ];

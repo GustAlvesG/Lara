@@ -25,7 +25,8 @@ rotas).
 | [Funcionários](funcionarios.md) | Cadastro do RH (CRUD e planilha .xlsx) com matrícula, CPF e setor; férias, afastamentos e rescisão bloqueiam. Autentica o pedido de carro de aplicativo e o motorista da frota; o setor do funcionário coloca o usuário de mesma matrícula no setor. |
 | [Funcionários — ajuste da portaria](../funcionarios-prompt-portaria.md) | Prompt de **mudança** (20/10/2026) para a aplicação da guarita: `funcionario_bloqueado` no carro de aplicativo e `driver_blocked`/`driver_not_employee` na frota. |
 | [Banco de Horas](banco-de-horas.md) | Importação de ponto, cálculo de saldo e ajustes. |
-| [Torneios](torneios.md) | Torneios, categorias, times, inscrições e pagamentos. |
+| [Torneios](torneios.md) | Catálogo de categorias, torneios, inscrição individual com pagamento eRede, times, chaveamento, resultados (Lara e site, com código de lançamento) e financeiro. [Guia do Esporte](torneios-guia.md); prompt do site: [torneios-site-prompt.md](torneios-site-prompt.md). |
+| [Contas do site](contas-do-site.md) | Reservas › Contas do site: senha provisória, e-mail e telefone (à mão ou do MultiClubes), cadastro manual e contas duplicadas dos sócios no site de locação. |
 | [Placar Clube — cadastro](placar-clube.md) | Equipes, times, jogadores, competições e jogos do placar eletrônico; "Cadastrar" × "Cadastrar e criar outro"; Novo Jogo filtrado por categoria. |
 | [Empresas e Controle de Acesso](empresas.md) | Empresas terceirizadas, trabalhadores e regras de acesso. |
 | [Autorização de Ordem de Compra (Questor)](questor-autorizacao-compra.md) | Fila de ordens de compra do ERP Questor, com fluxo de aprovação em três níveis. |

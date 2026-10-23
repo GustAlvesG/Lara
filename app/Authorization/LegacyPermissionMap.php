@@ -89,7 +89,6 @@ final class LegacyPermissionMap
         P::EXTERNOS_HISTORICO,
         P::EXTERNOS_CARROS_APLICATIVO,
         P::RESERVAS_CONFIGURAR,            // locais, grupos e regras
-        P::TORNEIOS,
         P::SOCIOS_CONSULTA,
     ];
 

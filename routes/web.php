@@ -5,13 +5,21 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ParkingController;
 use App\Http\Controllers\MemberController;
+use App\Http\Controllers\SiteAccountController;
 use App\Http\Controllers\AccessController;
 use App\Http\Controllers\InformationController;
 use App\Http\Controllers\Company\CompanyController;
 use App\Http\Controllers\Company\CompanyWorkerController as WorkerController;
 use App\Http\Controllers\Company\CompanyAccessRulesController as CompanyRulesController;
 use App\Http\Controllers\Company\OneOffAccessController;
+use App\Http\Controllers\Tournament\CategoryTemplateController;
+use App\Http\Controllers\Tournament\TournamentBracketController;
+use App\Http\Controllers\Tournament\TournamentFinanceController;
+use App\Http\Controllers\Tournament\TournamentResultController;
+use App\Http\Controllers\Tournament\TournamentCategoryController;
 use App\Http\Controllers\Tournament\TournamentController;
+use App\Http\Controllers\Tournament\TournamentRegistrationController;
+use App\Http\Controllers\Tournament\TournamentTeamController;
 
 use App\Http\Controllers\PlaceGroupController;
 use App\Http\Controllers\PlaceController;
@@ -671,17 +679,102 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
     Route::resource('parking-authorizations', ParkingAuthorizationController::class)
         ->middleware('can:' . P::SIV_PLACAS_DIRETORIA);
 
-    // Torneios e categorias: fora do menu, fechados para o acesso total até
-    // alguém precisar.
-    Route::resource('tournaments', TournamentController::class)->middleware('can:' . P::TORNEIOS);
+    // Torneios (módulo novo, docs/funcionalidades/torneios.md). O catálogo de
+    // categorias é de cada grupo de espaços (`?group=`).
+    // `categories.*` é o catálogo do grupo; `event-categories.*`, as
+    // categorias ligadas a um torneio. `{tournament}` só número, para não
+    // engolir `categorias` e `novo`.
+    Route::prefix('torneios')->as('tournaments.')->group(function () {
+        Route::middleware('can:' . P::TORNEIOS_GERENCIAR)->prefix('categorias')->as('categories.')->group(function () {
+            Route::get('/', [CategoryTemplateController::class, 'index'])->name('index');
+            Route::post('/', [CategoryTemplateController::class, 'store'])->name('store');
+            Route::put('/{template}', [CategoryTemplateController::class, 'update'])->name('update');
+            Route::delete('/{template}', [CategoryTemplateController::class, 'destroy'])->name('destroy');
+        });
 
-    Route::prefix('categories')->name('categories.')->middleware('can:' . P::TORNEIOS)->controller(TournamentController::class)->group(function () {
-        Route::get('/', 'indexCategories')->name('index');
-        Route::get('/create', 'createCategory')->name('create');
-        Route::post('/', 'storeCategory')->name('store');
-        Route::get('/{id}/edit', 'editCategory')->name('edit');
-        Route::put('/{id}', 'updateCategory')->name('update');
-        Route::delete('/{id}', 'destroyCategory')->name('destroy');
+        Route::middleware('can:' . P::TORNEIOS_GERENCIAR)->group(function () {
+            Route::get('/', [TournamentController::class, 'index'])->name('index');
+            Route::get('/novo', [TournamentController::class, 'create'])->name('create');
+            Route::post('/', [TournamentController::class, 'store'])->name('store');
+            Route::get('/{tournament}', [TournamentController::class, 'show'])->whereNumber('tournament')->name('show');
+            Route::get('/{tournament}/editar', [TournamentController::class, 'edit'])->whereNumber('tournament')->name('edit');
+            Route::put('/{tournament}', [TournamentController::class, 'update'])->whereNumber('tournament')->name('update');
+            Route::put('/{tournament}/situacao', [TournamentController::class, 'status'])->whereNumber('tournament')->name('status');
+
+            Route::post('/{tournament}/categorias', [TournamentCategoryController::class, 'store'])->whereNumber('tournament')->name('event-categories.store');
+            Route::put('/{tournament}/categorias/{category}', [TournamentCategoryController::class, 'update'])->whereNumber(['tournament', 'category'])->name('event-categories.update');
+            Route::delete('/{tournament}/categorias/{category}', [TournamentCategoryController::class, 'destroy'])->whereNumber(['tournament', 'category'])->name('event-categories.destroy');
+
+            // Chaveamento de uma categoria (F5). A tela (`bracket.show`) fica
+            // fora deste grupo: abre também para quem só lança resultado.
+            Route::prefix('/{tournament}/categorias/{category}/chaveamento')->whereNumber(['tournament', 'category'])->as('bracket.')->group(function () {
+                Route::post('/', [TournamentBracketController::class, 'generate'])->name('generate');
+                Route::delete('/', [TournamentBracketController::class, 'destroy'])->name('destroy');
+                Route::put('/divulgar', [TournamentBracketController::class, 'publish'])->name('publish');
+                Route::put('/jogos/{match}', [TournamentBracketController::class, 'schedule'])->whereNumber('match')->name('schedule');
+            });
+        });
+
+        Route::middleware('can:' . P::TORNEIOS_INSCRICOES)->group(function () {
+            Route::get('/{tournament}/inscricoes', [TournamentRegistrationController::class, 'index'])->whereNumber('tournament')->name('registrations.index');
+            Route::post('/{tournament}/inscricoes', [TournamentRegistrationController::class, 'store'])->whereNumber('tournament')->name('registrations.store');
+            // O estorno pede também `torneios.pagamentos.estornar` (no controller).
+            Route::post('/inscricoes/{registration}/cancelar', [TournamentRegistrationController::class, 'cancel'])->whereNumber('registration')->name('registrations.cancel');
+
+            // Times de uma categoria (F4): o organizador monta, sorteia e ajusta.
+            Route::prefix('/{tournament}/categorias/{category}/times')->whereNumber(['tournament', 'category'])->as('teams.')->group(function () {
+                Route::get('/', [TournamentTeamController::class, 'index'])->name('index');
+                Route::post('/', [TournamentTeamController::class, 'store'])->name('store');
+                Route::post('/sortear', [TournamentTeamController::class, 'draw'])->name('draw');
+                Route::put('/{team}', [TournamentTeamController::class, 'update'])->whereNumber('team')->name('update');
+                Route::delete('/{team}', [TournamentTeamController::class, 'destroy'])->whereNumber('team')->name('destroy');
+                Route::post('/{team}/atletas', [TournamentTeamController::class, 'addMember'])->whereNumber('team')->name('members.store');
+                Route::delete('/{team}/atletas/{registration}', [TournamentTeamController::class, 'removeMember'])->whereNumber(['team', 'registration'])->name('members.destroy');
+            });
+        });
+
+        // Tela do chaveamento: `torneios.gerenciar` ou `torneios.resultados` (conferido no controller).
+        Route::get('/{tournament}/categorias/{category}/chaveamento', [TournamentBracketController::class, 'show'])
+            ->whereNumber(['tournament', 'category'])
+            ->name('bracket.show');
+
+        // Resultados (F6): placar, W.O., grupos e o código de lançamento pelo site.
+        Route::middleware('can:' . P::TORNEIOS_RESULTADOS)->group(function () {
+            Route::prefix('/{tournament}/categorias/{category}')->whereNumber(['tournament', 'category'])->group(function () {
+                Route::put('/jogos/{match}/resultado', [TournamentResultController::class, 'record'])->whereNumber('match')->name('results.record');
+                Route::delete('/jogos/{match}/resultado', [TournamentResultController::class, 'clear'])->whereNumber('match')->name('results.clear');
+                Route::put('/grupos/{group}/fechar', [TournamentResultController::class, 'closeGroup'])->whereNumber('group')->name('results.groups.close');
+                Route::delete('/grupos/{group}/fechar', [TournamentResultController::class, 'reopenGroup'])->whereNumber('group')->name('results.groups.reopen');
+            });
+            Route::post('/{tournament}/codigo-resultados', [TournamentResultController::class, 'generateCode'])->whereNumber('tournament')->name('results.code.store');
+            Route::delete('/{tournament}/codigo-resultados', [TournamentResultController::class, 'revokeCode'])->whereNumber('tournament')->name('results.code.destroy');
+        });
+
+        // Relatório financeiro (F7).
+        Route::middleware('can:' . P::TORNEIOS_FINANCEIRO)->group(function () {
+            Route::get('/financeiro', [TournamentFinanceController::class, 'index'])->name('finance.index');
+            Route::get('/{tournament}/financeiro', [TournamentFinanceController::class, 'show'])->whereNumber('tournament')->name('finance.show');
+            Route::get('/{tournament}/financeiro/csv', [TournamentFinanceController::class, 'csv'])->whereNumber('tournament')->name('finance.csv');
+        });
+
+        Route::post('/{tournament}/inscricoes/baixa', [TournamentRegistrationController::class, 'manual'])
+            ->whereNumber('tournament')
+            ->middleware('can:' . P::TORNEIOS_PAGAMENTOS_BAIXA_MANUAL)
+            ->name('registrations.manual');
+    });
+
+    // Reservas › Contas do site: contas dos sócios no site de locação
+    // (senha provisória, e-mail, cadastro manual, duplicadas). `{member}` é
+    // número e inclui as desativadas (resolvido no controller).
+    Route::middleware('can:' . P::RESERVAS_CONTAS_SITE)->prefix('contas-site')->as('site-accounts.')->group(function () {
+        Route::get('/', [SiteAccountController::class, 'index'])->name('index');
+        Route::post('/', [SiteAccountController::class, 'store'])->middleware('throttle:30,1')->name('store');
+        Route::get('/{member}', [SiteAccountController::class, 'show'])->whereNumber('member')->name('show');
+        Route::put('/{member}', [SiteAccountController::class, 'update'])->whereNumber('member')->name('update');
+        Route::post('/{member}/multiclubes', [SiteAccountController::class, 'pull'])->whereNumber('member')->name('pull');
+        Route::post('/{member}/senha', [SiteAccountController::class, 'password'])->whereNumber('member')->middleware('throttle:30,1')->name('password');
+        Route::delete('/{member}', [SiteAccountController::class, 'destroy'])->whereNumber('member')->name('destroy');
+        Route::post('/{member}/reativar', [SiteAccountController::class, 'restore'])->whereNumber('member')->name('restore');
     });
 
     // Leitor de documentação (.md) dentro do painel

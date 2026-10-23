@@ -162,6 +162,8 @@ trait CreatesSocialBookingSchema
             $table->string('email')->nullable();
             $table->string('title')->nullable();
             $table->timestamps();
+            // Member usa SoftDeletes (Contas do site).
+            $table->softDeletes();
         });
 
         if ($withUsers) {

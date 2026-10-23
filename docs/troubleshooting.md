@@ -126,8 +126,7 @@ O que verificar:
   valores a pagar.
 - **`DB::transaction()`**: se uma parte gravou e outra não, veja se todo o bloco está
   dentro da transação. Services com transação: `SchedulePaymentService`,
-  `ScheduleRulesService`, `FreelancerService`, `CompTimeService`, `PlaceGroupService`,
-  `TournamentService`.
+  `ScheduleRulesService`, `FreelancerService`, `CompTimeService`, `PlaceGroupService`.
 - **Chamada externa sem tratamento**: se o Service fala com WhatsApp, Telegram, RedeItau ou
   SQL Server e o serviço externo está fora do ar, o erro sobe como 500. Ver
   [integracoes.md](integracoes.md).
