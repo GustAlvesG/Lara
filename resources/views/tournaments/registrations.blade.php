@@ -133,7 +133,7 @@
         <form method="POST" action="{{ route('tournaments.registrations.store', $tournament) }}" class="grid grid-cols-1 gap-4 rounded-card bg-surface p-5 shadow-card sm:grid-cols-4 sm:items-end">
             @csrf
             <h2 class="text-sm font-black uppercase tracking-widest text-ink-3 sm:col-span-4">Inscrever pelo balcão</h2>
-            <p class="text-sm text-ink-2 sm:col-span-4">A pessoa precisa ter cadastro no site de locação. Os dados (sexo, nascimento, e-mail) vêm do MultiClubes. As inscrições só abrem dentro do período do torneio.</p>
+            <p class="text-sm text-ink-2 sm:col-span-4">A pessoa precisa ter cadastro no site de locação. Os dados (sexo, nascimento, e-mail) vêm do MultiClubes. Pelo balcão a inscrição entra a qualquer momento: fora do prazo, sem vaga, ou com sexo ou idade fora da categoria, o Lara avisa e pede confirmação.</p>
             <div><x-input-label for="cpf" value="CPF" /><x-text-input id="cpf" name="cpf" class="mt-1 font-mono" :value="old('cpf')" required maxlength="20" /></div>
             <div><x-input-label for="title" value="Matrícula" /><x-text-input id="title" name="title" class="mt-1 font-mono" :value="old('title')" required maxlength="20" /></div>
             <fieldset class="sm:col-span-2">
@@ -148,7 +148,7 @@
                 </div>
             </fieldset>
             <div class="sm:col-span-3">
-                <x-input-label for="override_reason" value="Justificativa para liberar (só se o sexo ou a idade não se encaixam)" />
+                <x-input-label for="override_reason" value="Justificativa (opcional; fica na inscrição se ela precisar ser liberada)" />
                 <x-text-input id="override_reason" name="override_reason" class="mt-1" :value="old('override_reason')" maxlength="500" placeholder="Ex.: cadastro do MultiClubes com sexo errado, confirmado com documento" />
             </div>
             <div class="sm:text-right"><x-primary-button>Inscrever</x-primary-button></div>

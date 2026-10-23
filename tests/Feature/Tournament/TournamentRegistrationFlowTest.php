@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Tournament;
 
+use App\Exceptions\ConfirmationRequired;
 use App\Exceptions\TournamentException;
 use App\Mail\ContactMail;
 use App\Models\Tournament\Tournament;
@@ -103,11 +104,60 @@ class TournamentRegistrationFlowTest extends TestCase
         $created = $this->service->register($this->tournament, $bruno, $this->service->profileFor($bruno), [$masculina->id]);
         $this->assertNull($created->first()->eligibility_override_by);
 
-        // O organizador libera com justificativa.
+        // No balcão, só avisa; confirmado, entra com a justificativa.
         $ana = \App\Models\Member::where('cpf', '39053344705')->first();
-        $released = $this->service->register($this->tournament, $ana, $this->service->profileFor($ana), [$masculina->id], [$this->organizer, 'Cadastro com sexo errado no MultiClubes']);
+        $balcao = fn (?string $reason, bool $force) => $this->service->register($this->tournament, $ana, $this->service->profileFor($ana), [$masculina->id], [$this->organizer, $reason], $force);
+        try {
+            $balcao('Cadastro com sexo errado no MultiClubes', false);
+            $this->fail('Sem confirmar, o balcão só avisa.');
+        } catch (ConfirmationRequired $e) {
+            $this->assertStringContainsString('a categoria é de outro sexo', $e->getMessage());
+        }
+        $this->assertSame(1, Registration::count());
+
+        $released = $balcao('Cadastro com sexo errado no MultiClubes', true);
         $this->assertSame($this->organizer->id, $released->first()->eligibility_override_by);
         $this->assertSame('Cadastro com sexo errado no MultiClubes', $released->first()->eligibility_override_reason);
+    }
+
+    public function test_balcao_inscreve_a_qualquer_momento_e_passa_da_vaga_com_aviso(): void
+    {
+        $this->duplas->update(['max_registrations' => 1]);
+        $this->tournament->update(['status' => Tournament::STATUS_IN_PROGRESS]);
+        $ana = $this->member('39053344705', 'Ana Souza', '1001');
+        $bruno = $this->member('86288366757', 'Bruno Lima', '1002', Template::GENDER_MALE);
+
+        // O site continua recusando.
+        $this->assertRefused(TournamentException::REGISTRATION_CLOSED, fn () => $this->service->register($this->tournament, $ana, $this->service->profileFor($ana), [$this->duplas->id]));
+
+        // Balcão sem confirmar: aviso, nada gravado.
+        try {
+            $this->service->register($this->tournament, $ana, $this->service->profileFor($ana), [$this->duplas->id], [$this->organizer, null]);
+            $this->fail('Fora do prazo, o balcão avisa.');
+        } catch (ConfirmationRequired $e) {
+            $this->assertStringContainsString('inscrições pelo site estão fechadas', $e->getMessage());
+        }
+        $this->assertSame(0, Registration::count());
+
+        // Confirmado: entra, com quem liberou e os avisos como motivo.
+        $first = $this->service->register($this->tournament, $ana, $this->service->profileFor($ana), [$this->duplas->id], [$this->organizer, null], true)->first();
+        $this->assertSame($this->organizer->id, $first->eligibility_override_by);
+        $this->assertStringStartsWith('Liberada no balcão:', $first->eligibility_override_reason);
+        $this->service->recordManual([$first->id], ['payment_method' => 'manual_cash'], $this->organizer);
+
+        // Vaga única já paga: a baixa manual da segunda também avisa.
+        $second = $this->service->register($this->tournament, $bruno, $this->service->profileFor($bruno), [$this->duplas->id], [$this->organizer, null], true)->first();
+        try {
+            $this->service->recordManual([$second->id], ['payment_method' => 'manual_cash'], $this->organizer);
+            $this->fail('Passar da vaga pede confirmação.');
+        } catch (ConfirmationRequired $e) {
+            $this->assertStringContainsString('passa do limite', $e->getMessage());
+        }
+        $this->service->recordManual([$second->id], ['payment_method' => 'manual_cash'], $this->organizer, true);
+        $this->assertSame(2, Registration::where('status', Registration::STATUS_PAID)->count());
+
+        // Repetida continua recusada, mesmo confirmando.
+        $this->assertRefused(TournamentException::ALREADY_REGISTERED, fn () => $this->service->register($this->tournament, $ana, $this->service->profileFor($ana), [$this->duplas->id], [$this->organizer, null], true));
     }
 
     public function test_varias_categorias_entram_juntas_ou_nenhuma(): void

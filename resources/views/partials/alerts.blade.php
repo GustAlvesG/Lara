@@ -49,3 +49,44 @@
         </div>
     </div>
 @endforeach
+
+{{-- Regra que só avisa (App\Exceptions\ConfirmationRequired): confirmar
+     reenvia o mesmo formulário com force=1. --}}
+@if (is_array($confirmation = session('confirmation')))
+    @php
+        $hidden = [];
+        $flatten = function (array $values, string $prefix = '') use (&$flatten, &$hidden) {
+            foreach ($values as $key => $value) {
+                $name = $prefix === '' ? (string) $key : "{$prefix}[{$key}]";
+                is_array($value) ? $flatten($value, $name) : $hidden[] = [$name, (string) $value];
+            }
+        };
+        $flatten($confirmation['input'] ?? []);
+        $method = strtoupper($confirmation['method'] ?? 'POST');
+    @endphp
+    <div id="confirmation-alert" class="mb-6 animate-fadeIn" role="alert">
+        <div class="flex flex-col gap-3 rounded-2xl bg-warn-soft px-5 py-4 text-warn">
+            <div class="flex items-start gap-3">
+                <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-surface/70">
+                    <x-icon name="clock" class="h-4 w-4" />
+                </span>
+                <div>
+                    <p class="font-bold leading-tight">Atenção: confira antes de seguir</p>
+                    @foreach ($confirmation['warnings'] ?? [] as $line)
+                        <p class="mt-1 text-sm text-ink-2">{{ $line }}</p>
+                    @endforeach
+                </div>
+            </div>
+            <form method="POST" action="{{ $confirmation['action'] }}" class="flex flex-wrap gap-2 sm:pl-11">
+                @csrf
+                @if ($method !== 'POST') @method($method) @endif
+                @foreach ($hidden as [$name, $value])
+                    <input type="hidden" name="{{ $name }}" value="{{ $value }}">
+                @endforeach
+                <input type="hidden" name="force" value="1">
+                <x-primary-button>Confirmar mesmo assim</x-primary-button>
+                <x-secondary-button type="button" onclick="document.getElementById('confirmation-alert').remove()">Não fazer</x-secondary-button>
+            </form>
+        </div>
+    </div>
+@endif

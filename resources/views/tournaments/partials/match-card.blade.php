@@ -59,9 +59,10 @@
     </div>
 
     @can(P::TORNEIOS_RESULTADOS)
-        @if ($ready && ! $groupClosed)
+        @if ($ready)
             <details>
                 <summary class="cursor-pointer text-xs font-semibold text-ink-2">{{ $done ? 'Corrigir resultado' : 'Lançar resultado' }}</summary>
+                @if ($groupClosed)<p class="mt-2 text-xs text-warn">Grupo fechado: gravar ou limpar reabre o grupo (o Lara avisa antes).</p>@endif
                 <form method="POST" action="{{ route('tournaments.results.record', [$tournament, $category, $match]) }}" class="mt-2 flex flex-col gap-2">
                     @csrf @method('PUT')
                     <p class="text-xs text-ink-3">Games de cada set ({{ $category->sets_to_win }} set(s) para vencer). Tie-break opcional.</p>

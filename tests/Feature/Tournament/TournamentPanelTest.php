@@ -81,9 +81,15 @@ class TournamentPanelTest extends TestCase
         $this->assertSame(Tournament::STATUS_DRAFT, $tournament->status);
         $this->assertSame($this->esporte->id, $tournament->created_by);
 
-        // Publicar sem categoria é recusado.
-        $this->actingAs($this->esporte)->put(route('tournaments.status', $tournament), ['status' => Tournament::STATUS_PUBLISHED])
-            ->assertSessionHasErrors('status');
+        // Publicar sem categoria só avisa: a tela volta com o "Confirmar mesmo assim".
+        $this->actingAs($this->esporte)->from(route('tournaments.show', $tournament))
+            ->put(route('tournaments.status', $tournament), ['status' => Tournament::STATUS_PUBLISHED])
+            ->assertRedirect(route('tournaments.show', $tournament))
+            ->assertSessionHas('confirmation', fn ($c) => str_contains($c['warnings'][0], 'não tem categoria') && $c['input'] === ['status' => Tournament::STATUS_PUBLISHED] && $c['method'] === 'PUT');
+        $this->assertSame(Tournament::STATUS_DRAFT, $tournament->fresh()->status);
+        $this->actingAs($this->esporte)->get(route('tournaments.show', $tournament))
+            ->assertSee('Confirmar mesmo assim')
+            ->assertSee('name="force" value="1"', false);
 
         $template = $this->template(['min_age' => 30]);
         $this->actingAs($this->esporte)->post(route('tournaments.event-categories.store', $tournament), $this->link(['category_template_id' => $template->id]))
@@ -126,7 +132,7 @@ class TournamentPanelTest extends TestCase
             ->assertSessionHasErrors('category_template_id');
     }
 
-    public function test_com_inscricao_nao_volta_a_rascunho_nem_tira_a_categoria(): void
+    public function test_com_inscricao_volta_a_rascunho_e_tira_a_categoria_so_confirmando(): void
     {
         $tournament = $this->tournament();
         $category = $this->category($tournament);
@@ -134,10 +140,50 @@ class TournamentPanelTest extends TestCase
         Registration::create(['tournament_category_id' => $category->id, 'member_id' => $ana->id, 'cpf' => $ana->cpf, 'name' => 'Ana Souza', 'amount' => 80]);
 
         $this->actingAs($this->esporte)->put(route('tournaments.status', $tournament), ['status' => Tournament::STATUS_DRAFT])
-            ->assertSessionHasErrors('status');
+            ->assertSessionHas('confirmation');
+        $this->assertSame(Tournament::STATUS_PUBLISHED, $tournament->fresh()->status);
+        $this->actingAs($this->esporte)->put(route('tournaments.status', $tournament), ['status' => Tournament::STATUS_DRAFT, 'force' => 1])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(Tournament::STATUS_DRAFT, $tournament->fresh()->status);
+
+        // Fora do caminho normal (rascunho → encerrado) também só avisa.
+        $this->actingAs($this->esporte)->put(route('tournaments.status', $tournament), ['status' => Tournament::STATUS_FINISHED])
+            ->assertSessionHas('confirmation', fn ($c) => str_contains($c['warnings'][0], 'fora do caminho normal'));
+
         $this->actingAs($this->esporte)->delete(route('tournaments.event-categories.destroy', [$tournament, $category]))
+            ->assertSessionHas('confirmation', fn ($c) => str_contains(implode(' ', $c['warnings']), '1 inscrição(ões) sem pagamento'));
+        $this->assertNotNull($category->fresh());
+        $this->actingAs($this->esporte)->delete(route('tournaments.event-categories.destroy', [$tournament, $category]), ['force' => 1])
+            ->assertSessionHasNoErrors();
+        $this->assertNull($category->fresh());
+        $this->assertSame(0, Registration::count());
+    }
+
+    public function test_categoria_com_pagamento_nao_sai_do_torneio(): void
+    {
+        $tournament = $this->tournament();
+        $category = $this->category($tournament);
+        $ana = $this->member('39053344705', 'Ana Souza', '1001');
+        $payment = TournamentPayment::create(['member_id' => $ana->id, 'payment_method' => 'manual_cash', 'paid_amount' => 80, 'paid_at' => now(), 'status' => TournamentPayment::STATUS_PAID]);
+        Registration::create(['tournament_category_id' => $category->id, 'member_id' => $ana->id, 'cpf' => $ana->cpf, 'name' => 'Ana Souza', 'amount' => 80, 'tournament_payment_id' => $payment->id]);
+
+        $this->actingAs($this->esporte)->delete(route('tournaments.event-categories.destroy', [$tournament, $category]), ['force' => 1])
             ->assertSessionHasErrors('category');
-        $this->assertTrue($category->exists());
+        $this->assertNotNull($category->fresh());
+    }
+
+    public function test_liga_categoria_nova_com_torneio_em_andamento_confirmando(): void
+    {
+        $tournament = $this->tournament(['status' => Tournament::STATUS_IN_PROGRESS]);
+        $template = $this->template();
+
+        $this->actingAs($this->esporte)->post(route('tournaments.event-categories.store', $tournament), $this->link(['category_template_id' => $template->id]))
+            ->assertSessionHas('confirmation', fn ($c) => str_contains($c['warnings'][0], 'só entra quem for inscrito pelo balcão'));
+        $this->assertSame(0, $tournament->categories()->count());
+
+        $this->actingAs($this->esporte)->post(route('tournaments.event-categories.store', $tournament), $this->link(['category_template_id' => $template->id, 'force' => 1]))
+            ->assertSessionHasNoErrors();
+        $this->assertSame(1, $tournament->categories()->count());
     }
 
     public function test_balcao_inscreve_baixa_manual_e_cancela_com_estorno(): void
@@ -187,12 +233,28 @@ class TournamentPanelTest extends TestCase
             'cpf' => '52998224725', 'title' => '2002', 'category_ids' => [$masculina->id],
         ])->assertSessionHas('error', fn ($m) => str_contains($m, 'não tem cadastro no site'));
 
-        $data = ['cpf' => '39053344705', 'title' => '1001', 'category_ids' => [$masculina->id]];
+        // Sexo fora da categoria: avisa; o confirmar reenvia tudo, com a justificativa.
+        $data = ['cpf' => '39053344705', 'title' => '1001', 'category_ids' => [$masculina->id], 'override_reason' => 'Cadastro com sexo errado'];
         $this->actingAs($this->esporte)->post(route('tournaments.registrations.store', $tournament), $data)
-            ->assertSessionHas('error', fn ($m) => str_contains($m, 'justificativa'));
+            ->assertSessionHas('confirmation', fn ($c) => str_contains($c['warnings'][0], 'outro sexo') && $c['input'] == $data);
+        $this->assertSame(0, Registration::count());
 
-        $this->actingAs($this->esporte)->post(route('tournaments.registrations.store', $tournament), $data + ['override_reason' => 'Cadastro com sexo errado'])
+        $this->actingAs($this->esporte)->post(route('tournaments.registrations.store', $tournament), $data + ['force' => 1])
             ->assertSessionHas('success');
         $this->assertSame('Cadastro com sexo errado', Registration::firstOrFail()->eligibility_override_reason);
+    }
+
+    public function test_balcao_inscreve_com_torneio_encerrado_confirmando(): void
+    {
+        $tournament = $this->tournament(['status' => Tournament::STATUS_FINISHED]);
+        $category = $this->category($tournament);
+        $this->member('39053344705', 'Ana Souza', '1001');
+        $data = ['cpf' => '39053344705', 'title' => '1001', 'category_ids' => [$category->id]];
+
+        $this->actingAs($this->esporte)->post(route('tournaments.registrations.store', $tournament), $data)
+            ->assertSessionHas('confirmation', fn ($c) => str_contains($c['warnings'][0], 'o torneio está encerrado'));
+        $this->actingAs($this->esporte)->post(route('tournaments.registrations.store', $tournament), $data + ['force' => 1])
+            ->assertSessionHas('success');
+        $this->assertSame(Registration::STATUS_PENDING_PAYMENT, Registration::firstOrFail()->status);
     }
 }

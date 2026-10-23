@@ -2,6 +2,7 @@
 
 namespace App\Services\Tournament;
 
+use App\Exceptions\ConfirmationRequired;
 use App\Exceptions\TournamentException;
 use App\Models\Tournament\Tournament;
 use App\Models\Tournament\TournamentGroup;
@@ -21,8 +22,13 @@ use Illuminate\Support\Facades\DB;
  *   - **O Lara prevalece**: lançado no Lara, o jogo fica `locked_by_lara` e o
  *     site não mexe mais (`match_locked`).
  *   - Correção: se o vencedor muda e o jogo seguinte (ou o 3º lugar) já tem
- *     resultado, recusa (`next_match_played`) — corrija o seguinte antes.
- *     Jogo de grupo fechado só muda depois de reabrir o grupo.
+ *     resultado, o site é recusado (`next_match_played`); jogo de grupo
+ *     fechado, idem (`group_closed`).
+ *   - No Lara essas regras só avisam (ConfirmationRequired): confirmado
+ *     (`$force`), o Lara reabre o grupo e apaga em cascata os resultados que
+ *     dependiam do jogo, cada um com o seu registro no histórico. O mesmo
+ *     vale para torneio fora de situação, fechar grupo com jogo faltando e
+ *     reabrir grupo com mata-mata já jogado.
  *   - Cada lançamento, correção ou limpeza vai para `tournament_match_result_logs`.
  *   - O vencedor segue para o próximo jogo (TournamentBracketService::advance).
  *
@@ -39,6 +45,8 @@ class TournamentResultService
 
     private const DONE = [TournamentMatch::STATUS_FINISHED, TournamentMatch::STATUS_WALKOVER];
 
+    private const DOWNSTREAM_WARNING = 'O jogo seguinte (ou o de 3º lugar) já tem resultado: ele e os que dependem dele terão o resultado apagado.';
+
     public function __construct(private TournamentBracketService $brackets)
     {
     }
@@ -48,14 +56,15 @@ class TournamentResultService
      *
      * @param  list<array{home_games: int|string, away_games: int|string, home_tiebreak?: int|string|null, away_tiebreak?: int|string|null}>  $sets
      * @param  ?int  $walkoverWinnerId  time vencedor por W.O. (os sets são ignorados)
+     * @param  bool  $force  só no Lara: confirma os avisos (ver a classe)
      */
-    public function record(TournamentMatch $match, array $sets, string $origin, ?User $user = null, ?string $operator = null, ?int $walkoverWinnerId = null): TournamentMatch
+    public function record(TournamentMatch $match, array $sets, string $origin, ?User $user = null, ?string $operator = null, ?int $walkoverWinnerId = null, bool $force = false): TournamentMatch
     {
-        return DB::transaction(function () use ($match, $sets, $origin, $user, $operator, $walkoverWinnerId) {
+        return DB::transaction(function () use ($match, $sets, $origin, $user, $operator, $walkoverWinnerId, $force) {
             $match = $this->lock($match);
             $category = $match->stage->category;
 
-            $this->assertOpen($category->tournament, $origin);
+            $warnings = [$this->openWarning($category->tournament, $origin)];
 
             if ($origin === self::ORIGIN_SITE && $match->locked_by_lara) {
                 throw new TournamentException(TournamentException::MATCH_LOCKED, 'Este resultado foi lançado no Lara e só pode ser alterado lá.', 409);
@@ -63,7 +72,8 @@ class TournamentResultService
             if ($match->status === TournamentMatch::STATUS_BYE || ! $match->home_team_id || ! $match->away_team_id) {
                 throw new TournamentException(TournamentException::MATCH_NOT_READY, 'Este jogo ainda não tem os dois times definidos.');
             }
-            $this->assertGroupOpen($match);
+            $reopen = $this->groupClosedWarnings($match, $origin);
+            $warnings = array_merge($warnings, $reopen);
 
             $setsToWin = max(1, (int) $category->sets_to_win);
 
@@ -83,9 +93,22 @@ class TournamentResultService
             }
 
             $wasDone = in_array($match->status, self::DONE, true);
+            $downstream = $wasDone && $match->winner_team_id !== $winner && $this->downstreamPlayed($match);
 
-            if ($wasDone && $match->winner_team_id !== $winner) {
-                $this->assertDownstreamFree($match);
+            if ($downstream) {
+                if ($origin === self::ORIGIN_SITE) {
+                    throw new TournamentException(TournamentException::NEXT_MATCH_PLAYED, 'O jogo seguinte já tem resultado: corrija ou limpe aquele antes de mudar o vencedor deste.', 409);
+                }
+                $warnings[] = self::DOWNSTREAM_WARNING;
+            }
+
+            ConfirmationRequired::unless($force, $warnings);
+
+            if ($reopen !== []) {
+                $this->reopen($match->group, $user);
+            }
+            if ($downstream) {
+                $this->clearDownstream($match, $user);
             }
 
             $previous = $wasDone ? $this->snapshot($match) : null;
@@ -126,37 +149,28 @@ class TournamentResultService
         });
     }
 
-    /** Desfaz o resultado (só no Lara): o jogo volta a "A jogar" e destrava. */
-    public function clear(TournamentMatch $match, User $user): TournamentMatch
+    /**
+     * Desfaz o resultado (só no Lara): o jogo volta a "A jogar" e destrava.
+     * Grupo fechado ou jogo seguinte já jogado: aviso; confirmado, reabre o
+     * grupo e limpa em cascata.
+     */
+    public function clear(TournamentMatch $match, User $user, bool $force = false): TournamentMatch
     {
-        return DB::transaction(function () use ($match, $user) {
+        return DB::transaction(function () use ($match, $user, $force) {
             $match = $this->lock($match);
 
             if (! in_array($match->status, self::DONE, true)) {
                 return $match;
             }
 
-            $this->assertGroupOpen($match);
-            $this->assertDownstreamFree($match);
-            $previous = $this->snapshot($match);
+            $reopen = $this->groupClosedWarnings($match, self::ORIGIN_LARA);
+            $downstream = $this->downstreamPlayed($match);
+            ConfirmationRequired::unless($force, array_merge($reopen, [$downstream ? self::DOWNSTREAM_WARNING : null]));
 
-            if (! $match->tournament_group_id) {
-                $this->retract($match);
+            if ($reopen !== []) {
+                $this->reopen($match->group, $user);
             }
-
-            $match->sets()->delete();
-            $match->update([
-                'status' => TournamentMatch::STATUS_PENDING,
-                'home_sets' => null,
-                'away_sets' => null,
-                'winner_team_id' => null,
-                'result_origin' => null,
-                'result_user_id' => null,
-                'result_at' => null,
-                'locked_by_lara' => false,
-            ]);
-
-            $this->log($match, self::ORIGIN_LARA, $user, ['action' => 'cleared', 'previous' => $previous]);
+            $this->wipe($match, $user);
 
             return $match->fresh();
         });
@@ -164,20 +178,19 @@ class TournamentResultService
 
     /**
      * Fecha o grupo com a ordem final (`[teamId => posição]`, 1 = primeiro) e
-     * põe os classificados no mata-mata. Fechar de novo troca a ordem,
-     * enquanto os jogos do mata-mata que recebem do grupo não têm resultado.
+     * põe os classificados no mata-mata. Jogo do grupo sem resultado, ou
+     * mata-mata que recebe do grupo já jogado: aviso; confirmado, fecha
+     * assim mesmo (e limpa o mata-mata que dependia da ordem antiga).
      *
      * @param  array<int|string, int|string>  $positions
      */
-    public function closeGroup(TournamentGroup $group, array $positions, User $user): void
+    public function closeGroup(TournamentGroup $group, array $positions, User $user, bool $force = false): void
     {
-        DB::transaction(function () use ($group, $positions) {
+        DB::transaction(function () use ($group, $positions, $user, $force) {
             $group = TournamentGroup::with(['entries', 'matches', 'stage.category'])->lockForUpdate()->findOrFail($group->id);
 
             $pending = $group->matches->whereNotIn('status', self::DONE)->count();
-            if ($pending > 0) {
-                throw new TournamentException(TournamentException::INVALID_STATUS, "Faltam {$pending} jogo(s) do {$group->name} com resultado.");
-            }
+            $warnings = [$pending > 0 ? "Faltam {$pending} jogo(s) do {$group->name} com resultado: fechado agora, eles só recebem resultado depois de reabrir o grupo." : null];
 
             $teamIds = $group->entries->pluck('tournament_team_id')->sort()->values()->all();
             $order = collect($positions)->mapWithKeys(fn ($pos, $team) => [(int) $team => (int) $pos]);
@@ -187,8 +200,11 @@ class TournamentResultService
                 throw new TournamentException(TournamentException::INVALID_STATUS, "Dê uma posição diferente, de 1 a " . count($teamIds) . ", a cada time do {$group->name}.");
             }
 
+            $warnings[] = $this->fedWarning($group);
+            ConfirmationRequired::unless($force, $warnings);
+
+            $this->freeFed($group, $user);
             $fed = $this->fedMatches($group);
-            $this->assertFedFree($fed, $group);
 
             foreach ($group->entries as $entry) {
                 $entry->update(['final_position' => $order[$entry->tournament_team_id]]);
@@ -215,29 +231,39 @@ class TournamentResultService
         });
     }
 
-    /** Reabre o grupo: tira as posições e os classificados do mata-mata. */
-    public function reopenGroup(TournamentGroup $group, User $user): void
+    /**
+     * Reabre o grupo: tira as posições e os classificados do mata-mata.
+     * Mata-mata já jogado com esses classificados: aviso; confirmado, limpa.
+     */
+    public function reopenGroup(TournamentGroup $group, User $user, bool $force = false): void
     {
-        DB::transaction(function () use ($group) {
+        DB::transaction(function () use ($group, $user, $force) {
             $group = TournamentGroup::with('entries')->lockForUpdate()->findOrFail($group->id);
-            $fed = $this->fedMatches($group);
-            $this->assertFedFree($fed, $group);
+            ConfirmationRequired::unless($force, [$this->fedWarning($group)]);
 
-            foreach ($fed as $match) {
-                if ($match->status === TournamentMatch::STATUS_BYE && $match->winner_team_id) {
-                    $this->retract($match);
-                    $match->winner_team_id = null;
-                }
-                foreach (['home', 'away'] as $side) {
-                    if ($match->{"{$side}_source_group_id"} === $group->id) {
-                        $match->{"{$side}_team_id"} = null;
-                    }
-                }
-                $match->save();
-            }
-
-            $group->entries()->update(['final_position' => null]);
+            $this->reopen($group, $user);
         });
+    }
+
+    /** Reabre sem perguntar: limpa o mata-mata que recebia do grupo e tira as posições. */
+    private function reopen(TournamentGroup $group, ?User $user): void
+    {
+        $this->freeFed($group, $user);
+
+        foreach ($this->fedMatches($group) as $match) {
+            if ($match->status === TournamentMatch::STATUS_BYE && $match->winner_team_id) {
+                $this->retract($match);
+                $match->winner_team_id = null;
+            }
+            foreach (['home', 'away'] as $side) {
+                if ($match->{"{$side}_source_group_id"} === $group->id) {
+                    $match->{"{$side}_team_id"} = null;
+                }
+            }
+            $match->save();
+        }
+
+        $group->entries()->update(['final_position' => null]);
     }
 
     /**
@@ -308,38 +334,104 @@ class TournamentResultService
         return TournamentMatch::with(['stage.category.tournament', 'group.entries'])->lockForUpdate()->findOrFail($match->id);
     }
 
-    private function assertOpen(Tournament $tournament, string $origin): void
+    /** Situação do torneio: o site é recusado; o Lara recebe o aviso (ou null). */
+    private function openWarning(Tournament $tournament, string $origin): ?string
     {
         $allowed = $origin === self::ORIGIN_SITE
             ? [Tournament::STATUS_PUBLISHED, Tournament::STATUS_IN_PROGRESS]
             : [Tournament::STATUS_PUBLISHED, Tournament::STATUS_IN_PROGRESS, Tournament::STATUS_FINISHED];
 
-        if (! in_array($tournament->status, $allowed, true)) {
-            throw new TournamentException(TournamentException::RESULTS_CLOSED, 'Este torneio não aceita lançamento de resultado na situação atual (' . (Tournament::STATUS_LABELS[$tournament->status] ?? $tournament->status) . ').');
+        if (in_array($tournament->status, $allowed, true)) {
+            return null;
         }
+
+        $label = Tournament::STATUS_LABELS[$tournament->status] ?? $tournament->status;
+
+        if ($origin === self::ORIGIN_SITE) {
+            throw new TournamentException(TournamentException::RESULTS_CLOSED, "Este torneio não aceita lançamento de resultado na situação atual ({$label}).");
+        }
+
+        return 'O torneio está ' . mb_strtolower($label) . ': normalmente não recebe resultado.';
     }
 
-    private function assertGroupOpen(TournamentMatch $match): void
+    /** Jogo de grupo já fechado: o site é recusado; o Lara recebe os avisos de reabrir. */
+    private function groupClosedWarnings(TournamentMatch $match, string $origin): array
     {
-        if ($match->tournament_group_id && $match->group?->entries->whereNotNull('final_position')->isNotEmpty()) {
+        if (! $match->tournament_group_id || $match->group?->entries->whereNotNull('final_position')->isEmpty()) {
+            return [];
+        }
+
+        if ($origin === self::ORIGIN_SITE) {
             throw new TournamentException(TournamentException::GROUP_CLOSED, "O {$match->group->name} já foi fechado: reabra o grupo no Lara para mudar este resultado.", 409);
         }
+
+        return array_values(array_filter([
+            "O {$match->group->name} já foi fechado: ele será reaberto (a classificação sai e os classificados saem do mata-mata). Feche de novo depois.",
+            $this->fedWarning($match->group),
+        ]));
     }
 
-    /** O jogo seguinte e o 3º lugar (se for semifinal) ainda não têm resultado. */
-    private function assertDownstreamFree(TournamentMatch $match): void
+    /** O jogo seguinte e o 3º lugar (se for semifinal). */
+    private function downstream(TournamentMatch $match): array
     {
+        if ($match->tournament_group_id) {
+            return [];
+        }
+
         $next = $match->next_match_id ? TournamentMatch::find($match->next_match_id) : null;
-        $third = $match->tournament_group_id ? null : TournamentMatch::where('tournament_stage_id', $match->tournament_stage_id)
+        $third = $match->third_place ? null : TournamentMatch::where('tournament_stage_id', $match->tournament_stage_id)
             ->where('third_place', true)
             ->where('round', $match->round + 1)
             ->first();
 
-        foreach ([$next, $match->third_place ? null : $third] as $after) {
-            if ($after && in_array($after->status, self::DONE, true)) {
-                throw new TournamentException(TournamentException::NEXT_MATCH_PLAYED, 'O jogo seguinte já tem resultado: corrija ou limpe aquele antes de mudar o vencedor deste.', 409);
+        return array_values(array_filter([$next, $third]));
+    }
+
+    private function downstreamPlayed(TournamentMatch $match): bool
+    {
+        foreach ($this->downstream($match) as $after) {
+            if (in_array($after->status, self::DONE, true)) {
+                return true;
             }
         }
+
+        return false;
+    }
+
+    /** Apaga os resultados dos jogos seguintes, dos últimos para trás. */
+    private function clearDownstream(TournamentMatch $match, ?User $user): void
+    {
+        foreach ($this->downstream($match) as $after) {
+            if (in_array($after->status, self::DONE, true)) {
+                $this->wipe($after, $user, cascade: true);
+            }
+        }
+    }
+
+    /** O jogo volta a "A jogar", destravado, e o que ele mandou adiante sai. */
+    private function wipe(TournamentMatch $match, ?User $user, bool $cascade = false): void
+    {
+        $this->clearDownstream($match, $user);
+        $match->refresh();
+        $previous = $this->snapshot($match);
+
+        if (! $match->tournament_group_id) {
+            $this->retract($match);
+        }
+
+        $match->sets()->delete();
+        $match->update([
+            'status' => TournamentMatch::STATUS_PENDING,
+            'home_sets' => null,
+            'away_sets' => null,
+            'winner_team_id' => null,
+            'result_origin' => null,
+            'result_user_id' => null,
+            'result_at' => null,
+            'locked_by_lara' => false,
+        ]);
+
+        $this->log($match, self::ORIGIN_LARA, $user, array_filter(['action' => 'cleared', 'cascade' => $cascade ?: null, 'previous' => $previous]));
     }
 
     /** Tira o vencedor (e o perdedor do 3º lugar) que este jogo tinha mandado adiante. */
@@ -374,13 +466,45 @@ class TournamentResultService
             ->get();
     }
 
-    private function assertFedFree($fed, TournamentGroup $group): void
+    /**
+     * Os jogos já jogados que dependem da classificação do grupo: o que
+     * recebe o classificado e, se ele "passa direto", o jogo seguinte.
+     *
+     * @return list<TournamentMatch>
+     */
+    private function playedFromGroup(TournamentGroup $group): array
     {
-        foreach ($fed as $match) {
+        $played = [];
+
+        foreach ($this->fedMatches($group) as $match) {
             $next = $match->status === TournamentMatch::STATUS_BYE && $match->next_match_id ? TournamentMatch::find($match->next_match_id) : null;
 
-            if (in_array($match->status, self::DONE, true) || ($next && in_array($next->status, self::DONE, true))) {
-                throw new TournamentException(TournamentException::NEXT_MATCH_PLAYED, "O mata-mata que recebe os classificados do {$group->name} já tem resultado: limpe aqueles jogos antes de mudar o grupo.", 409);
+            foreach ([$match, $next] as $candidate) {
+                if ($candidate && in_array($candidate->status, self::DONE, true)) {
+                    $played[] = $candidate;
+                }
+            }
+        }
+
+        return $played;
+    }
+
+    private function fedWarning(TournamentGroup $group): ?string
+    {
+        $count = count($this->playedFromGroup($group));
+
+        return $count > 0
+            ? "O mata-mata que recebe os classificados do {$group->name} já tem {$count} jogo(s) com resultado: esses resultados (e os que dependem deles) serão apagados."
+            : null;
+    }
+
+    /** Apaga os resultados do mata-mata que dependem da classificação do grupo. */
+    private function freeFed(TournamentGroup $group, ?User $user): void
+    {
+        foreach ($this->playedFromGroup($group) as $match) {
+            $match->refresh();
+            if (in_array($match->status, self::DONE, true)) {
+                $this->wipe($match, $user, cascade: true);
             }
         }
     }

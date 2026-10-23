@@ -2,6 +2,7 @@
 
 namespace App\Services\Tournament;
 
+use App\Exceptions\ConfirmationRequired;
 use App\Models\Tournament\TournamentCategory;
 use App\Models\Tournament\TournamentGroup;
 use App\Models\Tournament\TournamentGroupTeam;
@@ -18,8 +19,10 @@ use Illuminate\Validation\ValidationException;
  *
  *   - Entram **todos os times não desfeitos** (completos e em formação); o
  *     organizador resolve os incompletos caso a caso.
- *   - Pode ser gerado **a qualquer momento**, e gerado de novo (ou desfeito)
- *     enquanto nenhum jogo tiver resultado. Gerar de novo tira do site.
+ *   - Pode ser gerado **a qualquer momento**, e gerado de novo (ou desfeito).
+ *     Com jogo já com resultado, avisa (ConfirmationRequired) que os
+ *     resultados serão apagados; confirmado (`$force`), apaga. Gerar de novo
+ *     tira do site.
  *   - **Sorteio**: cabeças de chave (`seed`) primeiro, na ordem; os demais
  *     embaralhados. **Manual**: o organizador diz o lugar de cada time.
  *   - **Eliminatória simples**: chave do tamanho da potência de 2 seguinte;
@@ -75,18 +78,16 @@ class TournamentBracketService
      *     lado dos jogos da 1ª rodada, na ordem (jogo 1 casa, jogo 1 fora…);
      *   - grupos: `['groups' => [teamId => índice do grupo (0 = A)]]`.
      */
-    public function generate(TournamentCategory $category, string $generation, User $user, array $manual = []): void
+    public function generate(TournamentCategory $category, string $generation, User $user, array $manual = [], bool $force = false): void
     {
         if (! in_array($generation, [TournamentStage::GENERATION_DRAW, TournamentStage::GENERATION_MANUAL], true)) {
             $this->fail('generation', 'Escolha sorteio ou montagem à mão.');
         }
 
-        DB::transaction(function () use ($category, $generation, $manual) {
+        DB::transaction(function () use ($category, $generation, $manual, $force) {
             TournamentCategory::whereKey($category->id)->lockForUpdate()->first();
 
-            if ($this->hasResults($category)) {
-                $this->fail('bracket', 'Já há resultado lançado nesta categoria: o chaveamento não pode mais ser gerado de novo.');
-            }
+            ConfirmationRequired::unless($force, [$this->resultsWarning($category, 'gerar de novo')]);
 
             $teams = $this->teamsFor($category);
 
@@ -106,19 +107,31 @@ class TournamentBracketService
         });
     }
 
-    /** Desfaz o chaveamento (só antes do primeiro resultado). */
-    public function clear(TournamentCategory $category): void
+    /** Desfaz o chaveamento. Com resultado lançado, avisa antes de apagar. */
+    public function clear(TournamentCategory $category, bool $force = false): void
     {
-        DB::transaction(function () use ($category) {
+        DB::transaction(function () use ($category, $force) {
             TournamentCategory::whereKey($category->id)->lockForUpdate()->first();
 
-            if ($this->hasResults($category)) {
-                $this->fail('bracket', 'Já há resultado lançado nesta categoria: o chaveamento não pode ser desfeito.');
-            }
+            ConfirmationRequired::unless($force, [$this->resultsWarning($category, 'desfazer')]);
 
             $this->wipe($category);
             $category->update(['bracket_published_at' => null]);
         });
+    }
+
+    /** "Já há N resultados: `$action` apaga todos", ou null sem resultado. */
+    public function resultsWarning(TournamentCategory $category, string $action): ?string
+    {
+        $played = $category->stages()->exists()
+            ? TournamentMatch::whereIn('tournament_stage_id', $category->stages()->pluck('id'))
+                ->whereIn('status', [TournamentMatch::STATUS_FINISHED, TournamentMatch::STATUS_WALKOVER])
+                ->count()
+            : 0;
+
+        return $played > 0
+            ? "A categoria {$category->name} já tem {$played} jogo(s) com resultado: {$action} o chaveamento apaga esses resultados (o histórico de cada jogo vai junto)."
+            : null;
     }
 
     /** Divulga no site (ou recolhe). */

@@ -2,24 +2,34 @@
 
 namespace App\Services\Tournament;
 
+use App\Exceptions\ConfirmationRequired;
 use App\Models\Tournament\Tournament;
 use App\Models\Tournament\TournamentCategory;
 use App\Models\Tournament\TournamentCategoryTemplate;
 use App\Models\Tournament\TournamentRegistration;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
  * Montagem do torneio pelo organizador: situação e categorias.
  *
- * Situações e passagens permitidas:
- *   rascunho → publicado (precisa de ao menos uma categoria)
- *   publicado → rascunho (só sem nenhuma inscrição)
- *   publicado → em andamento → encerrado
- *   qualquer uma, menos encerrado → cancelado (não estorna sozinho: o
- *   organizador decide caso a caso, inscrição por inscrição)
+ * Caminho normal das situações (TRANSITIONS):
+ *   rascunho → publicado → em andamento → encerrado
+ *   publicado → rascunho; qualquer uma, menos encerrado → cancelado (não
+ *   estorna sozinho: o organizador decide caso a caso)
+ *
+ * Na interface tudo é permitido, mediante aviso (ConfirmationRequired;
+ * confirmado com `$force`): situação fora do caminho normal, publicar sem
+ * categoria, voltar para rascunho com inscrição, ligar categoria inativa ou
+ * com as inscrições do site fechadas, mudar o formato com chaveamento gerado
+ * (desfaz o chaveamento), vagas abaixo das pagas e tirar categoria com
+ * inscrição sem pagamento (apaga as inscrições).
+ *
+ * Única recusa de regra: tirar categoria com inscrição que passou por
+ * pagamento — ela guarda o histórico financeiro.
  *
  * A categoria do torneio copia nome, tamanho, sexo e idade do catálogo do
- * grupo do torneio. Só sai do torneio enquanto não tem inscrição.
+ * grupo do torneio.
  */
 class TournamentSetupService
 {
@@ -32,33 +42,49 @@ class TournamentSetupService
         Tournament::STATUS_CANCELLED => [],
     ];
 
-    public function changeStatus(Tournament $tournament, string $status): void
+    public function __construct(private TournamentBracketService $brackets)
     {
-        if (! in_array($status, self::TRANSITIONS[$tournament->status] ?? [], true)) {
-            $this->fail('status', 'Esta mudança de situação não é permitida.');
+    }
+
+    public function changeStatus(Tournament $tournament, string $status, bool $force = false): void
+    {
+        if ($status === $tournament->status) {
+            $this->fail('status', 'O torneio já está nesta situação.');
         }
 
-        if ($status === Tournament::STATUS_PUBLISHED && ! $tournament->categories()->exists()) {
-            $this->fail('status', 'Ligue ao menos uma categoria antes de publicar.');
-        }
+        $from = Tournament::STATUS_LABELS[$tournament->status] ?? $tournament->status;
+        $to = Tournament::STATUS_LABELS[$status] ?? $status;
 
-        if ($status === Tournament::STATUS_DRAFT && $this->hasRegistrations($tournament)) {
-            $this->fail('status', 'O torneio já tem inscrições: não volta para rascunho.');
-        }
+        ConfirmationRequired::unless($force, [
+            in_array($status, self::TRANSITIONS[$tournament->status] ?? [], true) ? null
+                : "Mudança fora do caminho normal: de {$from} para {$to}.",
+            $status === Tournament::STATUS_PUBLISHED && ! $tournament->categories()->exists()
+                ? 'O torneio não tem categoria: aparece no site sem onde se inscrever.' : null,
+            $status === Tournament::STATUS_DRAFT && $this->hasRegistrations($tournament)
+                ? 'O torneio já tem inscrições: em rascunho ele some do site, também para quem já se inscreveu.' : null,
+        ]);
 
         $tournament->update(['status' => $status]);
     }
 
     /** @param  array<string, mixed>  $data  campos do vínculo (ver linkRules) */
-    public function attachCategory(Tournament $tournament, TournamentCategoryTemplate $template, array $data): TournamentCategory
+    public function attachCategory(Tournament $tournament, TournamentCategoryTemplate $template, array $data, bool $force = false): TournamentCategory
     {
-        if ($template->place_group_id !== $tournament->place_group_id || ! $template->active) {
-            $this->fail('category_template_id', 'Escolha uma categoria ativa do catálogo do grupo do torneio.');
+        if ($template->place_group_id !== $tournament->place_group_id) {
+            $this->fail('category_template_id', 'Escolha uma categoria do catálogo do grupo do torneio.');
         }
 
         if ($tournament->categories()->where('category_template_id', $template->id)->exists()) {
             $this->fail('category_template_id', 'Esta categoria já está no torneio.');
         }
+
+        $siteClosed = in_array($tournament->status, [Tournament::STATUS_IN_PROGRESS, Tournament::STATUS_FINISHED, Tournament::STATUS_CANCELLED], true)
+            || ($tournament->status === Tournament::STATUS_PUBLISHED && $tournament->registration_ends_at?->isPast());
+
+        ConfirmationRequired::unless($force, [
+            $template->active ? null : "A categoria {$template->name} está inativa no catálogo.",
+            $siteClosed ? 'As inscrições pelo site deste torneio já fecharam: nesta categoria só entra quem for inscrito pelo balcão.' : null,
+        ]);
 
         return $tournament->categories()->create(array_merge($this->linkFields($data), [
             'category_template_id' => $template->id,
@@ -73,30 +99,54 @@ class TournamentSetupService
 
     /**
      * Preço novo não muda inscrição já feita: cada uma guarda o valor. Com
-     * chaveamento gerado, o formato da disputa não muda (desfaça antes).
+     * chaveamento gerado, mudar o formato, os grupos ou o 3º lugar avisa e,
+     * confirmado, desfaz o chaveamento (e os resultados, se houver).
      */
-    public function updateCategory(TournamentCategory $category, array $data): void
+    public function updateCategory(TournamentCategory $category, array $data, bool $force = false): void
     {
         $fields = $this->linkFields($data);
 
-        if ($category->stages()->exists()) {
-            foreach (['format', 'groups_count', 'qualifiers_per_group', 'third_place_match'] as $key) {
-                if ($category->{$key} != $fields[$key]) {
-                    $this->fail('format', 'O chaveamento desta categoria já foi gerado: desfaça o chaveamento antes de mudar o formato, os grupos ou a disputa de 3º lugar.');
-                }
-            }
+        $formatChanged = $category->stages()->exists() && collect(['format', 'groups_count', 'qualifiers_per_group', 'third_place_match'])
+            ->contains(fn ($key) => $category->{$key} != $fields[$key]);
+        $limit = $fields['max_registrations'];
+        $paid = $limit === null ? 0 : $category->registrations()->where('status', TournamentRegistration::STATUS_PAID)->count();
+
+        ConfirmationRequired::unless($force, [
+            $formatChanged ? 'O chaveamento desta categoria já foi gerado: mudar o formato, os grupos ou o 3º lugar desfaz o chaveamento (gere de novo depois).' : null,
+            $formatChanged ? $this->brackets->resultsWarning($category, 'desfazer') : null,
+            $limit !== null && $paid > $limit
+                ? "A categoria já tem {$paid} inscrição(ões) paga(s), mais que as {$limit} vaga(s) novas. Ninguém sai; só não entra mais ninguém pelo site." : null,
+        ]);
+
+        if ($formatChanged) {
+            $this->brackets->clear($category, true);
         }
 
         $category->update($fields);
     }
 
-    public function detachCategory(TournamentCategory $category): void
+    /**
+     * Tira a categoria do torneio. Com inscrição sem pagamento (ou times e
+     * chaveamento), avisa e, confirmado, apaga tudo junto. Com inscrição que
+     * passou por pagamento, recusa: é o histórico financeiro.
+     */
+    public function detachCategory(TournamentCategory $category, bool $force = false): void
     {
-        if ($category->registrations()->exists()) {
-            $this->fail('category', 'A categoria já tem inscrições e não pode sair do torneio. Cancele as inscrições antes, se for o caso.');
+        if ($category->registrations()->whereNotNull('tournament_payment_id')->exists()) {
+            $this->fail('category', 'A categoria tem inscrição com pagamento registrado e guarda o histórico financeiro: não sai do torneio. Cancele (e estorne) as inscrições e, se quiser, deixe a categoria sem vagas.');
         }
 
-        $category->delete();
+        $registrations = $category->registrations()->count();
+
+        ConfirmationRequired::unless($force, [
+            $registrations > 0 ? "A categoria tem {$registrations} inscrição(ões) sem pagamento: elas serão apagadas, com os times." : null,
+            $category->stages()->exists() ? 'O chaveamento da categoria (e os resultados, se houver) será apagado.' : null,
+        ]);
+
+        DB::transaction(function () use ($category) {
+            $category->registrations()->delete();
+            $category->delete();
+        });
     }
 
     /** Regras de validação dos campos do vínculo torneio × categoria. */

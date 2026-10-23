@@ -64,8 +64,9 @@ class TournamentRegistrationController extends Controller
 
     /**
      * Inscrição pelo balcão: a pessoa precisa ter cadastro no site de locação
-     * (o sócio local) e ser sócia de título ativo no MultiClubes. Quem o sexo
-     * ou a idade recusariam entra com justificativa.
+     * (o sócio local) e ser sócia de título ativo no MultiClubes. Fora do
+     * prazo, sem vaga, ou com sexo ou idade fora da categoria, a tela avisa e
+     * pede confirmação (`force`); a justificativa é opcional.
      */
     public function store(Request $request, Tournament $tournament): RedirectResponse
     {
@@ -92,14 +93,12 @@ class TournamentRegistrationController extends Controller
             return back()->withInput()->with('error', "{$profile->name} ainda não tem cadastro no site de locação. Peça para a pessoa se cadastrar no site e tente de novo.");
         }
 
-        $override = filled($data['override_reason'] ?? null) ? [$request->user(), trim($data['override_reason'])] : null;
+        $override = [$request->user(), $data['override_reason'] ?? null];
 
         try {
-            $created = $this->registrations->register($tournament, $member, $profile, $data['category_ids'], $override);
+            $created = $this->registrations->register($tournament, $member, $profile, $data['category_ids'], $override, $request->boolean('force'));
         } catch (TournamentException $e) {
-            $hint = $e->reason === TournamentException::INELIGIBLE ? ' Para liberar mesmo assim, preencha a justificativa.' : '';
-
-            return back()->withInput()->with('error', $e->getMessage() . $hint);
+            return back()->withInput()->with('error', $e->getMessage());
         }
 
         return redirect()->route('tournaments.registrations.index', $tournament)
@@ -155,7 +154,7 @@ class TournamentRegistrationController extends Controller
         abort_unless($belongs === count(array_unique($data['registration_ids'])), 404);
 
         try {
-            $payment = $this->registrations->recordManual($data['registration_ids'], $data, $request->user());
+            $payment = $this->registrations->recordManual($data['registration_ids'], $data, $request->user(), $request->boolean('force'));
         } catch (TournamentException|InvalidArgumentException $e) {
             return back()->with('error', $e->getMessage());
         }

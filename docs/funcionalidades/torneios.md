@@ -54,7 +54,7 @@ e `categories.*`, permissão `torneios`) que nunca chegou ao menu. Foi **apagado
 - **Sexo vem do MultiClubes**, coluna `dbo.Members.Sex`, por regra: **`0` = masculino,
   `1` = feminino** (o MultiClubes não tem tabela de domínio; a regra foi fixada em 22/10/2026
   depois de conferir a distribuição dos nomes). Cadastros com o sexo errado existem; o
-  organizador pode liberar a inscrição com justificativa.
+  organizador inscreve assim mesmo pelo balcão (o Lara avisa e pede confirmação).
 - Sexo da categoria: **Masculino**, **Feminino** ou **Livre**. Uma regra de composição para
   categoria mista (ex.: um de cada sexo na dupla) **ainda não foi definida**.
 - Ao ligar a categoria ao torneio, define-se o **preço** (por pessoa), o **limite de vagas**
@@ -64,7 +64,8 @@ e `categories.*`, permissão `torneios`) que nunca chegou ao menu. Foi **apagado
 ### Inscrição e pagamento
 - A inscrição é **individual**: a pessoa escolhe as categorias aceitas no torneio e paga a sua
   parte pela **eRede**. Um pagamento pode cobrir várias categorias.
-- Inscrever-se e pagar só **dentro do período de inscrição** do torneio.
+- Pelo site, inscrever-se e pagar só **dentro do período de inscrição** do torneio. Pelo
+  **balcão do Lara**, a qualquer momento (ver [No Lara, só aviso](#no-lara-só-aviso)).
 - **Desistência e estorno**: caso a caso, decididos pelo organizador. Pelo site, o sócio só
   desiste **antes de pagar**; inscrição paga é cancelada pelo organizador, com ou sem estorno.
 - **Vagas** (`max_registrations`) contam as inscrições **pagas**: quem paga primeiro garante a
@@ -100,8 +101,8 @@ e `categories.*`, permissão `torneios`) que nunca chegou ao menu. Foi **apagado
 - Chaveamento **por sorteio ou manual** (regras completas em [Chaveamento](#chaveamento-tournamentbracketservice)).
 - No chaveamento entram **todos os times não desfeitos**, completos ou em formação; a tela
   avisa quais estão incompletos (decidido em 23/10/2026).
-- O chaveamento pode ser gerado **a qualquer momento** e gerado de novo ou desfeito enquanto
-  **nenhum jogo tiver resultado**.
+- O chaveamento pode ser gerado **a qualquer momento** e gerado de novo ou desfeito; com
+  jogo já com resultado, o Lara avisa que os resultados serão apagados.
 - Grupos + mata-mata: os classificados se cruzam no **cruzado padrão** (1º A × 2º B,
   1º B × 2º A…).
 - O site só vê o chaveamento depois que o organizador **divulga**; gerar de novo tira do site.
@@ -111,6 +112,44 @@ e `categories.*`, permissão `torneios`) que nunca chegou ao menu. Foi **apagado
   código de lançamento do torneio. **O Lara sempre prevalece**: lançado no Lara, o jogo
   trava para o site.
 - Jogos não se ligam à agenda de Reservas nem ao Home Assistant.
+
+### No Lara, só aviso
+
+Decidido em 23/10/2026: **na interface web do Lara tudo é permitido, mediante aviso**. As
+regras de prazo, situação, vagas, sexo/idade e ordem dos resultados continuam valendo para
+o **site** (que recebe a recusa com o `reason`), mas no Lara viram um quadro amarelo
+*"Atenção: confira antes de seguir"* com a lista do que foge da regra e o botão **Confirmar
+mesmo assim**, que reenvia o mesmo formulário com `force=1`. Nada é gravado antes de
+confirmar.
+
+| Ação no Lara | Aviso | Confirmado |
+|---|---|---|
+| Inscrever pelo balcão | fora do período, torneio em rascunho/andamento/encerrado/cancelado, sem vaga, sexo ou idade fora da categoria | entra; grava quem liberou (`eligibility_override_by`) e o motivo (a justificativa digitada ou os avisos). Fora do período o site não aceita o pagamento: dê baixa manual |
+| Baixa manual | passa das vagas | paga |
+| Mudar a situação | fora do caminho normal (ex.: reabrir encerrado ou cancelado), publicar sem categoria, voltar para rascunho com inscrição | muda |
+| Ligar categoria | categoria inativa no catálogo; inscrições do site já fechadas (andamento, encerrado, cancelado, ou publicado com prazo vencido) | liga; só entra quem for inscrito pelo balcão |
+| Editar categoria | mudar formato, grupos ou 3º lugar com chaveamento gerado; vagas abaixo das pagas | desfaz o chaveamento (e resultados) e salva |
+| Tirar categoria | inscrições sem pagamento, chaveamento | apaga inscrições, times e chaveamento |
+| Gerar de novo / desfazer chaveamento | já há N jogos com resultado | apaga os jogos e o histórico deles |
+| Lançar, corrigir ou limpar resultado | torneio em rascunho ou cancelado; grupo já fechado; jogo seguinte (ou 3º lugar) já jogado | reabre o grupo e apaga em cascata os resultados que dependiam do jogo (cada um com `cascade` no histórico) |
+| Fechar grupo | jogo do grupo sem resultado; mata-mata que recebe do grupo já jogado | fecha; limpa o mata-mata afetado |
+| Reabrir grupo | mata-mata que recebe do grupo já jogado | limpa o mata-mata afetado e reabre |
+
+Continuam **recusas** (não há o que confirmar): inscrição repetida na mesma categoria, quem
+não é sócio de título ativo ou não tem cadastro no site, categoria de outro grupo ou já
+ligada, placar inválido, jogo sem os dois times, ordem de grupo inválida, chaveamento com
+menos de 2 times ou grupos impossíveis, time acima do tamanho, e **tirar categoria com
+inscrição que passou por pagamento** (guarda o histórico financeiro: cancele e estorne as
+inscrições e deixe a categoria, sem vagas se quiser).
+
+Peças: `App\Exceptions\ConfirmationRequired` (`unless($force, $avisos)`; a própria exceção
+devolve a tela com `withInput` e a sessão `confirmation`), o quadro em
+`resources/views/partials/alerts.blade.php` (genérico: serve a qualquer tela do Lara que
+inclua os alertas) e o parâmetro `$force` dos serviços.
+
+Para o site, a API não mudou. Só um caso novo: inscrição do balcão fora do período aparece
+em *minhas inscrições* pendente, e o pagamento pelo site é recusado (`registration_closed`);
+o site mostra "pagamento na secretaria" (ver `torneios-site-prompt.md`).
 
 ### E-mails
 Inscrição recebida, pagamento confirmado, convite de time, time formado, desistência ou
@@ -159,16 +198,19 @@ Lista com busca pelo nome e filtro de situação. **Novo torneio**: grupo de esp
 
 Na tela do torneio:
 
-- **Situação**: botões com as passagens permitidas — *Publicar no site* (precisa de ao menos
-  uma categoria), *Voltar para rascunho* (só sem inscrição), *Iniciar*, *Encerrar*, *Cancelar*.
-  Cancelar o torneio **não** estorna ninguém sozinho: cancele cada inscrição, com ou sem
-  estorno.
+- **Situação**: botões com o caminho normal — *Publicar no site*, *Voltar para rascunho*,
+  *Iniciar*, *Encerrar*, *Cancelar* — e o seletor **Outra situação** para qualquer outra (ex.:
+  reabrir um torneio encerrado). Publicar sem categoria, voltar para rascunho com inscrição
+  e sair do caminho normal pedem confirmação. Cancelar o torneio **não** estorna ninguém
+  sozinho: cancele cada inscrição, com ou sem estorno.
 - **Categorias**: ligue uma categoria ativa do catálogo do grupo, com preço por pessoa, vagas
   (vazio = sem limite), montagem dos times (organizador, sorteio, capitão), formato
   (eliminatória ou grupos + mata-mata, com número de grupos e classificados), sets para
   vencer e disputa de 3º lugar. A tabela mostra pagas e pendentes por categoria. Preço novo
-  só vale para as próximas inscrições. Categoria com inscrição não sai do torneio; com
-  categoria ligada, o grupo do torneio não muda.
+  só vale para as próximas inscrições. Ligar categoria com o torneio já em andamento (ou
+  com o prazo do site vencido) pede confirmação. Tirar categoria com inscrição sem
+  pagamento pede confirmação e apaga as inscrições; com inscrição que passou por pagamento,
+  não sai. Com categoria ligada, o grupo do torneio não muda.
 
 ### Inscrições (`/torneios/{id}/inscricoes`, `torneios.inscricoes`)
 
@@ -176,12 +218,14 @@ Botão **Inscrições** na tela do torneio. Lista com busca (nome, CPF ou matrí
 de categoria e situação.
 
 - **Inscrever pelo balcão**: CPF, matrícula e categorias. A pessoa precisa ser sócia de
-  título ativo no MultiClubes **e** ter cadastro no site de locação. Se o sexo ou a idade
-  não se encaixam, a inscrição só entra com **justificativa** (fica registrada e aparece na
-  lista). Só dentro do período de inscrição.
+  título ativo no MultiClubes **e** ter cadastro no site de locação. **A qualquer momento**:
+  fora do período, sem vaga, ou com sexo ou idade fora da categoria, o Lara avisa e pede
+  confirmação. A **justificativa** é opcional; a inscrição liberada mostra na lista
+  *Liberada: …* (a justificativa ou os avisos).
 - **Baixa manual** (`torneios.pagamentos.baixa-manual`): marque as inscrições pendentes de
   uma mesma pessoa, informe forma, data e comprovante. O valor é o total delas. Não exige o
-  período aberto (registra um pagamento que já aconteceu), mas respeita as vagas.
+  período aberto (registra um pagamento que já aconteceu); passar das vagas pede
+  confirmação.
 - **Cancelar**: motivo obrigatório. *Estornar pela eRede* aparece para inscrição paga pela
   eRede e pede `torneios.pagamentos.estornar`; estorna o valor **desta** inscrição (um
   pagamento pode cobrir várias). Se a eRede recusar, a inscrição continua ativa. Baixa
@@ -211,7 +255,8 @@ Botão **Chaveamento** em cada categoria da tela do torneio.
 - **Montar à mão**: na eliminatória, os dois lados de cada jogo da 1ª rodada ("passa direto"
   deixa o outro lado avançar sem jogar); em grupos, o grupo de cada time. Vem preenchido com
   o chaveamento atual ou, sem ele, com a ordem dos cabeças de chave.
-- **Divulgar no site** / **Recolher do site**; **Desfazer** (só sem resultado).
+- **Divulgar no site** / **Recolher do site**; **Desfazer**. Com resultado lançado, gerar de
+  novo ou desfazer avisa que os resultados serão apagados.
 - Fase de grupos: um cartão por grupo, com a classificação (jogos, vitórias, sets, games) e
   os jogos por rodada. Mata-mata: uma coluna por rodada (1ª rodada… Quartas, Semifinal,
   Final) e a disputa de 3º lugar.
@@ -291,11 +336,12 @@ inscrever → pending_payment → (eRede pelo site | baixa manual) → paid
   times entram no mata-mata quando o grupo fecha (F6).
 - **3º lugar**: se a categoria pede e há ao menos 4 times (ou classificados), um jogo a mais
   na rodada da final (`third_place`), que recebe os perdedores das semifinais (`advance`).
-- **Gerar de novo / desfazer**: apaga fases, grupos e jogos (com datas e locais) e só é
-  possível enquanto nenhum jogo estiver *encerrado* ou *W.O.* ("passa direto" não conta).
-  Gerar de novo tira do site (`bracket_published_at` = nulo).
-- **Formato travado**: com chaveamento gerado, a categoria não muda de formato, número de
-  grupos, classificados ou 3º lugar — desfaça antes.
+- **Gerar de novo / desfazer**: apaga fases, grupos e jogos (com datas e locais). Com jogo
+  *encerrado* ou *W.O.* ("passa direto" não conta), pede confirmação (`resultsWarning`) e
+  apaga os resultados e o histórico deles. Gerar de novo tira do site
+  (`bracket_published_at` = nulo).
+- **Formato**: com chaveamento gerado, mudar formato, número de grupos, classificados ou 3º
+  lugar pede confirmação e desfaz o chaveamento.
 - **Classificação do grupo** (`standings`): jogos, vitórias, derrotas, sets e games dos jogos
   com resultado; a ordem é a posição final do organizador (`final_position`, F6) ou, sem ela,
   vitórias, saldo de sets e de games.
@@ -305,17 +351,20 @@ inscrever → pending_payment → (eRede pelo site | baixa manual) → paid
 - **Placar**: games por set; todo set tem vencedor; o vencedor do jogo chega a `sets_to_win`
   e não há set depois de decidido; tie-break opcional, dos dois lados e com o mesmo
   vencedor do set. **W.O.**: vencedor sem sets (conta `sets_to_win` × 0).
-- **Situação do torneio**: o Lara lança em publicado, em andamento e encerrado; o site, só em
-  publicado e em andamento. Rascunho e cancelado não aceitam.
+- **Situação do torneio**: o Lara lança em publicado, em andamento e encerrado (em rascunho
+  e cancelado, com confirmação); o site, só em publicado e em andamento.
 - **O Lara prevalece**: lançado no Lara, `locked_by_lara` — o site recebe `match_locked`. O
   site pode corrigir o que ele mesmo lançou. **Limpar** (só no Lara) volta o jogo para *A
   jogar* e destrava.
 - **Avanço**: o vencedor vai para o próximo jogo (`advance`); o perdedor da semifinal, para
-  o 3º lugar. Correção que **muda o vencedor** só passa se o jogo seguinte (e o 3º lugar)
-  ainda não tiver resultado (`next_match_played`).
-- **Grupo**: fechar pede todos os jogos encerrados e uma posição para cada time; preenche os
-  lados do mata-mata que apontam para o grupo e faz avançar os "passa direto". Com o grupo
-  fechado, os jogos dele não mudam (`group_closed`) até reabrir.
+  o 3º lugar. Correção que **muda o vencedor** com o jogo seguinte (ou o 3º lugar) já
+  jogado: o site é recusado (`next_match_played`); o Lara pede confirmação e apaga em
+  cascata (`clearDownstream` → `wipe`, cada um logado com `cascade`).
+- **Grupo**: fechar pede uma posição para cada time (jogo sem resultado pede confirmação);
+  preenche os lados do mata-mata que apontam para o grupo e faz avançar os "passa direto".
+  Com o grupo fechado, o site não muda os jogos dele (`group_closed`); o Lara pede
+  confirmação e reabre o grupo. Reabrir (ou fechar de novo) com o mata-mata afetado já
+  jogado pede confirmação e limpa esse mata-mata (`freeFed`).
 - **Histórico**: cada lançamento, correção e limpeza em `tournament_match_result_logs`
   (origem, usuário do Lara ou o nome informado pelo site, placar e o anterior).
 - **Código de lançamento** (`TournamentResultCodeService`): 8 caracteres sem os que se

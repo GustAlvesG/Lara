@@ -1,6 +1,7 @@
 {{-- Chaveamento de uma categoria. Gera por sorteio ou à mão (de novo ou
-     desfazer só antes do primeiro resultado), mostra grupos e mata-mata,
-     divulga no site e marca data e local dos jogos. --}}
+     desfazer depois do primeiro resultado avisa que apaga os resultados),
+     mostra grupos e mata-mata, divulga no site e marca data e local dos
+     jogos. --}}
 @php
     use App\Models\Tournament\TournamentCategory as Category;
     use App\Models\Tournament\TournamentStage as Stage;
@@ -57,12 +58,10 @@
                                 <x-primary-button>Divulgar no site</x-primary-button>
                             @endif
                         </form>
-                        @unless ($hasResults)
-                            <form method="POST" action="{{ route('tournaments.bracket.destroy', [$tournament, $category]) }}" onsubmit="return confirm('Desfazer o chaveamento? Os jogos, datas e locais marcados somem.')">
-                                @csrf @method('DELETE')
-                                <x-danger-button>Desfazer</x-danger-button>
-                            </form>
-                        @endunless
+                        <form method="POST" action="{{ route('tournaments.bracket.destroy', [$tournament, $category]) }}" onsubmit="return confirm('Desfazer o chaveamento? Os jogos, datas e locais marcados somem.')">
+                            @csrf @method('DELETE')
+                            <x-danger-button>Desfazer</x-danger-button>
+                        </form>
                     </div>
                 @endif
             </div>
@@ -77,16 +76,16 @@
                     Os times mudaram depois da geração.
                     @if ($outdated['missing']->isNotEmpty()) Fora da chave: {{ $outdated['missing']->pluck('name')->implode(', ') }}. @endif
                     @if ($outdated['gone']->isNotEmpty()) Desfeitos, mas na chave: {{ $outdated['gone']->pluck('name')->implode(', ') }}. @endif
-                    @unless ($hasResults) Gere de novo para acertar. @endunless
+                    Gere de novo para acertar.
                 </p>
             @endif
             @if ($hasResults)
-                <p class="text-sm text-ink-3">Já há resultado lançado: o chaveamento não pode mais ser gerado de novo nem desfeito.</p>
+                <p class="text-sm text-ink-3">Já há resultado lançado: gerar de novo ou desfazer apaga os resultados (o Lara avisa antes).</p>
             @endif
 
             @if (! $canManage)
                 {{-- Só lança resultado: sem montagem. --}}
-            @elseif (! $hasResults && $teams->count() >= 2)
+            @elseif ($teams->count() >= 2)
                 <div class="flex flex-col gap-3 border-t border-line pt-4">
                     <form method="POST" action="{{ route('tournaments.bracket.generate', [$tournament, $category]) }}" @if ($hasBracket) onsubmit="return confirm('Gerar de novo? O chaveamento atual (com datas e locais) é substituído e sai do site até você divulgar outra vez.')" @endif class="flex flex-wrap items-center gap-3">
                         @csrf
@@ -175,8 +174,8 @@
                                         </tbody>
                                     </table>
                                 </div>
-                                @if ($canResults && ($closed || $allPlayed))
-                                    <details @if (! $closed) open @endif>
+                                @if ($canResults)
+                                    <details @if (! $closed && $allPlayed) open @endif>
                                         <summary class="cursor-pointer text-sm font-semibold text-ink-2">{{ $closed ? 'Mudar a ordem final' : 'Fechar o grupo' }}</summary>
                                         <form method="POST" action="{{ route('tournaments.results.groups.close', [$tournament, $category, $group]) }}" class="mt-2 flex flex-col gap-2">
                                             @csrf @method('PUT')

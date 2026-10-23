@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Tournament;
 
+use App\Exceptions\ConfirmationRequired;
 use App\Exceptions\TournamentException;
 use App\Models\Tournament\Tournament;
 use App\Models\Tournament\TournamentCategory;
@@ -141,12 +142,20 @@ class TournamentResultTest extends TestCase
         // Mesmo vencedor, outro placar: pode.
         $this->results->record($semi1, [['home_games' => 6, 'away_games' => 4], ['home_games' => 6, 'away_games' => 4]], Results::ORIGIN_LARA, $this->organizer);
 
+        // Final já jogada: o site é recusado; o Lara é avisado.
+        try {
+            $this->results->record($semi1, $this->win(1, 6), Results::ORIGIN_SITE, operator: 'Carlos');
+            $this->fail('Final já jogada: o site não muda o vencedor da semifinal.');
+        } catch (TournamentException $e) {
+            $this->assertContains($e->reason, [TournamentException::NEXT_MATCH_PLAYED, TournamentException::MATCH_LOCKED]);
+        }
         try {
             $this->results->record($semi1, $this->win(1, 6), Results::ORIGIN_LARA, $this->organizer);
-            $this->fail('Final já jogada: o vencedor da semifinal não pode mudar.');
-        } catch (TournamentException $e) {
-            $this->assertSame(TournamentException::NEXT_MATCH_PLAYED, $e->reason);
+            $this->fail('Final já jogada: o Lara pede confirmação.');
+        } catch (ConfirmationRequired $e) {
+            $this->assertStringContainsString('jogo seguinte', $e->getMessage());
         }
+        $this->assertSame(Game::STATUS_FINISHED, $final->fresh()->status);
 
         // Limpa a final, e aí a semifinal pode mudar e mandar o outro time.
         $this->results->clear($final->fresh(), $this->organizer);
@@ -189,8 +198,15 @@ class TournamentResultTest extends TestCase
 
         try {
             $this->results->closeGroup($a, [], $this->organizer);
-            $this->fail('Grupo com jogo pendente não fecha.');
+            $this->fail('Ordem inválida não fecha.');
         } catch (TournamentException $e) {
+            $this->assertStringContainsString('posição diferente', $e->getMessage());
+        }
+        try {
+            $ids = $a->entries()->pluck('tournament_team_id')->all();
+            $this->results->closeGroup($a, [$ids[0] => 1, $ids[1] => 2], $this->organizer);
+            $this->fail('Grupo com jogo pendente pede confirmação.');
+        } catch (ConfirmationRequired $e) {
             $this->assertStringContainsString('Faltam', $e->getMessage());
         }
 
@@ -211,12 +227,18 @@ class TournamentResultTest extends TestCase
         $this->assertSame([$aTeams[1], $bTeams[1]], [$m1->home_team_id, $m1->away_team_id]);
         $this->assertSame([$bTeams[0], $aTeams[0]], [$m2->home_team_id, $m2->away_team_id]);
 
-        // Grupo fechado: resultado dele não muda.
+        // Grupo fechado: o site é recusado; o Lara é avisado.
         try {
-            $this->results->record($a->matches()->first(), [['home_games' => 2, 'away_games' => 6]], Results::ORIGIN_LARA, $this->organizer);
+            $this->results->record($a->matches()->first(), [['home_games' => 2, 'away_games' => 6]], Results::ORIGIN_SITE, operator: 'Carlos');
             $this->fail('Grupo fechado.');
         } catch (TournamentException $e) {
             $this->assertSame(TournamentException::GROUP_CLOSED, $e->reason);
+        }
+        try {
+            $this->results->record($a->matches()->first(), [['home_games' => 2, 'away_games' => 6]], Results::ORIGIN_LARA, $this->organizer);
+            $this->fail('Grupo fechado: o Lara pede confirmação.');
+        } catch (ConfirmationRequired $e) {
+            $this->assertStringContainsString('será reaberto', $e->getMessage());
         }
 
         // Reabre: os classificados saem do mata-mata.
@@ -225,11 +247,45 @@ class TournamentResultTest extends TestCase
         $this->assertNull($m2->fresh()->away_team_id);
         $this->assertSame($bTeams[1], $m1->fresh()->away_team_id);
 
-        // Com o mata-mata jogado, o grupo não reabre.
+        // Com o mata-mata jogado, reabrir avisa; confirmado, limpa o mata-mata.
         $this->results->closeGroup($a, [$aTeams[0] => 1, $aTeams[1] => 2], $this->organizer);
         $this->results->record($m1->fresh(), [['home_games' => 6, 'away_games' => 0]], Results::ORIGIN_LARA, $this->organizer);
-        $this->expectException(TournamentException::class);
-        $this->results->reopenGroup($b, $this->organizer);
+        try {
+            $this->results->reopenGroup($b, $this->organizer);
+            $this->fail('Mata-mata jogado: reabrir pede confirmação.');
+        } catch (ConfirmationRequired $e) {
+            $this->assertStringContainsString('1 jogo(s) com resultado', $e->getMessage());
+        }
+        $this->results->reopenGroup($b, $this->organizer, true);
+        $this->assertSame(Game::STATUS_PENDING, $m1->fresh()->status);
+        $this->assertNull($m1->fresh()->away_team_id);
+        $this->assertTrue(TournamentMatchResultLog::where('tournament_match_id', $m1->id)->get()->contains(fn ($log) => data_get($log->payload, 'cascade') === true));
+
+        // Corrigir jogo de grupo fechado, confirmado: reabre o grupo e grava.
+        $groupMatch = $a->matches()->first();
+        $this->results->record($groupMatch, [['home_games' => 2, 'away_games' => 6]], Results::ORIGIN_LARA, $this->organizer, force: true);
+        $this->assertSame(0, $a->entries()->whereNotNull('final_position')->count());
+        $this->assertSame($groupMatch->away_team_id, $groupMatch->fresh()->winner_team_id);
+    }
+
+    public function test_correcao_confirmada_apaga_em_cascata(): void
+    {
+        [, $t, [$semi1, $semi2], $final] = $this->elimination();
+        $this->results->record($semi1, $this->win(6, 1), Results::ORIGIN_LARA, $this->organizer);
+        $this->results->record($semi2, $this->win(6, 1), Results::ORIGIN_LARA, $this->organizer);
+        $this->results->record($final->fresh(), $this->win(6, 1), Results::ORIGIN_LARA, $this->organizer);
+
+        // Muda o vencedor da semifinal com a final jogada: a final é limpa e recebe o novo time.
+        $this->results->record($semi1, $this->win(1, 6), Results::ORIGIN_LARA, $this->organizer, force: true);
+        $this->assertSame(Game::STATUS_PENDING, $final->fresh()->status);
+        $this->assertSame($semi1->away_team_id, $final->fresh()->home_team_id);
+
+        // Limpar a semifinal com a final jogada, confirmado: as duas voltam a "A jogar".
+        $this->results->record($final->fresh(), $this->win(6, 1), Results::ORIGIN_LARA, $this->organizer);
+        $this->results->clear($semi1->fresh(), $this->organizer, true);
+        $this->assertSame(Game::STATUS_PENDING, $semi1->fresh()->status);
+        $this->assertSame(Game::STATUS_PENDING, $final->fresh()->status);
+        $this->assertNull($final->fresh()->home_team_id);
     }
 
     public function test_torneio_encerrado_nao_aceita_site_e_rascunho_nao_aceita_ninguem(): void
@@ -245,9 +301,16 @@ class TournamentResultTest extends TestCase
         }
         $this->results->record($semi1, $this->win(6, 1), Results::ORIGIN_LARA, $this->organizer);
 
+        // Cancelado: o Lara é avisado e, confirmado, grava.
         $this->tournament->update(['status' => Tournament::STATUS_CANCELLED]);
-        $this->expectException(TournamentException::class);
-        $this->results->record($semi1, $this->win(6, 2), Results::ORIGIN_LARA, $this->organizer);
+        try {
+            $this->results->record($semi1, $this->win(6, 2), Results::ORIGIN_LARA, $this->organizer);
+            $this->fail('Cancelado: o Lara pede confirmação.');
+        } catch (ConfirmationRequired $e) {
+            $this->assertStringContainsString('cancelado', $e->getMessage());
+        }
+        $this->results->record($semi1, $this->win(6, 2), Results::ORIGIN_LARA, $this->organizer, force: true);
+        $this->assertSame(2, (int) $semi1->fresh()->sets()->first()->away_games);
     }
 
     public function test_codigo_de_lancamento_e_api_da_equipe(): void

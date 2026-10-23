@@ -104,7 +104,7 @@ class TournamentController extends Controller
     {
         $data = $request->validate(['status' => ['required', Rule::in(array_keys(Tournament::STATUS_LABELS))]]);
 
-        $this->setup->changeStatus($tournament, $data['status']);
+        $this->setup->changeStatus($tournament, $data['status'], $request->boolean('force'));
 
         return redirect()->route('tournaments.show', $tournament)
             ->with('success', 'Situação: ' . Tournament::STATUS_LABELS[$data['status']] . '.');

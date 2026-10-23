@@ -70,16 +70,16 @@ class TournamentBracketController extends Controller
         $this->brackets->generate($category, $data['generation'], $request->user(), [
             'slots' => $data['slots'] ?? [],
             'groups' => $data['groups'] ?? [],
-        ]);
+        ], $request->boolean('force'));
 
         return $this->back($tournament, $category, 'Chaveamento gerado. Confira e clique em Divulgar no site quando estiver pronto.');
     }
 
-    public function destroy(Tournament $tournament, TournamentCategory $category): RedirectResponse
+    public function destroy(Request $request, Tournament $tournament, TournamentCategory $category): RedirectResponse
     {
         $this->assertBelongs($tournament, $category);
 
-        $this->brackets->clear($category);
+        $this->brackets->clear($category, $request->boolean('force'));
 
         return $this->back($tournament, $category, 'Chaveamento desfeito.');
     }

@@ -184,13 +184,13 @@ do app) e `overdue()` (comando `social:contact-reminders`). Destinatários por
 |--------|-----------|
 | `profileFor($member)` | Perfil do MultiClubes por `find(cpf, matrícula)`; sem ele, `member_not_found`. |
 | `eligibility($tournament, $profile, $member)` | Por categoria: elegível, motivo e inscrição ativa. |
-| `register($tournament, $member, $profile, $categoryIds, $override = null)` | Cria as inscrições (tudo ou nada), com trava na categoria; preço zero nasce paga; `$override` = [User, motivo] libera sexo/idade. |
+| `register($tournament, $member, $profile, $categoryIds, $override = null, $force = false)` | Cria as inscrições (tudo ou nada), com trava na categoria; preço zero nasce paga. `$override` = [User, motivo\|null] é o balcão: prazo, situação, vaga, sexo e idade viram aviso (`ConfirmationRequired` sem `$force`); confirmado, grava quem liberou e o motivo. Repetida é sempre recusada. |
 | `pay($member, $registrationIds, $data)` | Pagamento eRede: posse, pendência, período, vaga, valor exato; reenvio do tid devolve o existente. |
-| `recordManual($registrationIds, $data, $user)` | Baixa manual (mesma pessoa, `MANUAL_METHODS`). |
+| `recordManual($registrationIds, $data, $user, $force = false)` | Baixa manual (mesma pessoa, `MANUAL_METHODS`); passar da vaga é aviso. |
 | `withdraw($registration, $member)` | Desistência do sócio, só pendente. |
 | `cancel($registration, $user, $reason, $refund)` | Cancelamento pelo organizador; estorno do valor da inscrição pela eRede antes de cancelar. |
 
-Exceção de regra: `App\Exceptions\TournamentException` (`reason` estável).
+Exceção de regra: `App\Exceptions\TournamentException` (`reason` estável). No Lara, as regras que só avisam lançam `App\Exceptions\ConfirmationRequired` (lista de avisos; a tela volta com "Confirmar mesmo assim", que reenvia com `force=1`).
 
 ## Tournament\TournamentTeamService
 
@@ -202,11 +202,11 @@ Modo capitão pelo site: `createTeam()`, `lookup()` (por matrícula ou CPF, devo
 
 ## Tournament\TournamentBracketService
 
-Chaveamento (F5): `generate()` (sorteio ou à mão; todos os times não desfeitos; gera de novo só sem resultado e tira do site), `clear()`, `publish()`, `schedule()`, `outdated()` (times fora da chave / desfeitos na chave), `standings()` (classificação do grupo; ordem final do organizador prevalece), `advance()` (vencedor ao próximo jogo, perdedor da semifinal ao 3º lugar). Contas estáticas: `bracketSize()`, `seedOrder()` (posições-padrão), `crossRanks()` (cruzado padrão), `roundLabel()`, `groupName()`.
+Chaveamento (F5): `generate(..., $force)` (sorteio ou à mão; todos os times não desfeitos; gerar de novo com resultado pede confirmação e apaga; tira do site), `clear($category, $force)`, `resultsWarning()`, `publish()`, `schedule()`, `outdated()` (times fora da chave / desfeitos na chave), `standings()` (classificação do grupo; ordem final do organizador prevalece), `advance()` (vencedor ao próximo jogo, perdedor da semifinal ao 3º lugar). Contas estáticas: `bracketSize()`, `seedOrder()` (posições-padrão), `crossRanks()` (cruzado padrão), `roundLabel()`, `groupName()`.
 
 ## Tournament\TournamentResultService
 
-Resultados (F6): `record()` (placar por sets/games ou W.O., origem `lara`/`site`; Lara trava; correção que muda vencedor exige o jogo seguinte sem resultado; histórico; `advance`), `clear()`, `closeGroup()` (ordem final, preenche o mata-mata, avança os "passa direto"), `reopenGroup()`, `static score()` (conferência do placar). Recusas como `TournamentException`.
+Resultados (F6): `record(..., $force)` (placar por sets/games ou W.O., origem `lara`/`site`; Lara trava; correção que muda vencedor com o jogo seguinte jogado ou jogo de grupo fechado: o site é recusado, o Lara confirma e o serviço reabre o grupo e limpa em cascata; histórico; `advance`), `clear(..., $force)`, `closeGroup(..., $force)` (ordem final, preenche o mata-mata, avança os "passa direto"; jogo pendente é aviso), `reopenGroup(..., $force)`, `static score()` (conferência do placar). Recusas do site como `TournamentException`; avisos do Lara como `ConfirmationRequired`.
 
 ## Tournament\TournamentResultCodeService
 
@@ -226,7 +226,7 @@ Contas do site: `search()`, `duplicatedCpfs()`, `diagnose()`, `update()`, `pullF
 
 ## Tournament\TournamentSetupService
 
-Montagem do torneio: `changeStatus()` (rascunho → publicado → em andamento → encerrado; cancelado; volta a rascunho só sem inscrição; publicar pede categoria), `attachCategory()` (copia do catálogo do grupo), `updateCategory()` (com chaveamento gerado, o formato não muda), `detachCategory()` (só sem inscrição), `linkRules()`.
+Montagem do torneio: `changeStatus(..., $force)` (caminho normal rascunho → publicado → em andamento → encerrado, e cancelado; qualquer outra, publicar sem categoria e voltar a rascunho com inscrição pedem confirmação), `attachCategory(..., $force)` (copia do catálogo do grupo; inativa ou com inscrições do site fechadas pede confirmação), `updateCategory(..., $force)` (mudar formato com chaveamento pede confirmação e desfaz o chaveamento), `detachCategory(..., $force)` (sem pagamento: confirma e apaga as inscrições; com pagamento: recusa), `linkRules()`.
 
 ## Tournament\TournamentNotifier
 

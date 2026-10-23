@@ -37,8 +37,10 @@ pelo site (eRede).
 Botão **Inscrições** na tela do torneio.
 
 - **Inscrever pelo balcão**: CPF, matrícula e categorias. A pessoa precisa ter conta no
-  site (se não tiver, crie em **Reservas › Contas do site**). Se sexo ou idade não batem, só
-  entra com justificativa.
+  site (se não tiver, crie em **Reservas › Contas do site**). Dá para inscrever **a qualquer
+  momento**: se estiver fora do prazo, sem vaga, ou se sexo ou idade não batem, o Lara mostra
+  um aviso amarelo e você clica em **Confirmar mesmo assim**. A justificativa é opcional e
+  fica na inscrição. Fora do prazo o site não aceita o pagamento: dê baixa manual.
 - **Baixa manual**: quem pagou na secretaria (dinheiro, Pix, maquininha). Marque as
   inscrições pendentes da pessoa, escolha a forma e grave.
 - **Cancelar**: com motivo. *Estornar pela eRede* devolve o valor daquela inscrição.
@@ -61,8 +63,8 @@ Botão **Chaveamento** em cada categoria.
 1. Confira o aviso de times **em formação** — eles entram assim mesmo.
 2. **Gerar por sorteio** (cabeças de chave primeiro) ou **Montar à mão** (os dois lados de
    cada jogo da 1ª rodada, ou o grupo de cada time).
-3. Confira a chave. Pode **sortear de novo** ou **desfazer** enquanto nenhum jogo tiver
-   resultado.
+3. Confira a chave. Pode **sortear de novo** ou **desfazer** a qualquer momento; se já houver
+   resultado, o Lara avisa que os resultados serão apagados e pede confirmação.
 4. Marque **Data e local** dos jogos, se quiser (é só informativo).
 5. Clique em **Divulgar no site**. Gerar de novo tira do site até você divulgar outra vez.
 
@@ -75,8 +77,10 @@ Na tela do chaveamento, em cada jogo: **Lançar resultado** — os games de cada
 Lara **trava** o jogo para o site. **Corrigir** e **Limpar** ficam no mesmo lugar; cada jogo
 tem o **Histórico** de quem lançou.
 
-Para corrigir um jogo cujo vencedor mudaria, o jogo seguinte não pode ter resultado: limpe
-aquele antes.
+Se a correção muda o vencedor e o jogo seguinte já tem resultado, o Lara avisa: confirmando,
+o resultado do jogo seguinte (e dos que dependem dele) é apagado e o novo vencedor entra no
+lugar. Jogo de grupo já fechado também pode ser corrigido: confirmando, o grupo é reaberto
+(feche de novo depois).
 
 ### Pelo site (equipe na quadra)
 
@@ -90,13 +94,17 @@ outro** invalida o anterior; **Retirar** corta o site na hora.
 Quando todos os jogos de um grupo têm resultado, aparece **Fechar o grupo**, já na ordem da
 classificação (vitórias, saldo de sets, saldo de games). Em caso de empate, ajuste a ordem
 como vocês decidirem e clique em **Fechar e classificar**: os classificados entram no
-mata-mata. Dá para mudar a ordem ou **reabrir** enquanto o mata-mata que recebe do grupo
-não tiver resultado.
+mata-mata. Dá para fechar antes de todos os jogos terem resultado, mudar a ordem ou
+**reabrir** a qualquer momento: se o mata-mata que recebe do grupo já tiver resultado, o
+Lara avisa que esses resultados serão apagados.
 
 ## 7. Situação do torneio
 
 Na tela do torneio: **Iniciar torneio** quando começar e **Encerrar** no fim. Depois de
-encerrado, o site não lança mais resultado (o Lara ainda corrige). **Cancelar** não estorna
+encerrado, o site não lança mais resultado (o Lara ainda corrige). Para qualquer outra
+mudança (ex.: reabrir um torneio encerrado), use **Outra situação › Mudar**; o Lara avisa e
+pede confirmação. Categorias novas podem ser ligadas a qualquer momento, também com o
+torneio em andamento (nelas só entra quem você inscrever pelo balcão). **Cancelar** não estorna
 ninguém sozinho: cancele cada inscrição em Inscrições.
 
 ## 8. Financeiro
@@ -112,6 +120,6 @@ torneio, os totais por categoria (eRede e manual separados) e a lista de pagamen
 | Sócio não consegue entrar no site / esqueceu a senha / e-mail errado | **Reservas › Contas do site** ([contas-do-site.md](contas-do-site.md)). |
 | "Não há vaga" no pagamento | As vagas são de quem paga primeiro; aumente as vagas da categoria se for o caso. |
 | O site diz que o jogo está travado | Foi lançado no Lara. Corrija no Lara ou limpe o resultado para o site lançar. |
-| Não deixa mudar o formato da categoria | O chaveamento já foi gerado: desfaça o chaveamento antes. |
-| Não deixa gerar de novo o chaveamento | Já há resultado lançado. Limpe os resultados, se for mesmo o caso. |
+| Apareceu "Atenção: confira antes de seguir" | A ação foge da regra normal (prazo, vaga, resultado já lançado…). Leia os avisos e clique em **Confirmar mesmo assim** ou em **Não fazer**. |
+| Não deixa tirar a categoria | Ela tem inscrição que passou por pagamento (histórico financeiro). Cancele/estorne as inscrições e deixe a categoria sem vagas. |
 | A equipe da quadra perdeu o código | Gere outro na tela do torneio (o anterior deixa de valer). |

@@ -221,6 +221,12 @@ Depois da aprovação na eRede:
   depois** de conferir a vaga (releia o torneio) e, se a eRede aprovar e o Lara recusar,
   trate como estorno pelo fluxo que o site já usa nas reservas.
 - 422 `registration_closed`: o período acabou.
+- **Inscrição feita pelo balcão fora do período** (desde 23/10/2026 o Lara inscreve a
+  qualquer momento): ela aparece em *minhas inscrições* como `pending_payment`, mas com o
+  torneio em `registration_open: false` o pagamento é recusado. Nesse caso **não mostre o
+  botão de pagar**: mostre "Pagamento na secretaria do clube". O mesmo vale para torneio
+  reaberto pelo organizador (a situação pode voltar, ex.: de encerrado para em andamento) —
+  o site decide sempre pelos campos que o Lara devolve, nunca por uma ordem fixa.
 
 #### `GET /api/tournaments/my-registrations` — minhas inscrições (login)
 

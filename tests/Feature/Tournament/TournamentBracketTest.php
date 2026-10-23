@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Tournament;
 
+use App\Exceptions\ConfirmationRequired;
 use App\Exceptions\TournamentException;
 use App\Models\Tournament\Tournament;
 use App\Models\Tournament\TournamentCategory;
@@ -287,17 +288,26 @@ class TournamentBracketTest extends TestCase
         $first = $this->knockout($category)->matches()->where('round', 1)->first();
         $this->finish($first, $first->home_team_id);
 
+        // Com resultado, gerar de novo ou desfazer só avisa; confirmado, apaga.
         foreach ([fn () => $this->brackets->generate($category, Stage::GENERATION_DRAW, $this->organizer), fn () => $this->brackets->clear($category)] as $action) {
             try {
                 $action();
-                $this->fail('Com resultado, o chaveamento não muda.');
-            } catch (ValidationException $e) {
-                $this->assertArrayHasKey('bracket', $e->errors());
+                $this->fail('Com resultado, o chaveamento pede confirmação.');
+            } catch (ConfirmationRequired $e) {
+                $this->assertStringContainsString('1 jogo(s) com resultado', $e->getMessage());
             }
         }
+        $this->assertSame(Game::STATUS_FINISHED, $first->fresh()->status);
+
+        $this->brackets->generate($category, Stage::GENERATION_DRAW, $this->organizer, force: true);
+        $this->assertSame(0, Game::whereIn('status', [Game::STATUS_FINISHED, Game::STATUS_WALKOVER])->count());
+
+        $this->finish($second = $this->knockout($category)->matches()->where('round', 1)->first(), $second->home_team_id);
+        $this->brackets->clear($category, true);
+        $this->assertSame(0, $category->stages()->count());
     }
 
-    public function test_formato_nao_muda_com_chaveamento_gerado(): void
+    public function test_formato_com_chaveamento_gerado_avisa_e_desfaz(): void
     {
         $category = $this->category($this->tournament);
         $this->teams($category, 2);
@@ -310,8 +320,19 @@ class TournamentBracketTest extends TestCase
         $setup->updateCategory($category, $base);
         $this->assertEquals(100, $category->fresh()->price);
 
-        $this->expectException(ValidationException::class);
-        $setup->updateCategory($category->fresh(), ['format' => TournamentCategory::FORMAT_GROUPS_KNOCKOUT, 'groups_count' => 1, 'qualifiers_per_group' => 2] + $base);
+        $groups = ['format' => TournamentCategory::FORMAT_GROUPS_KNOCKOUT, 'groups_count' => 1, 'qualifiers_per_group' => 2] + $base;
+        try {
+            $setup->updateCategory($category->fresh(), $groups);
+            $this->fail('Formato com chaveamento gerado pede confirmação.');
+        } catch (ConfirmationRequired $e) {
+            $this->assertStringContainsString('desfaz o chaveamento', $e->getMessage());
+        }
+        $this->assertSame(TournamentCategory::FORMAT_SINGLE_ELIMINATION, $category->fresh()->format);
+
+        // Confirmado: o chaveamento sai e o formato muda.
+        $setup->updateCategory($category->fresh(), $groups, true);
+        $this->assertSame(TournamentCategory::FORMAT_GROUPS_KNOCKOUT, $category->fresh()->format);
+        $this->assertSame(0, $category->stages()->count());
     }
 
     public function test_tela_gera_divulga_e_marca_data(): void

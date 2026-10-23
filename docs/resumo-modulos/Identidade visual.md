@@ -167,6 +167,12 @@ nos dois temas em `app.css`, a chave em `AreaColor::AREAS` e em `AREAS` do `tail
   página inicial): carregue `@include('partials.theme-script')` e `@vite(...)`; se não puder usar o
   CSS do painel (quiosque, `signature/validate`), copie os valores da paleta para variáveis CSS
   locais, com o grená como `--brand`.
+- **Aviso com confirmação** (desde 23/10/2026): regra que não deve recusar, só avisar, lança
+  `App\Exceptions\ConfirmationRequired::unless($force, $avisos)` no serviço. A exceção volta à
+  tela de origem e o `partials.alerts` mostra o quadro "Atenção: confira antes de seguir" com
+  *Confirmar mesmo assim* (reenvia o mesmo formulário, inclusive `PUT`/`DELETE` e campos em
+  lista, com `force=1`) e *Não fazer*. O controller só repassa `$request->boolean('force')`.
+  Usado nos Torneios; serve a qualquer tela que inclua os alertas.
 
 ## Componentes (`resources/views/components`)
 

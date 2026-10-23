@@ -58,25 +58,41 @@ mais. O namespace `App\Models\Tournament` foi reaproveitado pelos models novos.
 
 ## Regras que costumam pegar
 
+- **No Lara, tudo é permitido mediante aviso** (23/10/2026): regra de prazo, situação,
+  vagas, sexo/idade, chaveamento com resultado e ordem dos resultados lança
+  `App\Exceptions\ConfirmationRequired` (`unless($force, $avisos)`) em vez de recusar; a
+  tela volta com *Confirmar mesmo assim* (reenvia com `force=1`, quadro em
+  `partials/alerts`). O **site** continua recebendo a `TournamentException` com o `reason`.
+  Serviço novo que tenha regra assim: junte os avisos, receba `bool $force` e chame
+  `ConfirmationRequired::unless` antes de gravar; nunca dentro do caminho do site. Tabela
+  completa em `torneios.md` › *No Lara, só aviso*.
 - Vaga conta **pagas**; a inscrição pendente não segura vaga. O pagamento reconfere a vaga.
 - `RedeItauService::refund()` virou público para os torneios: o estorno é gravado no
   `TournamentPayment` pelo service, não pelo `refundPayment` (que é do `SchedulePayment`).
 - O sócio da API sai do JWT (`Member::where('cpf', username)`), como nos espaços sociais.
-- O balcão exige cadastro no site (o `member_id` é obrigatório na inscrição).
+- O balcão exige cadastro no site (o `member_id` é obrigatório na inscrição). `register()`
+  com `$override` (`[User, motivo|null]`) é o balcão: avisos em vez de recusas; sem ele, é o
+  site.
 - `register()` devolve coleção do Eloquent (o controller da API faz `load()` nela).
 - `TournamentRegistrationService` depende do `TournamentTeamService` (pagar → `afterPaid`,
   sair → `detach`); o `TournamentInviteService` depende dos dois. Não inverta, senão vira
   dependência circular.
 - Time completo = cheio **e** todos pagos. Convite pendente ocupa vaga do time.
 - Chaveamento: entram **todos os times não desfeitos** (também os em formação); gerar de novo
-  ou desfazer só **sem resultado** (encerrado/W.O.; "passa direto" não conta), e gerar de novo
-  tira do site (`bracket_published_at` nulo). Com chaveamento, o formato da categoria trava.
+  ou desfazer com resultado (encerrado/W.O.; "passa direto" não conta) pede confirmação e
+  apaga; gerar de novo tira do site (`bracket_published_at` nulo). Mudar o formato com
+  chaveamento pede confirmação e desfaz o chaveamento (`TournamentSetupService` depende do
+  `TournamentBracketService`).
 - No mata-mata vindo de grupos, os lados nascem só com a origem (`*_source_group_id/position`);
   o time entra quando o grupo fecha (F6). O 3º lugar é o jogo com `third_place`; `advance()`
   leva o vencedor por `next_match_id` e o perdedor da semifinal para ele.
 - Resultado: o **Lara trava** (`locked_by_lara`); o site recebe `match_locked`. Só o Lara
-  limpa. Correção que muda vencedor exige o jogo seguinte (e o 3º lugar) sem resultado.
-  Jogo de grupo fechado não muda até reabrir.
+  limpa. Correção que muda vencedor com o jogo seguinte jogado, ou jogo de grupo fechado:
+  o site é recusado (`next_match_played`, `group_closed`); o Lara confirma e o serviço
+  reabre o grupo e limpa em cascata (`wipe` com `cascade` no histórico).
+- Tirar categoria: com inscrição que passou por pagamento é recusado (histórico
+  financeiro); sem pagamento, confirma e apaga as inscrições (FK de
+  `tournament_registrations` não cascateia).
 - O site da equipe **não tem login**: autoriza pelo código do torneio (sha256 em
   `tournaments.results_code_hash`, vence no fim do último dia). O nome de quem lança
   (`operator_name`) vai para o histórico, `result_user_id` fica nulo.

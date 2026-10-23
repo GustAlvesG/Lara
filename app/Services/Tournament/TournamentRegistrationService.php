@@ -2,6 +2,7 @@
 
 namespace App\Services\Tournament;
 
+use App\Exceptions\ConfirmationRequired;
 use App\Exceptions\TournamentException;
 use App\Models\Member;
 use App\Models\SchedulePayment;
@@ -29,14 +30,18 @@ use InvalidArgumentException;
  *
  * Regras (docs/funcionalidades/torneios.md):
  *   - só sócio de título ativo no MultiClubes, com sexo e idade (na data de
- *     início do torneio) aceitos pela categoria; o organizador pode liberar
- *     quem não se encaixa, com justificativa, pelo balcão;
+ *     início do torneio) aceitos pela categoria;
  *   - inscrever-se e pagar só dentro do período de inscrição;
  *   - uma inscrição ativa por pessoa e categoria;
  *   - vagas (`max_registrations`) contam as inscrições pagas: quem paga
  *     primeiro garante a vaga;
  *   - categoria de preço zero já nasce paga;
  *   - desistência de inscrição paga e estorno são do organizador, caso a caso.
+ *
+ * No balcão do Lara (`$override`), sexo, idade, prazo, situação do torneio e
+ * vagas não recusam: viram aviso (ConfirmationRequired) e, confirmado, a
+ * inscrição entra com quem liberou e o porquê. Só a inscrição repetida
+ * continua recusada. A baixa manual também passa da vaga, com aviso.
  *
  * A trava da linha da categoria (`lockForUpdate`) serializa as inscrições e
  * pagamentos concorrentes de uma mesma categoria, para a vaga e a regra de
@@ -96,16 +101,24 @@ class TournamentRegistrationService
      * Inscreve a pessoa nas categorias escolhidas, numa transação: ou entram
      * todas, ou nenhuma.
      *
-     * `$override` (só pelo balcão): [User, motivo] — libera quem o sexo ou a
-     * idade recusariam.
+     * `$override` (só pelo balcão): [User, motivo ou null]. Sexo, idade,
+     * prazo, situação do torneio e vagas viram aviso; sem `$force`, a
+     * inscrição para em ConfirmationRequired. Confirmada, grava quem liberou
+     * e o motivo (o digitado, ou os avisos).
      *
      * @param  list<int>  $categoryIds
-     * @param  array{0: User, 1: string}|null  $override
+     * @param  array{0: User, 1: ?string}|null  $override
      * @return Collection<int, TournamentRegistration>
      */
-    public function register(Tournament $tournament, Member $member, MemberProfile $profile, array $categoryIds, ?array $override = null): Collection
+    public function register(Tournament $tournament, Member $member, MemberProfile $profile, array $categoryIds, ?array $override = null, bool $force = false): Collection
     {
-        $this->assertRegistrationOpen($tournament);
+        $warnings = [];
+
+        if ($override === null) {
+            $this->assertRegistrationOpen($tournament);
+        } elseif (! $tournament->registrationOpen()) {
+            $warnings[] = self::closedWarning($tournament);
+        }
 
         $categoryIds = array_values(array_unique(array_map('intval', $categoryIds)));
 
@@ -113,7 +126,7 @@ class TournamentRegistrationService
             throw new TournamentException(TournamentException::CATEGORY_NOT_FOUND, 'Escolha ao menos uma categoria.');
         }
 
-        $registrations = DB::transaction(function () use ($tournament, $member, $profile, $categoryIds, $override) {
+        $registrations = DB::transaction(function () use ($tournament, $member, $profile, $categoryIds, $override, $force, $warnings) {
             $categories = TournamentCategory::where('tournament_id', $tournament->id)
                 ->whereIn('id', $categoryIds)
                 ->orderBy('id')
@@ -124,9 +137,9 @@ class TournamentRegistrationService
                 throw new TournamentException(TournamentException::CATEGORY_NOT_FOUND, 'Categoria não encontrada neste torneio.', 404);
             }
 
-            $created = new EloquentCollection();
-
             foreach ($categories as $category) {
+                $this->assertNotRegistered($category, $member);
+
                 $reason = $category->ineligibilityReason($profile->gender, $profile->birthDate, $tournament->starts_on);
 
                 if ($reason !== null && $override === null) {
@@ -137,10 +150,27 @@ class TournamentRegistrationService
                         ['category_id' => $category->id, 'detail' => $reason],
                     );
                 }
+                if ($reason !== null) {
+                    $warnings[] = "{$profile->name} não se encaixa na categoria {$category->name}: " . self::ineligibilityText($reason) . '.';
+                }
 
-                $this->assertNotRegistered($category, $member);
-                $this->assertVacancy($category, 1);
+                if ($override === null) {
+                    $this->assertVacancy($category, 1);
+                } else {
+                    $warnings[] = $this->vacancyWarning($category, 1);
+                }
+            }
 
+            $warnings = array_values(array_filter($warnings));
+            ConfirmationRequired::unless($force, $warnings);
+
+            $released = $override !== null && $warnings !== [];
+            $releaseReason = ! $released ? null
+                : mb_substr(filled($override[1] ?? null) ? trim($override[1]) : 'Liberada no balcão: ' . implode(' ', $warnings), 0, 500);
+
+            $created = new EloquentCollection();
+
+            foreach ($categories as $category) {
                 $free = (float) $category->price <= 0;
 
                 $created->push(TournamentRegistration::create([
@@ -155,8 +185,8 @@ class TournamentRegistrationService
                     'amount' => $category->price,
                     'status' => $free ? TournamentRegistration::STATUS_PAID : TournamentRegistration::STATUS_PENDING_PAYMENT,
                     'paid_at' => $free ? Carbon::now() : null,
-                    'eligibility_override_by' => $reason !== null ? $override[0]->id : null,
-                    'eligibility_override_reason' => $reason !== null ? $override[1] : null,
+                    'eligibility_override_by' => $released ? $override[0]->id : null,
+                    'eligibility_override_reason' => $releaseReason,
                 ]));
             }
 
@@ -220,12 +250,12 @@ class TournamentRegistrationService
      * Baixa manual: o organizador registra o que foi pago fora da eRede. Vale
      * para inscrições pendentes de uma mesma pessoa; o valor é o total delas.
      * Registra um fato já acontecido, então não exige o período de inscrição
-     * aberto — mas a vaga continua valendo.
+     * aberto. Passar da vaga é aviso: sem `$force`, para em ConfirmationRequired.
      *
      * @param  list<int>  $registrationIds
      * @param  array{payment_method: string, paid_at?: ?string, manual_notes?: ?string}  $data
      */
-    public function recordManual(array $registrationIds, array $data, User $user): TournamentPayment
+    public function recordManual(array $registrationIds, array $data, User $user, bool $force = false): TournamentPayment
     {
         if (! array_key_exists($data['payment_method'] ?? '', SchedulePayment::MANUAL_METHODS)) {
             throw new InvalidArgumentException('Escolha a forma em que o pagamento foi recebido.');
@@ -233,14 +263,14 @@ class TournamentRegistrationService
 
         $registrationIds = array_values(array_unique(array_map('intval', $registrationIds)));
 
-        $payment = DB::transaction(function () use ($registrationIds, $data, $user) {
+        $payment = DB::transaction(function () use ($registrationIds, $data, $user, $force) {
             $memberIds = TournamentRegistration::whereIn('id', $registrationIds)->distinct()->pluck('member_id');
 
             if ($memberIds->count() !== 1) {
                 throw new TournamentException(TournamentException::NOT_OWNER, 'A baixa manual vale para inscrições de uma mesma pessoa.');
             }
 
-            $registrations = $this->lockPayable($registrationIds, (int) $memberIds->first());
+            $registrations = $this->lockPayable($registrationIds, (int) $memberIds->first(), $force);
 
             $payment = new TournamentPayment([
                 'member_id' => $memberIds->first(),
@@ -387,26 +417,47 @@ class TournamentRegistrationService
     /** `$taking` vagas a mais cabem? Conta as inscrições já pagas. */
     private function assertVacancy(TournamentCategory $category, int $taking): void
     {
+        if ($this->vacancyWarning($category, $taking) !== null) {
+            throw new TournamentException(TournamentException::CATEGORY_FULL, "A categoria {$category->name} não tem mais vagas.", 409, ['category_id' => $category->id]);
+        }
+    }
+
+    /** O aviso de vaga estourada, ou null se cabe. */
+    private function vacancyWarning(TournamentCategory $category, int $taking): ?string
+    {
         if ($category->max_registrations === null) {
-            return;
+            return null;
         }
 
         $paid = TournamentRegistration::where('tournament_category_id', $category->id)
             ->where('status', TournamentRegistration::STATUS_PAID)
             ->count();
 
-        if ($paid + $taking > $category->max_registrations) {
-            throw new TournamentException(TournamentException::CATEGORY_FULL, "A categoria {$category->name} não tem mais vagas.", 409, ['category_id' => $category->id]);
-        }
+        return $paid + $taking > $category->max_registrations
+            ? "A categoria {$category->name} já tem {$paid} de {$category->max_registrations} vaga(s) ocupada(s) por inscrição paga: esta passa do limite."
+            : null;
+    }
+
+    /** Por que o balcão está fora da janela de inscrição do site. */
+    private static function closedWarning(Tournament $tournament): string
+    {
+        $why = match (true) {
+            $tournament->status !== Tournament::STATUS_PUBLISHED => 'o torneio está ' . mb_strtolower(Tournament::STATUS_LABELS[$tournament->status] ?? $tournament->status),
+            $tournament->registration_starts_at !== null && now()->lt($tournament->registration_starts_at) => 'o período de inscrição ainda não começou',
+            default => 'o período de inscrição já acabou',
+        };
+
+        return "As inscrições pelo site estão fechadas ({$why}). Fora do período o site não aceita o pagamento: se houver valor, dê baixa manual.";
     }
 
     /**
      * As inscrições pendentes da pessoa, com as categorias travadas, e a vaga
-     * conferida por categoria.
+     * conferida por categoria. Com `$force` informado (baixa manual), vaga
+     * estourada vira aviso: ConfirmationRequired enquanto `$force` for false.
      *
      * @return Collection<int, TournamentRegistration>
      */
-    private function lockPayable(array $registrationIds, int $memberId): Collection
+    private function lockPayable(array $registrationIds, int $memberId, ?bool $force = null): Collection
     {
         if ($registrationIds === []) {
             throw new TournamentException(TournamentException::INVALID_STATUS, 'Escolha as inscrições a pagar.');
@@ -431,9 +482,15 @@ class TournamentRegistrationService
             ->get()
             ->keyBy('id');
 
+        $warnings = [];
         foreach ($registrations->groupBy('tournament_category_id') as $categoryId => $group) {
-            $this->assertVacancy($categories[$categoryId], $group->count());
+            if ($force === null) {
+                $this->assertVacancy($categories[$categoryId], $group->count());
+            } else {
+                $warnings[] = $this->vacancyWarning($categories[$categoryId], $group->count());
+            }
         }
+        ConfirmationRequired::unless((bool) $force, $warnings);
 
         return $registrations;
     }

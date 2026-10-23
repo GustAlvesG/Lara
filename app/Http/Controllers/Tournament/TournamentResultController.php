@@ -18,6 +18,7 @@ use Illuminate\Validation\ValidationException;
  * Resultados no painel (permissão `torneios.resultados`): lançar e corrigir
  * placar ou W.O., limpar, fechar e reabrir grupo, e o código de lançamento
  * pelo site. Lançado aqui, o jogo trava para o site (o Lara prevalece).
+ * Regra que só avisa volta com "Confirmar mesmo assim" (`force`).
  * Regras em TournamentResultService e TournamentResultCodeService.
  */
 class TournamentResultController extends Controller
@@ -47,7 +48,7 @@ class TournamentResultController extends Controller
             default => null,
         };
 
-        $this->panel(fn () => $this->results->record($match, $data['sets'] ?? [], TournamentResultService::ORIGIN_LARA, $request->user(), walkoverWinnerId: $walkover));
+        $this->panel(fn () => $this->results->record($match, $data['sets'] ?? [], TournamentResultService::ORIGIN_LARA, $request->user(), walkoverWinnerId: $walkover, force: $request->boolean('force')));
 
         return $this->back($tournament, $category, 'Resultado gravado.');
     }
@@ -56,7 +57,7 @@ class TournamentResultController extends Controller
     {
         $this->assertMatch($tournament, $category, $match);
 
-        $this->panel(fn () => $this->results->clear($match, $request->user()));
+        $this->panel(fn () => $this->results->clear($match, $request->user(), $request->boolean('force')));
 
         return $this->back($tournament, $category, 'Resultado limpo: o jogo voltou para "A jogar" e o site pode lançar de novo.');
     }
@@ -66,7 +67,7 @@ class TournamentResultController extends Controller
         $this->assertGroup($tournament, $category, $group);
 
         $data = $request->validate(['positions' => 'required|array', 'positions.*' => 'required|integer|min:1']);
-        $this->panel(fn () => $this->results->closeGroup($group, $data['positions'], $request->user()));
+        $this->panel(fn () => $this->results->closeGroup($group, $data['positions'], $request->user(), $request->boolean('force')));
 
         return $this->back($tournament, $category, "{$group->name} fechado: os classificados entraram no mata-mata.");
     }
@@ -75,7 +76,7 @@ class TournamentResultController extends Controller
     {
         $this->assertGroup($tournament, $category, $group);
 
-        $this->panel(fn () => $this->results->reopenGroup($group, $request->user()));
+        $this->panel(fn () => $this->results->reopenGroup($group, $request->user(), $request->boolean('force')));
 
         return $this->back($tournament, $category, "{$group->name} reaberto.");
     }

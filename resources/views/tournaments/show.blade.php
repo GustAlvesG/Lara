@@ -63,6 +63,19 @@
                         @endif
                     </form>
                 @endforeach
+                @php $others = array_diff(array_keys(Tournament::STATUS_LABELS), $transitions, [$tournament->status]); @endphp
+                @if ($others)
+                    {{-- Fora do caminho normal (ex.: reabrir um encerrado): o Lara avisa e pede confirmação. --}}
+                    <form method="POST" action="{{ route('tournaments.status', $tournament) }}" class="flex items-center gap-2">
+                        @csrf @method('PUT')
+                        <select name="status" aria-label="Outra situação" class="h-10 rounded-xl border border-line-strong bg-surface px-3 text-sm text-ink">
+                            @foreach ($others as $status)
+                                <option value="{{ $status }}">{{ Tournament::STATUS_LABELS[$status] }}</option>
+                            @endforeach
+                        </select>
+                        <x-secondary-button type="submit">Mudar</x-secondary-button>
+                    </form>
+                @endif
             </div>
             @if ($tournament->description)
                 <p class="whitespace-pre-line text-sm text-ink-2 sm:col-span-4">{{ $tournament->description }}</p>
@@ -161,7 +174,7 @@
                                                     @include('tournaments.partials.link-fields', ['key' => 'c' . $category->id, 'link' => $category])
                                                     <div class="sm:col-span-4 sm:text-right"><x-primary-button>Salvar</x-primary-button></div>
                                                 </form>
-                                                <p class="mt-2 text-xs text-ink-3">Preço novo vale para as próximas inscrições; quem já se inscreveu mantém o valor.</p>
+                                                <p class="mt-2 text-xs text-ink-3">Preço novo vale para as próximas inscrições; quem já se inscreveu mantém o valor. Mudar o formato com chaveamento gerado desfaz o chaveamento (o Lara avisa antes).</p>
                                             </details>
                                         </td>
                                     </tr>

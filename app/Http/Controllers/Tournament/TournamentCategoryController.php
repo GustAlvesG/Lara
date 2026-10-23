@@ -13,7 +13,8 @@ use Illuminate\Http\Request;
 /**
  * Categorias ligadas a um torneio (permissão `torneios.gerenciar`): escolhe
  * do catálogo do grupo e define preço, vagas, montagem dos times, formato e
- * sets. Regras em TournamentSetupService.
+ * sets. Regras em TournamentSetupService; as que só avisam voltam com
+ * "Confirmar mesmo assim" (`force`).
  */
 class TournamentCategoryController extends Controller
 {
@@ -26,7 +27,7 @@ class TournamentCategoryController extends Controller
         $data = $request->validate(['category_template_id' => 'required|integer'] + TournamentSetupService::linkRules(), [], $this->attributes());
 
         $template = TournamentCategoryTemplate::findOrFail($data['category_template_id']);
-        $category = $this->setup->attachCategory($tournament, $template, $data);
+        $category = $this->setup->attachCategory($tournament, $template, $data, $request->boolean('force'));
 
         return redirect()->route('tournaments.show', $tournament)->with('success', "Categoria {$category->name} ligada ao torneio.");
     }
@@ -35,16 +36,16 @@ class TournamentCategoryController extends Controller
     {
         abort_unless($category->tournament_id === $tournament->id, 404);
 
-        $this->setup->updateCategory($category, $request->validate(TournamentSetupService::linkRules(), [], $this->attributes()));
+        $this->setup->updateCategory($category, $request->validate(TournamentSetupService::linkRules(), [], $this->attributes()), $request->boolean('force'));
 
         return redirect()->route('tournaments.show', $tournament)->with('success', "Categoria {$category->name} atualizada.");
     }
 
-    public function destroy(Tournament $tournament, TournamentCategory $category): RedirectResponse
+    public function destroy(Request $request, Tournament $tournament, TournamentCategory $category): RedirectResponse
     {
         abort_unless($category->tournament_id === $tournament->id, 404);
 
-        $this->setup->detachCategory($category);
+        $this->setup->detachCategory($category, $request->boolean('force'));
 
         return redirect()->route('tournaments.show', $tournament)->with('success', "Categoria {$category->name} saiu do torneio.");
     }
