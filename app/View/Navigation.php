@@ -70,6 +70,8 @@ final class Navigation
                     ['route' => 'schedule.list', 'label' => 'Todos os Agendamentos', 'permission' => P::RESERVAS_AGENDAMENTOS],
                     ['route' => 'social-booking.index', 'label' => 'Espaços Sociais', 'permission' => P::RESERVAS_SOCIAIS, 'active' => 'social-booking.*'],
                     ['route' => 'payment.index', 'label' => 'Pagamentos', 'permission' => P::RESERVAS_PAGAMENTOS, 'active' => 'payment.*'],
+                    // Contas dos sócios no site: senha provisória, e-mail, cadastro manual.
+                    ['route' => 'site-accounts.index', 'label' => 'Contas do site', 'permission' => P::RESERVAS_CONTAS_SITE, 'active' => 'site-accounts.*'],
                     // Cadastro dos grupos (quadras e espaços sociais), espaços e
                     // regras. Antes só se chegava pelo botão Configurações da agenda.
                     ['route' => 'place-group.index', 'label' => 'Locais e Grupos', 'permission' => P::RESERVAS_CONFIGURAR, 'active' => ['place-group.*', 'schedule-rules.*']],
@@ -152,6 +154,17 @@ final class Navigation
                     ['route' => 'placar.competicoes.index', 'label' => 'Competições', 'permission' => P::PLACAR_CADASTRO],
                     ['route' => 'placar.jogos.index', 'label' => 'Jogos', 'permission' => P::PLACAR_CADASTRO],
                     ['route' => 'placar.scout.jogos', 'label' => 'Súmulas (Scout)', 'permission' => P::PLACAR_SCOUT],
+                ],
+            ],
+            // Torneios do site de locação. As inscrições abrem pela tela do
+            // torneio (são de um torneio só).
+            ['label' => 'Torneios', 'area' => 'placar', 'glyph' => 'trophy',
+                'icon' => 'M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4zM17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3',
+                'children' => [
+                    ['route' => 'tournaments.index', 'label' => 'Torneios', 'permission' => P::TORNEIOS_GERENCIAR,
+                        'active' => ['tournaments.index', 'tournaments.create', 'tournaments.show', 'tournaments.edit', 'tournaments.registrations.*', 'tournaments.teams.*', 'tournaments.bracket.*']],
+                    ['route' => 'tournaments.categories.index', 'label' => 'Categorias', 'permission' => P::TORNEIOS_GERENCIAR, 'active' => 'tournaments.categories.*'],
+                    ['route' => 'tournaments.finance.index', 'label' => 'Financeiro', 'permission' => P::TORNEIOS_FINANCEIRO, 'active' => 'tournaments.finance.*'],
                 ],
             ],
             // RePET (módulo Replay no código): as quatro telas são as etapas do mesmo trabalho — definir o

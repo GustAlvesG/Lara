@@ -168,7 +168,6 @@ class CatalogGateTest extends TestCase
             'company.uber.requests' => Permissions::EXTERNOS_CARROS_APLICATIVO,
             'company.uber.waiting' => Permissions::EXTERNOS_CARROS_APLICATIVO,
             'place-group.index' => Permissions::RESERVAS_CONFIGURAR,
-            'tournaments.index' => Permissions::TORNEIOS,
             'members.index' => Permissions::SOCIOS_CONSULTA,
             'freelancer-services.index' => Permissions::FREELANCERS_SERVICOS_LISTAR,
             'freelancer-services.show' => Permissions::FREELANCERS_SERVICOS_GERENCIAR,

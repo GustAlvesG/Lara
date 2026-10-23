@@ -42,8 +42,12 @@ class RedeItauService
 
     /**
      * Realiza o reembolso (parcial ou total) de uma transação na Rede.
+     *
+     * Só a chamada à Rede, sem auditoria: quem chama grava o estorno no seu
+     * pagamento (refundPayment para o SchedulePayment; os torneios usam direto,
+     * com o TournamentPayment).
      */
-    private function refund(string $tid, float $amount): array
+    public function refund(string $tid, float $amount): array
     {
         $amountCents = (int) round($amount * 100); // Convert to cents
         $accessToken = $this->authenticate();

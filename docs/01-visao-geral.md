@@ -21,7 +21,7 @@ A aplicação está configurada em Português do Brasil (`APP_LOCALE=pt_BR`) e f
 | **Pagamentos** | Registro de pagamentos de agendamentos e integração com o gateway RedeItau (cobrança/estorno). | `SchedulePaymentController`, `SchedulePaymentService`, `RedeItauService`, `SchedulePayment` |
 | **Freelancers** | Cadastro de freelancers, funções e serviços prestados (via API/Telegram). | `FreelancerController`, `FunctionFreelancerController`, `FreelancerServiceController`, `FreelancerService` (service) |
 | **Banco de horas (CompTime)** | Importação de pontos a partir de arquivos HTML, cálculo de saldo e ajustes. | `CompTimeController`, `CompTimeService`, `TimeEntry`, `TimeAdjustment`, `Employee` |
-| **Torneios** | Gestão de torneios, categorias, times e inscrições. | `Tournament\TournamentController`, `TournamentService`, models em `Tournament/` |
+| **Torneios** | Torneios por grupo de espaços (desde 22–23/10/2026): inscrição individual do sócio com pagamento eRede, times, chaveamento, resultados no Lara e no site, financeiro. Ver [funcionalidades/torneios.md](funcionalidades/torneios.md). | — |
 | **Empresas (Company)** | Empresas terceirizadas, trabalhadores e regras de acesso. | `Company\*Controller`, `CompanyService`, models em `Company/` |
 | **Frota** | Quilometragem dos veículos da empresa: saída (motorista, destino, hodômetro) e retorno, registrados pela portaria via API. | `Fleet\FleetApiController`, `Fleet\FleetController`, `FleetService`, models em `Fleet/` |
 | **Comunicação WhatsApp** | Webhook do WhatsApp Cloud API (Meta), recebimento/envio de mensagens e mídia. | `WhatsAppController`, `WhatsAppService`, `ProcessWhatsAppWebhook`, models em `WhatsApp/` |

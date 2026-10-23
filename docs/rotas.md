@@ -107,19 +107,6 @@ Todas, salvo `/`, `/members` e `/dashboard`, estão sob o middleware `auth`.
 | GET | `/fleet/vehicles/{vehicle}/edit` | Fleet\FleetController@editVehicle | fleet.vehicles.edit | auth, permission:manage fleet |
 | PUT | `/fleet/vehicles/{vehicle}` | Fleet\FleetController@updateVehicle | fleet.vehicles.update | auth, permission:manage fleet |
 | DELETE | `/fleet/vehicles/{vehicle}` | Fleet\FleetController@destroyVehicle | fleet.vehicles.destroy | auth, permission:manage fleet |
-| GET | `/tournaments` | TournamentController@index | tournaments.index | auth |
-| GET | `/tournaments/create` | TournamentController@create | tournaments.create | auth |
-| POST | `/tournaments` | TournamentController@store | tournaments.store | auth |
-| GET | `/tournaments/{id}` | TournamentController@show | tournaments.show | auth |
-| GET | `/tournaments/{id}/edit` | TournamentController@edit | tournaments.edit | auth |
-| PUT | `/tournaments/{id}` | TournamentController@update | tournaments.update | auth |
-| DELETE | `/tournaments/{id}` | TournamentController@destroy | tournaments.destroy | auth |
-| GET | `/tournaments/categories` | TournamentController@indexCategories | categories.index | auth |
-| GET | `/tournaments/categories/create` | TournamentController@createCategory | categories.create | auth |
-| POST | `/tournaments/categories` | TournamentController@storeCategory | categories.store | auth |
-| GET | `/tournaments/categories/{id}/edit` | TournamentController@editCategory | categories.edit | auth |
-| PUT | `/tournaments/categories/{id}` | TournamentController@updateCategory | categories.update | auth |
-| DELETE | `/tournaments/categories/{id}` | TournamentController@destroyCategory | categories.destroy | auth |
 
 ### Espaços sociais (`social-booking.*`)
 
@@ -146,6 +133,65 @@ Guia: [Reservas de Espaços Sociais](funcionalidades/espacos-sociais.md). Rotas 
 | POST | `/social-bookings/{booking}/refuse` | Social\SocialBookingController@refuse | social-booking.refuse | auth, can:reservas.sociais.aprovar |
 | POST | `/social-bookings/{booking}/cancel` | Social\SocialBookingController@cancel | social-booking.cancel | auth, can:reservas.sociais.aprovar (estorno pede também reservas.pagamentos.estornar) |
 | POST | `/payments/manual` | SchedulePaymentController@storeManual | payment.manual | auth, can:reservas.pagamentos.baixa-manual (baixa manual: pago fora da plataforma; quadras e espaço social aprovado) |
+
+### Torneios (`tournaments.*`)
+
+Guia: [Torneios](funcionalidades/torneios.md). Catálogo de categorias, torneios e inscrições (desde a F3).
+
+| Método | URI | Ação | Nome | Middleware |
+|--------|-----|------|------|------------|
+| GET | `/torneios/categorias` | Tournament\CategoryTemplateController@index | tournaments.categories.index | auth, can:torneios.gerenciar |
+| POST | `/torneios/categorias` | Tournament\CategoryTemplateController@store | tournaments.categories.store | auth, can:torneios.gerenciar |
+| PUT | `/torneios/categorias/{template}` | Tournament\CategoryTemplateController@update | tournaments.categories.update | auth, can:torneios.gerenciar |
+| DELETE | `/torneios/categorias/{template}` | Tournament\CategoryTemplateController@destroy | tournaments.categories.destroy | auth, can:torneios.gerenciar |
+| GET | `/torneios` | Tournament\TournamentController@index | tournaments.index | auth, can:torneios.gerenciar |
+| GET | `/torneios/novo` | Tournament\TournamentController@create | tournaments.create | auth, can:torneios.gerenciar |
+| POST | `/torneios` | Tournament\TournamentController@store | tournaments.store | auth, can:torneios.gerenciar |
+| GET | `/torneios/{tournament}` | Tournament\TournamentController@show | tournaments.show | auth, can:torneios.gerenciar |
+| GET | `/torneios/{tournament}/editar` | Tournament\TournamentController@edit | tournaments.edit | auth, can:torneios.gerenciar |
+| PUT | `/torneios/{tournament}` | Tournament\TournamentController@update | tournaments.update | auth, can:torneios.gerenciar |
+| PUT | `/torneios/{tournament}/situacao` | Tournament\TournamentController@status | tournaments.status | auth, can:torneios.gerenciar |
+| POST | `/torneios/{tournament}/categorias` | Tournament\TournamentCategoryController@store | tournaments.event-categories.store | auth, can:torneios.gerenciar |
+| PUT | `/torneios/{tournament}/categorias/{category}` | Tournament\TournamentCategoryController@update | tournaments.event-categories.update | auth, can:torneios.gerenciar |
+| DELETE | `/torneios/{tournament}/categorias/{category}` | Tournament\TournamentCategoryController@destroy | tournaments.event-categories.destroy | auth, can:torneios.gerenciar |
+| GET | `/torneios/{tournament}/inscricoes` | Tournament\TournamentRegistrationController@index | tournaments.registrations.index | auth, can:torneios.inscricoes |
+| POST | `/torneios/{tournament}/inscricoes` | Tournament\TournamentRegistrationController@store | tournaments.registrations.store | auth, can:torneios.inscricoes |
+| POST | `/torneios/inscricoes/{registration}/cancelar` | Tournament\TournamentRegistrationController@cancel | tournaments.registrations.cancel | auth, can:torneios.inscricoes (estorno: torneios.pagamentos.estornar) |
+| POST | `/torneios/{tournament}/inscricoes/baixa` | Tournament\TournamentRegistrationController@manual | tournaments.registrations.manual | auth, can:torneios.pagamentos.baixa-manual |
+| GET | `/torneios/{tournament}/categorias/{category}/times` | Tournament\TournamentTeamController@index | tournaments.teams.index | auth, can:torneios.inscricoes |
+| POST | `/torneios/{tournament}/categorias/{category}/times` | Tournament\TournamentTeamController@store | tournaments.teams.store | auth, can:torneios.inscricoes |
+| POST | `/torneios/{tournament}/categorias/{category}/times/sortear` | Tournament\TournamentTeamController@draw | tournaments.teams.draw | auth, can:torneios.inscricoes |
+| PUT | `/torneios/{tournament}/categorias/{category}/times/{team}` | Tournament\TournamentTeamController@update | tournaments.teams.update | auth, can:torneios.inscricoes |
+| DELETE | `/torneios/{tournament}/categorias/{category}/times/{team}` | Tournament\TournamentTeamController@destroy | tournaments.teams.destroy | auth, can:torneios.inscricoes |
+| POST | `/torneios/{tournament}/categorias/{category}/times/{team}/atletas` | Tournament\TournamentTeamController@addMember | tournaments.teams.members.store | auth, can:torneios.inscricoes |
+| DELETE | `/torneios/{tournament}/categorias/{category}/times/{team}/atletas/{registration}` | Tournament\TournamentTeamController@removeMember | tournaments.teams.members.destroy | auth, can:torneios.inscricoes |
+| GET | `/torneios/{tournament}/categorias/{category}/chaveamento` | Tournament\TournamentBracketController@show | tournaments.bracket.show | auth (gerenciar ou resultados, no controller) |
+| POST | `/torneios/{tournament}/categorias/{category}/chaveamento` | Tournament\TournamentBracketController@generate | tournaments.bracket.generate | auth, can:torneios.gerenciar |
+| DELETE | `/torneios/{tournament}/categorias/{category}/chaveamento` | Tournament\TournamentBracketController@destroy | tournaments.bracket.destroy | auth, can:torneios.gerenciar |
+| PUT | `/torneios/{tournament}/categorias/{category}/chaveamento/divulgar` | Tournament\TournamentBracketController@publish | tournaments.bracket.publish | auth, can:torneios.gerenciar |
+| PUT | `/torneios/{tournament}/categorias/{category}/chaveamento/jogos/{match}` | Tournament\TournamentBracketController@schedule | tournaments.bracket.schedule | auth, can:torneios.gerenciar |
+| PUT | `/torneios/{tournament}/categorias/{category}/jogos/{match}/resultado` | Tournament\TournamentResultController@record | tournaments.results.record | auth, can:torneios.resultados |
+| DELETE | `/torneios/{tournament}/categorias/{category}/jogos/{match}/resultado` | Tournament\TournamentResultController@clear | tournaments.results.clear | auth, can:torneios.resultados |
+| PUT | `/torneios/{tournament}/categorias/{category}/grupos/{group}/fechar` | Tournament\TournamentResultController@closeGroup | tournaments.results.groups.close | auth, can:torneios.resultados |
+| DELETE | `/torneios/{tournament}/categorias/{category}/grupos/{group}/fechar` | Tournament\TournamentResultController@reopenGroup | tournaments.results.groups.reopen | auth, can:torneios.resultados |
+| POST | `/torneios/{tournament}/codigo-resultados` | Tournament\TournamentResultController@generateCode | tournaments.results.code.store | auth, can:torneios.resultados |
+| DELETE | `/torneios/{tournament}/codigo-resultados` | Tournament\TournamentResultController@revokeCode | tournaments.results.code.destroy | auth, can:torneios.resultados |
+| GET | `/torneios/financeiro` | Tournament\TournamentFinanceController@index | tournaments.finance.index | auth, can:torneios.financeiro |
+| GET | `/torneios/{tournament}/financeiro` | Tournament\TournamentFinanceController@show | tournaments.finance.show | auth, can:torneios.financeiro |
+| GET | `/torneios/{tournament}/financeiro/csv` | Tournament\TournamentFinanceController@csv | tournaments.finance.csv | auth, can:torneios.financeiro |
+
+### Contas do site (`site-accounts.*`, `can:reservas.contas-site`)
+
+| Método | URI | Ação | Nome | Middleware |
+|---|---|---|---|---|
+| GET | `/contas-site` | SiteAccountController@index | site-accounts.index | auth, can:reservas.contas-site |
+| POST | `/contas-site` | SiteAccountController@store | site-accounts.store | auth, can:reservas.contas-site, throttle 30/min |
+| GET | `/contas-site/{member}` | SiteAccountController@show | site-accounts.show | auth, can:reservas.contas-site |
+| PUT | `/contas-site/{member}` | SiteAccountController@update | site-accounts.update | auth, can:reservas.contas-site |
+| POST | `/contas-site/{member}/multiclubes` | SiteAccountController@pull | site-accounts.pull | auth, can:reservas.contas-site |
+| POST | `/contas-site/{member}/senha` | SiteAccountController@password | site-accounts.password | auth, can:reservas.contas-site, throttle 30/min |
+| DELETE | `/contas-site/{member}` | SiteAccountController@destroy | site-accounts.destroy | auth, can:reservas.contas-site |
+| POST | `/contas-site/{member}/reativar` | SiteAccountController@restore | site-accounts.restore | auth, can:reservas.contas-site |
 
 ### Replay — vídeos das quadras (`can:replay`)
 
@@ -249,6 +295,32 @@ id na URL, para que trocar um número não dê acesso aos vídeos de outro.
 | PUT | `/api/change-password` | MemberAuthController@changePassword |
 | POST | `/api/send-email` | EmailController@submit |
 | GET | `/api/debug-mail` | closure (dump de config de e-mail) |
+
+### Torneios — site de locação (`api.tournaments.*`)
+
+Contrato completo em [torneios.md](funcionalidades/torneios.md#api-do-site-apitournamentapicontroller). T = `api_token`, L = `login_token`.
+
+| Método | URI | Ação | Auth |
+|--------|-----|------|------|
+| GET | `/api/tournaments` | Api\TournamentApiController@index | T |
+| GET | `/api/tournaments/{id}` | Api\TournamentApiController@show | T |
+| GET | `/api/tournaments/{id}/categories/{categoryId}/bracket` | Api\TournamentApiController@bracket | T |
+| GET | `/api/tournaments/{id}/eligibility` | Api\TournamentApiController@eligibility | T + L |
+| POST | `/api/tournaments/{id}/registrations` | Api\TournamentApiController@register | T + L (throttle 20/min) |
+| GET | `/api/tournaments/my-registrations` | Api\TournamentApiController@mine | T + L |
+| POST | `/api/tournaments/payment` | Api\TournamentApiController@pay | T + L (throttle 20/min) |
+| DELETE | `/api/tournaments/registrations/{id}` | Api\TournamentApiController@withdraw | T + L |
+| GET | `/api/tournaments/my-teams` | Api\TournamentApiController@myTeams | T + L |
+| POST | `/api/tournaments/categories/{id}/teams` | Api\TournamentApiController@createTeam | T + L (throttle 20/min) |
+| GET | `/api/tournaments/member-lookup` | Api\TournamentApiController@lookup | T + L (throttle 30/min) |
+| POST | `/api/tournaments/teams/{id}/invites` | Api\TournamentApiController@invite | T + L (throttle 20/min) |
+| GET | `/api/tournaments/my-invites` | Api\TournamentApiController@myInvites | T + L |
+| POST | `/api/tournaments/invites/{id}/accept` | Api\TournamentApiController@acceptInvite | T + L |
+| POST | `/api/tournaments/invites/{id}/decline` | Api\TournamentApiController@declineInvite | T + L |
+| DELETE | `/api/tournaments/invites/{id}` | Api\TournamentApiController@cancelInvite | T + L |
+| POST | `/api/tournaments/{id}/staff/check` | Api\TournamentStaffApiController@check | T + código no corpo (throttle 10/min) |
+| GET | `/api/tournaments/{id}/staff/matches` | Api\TournamentStaffApiController@matches | T + header `Tournament-Code` (throttle 60/min) |
+| PUT | `/api/tournaments/{id}/staff/matches/{matchId}/result` | Api\TournamentStaffApiController@record | T + header `Tournament-Code` (throttle 60/min) |
 
 ### Com `api_token` + `login_token` (T + L)
 | Método | URI | Ação | Obs. |

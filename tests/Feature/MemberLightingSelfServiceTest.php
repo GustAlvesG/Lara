@@ -210,6 +210,8 @@ class MemberLightingSelfServiceTest extends TestCase
             $table->string('Name')->nullable();
             $table->string('title')->nullable();
             $table->timestamps();
+            // Member usa SoftDeletes (Contas do site).
+            $table->softDeletes();
         });
 
         DB::connection('mysql')->table('members')->insert([

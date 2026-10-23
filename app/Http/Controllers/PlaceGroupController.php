@@ -142,8 +142,6 @@ class PlaceGroupController extends Controller
         }
         $placeGroup->weekdays = $ids;
 
-        $placeGroup->tournaments = $placeGroup->tournaments;
-
         //Order places by name and status_id
         $placeGroup->places = $placeGroup->places->sortBy([['status_id', 'asc'], ['name', 'asc']]);
 

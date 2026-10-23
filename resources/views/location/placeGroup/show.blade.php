@@ -1,6 +1,6 @@
 {{--
-    Modalidade: dados do grupo (formulário), e as três listas que dependem
-    dele — locais, torneios e regras de locação —, cada uma com busca na página.
+    Modalidade: dados do grupo (formulário), e as duas listas que dependem
+    dele — locais e regras de locação —, cada uma com busca na página.
 --}}
 @php
     $section = 'flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card sm:p-6';
@@ -13,7 +13,7 @@
 
     <x-page>
         <x-page-title :title="$item->name" :back="route('place-group.index')">
-            Dados da modalidade, locais, torneios e regras de locação.
+            Dados da modalidade, locais e regras de locação.
         </x-page-title>
 
         @include('partials.alerts')
@@ -29,10 +29,6 @@
 
         <section class="{{ $section }}">
             @include('location.placeGroup.partials.places', ['places' => $item->places])
-        </section>
-
-        <section class="{{ $section }}">
-            @include('location.placeGroup.partials.tournaments', ['tournaments' => $item->tournaments])
         </section>
 
         <section class="{{ $section }}">

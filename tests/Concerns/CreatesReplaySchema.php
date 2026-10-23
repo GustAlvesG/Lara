@@ -49,6 +49,8 @@ trait CreatesReplaySchema
             // 'Email'/'Name' em maiúscula, mas a coluna é esta.
             $table->string('email')->nullable();
             $table->timestamps();
+            // Member usa SoftDeletes (Contas do site).
+            $table->softDeletes();
         });
 
         Schema::create('schedules', function (Blueprint $table) {

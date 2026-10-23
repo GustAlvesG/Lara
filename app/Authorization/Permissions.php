@@ -54,6 +54,7 @@ final class Permissions
     // secretaria/coordenação.
     public const RESERVAS_SOCIAIS = 'reservas.sociais';
     public const RESERVAS_SOCIAIS_APROVAR = 'reservas.sociais.aprovar';
+    public const RESERVAS_CONTAS_SITE = 'reservas.contas-site';
 
     public const EXTERNOS_LIBERACAO_PONTUAL = 'externos.liberacao-pontual';
     public const EXTERNOS_HISTORICO = 'externos.historico';
@@ -102,6 +103,17 @@ final class Permissions
     public const PLACAR_CADASTRO = 'placar.cadastro';
     public const PLACAR_SCOUT = 'placar.scout';
 
+    // Torneios (módulo novo, 22/10/2026): o Lara é o backend do site de
+    // locação. Nascem sem setor; o Esporte recebe na tela de Setores.
+    // `gerenciar` cobre o catálogo de categorias, o torneio e o chaveamento.
+    public const TORNEIOS_GERENCIAR = 'torneios.gerenciar';
+    public const TORNEIOS_INSCRICOES = 'torneios.inscricoes';
+    // Lançar resultado no Lara; dá também o login da equipe no site.
+    public const TORNEIOS_RESULTADOS = 'torneios.resultados';
+    public const TORNEIOS_PAGAMENTOS_BAIXA_MANUAL = 'torneios.pagamentos.baixa-manual';
+    public const TORNEIOS_PAGAMENTOS_ESTORNAR = 'torneios.pagamentos.estornar';
+    public const TORNEIOS_FINANCEIRO = 'torneios.financeiro';
+
     // Replay (vídeos das quadras): formato, layouts de logomarca, câmeras e o
     // repositório dos clipes. Marketing e TI configuram; TI já alcança pelo
     // acesso total, o Marketing recebe na tela de Setores.
@@ -114,7 +126,6 @@ final class Permissions
 
     public const BANCO_HORAS_ADMIN = 'banco-horas.admin';
     public const TELEGRAM_LOGIN = 'telegram.login';
-    public const TORNEIOS = 'torneios';
     public const SOCIOS_CONSULTA = 'socios.consulta';
 
     public const USUARIOS_GERENCIAR = 'usuarios.gerenciar';
@@ -143,6 +154,7 @@ final class Permissions
         self::RESERVAS_CONFIGURAR => ['Reservas', 'Locais, grupos e regras de reserva'],
         self::RESERVAS_SOCIAIS => ['Reservas', 'Espaços sociais: consultar, pré-reservar e lista de convidados'],
         self::RESERVAS_SOCIAIS_APROVAR => ['Reservas', 'Espaços sociais: contrato, aprovar, recusar e cancelar'],
+        self::RESERVAS_CONTAS_SITE => ['Reservas', 'Contas do site: corrigir dados, senha provisória, cadastro manual e duplicadas'],
 
         self::EXTERNOS_LIBERACAO_PONTUAL => ['Externos', 'Liberação pontual'],
         self::EXTERNOS_HISTORICO => ['Externos', 'Histórico de acessos'],
@@ -176,6 +188,13 @@ final class Permissions
         self::PLACAR_CADASTRO => ['Placar Clube', 'Cadastro (equipes, times, jogadores, jogos)'],
         self::PLACAR_SCOUT => ['Placar Clube', 'Súmulas e scout'],
 
+        self::TORNEIOS_GERENCIAR => ['Torneios', 'Catálogo de categorias, torneios e chaveamento'],
+        self::TORNEIOS_INSCRICOES => ['Torneios', 'Inscrições e times (consultar, montar, remover, cancelar)'],
+        self::TORNEIOS_RESULTADOS => ['Torneios', 'Lançar e corrigir resultados; gerar o código de lançamento pelo site'],
+        self::TORNEIOS_PAGAMENTOS_BAIXA_MANUAL => ['Torneios', 'Baixa manual de inscrição (pago fora da eRede)'],
+        self::TORNEIOS_PAGAMENTOS_ESTORNAR => ['Torneios', 'Estornar pagamento de inscrição'],
+        self::TORNEIOS_FINANCEIRO => ['Torneios', 'Relatório financeiro dos torneios'],
+
         self::REPLAY => ['RePET', 'Câmeras, layouts de logomarca e vídeos das quadras'],
 
         self::FUNCIONARIOS_GERENCIAR => ['Funcionários', 'Cadastro de funcionários, férias, afastamentos e importação por planilha'],
@@ -183,7 +202,6 @@ final class Permissions
         self::BANCO_HORAS_ADMIN => ['Banco de Horas', 'Importar espelho de ponto'],
 
         self::TELEGRAM_LOGIN => ['Integrações', 'Login pela API do Telegram'],
-        self::TORNEIOS => ['Outros', 'Torneios e categorias'],
         self::SOCIOS_CONSULTA => ['Outros', 'Consulta de sócios e acessos'],
 
         self::USUARIOS_GERENCIAR => ['Administração', 'Gerenciar usuários'],

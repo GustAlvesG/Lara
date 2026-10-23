@@ -14,7 +14,7 @@ indicados como _stub_.
 - [Espaços](#placegroupcontroller) · [Place](#placecontroller) · [Regras](#schedulerulescontroller)
 - [Sócios](#membercontroller) · [Auth de Sócio](#memberauthcontroller--apphttpcontrollersauth) · [Login Token](#logintokencontroller)
 - [Freelancers](#freelancercontroller) · [Funções](#functionfreelancercontroller) · [Serviços de Freelancer](#freelancerservicecontroller)
-- [Banco de horas](#comptimecontroller) · [Torneios](#tournamentcontroller--apphttpcontrollerstournament)
+- [Banco de horas](#comptimecontroller) · [Torneios](#tournamentcategorytemplatecontroller)
 - [Empresas](#company---apphttpcontrollerscompany)
 - [WhatsApp](#whatsappcontroller) · [Telegram](#telegramcontactcontroller)
 - [Acessos](#accesscontroller) · [Estacionamento](#parkingcontroller)
@@ -243,25 +243,51 @@ rotas `employees.*` sob `/funcionarios`, todas com `can:funcionarios.gerenciar`.
 
 ---
 
-## TournamentController  (`app/Http/Controllers/Tournament/`)
+## Tournament\CategoryTemplateController
 
-Depende de `TournamentService`. Gerencia torneios e categorias.
+`app/Http/Controllers/Tournament/CategoryTemplateController.php` — catálogo de categorias de torneio de cada grupo de espaços esportivo (`?group=`). `index`/`store`/`update`/`destroy` (soft delete) em `/torneios/categorias`, permissão `torneios.gerenciar`. O grupo não muda na edição; nome único por grupo entre as não removidas.
 
-| Método | Assinatura | Descrição | Rota |
-|--------|-----------|-----------|------|
-| `index` | `index()` | Lista torneios. → View | `GET /tournaments` |
-| `create` | `create()` | Formulário de torneio. → View | `GET /tournaments/create` |
-| `store` | `store(Request $request)` | Cria torneio. → Redirect | `POST /tournaments` |
-| `show` | `show($id)` | Detalhes do torneio. → View | `GET /tournaments/{id}` |
-| `edit` | `edit($id)` | Formulário de edição. → View | `GET /tournaments/{id}/edit` |
-| `update` | `update(Request $request, $id)` | Atualiza torneio. → Redirect | `PUT /tournaments/{id}` |
-| `destroy` | `destroy($id)` | Remove torneio. → Redirect | `DELETE /tournaments/{id}` |
-| `indexCategories` | `indexCategories()` | Lista categorias. → View | `GET /tournaments/categories` |
-| `createCategory` | `createCategory()` | Formulário de categoria. → View | `GET /tournaments/categories/create` |
-| `storeCategory` | `storeCategory(Request $request)` | Cria categoria. → Redirect | `POST /tournaments/categories` |
-| `editCategory` | `editCategory($id)` | Formulário de edição de categoria. → View | `GET /tournaments/categories/{id}/edit` |
-| `updateCategory` | `updateCategory(Request $request, $id)` | Atualiza categoria. → Redirect | `PUT /tournaments/categories/{id}` |
-| `destroyCategory` | `destroyCategory($id)` | Remove categoria. → Redirect | `DELETE /tournaments/categories/{id}` |
+---
+
+## Tournament\TournamentController
+
+`app/Http/Controllers/Tournament/TournamentController.php` — torneios no painel (`torneios.gerenciar`): `index` (busca `q`, filtro `status`), `create`/`store` (nasce em rascunho), `show` (categorias ligadas, contagens, catálogo disponível), `edit`/`update` (grupo só muda sem categoria; imagem por `ImageSource`), `status` (passagens em `TournamentSetupService::TRANSITIONS`).
+
+## Tournament\TournamentCategoryController
+
+`store`/`update`/`destroy` das categorias ligadas a um torneio (`/torneios/{id}/categorias`, `torneios.gerenciar`), pelo `TournamentSetupService` (cópia do catálogo, campos do vínculo em `linkRules()`).
+
+## Tournament\TournamentRegistrationController
+
+Inscrições de um torneio (`torneios.inscricoes`): `index` (busca nome/CPF/matrícula, filtros de categoria e situação), `store` (balcão: MultiClubes + cadastro do site, liberação com `override_reason`), `cancel` (motivo; `refund` pede `torneios.pagamentos.estornar`), `manual` (baixa manual, `torneios.pagamentos.baixa-manual`).
+
+## Tournament\TournamentTeamController
+
+Times de uma categoria (`/torneios/{id}/categorias/{categoria}/times`, `torneios.inscricoes`): `index` (sem time e times), `store` (monta com os marcados), `draw` (sorteio entre pagos sem time), `update` (nome, cabeça de chave, capitão), `addMember`, `removeMember`, `destroy` (desfaz). Regras em `TournamentTeamService`.
+
+## Tournament\TournamentBracketController
+
+Chaveamento de uma categoria (`/torneios/{id}/categorias/{categoria}/chaveamento`, `torneios.gerenciar`): `show` (times, aviso de incompletos e de mudança desde a geração, grupos com classificação, chave por rodada; valores iniciais do "montar à mão"), `generate` (sorteio ou à mão), `destroy` (desfaz), `publish` (divulga ou recolhe do site), `schedule` (data, hora e local do jogo). Regras em `TournamentBracketService`.
+
+## Tournament\TournamentResultController
+
+Resultados no painel (`torneios.resultados`): `record` (placar ou W.O.; trava para o site), `clear`, `closeGroup` (ordem final → classificados no mata-mata), `reopenGroup`, `generateCode` (mostra o código uma vez, na sessão `results_code`), `revokeCode`. Recusas do `TournamentResultService` viram erro de formulário (`result`).
+
+## Tournament\TournamentFinanceController
+
+Relatório financeiro (`torneios.financeiro`): `index` (torneios com totais, filtro `?ano=`), `show` (por categoria e pagamentos), `csv`.
+
+## Api\TournamentStaffApiController
+
+Equipe do clube lançando resultado pelo site (`/api/tournaments/{id}/staff/*`): `check`, `matches`, `record`. Autoriza pelo código de lançamento (header `Tournament-Code`), não por login; o nome de quem lança (`operator_name`) vai para o histórico.
+
+## SiteAccountController
+
+Reservas › Contas do site (`reservas.contas-site`): `index`, `store` (cadastro manual), `show` (diagnóstico), `update`, `pull` (MultiClubes), `password` (senha provisória, na sessão `temporary_password`), `destroy` (desativa duplicada), `restore`. Regras em `SiteAccountService`; ver [contas-do-site.md](funcionalidades/contas-do-site.md).
+
+## Api\TournamentApiController
+
+`/api/tournaments/*` do site de locação: `index`, `show` (só `api_token`); `eligibility`, `register`, `mine`, `pay`, `withdraw` (com `login_token`; sócio sempre do JWT); times e convites (F4); `bracket` (F5, só `api_token`: chaveamento divulgado). Recusas como `TournamentException::toArray()`. Contrato em [torneios.md](funcionalidades/torneios.md#api-do-site-apitournamentapicontroller).
 
 ---
 

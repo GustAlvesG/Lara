@@ -23,7 +23,7 @@ Visão geral do esquema: migrações, seeders e factories. Os detalhes de cada e
 | **Funcionários** | `employees` (cadastro do RH; CPF só dígitos, `sector_id` obrigatório, `source`), `employee_absences` |
 | **Banco de horas** | `time_entries`, `time_adjustments`, `banco_de_horas` (e `employees`, acima) |
 | **Empresas** | `companies`, `company_workers`, `company_access_rules`, `week_days_company_access_rule` (pivô), `access`, `access_rules`, `outers` |
-| **Torneios** | `tournaments`, `categories`, `tournaments_categories` (pivô), `teams`, `team_member` (pivô), `tournament_subscription`, `tournament_subscription_payment` |
+| **Torneios** | `tournament_category_templates`, `tournaments`, `tournament_categories`, `tournament_registrations`, `tournament_payments`, `tournament_teams`, `tournament_team_members`, `tournament_team_invites`, `tournament_stages`, `tournament_groups`, `tournament_group_teams`, `tournament_matches`, `tournament_match_sets`, `tournament_match_result_logs` |
 | **WhatsApp** | `contacts`, `conversations`, `messages`, `media_attachments`, `templates`, `webhook_logs` |
 | **Telegram** | `contact_telegram` |
 | **Conteúdo** | `information`, `data_infos`, `general_settings` |
@@ -45,7 +45,11 @@ incremental do esquema (criação de tabelas + diversos `add_column`/`fix`). Des
 - `2025_12_23_*` — tabelas de permissões (Spatie).
 - `2026_01_13_*` — tabelas do WhatsApp.
 - `2026_01_14_*` — empresas, trabalhadores e regras de acesso.
-- `2026_02_23_*` — torneios.
+- `2026_02_23_*` — primeiro módulo de torneios; as tabelas foram apagadas por `2026_10_22_100000_drop_legacy_tournament_tables` (o módulo foi refeito do zero).
+- `2026_10_22_110000` — torneios (módulo novo): as 14 tabelas do módulo (`tournaments` e `tournament_*`), com nomes curtos de FK e índice e criação idempotente.
+- `2026_10_23_100000` — torneios, chaveamento (F5): `tournament_categories.bracket_published_at` e `tournament_matches.third_place` (idempotente).
+- `2026_10_23_110000` — torneios, resultados e relatório (F6/F7): `tournaments.results_code_*` e `tournament_registrations.refunded_amount` (idempotente).
+- `2026_10_23_120000` — Contas do site: `member_account_logs` (idempotente). `members.deleted_at` (de 2025) passa a ser usado pelo `SoftDeletes` do `Member`.
 - `2026_05_19_*` — freelancers, funções e serviços.
 - `2026_09_17_*` — Replay: configuração de vídeo, layouts de logomarca, câmeras, clipes e a
   permissão antiga `manage replay` (Spatie).

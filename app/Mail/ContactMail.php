@@ -35,7 +35,8 @@ class ContactMail extends Mailable implements ShouldQueue
         $subjectPrefix = match ($this->type) {
             'schedule.confirm', 'schedule.pending', 'schedule.cancel', 'replay.available',
             'social.requested', 'social.approved', 'social.refused', 'social.confirmed',
-            'social.expired', 'social.cancelled' => '',
+            'social.expired', 'social.cancelled',
+            'tournament.registered', 'tournament.paid', 'tournament.cancelled', 'tournament.invite' => '',
             default => '[Contato] ',
         };
 
@@ -58,6 +59,8 @@ class ContactMail extends Mailable implements ShouldQueue
             // Reserva de espaço social: um template só, que muda pelo tipo.
             'social.requested', 'social.approved', 'social.refused',
             'social.confirmed', 'social.expired', 'social.cancelled' => 'emails.social.status',
+            // Inscrição de torneio: idem (TournamentNotifier).
+            'tournament.registered', 'tournament.paid', 'tournament.cancelled', 'tournament.invite' => 'emails.tournament.status',
             'job'     => 'emails.hr_template',      // resources/views/emails/hr_template.blade.php
             default   => 'emails.general_contact',  // template padrão
         };

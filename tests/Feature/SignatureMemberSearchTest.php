@@ -43,6 +43,8 @@ class SignatureMemberSearchTest extends TestCase
             $table->string('Email')->nullable();
             $table->string('telephone')->nullable();
             $table->timestamps();
+            // Member usa SoftDeletes (Contas do site).
+            $table->softDeletes();
         });
 
         // Só o titular se cadastrou no aplicativo — com máscara no CPF, como acontece.

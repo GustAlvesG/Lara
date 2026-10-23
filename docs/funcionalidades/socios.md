@@ -51,6 +51,16 @@ pelo middleware `login_token`. Veja [Autenticação e Permissões](../04-autenti
 `id`, `title`, `cpf`, `birth_date`, `Name`, `Barcode`, `telephone`, `Email`,
 `Password` (hash). O campo `password` fica oculto nas respostas.
 
+## Contas do site (equipe do clube)
+
+Senha esquecida, login que não entra, e-mail errado e cadastro manual são resolvidos pela
+equipe em **Reservas › Contas do site** ([contas-do-site.md](contas-do-site.md)). Duas
+coisas que valem para todo o login:
+
+- o site manda a senha **já em SHA256**; o que o Lara grava para o site é
+  `Hash::make(sha256(senha))` (`SiteAccountService::siteHash`);
+- `Member` usa **SoftDeletes** desde 23/10/2026: conta desativada não entra no login.
+
 ## Regras de negócio
 
 - **Origem dos dados:** o cadastro depende da existência do sócio na base MultiClubes.
