@@ -142,8 +142,18 @@
                         {{ $signer->statusLabel() }}<br>
                     @endif
 
-                    @php $liberacao = $signer->signingRequest(); @endphp
-                    @if($liberacao && $liberacao->identity_method === \App\Models\SignatureRequest::IDENTITY_METHOD_DIRECTOR_PIN)
+                    @php
+                        $liberacao = $signer->signingRequest();
+                        $remota = (bool) $liberacao?->isRemote();
+                        $aparelho = $remota ? 'no aparelho de quem assinou' : 'no tablet';
+                    @endphp
+                    @if($remota)
+                        {{-- Assinatura remota: sem atendente nem QR — a pessoa abriu o link do e-mail no site do clube. --}}
+                        Assinatura remota, pelo link enviado a {{ $liberacao->remoteLink?->maskedEmail() ?? 'e-mail não registrado' }}
+                        por {{ $liberacao->created_by_name ?? 'não registrado' }} (usuário do sistema)
+                        em {{ $liberacao->remoteLink?->created_at?->format('d/m/Y H:i:s') ?? 'data não registrada' }};
+                        aberto pelo signatário em {{ $liberacao->consumed_at?->format('d/m/Y H:i:s') }}<br>
+                    @elseif($liberacao && $liberacao->identity_method === \App\Models\SignatureRequest::IDENTITY_METHOD_DIRECTOR_PIN)
                         {{-- Diretor: não houve QR — ele entrou no tablet com a matrícula e o PIN dele. --}}
                         Documento aberto pelo próprio diretor no tablet, em {{ $liberacao->created_at?->format('d/m/Y H:i:s') }}<br>
                     @elseif($liberacao)
@@ -157,7 +167,7 @@
                         Dispositivo: {{ \Illuminate\Support\Str::limit($evidencia->user_agent ?? 'não registrado', 90) }}<br>
                         Tempo de leitura: {{ $evidencia->read_seconds !== null ? $evidencia->read_seconds . ' segundo(s)' : 'não registrado' }}<br>
                         Rolou o documento até o fim: {{ $evidencia->scrolled_to_end ? 'sim' : 'não' }}
-                        (informado pelo navegador do tablet)<br>
+                        (informado pelo navegador {{ $remota ? 'de quem assinou' : 'do tablet' }})<br>
                         @if($liberacao && isset(\App\Models\SignatureRequest::IDENTITY_METHOD_LABELS[$liberacao->identity_method]))
                             Conferência de identidade: {{ \App\Models\SignatureRequest::IDENTITY_METHOD_LABELS[$liberacao->identity_method] }}<br>
                         @else
@@ -165,14 +175,14 @@
                         @endif
                         Aceite explícito dos termos: {{ $evidencia->accepted ? 'sim' : 'não' }}<br>
                         @if($evidencia->photo_consent)
-                            {{-- O texto é o que a pessoa leu no tablet, gravado na evidência. --}}
+                            {{-- O texto é o que a pessoa leu na tela, gravado na evidência. --}}
                             Autorização da captura da imagem: sim — “{{ $evidencia->photo_consent_text }}”<br>
                         @endif
                         Pontos capturados no traço: {{ $evidencia->strokePoints() }}
 
                         @if($evidencia->initials_path)
                             {{-- O visto é um desenho próprio, feito no tablet depois da assinatura; o sistema o repete nas páginas. --}}
-                            <br>Visto (rubrica) desenhado no tablet e aplicado pelo sistema a todas as páginas do documento
+                            <br>Visto (rubrica) desenhado {{ $aparelho }} e aplicado pelo sistema a todas as páginas do documento
                         @endif
 
                         @if($evidencia->photoSkipLabel())
@@ -205,6 +215,13 @@
         </tr>
     </thead>
     <tbody>
+        @php
+            // Eventos do signatário vindos do link remoto: a origem é o site, não o tablet.
+            $liberacoesRemotas = \App\Models\SignatureRequest::whereIn('signature_signer_id', $signers->pluck('id'))
+                ->where('identity_method', \App\Models\SignatureRequest::IDENTITY_METHOD_REMOTE_LINK)
+                ->pluck('id')
+                ->all();
+        @endphp
         @foreach($events as $event)
             <tr>
                 <td style="border:1px solid #eee4e3;padding:3px 6px;font-size:8.5px;white-space:nowrap;">
@@ -214,9 +231,11 @@
                     {{ $event->label() }}
                 </td>
                 <td style="border:1px solid #eee4e3;padding:3px 6px;font-size:8.5px;">
-                    {{ match($event->actor_type) {
-                        SignatureAuditEvent::ACTOR_USER => 'Atendente',
-                        SignatureAuditEvent::ACTOR_KIOSK => 'Tablet',
+                    {{ match(true) {
+                        $event->actor_type === SignatureAuditEvent::ACTOR_USER => 'Atendente',
+                        $event->actor_type === SignatureAuditEvent::ACTOR_KIOSK
+                            && in_array($event->signature_request_id, $liberacoesRemotas, true) => 'Link remoto',
+                        $event->actor_type === SignatureAuditEvent::ACTOR_KIOSK => 'Tablet',
                         default => 'Sistema',
                     } }}{{ $event->ip ? ' · ' . $event->ip : '' }}
                 </td>
@@ -228,7 +247,8 @@
 <p style="font-size:8px;color:#777;margin-top:12px;line-height:1.5;">
     A trilha acima é gravada em tabela somente inserção, com cada evento encadeado ao anterior por hash —
     uma alteração feita por fora do sistema quebra a conferência e fica detectável. A rolagem até o fim do
-    documento é informada pelo navegador do tablet: o servidor registra o que recebeu, com o horário dele.
+    documento é informada pelo navegador de quem assina (tablet ou, na assinatura remota, o aparelho da pessoa):
+    o servidor registra o que recebeu, com o horário dele.
 </p>
 
 @if(config('signature.pades.enabled'))

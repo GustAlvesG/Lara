@@ -271,6 +271,34 @@ A galeria por quadra é **aberta a qualquer visitante do site** e nunca revela q
 reserva (só o booleano `has_member`). `my-videos` resolve o sócio pelo **próprio JWT** — não há
 id na URL, para que trocar um número não dê acesso aos vídeos de outro.
 
+### Assinatura remota — site externo (`signature_remote_api`)
+
+Chamada pelo **servidor** do site, com token próprio (`Authorization: Bearer
+<SIGNATURE_REMOTE_API_TOKEN>`, não o `API_TOKEN`) e, se configurada, só do IP do site
+(`SIGNATURE_REMOTE_ALLOWED_IPS`). **S** = sessão no header `X-Signature-Session`
+(`signature_remote_session`). Limites por IP de quem assina (`X-Signer-Ip`) + rota. Contrato em
+[assinatura-remota-prompt-site.md](funcionalidades/assinatura-remota-prompt-site.md).
+
+| Método | URI | Ação | Sessão | Limite |
+|--------|-----|------|--------|--------|
+| POST | `/api/assinatura/remota/link` | Api\RemoteSignatureApiController@link | — | 20/min |
+| POST | `/api/assinatura/remota/abrir` | Api\RemoteSignatureApiController@open | — | 20/min |
+| GET | `/api/assinatura/remota/sessao` | Api\RemoteSignatureApiController@session | S | 120/min |
+| GET | `/api/assinatura/remota/pdf` | Api\RemoteSignatureApiController@pdf | S | 120/min |
+| POST | `/api/assinatura/remota/respostas` | Api\RemoteSignatureApiController@answers | S | 120/min |
+| POST | `/api/assinatura/remota/visualizado` | Api\RemoteSignatureApiController@viewed | S | 120/min |
+| POST | `/api/assinatura/remota/identidade` | Api\RemoteSignatureApiController@identity | S | 120/min |
+| GET | `/api/assinatura/remota/anexos` | Api\RemoteSignatureApiController@attachments | S | 120/min |
+| POST | `/api/assinatura/remota/anexos` | Api\RemoteSignatureApiController@storeAttachment | S | 120/min |
+| DELETE | `/api/assinatura/remota/anexos/{anexo}` | Api\RemoteSignatureApiController@destroyAttachment | S | 120/min |
+| POST | `/api/assinatura/remota/assinar` | Api\RemoteSignatureApiController@sign | S | 120/min |
+| POST | `/api/assinatura/remota/recusar` | Api\RemoteSignatureApiController@refuse | S | 120/min |
+| POST | `/api/assinatura/remota/encerrar` | Api\RemoteSignatureApiController@leave | S | 120/min |
+
+No painel (web, `auth`, policy `release`): `POST /assinatura/documentos/{doc}/signatarios/{s}/link-remoto`
+(`signature-documents.remote-link.store`) e `DELETE /assinatura/documentos/{doc}/links-remotos/{link}`
+(`signature-documents.remote-link.destroy`).
+
 ### Com `api_token` (T)
 | Método | URI | Ação |
 |--------|-----|------|
@@ -392,5 +420,6 @@ Contrato completo em [torneios.md](funcionalidades/torneios.md#api-do-site-apito
 | `inspire` | Exibe uma frase inspiradora (comando padrão do Laravel). | — |
 | `social:contact-reminders` | Avisa no sino quem tem `reservas.sociais` das pré-reservas com prazo de contato vencido (uma vez cada). | a cada 15 minutos |
 | `social:expire-bookings` | Expira reserva de espaço social aprovada e não paga até `payment_due_at` (libera a data e avisa o sócio). | a cada 5 minutos |
+| `social:copy-config --from=lara_hml --to=lara [--dry-run] [--force]` | Copia a configuração dos espaços sociais (grupos, dias, espaços, conflitos, catálogo) de um banco para outro, casando pelo nome; não apaga nem copia reservas. | manual |
 
 > Não há comandos de console customizados (`app/Console/Commands/` não contém classes próprias).

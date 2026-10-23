@@ -91,6 +91,7 @@ use App\Http\Controllers\Signature\MinorTermController;
 use App\Http\Controllers\Signature\MinorTermKioskController;
 use App\Http\Controllers\Signature\QuiosqueController;
 use App\Http\Controllers\Signature\ReleaseController as SignatureReleaseController;
+use App\Http\Controllers\Signature\RemoteLinkController as SignatureRemoteLinkController;
 use App\Http\Controllers\Signature\ReviewController as SignatureReviewController;
 use App\Http\Controllers\Signature\TemplateController as SignatureTemplateController;
 use App\Http\Controllers\Signature\ValidationController as SignatureValidationController;
@@ -1351,6 +1352,16 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::delete('/liberacoes/{signatureRequest}', [SignatureReleaseController::class, 'destroy'])
                 ->whereNumber('signatureRequest')
                 ->middleware('throttle:30,1')->name('release.cancel');
+
+            // Assinatura remota: o link por e-mail que abre a tela de quem
+            // assina no site externo. Enviar de novo substitui o anterior —
+            // ver RemoteSignatureService.
+            Route::post('/signatarios/{signatureSigner}/link-remoto', [SignatureRemoteLinkController::class, 'store'])
+                ->whereNumber('signatureSigner')
+                ->middleware('throttle:10,1')->name('remote-link.store');
+            Route::delete('/links-remotos/{signatureRemoteLink}', [SignatureRemoteLinkController::class, 'destroy'])
+                ->whereNumber('signatureRemoteLink')
+                ->middleware('throttle:30,1')->name('remote-link.destroy');
 
             // Aba "Assinatura gov.br": preparar o documento para o gov.br e
             // enviar o PDF que voltou assinado. Aprovado, o envio conclui a

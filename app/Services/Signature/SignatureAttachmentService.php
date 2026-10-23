@@ -7,6 +7,8 @@ use App\Jobs\FinalizeSignatureDocument;
 use App\Models\SignatureAttachment;
 use App\Models\SignatureAuditEvent;
 use App\Models\SignatureDocument;
+use App\Models\SignatureRequest;
+use App\Models\SignatureSigner;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -32,6 +34,12 @@ use Illuminate\Support\Str;
  *    remove: o que entrou fica, com o hash na trilha;
  *  - finalizado, cancelado, expirado, recusado: nada muda. O manifesto
  *    imprime o hash de cada anexo, e um anexo novo depois dele ficaria de fora.
+ *
+ * Na assinatura remota, o próprio signatário também envia, pela tela do link
+ * (`$via` = a liberação remota): só os itens pedidos, nunca avulso. Ele pode
+ * apagar o que ELE enviou enquanto não assinou (`removeOwn`) — o que o
+ * atendente enviou não é dele para apagar. E no remoto o obrigatório trava a
+ * ASSINATURA, não só a conclusão (ver RemoteSignatureService::sign).
  */
 class SignatureAttachmentService
 {
@@ -102,6 +110,8 @@ class SignatureAttachmentService
      *
      * @param  ?string  $key    o item pedido; null = anexo avulso, com `$label`
      * @param  ?string  $label  o nome do anexo avulso
+     * @param  ?SignatureRequest  $via  a liberação remota, quando quem envia é o signatário
+     * @param  array{ip?: ?string, user_agent?: ?string}  $context  de quem assina, no envio remoto
      *
      * @throws SignatureDocumentLockedException
      */
@@ -112,9 +122,27 @@ class SignatureAttachmentService
         ?string $label = null,
         ?int $userId = null,
         ?string $userName = null,
+        ?SignatureRequest $via = null,
+        array $context = [],
     ): SignatureAttachment {
         if ($motivo = $this->uploadBlockReason($document)) {
             throw new SignatureDocumentLockedException($motivo);
+        }
+
+        $signatario = $via?->signer;
+
+        if ($signatario) {
+            // O signatário envia só o que foi pedido, e só antes de assinar.
+            if ($key === null) {
+                throw new SignatureDocumentLockedException('Escolha qual dos anexos pedidos você está enviando.');
+            }
+
+            if ($signatario->status !== SignatureSigner::STATUS_PENDING) {
+                throw new SignatureDocumentLockedException('Depois de assinar, os anexos são enviados pelo clube.');
+            }
+
+            $userId = null;
+            $userName = $signatario->name . ' (signatário, pelo link)';
         }
 
         if ($key !== null) {
@@ -144,7 +172,7 @@ class SignatureAttachmentService
 
         Storage::disk(config('signature.disk'))->put($caminho, $bytes);
 
-        $anexo = DB::transaction(function () use ($document, $file, $key, $label, $caminho, $mime, $bytes, $hash, $userId, $userName) {
+        $anexo = DB::transaction(function () use ($document, $file, $key, $label, $caminho, $mime, $bytes, $hash, $userId, $userName, $signatario, $via, $context) {
             $anexo = SignatureAttachment::create([
                 'signature_document_id' => $document->id,
                 'requirement_key' => $key,
@@ -156,11 +184,11 @@ class SignatureAttachmentService
                 'sha256' => $hash,
                 'uploaded_by' => $userId,
                 'uploaded_by_name' => $userName,
+                'uploaded_by_signer_id' => $signatario?->id,
             ]);
 
             // Sem o nome do arquivo: costuma trazer o nome da pessoa.
-            $this->states->note($document, SignatureAuditEvent::EVENT_ATTACHMENT_ADDED, [
-                'actor_id' => $userId,
+            $this->states->note($document, SignatureAuditEvent::EVENT_ATTACHMENT_ADDED, array_merge($this->origin($userId, $via, $context), [
                 'payload' => [
                     'anexo' => $anexo->id,
                     'item' => $anexo->label,
@@ -169,7 +197,7 @@ class SignatureAttachmentService
                     'sha256' => $hash,
                     'enviado_por' => $userName,
                 ],
-            ]);
+            ]));
 
             return $anexo;
         });
@@ -211,5 +239,78 @@ class SignatureAttachmentService
         });
 
         Storage::disk(config('signature.disk'))->delete($attachment->path);
+    }
+
+    /**
+     * Por que o signatário não pode apagar este anexo. null = pode: é dele
+     * (enviado pela tela do link), ele ainda não assinou e o documento ainda
+     * aceita anexo.
+     */
+    public function ownRemoveBlockReason(SignatureAttachment $attachment, SignatureRequest $via): ?string
+    {
+        $signatario = $via->signer;
+
+        if ($attachment->signature_document_id !== $signatario->signature_document_id
+            || $attachment->uploaded_by_signer_id !== $signatario->id) {
+            return 'Só é possível apagar o anexo que você mesmo enviou.';
+        }
+
+        if ($signatario->status !== SignatureSigner::STATUS_PENDING) {
+            return 'Depois de assinar, os anexos não mudam mais por aqui.';
+        }
+
+        return $this->uploadBlockReason($attachment->document);
+    }
+
+    /**
+     * O signatário apaga o anexo que ele mesmo enviou, antes de assinar — é
+     * assim que ele troca um arquivo errado. A trilha guarda que existiu.
+     *
+     * @param  array{ip?: ?string, user_agent?: ?string}  $context
+     *
+     * @throws SignatureDocumentLockedException
+     */
+    public function removeOwn(SignatureAttachment $attachment, SignatureRequest $via, array $context = []): void
+    {
+        if ($motivo = $this->ownRemoveBlockReason($attachment, $via)) {
+            throw new SignatureDocumentLockedException($motivo);
+        }
+
+        DB::transaction(function () use ($attachment, $via, $context) {
+            $this->states->note($attachment->document, SignatureAuditEvent::EVENT_ATTACHMENT_REMOVED, array_merge($this->origin(null, $via, $context), [
+                'payload' => [
+                    'anexo' => $attachment->id,
+                    'item' => $attachment->label,
+                    'sha256' => $attachment->sha256,
+                    'removido_por' => $via->signer->name . ' (signatário, pelo link)',
+                ],
+            ]));
+
+            $attachment->delete();
+        });
+
+        Storage::disk(config('signature.disk'))->delete($attachment->path);
+    }
+
+    /**
+     * Quem fez, para a trilha: o atendente, ou o signatário pela tela do link
+     * (com o IP e o navegador dele).
+     *
+     * @param  array{ip?: ?string, user_agent?: ?string}  $context
+     * @return array<string, mixed>
+     */
+    private function origin(?int $userId, ?SignatureRequest $via, array $context): array
+    {
+        if (!$via) {
+            return ['actor_id' => $userId];
+        }
+
+        return [
+            'signer' => $via->signature_signer_id,
+            'request' => $via->id,
+            'actor_type' => SignatureAuditEvent::ACTOR_KIOSK,
+            'ip' => $context['ip'] ?? null,
+            'user_agent' => $context['user_agent'] ?? null,
+        ];
     }
 }

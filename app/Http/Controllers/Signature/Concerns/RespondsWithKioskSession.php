@@ -31,13 +31,18 @@ trait RespondsWithKioskSession
         $documento = $signatario->document;
         $modelo = $documento->template;
 
+        $versao = substr((string) $documento->original_sha256, 0, 12);
+
         return [
             'document' => [
                 'id' => $documento->id,
                 'title' => $documento->title,
                 // O hash na URL faz o tablet buscar o arquivo de novo depois
-                // que as respostas do formulário refazem o documento.
-                'pdf_url' => route('quiosque.pdf', $documento) . '?v=' . substr((string) $documento->original_sha256, 0, 12),
+                // que as respostas do formulário refazem o documento. No link
+                // remoto não há URL: o site busca o PDF pela API, com a sessão,
+                // e usa `pdf_version` para saber que mudou.
+                'pdf_url' => $solicitacao->isRemote() ? null : route('quiosque.pdf', $documento) . '?v=' . $versao,
+                'pdf_version' => $versao,
             ],
             // As perguntas que o modelo faz a quem assina — null quando não há
             // nenhuma, ou quando alguém já assinou e o texto não muda mais.
@@ -54,9 +59,13 @@ trait RespondsWithKioskSession
                 'has_email' => $signatario->email !== null && $signatario->email !== '',
             ],
             'rules' => [
-                'identity_check' => $modelo->identity_check,
-                // Do modelo, salvo para o diretor: para ele a foto é sempre exigida.
-                'requires_photo' => $signatario->requiresPhoto(),
+                // No link remoto, sempre o CPF completo (SignatureCaptureService).
+                'identity_check' => $solicitacao->isRemote()
+                    ? \App\Models\SignatureTemplate::IDENTITY_FULL
+                    : $modelo->identity_check,
+                // Do modelo, salvo para o diretor e o link remoto: para eles a
+                // foto é sempre exigida.
+                'requires_photo' => $signatario->requiresPhoto($solicitacao),
                 'requires_initials' => $documento->requiresInitials(),
                 // Já conferida antes de o documento existir — o CPF completo
                 // digitado no autoatendimento do Termo de Menores. O tablet

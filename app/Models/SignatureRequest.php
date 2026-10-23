@@ -46,8 +46,18 @@ class SignatureRequest extends Model
      */
     public const IDENTITY_METHOD_DIRECTOR_PIN = 'matricula_pin';
 
+    /**
+     * Assinatura remota: a liberação nasceu da abertura de um link enviado por
+     * e-mail (`signature_remote_link_id`), no site externo. A identidade é
+     * sempre o CPF COMPLETO, qualquer que seja a regra do modelo, e a foto é
+     * sempre exigida — não há atendente vendo quem assina. Ver
+     * RemoteSignatureService.
+     */
+    public const IDENTITY_METHOD_REMOTE_LINK = 'link_email';
+
     public const IDENTITY_METHOD_LABELS = [
         self::IDENTITY_METHOD_DIRECTOR_PIN => 'Matrícula e PIN do Lara (entrada do diretor no tablet)',
+        self::IDENTITY_METHOD_REMOTE_LINK => 'CPF completo, digitado por quem abriu o link de assinatura remota enviado por e-mail',
     ];
 
     protected $fillable = [
@@ -63,6 +73,7 @@ class SignatureRequest extends Model
         'identity_confirmed_at',
         'identity_attempts',
         'identity_method',
+        'signature_remote_link_id',
         'identity_code_hash',
         'identity_code_expires_at',
         'identity_code_sent_at',
@@ -92,6 +103,7 @@ class SignatureRequest extends Model
         'identity_code_expires_at' => 'datetime',
         'identity_code_sent_at' => 'datetime',
         'identity_code_sends' => 'integer',
+        'signature_remote_link_id' => 'integer',
         'created_by' => 'integer',
     ];
 
@@ -112,6 +124,22 @@ class SignatureRequest extends Model
     public function signer(): BelongsTo
     {
         return $this->belongsTo(SignatureSigner::class, 'signature_signer_id');
+    }
+
+    /**
+     * O link de assinatura remota de que esta liberação nasceu. Nulo = tablet.
+     *
+     * @return BelongsTo<SignatureRemoteLink, SignatureRequest>
+     */
+    public function remoteLink(): BelongsTo
+    {
+        return $this->belongsTo(SignatureRemoteLink::class, 'signature_remote_link_id');
+    }
+
+    /** Aberta pelo link de assinatura remota, no site externo — não no tablet. */
+    public function isRemote(): bool
+    {
+        return $this->identity_method === self::IDENTITY_METHOD_REMOTE_LINK;
     }
 
     public function statusLabel(): string

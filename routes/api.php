@@ -36,6 +36,7 @@ use App\Http\Controllers\InformationSearchController;
 use App\Http\Controllers\Api\PurchaseApprovalController;
 use App\Http\Controllers\Api\MemberLightingController;
 use App\Http\Controllers\Api\SocialBookingApiController;
+use App\Http\Controllers\Api\RemoteSignatureApiController;
 use App\Http\Controllers\Api\TournamentApiController;
 use App\Http\Controllers\Api\TournamentStaffApiController;
 use App\Http\Controllers\Fleet\FleetApiController;
@@ -241,6 +242,48 @@ Route::prefix('aprovacao')->group(function () {
             ->where('ordem', '[0-9]+')->name('api.aprovacao.decide');
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Assinatura remota — site externo (Next.js em DMZ)
+|--------------------------------------------------------------------------
+|
+| A tela de quem assina, aberta pelo link enviado por e-mail, sem login. Quem
+| chama é o SERVIDOR do site, com token PRÓPRIO (`SIGNATURE_REMOTE_API_TOKEN`)
+| — fora do grupo `api_token` pelo mesmo motivo da aprovação de compras. O
+| site repassa o IP e o navegador de quem assina em `X-Signer-Ip` e
+| `X-Signer-User-Agent`. Ver RemoteSignatureApiController.
+|
+| `link` e `abrir` recebem o token do e-mail no CORPO; o resto pede a sessão
+| em `X-Signature-Session`. Os limites são por IP de quem assina + rota
+| (`signature-remote*`, AppServiceProvider): tudo chega do mesmo IP do site.
+|
+*/
+Route::prefix('assinatura/remota')
+    ->middleware('signature_remote_api')
+    ->name('api.assinatura-remota.')
+    ->group(function () {
+        Route::post('/link', [RemoteSignatureApiController::class, 'link'])
+            ->middleware('throttle:signature-remote-open')->name('link');
+        Route::post('/abrir', [RemoteSignatureApiController::class, 'open'])
+            ->middleware('throttle:signature-remote-open')->name('open');
+
+        Route::middleware(['signature_remote_session', 'throttle:signature-remote'])->group(function () {
+            Route::get('/sessao', [RemoteSignatureApiController::class, 'session'])->name('session');
+            Route::get('/pdf', [RemoteSignatureApiController::class, 'pdf'])->name('pdf');
+            Route::post('/respostas', [RemoteSignatureApiController::class, 'answers'])->name('answers');
+            Route::post('/visualizado', [RemoteSignatureApiController::class, 'viewed'])->name('viewed');
+            Route::post('/identidade', [RemoteSignatureApiController::class, 'identity'])->name('identity');
+            // Anexos pedidos pelo documento: a pessoa envia e apaga os DELA, antes de assinar.
+            Route::get('/anexos', [RemoteSignatureApiController::class, 'attachments'])->name('attachments');
+            Route::post('/anexos', [RemoteSignatureApiController::class, 'storeAttachment'])->name('attachments.store');
+            Route::delete('/anexos/{anexo}', [RemoteSignatureApiController::class, 'destroyAttachment'])
+                ->whereNumber('anexo')->name('attachments.destroy');
+            Route::post('/assinar', [RemoteSignatureApiController::class, 'sign'])->name('sign');
+            Route::post('/recusar', [RemoteSignatureApiController::class, 'refuse'])->name('refuse');
+            Route::post('/encerrar', [RemoteSignatureApiController::class, 'leave'])->name('leave');
+        });
+    });
 
 /*
 |--------------------------------------------------------------------------

@@ -466,6 +466,34 @@ class SignatureCaptureTest extends TestCase
         );
     }
 
+    /**
+     * Modelo "Sem conferência": o tablet pula a etapa de identidade, e a
+     * assinatura tem de entrar sem ela. Antes, parava em "Confirme a
+     * identidade" (documento 31 de produção, 21/10/2026).
+     */
+    public function test_modelo_sem_conferencia_assina_sem_a_etapa_de_identidade(): void
+    {
+        ['document' => $documento, 'cookie' => $cookie] = $this->sessaoAberta([
+            'identity_check' => \App\Models\SignatureTemplate::IDENTITY_NONE,
+        ]);
+
+        $this->comSessao($cookie)
+            ->postJson(route('quiosque.sign', $documento), [
+                'signature' => $this->pngValido(),
+                'strokes' => $this->tracos(),
+                'photo' => $this->jpegValido(), 'photo_consent' => true,
+                'accepted' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $this->assertSame(SignatureSigner::STATUS_SIGNED, $documento->signers()->first()->status);
+
+        // A trilha registra a conferência, no modo "sem conferência".
+        $evento = $documento->auditEvents()->where('event', \App\Models\SignatureAuditEvent::EVENT_IDENTITY_CONFIRMED)->firstOrFail();
+        $this->assertSame('none', $evento->payload['modo']);
+    }
+
     public function test_assinatura_vazia_e_recusada(): void
     {
         ['document' => $documento, 'cookie' => $cookie] = $this->sessaoAberta();
