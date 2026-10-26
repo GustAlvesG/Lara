@@ -56,7 +56,7 @@ Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Revisão, Modelos,
 | `assinatura/kiosk/menores` → `quiosque.menores.*` | **público**, só tablet pareado | Termo de Menores no tablet: `parear` dá o cookie `lara_minor_device`; o resto passa por `signature_minor_device`; `documento` dá o `lara_sign` |
 | `assinatura/termo-menores` → `minor-terms.*` | atendente | Termos (`gerenciar`), tablets (`parear`), histórico e foto (`historico`) |
 | `/validar/{codigo}` → `signature.validate(.verify)` | **público** | Mostra pouco; PDF enviado só é hasheado e descartado |
-| `assinatura/kiosk/diretoria` → `quiosque.diretoria.*` | **público** | `entrar` (matrícula + PIN → cookie `lara_director`), `pendentes`, `abrir/{signer}` (devolve o `lara_sign`), `sair`. `DirectorKioskController` |
+| `assinatura/kiosk/diretoria` → `quiosque.diretoria.*` | **público** | `entrar` (matrícula + PIN → cookie `lara_director`), `pendentes` (pendentes + `signed`), `abrir/{signer}` (devolve o `lara_sign`), `lote/*` → `batch.*` (assinatura em lote), `sair`. `DirectorKioskController` |
 | `assinatura/diretoria` → `signature-directors.*` | `assinatura.diretoria` | Áreas e mandatos. `DirectorAreaController` |
 | `.../{doc}/signatarios/{s}/link-remoto` (POST), `.../{doc}/links-remotos/{link}` (DELETE) → `signature-documents.remote-link.*` | atendente (`release`) | Enviar e revogar o link de assinatura remota. `RemoteLinkController` |
 | `/api/assinatura/remota/*` → `api.assinatura-remota.*` | **servidor do site** (token próprio) | `link`, `abrir` (token no corpo); `sessao`, `pdf`, `respostas`, `visualizado`, `identidade`, `assinar`, `recusar`, `encerrar` (header `X-Signature-Session`). `Api\RemoteSignatureApiController` |
@@ -94,8 +94,13 @@ signatário:  pending → signed | refused | canceled | expired
 4. **Tablet** (`QuiosqueController` + `resources/views/quiosque/index.blade.php`): formulário de perguntas
    (se houver) → leitura do PDF → identidade (`Cpf::matches`, 5 tentativas) → aceite (+ autorização de imagem
    se pede foto) → traço (≥ 30 pontos) → visto (se exigido) → foto (botão "Tirar foto" inicia a contagem de 3 s; não é
-   automática). Gravação numa transação só
-   (`SignatureCaptureService`).
+   automática; depois vem a **prévia**, com "Tirar nova foto" e "Usar esta foto" — só o "Usar" envia). Gravação numa
+   transação só (`SignatureCaptureService`).
+   **Toda etapa tem "Voltar" (26/10/2026):** identidade e aceite voltam ao documento (a identidade já conferida não é
+   pedida de novo, `S.identidadeOk`), traço volta ao aceite, visto volta ao traço, foto volta ao visto (ou ao traço).
+   No primeiro passo (formulário, ou documento sem formulário) voltar é **sair do documento**: confirmação
+   (`#sheetSair`) e `quiosque.leave` — a liberação cai, o documento segue pendente (não é recusa). No balcão o
+   atendente gera outro QR; na diretoria volta à lista.
 5. **Finalizar** (job `FinalizeSignatureDocument`, idempotente): PDF final re-renderizado do mesmo snapshot,
    traços no lugar, manifesto, `final_sha256`. Depois `SendSignatureCopy` (e-mail) e `ArchiveSignatureDocument` (FTP).
 
@@ -119,6 +124,11 @@ chave `mod_…`, versionado) e no **documento** (`signature_documents.attachment
 documento (`AttachmentController`, policy `attach` = `assinatura.documentos`); arquivos em `signature_attachments` +
 disco privado `documents/{id}/anexos/`, com SHA-256.
 - Rascunho: envia e remove. Aguardando assinatura e Assinado: só envia. Finalizado/encerrado: nada.
+- **Vários arquivos de uma vez** (26/10/2026): o formulário manda `arquivos[]` (`multiple`, até
+  `AttachmentController::MAX_FILES_PER_UPLOAD` = 10); cada arquivo vira um anexo próprio (hash e evento próprios) e um
+  recusado não segura os outros (flash `warning` com o nome do arquivo). `arquivo` (um só) continua aceito.
+- **Na tela do documento**, congelado, o cartão de anexos fica ACIMA do texto do documento; no rascunho, abaixo
+  (26/10/2026).
 - Assinatura remota: a própria pessoa envia pela tela do link e troca o que ela enviou; lá o obrigatório
   trava a assinatura — ver "Assinatura remota".
 - Obrigatório trava a **conclusão** (não o `freeze`): `FinalizeSignatureDocument` sai cedo se
@@ -155,10 +165,12 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
   quem já assinou pelo gov.br continua no arquivo (o próximo assina o arquivo do anterior). **Ordem livre**, mas um de
   cada vez: dois assinando o mesmo arquivo em paralelo → o segundo é recusado pela regra anterior. O motivo de não
   concluir fica em `signature_govbr_checks.conclusion` e aparece na aba.
-- **Convite por e-mail** (`GovbrInviteService`, um botão por pendente na aba, qualquer ordem): PDF a assinar anexado
+- **Convite por e-mail** (`GovbrInviteService`, um botão por pendente na aba, qualquer ordem — salvo o diretor, que
+  espera quem é de fora da diretoria): PDF a assinar anexado
   (`SignatureDocument::govbrFileToSign` — original, ou o arquivo do anterior) + passo a passo. **Sem link**: o Lara
-  não é acessível de fora; a pessoa responde ao e-mail (`Reply-To` = atendente que enviou) e o atendente envia o
-  arquivo na aba. E-mail **síncrono, dentro da transação** (falhou → nada registrado). `signature_govbr_invites`
+  não é acessível de fora. **O arquivo assinado NÃO volta por e-mail** (decisão do usuário, 26/10/2026): o texto diz
+  "Entregue esse arquivo ao atendimento do clube", e o atendente o envia na aba. O `Reply-To` (atendente que
+  enviou) ficou só para dúvidas; o parâmetro `replyGoesToAttendant` do mailable saiu. E-mail **síncrono, dentro da transação** (falhou → nada registrado). `signature_govbr_invites`
   só registra para quem/quando/por quem. A migration `2026_10_10_100300` tirou da homologação as colunas do link e
   o valor `signer` do enum da trilha (uma versão anterior tinha link público).
 - `signed_at` = hora declarada na assinatura do gov.br; `signature_signers.govbr_check_id` diz que foi pelo
@@ -423,6 +435,24 @@ pendentes dele. Doc completa: seção "Assinatura Diretoria" de `docs/funcionali
   `SignatureRequestService::issue(..., $identityMethod)`) passa — na emissão, na leitura (`open`) e no middleware
   `EnsureSignatureKioskSession`. `partials/release` tira o diretor da lista "Quem vai assinar agora".
 - **gov.br:** documento preparado sai da lista; o diretor assina pelo mecanismo do gov.br (CPF dele).
+- **Diretoria depois de quem é de fora dela (26/10/2026):** com signatário não-diretor pendente, o documento NÃO chegou
+  à diretoria — fora da lista do tablet (`pending` usa `SignatureDocument::scopeReleasedToDirectors`), não abre
+  (`SignatureSigner::releaseBlockReason` diz de quem espera), sem e-mail de aviso, sem convite gov.br ao diretor
+  (`GovbrInviteService::blockReason`) e fora do filtro "Aguardando diretoria". Fonte única:
+  `SignatureDocument::pendingNonDirectors()` / `releasedToDirectors()`. O aviso: `NotifySignatureDirector::forReleased`
+  (no `freeze` e no fim de cada `capture` de não-diretor que não fechou o documento); o job também confere e sai
+  sem marcar nada se ainda falta alguém. Painel: o cartão do diretor diz "Vai para a diretoria depois da assinatura de…".
+- **Assinatura em lote (26/10/2026):** na lista o diretor marca vários (só os sem perguntas a responder —
+  `DirectorKioskService::batchable`; o visto não impede) e toca "Assinar selecionados": lê um por um ("Documento 1 de N"),
+  um aceite, um traço, um visto (se algum pedir), uma foto, e o servidor grava **uma captura por documento** (mesmo
+  `SignatureCaptureService::capture`, evento `signed` com `em_lote` = N; leitura com `em_lote` no `viewed`). Sem via
+  por e-mail e sem recusa no lote (recusa é de um documento: abre-se sozinho). Rotas `quiosque.diretoria.batch.*`
+  (`lote`, `lote/{signer}/pdf`, `lote/{signer}/visualizado`, `lote/assinar`, `lote/cancelar`), todas pelo cookie
+  `lara_director` — sem `lara_sign` e sem batimento. Nada no cache: a liberação viva de cada documento é achada no
+  banco (`batchRequest`: do diretor, `matricula_pin`, consumida, no prazo). Abrir é tudo-ou-nada (cancela o que abriu);
+  assinar é documento a documento (o que falhar volta no resultado). Máximo `BATCH_MAX` = 20. Um marcado só = fluxo avulso.
+- **"Já assinados" (26/10/2026):** aba na lista do tablet (`signedPayload`: últimos 90 dias, até 50) com a situação
+  (falta quem, gerando via final, concluído, recusado…). Só leitura, sem PDF.
 - **Painel:** tela Assinaturas → Diretoria (áreas, mandatos, histórico, pendentes de quem saiu do mandato); filtro
   "Aguardando diretoria" (`status=diretoria`) na lista de documentos; aviso no cartão do signatário-diretor.
 - Config: `SIGNATURE_DIRECTOR_TTL_DAYS`, `SIGNATURE_DIRECTOR_SESSION_MINUTES`, `SIGNATURE_DIRECTOR_MAX_LOGIN_ATTEMPTS`,

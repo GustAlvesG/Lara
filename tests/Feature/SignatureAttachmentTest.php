@@ -235,6 +235,45 @@ class SignatureAttachmentTest extends TestCase
         $this->assertStringNotContainsString('Maria', json_encode($evento->payload));
     }
 
+    /** Vários arquivos num envio só (26/10/2026): um anexo por arquivo; o recusado não segura os outros. */
+    public function test_varios_arquivos_de_uma_vez_viram_um_anexo_cada(): void
+    {
+        $documento = $this->criaDocumentoDeAssinatura(['template' => $this->modeloComAnexos()]);
+
+        $this->atendente()->post(route('signature-documents.attachments.store', $documento), [
+            'item' => 'mod_documento_de_identidade',
+            'arquivos' => [
+                $this->pdf('rg-frente.pdf'),
+                UploadedFile::fake()->image('rg-verso.jpg'),
+                UploadedFile::fake()->createWithContent('falso.pdf', 'só texto'),
+            ],
+        ])
+            ->assertSessionHas('success', '2 arquivos enviados em "Documento de identidade".')
+            ->assertSessionHas('warning', 'falso.pdf: Envie PDF, JPG ou PNG.');
+
+        $this->assertSame(2, SignatureAttachment::where('requirement_key', 'mod_documento_de_identidade')->count());
+        $this->assertSame(2, SignatureAuditEvent::where('event', SignatureAuditEvent::EVENT_ATTACHMENT_ADDED)->count());
+
+        // O formulário aceita vários.
+        $this->atendente()->get(route('signature-documents.show', $documento))
+            ->assertOk()
+            ->assertSee('name="arquivos[]" multiple', false);
+    }
+
+    /** Congelado, os anexos vêm antes do texto do documento; no rascunho, depois. */
+    public function test_anexos_acima_do_texto_so_depois_do_congelamento(): void
+    {
+        $rascunho = $this->criaDocumentoDeAssinatura(['template' => $this->modeloComAnexos()]);
+
+        $html = $this->atendente()->get(route('signature-documents.show', $rascunho))->assertOk()->getContent();
+        $this->assertGreaterThan(strpos($html, 'Texto do documento'), strpos($html, 'data-attachments-box'));
+
+        $congelado = app(\App\Services\Signature\SignatureDocumentService::class)->freeze($rascunho->fresh());
+
+        $html = $this->atendente()->get(route('signature-documents.show', $congelado))->assertOk()->getContent();
+        $this->assertLessThan(strpos($html, 'Texto do documento'), strpos($html, 'data-attachments-box'));
+    }
+
     public function test_imagem_jpg_e_aceita_e_texto_disfarcado_de_pdf_nao(): void
     {
         $documento = $this->criaDocumentoDeAssinatura(['template' => $this->modeloComAnexos()]);

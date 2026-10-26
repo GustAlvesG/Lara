@@ -18,7 +18,9 @@ use Illuminate\Support\Facades\Mail;
 
 /**
  * Avisa o diretor, por e-mail, de que há documento para ele assinar no tablet
- * (Assinatura Diretoria). Despachado no congelamento, um por signatário-diretor.
+ * (Assinatura Diretoria). Um por signatário-diretor, despachado quando o
+ * documento CHEGA à diretoria: no congelamento, se não houver ninguém de fora
+ * dela, ou na assinatura do último de fora (`forReleased`).
  *
  * Em fila e com retry, como a via: ninguém espera por este e-mail, e uma falha
  * de SMTP não pode atrapalhar o congelamento. Não reenvia: `director_notified_at`
@@ -44,6 +46,29 @@ class NotifySignatureDirector implements ShouldQueue
     {
     }
 
+    /**
+     * Despacha o aviso aos diretores pendentes e ainda não avisados — se o
+     * documento já chegou à diretoria. Chamado no congelamento e a cada
+     * assinatura de quem é de fora da diretoria: o documento só vai para a
+     * diretoria depois dessas pessoas (decisão do usuário, 26/10/2026). Fila,
+     * depois do commit, como sempre.
+     */
+    public static function forReleased(SignatureDocument $document): void
+    {
+        $document = $document->fresh('signers');
+
+        if (!$document || $document->status !== SignatureDocument::STATUS_AWAITING_SIGNATURE
+            || $document->isGovbr() || !$document->releasedToDirectors()) {
+            return;
+        }
+
+        $document->signers
+            ->filter(fn(SignatureSigner $s) => $s->isDirector()
+                && $s->status === SignatureSigner::STATUS_PENDING
+                && $s->director_notified_at === null)
+            ->each(fn(SignatureSigner $s) => self::dispatch($s->id)->afterCommit());
+    }
+
     public function handle(SignatureStateMachine $states): void
     {
         $signer = SignatureSigner::with('document')->find($this->signerId);
@@ -54,9 +79,12 @@ class NotifySignatureDirector implements ShouldQueue
 
         $document = $signer->document;
 
+        // Ainda falta alguém de fora da diretoria: o aviso sai depois, quando
+        // essa pessoa assinar (ver `forReleased`). Sem marcar nada aqui.
         if ($signer->status !== SignatureSigner::STATUS_PENDING
             || $document?->status !== SignatureDocument::STATUS_AWAITING_SIGNATURE
-            || $document->isGovbr()) {
+            || $document->isGovbr()
+            || !$document->releasedToDirectors()) {
             return;
         }
 

@@ -159,7 +159,15 @@ Tela de espera → leitura do QR → formulário, se o modelo pergunta algo a qu
 
 Na **foto**, a câmera abre e mostra a imagem, mas a contagem não começa sozinha: a pessoa se ajeita
 e toca em **Tirar foto**; aí o tablet conta 3 segundos e fotografa. O botão vale um toque só, e
-encerrar o atendimento no meio da contagem cancela a foto.
+encerrar o atendimento no meio da contagem cancela a foto. Desde 26/10/2026 a foto não é enviada na
+hora: aparece uma **prévia** com **Tirar nova foto** (volta à câmera, que segue ligada) e **Usar esta
+foto** (só este envia a assinatura).
+
+**Sempre há "Voltar"** (26/10/2026). Identidade e aceite voltam ao documento (já desenhado; a identidade
+conferida não é pedida de novo); o traço volta ao aceite; o visto volta ao traço; a foto volta ao visto
+(ou ao traço, sem visto). No primeiro passo — o formulário, ou o documento quando não há perguntas — voltar
+é **sair do documento**: o tablet pede confirmação e encerra a sessão (`quiosque.leave`). Não é recusa: o
+documento continua pendente; no balcão, o atendente gera outro QR; na diretoria, volta à lista.
 
 - **Nada fica no aparelho**: sem `localStorage`, sem `IndexedDB`. O estado vive em memória e é
   zerado ao fim de cada atendimento — o tablet é do balcão e é compartilhado.
@@ -523,6 +531,13 @@ Regras em `App\Services\Signature\Directors\DirectorAreaService`.
   `SignatureDirectorPendingMail` — título, quem gerou, prazo, "entre com matrícula e PIN". **Sem
   link** (o Lara é fechado). Grava `director_notified_at` e o evento `director_notified` (e-mail
   mascarado). Não reenvia; não avisa de documento que já foi ao gov.br.
+- **Diretoria depois de quem é de fora dela** (decisão do usuário, 26/10/2026). Com algum signatário que
+  não é diretor ainda pendente, o documento **não chegou à diretoria**: não aparece na lista do diretor,
+  não abre no tablet ("Este documento vai para a diretoria depois da assinatura de…"), não gera o
+  e-mail de aviso, não recebe convite gov.br para o diretor e não entra no filtro "Aguardando diretoria"
+  do painel. O aviso sai quando o último de fora assina (`NotifySignatureDirector::forReleased`, chamado no
+  congelamento e na captura). Regra em `SignatureDocument::pendingNonDirectors()`/`releasedToDirectors()`
+  e `scopeReleasedToDirectors`. O cartão do diretor, no painel, diz de quem o documento espera.
 
 ### No tablet
 
@@ -536,14 +551,36 @@ regras em `DirectorKioskService`):
    `lara_director` (httpOnly, SameSite=Strict, só no caminho do tablet), hash no cache, prazo de
    `SIGNATURE_DIRECTOR_SESSION_MINUTES` (10) renovado a cada uso. Cada passo reconfere usuário
    ativo e do setor.
-2. **Lista** — signatários pendentes do diretor em documentos aguardando assinatura, no prazo e
-   **fora do gov.br**. Sem toque por `SIGNATURE_DIRECTOR_IDLE_SECONDS` (90 s), o tablet sai sozinho.
+2. **Lista** — signatários pendentes do diretor em documentos aguardando assinatura, no prazo,
+   **fora do gov.br** e que **já chegaram à diretoria** (nenhum signatário de fora dela pendente). Sem toque por `SIGNATURE_DIRECTOR_IDLE_SECONDS` (90 s), o tablet sai sozinho.
 3. **Abrir** — emite e consome a liberação no servidor (`issue` + `consumeIssued`, como o Termo de
    Menores) e devolve o `lara_sign` de sempre. A identidade fica confirmada pelo PIN:
    `signature_requests.identity_method = matricula_pin` e evento `identity_confirmed` com
    `{modo: matricula_pin, matricula}`. **Sem CPF e sem código por e-mail.**
 4. Leitura, aceite, traço, visto (se o documento pedir) e **foto, sempre obrigatória** para o
    diretor, mesmo que o modelo dispense (`SignatureSigner::requiresPhoto`). Terminado, volta à lista.
+
+**Vários de uma vez** (26/10/2026). Na lista, cada documento tem uma caixa de marcar (e "Marcar todos");
+"Assinar selecionados" abre o lote (`POST lote`, até `DirectorKioskService::BATCH_MAX` = 20):
+
+- cada documento é aberto como na assinatura avulsa (liberação emitida e consumida, `matricula_pin`,
+  `identity_confirmed`, data automática). Se um não abrir, os já abertos são cancelados;
+- o tablet mostra **um documento de cada vez** ("Documento 1 de N", PDF por `lote/{signer}/pdf`) e
+  registra a leitura de cada um (`lote/{signer}/visualizado`, evento `viewed` com `em_lote`);
+- depois, **um** aceite ("Li e concordo com os termos destes N documentos"), **um** traço, **um** visto
+  (se algum documento pedir — vai só para os que pedem) e **uma** foto;
+- `lote/assinar` grava **uma captura por documento** (`SignatureCaptureService::capture`, o evento
+  `signed` leva `em_lote` = N). Um documento que falhe não desfaz os outros: o resultado diz qual entrou;
+- fora do lote: documento com **perguntas a responder** (cada um tem o seu formulário) — a lista avisa
+  "assine sozinho". No lote não há via por e-mail nem recusa (recusa é de um documento);
+- "Voltar" no primeiro documento desiste do lote (`lote/cancelar`); um marcado só segue o fluxo avulso.
+
+Tudo pelo cookie `lara_director`, sem `lara_sign`: a liberação viva de cada documento é achada no banco
+(`DirectorKioskService::batchRequest`: deste diretor, `matricula_pin`, consumida, no prazo).
+
+**Já assinados** (26/10/2026). Segunda aba da lista: o que o diretor assinou nos últimos 90 dias (até 50),
+com a situação — quem ainda falta, "via final sendo gerada", "Concluído", recusado. Só acompanhamento,
+sem abrir o PDF (o tablet é do balcão).
 
 O manifesto diz "Documento aberto pelo próprio diretor no tablet" e "Conferência de identidade:
 Matrícula e PIN do Lara".
@@ -804,6 +841,13 @@ obrigatório trava a assinatura — ver [Assinatura remota](#assinatura-remota-l
 **Quem envia é o atendente, na tela do documento** (cartão "Anexos"): um envio por item — um item pode
 receber mais de um arquivo (frente e verso) — e **Outro anexo**, avulso, com o nome digitado.
 
+- **Vários arquivos de uma vez** (26/10/2026): o campo aceita seleção múltipla (`arquivos[]`, até 10 —
+  `AttachmentController::MAX_FILES_PER_UPLOAD`). Cada arquivo vira um anexo próprio, com hash e evento
+  próprios, como se enviado um por um; um arquivo recusado (tipo) não impede os outros, e o aviso
+  diz qual foi. O envio de um arquivo só (`arquivo`) continua aceito.
+- **Posição na tela:** com o documento congelado, o cartão "Anexos" fica **acima do texto do
+  documento**; no rascunho, abaixo dele (26/10/2026).
+
 | Situação do documento | Enviar | Remover |
 |---|---|---|
 | Rascunho | Sim | Sim (arquivo e registro; a trilha guarda que existiu) |
@@ -883,10 +927,11 @@ usa o mesmo leiaute). Gov.br e ICP-Brasil podem se somar no mesmo arquivo.
      é aceito (não é prefixo do original novo).
    Pode ser repetido: renova o prazo. Não tem volta para o tablet — para isso, cancela-se e emite-se
    outro documento.
-3. **Enviar por e-mail** (botão na aba, ao lado de cada pendente, em qualquer ordem): o Lara manda o PDF a assinar e o
-   passo a passo. A pessoa assina no gov.br e **responde ao e-mail** com o arquivo — a resposta vai
-   para o atendente que enviou. (Ou o atendente envia o PDF por conta própria.)
-4. O atendente envia o arquivo devolvido na aba. Aprovado, o Lara registra a assinatura.
+3. **Enviar por e-mail** (botão na aba, ao lado de cada pendente, em qualquer ordem — o diretor só depois de quem é de
+   fora da diretoria): o Lara manda o PDF a assinar e o passo a passo. A pessoa assina no gov.br e **entrega o arquivo
+   no atendimento do clube** — o retorno **não é por e-mail** (decisão do usuário, 26/10/2026). (Ou o atendente envia o
+   PDF por conta própria.)
+4. O atendente envia o arquivo entregue na aba. Aprovado, o Lara registra a assinatura.
 5. Com mais signatários, a próxima pessoa — qualquer uma — recebe **o arquivo com as assinaturas
    anteriores** — o e-mail do convite já o anexa, e a aba o oferece para baixar. As assinaturas se
    acumulam no mesmo PDF, e é o último que vira o final. A ordem é livre, mas é **um de cada vez**:
@@ -904,12 +949,15 @@ a via final vai depois.
 | O que vai | Detalhe |
 |---|---|
 | O PDF a assinar, anexado | O original — ou, a partir do segundo signatário, o arquivo devolvido pelo anterior (`SignatureDocument::govbrFileToSign`) |
-| O passo a passo | Salvar sem mexer, assinar em `assinador.iti.br`, baixar o arquivo assinado, **responder ao e-mail** com ele |
+| O passo a passo | Salvar sem mexer, assinar em `assinador.iti.br`, baixar o arquivo assinado, **entregar esse arquivo ao atendimento do clube** |
 | O prazo | O do documento preparado para o gov.br |
 
-- **Sem link para o Lara.** O Lara não é acessível de fora, então a devolução passa pelo atendente:
-  o e-mail sai com `Reply-To` = o e-mail do usuário que clicou. Sem e-mail no cadastro do usuário, o
-  texto pede para devolver o arquivo ao atendimento do clube.
+- **Sem link para o Lara, e sem devolução por e-mail.** O Lara não é acessível de fora, e o arquivo
+  assinado volta **pelo atendimento do clube**, nunca respondendo ao e-mail (26/10/2026 — até então o
+  texto pedia "Responda a este e-mail"). O e-mail ainda sai com `Reply-To` = o e-mail do usuário que
+  clicou, só para dúvidas.
+- **Diretor espera** quem é de fora da diretoria: enquanto houver um pendente, o botão do diretor fica
+  desligado e `GovbrInviteService::blockReason` recusa ("O convite ao diretor sai depois da assinatura de…").
 - **Envio na hora, dentro da transação:** se o SMTP falhar, nada fica registrado como enviado, e o
   atendente vê o erro no mesmo clique.
 - **Reenviar** manda o e-mail de novo (pode ser para outro endereço) e registra outro convite.
@@ -1069,7 +1117,7 @@ Os dois `.pem` são exceção explícita ao `*.pem` do `.gitignore` (só certifi
 | `signature_documents.govbr_sent_at` / `govbr_check_id` | Quando foi preparado para o gov.br / a conferência cujo arquivo é o PDF final |
 | `signature_signers.govbr_check_id` | A conferência pela qual a pessoa assinou (nulo = tablet) |
 | `GovbrInviteService` + `SignatureGovbrInvite` (tabela `signature_govbr_invites`) | O convite por e-mail: para quem, quando e por quem |
-| `SignatureGovbrInviteMail` (`emails/signature-govbr-invite`) | O e-mail do convite, com o PDF anexo e `Reply-To` do atendente |
+| `SignatureGovbrInviteMail` (`emails/signature-govbr-invite`) | O e-mail do convite, com o PDF anexo e `Reply-To` do atendente (só para dúvidas: o arquivo volta pelo atendimento) |
 | `GovbrController` | `POST …/{doc}/govbr/preparar`, `POST …/{doc}/govbr` (envio) — ambos `throttle:20,1` —, `POST …/{doc}/govbr/signatarios/{s}/convite` (`throttle:10,1`) e `GET …/{doc}/govbr/{conferencia}/pdf` (o arquivo, preso ao documento) |
 | `documents/partials/govbr.blade.php` | A aba, aberta por `?aba=govbr` |
 | `Pki\Certificates`, `Pki\CertificateRevocationList`, `Pki\PkiRepository`, `Pki\RevocationChecker` | PEM/DER/PKCS#7, endereços de LCR e AIA, leitura da LCR, download com cache, consulta de revogação |

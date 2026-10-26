@@ -584,6 +584,42 @@ class SignatureDocument extends Model
     }
 
     /**
+     * Os signatários que NÃO são da diretoria e ainda não assinaram.
+     *
+     * Enquanto houver algum, o documento não chegou à diretoria: não aparece
+     * na lista do diretor no tablet, o diretor não abre, o aviso por e-mail
+     * não sai e o convite gov.br ao diretor fica travado (decisão do usuário,
+     * 26/10/2026). Contrapartida em consulta: `scopeReleasedToDirectors`.
+     *
+     * @return \Illuminate\Support\Collection<int, SignatureSigner>
+     */
+    public function pendingNonDirectors(): \Illuminate\Support\Collection
+    {
+        $signers = $this->relationLoaded('signers') ? $this->signers : $this->signers()->get();
+
+        return $signers
+            ->filter(fn(SignatureSigner $s) => !$s->isDirector() && $s->status === SignatureSigner::STATUS_PENDING)
+            ->values();
+    }
+
+    /** Já chegou à diretoria: nenhum signatário de fora dela falta assinar. */
+    public function releasedToDirectors(): bool
+    {
+        return $this->pendingNonDirectors()->isEmpty();
+    }
+
+    /**
+     * Mesma regra de `releasedToDirectors`, em consulta. "De fora da diretoria"
+     * é sem área ou sem usuário — o inverso de `SignatureSigner::isDirector`.
+     */
+    public function scopeReleasedToDirectors($query)
+    {
+        return $query->whereDoesntHave('signers', fn($s) => $s
+            ->where('status', SignatureSigner::STATUS_PENDING)
+            ->where(fn($q) => $q->whereNull('director_area_id')->orWhereNull('user_id')));
+    }
+
+    /**
      * Os signatários como vão para a página PÚBLICA de validação: nome e CPF
      * mascarado, e nada mais. Sem foto, sem traço, sem contato.
      *

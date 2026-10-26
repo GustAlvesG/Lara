@@ -105,6 +105,12 @@
                     @include('signature.documents.partials.review', ['document' => $document])
                 @else
 
+                {{-- Congelado, os anexos vêm ANTES do texto do documento (pedido do usuário, 26/10/2026);
+                     no rascunho, ficam depois, junto da edição. --}}
+                @if($document->isFrozen())
+                    @include('signature.documents.partials.attachments', ['document' => $document])
+                @endif
+
                 <div class="bg-surface rounded-card shadow-card p-6">
                     <div class="flex items-start justify-between gap-4 mb-5">
                         <div>
@@ -211,7 +217,9 @@
                     @include('signature.documents.partials.positions', ['document' => $document])
                 @endif
 
-                @include('signature.documents.partials.attachments', ['document' => $document])
+                @unless($document->isFrozen())
+                    @include('signature.documents.partials.attachments', ['document' => $document])
+                @endunless
 
                 <div class="bg-surface rounded-card shadow-card overflow-hidden">
                     <div class="px-6 py-4 border-b border-line">
@@ -278,7 +286,13 @@
                                     <div class="mt-2 rounded-lg bg-subtle px-3 py-2 text-[11px] text-ink-2" data-signer-director>
                                         Diretor: assina só no tablet, em <b>Assinatura da Diretoria</b>, com a matrícula e o PIN do
                                         Lara — sem QR (ou pelo gov.br, se o documento for preparado para lá).
-                                        @if($signer->director_notified_at)
+                                        @if(($faltamAntes = $document->pendingNonDirectors())->isNotEmpty())
+                                            {{-- O documento só chega à diretoria depois de quem é de fora dela. --}}
+                                            <span class="block mt-1 font-bold" data-signer-director-waiting>
+                                                Vai para a diretoria depois da assinatura de {{ $faltamAntes->pluck('name')->join(', ', ' e ') }}:
+                                                até lá, não aparece no tablet do diretor.
+                                            </span>
+                                        @elseif($signer->director_notified_at)
                                             Avisado por e-mail em {{ $signer->director_notified_at->format('d/m/Y H:i') }}.
                                         @elseif($document->isFrozen())
                                             Aviso por e-mail ainda não enviado.

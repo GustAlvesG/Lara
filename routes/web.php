@@ -187,6 +187,17 @@ Route::prefix('assinatura/kiosk')->name('quiosque.')->group(function () {
             ->middleware('throttle:120,1')->name('pending');
         Route::post('/abrir/{signatureSigner}', [SignatureDirectorKioskController::class, 'open'])
             ->whereNumber('signatureSigner')->middleware('throttle:20,1')->name('open');
+        // Assinatura em lote (vários documentos de uma vez).
+        Route::post('/lote', [SignatureDirectorKioskController::class, 'openBatch'])
+            ->middleware('throttle:20,1')->name('batch.open');
+        Route::get('/lote/{signatureSigner}/pdf', [SignatureDirectorKioskController::class, 'batchPdf'])
+            ->whereNumber('signatureSigner')->middleware('throttle:120,1')->name('batch.pdf');
+        Route::post('/lote/{signatureSigner}/visualizado', [SignatureDirectorKioskController::class, 'batchViewed'])
+            ->whereNumber('signatureSigner')->middleware('throttle:120,1')->name('batch.viewed');
+        Route::post('/lote/assinar', [SignatureDirectorKioskController::class, 'signBatch'])
+            ->middleware('throttle:10,1')->name('batch.sign');
+        Route::post('/lote/cancelar', [SignatureDirectorKioskController::class, 'cancelBatch'])
+            ->middleware('throttle:30,1')->name('batch.cancel');
         Route::post('/sair', [SignatureDirectorKioskController::class, 'logout'])
             ->middleware('throttle:60,1')->name('logout');
     });

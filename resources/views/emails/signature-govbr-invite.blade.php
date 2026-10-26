@@ -2,8 +2,9 @@
     /**
      * Convite para assinar pelo gov.br. Mesmo visual do e-mail da via.
      *
-     * Sem link: o Lara não é acessível de fora. A pessoa devolve o arquivo
-     * respondendo a este e-mail (vai para o atendente) ou no clube.
+     * Sem link: o Lara não é acessível de fora. A pessoa entrega o arquivo
+     * assinado no atendimento do clube — NÃO por e-mail (decisão do usuário,
+     * 26/10/2026): o texto não pede resposta com anexo.
      * Sem dados pessoais no corpo: o PDF anexo já os tem.
      */
 @endphp
@@ -31,18 +32,12 @@
       <li style="margin-bottom:6px;">Salve o PDF anexo no seu computador ou celular, <b>sem abrir e salvar de novo</b> em outro programa.</li>
       <li style="margin-bottom:6px;">Acesse <a href="https://assinador.iti.br" style="color:#A00001;">assinador.iti.br</a>, entre com a sua conta gov.br, envie o PDF e assine.</li>
       <li style="margin-bottom:6px;">Baixe o arquivo assinado que o gov.br devolve.</li>
-      <li>
-        @if($replyGoesToAttendant)
-          <b>Responda a este e-mail</b> com esse arquivo anexado — a resposta vai para o atendimento do clube.
-        @else
-          Devolva esse arquivo ao atendimento do clube.
-        @endif
-      </li>
+      <li>Entregue esse arquivo ao atendimento do clube.</li>
     </ol>
 
     <p style="font-size:13px;line-height:1.6;color:#6d6062;margin:0 0 14px;">
       Tem certificado digital ICP-Brasil (e-CPF)? Você também pode assinar o PDF no programa do seu certificado,
-      em vez do gov.br, e devolver o arquivo assinado do mesmo jeito.
+      em vez do gov.br, e entregar o arquivo assinado do mesmo jeito.
     </p>
 
     @if($document->expires_at)

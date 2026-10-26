@@ -22,6 +22,9 @@ class AttachmentController extends Controller
 {
     use AuthorizesRequests;
 
+    /** Arquivos num envio só. */
+    public const MAX_FILES_PER_UPLOAD = 10;
+
     public function __construct(private SignatureAttachmentService $attachments)
     {
     }
@@ -30,32 +33,64 @@ class AttachmentController extends Controller
     {
         $this->authorize('attach', $signatureDocument);
 
+        /*
+         | Vários arquivos de uma vez (`arquivos[]`, 26/10/2026), ou um só
+         | (`arquivo`, o envio de antes). Cada arquivo é um anexo próprio, com o
+         | seu hash e o seu evento na trilha — o mesmo que enviar um por um.
+         */
+        $maxKb = (int) config('signature.attachments.max_kb', 10240);
+
         $request->validate([
-            'arquivo' => ['required', 'file', 'max:' . (int) config('signature.attachments.max_kb', 10240)],
+            'arquivo' => ['required_without:arquivos', 'nullable', 'file', 'max:' . $maxKb],
+            'arquivos' => ['required_without:arquivo', 'nullable', 'array', 'max:' . self::MAX_FILES_PER_UPLOAD],
+            'arquivos.*' => ['file', 'max:' . $maxKb],
             'item' => ['nullable', 'string', 'max:60'],
             'rotulo' => ['nullable', 'string', 'max:120'],
         ], [
-            'arquivo.required' => 'Escolha o arquivo do anexo.',
+            'arquivo.required_without' => 'Escolha o arquivo do anexo.',
+            'arquivos.required_without' => 'Escolha o arquivo do anexo.',
             'arquivo.file' => 'O envio do arquivo falhou. Tente de novo.',
+            'arquivos.*.file' => 'O envio de um dos arquivos falhou. Tente de novo.',
             'arquivo.max' => 'O arquivo é grande demais.',
+            'arquivos.*.max' => 'Um dos arquivos é grande demais.',
+            'arquivos.max' => 'Envie no máximo ' . self::MAX_FILES_PER_UPLOAD . ' arquivos de uma vez.',
         ]);
 
         $voltar = route('signature-documents.show', $signatureDocument) . '#anexos';
+        $arquivos = $request->file('arquivos') ?: [$request->file('arquivo')];
 
-        try {
-            $anexo = $this->attachments->store(
-                $signatureDocument,
-                $request->file('arquivo'),
-                $request->filled('item') ? (string) $request->input('item') : null,
-                $request->input('rotulo'),
-                auth()->id(),
-                auth()->user()?->name,
-            );
-        } catch (SignatureDocumentLockedException $e) {
-            return redirect($voltar)->with('warning', $e->getMessage());
+        $enviados = [];
+        $recusas = [];
+
+        foreach ($arquivos as $arquivo) {
+            try {
+                $enviados[] = $this->attachments->store(
+                    $signatureDocument->fresh(),
+                    $arquivo,
+                    $request->filled('item') ? (string) $request->input('item') : null,
+                    $request->input('rotulo'),
+                    auth()->id(),
+                    auth()->user()?->name,
+                );
+            } catch (SignatureDocumentLockedException $e) {
+                // Um arquivo recusado (tipo, estado) não segura os outros.
+                $recusas[] = (count($arquivos) > 1 ? $arquivo->getClientOriginalName() . ': ' : '') . $e->getMessage();
+            }
         }
 
-        return redirect($voltar)->with('success', 'Anexo "' . $anexo->label . '" enviado.');
+        $resposta = redirect($voltar);
+
+        if ($recusas !== []) {
+            $resposta->with('warning', implode(' ', $recusas));
+        }
+
+        if ($enviados !== []) {
+            $resposta->with('success', count($enviados) === 1
+                ? 'Anexo "' . $enviados[0]->label . '" enviado.'
+                : count($enviados) . ' arquivos enviados em "' . $enviados[0]->label . '".');
+        }
+
+        return $resposta;
     }
 
     /** O arquivo, pelo disco privado — nunca por URL. */

@@ -626,8 +626,9 @@
         dele, no passo <b>Anexos</b> do formulário (<span class="btn2">+ Pedir anexo</span>, marcando
         <b>Obrigatório</b> se for o caso).</p>
     <ul>
-        <li>Envie cada arquivo na página do documento, no quadro <b>Anexos</b>: escolha o arquivo e clique em
-            <span class="btn">Enviar</span>. Frente e verso? <span class="btn2">Enviar mais um arquivo</span> no
+        <li>Envie os arquivos na página do documento, no quadro <b>Anexos</b> (depois de congelar, ele fica logo acima
+            do texto): escolha o arquivo — ou <b>vários de uma vez</b>, até 10, como frente e verso — e clique em
+            <span class="btn">Enviar</span>. Faltou algum? <span class="btn2">Enviar mais arquivos</span> no
             mesmo item. Um arquivo que ninguém pediu vai em <b>Outro anexo</b>, com o nome do que é.</li>
         <li>Aceita <b>PDF, JPG ou PNG</b>, até 10 MB cada. Foto do celular serve.</li>
         <li>Os anexos podem chegar antes ou depois da assinatura. Mas o documento só <b>conclui</b> com os
@@ -681,7 +682,7 @@
                 via por e-mail.</td>
             <td><b>6. Assinatura</b>Assina com o dedo ou a caneta. <i>Limpar</i> apaga e deixa refazer.</td>
             <td><span class="opt">se o modelo pedir</span><b>7. Visto</b>"Agora faça o seu visto": a rubrica que vai em todas as páginas.</td>
-            <td><span class="opt">se o modelo pedir</span><b>8. Foto</b>A câmera abre; a pessoa toca em <span class="btn">Tirar foto</span> quando estiver pronta, e o tablet conta 3 segundos e fotografa. Depois: "Assinatura concluída".</td>
+            <td><span class="opt">se o modelo pedir</span><b>8. Foto</b>A câmera abre; a pessoa toca em <span class="btn">Tirar foto</span> quando estiver pronta, e o tablet conta 3 segundos e fotografa. Ela vê a foto e escolhe <i>Tirar nova foto</i> ou <i>Usar esta foto</i>. Depois: "Assinatura concluída".</td>
         </tr>
     </table>
 
@@ -694,6 +695,9 @@
             documento respondido e não recebe as perguntas.</li>
         <li><b>Recusar</b> está disponível em todas as etapas. Se a pessoa recusa, o documento inteiro é encerrado
             como "Recusado".</li>
+        <li><b>Toda tela tem Voltar.</b> Do aceite, da assinatura, do visto e da foto, volta-se um passo. No primeiro
+            passo, <i>Voltar</i> sai do documento sem assinar (não é recusa: ele continua pendente) — para recomeçar,
+            gere outro QR Code.</li>
         <li><b>O tablet avisa antes de encerrar por inatividade.</b> Basta tocar em <i>Continuar</i>.</li>
         <li><b>Nada fica guardado no tablet.</b> Ao fim de cada atendimento ele volta sozinho à tela de espera.</li>
         <li>A via por e-mail só é oferecida a quem tem e-mail informado no documento.</li>
@@ -843,8 +847,8 @@
         <tr>
             <td class="n"><span class="num">3</span></td>
             <td>A pessoa abre <code>assinador.iti.br</code>, entra com a conta gov.br, envia o PDF, assina e baixa o
-                arquivo assinado. Depois, <b>responde ao e-mail</b> com esse arquivo — a resposta chega no
-                <b>seu</b> e-mail.</td>
+                arquivo assinado. Depois, <b>entrega esse arquivo no atendimento do clube</b> — o retorno
+                não é por e-mail.</td>
         </tr>
         <tr>
             <td class="n"><span class="num">4</span></td>
@@ -1110,8 +1114,11 @@
             vêm do cadastro do Lara — não é preciso digitar.</li>
         <li>A pessoa escolhida é a que assina: o nome e o CPF dela vão impressos no documento. Se ela não puder
             assinar, <b>cancele e emita de novo</b> com quem a substitui.</li>
-        <li>Ao congelar, o diretor recebe um <b>e-mail de aviso</b> (sem link) e o documento ganha <b>7 dias</b> de
-            prazo. A lista <span class="menu">Documentos</span> tem o filtro <b>Aguardando diretoria</b>.</li>
+        <li>O documento ganha <b>7 dias</b> de prazo ao congelar. Se ele tem outros signatários (o sócio, por exemplo),
+            <b>só vai para a diretoria depois que eles assinarem</b>: até lá não aparece no tablet do diretor, e o
+            <b>e-mail de aviso</b> (sem link) sai quando o último deles assina. Sem outros signatários, o aviso sai
+            no congelamento. A lista <span class="menu">Documentos</span> tem o filtro <b>Aguardando diretoria</b> (só
+            os que já chegaram à diretoria).</li>
     </ul>
 
     <h3>No tablet: o diretor assina</h3>
@@ -1125,7 +1132,16 @@
             <td class="n"><span class="num">2</span></td>
             <td>Toque no documento da lista. Leia até o fim, aceite, assine, faça o visto (se o documento pedir) e
                 tire a <b>foto</b> — para o diretor ela é sempre obrigatória. Não há conferência de CPF: o PIN já
-                identificou você.</td>
+                identificou você.<br>
+                <span class="small"><b>Vários de uma vez:</b> marque a caixa ao lado de cada documento (ou
+                <i>Marcar todos</i>) e toque em <span class="btn">Assinar selecionados</span>. O tablet mostra um
+                documento de cada vez para você ler; depois, um aceite, uma assinatura e uma foto valem para todos.
+                Documento com perguntas a responder não entra no lote — assine esse sozinho.</span></td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">+</span></td>
+            <td><span class="t">Acompanhar:</span> a aba <b>Já assinados</b> mostra o que você assinou nos últimos 90
+                dias e em que pé está — quem ainda falta, ou "Concluído" quando a via final saiu.</td>
         </tr>
         <tr>
             <td class="n"><span class="num">3</span></td>

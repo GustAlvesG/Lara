@@ -17,10 +17,11 @@ use Illuminate\Support\Facades\Storage;
  * O convite por e-mail para assinar pelo gov.br: o PDF a assinar e o passo a
  * passo.
  *
- * Não há link de devolução: o Lara não é acessível de fora. A pessoa devolve
- * o arquivo assinado respondendo ao e-mail — a resposta vai para o atendente
- * que enviou (`replyTo`) — ou entregando-o no clube, e o atendente o envia na
- * aba "Assinatura gov.br". Quem decide se o arquivo vale é a conferência.
+ * Não há link de devolução: o Lara não é acessível de fora. A pessoa entrega
+ * o arquivo assinado no atendimento do clube — não por e-mail (decisão do
+ * usuário, 26/10/2026) — e o atendente o envia na aba "Assinatura gov.br".
+ * O `replyTo` (atendente que enviou) fica só para dúvidas. Quem decide se o
+ * arquivo vale é a conferência.
  *
  * O e-mail sai NA HORA, dentro da transação: se o envio falhar, o convite não
  * fica registrado como enviado, e o atendente vê o erro no mesmo clique.
@@ -50,8 +51,14 @@ class GovbrInviteService
             return $signer->name . ' já ' . mb_strtolower($signer->statusLabel()) . '.';
         }
 
-        // Qualquer pendente, em qualquer ordem. O arquivo que vai no e-mail é
-        // o último aprovado — com as assinaturas de quem já assinou.
+        // O diretor só recebe depois de quem é de fora da diretoria
+        // (decisão do usuário, 26/10/2026).
+        if ($signer->isDirector() && ($faltam = $document->pendingNonDirectors())->isNotEmpty()) {
+            return 'O convite ao diretor sai depois da assinatura de ' . $faltam->pluck('name')->join(', ', ' e ') . '.';
+        }
+
+        // Fora isso, qualquer pendente, em qualquer ordem. O arquivo que vai no
+        // e-mail é o último aprovado — com as assinaturas de quem já assinou.
         return null;
     }
 
@@ -59,7 +66,7 @@ class GovbrInviteService
      * Envia o convite e devolve o registro. O e-mail informado passa a ser o
      * do signatário — é para ele que a via final vai, depois.
      *
-     * @param  ?string  $replyTo  e-mail do atendente: é para ele que a resposta, com o arquivo assinado, vai
+     * @param  ?string  $replyTo  e-mail do atendente: dúvidas respondidas ao e-mail vão para ele
      *
      * @throws SignatureDocumentLockedException
      */
@@ -104,7 +111,6 @@ class GovbrInviteService
                 $pdf,
                 ($jaAssinado ? 'documento-assinado-' : 'documento-') . $document->validation_code . '.pdf',
                 $jaAssinado,
-                $replyTo !== null,
             );
 
             if ($replyTo !== null) {

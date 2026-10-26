@@ -43,13 +43,13 @@
         @if($pendentes->isNotEmpty())
             {{--
                 Um convite por pendente, em qualquer ordem. O e-mail leva o arquivo a assinar: o último aprovado (com as
-                assinaturas de quem já assinou) ou o original. A resposta volta para quem enviou.
+                assinaturas de quem já assinou) ou o original. O arquivo assinado volta no atendimento, não por e-mail.
             --}}
             @can('checkGovbr', $document)
                 <div class="rounded-xl border border-line p-4 space-y-3">
                     <div class="text-sm text-ink">
-                        Enviar por e-mail o PDF para assinar e o passo a passo. A pessoa responde ao e-mail com o arquivo
-                        assinado — a resposta vem para você — e você o envia aqui embaixo.
+                        Enviar por e-mail o PDF para assinar e o passo a passo. A pessoa entrega o arquivo assinado no
+                        atendimento do clube (não por e-mail), e você o envia aqui embaixo.
                     </div>
                     @foreach($pendentes as $pendente)
                         <form method="POST" action="{{ route('signature-documents.govbr.invite', [$document, $pendente]) }}"
@@ -64,9 +64,19 @@
                                    value="{{ (int) old('convite_para') === $pendente->id ? old('email') : $pendente->email }}"
                                    placeholder="email@exemplo.com" aria-label="E-mail de {{ $pendente->name }}"
                                    class="min-w-0 flex-1 rounded-full border border-line bg-surface px-4 py-2 text-sm text-ink">
-                            <button type="submit" class="px-5 py-2.5 bg-grena text-white rounded-full font-bold text-sm hover:bg-grena-hover transition">
+                            @php
+                                // Diretor só recebe depois de quem é de fora da diretoria (GovbrInviteService::blockReason).
+                                $esperaDiretoria = $pendente->isDirector() && !$document->releasedToDirectors();
+                            @endphp
+                            <button type="submit" @disabled($esperaDiretoria)
+                                    class="px-5 py-2.5 bg-grena text-white rounded-full font-bold text-sm hover:bg-grena-hover transition disabled:opacity-40 disabled:cursor-not-allowed">
                                 {{ $pendente->govbrInvites->isNotEmpty() ? 'Reenviar por e-mail' : 'Enviar por e-mail' }}
                             </button>
+                            @if($esperaDiretoria)
+                                <p class="w-full text-xs text-ink-3" data-govbr-invite-waiting>
+                                    Vai para a diretoria depois da assinatura de {{ $document->pendingNonDirectors()->pluck('name')->join(', ', ' e ') }}.
+                                </p>
+                            @endif
                         </form>
                     @endforeach
                     @error('email')

@@ -207,8 +207,8 @@ local, com a extensão OpenSSL do PHP; só a revogação e a AC intermediária q
   `SIGNATURE_PKI_NETWORK=false`.
 - **E-mail:** o convite para assinar sai pelo SMTP do sistema (seção 11.5), **na hora** e fora da fila —
   com SMTP fora do ar, o atendente vê o erro e nada fica registrado como enviado. Não há link de
-  volta para o Lara (que não é acessível de fora): a pessoa responde ao e-mail, que tem `Reply-To` do
-  atendente.
+  volta para o Lara (que não é acessível de fora), e o arquivo assinado **não volta por e-mail**: a
+  pessoa o entrega no atendimento do clube (26/10/2026). O `Reply-To` do atendente fica só para dúvidas.
 - **Validador oficial:** `validar.iti.gov.br` é citado no relatório de validação, no manifesto (com o
   lacre ligado), na via por e-mail e no guia, para quem quiser conferir o PDF por fora. O Lara não o chama.
 - Detalhes: [Assinatura eletrônica → Assinatura pelo gov.br](funcionalidades/assinatura-eletronica.md#assinatura-pelo-govbr).

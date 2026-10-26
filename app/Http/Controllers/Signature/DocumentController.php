@@ -56,12 +56,15 @@ class DocumentController extends Controller
             ->when($de, fn($query) => $query->where('created_at', '>=', $de->startOfDay()))
             ->when($ate, fn($query) => $query->where('created_at', '<=', $ate->endOfDay()))
             ->when($meus, fn($query) => $query->where('created_by', $request->user()->id))
-            // "Aguardando diretoria": aguardando assinatura e com diretor pendente.
+            // "Aguardando diretoria": aguardando assinatura, com diretor pendente
+            // e já sem ninguém de fora da diretoria por assinar — antes disso o
+            // documento ainda não chegou à diretoria.
             ->when($status === 'diretoria', fn($query) => $query
                 ->where('status', SignatureDocument::STATUS_AWAITING_SIGNATURE)
                 ->whereHas('signers', fn($s) => $s
                     ->whereNotNull('director_area_id')
-                    ->where('status', \App\Models\SignatureSigner::STATUS_PENDING)))
+                    ->where('status', \App\Models\SignatureSigner::STATUS_PENDING))
+                ->releasedToDirectors())
             ->when($status && $status !== 'diretoria', fn($query) => $query->where('status', $status))
             ->orderByDesc('id')
             ->paginate(20)

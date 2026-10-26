@@ -302,6 +302,13 @@ class SignatureSigner extends Model
             return 'Diretor assina só no tablet, em "Assinatura da Diretoria", com a matrícula e o PIN do Lara — não pelo QR Code.';
         }
 
+        // O documento só chega à diretoria depois de quem é de fora dela
+        // (decisão do usuário, 26/10/2026).
+        if ($this->isDirector() && ($faltam = $document->pendingNonDirectors())->isNotEmpty()) {
+            return 'Este documento vai para a diretoria depois da assinatura de '
+                . $faltam->pluck('name')->join(', ', ' e ') . '.';
+        }
+
         // Sem ordem: qualquer signatário pendente pode ser liberado — quem
         // chegar primeiro ao balcão assina primeiro.
 

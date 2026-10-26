@@ -87,12 +87,20 @@ class SignatureDirectorTest extends TestCase
         return $area;
     }
 
-    /** Documento congelado com Maria (sócia) e o diretor escolhido. */
-    private function documentoComDiretor(SignatureDirectorArea $area, User $diretor, array $modelo = []): SignatureDocument
+    /**
+     * Documento congelado com o diretor escolhido — e, com `$comSocia`, Maria
+     * (sócia) antes dele. Desde 26/10/2026 o documento só chega à diretoria
+     * depois de quem é de fora dela; sem a sócia, chega já no congelamento.
+     */
+    private function documentoComDiretor(SignatureDirectorArea $area, User $diretor, array $modelo = [], bool $comSocia = false): SignatureDocument
     {
         $documento = $this->criaDocumentoDeAssinatura(
             ['template' => $this->criaModeloDeAssinatura(array_merge(['requires_photo' => false], $modelo))],
         );
+
+        if (!$comSocia) {
+            $documento->signers()->delete();
+        }
 
         SignatureSigner::create(array_merge(
             ['signature_document_id' => $documento->id, 'position' => 2],
@@ -390,7 +398,7 @@ class SignatureDirectorTest extends TestCase
     public function test_painel_nao_oferece_qr_para_o_diretor(): void
     {
         $ana = $this->diretor('Ana Diretora', '777', '12345678909');
-        $documento = $this->documentoComDiretor($this->areaCom($ana), $ana);
+        $documento = $this->documentoComDiretor($this->areaCom($ana), $ana, comSocia: true);
 
         $resposta = $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
             ->get(route('signature-documents.show', $documento))
@@ -431,6 +439,133 @@ class SignatureDirectorTest extends TestCase
 
         $this->withCredentials()->withCookie(DirectorKioskService::COOKIE, $cookie)
             ->getJson(route('quiosque.diretoria.pending'))->assertStatus(401);
+    }
+
+    /* ------------------------------------------------------------------
+     | Ordem: diretoria depois de quem é de fora dela (26/10/2026)
+     |------------------------------------------------------------------*/
+
+    /** Maria assina no balcão pelo caminho de sempre: liberação, sessão, captura. */
+    private function sociaAssina(SignatureDocument $documento): void
+    {
+        $maria = $documento->signers()->whereNull('director_area_id')->sole();
+        $requests = app(\App\Services\Signature\SignatureRequestService::class);
+
+        $sessao = $requests->consumeIssued($requests->issue($maria, 1, 'Atendente')['request']);
+        $sessao['request']->forceFill(['identity_confirmed_at' => now()])->save();
+
+        app(\App\Services\Signature\SignatureCaptureService::class)->capture($sessao['request']->fresh(), [
+            'signature' => self::PNG,
+            'strokes' => [['points' => array_fill(0, 40, ['x' => 1, 'y' => 1, 't' => 0])]],
+            'accepted' => true,
+        ]);
+    }
+
+    public function test_documento_so_chega_a_diretoria_depois_da_assinatura_da_socia(): void
+    {
+        $ana = $this->diretor('Ana Diretora', '777', '12345678909');
+        $documento = $this->documentoComDiretor($this->areaCom($ana), $ana, comSocia: true);
+        $diretor = $documento->signers()->whereNotNull('director_area_id')->sole();
+
+        // Antes: sem aviso, fora da lista, sem abrir e fora do filtro do painel.
+        Mail::assertNotSent(SignatureDirectorPendingMail::class);
+        $this->assertNull($diretor->fresh()->director_notified_at);
+        $this->assertSame([], $this->entra()->assertOk()->json('documents'));
+        $this->assertStringContainsString('depois da assinatura de Maria de Souza', (string) $diretor->fresh()->releaseBlockReason(true));
+
+        $this->withCredentials()->withCookie(DirectorKioskService::COOKIE, $this->cookieDoDiretor($this->entra()))
+            ->postJson(route('quiosque.diretoria.open', $diretor->id))
+            ->assertStatus(409);
+
+        $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
+            ->get(route('signature-documents.index', ['status' => 'diretoria']))
+            ->assertDontSee($documento->title);
+
+        $this->sociaAssina($documento);
+
+        // Depois: aviso enviado e o documento na lista do diretor.
+        Mail::assertSent(SignatureDirectorPendingMail::class, fn($m) => $m->hasTo($ana->email));
+        $this->assertNotNull($diretor->fresh()->director_notified_at);
+        $this->assertSame([$diretor->id], array_column($this->entra()->json('documents'), 'signer_id'));
+    }
+
+    /* ------------------------------------------------------------------
+     | Assinatura em lote e acompanhamento (26/10/2026)
+     |------------------------------------------------------------------*/
+
+    public function test_diretor_assina_varios_de_uma_vez_e_acompanha_os_assinados(): void
+    {
+        $ana = $this->diretor('Ana Diretora', '777', '12345678909');
+        $area = $this->areaCom($ana);
+        $ids = collect([$this->documentoComDiretor($area, $ana), $this->documentoComDiretor($area, $ana)])
+            ->map(fn(SignatureDocument $d) => $d->signers()->whereNotNull('director_area_id')->value('id'))
+            ->all();
+
+        $cookie = $this->cookieDoDiretor($this->entra());
+        $comDiretor = fn() => $this->withCredentials()->withCookie(DirectorKioskService::COOKIE, $cookie);
+
+        $lote = $comDiretor()->postJson(route('quiosque.diretoria.batch.open'), ['signers' => $ids])
+            ->assertOk()
+            ->assertJsonCount(2, 'documents');
+
+        $this->assertGreaterThan(0, $lote->json('remaining_seconds'));
+
+        foreach ($ids as $id) {
+            $comDiretor()->get(route('quiosque.diretoria.batch.pdf', $id))->assertOk();
+            $comDiretor()->postJson(route('quiosque.diretoria.batch.viewed', $id), ['read_seconds' => 12, 'scrolled_to_end' => true])
+                ->assertOk();
+        }
+
+        $foto = 'data:image/jpeg;base64,' . base64_encode(self::JPEG_HEAD . str_repeat('x', 200));
+
+        $comDiretor()->postJson(route('quiosque.diretoria.batch.sign'), [
+            'signers' => $ids,
+            'reads' => [$ids[0] => ['read_seconds' => 12, 'scrolled_to_end' => true]],
+            'signature' => self::PNG,
+            'strokes' => [['points' => array_fill(0, 40, ['x' => 1, 'y' => 1, 't' => 0])]],
+            'photo' => $foto,
+            'photo_consent' => true,
+            'accepted' => true,
+        ])->assertOk()->assertJsonPath('signed', 2);
+
+        foreach ($ids as $id) {
+            $this->assertSame(SignatureSigner::STATUS_SIGNED, SignatureSigner::find($id)->status);
+            $this->assertNotNull(SignatureSigner::find($id)->evidence->photo_path);
+        }
+
+        $assinados = SignatureAuditEvent::where('event', SignatureAuditEvent::EVENT_SIGNED)->whereNotNull('signature_signer_id')->get();
+        $this->assertSame([2, 2], $assinados->map(fn($e) => $e->payload['em_lote'] ?? null)->all());
+
+        // Acompanhamento: os dois na aba "Já assinados", nenhum pendente.
+        $lista = $comDiretor()->getJson(route('quiosque.diretoria.pending'))->assertOk();
+        $this->assertSame([], $lista->json('documents'));
+        $this->assertEqualsCanonicalizing($ids, array_column($lista->json('signed'), 'signer_id'));
+    }
+
+    public function test_lote_nao_abre_documento_que_nao_e_do_diretor_e_nao_deixa_nada_aberto(): void
+    {
+        $ana = $this->diretor('Ana Diretora', '777', '12345678909');
+        $bia = $this->diretor('Bia Diretora', '778', '52998224725');
+        $area = $this->areaCom($ana, $bia);
+        $daAna = $this->documentoComDiretor($area, $ana)->signers()->whereNotNull('director_area_id')->value('id');
+        $daBia = $this->documentoComDiretor($area, $bia)->signers()->whereNotNull('director_area_id')->value('id');
+
+        $this->withCredentials()->withCookie(DirectorKioskService::COOKIE, $this->cookieDoDiretor($this->entra()))
+            ->postJson(route('quiosque.diretoria.batch.open'), ['signers' => [$daAna, $daBia]])
+            ->assertStatus(409);
+
+        $this->assertSame(0, SignatureRequest::where('status', SignatureRequest::STATUS_CONSUMED)->count());
+    }
+
+    public function test_tablet_tem_voltar_em_todas_as_etapas_e_previa_da_foto(): void
+    {
+        $html = $this->get(route('quiosque.index'))->assertOk()->getContent();
+
+        foreach (['data-sair-documento', 'id="btnVoltarDocumento"', 'id="btnVoltarIdentidade"', 'id="btnVoltarAceite"',
+            'id="btnVoltarAssinatura"', 'id="btnVoltarFoto"', 'id="sheetSair"',
+            'id="fotoPrevia"', 'id="btnOutraFoto"', 'id="btnUsarFoto"', 'id="dAssinarLote"', 'id="dAbaAssinados"'] as $trecho) {
+            $this->assertStringContainsString($trecho, $html);
+        }
     }
 
     public function test_tablet_do_balcao_oferece_a_entrada_da_diretoria(): void

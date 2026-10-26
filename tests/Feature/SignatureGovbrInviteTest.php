@@ -22,8 +22,9 @@ use Tests\TestCase;
  * O convite por e-mail para assinar pelo gov.br.
  *
  * O atendente clica em "Enviar por e-mail"; a pessoa recebe o PDF, assina no
- * gov.br e responde ao e-mail com o arquivo — a resposta vai para o atendente,
- * que o envia na aba. Não há link: o Lara não é acessível de fora.
+ * gov.br e entrega o arquivo no atendimento do clube (não por e-mail), e o
+ * atendente o envia na aba. Não há link: o Lara não é acessível de fora. O
+ * `Reply-To` do atendente fica só para dúvidas.
  */
 class SignatureGovbrInviteTest extends TestCase
 {
@@ -137,7 +138,9 @@ class SignatureGovbrInviteTest extends TestCase
 
         $html = Mail::sent(SignatureGovbrInviteMail::class)->last()->render();
 
-        $this->assertStringContainsString('Responda a este e-mail', $html);
+        // O arquivo assinado volta no atendimento, não por e-mail (26/10/2026).
+        $this->assertStringContainsString('Entregue esse arquivo ao atendimento do clube', $html);
+        $this->assertStringNotContainsString('Responda a este e-mail', $html);
         $this->assertStringNotContainsString(config('app.url'), $html);
         $this->assertFalse(Route::has('signature-govbr-public.show'));
     }

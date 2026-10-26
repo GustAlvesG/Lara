@@ -493,7 +493,11 @@ class SignatureCaptureService
                             'autorizou_imagem' => $caminhoFoto !== null,
                             'com_visto' => $caminhoVisto !== null,
                             'foto_ausente' => $motivoSemFoto,
-                        ],
+                        ] + (isset($payload['batch_size'])
+                            // Diretor assinando vários de uma vez: o mesmo traço
+                            // e a mesma foto valem para todos os do lote.
+                            ? ['em_lote' => (int) $payload['batch_size']]
+                            : []),
                     ],
                 );
 
@@ -537,6 +541,10 @@ class SignatureCaptureService
          */
         if ($fechouODocumento) {
             FinalizeSignatureDocument::dispatch($document->id);
+        } elseif (!$signer->isDirector()) {
+            // Talvez fosse o último de fora da diretoria: o documento chega
+            // agora aos diretores, e o aviso por e-mail sai.
+            \App\Jobs\NotifySignatureDirector::forReleased($document);
         }
 
         return $assinado;

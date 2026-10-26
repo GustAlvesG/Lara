@@ -13,9 +13,9 @@ use Illuminate\Queue\SerializesModels;
 /**
  * Convite para assinar pelo gov.br: o PDF a assinar e o passo a passo.
  *
- * Sem link: o Lara não é acessível de fora. A pessoa devolve o arquivo
- * assinado respondendo ao e-mail (o `replyTo` é o atendente que enviou) ou
- * entregando-o no clube.
+ * Sem link: o Lara não é acessível de fora. A pessoa entrega o arquivo
+ * assinado no atendimento do clube; o retorno NÃO é por e-mail (26/10/2026).
+ * O `replyTo` (atendente que enviou) fica só para dúvidas.
  *
  * O corpo não repete dados pessoais (CPF, conteúdo do documento): o PDF anexo
  * já os tem.
@@ -30,7 +30,6 @@ class SignatureGovbrInviteMail extends Mailable
         private string $pdf,
         private string $fileName,
         private bool $alreadySigned,
-        private bool $replyGoesToAttendant,
     ) {
     }
 
@@ -49,7 +48,6 @@ class SignatureGovbrInviteMail extends Mailable
                 'signer' => $this->invite->signer,
                 'document' => $this->invite->signer->document,
                 'alreadySigned' => $this->alreadySigned,
-                'replyGoesToAttendant' => $this->replyGoesToAttendant,
             ],
         );
     }

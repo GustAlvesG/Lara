@@ -35,6 +35,11 @@
             'pendentes' => route('quiosque.diretoria.pending'),
             'abrir' => route('quiosque.diretoria.open', ['signatureSigner' => '__SIGNER__']),
             'sair' => route('quiosque.diretoria.logout'),
+            // Assinatura em lote (vários documentos de uma vez).
+            'lote' => route('quiosque.diretoria.batch.open'),
+            'loteVisualizado' => route('quiosque.diretoria.batch.viewed', ['signatureSigner' => '__SIGNER__']),
+            'loteAssinar' => route('quiosque.diretoria.batch.sign'),
+            'loteCancelar' => route('quiosque.diretoria.batch.cancel'),
         ],
         // Sem toque na lista por este tempo, a entrada do diretor acaba
         // (SIGNATURE_DIRECTOR_IDLE_SECONDS).
@@ -209,6 +214,21 @@
   .cam-view{width:min(82vw,380px);aspect-ratio:3/4;border-radius:var(--r-lg);overflow:hidden;background:#000;border:2px solid var(--border-strong);}
   .cam-view video{width:100%;height:100%;object-fit:cover;}
   .cam-count{font-size:42px;font-weight:800;color:var(--brand);font-variant-numeric:tabular-nums;}
+  /* Prévia da foto: a pessoa confere antes de usar, ou tira outra. */
+  .cam-view img{width:100%;height:100%;object-fit:cover;display:block;}
+
+  /* Assinatura da Diretoria: abas, marcação para o lote e acompanhamento */
+  .abas{display:flex;gap:8px;margin:6px 0 16px;}
+  .aba{flex:1 1 0;min-height:52px;border-radius:999px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink-2);font-family:inherit;font-size:16px;font-weight:800;cursor:pointer;}
+  .aba.on{background:var(--brand);border-color:var(--brand);color:var(--on-brand);}
+  .d-item{display:flex;gap:10px;align-items:stretch;}
+  .d-item .pessoa{flex:1 1 auto;min-width:0;}
+  .d-marca{flex:0 0 64px;display:grid;place-items:center;border-radius:var(--r);border:2px solid var(--border-strong);background:var(--surface-2);cursor:pointer;}
+  .d-marca input{width:30px;height:30px;accent-color:var(--brand);}
+  .d-item.marcado .d-marca{border-color:var(--brand);background:var(--brand-tint);}
+  .d-marca.off{opacity:.35;cursor:not-allowed;}
+  .pessoa .selo.andamento{background:var(--warning-tint);color:var(--warning);}
+  div.pessoa{cursor:default;}
 
   /* Sucesso */
   .done{flex:1 1 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px;gap:14px;}
@@ -312,6 +332,8 @@
         <p class="note note-danger hidden" id="erroFormulario"></p>
       </div>
       <div class="foot">
+        <!-- Sempre há como voltar: aqui, o primeiro passo, voltar é sair do documento. -->
+        <button type="button" class="btn btn-ghost" data-sair-documento>Voltar</button>
         <button type="button" class="btn btn-danger" data-recusar>Recusar</button>
         <button type="button" class="btn btn-primary" id="btnFormulario">Continuar</button>
       </div>
@@ -326,6 +348,9 @@
       <div class="doc-scroll" id="docScroll"></div>
       <div class="doc-status" id="docStatus">Carregando o documento…</div>
       <div class="foot">
+        <!-- Com perguntas, "Corrigir respostas" é o voltar; sem elas, "Voltar" sai do documento
+             (no lote da diretoria, volta ao documento anterior). -->
+        <button type="button" class="btn btn-ghost" id="btnVoltarDocumento">Voltar</button>
         <button type="button" class="btn btn-danger" data-recusar>Recusar</button>
         <button type="button" class="btn btn-ghost hidden" id="btnCorrigir">Corrigir respostas</button>
         <button type="button" class="btn btn-primary" id="btnLido" disabled>Role até o fim</button>
@@ -349,6 +374,7 @@
         <p class="note note-danger hidden" id="erroIdentidade" style="margin-top:18px;"></p>
       </div>
       <div class="foot">
+        <button type="button" class="btn btn-ghost" id="btnVoltarIdentidade">Voltar</button>
         <button type="button" class="btn btn-danger" data-recusar>Recusar</button>
         <button type="button" class="btn btn-primary" id="btnIdentidade" disabled>Confirmar</button>
       </div>
@@ -362,7 +388,7 @@
 
         <label class="accept" id="aceiteBox">
           <input type="checkbox" id="aceiteCheck">
-          <span>Li e concordo com os termos deste documento.</span>
+          <span id="aceiteTexto">Li e concordo com os termos deste documento.</span>
         </label>
 
         <!-- Autorização da foto: obrigatória para continuar quando o modelo pede foto e o tablet tem câmera.
@@ -383,6 +409,7 @@
         </div>
       </div>
       <div class="foot">
+        <button type="button" class="btn btn-ghost" id="btnVoltarAceite">Voltar</button>
         <button type="button" class="btn btn-danger" data-recusar>Recusar</button>
         <button type="button" class="btn btn-primary" id="btnAceite" disabled>Continuar</button>
       </div>
@@ -402,6 +429,7 @@
         </div>
       </div>
       <div class="foot">
+        <button type="button" class="btn btn-ghost" id="btnVoltarAssinatura">Voltar</button>
         <button type="button" class="btn btn-ghost" id="btnLimpar">Limpar</button>
         <button type="button" class="btn btn-primary" id="btnAssinar" disabled>Confirmar assinatura</button>
       </div>
@@ -409,14 +437,23 @@
 
     <!-- 6. Foto -->
     <section class="screen" id="tela-foto">
-      <div class="cam-wrap">
-        <h2>Registro da assinatura</h2>
-        <p class="lead" style="margin-bottom:4px;">Ajeite-se de frente para a câmera e toque em <b>Tirar foto</b>. A foto sai depois de 3 segundos.</p>
-        <div class="cam-view"><video id="camVideo" playsinline muted></video></div>
+      <div class="cam-wrap grow">
+        <h2 id="fotoTitulo">Registro da assinatura</h2>
+        <p class="lead" id="fotoLead" style="margin-bottom:4px;">Ajeite-se de frente para a câmera e toque em <b>Tirar foto</b>. A foto sai depois de 3 segundos.</p>
+        <div class="cam-view">
+          <video id="camVideo" playsinline muted></video>
+          <!-- Prévia: a foto tirada, antes de ser usada. -->
+          <img id="fotoPrevia" class="hidden" alt="Foto tirada">
+        </div>
         <!-- A contagem só começa no toque: a pessoa decide quando está pronta. -->
         <button type="button" class="btn btn-primary hidden" id="btnFoto" style="flex:0 0 auto;width:min(82vw,380px);">Tirar foto</button>
         <div class="cam-count hidden" id="camContagem">3</div>
         <p class="note note-danger hidden" id="erroFoto"></p>
+      </div>
+      <div class="foot">
+        <button type="button" class="btn btn-ghost" id="btnVoltarFoto">Voltar</button>
+        <button type="button" class="btn btn-ghost hidden" id="btnOutraFoto">Tirar nova foto</button>
+        <button type="button" class="btn btn-primary hidden" id="btnUsarFoto">Usar esta foto</button>
       </div>
     </section>
 
@@ -452,6 +489,18 @@
         <div class="row">
           <button type="button" class="btn btn-ghost" id="cancelarRecusa" style="flex:1;">Voltar</button>
           <button type="button" class="btn btn-primary" id="confirmarRecusa" style="background:var(--danger);">Recusar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Voltar do primeiro passo: sair do documento sem assinar nem recusar -->
+    <div class="sheet" id="sheetSair">
+      <div class="card">
+        <h3>Sair deste documento?</h3>
+        <p id="textoSair">O documento não será assinado agora, e continua pendente.</p>
+        <div class="row">
+          <button type="button" class="btn btn-ghost" id="cancelarSair" style="flex:1;">Continuar aqui</button>
+          <button type="button" class="btn btn-primary" id="confirmarSair">Sair</button>
         </div>
       </div>
     </div>
@@ -520,6 +569,11 @@
       aceitou: false,
       autorizouImagem: false,
       querVia: false,
+      // A identidade já passou nesta sessão: voltar ao documento e seguir de
+      // novo não pede o CPF outra vez.
+      identidadeOk: false,
+      // Assinatura em lote da diretoria: { docs, idx, leituras }. Ver diretoria-js.
+      lote: null,
       sessao: { restante: 0, aviso: 60 },
     };
   }
@@ -1173,6 +1227,12 @@
     // As respostas da pessoa atendida não sobrevivem a ela.
     $('#formCampos').innerHTML = '';
     $('#btnCorrigir').classList.add('hidden');
+    $('#btnVoltarDocumento').classList.remove('hidden');
+    // O lote da diretoria esconde a recusa e troca o texto do aceite.
+    document.querySelectorAll('[data-recusar]').forEach(function (b) { b.classList.remove('hidden'); });
+    $('#aceiteTexto').textContent = 'Li e concordo com os termos deste documento.';
+    $('#sucessoVia').style.whiteSpace = '';
+    $('#sheetSair').classList.remove('on');
     $('#cpfInput').value = '';
     $('#codigoInput').value = '';
     $('#erroCodigo').classList.add('hidden');
@@ -1325,6 +1385,10 @@
     $('#btnLido').disabled = true;
     $('#btnLido').textContent = 'Role até o fim';
 
+    // Com perguntas, o voltar é "Corrigir respostas"; sem elas, "Voltar".
+    $('#btnCorrigir').classList.toggle('hidden', !S.formulario);
+    $('#btnVoltarDocumento').classList.toggle('hidden', !!S.formulario);
+
     if (typeof pdfjsLib === 'undefined') {
       $('#docStatus').textContent = 'Não foi possível carregar o leitor de PDF.';
       return;
@@ -1401,20 +1465,122 @@
   $('#btnLido').addEventListener('click', function () {
     S.leitura.segundos = Math.round((Date.now() - S.leitura.inicio) / 1000);
 
+    // Lote da diretoria: registra este e passa ao próximo documento.
+    if (S.lote) {
+      loteLido();
+      return;
+    }
+
     api('POST', rota('visualizado'), {
       read_seconds: S.leitura.segundos,
       scrolled_to_end: S.leitura.ateOFim,
     }).catch(function (e) { trataFalha(e); });
 
-    // 'none' no modelo, ou já conferida antes do documento (o CPF completo do
-    // autoatendimento do Termo de Menores).
-    if (S.regras.identity_check === 'none' || S.regras.identity_confirmed) {
+    // 'none' no modelo, já conferida antes do documento (o CPF completo do
+    // autoatendimento do Termo de Menores) ou já conferida nesta sessão (a
+    // pessoa voltou ao documento depois da identidade).
+    if (S.regras.identity_check === 'none' || S.regras.identity_confirmed || S.identidadeOk) {
       mostra('tela-aceite');
       return;
     }
 
     preparaIdentidade();
     mostra('tela-identidade');
+  });
+
+  /* ---------------------------------------------------------------------
+   | Voltar — sempre há como voltar um passo (26/10/2026)
+   |---------------------------------------------------------------------*/
+
+  // O primeiro passo não tem passo anterior: voltar é sair do documento,
+  // que continua pendente (não é recusa). Confirma antes.
+  function pedeSair() {
+    $('#textoSair').textContent = S && S.lote
+      ? 'Nenhum destes documentos será assinado agora. Eles continuam na sua lista.'
+      : (CFG.menores
+        ? 'O termo não será assinado agora. Você volta ao início.'
+        : (CFG.diretoria && diretoriaAtiva()
+          ? 'O documento não será assinado agora e continua na sua lista.'
+          : 'O documento não será assinado agora. Para recomeçar, o atendente gera um novo QR Code.'));
+    $('#sheetSair').classList.add('on');
+  }
+
+  document.querySelectorAll('[data-sair-documento]').forEach(function (botao) {
+    botao.addEventListener('click', pedeSair);
+  });
+
+  $('#cancelarSair').addEventListener('click', function () {
+    $('#sheetSair').classList.remove('on');
+  });
+
+  $('#confirmarSair').addEventListener('click', function () {
+    $('#sheetSair').classList.remove('on');
+
+    var saida = S && S.lote
+      ? api('POST', CFG.diretoria.rotas.loteCancelar, { signers: S.lote.docs.map(function (d) { return d.signer_id; }) })
+      : api('POST', CFG.rotas.encerrar);
+
+    saida.catch(function () { /* sessão já vencida: nada a encerrar */ }).then(function () {
+      var semMensagem = CFG.menores || (CFG.diretoria && diretoriaAtiva());
+
+      encerraAtendimento(semMensagem ? {} : {
+        mensagem: 'Você saiu do documento sem assinar. Para recomeçar, peça ao atendente um novo QR Code.',
+        titulo: 'Documento não assinado',
+      });
+    });
+  });
+
+  $('#btnVoltarDocumento').addEventListener('click', function () {
+    if (S && S.lote) {
+      loteVoltaDocumento();
+      return;
+    }
+
+    pedeSair();
+  });
+
+  // O documento continua desenhado na tela anterior: voltar é só mostrá-lo.
+  $('#btnVoltarIdentidade').addEventListener('click', function () {
+    mostra('tela-documento');
+  });
+
+  $('#btnVoltarAceite').addEventListener('click', function () {
+    mostra('tela-documento');
+  });
+
+  $('#btnVoltarAssinatura').addEventListener('click', function () {
+    // No visto, voltar é refazer a assinatura; na assinatura, é o aceite.
+    if (S.modoVisto) {
+      abreAssinatura();
+      return;
+    }
+
+    limpaCanvas();
+    mostra('tela-aceite');
+  });
+
+  $('#btnVoltarFoto').addEventListener('click', function () {
+    desligaCamera();
+    S.fotoJpeg = null;
+
+    if (!S.regras.requires_initials) {
+      abreAssinatura();
+      return;
+    }
+
+    // Volta ao visto, guardando a assinatura já confirmada.
+    var png = S.assinaturaPng;
+    var tracos = S.tracosAssinatura;
+
+    mostra('tela-assinatura');
+    S.modoVisto = true;
+    S.vistoPng = null;
+    S.tracosVisto = [];
+    inicioTraco = null;
+    preparaCanvas();
+    S.assinaturaPng = png;
+    S.tracosAssinatura = tracos;
+    rotulaTelaDeDesenho();
   });
 
   /* ---------------------------------------------------------------------
@@ -1531,6 +1697,7 @@
       ? { codigo: S.cpfDigitado }
       : { cpf: S.cpfDigitado })
       .then(function () {
+        S.identidadeOk = true;
         mostra('tela-aceite');
       })
       .catch(function (e) {
@@ -1806,7 +1973,20 @@
   var streamFoto = null;
   var timerFoto = null;
 
+  // Volta da prévia para a câmera ao vivo.
+  function modoCamera() {
+    S.fotoJpeg = null;
+    $('#fotoPrevia').classList.add('hidden');
+    $('#fotoPrevia').removeAttribute('src');
+    $('#camVideo').classList.remove('hidden');
+    $('#btnOutraFoto').classList.add('hidden');
+    $('#btnUsarFoto').classList.add('hidden');
+    $('#fotoTitulo').textContent = 'Registro da assinatura';
+    $('#fotoLead').innerHTML = 'Ajeite-se de frente para a câmera e toque em <b>Tirar foto</b>. A foto sai depois de 3 segundos.';
+  }
+
   function iniciaFoto() {
+    modoCamera();
     $('#erroFoto').classList.add('hidden');
     $('#btnFoto').classList.add('hidden');
     $('#btnFoto').disabled = false;
@@ -1881,9 +2061,38 @@
 
     S.fotoJpeg = canvas.toDataURL('image/jpeg', 0.82);
 
-    desligaCamera();
-    envia();
+    /*
+     * Prévia antes de usar: a pessoa confere a foto e escolhe entre usá-la ou
+     * tirar outra. A câmera segue ligada por baixo, para a nova foto não
+     * esperar o aparelho abrir de novo.
+     */
+    $('#camContagem').classList.add('hidden');
+    $('#fotoPrevia').src = S.fotoJpeg;
+    $('#fotoPrevia').classList.remove('hidden');
+    $('#camVideo').classList.add('hidden');
+    $('#fotoTitulo').textContent = 'Confira a sua foto';
+    $('#fotoLead').textContent = 'Ficou boa? Use esta foto ou tire uma nova.';
+    $('#btnOutraFoto').classList.remove('hidden');
+    $('#btnUsarFoto').classList.remove('hidden');
   }
+
+  $('#btnOutraFoto').addEventListener('click', function () {
+    modoCamera();
+    $('#btnFoto').disabled = false;
+    $('#btnFoto').classList.remove('hidden');
+  });
+
+  $('#btnUsarFoto').addEventListener('click', function () {
+    if (!S || !S.fotoJpeg) {
+      return;
+    }
+
+    var foto = S.fotoJpeg;
+
+    desligaCamera();
+    S.fotoJpeg = foto;
+    envia();
+  });
 
   function desligaCamera() {
     // Atendimento encerrado no meio da contagem: a foto não sai depois.
@@ -1899,7 +2108,14 @@
 
     if (video) {
       video.srcObject = null;
+      video.classList.remove('hidden');
     }
+
+    // A prévia da foto não sobrevive ao atendimento.
+    $('#fotoPrevia').classList.add('hidden');
+    $('#fotoPrevia').removeAttribute('src');
+    $('#btnOutraFoto').classList.add('hidden');
+    $('#btnUsarFoto').classList.add('hidden');
   }
 
   /* ---------------------------------------------------------------------
@@ -1907,6 +2123,12 @@
    |---------------------------------------------------------------------*/
 
   function envia() {
+    // Lote da diretoria: uma gravação por documento, numa requisição só.
+    if (S.lote) {
+      loteEnvia();
+      return;
+    }
+
     $('#sucessoDetalhe').textContent = 'Gravando a assinatura…';
     mostra('tela-sucesso');
 

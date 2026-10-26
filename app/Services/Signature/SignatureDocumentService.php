@@ -359,9 +359,11 @@ class SignatureDocumentService
         );
 
         // O aviso ao diretor vai pela fila, depois do commit: ninguém espera
-        // por ele, e SMTP fora do ar não pode desfazer o congelamento.
-        foreach ($diretores as $diretor) {
-            NotifySignatureDirector::dispatch($diretor->id)->afterCommit();
+        // por ele, e SMTP fora do ar não pode desfazer o congelamento. Com
+        // alguém de fora da diretoria no documento, o aviso espera essa
+        // assinatura (SignatureCaptureService).
+        if ($diretores->isNotEmpty()) {
+            NotifySignatureDirector::forReleased($congelado);
         }
 
         return $congelado;

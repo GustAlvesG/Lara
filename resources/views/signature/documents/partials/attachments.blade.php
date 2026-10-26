@@ -17,7 +17,8 @@
     <div>
         <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider">Anexos</h3>
         <p class="text-xs text-ink-2 mt-1">
-            PDF, JPG ou PNG, até {{ $limiteMb }} MB cada. Podem chegar a qualquer momento antes da conclusão: o
+            PDF, JPG ou PNG, até {{ $limiteMb }} MB cada — escolha vários de uma vez, se quiser (até
+            {{ \App\Http\Controllers\Signature\AttachmentController::MAX_FILES_PER_UPLOAD }}). Podem chegar a qualquer momento antes da conclusão: o
             documento só conclui com os obrigatórios aqui.
             @if(!$podeRemover && $podeEnviar)
                 Depois do congelamento, o que for enviado fica registrado e não pode ser removido.
@@ -62,11 +63,12 @@
                           enctype="multipart/form-data" class="flex flex-wrap items-center gap-3">
                         @csrf
                         <input type="hidden" name="item" value="{{ $item['key'] }}">
-                        <input type="file" name="arquivo" accept="application/pdf,image/jpeg,image/png" required
-                               aria-label="Arquivo de {{ $item['label'] }}"
+                        {{-- Vários de uma vez: cada arquivo vira um anexo do item (AttachmentController::store). --}}
+                        <input type="file" name="arquivos[]" multiple accept="application/pdf,image/jpeg,image/png" required
+                               aria-label="Arquivos de {{ $item['label'] }}"
                                class="min-w-0 text-sm text-ink file:mr-3 file:rounded-full file:border-0 file:bg-subtle file:px-4 file:py-2 file:text-sm file:font-bold file:text-ink hover:file:bg-line">
                         <button type="submit" class="px-4 py-2 bg-grena text-white rounded-full font-bold text-xs hover:bg-grena-hover transition">
-                            {{ $doItem->isNotEmpty() ? 'Enviar mais um arquivo' : 'Enviar' }}
+                            {{ $doItem->isNotEmpty() ? 'Enviar mais arquivos' : 'Enviar' }}
                         </button>
                     </form>
                 @endcan
@@ -94,8 +96,8 @@
                     <input type="text" name="rotulo" maxlength="120" required placeholder="O que é este arquivo"
                            aria-label="O que é este arquivo"
                            class="min-w-0 flex-1 rounded-full border border-line bg-surface px-4 py-2 text-sm text-ink">
-                    <input type="file" name="arquivo" accept="application/pdf,image/jpeg,image/png" required
-                           aria-label="Arquivo do outro anexo"
+                    <input type="file" name="arquivos[]" multiple accept="application/pdf,image/jpeg,image/png" required
+                           aria-label="Arquivos do outro anexo"
                            class="min-w-0 text-sm text-ink file:mr-3 file:rounded-full file:border-0 file:bg-subtle file:px-4 file:py-2 file:text-sm file:font-bold file:text-ink hover:file:bg-line">
                     <button type="submit" class="px-4 py-2 bg-grena text-white rounded-full font-bold text-xs hover:bg-grena-hover transition">
                         Enviar
@@ -107,7 +109,9 @@
         <p class="text-sm text-ink-2">Nenhum anexo.</p>
     @endif
 
-    @error('arquivo')
-        <p class="text-xs text-danger">{{ $message }}</p>
-    @enderror
+    @foreach(['arquivo', 'arquivos', 'arquivos.*'] as $campo)
+        @error($campo)
+            <p class="text-xs text-danger">{{ $message }}</p>
+        @enderror
+    @endforeach
 </div>

@@ -7,6 +7,8 @@ use App\Models\SignatureDocument;
 use App\Models\SignatureRequest;
 use App\Models\SignatureSigner;
 use App\Models\User;
+use App\Exceptions\SignatureSessionException;
+use App\Services\Signature\SignatureCaptureService;
 use App\Services\Signature\SignatureRequestService;
 use App\Services\Signature\SignatureSigningDataService;
 use App\Services\Signature\SignatureStateMachine;
@@ -43,10 +45,19 @@ class DirectorKioskService
     /** Janela do limite de tentativas, em segundos. */
     private const LIMIT_DECAY_SECONDS = 900;
 
+    /** Quantos documentos cabem numa assinatura em lote. */
+    public const BATCH_MAX = 20;
+
+    /** "Já assinados" no tablet: os deste período, no máximo SIGNED_LIMIT. */
+    private const SIGNED_DAYS = 90;
+
+    private const SIGNED_LIMIT = 50;
+
     public function __construct(
         private SignatureRequestService $requests,
         private SignatureSigningDataService $signingData,
         private SignatureStateMachine $states,
+        private SignatureCaptureService $capture,
     ) {
     }
 
@@ -142,23 +153,78 @@ class DirectorKioskService
 
     /**
      * Os signatários pendentes deste diretor que o tablet pode abrir: documento
-     * aguardando assinatura, dentro do prazo e que não foi para o gov.br (lá a
-     * assinatura é pelo arquivo, não pelo tablet).
+     * aguardando assinatura, dentro do prazo, que não foi para o gov.br (lá a
+     * assinatura é pelo arquivo, não pelo tablet) e que já CHEGOU à diretoria —
+     * ninguém de fora dela falta assinar (decisão do usuário, 26/10/2026).
      *
      * @return Collection<int, SignatureSigner>
      */
     public function pending(User $director): Collection
     {
-        return SignatureSigner::with(['document.signers'])
+        return SignatureSigner::with(['document.signers', 'document.template'])
             ->where('user_id', $director->id)
             ->whereNotNull('director_area_id')
             ->where('status', SignatureSigner::STATUS_PENDING)
             ->whereHas('document', fn($q) => $q
                 ->where('status', SignatureDocument::STATUS_AWAITING_SIGNATURE)
                 ->whereNull('govbr_sent_at')
-                ->where(fn($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now())))
+                ->where(fn($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+                ->releasedToDirectors())
             ->orderBy('id')
             ->get();
+    }
+
+    /**
+     * Entra na assinatura em lote? Só o documento sem perguntas a responder:
+     * as respostas refazem o texto, e cada um teria o seu formulário. O visto
+     * não impede — é um desenho só, aplicado a quem o exige.
+     */
+    public function batchable(SignatureSigner $signer): bool
+    {
+        return $this->signingData->form($signer->document) === null;
+    }
+
+    /**
+     * Os documentos que este diretor já assinou, para acompanhar: o que falta
+     * e se a via final já saiu. Só leitura, sem PDF — o tablet é do balcão.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function signedPayload(User $director): array
+    {
+        return SignatureSigner::with(['document.signers'])
+            ->where('user_id', $director->id)
+            ->whereNotNull('director_area_id')
+            ->where('status', SignatureSigner::STATUS_SIGNED)
+            ->where('signed_at', '>=', now()->subDays(self::SIGNED_DAYS))
+            ->orderByDesc('signed_at')
+            ->limit(self::SIGNED_LIMIT)
+            ->get()
+            ->map(fn(SignatureSigner $s) => [
+                'signer_id' => $s->id,
+                'title' => $s->document->title,
+                'area' => $s->directorLabel(),
+                'signed_at' => $s->signed_at?->format('d/m/Y H:i'),
+                'situation' => $this->situation($s->document),
+                'done' => $s->document->status === SignatureDocument::STATUS_FINALIZED,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /** Em que pé está o documento, na voz do tablet. */
+    private function situation(SignatureDocument $document): string
+    {
+        return match ($document->status) {
+            SignatureDocument::STATUS_FINALIZED => 'Concluído: a via final foi emitida.',
+            SignatureDocument::STATUS_SIGNED => 'Todos assinaram: a via final está sendo gerada.',
+            SignatureDocument::STATUS_AWAITING_SIGNATURE => 'Falta assinar: ' . $document->signers
+                ->where('status', SignatureSigner::STATUS_PENDING)
+                ->pluck('name')
+                ->join(', ', ' e ') . '.',
+            SignatureDocument::STATUS_REFUSED => 'Recusado por outro signatário.',
+            default => $document->statusLabel() . '.',
+        };
     }
 
     /**
@@ -176,6 +242,8 @@ class DirectorKioskService
             'created_by' => $s->document->created_by_name,
             'frozen_at' => $s->document->frozen_at?->format('d/m/Y H:i'),
             'expires_at' => $s->document->expires_at?->format('d/m/Y H:i'),
+            // Pode ir na assinatura em lote (sem perguntas a responder).
+            'batch' => $this->batchable($s),
             'others' => $s->document->signers
                 ->reject(fn(SignatureSigner $o) => $o->id === $s->id)
                 ->map(fn(SignatureSigner $o) => [
@@ -241,6 +309,205 @@ class DirectorKioskService
         $this->signingData->prepare($signer->document()->first(), $contexto);
 
         return ['request' => $solicitacao->fresh(), 'session_token' => $sessao['session_token']];
+    }
+
+    /*
+     | Assinatura em lote (26/10/2026)
+     |
+     | O diretor marca vários documentos da lista, lê um por um e assina UMA
+     | vez: aceite, traço, visto (se algum pedir) e foto valem para todos. Por
+     | baixo, cada documento é aberto como na assinatura avulsa — liberação
+     | emitida e consumida, identidade confirmada pelo PIN, data aplicada —, e
+     | cada um recebe a sua leitura e a sua assinatura pela MESMA captura do
+     | tablet, com a trilha marcando `em_lote`. Nada fica no cache: a liberação
+     | viva de cada documento é achada no banco (diretor, PIN, consumida, no
+     | prazo), e só a entrada do diretor chega até ela.
+     */
+
+    /**
+     * Abre o lote. Tudo ou nada: se um documento não abrir, os já abertos são
+     * cancelados e o lote é recusado com o motivo.
+     *
+     * @param  array<int, int>  $signerIds
+     * @param  array{ip?: ?string, user_agent?: ?string}  $context
+     * @return array{documents: array<int, array<string, mixed>>, requires_initials: bool, remaining_seconds: int}
+     *
+     * @throws DirectorException
+     */
+    public function openBatch(User $director, array $signerIds, array $context = []): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $signerIds)));
+
+        if ($ids === [] || count($ids) > self::BATCH_MAX) {
+            throw new DirectorException('Escolha de 1 a ' . self::BATCH_MAX . ' documentos para assinar de uma vez.', 422);
+        }
+
+        $pendentes = $this->pending($director)->keyBy('id');
+
+        foreach ($ids as $id) {
+            $signer = $pendentes->get($id);
+
+            if (!$signer) {
+                throw new DirectorException('Um dos documentos escolhidos não está mais pendente da sua assinatura. Atualize a lista.', 409);
+            }
+
+            if (!$this->batchable($signer)) {
+                throw new DirectorException('"' . $signer->document->title . '" tem perguntas para responder: assine esse sozinho.', 422);
+            }
+        }
+
+        $abertos = [];
+
+        try {
+            foreach ($ids as $id) {
+                $abertos[$id] = $this->open($director, $id, $context)['request'];
+            }
+        } catch (DirectorException $e) {
+            foreach ($abertos as $solicitacao) {
+                $this->cancelQuietly($solicitacao);
+            }
+
+            throw $e;
+        }
+
+        $documentos = collect($abertos)->map(function (SignatureRequest $r, int $id) {
+            $documento = $r->signer->document()->first();
+
+            return [
+                'signer_id' => $id,
+                'title' => $documento->title,
+                'area' => $r->signer->directorLabel(),
+                // O hash muda se a data automática refez o arquivo.
+                'pdf_url' => route('quiosque.diretoria.batch.pdf', $id) . '?v=' . substr((string) $documento->original_sha256, 0, 12),
+                'requires_initials' => $documento->requiresInitials(),
+            ];
+        })->values()->all();
+
+        return [
+            'documents' => $documentos,
+            'requires_initials' => collect($documentos)->contains('requires_initials', true),
+            'remaining_seconds' => collect($abertos)->min(fn(SignatureRequest $r) => $r->secondsToSessionEnd()),
+        ];
+    }
+
+    /**
+     * A liberação viva de um documento do lote: aberta pela entrada DESTE
+     * diretor, consumida e no prazo — ou null.
+     */
+    public function batchRequest(User $director, int $signerId): ?SignatureRequest
+    {
+        $solicitacao = SignatureRequest::with('signer.document')
+            ->where('signature_signer_id', $signerId)
+            ->where('identity_method', SignatureRequest::IDENTITY_METHOD_DIRECTOR_PIN)
+            ->where('created_by', $director->id)
+            ->where('status', SignatureRequest::STATUS_CONSUMED)
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$solicitacao || !$solicitacao->sessionIsAlive()
+            || (int) $solicitacao->signer?->user_id !== (int) $director->id
+            || $solicitacao->signer->releaseBlockReason(true)) {
+            return null;
+        }
+
+        return $solicitacao;
+    }
+
+    /**
+     * Registra a leitura de um documento do lote — o mesmo evento da leitura
+     * avulsa, com a marca do lote.
+     *
+     * @param  array{ip?: ?string, user_agent?: ?string}  $context
+     *
+     * @throws DirectorException
+     */
+    public function batchViewed(User $director, int $signerId, ?int $seconds, bool $scrolledToEnd, array $context = []): void
+    {
+        $solicitacao = $this->batchRequest($director, $signerId)
+            ?? throw new DirectorException('A sessão deste documento terminou. Volte à lista e abra de novo.', 409);
+
+        $this->states->note($solicitacao->signer->signature_document_id, SignatureAuditEvent::EVENT_VIEWED, [
+            'signer' => $signerId,
+            'request' => $solicitacao->id,
+            'actor_type' => SignatureAuditEvent::ACTOR_KIOSK,
+            'ip' => $context['ip'] ?? null,
+            'user_agent' => $context['user_agent'] ?? null,
+            'payload' => [
+                'segundos_de_leitura' => $seconds,
+                'rolou_ate_o_fim' => $scrolledToEnd,
+                'em_lote' => true,
+            ],
+        ]);
+    }
+
+    /**
+     * Assina o lote: a mesma captura do tablet, documento a documento. Um que
+     * falhe não desfaz os outros — cada assinatura é um ato completo —, e o
+     * resultado diz qual entrou e qual não.
+     *
+     * @param  array<int, int>  $signerIds
+     * @param  array<string, mixed>  $payload  o mesmo da captura, sem leitura
+     * @param  array<int|string, array{read_seconds?: ?int, scrolled_to_end?: bool}>  $reads  por signatário
+     * @param  array{ip?: ?string, user_agent?: ?string}  $context
+     * @return array<int, array{signer_id: int, title: ?string, ok: bool, error: ?string}>
+     */
+    public function signBatch(User $director, array $signerIds, array $payload, array $reads, array $context = []): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $signerIds)));
+        $resultado = [];
+
+        foreach ($ids as $id) {
+            $solicitacao = $this->batchRequest($director, $id);
+
+            if (!$solicitacao) {
+                $resultado[] = ['signer_id' => $id, 'title' => null, 'ok' => false,
+                    'error' => 'A sessão deste documento terminou antes da assinatura. Abra de novo na lista.'];
+
+                continue;
+            }
+
+            $leitura = $reads[$id] ?? $reads[(string) $id] ?? [];
+
+            try {
+                $this->capture->capture($solicitacao, array_merge($payload, [
+                    'read_seconds' => $leitura['read_seconds'] ?? null,
+                    'scrolled_to_end' => (bool) ($leitura['scrolled_to_end'] ?? false),
+                    'batch_size' => count($ids),
+                    // A via por e-mail é do signatário avulso; no lote, não.
+                    'wants_copy' => false,
+                ]), $context);
+
+                $resultado[] = ['signer_id' => $id, 'title' => $solicitacao->signer->document->title, 'ok' => true, 'error' => null];
+            } catch (SignatureSessionException $e) {
+                $resultado[] = ['signer_id' => $id, 'title' => $solicitacao->signer->document->title, 'ok' => false, 'error' => $e->getMessage()];
+            }
+        }
+
+        return $resultado;
+    }
+
+    /**
+     * Desistiu do lote (voltou à lista): as liberações abertas caem, como no
+     * "Voltar" da assinatura avulsa.
+     *
+     * @param  array<int, int>  $signerIds
+     */
+    public function cancelBatch(User $director, array $signerIds): void
+    {
+        foreach (array_unique(array_map('intval', $signerIds)) as $id) {
+            if ($solicitacao = $this->batchRequest($director, $id)) {
+                $this->cancelQuietly($solicitacao);
+            }
+        }
+    }
+
+    private function cancelQuietly(SignatureRequest $solicitacao): void
+    {
+        try {
+            $this->requests->cancel($solicitacao, $solicitacao->created_by);
+        } catch (SignatureSessionException) {
+            // Já concluída ou vencida: nada a cancelar.
+        }
     }
 
     /** Inatividade na lista do diretor, no tablet, que encerra a entrada dele. */
