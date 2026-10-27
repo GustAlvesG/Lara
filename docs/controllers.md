@@ -14,7 +14,7 @@ indicados como _stub_.
 - [Espaços](#placegroupcontroller) · [Place](#placecontroller) · [Regras](#schedulerulescontroller)
 - [Sócios](#membercontroller) · [Auth de Sócio](#memberauthcontroller--apphttpcontrollersauth) · [Login Token](#logintokencontroller)
 - [Freelancers](#freelancercontroller) · [Funções](#functionfreelancercontroller) · [Serviços de Freelancer](#freelancerservicecontroller)
-- [Banco de horas](#comptimecontroller) · [Torneios](#tournamentcategorytemplatecontroller) · [Ingressos](#ticketticketeventcontroller-tickettypecontroller-ticketlotcontroller)
+- [Banco de horas](#comptimecontroller) · [Torneios](#tournamentcategorytemplatecontroller) · [Ingressos](#ticketticketeventcontroller-tickettypecontroller-ticketlotcontroller) · [Contratos](#signaturecontractcontroller-signaturecontractlibrarycontroller)
 - [Empresas](#company---apphttpcontrollerscompany)
 - [WhatsApp](#whatsappcontroller) · [Telegram](#telegramcontactcontroller)
 - [Acessos](#accesscontroller) · [Estacionamento](#parkingcontroller)
@@ -289,9 +289,13 @@ Reservas › Contas do site (`reservas.contas-site`): `index`, `store` (cadastro
 
 `/api/tournaments/*` do site de locação: `index`, `show` (só `api_token`); `eligibility`, `register`, `mine`, `pay`, `withdraw` (com `login_token`; sócio sempre do JWT); times e convites (F4); `bracket` (F5, só `api_token`: chaveamento divulgado). Recusas como `TournamentException::toArray()`. Contrato em [torneios.md](funcionalidades/torneios.md#api-do-site-apitournamentapicontroller).
 
+## Signature\ContractController, Signature\ContractLibraryController
+
+Contratos (Assinaturas → Contratos). `ContractController`: `index` (visíveis ao usuário — os do setor; a Gerência vê todos e tem a aba "Para validar"; busca `q` em título, número, setor, autor e `content`), `create`/`store` (setor do usuário, modelo opcional), `show` (prévia, validação, o que mudou desde a última devolução, anexos, versões, histórico), `edit`/`update` (editor; `next=submit` salva e envia), `preview` (JSON: HTML numerado + problemas + outline + variáveis, sem gravar), `submit`, `decide` (`approve`/`return` com `comments[uid]`), `aiReview` (revisão automática pelo Claude, Gerência), `reopen`, `cancel`, `addendum`, `generateDocument`, `docx`, `saveModel`, `resolveComment`, anexos (`storeAttachment`/`showAttachment`/`destroyAttachment`) e `parties` (busca no cadastro de contratadas). `ContractLibraryController`: biblioteca de cláusulas e modelos por setor (`index`, `store` — também JSON pelo editor —, `update`, `destroy`, `destroyModel`) e `json` (cláusulas do setor do contrato, com uid novo). Quem pode: `SignatureContractPolicy`. `ContractKioskController`: a validação pela Gerência no tablet do balcão (rotas públicas `quiosque.gerencia.*`, matrícula + PIN, cookie `lara_management`): `index` (página), `login`, `pending`, `show`, `decide` (pelo `ContractService`), `attachment`, `logout`. Ver [contratos.md](funcionalidades/contratos.md).
+
 ## Ticket\TicketEventController, TicketDayController, TicketTypeController, TicketLotController
 
-Ingressos no painel: eventos (`index` com busca `q` e filtro `status` e `show` com tipos, lote vigente, ocupados e pagos por lote — os dois abrem com o Gate `acessar-ingressos`; `create`/`store` em rascunho, `edit`/`update`, `status` por `TicketSetupService::TRANSITIONS` — `ingressos.gerenciar`; editar o evento não deixa um dia de fora do período), dias do evento de vários dias (`TicketDayController`: `store`/`update`/`destroy` por `TicketSetupService::saveDay`/`deleteDay` — dentro do evento, sem cruzar, dia com diária não apaga), tipos (`store`/`update` por `saveType` com `ticket_event_day_id` — diária ou, vazio, passaporte; o dia não muda depois de vendido —, `destroy`; com ingresso não apaga) e lotes (`store`/`update` por `TicketSetupService::saveLot`, com aviso; `destroy`). Ver [ingressos.md](funcionalidades/ingressos.md#telas).
+Ingressos no painel: eventos (`index` com busca `q` e filtro `status` e `show` com tipos, lote vigente, ocupados e pagos por lote — os dois abrem com o Gate `acessar-ingressos`; `create`/`store` em rascunho, `edit`/`update`, `status` por `TicketSetupService::TRANSITIONS` — `ingressos.gerenciar`; editar o evento não deixa um dia de fora do período), dias do evento de vários dias (`TicketDayController`: `store`/`update`/`destroy` por `TicketSetupService::saveDay`/`deleteDay` — dentro do evento, sem cruzar, dia com diária não apaga), tipos (`store`/`update` por `saveType` com `ticket_event_day_id` — diária ou, vazio, passaporte; o dia não muda depois de vendido —, `destroy`; com ingresso não apaga) e lotes (`store`/`update` por `TicketSetupService::saveLot`, com aviso, quantidade vazia = sem limite; `destroy`; `turn` = Virar lote agora, por `turnLots`, com confirmação). Ver [ingressos.md](funcionalidades/ingressos.md#telas).
 
 ## Ticket\TicketCouponController
 
@@ -312,6 +316,10 @@ Financeiro (`ingressos.financeiro`): `index` (eventos do ano, `?ano=`), `show` (
 ## Api\TicketApiController
 
 `/api/tickets/*` do site de locação: vitrine (`index`, `show`, `checkCoupon`, só `api_token`); sócio (`myTitle` — pessoas do título com `ref` cifrada —, `storeMember` — um ingresso por pessoa do título, pela `ref` —, `mine`, `showMember`, `payMember`, `withdrawMember`, `pdfMember`, com `login_token`; sócio sempre do JWT); não sócio sem conta (`storeGuest` devolve o `access_token`; `showGuest`, `payGuest`, `withdrawGuest`, `pdfGuest` com o header `Ticket-Order-Token`; `resendGuestLink` com resposta sempre igual). Recusas como `TicketException::toArray()`. Contrato em [ingressos.md](funcionalidades/ingressos.md#api-do-site-apiticketapicontroller).
+
+## Api\TicketGuestAccessController
+
+"Meus ingressos" do não sócio (`/api/tickets/guest-access/*`, só `api_token`): `requestCode` (CPF + e-mail → código por e-mail, resposta sempre igual), `verify` (código → `access_token` de 2 h), `orders` (header `Ticket-Access-Token` → pedidos de não sócio daquele CPF + e-mail, cada um com o próprio `access_token`). Regras em `TicketGuestAccessService`.
 
 ---
 

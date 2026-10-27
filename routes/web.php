@@ -89,6 +89,9 @@ use App\Http\Controllers\PoliBot\PoliDataController as PoliBotDataController;
 use App\Http\Controllers\PoliBot\SimulatorController as PoliBotSimulatorController;
 
 use App\Http\Controllers\Signature\AttachmentController as SignatureAttachmentController;
+use App\Http\Controllers\Signature\ContractController as SignatureContractController;
+use App\Http\Controllers\Signature\ContractKioskController as SignatureContractKioskController;
+use App\Http\Controllers\Signature\ContractLibraryController as SignatureContractLibraryController;
 use App\Http\Controllers\Signature\DirectorAreaController as SignatureDirectorAreaController;
 use App\Http\Controllers\Signature\DirectorKioskController as SignatureDirectorKioskController;
 use App\Http\Controllers\Signature\DocumentController as SignatureDocumentController;
@@ -207,6 +210,29 @@ Route::prefix('assinatura/kiosk')->name('quiosque.')->group(function () {
         Route::post('/lote/cancelar', [SignatureDirectorKioskController::class, 'cancelBatch'])
             ->middleware('throttle:30,1')->name('batch.cancel');
         Route::post('/sair', [SignatureDirectorKioskController::class, 'logout'])
+            ->middleware('throttle:60,1')->name('logout');
+    });
+
+    /*
+    | Validação de contratos pela Gerência — tela própria do tablet, com a
+    | mesma entrada da diretoria (matrícula + PIN, cookie `lara_management`).
+    | Lê, comenta e aprova ou devolve; ajustar o texto é no computador. O
+    | limite de tentativas de PIN é por matrícula, no serviço. Ver
+    | ContractKioskController.
+    */
+    Route::prefix('/gerencia')->name('gerencia.')->group(function () {
+        Route::get('/', [SignatureContractKioskController::class, 'index'])->name('index');
+        Route::post('/entrar', [SignatureContractKioskController::class, 'login'])
+            ->middleware('throttle:20,1')->name('login');
+        Route::get('/contratos', [SignatureContractKioskController::class, 'pending'])
+            ->middleware('throttle:120,1')->name('pending');
+        Route::get('/contratos/{contract}', [SignatureContractKioskController::class, 'show'])
+            ->whereNumber('contract')->middleware('throttle:60,1')->name('show');
+        Route::post('/contratos/{contract}/decisao', [SignatureContractKioskController::class, 'decide'])
+            ->whereNumber('contract')->middleware('throttle:20,1')->name('decide');
+        Route::get('/contratos/{contract}/anexos/{attachment}', [SignatureContractKioskController::class, 'attachment'])
+            ->whereNumber('contract')->whereNumber('attachment')->middleware('throttle:60,1')->name('attachment');
+        Route::post('/sair', [SignatureContractKioskController::class, 'logout'])
             ->middleware('throttle:60,1')->name('logout');
     });
 
@@ -835,6 +861,7 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::get('/{event}/editar', [TicketEventController::class, 'edit'])->whereNumber('event')->name('edit');
             Route::put('/{event}', [TicketEventController::class, 'update'])->whereNumber('event')->name('update');
             Route::put('/{event}/situacao', [TicketEventController::class, 'status'])->whereNumber('event')->name('status');
+            Route::post('/{event}/virar-lote', [TicketLotController::class, 'turn'])->whereNumber('event')->name('lots.turn');
 
             // Evento de vários dias: os dias (diária = tipo com dia; passaporte = tipo sem dia).
             Route::scopeBindings()->prefix('/{event}/dias')->whereNumber('event')->as('days.')->group(function () {
@@ -1388,6 +1415,64 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::get('/historico', [MinorTermController::class, 'history'])->name('history');
             Route::get('/historico/{signatureMinorAuthorization}/foto', [MinorTermController::class, 'photo'])
                 ->whereNumber('signatureMinorAuthorization')->name('history.photo');
+        });
+    });
+
+    // Contratos: redigidos no Lara em cláusulas, validados pela Gerência e,
+    // aprovados, transformados em documento de assinatura em rascunho. Quem
+    // pode cada ação é da SignatureContractPolicy (setor + Gerência) — ver
+    // docs/funcionalidades/contratos.md.
+    Route::prefix('assinatura/contratos/biblioteca')->name('signature-contract-library.')->group(function () {
+        Route::get('/', [SignatureContractLibraryController::class, 'index'])->name('index');
+        Route::post('/', [SignatureContractLibraryController::class, 'store'])->middleware('throttle:30,1')->name('store');
+        Route::put('/{signatureContractClause}', [SignatureContractLibraryController::class, 'update'])
+            ->whereNumber('signatureContractClause')->name('update');
+        Route::delete('/{signatureContractClause}', [SignatureContractLibraryController::class, 'destroy'])
+            ->whereNumber('signatureContractClause')->name('destroy');
+        Route::delete('/modelos/{signatureContractModel}', [SignatureContractLibraryController::class, 'destroyModel'])
+            ->whereNumber('signatureContractModel')->name('models.destroy');
+    });
+
+    Route::prefix('assinatura/contratos')->name('signature-contracts.')->group(function () {
+        Route::get('/', [SignatureContractController::class, 'index'])->name('index');
+        Route::get('/novo', [SignatureContractController::class, 'create'])->name('create');
+        Route::post('/', [SignatureContractController::class, 'store'])->name('store');
+        // Contratadas e fiadores já usados, para preencher a parte.
+        Route::get('/contratadas', [SignatureContractController::class, 'parties'])
+            ->middleware('throttle:60,1')->name('parties');
+
+        Route::prefix('/{signatureContract}')->whereNumber('signatureContract')->group(function () {
+            Route::get('/', [SignatureContractController::class, 'show'])->name('show');
+            Route::get('/editar', [SignatureContractController::class, 'edit'])->name('edit');
+            Route::put('/', [SignatureContractController::class, 'update'])->name('update');
+            // Prévia do formulário sem gravar (texto numerado + problemas).
+            Route::post('/previa', [SignatureContractController::class, 'preview'])
+                ->middleware('throttle:60,1')->name('preview');
+            Route::post('/enviar', [SignatureContractController::class, 'submit'])
+                ->middleware('throttle:20,1')->name('submit');
+            // Aprovar ou devolver (Gerência).
+            Route::post('/decisao', [SignatureContractController::class, 'decide'])
+                ->middleware('throttle:20,1')->name('decide');
+            // Revisão automática pelo Claude (Gerência).
+            Route::post('/revisao-ia', [SignatureContractController::class, 'aiReview'])
+                ->middleware('throttle:6,1')->name('ai-review');
+            Route::post('/reabrir', [SignatureContractController::class, 'reopen'])->name('reopen');
+            Route::post('/cancelar', [SignatureContractController::class, 'cancel'])->name('cancel');
+            Route::post('/aditivo', [SignatureContractController::class, 'addendum'])->name('addendum');
+            Route::post('/documento', [SignatureContractController::class, 'generateDocument'])
+                ->middleware('throttle:10,1')->name('document');
+            Route::get('/word', [SignatureContractController::class, 'docx'])->name('docx');
+            Route::post('/modelo', [SignatureContractController::class, 'saveModel'])->name('save-model');
+            Route::post('/observacoes/{signatureContractComment}', [SignatureContractController::class, 'resolveComment'])
+                ->whereNumber('signatureContractComment')->name('comments.resolve');
+            Route::post('/anexos', [SignatureContractController::class, 'storeAttachment'])
+                ->middleware('throttle:30,1')->name('attachments.store');
+            Route::get('/anexos/{signatureContractAttachment}', [SignatureContractController::class, 'showAttachment'])
+                ->whereNumber('signatureContractAttachment')->name('attachments.show');
+            Route::delete('/anexos/{signatureContractAttachment}', [SignatureContractController::class, 'destroyAttachment'])
+                ->whereNumber('signatureContractAttachment')->name('attachments.destroy');
+            // As cláusulas da biblioteca do setor do contrato, para "Da biblioteca".
+            Route::get('/biblioteca', [SignatureContractLibraryController::class, 'json'])->name('library');
         });
     });
 

@@ -34,6 +34,7 @@ uma trilha de auditoria encadeada.
 | Revisão | Revisa os documentos assinados: do dia seguinte em diante, só os que não acompanhou | `assinatura.revisar` |
 | Coordenação da revisão | Revisa antes do prazo e os próprios documentos — **dê em Setores só aos coordenadores** | `assinatura.revisar-coordenacao` |
 | Cadastro da diretoria | Cadastra as áreas da diretoria e quem assina por cada uma (titular e substitutos) — ver [Assinatura Diretoria](#assinatura-diretoria) | `assinatura.diretoria` |
+| Quem redige contratos | Redige contratos do próprio setor, que a Gerência valida e que viram documento de assinatura — ver [Contratos](contratos.md) | `assinatura.contratos` (validar: setor Gerência) |
 
 As quatro permissões são criadas no banco pelo seed padrão `PermissionCatalogSeeder`, que o
 script de deploy roda. Elas nascem **sem setor**: quem as recebe é configurado na tela de

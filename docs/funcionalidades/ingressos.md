@@ -96,6 +96,16 @@ fecha pela data ou quando esgota, o que vier primeiro, e o seguinte abre na hora
 janela dele já começou. Se não, o tipo aparece sem lote à venda e com `next_lot` (o próximo
 que vai abrir pela data).
 
+**Lote sem limite** (`quantity` vazio, desde 28/10/2026): não esgota; fecha pela data ou
+pelo **Virar lote agora**. A lotação do evento continua valendo.
+
+**Virar lote agora** (`TicketSetupService::turnLots`, botão na tela do evento, permissão
+`ingressos.gerenciar`): em cada tipo ativo com lote à venda, o lote vigente ganha `ends_at` =
+agora e abre o seguinte — o primeiro de ordem maior que está ativo, não acabou e tem sobra; se
+ele só abriria mais tarde, o `starts_at` vem para agora. Tipo no último lote continua nele;
+sem nenhum tipo para virar, recusa. Sempre pede confirmação, listando o que vira e os preços
+novos. Pedidos pendentes não mudam (o ingresso guarda o lote em que coube).
+
 Um pedido com vários ingressos do mesmo tipo pode **atravessar a virada**: cada ingresso
 leva o lote e o preço em que coube (ex.: último do 1º lote a R$ 80 + um do 2º lote a R$ 100).
 
@@ -253,7 +263,9 @@ Evento:   draft ──► published ──► finished      (cancelled a partir 
 Migrations `2026_10_27_100000_create_ticket_tables` (as 7 tabelas),
 `2026_10_27_110000_add_ticket_id_to_company_access_logs` e
 `2026_10_27_120000_add_ticket_event_days` (dias, dia do tipo, entradas; copia para
-`ticket_checkins` as entradas já gravadas no ingresso), idempotentes, FKs com nome curto;
+`ticket_checkins` as entradas já gravadas no ingresso) e
+`2026_10_28_100000_make_ticket_lot_quantity_nullable` (lote sem limite) e
+`2026_10_28_110000_create_ticket_guest_access_codes` (códigos de "meus ingressos"), idempotentes, FKs com nome curto;
 models em `app/Models/Ticket/`.
 
 | Tabela | Papel |
@@ -261,12 +273,13 @@ models em `app/Models/Ticket/`.
 | `ticket_events` | `title`, `description`, `rules`, `image` (`ImageSource`), `venue`, `starts_at`/`ends_at`, `sales_starts_at`/`sales_ends_at`, `capacity` (nulo = sem limite), `max_per_order`, `status` (`draft`, `published`, `finished`, `cancelled`). SoftDeletes. |
 | `ticket_event_days` | Dias do evento de vários dias: evento, `name` (opcional), `starts_at`/`ends_at`. |
 | `ticket_types` | Evento, `ticket_event_day_id` (diária; nulo = passaporte no evento com dias, ou o ingresso do evento sem dias), `name`, `description`, `sort_order`, `active`. |
-| `ticket_lots` | Tipo, `name`, `sequence`, `quantity`, `starts_at`/`ends_at` (nulos = janela do evento), `price_member`, `price_non_member` (nulo = só sócios), `active`. |
+| `ticket_lots` | Tipo, `name`, `sequence`, `quantity` (nulo = sem limite), `starts_at`/`ends_at` (nulos = janela do evento), `price_member`, `price_non_member` (nulo = só sócios), `active`. |
 | `ticket_coupons` | Evento, `code` (único no evento), `description`, `kind` (`percent`/`fixed`), `value`, `audience` (`all`/`member`/`non_member`), `ticket_type_ids` (JSON; nulo = todos), `max_uses`, `starts_at`/`ends_at`, `active`, `created_by`. |
 | `ticket_orders` | Evento, `buyer_kind` (`member`/`guest`), `member_id`, cópia de CPF/nome/e-mail/telefone/matrícula de quem compra, `total`, `ticket_coupon_id`/`coupon_code`/`discount_total`, `status`, `hold_until`, `access_token` (cifrado, só não sócio), `origin` (`site`/`secretaria`), `courtesy`, `created_by`, carimbos de pago/expirado/desistência/cancelamento. |
 | `ticket_payments` | Um por pedido: eRede (tid em `payment_integration_id`) ou baixa manual (`is_manual`, `recorded_by`, `manual_notes`, fora do fillable), estorno. |
 | `tickets` | Pedido, evento, tipo, lote, `price_kind`, `list_price`, `discount_amount`, `amount`, `holder_name`, `holder_cpf` (só dígitos), `code` (único, `ING-XXXXXXXX`), `status`, check-in (`checked_in_at`, `checked_in_by`, `checkin_source`), `refunded_amount`, cancelamento. |
 | `ticket_checkins` | Cada entrada: ingresso, `ticket_event_day_id`, `day_key` (dia ou 0; único com o ingresso), `checked_in_at`, `checked_in_by`, `source`. |
+| `ticket_guest_access_codes` | Código de "meus ingressos" do não sócio: `cpf`, `email` (minúsculo), `code_hash` (HMAC), `attempts`, `expires_at`, `used_at`, `ip`. |
 | `company_access_logs.ticket_id` | O ingresso conferido no Monitor de Acesso (nulo nos outros acessos). |
 
 O **código** do ingresso tem 8 caracteres de um alfabeto sem 0/O e 1/I/L (é digitado na
@@ -303,7 +316,8 @@ Menu **Ingressos**: **Eventos** (`acessar-ingressos`), **Check-in** (`ingressos.
 - **Tela do evento** (`/ingressos/{id}`): situação, vendas, lotação (por dia, no evento de
   vários dias), pedidos pendentes; botões de Pedidos, Emitir, Cupons, Check-in, Financeiro e
   Editar conforme a permissão. **Dias do evento** (criar, editar, apagar; só `gerenciar`). Por
-  tipo: a etiqueta da validade (diária do dia ou passaporte), "Vale para" no cadastro, o
+  tipo: a etiqueta da validade (diária do dia ou passaporte), "Vale para" no cadastro, botão
+  **Virar lote agora** (só `gerenciar`), o
   lote à venda (restantes e os dois preços) ou o próximo a abrir; a tabela de lotes; editar e
   apagar lote e tipo, novo lote, novo tipo (só `gerenciar`).
 - **Cupons** (`/ingressos/{id}/cupons`): lista com desconto, público, tipos, prazo e usos;
@@ -335,12 +349,13 @@ A lista (`/ingressos/financeiro`) mostra os eventos do ano (`?ano=`), menos os r
 ## API do site (`Api\TicketApiController`)
 
 Todas pedem o `api_token` (`Authorization: Bearer`). **L** = JWT do sócio no header
-`Session`. **G** = token do pedido do não sócio no header `Ticket-Order-Token`. Recusas de
+`Session`. **G** = token do pedido do não sócio no header `Ticket-Order-Token`. **A** = acesso
+temporário de "meus ingressos" no header `Ticket-Access-Token`. Recusas de
 regra: `{message, reason, context?}` (`App\Exceptions\TicketException`).
 
 | Método | Rota | | O que faz |
 |---|---|---|---|
-| GET | `/api/tickets/events` | | Publicados e encerrados, com tipos ativos, lote vigente (`price_member`, `price_non_member`, `members_only`, `remaining`), `next_lot`, `capacity_left`, `sales_open`; `multi_day` e `days` (`id`, `name`, `label`, `starts_at`, `ends_at`, `capacity_left`); no tipo, `validity` (`event`/`day`/`passport`) e `day_id`. |
+| GET | `/api/tickets/events` | | Publicados e encerrados, com tipos ativos, lote vigente (`price_member`, `price_non_member`, `members_only`, `remaining` — `null` = lote sem limite), `next_lot`, `capacity_left`, `sales_open`; `multi_day` e `days` (`id`, `name`, `label`, `starts_at`, `ends_at`, `capacity_left`); no tipo, `validity` (`event`/`day`/`passport`) e `day_id`. |
 | GET | `/api/tickets/events/{id}` | | O mesmo, com `rules`. Rascunho e cancelado: 404 `event_not_found`. |
 | POST | `/api/tickets/events/{id}/coupon-check` | | `{code, buyer_kind: member\|guest}` → o cupom (`kind`, `value`, `label`, `audience`, `type_ids`, `ends_at`); só informa. 20/min. |
 | GET | `/api/tickets/my-title` | L | Pessoas do título do sócio logado: `{title, people: [{ref, name, cpf (mascarado), titular, is_me, has_ticket}]}`; `?event_id=` marca quem já tem ingresso no evento (`has_ticket`) e, no evento de vários dias, em quais dias (`days_taken`; o passaporte cobre todos). 30/min. |
@@ -355,6 +370,9 @@ regra: `{message, reason, context?}` (`App\Exceptions\TicketException`).
 | POST | `/api/tickets/guest-orders/{id}/payment` | G | Igual ao do sócio. |
 | DELETE | `/api/tickets/guest-orders/{id}` | G | Desiste (só pendente). |
 | GET | `/api/tickets/guest-orders/{id}/pdf` | G | PDF dos ingressos. |
+| POST | `/api/tickets/guest-access/code` | | "Meus ingressos" do não sócio: `{cpf, email}` → manda um código de 6 dígitos ao e-mail, **só** se houver pedido de não sócio com esse CPF e e-mail (resposta sempre igual, com `expires_in_minutes`). 5/min. |
+| POST | `/api/tickets/guest-access/verify` | | `{cpf, email, code}` → `{access_token, expires_at}` (acesso de 2 h). Recusas: `access_code_invalid` (`context.attempts_left`), `access_code_expired`. 10/min. |
+| GET | `/api/tickets/guest-access/orders` | A | Pedidos de não sócio daquele CPF + e-mail, do mais novo ao mais antigo (até 50), **cada um com o `access_token` do pedido** — ver, pagar, desistir e PDF seguem pelas rotas `/guest-orders/{id}`. Sem acesso ou vencido: 401 `access_expired`. |
 | POST | `/api/tickets/guest-orders/resend-link` | | `{cpf, email}` → reenvia o link dos pedidos ativos (até 5, de eventos não acabados). Resposta sempre igual. 5/min. |
 
 O pedido traz `total`, `discount_total`, `coupon_code`, `courtesy`, `origin` e
@@ -370,10 +388,30 @@ Reasons: `event_not_found` (404), `sales_closed`, `type_not_found` (404), `sold_
 (`context.index`), `member_not_found`,
 `order_not_found` (404), `invalid_status` (409), `hold_expired` (409, `context.detail`),
 `payment_mismatch` (`context.expected`), `paid_contact_organizer`, `coupon_invalid`,
-`coupon_not_applicable`, `coupon_exhausted` (409, `context.remaining`), `ticket_not_found`,
+`coupon_not_applicable`, `coupon_exhausted` (409, `context.remaining`), `access_code_invalid`
+(`context.attempts_left`), `access_code_expired`, `access_expired` (401), `ticket_not_found`,
 `already_used`, `ticket_not_valid`, `outside_window`, `other_event`.
 
 Sem o header `Session`, o `JwtMiddleware` responde **400**; com JWT inválido, **401**.
+
+### "Meus ingressos" do não sócio (`TicketGuestAccessService`, desde 28/10/2026)
+
+O não sócio não tem conta. Para ver todos os pedidos dele no site:
+
+1. Informa **CPF e e-mail** da compra. Se houver pedido de não sócio com os dois (e-mail sem
+   diferença de maiúsculas), o Lara manda um **código de 6 dígitos** ao e-mail (template
+   `emails.tickets.access-code`). A resposta ao site é sempre a mesma: quem testa CPFs não
+   descobre quem comprou.
+2. O código vale **10 minutos**, **uma vez**, com **5 tentativas**; pedir outro invalida o
+   anterior; no máximo **5 códigos por hora** por CPF + e-mail. Guardado só como HMAC
+   (`ticket_guest_access_codes`).
+3. Código certo → **acesso de 2 horas**: token cifrado (CPF, e-mail, validade), sem tabela,
+   no header `Ticket-Access-Token`. Ele só lista os pedidos; cada pedido sai com o próprio
+   `access_token`, e o resto segue pelas rotas `/guest-orders/{id}`.
+
+Por que o código: o QR do ingresso é a entrada no evento — saber CPF e e-mail não basta, a
+pessoa tem de provar que lê o e-mail. Quem é só titular (comprou outra pessoa) não acha o
+ingresso por aqui: o acesso é de quem comprou.
 
 ## E-mails (`TicketNotifier`, template `emails.tickets.status`)
 
@@ -382,6 +420,7 @@ Sem o header `Session`, o `JwtMiddleware` responde **400**; com JWT inválido, *
 | `tickets.paid` | Pedido pago (eRede, baixa manual, emissão pelo Lara, valor zero, cortesia): lista os ingressos com os códigos, o desconto do cupom ("Cortesia" no total, se for) e, para o não sócio, o botão **Ver meus ingressos** com o link `{TICKETS_SITE_URL}/ingressos/pedido/{id}?token=…`. |
 | `tickets.cancelled` | Ingressos cancelados pela equipe, com motivo e valor estornado (um e-mail por cancelamento). |
 | `tickets.link` | "Perdi o link" ou reenvio pelo painel de pedido ainda pendente. |
+| `tickets.access_code` | Código de 6 dígitos de "meus ingressos" do não sócio (template próprio, `emails.tickets.access-code`). |
 
 Vai para o e-mail de quem comprou (o do MultiClubes para o sócio, ou o do cadastro do site).
 Sem `TICKETS_SITE_URL`, o e-mail sai sem o link. Na emissão pelo Lara sem e-mail, entregue o
@@ -428,6 +467,8 @@ para pagar pelo site; `--usuario=<id>` escolhe quem aparece nas emissões e baix
 | F8 | Fechamento: docs, guia, prompt do site (v2, com cupom), prompt da portaria, suíte | feita (27/10/2026) |
 | F9 | Sócio compra para todo o título (prompt v3) | feita (27/10/2026) |
 | F10 | Evento de vários dias: dias, diária e passaporte, lotação e entrada por dia (prompt do site v4, nota no prompt da portaria) | feita (27/10/2026) |
+| F11 | Lote sem limite de ingressos e "Virar lote agora" (prompt do site v5) | feita (28/10/2026) |
+| F12 | "Meus ingressos" do não sócio no site: CPF + e-mail + código por e-mail (prompt do site v6) | feita (28/10/2026) |
 
 ## Depois do deploy
 

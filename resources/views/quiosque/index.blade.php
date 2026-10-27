@@ -99,6 +99,8 @@
     menores: @json($configMenores),
     // Assinatura da Diretoria; null no Termo de Menores.
     diretoria: @json($configDiretoria),
+    // Validação de contratos pela Gerência (tela própria); null no Termo de Menores.
+    gerencia: @json($menores ? null : route('quiosque.gerencia.index')),
   };</script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
@@ -300,6 +302,8 @@
         <button type="button" class="btn btn-ghost hidden" id="abrirCodigo" style="margin-top:12px;">Digitar código</button>
         <!-- Só no balcão: o diretor entra com matrícula e PIN e vê os documentos dele. -->
         <button type="button" class="btn btn-ghost hidden" id="abrirDiretoria" style="margin-top:12px;">Assinatura da Diretoria</button>
+        <!-- Só no balcão: a Gerência entra com matrícula e PIN e valida os contratos (página própria). -->
+        <button type="button" class="btn btn-ghost hidden" id="abrirGerencia" style="margin-top:12px;">Validação de contratos (Gerência)</button>
       </div>
     </section>
 
@@ -669,6 +673,7 @@
      */
     $('#abrirCodigo').classList.toggle('hidden', !CFG.codigoManual);
     $('#abrirDiretoria').classList.toggle('hidden', !CFG.diretoria);
+    $('#abrirGerencia').classList.toggle('hidden', !CFG.gerencia);
 
     if (typeof Html5Qrcode === 'undefined') {
       $('#erroLeitor').textContent = 'Leitor de QR indisponível. Verifique a conexão do tablet.';

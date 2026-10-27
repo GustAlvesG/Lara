@@ -180,6 +180,48 @@ Guia: [Torneios](funcionalidades/torneios.md). Catálogo de categorias, torneios
 | GET | `/torneios/{tournament}/financeiro` | Tournament\TournamentFinanceController@show | tournaments.finance.show | auth, can:torneios.financeiro |
 | GET | `/torneios/{tournament}/financeiro/csv` | Tournament\TournamentFinanceController@csv | tournaments.finance.csv | auth, can:torneios.financeiro |
 
+### Contratos (`signature-contracts.*`, `signature-contract-library.*`)
+
+Guia: [Contratos](funcionalidades/contratos.md). Quem pode cada ação: `SignatureContractPolicy` (setor do contrato + `assinatura.contratos`; validar = setor Gerência). Menu: Assinaturas → Contratos (`assinatura.contratos`).
+
+| Método | URI | Controller@método | Nome |
+|--------|-----|-------------------|------|
+| GET | `/assinatura/contratos` | Signature\ContractController@index | signature-contracts.index |
+| GET | `/assinatura/contratos/novo` | Signature\ContractController@create | signature-contracts.create |
+| POST | `/assinatura/contratos` | Signature\ContractController@store | signature-contracts.store |
+| GET | `/assinatura/contratos/contratadas` | Signature\ContractController@parties (60/min) | signature-contracts.parties |
+| GET | `/assinatura/contratos/{c}` | Signature\ContractController@show | signature-contracts.show |
+| GET | `/assinatura/contratos/{c}/editar` | Signature\ContractController@edit | signature-contracts.edit |
+| PUT | `/assinatura/contratos/{c}` | Signature\ContractController@update | signature-contracts.update |
+| POST | `/assinatura/contratos/{c}/previa` | Signature\ContractController@preview (60/min) | signature-contracts.preview |
+| POST | `/assinatura/contratos/{c}/enviar` | Signature\ContractController@submit (20/min) | signature-contracts.submit |
+| POST | `/assinatura/contratos/{c}/decisao` | Signature\ContractController@decide (20/min) | signature-contracts.decide |
+| POST | `/assinatura/contratos/{c}/revisao-ia` | Signature\ContractController@aiReview (6/min; Gerência) | signature-contracts.ai-review |
+| POST | `/assinatura/contratos/{c}/reabrir` | Signature\ContractController@reopen | signature-contracts.reopen |
+| POST | `/assinatura/contratos/{c}/cancelar` | Signature\ContractController@cancel | signature-contracts.cancel |
+| POST | `/assinatura/contratos/{c}/aditivo` | Signature\ContractController@addendum | signature-contracts.addendum |
+| POST | `/assinatura/contratos/{c}/documento` | Signature\ContractController@generateDocument (10/min) | signature-contracts.document |
+| GET | `/assinatura/contratos/{c}/word` | Signature\ContractController@docx | signature-contracts.docx |
+| POST | `/assinatura/contratos/{c}/modelo` | Signature\ContractController@saveModel | signature-contracts.save-model |
+| POST | `/assinatura/contratos/{c}/observacoes/{comment}` | Signature\ContractController@resolveComment | signature-contracts.comments.resolve |
+| POST/GET/DELETE | `/assinatura/contratos/{c}/anexos[/{anexo}]` | Signature\ContractController@storeAttachment / showAttachment / destroyAttachment | signature-contracts.attachments.* |
+| GET | `/assinatura/contratos/{c}/biblioteca` | Signature\ContractLibraryController@json | signature-contracts.library |
+| GET/POST | `/assinatura/contratos/biblioteca` | Signature\ContractLibraryController@index / store | signature-contract-library.index / store |
+| PUT/DELETE | `/assinatura/contratos/biblioteca/{clausula}` | Signature\ContractLibraryController@update / destroy | signature-contract-library.update / destroy |
+| DELETE | `/assinatura/contratos/biblioteca/modelos/{modelo}` | Signature\ContractLibraryController@destroyModel | signature-contract-library.models.destroy |
+
+**Tablet do balcão — validação pela Gerência** (públicas, entrada por matrícula + PIN, cookie `lara_management`; Signature\ContractKioskController):
+
+| Método | URI | Método | Nome |
+|--------|-----|--------|------|
+| GET | `/assinatura/kiosk/gerencia` | index (página) | quiosque.gerencia.index |
+| POST | `/assinatura/kiosk/gerencia/entrar` | login (20/min) | quiosque.gerencia.login |
+| GET | `/assinatura/kiosk/gerencia/contratos` | pending (120/min, batimento) | quiosque.gerencia.pending |
+| GET | `/assinatura/kiosk/gerencia/contratos/{contract}` | show (60/min) | quiosque.gerencia.show |
+| POST | `/assinatura/kiosk/gerencia/contratos/{contract}/decisao` | decide (20/min) | quiosque.gerencia.decide |
+| GET | `/assinatura/kiosk/gerencia/contratos/{contract}/anexos/{attachment}` | attachment (60/min) | quiosque.gerencia.attachment |
+| POST | `/assinatura/kiosk/gerencia/sair` | logout | quiosque.gerencia.logout |
+
 ### Ingressos (`tickets.*`)
 
 Guia: [Ingressos](funcionalidades/ingressos.md). Tipo, lote e cupom presos ao evento (`scopeBindings`).
@@ -193,6 +235,7 @@ Guia: [Ingressos](funcionalidades/ingressos.md). Tipo, lote e cupom presos ao ev
 | GET | `/ingressos/{event}/editar` | Ticket\TicketEventController@edit | tickets.edit | ingressos.gerenciar |
 | PUT | `/ingressos/{event}` | Ticket\TicketEventController@update | tickets.update | ingressos.gerenciar |
 | PUT | `/ingressos/{event}/situacao` | Ticket\TicketEventController@status | tickets.status | ingressos.gerenciar |
+| POST | `/ingressos/{event}/virar-lote` | Ticket\TicketLotController@turn | tickets.lots.turn | ingressos.gerenciar |
 | POST | `/ingressos/{event}/dias` | Ticket\TicketDayController@store | tickets.days.store | ingressos.gerenciar |
 | PUT | `/ingressos/{event}/dias/{day}` | Ticket\TicketDayController@update | tickets.days.update | ingressos.gerenciar |
 | DELETE | `/ingressos/{event}/dias/{day}` | Ticket\TicketDayController@destroy | tickets.days.destroy | ingressos.gerenciar |
@@ -404,6 +447,9 @@ Contrato completo em [ingressos.md](funcionalidades/ingressos.md#api-do-site-api
 | POST | `/api/tickets/events/{id}/coupon-check` | Api\TicketApiController@checkCoupon | T (throttle 20/min) |
 | POST | `/api/tickets/events/{id}/guest-orders` | Api\TicketApiController@storeGuest | T (throttle 10/min) |
 | POST | `/api/tickets/guest-orders/resend-link` | Api\TicketApiController@resendGuestLink | T (throttle 5/min) |
+| POST | `/api/tickets/guest-access/code` | Api\TicketGuestAccessController@requestCode | T (throttle 5/min) |
+| POST | `/api/tickets/guest-access/verify` | Api\TicketGuestAccessController@verify | T (throttle 10/min) |
+| GET | `/api/tickets/guest-access/orders` | Api\TicketGuestAccessController@orders | T + `Ticket-Access-Token` (throttle 60/min) |
 | GET | `/api/tickets/guest-orders/{id}` | Api\TicketApiController@showGuest | T + G (throttle 60/min) |
 | POST | `/api/tickets/guest-orders/{id}/payment` | Api\TicketApiController@payGuest | T + G (throttle 60/min) |
 | DELETE | `/api/tickets/guest-orders/{id}` | Api\TicketApiController@withdrawGuest | T + G (throttle 60/min) |

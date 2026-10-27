@@ -69,7 +69,7 @@ Cada tipo tem os seus lotes. Em **Novo lote em …**:
 | Campo | Para quê |
 |---|---|
 | Nome e ordem | O site vende o lote de **menor ordem** que estiver disponível. |
-| Quantidade | Quantos ingressos este lote tem. |
+| Quantidade | Quantos ingressos este lote tem. **Vazio = sem limite**: o lote não esgota e só fecha pela data ou por **Virar lote agora** (a lotação do evento, se houver, continua valendo). |
 | Preço sócio | Obrigatório. |
 | Preço não sócio | Vazio = este lote é **só para sócios**. |
 | Abre em / Fecha em | Opcionais. Vazios = vale a janela de vendas do evento. |
@@ -85,6 +85,12 @@ Cada tipo tem os seus lotes. Em **Novo lote em …**:
 
 Se os 100 do 1º lote acabarem no dia 5, o 2º lote abre no dia 5. Se sobrarem ingressos do
 1º lote no dia 10, eles saem de venda e o 2º lote abre.
+
+**Virar lote agora.** Para virar antes da hora (por decisão da organização, ou num lote sem
+limite), use o botão **Virar lote agora**, acima dos tipos. Em **cada tipo**, o lote à venda
+fecha na hora e o seguinte abre — mesmo que a data de abertura dele fosse mais tarde. O Lara
+mostra antes o que vai virar (com os preços novos) e pede confirmação. Tipo que está no último
+lote continua nele. Quem já está pagando um pedido mantém o preço do lote em que entrou.
 
 Na tabela de lotes, **Ocupados** conta os pagos **e** os pedidos que ainda estão no prazo de
 pagamento (10 minutos): enquanto alguém paga, o lugar fica guardado. A linha verde é o lote
@@ -205,6 +211,10 @@ a divisão por tipo e lote (sócio e não sócio), por forma de pagamento e por 
   e-mail os ingressos e o link do pedido. CPF de sócio não entra nesse pedido: o sócio compra
   pelo próprio login.
 - Os dois podem usar **cupom** no checkout.
+- **Não sócio que quer ver os ingressos de novo**: no site, em **Meus ingressos**, informa o
+  CPF e o e-mail da compra e recebe um **código de 6 dígitos** no e-mail; com ele, vê todos os
+  pedidos que fez. Se o código não chegar, confira se o e-mail do pedido está certo (tela do
+  pedido) — a troca do e-mail é com a equipe.
 - Cada **CPF** tem **um ingresso** por evento — ou, no evento de vários dias, um por dia (a
   diária do dia ou o passaporte).
 - O pedido guarda o lugar por **10 minutos** para o pagamento.

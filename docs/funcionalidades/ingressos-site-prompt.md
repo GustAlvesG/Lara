@@ -9,9 +9,12 @@
 > passaporte)**, o pagamento eRede, "meus ingressos" com QR e PDF. (Versões do mesmo dia: a 1
 > não tinha cupom — mudanças marcadas **[v2]**; a 2 deixava o sócio comprar só para ele —
 > mudanças marcadas **[v3]**; a 3 não tinha evento de vários dias — mudanças marcadas
-> **[v4]**. Se o agente do site já começou por uma delas, siga as marcas.) **O site já
-> implementou a v3**: para ele, entregue só o [prompt de atualização v4](#prompt-de-atualização--v4-evento-de-vários-dias),
-> no fim deste arquivo. O contrato é o que o Lara expõe hoje
+> **[v4]**; a 4 não tinha lote sem limite — mudança marcada **[v5]**; a 5 não tinha "meus
+> ingressos" do não sócio — mudança marcada **[v6]**. Se o agente do site já começou por uma
+> delas, siga as marcas.) **O site já implementou a v3**: para ele, entregue só os prompts de
+> atualização no fim deste arquivo — o [v4](#prompt-de-atualização--v4-evento-de-vários-dias)
+> e o [v5](#prompt-de-atualização--v5-lote-sem-limite) (se ainda não foram) e o
+> [v6](#prompt-de-atualização--v6-meus-ingressos-do-não-sócio). O contrato é o que o Lara expõe hoje
 > (`routes/api.php`, prefixo `tickets`); se a API mudar, este arquivo muda junto. As regras
 > por trás dele estão em [ingressos.md](ingressos.md). O check-in **não** é do site (é feito
 > no Lara e no Monitor de Acesso da portaria).
@@ -36,7 +39,8 @@ O site precisa de:
 4. **Pagamento** na eRede e aviso ao Lara.
 5. **Meus ingressos**: QR Code, código e PDF — para o sócio (logado) e para o não sócio
    (pelo link do e-mail).
-6. **"Perdi o link"** para o não sócio.
+6. **"Perdi o link"** para o não sócio. **[v6]** E **"Meus ingressos" do não sócio**: CPF +
+   e-mail + código recebido no e-mail, para ver todos os pedidos dele.
 7. **[v4]** **Evento de vários dias**: escolher a **diária** de cada dia ou o **passaporte**.
 
 ### Como funciona
@@ -158,7 +162,8 @@ Rascunho ou cancelado: 404 `event_not_found`.
 - `sales_open: false` → mostre o evento sem botão de compra ("Vendas a partir de…" ou
   "Vendas encerradas"). `status: "finished"` → evento encerrado.
 - `capacity_left: null` = sem lotação; número = lugares que ainda cabem no evento.
-- `remaining` baixo pode virar um selo "últimos ingressos".
+- `remaining` baixo pode virar um selo "últimos ingressos". **[v5]** `remaining: null` = lote
+  **sem limite** de ingressos: não mostre contagem nem selo.
 - **[v4]** Evento de vários dias:
 
 ```json
@@ -275,6 +280,10 @@ Com o header `Ticket-Order-Token` (token errado ou ausente: 404 `order_not_found
 `POST /api/tickets/guest-orders/resend-link` — `{ "cpf": "…", "email": "…" }` → sempre
 **200** com a mesma mensagem (exista pedido ou não; limite 5 por minuto). Mostre
 "Se houver pedido com esse CPF e e-mail, enviamos o link."
+
+**[v6]** "Meus ingressos" do não sócio (código por e-mail): `POST /api/tickets/guest-access/code`,
+`POST /api/tickets/guest-access/verify` e `GET /api/tickets/guest-access/orders` (header
+`Ticket-Access-Token`). Detalhes no [prompt de atualização v6](#prompt-de-atualização--v6-meus-ingressos-do-não-sócio).
 
 #### O pedido (mesmo formato para sócio e não sócio)
 
@@ -409,6 +418,7 @@ Erros de validação de formato (campo faltando, e-mail inválido) vêm no padr�
    do pagamento).
 6. **Meus ingressos** (área do sócio) — `GET /api/tickets/my-orders`.
 7. **"Perdi o link"** — CPF + e-mail.
+8. **[v6]** **Meus ingressos do não sócio** — CPF + e-mail → código → lista dos pedidos.
 
 Mostre os horários no fuso de Brasília. Valores em reais com vírgula.
 
@@ -542,3 +552,144 @@ O que muda é a regra:
 - Não faz check-in (o passaporte é lido na portaria, uma vez por dia).
 
 ### Fim da atualização v4
+
+---
+
+## Prompt de atualização — v5 (lote sem limite)
+
+> Para o agente do site, depois da v4 (ou junto com ela). Copie de "Início da atualização v5"
+> até "Fim da atualização v5". Mudança pequena e compatível.
+
+### Início da atualização v5
+
+O Lara passou a aceitar **lote sem limite de ingressos**. Para o site, muda um campo:
+
+- Em `GET /api/tickets/events` e `GET /api/tickets/events/{id}`, `types[].lot.remaining`
+  pode vir **`null`** = o lote não tem quantidade (não esgota por número; fecha pela data ou
+  quando a organização vira o lote). Hoje o site provavelmente trata `remaining` como número
+  (contagem "restam N", selo "últimos ingressos", desabilitar com 0): com `null`, **não mostre
+  contagem nem selo** e trate o tipo como disponível (o que manda é `available`).
+- Confira que nenhum cálculo do site quebra com `null` (ex.: `remaining <= 10`, `Math.min`,
+  formatação de número).
+
+A organização também ganhou no Lara um botão **"Virar lote agora"**: o lote à venda de cada
+tipo fecha e o seguinte abre, com o preço novo. Nada a implementar além do que já existe: o
+site já recarrega o evento antes do checkout e o preço que vale é sempre o do pedido. Quem
+estava no meio de um pedido mantém o preço do lote em que entrou.
+
+### Fim da atualização v5
+
+---
+
+## Prompt de atualização — v6 (meus ingressos do não sócio)
+
+> Para o agente do site, depois das atualizações anteriores (ou junto com elas). Copie de
+> "Início da atualização v6" até "Fim da atualização v6".
+
+### Início da atualização v6
+
+Hoje o não sócio (que compra sem conta) só volta aos ingressos pelo link do e-mail de cada
+pedido, ou pelo "Perdi o link". Crie no site uma área **"Meus ingressos" para quem não é
+sócio**, em que a pessoa se identifica com **CPF + e-mail da compra + um código de 6 dígitos**
+que o Lara manda para esse e-mail, e vê **todos os pedidos** dela. O código existe porque o QR
+Code do ingresso é a entrada no evento: saber CPF e e-mail não basta, a pessoa prova que lê o
+e-mail.
+
+#### Fluxo e API (todas com o `Authorization: Bearer {API_TOKEN}` de sempre, sem login)
+
+**1. Pedir o código** — `POST /api/tickets/guest-access/code` (limite 5 por minuto)
+
+```json
+{ "cpf": "529.982.247-25", "email": "carla@email.com" }
+```
+
+→ **200**, **sempre igual**, exista compra ou não:
+
+```json
+{ "message": "Se houver compra com esse CPF e e-mail, enviamos um código para o e-mail.", "expires_in_minutes": 10 }
+```
+
+- Mostre a mensagem como vem e passe para a tela do código. **Não** diga "CPF não
+  encontrado" — o Lara não revela isso de propósito.
+- CPF inválido ou e-mail mal formado: **422** no padrão do Laravel (`errors.cpf`,
+  `errors.email`). Valide o CPF no cliente também.
+- O e-mail não diferencia maiúsculas. O e-mail tem de ser o **mesmo informado na compra**.
+- Limites do Lara: o código vale **10 minutos** e **uma vez**; pedir outro invalida o
+  anterior; no máximo **5 códigos por hora** para o mesmo CPF + e-mail (acima disso o e-mail
+  simplesmente não sai). Ofereça "Reenviar código" só depois de ~60 s.
+
+**2. Conferir o código** — `POST /api/tickets/guest-access/verify` (limite 10 por minuto)
+
+```json
+{ "cpf": "529.982.247-25", "email": "carla@email.com", "code": "481920" }
+```
+
+→ **200**:
+
+```json
+{ "access_token": "eyJpdiI6…", "expires_at": "2027-01-10T17:42:00-03:00" }
+```
+
+Recusas (`{ message, reason, context? }`, decida pelo `reason`):
+
+| `reason` | HTTP | Quando | No site |
+|---|---|---|---|
+| `access_code_invalid` | 422 | Código errado, ainda com tentativas (`context.attempts_left`) | "Código incorreto. Restam N tentativas." e manter o campo |
+| `access_code_expired` | 422 | Vencido, já usado, tentativas esgotadas (5) ou nenhum código pedido | "Este código não vale mais." + botão "Enviar novo código" |
+
+**3. Listar os pedidos** — `GET /api/tickets/guest-access/orders` com o header
+`Ticket-Access-Token: {access_token}` (limite 60 por minuto)
+
+```json
+{
+  "buyer": { "name": "Carla Visitante", "cpf": "529.***.**7-25", "email": "carla@email.com" },
+  "orders": [
+    { "id": 58, "status": "paid", "…": "…o mesmo formato de pedido de sempre…", "access_token": "…token deste pedido…" }
+  ]
+}
+```
+
+- `orders`: os pedidos de não sócio daquele CPF + e-mail, **do mais novo ao mais antigo**
+  (até 50), em **todas as situações** (pago, aguardando pagamento, expirado, desistido,
+  cancelado). É o mesmo formato de pedido que o site já usa, com o `access_token` **de cada
+  pedido**.
+- Para abrir, pagar, desistir ou baixar o PDF de um pedido, use as rotas que o site **já tem**
+  (`/api/tickets/guest-orders/{id}…` com o header `Ticket-Order-Token: {access_token do
+  pedido}`). Nada novo aí.
+- Sem o header, token adulterado ou vencido: **401** `access_expired` → volte para a tela de
+  CPF + e-mail.
+
+#### Guardar o acesso
+
+- O `access_token` vale **2 horas** (`expires_at`). Guarde-o como os outros tokens de
+  ingresso: cookie **httpOnly** ou sessão do servidor do Next.js — nunca em `localStorage`,
+  na URL ou em log. Ao vencer (ou no 401), peça CPF + e-mail de novo.
+- Os tokens de pedido que vêm na lista seguem a mesma regra.
+
+#### Telas
+
+1. **Entrada** — em `/ingressos/meus` (ou onde ficar melhor na navegação; um link "Meus
+   ingressos" visível para quem não está logado como sócio, e também nas páginas de pedido do
+   não sócio). Campos CPF e e-mail, botão "Enviar código". Texto curto: "Comprou sem ser sócio?
+   Informe o CPF e o e-mail usados na compra."
+2. **Código** — "Enviamos um código para {e-mail mascarado, ex.: c***@email.com}". Campo de 6
+   dígitos (`inputmode="numeric"`, `autocomplete="one-time-code"`), "Entrar", "Reenviar
+   código" (após ~60 s), "Trocar CPF/e-mail".
+3. **Lista** — "Olá, {buyer.name}". Agrupe por situação: primeiro os pagos de eventos que
+   ainda não acabaram (com os ingressos, QR e código, como na página do pedido), depois os
+   aguardando pagamento (com "Pagar" e o contador do `hold_until`), depois o histórico
+   (eventos passados, expirados, desistidos, cancelados). Cada pedido abre a página de pedido
+   que já existe. Botão "Sair" apaga o acesso.
+4. Lista vazia (pode acontecer: o e-mail da compra era outro) → "Nenhum pedido encontrado para
+   este CPF e e-mail." e um link para tentar de novo.
+
+#### O que não muda
+
+- "Perdi o link" e o link do e-mail de cada pedido continuam funcionando.
+- O sócio continua vendo os ingressos pelo login dele (`/api/tickets/my-orders`); esta área é
+  só para quem comprou sem ser sócio.
+- Quem só é **titular** de um ingresso (outra pessoa comprou para ela) não acha o ingresso
+  aqui: o acesso é de quem comprou. Se for o caso, mostre "Os ingressos ficam com quem fez a
+  compra".
+
+### Fim da atualização v6

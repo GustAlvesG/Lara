@@ -10,6 +10,7 @@ use App\Models\Ticket\TicketLot;
 use App\Models\Ticket\TicketOrder;
 use App\Models\Ticket\TicketType;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -170,7 +171,7 @@ class TicketSetupService
 
         if ($lot) {
             $occupied = $this->inventory->occupiedByLot([$lot->id])[$lot->id] ?? 0;
-            if ((int) $data['quantity'] < $occupied) {
+            if (isset($data['quantity']) && (int) $data['quantity'] < $occupied) {
                 $warnings[] = "O {$lot->name} já tem {$occupied} lugar(es) ocupado(s): com quantidade {$data['quantity']} ele fica esgotado (nenhum ingresso é cancelado).";
             }
             if ($occupied > 0 && ((float) $data['price_member'] !== (float) $lot->price_member || $this->nullableFloat($data['price_non_member'] ?? null) !== $this->nullableFloat($lot->price_non_member))) {
@@ -187,6 +188,69 @@ class TicketSetupService
         }
 
         return $type->lots()->create($data);
+    }
+
+    /**
+     * "Virar lote agora": em cada tipo ativo, o lote à venda fecha agora e o
+     * seguinte abre (o primeiro de ordem maior que está ativo, não acabou e
+     * tem sobra — se ele só abriria mais tarde, o início vem para agora). Tipo
+     * sem lote seguinte continua no atual; tipo sem lote à venda fica de fora.
+     * Pedidos pendentes não mudam: o ingresso guarda o lote em que coube.
+     *
+     * Sempre pede confirmação (`$force`), mostrando o que vira.
+     *
+     * @return list<array{type: TicketType, from: TicketLot, to: TicketLot}>
+     */
+    public function turnLots(TicketEvent $event, bool $force = false): array
+    {
+        return DB::transaction(function () use ($event, $force) {
+            $event = TicketEvent::whereKey($event->id)->lockForUpdate()->firstOrFail();
+            $event->load('days', 'types.lots', 'types.day');
+            $occupied = $this->inventory->occupiedByLot($event->types->flatMap->lots->pluck('id'));
+            $now = Carbon::now();
+            $plan = [];
+            $notes = [];
+
+            foreach ($event->types->where('active', true) as $type) {
+                $current = $this->inventory->currentLot($type, $occupied, $now);
+                if (! $current) {
+                    continue;
+                }
+
+                $next = $type->lots->first(fn (TicketLot $lot) => $lot->active
+                    && ($lot->sequence > $current->sequence || ($lot->sequence === $current->sequence && $lot->id > $current->id))
+                    && ($lot->ends_at === null || $lot->ends_at->greaterThan($now))
+                    && $this->inventory->hasRoom($lot, $occupied));
+
+                if (! $next) {
+                    $notes[] = "{$type->fullName()}: o {$current->name} é o último lote e continua à venda.";
+
+                    continue;
+                }
+
+                $plan[] = ['type' => $type, 'from' => $current, 'to' => $next];
+            }
+
+            if ($plan === []) {
+                throw ValidationException::withMessages(['lots' => 'Nenhum tipo tem lote seguinte para virar.']);
+            }
+
+            $money = fn ($v) => $v === null ? 'não vendido' : 'R$ ' . number_format((float) $v, 2, ',', '.');
+            ConfirmationRequired::unless($force, array_merge(array_map(
+                fn (array $p) => "{$p['type']->fullName()}: o {$p['from']->name} fecha agora e o {$p['to']->name} abre (sócio {$money($p['to']->price_member)}, não sócio {$money($p['to']->price_non_member)}).",
+                $plan,
+            ), $notes));
+
+            foreach ($plan as $p) {
+                // Um segundo antes: no instante exato o fim ainda está dentro da janela.
+                $p['from']->update(['ends_at' => $now->copy()->subSecond()]);
+                if ($p['to']->starts_at && $p['to']->starts_at->greaterThan($now)) {
+                    $p['to']->update(['starts_at' => $now]);
+                }
+            }
+
+            return $plan;
+        });
     }
 
     private function nullableFloat($value): ?float

@@ -119,7 +119,14 @@
         <section class="flex flex-col gap-4">
             <div>
                 <h2 class="font-display text-lg font-semibold tracking-tight text-ink">Tipos de ingresso e lotes</h2>
-                <p class="text-sm text-ink-3">O site vende o lote de menor ordem que está ativo, dentro da janela e com sobra. Esgotou ou passou a data, o próximo abre na hora. Ocupados = pagos + pedidos ainda no prazo de pagamento.</p>
+                <p class="text-sm text-ink-3">O site vende o lote de menor ordem que está ativo, dentro da janela e com sobra. Esgotou ou passou a data, o próximo abre na hora. Lote sem quantidade não esgota: fecha pela data ou por <strong>Virar lote agora</strong>. Ocupados = pagos + pedidos ainda no prazo de pagamento.</p>
+                @if ($manage && $event->types->isNotEmpty())
+                    {{-- Fecha o lote à venda de cada tipo e abre o seguinte; o Lara mostra o que vira e pede confirmação. --}}
+                    <form method="POST" action="{{ route('tickets.lots.turn', $event) }}" class="mt-3">
+                        @csrf
+                        <x-secondary-button type="submit"><x-icon name="arrow-right" /> Virar lote agora</x-secondary-button>
+                    </form>
+                @endif
             </div>
 
             @forelse ($event->types as $type)
@@ -134,7 +141,7 @@
                             @if ($type->description)<p class="text-sm text-ink-2">{{ $type->description }}</p>@endif
                             <p class="mt-1 text-xs text-ink-3">
                                 @if ($row && $row['lot'])
-                                    À venda agora: <strong>{{ $row['lot']->name }}</strong> · {{ $row['remaining'] }} restante(s) · sócio {{ $money($row['lot']->price_member) }} · não sócio {{ $row['lot']->price_non_member === null ? 'não vendido' : $money($row['lot']->price_non_member) }}
+                                    À venda agora: <strong>{{ $row['lot']->name }}</strong> · {{ $row['remaining'] === null ? 'sem limite' : $row['remaining'] . ' restante(s)' }} · sócio {{ $money($row['lot']->price_member) }} · não sócio {{ $row['lot']->price_non_member === null ? 'não vendido' : $money($row['lot']->price_non_member) }}
                                 @elseif ($row && $row['next_lot'])
                                     Nenhum lote à venda agora; o {{ $row['next_lot']->name }} abre em {{ $row['next_lot']->starts_at->format('d/m/Y H:i') }}.
                                 @else
@@ -174,7 +181,7 @@
                                                 @unless ($lot->active)<x-pill kind="off">inativo</x-pill>@endunless
                                             </td>
                                             <td class="px-4 py-3 text-ink-2">{{ $window($lot) }}</td>
-                                            <td class="px-4 py-3 font-mono text-ink-2">{{ $occupied[$lot->id] ?? 0 }} / {{ $lot->quantity }}<span class="block text-xs text-ink-3">{{ (int) ($sold[$lot->id] ?? 0) }} pago(s)</span></td>
+                                            <td class="px-4 py-3 font-mono text-ink-2">{{ $occupied[$lot->id] ?? 0 }} / {{ $lot->quantity ?? 'sem limite' }}<span class="block text-xs text-ink-3">{{ (int) ($sold[$lot->id] ?? 0) }} pago(s)</span></td>
                                             <td class="px-4 py-3 font-mono">{{ $money($lot->price_member) }}</td>
                                             <td class="px-4 py-3 font-mono">{{ $lot->price_non_member === null ? 'Só sócios' : $money($lot->price_non_member) }}</td>
                                             <td class="px-4 py-3 text-right whitespace-nowrap">

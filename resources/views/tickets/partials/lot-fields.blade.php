@@ -6,7 +6,7 @@
 @endphp
 <div class="sm:col-span-2"><x-input-label for="{{ $key }}-name" value="Nome" /><x-text-input id="{{ $key }}-name" name="name" class="mt-1" :value="$lot->name ?? $suggestedName" required maxlength="255" /></div>
 <div><x-input-label for="{{ $key }}-sequence" value="Ordem" /><x-text-input type="number" min="1" id="{{ $key }}-sequence" name="sequence" class="mt-1" :value="$lot->sequence ?? $suggestedSequence" required /></div>
-<div><x-input-label for="{{ $key }}-quantity" value="Quantidade" /><x-text-input type="number" min="0" id="{{ $key }}-quantity" name="quantity" class="mt-1" :value="$lot->quantity ?? ''" required /></div>
+<div><x-input-label for="{{ $key }}-quantity" value="Quantidade (vazio = sem limite)" /><x-text-input type="number" min="0" id="{{ $key }}-quantity" name="quantity" class="mt-1" :value="$lot->quantity ?? ''" placeholder="Sem limite" /></div>
 <div><x-input-label for="{{ $key }}-price_member" value="Preço sócio (R$)" /><x-text-input type="number" step="0.01" min="0" id="{{ $key }}-price_member" name="price_member" class="mt-1" :value="$money($lot?->price_member)" required /></div>
 <div>
     <x-input-label for="{{ $key }}-price_non_member" value="Preço não sócio (R$)" />

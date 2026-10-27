@@ -23,8 +23,9 @@ class TicketNotifier
     public const PAID = 'tickets.paid';
     public const CANCELLED = 'tickets.cancelled';
     public const LINK = 'tickets.link';
+    public const ACCESS_CODE = 'tickets.access_code';
 
-    public const TYPES = [self::PAID, self::CANCELLED, self::LINK];
+    public const TYPES = [self::PAID, self::CANCELLED, self::LINK, self::ACCESS_CODE];
 
     private const TITLES = [
         self::PAID => 'Ingressos confirmados',
@@ -91,6 +92,23 @@ class TicketNotifier
             'refunded' => ! empty($extra['refunded']) ? $money($extra['refunded']) : null,
             'issued_at' => Carbon::now()->format('d/m/Y H:i'),
         ];
+    }
+
+    /**
+     * O código de "meus ingressos" do não sócio (TicketGuestAccessService).
+     * Template próprio: não é de um pedido só.
+     */
+    public function accessCode(string $email, string $name, string $code, int $minutes): bool
+    {
+        return $this->email->sendScheduleMail([
+            'email' => $email,
+            'name' => $name,
+            'type' => self::ACCESS_CODE,
+            'subject' => "Seu código de acesso aos ingressos: {$code}",
+            'code' => $code,
+            'minutes' => $minutes,
+            'schedule_ids' => [],
+        ]);
     }
 
     /** O link do pedido do não sócio no site; null para sócio ou sem `tickets.site_url`. */

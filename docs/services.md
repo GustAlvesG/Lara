@@ -232,20 +232,40 @@ Montagem do torneio: `changeStatus(..., $force)` (caminho normal rascunho → pu
 
 E-mails `tournament.registered`, `tournament.paid`, `tournament.cancelled` (template `emails.tournament.status`), um por pessoa e torneio, via `EmailService::sendScheduleMail`.
 
+## Signature\Contracts\* (Contratos)
+
+Regras em [contratos.md](funcionalidades/contratos.md).
+
+| Classe | O que faz |
+|--------|-----------|
+| `ContractContent` | Forma do conteúdo e única porta de entrada: `normalize()` (saneia HTML com listas, uid, limites), `blank()`, `items()`, `freshUids()` (cópia com uid novo, troca as remissões internas), `keyFor()`. |
+| `ContractRenderer` | Fonte única do texto: `blocks()` → `html()` (prévia ou documento), numeração, `[[variáveis]]`, `[[ref:uid]]`, qualificação das partes, `documentSigners()` (presidente primeiro, partes `p1…`), `outline()`, `availableTokens()`, `problems()` (`error` trava envio/aprovação; `warning`: termo parecido, remissão digitada, sem testemunha). |
+| `ContractVariables` | Tipos de variável e formatação com extenso (valor, número, percentual); confere pelo `SignatureFieldTypes`. |
+| `ContractClub` | Estabelecimentos (`signature.contracts.establishments`) e presidente (titular da área `president_area`). |
+| `ContractService` | Ciclo: `create`, `save` (+ cadastro de contratadas), `submit`, `returnToAuthor`, `approve` (número + documento), `generateDocument`, `reopen`, `cancel`, `createAddendum`, `saveAsModel`, `modelContent`, anexos, `resolveComment`. |
+| `ContractDocumentGenerator` | Aprovado → modelo de uso único + `SignatureDocumentService::create` em **rascunho**, diretores por `DirectorAreaService::signerData`, cópia dos anexos. |
+| `ContractDiff` | O que mudou entre versões, por uid, palavra a palavra. |
+| `ContractDocxExporter` | .docx mínimo (ZipArchive) dos mesmos `blocks()`. |
+| `ContractKioskService` | Gerência no tablet do balcão: `login` (matrícula + PIN, limite por matrícula, só setor Gerência), `fromToken`/`logout` (hash no cache), `pending`, `detail` (texto, cláusulas, diff, problemas, anexos), `inReview`. |
+| `ContractAiReviewer` | Revisão automática pelo Claude: `review()` (texto inteiro por `plainText()` + conferência do Lara + anexos → `ClaudeClient::structured` com esquema; limpa e grava; mesmo texto reaproveita), `isCurrent()`, `isAvailable()`. |
+| `ContractRecipients` | E-mails: coordenador da Gerência e autor (consulta `users`; trocado nos testes). |
+| `App\Support\NumeroPorExtenso` | Extenso de inteiros, reais, decimais e ordinal feminino das cláusulas. |
+
 ## Ticket\* (Ingressos)
 
 Regras em [ingressos.md](funcionalidades/ingressos.md).
 
 | Serviço | Papel |
 |---------|-------|
-| `TicketInventory` | `occupiedByLot()` (pagos + pendentes no prazo), `occupiedByDay()` (lotação: `[0 => n]` no evento sem dias; por dia, diárias do dia + passaportes), `capacityOverflow(evento, dias dos ingressos novos)`, `capacityLeft()`/`capacityLeftByDay()`, `currentLot()` (menor ordem ativa, na janela e com sobra), `nextLot()`, `summary()` por tipo. Só conta; não trava. |
+| `TicketInventory` | `occupiedByLot()` (pagos + pendentes no prazo), `occupiedByDay()` (lotação: `[0 => n]` no evento sem dias; por dia, diárias do dia + passaportes), `capacityOverflow(evento, dias dos ingressos novos)`, `capacityLeft()`/`capacityLeftByDay()`, `currentLot()` (menor ordem ativa, na janela e com sobra), `nextLot()`, `remaining()` (null = lote sem limite), `hasRoom()`, `summary()` por tipo. Só conta; não trava. |
 | `TicketOrderService` | `buyerFor(Member)` (MultiClubes), `create(event, buyer, items, $counter, $force, $courtesy, $couponCode, $notify)` (trava o evento; aloca ingresso a ingresso, atravessando a virada de lote; aplica o cupom; balcão vira aviso), `issueAtCounter(..., $mode)` (`external` = cria + baixa manual; `courtesy` = valor zero; uma transação, um e-mail), `titleMembers(matrícula)` (pessoas do título no MultiClubes; o sócio compra para elas), `checkCoupon()`, `pay()` (idempotente pelo tid; pagamento tardio reconfere estoque e cupom → `hold_expired`), `recordManual()`, `withdraw()`, `expireOverdue()`, `cancelTicket()`/`cancelTickets(..., $refund)` (um estorno eRede pela soma, antes de gravar, dividido pelos ingressos), `changeHolder()`, `resendLink()`. |
 | `TicketCheckinService` | `looksLikeCode()`, `find(código ou CPF, ?evento)` (pelo CPF, o ingresso que entra agora primeiro), `evaluate()` (motivos `ticket_*`; janela do evento ou do dia), `checkIn(..., $source, $force)` (linha em `ticket_checkins`, única por ingresso e dia: o passaporte entra uma vez em cada dia; fora da janela: Lara confirma, monitor nega), `windowLabel()`, `counts(evento, ?dia)`, `dayForCounts()`. Usado pelo `CompanyService` no Monitor de Acesso. |
 | `TicketFinanceService` | `totals()`, `byLot()`, `byMethod()`, `byCoupon()`, `csvRows()`. |
-| `TicketSetupService` | `changeStatus(..., $force)` (`TRANSITIONS`; publicar exige tipo ativo com lote ativo), `saveDay()`/`deleteDay()` (dentro do evento, sem cruzar; dia com diária não apaga), `saveType()` (dia do evento; não muda depois de vendido), `saveLot(..., $force)` (aviso de quantidade abaixo do ocupado e de preço com venda), `deleteType()`/`deleteLot()` (recusa com ingresso). |
+| `TicketSetupService` | `changeStatus(..., $force)` (`TRANSITIONS`; publicar exige tipo ativo com lote ativo), `saveDay()`/`deleteDay()` (dentro do evento, sem cruzar; dia com diária não apaga), `saveType()` (dia do evento; não muda depois de vendido), `saveLot(..., $force)` (aviso de quantidade abaixo do ocupado e de preço com venda; quantidade nula = sem limite), `turnLots(..., $force)` (Virar lote agora: o vigente de cada tipo fecha, o seguinte abre; sempre confirma), `deleteType()`/`deleteLot()` (recusa com ingresso). |
 | `TicketPresenter` | JSON do site: evento com lote vigente, cupom, pedido (com desconto e cortesia), ingresso (código e QR só pago; CPF mascarado). |
 | `TicketPdf` | PDF dos ingressos pagos (dompdf, QR em SVG). |
-| `TicketNotifier` | E-mails `tickets.paid`, `tickets.cancelled`, `tickets.link` (template `emails.tickets.status`); `orderLink()` para o não sócio (`TICKETS_SITE_URL`). |
+| `TicketNotifier` | E-mails `tickets.paid`, `tickets.cancelled`, `tickets.link` (template `emails.tickets.status`) e `tickets.access_code` (`accessCode()`, template `emails.tickets.access-code`); `orderLink()` para o não sócio (`TICKETS_SITE_URL`). |
+| `TicketGuestAccessService` | "Meus ingressos" do não sócio: `requestCode()` (só com pedido de não sócio daquele CPF + e-mail; HMAC; 10 min; 5 por hora; o anterior deixa de valer), `verify()` (5 tentativas; devolve token cifrado de 2 h), `resolve(token)`, `orders()`/`list()`. |
 | `TicketBuyer` | Valor de quem compra: `member(profile, member)` ou `guest(cpf, nome, e-mail, telefone)`. |
 
 ---
@@ -491,3 +511,12 @@ Falha de conexão (ou qualquer recusa do driver) vira `RemoteStorageUnavailable`
 como fora por 60 s (`replay:ftp-offline`), para os pedidos seguintes não esperarem o timeout.
 O adaptador FTP só lê o arquivo inteiro (`readStream` baixa tudo): por isso a validação na
 recepção já produz a cópia que vai ser servida.
+
+## Claude\ClaudeClient
+
+`app/Services/Claude/ClaudeClient.php` — porta única do Lara para a API do Claude (Anthropic), pelo SDK oficial
+`anthropic-ai/sdk`. `isConfigured()` (há `ANTHROPIC_API_KEY`); `structured($model, $system, $prompt, $schema,
+$maxTokens, $effort)` devolve `data` (o JSON no formato do esquema), `model`, `input_tokens`, `output_tokens`.
+Erros da API, recusa e resposta cortada viram `ClaudeException` com mensagem para a tela. O construtor aceita um
+cliente HTTP PSR-18 (os testes passam um Guzzle com `MockHandler`). Ver
+[claude-api.md](funcionalidades/claude-api.md).
