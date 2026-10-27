@@ -17,6 +17,10 @@ use App\Models\Freelancer;
 use App\Models\FreelancerService;
 use App\Models\UberAccessRequest;
 use App\Services\RuleValidatorService;
+use App\Exceptions\TicketException;
+use App\Models\Ticket\Ticket;
+use App\Services\Ticket\TicketCheckinService;
+use Illuminate\Support\Facades\Schema;
 
 
 class CompanyService
@@ -30,6 +34,9 @@ class CompanyService
 
     /** O mesmo, para quem entra por liberação pontual: não há empresa a nomear. */
     public const ONE_OFF_LABEL = 'Liberação Pontual';
+
+    /** O mesmo, para quem entra com ingresso de evento (módulo Ingressos). */
+    public const TICKET_LABEL = 'Ingresso';
 
     private OneOffAccessService $oneOffAccessService;
 
@@ -220,6 +227,17 @@ class CompanyService
             return $this->validateUberAccess($target);
         }
 
+        // Código de ingresso (o QR do ingresso, ou digitado): o ingresso daquele código.
+        if (TicketCheckinService::looksLikeCode($target)) {
+            $entries = $this->ticketsAvailable()
+                ? app(TicketCheckinService::class)->find($target)->map(fn (Ticket $t) => $this->ticketAccessEntry($t))->values()->all()
+                : [];
+
+            return $entries === []
+                ? ['found' => false, 'reason' => 'ticket_not_found', 'workers' => []]
+                : ['found' => true, 'type' => 'ticket', 'company_id' => null, 'company' => self::TICKET_LABEL, 'workers' => $entries];
+        }
+
         $allWorkers = false;
 
         if (Str::startsWith($target, '*') || Str::endsWith($target, '*')) {
@@ -239,10 +257,11 @@ class CompanyService
             // está na portaria digita um CPF e quer saber se AQUELA pessoa
             // entra — venha a autorização de onde vier —, então os dois
             // caminhos são consultados e o resultado é somado. A liberação
-            // pontual é o terceiro caminho, e entra na mesma soma.
+            // pontual é o terceiro caminho, e o ingresso de evento com a entrada
+            // aberta agora (Ingressos) é o quarto; entram na mesma soma.
             $freelancerEntries = $this->freelancerAccessEntries($target);
             $oneOffEntries = $this->oneOffAccessEntries($target);
-            $otherEntries = array_merge($freelancerEntries, $oneOffEntries);
+            $otherEntries = array_merge($freelancerEntries, $oneOffEntries, $this->ticketAccessEntries($target));
 
             if ($matchedWorkers->isEmpty() && $otherEntries === []) {
                 return ['found' => false, 'reason' => 'worker_not_found', 'workers' => []];
@@ -347,6 +366,12 @@ class CompanyService
             // se outro registro a queimou no meio do caminho, ela vira negada.
             if (($worker['type'] ?? 'worker') === 'one_off') {
                 $result['workers'][$index] = $this->logOneOffAccess($worker, $data['target']);
+                continue;
+            }
+
+            // Registrar USA o ingresso (check-in), como a liberação pontual.
+            if (($worker['type'] ?? 'worker') === 'ticket') {
+                $result['workers'][$index] = $this->logTicketAccess($worker, $data['target']);
                 continue;
             }
 
@@ -1013,6 +1038,114 @@ class CompanyService
 
         return $entry;
     }
+
+    /**
+     * Ingressos pagos do CPF em eventos com a entrada aberta agora. O já usado
+     * também aparece (negado, com a hora), para a portaria saber por que não
+     * entra de novo.
+     *
+     * @return array<int, array>
+     */
+    private function ticketAccessEntries(string $cpf): array
+    {
+        if (! $this->ticketsAvailable()) {
+            return [];
+        }
+
+        return app(TicketCheckinService::class)->find($cpf)
+            ->map(fn (Ticket $ticket) => $this->ticketAccessEntry($ticket))
+            ->values()
+            ->all();
+    }
+
+    private function ticketAccessEntry(Ticket $ticket): array
+    {
+        $state = app(TicketCheckinService::class)->evaluate($ticket);
+
+        return [
+            'id'         => $ticket->id,
+            'type'       => 'ticket',
+            'name'       => $ticket->holder_name,
+            'allowed'    => $state['allowed'],
+            'image'      => null,
+            'company_id' => null,
+            'company'    => self::TICKET_LABEL,
+            'reason'     => $state['reason'],
+            'ticket'     => [
+                'code'      => $ticket->code,
+                'event'     => $ticket->event?->title,
+                'type'      => $ticket->type?->fullName(),
+                'message'   => $state['message'],
+                'window'    => app(TicketCheckinService::class)->windowLabel($ticket),
+                'used_at'   => $ticket->checked_in_at?->format('H:i'),
+            ],
+        ];
+    }
+
+    /** Registro pelo botão do monitor: o ingresso já identificado. */
+    public function registerTicketAccess(int $ticketId): array
+    {
+        $ticket = $this->ticketsAvailable() ? Ticket::with(['event.days', 'type.day', 'checkins'])->find($ticketId) : null;
+
+        if (! $ticket) {
+            return ['found' => false, 'reason' => 'ticket_not_found', 'workers' => []];
+        }
+
+        $entry = $this->logTicketAccess($this->ticketAccessEntry($ticket), $ticket->code);
+
+        return [
+            'found'      => true,
+            'type'       => 'ticket',
+            'company_id' => null,
+            'company'    => self::TICKET_LABEL,
+            'workers'    => [$entry],
+        ];
+    }
+
+    /**
+     * Faz o check-in e grava no histórico. Se entre a consulta e o registro o
+     * ingresso foi usado (ou a entrada fechou), a linha é gravada — e
+     * devolvida — negada, com o estado real.
+     */
+    private function logTicketAccess(array $entry, string $target): array
+    {
+        if ($entry['allowed']) {
+            $ticket = Ticket::find($entry['id']);
+
+            try {
+                $ticket = app(TicketCheckinService::class)->checkIn($ticket, null, Ticket::CHECKIN_MONITOR);
+                $entry = $this->ticketAccessEntry($ticket);
+                // Acabou de entrar: na portaria, a linha é a da entrada liberada.
+                $entry['allowed'] = true;
+                $entry['reason'] = TicketCheckinService::REASON_GRANTED;
+                $entry['ticket']['message'] = 'Entrada registrada às ' . $ticket->checked_in_at->format('H:i') . '.';
+            } catch (TicketException) {
+                $entry = $this->ticketAccessEntry($ticket->fresh(['event.days', 'type.day', 'checkins']));
+            }
+        }
+
+        CompanyAccessLog::create([
+            'company_id'        => null,
+            'company_worker_id' => null,
+            'ticket_id'         => $entry['id'],
+            'target'            => $target,
+            'allowed'           => $entry['allowed'],
+            'reason'            => $entry['reason'],
+        ]);
+
+        return $entry;
+    }
+
+    /**
+     * A tabela dos ingressos existe? Os testes de Externos sobem um banco
+     * mínimo sem ela; em produção, a migration a cria antes do monitor usar.
+     */
+    private function ticketsAvailable(): bool
+    {
+        return $this->ticketsAvailable ??= Schema::hasTable('tickets');
+    }
+
+    private ?bool $ticketsAvailable = null;
 
     public function registerWorkerAccess(int $workerId): array
     {

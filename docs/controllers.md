@@ -14,7 +14,7 @@ indicados como _stub_.
 - [Espaços](#placegroupcontroller) · [Place](#placecontroller) · [Regras](#schedulerulescontroller)
 - [Sócios](#membercontroller) · [Auth de Sócio](#memberauthcontroller--apphttpcontrollersauth) · [Login Token](#logintokencontroller)
 - [Freelancers](#freelancercontroller) · [Funções](#functionfreelancercontroller) · [Serviços de Freelancer](#freelancerservicecontroller)
-- [Banco de horas](#comptimecontroller) · [Torneios](#tournamentcategorytemplatecontroller)
+- [Banco de horas](#comptimecontroller) · [Torneios](#tournamentcategorytemplatecontroller) · [Ingressos](#ticketticketeventcontroller-tickettypecontroller-ticketlotcontroller)
 - [Empresas](#company---apphttpcontrollerscompany)
 - [WhatsApp](#whatsappcontroller) · [Telegram](#telegramcontactcontroller)
 - [Acessos](#accesscontroller) · [Estacionamento](#parkingcontroller)
@@ -288,6 +288,30 @@ Reservas › Contas do site (`reservas.contas-site`): `index`, `store` (cadastro
 ## Api\TournamentApiController
 
 `/api/tournaments/*` do site de locação: `index`, `show` (só `api_token`); `eligibility`, `register`, `mine`, `pay`, `withdraw` (com `login_token`; sócio sempre do JWT); times e convites (F4); `bracket` (F5, só `api_token`: chaveamento divulgado). Recusas como `TournamentException::toArray()`. Contrato em [torneios.md](funcionalidades/torneios.md#api-do-site-apitournamentapicontroller).
+
+## Ticket\TicketEventController, TicketDayController, TicketTypeController, TicketLotController
+
+Ingressos no painel: eventos (`index` com busca `q` e filtro `status` e `show` com tipos, lote vigente, ocupados e pagos por lote — os dois abrem com o Gate `acessar-ingressos`; `create`/`store` em rascunho, `edit`/`update`, `status` por `TicketSetupService::TRANSITIONS` — `ingressos.gerenciar`; editar o evento não deixa um dia de fora do período), dias do evento de vários dias (`TicketDayController`: `store`/`update`/`destroy` por `TicketSetupService::saveDay`/`deleteDay` — dentro do evento, sem cruzar, dia com diária não apaga), tipos (`store`/`update` por `saveType` com `ticket_event_day_id` — diária ou, vazio, passaporte; o dia não muda depois de vendido —, `destroy`; com ingresso não apaga) e lotes (`store`/`update` por `TicketSetupService::saveLot`, com aviso; `destroy`). Ver [ingressos.md](funcionalidades/ingressos.md#telas).
+
+## Ticket\TicketCouponController
+
+Cupons do evento (`ingressos.cupons`): `index` (com usos), `store`, `update` (código normalizado e único no evento; porcentagem até 100; tipos do evento), `destroy` (recusa cupom já usado em pedido).
+
+## Ticket\TicketOrderController
+
+Pedidos (`ingressos.vendas`): `index` (busca por nome, CPF, código `ING-` ou número; filtro de situação), `show`, `pdf`, `resend`, `changeHolder`, `cancel` (marcados ou todos; `refund` pede `ingressos.pagamentos.estornar`), `manual` (baixa, `ingressos.pagamentos.baixa-manual`); emissão `create`/`store` (`external` pede baixa manual; `courtesy` pede `ingressos.cortesias`; sócio pelo CPF no MultiClubes, com matrícula se o CPF estiver em mais de um título, e um ingresso por pessoa do título). Recusas do serviço viram erro de formulário (`order`).
+
+## Ticket\TicketCheckinController
+
+Check-in (`ingressos.checkin`): `index` (eventos com a entrada aberta e os próximos, contador), `store` (código ou CPF; `only_check` só consulta; `force` registra fora da janela; código de outro evento não registra). Resultado na sessão `checkin`.
+
+## Ticket\TicketFinanceController
+
+Financeiro (`ingressos.financeiro`): `index` (eventos do ano, `?ano=`), `show` (totais, por lote, por forma, por cupom), `csv` (um ingresso por linha, `;`, BOM).
+
+## Api\TicketApiController
+
+`/api/tickets/*` do site de locação: vitrine (`index`, `show`, `checkCoupon`, só `api_token`); sócio (`myTitle` — pessoas do título com `ref` cifrada —, `storeMember` — um ingresso por pessoa do título, pela `ref` —, `mine`, `showMember`, `payMember`, `withdrawMember`, `pdfMember`, com `login_token`; sócio sempre do JWT); não sócio sem conta (`storeGuest` devolve o `access_token`; `showGuest`, `payGuest`, `withdrawGuest`, `pdfGuest` com o header `Ticket-Order-Token`; `resendGuestLink` com resposta sempre igual). Recusas como `TicketException::toArray()`. Contrato em [ingressos.md](funcionalidades/ingressos.md#api-do-site-apiticketapicontroller).
 
 ---
 

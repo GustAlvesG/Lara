@@ -14,6 +14,7 @@ class CompanyAccessLog extends Model
         'freelancer_id',
         'freelancer_service_id',
         'one_off_access_id',
+        'ticket_id',
         'target',
         'obs',
         'screenshot_url',
@@ -61,6 +62,12 @@ class CompanyAccessLog extends Model
     public function oneOffAccess()
     {
         return $this->belongsTo(OneOffAccess::class, 'one_off_access_id');
+    }
+
+    /** O ingresso de evento conferido na portaria (Ingressos). */
+    public function ticket()
+    {
+        return $this->belongsTo(\App\Models\Ticket\Ticket::class, 'ticket_id');
     }
 
     /**

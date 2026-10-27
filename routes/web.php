@@ -12,6 +12,14 @@ use App\Http\Controllers\Company\CompanyController;
 use App\Http\Controllers\Company\CompanyWorkerController as WorkerController;
 use App\Http\Controllers\Company\CompanyAccessRulesController as CompanyRulesController;
 use App\Http\Controllers\Company\OneOffAccessController;
+use App\Http\Controllers\Ticket\TicketCheckinController;
+use App\Http\Controllers\Ticket\TicketCouponController;
+use App\Http\Controllers\Ticket\TicketDayController;
+use App\Http\Controllers\Ticket\TicketEventController;
+use App\Http\Controllers\Ticket\TicketFinanceController;
+use App\Http\Controllers\Ticket\TicketLotController;
+use App\Http\Controllers\Ticket\TicketOrderController;
+use App\Http\Controllers\Ticket\TicketTypeController;
 use App\Http\Controllers\Tournament\CategoryTemplateController;
 use App\Http\Controllers\Tournament\TournamentBracketController;
 use App\Http\Controllers\Tournament\TournamentFinanceController;
@@ -772,6 +780,78 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             ->whereNumber('tournament')
             ->middleware('can:' . P::TORNEIOS_PAGAMENTOS_BAIXA_MANUAL)
             ->name('registrations.manual');
+    });
+
+    // Ingressos (docs/funcionalidades/ingressos.md): eventos, tipos e lotes.
+    // `{event}` só número, para não engolir `/novo`; tipo e lote presos ao
+    // evento (scopeBindings).
+    Route::prefix('ingressos')->as('tickets.')->group(function () {
+        // Lista e tela do evento: quem alcança qualquer parte do módulo.
+        Route::middleware('can:acessar-ingressos')->group(function () {
+            Route::get('/', [TicketEventController::class, 'index'])->name('index');
+            Route::get('/{event}', [TicketEventController::class, 'show'])->whereNumber('event')->name('show');
+        });
+
+        // Check-in na entrada do evento (a portaria também confere pelo Monitor de Acesso).
+        Route::middleware('can:' . P::INGRESSOS_CHECKIN)->group(function () {
+            Route::get('/checkin', [TicketCheckinController::class, 'index'])->name('checkin.index');
+            Route::post('/checkin/{event}', [TicketCheckinController::class, 'store'])->whereNumber('event')->middleware('throttle:120,1')->name('checkin.store');
+        });
+
+        // Relatório financeiro e CSV.
+        Route::middleware('can:' . P::INGRESSOS_FINANCEIRO)->group(function () {
+            Route::get('/financeiro', [TicketFinanceController::class, 'index'])->name('finance.index');
+            Route::get('/{event}/financeiro', [TicketFinanceController::class, 'show'])->whereNumber('event')->name('finance.show');
+            Route::get('/{event}/financeiro/csv', [TicketFinanceController::class, 'csv'])->whereNumber('event')->name('finance.csv');
+        });
+
+        // Cupons de desconto do evento.
+        Route::middleware('can:' . P::INGRESSOS_CUPONS)->scopeBindings()->prefix('/{event}/cupons')->whereNumber('event')->as('coupons.')->group(function () {
+            Route::get('/', [TicketCouponController::class, 'index'])->name('index');
+            Route::post('/', [TicketCouponController::class, 'store'])->name('store');
+            Route::put('/{coupon}', [TicketCouponController::class, 'update'])->whereNumber('coupon')->name('update');
+            Route::delete('/{coupon}', [TicketCouponController::class, 'destroy'])->whereNumber('coupon')->name('destroy');
+        });
+
+        // Pedidos e emissão pelo Lara. Emitir pede também baixa manual
+        // (pagamento por fora) ou cortesias (conferido no controller); o
+        // estorno pede `ingressos.pagamentos.estornar` (idem).
+        Route::middleware('can:' . P::INGRESSOS_VENDAS)->group(function () {
+            Route::get('/{event}/pedidos', [TicketOrderController::class, 'index'])->whereNumber('event')->name('orders.index');
+            Route::get('/{event}/emitir', [TicketOrderController::class, 'create'])->whereNumber('event')->name('issue.create');
+            Route::post('/{event}/emitir', [TicketOrderController::class, 'store'])->whereNumber('event')->name('issue.store');
+            Route::get('/pedidos/{order}', [TicketOrderController::class, 'show'])->whereNumber('order')->name('orders.show');
+            Route::get('/pedidos/{order}/pdf', [TicketOrderController::class, 'pdf'])->whereNumber('order')->name('orders.pdf');
+            Route::post('/pedidos/{order}/reenviar', [TicketOrderController::class, 'resend'])->whereNumber('order')->middleware('throttle:10,1')->name('orders.resend');
+            Route::post('/pedidos/{order}/cancelar', [TicketOrderController::class, 'cancel'])->whereNumber('order')->name('orders.cancel');
+            Route::put('/pedidos/ingresso/{ticket}/titular', [TicketOrderController::class, 'changeHolder'])->whereNumber('ticket')->name('orders.holder');
+            Route::post('/pedidos/{order}/baixa', [TicketOrderController::class, 'manual'])->whereNumber('order')
+                ->middleware('can:' . P::INGRESSOS_PAGAMENTOS_BAIXA_MANUAL)->name('orders.manual');
+        });
+
+        Route::middleware('can:' . P::INGRESSOS_GERENCIAR)->group(function () {
+            Route::get('/novo', [TicketEventController::class, 'create'])->name('create');
+            Route::post('/', [TicketEventController::class, 'store'])->name('store');
+            Route::get('/{event}/editar', [TicketEventController::class, 'edit'])->whereNumber('event')->name('edit');
+            Route::put('/{event}', [TicketEventController::class, 'update'])->whereNumber('event')->name('update');
+            Route::put('/{event}/situacao', [TicketEventController::class, 'status'])->whereNumber('event')->name('status');
+
+            // Evento de vários dias: os dias (diária = tipo com dia; passaporte = tipo sem dia).
+            Route::scopeBindings()->prefix('/{event}/dias')->whereNumber('event')->as('days.')->group(function () {
+                Route::post('/', [TicketDayController::class, 'store'])->name('store');
+                Route::put('/{day}', [TicketDayController::class, 'update'])->whereNumber('day')->name('update');
+                Route::delete('/{day}', [TicketDayController::class, 'destroy'])->whereNumber('day')->name('destroy');
+            });
+
+            Route::scopeBindings()->prefix('/{event}/tipos')->whereNumber('event')->as('types.')->group(function () {
+                Route::post('/', [TicketTypeController::class, 'store'])->name('store');
+                Route::put('/{type}', [TicketTypeController::class, 'update'])->whereNumber('type')->name('update');
+                Route::delete('/{type}', [TicketTypeController::class, 'destroy'])->whereNumber('type')->name('destroy');
+                Route::post('/{type}/lotes', [TicketLotController::class, 'store'])->whereNumber('type')->name('lots.store');
+                Route::put('/{type}/lotes/{lot}', [TicketLotController::class, 'update'])->whereNumber(['type', 'lot'])->name('lots.update');
+                Route::delete('/{type}/lotes/{lot}', [TicketLotController::class, 'destroy'])->whereNumber(['type', 'lot'])->name('lots.destroy');
+            });
+        });
     });
 
     // Reservas › Contas do site: contas dos sócios no site de locação

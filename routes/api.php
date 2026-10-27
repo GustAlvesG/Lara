@@ -37,6 +37,7 @@ use App\Http\Controllers\Api\PurchaseApprovalController;
 use App\Http\Controllers\Api\MemberLightingController;
 use App\Http\Controllers\Api\SocialBookingApiController;
 use App\Http\Controllers\Api\RemoteSignatureApiController;
+use App\Http\Controllers\Api\TicketApiController;
 use App\Http\Controllers\Api\TournamentApiController;
 use App\Http\Controllers\Api\TournamentStaffApiController;
 use App\Http\Controllers\Fleet\FleetApiController;
@@ -201,6 +202,8 @@ Route::prefix('company-access')->group(function () {
     Route::post('/register-worker-access', [CompanyAccessRulesController::class, 'registerWorkerAccess'])->name('company_access.register_worker');
     Route::post('/register-freelancer-access', [CompanyAccessRulesController::class, 'registerFreelancerAccess'])->name('company_access.register_freelancer');
     Route::post('/register-one-off-access', [CompanyAccessRulesController::class, 'registerOneOffAccess'])->name('company_access.register_one_off');
+    // Ingresso de evento (Ingressos): o registro faz o check-in.
+    Route::post('/register-ticket-access', [CompanyAccessRulesController::class, 'registerTicketAccess'])->name('company_access.register_ticket');
     /*
     | Fila "Aguardando acesso do motorista", consumida pelo Monitor de Acesso
     | (a aplicação Python da portaria). Consulta e registro trabalham pelo
@@ -409,6 +412,25 @@ Route::middleware('api_token')->group(function () {
         Route::put('/matches/{matchId}/result', [TournamentStaffApiController::class, 'record'])->whereNumber('matchId')->middleware('throttle:60,1')->name('api.tournaments.staff.result');
     });
 
+    /*
+    | Ingressos — vitrine sem login e a compra do NÃO SÓCIO, sem conta: o
+    | pedido é acessado com o token devolvido na criação (header
+    | `Ticket-Order-Token`). A compra do sócio fica no grupo `login_token`.
+    */
+    Route::prefix('tickets')->as('api.tickets.')->group(function () {
+        Route::get('/events', [TicketApiController::class, 'index'])->name('events.index');
+        Route::get('/events/{id}', [TicketApiController::class, 'show'])->whereNumber('id')->name('events.show');
+        Route::post('/events/{id}/coupon-check', [TicketApiController::class, 'checkCoupon'])->whereNumber('id')->middleware('throttle:20,1')->name('coupon.check');
+        Route::post('/events/{id}/guest-orders', [TicketApiController::class, 'storeGuest'])->whereNumber('id')->middleware('throttle:10,1')->name('guest.store');
+        Route::post('/guest-orders/resend-link', [TicketApiController::class, 'resendGuestLink'])->middleware('throttle:5,1')->name('guest.resend');
+        Route::prefix('/guest-orders/{id}')->whereNumber('id')->middleware('throttle:60,1')->group(function () {
+            Route::get('/', [TicketApiController::class, 'showGuest'])->name('guest.show');
+            Route::post('/payment', [TicketApiController::class, 'payGuest'])->name('guest.pay');
+            Route::delete('/', [TicketApiController::class, 'withdrawGuest'])->name('guest.withdraw');
+            Route::get('/pdf', [TicketApiController::class, 'pdfGuest'])->name('guest.pdf');
+        });
+    });
+
     Route::middleware('login_token')->group(function () {
         Route::get('/verify-token', [LoginTokenController::class, 'validate']);
 
@@ -478,6 +500,21 @@ Route::middleware('api_token')->group(function () {
             Route::post('/invites/{id}/accept', [TournamentApiController::class, 'acceptInvite'])->whereNumber('id')->name('api.tournaments.invites.accept');
             Route::post('/invites/{id}/decline', [TournamentApiController::class, 'declineInvite'])->whereNumber('id')->name('api.tournaments.invites.decline');
             Route::delete('/invites/{id}', [TournamentApiController::class, 'cancelInvite'])->whereNumber('id')->name('api.tournaments.invites.destroy');
+        });
+
+        /*
+        | Ingressos do sócio — para as pessoas do título dele (titular e
+        | dependentes), escolhidas pela `ref` de `my-title`. O sócio sai sempre
+        | do JWT.
+        */
+        Route::prefix('tickets')->as('api.tickets.member.')->group(function () {
+            Route::get('/my-title', [TicketApiController::class, 'myTitle'])->middleware('throttle:30,1')->name('title');
+            Route::post('/events/{id}/orders', [TicketApiController::class, 'storeMember'])->whereNumber('id')->middleware('throttle:20,1')->name('store');
+            Route::get('/my-orders', [TicketApiController::class, 'mine'])->name('mine');
+            Route::get('/orders/{id}', [TicketApiController::class, 'showMember'])->whereNumber('id')->name('show');
+            Route::post('/orders/{id}/payment', [TicketApiController::class, 'payMember'])->whereNumber('id')->middleware('throttle:20,1')->name('pay');
+            Route::delete('/orders/{id}', [TicketApiController::class, 'withdrawMember'])->whereNumber('id')->name('withdraw');
+            Route::get('/orders/{id}/pdf', [TicketApiController::class, 'pdfMember'])->whereNumber('id')->name('pdf');
         });
 
         Route::prefix('schedule')->group(function () {

@@ -180,6 +180,47 @@ Guia: [Torneios](funcionalidades/torneios.md). Catálogo de categorias, torneios
 | GET | `/torneios/{tournament}/financeiro` | Tournament\TournamentFinanceController@show | tournaments.finance.show | auth, can:torneios.financeiro |
 | GET | `/torneios/{tournament}/financeiro/csv` | Tournament\TournamentFinanceController@csv | tournaments.finance.csv | auth, can:torneios.financeiro |
 
+### Ingressos (`tickets.*`)
+
+Guia: [Ingressos](funcionalidades/ingressos.md). Tipo, lote e cupom presos ao evento (`scopeBindings`).
+
+| Método | URI | Controller@método | Nome | Permissão |
+|--------|-----|-------------------|------|-----------|
+| GET | `/ingressos` | Ticket\TicketEventController@index | tickets.index | `acessar-ingressos` (qualquer `ingressos.*`) |
+| GET | `/ingressos/{event}` | Ticket\TicketEventController@show | tickets.show | `acessar-ingressos` |
+| GET | `/ingressos/novo` | Ticket\TicketEventController@create | tickets.create | ingressos.gerenciar |
+| POST | `/ingressos` | Ticket\TicketEventController@store | tickets.store | ingressos.gerenciar |
+| GET | `/ingressos/{event}/editar` | Ticket\TicketEventController@edit | tickets.edit | ingressos.gerenciar |
+| PUT | `/ingressos/{event}` | Ticket\TicketEventController@update | tickets.update | ingressos.gerenciar |
+| PUT | `/ingressos/{event}/situacao` | Ticket\TicketEventController@status | tickets.status | ingressos.gerenciar |
+| POST | `/ingressos/{event}/dias` | Ticket\TicketDayController@store | tickets.days.store | ingressos.gerenciar |
+| PUT | `/ingressos/{event}/dias/{day}` | Ticket\TicketDayController@update | tickets.days.update | ingressos.gerenciar |
+| DELETE | `/ingressos/{event}/dias/{day}` | Ticket\TicketDayController@destroy | tickets.days.destroy | ingressos.gerenciar |
+| POST | `/ingressos/{event}/tipos` | Ticket\TicketTypeController@store | tickets.types.store | ingressos.gerenciar |
+| PUT | `/ingressos/{event}/tipos/{type}` | Ticket\TicketTypeController@update | tickets.types.update | ingressos.gerenciar |
+| DELETE | `/ingressos/{event}/tipos/{type}` | Ticket\TicketTypeController@destroy | tickets.types.destroy | ingressos.gerenciar |
+| POST | `/ingressos/{event}/tipos/{type}/lotes` | Ticket\TicketLotController@store | tickets.types.lots.store | ingressos.gerenciar |
+| PUT | `/ingressos/{event}/tipos/{type}/lotes/{lot}` | Ticket\TicketLotController@update | tickets.types.lots.update | ingressos.gerenciar |
+| DELETE | `/ingressos/{event}/tipos/{type}/lotes/{lot}` | Ticket\TicketLotController@destroy | tickets.types.lots.destroy | ingressos.gerenciar |
+| GET | `/ingressos/{event}/cupons` | Ticket\TicketCouponController@index | tickets.coupons.index | ingressos.cupons |
+| POST | `/ingressos/{event}/cupons` | Ticket\TicketCouponController@store | tickets.coupons.store | ingressos.cupons |
+| PUT | `/ingressos/{event}/cupons/{coupon}` | Ticket\TicketCouponController@update | tickets.coupons.update | ingressos.cupons |
+| DELETE | `/ingressos/{event}/cupons/{coupon}` | Ticket\TicketCouponController@destroy | tickets.coupons.destroy | ingressos.cupons |
+| GET | `/ingressos/{event}/pedidos` | Ticket\TicketOrderController@index | tickets.orders.index | ingressos.vendas |
+| GET | `/ingressos/{event}/emitir` | Ticket\TicketOrderController@create | tickets.issue.create | ingressos.vendas |
+| POST | `/ingressos/{event}/emitir` | Ticket\TicketOrderController@store | tickets.issue.store | ingressos.vendas + baixa-manual (pago por fora) ou cortesias (no controller) |
+| GET | `/ingressos/pedidos/{order}` | Ticket\TicketOrderController@show | tickets.orders.show | ingressos.vendas |
+| GET | `/ingressos/pedidos/{order}/pdf` | Ticket\TicketOrderController@pdf | tickets.orders.pdf | ingressos.vendas |
+| POST | `/ingressos/pedidos/{order}/reenviar` | Ticket\TicketOrderController@resend | tickets.orders.resend | ingressos.vendas (throttle 10/min) |
+| POST | `/ingressos/pedidos/{order}/cancelar` | Ticket\TicketOrderController@cancel | tickets.orders.cancel | ingressos.vendas (estorno: ingressos.pagamentos.estornar) |
+| PUT | `/ingressos/pedidos/ingresso/{ticket}/titular` | Ticket\TicketOrderController@changeHolder | tickets.orders.holder | ingressos.vendas |
+| POST | `/ingressos/pedidos/{order}/baixa` | Ticket\TicketOrderController@manual | tickets.orders.manual | ingressos.vendas + ingressos.pagamentos.baixa-manual |
+| GET | `/ingressos/checkin` | Ticket\TicketCheckinController@index | tickets.checkin.index | ingressos.checkin |
+| POST | `/ingressos/checkin/{event}` | Ticket\TicketCheckinController@store | tickets.checkin.store | ingressos.checkin (throttle 120/min) |
+| GET | `/ingressos/financeiro` | Ticket\TicketFinanceController@index | tickets.finance.index | ingressos.financeiro |
+| GET | `/ingressos/{event}/financeiro` | Ticket\TicketFinanceController@show | tickets.finance.show | ingressos.financeiro |
+| GET | `/ingressos/{event}/financeiro/csv` | Ticket\TicketFinanceController@csv | tickets.finance.csv | ingressos.financeiro |
+
 ### Contas do site (`site-accounts.*`, `can:reservas.contas-site`)
 
 | Método | URI | Ação | Nome | Middleware |
@@ -241,6 +282,8 @@ Prefixo `/api`. Legenda de middleware: **T** = `api_token`, **L** = `login_token
 | POST | `/api/company-access/register-access` | CompanyAccessRulesController@registerAccess |
 | POST | `/api/company-access/register-worker-access` | CompanyAccessRulesController@registerWorkerAccess |
 | POST | `/api/company-access/register-freelancer-access` | CompanyAccessRulesController@registerFreelancerAccess |
+| POST | `/api/company-access/register-one-off-access` | CompanyAccessRulesController@registerOneOffAccess |
+| POST | `/api/company-access/register-ticket-access` | CompanyAccessRulesController@registerTicketAccess (ingresso: faz o check-in) |
 | GET | `/api/schedule/home-assistant/automation` | ScheduleController@homeAssistantAutomation |
 | POST | `/api/schedule/home-assistant/contactors/{entity_id}/manual` | HomeAssistantApiController@manual (comando manual, `throttle:30,1`) |
 | GET | `/api/freelancer/dinners` | Freelancer\DinnerApiController@index (jantar dos freelancers, lida pela cozinha) |
@@ -350,6 +393,29 @@ Contrato completo em [torneios.md](funcionalidades/torneios.md#api-do-site-apito
 | GET | `/api/tournaments/{id}/staff/matches` | Api\TournamentStaffApiController@matches | T + header `Tournament-Code` (throttle 60/min) |
 | PUT | `/api/tournaments/{id}/staff/matches/{matchId}/result` | Api\TournamentStaffApiController@record | T + header `Tournament-Code` (throttle 60/min) |
 
+### Ingressos — site de locação (`api.tickets.*`)
+
+Contrato completo em [ingressos.md](funcionalidades/ingressos.md#api-do-site-apiticketapicontroller). T = `api_token`, L = `login_token`, G = header `Ticket-Order-Token` (pedido do não sócio).
+
+| Método | URI | Ação | Auth |
+|--------|-----|------|------|
+| GET | `/api/tickets/events` | Api\TicketApiController@index | T |
+| GET | `/api/tickets/events/{id}` | Api\TicketApiController@show | T |
+| POST | `/api/tickets/events/{id}/coupon-check` | Api\TicketApiController@checkCoupon | T (throttle 20/min) |
+| POST | `/api/tickets/events/{id}/guest-orders` | Api\TicketApiController@storeGuest | T (throttle 10/min) |
+| POST | `/api/tickets/guest-orders/resend-link` | Api\TicketApiController@resendGuestLink | T (throttle 5/min) |
+| GET | `/api/tickets/guest-orders/{id}` | Api\TicketApiController@showGuest | T + G (throttle 60/min) |
+| POST | `/api/tickets/guest-orders/{id}/payment` | Api\TicketApiController@payGuest | T + G (throttle 60/min) |
+| DELETE | `/api/tickets/guest-orders/{id}` | Api\TicketApiController@withdrawGuest | T + G (throttle 60/min) |
+| GET | `/api/tickets/guest-orders/{id}/pdf` | Api\TicketApiController@pdfGuest | T + G (throttle 60/min) |
+| GET | `/api/tickets/my-title` | Api\TicketApiController@myTitle | T + L (throttle 30/min) |
+| POST | `/api/tickets/events/{id}/orders` | Api\TicketApiController@storeMember | T + L (throttle 20/min) |
+| GET | `/api/tickets/my-orders` | Api\TicketApiController@mine | T + L |
+| GET | `/api/tickets/orders/{id}` | Api\TicketApiController@showMember | T + L |
+| POST | `/api/tickets/orders/{id}/payment` | Api\TicketApiController@payMember | T + L (throttle 20/min) |
+| DELETE | `/api/tickets/orders/{id}` | Api\TicketApiController@withdrawMember | T + L |
+| GET | `/api/tickets/orders/{id}/pdf` | Api\TicketApiController@pdfMember | T + L |
+
 ### Com `api_token` + `login_token` (T + L)
 | Método | URI | Ação | Obs. |
 |--------|-----|------|------|
@@ -420,6 +486,8 @@ Contrato completo em [torneios.md](funcionalidades/torneios.md#api-do-site-apito
 | `inspire` | Exibe uma frase inspiradora (comando padrão do Laravel). | — |
 | `social:contact-reminders` | Avisa no sino quem tem `reservas.sociais` das pré-reservas com prazo de contato vencido (uma vez cada). | a cada 15 minutos |
 | `social:expire-bookings` | Expira reserva de espaço social aprovada e não paga até `payment_due_at` (libera a data e avisa o sócio). | a cada 5 minutos |
+| `ingressos:expirar-pedidos` | Expira pedido de ingresso pendente com o prazo de pagamento (`TICKETS_HOLD_MINUTES`) vencido. | a cada minuto |
+| `ingressos:dados-teste` | Gera ou limpa (`--so-limpar`) eventos `[TESTE]` de Ingressos em homologação; recusa produção. | manual |
 | `social:copy-config --from=lara_hml --to=lara [--dry-run] [--force]` | Copia a configuração dos espaços sociais (grupos, dias, espaços, conflitos, catálogo) de um banco para outro, casando pelo nome; não apaga nem copia reservas. | manual |
 
 > Não há comandos de console customizados (`app/Console/Commands/` não contém classes próprias).

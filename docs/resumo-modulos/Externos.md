@@ -33,7 +33,8 @@ O `target` digitado decide o tipo (`registerAccess` / `validateTryToAccess`):
 
 | `target` | Tipo |
 |---|---|
-| CPF | terceirizado **e/ou** freelancer **e/ou** liberação pontual — as três buscas somam linhas |
+| CPF | terceirizado **e/ou** freelancer **e/ou** liberação pontual **e/ou** ingresso de evento (desde 27/10/2026) — as buscas somam linhas |
+| `ING-XXXXXXXX` | ingresso de evento pelo código (o QR) — módulo [Ingressos](Ingressos.md) |
 | `PLACA.Nome.Obs` | motorista de aplicativo avulso (`app_drivers`, cadastrado na hora) |
 | placa de pedido de Uber | `validateUberAccess` (pedido `aguardando_acesso` e dentro de `expires_at`) |
 | texto | nome de empresa → todos os prestadores, um botão de registro por pessoa |
@@ -46,8 +47,15 @@ O `target` digitado decide o tipo (`registerAccess` / `validateTryToAccess`):
 - **Liberação pontual** (`OneOffAccessService`, `one_off_accesses`): uma por CPF aberta, só no
   dia de criação, gasta no primeiro **registro** (consultar não gasta), consumo atômico
   (`UPDATE … WHERE used_at IS NULL`). Vence sozinha na virada do dia, sem job.
+- **Ingresso** (`TicketCheckinService`, `company_access_logs.ticket_id`): só eventos com a
+  entrada aberta (horas antes do início até o fim); registrar faz o check-in (uma entrada,
+  atômico); fora da janela, nega. A busca só roda se a tabela `tickets` existe
+  (`ticketsAvailable`): os testes daqui sobem um banco sem ela.
 - Registro por botão usa endpoint próprio por tipo (`register-worker-access`,
-  `register-freelancer-access`, `register-one-off-access`) — os ids são de tabelas diferentes.
+  `register-freelancer-access`, `register-one-off-access`, `register-ticket-access`) — os ids
+  são de tabelas diferentes.
+- Mudou a resposta da API da portaria: gere o prompt para o agente do app da guarita (o de
+  Ingressos está em `docs/ingressos-prompt-portaria.md`).
 
 ## Carros de aplicativo (Uber)
 
@@ -72,7 +80,7 @@ O `target` digitado decide o tipo (`registerAccess` / `validateTryToAccess`):
 ## API da portaria (`/api/company-access/*`)
 
 `validate-access`, `register-access`, `register-worker-access`, `register-freelancer-access`,
-`register-one-off-access`, `uber-waiting`, `register-uber-request-access`, `uber-request-plate`.
+`register-one-off-access`, `register-ticket-access`, `uber-waiting`, `register-uber-request-access`, `uber-request-plate`.
 **Sem middleware de token** no grupo (ver `routes/api.php`) — mudar isso quebra o Monitor Python.
 
 ## Peças

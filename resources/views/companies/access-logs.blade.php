@@ -191,6 +191,9 @@
                                     @elseif($log->one_off_access_id)
                                         {{-- Liberação pontual: sem empresa, autorizada para uma entrada no dia. --}}
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-warn-soft text-warn rounded-full text-[11px] font-black uppercase">Liberação Pontual</span>
+                                    @elseif($log->ticket_id)
+                                        {{-- Ingresso de evento (Ingressos): quem libera é o ingresso pago. --}}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-ok-soft text-ok rounded-full text-[11px] font-black uppercase">Ingresso</span>
                                     @else
                                         <span class="text-ink-3">—</span>
                                     @endif
@@ -286,6 +289,14 @@
                                                 </p>
                                             </div>
                                         </div>
+                                    @elseif($log->ticket)
+                                        <div>
+                                            <p class="font-semibold text-ink">{{ $log->ticket->holder_name }}</p>
+                                            <p class="text-xs text-ink-3">
+                                                <span class="font-mono">{{ $log->ticket->code }}</span>
+                                                &middot; {{ $log->ticket->event?->title }}
+                                            </p>
+                                        </div>
                                     @else
                                         <span class="text-ink-3">—</span>
                                     @endif
@@ -338,7 +349,7 @@
                                             'one_off_access_used'       => 'Liberação pontual já utilizada',
                                             'one_off_access_canceled'   => 'Liberação pontual cancelada',
                                             'one_off_access_expired'    => 'Liberação pontual vencida',
-                                        ];
+                                        ] + \App\Services\Ticket\TicketCheckinService::REASON_LABELS;
                                     @endphp
                                     <span class="text-xs text-ink-2">{{ $reasonMap[$log->reason] ?? $log->reason ?? '—' }}</span>
                                     @if($log->obs)
