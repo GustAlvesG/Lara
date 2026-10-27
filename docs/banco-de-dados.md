@@ -24,7 +24,8 @@ Visão geral do esquema: migrações, seeders e factories. Os detalhes de cada e
 | **Banco de horas** | `time_entries`, `time_adjustments`, `banco_de_horas` (e `employees`, acima) |
 | **Empresas** | `companies`, `company_workers`, `company_access_rules`, `week_days_company_access_rule` (pivô), `access`, `access_rules`, `outers` |
 | **Torneios** | `tournament_category_templates`, `tournaments`, `tournament_categories`, `tournament_registrations`, `tournament_payments`, `tournament_teams`, `tournament_team_members`, `tournament_team_invites`, `tournament_stages`, `tournament_groups`, `tournament_group_teams`, `tournament_matches`, `tournament_match_sets`, `tournament_match_result_logs` |
-| **Ingressos** | `ticket_events`, `ticket_event_days` (dias do evento de vários dias), `ticket_types` (`ticket_event_day_id`: diária; nulo = passaporte), `ticket_lots`, `ticket_coupons`, `ticket_orders`, `ticket_payments`, `tickets`, `ticket_checkins` (uma entrada por ingresso por dia) (e `company_access_logs.ticket_id`) |
+| **Ingressos** | `ticket_events`, `ticket_event_days` (dias do evento de vários dias), `ticket_types` (`ticket_event_day_id`: diária; nulo = passaporte), `ticket_lots`, `ticket_coupons`, `ticket_orders`, `ticket_payments`, `tickets`, `ticket_checkins` (uma entrada por ingresso por dia), `ticket_guest_access_codes` (código de "meus ingressos" do não sócio) (e `company_access_logs.ticket_id`) |
+| **Contratos (Assinaturas)** | `signature_contracts` (cópia de trabalho em `content`, número `CTL - N/AA` dado na aprovação, `signature_document_id`), `signature_contract_versions` (cada envio à Gerência), `signature_contract_comments` (observações da Gerência), `signature_contract_events` (histórico), `signature_contract_attachments`, `signature_contract_clauses` (biblioteca, por setor), `signature_contract_models` (modelos, por setor), `signature_contract_parties` (contratadas e fiadores para reaproveitar), `signature_contract_ai_reviews` (revisões automáticas pelo Claude) |
 | **WhatsApp** | `contacts`, `conversations`, `messages`, `media_attachments`, `templates`, `webhook_logs` |
 | **Telegram** | `contact_telegram` |
 | **Conteúdo** | `information`, `data_infos`, `general_settings` |
@@ -53,6 +54,11 @@ incremental do esquema (criação de tabelas + diversos `add_column`/`fix`). Des
 - `2026_10_23_120000` — Contas do site: `member_account_logs` (idempotente). `members.deleted_at` (de 2025) passa a ser usado pelo `SoftDeletes` do `Member`.
 - `2026_10_27_100000` — Ingressos: as 7 tabelas do módulo (`ticket_*`, com os cupons, e `tickets`), com nomes curtos de FK e índice e criação idempotente. Ver [ingressos.md](funcionalidades/ingressos.md#modelagem).
 - `2026_10_27_110000` — Ingressos no Monitor de Acesso: `company_access_logs.ticket_id` (FK `cal_ticket_fk`, idempotente).
+- `2026_10_27_120000` — Ingressos, evento de vários dias: `ticket_event_days`, `ticket_types.ticket_event_day_id` e `ticket_checkins` (entrada por dia; copia as entradas já gravadas), idempotente.
+- `2026_10_28_100000` — Ingressos: `ticket_lots.quantity` passa a aceitar nulo (lote sem limite).
+- `2026_10_28_110000` — Ingressos: `ticket_guest_access_codes` (código por e-mail de "meus ingressos" do não sócio).
+- `2026_10_29_100000` — Contratos (Assinaturas → Contratos): as 8 tabelas `signature_contract*`, nomes curtos de FK e índice, idempotente. Ver [contratos.md](funcionalidades/contratos.md#modelagem).
+- `2026_10_29_110000` — Contratos: `signature_contract_ai_reviews` (revisão automática pelo Claude: veredito, resumo, apontamentos, tokens), idempotente.
 - `2026_05_19_*` — freelancers, funções e serviços.
 - `2026_09_17_*` — Replay: configuração de vídeo, layouts de logomarca, câmeras, clipes e a
   permissão antiga `manage replay` (Spatie).

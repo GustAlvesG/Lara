@@ -431,4 +431,53 @@ return [
         'session_minutes' => (int) env('SIGNATURE_REMOTE_SESSION_MINUTES', 30),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Contratos (Assinaturas → Contratos)
+    |--------------------------------------------------------------------------
+    |
+    | O contrato é redigido no Lara, validado pela Gerência e, aprovado, vira
+    | um documento de assinatura em rascunho. Ver docs/funcionalidades/contratos.md.
+    |
+    | number_prefix   — o número é "{prefixo} - {sequência}/{ano com 2 dígitos}",
+    |                   uma sequência só para todos os setores, dada na aprovação.
+    | president_area  — nome da área da diretoria (Assinaturas → Diretoria)
+    |                   cujo TITULAR representa o clube e assina como
+    |                   Contratante. Sem a área, o contrato não vai à Gerência.
+    | identity_check  — conferência de identidade do documento gerado (a mesma
+    |                   lista dos modelos: partial, full, email, none).
+    | city            — a cidade do fecho ("Volta Redonda, 3 de novembro de 2026").
+    | establishments  — os CNPJs do clube que podem contratar. Só estes dois
+    |                   (decisão do usuário, 27/10/2026); o contrato escolhe um.
+    |
+    */
+
+    'contracts' => [
+        'number_prefix' => env('SIGNATURE_CONTRACT_NUMBER_PREFIX', 'CTL'),
+        'president_area' => env('SIGNATURE_CONTRACT_PRESIDENT_AREA', 'Presidência'),
+        'identity_check' => env('SIGNATURE_CONTRACT_IDENTITY_CHECK', 'full'),
+        'city' => env('SIGNATURE_CONTRACT_CITY', 'Volta Redonda'),
+        'attachments_max_kb' => (int) env('SIGNATURE_CONTRACT_ATTACHMENTS_MAX_KB', 10240),
+        // Validação pela Gerência no tablet do balcão (matrícula + PIN): a
+        // entrada vale por este tempo sem uso. Mais que a da diretoria (10):
+        // aqui se lê o contrato inteiro.
+        'kiosk_session_minutes' => (int) env('SIGNATURE_CONTRACT_KIOSK_SESSION_MINUTES', 20),
+        'establishments' => [
+            'sede' => [
+                'label' => 'Sede social — CNPJ 32.500.951/0001-16',
+                'name' => 'CLUBE DOS FUNCIONÁRIOS DA COMPANHIA SIDERÚRGICA NACIONAL',
+                'cnpj' => '32500951000116',
+                'state_registration' => '86.090.163',
+                'address' => 'Rua General Oswaldo Pinto da Veiga, nº 231, Vila Santa Cecília, Volta Redonda/RJ, CEP 27260-140',
+            ],
+            'pet' => [
+                'label' => 'Praça de Esportes Tabajaras (PET) — CNPJ 32.500.951/0005-40',
+                'name' => 'CLUBE DOS FUNCIONÁRIOS DA COMPANHIA SIDERÚRGICA NACIONAL',
+                'cnpj' => '32500951000540',
+                'state_registration' => null,
+                'address' => 'Rua Hiroshi Matsuda Filho, s/nº, Vila Santa Cecília, Volta Redonda/RJ, CEP 27261-260',
+            ],
+        ],
+    ],
+
 ];

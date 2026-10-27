@@ -19,7 +19,7 @@ o mesmo das reservas), sem login — ver "Assinatura remota" abaixo — ou pelo 
 
 ## Menu e permissões
 
-Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Revisão, Modelos, Termo de Menores, Diretoria, Guia.
+Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Contratos, Revisão, Modelos, Termo de Menores, Diretoria, Guia.
 
 | Permissão (`App\Authorization\Permissions`) | Uso |
 |---|---|
@@ -33,6 +33,7 @@ Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Revisão, Modelos,
 | `assinatura.termo-menores.parear` (`ASSINATURA_TERMO_MENORES_PAREAR`) | Termo de Menores: parear o tablet de autoatendimento |
 | `assinatura.termo-menores.historico` (`ASSINATURA_TERMO_MENORES_HISTORICO`) | Termo de Menores: histórico (quem põe a pulseira) |
 | `assinatura.diretoria` (`ASSINATURA_DIRETORIA`) | Diretoria: áreas, titulares e substitutos (escolher o diretor no documento é de `assinatura.documentos`) |
+| `assinatura.contratos` (`ASSINATURA_CONTRATOS`) | Contratos: redigir os do próprio setor, biblioteca e modelos. **Validar não é permissão**: é ser do setor Gerência |
 
 - Gates compostos em `AppServiceProvider`: `acessar-documentos-assinatura` (documentos **ou** consultar) e
   `acessar-guia-assinatura` (qualquer das três, mais o Termo de Menores), `acessar-termo-menores`
@@ -504,6 +505,52 @@ prompt e gere um novo para o agente do site** (regra do CLAUDE.md).
   acompanhamento leva `request.remote` ("Assinando a distância, pelo link").
 - Config `signature.remote.*` e `SIGNATURE_REMOTE_*` no `.env.example`. Migration `2026_10_21_120000`
   (no `CreatesSignatureSchema`). Testes: `SignatureRemoteLinkTest`.
+
+## Contratos (27/10/2026)
+
+Contrato redigido no Lara em cláusulas, validado pela Gerência e, aprovado, transformado em documento de
+assinatura **em rascunho** (sem congelar). Doc completa: [docs/funcionalidades/contratos.md](../funcionalidades/contratos.md).
+Guia do usuário: seção 13.
+
+- **Decisões do usuário:** qualquer usuário com `assinatura.contratos` redige, no próprio setor (cada setor só
+  vê os seus); **só a Gerência valida** (setor Gerência, qualquer papel; pode validar o próprio; pode ajustar
+  direto); e-mail de "para validar" só ao **coordenador** da Gerência; número `CTL - X/AA` único para todos os
+  setores; contratante = um dos 2 CNPJs do clube, representado **sempre pelo presidente**; contratada digitada
+  (sem Questor) e guardada; data = data automática da assinatura; visto em todas as páginas; anexos seguem;
+  biblioteca e modelos por setor; aditivos; exporta Word.
+- **Peças:** `app/Services/Signature/Contracts/` — `ContractContent` (forma e normalização do `content`; única
+  entrada), `ContractRenderer` (FONTE ÚNICA do texto: `blocks()` → prévia, documento e Word; numeração,
+  `[[variável]]`, `[[ref:uid]]`, `problems()`), `ContractVariables` (extenso), `ContractClub` (CNPJs e
+  presidente = titular da área `SIGNATURE_CONTRACT_PRESIDENT_AREA`), `ContractService` (ciclo), 
+  `ContractDocumentGenerator` (modelo `single_use` + `SignatureDocumentService::create`), `ContractDiff`,
+  `ContractDocxExporter` (ZipArchive, sem dependência), `ContractRecipients`. `App\Support\NumeroPorExtenso`.
+  Controllers `Signature\ContractController` e `ContractLibraryController`; `SignatureContractPolicy`; 8 models
+  `SignatureContract*`; views em `resources/views/signature/contracts/`.
+- **Numeração não se guarda:** é calculada da posição. Remissão é `[[ref:uid]]` (uid de cláusula/item). Ao copiar
+  cláusula (biblioteca, modelo, aditivo), `ContractContent::freshUids` dá uid novo e troca as remissões internas.
+- **Documento gerado:** uma parte por signatário (`p1…`, marcadores `[[assinatura:pN]]` vizinhos), presidente
+  primeiro (diretor), `requires_initials`, data `[[data_da_assinatura]]` (`DATE_SIGNING_LONG`), `created_by` = quem
+  redigiu. Diretor sem mandato vira aviso e fica de fora (o `freeze` cobra a parte). Gerado DEPOIS do commit da
+  aprovação; falhou ou foi cancelado → botão "Gerar documento de assinatura".
+- **Reabrir** só enquanto o documento não foi congelado (cancela o rascunho dele; o número fica).
+- **Menu** usa só `P::ASSINATURA_CONTRATOS` (a Gerência tem acesso total). Nada de Gate de cargo no menu.
+- `User::isManagementMember()` e `User::sectorIds()` (memorizados) — mocke nos testes.
+- **CSS:** as telas usam classes Tailwind novas; em dev, `npm run build` depois de puxar (sem isso o editor sai em
+  colunas de 1/5). O deploy já roda o build.
+- Migration `2026_10_29_100000`. Config `signature.contracts.*` / `SIGNATURE_CONTRACT_*`. Testes:
+  `SignatureContractTest`, `Unit\NumeroPorExtensoTest`, esquema `CreatesContractSchema`.
+- **Validação no tablet do balcão** (decisão do usuário): botão "Validação de contratos (Gerência)" na espera do
+  quiosque (`CFG.gerencia`, só no balcão) → página própria `/assinatura/kiosk/gerencia` (`quiosque/gerencia.blade.php`).
+  Matrícula + PIN, cookie `lara_management`, `ContractKioskService` (desenho do `DirectorKioskService`: hash no cache,
+  limite por matrícula, setor Gerência reconferido a cada chamada). Lê, comenta tocando na cláusula, aprova/devolve
+  pelo `ContractService`; não edita texto. Rotas `quiosque.gerencia.*`. Testes: `SignatureContractKioskTest`.
+- **Revisão automática pelo Claude** (Gerência, 27/10/2026): cartão na tela do contrato manda o texto inteiro ao
+  Claude Haiku 5.5 (`ContractAiReviewer` → `App\Services\Claude\ClaudeClient`, SDK `anthropic-ai/sdk`) e guarda
+  veredito, resumo e apontamentos por cláusula em `signature_contract_ai_reviews` (mesmo texto = mesma revisão,
+  pelo `sha256`). "Levar para a observação" preenche o formulário de devolução. Só orienta. Sem `ANTHROPIC_API_KEY`,
+  some. Rota `signature-contracts.ai-review`, policy `aiReview`. Testes: `SignatureContractAiReviewTest`.
+  Ver [claude-api.md](../funcionalidades/claude-api.md).
+- Não mexe em API externa nossa: nenhum prompt para outro agente (a Anthropic é serviço de terceiro).
 
 ## Pendências (atualizado em 09/10/2026)
 

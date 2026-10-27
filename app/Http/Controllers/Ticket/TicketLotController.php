@@ -12,7 +12,9 @@ use Illuminate\Http\Request;
 
 /**
  * Lotes de um tipo de ingresso (permissão `ingressos.gerenciar`): quantidade,
- * janela e os dois preços. Preço de não sócio vazio = o lote é só para sócios.
+ * janela e os dois preços. Preço de não sócio vazio = o lote é só para sócios;
+ * quantidade vazia = sem limite. "Virar lote agora" fecha o lote vigente de
+ * cada tipo e abre o seguinte (`turn`).
  */
 class TicketLotController extends Controller
 {
@@ -34,6 +36,15 @@ class TicketLotController extends Controller
         return redirect()->route('tickets.show', $event)->with('success', "{$lot->name} atualizado.");
     }
 
+    /** Virar lote agora: o lote à venda de cada tipo fecha e o seguinte abre (com confirmação). */
+    public function turn(Request $request, TicketEvent $event): RedirectResponse
+    {
+        $plan = $this->setup->turnLots($event, $request->boolean('force'));
+
+        return redirect()->route('tickets.show', $event)->with('success', 'Lote virado em ' . count($plan) . ' tipo(s): '
+            . collect($plan)->map(fn (array $p) => "{$p['type']->fullName()} agora no {$p['to']->name}")->implode('; ') . '.');
+    }
+
     public function destroy(TicketEvent $event, TicketType $type, TicketLot $lot): RedirectResponse
     {
         $this->setup->deleteLot($lot);
@@ -46,7 +57,8 @@ class TicketLotController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'sequence' => 'required|integer|min:1|max:999',
-            'quantity' => 'required|integer|min:0|max:1000000',
+            // Vazio = sem limite de ingressos.
+            'quantity' => 'nullable|integer|min:0|max:1000000',
             'starts_at' => 'nullable|date',
             'ends_at' => 'nullable|date|after:starts_at',
             'price_member' => 'required|numeric|min:0|max:999999',

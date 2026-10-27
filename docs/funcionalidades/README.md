@@ -35,6 +35,7 @@ rotas).
 | [Mapa de Cotação (Questor)](cotacao-mapa.md) | Comparação de preço entre fornecedores a partir de uma solicitação de compra. **Somente leitura no ERP.** |
 | [Frota — Quilometragem](frota.md) | Saída e retorno dos veículos da empresa: motorista, destino e hodômetro, registrados pela portaria. |
 | [Lara — Assistente de IA](lara-ia.md) | Chat interno de pergunta e resposta sobre o estatuto, ligado à VM da IA. |
+| [API do Claude (Anthropic)](claude-api.md) | Integração com a IA da Anthropic pelo SDK oficial; primeiro uso: revisão automática de contratos pela Gerência. |
 | [WhatsApp](whatsapp.md) | Webhook, envio de mensagens e gestão de conversas/mídia. |
 | [Bot do WhatsApp (Poli)](bot-whatsapp.md) | Fluxos de atendimento editáveis na tela, com validação de respostas, transbordo para atendente e simulador; diário de transferências e encerramentos com o motivo de cada um. |
 | [Telegram](telegram.md) | Cadastro e consulta de contatos do Telegram. |

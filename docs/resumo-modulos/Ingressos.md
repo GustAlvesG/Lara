@@ -17,7 +17,7 @@ check-in (tela própria e Monitor de Acesso) e o financeiro. Ingresso nominal co
 
 ## Onde está
 
-F1–F10 feitas em 27/10/2026 (ver a tabela de fases em `ingressos.md`).
+F1–F12 feitas em 27–28/10/2026 (ver a tabela de fases em `ingressos.md`).
 
 ## Peças
 
@@ -26,11 +26,13 @@ F1–F10 feitas em 27/10/2026 (ver a tabela de fases em `ingressos.md`).
 | `database/migrations/2026_10_27_100000_create_ticket_tables.php` | As 7 tabelas (idempotente, FKs com nome curto). |
 | `database/migrations/2026_10_27_110000_add_ticket_id_to_company_access_logs.php` | `company_access_logs.ticket_id` (monitor). |
 | `database/migrations/2026_10_27_120000_add_ticket_event_days.php` | `ticket_event_days`, `ticket_types.ticket_event_day_id`, `ticket_checkins` (entrada por dia). |
+| `database/migrations/2026_10_28_100000_make_ticket_lot_quantity_nullable.php` | `ticket_lots.quantity` nulo = lote sem limite. |
 | `app/Models/Ticket/*` | `TicketEvent`, `TicketEventDay`, `TicketType` (`validity()`, `fullName()`, `daysOverlap()`), `TicketLot`, `TicketCoupon`, `TicketOrder`, `Ticket`, `TicketCheckin`, `TicketPayment`; situações em constantes. |
 | `app/Services/Ticket/TicketInventory.php` | Ocupados por lote e por dia (`occupiedByDay`, `capacityOverflow`, `capacityLeftByDay`), lote vigente (`currentLot`), próximo lote, resumo por tipo. |
 | `app/Services/Ticket/TicketOrderService.php` | Pedido (site e balcão) com cupom, `issueAtCounter` (pago por fora / cortesia), pagamento, baixa manual, desistência, expiração, `cancelTickets` (um estorno só), `changeHolder`, `checkCoupon`, reenvio do link. |
+| `app/Services/Ticket/TicketGuestAccessService.php`, `app/Http/Controllers/Api/TicketGuestAccessController.php`, `app/Models/Ticket/TicketGuestAccessCode.php` | "Meus ingressos" do não sócio: código por e-mail (HMAC, 10 min, 5 tentativas, 5/h) → acesso de 2 h (token cifrado, header `Ticket-Access-Token`) → pedidos com o token de cada um. |
 | `app/Services/Ticket/TicketBuyer.php` | Quem compra: sócio (do MultiClubes) ou não sócio. |
-| `app/Services/Ticket/TicketSetupService.php` | Situação do evento (`TRANSITIONS`), salvar/apagar dia, tipo e lote, avisos. |
+| `app/Services/Ticket/TicketSetupService.php` | Situação do evento (`TRANSITIONS`), salvar/apagar dia, tipo e lote, `turnLots` (Virar lote agora), avisos. |
 | `app/Services/Ticket/TicketCheckinService.php` | Busca por código/CPF (`relevantFirst`), `evaluate`, `checkIn` (linha em `ticket_checkins`, única por ingresso e dia), janela por evento/dia (`windowLabel`), contagem por dia. Usado pelo Lara e pelo `CompanyService`. |
 | `app/Services/Ticket/TicketFinanceService.php` | Totais, por lote, por forma, por cupom, linhas do CSV. |
 | `app/Services/Ticket/TicketPresenter.php` | JSON do site (evento, lote, cupom, pedido, ingresso com QR). |
@@ -54,6 +56,10 @@ F1–F10 feitas em 27/10/2026 (ver a tabela de fases em `ingressos.md`).
 - **Pagamento tardio** é aceito se ainda couber (`lockPayable` reconfere lote, lotação, CPF e
   cupom, excluindo o próprio pedido); senão `hold_expired` — o site estorna.
 - A trava é na **linha do evento** (`TicketEvent::lockForUpdate`), em pedido e pagamento.
+- **Lote sem limite**: `quantity` nulo. `TicketInventory::remaining()` devolve `null` e
+  `hasRoom()` é o teste de "tem sobra" — não compare `remaining() > 0` direto.
+- **Virar lote agora** fecha o vigente com `ends_at` = agora − 1 s (no instante exato o fim
+  ainda está na janela) e traz o `starts_at` do seguinte para agora.
 - **Vários dias**: o dia é do **tipo** (`ticket_types.ticket_event_day_id`), não do ingresso;
   dia nulo = todos os dias (passaporte, ou o evento sem dias). "Cruza" =
   `TicketType::daysOverlap()`; vale para o "um por CPF" (`assertNoActiveTicket` recebe
@@ -68,7 +74,9 @@ F1–F10 feitas em 27/10/2026 (ver a tabela de fases em `ingressos.md`).
   desempatar. `max_per_order` não vale para o sócio. Chave de array por CPF vira inteiro no
   PHP: volte a texto com `str_pad(..., 11, '0')` antes de comparar ou consultar.
 - **Não sócio**: `access_token` cifrado (cast `encrypted`, fora do fillable e do JSON); só
-  sai na criação do pedido e no link do e-mail. Comparação com `hash_equals`.
+  sai na criação do pedido, no link do e-mail e na lista de "meus ingressos" (depois do código
+  por e-mail). Comparação com `hash_equals`. O pedido do código responde sempre igual — não
+  revele se o CPF comprou.
 - **Cupom** é aplicado ingresso a ingresso depois de escolher o lote (`applyCoupon`, por
   referência nas alocações); cortesia ignora o cupom. O `discount_amount` fica no ingresso e o
   `discount_total` no pedido.
@@ -96,7 +104,8 @@ pagamento, expiração, estorno), `TicketApiTest` (site, sócio e não sócio),
 `TicketPanelTest` (eventos, tipos, lotes), `TicketCouponAndCounterTest` (cupom, emissão,
 cortesia, cancelamento em lote, troca de titular), `TicketOrdersPanelTest` (cupons, pedidos,
 emissão e permissões), `TicketCheckinTest` (Lara e Monitor de Acesso), `TicketMultiDayTest`
-(dias, diária, passaporte, lotação e entrada por dia), `TicketFinanceTest`
+(dias, diária, passaporte, lotação e entrada por dia), `TicketLotTurnTest` (lote sem limite,
+Virar lote agora), `TicketGuestAccessTest` (meus ingressos do não sócio), `TicketFinanceTest`
 (relatório, CSV, dados de teste) — sobre `Tests\Concerns\CreatesTicketSchema` e
 `Tests\Concerns\BuildsTickets` (MultiClubes e eRede em memória). Confira o isolamento SQLite
 antes de rodar.

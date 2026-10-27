@@ -50,6 +50,12 @@
     $('#dMatricula').focus();
   });
 
+  // Validação de contratos pela Gerência: página própria do tablet (quiosque/gerencia).
+  $('#abrirGerencia').addEventListener('click', function () {
+    paraLeitor();
+    location.href = CFG.gerencia;
+  });
+
   $('#dVoltar').addEventListener('click', function () {
     dLimpaEntrada();
     mostra('tela-espera');

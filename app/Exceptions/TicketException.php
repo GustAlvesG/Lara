@@ -89,6 +89,15 @@ class TicketException extends RuntimeException
     /** O ingresso é de outro evento que não o escolhido na tela de check-in. */
     public const OTHER_EVENT = 'other_event';
 
+    /** "Meus ingressos" do não sócio: código errado, ainda com tentativas (`context.attempts_left`). */
+    public const ACCESS_CODE_INVALID = 'access_code_invalid';
+
+    /** Código vencido, já usado, sem código pedido ou tentativas esgotadas: pedir outro. */
+    public const ACCESS_CODE_EXPIRED = 'access_code_expired';
+
+    /** Acesso temporário ausente, adulterado ou vencido: identificar-se de novo. */
+    public const ACCESS_EXPIRED = 'access_expired';
+
     /**
      * @param  array<string, mixed>  $context
      */

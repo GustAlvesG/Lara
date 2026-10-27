@@ -830,7 +830,7 @@ class TicketOrderService
         $occupied = $this->inventory->occupiedByLot($tickets->pluck('ticket_lot_id'), $order->id);
         foreach ($tickets->groupBy('ticket_lot_id') as $lotTickets) {
             $lot = $lotTickets->first()->lot;
-            if (($occupied[$lot->id] ?? 0) + $lotTickets->count() > $lot->quantity) {
+            if ($lot->quantity !== null && ($occupied[$lot->id] ?? 0) + $lotTickets->count() > $lot->quantity) {
                 $problems[] = "O {$lot->name} esgotou depois que o prazo do pedido venceu.";
             }
         }

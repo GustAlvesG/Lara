@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\MemberLightingController;
 use App\Http\Controllers\Api\SocialBookingApiController;
 use App\Http\Controllers\Api\RemoteSignatureApiController;
 use App\Http\Controllers\Api\TicketApiController;
+use App\Http\Controllers\Api\TicketGuestAccessController;
 use App\Http\Controllers\Api\TournamentApiController;
 use App\Http\Controllers\Api\TournamentStaffApiController;
 use App\Http\Controllers\Fleet\FleetApiController;
@@ -423,6 +424,12 @@ Route::middleware('api_token')->group(function () {
         Route::post('/events/{id}/coupon-check', [TicketApiController::class, 'checkCoupon'])->whereNumber('id')->middleware('throttle:20,1')->name('coupon.check');
         Route::post('/events/{id}/guest-orders', [TicketApiController::class, 'storeGuest'])->whereNumber('id')->middleware('throttle:10,1')->name('guest.store');
         Route::post('/guest-orders/resend-link', [TicketApiController::class, 'resendGuestLink'])->middleware('throttle:5,1')->name('guest.resend');
+        // "Meus ingressos" do não sócio: código por e-mail → acesso temporário (header `Ticket-Access-Token`).
+        Route::prefix('/guest-access')->as('guest-access.')->group(function () {
+            Route::post('/code', [TicketGuestAccessController::class, 'requestCode'])->middleware('throttle:5,1')->name('code');
+            Route::post('/verify', [TicketGuestAccessController::class, 'verify'])->middleware('throttle:10,1')->name('verify');
+            Route::get('/orders', [TicketGuestAccessController::class, 'orders'])->middleware('throttle:60,1')->name('orders');
+        });
         Route::prefix('/guest-orders/{id}')->whereNumber('id')->middleware('throttle:60,1')->group(function () {
             Route::get('/', [TicketApiController::class, 'showGuest'])->name('guest.show');
             Route::post('/payment', [TicketApiController::class, 'payGuest'])->name('guest.pay');

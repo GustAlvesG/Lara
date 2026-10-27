@@ -99,6 +99,10 @@ final class Permissions
     // por cada uma (titular e substitutos). Escolher o diretor num documento
     // é parte de `assinatura.documentos`.
     public const ASSINATURA_DIRETORIA = 'assinatura.diretoria';
+    // Contratos (27/10/2026): redigir contratos do próprio setor, biblioteca
+    // de cláusulas e modelos. VALIDAR não é permissão: é de quem está no
+    // setor Gerência (Gate `validar-contratos`).
+    public const ASSINATURA_CONTRATOS = 'assinatura.contratos';
 
     public const PLACAR_CADASTRO = 'placar.cadastro';
     public const PLACAR_SCOUT = 'placar.scout';
@@ -199,6 +203,7 @@ final class Permissions
         self::ASSINATURA_TERMO_MENORES_PAREAR => ['Assinaturas', 'Termo de Menores: parear o tablet de autoatendimento'],
         self::ASSINATURA_TERMO_MENORES_HISTORICO => ['Assinaturas', 'Termo de Menores: consultar o histórico de autorizações'],
         self::ASSINATURA_DIRETORIA => ['Assinaturas', 'Diretoria: áreas da diretoria, titulares e substitutos que assinam documentos'],
+        self::ASSINATURA_CONTRATOS => ['Assinaturas', 'Contratos: redigir os contratos do próprio setor, biblioteca de cláusulas e modelos (validar é da Gerência)'],
 
         self::PLACAR_CADASTRO => ['Placar Clube', 'Cadastro (equipes, times, jogadores, jogos)'],
         self::PLACAR_SCOUT => ['Placar Clube', 'Súmulas e scout'],

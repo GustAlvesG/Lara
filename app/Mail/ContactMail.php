@@ -37,7 +37,7 @@ class ContactMail extends Mailable implements ShouldQueue
             'social.requested', 'social.approved', 'social.refused', 'social.confirmed',
             'social.expired', 'social.cancelled',
             'tournament.registered', 'tournament.paid', 'tournament.cancelled', 'tournament.invite',
-            'tickets.paid', 'tickets.cancelled', 'tickets.link' => '',
+            'tickets.paid', 'tickets.cancelled', 'tickets.link', 'tickets.access_code' => '',
             default => '[Contato] ',
         };
 
@@ -64,6 +64,7 @@ class ContactMail extends Mailable implements ShouldQueue
             'tournament.registered', 'tournament.paid', 'tournament.cancelled', 'tournament.invite' => 'emails.tournament.status',
             // Pedido de ingressos: idem (TicketNotifier).
             'tickets.paid', 'tickets.cancelled', 'tickets.link' => 'emails.tickets.status',
+            'tickets.access_code' => 'emails.tickets.access-code',
             'job'    => 'emails.hr_template',      // resources/views/emails/hr_template.blade.php
             default   => 'emails.general_contact',  // template padrão
         };

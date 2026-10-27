@@ -16,6 +16,8 @@ use Illuminate\Support\Carbon;
  * dentro do prazo (`Ticket::occupying`). O lote vigente de um tipo é o de
  * menor `sequence` que está ativo, dentro da janela e com sobra: o lote fecha
  * pela data ou quando esgota, o que vier primeiro, e o seguinte abre na hora.
+ * Lote sem quantidade (`quantity` nulo) não esgota: fecha pela data ou pelo
+ * "Virar lote agora" (TicketSetupService::turnLots).
  *
  * A lotação do evento conta por dia no evento de vários dias: cada dia soma as
  * diárias dele e os passaportes.
@@ -119,7 +121,7 @@ class TicketInventory
         $at ??= now();
 
         foreach ($type->lots as $lot) {
-            if ($lot->active && $lot->withinDates($at) && $this->remaining($lot, $occupied) > 0) {
+            if ($lot->active && $lot->withinDates($at) && $this->hasRoom($lot, $occupied)) {
                 return $lot;
             }
         }
@@ -135,19 +137,34 @@ class TicketInventory
         return $type->lots->first(fn (TicketLot $lot) => $lot->active
             && $lot->starts_at !== null
             && $lot->starts_at->greaterThan($at)
-            && $this->remaining($lot, $occupied) > 0);
+            && $this->hasRoom($lot, $occupied));
+    }
+
+    /**
+     * O que sobra no lote; null = lote sem limite de ingressos.
+     *
+     * @param  array<int, int>  $occupied
+     */
+    public function remaining(TicketLot $lot, array $occupied): ?int
+    {
+        return $lot->quantity === null ? null : max(0, $lot->quantity - ($occupied[$lot->id] ?? 0));
     }
 
     /** @param  array<int, int>  $occupied */
-    public function remaining(TicketLot $lot, array $occupied): int
+    public function hasRoom(TicketLot $lot, array $occupied): bool
     {
-        return max(0, $lot->quantity - ($occupied[$lot->id] ?? 0));
+        $remaining = $this->remaining($lot, $occupied);
+
+        return $remaining === null || $remaining > 0;
     }
 
     /**
      * Situação de venda de cada tipo do evento, para o site e para a tela.
      *
-     * @return list<array{type: TicketType, lot: ?TicketLot, remaining: ?int, next_lot: ?TicketLot, occupied: int, quantity: int}>
+     * `remaining` e `quantity` nulos = sem limite (lote vigente sem quantidade;
+     * algum lote ativo do tipo sem quantidade).
+     *
+     * @return list<array{type: TicketType, lot: ?TicketLot, remaining: ?int, next_lot: ?TicketLot, occupied: int, quantity: ?int}>
      */
     public function summary(TicketEvent $event, ?Carbon $at = null): array
     {
@@ -163,7 +180,9 @@ class TicketInventory
                 'remaining' => $lot ? $this->remaining($lot, $occupied) : null,
                 'next_lot' => $type->active && ! $lot ? $this->nextLot($type, $occupied, $at) : null,
                 'occupied' => (int) $type->lots->sum(fn (TicketLot $l) => $occupied[$l->id] ?? 0),
-                'quantity' => (int) $type->lots->where('active', true)->sum('quantity'),
+                'quantity' => $type->lots->where('active', true)->contains(fn (TicketLot $l) => $l->quantity === null)
+                    ? null
+                    : (int) $type->lots->where('active', true)->sum('quantity'),
             ];
         })->values()->all();
     }

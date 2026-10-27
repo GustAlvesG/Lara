@@ -165,6 +165,7 @@ class AppServiceProvider extends ServiceProvider
                 || $user->can(Permissions::ASSINATURA_REVISAR)
                 || $user->can(Permissions::ASSINATURA_REVISAR_COORDENACAO)
                 || $user->can(Permissions::ASSINATURA_DIRETORIA)
+                || $user->can(Permissions::ASSINATURA_CONTRATOS)
                 || $user->can('acessar-termo-menores'),
         );
 

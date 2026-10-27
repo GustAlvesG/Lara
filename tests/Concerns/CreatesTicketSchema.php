@@ -24,6 +24,12 @@ trait CreatesTicketSchema
     /** Dias do evento (diária e passaporte) e o registro das entradas. */
     protected const TICKET_DAYS_MIGRATION = '2026_10_27_120000_add_ticket_event_days.php';
 
+    /** Lote sem limite de ingressos (`quantity` nulo). */
+    protected const TICKET_LOT_UNLIMITED_MIGRATION = '2026_10_28_100000_make_ticket_lot_quantity_nullable.php';
+
+    /** Códigos de "meus ingressos" do não sócio. */
+    protected const TICKET_GUEST_ACCESS_MIGRATION = '2026_10_28_110000_create_ticket_guest_access_codes.php';
+
     protected function createTicketSchema(): void
     {
         $this->migrateAccessSchema();
@@ -51,6 +57,8 @@ trait CreatesTicketSchema
 
         (require database_path('migrations/' . self::TICKET_MIGRATION))->up();
         (require database_path('migrations/' . self::TICKET_DAYS_MIGRATION))->up();
+        (require database_path('migrations/' . self::TICKET_LOT_UNLIMITED_MIGRATION))->up();
+        (require database_path('migrations/' . self::TICKET_GUEST_ACCESS_MIGRATION))->up();
 
         $this->shareSqliteWithUserConnection();
     }

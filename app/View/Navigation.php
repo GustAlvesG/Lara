@@ -127,6 +127,10 @@ final class Navigation
                 'icon' => 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z',
                 'children' => [
                     ['route' => 'signature-documents.index', 'label' => 'Documentos', 'permission' => 'acessar-documentos-assinatura', 'active' => 'signature-documents.*'],
+                    // Só a permissão do catálogo: a Gerência (que valida) tem acesso
+                    // total e a alcança. Gate de cargo aqui consultaria o banco em
+                    // toda tela.
+                    ['route' => 'signature-contracts.index', 'label' => 'Contratos', 'permission' => P::ASSINATURA_CONTRATOS, 'active' => ['signature-contracts.*', 'signature-contract-library.*']],
                     ['route' => 'signature-reviews.index', 'label' => 'Revisão', 'permission' => 'acessar-revisao-assinatura', 'active' => 'signature-reviews.*'],
                     // O papel timbrado abre pela tela de Modelos.
                     ['route' => 'signature-templates.index', 'label' => 'Modelos', 'permission' => P::ASSINATURA_MODELOS, 'active' => ['signature-templates.*', 'signature-layout.*']],

@@ -14,7 +14,9 @@ use Illuminate\Support\Carbon;
  * (`sequence`) abre na hora, se a janela dele já começou. Datas nulas = a
  * janela de vendas do evento.
  *
- * `price_non_member` nulo = este lote não é vendido a não sócio.
+ * `price_non_member` nulo = este lote não é vendido a não sócio. `quantity`
+ * nulo = sem limite de ingressos (não esgota; fecha pela data ou pelo "Virar
+ * lote agora").
  */
 class TicketLot extends Model
 {

@@ -151,8 +151,9 @@
         <tr><td class="n">10</td><td><a href="#remota">Assinatura a distância por link (sem gov.br)</a></td><td class="who">atendimento</td></tr>
         <tr><td class="n">11</td><td><a href="#menores">Termo de Menores (autoatendimento nos eventos)</a></td><td class="who">organização dos eventos, entrada</td></tr>
         <tr><td class="n">12</td><td><a href="#diretoria">Assinatura da Diretoria (diretores no tablet)</a></td><td class="who">atendimento, diretoria</td></tr>
-        <tr><td class="n">13</td><td><a href="#problemas">Problemas comuns</a></td><td class="who">todos</td></tr>
-        <tr><td class="n">14</td><td><a href="#cola">Cola rápida dos marcadores</a></td><td class="who">quem escreve os modelos</td></tr>
+        <tr><td class="n">13</td><td><a href="#contratos">Contratos: redigir, validar na Gerência e mandar assinar</a></td><td class="who">quem redige contratos, Gerência</td></tr>
+        <tr><td class="n">14</td><td><a href="#problemas">Problemas comuns</a></td><td class="who">todos</td></tr>
+        <tr><td class="n">15</td><td><a href="#cola">Cola rápida dos marcadores</a></td><td class="who">quem escreve os modelos</td></tr>
     </table>
 </div>
 
@@ -187,6 +188,8 @@
             tablet de autoatendimento e o histórico de menores autorizados (seção 11).</li>
         <li><span class="menu">Assinaturas → Diretoria</span> — as áreas da diretoria e quem assina por cada uma,
             titular e substitutos (seção 12).</li>
+        <li><span class="menu">Assinaturas → Contratos</span> — redigir um contrato em cláusulas, mandar para a
+            validação da Gerência e, aprovado, gerar o documento de assinatura (seção 13).</li>
         <li>Um item do menu que não aparece para você depende de permissão: peça o acesso à TI.</li>
     </ul>
 
@@ -1164,9 +1167,102 @@
     </div>
 </div>
 
-<!-- ====================================================== 12 -->
+<!-- ====================================================== 13 -->
+<div class="section" id="contratos">
+    <h2>13. Contratos: redigir, validar na Gerência e mandar assinar</h2>
+    <p>Em vez de imprimir o contrato, levar ao gerente e redigitar a cada observação, o contrato é escrito no
+        Lara, a Gerência valida no próprio Lara e, aprovado, o documento de assinatura sai pronto.</p>
+
+    <h3>O caminho</h3>
+    <ol>
+        <li><span class="menu">Assinaturas → Contratos → Novo contrato</span>: escolha o setor (só o seu setor e a
+            Gerência veem o contrato) e, se quiser, um modelo do setor.</li>
+        <li>Preencha: <b>dados gerais</b> (título e por qual CNPJ do clube), <b>contratada</b> (e fiadores, se houver),
+            <b>variáveis</b>, <b>considerandos</b> (opcional), <b>cláusulas</b> e <b>quem assina</b>. A prévia ao
+            lado mostra o contrato como ele vai ficar.</li>
+        <li><b>Salvar e enviar à Gerência.</b> O coordenador da Gerência recebe um e-mail.</li>
+        <li>A Gerência lê e <b>aprova</b>, ou <b>devolve</b> com observações (gerais ou em cada cláusula). Ela também
+            pode ajustar o texto direto e aprovar.</li>
+        <li>Devolvido: as observações aparecem em cada cláusula do editor. Ajuste, marque como "Resolvida" e envie de
+            novo. A Gerência vê o que mudou desde a última devolução, sem reler tudo.</li>
+        <li>Aprovado: o contrato ganha o número (<code>CTL - 12/26</code>, uma sequência só para todos os setores) e o
+            <b>documento de assinatura é gerado em rascunho</b>, em <span class="menu">Assinaturas → Documentos</span>.
+            Confira os signatários e os anexos e congele: daí em diante é a assinatura de sempre (balcão, link ou
+            gov.br; diretores no tablet, depois de quem é de fora da diretoria).</li>
+    </ol>
+
+    <h3>Validar pelo tablet do balcão (Gerência)</h3>
+    <ol>
+        <li>Na tela de espera do tablet de assinatura, toque em <span class="menu">Validação de contratos (Gerência)</span>.</li>
+        <li>Entre com a sua <b>matrícula e o PIN</b> do Lara (o mesmo da Assinatura da Diretoria).</li>
+        <li>Toque num contrato da lista. Aparecem o recado de quem enviou, o que mudou desde a última devolução,
+            os anexos e o contrato inteiro.</li>
+        <li>Para pedir mudança numa cláusula, <b>toque nela</b> e escreva a observação. A cláusula fica marcada.</li>
+        <li>Toque em <b>Devolver</b> (as observações vão juntas) ou <b>Aprovar</b>. Ajustar o texto você mesmo só
+            pelo computador.</li>
+        <li>Toque em <b>Sair</b> ao terminar. Parado por alguns minutos, o tablet sai sozinho.</li>
+    </ol>
+
+    <h3>Revisão automática pelo Claude (Gerência)</h3>
+    <ol>
+        <li>Na tela do contrato (no computador), no cartão <span class="menu">Revisão automática (Claude)</span>,
+            clique em <b>Analisar com o Claude</b>. Leva de alguns segundos a um minuto.</li>
+        <li>Volta um resumo das inconsistências e uma lista de apontamentos (grave, atenção, detalhe), cada um com a
+            cláusula, o problema e uma sugestão de alteração.</li>
+        <li>Concordou com um apontamento? <b>Levar para a observação da cláusula</b> copia o texto para a observação
+            daquela cláusula. Depois é só devolver como de costume.</li>
+        <li>Mudou o texto? O cartão avisa, e <b>Analisar o texto atual</b> pede uma revisão nova. Sem mudança, a
+            revisão anterior continua valendo.</li>
+    </ol>
+    <p>São sugestões de uma IA: confira antes de usar. Ela não aprova, não devolve nem altera nada, e não substitui a
+        leitura. O texto do contrato, com as partes, é enviado à Anthropic (a empresa do Claude) para a análise.</p>
+
+    <h3>O que o Lara faz por você</h3>
+    <ul>
+        <li><b>Numeração automática.</b> CLÁUSULA PRIMEIRA, 1.1, 1.1.1: não se digita. Inserir, apagar ou mover uma
+            cláusula renumera tudo. Use "Subitem →" para o 1.1.1.</li>
+        <li><b>Remissão que acompanha.</b> Para citar outra cláusula, use <span class="menu">Inserir remissão</span>
+            no texto: se a ordem mudar, o número citado muda junto. Uma remissão digitada à mão ("conforme o item 7.1")
+            vira aviso na conferência.</li>
+        <li><b>Variáveis.</b> Valor, prazo, percentual e datas são preenchidos uma vez e usados com
+            <span class="menu">Inserir variável</span>. Valor sai com o extenso: R$ 8.900,00 (oito mil e novecentos
+            reais). Os termos das partes (<code>[[contratante]]</code>, <code>[[contratada]]</code>) saem em negrito e
+            sempre escritos igual.</li>
+        <li><b>Conferência.</b> A lista ao lado da prévia diz o que falta (trava o envio): variável sem valor, CNPJ ou
+            CPF inválido, remissão quebrada, cláusula vazia, falta de quem assina pela contratada. E o que vale
+            conferir: palavra parecida com o termo de uma parte ("CONTRADATA", "CONTRATADO"), contrato sem
+            testemunhas.</li>
+        <li><b>O clube</b> é qualificado pelo CNPJ escolhido e representado pelo presidente (o titular da
+            Presidência em <span class="menu">Assinaturas → Diretoria</span>), que assina sem precisar ser incluído.</li>
+        <li><b>A data</b> do fecho ("Volta Redonda, 3 de novembro de 2026") é a da assinatura, preenchida sozinha.
+            O documento sai com visto (rubrica) em todas as páginas.</li>
+    </ul>
+
+    <h3>Reaproveitar</h3>
+    <ul>
+        <li><b>Contratada:</b> ao salvar, os dados dela ficam guardados. No próximo contrato, use "Buscar no cadastro".</li>
+        <li><b>Biblioteca de cláusulas:</b> o botão "Salvar na biblioteca" de cada cláusula guarda-a para o setor;
+            "Da biblioteca…" insere uma cópia. Mudar a biblioteca não mexe em contrato já feito.</li>
+        <li><b>Modelos:</b> na tela de um contrato pronto, "Salvar como modelo do setor" leva título, termos,
+            variáveis (sem valor), considerandos e cláusulas.</li>
+        <li><b>Aditivo:</b> de um contrato aprovado, "Criar aditivo" já vem com as partes, as variáveis e os
+            signatários; o número é o do contrato com A1, A2…</li>
+    </ul>
+
+    <h3>O que vale saber</h3>
+    <ul>
+        <li><b>Anexos</b> (a proposta, um projeto) são incluídos na tela do contrato e seguem junto para a assinatura.</li>
+        <li><b>Word:</b> o botão <span class="menu">Word</span> baixa o contrato em .docx para o fornecedor revisar. O
+            que vale é o assinado no Lara: alterações pedidas pelo fornecedor são feitas no editor.</li>
+        <li><b>Mudar depois de aprovado:</b> "Reabrir para alteração" volta o contrato a rascunho (o rascunho do
+            documento de assinatura é cancelado). Depois que o documento foi congelado, não reabre: cancele o
+            documento ou faça um aditivo.</li>
+    </ul>
+</div>
+
+<!-- ====================================================== 14 -->
 <div class="section" id="problemas">
-    <h2>13. Problemas comuns</h2>
+    <h2>14. Problemas comuns</h2>
 
     <table class="ref">
         <tr><th style="width:38%">O que aconteceu</th><th>Causa provável e o que fazer</th></tr>
@@ -1251,7 +1347,7 @@
 
 <!-- ====================================================== 10 -->
 <div id="cola" style="padding-top: 22px;">
-    <h2>14. Cola rápida dos marcadores</h2>
+    <h2>15. Cola rápida dos marcadores</h2>
     <p>Para deixar ao lado do computador de quem escreve os modelos.</p>
 
     <table class="ref">

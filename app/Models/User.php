@@ -108,6 +108,12 @@ class User extends Authenticatable
     /** Cache da requisição para canViewCompTime(). */
     private ?bool $compTimeVisibility = null;
 
+    /** Cache da requisição para isManagementMember(). */
+    private ?bool $managementMember = null;
+
+    /** @var array<int, int>|null Cache da requisição para sectorIds(). */
+    private ?array $sectorIdList = null;
+
     /**
      * Get the attributes that should be cast.
      *
@@ -267,6 +273,27 @@ class User extends Authenticatable
     }
 
     /**
+     * Membro do setor **Gerência**, em qualquer papel — quem valida os
+     * contratos (Assinaturas → Contratos) e enxerga os de todos os setores.
+     * Memorizado: a tela do contrato pergunta várias vezes.
+     */
+    public function isManagementMember(): bool
+    {
+        return $this->managementMember ??= $this->belongsToSectorNamed(self::MANAGEMENT_SECTOR);
+    }
+
+    /**
+     * Os ids dos setores do usuário, em qualquer papel — o recorte "só o
+     * próprio setor" dos contratos.
+     *
+     * @return array<int, int>
+     */
+    public function sectorIds(): array
+    {
+        return $this->sectorIdList ??= $this->sectors()->pluck('sectors.id')->map(fn($id) => (int) $id)->all();
+    }
+
+    /**
      * Vinculado a um setor pelo nome, **em qualquer papel** — colaborador ou
      * coordenador. Diferente de isCoordinatorOfSectorNamed(), que só enxerga
      * quem responde pelo setor.
@@ -300,6 +327,8 @@ class User extends Authenticatable
     {
         $this->resolvedAccess = null;
         $this->compTimeVisibility = null;
+        $this->managementMember = null;
+        $this->sectorIdList = null;
     }
 
     /** Membro de um setor com acesso total (Gerência, Diretoria, TI). */

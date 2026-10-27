@@ -109,7 +109,7 @@
                             <li>
                                 <strong class="text-ink">{{ $row['type']->fullName() }}</strong>:
                                 @if ($row['lot'])
-                                    {{ $row['lot']->name }} ({{ $row['remaining'] }} restante(s)) · sócio {{ $money($row['lot']->price_member) }} · não sócio {{ $money($row['lot']->price_non_member) }}
+                                    {{ $row['lot']->name }} ({{ $row['remaining'] === null ? 'sem limite' : $row['remaining'] . ' restante(s)' }}) · sócio {{ $money($row['lot']->price_member) }} · não sócio {{ $money($row['lot']->price_non_member) }}
                                 @else
                                     nenhum lote à venda agora (o Lara avisa e usa o último lote ativo)
                                 @endif
