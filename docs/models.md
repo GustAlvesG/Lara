@@ -258,6 +258,22 @@ Módulo em construção desde 22/10/2026 — regras em [torneios.md](funcionalid
 
 ---
 
+## Ingressos (`app/Models/Ticket/`)
+
+Módulo novo desde 27/10/2026 — regras em [ingressos.md](funcionalidades/ingressos.md). Situações gravadas como texto, em constantes `STATUS_*` com `STATUS_LABELS`.
+
+- **TicketEvent** (SoftDeletes) — `title`, `description`, `rules`, `image`, `venue`, `starts_at`/`ends_at`, `sales_starts_at`/`sales_ends_at`, `capacity` (nulo = sem limite), `max_per_order`, `status` (`draft`, `published`, `finished`, `cancelled`; `VISIBLE` = o que o site mostra); `salesOpen()`, `checkinOpensAt()`, `checkinOpen()`, scope `checkinWindow()`, `datesLabel()`, `hasDays()`, `dayAt($at)` (o dia com a entrada aberta). Relações: `days`, `types`, `coupons`, `orders`, `tickets`, `creator`.
+- **TicketEventDay** — dia do evento de vários dias: evento, `name` (opcional), `starts_at`/`ends_at` (pode passar da meia-noite); `label()` ("Sábado (13/02)" ou "Sáb 13/02"), `hoursLabel()`, `checkinOpensAt()`, `checkinOpen()`. Relações: `event`, `types`.
+- **TicketType** — `ticket_event_id`, `ticket_event_day_id` (diária; nulo = passaporte no evento com dias), `name`, `description`, `sort_order`, `active` (scope `active()`); `validity()` (`VALIDITY_EVENT`, `VALIDITY_DAY`, `VALIDITY_PASSPORT`), `validityLabel()`, `fullName()` ("Pista · Sáb 13/02"), `daysOverlap(?dia, ?dia)` (estático: dia nulo cruza com todos); `day`, `lots` (por `sequence`), `tickets`.
+- **TicketLot** — `ticket_type_id`, `name`, `sequence`, `quantity`, `starts_at`/`ends_at` (nulos = janela do evento), `price_member`, `price_non_member` (nulo = só sócios), `active`; `priceFor(PRICE_MEMBER|PRICE_NON_MEMBER)`, `withinDates()`.
+- **TicketCoupon** — evento, `code` (maiúsculas, sem espaço; `normalizeCode()`), `description`, `kind` (`percent`/`fixed`), `value`, `audience` (`all`, `member`, `non_member`), `ticket_type_ids` (array; nulo = todos), `max_uses`, `starts_at`/`ends_at`, `active`; `withinDates()`, `appliesTo(typeId, priceKind)`, `discountFor(price)`, `usedCount()` (ingressos com desconto que ocupam lugar), `valueLabel()`.
+- **TicketOrder** — evento, `buyer_kind` (`member`/`guest`), `member_id`, cópia de CPF/nome/e-mail/telefone/matrícula, `total`, `ticket_coupon_id`/`coupon_code`/`discount_total` (relação `coupon`), `status` (`pending_payment`, `paid`, `expired`, `withdrawn`, `cancelled`), `hold_until`, `access_token` (cast `encrypted`, oculto, fora do fillable), `origin` (`site`/`secretaria`), `courtesy`; `holding()`, `isGuest()`, `tokenMatches()`. Relações: `event`, `member`, `tickets`, `payment` (o mais recente).
+- **Ticket** — pedido, evento, tipo, lote, `price_kind`, `list_price` (preço do lote), `discount_amount` (cupom), `amount` (cobrado), `holder_name`, `holder_cpf`, `code` (único, `ING-XXXXXXXX`), `status` (`pending`, `valid`, `used`, `expired`, `cancelled`; `SOLD` = válido ou usado), check-in (`checked_in_at` = a última entrada), `refunded_amount`; scope `occupying()` (pagos + pendentes de pedido no prazo), `newCode()`, `normalizeCode()`; `checkins`.
+- **TicketCheckin** — cada entrada: ingresso, `ticket_event_day_id`, `day_key` (dia ou 0; único com o ingresso), `checked_in_at`, `checked_in_by`, `source` (`lara`/`monitor`).
+- **TicketPayment** — um por pedido, eRede ou baixa manual (`is_manual`, `recorded_by`, `manual_notes` fora do fillable); `status` `paid`/`refunded`/`partially_refunded`.
+
+---
+
 ## WhatsApp (`app/Models/WhatsApp/`)
 
 ### Contact

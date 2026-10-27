@@ -406,6 +406,19 @@ class CompanyAccessRulesController extends Controller
     }
 
     /**
+     * Registra a entrada de um ingresso já identificado (botão "Registrar" do
+     * monitor): faz o check-in e grava no histórico.
+     */
+    public function registerTicketAccess(Request $request)
+    {
+        $request->validate(['ticket_id' => 'required|integer']);
+
+        $result = $this->companyService->registerTicketAccess($request->integer('ticket_id'));
+
+        return response()->json($result, $result['found'] ? 200 : 404);
+    }
+
+    /**
      * Libera um pedido de Uber pelo id, a partir da tela "Aguardando acesso do
      * motorista". A placa não entra na conta: quem escolheu a linha foi o
      * porteiro, com o carro à vista.

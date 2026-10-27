@@ -167,6 +167,17 @@ final class Navigation
                     ['route' => 'tournaments.finance.index', 'label' => 'Financeiro', 'permission' => P::TORNEIOS_FINANCEIRO, 'active' => 'tournaments.finance.*'],
                 ],
             ],
+            // Ingressos de eventos vendidos no site de locação. Tipos e lotes
+            // abrem pela tela do evento (são de um evento só).
+            ['label' => 'Ingressos', 'area' => 'reservas', 'glyph' => 'ticket',
+                'icon' => 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z',
+                'children' => [
+                    ['route' => 'tickets.index', 'label' => 'Eventos', 'permission' => 'acessar-ingressos',
+                        'active' => ['tickets.index', 'tickets.create', 'tickets.show', 'tickets.edit', 'tickets.coupons.*', 'tickets.orders.*', 'tickets.issue.*']],
+                    ['route' => 'tickets.checkin.index', 'label' => 'Check-in', 'permission' => P::INGRESSOS_CHECKIN, 'active' => 'tickets.checkin.*'],
+                    ['route' => 'tickets.finance.index', 'label' => 'Financeiro', 'permission' => P::INGRESSOS_FINANCEIRO, 'active' => 'tickets.finance.*'],
+                ],
+            ],
             // RePET (módulo Replay no código): as quatro telas são as etapas do mesmo trabalho — definir o
             // formato, desenhar o layout, ligar a câmera e conferir os vídeos.
             ['label' => 'RePET', 'area' => 'placar', 'glyph' => 'monitor',

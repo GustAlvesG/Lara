@@ -48,7 +48,7 @@
 
         <!-- Input Card -->
         <div class="bg-surface rounded-2xl shadow-pop border border-line p-6 mb-6">
-            <label class="block text-xs font-bold text-ink-3 uppercase tracking-wider mb-3">CPF do funcionário/freelancer ou nome da empresa</label>
+            <label class="block text-xs font-bold text-ink-3 uppercase tracking-wider mb-3">CPF do funcionário/freelancer, código do ingresso ou nome da empresa</label>
             <div class="flex gap-3">
                 <input type="text" id="target-input"
                     placeholder="Ex: 123.456.789-09  ou  Acme Serviços"
@@ -73,6 +73,9 @@
             </p>
             <p class="mt-1 text-[11px] text-ink-3">
                 E a <span class="font-semibold">liberação pontual</span> do dia: vale para uma única entrada, gasta ao registrar.
+            </p>
+            <p class="mt-1 text-[11px] text-ink-3">
+                E o <span class="font-semibold">ingresso de evento</span>: pelo CPF do titular ou pelo código <span class="font-mono">ING-…</span> (leitor de QR). Uma entrada por ingresso, de algumas horas antes do evento até o fim.
             </p>
         </div>
 
@@ -105,6 +108,7 @@
             worker:     { url: '/api/company-access/register-worker-access',     key: 'worker_id' },
             freelancer: { url: '/api/company-access/register-freelancer-access', key: 'freelancer_id' },
             one_off:    { url: '/api/company-access/register-one-off-access',    key: 'one_off_access_id' },
+            ticket:     { url: '/api/company-access/register-ticket-access',     key: 'ticket_id' },
         };
 
         const ONE_OFF_CREATE_URL = @json(route('company.one-off.create'));
@@ -151,7 +155,7 @@
                         // pontual pode ter sido gasta entre a consulta e o
                         // registro, e aí o que vale é o "negado" gravado.
                         const reg = await registerRequest(data.workers[0]).then(r => r.json()).catch(() => null);
-                        if (data.workers[0].type === 'one_off' && reg && reg.found && reg.workers && reg.workers[0]) {
+                        if (['one_off', 'ticket'].includes(data.workers[0].type) && reg && reg.found && reg.workers && reg.workers[0]) {
                             data.workers[0] = { ...data.workers[0], ...reg.workers[0] };
                         }
                         renderResult(data, 'registered', target);
@@ -205,8 +209,9 @@
 
         function reasonLabel(reason) {
             const map = {
-                worker_not_found:  'CPF não encontrado como terceirizado, freelancer nem liberação pontual de hoje.',
+                worker_not_found:  'CPF não encontrado como terceirizado, freelancer, liberação pontual de hoje nem ingresso de evento com entrada aberta.',
                 company_not_found: 'Empresa não encontrada no sistema.',
+                ticket_not_found:  'Ingresso não encontrado para este código.',
             };
             return map[reason] ?? reason ?? 'Não encontrado.';
         }
@@ -219,6 +224,10 @@
         function entryDetail(w) {
             if (w.type === 'one_off') {
                 return oneOffDetail(w);
+            }
+
+            if (w.type === 'ticket') {
+                return ticketDetail(w);
             }
 
             if ((w.type ?? 'worker') !== 'freelancer') {
@@ -269,6 +278,22 @@
                     </div>
                     ${o.reason ? `<p class="text-xs text-ink-2 mt-1 whitespace-pre-line">${escHtml(o.reason)}</p>` : ''}
                     <p class="text-xs text-ink-3 mt-0.5">${by}</p>`;
+        }
+
+        /**
+         * Ingresso de evento: o evento, o tipo e o código à vista — o porteiro
+         * confere o nome com o documento. Uma entrada por ingresso.
+         */
+        function ticketDetail(w) {
+            const t = w.ticket ?? {};
+            const tag = `<span class="text-[10px] font-black uppercase tracking-wide bg-ok-soft text-ok px-2 py-0.5 rounded-full">Ingresso</span>`;
+            const what = [t.event, t.type].filter(Boolean).map(escHtml).join(' &nbsp;·&nbsp; ');
+
+            return `<div class="flex items-center gap-2 mt-1">${tag}
+                        <span class="text-xs text-ink-2">${escHtml(t.message ?? '')}</span>
+                    </div>
+                    ${what ? `<p class="text-xs text-ink-2 mt-1">${what}</p>` : ''}
+                    <p class="text-xs text-ink-3 mt-0.5 font-mono">${escHtml(t.code ?? '')}${t.window ? ` &nbsp;·&nbsp; entrada ${escHtml(t.window)}` : ''}</p>`;
         }
 
         /** Atalho do "não encontrado" para a liberação pontual, já com o CPF. */

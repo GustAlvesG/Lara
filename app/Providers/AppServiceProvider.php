@@ -128,6 +128,21 @@ class AppServiceProvider extends ServiceProvider
         );
 
         /**
+         * Ingressos: a lista de eventos e a tela do evento abrem para quem
+         * alcança qualquer parte do módulo (quem cadastra, quem vende, quem faz
+         * check-in, quem vê o financeiro). O que cada um faz lá dentro continua
+         * na permissão própria.
+         */
+        Gate::define(
+            'acessar-ingressos',
+            fn (User $user) => $user->can(Permissions::INGRESSOS_GERENCIAR)
+                || $user->can(Permissions::INGRESSOS_VENDAS)
+                || $user->can(Permissions::INGRESSOS_CHECKIN)
+                || $user->can(Permissions::INGRESSOS_FINANCEIRO)
+                || $user->can(Permissions::INGRESSOS_CUPONS),
+        );
+
+        /**
          * A fila de revisão interna dos documentos assinados: a revisão comum
          * ou a da coordenação (ver SignatureReviewService).
          */

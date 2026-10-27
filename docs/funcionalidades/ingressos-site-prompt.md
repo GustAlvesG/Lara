@@ -1,0 +1,544 @@
+# Prompt de implementação — ingressos no site de locação (Next.js)
+
+> Documento de entrega para um agente Claude Code trabalhando **no repositório do
+> site de locação (Next.js)**, não neste. Copie a partir de "Início do prompt" até o fim.
+>
+> **Versão 4 (27/10/2026)**, para implementar do zero: nada de ingressos existe ainda no
+> site. Cobre a vitrine, a compra do sócio **para as pessoas do título dele**, a compra do
+> não sócio sem conta, o **cupom de desconto**, o **evento de vários dias (diária e
+> passaporte)**, o pagamento eRede, "meus ingressos" com QR e PDF. (Versões do mesmo dia: a 1
+> não tinha cupom — mudanças marcadas **[v2]**; a 2 deixava o sócio comprar só para ele —
+> mudanças marcadas **[v3]**; a 3 não tinha evento de vários dias — mudanças marcadas
+> **[v4]**. Se o agente do site já começou por uma delas, siga as marcas.) **O site já
+> implementou a v3**: para ele, entregue só o [prompt de atualização v4](#prompt-de-atualização--v4-evento-de-vários-dias),
+> no fim deste arquivo. O contrato é o que o Lara expõe hoje
+> (`routes/api.php`, prefixo `tickets`); se a API mudar, este arquivo muda junto. As regras
+> por trás dele estão em [ingressos.md](ingressos.md). O check-in **não** é do site (é feito
+> no Lara e no Monitor de Acesso da portaria).
+
+---
+
+## Início do prompt
+
+Você vai implementar **do zero** a área de **ingressos de eventos** deste site — nada dela
+existe ainda. O backend é o Lara (a mesma API das reservas de quadra, dos espaços sociais e
+dos torneios): o site não guarda nada de ingresso, só mostra e chama a API. Antes de começar,
+leia como o site já faz **login do sócio**, **chamadas ao Lara** (o `api_token` no
+`Authorization: Bearer`) e **cobrança na eRede** das reservas e dos torneios: os ingressos
+usam os mesmos mecanismos. A novidade é a **compra sem login**, do não sócio.
+
+O site precisa de:
+
+1. **Vitrine** de eventos e página do evento (sem login).
+2. **Compra do sócio** (com o login de sócio): **[v3]** um ingresso para cada pessoa do
+   título dele que ele escolher (ele, o titular, os dependentes).
+3. **Compra do não sócio** (sem login e sem cadastro): um ou mais ingressos, um por pessoa.
+4. **Pagamento** na eRede e aviso ao Lara.
+5. **Meus ingressos**: QR Code, código e PDF — para o sócio (logado) e para o não sócio
+   (pelo link do e-mail).
+6. **"Perdi o link"** para o não sócio.
+7. **[v4]** **Evento de vários dias**: escolher a **diária** de cada dia ou o **passaporte**.
+
+### Como funciona
+
+- O evento tem **tipos de ingresso** (Pista, Mesa, Infantil…). Cada tipo é vendido em
+  **lotes**; a API já devolve o **lote à venda agora** de cada tipo (`lot`), com dois preços:
+  `price_member` (sócio) e `price_non_member` (não sócio). `members_only: true` (ou
+  `price_non_member: null`) = esse lote é só para sócios.
+- O lote vira sozinho (esgotou ou passou a data): o site **não calcula** lote nem preço,
+  sempre mostra o que a API devolve e **recarrega** o evento antes de abrir o checkout.
+  Tipo sem lote à venda: `available: false`; se houver `next_lot`, mostre "Próximo lote a
+  partir de {starts_at}" com os preços dele.
+- O **ingresso é nominal**: nome e CPF de quem vai entrar. **Um ingresso por CPF por
+  evento** — **[v4]** no evento de vários dias, **um por CPF por dia** (veja abaixo).
+- **[v4] Evento de vários dias.** `multi_day: true` e a lista `days` (cada dia com `id`,
+  `label` — "Sábado (13/02)" ou "Sáb 13/02" —, horário e `capacity_left`). Cada tipo traz
+  `validity`: `"day"` = **diária** do dia `day_id`; `"passport"` = **passaporte**, vale todos os
+  dias (uma entrada por dia); `"event"` = evento de um dia só (o normal, sem dias). Cada diária
+  e o passaporte têm os próprios lotes e preços. **Nem todo evento de vários dias tem
+  passaporte**: se nenhum tipo vier com `"passport"`, não mostre essa opção. A mesma pessoa
+  pode comprar diárias de dias diferentes (até no mesmo pedido), mas **não** diária junto com
+  passaporte, nem duas no mesmo dia (`already_has_ticket` / `invalid_holder`). A lotação é por
+  dia: um dia lotado recusa a diária dele e o passaporte (`capacity_full` com
+  `context.day_id`).
+- **[v3] Sócio** (logado — titular **ou** dependente): compra para **as pessoas do título
+  dele** (ele mesmo, o titular e os dependentes), pelo preço de sócio. O site busca a lista
+  em `GET /api/tickets/my-title` e o sócio marca para quem quer comprar, escolhendo o tipo de
+  cada um. Ninguém de fora do título entra no pedido de sócio (`holder_not_in_title`): essa
+  pessoa compra como não sócio ou, se for sócia de outro título, pelo login dela. O nome no
+  ingresso é o do cadastro do clube (o sócio não digita). O limite `max_per_order` **não** vale
+  para o sócio.
+- **Não sócio** (sem login): informa os próprios dados (CPF, nome, e-mail, telefone) e, para
+  cada ingresso, o nome e o CPF de quem vai usar, até `max_per_order` ingressos. Preço de
+  não sócio. Se um dos CPFs for de **sócio**, o Lara recusa (`holder_is_member`): mostre que
+  o sócio compra o próprio ingresso entrando com o login de sócio.
+- O pedido **guarda o lugar por alguns minutos** (`hold_until`, hoje 10). Mostre um contador
+  no checkout. Pagamento que chega depois do prazo ainda pode ser aceito se houver lugar; se
+  não houver, o Lara recusa com `hold_expired` e **o site estorna a cobrança na eRede**.
+- O **preço é sempre o do Lara**: cobre na eRede exatamente o `total` do pedido.
+- O Lara manda os e-mails (ingressos confirmados, cancelamento, link do pedido). O site
+  **não** manda e-mail.
+- Desistir pelo site só **antes de pagar**. Pago: a pessoa fala com a organização.
+- **[v2] Cupom de desconto.** O evento pode ter cupons. O cupom abate de **cada ingresso a
+  que se aplica** uma porcentagem do preço do lote ou um valor fixo (nunca abaixo de zero), e
+  pode valer só para alguns tipos, só para sócios ou só para não sócios, com prazo e limite de
+  usos. O site oferece um campo "Cupom" no checkout, confere antes (`coupon-check`) e manda o
+  código ao criar o pedido (`coupon_code`). **Quem calcula o desconto é o Lara**: o total e o
+  desconto de cada ingresso vêm no pedido. Cupom de 100% deixa o pedido já pago (sem eRede).
+- Pedidos emitidos pela secretaria (`origin: "secretaria"`, pago por fora ou **cortesia**)
+  aparecem em "meus ingressos" do sócio como qualquer outro; `courtesy: true` → mostre
+  "Cortesia" no lugar do valor.
+
+### Ordem sugerida
+
+1. Vitrine e página do evento.
+2. Compra do sócio + pagamento + "meus ingressos" do sócio.
+3. Compra do não sócio + pagamento + página do pedido pelo link.
+4. Cupom no checkout.
+5. PDF, "perdi o link", estados de erro.
+6. **[v4]** Evento de vários dias (dias, diária, passaporte).
+
+### Autenticação
+
+| Quem | Como |
+|---|---|
+| Todos | `Authorization: Bearer {API_TOKEN}` (o mesmo das reservas). |
+| Sócio | + header `Session: {JWT do login}`, como nas reservas e torneios. |
+| Não sócio | + header `Ticket-Order-Token: {access_token}` nas rotas `/guest-orders/{id}`. |
+
+O `access_token` do não sócio é devolvido **uma única vez**, na criação do pedido. Guarde-o
+(cookie httpOnly ou sessão do servidor do Next.js, associado ao id do pedido) para o
+checkout e a página de confirmação. Depois, quem abre o pedido é o **link do e-mail**:
+`{site}/ingressos/pedido/{id}?token={access_token}` — crie essa página: ela lê `id` e
+`token` da URL e chama `GET /api/tickets/guest-orders/{id}` com o header. Não exponha o token
+em logs nem em URLs de terceiros.
+
+Sem o header `Session` nas rotas de sócio, o Lara responde **400**; com JWT inválido ou
+vencido, **401** (mande para o login).
+
+### Endpoints
+
+#### Vitrine (só `api_token`)
+
+`GET /api/tickets/events` — eventos publicados e encerrados.
+`GET /api/tickets/events/{id}` — o mesmo, com `rules` (texto livre, quebras de linha).
+Rascunho ou cancelado: 404 `event_not_found`.
+
+```json
+{
+  "id": 3,
+  "title": "Baile de Carnaval",
+  "description": "…",
+  "image_url": "https://…",
+  "venue": "Salão Nobre",
+  "status": "published",
+  "starts_at": "2027-02-13T22:00:00-03:00",
+  "ends_at": "2027-02-14T04:00:00-03:00",
+  "sales_starts_at": "…", "sales_ends_at": "…",
+  "sales_open": true,
+  "max_per_order": 4,
+  "capacity_left": 312,
+  "multi_day": false,
+  "days": [],
+  "types": [
+    {
+      "id": 7, "name": "Pista", "description": null,
+      "validity": "event", "day_id": null,
+      "available": true,
+      "lot": { "id": 21, "name": "1º lote", "price_member": 50, "price_non_member": 80,
+               "members_only": false, "starts_at": null, "ends_at": "2027-01-31T23:59:00-03:00",
+               "remaining": 43 },
+      "next_lot": null
+    }
+  ],
+  "rules": "…"
+}
+```
+
+- `sales_open: false` → mostre o evento sem botão de compra ("Vendas a partir de…" ou
+  "Vendas encerradas"). `status: "finished"` → evento encerrado.
+- `capacity_left: null` = sem lotação; número = lugares que ainda cabem no evento.
+- `remaining` baixo pode virar um selo "últimos ingressos".
+- **[v4]** Evento de vários dias:
+
+```json
+{
+  "multi_day": true,
+  "capacity_left": 40,
+  "days": [
+    { "id": 11, "name": "Sábado", "label": "Sábado (13/02)", "starts_at": "2027-02-13T18:00:00-03:00", "ends_at": "2027-02-14T02:00:00-03:00", "capacity_left": 40 },
+    { "id": 12, "name": null, "label": "Dom 14/02", "starts_at": "2027-02-14T18:00:00-03:00", "ends_at": "2027-02-14T23:00:00-03:00", "capacity_left": 95 }
+  ],
+  "types": [
+    { "id": 20, "name": "Pista", "validity": "day", "day_id": 11, "lot": { "…": "…" } },
+    { "id": 21, "name": "Pista", "validity": "day", "day_id": 12, "lot": { "…": "…" } },
+    { "id": 22, "name": "Passaporte", "validity": "passport", "day_id": null, "lot": { "…": "…" } }
+  ]
+}
+```
+
+  Agrupe os tipos por dia (`day_id` → `days`) e mostre o passaporte à parte ("vale todos os
+  dias"). `capacity_left` do evento = o do dia mais cheio (o que cabe de passaporte); o de
+  cada dia limita a diária daquele dia. O nome do tipo pode se repetir entre dias: mostre
+  sempre com o `label` do dia.
+
+#### [v2] Conferir cupom (só `api_token`)
+
+`POST /api/tickets/events/{id}/coupon-check` — `{ "code": "festa10", "buyer_kind": "member" | "guest" }`
+(limite 20 por minuto). Só informa, para o checkout mostrar o desconto antes; o desconto
+que vale é o do pedido, que confere tudo de novo.
+
+```json
+{ "code": "FESTA10", "description": "Desconto de lançamento", "kind": "percent", "value": 10,
+  "label": "10%", "audience": "all", "type_ids": null, "ends_at": null }
+```
+
+- `kind`: `percent` (porcentagem do preço do lote) ou `fixed` (valor em reais por ingresso).
+- `audience`: `all`, `member` (só sócio) ou `non_member` (só não sócio).
+- `type_ids`: tipos em que vale (`null` = todos). Mostre a prévia só nos tipos da lista.
+- Recusas: `coupon_invalid` (inexistente, desativado ou fora do prazo), `coupon_not_applicable`
+  (não vale para esse público em nenhum tipo), `coupon_exhausted` (409).
+
+#### Compra do sócio (com `Session`)
+
+**[v3]** `GET /api/tickets/my-title?event_id={id}` — as pessoas do título do sócio logado
+(limite 30 por minuto):
+
+```json
+{
+  "title": "1001",
+  "people": [
+    { "ref": "eyJpdiI6…", "name": "Ana Souza", "cpf": "390.***.**7-05", "titular": true,  "is_me": true,  "has_ticket": false },
+    { "ref": "eyJpdiI6…", "name": "Bia Souza", "cpf": "111.***.**7-35", "titular": false, "is_me": false, "has_ticket": true }
+  ]
+}
+```
+
+- `ref` identifica a pessoa no pedido (CPF e matrícula cifrados; o site nunca vê o CPF). Ela
+  é longa e opaca: só guarde e devolva.
+- `has_ticket: true` (com `event_id`) = a pessoa já tem ingresso neste evento: mostre
+  desabilitada, com "já tem ingresso".
+- **[v4]** `days_taken` (com `event_id`): os ids dos dias em que a pessoa já tem ingresso (o
+  passaporte cobre todos). No evento de vários dias, use isso em vez de `has_ticket`: a
+  diária do dia X fica desabilitada para quem tem X em `days_taken`; o passaporte, para quem
+  tem qualquer dia. No evento sem dias, `days_taken` vem vazio e vale `has_ticket`.
+- `is_me` vem primeiro. Sem MultiClubes, a lista pode vir só com o próprio sócio.
+
+`POST /api/tickets/events/{id}/orders` — **[v3]** corpo:
+
+```json
+{
+  "tickets": [
+    { "type_id": 7 },
+    { "type_id": 7, "holder_ref": "eyJpdiI6…" },
+    { "type_id": 9, "holder_ref": "eyJpdiI6…" }
+  ],
+  "coupon_code": "FESTA10"
+}
+```
+
+Um item por pessoa (**[v4]** ou por pessoa **e dia**: a mesma `holder_ref` pode vir em
+diárias de dias diferentes); sem `holder_ref`, o ingresso é do próprio sócio. `coupon_code` opcional
+(**[v2]**). → **201** com o pedido. A forma antiga, `{ "type_id": 7 }` (um ingresso, para
+ele), continua aceita. `ref` adulterada ou de outro título: 422 `invalid_holder`
+(`context.index`, `context.field: "holder_ref"`).
+
+`GET /api/tickets/my-orders` — todos os pedidos do sócio.
+`GET /api/tickets/orders/{id}` — um pedido (de outro sócio: 404 `order_not_found`).
+`POST /api/tickets/orders/{id}/payment` — ver *Pagamento*.
+`DELETE /api/tickets/orders/{id}` — desiste (só pendente).
+`GET /api/tickets/orders/{id}/pdf` — PDF dos ingressos (só pago).
+
+#### Compra do não sócio (sem `Session`)
+
+`POST /api/tickets/events/{id}/guest-orders` (limite: 10 por minuto por IP):
+
+```json
+{
+  "buyer": { "cpf": "529.982.247-25", "name": "Carla Visitante", "email": "carla@email.com", "phone": "61999990000" },
+  "tickets": [
+    { "type_id": 7, "holder_name": "Carla Visitante", "holder_cpf": "52998224725" },
+    { "type_id": 7, "holder_name": "João Visitante", "holder_cpf": "11144477735" }
+  ]
+}
+```
+
+→ **201** com o pedido **e** `access_token`. Quem compra não precisa ser um dos titulares.
+Aceita também `"coupon_code": "FESTA10"` (opcional, **[v2]**).
+CPF com ou sem máscara.
+
+Com o header `Ticket-Order-Token` (token errado ou ausente: 404 `order_not_found`):
+
+`GET /api/tickets/guest-orders/{id}` · `POST /api/tickets/guest-orders/{id}/payment` ·
+`DELETE /api/tickets/guest-orders/{id}` · `GET /api/tickets/guest-orders/{id}/pdf`.
+
+`POST /api/tickets/guest-orders/resend-link` — `{ "cpf": "…", "email": "…" }` → sempre
+**200** com a mesma mensagem (exista pedido ou não; limite 5 por minuto). Mostre
+"Se houver pedido com esse CPF e e-mail, enviamos o link."
+
+#### O pedido (mesmo formato para sócio e não sócio)
+
+```json
+{
+  "id": 58,
+  "status": "pending_payment",
+  "status_label": "Aguardando pagamento",
+  "buyer_kind": "guest",
+  "buyer": { "name": "Carla Visitante", "email": "carla@email.com", "cpf": "529.***.**7-25" },
+  "total": 160,
+  "discount_total": 0,
+  "coupon_code": null,
+  "courtesy": false,
+  "hold_until": "2027-01-10T15:42:00-03:00",
+  "paid_at": null,
+  "origin": "site",
+  "event": { "id": 3, "title": "…", "venue": "…", "starts_at": "…", "ends_at": "…", "image_url": "…" },
+  "payment": null,
+  "tickets": [
+    {
+      "id": 101, "status": "pending", "status_label": "Aguardando pagamento",
+      "holder_name": "Carla Visitante", "holder_cpf": "529.***.**7-25",
+      "type": { "id": 7, "name": "Pista" }, "lot": { "id": 21, "name": "1º lote" },
+      "price_kind": "non_member", "list_price": 80, "discount_amount": 0, "amount": 80,
+      "validity": "event", "day": null,
+      "code": null, "qr_code": null, "checked_in_at": null, "entries": []
+    }
+  ],
+  "access_token": "…só na criação do pedido do não sócio…"
+}
+```
+
+- Os ingressos de um pedido podem ser de **lotes diferentes** (o pedido atravessou a virada):
+  mostre o preço de cada um.
+- **[v2]** Com cupom: `list_price` é o preço do lote, `discount_amount` o abatido e `amount`
+  o cobrado. Mostre "de R$ 80,00 por R$ 72,00" e, no resumo, "Desconto (cupom FESTA10):
+  − R$ 8,00" com `discount_total` e `coupon_code`.
+- `code` e `qr_code` só vêm com o ingresso **pago** (`valid`). `qr_code` é uma imagem SVG
+  em data URI: use direto em `<img src>`. O código (`ING-XXXXXXXX`) também deve aparecer em
+  texto, grande, para ser digitado na portaria.
+- `checked_in_at` preenchido = ingresso já usado na entrada (`status: "used"`; é a última
+  entrada).
+- **[v4]** `validity` e `day` (`{id, name, label, starts_at, ends_at}` na diária; `null` no
+  passaporte e no evento sem dias): mostre "Diária · Sáb 14/02" ou "Passaporte · todos os
+  dias" no ingresso. `event.days` vem no pedido. `entries` lista cada entrada
+  (`{day_id, checked_in_at}`): o **passaporte** usado num dia continua valendo nos outros —
+  mostre "Entrou em Sáb 13/02" e não trate como esgotado. O mesmo QR serve para todos os dias.
+
+| `status` do pedido | O que mostrar |
+|---|---|
+| `pending_payment` | Valor, contador até `hold_until`, botão Pagar, botão Desistir |
+| `paid` | Ingressos com QR, código, botão PDF |
+| `expired` | "O prazo para pagar acabou." Botão para comprar de novo (novo pedido) |
+| `withdrawn` | "Você desistiu deste pedido." |
+| `cancelled` | "Pedido cancelado pela organização." (+ `payment.refunded_amount` se houver) |
+
+| `status` do ingresso | Texto |
+|---|---|
+| `pending` | Aguardando pagamento |
+| `valid` | Válido |
+| `used` | Utilizado |
+| `expired` | Expirado |
+| `cancelled` | Cancelado |
+
+#### Pagamento
+
+Depois de aprovado na eRede, exatamente como o site já faz nas reservas e torneios:
+
+`POST …/payment` com
+`{ "payment_method": "credit", "paid_amount": 160.00, "payment_integration_id": "{tid da eRede}", "paid_at": "opcional, ISO 8601" }`
+
+- **201** `{ message, order }` — pago; mostre os ingressos.
+- **200** — o mesmo `tid` reenviado para o mesmo pedido (retentativa segura). Faça
+  retentativa com o **mesmo tid** se a resposta não chegar.
+- `paid_amount` diferente do `total`: 422 `payment_mismatch` (`context.expected`). Não deve
+  acontecer se você cobrar o `total`.
+- **409 `hold_expired`**: o prazo venceu e os lugares acabaram. **Estorne na eRede** e
+  mostre "Os ingressos esgotaram enquanto o pagamento era feito. O valor foi estornado."
+- 409 `invalid_status`: pedido já pago/desistido/cancelado, ou o tid já foi usado para outro
+  pedido.
+
+### Recusas (`{ message, reason, context? }`)
+
+Decida pelo `reason`, nunca pelo texto. `message` é um texto em português que pode ser
+mostrado como está.
+
+| `reason` | HTTP | Quando | Sugestão no site |
+|---|---|---|---|
+| `event_not_found` | 404 | Evento inexistente, rascunho ou cancelado | Página 404 |
+| `sales_closed` | 422 | Fora da janela de vendas | "Vendas fechadas" e recarregar o evento |
+| `type_not_found` | 404 | Tipo inexistente/inativo | Recarregar o evento |
+| `sold_out` | 409 | O tipo esgotou (`context.type_id`) | Recarregar; mostrar próximo lote, se houver |
+| `capacity_full` | 409 | Lotação do evento cheia (`context.left`; **[v4]** `context.day_id` = o dia lotado no evento de vários dias) | "Evento esgotado" (ou "{dia} esgotado") |
+| `members_only` | 422 | Lote só para sócios, pedido de não sócio | Convidar a entrar com login de sócio |
+| `limit_per_order` | 422 | Não sócio com mais que `max_per_order` (`context.max`) | Limitar no formulário |
+| `already_has_ticket` | 409 | Algum CPF já tem ingresso no evento (`context.cpf` mascarado; **[v4]** no mesmo dia, ou passaporte × diária — `context.day_id` = o dia do ingresso que já existe, `null` se for passaporte) | Destacar o titular |
+| `invalid_holder` | 422 | Nome/CPF inválido ou CPF repetido no mesmo dia (`context.index`, `context.field`) | Marcar o campo |
+| `holder_is_member` | 422 | CPF de sócio no pedido sem login (`context.index`) | "Sócio compra pelo login de sócio" |
+| `holder_not_in_title` | 422 | **[v3]** Pessoa de fora do título no pedido de sócio (`context.index`) | Não deve acontecer usando `my-title`; recarregar a lista |
+| `member_not_found` | 422 | Login de sócio sem cadastro ativo no clube | "Procure a secretaria" |
+| `order_not_found` | 404 | Pedido alheio, ou token errado | 404 / pedir o link de novo |
+| `invalid_status` | 409 | Pedido não está na situação certa; PDF de pedido não pago | Recarregar o pedido |
+| `hold_expired` | 409 | Ver *Pagamento* | Estornar e avisar |
+| `payment_mismatch` | 422 | Valor ≠ total | Recarregar o pedido |
+| `paid_contact_organizer` | 422 | Desistir de pedido pago | "Fale com a organização" |
+| `coupon_invalid` | 422 | **[v2]** Cupom inexistente, desativado ou fora do prazo | Marcar o campo do cupom; permitir seguir sem ele |
+| `coupon_not_applicable` | 422 | **[v2]** O cupom não vale para nenhum ingresso do pedido (tipo ou público) | Idem |
+| `coupon_exhausted` | 409 | **[v2]** Usos acabaram ou não cobrem o pedido (`context.remaining`) | "Cupom esgotado" (ou "vale para mais N ingresso(s)") |
+
+Erros de validação de formato (campo faltando, e-mail inválido) vêm no padrão do Laravel:
+**422** `{ message, errors: { campo: [..] } }`.
+
+### Telas
+
+1. **/ingressos** — cartões dos eventos (imagem, título, data, local, "a partir de R$ x").
+2. **/ingressos/{id}** — detalhes, regras, tipos com o lote vigente e os dois preços (realce
+   o preço que vale para quem está vendo: sócio logado → sócio; senão → não sócio, com um
+   aviso "Sócio? Entre para pagar R$ y"). Botão Comprar. **[v4]** Evento de vários dias: um
+   bloco por dia com as diárias dele (e o horário do dia) e, se houver, o passaporte em
+   destaque ("todos os dias").
+3. **Checkout do sócio** — **[v3]** lista das pessoas do título (`my-title` com o
+   `event_id`), cada uma com uma caixa "comprar" e o tipo de ingresso; quem já tem ingresso
+   aparece desabilitado; **[v4]** no evento de vários dias, para cada pessoa: os dias (diária
+   de cada um) ou o passaporte, desabilitando pelo `days_taken`; campo de cupom **[v2]**; resumo com o nome e o preço de cada pessoa;
+   pagamento.
+4. **Checkout do não sócio** — dados de quem compra; para cada ingresso, tipo + nome + CPF
+   (validar CPF no cliente também; **[v4]** o mesmo CPF pode repetir só em diárias de dias
+   diferentes); campo de cupom **[v2]**; resumo com o total do Lara;
+   contador; pagamento.
+5. **/ingressos/pedido/{id}?token=…** — pedido do não sócio (também a confirmação depois
+   do pagamento).
+6. **Meus ingressos** (área do sócio) — `GET /api/tickets/my-orders`.
+7. **"Perdi o link"** — CPF + e-mail.
+
+Mostre os horários no fuso de Brasília. Valores em reais com vírgula.
+
+### O que o site não faz
+
+- Não calcula preço, lote, estoque nem limite — tudo vem do Lara.
+- Não manda e-mail.
+- Não faz check-in (é na portaria, pelo Lara).
+- **[v4]** Não decide se uma diária cruza com outra nem a lotação de cada dia: o Lara confere
+  no pedido.
+- Não cancela pedido pago (é com a organização, no Lara).
+
+## Fim do prompt
+
+---
+
+## Prompt de atualização — v4 (evento de vários dias)
+
+> Para o agente do site que **já implementou a v3** (vitrine, compra do sócio pelo título,
+> compra do não sócio, cupom, pagamento, meus ingressos). Copie de "Início da atualização v4"
+> até "Fim da atualização v4". É só o que muda; o resto do contrato continua igual e a API é
+> compatível: evento sem dias responde como antes, com campos novos que podem ser ignorados.
+
+### Início da atualização v4
+
+O Lara passou a suportar **eventos de vários dias** (um festival de sábado e domingo, por
+exemplo). Nesses eventos, cada tipo de ingresso é uma **diária** (vale um dia) ou o
+**passaporte** (vale todos os dias, com uma entrada por dia). **Nem todo evento de vários
+dias tem passaporte**: só existe se a organização cadastrou. Evento de um dia só (mesmo
+passando da meia-noite) não muda nada. Adapte o que já existe de ingressos no site:
+
+#### 1. O que muda na API (só campos novos)
+
+`GET /api/tickets/events` e `GET /api/tickets/events/{id}` ganham:
+
+```json
+{
+  "multi_day": true,
+  "capacity_left": 40,
+  "days": [
+    { "id": 11, "name": "Sábado", "label": "Sábado (13/02)", "starts_at": "2027-02-13T18:00:00-03:00", "ends_at": "2027-02-14T02:00:00-03:00", "capacity_left": 40 },
+    { "id": 12, "name": null, "label": "Dom 14/02", "starts_at": "2027-02-14T18:00:00-03:00", "ends_at": "2027-02-14T23:00:00-03:00", "capacity_left": 95 }
+  ],
+  "types": [
+    { "id": 20, "name": "Pista", "validity": "day", "day_id": 11, "available": true, "lot": { "…": "…" }, "next_lot": null },
+    { "id": 21, "name": "Pista", "validity": "day", "day_id": 12, "available": true, "lot": { "…": "…" }, "next_lot": null },
+    { "id": 22, "name": "Passaporte", "validity": "passport", "day_id": null, "available": true, "lot": { "…": "…" }, "next_lot": null }
+  ]
+}
+```
+
+- `multi_day`: `false` e `days: []` no evento de um dia; aí todo tipo vem com
+  `validity: "event"` e `day_id: null` — siga como hoje.
+- `validity`: `"day"` = diária do dia `day_id`; `"passport"` = todos os dias; `"event"` =
+  evento sem dias.
+- `days[].label` é o texto pronto do dia ("Sábado (13/02)" ou "Dom 14/02"). O **nome do tipo
+  pode se repetir** entre dias ("Pista" no sábado e no domingo): mostre sempre com o `label`.
+- Lotação **por dia**: `days[].capacity_left` limita a diária daquele dia; o
+  `capacity_left` do evento é o do dia mais cheio (o que cabe de passaporte). `null` = sem
+  lotação.
+- Lotes, preços (`price_member`/`price_non_member`), `members_only`, `remaining` e `next_lot`
+  continuam por tipo, como hoje: cada diária e o passaporte têm os próprios.
+
+`GET /api/tickets/my-title?event_id={id}` ganha, em cada pessoa, `days_taken`: os ids dos dias
+em que ela já tem ingresso (o passaporte cobre todos). `has_ticket` continua (tem algum
+ingresso no evento).
+
+```json
+{ "ref": "eyJpdiI6…", "name": "Bia Souza", "cpf": "111.***.**7-35", "titular": false, "is_me": false, "has_ticket": true, "days_taken": [11] }
+```
+
+No **pedido** (sócio e não sócio), o evento ganha `event.days` (mesmo formato, sem
+`capacity_left`) e cada ingresso ganha:
+
+```json
+{
+  "validity": "day",
+  "day": { "id": 11, "name": "Sábado", "label": "Sábado (13/02)", "starts_at": "…", "ends_at": "…" },
+  "entries": [ { "day_id": 11, "checked_in_at": "2027-02-13T19:12:00-03:00" } ]
+}
+```
+
+- `day` só na diária; `null` no passaporte e no evento sem dias.
+- `entries`: cada entrada registrada na portaria. O passaporte tem até uma por dia.
+- `checked_in_at` (que já existia) passa a ser a **última** entrada.
+
+Criação de pedido: **o corpo não muda**. O `type_id` já diz o dia (diária) ou o passaporte.
+O que muda é a regra:
+
+- **Um ingresso por CPF por dia** (antes: por evento). A mesma pessoa pode ter a diária de
+  sábado e a de domingo — **inclusive no mesmo pedido** (o mesmo `holder_ref`, ou o mesmo
+  CPF no não sócio, em itens de dias diferentes). Não pode: duas no mesmo dia, nem diária +
+  passaporte.
+
+#### 2. Recusas (mesmos `reason`, contexto novo)
+
+| `reason` | O que mudou |
+|---|---|
+| `already_has_ticket` (409) | Agora é "já tem ingresso **no mesmo dia**" (ou passaporte × diária). `context.day_id` = o dia do ingresso que já existe (`null` se for passaporte). |
+| `invalid_holder` (422) | Também quando a mesma pessoa aparece duas vezes **no mesmo dia** do pedido (ou diária + passaporte). `context.index`, `context.field: "holder_cpf"`. |
+| `capacity_full` (409) | `context.day_id` = o dia que lotou (no evento de vários dias). Mostre "{label do dia} esgotado" e recarregue o evento. |
+
+#### 3. Telas
+
+1. **Vitrine e página do evento**: no evento de vários dias, mostre as datas como
+   "13/02 a 14/02" e, na página, **um bloco por dia** (label e horário) com as diárias dele;
+   o passaporte, se houver, num bloco à parte em destaque ("Vale todos os dias"). Se nenhum
+   tipo vier `passport`, não mencione passaporte. "A partir de R$ x" continua sendo o menor
+   preço vigente entre todos os tipos.
+2. **Checkout do sócio**: para cada pessoa do título, em vez de um único tipo, deixe escolher
+   **os dias** (uma diária por dia marcado) **ou** o passaporte — são excludentes. Desabilite
+   pelo `days_taken`: a diária do dia X para quem tem X; o passaporte para quem tem qualquer
+   dia. Cada escolha vira um item `{type_id, holder_ref}` (a mesma `holder_ref` em vários
+   itens, um por dia).
+3. **Checkout do não sócio**: o mesmo CPF pode repetir **só** em diárias de dias diferentes;
+   valide no cliente para diária + passaporte e dois no mesmo dia (o Lara confere de novo).
+   `max_per_order` conta itens (cada diária é um item).
+4. **Resumo do pedido, confirmação e meus ingressos**: em cada ingresso, mostre
+   "Diária · {day.label}" ou "Passaporte · todos os dias" (para `validity: "event"`, como
+   hoje). O mesmo QR/código serve para todos os dias do passaporte.
+5. **Situação do ingresso**: `status: "used"` no **passaporte** não quer dizer que acabou —
+   ele entra de novo nos outros dias. Mostre "Entrou em {label}" para cada item de `entries`
+   (o `day_id` aponta para `event.days`) e mantenha o QR visível enquanto o evento não
+   terminar. Na diária e no evento sem dias, `used` continua sendo "Utilizado".
+6. **Contador e cópias**: os textos de "esgotado" passam a citar o dia quando
+   `capacity_full` trouxer `day_id`.
+
+#### 4. O que o site continua sem fazer
+
+- Não calcula se uma diária cruza com outra, nem a lotação do dia: o Lara confere no pedido.
+- Não faz check-in (o passaporte é lido na portaria, uma vez por dia).
+
+### Fim da atualização v4

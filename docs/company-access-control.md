@@ -342,6 +342,24 @@ Nada muda: digita-se o CPF. A liberação entra na mesma soma de terceirizado e 
 
 O consumo é atômico (`UPDATE … WHERE used_at IS NULL`): dois registros simultâneos não passam os dois. Se a liberação foi gasta entre a consulta e o registro, o segundo é gravado — e mostrado — como negado.
 
+#### Ingresso de evento (desde 27/10/2026)
+
+O módulo **Ingressos** vende ingressos nominais (nome + CPF) de eventos do clube; o não
+sócio entra pela portaria com eles. Por isso o ingresso entra na mesma soma do CPF:
+
+| Situação | Resultado |
+|---|---|
+| CPF com ingresso pago de um evento com a entrada aberta (3 h antes do início até o fim, `TICKETS_CHECKIN_HOURS_BEFORE`) | ✓ Permitido — tag verde `Ingresso`, evento, tipo, código e janela |
+| O mesmo ingresso já usado | ✗ Negado — "Já entrou às HH:MM" |
+| Evento fora da janela | Não aparece na busca por CPF; pelo código, ✗ Negado — "fora do horário de entrada" |
+
+O campo também aceita o **código do ingresso** (`ING-XXXXXXXX`, o conteúdo do QR — leitor de
+QR na guarita funciona sem mudança). **Registrar usa o ingresso** (check-in, uma entrada só,
+atômico): se ele foi usado entre a consulta e o registro, a linha volta negada. O botão
+"Registrar" de uma linha usa `POST /api/company-access/register-ticket-access` com
+`ticket_id`. No histórico, `company_access_logs.ticket_id` e a tag `Ingresso`. Ver
+[ingressos.md](funcionalidades/ingressos.md#check-in-ticketcheckinservice).
+
 #### Listagem e cancelamento
 
 A tela lista as liberações do dia (com filtro por data): status (*Disponível*, *Utilizada*, *Cancelada*, *Vencida*), motivo, quem autorizou e a hora da entrada. Só a liberação **ainda não usada** pode ser cancelada; a usada é o registro de uma entrada que aconteceu.
@@ -406,6 +424,11 @@ Ao aplicar filtros, o botão `✕` aparece para limpar todos de uma vez.
 | `one_off_access_used` | Liberação pontual já utilizada |
 | `one_off_access_canceled` | Liberação pontual cancelada |
 | `one_off_access_expired` | Liberação pontual vencida |
+| `ticket_access_granted` | Ingresso válido |
+| `ticket_already_used` | Ingresso já utilizado |
+| `ticket_not_valid` | Ingresso não está válido (pendente, cancelado ou expirado) |
+| `ticket_outside_window` | Ingresso fora do horário de entrada do evento |
+| `ticket_not_found` | Código de ingresso que não existe |
 
 Acessos de **motorista de aplicativo** aparecem nesta mesma tabela: a coluna *Empresa* exibe a tag `Motorista de App`, a coluna *Funcionário* mostra o nome do motorista, e a *Obs* (quando informada) aparece abaixo do motivo.
 
@@ -421,7 +444,8 @@ Endpoint único usado por integrações (câmera/LPR, totem etc.) para registrar
 
 | Formato do `target` | Detecção | Tipo de registro |
 |---|---|---|
-| CPF (ex: `123.456.789-09`) | regex de CPF (11 dígitos) | **Terceirizado** — funcionário da empresa parceira — **e/ou Freelancer**, pelo contrato, **e/ou Liberação Pontual** do dia (o registro a gasta) |
+| CPF (ex: `123.456.789-09`) | regex de CPF (11 dígitos) | **Terceirizado** — funcionário da empresa parceira — **e/ou Freelancer**, pelo contrato, **e/ou Liberação Pontual** do dia (o registro a gasta) **e/ou Ingresso** de evento com a entrada aberta (o registro faz o check-in) |
+| Código de ingresso (ex: `ING-7KQ2MZ9H`) | `ING` + 8 letras/números | **Ingresso** daquele código (o registro faz o check-in) |
 | `PLACA.Nome.Obs` (ex: `ABC1D23.João Silva.Entrega`) | 1º segmento é placa válida (Mercosul `ABC1D23` ou antiga `ABC1234`) + há nome | **Motorista de aplicativo** |
 | Texto livre (ex: `Acme Serviços`) | qualquer outro caso | **Empresa** — todos os funcionários da empresa |
 

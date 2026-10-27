@@ -114,6 +114,21 @@ final class Permissions
     public const TORNEIOS_PAGAMENTOS_ESTORNAR = 'torneios.pagamentos.estornar';
     public const TORNEIOS_FINANCEIRO = 'torneios.financeiro';
 
+    // Ingressos (módulo novo, 27/10/2026): venda de lotes de ingresso de
+    // eventos pelo site de locação, com o Lara de backend. Nascem sem setor.
+    // `gerenciar` cobre evento, tipos e lotes; `vendas`, pedidos e balcão;
+    // `checkin`, a entrada do evento (a portaria também confere pelo Monitor
+    // de Acesso, que não pede permissão).
+    public const INGRESSOS_GERENCIAR = 'ingressos.gerenciar';
+    public const INGRESSOS_VENDAS = 'ingressos.vendas';
+    public const INGRESSOS_CHECKIN = 'ingressos.checkin';
+    public const INGRESSOS_CORTESIAS = 'ingressos.cortesias';
+    // Cupons mexem no preço: separados de quem cadastra o evento.
+    public const INGRESSOS_CUPONS = 'ingressos.cupons';
+    public const INGRESSOS_PAGAMENTOS_BAIXA_MANUAL = 'ingressos.pagamentos.baixa-manual';
+    public const INGRESSOS_PAGAMENTOS_ESTORNAR = 'ingressos.pagamentos.estornar';
+    public const INGRESSOS_FINANCEIRO = 'ingressos.financeiro';
+
     // Replay (vídeos das quadras): formato, layouts de logomarca, câmeras e o
     // repositório dos clipes. Marketing e TI configuram; TI já alcança pelo
     // acesso total, o Marketing recebe na tela de Setores.
@@ -194,6 +209,15 @@ final class Permissions
         self::TORNEIOS_PAGAMENTOS_BAIXA_MANUAL => ['Torneios', 'Baixa manual de inscrição (pago fora da eRede)'],
         self::TORNEIOS_PAGAMENTOS_ESTORNAR => ['Torneios', 'Estornar pagamento de inscrição'],
         self::TORNEIOS_FINANCEIRO => ['Torneios', 'Relatório financeiro dos torneios'],
+
+        self::INGRESSOS_GERENCIAR => ['Ingressos', 'Eventos, tipos de ingresso e lotes'],
+        self::INGRESSOS_VENDAS => ['Ingressos', 'Pedidos e ingressos (consultar, vender no balcão, trocar titular, cancelar)'],
+        self::INGRESSOS_CHECKIN => ['Ingressos', 'Check-in na entrada do evento'],
+        self::INGRESSOS_CORTESIAS => ['Ingressos', 'Emitir cortesia (ingresso sem cobrança)'],
+        self::INGRESSOS_CUPONS => ['Ingressos', 'Cupons de desconto (criar, editar, desativar)'],
+        self::INGRESSOS_PAGAMENTOS_BAIXA_MANUAL => ['Ingressos', 'Baixa manual de pedido (pago fora da eRede)'],
+        self::INGRESSOS_PAGAMENTOS_ESTORNAR => ['Ingressos', 'Estornar pagamento de ingresso'],
+        self::INGRESSOS_FINANCEIRO => ['Ingressos', 'Relatório financeiro dos ingressos'],
 
         self::REPLAY => ['RePET', 'Câmeras, layouts de logomarca e vídeos das quadras'],
 

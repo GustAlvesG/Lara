@@ -1,0 +1,112 @@
+# Ingressos — resumo para quem vai mexer
+
+Documentação completa: [ingressos.md](../funcionalidades/ingressos.md) (regras decididas,
+modelagem, API e fases). Guia: [ingressos-guia.md](../funcionalidades/ingressos-guia.md).
+Prompts: site [ingressos-site-prompt.md](../funcionalidades/ingressos-site-prompt.md) e
+portaria [ingressos-prompt-portaria.md](../ingressos-prompt-portaria.md).
+
+## Em uma frase
+
+O Lara é o backend da venda de ingressos de eventos no **site de locação** (o mesmo Next.js
+das reservas e dos torneios): evento → tipos → lotes (quantidade, janela, preço sócio e não
+sócio) e cupons; o sócio (titular ou dependente) compra com o login para as pessoas do título
+dele, o não sócio compra sem conta para várias pessoas; evento de vários dias com diária
+(tipo preso a um dia) e, se cadastrado, passaporte (tipo sem dia); pagamento eRede; o Lara também emite pago por fora e cortesia, faz o
+check-in (tela própria e Monitor de Acesso) e o financeiro. Ingresso nominal com código
+`ING-` e QR.
+
+## Onde está
+
+F1–F10 feitas em 27/10/2026 (ver a tabela de fases em `ingressos.md`).
+
+## Peças
+
+| Arquivo | Papel |
+|---|---|
+| `database/migrations/2026_10_27_100000_create_ticket_tables.php` | As 7 tabelas (idempotente, FKs com nome curto). |
+| `database/migrations/2026_10_27_110000_add_ticket_id_to_company_access_logs.php` | `company_access_logs.ticket_id` (monitor). |
+| `database/migrations/2026_10_27_120000_add_ticket_event_days.php` | `ticket_event_days`, `ticket_types.ticket_event_day_id`, `ticket_checkins` (entrada por dia). |
+| `app/Models/Ticket/*` | `TicketEvent`, `TicketEventDay`, `TicketType` (`validity()`, `fullName()`, `daysOverlap()`), `TicketLot`, `TicketCoupon`, `TicketOrder`, `Ticket`, `TicketCheckin`, `TicketPayment`; situações em constantes. |
+| `app/Services/Ticket/TicketInventory.php` | Ocupados por lote e por dia (`occupiedByDay`, `capacityOverflow`, `capacityLeftByDay`), lote vigente (`currentLot`), próximo lote, resumo por tipo. |
+| `app/Services/Ticket/TicketOrderService.php` | Pedido (site e balcão) com cupom, `issueAtCounter` (pago por fora / cortesia), pagamento, baixa manual, desistência, expiração, `cancelTickets` (um estorno só), `changeHolder`, `checkCoupon`, reenvio do link. |
+| `app/Services/Ticket/TicketBuyer.php` | Quem compra: sócio (do MultiClubes) ou não sócio. |
+| `app/Services/Ticket/TicketSetupService.php` | Situação do evento (`TRANSITIONS`), salvar/apagar dia, tipo e lote, avisos. |
+| `app/Services/Ticket/TicketCheckinService.php` | Busca por código/CPF (`relevantFirst`), `evaluate`, `checkIn` (linha em `ticket_checkins`, única por ingresso e dia), janela por evento/dia (`windowLabel`), contagem por dia. Usado pelo Lara e pelo `CompanyService`. |
+| `app/Services/Ticket/TicketFinanceService.php` | Totais, por lote, por forma, por cupom, linhas do CSV. |
+| `app/Services/Ticket/TicketPresenter.php` | JSON do site (evento, lote, cupom, pedido, ingresso com QR). |
+| `app/Services/Ticket/TicketPdf.php`, `resources/views/tickets/pdf.blade.php` | PDF dos ingressos pagos. |
+| `app/Services/Ticket/TicketNotifier.php`, `resources/views/emails/tickets/status.blade.php` | E-mails `tickets.*` (mapeados no `ContactMail`). |
+| `app/Exceptions/TicketException.php` | Recusas com `reason` estável para o site. |
+| `app/Http/Controllers/Ticket/*`, `resources/views/tickets/*` | Painel: eventos, tipos, lotes, cupons, pedidos, emissão, check-in, financeiro. |
+| `app/Http/Controllers/Api/TicketApiController.php` | `/api/tickets/*`. |
+| `app/Services/CompanyService.php` (`ticketAccessEntries`, `logTicketAccess`, `registerTicketAccess`) | O ingresso no Monitor de Acesso. |
+| `app/Console/Commands/ExpireTicketOrders.php`, `TicketTestData.php` | `ingressos:expirar-pedidos` (a cada minuto) e `ingressos:dados-teste`. |
+| `config/tickets.php` | `hold_minutes`, `site_url`, `checkin_hours_before`. |
+| `app/View/Navigation.php` | Entrada **Ingressos** (área `reservas`, ícone `ticket`): Eventos, Check-in, Financeiro. |
+| `app/Providers/AppServiceProvider.php` | Gate `acessar-ingressos` (qualquer permissão do módulo abre lista e tela do evento). |
+| `app/Authorization/Permissions.php` | `INGRESSOS_*` (8 permissões, grupo Ingressos). |
+
+## Regras que costumam pegar
+
+- **Ocupa lugar** = pago (`valid`, `used`) + pendente de pedido **dentro do prazo**
+  (`Ticket::occupying`). O pendente vencido não ocupa mesmo antes de o comando expirar; não
+  dependa do status gravado para contar estoque. Os usos do cupom seguem a mesma regra.
+- **Pagamento tardio** é aceito se ainda couber (`lockPayable` reconfere lote, lotação, CPF e
+  cupom, excluindo o próprio pedido); senão `hold_expired` — o site estorna.
+- A trava é na **linha do evento** (`TicketEvent::lockForUpdate`), em pedido e pagamento.
+- **Vários dias**: o dia é do **tipo** (`ticket_types.ticket_event_day_id`), não do ingresso;
+  dia nulo = todos os dias (passaporte, ou o evento sem dias). "Cruza" =
+  `TicketType::daysOverlap()`; vale para o "um por CPF" (`assertNoActiveTicket` recebe
+  `[cpf, dia]`), para CPF repetido no pedido (`normalizeHolders`) e para a lotação por dia. O
+  dia do tipo não muda depois de vendido (`saveType`).
+- **Sócio**: compra para as pessoas do título (`titleHolders` + `titleMembers`, por
+  `byTitle(matrícula)`); cada item é um CPF do título (vazio = o comprador), e o nome sai do
+  MultiClubes (o digitado é ignorado). No site a pessoa vem pela `ref` de `my-title`
+  (`Crypt` de `cpf|matrícula`; a matrícula da ref tem de ser a de quem compra). O sócio sai do
+  JWT (`Member::where('cpf', username)`) e passa pelo `MemberProfileLookup::find(cpf,
+  matrícula)` — nunca "o primeiro" de `byCpf()`. No balcão, `byCpf()` com a matrícula para
+  desempatar. `max_per_order` não vale para o sócio. Chave de array por CPF vira inteiro no
+  PHP: volte a texto com `str_pad(..., 11, '0')` antes de comparar ou consultar.
+- **Não sócio**: `access_token` cifrado (cast `encrypted`, fora do fillable e do JSON); só
+  sai na criação do pedido e no link do e-mail. Comparação com `hash_equals`.
+- **Cupom** é aplicado ingresso a ingresso depois de escolher o lote (`applyCoupon`, por
+  referência nas alocações); cortesia ignora o cupom. O `discount_amount` fica no ingresso e o
+  `discount_total` no pedido.
+- `issueAtCounter` faz `create` + `recordManual` com `notify: false` numa transação e manda um
+  e-mail só. Não chame `create` com `$counter` sem tratar `ConfirmationRequired`.
+- `holder_is_member` consulta o MultiClubes por CPF; erro de conexão **não** trava a venda.
+- `code`/`qr_code` só saem em ingresso pago. CPF sempre mascarado na API e no CSV.
+- No balcão, regras viram `ConfirmationRequired`; nunca no caminho do site. CPF repetido no
+  evento recusa também no balcão; pessoa de fora do título no pedido de sócio é aviso.
+- `cancelTickets` estorna a soma uma vez (eRede antes da transação) e divide o estorno pelos
+  ingressos na proporção.
+- **Check-in**: a garantia de uma entrada é o índice único `(ticket_id, day_key)` de
+  `ticket_checkins` (`day_key` 0 no evento sem dias), não o status. `used` = entrou ao menos
+  uma vez; o passaporte continua entrando nos outros dias. Fora da janela: Lara confirma
+  (`$force`), monitor nega. O monitor nunca passa `$force` nem usuário.
+- O `CompanyService` só procura ingresso se a tabela `tickets` existe (`ticketsAvailable`, por
+  instância): os testes de Externos sobem um banco sem ela. Não troque por `static`.
+- Rotas de tipo, lote e cupom usam `scopeBindings()`: de outro evento dá 404.
+- Sem `Session`, o `JwtMiddleware` responde 400 (não 401).
+
+## Testes
+
+`tests/Feature/Tickets/*`: `TicketOrderFlowTest` (regras do pedido, lotes, estoque,
+pagamento, expiração, estorno), `TicketApiTest` (site, sócio e não sócio),
+`TicketPanelTest` (eventos, tipos, lotes), `TicketCouponAndCounterTest` (cupom, emissão,
+cortesia, cancelamento em lote, troca de titular), `TicketOrdersPanelTest` (cupons, pedidos,
+emissão e permissões), `TicketCheckinTest` (Lara e Monitor de Acesso), `TicketMultiDayTest`
+(dias, diária, passaporte, lotação e entrada por dia), `TicketFinanceTest`
+(relatório, CSV, dados de teste) — sobre `Tests\Concerns\CreatesTicketSchema` e
+`Tests\Concerns\BuildsTickets` (MultiClubes e eRede em memória). Confira o isolamento SQLite
+antes de rodar.
+
+## O que não pode ser esquecido
+
+- O módulo conversa com o **Next.js**: toda mudança na API atualiza
+  `ingressos-site-prompt.md` e gera um prompt para o agente do site.
+- O check-in mexe no **Monitor de Acesso** (`CompanyService`, API sem token usada pelo app
+  Python da guarita): mudou a resposta, atualize `docs/ingressos-prompt-portaria.md` e gere o
+  prompt para o agente da guarita.
+- Permissões novas entram no catálogo sem setor.
+- Nomes de tabela com prefixo `ticket_`; índice e FK com nome curto (64 do MySQL).

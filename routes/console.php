@@ -15,6 +15,8 @@ Schedule::command('app:expire-pending-schedules')->everyMinute();
 Schedule::command('social:expire-bookings')->everyFiveMinutes()->withoutOverlapping();
 // Pré-reserva sem contato da equipe dentro dos dias úteis: aviso no sino.
 Schedule::command('social:contact-reminders')->everyFifteenMinutes()->withoutOverlapping();
+// Ingressos: pedido pendente segura o estoque por minutos (tickets.hold_minutes).
+Schedule::command('ingressos:expirar-pedidos')->everyMinute()->withoutOverlapping();
 Schedule::command('app:expire-uber-access-requests')->everyMinute();
 Schedule::command('app:prune-uber-access-request-messages')->dailyAt('03:00');
 

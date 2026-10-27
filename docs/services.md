@@ -232,6 +232,22 @@ Montagem do torneio: `changeStatus(..., $force)` (caminho normal rascunho → pu
 
 E-mails `tournament.registered`, `tournament.paid`, `tournament.cancelled` (template `emails.tournament.status`), um por pessoa e torneio, via `EmailService::sendScheduleMail`.
 
+## Ticket\* (Ingressos)
+
+Regras em [ingressos.md](funcionalidades/ingressos.md).
+
+| Serviço | Papel |
+|---------|-------|
+| `TicketInventory` | `occupiedByLot()` (pagos + pendentes no prazo), `occupiedByDay()` (lotação: `[0 => n]` no evento sem dias; por dia, diárias do dia + passaportes), `capacityOverflow(evento, dias dos ingressos novos)`, `capacityLeft()`/`capacityLeftByDay()`, `currentLot()` (menor ordem ativa, na janela e com sobra), `nextLot()`, `summary()` por tipo. Só conta; não trava. |
+| `TicketOrderService` | `buyerFor(Member)` (MultiClubes), `create(event, buyer, items, $counter, $force, $courtesy, $couponCode, $notify)` (trava o evento; aloca ingresso a ingresso, atravessando a virada de lote; aplica o cupom; balcão vira aviso), `issueAtCounter(..., $mode)` (`external` = cria + baixa manual; `courtesy` = valor zero; uma transação, um e-mail), `titleMembers(matrícula)` (pessoas do título no MultiClubes; o sócio compra para elas), `checkCoupon()`, `pay()` (idempotente pelo tid; pagamento tardio reconfere estoque e cupom → `hold_expired`), `recordManual()`, `withdraw()`, `expireOverdue()`, `cancelTicket()`/`cancelTickets(..., $refund)` (um estorno eRede pela soma, antes de gravar, dividido pelos ingressos), `changeHolder()`, `resendLink()`. |
+| `TicketCheckinService` | `looksLikeCode()`, `find(código ou CPF, ?evento)` (pelo CPF, o ingresso que entra agora primeiro), `evaluate()` (motivos `ticket_*`; janela do evento ou do dia), `checkIn(..., $source, $force)` (linha em `ticket_checkins`, única por ingresso e dia: o passaporte entra uma vez em cada dia; fora da janela: Lara confirma, monitor nega), `windowLabel()`, `counts(evento, ?dia)`, `dayForCounts()`. Usado pelo `CompanyService` no Monitor de Acesso. |
+| `TicketFinanceService` | `totals()`, `byLot()`, `byMethod()`, `byCoupon()`, `csvRows()`. |
+| `TicketSetupService` | `changeStatus(..., $force)` (`TRANSITIONS`; publicar exige tipo ativo com lote ativo), `saveDay()`/`deleteDay()` (dentro do evento, sem cruzar; dia com diária não apaga), `saveType()` (dia do evento; não muda depois de vendido), `saveLot(..., $force)` (aviso de quantidade abaixo do ocupado e de preço com venda), `deleteType()`/`deleteLot()` (recusa com ingresso). |
+| `TicketPresenter` | JSON do site: evento com lote vigente, cupom, pedido (com desconto e cortesia), ingresso (código e QR só pago; CPF mascarado). |
+| `TicketPdf` | PDF dos ingressos pagos (dompdf, QR em SVG). |
+| `TicketNotifier` | E-mails `tickets.paid`, `tickets.cancelled`, `tickets.link` (template `emails.tickets.status`); `orderLink()` para o não sócio (`TICKETS_SITE_URL`). |
+| `TicketBuyer` | Valor de quem compra: `member(profile, member)` ou `guest(cpf, nome, e-mail, telefone)`. |
+
 ---
 
 ## FreelancerService

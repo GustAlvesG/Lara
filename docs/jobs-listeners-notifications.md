@@ -75,6 +75,14 @@ até `payment_due_at`: estágio `expired`, schedule em status 4 (data livre) e e
 `social.expired`. A pré-reserva em análise não expira sozinha. O `app:expire-pending-schedules`
 (hold de 10 minutos das quadras) deixa a reserva social de fora.
 
+### `ingressos:expirar-pedidos`
+
+A cada minuto (`routes/console.php`). Passa a `expired` o pedido de ingresso pendente cujo
+`hold_until` venceu (`tickets.hold_minutes`), e os ingressos dele a `expired`. O estoque já
+volta à venda no fim do prazo sem o comando (`Ticket::occupying`); ele só põe a situação
+gravada em dia. Pagamento tardio ainda é aceito se houver lugar. Ver
+[ingressos.md](funcionalidades/ingressos.md#estoque-e-reserva-temporária).
+
 ### `sicoob:pix-reconciliar`
 
 `app/Console/Commands/ReconcilePixPayments.php` — agendado a cada minuto
