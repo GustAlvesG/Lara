@@ -1501,6 +1501,13 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::post('/cancelar', [SignatureDocumentController::class, 'cancel'])
                 ->middleware('throttle:20,1')->name('cancel');
 
+            // Arquivar: só tira da lista padrão (filtro "Arquivados"). Não
+            // confundir com a cópia no FTP (`archived_at`).
+            Route::post('/arquivar', [SignatureDocumentController::class, 'hide'])
+                ->middleware('throttle:30,1')->name('hide');
+            Route::delete('/arquivar', [SignatureDocumentController::class, 'unhide'])
+                ->middleware('throttle:30,1')->name('unhide');
+
             Route::get('/pdf', [SignatureDocumentController::class, 'pdf'])->name('pdf');
 
             // Onde cada pessoa assina no PDF enviado (só no rascunho).

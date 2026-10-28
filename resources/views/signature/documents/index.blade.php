@@ -2,7 +2,8 @@
     Documentos da assinatura eletrônica. Lista paginada: a busca
     (SignatureDocument::scopeSearch — cada palavra em título, modelo, código,
     quem gerou, nome/e-mail/CPF do signatário) e os filtros (situação, modelo,
-    período, gerados por mim) vão ao servidor.
+    período, gerados por mim, arquivados) vão ao servidor. Arquivado
+    (`hidden_at`) só aparece com o filtro "Arquivados".
 --}}
 @php
     use App\Models\SignatureDocument as Doc;
@@ -29,7 +30,7 @@
 
         @include('partials.alerts')
 
-        <x-search-bar :filters="['status', 'modelo', 'de', 'ate', 'meus']" placeholder="Título, modelo, signatário, e-mail, CPF, código ou quem gerou">
+        <x-search-bar :filters="['status', 'modelo', 'de', 'ate', 'meus', 'arquivados']" placeholder="Título, modelo, signatário, e-mail, CPF, código ou quem gerou">
             <x-slot:controls>
                 <label for="status" class="sr-only">Situação</label>
                 <select name="status" id="status" class="{{ $field }} w-full sm:w-56">
@@ -64,10 +65,17 @@
                            class="rounded border-line-strong text-grena-ink focus:ring-grena-tint">
                     Gerados por mim
                 </label>
+
+                {{-- Arquivados saem da lista padrão (só exibição — ver DocumentController::hide). --}}
+                <label class="inline-flex items-center gap-2 whitespace-nowrap px-1 text-sm text-ink">
+                    <input type="checkbox" name="arquivados" value="1" @checked($arquivados)
+                           class="rounded border-line-strong text-grena-ink focus:ring-grena-tint">
+                    Arquivados
+                </label>
             </x-slot:controls>
         </x-search-bar>
 
-        @if($documents->isNotEmpty() && (filled($busca) || filled($status) || filled($modelo) || $de || $ate || $meus))
+        @if($documents->isNotEmpty() && (filled($busca) || filled($status) || filled($modelo) || $de || $ate || $meus || $arquivados))
             <p class="px-1 text-[13px] text-ink-3" aria-live="polite">
                 {{ $documents->total() }} {{ $documents->total() === 1 ? 'documento encontrado' : 'documentos encontrados' }}
             </p>
@@ -75,7 +83,7 @@
 
         @if($documents->isEmpty())
             <x-empty-state icon="doc">
-                @if(filled($busca) || filled($status) || filled($modelo) || $de || $ate || $meus)
+                @if(filled($busca) || filled($status) || filled($modelo) || $de || $ate || $meus || $arquivados)
                     Nenhum documento com esses filtros.
                     <a href="{{ route('signature-documents.index') }}" class="font-bold text-grena-ink hover:underline">Limpar a busca</a>.
                 @else

@@ -59,6 +59,7 @@ trait CreatesSignatureSchema
             '2026_10_20_120000_add_initials_waived_to_signature_documents.php',
             '2026_10_20_120100_create_signature_director_areas.php',
             '2026_10_21_120000_create_signature_remote_links.php',
+            '2026_10_29_120000_add_hidden_to_signature_documents.php',
         ];
 
         foreach ($migrations as $arquivo) {

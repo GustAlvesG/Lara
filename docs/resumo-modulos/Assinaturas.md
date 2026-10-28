@@ -47,7 +47,7 @@ Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Contratos, Revisã
 | Prefixo / nome | Lado | Observação |
 |---|---|---|
 | `assinatura/documentos` → `signature-documents.*` | atendente (`auth`) | `novo`, `enviar` (PDF pronto), `associados` (busca) declaradas **antes** de `/{signatureDocument}` |
-| `.../{doc}/congelar`, `cancelar`, `posicoes`, `pdf` | atendente | `DocumentController` |
+| `.../{doc}/congelar`, `cancelar`, `posicoes`, `pdf`, `arquivar` (POST arquiva, DELETE desarquiva) | atendente | `DocumentController` |
 | `.../{doc}/status`, `signatarios/{s}/liberar`, `signatarios/{s}/via`, `liberacoes/{r}` (DELETE) | atendente | `ReleaseController`; `status` é polling (não há broadcasting) |
 | `.../{doc}/govbr/preparar`, `.../{doc}/govbr` (POST), `.../{doc}/govbr/signatarios/{s}/convite`, `.../{doc}/govbr/{conferencia}/pdf` → `signature-documents.govbr.*` | atendente | `GovbrController`: aba **Assinatura gov.br** (`?aba=govbr`); preparar, enviar e convidar pedem `checkGovbr` (`assinatura.documentos`) |
 | `assinatura/modelos` → `signature-templates.*` | `assinatura.modelos` | `PUT` cria **nova versão**; `importar-docx` converte e não grava |
@@ -74,6 +74,12 @@ Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Contratos, Revisã
   palavra só de dígitos e pontuação (≥ 3 dígitos) procura pedaço do CPF. Filtros: `status` (inclui `diretoria`),
   `modelo` (= `root_id`, todas as versões; `avulso` = `single_use`), `de`/`ate` (`created_at`, data inválida é
   ignorada) e `meus` (`created_by`). Teste: `SignatureDocumentSearchTest`.
+- **Arquivar (28/10/2026):** botão na tela do documento (policy `hide` = `assinatura.documentos`) grava
+  `hidden_at`/`hidden_by`/`hidden_by_name` e tira da lista padrão; filtro `arquivados=1` mostra só eles; "Desarquivar"
+  limpa. **Só exibição**: sem status, sem trilha, documento aberto continua assinável. **Não é o `archived_at`** (cópia
+  no FTP). `SignatureDocument::isHidden()`/`scopeHidden()`, rotas `signature-documents.hide`/`unhide`
+  (`POST`/`DELETE .../{doc}/arquivar`), migration `2026_10_29_120000` (no `CreatesSignatureSchema`). Teste:
+  `SignatureDocumentHideTest`.
 
 ## Ciclo de vida
 

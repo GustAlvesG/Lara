@@ -719,7 +719,11 @@
                 e-mail do signatário, CPF (inteiro ou um pedaço), código de validação e o nome de quem gerou. Digite
                 várias palavras para estreitar: <code>maria piscina</code> acha o termo da piscina da Maria.<br>
                 Ao lado da busca há filtros por <b>situação</b>, <b>modelo</b> (inclusive os inativos e os documentos
-                enviados prontos em PDF), <b>período</b> de criação e <b>Gerados por mim</b>.</td>
+                enviados prontos em PDF), <b>período</b> de criação, <b>Gerados por mim</b> e <b>Arquivados</b>.<br>
+                Para tirar da lista um documento que não precisa mais aparecer, abra-o e clique em
+                <span class="btn2">Arquivar</span>. Nada muda no documento: a situação continua a mesma e, se
+                ainda falta alguém, a pessoa ainda pode assinar. Ele passa a aparecer só com o filtro
+                <b>Arquivados</b>; para trazê-lo de volta, abra-o e clique em <span class="btn2">Desarquivar</span>.</td>
         </tr>
         <tr>
             <td class="n"><span class="num">2</span></td>

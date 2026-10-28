@@ -89,6 +89,9 @@ class SignatureDocument extends Model
         'govbr_sent_at',
         'govbr_check_id',
         'initials_waived_at',
+        'hidden_at',
+        'hidden_by',
+        'hidden_by_name',
     ];
 
     /**
@@ -120,6 +123,8 @@ class SignatureDocument extends Model
         'govbr_sent_at' => 'datetime',
         'govbr_check_id' => 'integer',
         'initials_waived_at' => 'datetime',
+        'hidden_at' => 'datetime',
+        'hidden_by' => 'integer',
     ];
 
     /**
@@ -148,6 +153,22 @@ class SignatureDocument extends Model
     public function signers(): HasMany
     {
         return $this->hasMany(SignatureSigner::class)->orderBy('position')->orderBy('id');
+    }
+
+    /**
+     * Arquivado da lista ("Arquivar" na tela do documento). É só exibição:
+     * não mexe no status nem na trilha. Não confundir com `archived_at`, que é
+     * a cópia no FTP.
+     */
+    public function isHidden(): bool
+    {
+        return $this->hidden_at !== null;
+    }
+
+    /** Lista padrão sem os arquivados; `$arquivados` = só os arquivados. */
+    public function scopeHidden($query, bool $arquivados = true)
+    {
+        return $arquivados ? $query->whereNotNull('hidden_at') : $query->whereNull('hidden_at');
     }
 
     /**

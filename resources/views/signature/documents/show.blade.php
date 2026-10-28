@@ -65,8 +65,36 @@
                         </form>
                     @endif
                 @endcan
+
+                {{-- Arquivar só tira da lista padrão; não muda a situação do documento. --}}
+                @can('hide', $document)
+                    @if($document->isHidden())
+                        <form method="POST" action="{{ route('signature-documents.unhide', $document) }}">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
+                                Desarquivar
+                            </button>
+                        </form>
+                    @else
+                        <form method="POST" action="{{ route('signature-documents.hide', $document) }}"
+                              onsubmit="return confirm('Arquivar este documento? Ele sai da lista de documentos (fica no filtro &quot;Arquivados&quot;). Nada mais muda: a situação continua a mesma.')">
+                            @csrf
+                            <button type="submit" class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
+                                Arquivar
+                            </button>
+                        </form>
+                    @endif
+                @endcan
             </div>
         </div>
+
+        @if($document->isHidden())
+            <div class="rounded-card bg-subtle px-5 py-3 text-sm text-ink-2" role="status">
+                <strong class="text-ink">Arquivado</strong> em {{ $document->hidden_at->format('d/m/Y H:i') }}{{ $document->hidden_by_name ? ' por ' . $document->hidden_by_name : '' }}.
+                Fora da lista de documentos; aparece no filtro "Arquivados".
+            </div>
+        @endif
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 

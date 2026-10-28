@@ -48,8 +48,11 @@ class DocumentController extends Controller
         $de = $this->queryDate($request, 'de');
         $ate = $this->queryDate($request, 'ate');
         $meus = $request->boolean('meus');
+        // Arquivados saem da lista padrão; o filtro mostra só eles.
+        $arquivados = $request->boolean('arquivados');
 
         $documentos = SignatureDocument::with(['template', 'signers'])
+            ->hidden($arquivados)
             ->search($busca)
             ->when($modelo === 'avulso', fn($query) => $query->whereHas('template', fn($t) => $t->where('single_use', true)))
             ->when(ctype_digit($modelo), fn($query) => $query->whereHas('template', fn($t) => $t->where('root_id', (int) $modelo)))
@@ -88,6 +91,7 @@ class DocumentController extends Controller
             'de' => $de?->toDateString(),
             'ate' => $ate?->toDateString(),
             'meus' => $meus,
+            'arquivados' => $arquivados,
         ]);
     }
 
@@ -339,6 +343,42 @@ class DocumentController extends Controller
 
         return redirect()->route('signature-documents.show', $signatureDocument)
             ->with('success', 'Documento cancelado. Qualquer sessão aberta no tablet foi encerrada.');
+    }
+
+    /**
+     * Arquivar: tira o documento da lista padrão. Só exibição — não muda o
+     * status nem cancela nada; documento aguardando assinatura continua
+     * assinável. Por isso não passa pela máquina de estados nem pela trilha.
+     */
+    public function hide(SignatureDocument $signatureDocument)
+    {
+        $this->authorize('hide', $signatureDocument);
+
+        if (!$signatureDocument->isHidden()) {
+            $signatureDocument->forceFill([
+                'hidden_at' => now(),
+                'hidden_by' => auth()->id(),
+                'hidden_by_name' => auth()->user()?->name,
+            ])->save();
+        }
+
+        return redirect()->route('signature-documents.index')
+            ->with('success', "Documento \"{$signatureDocument->title}\" arquivado. Ele continua no filtro \"Arquivados\".");
+    }
+
+    /** Desarquivar: o documento volta à lista padrão. */
+    public function unhide(SignatureDocument $signatureDocument)
+    {
+        $this->authorize('hide', $signatureDocument);
+
+        $signatureDocument->forceFill([
+            'hidden_at' => null,
+            'hidden_by' => null,
+            'hidden_by_name' => null,
+        ])->save();
+
+        return redirect()->route('signature-documents.show', $signatureDocument)
+            ->with('success', 'Documento desarquivado: voltou à lista.');
     }
 
     /**

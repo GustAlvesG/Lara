@@ -94,6 +94,15 @@ class SignatureDocumentPolicy
         return $user->can(P::ASSINATURA_DOCUMENTOS);
     }
 
+    /**
+     * Arquivar e desarquivar: tirar da lista padrão e devolver. Só exibição,
+     * em qualquer situação do documento — da mesma permissão de quem cancela.
+     */
+    public function hide(User $user, SignatureDocument $document): bool
+    {
+        return $user->can(P::ASSINATURA_DOCUMENTOS);
+    }
+
     /** Baixar o PDF (original ou final). */
     public function download(User $user, SignatureDocument $document): bool
     {

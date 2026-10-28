@@ -151,6 +151,26 @@ o título não é refeito.
    painel mostra **Quem vai assinar agora** (vem marcado o primeiro da lista), e "Gerar outro código"
    regera para a mesma pessoa. `SignatureSigner::releaseBlockReason` não confere mais a posição.
 
+### Arquivar da lista (28/10/2026)
+
+Botão **Arquivar** no topo da tela do documento (permissão `assinatura.documentos`, policy `hide`):
+tira o documento da lista de **Documentos**. É só exibição:
+
+- não muda a situação, não cancela, não derruba QR nem link remoto — documento aguardando
+  assinatura continua assinável, no tablet, pelo link ou pelo gov.br;
+- não entra na trilha de auditoria nem no manifesto (não é ato sobre o documento);
+- vale em qualquer situação (rascunho esquecido, cancelado, finalizado…);
+- o documento continua abrindo pelo endereço, pelo `/validar` e pela fila de revisão; na lista,
+  aparece só com o filtro **Arquivados** (`?arquivados=1`, que mostra **só** os arquivados e combina
+  com os outros filtros);
+- **Desarquivar**, na mesma tela, devolve à lista. A tela mostra quando e quem arquivou.
+
+Colunas `signature_documents.hidden_at`, `hidden_by`, `hidden_by_name` (retrato, sem FK — migration
+`2026_10_29_120000`). **Não confundir com `archived_at`/`archive_path`**, que são a cópia no FTP
+(seção "Arquivo no servidor de arquivos"). Leitura: `SignatureDocument::isHidden()` e
+`scopeHidden($arquivados)`. Rotas `POST`/`DELETE .../{doc}/arquivar` → `signature-documents.hide`/`unhide`.
+Teste: `SignatureDocumentHideTest`.
+
 ## Fluxo do tablet
 
 Tela de espera → leitura do QR → formulário, se o modelo pergunta algo a quem assina (ver
