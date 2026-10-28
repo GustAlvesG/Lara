@@ -1,10 +1,8 @@
 {{--
     Organizar menu: ordem dos grupos e dos favoritos.
 
-    Fica num diálogo próprio em vez de arrastar direto na barra por dois
-    motivos: funciona igual nos dois modos de navegação (a superior é
-    horizontal e não daria para arrastar do mesmo jeito), e ninguém reordena o
-    menu sem querer ao clicar num item.
+    Fica num diálogo próprio em vez de arrastar direto no painel de Módulos
+    para ninguém reordenar o menu sem querer ao clicar num item.
 
     Arrastar cobre o mouse; as setas cobrem teclado e toque, onde o
     drag-and-drop nativo do HTML não funciona.

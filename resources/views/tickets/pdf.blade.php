@@ -1,5 +1,6 @@
 {{-- Ingressos pagos de um pedido, um por página (dompdf: CSS simples, sem
-     Tailwind). O QR leva só o código; a portaria confere nome e CPF. --}}
+     Tailwind). O QR leva só o código; a portaria confere nome e CPF. O
+     ingresso de lugar marcado (mesa…) mostra o lugar e avisa que não é entrada. --}}
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -37,6 +38,12 @@
                         <div class="label">Ingresso</div>
                         <div class="value">{{ $ticket->type?->fullName() }} · {{ $ticket->lot?->name }}</div>
                         <br>
+                        @if ($ticket->seat)
+                            {{-- Lugar marcado: a mesa/bistrô/camarote, no nome do responsável. --}}
+                            <div class="label">Lugar{{ $ticket->seat->map ? ' · ' . $ticket->seat->map->name : '' }}</div>
+                            <div class="value">{{ $ticket->seat->fullLabel() }}@if ($ticket->seat->category) · {{ $ticket->seat->category }}@endif</div>
+                            <br>
+                        @endif
                         <div class="label">Código</div>
                         <div class="code">{{ $ticket->code }}</div>
                     </td>
@@ -45,7 +52,11 @@
                     </td>
                 </tr>
             </table>
-            <p class="foot">Ingresso pessoal e intransferível, válido para uma entrada da pessoa e do CPF acima. Leve um documento com foto. Pedido {{ $order->id }} · gerado pelo Lara em {{ now()->format('d/m/Y H:i') }}.</p>
+            @if ($ticket->seat)
+                <p class="foot"><strong>Este ingresso é do lugar, não é entrada:</strong> cada pessoa entra com o ingresso de entrada dela. O responsável pelo lugar é a pessoa acima. Pedido {{ $order->id }} · gerado pelo Lara em {{ now()->format('d/m/Y H:i') }}.</p>
+            @else
+                <p class="foot">Ingresso pessoal e intransferível, válido para uma entrada da pessoa e do CPF acima. Leve um documento com foto. Pedido {{ $order->id }} · gerado pelo Lara em {{ now()->format('d/m/Y H:i') }}.</p>
+            @endif
         </div>
         @unless ($loop->last)<div class="page-break"></div>@endunless
     @endforeach

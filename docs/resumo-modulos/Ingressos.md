@@ -11,13 +11,15 @@ O Lara é o backend da venda de ingressos de eventos no **site de locação** (o
 das reservas e dos torneios): evento → tipos → lotes (quantidade, janela, preço sócio e não
 sócio) e cupons; o sócio (titular ou dependente) compra com o login para as pessoas do título
 dele, o não sócio compra sem conta para várias pessoas; evento de vários dias com diária
-(tipo preso a um dia) e, se cadastrado, passaporte (tipo sem dia); pagamento eRede; o Lara também emite pago por fora e cortesia, faz o
+(tipo preso a um dia) e, se cadastrado, passaporte (tipo sem dia); **lugar marcado** (mesa,
+bistrô, camarote escolhidos num mapa, sem venda dupla; o ingresso do lugar não é entrada);
+pagamento eRede; o Lara também emite pago por fora e cortesia, faz o
 check-in (tela própria e Monitor de Acesso) e o financeiro. Ingresso nominal com código
 `ING-` e QR.
 
 ## Onde está
 
-F1–F12 feitas em 27–28/10/2026 (ver a tabela de fases em `ingressos.md`).
+F1–F13 feitas em 27–28/10/2026 (ver a tabela de fases em `ingressos.md`). F13 = lugar marcado.
 
 ## Peças
 
@@ -27,6 +29,11 @@ F1–F12 feitas em 27–28/10/2026 (ver a tabela de fases em `ingressos.md`).
 | `database/migrations/2026_10_27_110000_add_ticket_id_to_company_access_logs.php` | `company_access_logs.ticket_id` (monitor). |
 | `database/migrations/2026_10_27_120000_add_ticket_event_days.php` | `ticket_event_days`, `ticket_types.ticket_event_day_id`, `ticket_checkins` (entrada por dia). |
 | `database/migrations/2026_10_28_100000_make_ticket_lot_quantity_nullable.php` | `ticket_lots.quantity` nulo = lote sem limite. |
+| `database/migrations/2026_10_28_120000_create_ticket_maps.php` | Lugar marcado: `ticket_maps`, `ticket_seats`, `ticket_seat_claims` (único lugar + dia), `ticket_types.ticket_map_id`/`seat_category`, `tickets.ticket_seat_id`. |
+| `app/Models/Ticket/TicketMap.php`, `TicketSeat.php`, `TicketSeatClaim.php` | Mapa (áreas em JSON), lugar (`soldBy(type)`), reserva do lugar por dia. `TicketType::isSeated()`/`kind()`/`dayKey()`/`sellableSeats()`, `Ticket::isSeat()`/`typeLabel()`/`scopePeople`. |
+| `app/Services/Ticket/TicketSeatService.php` | `claim` (prende o lugar; reserva morta sai; `seat_taken`), `release`, `changeSeat`, `layout` (situação de cada lugar num dia), `taken`. |
+| `app/Services/Ticket/TicketMapService.php` | Criar/copiar/apagar mapa, `saveLayout` (lugares e áreas, trava o lugar com ingresso). |
+| `app/Http/Controllers/Ticket/TicketMapController.php`, `resources/views/tickets/maps/*`, `public/js/tickets/seat-map.js` | Mapas no painel: lista, editor (SVG), ocupação, JSON do mapa para a emissão, troca de lugar. JS sem build (`asset()`). |
 | `app/Models/Ticket/*` | `TicketEvent`, `TicketEventDay`, `TicketType` (`validity()`, `fullName()`, `daysOverlap()`), `TicketLot`, `TicketCoupon`, `TicketOrder`, `Ticket`, `TicketCheckin`, `TicketPayment`; situações em constantes. |
 | `app/Services/Ticket/TicketInventory.php` | Ocupados por lote e por dia (`occupiedByDay`, `capacityOverflow`, `capacityLeftByDay`), lote vigente (`currentLot`), próximo lote, resumo por tipo. |
 | `app/Services/Ticket/TicketOrderService.php` | Pedido (site e balcão) com cupom, `issueAtCounter` (pago por fora / cortesia), pagamento, baixa manual, desistência, expiração, `cancelTickets` (um estorno só), `changeHolder`, `checkCoupon`, reenvio do link. |
@@ -94,7 +101,18 @@ F1–F12 feitas em 27–28/10/2026 (ver a tabela de fases em `ingressos.md`).
   (`$force`), monitor nega. O monitor nunca passa `$force` nem usuário.
 - O `CompanyService` só procura ingresso se a tabela `tickets` existe (`ticketsAvailable`, por
   instância): os testes de Externos sobem um banco sem ela. Não troque por `static`.
-- Rotas de tipo, lote e cupom usam `scopeBindings()`: de outro evento dá 404.
+- Rotas de tipo, lote, cupom e mapa usam `scopeBindings()`: de outro evento dá 404.
+- **Lugar marcado**: tipo com `ticket_map_id` vende os lugares do mapa (só os da
+  `seat_category`, se preenchida); dois tipos não vendem o mesmo lugar no mesmo dia (recusa no
+  `saveType`); no evento com dias o tipo de lugar é diária. O ingresso do lugar (`ticket_seat_id`)
+  fica fora do "um por CPF", da lotação, da busca por CPF do check-in e da portaria — use
+  `Ticket::people()` em toda conta de pessoas. A garantia contra venda dupla é o índice único
+  `(ticket_seat_id, day_key)` de `ticket_seat_claims` mais a trava do evento; quem decide se o
+  lugar está ocupado é `Ticket::occupying` (o claim de quem não ocupa mais é apagado no
+  próximo `claim`). Lugar ocupado recusa sempre, até no balcão e na baixa manual com força.
+  `max_per_order` vale separado para entradas e lugares (no lugar, também para o sócio).
+- `@json(...)` do Blade quebra com vírgula dentro do argumento (array, `route()` com
+  parâmetros): monte a variável num `@php` e use `Js::from()` ou `json_encode`.
 - Sem `Session`, o `JwtMiddleware` responde 400 (não 401).
 
 ## Testes
@@ -106,7 +124,8 @@ cortesia, cancelamento em lote, troca de titular), `TicketOrdersPanelTest` (cupo
 emissão e permissões), `TicketCheckinTest` (Lara e Monitor de Acesso), `TicketMultiDayTest`
 (dias, diária, passaporte, lotação e entrada por dia), `TicketLotTurnTest` (lote sem limite,
 Virar lote agora), `TicketGuestAccessTest` (meus ingressos do não sócio), `TicketFinanceTest`
-(relatório, CSV, dados de teste) — sobre `Tests\Concerns\CreatesTicketSchema` e
+(relatório, CSV, dados de teste), `TicketSeatMapTest` (lugar marcado: venda dupla, índice único,
+lugar por dia, pendente vencido, pagamento tardio, desenho, cópia, API, telas, check-in) — sobre `Tests\Concerns\CreatesTicketSchema` e
 `Tests\Concerns\BuildsTickets` (MultiClubes e eRede em memória). Confira o isolamento SQLite
 antes de rodar.
 
@@ -114,6 +133,8 @@ antes de rodar.
 
 - O módulo conversa com o **Next.js**: toda mudança na API atualiza
   `ingressos-site-prompt.md` e gera um prompt para o agente do site.
+- Mapas e lugar marcado também estão na API do site (`/events/{id}/maps/{mapId}`, `seat_id` no
+  pedido, `kind`/`seat` no ingresso): prompt v7 no mesmo arquivo.
 - O check-in mexe no **Monitor de Acesso** (`CompanyService`, API sem token usada pelo app
   Python da guarita): mudou a resposta, atualize `docs/ingressos-prompt-portaria.md` e gere o
   prompt para o agente da guarita.

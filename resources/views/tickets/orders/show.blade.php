@@ -1,5 +1,6 @@
 {{-- Um pedido: quem comprou, ingressos (troca de titular, cancelamento),
-     pagamento (baixa manual do pendente), reenvio do e-mail e PDF. --}}
+     pagamento (baixa manual do pendente), reenvio do e-mail e PDF. Ingresso
+     de lugar marcado (mesa…): mostra o lugar e permite trocar no mapa. --}}
 @php
     use App\Authorization\Permissions as P;
     use App\Models\SchedulePayment;
@@ -90,7 +91,11 @@
                             @foreach ($order->tickets as $ticket)
                                 <tr>
                                     <td class="px-4 py-3"><p class="font-semibold text-ink">{{ $ticket->holder_name }}</p><p class="text-xs text-ink-3">{{ Cpf::format($ticket->holder_cpf) }}</p></td>
-                                    <td class="px-4 py-3 text-ink-2">{{ $ticket->type?->fullName() }}<span class="block text-xs text-ink-3">{{ $ticket->lot?->name }} · {{ TicketLot::PRICE_LABELS[$ticket->price_kind] ?? '' }}</span></td>
+                                    <td class="px-4 py-3 text-ink-2">
+                                        {{ $ticket->type?->fullName() }}
+                                        @if ($ticket->seat)<span class="block font-semibold text-ink">Lugar {{ $ticket->seat->fullLabel() }} <span class="font-normal text-xs text-ink-3">· {{ $ticket->type?->map?->name }} · não é entrada</span></span>@endif
+                                        <span class="block text-xs text-ink-3">{{ $ticket->lot?->name }} · {{ TicketLot::PRICE_LABELS[$ticket->price_kind] ?? '' }}</span>
+                                    </td>
                                     <td class="px-4 py-3 font-mono">{{ in_array($ticket->status, Ticket::SOLD, true) ? $ticket->code : '—' }}</td>
                                     <td class="px-4 py-3 font-mono">
                                         {{ $money($ticket->amount) }}
@@ -117,6 +122,26 @@
                                                     <div class="sm:text-right"><x-primary-button>Trocar</x-primary-button></div>
                                                 </form>
                                             </details>
+                                            @if ($ticket->seat && $ticket->type?->ticket_map_id)
+                                                <details class="mt-2" data-seat-change="{{ $ticket->id }}">
+                                                    <summary class="cursor-pointer text-sm font-semibold text-ink-2">Trocar lugar</summary>
+                                                    <form method="POST" action="{{ route('tickets.orders.seat', $ticket) }}" class="mt-3 flex flex-col gap-3">
+                                                        @csrf @method('PUT')
+                                                        <input type="hidden" name="seat_id" value="" data-seat-id>
+                                                        <p class="text-xs text-ink-3">Clique num lugar livre do mesmo tipo. Tipo, lote, valor e código não mudam.</p>
+                                                        @include('tickets.maps.partials.viewer', ['id' => 'seat-change-' . $ticket->id])
+                                                        <div class="flex items-center justify-end gap-3">
+                                                            <span class="text-sm text-ink-2" data-seat-label>Lugar atual: {{ $ticket->seat->label }}</span>
+                                                            <x-primary-button disabled data-seat-submit>Trocar para o lugar escolhido</x-primary-button>
+                                                        </div>
+                                                    </form>
+                                                    <script type="application/json" data-seat-config>{!! json_encode([
+                                                        'url' => route('tickets.maps.state', [$order->event, $ticket->type->ticket_map_id, 'dia' => $ticket->type->ticket_event_day_id]),
+                                                        'typeId' => $ticket->ticket_type_id,
+                                                        'currentSeatId' => $ticket->ticket_seat_id,
+                                                    ], JSON_HEX_TAG | JSON_HEX_AMP) !!}</script>
+                                                </details>
+                                            @endif
                                         </td>
                                     </tr>
                                 @endif
@@ -156,6 +181,34 @@
                     </form>
                 </section>
             @endcan
+        @endif
+
+        @if ($order->tickets->contains(fn ($t) => $t->seat !== null))
+            <script src="{{ asset('js/tickets/seat-map.js') }}?v={{ filemtime(public_path('js/tickets/seat-map.js')) }}"></script>
+            <script>
+                // O mapa só carrega quando a troca de lugar é aberta.
+                document.querySelectorAll('[data-seat-change]').forEach((box) => {
+                    let viewer = null;
+                    box.addEventListener('toggle', () => {
+                        if (!box.open) { viewer && viewer.destroy(); viewer = null; return; }
+                        const config = JSON.parse(box.querySelector('[data-seat-config]').textContent);
+                        const form = box.querySelector('form');
+                        viewer = TicketSeatMap.viewer(document.getElementById('seat-change-' + box.dataset.seatChange), {
+                            mode: 'pick',
+                            url: config.url,
+                            typeId: config.typeId,
+                            currentSeatId: config.currentSeatId,
+                            selectedId: config.currentSeatId,
+                            onPick: (seat) => {
+                                const changed = seat && seat.id !== config.currentSeatId;
+                                form.querySelector('[data-seat-id]').value = changed ? seat.id : '';
+                                form.querySelector('[data-seat-submit]').disabled = !changed;
+                                form.querySelector('[data-seat-label]').textContent = changed ? 'Novo lugar: ' + seat.label : 'Lugar atual';
+                            },
+                        });
+                    });
+                });
+            </script>
         @endif
 
         @if ($valid->isNotEmpty())

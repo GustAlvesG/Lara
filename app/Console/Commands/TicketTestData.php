@@ -8,8 +8,11 @@ use App\Models\Ticket\TicketCheckin;
 use App\Models\Ticket\TicketCoupon;
 use App\Models\Ticket\TicketEvent;
 use App\Models\Ticket\TicketLot;
+use App\Models\Ticket\TicketMap;
 use App\Models\Ticket\TicketOrder;
 use App\Models\Ticket\TicketPayment;
+use App\Models\Ticket\TicketSeat;
+use App\Models\Ticket\TicketSeatClaim;
 use App\Models\Ticket\TicketType;
 use App\Models\User;
 use App\Support\Cpf;
@@ -75,6 +78,7 @@ class TicketTestData extends Command
             $this->openSales();
             $this->happeningNow();
             $this->festival();
+            $this->reveillon();
             $this->simple(TicketEvent::STATUS_DRAFT, 'Rascunho', now()->addDays(40));
             $this->simple(TicketEvent::STATUS_FINISHED, 'Encerrado', now()->subDays(10));
             $this->simple(TicketEvent::STATUS_CANCELLED, 'Cancelado', now()->addDays(15));
@@ -94,8 +98,8 @@ class TicketTestData extends Command
             $orderIds = TicketOrder::whereIn('ticket_event_id', $ids)->pluck('id');
             TicketCheckin::whereIn('ticket_id', Ticket::whereIn('ticket_order_id', $orderIds)->select('id'))->delete();
             Ticket::whereIn('ticket_order_id', $orderIds)->delete();
-            // A diária aponta para o dia sem cascade: sai antes do evento.
-            TicketType::whereIn('ticket_event_id', $ids)->whereNotNull('ticket_event_day_id')->delete();
+            // A diária aponta para o dia, e o tipo de lugar para o mapa, sem cascade: saem antes do evento.
+            TicketType::whereIn('ticket_event_id', $ids)->where(fn ($q) => $q->whereNotNull('ticket_event_day_id')->orWhereNotNull('ticket_map_id'))->delete();
             TicketPayment::whereIn('ticket_order_id', $orderIds)->delete();
             TicketOrder::whereIn('id', $orderIds)->delete();
             TicketEvent::withTrashed()->whereIn('id', $ids)->get()->each->forceDelete();
@@ -193,6 +197,83 @@ class TicketTestData extends Command
         $this->report[] = [$event->title, "dias com diária e passaporte (lotação 300 por dia); entrada do Dia 1 aberta agora; passaporte {$code} (entra hoje e de novo amanhã), uma diária de cada dia"];
     }
 
+    /**
+     * Réveillon com lugar marcado: mapas de mesas (Vip e Comum, preços
+     * diferentes no mesmo mapa), bistrôs e camarotes, com palco, pista,
+     * piscina, bar e banheiros desenhados; algumas mesas vendidas e uma
+     * reservada (pendente), para testar o mapa no Lara e no site.
+     */
+    private function reveillon(): void
+    {
+        $event = $this->event('Réveillon (lugar marcado)', now()->addDays(60)->setTime(22, 0), [
+            'venue' => 'Sede Social', 'capacity' => 800, 'max_per_order' => 6,
+            'ends_at' => now()->addDays(61)->setTime(5, 0),
+        ]);
+
+        $mesas = $event->maps()->create(['name' => 'Mesas', 'width' => 1000, 'height' => 640, 'sort_order' => 1, 'areas' => [
+            ['label' => 'Palco', 'shape' => 'rect', 'x' => 350, 'y' => 20, 'w' => 300, 'h' => 80, 'color' => 'stage'],
+            ['label' => 'Pista de dança', 'shape' => 'rect', 'x' => 380, 'y' => 120, 'w' => 240, 'h' => 120, 'color' => 'service'],
+            ['label' => 'Piscina', 'shape' => 'ellipse', 'x' => 760, 'y' => 470, 'w' => 210, 'h' => 140, 'color' => 'water'],
+            ['label' => 'Bar', 'shape' => 'rect', 'x' => 30, 'y' => 20, 'w' => 140, 'h' => 60, 'color' => 'warn'],
+            ['label' => 'Banheiros', 'shape' => 'rect', 'x' => 30, 'y' => 560, 'w' => 160, 'h' => 60, 'color' => 'service'],
+        ]]);
+        $vip = $this->seatGrid($mesas, 'V', 'Vip', 2, 6, 200, 280, 100, 70, 'circle', 50, 4);
+        $this->seatGrid($mesas, 'M', 'Comum', 3, 7, 230, 440, 75, 60, 'circle', 44, 4);
+
+        $bistros = $event->maps()->create(['name' => 'Bistrôs', 'width' => 800, 'height' => 500, 'sort_order' => 2, 'areas' => [
+            ['label' => 'Palco', 'shape' => 'rect', 'x' => 250, 'y' => 20, 'w' => 300, 'h' => 70, 'color' => 'stage'],
+            ['label' => 'Bar', 'shape' => 'rect', 'x' => 620, 'y' => 380, 'w' => 150, 'h' => 80, 'color' => 'warn'],
+        ]]);
+        $bistro = $this->seatGrid($bistros, 'B', null, 3, 6, 140, 170, 90, 90, 'square', 40, 2);
+
+        $camarotes = $event->maps()->create(['name' => 'Camarotes', 'width' => 900, 'height' => 400, 'sort_order' => 3, 'areas' => [
+            ['label' => 'Palco', 'shape' => 'rect', 'x' => 300, 'y' => 300, 'w' => 300, 'h' => 80, 'color' => 'stage'],
+            ['label' => 'Pista', 'shape' => 'rect', 'x' => 200, 'y' => 170, 'w' => 500, 'h' => 110, 'color' => 'service'],
+        ]]);
+        $this->seatGrid($camarotes, 'C', null, 1, 6, 115, 80, 134, 0, 'rect', 110, 10, 70);
+
+        $pista = $this->type($event, 'Pista', 1);
+        $pistaLot = $this->lot($pista, 'Lote único', 1, 600, 120, 200);
+        $mesaVip = $event->types()->create(['name' => 'Mesa Vip', 'sort_order' => 2, 'ticket_map_id' => $mesas->id, 'seat_category' => 'Vip']);
+        $mesaVipLot = $this->lot($mesaVip, 'Lote único', 1, 100, 400, 600);
+        $mesa = $event->types()->create(['name' => 'Mesa', 'sort_order' => 3, 'ticket_map_id' => $mesas->id, 'seat_category' => 'Comum']);
+        $mesaLot = $this->lot($mesa, 'Lote único', 1, 100, 200, 320);
+        $bistroType = $event->types()->create(['name' => 'Bistrô', 'sort_order' => 4, 'ticket_map_id' => $bistros->id]);
+        $bistroLot = $this->lot($bistroType, 'Lote único', 1, 100, 120, 180);
+        $camarote = $event->types()->create(['name' => 'Camarote', 'sort_order' => 5, 'ticket_map_id' => $camarotes->id]);
+        $this->lot($camarote, 'Lote único', 1, 100, 1500, 2200);
+
+        // Duas mesas Vip vendidas (uma com as entradas da família), uma reservada e um bistrô vendido.
+        $this->order($event, [[$mesaVip, $mesaVipLot, $vip[0]], [$pista, $pistaLot], [$pista, $pistaLot]], ['paid' => 'erede']);
+        $this->order($event, [[$mesaVip, $mesaVipLot, $vip[1]]], ['paid' => 'manual_pix', 'counter' => true]);
+        $this->order($event, [[$mesaVip, $mesaVipLot, $vip[6]]], ['pending' => true, 'hold' => 60]);
+        $this->order($event, [[$bistroType, $bistroLot, $bistro[0]]], ['paid' => 'erede']);
+        $this->order($event, [[$mesa, $mesaLot, TicketSeat::where('ticket_map_id', $mesas->id)->where('label', 'M5')->first()]], ['expired' => true]);
+
+        $this->report[] = [$event->title, 'lugar marcado: mapa Mesas (Vip V1–V12 e Comum M1–M21, preços diferentes; palco, pista, piscina, bar e banheiros), Bistrôs (B1–B18) e Camarotes (C1–C6); V1 e V2 vendidas, V7 reservada (pendente por 60 min), B1 vendido, M5 com pedido expirado (livre de novo)'];
+    }
+
+    /**
+     * Uma grade de lugares no mapa, com rótulos em sequência (V1, V2…).
+     *
+     * @return list<TicketSeat>
+     */
+    private function seatGrid(TicketMap $map, string $prefix, ?string $category, int $rows, int $cols, int $x0, int $y0, int $dx, int $dy, string $shape, int $size, int $places, ?int $height = null): array
+    {
+        $seats = [];
+        $n = 1;
+        for ($r = 0; $r < $rows; $r++) {
+            for ($c = 0; $c < $cols; $c++) {
+                $seats[] = $map->seats()->create([
+                    'label' => $prefix . $n++, 'category' => $category, 'shape' => $shape,
+                    'x' => $x0 + $c * $dx, 'y' => $y0 + $r * $dy, 'w' => $size, 'h' => $height ?? $size, 'places' => $places,
+                ]);
+            }
+        }
+
+        return $seats;
+    }
+
     private function simple(string $status, string $label, Carbon $startsAt): void
     {
         $event = $this->event($label, $startsAt, ['status' => $status]);
@@ -246,7 +327,7 @@ class TicketTestData extends Command
     /**
      * Um pedido gravado direto (sem e-mail nem eRede).
      *
-     * @param  list<array{0: TicketType, 1: TicketLot}>  $items
+     * @param  list<array{0: TicketType, 1: TicketLot, 2?: ?TicketSeat}>  $items
      * @param  array{paid?: string, pending?: bool, expired?: bool, counter?: bool, kind?: string, member?: Member, coupon?: ?TicketCoupon, cancel_one?: bool, hold?: int}  $o
      */
     private function order(TicketEvent $event, array $items, array $o): TicketOrder
@@ -259,11 +340,12 @@ class TicketTestData extends Command
 
         $holders = [];
         $lines = [];
-        foreach ($items as [$type, $lot]) {
+        foreach ($items as $item) {
+            [$type, $lot] = $item;
             $cpf = $member ? Cpf::digits($member->cpf) : $this->nextCpf();
             $price = (float) ($lot->priceFor($priceKind) ?? 0);
             $discount = $coupon && ! $courtesy && $coupon->appliesTo($type->id, $priceKind) ? $coupon->discountFor($price) : 0.0;
-            $lines[] = ['type' => $type, 'lot' => $lot, 'list' => $price, 'discount' => $discount, 'amount' => $courtesy ? 0.0 : round($price - $discount, 2), 'cpf' => $cpf];
+            $lines[] = ['type' => $type, 'lot' => $lot, 'seat' => $item[2] ?? null, 'list' => $price, 'discount' => $discount, 'amount' => $courtesy ? 0.0 : round($price - $discount, 2), 'cpf' => $cpf];
             $holders[] = $member?->name ?? 'Pessoa Teste ' . $this->cpf;
         }
 
@@ -301,10 +383,11 @@ class TicketTestData extends Command
         $order->save();
 
         foreach ($lines as $i => $line) {
-            $order->tickets()->create([
+            $ticket = $order->tickets()->create([
                 'ticket_event_id' => $event->id,
                 'ticket_type_id' => $line['type']->id,
                 'ticket_lot_id' => $line['lot']->id,
+                'ticket_seat_id' => $line['seat']?->id,
                 'price_kind' => $priceKind,
                 'list_price' => $line['list'],
                 'discount_amount' => $line['discount'],
@@ -318,6 +401,11 @@ class TicketTestData extends Command
                     default => Ticket::STATUS_PENDING,
                 },
             ]);
+
+            // O lugar preso ao ingresso (o expirado já soltou o dele).
+            if ($line['seat'] && $status !== TicketOrder::STATUS_EXPIRED) {
+                TicketSeatClaim::create(['ticket_seat_id' => $line['seat']->id, 'ticket_id' => $ticket->id, 'day_key' => $line['type']->dayKey()]);
+            }
         }
 
         $method = $o['paid'] ?? null;

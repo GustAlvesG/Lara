@@ -7,6 +7,8 @@ use App\Models\Ticket\TicketCoupon;
 use App\Models\Ticket\TicketEvent;
 use App\Models\Ticket\TicketEventDay;
 use App\Models\Ticket\TicketLot;
+use App\Models\Ticket\TicketMap;
+use App\Models\Ticket\TicketType;
 use App\Models\Ticket\TicketOrder;
 use App\Services\Signature\SignatureQrCode;
 use App\Support\Cpf;
@@ -24,7 +26,7 @@ use App\Support\ImageSource;
  */
 class TicketPresenter
 {
-    public function __construct(private TicketInventory $inventory, private SignatureQrCode $qr)
+    public function __construct(private TicketInventory $inventory, private SignatureQrCode $qr, private TicketSeatService $seats)
     {
     }
 
@@ -59,17 +61,90 @@ class TicketPresenter
                     'description' => $row['type']->description,
                     'validity' => $row['type']->validity(),
                     'day_id' => $row['type']->ticket_event_day_id,
+                    // Lugar marcado (mesa, bistrô…): escolhido no mapa `map_id`; não é entrada.
+                    'kind' => $row['type']->kind(),
+                    'map_id' => $row['type']->ticket_map_id,
+                    'seat_category' => $row['type']->seat_category,
+                    'seats_free' => $row['seats_free'],
                     'available' => $row['lot'] !== null,
                     'lot' => $row['lot'] ? $this->lot($row['lot']) + ['remaining' => $row['remaining']] : null,
                     'next_lot' => $row['next_lot'] ? $this->lot($row['next_lot']) : null,
                 ])->values(),
         ];
 
+        // Os mapas que algum tipo ativo usa (o desenho sai em `maps/{id}`).
+        $mapIds = $event->types->where('active', true)->pluck('ticket_map_id')->filter()->unique();
+        $event->loadMissing('maps');
+        $data['has_map'] = $mapIds->isNotEmpty();
+        $data['maps'] = $event->maps->whereIn('id', $mapIds->all())->map(fn (TicketMap $m) => ['id' => $m->id, 'name' => $m->name])->values();
+
         if ($detail) {
             $data['rules'] = $event->rules;
         }
 
         return $data;
+    }
+
+    /**
+     * O mapa de lugares num dia: o desenho (área, fundo, áreas de orientação),
+     * os tipos que vendem os lugares no dia, com o lote à venda, e cada lugar
+     * com a situação (`free`, `held`, `sold`, `unavailable`) e o tipo que o
+     * vende. No evento de vários dias, sem `$day` tudo sai indisponível.
+     *
+     * `$panel` (só o Lara): também os tipos inativos, o lugar desativado, e
+     * de quem é cada lugar ocupado. O site nunca recebe quem comprou.
+     */
+    public function seatMap(TicketMap $map, ?TicketEventDay $day = null, bool $panel = false): array
+    {
+        $layout = $this->seats->layout($map, $day, includeInactiveTypes: $panel);
+
+        return [
+            'id' => $map->id,
+            'event_id' => $map->ticket_event_id,
+            'name' => $map->name,
+            'width' => $map->width,
+            'height' => $map->height,
+            'background_url' => $map->backgroundUrl(),
+            'day' => $day ? $this->day($day) : null,
+            'refresh_after' => TicketSeatService::REFRESH_SECONDS,
+            'areas' => array_values($map->areas ?? []),
+            'types' => array_map(fn (array $row) => [
+                'id' => $row['type']->id,
+                'name' => $row['type']->name,
+                'seat_category' => $row['type']->seat_category,
+                'day_id' => $row['type']->ticket_event_day_id,
+                'available' => $row['lot'] !== null,
+                'lot' => $row['lot'] ? $this->lot($row['lot']) + ['remaining' => $row['remaining']] : null,
+            ], $layout['types']),
+            'seats' => array_map(function (array $row) use ($panel) {
+                $seat = $row['seat'];
+                $data = [
+                    'id' => $seat->id,
+                    'label' => $seat->label,
+                    'category' => $seat->category,
+                    'shape' => $seat->shape,
+                    'x' => $seat->x,
+                    'y' => $seat->y,
+                    'w' => $seat->w,
+                    'h' => $seat->h,
+                    'places' => $seat->places,
+                    'status' => $row['status'],
+                    'type_id' => $row['type']?->id,
+                ];
+
+                if ($panel) {
+                    $ticket = $row['ticket'];
+                    $data += [
+                        'active' => $seat->active,
+                        'holder_name' => $ticket?->holder_name,
+                        'order_id' => $ticket?->ticket_order_id,
+                        'ticket_id' => $ticket?->id,
+                    ];
+                }
+
+                return $data;
+            }, $layout['seats']),
+        ];
     }
 
     public function day(TicketEventDay $day): array
@@ -113,7 +188,7 @@ class TicketPresenter
 
     public function order(TicketOrder $order, bool $withToken = false): array
     {
-        $order->loadMissing('event.days', 'tickets.type.day', 'tickets.lot', 'tickets.checkins', 'payment');
+        $order->loadMissing('event.days', 'tickets.type.day', 'tickets.lot', 'tickets.seat.map', 'tickets.checkins', 'payment');
 
         $data = [
             'id' => $order->id,
@@ -174,6 +249,15 @@ class TicketPresenter
             'validity' => $ticket->type?->validity(),
             'day' => $ticket->type?->day ? $this->day($ticket->type->day) : null,
             'lot' => ['id' => $ticket->ticket_lot_id, 'name' => $ticket->lot?->name],
+            // Lugar marcado: a mesa/bistrô/camarote; o ingresso não é entrada.
+            'kind' => $ticket->isSeat() ? TicketType::KIND_SEAT : TicketType::KIND_ENTRY,
+            'seat' => $ticket->seat ? [
+                'id' => $ticket->seat->id,
+                'label' => $ticket->seat->label,
+                'category' => $ticket->seat->category,
+                'places' => $ticket->seat->places,
+                'map' => $ticket->seat->map ? ['id' => $ticket->seat->map->id, 'name' => $ticket->seat->map->name] : null,
+            ] : null,
             'price_kind' => $ticket->price_kind,
             'list_price' => (float) $ticket->list_price,
             'discount_amount' => (float) $ticket->discount_amount,

@@ -27,7 +27,33 @@ palavra-chave, ambas no grupo `api_token`:
 `GET /api/information/search?q=horário da natação[&all_versions=1]`
 
 Pesos: nome 3, tag/categoria 2, descrição 1. Só a versão vigente de cada informação, salvo
-`all_versions=1`. Descrição em texto puro. Detalhes em [informacoes.md](informacoes.md).
+`all_versions=1`. Descrição em texto puro. Sem paginação: devolve tudo o que casou. Versão ou
+informação apagada (soft delete) nunca volta. Detalhes em [informacoes.md](informacoes.md).
+
+### Campos de cada item
+
+O item é a linha de `data_infos` serializada inteira (não há lista explícita como nos avisos):
+
+| Campo | Significado |
+|---|---|
+| `name`, `description` | Nome e descrição (texto puro; às vezes é um texto longo colado de planilha). |
+| `status` | **Texto livre** digitado por quem cadastra (ex.: "Inscrições abertas"). Não é um código: não existe regra de "inativo/suspenso" no Lara. Informação que deixou de valer é apagada, e aí não volta na busca. |
+| `slots` | Número de vagas (texto numérico ou nulo). |
+| `fee` | Taxa de matrícula (decimal ou nulo). |
+| `location` | Local. |
+| `name_price`, `price_associated`, `price_not_associated` | Listas **paralelas** separadas por `;` (sempre com `;` no fim): o pacote *i* tem título `name_price[i]`, valor sócio `price_associated[i]` e não sócio `price_not_associated[i]`. O primeiro é o exibido no card. |
+| `responsible`, `responsible_contact` | Listas paralelas por `;`: nome e telefone de cada responsável. |
+| `day_hour` | Lista por `;` de `dia,início,fim`. `";"` sozinho = sem horário cadastrado. Registros antigos podem ter menos de três partes. |
+| `category` | Legado (substituída pelas tags); só registros antigos têm. |
+| `tags` | `[{id, name, pivot}]` — use só `name`. |
+| `information` | O agrupador: `{id, privacy, created_by, ...}`. `privacy` não é usado (tudo é público). `information_id` agrupa as versões. |
+| `user` | `{id, name}` de quem gravou a versão. |
+| `relevance` | Nota da busca (soma dos pesos por termo e campo). Serve só para ordenar; não tem escala fixa. |
+| `created_at` | Data da versão, em **UTC** (`...Z`, serialização padrão do Laravel). |
+
+> Atenção às datas: na busca de **informações** o `created_at` vem em UTC (`Z`); na de
+> **avisos**, `created_at`/`updated_at` vêm no fuso do Lara (`-03:00`). Leia o offset em vez de
+> supor um dos dois.
 
 ## Busca de avisos
 

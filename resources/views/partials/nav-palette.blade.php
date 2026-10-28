@@ -4,7 +4,7 @@
     Não declara x-data próprio de propósito: consome o estado do shell
     (laraShell, em layouts/app.blade.php), que é quem tem o índice plano do
     menu e a lista de favoritos. Assim a estrela marcada aqui aparece na hora
-    na barra lateral e na superior, sem recarregar a página.
+    na faixa de favoritos, sem recarregar a página.
 --}}
 <div
     x-show="paletteOpen"

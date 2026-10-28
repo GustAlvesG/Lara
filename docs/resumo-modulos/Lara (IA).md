@@ -8,15 +8,21 @@ consulta. O usuário "O Lara" da Poli é do [Bot WhatsApp](Bot%20WhatsApp.md), o
 
 ## Em uma frase
 
-Chat interno (`/lara`, rotas `lara.*`, permissão `lara`) que repassa a pergunta do funcionário,
-por HTTP síncrono, a um agente de IA numa **VM separada** (Ollama + base do estatuto) e mostra a
-resposta. O Lara não hospeda modelo nenhum.
+Chat interno (rotas `lara.*`, permissão `lara`) que repassa a pergunta do funcionário, por HTTP
+síncrono, a um agente de IA numa **VM separada** e mostra a resposta. O Lara não hospeda modelo
+nenhum. Desde 28/10/2026 o chat é um **balão no canto inferior direito, em toda tela**, que abre
+um painel lateral (`partials/lara-widget.blade.php`, incluído no layout por `@can`). Não há tela
+própria.
 
 ## Caminho de uma pergunta
 
-1. `GET /lara` (`LaraChatController::index`): health check `GET {LARA_BASE_URL}/health` (cache
-   `LARA_HEALTH_TTL`) e a conversa vigente de `lara_messages`, pelo `conversation_uuid` da sessão.
-   Última mensagem mais velha que `LARA_HISTORY_TTL_HOURS` → conversa nova (espelha a memória da IA).
+0. `GET /lara` (`index`) só redireciona para a página anterior (ou o início) com o flash
+   `LaraChatController::OPEN_FLASH`, que abre o balão. Mantido pelo menu, pelo Ctrl+K e por links.
+1. Ao abrir o painel, `GET /lara/conversa` (`conversation`): health check
+   `GET {LARA_BASE_URL}/health` (cache `LARA_HEALTH_TTL`), a conversa vigente de `lara_messages`
+   pelo `conversation_uuid` da sessão e `pendente`. Última mensagem mais velha que
+   `LARA_HISTORY_TTL_HOURS` → conversa nova (espelha a memória da IA). **Nunca** leve isso para a
+   renderização do layout: ele roda em toda tela.
 2. `POST /lara/perguntar` (`throttle:15,1`, `AskLaraRequest`): trava por usuário
    (`Cache::lock("lara:ask:{id}")`, 429 se ocupada), grava a pergunta, `LaraClient` chama
    `POST {LARA_BASE_URL}/perguntar` com `{usuario_id: "portal_{id}", mensagem}`, grava a resposta
@@ -46,6 +52,11 @@ Contrato em [docs/funcionalidades/lara-ia-consultas.md](../funcionalidades/lara-
   ela), `desativado`. Não remova o `status` — é a única métrica de qualidade.
 - **Sem retry**, de propósito (a VM saturada é a causa mais provável da falha).
 - Resposta exibida com `x-text`, **nunca** `x-html` (vem de um modelo de linguagem).
+- **Troca de tela no meio da espera:** o `ask()` usa `ignore_user_abort(true)` e grava a resposta
+  mesmo com a conexão fechada; na tela seguinte `pendente` faz o balão consultar a cada 3 s. Tirar
+  o `ignore_user_abort` faz respostas sumirem quando a pessoa navega.
+- O widget chama as rotas por URL fixa (`url('/lara/...')`), não `route()`: o layout não pode
+  cair por cache de rotas.
 - Desligar sem deploy: `LARA_ENABLED=false` ou `LARA_BASE_URL` vazio — e `php artisan
   config:cache` depois de mexer no `.env` (o deploy deixa a config em cache).
 - O endereço da VM **não vai para o repositório**; a segurança é de rede (porta 3000 só para o
@@ -62,11 +73,12 @@ Contrato em [docs/funcionalidades/lara-ia-consultas.md](../funcionalidades/lara-
 | `app/Services/Lara/LaraClient.php`, `LaraAnswer.php` | HTTP com a VM e o DTO da resposta. |
 | `app/Models/LaraMessage.php` | Histórico (`role`, `conteudo`, `status`, `latencia_ms`, `erro`). |
 | `config/services.php` (`lara`) e `.env.example` (`LARA_*`) | Configuração. |
-| `resources/views/lara/index.blade.php` | Tela (Alpine). |
+| `resources/views/partials/lara-widget.blade.php` | Balão e painel lateral (Alpine), em toda tela. |
 | `app/Http/Controllers/InformationSearchController.php`, `AvisoSearchController.php` | APIs que a IA consulta. |
 
 ## Testes
 
 `tests/Unit/LaraClientTest.php` (Http fake), `tests/Feature/LaraMessageHistoryTest.php`,
+`tests/Feature/LaraWidgetTest.php` (balão, `/lara/conversa`, `pendente`),
 `tests/Feature/InformationSearchTest.php` e `tests/Feature/AvisoSearchTest.php`. Confira o
 isolamento SQLite do `phpunit.xml` antes de rodar.

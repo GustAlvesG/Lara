@@ -22,7 +22,7 @@ resultado final.
 
 | Item | Caminho |
 |---|---|
-| Tela | **Ordens de Compra** no menu lateral · `/questor/ordens-compra` |
+| Tela | **Ordens de Compra** no menu · `/questor/ordens-compra` |
 | Permissão | `authorize purchase orders` |
 | Controller | [PurchaseOrderController.php](../../app/Http/Controllers/Questor/PurchaseOrderController.php) |
 | Leitura | [QuestorPurchaseOrders.php](../../app/Services/Questor/QuestorPurchaseOrders.php) |

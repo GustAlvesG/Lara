@@ -30,6 +30,9 @@ use InvalidArgumentException;
  *
  * Recusas do serviço (TicketException, InvalidArgumentException) voltam
  * como erro de formulário; avisos, como "Confirmar mesmo assim".
+ *
+ * Lugar marcado: na emissão, o item do tipo com mapa leva o `seat_id`
+ * escolhido no mapa; a troca de lugar fica no TicketMapController.
  */
 class TicketOrderController extends Controller
 {
@@ -69,7 +72,7 @@ class TicketOrderController extends Controller
 
     public function show(TicketOrder $order): View
     {
-        $order->load(['event.days', 'tickets.type.day', 'tickets.lot', 'tickets.checker', 'tickets.checkins.checker', 'payment.recordedBy', 'payment.refundedBy', 'coupon', 'creator', 'canceller']);
+        $order->load(['event.days', 'tickets.type.day', 'tickets.type.map', 'tickets.seat', 'tickets.lot', 'tickets.checker', 'tickets.checkins.checker', 'payment.recordedBy', 'payment.refundedBy', 'coupon', 'creator', 'canceller']);
 
         return view('tickets.orders.show', ['order' => $order, 'manualMethods' => SchedulePayment::MANUAL_METHODS]);
     }
@@ -131,7 +134,7 @@ class TicketOrderController extends Controller
 
     public function create(TicketEvent $event): View
     {
-        $event->load(['types' => fn ($q) => $q->active()->with('lots'), 'coupons' => fn ($q) => $q->where('active', true)]);
+        $event->load(['types' => fn ($q) => $q->active()->with('lots', 'day', 'map'), 'coupons' => fn ($q) => $q->where('active', true)]);
 
         return view('tickets.issue', [
             'event' => $event,
@@ -163,6 +166,8 @@ class TicketOrderController extends Controller
             'holders.*.type_id' => 'required|integer',
             'holders.*.holder_name' => 'required_if:buyer_kind,guest|nullable|string|max:255',
             'holders.*.holder_cpf' => 'required_if:buyer_kind,guest|nullable|string|max:20',
+            // Tipo de lugar marcado: o lugar escolhido no mapa.
+            'holders.*.seat_id' => 'nullable|integer',
             'coupon_code' => 'nullable|string|max:40',
         ], [], [
             'member_cpf' => 'CPF do sócio',

@@ -11,7 +11,8 @@ use Illuminate\Http\Request;
 
 /**
  * Tipos de ingresso do evento (permissão `ingressos.gerenciar`). No evento de
- * vários dias, o tipo com dia é diária; sem dia, passaporte.
+ * vários dias, o tipo com dia é diária; sem dia, passaporte. Com mapa, o tipo
+ * é de lugar marcado (mesa, bistrô, camarote).
  */
 class TicketTypeController extends Controller
 {
@@ -48,7 +49,10 @@ class TicketTypeController extends Controller
             'sort_order' => 'nullable|integer|min:0|max:999',
             // Evento de vários dias: o dia da diária; vazio = passaporte.
             'ticket_event_day_id' => 'nullable|integer',
-        ], [], ['name' => 'nome', 'description' => 'descrição', 'sort_order' => 'ordem', 'ticket_event_day_id' => 'dia']);
+            // Lugar marcado: o mapa (vazio = ingresso de entrada) e, se só parte dos lugares, a categoria.
+            'ticket_map_id' => 'nullable|integer',
+            'seat_category' => 'nullable|string|max:60',
+        ], [], ['name' => 'nome', 'description' => 'descrição', 'sort_order' => 'ordem', 'ticket_event_day_id' => 'dia', 'ticket_map_id' => 'mapa', 'seat_category' => 'categoria']);
 
         $data['sort_order'] = (int) ($data['sort_order'] ?? 0);
 

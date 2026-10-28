@@ -29,6 +29,10 @@ use Illuminate\Support\Facades\DB;
  * A entrada abre `tickets.checkin_hours_before` antes do início e fecha no fim
  * — do evento, ou do dia (diária: o dia dela; passaporte: o dia que estiver
  * aberto). Fora dela, o Lara pede confirmação e o monitor nega.
+ *
+ * Ingresso de lugar marcado (mesa, bistrô, camarote) não é entrada: lido pelo
+ * código, aparece negado (`ticket_seat_only`) com o lugar, sem como forçar;
+ * na busca por CPF ele nem aparece.
  */
 class TicketCheckinService
 {
@@ -36,6 +40,7 @@ class TicketCheckinService
     public const REASON_USED = 'ticket_already_used';
     public const REASON_NOT_VALID = 'ticket_not_valid';
     public const REASON_OUTSIDE_WINDOW = 'ticket_outside_window';
+    public const REASON_SEAT = 'ticket_seat_only';
 
     /** O texto de cada motivo, para a portaria e o histórico. */
     public const REASON_LABELS = [
@@ -43,9 +48,10 @@ class TicketCheckinService
         self::REASON_USED => 'Ingresso já utilizado',
         self::REASON_NOT_VALID => 'Ingresso não está válido (pendente, cancelado ou expirado)',
         self::REASON_OUTSIDE_WINDOW => 'Ingresso fora do horário de entrada do evento',
+        self::REASON_SEAT => 'Ingresso de mesa/lugar: não é entrada',
     ];
 
-    private const RELATIONS = ['event.days', 'type.day', 'lot', 'checker', 'checkins'];
+    private const RELATIONS = ['event.days', 'type.day', 'lot', 'seat', 'checker', 'checkins'];
 
     /** O texto digitado (ou lido do QR) é um código de ingresso? */
     public static function looksLikeCode(?string $target): bool
@@ -75,6 +81,7 @@ class TicketCheckinService
         }
 
         $tickets = $query->where('holder_cpf', $cpf)
+            ->people()
             ->whereIn('status', Ticket::SOLD)
             ->when($event, fn ($q) => $q->where('ticket_event_id', $event->id))
             ->when(! $event, fn ($q) => $q->whereHas('event', fn ($e) => $e->checkinWindow()))
@@ -92,6 +99,15 @@ class TicketCheckinService
     public function evaluate(Ticket $ticket, ?Carbon $at = null): array
     {
         $ticket->loadMissing(self::RELATIONS);
+
+        if ($ticket->isSeat()) {
+            return [
+                'allowed' => false,
+                'reason' => self::REASON_SEAT,
+                'message' => 'Ingresso de lugar (' . $ticket->typeLabel() . ', responsável ' . $ticket->holder_name . '): não é entrada. Para entrar, cada pessoa usa o ingresso de entrada dela.',
+            ];
+        }
+
         [$day, $open] = $this->slot($ticket, $at);
         $passport = $ticket->type->validity() === TicketType::VALIDITY_PASSPORT;
         $entry = $passport && $day ? $ticket->checkins->firstWhere('day_key', $day->id) : null;
@@ -123,6 +139,10 @@ class TicketCheckinService
     public function checkIn(Ticket $ticket, ?User $user, string $source, bool $force = false): Ticket
     {
         $state = $this->evaluate($ticket);
+
+        if ($state['reason'] === self::REASON_SEAT) {
+            throw new TicketException(TicketException::SEAT_NOT_ENTRY, $state['message'], 409);
+        }
 
         if ($state['reason'] === self::REASON_OUTSIDE_WINDOW) {
             if ($source !== Ticket::CHECKIN_LARA) {
@@ -198,7 +218,7 @@ class TicketCheckinService
      */
     public function counts(TicketEvent $event, ?TicketEventDay $day = null): array
     {
-        $sold = Ticket::where('tickets.ticket_event_id', $event->id)->whereIn('tickets.status', Ticket::SOLD)
+        $sold = Ticket::where('tickets.ticket_event_id', $event->id)->people()->whereIn('tickets.status', Ticket::SOLD)
             ->when($day, fn ($q) => $q->whereHas('type', fn ($t) => $t->whereNull('ticket_event_day_id')->orWhere('ticket_event_day_id', $day->id)))
             ->count();
 

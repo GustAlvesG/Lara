@@ -133,6 +133,8 @@ class TicketSetupService
             throw ValidationException::withMessages(['ticket_event_day_id' => "O tipo {$type->name} já tem ingresso: o dia em que ele vale não muda. Crie outro tipo."]);
         }
 
+        $this->assertSeating($event, $data, $type);
+
         if ($type) {
             $type->update($data);
 
@@ -140,6 +142,48 @@ class TicketSetupService
         }
 
         return $event->types()->create($data);
+    }
+
+    /**
+     * Lugar marcado (`ticket_map_id`, `seat_category`): o mapa é do evento;
+     * no evento de vários dias o tipo é diária (lugar por dia, sem
+     * passaporte); mapa e categoria não mudam depois de vendido; e dois tipos
+     * não vendem o mesmo lugar no mesmo dia (mesmo mapa, categorias que se
+     * cruzam — vazia cruza com todas). Ajusta `$data` (vazios viram null).
+     */
+    private function assertSeating(TicketEvent $event, array &$data, ?TicketType $type): void
+    {
+        $map = $data['ticket_map_id'] ?? null;
+        $data['ticket_map_id'] = $map === null || $map === '' ? null : (int) $map;
+        $category = trim((string) ($data['seat_category'] ?? ''));
+        $data['seat_category'] = $data['ticket_map_id'] === null || $category === '' ? null : $category;
+
+        if ($type && ($type->ticket_map_id !== $data['ticket_map_id'] || $type->seat_category !== $data['seat_category']) && $type->tickets()->exists()) {
+            throw ValidationException::withMessages(['ticket_map_id' => "O tipo {$type->name} já tem ingresso: o mapa e a categoria dos lugares não mudam. Crie outro tipo."]);
+        }
+
+        if ($data['ticket_map_id'] === null) {
+            return;
+        }
+
+        if (! $event->maps()->whereKey($data['ticket_map_id'])->exists()) {
+            throw ValidationException::withMessages(['ticket_map_id' => 'Escolha um mapa deste evento.']);
+        }
+
+        if ($data['ticket_event_day_id'] === null && $event->days()->exists()) {
+            throw ValidationException::withMessages(['ticket_map_id' => 'Lugar marcado é por dia: escolha o dia do tipo (não há passaporte de mesa).']);
+        }
+
+        $clash = $event->types()
+            ->when($type, fn ($q) => $q->whereKeyNot($type->id))
+            ->where('ticket_map_id', $data['ticket_map_id'])
+            ->where(fn ($q) => $data['ticket_event_day_id'] === null ? $q->whereNull('ticket_event_day_id') : $q->where('ticket_event_day_id', $data['ticket_event_day_id']))
+            ->get()
+            ->first(fn (TicketType $other) => $other->seat_category === null || $data['seat_category'] === null || $other->seat_category === $data['seat_category']);
+
+        if ($clash) {
+            throw ValidationException::withMessages(['seat_category' => "O tipo {$clash->name} já vende " . ($clash->seat_category ? "os lugares {$clash->seat_category}" : 'os lugares') . ' deste mapa neste dia: use uma categoria diferente em cada tipo.']);
+        }
     }
 
     /** Apaga o tipo, se não tem ingresso; com ingresso, a saída é desativar. */

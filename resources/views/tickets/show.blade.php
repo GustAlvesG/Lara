@@ -42,6 +42,7 @@
                     <x-secondary-button-a href="{{ route('tickets.finance.show', $event) }}"><x-icon name="money" /> Financeiro</x-secondary-button-a>
                 @endcan
                 @if ($manage)
+                    <x-secondary-button-a href="{{ route('tickets.maps.index', $event) }}"><x-icon name="grid" /> Mapas</x-secondary-button-a>
                     <x-secondary-button-a href="{{ route('tickets.edit', $event) }}"><x-icon name="pencil" /> Editar</x-secondary-button-a>
                 @endif
             </x-slot:actions>
@@ -137,8 +138,16 @@
                 <article class="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card">
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                            <h3 class="text-base font-bold text-ink">{{ $type->name }} @if ($type->validityLabel())<x-pill kind="info">{{ $type->ticket_event_day_id ? 'Diária · ' : '' }}{{ $type->validityLabel() }}</x-pill>@endif @unless ($type->active)<x-pill kind="off">inativo</x-pill>@endunless</h3>
+                            <h3 class="text-base font-bold text-ink">{{ $type->name }} @if ($type->validityLabel())<x-pill kind="info">{{ $type->ticket_event_day_id ? 'Diária · ' : '' }}{{ $type->validityLabel() }}</x-pill>@endif @if ($type->isSeated())<x-pill kind="info">Lugar marcado · {{ $type->map?->name }}{{ $type->seat_category ? ' · ' . $type->seat_category : '' }}</x-pill>@endif @unless ($type->active)<x-pill kind="off">inativo</x-pill>@endunless</h3>
                             @if ($type->description)<p class="text-sm text-ink-2">{{ $type->description }}</p>@endif
+                            @if ($type->isSeated())
+                                <p class="mt-1 text-xs text-ink-3">
+                                    {{ $row['seats_free'] ?? 0 }} de {{ $type->sellableSeats($type->map?->seats ?? [])->count() }} lugar(es) livre(s){{ $type->day ? ' em ' . $type->day->label() : '' }}. O ingresso é do lugar, não é entrada: fica fora da lotação e do "um por CPF".
+                                    @can(P::INGRESSOS_VENDAS)
+                                        <a class="font-semibold text-grena" href="{{ route('tickets.maps.occupancy', [$event, $type->ticket_map_id, 'dia' => $type->ticket_event_day_id]) }}">Ver ocupação</a>
+                                    @endcan
+                                </p>
+                            @endif
                             <p class="mt-1 text-xs text-ink-3">
                                 @if ($row && $row['lot'])
                                     À venda agora: <strong>{{ $row['lot']->name }}</strong> · {{ $row['remaining'] === null ? 'sem limite' : $row['remaining'] . ' restante(s)' }} · sócio {{ $money($row['lot']->price_member) }} · não sócio {{ $row['lot']->price_non_member === null ? 'não vendido' : $money($row['lot']->price_non_member) }}
@@ -233,6 +242,7 @@
                             <div><x-input-label for="type-{{ $type->id }}-sort" value="Ordem na vitrine" /><x-text-input type="number" min="0" id="type-{{ $type->id }}-sort" name="sort_order" class="mt-1" :value="$type->sort_order" /></div>
                             <label class="flex items-center gap-2 text-sm text-ink-2"><input type="checkbox" name="active" value="1" @checked($type->active)> Ativo (à venda)</label>
                             @include('tickets.partials.type-day-select', ['id' => 'type-' . $type->id . '-day', 'selected' => $type->ticket_event_day_id])
+                            @include('tickets.partials.type-map-select', ['id' => 'type-' . $type->id, 'type' => $type])
                             <div class="sm:col-span-4"><x-input-label for="type-{{ $type->id }}-description" value="Descrição" /><x-text-input id="type-{{ $type->id }}-description" name="description" class="mt-1" :value="$type->description" maxlength="1000" /></div>
                             <div class="sm:col-span-4 sm:text-right"><x-primary-button>Salvar tipo</x-primary-button></div>
                         </form>
@@ -251,6 +261,13 @@
                     <div class="sm:col-span-2"><x-input-label for="new-type-name" value="Nome" /><x-text-input id="new-type-name" name="name" class="mt-1" required maxlength="255" placeholder="Ex.: Pista" /></div>
                     <div><x-input-label for="new-type-sort" value="Ordem na vitrine" /><x-text-input type="number" min="0" id="new-type-sort" name="sort_order" class="mt-1" :value="$event->types->count() + 1" /></div>
                     @include('tickets.partials.type-day-select', ['id' => 'new-type-day', 'selected' => null])
+                    @include('tickets.partials.type-map-select', ['id' => 'new-type', 'type' => null])
+                    @if ($event->maps->isNotEmpty())
+                        <p class="text-xs text-ink-3 sm:col-span-4">Lugar marcado: o tipo vende os lugares do mapa (todos, ou só os da categoria) e quem compra escolhe no mapa. No evento de vários dias, escolha o dia: o lugar é por dia. Os preços continuam nos lotes do tipo.</p>
+                    @endif
+                    <datalist id="map-categories">
+                        @foreach ($event->maps->flatMap(fn ($m) => $m->categories())->unique() as $category)<option value="{{ $category }}">@endforeach
+                    </datalist>
                     <div class="sm:col-span-4"><x-input-label for="new-type-description" value="Descrição (opcional)" /><x-text-input id="new-type-description" name="description" class="mt-1" maxlength="1000" /></div>
                     <div class="sm:col-span-4 sm:text-right"><x-primary-button>Criar tipo</x-primary-button></div>
                 </form>

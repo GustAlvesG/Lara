@@ -9,9 +9,9 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 
 /**
- * O menu do painel, montado uma vez por requisição e consumido pelas três
- * navegações (Módulos, lateral e superior), pela busca (Ctrl+K), pelos
- * favoritos/recentes e pela capa da área.
+ * O menu do painel, montado uma vez por requisição e consumido pela
+ * navegação por Módulos, pela busca (Ctrl+K), pelos favoritos/recentes e pela
+ * capa da área.
  *
  * Cada destino declara a permissão do catálogo que a ROTA dele exige
  * (App\Authorization\Permissions) — a mesma, sempre, senão o item vira um link

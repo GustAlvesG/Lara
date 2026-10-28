@@ -10,11 +10,13 @@
 > não tinha cupom — mudanças marcadas **[v2]**; a 2 deixava o sócio comprar só para ele —
 > mudanças marcadas **[v3]**; a 3 não tinha evento de vários dias — mudanças marcadas
 > **[v4]**; a 4 não tinha lote sem limite — mudança marcada **[v5]**; a 5 não tinha "meus
-> ingressos" do não sócio — mudança marcada **[v6]**. Se o agente do site já começou por uma
+> ingressos" do não sócio — mudança marcada **[v6]**; a 6 não tinha lugar marcado (mesas,
+> bistrôs, camarotes) — ver a atualização v7. Se o agente do site já começou por uma
 > delas, siga as marcas.) **O site já implementou a v3**: para ele, entregue só os prompts de
 > atualização no fim deste arquivo — o [v4](#prompt-de-atualização--v4-evento-de-vários-dias)
 > e o [v5](#prompt-de-atualização--v5-lote-sem-limite) (se ainda não foram) e o
-> [v6](#prompt-de-atualização--v6-meus-ingressos-do-não-sócio). O contrato é o que o Lara expõe hoje
+> [v6](#prompt-de-atualização--v6-meus-ingressos-do-não-sócio) e o
+> [v7](#prompt-de-atualização--v7-lugar-marcado-mesas-bistrôs-camarotes) (28/10/2026). O contrato é o que o Lara expõe hoje
 > (`routes/api.php`, prefixo `tickets`); se a API mudar, este arquivo muda junto. As regras
 > por trás dele estão em [ingressos.md](ingressos.md). O check-in **não** é do site (é feito
 > no Lara e no Monitor de Acesso da portaria).
@@ -693,3 +695,180 @@ Recusas (`{ message, reason, context? }`, decida pelo `reason`):
   compra".
 
 ### Fim da atualização v6
+
+---
+
+## Prompt de atualização — v7 (lugar marcado: mesas, bistrôs, camarotes)
+
+> Para o agente do site, depois das atualizações anteriores. Copie de "Início da atualização
+> v7" até "Fim da atualização v7". Regras no Lara: [ingressos.md](ingressos.md), seção
+> "Lugar marcado".
+
+### Início da atualização v7
+
+Alguns tipos de ingresso agora são de **lugar marcado**: mesa, bistrô, camarote. Quem compra
+escolhe **no mapa** o lugar exato, num passo novo da compra. O Lara garante que o mesmo lugar
+não é vendido duas vezes no mesmo dia; o site mostra o mapa, deixa escolher e trata a recusa
+quando duas pessoas escolhem o mesmo lugar ao mesmo tempo.
+
+Regras que o site precisa saber:
+
+- **O ingresso do lugar não é entrada.** A mesa é só a mesa: cada pessoa compra a própria
+  entrada num tipo comum (Pista etc.). Deixe isso claro na vitrine e no carrinho ("Mesa para
+  4 pessoas — as entradas são compradas à parte").
+- O ingresso do lugar é **nominal no responsável** (o titular do ingresso). Para o sócio, o
+  responsável é alguém do título, pela mesma `holder_ref` de sempre (vazio = ele mesmo); para
+  o não sócio, `holder_name` e `holder_cpf` como nos outros ingressos. O responsável **pode**
+  ter também a entrada dele no mesmo pedido (o "um ingresso por CPF por dia" não vale para o
+  lugar).
+- **Lugar por dia**: no evento de vários dias, o tipo de lugar é sempre a diária de um dia
+  (`day_id` preenchido); a mesma mesa é vendida separadamente em cada dia. Não existe
+  passaporte de mesa.
+- Vários tipos podem usar **o mesmo mapa** com preços diferentes (ex.: "Mesa Vip" vende as
+  mesas da frente, "Mesa" as do fundo): cada lugar do mapa diz qual tipo o vende no dia
+  (`type_id`).
+- O limite `max_per_order` do evento vale **separado** para entradas e para lugares (até N
+  entradas e até N lugares por pedido) — e, nos lugares, vale também para o sócio.
+- O preço continua sendo o do lote vigente do tipo, calculado pelo Lara.
+
+#### 1. O que muda na vitrine (`GET /api/tickets/events` e `/events/{id}`)
+
+No evento:
+
+```json
+{ "has_map": true, "maps": [ { "id": 3, "name": "Mesas" }, { "id": 4, "name": "Bistrôs" } ] }
+```
+
+`maps` são os mapas que algum tipo ativo usa. Em cada tipo (`types[]`):
+
+| Campo | O que é |
+|---|---|
+| `kind` | `entry` (entrada, como sempre) ou `seat` (lugar marcado) |
+| `map_id` | o mapa onde o lugar é escolhido (`null` em `entry`) |
+| `seat_category` | a categoria dos lugares que o tipo vende (`null` = todos os do mapa); só informativo |
+| `seats_free` | lugares livres agora no dia do tipo (`null` em `entry`). Com 0, o tipo vem `available: false` |
+
+#### 2. O mapa — `GET /api/tickets/events/{id}/maps/{mapId}?day_id={dia}`
+
+`day_id` é **obrigatório no evento de vários dias** (use o `day_id` do tipo); sem ele, **422**
+`day_required`. Mapa inexistente ou que nenhum tipo ativo usa: **404** `map_not_found`.
+Limite: 120 por minuto.
+
+```json
+{
+  "id": 3, "event_id": 12, "name": "Mesas",
+  "width": 1000, "height": 640,
+  "background_url": "https://…/planta.png",
+  "day": null,
+  "refresh_after": 15,
+  "areas": [
+    { "label": "Palco", "shape": "rect", "x": 350, "y": 20, "w": 300, "h": 80, "color": "stage" },
+    { "label": "Piscina", "shape": "ellipse", "x": 760, "y": 470, "w": 210, "h": 140, "color": "water" }
+  ],
+  "types": [
+    { "id": 21, "name": "Mesa Vip", "seat_category": "Vip", "day_id": null, "available": true,
+      "lot": { "id": 40, "name": "Lote único", "price_member": 400, "price_non_member": 600, "members_only": false, "starts_at": null, "ends_at": null, "remaining": 10 } }
+  ],
+  "seats": [
+    { "id": 301, "label": "V1", "category": "Vip", "shape": "circle", "x": 200, "y": 280, "w": 50, "h": 50, "places": 4, "status": "sold", "type_id": 21 },
+    { "id": 302, "label": "V2", "category": "Vip", "shape": "circle", "x": 300, "y": 280, "w": 50, "h": 50, "places": 4, "status": "free", "type_id": 21 }
+  ]
+}
+```
+
+Como desenhar (as coordenadas são nas unidades do mapa: use `<svg viewBox="0 0 {width} {height}">`):
+
+- **Fundo**: `background_url` (pode ser `null`) como `<image>` de `0,0` a `width×height`, com
+  `preserveAspectRatio="xMidYMid meet"`.
+- **Áreas** (`areas`): só orientação, **não clicáveis**. `x`/`y` = canto superior esquerdo;
+  `shape` `rect` ou `ellipse`; escreva o `label` no centro. `color` é um nome; sugestão:
+  `stage` grená, `water` azul, `green` verde, `service` cinza, `warn` amarelo, com
+  preenchimento claro e borda.
+- **Lugares** (`seats`): `x`/`y` = **centro**; `w`/`h` = tamanho; `shape` `circle` (elipse),
+  `square` ou `rect`. Escreva o `label` dentro. `places` = quantas pessoas cabem (mostre no
+  detalhe: "Mesa V2 · 4 lugares").
+- `status`: `free` (pode escolher), `held` (reservado — alguém está pagando), `sold`
+  (vendido), `unavailable` (desativado, nenhum tipo vende no dia ou o tipo não tem lote à
+  venda). Só `free` é clicável. Não há dado de quem comprou (nem deve haver).
+- `type_id`: o tipo que vende o lugar no dia; o preço é o do `lot` desse tipo em `types`
+  (sócio `price_member`, não sócio `price_non_member`; `members_only` = não sócio não
+  compra). Mostre o preço ao tocar no lugar.
+- **Atualize** o mapa a cada `refresh_after` segundos enquanto a tela estiver aberta e
+  visível (pare em segundo plano). Se o lugar que a pessoa escolheu deixou de ser `free`,
+  desmarque e avise: "Esse lugar acabou de ser reservado. Escolha outro."
+- No celular: zoom e arrasto (pinça) no SVG; o mapa pode ser grande.
+- Legenda com as quatro situações e o lugar escolhido.
+
+#### 3. O pedido
+
+O item do tipo `seat` leva o **`seat_id`** escolhido; nos outros tipos ele é ignorado.
+
+Sócio — `POST /api/tickets/events/{id}/orders`:
+
+```json
+{ "tickets": [
+  { "type_id": 10, "holder_ref": "…" },
+  { "type_id": 21, "seat_id": 302 }
+] }
+```
+
+Não sócio — `POST /api/tickets/events/{id}/guest-orders`:
+
+```json
+{ "buyer": { "cpf": "…", "name": "…", "email": "…" },
+  "tickets": [
+    { "type_id": 10, "holder_name": "Carla Visitante", "holder_cpf": "529.982.247-25" },
+    { "type_id": 21, "seat_id": 302, "holder_name": "Carla Visitante", "holder_cpf": "529.982.247-25" }
+  ] }
+```
+
+O lugar fica preso ao pedido pelo mesmo prazo de pagamento (`hold_until`, 10 min); pago, é
+de vez. Desistiu ou venceu o prazo, o lugar volta para o mapa.
+
+No pedido devolvido (e em `my-orders`, `guest-orders/{id}`, `guest-access/orders`), cada
+ingresso ganha:
+
+```json
+{ "kind": "seat", "seat": { "id": 302, "label": "V2", "category": "Vip", "places": 4, "map": { "id": 3, "name": "Mesas" } } }
+```
+
+(`kind: "entry"` e `seat: null` nas entradas.) O ingresso do lugar também tem código e QR
+quando pago — serve para a recepção conferir o responsável, **não** para entrar. Na página do
+pedido e em "meus ingressos", mostre o lugar em destaque e o aviso "Não é entrada".
+
+#### 4. Recusas novas (`{ message, reason, context? }`)
+
+| `reason` | HTTP | Quando | No site |
+|---|---|---|---|
+| `seat_required` | 422 | Item de tipo `seat` sem `seat_id` (`context.index`, `context.type_id`) | Leve de volta ao mapa |
+| `seat_not_found` | 422 | Lugar que não existe, de outro evento ou desativado (`context.index`, `context.seat_id`) | Recarregue o mapa e peça outro lugar |
+| `seat_wrong_type` | 422 | O lugar não é vendido por esse tipo (outra categoria ou mapa) | Recarregue o mapa |
+| `seat_taken` | 409 | Alguém reservou o lugar antes (`context.seat_ids`); também lugar repetido no pedido | Recarregue o mapa, marque esses lugares como "acabou de ser reservado", **mantenha** o resto do carrinho e peça outro lugar |
+| `limit_per_order` | 422 | Mais lugares que `max_per_order` (`context.max`) | "Até N lugares por pedido" |
+| `day_required` | 422 | Mapa pedido sem `day_id` num evento de vários dias | (erro de integração) |
+| `map_not_found` | 404 | Mapa inexistente ou que nenhum tipo à venda usa | Volte para o evento |
+
+`hold_expired` (pagamento depois do prazo) pode trazer `context.seat_ids`: o lugar foi
+reservado por outra pessoa enquanto o pedido estava vencido. O tratamento é o de sempre: o
+site estorna na eRede e avisa.
+
+#### 5. Telas
+
+1. **Evento**: os tipos `seat` aparecem num bloco próprio ("Mesas e bistrôs"), com o preço do
+   lote, "N lugares livres" (`seats_free`) e o aviso de que não é entrada.
+2. **Escolher o lugar**: ao adicionar um tipo `seat`, abra o mapa dele (`map_id`, `day_id`
+   do tipo). Escolher um lugar livre adiciona ao carrinho "Mesa V2 · 4 lugares · R$ 600".
+   Pode escolher mais de um (até `max_per_order`). Tire do carrinho pelo próprio mapa
+   (tocar de novo) ou pela lista.
+3. **Responsável**: no checkout, o ingresso do lugar pede o responsável (sócio: alguém do
+   título, padrão ele mesmo; não sócio: nome e CPF, padrão o comprador).
+4. **Pedido / meus ingressos**: o lugar em destaque e "Não é entrada". O PDF do Lara já sai
+   com o lugar.
+
+#### 6. O que não muda
+
+- Os tipos de entrada, os lotes, os cupons (o cupom pode valer para o tipo de lugar, se a
+  organização quiser), o pagamento e o "meus ingressos" do não sócio seguem iguais.
+- O site não cria nem edita mapas: o desenho é feito no Lara.
+
+### Fim da atualização v7

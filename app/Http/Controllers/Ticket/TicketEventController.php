@@ -60,7 +60,7 @@ class TicketEventController extends Controller
 
     public function show(TicketEvent $event): View
     {
-        $event->load('types.lots');
+        $event->load('types.lots', 'types.day', 'types.map.seats', 'maps.seats');
         $lotIds = $event->types->flatMap->lots->pluck('id');
 
         return view('tickets.show', [

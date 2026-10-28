@@ -23,6 +23,9 @@ use Illuminate\Support\Carbon;
  * Evento de vários dias: cadastre os dias (TicketEventDay). Cada tipo é uma
  * diária (preso a um dia) ou, sem dia, o passaporte de todos os dias — o
  * passaporte só existe se a equipe cadastrar um tipo sem dia.
+ *
+ * Lugar marcado: os mapas (TicketMap) têm os lugares; o tipo que aponta para
+ * um mapa vende os lugares dele (TicketSeatService).
  */
 class TicketEvent extends Model
 {
@@ -94,6 +97,12 @@ class TicketEvent extends Model
     public function dayAt(?Carbon $at = null): ?TicketEventDay
     {
         return $this->days->first(fn (TicketEventDay $day) => $day->checkinOpen($at));
+    }
+
+    /** Mapas de lugar marcado (mesas, bistrôs, camarotes). */
+    public function maps(): HasMany
+    {
+        return $this->hasMany(TicketMap::class)->orderBy('sort_order')->orderBy('id');
     }
 
     public function coupons(): HasMany

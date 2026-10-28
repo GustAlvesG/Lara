@@ -8,6 +8,7 @@ use App\Models\Member;
 use App\Models\Ticket\Ticket;
 use App\Models\Ticket\TicketEvent;
 use App\Models\Ticket\TicketLot;
+use App\Models\Ticket\TicketMap;
 use App\Models\Ticket\TicketOrder;
 use App\Services\MultiClubes\MemberProfile;
 use App\Services\Ticket\TicketBuyer;
@@ -61,6 +62,37 @@ class TicketApiController extends Controller
     }
 
     /**
+     * O mapa de lugares (mesas, bistrôs, camarotes) com a situação de cada
+     * lugar no dia (`?day_id=`, obrigatório no evento de vários dias). O site
+     * recarrega a cada `refresh_after` segundos enquanto a pessoa escolhe; a
+     * garantia contra a venda dupla é a do pedido (`seat_taken`).
+     */
+    public function map(Request $request, int $id, int $mapId): JsonResponse
+    {
+        $event = $this->visible()->with('days')->find($id);
+        if (! $event) {
+            return $this->eventNotFound();
+        }
+
+        $map = $event->types->where('active', true)->contains('ticket_map_id', $mapId)
+            ? TicketMap::where('ticket_event_id', $event->id)->find($mapId)
+            : null;
+        if (! $map) {
+            return response()->json(['message' => 'Mapa não encontrado.', 'reason' => TicketException::MAP_NOT_FOUND], 404);
+        }
+
+        $day = null;
+        if ($event->hasDays()) {
+            $day = $event->days->firstWhere('id', $request->integer('day_id'));
+            if (! $day) {
+                return response()->json(['message' => 'Escolha o dia: os lugares são vendidos por dia.', 'reason' => TicketException::DAY_REQUIRED], 422);
+            }
+        }
+
+        return response()->json($this->presenter->seatMap($map, $day));
+    }
+
+    /**
      * Confere um cupom antes do checkout: `{code, buyer_kind: member|guest}`.
      * Só informa; o desconto vale de fato no pedido, que confere de novo.
      */
@@ -111,7 +143,7 @@ class TicketApiController extends Controller
         $event = $request->filled('event_id') ? TicketEvent::with('days')->find($request->integer('event_id')) : null;
         // cpf => dias do tipo de cada ingresso ativo (null = todos os dias).
         $taken = $event
-            ? Ticket::occupying()->with('type')->where('ticket_event_id', $event->id)
+            ? Ticket::occupying()->people()->with('type')->where('ticket_event_id', $event->id)
                 ->whereIn('holder_cpf', array_map(fn ($key) => str_pad((string) $key, 11, '0', STR_PAD_LEFT), array_keys($family)))
                 ->get()->groupBy('holder_cpf')->map(fn ($tickets) => $tickets->map(fn (Ticket $t) => $t->type->ticket_event_day_id)->all())->all()
             : [];
@@ -144,7 +176,8 @@ class TicketApiController extends Controller
      * O sócio compra para as pessoas do título dele:
      * `{tickets: [{type_id, holder_ref?}], coupon_code?}` — sem `holder_ref`,
      * o ingresso é dele mesmo. `{type_id}` sozinho (um ingresso, para ele)
-     * continua aceito.
+     * continua aceito. Tipo de lugar marcado: `seat_id` do mapa (a pessoa
+     * da `ref` é a responsável pela mesa).
      */
     public function storeMember(Request $request, int $id): JsonResponse
     {
@@ -163,6 +196,7 @@ class TicketApiController extends Controller
             'tickets' => 'required_without:type_id|nullable|array|min:1|max:50',
             'tickets.*.type_id' => 'required|integer',
             'tickets.*.holder_ref' => 'nullable|string|max:1000',
+            'tickets.*.seat_id' => 'nullable|integer',
             'coupon_code' => 'nullable|string|max:40',
         ])->validate();
 
@@ -170,7 +204,11 @@ class TicketApiController extends Controller
             $buyer = $this->orders->buyerFor($member);
             $items = [];
             foreach (array_values($data['tickets'] ?? [['type_id' => $data['type_id']]]) as $index => $item) {
-                $items[] = ['type_id' => (int) $item['type_id'], 'holder_cpf' => $this->cpfFromRef($item['holder_ref'] ?? null, $buyer->title, $index)];
+                $items[] = [
+                    'type_id' => (int) $item['type_id'],
+                    'holder_cpf' => $this->cpfFromRef($item['holder_ref'] ?? null, $buyer->title, $index),
+                    'seat_id' => isset($item['seat_id']) ? (int) $item['seat_id'] : null,
+                ];
             }
             $order = $this->orders->create($event, $buyer, $items, couponCode: $data['coupon_code'] ?? null);
         } catch (TicketException $e) {
@@ -266,6 +304,8 @@ class TicketApiController extends Controller
             'tickets.*.type_id' => 'required|integer',
             'tickets.*.holder_name' => 'required|string|max:255',
             'tickets.*.holder_cpf' => 'required|string|max:20',
+            // Tipo de lugar marcado: o lugar do mapa; o titular é o responsável.
+            'tickets.*.seat_id' => 'nullable|integer',
             'coupon_code' => 'nullable|string|max:40',
         ])->validate();
 

@@ -82,7 +82,10 @@ class TicketFinanceTest extends TestCase
         $this->artisan('ingressos:dados-teste')->assertSuccessful();
 
         $events = TicketEvent::where('title', 'like', '[TESTE]%')->get();
-        $this->assertCount(6, $events);
+        $this->assertCount(7, $events);
+        // Réveillon com lugar marcado: três mapas, mesas presas aos ingressos.
+        $this->assertSame(3, \App\Models\Ticket\TicketMap::count());
+        $this->assertSame(4, \App\Models\Ticket\TicketSeatClaim::count());
 
         // Um ingresso ativo por CPF em cada evento.
         $duplicated = Ticket::whereIn('status', Ticket::SOLD)
@@ -96,11 +99,12 @@ class TicketFinanceTest extends TestCase
 
         // Rodar de novo recria; --so-limpar apaga tudo.
         $this->artisan('ingressos:dados-teste')->assertSuccessful();
-        $this->assertCount(6, TicketEvent::where('title', 'like', '[TESTE]%')->get());
+        $this->assertCount(7, TicketEvent::where('title', 'like', '[TESTE]%')->get());
 
         $this->artisan('ingressos:dados-teste', ['--so-limpar' => true])->assertSuccessful();
         $this->assertSame(0, TicketEvent::withTrashed()->count());
         $this->assertSame(0, Ticket::count());
         $this->assertSame(0, \App\Models\Ticket\TicketEventDay::count());
+        $this->assertSame(0, \App\Models\Ticket\TicketSeat::count());
     }
 }

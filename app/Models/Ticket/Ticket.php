@@ -25,6 +25,10 @@ use Illuminate\Support\Str;
  *
  * `used` = já entrou ao menos uma vez; `checked_in_at` é a última entrada. As
  * entradas ficam em `checkins` (o passaporte tem uma por dia).
+ *
+ * Ingresso de lugar marcado (`ticket_seat_id`, tipo com mapa): a mesa, o
+ * bistrô ou o camarote, no nome do responsável. Não é entrada — fica fora do
+ * "um por CPF", da lotação e da portaria (`scopePeople` separa as entradas).
  */
 class Ticket extends Model
 {
@@ -60,6 +64,7 @@ class Ticket extends Model
         'ticket_event_id',
         'ticket_type_id',
         'ticket_lot_id',
+        'ticket_seat_id',
         'price_kind',
         'list_price',
         'discount_amount',
@@ -79,6 +84,7 @@ class Ticket extends Model
         'ticket_event_id' => 'integer',
         'ticket_type_id' => 'integer',
         'ticket_lot_id' => 'integer',
+        'ticket_seat_id' => 'integer',
         'list_price' => 'decimal:2',
         'discount_amount' => 'decimal:2',
         'amount' => 'decimal:2',
@@ -113,6 +119,25 @@ class Ticket extends Model
         return $this->belongsTo(TicketLot::class, 'ticket_lot_id');
     }
 
+    public function seat(): BelongsTo
+    {
+        return $this->belongsTo(TicketSeat::class, 'ticket_seat_id');
+    }
+
+    /** Ingresso de lugar marcado (mesa, bistrô, camarote), não de entrada? */
+    public function isSeat(): bool
+    {
+        return $this->ticket_seat_id !== null;
+    }
+
+    /** O tipo com a validade e, se for de lugar, o lugar: "Mesa · Sáb 13/02 · M12". */
+    public function typeLabel(): string
+    {
+        $name = (string) $this->type?->fullName();
+
+        return $this->seat ? trim($name . ' · ' . $this->seat->label, ' ·') : $name;
+    }
+
     public function checker(): BelongsTo
     {
         return $this->belongsTo(User::class, 'checked_in_by');
@@ -135,6 +160,12 @@ class Ticket extends Model
                 ->orWhere(fn (Builder $p) => $p->where('tickets.status', self::STATUS_PENDING)
                     ->whereHas('order', fn (Builder $o) => $o->where('status', TicketOrder::STATUS_PENDING_PAYMENT)->where('hold_until', '>', now())));
         });
+    }
+
+    /** Só os ingressos de entrada (uma pessoa), sem os de lugar marcado. */
+    public function scopePeople(Builder $query): Builder
+    {
+        return $query->whereNull('tickets.ticket_seat_id');
     }
 
     public static function newCode(): string

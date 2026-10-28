@@ -18,6 +18,7 @@ use App\Http\Controllers\Ticket\TicketDayController;
 use App\Http\Controllers\Ticket\TicketEventController;
 use App\Http\Controllers\Ticket\TicketFinanceController;
 use App\Http\Controllers\Ticket\TicketLotController;
+use App\Http\Controllers\Ticket\TicketMapController;
 use App\Http\Controllers\Ticket\TicketOrderController;
 use App\Http\Controllers\Ticket\TicketTypeController;
 use App\Http\Controllers\Tournament\CategoryTemplateController;
@@ -853,6 +854,12 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::put('/pedidos/ingresso/{ticket}/titular', [TicketOrderController::class, 'changeHolder'])->whereNumber('ticket')->name('orders.holder');
             Route::post('/pedidos/{order}/baixa', [TicketOrderController::class, 'manual'])->whereNumber('order')
                 ->middleware('can:' . P::INGRESSOS_PAGAMENTOS_BAIXA_MANUAL)->name('orders.manual');
+            // Lugar marcado: ocupação do mapa, o mapa em JSON (seletor da emissão) e troca de lugar.
+            Route::put('/pedidos/ingresso/{ticket}/lugar', [TicketMapController::class, 'changeSeat'])->whereNumber('ticket')->name('orders.seat');
+            Route::scopeBindings()->prefix('/{event}/mapas/{map}')->whereNumber(['event', 'map'])->as('maps.')->group(function () {
+                Route::get('/ocupacao', [TicketMapController::class, 'occupancy'])->name('occupancy');
+                Route::get('/situacao', [TicketMapController::class, 'state'])->middleware('throttle:120,1')->name('state');
+            });
         });
 
         Route::middleware('can:' . P::INGRESSOS_GERENCIAR)->group(function () {
@@ -868,6 +875,16 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
                 Route::post('/', [TicketDayController::class, 'store'])->name('store');
                 Route::put('/{day}', [TicketDayController::class, 'update'])->whereNumber('day')->name('update');
                 Route::delete('/{day}', [TicketDayController::class, 'destroy'])->whereNumber('day')->name('destroy');
+            });
+
+            // Mapas de lugar marcado (mesas, bistrôs, camarotes): lugares e áreas de orientação.
+            Route::scopeBindings()->prefix('/{event}/mapas')->whereNumber('event')->as('maps.')->group(function () {
+                Route::get('/', [TicketMapController::class, 'index'])->name('index');
+                Route::post('/', [TicketMapController::class, 'store'])->name('store');
+                Route::get('/{map}', [TicketMapController::class, 'edit'])->whereNumber('map')->name('edit');
+                Route::put('/{map}', [TicketMapController::class, 'update'])->whereNumber('map')->name('update');
+                Route::put('/{map}/desenho', [TicketMapController::class, 'layout'])->whereNumber('map')->name('layout');
+                Route::delete('/{map}', [TicketMapController::class, 'destroy'])->whereNumber('map')->name('destroy');
             });
 
             Route::scopeBindings()->prefix('/{event}/tipos')->whereNumber('event')->as('types.')->group(function () {
@@ -1068,7 +1085,9 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
     // O throttle é baixo de propósito: cada pergunta pode segurar um worker do
     // PHP-FPM por até 30s enquanto o modelo (que roda em CPU) responde.
     Route::prefix('lara')->middleware('can:' . P::LARA)->group(function () {
+        // Sem tela própria: o chat é o balão do layout. /lara abre o balão.
         Route::get('/', [LaraChatController::class, 'index'])->name('lara.index');
+        Route::get('/conversa', [LaraChatController::class, 'conversation'])->name('lara.conversation');
         Route::post('/perguntar', [LaraChatController::class, 'ask'])
             ->middleware('throttle:15,1')->name('lara.ask');
         Route::post('/reiniciar', [LaraChatController::class, 'reset'])

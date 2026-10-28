@@ -89,6 +89,27 @@ class TicketException extends RuntimeException
     /** O ingresso é de outro evento que não o escolhido na tela de check-in. */
     public const OTHER_EVENT = 'other_event';
 
+    /** Mapa inexistente, de outro evento ou que nenhum tipo à venda usa. */
+    public const MAP_NOT_FOUND = 'map_not_found';
+
+    /** Mapa de evento de vários dias pedido sem o dia (`day_id`): o lugar é por dia. */
+    public const DAY_REQUIRED = 'day_required';
+
+    /** Tipo de lugar marcado sem o lugar escolhido no mapa (`context.index`). */
+    public const SEAT_REQUIRED = 'seat_required';
+
+    /** Lugar inexistente, de outro evento ou desativado (`context.index`, `context.seat_id`). */
+    public const SEAT_NOT_FOUND = 'seat_not_found';
+
+    /** O lugar não é vendido por este tipo (outro mapa ou outra categoria). */
+    public const SEAT_WRONG_TYPE = 'seat_wrong_type';
+
+    /** O lugar já foi vendido ou está reservado por outro pedido (`context.seat_ids`). */
+    public const SEAT_TAKEN = 'seat_taken';
+
+    /** Ingresso de lugar marcado (mesa, bistrô, camarote) lido na entrada: não é entrada. */
+    public const SEAT_NOT_ENTRY = 'seat_not_entry';
+
     /** "Meus ingressos" do não sócio: código errado, ainda com tentativas (`context.attempts_left`). */
     public const ACCESS_CODE_INVALID = 'access_code_invalid';
 

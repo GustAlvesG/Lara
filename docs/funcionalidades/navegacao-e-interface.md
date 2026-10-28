@@ -1,7 +1,7 @@
 # Navegação e interface
 
-Como a pessoa chega às telas do painel: os três modos de navegação, o painel de Módulos, os
-favoritos, a busca de páginas e o tema. Vale para todas as telas que usam o layout do sistema
+Como a pessoa chega às telas do painel: a navegação por Módulos, o painel de Módulos, os
+favoritos, a busca de páginas, o tema e o balão da Lara. Vale para todas as telas que usam o layout do sistema
 (`resources/views/layouts/app.blade.php`).
 
 ## De onde vem o menu
@@ -12,7 +12,7 @@ pelo que a pessoa pode abrir:
 
 | Chave | Para que serve |
 |---|---|
-| `links` | Os grupos e itens do menu (lateral, superior e painel de Módulos) |
+| `links` | Os grupos e itens do menu, já filtrados (base de `groups` e `index`) |
 | `groups` | Os módulos do painel, com cor, símbolo e quantidade de páginas |
 | `index` | Lista plana de páginas, usada pela busca, pelos favoritos e pelos recentes |
 | `current` | A página atual: módulo, rótulo e as abas das páginas irmãs |
@@ -50,18 +50,22 @@ Assinaturas) e das modalidades `place-group` (aba Novo Agendamento, em Reservas)
 Nas telas de criar e editar, a estrela favorita a aba do recurso (a lista), porque favorito é
 sempre um destino do menu.
 
-## Modos de navegação
+## Navegação por Módulos
 
-A pessoa escolhe no menu da conta, em **Navegação**:
+É a única navegação do sistema (`partials/navigation-areas.blade.php`): barra no alto com o botão
+Módulos, "você está em", busca, sino e conta; abaixo, favoritos e recentes; no celular, uma barra
+de abas embaixo (Início, Favoritos, Módulos, Buscar).
 
-| Modo | O que mostra |
-|---|---|
-| **Módulos** (padrão) | Barra no alto com o botão Módulos, "você está em", busca, sino e conta; abaixo, favoritos e recentes |
-| **Lateral** | O menu lateral de antes do rebrand |
-| **Superior** | O menu no alto de antes do rebrand |
+Os menus **Lateral** e **Superior** de antes do rebrand, que eram opção no menu da conta, foram
+**removidos em 28/10/2026**, junto com o sino flutuante que eles usavam. A chave `laraNavMode` que
+ficou no navegador de quem os usava é simplesmente ignorada.
 
-A escolha fica no navegador (`localStorage`, chave `laraNavMode`) e é aplicada no `<html>`
-(`data-nav`) antes da primeira pintura, para a tela não piscar com o menu errado.
+## Balão da Lara (IA)
+
+Quem tem a permissão `lara` vê um balão no canto inferior direito de toda tela. Ele abre o chat
+num painel lateral (no celular, em tela cheia, com o balão acima da barra de baixo). Detalhes em
+[lara-ia.md](lara-ia.md). Como o layout roda em toda tela, o balão não carrega nada na
+renderização: a conversa e o estado da IA só são pedidos quando o painel abre.
 
 ## Painel de Módulos
 
@@ -123,5 +127,7 @@ faz isso a cada deploy.
 
 ## Testes
 
-`tests/Feature/Rebrand/ShellTest.php` (menu, capa, página atual em criar/editar e modos), `NavPreferencesTest.php` (favoritos
-na conta) e `tests/Feature/Authorization/NavigationMenuTest.php` (o que cada setor enxerga).
+`tests/Feature/Rebrand/ShellTest.php` (menu, capa, página atual em criar/editar, só Módulos),
+`NavPreferencesTest.php` (favoritos na conta), `tests/Feature/Authorization/NavigationMenuTest.php`
+(o que cada setor enxerga — as páginas chegam no JSON do `laraShell`, por isso o teste compara sem
+as barras escapadas) e `tests/Feature/LaraWidgetTest.php` (balão da Lara).

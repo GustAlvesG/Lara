@@ -56,7 +56,7 @@ class TicketNotifier
 
     public function build(TicketOrder $order, string $type, ?Collection $tickets = null, array $extra = []): array
     {
-        $order->loadMissing('event', 'tickets.type', 'tickets.lot');
+        $order->loadMissing('event', 'tickets.type', 'tickets.lot', 'tickets.seat');
         $event = $order->event;
         $tickets ??= $order->tickets;
         $money = fn ($value) => number_format((float) $value, 2, ',', '.');
@@ -76,7 +76,7 @@ class TicketNotifier
             'order_id' => $order->id,
             'tickets' => $tickets->map(fn (Ticket $t) => [
                 'holder' => $t->holder_name,
-                'type' => $t->type?->fullName(),
+                'type' => $t->typeLabel(),
                 'lot' => $t->lot?->name,
                 'amount' => $money($t->amount),
                 // O código só aparece em ingresso pago: o pendente ainda não vale.

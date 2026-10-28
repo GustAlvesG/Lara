@@ -3,8 +3,7 @@
 {{--
     Título da tela repaginada, dentro do x-page: nome, linha de apoio (slot) e
     ações (slot `actions`, à direita). Existe além da capa da área porque a
-    capa só aparece na navegação por Módulos; nos menus de antes, é este o
-    título da tela.
+    capa é do módulo (e algumas telas a dispensam); este é o título da tela.
 
     `back` desenha a seta de voltar (telas de detalhe).
 --}}

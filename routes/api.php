@@ -429,6 +429,8 @@ Route::middleware('api_token')->group(function () {
     Route::prefix('tickets')->as('api.tickets.')->group(function () {
         Route::get('/events', [TicketApiController::class, 'index'])->name('events.index');
         Route::get('/events/{id}', [TicketApiController::class, 'show'])->whereNumber('id')->name('events.show');
+        // Lugar marcado: o mapa com a situação dos lugares no dia (`?day_id=`).
+        Route::get('/events/{id}/maps/{mapId}', [TicketApiController::class, 'map'])->whereNumber(['id', 'mapId'])->middleware('throttle:120,1')->name('events.map');
         Route::post('/events/{id}/coupon-check', [TicketApiController::class, 'checkCoupon'])->whereNumber('id')->middleware('throttle:20,1')->name('coupon.check');
         Route::post('/events/{id}/guest-orders', [TicketApiController::class, 'storeGuest'])->whereNumber('id')->middleware('throttle:10,1')->name('guest.store');
         Route::post('/guest-orders/resend-link', [TicketApiController::class, 'resendGuestLink'])->middleware('throttle:5,1')->name('guest.resend');

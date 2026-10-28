@@ -22,6 +22,10 @@ use Illuminate\Support\Carbon;
  * A lotação do evento conta por dia no evento de vários dias: cada dia soma as
  * diárias dele e os passaportes.
  *
+ * Lugar marcado (mesa, bistrô, camarote): o ingresso do lugar não conta na
+ * lotação (não é pessoa). O tipo de lugar esgota quando os lugares que ele
+ * vende acabam no dia, além da quantidade do lote (`seats_free` no resumo).
+ *
  * Só conta; quem trava as linhas para a conta valer na gravação é o
  * TicketOrderService.
  */
@@ -63,6 +67,7 @@ class TicketInventory
         $event->loadMissing('days');
 
         $rows = Ticket::occupying()
+            ->people()
             ->join('ticket_types', 'ticket_types.id', '=', 'tickets.ticket_type_id')
             ->where('tickets.ticket_event_id', $event->id)
             ->when($exceptOrderId, fn ($q) => $q->where('tickets.ticket_order_id', '!=', $exceptOrderId))
@@ -159,26 +164,76 @@ class TicketInventory
     }
 
     /**
+     * Quem ocupa cada lugar marcado do evento, por dia (`day_key`: o dia da
+     * diária, 0 no evento sem dias).
+     *
+     * @return array<int, array<int, Ticket>> day_key => [seat_id => ingresso]
+     */
+    public function seatOccupants(TicketEvent $event, ?int $exceptOrderId = null): array
+    {
+        $occupants = [];
+
+        Ticket::occupying()
+            ->with('type', 'order')
+            ->where('tickets.ticket_event_id', $event->id)
+            ->whereNotNull('tickets.ticket_seat_id')
+            ->when($exceptOrderId, fn ($q) => $q->where('tickets.ticket_order_id', '!=', $exceptOrderId))
+            ->get()
+            ->each(function (Ticket $ticket) use (&$occupants) {
+                $occupants[$ticket->type->dayKey()][$ticket->ticket_seat_id] = $ticket;
+            });
+
+        return $occupants;
+    }
+
+    /**
+     * Quantos lugares o tipo de lugar marcado ainda tem livres no dia dele.
+     *
+     * @param  array<int, array<int, Ticket>>  $occupants  de seatOccupants()
+     */
+    public function seatsFree(TicketType $type, iterable $seats, array $occupants): int
+    {
+        $taken = $occupants[$type->dayKey()] ?? [];
+
+        return $type->sellableSeats($seats)->reject(fn ($seat) => isset($taken[$seat->id]))->count();
+    }
+
+    /**
      * Situação de venda de cada tipo do evento, para o site e para a tela.
      *
      * `remaining` e `quantity` nulos = sem limite (lote vigente sem quantidade;
-     * algum lote ativo do tipo sem quantidade).
+     * algum lote ativo do tipo sem quantidade). No tipo de lugar marcado,
+     * `seats_free` são os lugares livres no dia (e `remaining` não passa
+     * deles); sem lugar livre, o tipo fica sem lote à venda.
      *
-     * @return list<array{type: TicketType, lot: ?TicketLot, remaining: ?int, next_lot: ?TicketLot, occupied: int, quantity: ?int}>
+     * @return list<array{type: TicketType, lot: ?TicketLot, remaining: ?int, next_lot: ?TicketLot, occupied: int, quantity: ?int, seats_free: ?int}>
      */
     public function summary(TicketEvent $event, ?Carbon $at = null): array
     {
-        $event->loadMissing('types.lots');
+        $event->loadMissing('types.lots', 'maps.seats');
         $occupied = $this->occupiedByLot($event->types->flatMap->lots->pluck('id'));
+        $seats = $event->maps->flatMap->seats;
+        $occupants = $event->types->contains(fn (TicketType $t) => $t->isSeated()) ? $this->seatOccupants($event) : [];
 
-        return $event->types->map(function (TicketType $type) use ($occupied, $at) {
+        return $event->types->map(function (TicketType $type) use ($occupied, $at, $seats, $occupants) {
             $lot = $type->active ? $this->currentLot($type, $occupied, $at) : null;
+            $remaining = $lot ? $this->remaining($lot, $occupied) : null;
+            $seatsFree = $type->isSeated() ? $this->seatsFree($type, $seats, $occupants) : null;
+
+            if ($seatsFree !== null && $lot) {
+                $remaining = $remaining === null ? $seatsFree : min($remaining, $seatsFree);
+                if ($seatsFree === 0) {
+                    $lot = null;
+                    $remaining = null;
+                }
+            }
 
             return [
                 'type' => $type,
                 'lot' => $lot,
-                'remaining' => $lot ? $this->remaining($lot, $occupied) : null,
-                'next_lot' => $type->active && ! $lot ? $this->nextLot($type, $occupied, $at) : null,
+                'remaining' => $remaining,
+                'seats_free' => $seatsFree,
+                'next_lot' => $type->active && ! $lot && $seatsFree !== 0 ? $this->nextLot($type, $occupied, $at) : null,
                 'occupied' => (int) $type->lots->sum(fn (TicketLot $l) => $occupied[$l->id] ?? 0),
                 'quantity' => $type->lots->where('active', true)->contains(fn (TicketLot $l) => $l->quantity === null)
                     ? null

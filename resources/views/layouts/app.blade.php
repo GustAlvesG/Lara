@@ -12,21 +12,6 @@
 
         @include('partials.theme-script')
 
-        {{-- Modo de navegação antes da primeira pintura (ver app.css,
-             .nav-only-*). Lateral e Superior são os menus de antes. --}}
-        <script>
-            (function () {
-                var mode = 'areas';
-                try {
-                    var saved = localStorage.getItem('laraNavMode');
-                    if (saved === 'side' || saved === 'top') {
-                        mode = saved;
-                    }
-                } catch (e) {}
-                document.documentElement.dataset.nav = mode;
-            })();
-        </script>
-
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700|unbounded:500,600,700|jetbrains-mono:500,600&display=swap" rel="stylesheet" />
@@ -45,21 +30,18 @@
     <body class="font-sans antialiased">
         @php
             // O menu sai de App\View\Navigation (permissões, rotas e a página
-            // atual); os parciais das três navegações usam estas variáveis.
+            // atual); a barra de Módulos e a busca usam estas variáveis.
             $nav = \App\View\Navigation::build(auth()->user(), request());
-            $visibleNavLinks = $nav['links'];
             $navGroups = $nav['groups'];
             $navIndex = $nav['index'];
             $navCurrent = $nav['current'];
 
-            // Uma consulta só, para o sino da barra e o flutuante.
             $unreadNotifications = auth()->user()->unreadNotifications()->latest()->limit(8)->get();
         @endphp
 
         <script>
-            // Estado compartilhado das navegações: modo (Módulos, lateral ou
-            // superior), sidebar recolhida, favoritos, recentes, o painel de
-            // Módulos e a busca (Ctrl+K). Fica aqui, e nao inline no x-data,
+            // Estado da navegação: favoritos, recentes, o painel de Módulos e
+            // a busca (Ctrl+K). Fica aqui, e nao inline no x-data,
             // porque leitura de localStorage precisa de try/catch — em janela
             // anonima o acesso lanca e derrubaria o menu inteiro.
             //
@@ -108,10 +90,6 @@
                 var syncTimer = null;
 
                 return {
-                    collapsed: window.matchMedia('(max-width: 640px)').matches ? false : read('sidebarCollapsed', 'false') === 'true',
-                    mobileOpen: false,
-                    // O script do <head> já leu e gravou o modo no <html>.
-                    navMode: document.documentElement.dataset.nav || 'areas',
                     navIndex: navIndex,
                     navGroups: navGroups,
                     currentKey: currentKey,
@@ -172,24 +150,6 @@
                                 body: JSON.stringify({ favorites: self.favorites, order: self.navOrder }),
                             }).catch(function () {});
                         }, 400);
-                    },
-
-                    toggle() {
-                        this.collapsed = !this.collapsed;
-                        write('sidebarCollapsed', this.collapsed);
-                    },
-
-                    // A chave é nova (laraNavMode, e não a navMode antiga) para
-                    // todo mundo começar nas Módulos uma vez; quem preferir o
-                    // menu de antes escolhe Lateral ou Superior na conta.
-                    setNav(m) {
-                        this.navMode = m;
-                        write('laraNavMode', m);
-                        document.documentElement.dataset.nav = m;
-                        this.mobileOpen = false;
-                        this.launcherOpen = false;
-                        // A barra superior mede a largura ao aparecer.
-                        window.dispatchEvent(new CustomEvent('nav-order-changed'));
                     },
 
                     // ----- Painel de Módulos -----
@@ -299,9 +259,6 @@
                         this.navOrder = list;
                         write('navOrder', JSON.stringify(list));
                         this.syncPrefs();
-                        // A barra superior recalcula quantos itens cabem, e a
-                        // conta depende da ordem.
-                        window.dispatchEvent(new CustomEvent('nav-order-changed'));
                     },
 
                     resetNavOrder() {
@@ -430,7 +387,6 @@
                         this.launcherOpen = false;
                         this.query = '';
                         this.cursor = 0;
-                        this.mobileOpen = false;
                         this.$nextTick(function () {
                             if (this.$refs.paletteInput) {
                                 this.$refs.paletteInput.focus();
@@ -470,51 +426,32 @@
             @keydown.escape.window="paletteOpen = false; launcherOpen = false"
             class="min-h-screen bg-canvas"
         >
-            {{-- Navegação por Módulos (padrão). `contents` para o wrapper não
-                 virar o limite do `sticky` da barra. --}}
-            <div class="nav-only-areas contents">
-                @include('partials.navigation-areas')
-            </div>
-
-            {{-- Menus de antes, como opção --}}
-            <div class="nav-only-side">
-                @include('partials.navigation')
-            </div>
-
-            <div class="nav-only-top contents">
-                @include('partials.navigation-top')
-            </div>
+            @include('partials.navigation-areas')
 
             <!-- Content -->
-            <div
-                class="nav-tabbar-pad transition-all duration-300 ease-in-out"
-                :class="navMode === 'side' ? (collapsed ? 'sm:ml-20' : 'sm:ml-64') : ''"
-            >
+            <div class="nav-tabbar-pad">
                 {{-- Capa da área da página atual, com as páginas irmãs como
-                     abas e a estrela de favoritar. Só nas Módulos: nos menus de
-                     antes, quem leva às irmãs é o próprio menu. Item solto do
-                     menu (Home Assistant) tem capa sem abas; criar/editar caem
-                     na aba do recurso (ver Navigation::current()). --}}
+                     abas e a estrela de favoritar. Item solto do menu (Home
+                     Assistant) tem capa sem abas; criar/editar caem na aba do
+                     recurso (ver Navigation::current()). --}}
                 @if ($cover && $navCurrent)
-                    <div class="nav-only-areas">
-                        <x-area-cover
-                            :area="$navCurrent['group']['area']"
-                            :title="__($navCurrent['group']['label'])"
-                            :icon="$navCurrent['group']['glyph']"
-                            :tabs="$navCurrent['tabs']"
-                        >
-                            <button type="button" @click="toggleFav(currentKey)" :aria-pressed="isFav(currentKey)"
-                                class="inline-flex h-8 items-center gap-[7px] rounded-full border-[1.5px] px-[13px] text-[13px] font-bold transition"
-                                style="border-color: rgb(var(--ci) / .35); background-color: rgb(var(--surface) / .55); color: rgb(var(--ci))">
-                                <svg class="h-4 w-4" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"
-                                    :fill="isFav(currentKey) ? 'currentColor' : 'none'" aria-hidden="true">
-                                    <path d="M11.48 3.5a.56.56 0 011.04 0l2.12 4.7 5.11.6c.47.05.66.64.31.96l-3.8 3.45 1.03 5.05c.09.46-.4.82-.81.59L12 16.3l-4.48 2.55c-.41.23-.9-.13-.81-.59l1.03-5.05-3.8-3.45c-.35-.32-.16-.91.31-.96l5.11-.6z" />
-                                </svg>
-                                <span x-text="isFav(currentKey) ? 'Favorito' : 'Favoritar'">Favoritar</span>
-                            </button>
-                            {{ $coverActions ?? '' }}
-                        </x-area-cover>
-                    </div>
+                    <x-area-cover
+                        :area="$navCurrent['group']['area']"
+                        :title="__($navCurrent['group']['label'])"
+                        :icon="$navCurrent['group']['glyph']"
+                        :tabs="$navCurrent['tabs']"
+                    >
+                        <button type="button" @click="toggleFav(currentKey)" :aria-pressed="isFav(currentKey)"
+                            class="inline-flex h-8 items-center gap-[7px] rounded-full border-[1.5px] px-[13px] text-[13px] font-bold transition"
+                            style="border-color: rgb(var(--ci) / .35); background-color: rgb(var(--surface) / .55); color: rgb(var(--ci))">
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linejoin="round" fill="none"
+                                :fill="isFav(currentKey) ? 'currentColor' : 'none'" aria-hidden="true">
+                                <path d="M11.48 3.5a.56.56 0 011.04 0l2.12 4.7 5.11.6c.47.05.66.64.31.96l-3.8 3.45 1.03 5.05c.09.46-.4.82-.81.59L12 16.3l-4.48 2.55c-.41.23-.9-.13-.81-.59l1.03-5.05-3.8-3.45c-.35-.32-.16-.91.31-.96l5.11-.6z" />
+                            </svg>
+                            <span x-text="isFav(currentKey) ? 'Favorito' : 'Favoritar'">Favoritar</span>
+                        </button>
+                        {{ $coverActions ?? '' }}
+                    </x-area-cover>
                 @endif
 
                 <!-- Page Heading -->
@@ -534,16 +471,13 @@
                 @include('partials.footer')
             </div>
 
-            {{-- Nas Módulos o sino fica na barra de cima; nos menus de antes,
-                 flutuante no canto. --}}
-            <div class="nav-only-side">
-                @include('partials.notification-bell', ['placement' => 'floating'])
-            </div>
-            <div class="nav-only-top">
-                @include('partials.notification-bell', ['placement' => 'floating'])
-            </div>
+            {{-- Lara (IA): balão no canto, em toda tela, para quem tem a
+                 permissão. O sino mora na barra de cima. --}}
+            @can(\App\Authorization\Permissions::LARA)
+                @include('partials.lara-widget')
+            @endcan
 
-            <!-- Busca de módulos (Ctrl+K), compartilhada pelos dois modos -->
+            <!-- Busca de páginas (Ctrl+K) -->
             @include('partials.nav-palette')
 
             <!-- Organizar menu: ordem dos grupos e dos favoritos -->

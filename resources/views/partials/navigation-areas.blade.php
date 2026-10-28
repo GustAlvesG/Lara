@@ -1,10 +1,10 @@
 {{--
-    Navegação por Módulos (rebrand v4). Duas faixas fixas no topo — a barra
-    (logo, Módulos, "você está em", busca, sino, conta) e os atalhos (favoritos e
-    recentes) —, o painel de Módulos e, no celular, a barra de baixo.
+    Navegação por Módulos (rebrand v4) — a única do sistema desde 28/10/2026,
+    quando os menus Lateral e Superior saíram. Duas faixas fixas no topo — a
+    barra (logo, Módulos, "você está em", busca, sino, conta) e os atalhos
+    (favoritos e recentes) —, o painel de Módulos e, no celular, a barra de baixo.
 
-    Sem x-data próprio: tudo vem do laraShell (layouts/app.blade.php), o mesmo
-    estado dos menus de antes, então favoritar aqui aparece lá e vice-versa.
+    Sem x-data próprio: tudo vem do laraShell (layouts/app.blade.php).
 --}}
 @php
     $userName = (string) (Auth::user()->name ?? '');
@@ -51,7 +51,7 @@
             <kbd class="ml-auto hidden rounded-md border border-line-strong px-1.5 py-0.5 font-mono text-[11px] font-semibold text-ink-3 lg:inline">Ctrl K</kbd>
         </button>
 
-        @include('partials.notification-bell', ['placement' => 'bar'])
+        @include('partials.notification-bell')
 
         <div x-data="{ userOpen: false }" class="relative" @keydown.escape.window="userOpen = false">
             <button type="button" @click="userOpen = !userOpen" @click.outside="userOpen = false"

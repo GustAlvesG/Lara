@@ -1074,7 +1074,9 @@ class CompanyService
             'ticket'     => [
                 'code'      => $ticket->code,
                 'event'     => $ticket->event?->title,
-                'type'      => $ticket->type?->fullName(),
+                'type'      => $ticket->typeLabel(),
+                // Ingresso de mesa/lugar (nunca entra): o lugar; null nos de entrada.
+                'seat'      => $ticket->seat?->label,
                 'message'   => $state['message'],
                 'window'    => app(TicketCheckinService::class)->windowLabel($ticket),
                 'used_at'   => $ticket->checked_in_at?->format('H:i'),

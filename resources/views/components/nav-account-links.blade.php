@@ -1,11 +1,8 @@
 {{--
-    Itens do menu da conta.
+    Itens do menu da conta (barra de Módulos).
 
-    Um só para os quatro dropdowns (Módulos, lateral expandida, lateral
-    recolhida e barra superior) não saírem de sincronia.
-
-    Depende de estar dentro de um x-data com `userOpen` (os quatro têm) e do
-    escopo do laraShell, de onde vem `organizerOpen`.
+    Depende de estar dentro de um x-data com `userOpen` e do escopo do
+    laraShell, de onde vem `organizerOpen`.
 --}}
 @php
     $itemClasses = 'flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-ink no-underline transition hover:bg-subtle';
@@ -30,7 +27,6 @@
 
 <div class="border-t border-line">
     <x-theme-toggle />
-    <x-nav-mode-toggle />
 </div>
 
 <form method="POST" action="{{ route('logout') }}" class="border-t border-line p-1">

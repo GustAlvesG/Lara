@@ -20,7 +20,7 @@ class TicketPdf
 
     public function download(TicketOrder $order): Response
     {
-        $order->loadMissing('event', 'tickets.type', 'tickets.lot');
+        $order->loadMissing('event', 'tickets.type', 'tickets.lot', 'tickets.seat.map');
 
         $tickets = $order->tickets
             ->filter(fn (Ticket $t) => in_array($t->status, Ticket::SOLD, true))

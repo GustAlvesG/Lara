@@ -6,11 +6,11 @@ use App\Http\Requests\AskLaraRequest;
 use App\Models\LaraMessage;
 use App\Services\Lara\LaraClient;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
-use Illuminate\View\View;
 
 /**
  * Chat interno com a Lara, o agente de IA que responde sobre o estatuto.
@@ -31,17 +31,48 @@ class LaraChatController extends Controller
      */
     private const SESSION_KEY = 'lara.conversation_uuid';
 
-    public function index(Request $request, LaraClient $lara): View
+    /** Flash que abre o balão na página seguinte (ver index()). */
+    public const OPEN_FLASH = 'lara_abrir';
+
+    /**
+     * O chat não tem mais tela própria: é o balão do layout, em toda tela.
+     * `/lara` continua existindo (menu, busca Ctrl+K, links antigos) e só
+     * volta para a página de onde a pessoa veio com o balão aberto.
+     */
+    public function index(Request $request): RedirectResponse
+    {
+        // Sem página anterior conhecida, vai para o início.
+        $previous = url()->previous(route('dashboard'));
+
+        $destino = $previous !== url()->current() && str_starts_with($previous, url('/'))
+            ? $previous
+            : route('dashboard');
+
+        return redirect()->to($destino)->with(self::OPEN_FLASH, true);
+    }
+
+    /**
+     * Estado do balão, pedido quando ele abre — e não na renderização do
+     * layout, que roda em toda tela: o health check bate na VM da IA e não
+     * pode pesar em cada página.
+     */
+    public function conversation(Request $request, LaraClient $lara): JsonResponse
     {
         $conversationUuid = $this->conversationUuid($request);
+        $mensagens = LaraMessage::daConversa($request->user()->id, $conversationUuid)->get();
 
-        return view('lara.index', [
-            'mensagens' => LaraMessage::daConversa($request->user()->id, $conversationUuid)->get(),
+        return response()->json([
+            'mensagens' => $mensagens->map(fn (LaraMessage $m) => [
+                'role' => $m->role,
+                'conteudo' => $m->conteudo,
+                'horario' => $m->created_at?->format('H:i'),
+            ])->values(),
             // Duas perguntas diferentes: "ligamos o chat?" e "a VM respondeu?".
-            // A tela explica cada caso de um jeito, porque a ação de quem vê é
-            // outra — desligado é decisão nossa, fora do ar é chamado para a TI.
+            // O balão explica cada caso de um jeito, porque a ação de quem vê
+            // é outra — desligado é decisão nossa, fora do ar é chamado para a TI.
             'configurado' => $lara->enabled(),
             'disponivel' => $lara->healthy(),
+            'pendente' => $this->aguardandoResposta($mensagens->last()),
         ]);
     }
 
@@ -49,6 +80,11 @@ class LaraChatController extends Controller
     {
         $user = $request->user();
         $timeout = (int) config('services.lara.timeout', 30);
+
+        // O balão acompanha a navegação: quem pergunta e troca de tela fecha a
+        // conexão. A resposta precisa ser gravada mesmo assim, para aparecer
+        // no balão da tela seguinte (ver `pendente` em conversation()).
+        ignore_user_abort(true);
 
         // Rede de segurança para o max_execution_time. Em Linux ele conta só
         // tempo de CPU — a espera pela IA não entra na conta, então na prática
@@ -145,6 +181,25 @@ class LaraChatController extends Controller
         $ttl = (int) config('services.lara.history_ttl_hours', 24);
 
         return Carbon::parse($ultimaMensagem)->lt(now()->subHours($ttl));
+    }
+
+    /**
+     * A última mensagem é uma pergunta ainda sem resposta, feita há menos
+     * tempo do que a resposta pode levar: a pessoa trocou de tela no meio da
+     * espera e o ask() da tela anterior ainda está rodando. O balão mostra
+     * "pensando" e consulta de novo até a resposta chegar. Passado o prazo, é
+     * uma pergunta que ficou sem resposta (erro antes de gravar) e não trava
+     * o balão.
+     */
+    private function aguardandoResposta(?LaraMessage $ultima): bool
+    {
+        if (!$ultima || $ultima->role !== LaraMessage::ROLE_USER || !$ultima->created_at) {
+            return false;
+        }
+
+        $prazo = (int) config('services.lara.timeout', 30) + 10;
+
+        return $ultima->created_at->gt(now()->subSeconds($prazo));
     }
 
     /**

@@ -113,7 +113,7 @@ class TicketFinanceService
     {
         $money = fn ($v) => number_format((float) $v, 2, ',', '');
 
-        $tickets = Ticket::with(['order.payment', 'type', 'lot'])
+        $tickets = Ticket::with(['order.payment', 'type', 'lot', 'seat'])
             ->where('ticket_event_id', $event->id)
             ->whereIn('status', [...Ticket::SOLD, Ticket::STATUS_CANCELLED])
             ->orderBy('ticket_order_id')
@@ -136,7 +136,7 @@ class TicketFinanceService
                 $order->isGuest() ? 'Não sócio' : 'Sócio',
                 $t->holder_name,
                 \App\Support\Cpf::mask($t->holder_cpf),
-                (string) $t->type?->fullName(),
+                $t->typeLabel(),
                 (string) $t->lot?->name,
                 TicketLot::PRICE_LABELS[$t->price_kind] ?? $t->price_kind,
                 $money($t->list_price),

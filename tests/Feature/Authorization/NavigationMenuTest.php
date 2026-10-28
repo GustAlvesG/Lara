@@ -42,9 +42,17 @@ class NavigationMenuTest extends TestCase
         return $user;
     }
 
+    /**
+     * Na navegação por Módulos (a única desde 28/10/2026) as páginas não são
+     * mais links soltos no HTML: chegam no JSON do laraShell (busca Ctrl+K,
+     * favoritos, recentes), com as barras escapadas. Tirar as barras
+     * invertidas deixa as URLs comparáveis com route().
+     */
     private function menuDe(User $user): string
     {
-        return $this->actingAs($user)->get(route('docs.show', 'README'))->assertOk()->getContent();
+        $html = $this->actingAs($user)->get(route('docs.show', 'README'))->assertOk()->getContent();
+
+        return str_replace('\\', '', $html);
     }
 
     public function test_sem_permissao_so_ve_o_que_e_publico(): void

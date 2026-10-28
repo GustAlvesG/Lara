@@ -28,10 +28,11 @@ temas: rota `design.components` (`/design/componentes`, `resources/views/design/
    substituto na cor do módulo (ícone ou iniciais), via `x-media`.
 9. **Veículos aparecem só pelo nome** (e placa), sem foto. Exceção: a foto da câmera da
    portaria na Busca do SIV.
-10. **O menu antigo continua como opção** (Lateral e Superior). Toda tela precisa funcionar nos
-    três modos — por isso o título da tela existe além da capa do módulo.
+10. **Só existe a navegação por Módulos** desde 28/10/2026: os menus Lateral e Superior (que eram
+    opção) e o sino flutuante saíram. O título da tela continua existindo além da capa do módulo.
+    O canto inferior direito é do **balão da Lara** (IA) — não ponha outro elemento fixo ali.
 11. **Na tela, é "Módulo"**; no código o nome ainda é `area` (`AreaColor`, `area=`,
-    `navigation-areas`, valor `areas` do `laraNavMode`). Não renomeie o código.
+    `navigation-areas`). Não renomeie o código.
 
 ## Tipografia
 

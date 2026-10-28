@@ -30,6 +30,9 @@ trait CreatesTicketSchema
     /** Códigos de "meus ingressos" do não sócio. */
     protected const TICKET_GUEST_ACCESS_MIGRATION = '2026_10_28_110000_create_ticket_guest_access_codes.php';
 
+    /** Lugar marcado: mapas, lugares e a reserva do lugar por dia. */
+    protected const TICKET_MAPS_MIGRATION = '2026_10_28_120000_create_ticket_maps.php';
+
     protected function createTicketSchema(): void
     {
         $this->migrateAccessSchema();
@@ -59,6 +62,7 @@ trait CreatesTicketSchema
         (require database_path('migrations/' . self::TICKET_DAYS_MIGRATION))->up();
         (require database_path('migrations/' . self::TICKET_LOT_UNLIMITED_MIGRATION))->up();
         (require database_path('migrations/' . self::TICKET_GUEST_ACCESS_MIGRATION))->up();
+        (require database_path('migrations/' . self::TICKET_MAPS_MIGRATION))->up();
 
         $this->shareSqliteWithUserConnection();
     }

@@ -12,6 +12,7 @@ use App\Models\Ticket\TicketEvent;
 use App\Models\Ticket\TicketLot;
 use App\Models\Ticket\TicketOrder;
 use App\Models\Ticket\TicketPayment;
+use App\Models\Ticket\TicketSeat;
 use App\Models\Ticket\TicketType;
 use App\Models\User;
 use App\Services\MultiClubes\MemberProfile;
@@ -47,7 +48,12 @@ use InvalidArgumentException;
  *     um pedido de vários ingressos do mesmo tipo pode atravessar a virada
  *     de lote (cada ingresso leva o preço do seu lote);
  *   - pagamento que chega depois do prazo ainda vale se houver estoque; se
- *     não houver, `hold_expired` e o site estorna.
+ *     não houver, `hold_expired` e o site estorna;
+ *   - lugar marcado (mesa, bistrô, camarote: tipo com mapa): cada item leva o
+ *     `seat_id` escolhido no mapa; o lugar é preso ao ingresso no dia
+ *     (TicketSeatService::claim, índice único). O ingresso do lugar não é
+ *     entrada: fica fora do "um por CPF" e da lotação, e o titular é o
+ *     responsável. Lugar ocupado recusa sempre, também no balcão.
  *
  * No balcão do Lara (`$counter`), venda fora do período, acima do limite por
  * pedido, além do estoque ou da lotação e CPF de sócio em pedido de não sócio
@@ -77,6 +83,7 @@ class TicketOrderService
         private MemberProfileLookup $profiles,
         private TicketNotifier $notifier,
         private RedeItauService $rede,
+        private TicketSeatService $seats,
     ) {
     }
 
@@ -103,7 +110,9 @@ class TicketOrderService
      * `$couponCode`: cupom do evento, abatido de cada ingresso a que se aplica.
      * `$notify` = false deixa o e-mail com quem chamou (emissão no balcão).
      *
-     * @param  list<array{type_id: int, holder_name?: ?string, holder_cpf?: ?string}>  $items
+     * Lugar marcado: `seat_id` no item do tipo com mapa (ignorado nos outros).
+     *
+     * @param  list<array{type_id: int, holder_name?: ?string, holder_cpf?: ?string, seat_id?: ?int}>  $items
      */
     public function create(TicketEvent $event, TicketBuyer $buyer, array $items, ?User $counter = null, bool $force = false, bool $courtesy = false, ?string $couponCode = null, bool $notify = true): TicketOrder
     {
@@ -126,19 +135,32 @@ class TicketOrderService
             $warnings[] = 'As vendas pelo site estão fechadas para este evento.';
         }
 
+        $event->loadMissing('types');
+        $seatedTypes = $event->types->filter(fn (TicketType $t) => $t->isSeated())->pluck('id')->all();
+        $seatCount = count(array_filter($items, fn ($item) => in_array((int) ($item['type_id'] ?? 0), $seatedTypes, true)));
+        $entryCount = count($items) - $seatCount;
+
         if ($buyer->isMember()) {
             // O sócio compra para quem é do título dele (ele, o titular e os
             // dependentes), cada um com o nome do cadastro do clube.
             $items = $this->titleHolders($buyer, $items, $site, $warnings);
-        } elseif (count($items) > $event->max_per_order) {
+        } elseif ($entryCount > $event->max_per_order) {
             if ($site) {
                 throw new TicketException(TicketException::LIMIT_PER_ORDER, "Este evento aceita até {$event->max_per_order} ingresso(s) por pedido.", 422, ['max' => $event->max_per_order]);
             }
-            $warnings[] = "O pedido tem " . count($items) . " ingressos; o site aceita até {$event->max_per_order} por pedido.";
+            $warnings[] = "O pedido tem {$entryCount} ingressos; o site aceita até {$event->max_per_order} por pedido.";
         }
 
-        $event->loadMissing('types');
-        $items = $this->normalizeHolders($items, $event->types->pluck('ticket_event_day_id', 'id')->all());
+        // Lugares (mesa, bistrô…): o mesmo limite, para sócio e não sócio — o
+        // sócio não tem aqui o limite natural do título, que só vale para pessoas.
+        if ($seatCount > $event->max_per_order) {
+            if ($site) {
+                throw new TicketException(TicketException::LIMIT_PER_ORDER, "Este evento aceita até {$event->max_per_order} lugar(es) por pedido.", 422, ['max' => $event->max_per_order]);
+            }
+            $warnings[] = "O pedido tem {$seatCount} lugares; o site aceita até {$event->max_per_order} por pedido.";
+        }
+
+        $items = $this->normalizeHolders($items, $event->types->pluck('ticket_event_day_id', 'id')->all(), $seatedTypes);
 
         if (! $buyer->isMember()) {
             foreach ($items as $index => $item) {
@@ -160,18 +182,23 @@ class TicketOrderService
 
         $couponCode = $courtesy ? null : (filled($couponCode) ? TicketCoupon::normalizeCode($couponCode) : null);
 
-        $order = DB::transaction(function () use ($event, $buyer, $items, $counter, $force, $courtesy, $site, $warnings, $priceKind, $couponCode) {
+        $order = DB::transaction(function () use ($event, $buyer, $items, $counter, $force, $courtesy, $site, $warnings, $priceKind, $couponCode, $seatedTypes) {
             $event = TicketEvent::whereKey($event->id)->lockForUpdate()->firstOrFail();
-            $event->load(['days', 'types' => fn ($q) => $q->with('lots', 'day')]);
+            $event->load(['days', 'types' => fn ($q) => $q->with('lots', 'day'), 'maps.seats']);
 
-            $this->assertNoActiveTicket($event, array_map(fn (array $item) => [
+            // "Um por CPF" só nas entradas: o lugar marcado não é pessoa.
+            $this->assertNoActiveTicket($event, array_values(array_map(fn (array $item) => [
                 $item['holder_cpf'],
                 $event->types->firstWhere('id', $item['type_id'])?->ticket_event_day_id,
-            ], $items));
+            ], array_filter($items, fn (array $item) => ! in_array($item['type_id'], $seatedTypes, true)))));
 
             // Um ingresso de cada vez: o pedido pode atravessar a virada de lote.
             $occupied = $this->inventory->occupiedByLot($event->types->flatMap->lots->pluck('id'));
             $allocations = [];
+            $seats = $event->maps->flatMap->seats->keyBy('id');
+            $occupants = $seatedTypes !== [] ? $this->inventory->seatOccupants($event) : [];
+            $chosen = [];
+            $taken = [];
 
             foreach ($items as $index => $item) {
                 /** @var TicketType|null $type */
@@ -180,6 +207,10 @@ class TicketOrderService
                 if (! $type || (! $type->active && $site)) {
                     throw new TicketException(TicketException::TYPE_NOT_FOUND, 'Tipo de ingresso não encontrado neste evento.', 404, ['index' => $index]);
                 }
+
+                $seat = $type->isSeated()
+                    ? $this->pickSeat($type, $item, $index, $seats, $occupants, $chosen, $taken, $site, $warnings)
+                    : null;
 
                 $lot = $this->inventory->currentLot($type, $occupied);
 
@@ -208,17 +239,24 @@ class TicketOrderService
                     'item' => $item,
                     'type' => $type,
                     'lot' => $lot,
+                    'seat' => $seat,
                     'list_price' => $price,
                     'discount' => 0.0,
                     'amount' => $courtesy ? 0.0 : $price,
                 ];
             }
 
+            // Lugar ocupado recusa sempre, também no balcão: não há venda dupla.
+            if ($taken !== []) {
+                throw $this->seats->taken($taken);
+            }
+
             $coupon = $couponCode !== null
                 ? $this->applyCoupon($event, $couponCode, $allocations, $priceKind, $site, $warnings)
                 : null;
 
-            foreach ($this->inventory->capacityOverflow($event, array_map(fn (array $a) => $a['type']->ticket_event_day_id, $allocations)) as $full) {
+            $people = array_filter($allocations, fn (array $a) => $a['seat'] === null);
+            foreach ($this->inventory->capacityOverflow($event, array_values(array_map(fn (array $a) => $a['type']->ticket_event_day_id, $people))) as $full) {
                 $where = $full['day'] ? ' em ' . $full['day']->label() : '';
                 if ($site) {
                     throw new TicketException(TicketException::CAPACITY_FULL, "A lotação do evento{$where} acabou.", 409, ['left' => $full['left'], 'day_id' => $full['day']?->id]);
@@ -258,10 +296,11 @@ class TicketOrderService
             $order->save();
 
             foreach ($allocations as $allocation) {
-                $order->tickets()->create([
+                $ticket = $order->tickets()->create([
                     'ticket_event_id' => $event->id,
                     'ticket_type_id' => $allocation['type']->id,
                     'ticket_lot_id' => $allocation['lot']->id,
+                    'ticket_seat_id' => $allocation['seat']?->id,
                     'price_kind' => $priceKind,
                     'list_price' => $allocation['list_price'],
                     'discount_amount' => $allocation['discount'],
@@ -271,6 +310,10 @@ class TicketOrderService
                     'code' => Ticket::newCode(),
                     'status' => $free ? Ticket::STATUS_VALID : Ticket::STATUS_PENDING,
                 ]);
+
+                if ($allocation['seat']) {
+                    $this->seats->claim($ticket, $allocation['type']->dayKey());
+                }
             }
 
             return $order;
@@ -280,7 +323,55 @@ class TicketOrderService
             $this->notifier->notify($order->fresh(), TicketNotifier::PAID);
         }
 
-        return $order->fresh(['tickets.type', 'tickets.lot', 'event']);
+        return $order->fresh(['tickets.type', 'tickets.lot', 'tickets.seat', 'event']);
+    }
+
+    /**
+     * O lugar escolhido para um item de tipo de lugar marcado. Lugar ocupado
+     * não recusa aqui: entra em `$taken`, para a recusa listar todos de uma
+     * vez.
+     *
+     * @param  Collection<int, TicketSeat>  $seats  lugares do evento, por id
+     * @param  array<int, array<int, Ticket>>  $occupants  day_key => [seat_id => ingresso]
+     * @param  array<string, bool>  $chosen  "lugar|dia" já no pedido
+     * @param  list<int>  $taken
+     * @param  list<string>  $warnings
+     */
+    private function pickSeat(TicketType $type, array $item, int $index, Collection $seats, array $occupants, array &$chosen, array &$taken, bool $site, array &$warnings): TicketSeat
+    {
+        $seatId = (int) ($item['seat_id'] ?? 0);
+
+        if ($seatId === 0) {
+            throw new TicketException(TicketException::SEAT_REQUIRED, "Escolha no mapa o lugar de {$type->name}.", 422, ['index' => $index, 'type_id' => $type->id]);
+        }
+
+        /** @var TicketSeat|null $seat */
+        $seat = $seats->get($seatId);
+
+        if (! $seat) {
+            throw new TicketException(TicketException::SEAT_NOT_FOUND, 'Lugar não encontrado neste evento. Atualize o mapa e escolha de novo.', 422, ['index' => $index, 'seat_id' => $seatId]);
+        }
+        if (! $seat->soldBy($type)) {
+            throw new TicketException(TicketException::SEAT_WRONG_TYPE, "O lugar {$seat->label} não é vendido como {$type->name}.", 422, ['index' => $index, 'seat_id' => $seatId]);
+        }
+        if (! $seat->active) {
+            if ($site) {
+                throw new TicketException(TicketException::SEAT_NOT_FOUND, "O lugar {$seat->label} não está à venda.", 422, ['index' => $index, 'seat_id' => $seatId]);
+            }
+            $warnings[] = "O lugar {$seat->label} está desativado no mapa.";
+        }
+
+        $key = $seat->id . '|' . $type->dayKey();
+        if (isset($chosen[$key])) {
+            throw new TicketException(TicketException::SEAT_TAKEN, "O lugar {$seat->label} aparece duas vezes no pedido.", 422, ['index' => $index, 'seat_ids' => [$seat->id]]);
+        }
+        $chosen[$key] = true;
+
+        if (isset($occupants[$type->dayKey()][$seat->id])) {
+            $taken[] = $seat->id;
+        }
+
+        return $seat;
     }
 
     /**
@@ -496,6 +587,7 @@ class TicketOrderService
         DB::transaction(function () use ($order) {
             $order->update(['status' => TicketOrder::STATUS_WITHDRAWN, 'withdrawn_at' => Carbon::now()]);
             $order->tickets()->where('status', Ticket::STATUS_PENDING)->update(['status' => Ticket::STATUS_EXPIRED]);
+            $this->seats->release($order->tickets()->pluck('id'));
         });
 
         return $order;
@@ -525,6 +617,7 @@ class TicketOrderService
 
                         if ($updated) {
                             Ticket::where('ticket_order_id', $order->id)->where('status', Ticket::STATUS_PENDING)->update(['status' => Ticket::STATUS_EXPIRED]);
+                            $this->seats->release(Ticket::where('ticket_order_id', $order->id)->pluck('id'));
                             $count++;
                         }
                     });
@@ -599,6 +692,7 @@ class TicketOrderService
                     'refunded_amount' => $share,
                 ]);
             }
+            $this->seats->release($tickets->pluck('id'));
 
             if (! $order->tickets()->whereIn('status', Ticket::SOLD)->exists()) {
                 $order->update([
@@ -631,6 +725,8 @@ class TicketOrderService
         }
 
         [$holder] = $this->normalizeHolders([['type_id' => $ticket->ticket_type_id, 'holder_name' => $name, 'holder_cpf' => $cpf]], []);
+        // Ingresso de lugar: o titular é o responsável pela mesa, fora do "um por CPF".
+        $entry = ! $ticket->isSeat();
 
         if ($holder['holder_cpf'] === $ticket->holder_cpf) {
             $ticket->update(['holder_name' => $holder['holder_name']]);
@@ -649,9 +745,11 @@ class TicketOrderService
             $warnings[] = "{$holder['holder_name']} é sócio e vai ficar com um ingresso de não sócio.";
         }
 
-        DB::transaction(function () use ($ticket, $holder, $warnings, $force) {
+        DB::transaction(function () use ($ticket, $holder, $warnings, $force, $entry) {
             $event = TicketEvent::whereKey($ticket->ticket_event_id)->lockForUpdate()->firstOrFail();
-            $this->assertNoActiveTicket($event, [[$holder['holder_cpf'], $ticket->type->ticket_event_day_id]]);
+            if ($entry) {
+                $this->assertNoActiveTicket($event, [[$holder['holder_cpf'], $ticket->type->ticket_event_day_id]]);
+            }
             ConfirmationRequired::unless($force, $warnings);
 
             $ticket->update(['holder_name' => $holder['holder_name'], 'holder_cpf' => $holder['holder_cpf']]);
@@ -671,10 +769,15 @@ class TicketOrderService
      * duas vezes no mesmo dia do pedido (diárias de dias diferentes passam;
      * passaporte cruza com tudo).
      *
+     * O ingresso de lugar marcado (`$seatedTypes`) fica fora da conta da
+     * "mesma pessoa no mesmo dia": o responsável pela mesa também tem a
+     * entrada dele. O `seat_id` do item segue junto.
+     *
      * @param  array<int, ?int>  $typeDays  type_id => dia (null = todos os dias)
-     * @return list<array{type_id: int, holder_name: string, holder_cpf: string}>
+     * @param  list<int>  $seatedTypes
+     * @return list<array{type_id: int, holder_name: string, holder_cpf: string, seat_id: ?int}>
      */
-    private function normalizeHolders(array $items, array $typeDays): array
+    private function normalizeHolders(array $items, array $typeDays, array $seatedTypes = []): array
     {
         $seen = [];
 
@@ -688,15 +791,19 @@ class TicketOrderService
             if (! Cpf::isValid($cpf)) {
                 throw new TicketException(TicketException::INVALID_HOLDER, "CPF inválido para {$name}.", 422, ['index' => $index, 'field' => 'holder_cpf']);
             }
-            $day = $typeDays[(int) ($item['type_id'] ?? 0)] ?? null;
-            foreach ($seen[$cpf] ?? [] as $other) {
-                if (TicketType::daysOverlap($day, $other)) {
-                    throw new TicketException(TicketException::INVALID_HOLDER, "{$name} aparece em dois ingressos para o mesmo dia: cada pessoa tem um ingresso por dia.", 422, ['index' => $index, 'field' => 'holder_cpf']);
+            $typeId = (int) ($item['type_id'] ?? 0);
+            if (! in_array($typeId, $seatedTypes, true)) {
+                $day = $typeDays[$typeId] ?? null;
+                foreach ($seen[$cpf] ?? [] as $other) {
+                    if (TicketType::daysOverlap($day, $other)) {
+                        throw new TicketException(TicketException::INVALID_HOLDER, "{$name} aparece em dois ingressos para o mesmo dia: cada pessoa tem um ingresso por dia.", 422, ['index' => $index, 'field' => 'holder_cpf']);
+                    }
                 }
+                $seen[$cpf][] = $day;
             }
-            $seen[$cpf][] = $day;
 
-            $items[$index] = ['type_id' => (int) ($item['type_id'] ?? 0), 'holder_name' => $name, 'holder_cpf' => $cpf];
+            $seatId = (int) ($item['seat_id'] ?? 0);
+            $items[$index] = ['type_id' => $typeId, 'holder_name' => $name, 'holder_cpf' => $cpf, 'seat_id' => $seatId ?: null];
         }
 
         return array_values($items);
@@ -782,7 +889,12 @@ class TicketOrderService
      */
     private function assertNoActiveTicket(TicketEvent $event, array $holders, ?int $exceptOrderId = null): void
     {
+        if ($holders === []) {
+            return;
+        }
+
         $existing = Ticket::occupying()
+            ->people()
             ->with('type.day', 'type.event.days')
             ->where('ticket_event_id', $event->id)
             ->whereIn('holder_cpf', array_unique(array_column($holders, 0)))
@@ -835,14 +947,33 @@ class TicketOrderService
             }
         }
 
-        foreach ($this->inventory->capacityOverflow($event, $tickets->map(fn (Ticket $t) => $t->type->ticket_event_day_id)->all(), $order->id) as $full) {
+        $people = $tickets->reject(fn (Ticket $t) => $t->isSeat());
+
+        foreach ($this->inventory->capacityOverflow($event, $people->map(fn (Ticket $t) => $t->type->ticket_event_day_id)->values()->all(), $order->id) as $full) {
             $problems[] = 'A lotação do evento' . ($full['day'] ? ' em ' . $full['day']->label() : '') . ' acabou depois que o prazo do pedido venceu.';
         }
 
         try {
-            $this->assertNoActiveTicket($event, $tickets->map(fn (Ticket $t) => [$t->holder_cpf, $t->type->ticket_event_day_id])->all(), $order->id);
+            $this->assertNoActiveTicket($event, $people->map(fn (Ticket $t) => [$t->holder_cpf, $t->type->ticket_event_day_id])->values()->all(), $order->id);
         } catch (TicketException $e) {
             $problems[] = $e->getMessage();
+        }
+
+        // O lugar volta a ser preso ao pedido; se outra pessoa já o pegou,
+        // recusa sempre — nem a baixa manual vende o mesmo lugar duas vezes.
+        $lost = [];
+        foreach ($tickets->filter(fn (Ticket $t) => $t->isSeat()) as $ticket) {
+            try {
+                $this->seats->claim($ticket, $ticket->type->dayKey());
+            } catch (TicketException) {
+                $lost[] = $ticket->ticket_seat_id;
+            }
+        }
+        if ($lost !== []) {
+            throw new TicketException(TicketException::HOLD_EXPIRED, 'O prazo do pedido venceu e o lugar foi reservado por outra pessoa. O valor será estornado.', 409, [
+                'detail' => [$this->seats->taken($lost)->getMessage()],
+                'seat_ids' => $lost,
+            ]);
         }
 
         $coupon = $order->coupon;

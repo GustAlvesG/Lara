@@ -1,35 +1,27 @@
 {{--
-    Sino de notificações.
+    Sino de notificações, na barra de cima das Módulos; abre para baixo.
 
-    placement: 'bar'      — na barra de cima das Módulos, abre para baixo;
-               'floating' — no canto da tela (menus de antes), abre para cima.
-
-    A lista vem do layout ($unreadNotifications), que consulta uma vez só para
-    os dois sinos.
+    A lista vem do layout ($unreadNotifications).
 --}}
 @php
-    $placement = $placement ?? 'floating';
     $unreadNotifications ??= auth()->user()->unreadNotifications()->latest()->limit(8)->get();
     $unreadCount = $unreadNotifications->count();
     $badge = $unreadCount > 9 ? '9+' : $unreadCount;
 @endphp
 
-<div x-data="{ bellOpen: false }" @keydown.escape.window="bellOpen = false"
-    class="{{ $placement === 'bar' ? 'relative' : 'fixed bottom-6 right-6 z-50 flex flex-col items-end' }}">
+<div x-data="{ bellOpen: false }" @keydown.escape.window="bellOpen = false" class="relative">
 
-    @if ($placement === 'bar')
-        <button type="button" @click="bellOpen = !bellOpen" :aria-expanded="bellOpen.toString()" aria-expanded="false"
-            aria-label="Notificações{{ $unreadCount ? ' (' . $unreadCount . ' novas)' : '' }}"
-            class="relative grid h-[38px] w-[38px] place-items-center rounded-full text-ink-2 transition hover:bg-subtle hover:text-ink">
-            <x-icon name="bell" class="h-5 w-5" />
-            @if ($unreadCount > 0)
-                <span class="absolute right-[3px] top-[3px] h-4 min-w-4 rounded-full bg-grena px-1 text-center text-[10px] font-bold leading-4 text-white ring-2 ring-surface">{{ $badge }}</span>
-            @endif
-        </button>
-    @endif
+    <button type="button" @click="bellOpen = !bellOpen" :aria-expanded="bellOpen.toString()" aria-expanded="false"
+        aria-label="Notificações{{ $unreadCount ? ' (' . $unreadCount . ' novas)' : '' }}"
+        class="relative grid h-[38px] w-[38px] place-items-center rounded-full text-ink-2 transition hover:bg-subtle hover:text-ink">
+        <x-icon name="bell" class="h-5 w-5" />
+        @if ($unreadCount > 0)
+            <span class="absolute right-[3px] top-[3px] h-4 min-w-4 rounded-full bg-grena px-1 text-center text-[10px] font-bold leading-4 text-white ring-2 ring-surface">{{ $badge }}</span>
+        @endif
+    </button>
 
     <div x-show="bellOpen" x-cloak x-transition.opacity.duration.150ms @click.outside="bellOpen = false"
-        class="{{ $placement === 'bar' ? 'absolute right-0 top-full mt-2' : 'mb-3' }} z-50 w-[min(22rem,calc(100vw-24px))] overflow-hidden rounded-[20px] border border-line bg-surface text-ink shadow-pop">
+        class="absolute right-0 top-full mt-2 z-50 w-[min(22rem,calc(100vw-24px))] overflow-hidden rounded-[20px] border border-line bg-surface text-ink shadow-pop">
 
         <div class="flex items-center justify-between px-4 py-3">
             <span class="text-sm font-bold">Notificações</span>
@@ -70,14 +62,4 @@
             <a href="{{ route('avisos.index') }}" class="text-xs font-bold text-grena-ink hover:underline">Ver todos os avisos</a>
         </div>
     </div>
-
-    @if ($placement === 'floating')
-        <button type="button" @click="bellOpen = !bellOpen" aria-label="Notificações"
-            class="relative grid h-14 w-14 place-items-center rounded-full bg-grena text-white shadow-pop transition hover:bg-grena-hover focus:outline-none focus:ring-4 focus:ring-grena-tint">
-            <x-icon name="bell" class="h-6 w-6" />
-            @if ($unreadCount > 0)
-                <span class="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full border-2 border-grena bg-white px-1 text-xs font-bold leading-none text-grena">{{ $badge }}</span>
-            @endif
-        </button>
-    @endif
 </div>

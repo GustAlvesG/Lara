@@ -104,23 +104,21 @@
     }
 }
 
-/*
- | Qual navegação aparece: Áreas (padrão), lateral ou superior. O modo é
- | gravado no <html> por um script no <head> antes de qualquer pintura, e não
- | por x-show, para a casca não piscar escondida até o Alpine subir. Sem
- | atributo (guest, testes) vale Áreas.
- */
 @layer components {
-    html[data-nav="side"] .nav-only-areas,
-    html[data-nav="top"] .nav-only-areas,
-    html:not([data-nav="side"]) .nav-only-side,
-    html:not([data-nav="top"]) .nav-only-top {
-        display: none !important;
+    /* Altura do balão da Lara: no celular, acima da barra de baixo (62px). */
+    :root {
+        --lara-balao-bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+    }
+
+    @media (min-width: 640px) {
+        :root {
+            --lara-balao-bottom: 1.5rem;
+        }
     }
 
     /* A barra de baixo do celular cobre o fim da página. */
     @media (max-width: 639px) {
-        html:not([data-nav="side"]):not([data-nav="top"]) .nav-tabbar-pad {
+        .nav-tabbar-pad {
             padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
         }
     }

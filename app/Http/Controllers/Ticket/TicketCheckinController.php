@@ -82,7 +82,7 @@ class TicketCheckinController extends Controller
             'ticket' => [
                 'code' => $ticket->code,
                 'cpf' => \App\Support\Cpf::mask($ticket->holder_cpf),
-                'type' => $ticket->type?->fullName(),
+                'type' => $ticket->typeLabel(),
                 'lot' => $ticket->lot?->name,
                 'status' => Ticket::STATUS_LABELS[$ticket->status] ?? $ticket->status,
                 'order_id' => $ticket->ticket_order_id,

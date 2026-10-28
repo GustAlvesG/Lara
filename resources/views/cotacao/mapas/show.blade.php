@@ -111,8 +111,8 @@
                          é o papel da reunião, o completo é o arquivo de análise.
                          Menu em vez de dois botões soltos porque a diferença
                          entre eles precisa de uma frase para ser entendida. --}}
-                    {{-- z-[70]: o menu do sistema é `sticky z-40` (topo) ou
-                         `fixed z-40` (lateral), e os submenus dele vão a z-[60].
+                    {{-- z-[70]: o menu do sistema é `sticky z-40` (topo), e o
+                         painel da Lara vai a z-[60].
                          Qualquer valor abaixo disso faz o nav passar por cima
                          deste painel assim que a página rola — foi o que
                          acontecia com z-30. --}}

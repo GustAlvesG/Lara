@@ -80,16 +80,33 @@ do portal alcança a porta 3000) e ele não exige token.
 
 ## Fluxo passo a passo
 
-### 1. Abrir o chat — `GET /lara`
-Consulta `GET {LARA_BASE_URL}/health` (resultado em cache por 30s) e carrega a conversa vigente
-do funcionário — guardada em `lara_messages`, identificada por um `conversation_uuid` na sessão.
-O campo de envio fica bloqueado em dois casos, com mensagens diferentes: **desativada** (falta
+### 1. Abrir o chat — o balão (desde 28/10/2026)
+
+O chat não tem mais tela própria. É um **balão no canto inferior direito**, em toda tela do
+sistema, para quem tem a permissão `lara`; ele abre um **painel lateral** à direita (no celular,
+a tela inteira, e o balão fica acima da barra de baixo). Fecha pelo X ou pelo Esc.
+
+- `GET /lara` (o item do menu, a busca Ctrl+K e links antigos) não mostra tela: volta para a
+  página de onde a pessoa veio — ou o início — com o balão já aberto.
+- **Nada é carregado com a página.** O layout roda em toda tela, então o health check da VM e o
+  histórico só são pedidos quando o painel abre, por `GET /lara/conversa`, que devolve
+  `{mensagens, configurado, disponivel, pendente}`.
+- **O painel acompanha a navegação.** Aberto ou fechado fica guardado na aba do navegador
+  (`sessionStorage`), então trocar de tela não fecha o chat.
+- **Pergunta no meio da troca de tela.** O `ask()` segue rodando no servidor mesmo se a pessoa sair
+  da página (`ignore_user_abort`). Na tela seguinte, `pendente: true` (última mensagem é uma
+  pergunta feita há menos de `LARA_TIMEOUT + 10s`) faz o balão mostrar "pensando" e consultar a
+  cada 3 s até a resposta aparecer. Resposta que chega com o painel fechado acende um ponto no balão.
+
+O health check (`GET {LARA_BASE_URL}/health`, cache de 30 s) e a conversa vigente — em
+`lara_messages`, identificada por um `conversation_uuid` na sessão — vêm nessa chamada. O campo de
+envio fica bloqueado em dois casos, com mensagens diferentes: **desativada** (falta
 `LARA_ENABLED`/`LARA_BASE_URL`, decisão nossa) e **fora do ar** (health check falhou, chamado
 para a TI).
 
-Se a última mensagem da conversa tiver mais de `LARA_HISTORY_TTL_HOURS`, a tela abre uma conversa
-nova. É o espelho da expiração da memória do lado da IA: sem isso o funcionário veria o assunto
-antigo na tela e a Lara não lembraria nada dele.
+Se a última mensagem da conversa tiver mais de `LARA_HISTORY_TTL_HOURS`, o painel abre uma
+conversa nova. É o espelho da expiração da memória do lado da IA: sem isso o funcionário veria o
+assunto antigo e a Lara não lembraria nada dele.
 
 ### 2. Perguntar — `POST /lara/perguntar`
 Grava a pergunta, chama `POST {LARA_BASE_URL}/perguntar` com `{usuario_id, mensagem}`, grava a
@@ -204,6 +221,8 @@ significa problema de rede entre o portal e ela. São donos diferentes.
 - Controller: `LaraChatController` · Request: `AskLaraRequest`
 - Service: `App\Services\Lara\LaraClient` (+ DTO `LaraAnswer`)
 - Model: `LaraMessage` · Command: `app:prune-lara-messages`
-- View: `resources/views/lara/index.blade.php`
+- View: `resources/views/partials/lara-widget.blade.php` (balão e painel, incluído no layout
+  por `@can`); a tela `lara/index` foi removida em 28/10/2026
+- Testes do balão: `tests/Feature/LaraWidgetTest.php`
 - Testes: `tests/Unit/LaraClientTest.php`, `tests/Feature/LaraMessageHistoryTest.php`
 - Consultas da IA ao Lara: [lara-ia-consultas.md](lara-ia-consultas.md)

@@ -46,6 +46,7 @@ Evento ─┬─ Tipo de ingresso (Pista, Mesa, Infantil…)
 | 9 | **Emissão pelo Lara com pagamento por fora** (baixa manual no ato). |
 | 10 | **Cortesia** com valor zerado. |
 | 11 | **Evento de vários dias** (27/10/2026): ingresso **diário** ou **passaporte** para todos os dias. Nem todo evento de vários dias tem passaporte, mas tem de ser possível. |
+| 12 | **Lugar marcado** (28/10/2026): mesas, bistrôs e camarotes escolhidos **num mapa**, sem venda dupla, no site e no Lara. A mesa é **só a mesa** (cada pessoa compra a entrada à parte); **lugar por dia**; mapas por evento e por tipo (mesas, bistrôs, camarotes) com **áreas de orientação** desenhadas (palco, piscina, banheiros); preço diferente no mesmo mapa por **categoria**; a compra da mesa **não exige** ter entrada. |
 
 Decorrências fixadas na implementação:
 
@@ -87,6 +88,56 @@ cadastrados e o ingresso vale o evento. Para o evento de **vários dias**:
 - **Entrada**: a diária entra uma vez, no dia dela; o passaporte entra **uma vez em cada dia**.
   A janela de cada dia abre `TICKETS_CHECKIN_HOURS_BEFORE` antes do início do dia e fecha no fim
   dele.
+
+### Lugar marcado: mesas, bistrôs, camarotes (desde 28/10/2026)
+
+Alguns tipos são de **lugar marcado**: quem compra escolhe no mapa a mesa, o bistrô ou o
+camarote exato.
+
+- **Mapa** (`TicketMap`, tela **Mapas** do evento): uma área de desenho de `width × height`
+  unidades, com imagem de fundo opcional (a planta do salão), os **lugares** (`TicketSeat`:
+  rótulo, categoria, forma redonda/quadrada/retangular, posição, tamanho, quantas pessoas
+  cabem, ativo) e as **áreas de orientação** (palco, pista, piscina, bar, banheiros — só
+  desenho, não clicáveis nem vendidas). Um evento pode ter vários mapas (Mesas, Bistrôs,
+  Camarotes). Dá para **copiar** o mapa de outro evento (lugares, áreas, tamanho e fundo).
+- **Tipo de lugar marcado**: o tipo que aponta para um mapa (`ticket_map_id`) vende os
+  lugares dele — todos, ou só os da **categoria** (`seat_category`). Assim o mesmo mapa tem
+  preços diferentes: "Mesa Vip" vende a categoria Vip, "Mesa" a Comum. Os preços e a
+  quantidade continuam nos lotes do tipo; o tipo esgota quando acabam os lugares livres no
+  dia **ou** o lote.
+- **A mesa é só a mesa**: o ingresso do lugar não é entrada. Fica **fora** do "um por CPF por
+  dia", da **lotação** do evento e da **portaria** (lido pelo código, aparece negado
+  `ticket_seat_only`; na busca por CPF nem aparece). O titular do ingresso é o **responsável**
+  pelo lugar e pode ter a entrada dele no mesmo pedido. A compra da mesa não exige entrada.
+- **Lugar por dia**: no evento de vários dias, o tipo de lugar é sempre diária (não há
+  passaporte de mesa); "Mesa Sábado" e "Mesa Domingo" usam o mesmo mapa e a mesma Mesa 12 é
+  vendida uma vez em cada dia.
+- Dois tipos não vendem o mesmo lugar no mesmo dia (mesmo mapa e categorias que se cruzam;
+  categoria vazia cruza com todas): o cadastro recusa. O mapa e a categoria do tipo **não
+  mudam depois de vendido**.
+- **Limite por pedido**: `max_per_order` vale separado para entradas e para lugares; nos
+  lugares, também para o sócio (que não tem aqui o limite natural do título).
+- **Sem venda dupla** — duas proteções:
+  1. a trava da linha do evento (`lockForUpdate`), a mesma do estoque;
+  2. o **índice único** `(ticket_seat_id, day_key)` de `ticket_seat_claims` (`day_key` = dia
+     da diária, 0 no evento sem dias). `TicketSeatService::claim()` grava a linha; se ela já é
+     de outro ingresso que ainda ocupa, recusa `seat_taken`.
+- **Ocupa o lugar** quem ocupa estoque (`Ticket::occupying`): pago, ou pendente no prazo. O
+  pendente vencido solta o lugar na hora, mesmo antes de `ingressos:expirar-pedidos`: a linha
+  morta é apagada quando outra pessoa pede o lugar. Desistência, expiração e cancelamento
+  apagam a linha na hora (`release`).
+- **Pagamento tardio**: o `lockPayable` prende o lugar de novo; se outra pessoa já o pegou,
+  recusa `hold_expired` (com `context.seat_ids`) — **sempre**, também na baixa manual
+  confirmada: nem o balcão vende o mesmo lugar duas vezes.
+- No balcão (Emitir), lugar ocupado **recusa** (não é aviso); lugar desativado é aviso.
+- **Trocar lugar** (tela do pedido, `ingressos.vendas`): outro lugar livre do mesmo tipo, no
+  mesmo dia; tipo, lote, valor e código não mudam. A troca não guarda o lugar anterior.
+- **Desenho**: lugar que já teve ingresso fica com cadeado — não é apagado e não muda de
+  rótulo nem de categoria (o rótulo está nos ingressos e no PDF); desative. Mapa usado por
+  tipo, ou com lugar que teve ingresso, não é apagado.
+- O site recarrega o mapa a cada `refresh_after` (15 s) enquanto a pessoa escolhe; a
+  garantia é a do pedido (`seat_taken`), não a tela. Não há pré-reserva ao clicar: o lugar só
+  fica preso quando o pedido é criado (o mesmo prazo de 10 min do estoque).
 
 ### Lote vigente
 
@@ -265,7 +316,8 @@ Migrations `2026_10_27_100000_create_ticket_tables` (as 7 tabelas),
 `2026_10_27_120000_add_ticket_event_days` (dias, dia do tipo, entradas; copia para
 `ticket_checkins` as entradas já gravadas no ingresso) e
 `2026_10_28_100000_make_ticket_lot_quantity_nullable` (lote sem limite) e
-`2026_10_28_110000_create_ticket_guest_access_codes` (códigos de "meus ingressos"), idempotentes, FKs com nome curto;
+`2026_10_28_110000_create_ticket_guest_access_codes` (códigos de "meus ingressos") e
+`2026_10_28_120000_create_ticket_maps` (lugar marcado), idempotentes, FKs com nome curto;
 models em `app/Models/Ticket/`.
 
 | Tabela | Papel |
@@ -280,6 +332,11 @@ models em `app/Models/Ticket/`.
 | `tickets` | Pedido, evento, tipo, lote, `price_kind`, `list_price`, `discount_amount`, `amount`, `holder_name`, `holder_cpf` (só dígitos), `code` (único, `ING-XXXXXXXX`), `status`, check-in (`checked_in_at`, `checked_in_by`, `checkin_source`), `refunded_amount`, cancelamento. |
 | `ticket_checkins` | Cada entrada: ingresso, `ticket_event_day_id`, `day_key` (dia ou 0; único com o ingresso), `checked_in_at`, `checked_in_by`, `source`. |
 | `ticket_guest_access_codes` | Código de "meus ingressos" do não sócio: `cpf`, `email` (minúsculo), `code_hash` (HMAC), `attempts`, `expires_at`, `used_at`, `ip`. |
+| `ticket_maps` | Mapa de lugares do evento: `name`, `background` (`ImageSource`), `width`/`height` (unidades da área de desenho), `areas` (JSON: `label`, `shape` rect/ellipse, `x`, `y`, `w`, `h`, `color`), `sort_order`. |
+| `ticket_seats` | Lugar do mapa: `label` (único no mapa), `category`, `shape` (circle/square/rect), `x`/`y` (centro), `w`/`h`, `places`, `active`. |
+| `ticket_seat_claims` | O lugar preso a um ingresso num dia: `ticket_seat_id`, `ticket_id` (único), `day_key` (dia ou 0). Único `(ticket_seat_id, day_key)`. |
+| `ticket_types.ticket_map_id` / `seat_category` | O tipo de lugar marcado (mapa e, se for só parte, a categoria). |
+| `tickets.ticket_seat_id` | O lugar do ingresso de lugar marcado. |
 | `company_access_logs.ticket_id` | O ingresso conferido no Monitor de Acesso (nulo nos outros acessos). |
 
 O **código** do ingresso tem 8 caracteres de um alfabeto sem 0/O e 1/I/L (é digitado na
@@ -331,6 +388,19 @@ Menu **Ingressos**: **Eventos** (`acessar-ingressos`), **Check-in** (`ingressos.
   ou não sócio, titulares, forma de pagamento e cupom; preços do lote à venda.
 - **Check-in** (`/ingressos/checkin`) e **Financeiro** (`/ingressos/financeiro`,
   `/ingressos/{id}/financeiro`, CSV).
+- **Mapas** (`/ingressos/{id}/mapas`, `gerenciar`): lista, novo mapa (em branco ou copiando
+  outro), apagar. **Desenhar** (`/ingressos/{id}/mapas/{mapa}`): dados do mapa (nome,
+  tamanho, imagem de fundo, "Ajustar o tamanho à imagem") e o editor — ferramentas
+  Selecionar e mover (Shift soma, arrastar no vazio seleciona vários, setas movem, Delete
+  apaga), Lugar (clique põe um lugar com o próximo rótulo do prefixo), Área de orientação
+  (arrastar desenha) e Grade de lugares (fileiras × colunas); painel com rótulo, categoria,
+  forma, tamanho, lugares, ativo, alinhar e espaçar; zoom. O desenho vai inteiro em "Salvar
+  desenho" (`public/js/tickets/seat-map.js`, SVG sem biblioteca).
+- **Ocupação** (`/ingressos/{id}/mapas/{mapa}/ocupacao?dia=`, `vendas`): o mapa com a
+  situação de cada lugar, o responsável ao passar o mouse e o pedido ao clicar; atualiza
+  sozinho. Na tela do evento, o tipo de lugar mostra os lugares livres e o link.
+- Na **Emissão**, o tipo de lugar ganha o botão "Escolher no mapa"; no **Pedido**, o lugar
+  aparece no ingresso e há **Trocar lugar** (mapa).
 
 ## Relatório financeiro (`TicketFinanceService`)
 
@@ -356,16 +426,17 @@ regra: `{message, reason, context?}` (`App\Exceptions\TicketException`).
 | Método | Rota | | O que faz |
 |---|---|---|---|
 | GET | `/api/tickets/events` | | Publicados e encerrados, com tipos ativos, lote vigente (`price_member`, `price_non_member`, `members_only`, `remaining` — `null` = lote sem limite), `next_lot`, `capacity_left`, `sales_open`; `multi_day` e `days` (`id`, `name`, `label`, `starts_at`, `ends_at`, `capacity_left`); no tipo, `validity` (`event`/`day`/`passport`) e `day_id`. |
-| GET | `/api/tickets/events/{id}` | | O mesmo, com `rules`. Rascunho e cancelado: 404 `event_not_found`. |
+| GET | `/api/tickets/events/{id}` | | O mesmo, com `rules`. Rascunho e cancelado: 404 `event_not_found`. Desde 28/10/2026, no evento `has_map` e `maps` (`id`, `name`); no tipo `kind` (`entry`/`seat`), `map_id`, `seat_category`, `seats_free`. |
+| GET | `/api/tickets/events/{id}/maps/{mapId}` | | Lugar marcado: o mapa (`width`, `height`, `background_url`, `areas`), os tipos que vendem os lugares no dia (com o lote) e cada lugar (`id`, `label`, `category`, `shape`, `x`, `y`, `w`, `h`, `places`, `status` `free`/`held`/`sold`/`unavailable`, `type_id`), `refresh_after`. `?day_id=` obrigatório no evento de vários dias (`day_required`); mapa que nenhum tipo ativo usa: 404 `map_not_found`. 120/min. |
 | POST | `/api/tickets/events/{id}/coupon-check` | | `{code, buyer_kind: member\|guest}` → o cupom (`kind`, `value`, `label`, `audience`, `type_ids`, `ends_at`); só informa. 20/min. |
 | GET | `/api/tickets/my-title` | L | Pessoas do título do sócio logado: `{title, people: [{ref, name, cpf (mascarado), titular, is_me, has_ticket}]}`; `?event_id=` marca quem já tem ingresso no evento (`has_ticket`) e, no evento de vários dias, em quais dias (`days_taken`; o passaporte cobre todos). 30/min. |
-| POST | `/api/tickets/events/{id}/orders` | L | Sócio: `{tickets: [{type_id, holder_ref?}], coupon_code?}` → 201 pedido (sem `holder_ref` = o próprio sócio). `{type_id}` sozinho continua aceito (um ingresso, para ele). |
+| POST | `/api/tickets/events/{id}/orders` | L | Sócio: `{tickets: [{type_id, holder_ref?, seat_id?}], coupon_code?}` → 201 pedido (sem `holder_ref` = o próprio sócio; `seat_id` no tipo de lugar marcado). `{type_id}` sozinho continua aceito (um ingresso, para ele). |
 | GET | `/api/tickets/my-orders` | L | Pedidos do sócio (inclusive os emitidos pela secretaria). |
 | GET | `/api/tickets/orders/{id}` | L | Pedido do sócio (alheio: 404 `order_not_found`). |
 | POST | `/api/tickets/orders/{id}/payment` | L | `{payment_method, paid_amount, payment_integration_id, paid_at?}` → 201 (200 no reenvio do mesmo tid). |
 | DELETE | `/api/tickets/orders/{id}` | L | Desiste (só pendente). |
 | GET | `/api/tickets/orders/{id}/pdf` | L | PDF dos ingressos (só pago; senão 409 `invalid_status`). |
-| POST | `/api/tickets/events/{id}/guest-orders` | | Não sócio: `{buyer: {cpf, name, email, phone?}, tickets: [{type_id, holder_name, holder_cpf}], coupon_code?}` → 201 pedido **com `access_token`** (a única vez que ele sai). 10/min. |
+| POST | `/api/tickets/events/{id}/guest-orders` | | Não sócio: `{buyer: {cpf, name, email, phone?}, tickets: [{type_id, holder_name, holder_cpf, seat_id?}], coupon_code?}` → 201 pedido **com `access_token`** (a única vez que ele sai). 10/min. |
 | GET | `/api/tickets/guest-orders/{id}` | G | Pedido (token errado ou ausente: 404 `order_not_found`). |
 | POST | `/api/tickets/guest-orders/{id}/payment` | G | Igual ao do sócio. |
 | DELETE | `/api/tickets/guest-orders/{id}` | G | Desiste (só pendente). |
@@ -377,7 +448,8 @@ regra: `{message, reason, context?}` (`App\Exceptions\TicketException`).
 
 O pedido traz `total`, `discount_total`, `coupon_code`, `courtesy`, `origin` e
 `event.days`; cada ingresso, `list_price`, `discount_amount`, `amount`, `validity`, `day` (a
-diária) e `entries` (cada entrada, `day_id` e `checked_in_at`). O ingresso sai com `code` e `qr_code` (SVG em data
+diária) e `entries` (cada entrada, `day_id` e `checked_in_at`); desde 28/10/2026, `kind`
+(`entry`/`seat`) e `seat` (`id`, `label`, `category`, `places`, `map`). O ingresso sai com `code` e `qr_code` (SVG em data
 URI) **só quando pago**; o CPF do titular e de quem compra sai mascarado.
 
 Reasons: `event_not_found` (404), `sales_closed`, `type_not_found` (404), `sold_out` (409,
@@ -390,7 +462,10 @@ Reasons: `event_not_found` (404), `sales_closed`, `type_not_found` (404), `sold_
 `payment_mismatch` (`context.expected`), `paid_contact_organizer`, `coupon_invalid`,
 `coupon_not_applicable`, `coupon_exhausted` (409, `context.remaining`), `access_code_invalid`
 (`context.attempts_left`), `access_code_expired`, `access_expired` (401), `ticket_not_found`,
-`already_used`, `ticket_not_valid`, `outside_window`, `other_event`.
+`already_used`, `ticket_not_valid`, `outside_window`, `other_event`; lugar marcado:
+`map_not_found` (404), `day_required`, `seat_required` (`context.index`, `context.type_id`),
+`seat_not_found` (`context.index`, `context.seat_id`), `seat_wrong_type`, `seat_taken` (409,
+`context.seat_ids`), `seat_not_entry` (check-in de ingresso de mesa).
 
 Sem o header `Session`, o `JwtMiddleware` responde **400**; com JWT inválido, **401**.
 
@@ -448,6 +523,7 @@ cupons, pedidos e ingressos dos eventos `[TESTE]`).
 | Baile de Verão (vendas abertas) | Pista com o 1º lote quase esgotado (vira para o 2º), Mesa só para sócios, Infantil grátis; cupons `TESTE10` (10%), `MESA30` (R$ 30, só sócios, só Mesa) e `ESGOTADO` (uso gasto); pedidos pagos (eRede, com cupom, Pix no balcão, cortesia, grátis), pendente, expirado e um cancelado em parte com estorno |
 | Show de Hoje (check-in) | Entrada aberta agora; 3 ingressos válidos (códigos e CPFs impressos no fim) e 1 já usado — para testar o check-in no Lara e no Monitor de Acesso |
 | Festival de Dois Dias | Evento de vários dias: entrada do Dia 1 aberta agora, Dia 2 amanhã; diária de cada dia e passaporte (lotação 300 por dia); um passaporte pago (código impresso no fim — entra hoje e de novo amanhã) e uma diária de cada dia |
+| Réveillon (lugar marcado) | Mapas Mesas (Vip V1–V12 e Comum M1–M21, preços diferentes no mesmo mapa; palco, pista, piscina, bar, banheiros), Bistrôs (B1–B18) e Camarotes (C1–C6); V1 e V2 vendidas, V7 reservada (pendente por 60 min), B1 vendido, M5 com pedido expirado (livre) |
 | Rascunho, Encerrado, Cancelado | Um de cada (o encerrado com ingressos usados) |
 
 `--socio=<CPF de uma conta do site>` dá a essa pessoa um pedido pendente (prazo de 60 min)
@@ -469,6 +545,7 @@ para pagar pelo site; `--usuario=<id>` escolhe quem aparece nas emissões e baix
 | F10 | Evento de vários dias: dias, diária e passaporte, lotação e entrada por dia (prompt do site v4, nota no prompt da portaria) | feita (27/10/2026) |
 | F11 | Lote sem limite de ingressos e "Virar lote agora" (prompt do site v5) | feita (28/10/2026) |
 | F12 | "Meus ingressos" do não sócio no site: CPF + e-mail + código por e-mail (prompt do site v6) | feita (28/10/2026) |
+| F13 | Lugar marcado: mapas (lugares, áreas, cópia), tipo de lugar por mapa e categoria, sem venda dupla (trava + índice único), escolha no mapa na emissão, troca de lugar, ocupação, fora da portaria (prompt do site v7, nota no prompt da portaria) | feita (28/10/2026) |
 
 ## Depois do deploy
 
@@ -480,7 +557,8 @@ para pagar pelo site; `--usuario=<id>` escolhe quem aparece nas emissões e baix
    não forem os padrões); depois `php artisan config:cache`.
 4. Conferir que o scheduler roda (`ingressos:expirar-pedidos`).
 5. Entregar o [prompt do site](ingressos-site-prompt.md) ao agente do Next.js e o
-   [prompt da portaria](../ingressos-prompt-portaria.md) ao agente do app da guarita.
+   [prompt da portaria](../ingressos-prompt-portaria.md) ao agente do app da guarita
+   (lugar marcado: a atualização v7 do site e a de 28/10/2026 da portaria).
 6. Em homologação, `php artisan ingressos:dados-teste` para testar o site e a portaria.
 
 ## Para implementação futura

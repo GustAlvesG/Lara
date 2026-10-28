@@ -11,7 +11,8 @@ Cada parte pede uma permissão, dada ao setor na tela de **Setores** (ou à pess
 
 | Para | Permissão (Setores › Ingressos) |
 |---|---|
-| Criar eventos, tipos de ingresso e lotes | Eventos, tipos de ingresso e lotes |
+| Criar eventos, tipos de ingresso e lotes; desenhar os mapas de mesas | Eventos, tipos de ingresso e lotes |
+| Ver a ocupação dos mapas e trocar o lugar de um ingresso | Pedidos e ingressos |
 | Ver pedidos, reenviar e-mail, trocar titular, cancelar | Pedidos e ingressos |
 | Emitir ingressos pagos por fora; dar baixa em pedido pendente | Baixa manual de pedido |
 | Emitir cortesias | Emitir cortesia |
@@ -61,6 +62,53 @@ Evento de uma noite só, mesmo que passe da meia-noite, **não** precisa de dias
 Na tela do evento, em **Novo tipo de ingresso**: Pista, Mesa, Camarote, Infantil… A
 **ordem na vitrine** decide a ordem no site. Um tipo pode ser **desativado** (sai do site);
 tipo que já vendeu não pode ser apagado.
+
+### Mesas, bistrôs e camarotes (lugar marcado)
+
+Quando quem compra precisa escolher **a mesa certa** (ou o bistrô, o camarote), use um
+**mapa**. A mesa é **só a mesa**: cada pessoa compra a entrada dela num tipo comum (Pista,
+por exemplo). O ingresso da mesa fica no nome do **responsável** e não serve para entrar.
+
+1. Na tela do evento, **Mapas › Novo mapa**: dê o nome (Mesas, Bistrôs, Camarotes). Se o
+   salão já foi desenhado em outro evento, escolha **Copiar lugares e áreas de** e ele vem
+   pronto. Pode pôr a **planta do salão** como imagem de fundo.
+2. **Desenhar** o mapa:
+   - **Área de orientação**: arraste no mapa para desenhar o palco, a pista, a piscina, o bar
+     e os banheiros. Dê o nome e a cor ao lado. As áreas só orientam quem escolhe: não se
+     vendem.
+   - **Lugar**: escolha em **Novo lugar** o prefixo do rótulo (M para mesa, B para bistrô),
+     a forma, o tamanho, quantas pessoas cabem e, se for o caso, a **categoria**; depois
+     clique no mapa — cada clique põe um lugar com o próximo número (M1, M2…).
+   - **Grade de lugares**: para muitas mesas de uma vez — fileiras, colunas e o espaço entre
+     elas; clique em **Colocar grade no mapa** e depois no ponto onde fica a primeira mesa.
+   - **Selecionar e mover**: clique num lugar ou área para editar ao lado; arraste para
+     mover; Shift + clique (ou arrastar no vazio) seleciona vários, para mudar a categoria
+     de todos, alinhar na fileira ou espaçar por igual. As setas do teclado movem; Delete
+     apaga.
+   - **Salvar desenho** no fim. Enquanto não salvar, nada muda no site.
+3. Na tela do evento, crie o **tipo** (ex.: "Mesa") e, em **Lugar marcado**, escolha o
+   mapa. Cadastre os lotes do tipo como em qualquer outro: o preço é do lote.
+
+**Preço diferente no mesmo mapa** (mesa da frente do palco mais cara): dê aos lugares da
+frente a categoria **Vip** e aos outros **Comum**; crie o tipo "Mesa Vip" com a categoria
+Vip e o tipo "Mesa" com a categoria Comum, os dois no mesmo mapa. Quem compra vê um mapa só,
+e cada mesa mostra o preço dela.
+
+**Evento de vários dias**: o lugar é **por dia**. Crie uma "Mesa" para cada dia (diária),
+todas no mesmo mapa: a Mesa 12 de sábado e a de domingo são vendidas separadas. Não existe
+passaporte de mesa.
+
+O Lara **nunca vende o mesmo lugar duas vezes no mesmo dia**: se duas pessoas escolhem a
+mesma mesa ao mesmo tempo, a segunda recebe "esse lugar acabou de ser reservado" e escolhe
+outro. O lugar fica guardado para quem escolheu pelo prazo de pagamento (10 minutos); se não
+pagar, volta para o mapa.
+
+Mesa que já foi vendida (cadeado no desenho) pode ser movida, mas não muda de rótulo nem de
+categoria e não pode ser apagada — **desative** (desmarque **Ativo**) para tirar de venda.
+
+**Ocupação**: no mapa, ou no tipo de mesa na tela do evento (**Ver ocupação**), veja o mapa
+com cada lugar livre, reservado ou vendido. Passe o mouse para ver o responsável; clique para
+abrir o pedido.
 
 ## 3. Lotes
 
@@ -139,6 +187,8 @@ do pedido. No pedido:
 - **Trocar titular**: a pessoa não vai e passa o ingresso para outra (nome e CPF). O código
   continua o mesmo. Cada CPF só tem um ingresso no evento (no evento de vários dias, um por
   dia: a diária de cada dia ou o passaporte).
+- **Trocar lugar** (mesa, bistrô, camarote): abre o mapa; clique num lugar livre do mesmo
+  tipo e confirme. O valor e o código não mudam.
 - **Baixa manual**: o pedido do site ficou pendente e a pessoa pagou na secretaria. Escolha a
   forma, a data e uma observação. Os ingressos saem por e-mail.
 - **Cancelar ingressos**: marque quais, escreva o motivo e, se o pagamento foi pela eRede e
@@ -162,6 +212,10 @@ Em **Pedidos › Emitir ingressos** (ou **Emitir**, na tela do evento):
      sócio. Alguém de fora do título: o Lara avisa e pede confirmação.
    - **Não sócio**: nome, CPF, e-mail (para receber os ingressos) e telefone; depois um
      ingresso por pessoa (tipo, nome e CPF), com **Mais um ingresso**.
+   Para **mesa, bistrô ou camarote**, clique em **Escolher no mapa** na linha do ingresso e
+   escolha um lugar livre (o titular da linha é o responsável pela mesa). A pessoa que vai
+   sentar na mesa precisa também do ingresso de entrada: ponha outra linha com o tipo de
+   entrada.
 3. **Emitir**. O valor é o do lote à venda agora (a tela mostra), menos o cupom. Fora do
    período de vendas, sem estoque ou acima do limite por pedido, o Lara avisa e pede
    confirmação.
@@ -189,6 +243,10 @@ já entraram.
 No evento de vários dias, o **passaporte** entra uma vez **em cada dia** e a **diária** só no
 dia dela. A entrada de cada dia abre 3 horas antes do início do dia, e o contador mostra o dia
 aberto (ou o próximo): diárias do dia mais passaportes.
+
+O ingresso de **mesa, bistrô ou camarote** não é entrada: lido aqui, aparece em vermelho com
+o lugar e o responsável ("não é entrada"). A pessoa entra com o ingresso de entrada dela.
+Pelo CPF, só aparecem as entradas.
 
 **Na portaria do clube** (Externos › Monitor de Acesso), o porteiro digita o CPF como sempre:
 se a pessoa tiver ingresso de um evento com a entrada aberta, aparece a linha **Ingresso**.

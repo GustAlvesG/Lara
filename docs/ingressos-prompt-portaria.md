@@ -117,3 +117,39 @@ e os textos da tabela.
 No Lara de homologação, `php artisan ingressos:dados-teste` cria o evento
 "[TESTE] Show de Hoje (check-in)" com a entrada aberta e imprime 3 códigos válidos com o CPF
 de cada titular, além de um ingresso já usado.
+
+---
+
+## Atualização de 28/10/2026 — ingresso de mesa (lugar marcado)
+
+> Cole a partir daqui num Claude Code aberto no repositório do app da guarita, se a parte de
+> cima já foi implementada.
+
+O Lara passou a vender **lugares marcados** (mesa, bistrô, camarote), escolhidos num mapa. O
+ingresso do lugar **não é entrada**: cada pessoa entra com o ingresso de entrada dela. Mas o
+ingresso de mesa tem código `ING-` e QR como os outros (serve para a recepção conferir o
+responsável pela mesa) — então pode acabar sendo lido na guarita por engano.
+
+O que muda na resposta (nada muda nas rotas nem na autenticação):
+
+1. **Pela busca por CPF**, o ingresso de mesa **não aparece**: só as entradas.
+2. **Pelo código** (`ING-…`) de um ingresso de mesa, a linha `type: "ticket"` vem **negada**,
+   com um `reason` novo:
+
+   | `reason` | `allowed` | Mostrar |
+   |---|---|---|
+   | `ticket_seat_only` | false | "Ingresso de mesa — não é entrada" + `ticket.message` |
+
+   `ticket.message` vem pronto (ex.: "Ingresso de lugar (Mesa Vip · V2, responsável Carla
+   Visitante): não é entrada. Para entrar, cada pessoa usa o ingresso de entrada dela.").
+   Registrar (`register-access` ou `register-ticket-access`) **não** faz check-in: a linha
+   volta negada do mesmo jeito e vai para o histórico com esse `reason`.
+3. Campo novo na linha: `ticket.seat` — o rótulo do lugar (ex.: `"V2"`) no ingresso de mesa;
+   `null` nos de entrada. `ticket.type` já vem com o lugar (ex.: `"Mesa Vip · V2"`).
+
+Na tela: trate `ticket_seat_only` como os outros negados (o "estado neutro de negado" já
+cobre, se ainda não houver texto próprio), com a etiqueta "Ingresso de mesa" se quiser
+diferenciar. Nenhuma regra é decidida na guarita.
+
+Teste: `php artisan ingressos:dados-teste` cria o "[TESTE] Réveillon (lugar marcado)" com
+mesas vendidas; o código de uma mesa (na tela do pedido, no Lara) deve aparecer negado.

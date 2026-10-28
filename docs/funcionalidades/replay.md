@@ -26,7 +26,7 @@ Nas quadras há uma câmera e um botão. Quem aperta o botão guarda os **últim
 
 ## No menu
 
-Grupo **RePET** (área do Placar), com as quatro telas como páginas. Na navegação por **Módulos**, a capa da área mostra as quatro como abas; nos menus lateral e superior, o próprio menu leva de uma à outra. O módulo não tem mais abas próprias.
+Grupo **RePET** (área do Placar), com as quatro telas como páginas. Na navegação por **Módulos**, a capa da área mostra as quatro como abas. O módulo não tem mais abas próprias.
 
 ## 1. Configuração de Vídeo
 

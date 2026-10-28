@@ -10,9 +10,8 @@ use Tests\Feature\Rebrand\Concerns\RendersScreens;
 use Tests\TestCase;
 
 /**
- * A casca nova (navegação por Módulos): o menu calculado uma vez, a página atual
- * dentro dele (capa, abas, "você está em", recentes) e os menus de antes
- * continuando disponíveis como opção.
+ * A casca (navegação por Módulos, a única desde 28/10/2026): o menu calculado
+ * uma vez e a página atual dentro dele (capa, abas, "você está em", recentes).
  *
  * Usuário mock (o User está preso à conexão mysql), como em
  * NavigationMenuTest.
@@ -120,15 +119,16 @@ class ShellTest extends TestCase
         $this->assertSame(['Perfil', 'Documentação', 'Usuários'], array_column($current['tabs'], 'label'));
     }
 
-    public function test_layout_traz_as_areas_e_os_menus_de_antes_como_opcao(): void
+    public function test_layout_traz_so_a_navegacao_por_modulos(): void
     {
         $html = $this->actingAs($this->portaria())->get(route('docs.show', 'README'))->assertOk()->getContent();
 
-        // Modo gravado no <html> antes da pintura, Módulos por padrão.
-        $this->assertStringContainsString("localStorage.getItem('laraNavMode')", $html);
-        $this->assertStringContainsString('class="nav-only-areas contents"', $html);
-        $this->assertStringContainsString('class="nav-only-side"', $html);
-        $this->assertStringContainsString('class="nav-only-top contents"', $html);
+        // Os menus Lateral e Superior saíram em 28/10/2026: nada de modo.
+        $this->assertStringNotContainsString('laraNavMode', $html);
+        $this->assertStringNotContainsString('nav-only-', $html);
+        $this->assertStringNotContainsString('aria-label="Modo de navegação"', $html);
+        // Um sino só, o da barra.
+        $this->assertSame(1, substr_count($html, 'aria-label="Notificações'));
 
         // Barra: painel de Módulos, atalhos, conta com iniciais.
         $this->assertStringContainsString('id="lara-launcher"', $html);
@@ -139,8 +139,8 @@ class ShellTest extends TestCase
         $this->assertStringContainsString(route('parking.search'), $html);
         $this->assertStringNotContainsString(route('freelancers.index'), $html);
 
-        // Conta: tema e modo de navegação com as três opções.
-        foreach (['Claro', 'Escuro', 'Sistema', 'Módulos', 'Lateral', 'Superior'] as $opcao) {
+        // Conta: tema.
+        foreach (['Claro', 'Escuro', 'Sistema'] as $opcao) {
             $this->assertStringContainsString($opcao, $html);
         }
         $this->assertStringContainsString("window.laraTheme.set('system')", $html);
