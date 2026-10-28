@@ -52,7 +52,9 @@ class TicketMapService
 
             if ($copyFrom) {
                 foreach ($copyFrom->seats as $seat) {
-                    $map->seats()->create($seat->only(['label', 'category', 'shape', 'x', 'y', 'w', 'h', 'places', 'active']));
+                    // A mesa cativa vem junto (o Réveillon do ano que vem nasce com as
+                    // cativas); a tela avisa para conferir.
+                    $map->seats()->create($seat->only(['label', 'category', 'shape', 'x', 'y', 'w', 'h', 'places', 'active', 'captive_title', 'captive_name']));
                 }
             }
 

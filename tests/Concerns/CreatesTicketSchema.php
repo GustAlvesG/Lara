@@ -33,6 +33,9 @@ trait CreatesTicketSchema
     /** Lugar marcado: mapas, lugares e a reserva do lugar por dia. */
     protected const TICKET_MAPS_MIGRATION = '2026_10_28_120000_create_ticket_maps.php';
 
+    /** Histórico do pedido, impressão térmica e mesa cativa. */
+    protected const TICKET_LOGS_PRINT_CAPTIVE_MIGRATION = '2026_10_28_140000_add_ticket_logs_print_captive.php';
+
     protected function createTicketSchema(): void
     {
         $this->migrateAccessSchema();
@@ -63,6 +66,7 @@ trait CreatesTicketSchema
         (require database_path('migrations/' . self::TICKET_LOT_UNLIMITED_MIGRATION))->up();
         (require database_path('migrations/' . self::TICKET_GUEST_ACCESS_MIGRATION))->up();
         (require database_path('migrations/' . self::TICKET_MAPS_MIGRATION))->up();
+        (require database_path('migrations/' . self::TICKET_LOGS_PRINT_CAPTIVE_MIGRATION))->up();
 
         $this->shareSqliteWithUserConnection();
     }

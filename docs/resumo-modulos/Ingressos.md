@@ -13,13 +13,16 @@ sócio) e cupons; o sócio (titular ou dependente) compra com o login para as pe
 dele, o não sócio compra sem conta para várias pessoas; evento de vários dias com diária
 (tipo preso a um dia) e, se cadastrado, passaporte (tipo sem dia); **lugar marcado** (mesa,
 bistrô, camarote escolhidos num mapa, sem venda dupla; o ingresso do lugar não é entrada);
-pagamento eRede; o Lara também emite pago por fora e cortesia, faz o
-check-in (tela própria e Monitor de Acesso) e o financeiro. Ingresso nominal com código
-`ING-` e QR.
+**mesa cativa** (guardada para uma matrícula até N dias antes); pagamento eRede; o Lara
+também emite pago por fora e cortesia (até sem CPF, em quantidade), imprime o ingresso
+físico na térmica de 80 mm, guarda o histórico de quem fez o quê, faz o relatório de caixa,
+o check-in (tela própria e Monitor de Acesso) e o financeiro. Ingresso nominal com código
+`ING-` e QR (a cortesia sem CPF entra só pelo código).
 
 ## Onde está
 
-F1–F13 feitas em 27–28/10/2026 (ver a tabela de fases em `ingressos.md`). F13 = lugar marcado.
+F1–F17 feitas em 27–28/10/2026 (ver a tabela de fases em `ingressos.md`). F13 = lugar marcado;
+F14 = histórico; F15 = caixa; F16 = térmica e cortesia sem CPF; F17 = mesa cativa.
 
 ## Peças
 
@@ -34,6 +37,11 @@ F1–F13 feitas em 27–28/10/2026 (ver a tabela de fases em `ingressos.md`). F1
 | `app/Services/Ticket/TicketSeatService.php` | `claim` (prende o lugar; reserva morta sai; `seat_taken`), `release`, `changeSeat`, `layout` (situação de cada lugar num dia), `taken`. |
 | `app/Services/Ticket/TicketMapService.php` | Criar/copiar/apagar mapa, `saveLayout` (lugares e áreas, trava o lugar com ingresso). |
 | `app/Http/Controllers/Ticket/TicketMapController.php`, `resources/views/tickets/maps/*`, `public/js/tickets/seat-map.js` | Mapas no painel: lista, editor (SVG), ocupação, JSON do mapa para a emissão, troca de lugar. JS sem build (`asset()`). |
+| `database/migrations/2026_10_28_140000_add_ticket_logs_print_captive.php` | `ticket_order_logs`, `tickets.print_count`/`printed_at`, `ticket_seats.captive_title`/`captive_name`, `ticket_events.captive_release_days`, `holder_cpf`/`buyer_cpf` nulos. |
+| `app/Models/Ticket/TicketOrderLog.php` | Histórico do pedido: `record()`, `label()`, `summary()`. `TicketOrder::logs()`. |
+| `app/Services/Ticket/TicketCashService.php`, `app/Http/Controllers/Ticket/TicketCashController.php`, `resources/views/tickets/cash/*` | Relatório de caixa: vendas (baixa manual, por `recorded_by`), cortesias (`created_by`), cancelamentos, site à parte; tela, PDF, CSV. |
+| `app/Services/Ticket/TicketPrintService.php`, `resources/views/tickets/print/thermal.blade.php` | Ingresso na térmica de 80 mm: conta a via (`print_count`), grava no histórico, página que abre a impressão. |
+| `app/Services/Ticket/TicketCaptiveService.php`, `app/Http/Controllers/Ticket/TicketCaptiveController.php`, `resources/views/tickets/maps/captives.blade.php` | Mesa cativa: guardar (MultiClubes confere a matrícula), tirar, prazo de liberação, lista com situação. |
 | `app/Models/Ticket/*` | `TicketEvent`, `TicketEventDay`, `TicketType` (`validity()`, `fullName()`, `daysOverlap()`), `TicketLot`, `TicketCoupon`, `TicketOrder`, `Ticket`, `TicketCheckin`, `TicketPayment`; situações em constantes. |
 | `app/Services/Ticket/TicketInventory.php` | Ocupados por lote e por dia (`occupiedByDay`, `capacityOverflow`, `capacityLeftByDay`), lote vigente (`currentLot`), próximo lote, resumo por tipo. |
 | `app/Services/Ticket/TicketOrderService.php` | Pedido (site e balcão) com cupom, `issueAtCounter` (pago por fora / cortesia), pagamento, baixa manual, desistência, expiração, `cancelTickets` (um estorno só), `changeHolder`, `checkCoupon`, reenvio do link. |
@@ -51,9 +59,9 @@ F1–F13 feitas em 27–28/10/2026 (ver a tabela de fases em `ingressos.md`). F1
 | `app/Services/CompanyService.php` (`ticketAccessEntries`, `logTicketAccess`, `registerTicketAccess`) | O ingresso no Monitor de Acesso. |
 | `app/Console/Commands/ExpireTicketOrders.php`, `TicketTestData.php` | `ingressos:expirar-pedidos` (a cada minuto) e `ingressos:dados-teste`. |
 | `config/tickets.php` | `hold_minutes`, `site_url`, `checkin_hours_before`. |
-| `app/View/Navigation.php` | Entrada **Ingressos** (área `reservas`, ícone `ticket`): Eventos, Check-in, Financeiro. |
-| `app/Providers/AppServiceProvider.php` | Gate `acessar-ingressos` (qualquer permissão do módulo abre lista e tela do evento). |
-| `app/Authorization/Permissions.php` | `INGRESSOS_*` (8 permissões, grupo Ingressos). |
+| `app/View/Navigation.php` | Entrada **Ingressos** (área `reservas`, ícone `ticket`): Eventos, Check-in, Financeiro, Caixa. |
+| `app/Providers/AppServiceProvider.php` | Gate `acessar-ingressos` (qualquer permissão do módulo abre lista e tela do evento) e `ver-caixa-ingressos` (vendas, baixa manual, cortesias ou `caixa.todos`). |
+| `app/Authorization/Permissions.php` | `INGRESSOS_*` (9 permissões, grupo Ingressos; `ingressos.caixa.todos` desde 28/10/2026). |
 
 ## Regras que costumam pegar
 
@@ -114,6 +122,22 @@ F1–F13 feitas em 27–28/10/2026 (ver a tabela de fases em `ingressos.md`). F1
 - `@json(...)` do Blade quebra com vírgula dentro do argumento (array, `route()` com
   parâmetros): monte a variável num `@php` e use `Js::from()` ou `json_encode`.
 - Sem `Session`, o `JwtMiddleware` responde 400 (não 401).
+- **Histórico**: toda ação nova sobre pedido grava `TicketOrderLog::record($order, ação,
+  $user, detalhes, $ticket)` dentro da transação dela. Usuário nulo = site ou rotina. O caixa
+  não usa o histórico: lê `ticket_payments.recorded_by`, `ticket_orders.created_by` e
+  `tickets.cancelled_by` (vale também para pedidos de antes do histórico).
+- **Cortesia sem CPF**: só `courtesy` + balcão + não sócio (`$anonymous` no `create`,
+  `normalizeHolders(..., $anonymous)`). `holder_cpf`/`buyer_cpf` podem ser nulos: toda conta
+  de "um por CPF" e toda busca por CPF tem de pular o nulo; a tela mostra "sem CPF". Venda
+  sem CPF recusa `invalid_holder`.
+- **Mesa cativa**: `TicketSeat::captiveFor($event)` = matrícula enquanto vale, `null` depois
+  (liberação calculada na hora por `captive_release_days`, sem rotina). A recusa
+  `seat_captive` é **sempre** (balcão também), no `pickSeat` e no `changeSeat`. Compare
+  matrícula com `TicketSeat::sameTitle` (sem zeros à esquerda). `layout(..., title:)` deixa a
+  cativa da matrícula livre; o painel recebe `captive_title`/`captive_name`. Cópia de mapa
+  leva as cativas.
+- **Impressão**: só pedido pago e ingresso válido; é POST (contar a via não pode ser efeito
+  de um GET recarregado). O QR é o mesmo código do PDF.
 
 ## Testes
 
@@ -125,7 +149,9 @@ emissão e permissões), `TicketCheckinTest` (Lara e Monitor de Acesso), `Ticket
 (dias, diária, passaporte, lotação e entrada por dia), `TicketLotTurnTest` (lote sem limite,
 Virar lote agora), `TicketGuestAccessTest` (meus ingressos do não sócio), `TicketFinanceTest`
 (relatório, CSV, dados de teste), `TicketSeatMapTest` (lugar marcado: venda dupla, índice único,
-lugar por dia, pendente vencido, pagamento tardio, desenho, cópia, API, telas, check-in) — sobre `Tests\Concerns\CreatesTicketSchema` e
+lugar por dia, pendente vencido, pagamento tardio, desenho, cópia, API, telas, check-in),
+`TicketTraceCashCaptiveTest` (histórico, filtro por vendedor, caixa próprio × todos,
+impressão e vias, cortesia sem CPF e em quantidade, mesa cativa, liberação, cópia) — sobre `Tests\Concerns\CreatesTicketSchema` e
 `Tests\Concerns\BuildsTickets` (MultiClubes e eRede em memória). Confira o isolamento SQLite
 antes de rodar.
 
@@ -134,7 +160,8 @@ antes de rodar.
 - O módulo conversa com o **Next.js**: toda mudança na API atualiza
   `ingressos-site-prompt.md` e gera um prompt para o agente do site.
 - Mapas e lugar marcado também estão na API do site (`/events/{id}/maps/{mapId}`, `seat_id` no
-  pedido, `kind`/`seat` no ingresso): prompt v7 no mesmo arquivo.
+  pedido, `kind`/`seat` no ingresso): prompt v7 no mesmo arquivo. Mesa cativa (`captive`,
+  `/maps/{mapId}/member`, `seat_captive`): prompt v8.
 - O check-in mexe no **Monitor de Acesso** (`CompanyService`, API sem token usada pelo app
   Python da guarita): mudou a resposta, atualize `docs/ingressos-prompt-portaria.md` e gere o
   prompt para o agente da guarita.

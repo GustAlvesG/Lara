@@ -2,7 +2,9 @@
      manual, com cupom opcional) ou cortesia (valor zerado). Sócio: para as
      pessoas do título dele (CPF de cada uma). Não sócio: um titular por
      ingresso (nome e CPF). Tipo de lugar marcado (mesa, bistrô…): o lugar é
-     escolhido no mapa (TicketSeatMap.viewer), e o titular é o responsável. --}}
+     escolhido no mapa (TicketSeatMap.viewer), e o titular é o responsável.
+     Cortesia para não sócio: CPF opcional; ou "em quantidade" (N ingressos de
+     um tipo de entrada, sem nome nem CPF), que esconde a lista de pessoas. --}}
 @php
     use App\Models\Ticket\TicketOrder;
     use App\Services\Ticket\TicketOrderService;
@@ -16,6 +18,8 @@
     $mapUrl = fn ($type) => $type->isSeated() ? route('tickets.maps.state', [$event, $type->ticket_map_id, 'dia' => $type->ticket_event_day_id]) : null;
     $typeOptions = $event->types->map(fn ($t) => ['id' => $t->id, 'label' => $t->fullName(), 'map_url' => $mapUrl($t)])->values();
     $oldSeats = \App\Models\Ticket\TicketSeat::whereIn('id', collect($holders)->pluck('seat_id')->filter()->all())->pluck('label', 'id');
+    $courtesyFormat = old('courtesy_format', 'nominal');
+    $entryTypes = $event->types->reject(fn ($t) => $t->isSeated())->values();
 @endphp
 <x-app-layout :bootstrap-grid="false">
     <x-page>
@@ -63,12 +67,35 @@
                 <section class="grid grid-cols-1 gap-4 rounded-card bg-surface p-5 shadow-card sm:grid-cols-4" data-for-buyer="{{ TicketOrder::BUYER_GUEST }}">
                     <h2 class="text-sm font-black uppercase tracking-widest text-ink-3 sm:col-span-4">Quem compra</h2>
                     <div class="sm:col-span-2"><x-input-label for="buyer_name" value="Nome" /><x-text-input id="buyer_name" name="buyer_name" class="mt-1" :value="old('buyer_name')" /></div>
-                    <div><x-input-label for="buyer_cpf" value="CPF" /><x-text-input id="buyer_cpf" name="buyer_cpf" class="mt-1" :value="old('buyer_cpf')" /></div>
+                    <div><x-input-label for="buyer_cpf" value="CPF (opcional na cortesia)" /><x-text-input id="buyer_cpf" name="buyer_cpf" class="mt-1" :value="old('buyer_cpf')" /></div>
                     <div><x-input-label for="buyer_phone" value="Telefone" /><x-text-input id="buyer_phone" name="buyer_phone" class="mt-1" :value="old('buyer_phone')" /></div>
                     <div class="sm:col-span-2"><x-input-label for="buyer_email" value="E-mail (para receber os ingressos)" /><x-text-input type="email" id="buyer_email" name="buyer_email" class="mt-1" :value="old('buyer_email')" /></div>
+                    <p class="text-xs text-ink-3 sm:col-span-4">Na cortesia, quem recebe pode ser uma empresa ou ação (ex.: "Patrocinador X") e o CPF fica opcional. Sem e-mail, baixe o PDF ou imprima na térmica depois de emitir.</p>
                 </section>
 
-                <section class="grid grid-cols-1 gap-4 rounded-card bg-surface p-5 shadow-card sm:grid-cols-4">
+                @if ($entryTypes->isNotEmpty())
+                    <section class="grid grid-cols-1 gap-4 rounded-card bg-surface p-5 shadow-card sm:grid-cols-4" data-for-mode="{{ TicketOrderService::ISSUE_COURTESY }}">
+                        <h2 class="text-sm font-black uppercase tracking-widest text-ink-3 sm:col-span-4">Cortesias</h2>
+                        <fieldset class="flex flex-col gap-2 sm:col-span-4">
+                            <legend class="sr-only">Formato</legend>
+                            <label class="flex items-center gap-2 text-sm text-ink"><input type="radio" name="courtesy_format" value="nominal" @checked($courtesyFormat !== 'batch') data-format> Uma por pessoa (lista abaixo; no não sócio, nome e CPF opcionais)</label>
+                            <label class="flex items-center gap-2 text-sm text-ink"><input type="radio" name="courtesy_format" value="batch" @checked($courtesyFormat === 'batch') data-format> Em quantidade, sem nome nem CPF (ex.: 30 cortesias para um patrocinador) — só para não sócio</label>
+                        </fieldset>
+                        <div data-for-format="batch">
+                            <x-input-label for="batch_type_id" value="Tipo" />
+                            <select id="batch_type_id" name="batch_type_id" class="{{ $select }}">
+                                @foreach ($entryTypes as $type)
+                                    <option value="{{ $type->id }}" @selected((int) old('batch_type_id') === $type->id)>{{ $type->fullName() }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div data-for-format="batch"><x-input-label for="batch_quantity" value="Quantidade" /><x-text-input type="number" id="batch_quantity" name="batch_quantity" class="mt-1" min="1" max="{{ TicketOrderService::MAX_COURTESY_BATCH }}" :value="old('batch_quantity', 10)" /></div>
+                        <div class="sm:col-span-2" data-for-format="batch"><x-input-label for="batch_name" value="Nome no ingresso (opcional)" /><x-text-input id="batch_name" name="batch_name" class="mt-1" maxlength="255" :value="old('batch_name')" placeholder="Cortesia" /></div>
+                        <p class="text-xs text-ink-3 sm:col-span-4" data-for-format="batch">Os ingressos saem sem CPF: entram pelo código (QR), uma vez cada, no check-in e na portaria — não aparecem na busca por CPF. Até {{ TicketOrderService::MAX_COURTESY_BATCH }} de uma vez; mesa e outros lugares marcados se escolhem no mapa, na lista.</p>
+                    </section>
+                @endif
+
+                <section class="grid grid-cols-1 gap-4 rounded-card bg-surface p-5 shadow-card sm:grid-cols-4" data-holders-section>
                     <h2 class="text-sm font-black uppercase tracking-widest text-ink-3 sm:col-span-4">Ingressos (um por pessoa)</h2>
                     <p class="text-xs text-ink-3 sm:col-span-4">Não sócio: nome e CPF de cada pessoa. Sócio: só o CPF de cada pessoa do título (nome do cadastro; CPF vazio = o próprio sócio). Mesa, bistrô e camarote: escolha o lugar no mapa; o titular é o responsável pelo lugar, que não é entrada (cada pessoa precisa do ingresso dela).</p>
                     <div class="flex flex-col gap-3 sm:col-span-4" id="holders">
@@ -196,6 +223,8 @@
                     const apply = () => {
                         const buyer = form.querySelector('[data-buyer]:checked')?.value;
                         const mode = form.querySelector('[data-mode]:checked')?.value;
+                        // Cortesia em quantidade: sem a lista de pessoas.
+                        const batch = mode === '{{ TicketOrderService::ISSUE_COURTESY }}' && form.querySelector('[data-format]:checked')?.value === 'batch';
                         form.querySelectorAll('[data-for-buyer]').forEach((el) => {
                             const on = el.dataset.forBuyer === buyer;
                             el.classList.toggle('hidden', !on);
@@ -206,8 +235,16 @@
                             el.classList.toggle('hidden', !on);
                             el.querySelectorAll('input, select').forEach((f) => f.disabled = !on);
                         });
+                        form.querySelectorAll('[data-for-format]').forEach((el) => {
+                            const on = batch;
+                            el.classList.toggle('hidden', !on);
+                            el.querySelectorAll('input, select').forEach((f) => f.disabled = !on);
+                        });
+                        const list = form.querySelector('[data-holders-section]');
+                        list.classList.toggle('hidden', batch);
+                        list.querySelectorAll('input, select').forEach((f) => f.disabled = batch);
                     };
-                    form.querySelectorAll('[data-buyer], [data-mode]').forEach((el) => el.addEventListener('change', apply));
+                    form.querySelectorAll('[data-buyer], [data-mode], [data-format]').forEach((el) => el.addEventListener('change', apply));
 
                     // Lugar marcado: o botão "Lugar" só aparece no tipo com mapa;
                     // trocar o tipo apaga o lugar escolhido.

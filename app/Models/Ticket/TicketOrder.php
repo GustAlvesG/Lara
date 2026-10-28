@@ -129,6 +129,12 @@ class TicketOrder extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /** O histórico: quem fez o quê (mais novo primeiro). */
+    public function logs(): HasMany
+    {
+        return $this->hasMany(TicketOrderLog::class)->orderByDesc('id');
+    }
+
     public function coupon(): BelongsTo
     {
         return $this->belongsTo(TicketCoupon::class, 'ticket_coupon_id');

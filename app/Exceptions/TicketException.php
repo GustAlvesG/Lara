@@ -110,6 +110,9 @@ class TicketException extends RuntimeException
     /** Ingresso de lugar marcado (mesa, bistrô, camarote) lido na entrada: não é entrada. */
     public const SEAT_NOT_ENTRY = 'seat_not_entry';
 
+    /** Mesa cativa de outra matrícula, ainda não liberada para a venda geral (`context.seat_id`, `context.released_at`). */
+    public const SEAT_CAPTIVE = 'seat_captive';
+
     /** "Meus ingressos" do não sócio: código errado, ainda com tentativas (`context.attempts_left`). */
     public const ACCESS_CODE_INVALID = 'access_code_invalid';
 

@@ -38,7 +38,7 @@ Evento ─┬─ Tipo de ingresso (Pista, Mesa, Infantil…)
 | 1 | **Lote por tipo**: cada tipo de ingresso tem os seus lotes; cada lote tem quantidade, janela de datas, **preço sócio** e **preço não sócio**. |
 | 2 | **O sócio compra para todos do título dele** (mudado em 27/10/2026; antes era só para ele): qualquer pessoa do título — titular ou dependente — compra, no login dela, para qualquer pessoa do mesmo título, pelo preço de sócio. Ninguém de fora do título entra no pedido de sócio. |
 | 3 | **Não sócio compra sem conta** (CPF, nome, e-mail, telefone); o pedido é acessado pelo token do link. |
-| 4 | **Ingresso nominal**: nome e CPF de quem entra, sempre. |
+| 4 | **Ingresso nominal**: nome e CPF de quem entra — salvo a **cortesia do não sócio** emitida no Lara (decisão 17), que pode sair sem CPF. |
 | 5 | **Sem meia-entrada** por enquanto (ver *Para implementação futura*). |
 | 6 | **Check-in pelo Lara e pelo Monitor de Acesso** dos terceirizados. |
 | 7 | **O Lara não confere o tid na eRede**: confia no que o site envia, como nos torneios. |
@@ -47,6 +47,11 @@ Evento ─┬─ Tipo de ingresso (Pista, Mesa, Infantil…)
 | 10 | **Cortesia** com valor zerado. |
 | 11 | **Evento de vários dias** (27/10/2026): ingresso **diário** ou **passaporte** para todos os dias. Nem todo evento de vários dias tem passaporte, mas tem de ser possível. |
 | 12 | **Lugar marcado** (28/10/2026): mesas, bistrôs e camarotes escolhidos **num mapa**, sem venda dupla, no site e no Lara. A mesa é **só a mesa** (cada pessoa compra a entrada à parte); **lugar por dia**; mapas por evento e por tipo (mesas, bistrôs, camarotes) com **áreas de orientação** desenhadas (palco, piscina, banheiros); preço diferente no mesmo mapa por **categoria**; a compra da mesa **não exige** ter entrada. |
+| 13 | **Ingresso físico** (28/10/2026) na impressora térmica USB de **80 mm**, pelo navegador (driver do Windows), sem programa instalado. |
+| 14 | **Rastreio** (28/10/2026): quem emitiu, cobrou, trocou, cancelou e imprimiu cada pedido. "Pela web" = a venda no Lara, pela equipe; a do site aparece como "Site". |
+| 15 | **Mesa cativa** (28/10/2026): o lugar guardado para uma **matrícula**; só um sócio desse título compra; **liberada para a venda geral N dias antes** do evento (N **por evento**); vale para **todos os dias**; copiar o mapa **leva as cativas junto, com aviso**; dá para tirar a cativa pela tela. |
+| 16 | **Relatório de caixa** (28/10/2026): as vendas do balcão por dia, por pessoa e por forma de pagamento, para o fechamento do financeiro. **Só o relatório** (sem "fechar caixa"). Cada funcionário vê **o próprio**; o financeiro vê **o de todos**. |
+| 17 | **Cortesia sem CPF e em quantidade** (28/10/2026): a cortesia não precisa de CPF e sai em grande quantidade de uma vez ("Emitir 30 cortesias"); sem CPF, o PDF é baixado ou o ingresso vai para a térmica. |
 
 Decorrências fixadas na implementação:
 
@@ -139,6 +144,32 @@ camarote exato.
   garantia é a do pedido (`seat_taken`), não a tela. Não há pré-reserva ao clicar: o lugar só
   fica preso quando o pedido é criado (o mesmo prazo de 10 min do estoque).
 
+### Mesa cativa (`TicketCaptiveService`, desde 28/10/2026)
+
+- **O que é**: um lugar do mapa guardado para uma **matrícula** (`ticket_seats.captive_title`,
+  com o nome do titular em `captive_name`, do MultiClubes). Até a liberação, só um **sócio
+  desse título** compra o lugar — qualquer pessoa do título, no login dela, como na decisão 2.
+  Vale para **todos os dias** do evento.
+- **Liberação por evento**: `ticket_events.captive_release_days` = N. As cativas viram lugar
+  comum à **0h do dia, N dias antes de `starts_at`** (`TicketEvent::captiveReleaseAt()`).
+  Nulo = não liberam sozinhas (só tirando a cativa). Calculado na hora, sem rotina agendada:
+  `TicketSeat::captiveFor($event)` devolve a matrícula enquanto vale, `null` depois.
+- **Venda**: `pickSeat` recusa **sempre** (`seat_captive`, 422, `context.seat_id`,
+  `context.released_at`) quem não é da matrícula — site e balcão, até com "Confirmar mesmo
+  assim". Para vender a outra pessoa antes do prazo, tira-se a cativa. A troca de lugar
+  também recusa a cativa de outra matrícula. A matrícula compara sem zeros à esquerda
+  (`TicketSeat::sameTitle`). Não sócio nunca compra cativa antes da liberação.
+- **No mapa**: a situação `captive` aparece para todo mundo, menos para quem é da matrícula
+  (`GET /api/tickets/events/{id}/maps/{mapId}/member`, com o JWT), que a vê `free` com
+  `captive_mine: true`. O painel mostra a matrícula e o nome; no balcão a equipe pode
+  escolher a cativa — o servidor confere a matrícula de quem compra.
+- **Tela "Mesas cativas"** (por mapa, `ingressos.gerenciar`): o prazo de liberação do evento,
+  guardar um lugar para uma matrícula (o MultiClubes confere e traz o nome; fora do ar, fica
+  o nome digitado), a lista com a situação (comprada pela matrícula, aguardando, liberada,
+  vendida a outra pessoa) e **Tirar cativa** (uma ou todas).
+- **Cópia do mapa**: as cativas vêm junto; a tela avisa quantas vieram, para conferir.
+- O ★ no editor marca a cativa.
+
 ### Lote vigente
 
 O site vende, para cada tipo, o lote de **menor ordem** (`sequence`) que está **ativo**,
@@ -215,6 +246,51 @@ título, pede a matrícula), com um ingresso para cada pessoa do título informa
 nome vem do cadastro; CPF vazio = o próprio sócio), ou **não sócio** (nome, CPF, e-mail,
 telefone e um titular por ingresso). O pedido sai com `origin = secretaria` e quem emitiu
 (`created_by`).
+
+**Cortesia sem CPF e em quantidade** (desde 28/10/2026). Na cortesia para **não sócio**:
+
+- o CPF de quem recebe é opcional (pode ser "Patrocinador X") e cada ingresso pode sair sem
+  CPF; nome vazio vira **"Cortesia"** (`TicketOrderService::ANONYMOUS_NAME`);
+- formato **"Em quantidade"** (`courtesy_format=batch`): N ingressos de um tipo de **entrada**
+  de uma vez (até `MAX_COURTESY_BATCH` = 500; `batchItems`), sem nome nem CPF (ou com um nome
+  para todos). Mesa não sai em quantidade (cada lugar se escolhe no mapa). O limite por pedido
+  (`max_per_order`) não vale para a cortesia de não sócio; estoque e lotação continuam;
+- o ingresso sem CPF fica fora do "um por CPF", não aparece na busca por CPF do check-in nem
+  da portaria e **entra pelo código** (QR), uma vez;
+- sem e-mail, nada é enviado: **PDF** para baixar ou **Imprimir (térmica)** no pedido;
+- `tickets.holder_cpf` e `ticket_orders.buyer_cpf` aceitam nulo **só** por isso: venda (pelo
+  site ou paga no balcão) continua exigindo CPF (`invalid_holder`).
+
+### Histórico do pedido (`TicketOrderLog`, desde 28/10/2026)
+
+`ticket_order_logs` guarda **quem, quando e o quê** de cada pedido: criado (no site ou no
+Lara, cortesia, quantos, total), pago pela eRede, baixa manual (forma, valor, observação),
+titular trocado (de → para, CPF mascarado), lugar trocado (de → para), ingresso cancelado
+(titular, valor, estorno, motivo), estorno, desistência, expiração, e-mail reenviado e
+ingresso impresso (via). Usuário nulo = o site ou a rotina de expirar. A tela do pedido
+mostra o **Histórico**; a lista de pedidos filtra por **Vendido por** (quem emitiu ou recebeu
+a baixa; "Site"); o CSV do financeiro tem as colunas **Vendido por** e **Recebido por**.
+Pedidos de antes de 28/10/2026 não têm histórico (o `created_by`/`recorded_by` deles continua
+valendo).
+
+### Ingresso físico na impressora térmica (`TicketPrintService`, desde 28/10/2026)
+
+Botão **Imprimir (térmica)** no pedido pago (todos os válidos) e **Imprimir só este** por
+ingresso. É um POST que abre numa aba nova a página de 80 mm
+(`tickets/print/thermal.blade.php`): preto no branco, 72 mm de largura útil, **um ingresso
+por página** (o driver corta no fim de cada página), com evento, data, tipo, lugar (mesa:
+"LUGAR — NÃO É ENTRADA"), nome, CPF (se houver), o QR e o código `ING-` (o mesmo do PDF: o
+check-in não muda). A janela de impressão abre sozinha e a aba fecha depois.
+
+Cada impressão conta a via (`tickets.print_count`, `printed_at`): da segunda em diante sai
+**"2ª VIA"**, e toda impressão vai para o histórico. Só ingresso válido de pedido pago.
+
+**No computador da impressora** (uma vez): instalar o driver da térmica, deixá-la como
+**impressora padrão**, papel **80 mm** (rolo) com margem zero e "cortar no fim da página"
+(ou do documento) nas preferências do driver. Para imprimir **sem a janela de impressão**,
+abrir o Lara por um atalho do Chrome com `--kiosk-printing` (ex.:
+`chrome.exe --kiosk-printing https://…/ingressos`): a impressão vai direto para a padrão.
+No Chrome normal, na janela: destino = a térmica, margens = nenhuma, sem cabeçalho e rodapé.
 
 ### No Lara, só aviso
 
@@ -317,8 +393,9 @@ Migrations `2026_10_27_100000_create_ticket_tables` (as 7 tabelas),
 `ticket_checkins` as entradas já gravadas no ingresso) e
 `2026_10_28_100000_make_ticket_lot_quantity_nullable` (lote sem limite) e
 `2026_10_28_110000_create_ticket_guest_access_codes` (códigos de "meus ingressos") e
-`2026_10_28_120000_create_ticket_maps` (lugar marcado), idempotentes, FKs com nome curto;
-models em `app/Models/Ticket/`.
+`2026_10_28_120000_create_ticket_maps` (lugar marcado) e
+`2026_10_28_140000_add_ticket_logs_print_captive` (histórico, vias impressas, mesa cativa,
+CPF nulo na cortesia), idempotentes, FKs com nome curto; models em `app/Models/Ticket/`.
 
 | Tabela | Papel |
 |---|---|
@@ -338,6 +415,11 @@ models em `app/Models/Ticket/`.
 | `ticket_types.ticket_map_id` / `seat_category` | O tipo de lugar marcado (mapa e, se for só parte, a categoria). |
 | `tickets.ticket_seat_id` | O lugar do ingresso de lugar marcado. |
 | `company_access_logs.ticket_id` | O ingresso conferido no Monitor de Acesso (nulo nos outros acessos). |
+| `ticket_order_logs` | Histórico do pedido: `ticket_order_id`, `ticket_id` (opcional), `user_id` (nulo = site ou rotina), `action`, `details` (JSON), `created_at`. Índice `(user_id, created_at)`. |
+| `tickets.print_count` / `printed_at` | Vias impressas na térmica e a última. |
+| `ticket_seats.captive_title` / `captive_name` | Mesa cativa: a matrícula e o nome do titular. |
+| `ticket_events.captive_release_days` | Dias antes do início em que as cativas liberam (nulo = não liberam sozinhas). |
+| `tickets.holder_cpf` / `ticket_orders.buyer_cpf` | Nulos só na cortesia de não sócio sem CPF. |
 
 O **código** do ingresso tem 8 caracteres de um alfabeto sem 0/O e 1/I/L (é digitado na
 portaria); `Ticket::normalizeCode()` aceita minúsculas, espaço, hífen e sem o `ING`.
@@ -357,6 +439,7 @@ deploy, dê aos setores pertinentes pela tela de Setores.
 | `ingressos.cupons` | Cupons de desconto do evento |
 | `ingressos.checkin` | Tela de check-in do Lara (o Monitor de Acesso não pede permissão) |
 | `ingressos.financeiro` | Relatório financeiro e CSV |
+| `ingressos.caixa.todos` | Relatório de caixa de **todas** as pessoas, com o site (eRede) e o filtro por pessoa — o fechamento do financeiro. Sem ela, quem tem `vendas`, `pagamentos.baixa-manual` ou `cortesias` vê só o próprio caixa (Gate `ver-caixa-ingressos`). |
 
 A lista de eventos e a tela do evento abrem para quem tem **qualquer** uma delas (Gate
 `acessar-ingressos`, no `AppServiceProvider`); o que cada um faz lá dentro segue a própria
@@ -365,7 +448,7 @@ permissão.
 ## Telas
 
 Menu **Ingressos**: **Eventos** (`acessar-ingressos`), **Check-in** (`ingressos.checkin`),
-**Financeiro** (`ingressos.financeiro`).
+**Financeiro** (`ingressos.financeiro`), **Caixa** (`ver-caixa-ingressos`).
 
 - **Lista de eventos** (`/ingressos`) com busca e filtro de situação; vendidos e lotação.
 - **Novo/editar evento** (`/ingressos/novo`, `/ingressos/{id}/editar`): nome, local,
@@ -401,6 +484,12 @@ Menu **Ingressos**: **Eventos** (`acessar-ingressos`), **Check-in** (`ingressos.
   sozinho. Na tela do evento, o tipo de lugar mostra os lugares livres e o link.
 - Na **Emissão**, o tipo de lugar ganha o botão "Escolher no mapa"; no **Pedido**, o lugar
   aparece no ingresso e há **Trocar lugar** (mapa).
+- **Mesas cativas** (`/ingressos/{id}/mapas/{mapa}/cativas`, `gerenciar`): prazo de
+  liberação, guardar lugar para matrícula, lista com a situação, tirar cativa (uma ou todas).
+- **Caixa** (`/ingressos/caixa?de=&ate=&pessoa=`, `ver-caixa-ingressos`): ver *Relatório de
+  caixa*; PDF e CSV.
+- No **Pedido**: **Imprimir (térmica)** e **Histórico**; nos **Pedidos**, filtro **Vendido
+  por**; na **Emissão**, o bloco **Cortesias** (uma por pessoa ou em quantidade).
 
 ## Relatório financeiro (`TicketFinanceService`)
 
@@ -415,6 +504,28 @@ Conta **por ingresso**: vendidos = válidos + usados; o cancelado entra só com 
 | CSV | um ingresso por linha (pagos, usados e cancelados), separador `;`, com BOM para o Excel; CPF do titular mascarado |
 
 A lista (`/ingressos/financeiro`) mostra os eventos do ano (`?ano=`), menos os rascunhos.
+O CSV traz também **Vendido por** (quem emitiu no Lara; "Site") e **Recebido por** (quem
+registrou a baixa manual).
+
+## Relatório de caixa (`TicketCashService`, desde 28/10/2026)
+
+O que cada pessoa recebeu **no balcão**, por **dia** e **forma de pagamento**, juntando todos
+os eventos — para o fechamento de caixa do financeiro. Período de um dia (padrão: hoje) até
+62 dias.
+
+| Lançamento | Na conta de | Quando | Valor |
+|---|---|---|---|
+| **Venda** = baixa manual (emissão com pagamento por fora, ou pedido do site pago na secretaria) | quem registrou (`recorded_by`) | `paid_at` | `paid_amount`, na forma (dinheiro, Pix, maquininha, transferência, outro) |
+| **Cortesia** emitida no Lara | quem emitiu (`created_by`) | `paid_at` | só a quantidade |
+| **Cancelamento** de ingresso pago por baixa manual | quem cancelou (`cancelled_by`) | `cancelled_at` | só informa: a devolução, se houve, foi **por fora** (baixa manual não tem estorno pelo Lara), então **não sai** do total recebido |
+| **Site (eRede)** | — (bloco à parte, só na visão de todos) | `paid_at` | pago e estornado; não passa pelo caixa de ninguém |
+
+Tela: totais do período por forma; por dia, uma linha por pessoa (cada forma, total, vendas ·
+ingressos, cortesias, cancelados); o bloco do site; os **lançamentos** um a um (com link do
+pedido). **PDF** com as linhas de assinatura ("quem entrega o caixa" / "quem confere") e
+**CSV** (`;`, BOM). Sem `ingressos.caixa.todos`, a pessoa vê só o próprio caixa (o filtro
+`pessoa` é ignorado) e não vê o bloco do site. **É só relatório**: não há "fechar caixa" nem
+trava do dia.
 
 ## API do site (`Api\TicketApiController`)
 
@@ -429,6 +540,7 @@ regra: `{message, reason, context?}` (`App\Exceptions\TicketException`).
 | GET | `/api/tickets/events/{id}` | | O mesmo, com `rules`. Rascunho e cancelado: 404 `event_not_found`. Desde 28/10/2026, no evento `has_map` e `maps` (`id`, `name`); no tipo `kind` (`entry`/`seat`), `map_id`, `seat_category`, `seats_free`. |
 | GET | `/api/tickets/events/{id}/maps/{mapId}` | | Lugar marcado: o mapa (`width`, `height`, `background_url`, `areas`), os tipos que vendem os lugares no dia (com o lote) e cada lugar (`id`, `label`, `category`, `shape`, `x`, `y`, `w`, `h`, `places`, `status` `free`/`held`/`sold`/`unavailable`, `type_id`), `refresh_after`. `?day_id=` obrigatório no evento de vários dias (`day_required`); mapa que nenhum tipo ativo usa: 404 `map_not_found`. 120/min. |
 | POST | `/api/tickets/events/{id}/coupon-check` | | `{code, buyer_kind: member\|guest}` → o cupom (`kind`, `value`, `label`, `audience`, `type_ids`, `ends_at`); só informa. 20/min. |
+| GET | `/api/tickets/events/{id}/maps/{mapId}/member` | L | O mesmo mapa visto pelo sócio do JWT (desde 28/10/2026): a mesa cativa da matrícula dele sai `free` com `captive_mine: true`; as outras cativas, `captive`. Sem `Session`: 400; JWT inválido: 401. 120/min. |
 | GET | `/api/tickets/my-title` | L | Pessoas do título do sócio logado: `{title, people: [{ref, name, cpf (mascarado), titular, is_me, has_ticket}]}`; `?event_id=` marca quem já tem ingresso no evento (`has_ticket`) e, no evento de vários dias, em quais dias (`days_taken`; o passaporte cobre todos). 30/min. |
 | POST | `/api/tickets/events/{id}/orders` | L | Sócio: `{tickets: [{type_id, holder_ref?, seat_id?}], coupon_code?}` → 201 pedido (sem `holder_ref` = o próprio sócio; `seat_id` no tipo de lugar marcado). `{type_id}` sozinho continua aceito (um ingresso, para ele). |
 | GET | `/api/tickets/my-orders` | L | Pedidos do sócio (inclusive os emitidos pela secretaria). |
@@ -465,7 +577,12 @@ Reasons: `event_not_found` (404), `sales_closed`, `type_not_found` (404), `sold_
 `already_used`, `ticket_not_valid`, `outside_window`, `other_event`; lugar marcado:
 `map_not_found` (404), `day_required`, `seat_required` (`context.index`, `context.type_id`),
 `seat_not_found` (`context.index`, `context.seat_id`), `seat_wrong_type`, `seat_taken` (409,
-`context.seat_ids`), `seat_not_entry` (check-in de ingresso de mesa).
+`context.seat_ids`), `seat_not_entry` (check-in de ingresso de mesa); mesa cativa (desde
+28/10/2026): `seat_captive` (422, `context.index`, `context.seat_id`, `context.released_at`).
+
+Mapa (desde 28/10/2026): cada lugar traz também `captive` (cativa ainda guardada) e
+`captive_mine`, e a situação ganha `captive`; o mapa traz `captive_release_at` (quando as
+cativas viram lugar comum; `null` = só tirando).
 
 Sem o header `Session`, o `JwtMiddleware` responde **400**; com JWT inválido, **401**.
 
@@ -523,7 +640,7 @@ cupons, pedidos e ingressos dos eventos `[TESTE]`).
 | Baile de Verão (vendas abertas) | Pista com o 1º lote quase esgotado (vira para o 2º), Mesa só para sócios, Infantil grátis; cupons `TESTE10` (10%), `MESA30` (R$ 30, só sócios, só Mesa) e `ESGOTADO` (uso gasto); pedidos pagos (eRede, com cupom, Pix no balcão, cortesia, grátis), pendente, expirado e um cancelado em parte com estorno |
 | Show de Hoje (check-in) | Entrada aberta agora; 3 ingressos válidos (códigos e CPFs impressos no fim) e 1 já usado — para testar o check-in no Lara e no Monitor de Acesso |
 | Festival de Dois Dias | Evento de vários dias: entrada do Dia 1 aberta agora, Dia 2 amanhã; diária de cada dia e passaporte (lotação 300 por dia); um passaporte pago (código impresso no fim — entra hoje e de novo amanhã) e uma diária de cada dia |
-| Réveillon (lugar marcado) | Mapas Mesas (Vip V1–V12 e Comum M1–M21, preços diferentes no mesmo mapa; palco, pista, piscina, bar, banheiros), Bistrôs (B1–B18) e Camarotes (C1–C6); V1 e V2 vendidas, V7 reservada (pendente por 60 min), B1 vendido, M5 com pedido expirado (livre) |
+| Réveillon (lugar marcado) | Mapas Mesas (Vip V1–V12 e Comum M1–M21, preços diferentes no mesmo mapa; palco, pista, piscina, bar, banheiros), Bistrôs (B1–B18) e Camarotes (C1–C6); V1 e V2 vendidas, V7 reservada (pendente por 60 min), B1 vendido, M5 com pedido expirado (livre); V3 e V4 mesas cativas das matrículas 900001 e 900002 (liberam 10 dias antes); 20 cortesias sem CPF para "Patrocinador Teste" |
 | Rascunho, Encerrado, Cancelado | Um de cada (o encerrado com ingressos usados) |
 
 `--socio=<CPF de uma conta do site>` dá a essa pessoa um pedido pendente (prazo de 60 min)
@@ -546,20 +663,28 @@ para pagar pelo site; `--usuario=<id>` escolhe quem aparece nas emissões e baix
 | F11 | Lote sem limite de ingressos e "Virar lote agora" (prompt do site v5) | feita (28/10/2026) |
 | F12 | "Meus ingressos" do não sócio no site: CPF + e-mail + código por e-mail (prompt do site v6) | feita (28/10/2026) |
 | F13 | Lugar marcado: mapas (lugares, áreas, cópia), tipo de lugar por mapa e categoria, sem venda dupla (trava + índice único), escolha no mapa na emissão, troca de lugar, ocupação, fora da portaria (prompt do site v7, nota no prompt da portaria) | feita (28/10/2026) |
+| F14 | Rastreio: histórico do pedido (`ticket_order_logs`), filtro "Vendido por", colunas no CSV | feita (28/10/2026) |
+| F15 | Relatório de caixa (tela, PDF, CSV; próprio × todos, `ingressos.caixa.todos`) | feita (28/10/2026) |
+| F16 | Ingresso físico na térmica de 80 mm (vias, "2ª VIA"); cortesia sem CPF e em quantidade | feita (28/10/2026) |
+| F17 | Mesa cativa (matrícula, liberação N dias antes por evento, tela, cópia com aviso, `seat_captive`; prompt do site v8, nota no prompt da portaria) | feita (28/10/2026) |
 
 ## Depois do deploy
 
 1. As migrations e o seed de permissões rodam pelo `deploy_hml.sh` / `deploy_prod.sh`.
 2. Tela de **Setores**: dar `ingressos.*` aos setores pertinentes (quem organiza eventos:
    `gerenciar`, `vendas`, `cupons`, `cortesias`; secretaria: `vendas`, `pagamentos.baixa-manual`;
-   portaria/entrada: `checkin`; financeiro: `financeiro`, `pagamentos.estornar`).
+   portaria/entrada: `checkin`; financeiro: `financeiro`, `pagamentos.estornar`,
+   `caixa.todos`).
 3. `.env`: `TICKETS_SITE_URL` (e `TICKETS_HOLD_MINUTES`, `TICKETS_CHECKIN_HOURS_BEFORE`, se
    não forem os padrões); depois `php artisan config:cache`.
 4. Conferir que o scheduler roda (`ingressos:expirar-pedidos`).
 5. Entregar o [prompt do site](ingressos-site-prompt.md) ao agente do Next.js e o
    [prompt da portaria](../ingressos-prompt-portaria.md) ao agente do app da guarita
-   (lugar marcado: a atualização v7 do site e a de 28/10/2026 da portaria).
+   (lugar marcado: a atualização v7 do site e a de 28/10/2026 da portaria; mesa cativa: a v8
+   do site e a nota "cortesia sem CPF" da portaria).
 6. Em homologação, `php artisan ingressos:dados-teste` para testar o site e a portaria.
+7. No computador da impressora térmica: driver, impressora padrão, papel 80 mm e, se quiser
+   imprimir sem a janela, o atalho do Chrome com `--kiosk-printing` (ver *Ingresso físico*).
 
 ## Para implementação futura
 
@@ -569,4 +694,8 @@ para pagar pelo site; `--usuario=<id>` escolhe quem aparece nas emissões e baix
   no check-in e controle da cota.
 - **Estorno em lote do evento inteiro** (ao cancelar o evento): hoje é pedido a pedido, na
   tela do pedido. Para muitos pedidos, o caminho é um job em fila, um estorno por pedido.
-- **Histórico de troca de titular**: a troca não guarda o titular anterior.
+- ~~**Histórico de troca de titular**~~: feito em 28/10/2026 (histórico do pedido).
+- **Fechar caixa** (a pessoa informa o dinheiro contado, o Lara mostra a diferença e trava o
+  dia): decidido em 28/10/2026 que, por ora, é só o relatório.
+- **Impressão direta por ESC/POS** (QZ Tray), com corte por comando e sem a janela: fica
+  para se o `--kiosk-printing` não atender.

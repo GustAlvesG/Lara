@@ -526,6 +526,8 @@ Route::middleware('api_token')->group(function () {
         */
         Route::prefix('tickets')->as('api.tickets.member.')->group(function () {
             Route::get('/my-title', [TicketApiController::class, 'myTitle'])->middleware('throttle:30,1')->name('title');
+            // O mapa visto pelo sócio: a mesa cativa da matrícula dele aparece livre.
+            Route::get('/events/{id}/maps/{mapId}/member', [TicketApiController::class, 'mapMember'])->whereNumber(['id', 'mapId'])->middleware('throttle:120,1')->name('map');
             Route::post('/events/{id}/orders', [TicketApiController::class, 'storeMember'])->whereNumber('id')->middleware('throttle:20,1')->name('store');
             Route::get('/my-orders', [TicketApiController::class, 'mine'])->name('mine');
             Route::get('/orders/{id}', [TicketApiController::class, 'showMember'])->whereNumber('id')->name('show');

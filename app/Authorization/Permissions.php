@@ -132,6 +132,7 @@ final class Permissions
     public const INGRESSOS_PAGAMENTOS_BAIXA_MANUAL = 'ingressos.pagamentos.baixa-manual';
     public const INGRESSOS_PAGAMENTOS_ESTORNAR = 'ingressos.pagamentos.estornar';
     public const INGRESSOS_FINANCEIRO = 'ingressos.financeiro';
+    public const INGRESSOS_CAIXA_TODOS = 'ingressos.caixa.todos';
 
     // Replay (vídeos das quadras): formato, layouts de logomarca, câmeras e o
     // repositório dos clipes. Marketing e TI configuram; TI já alcança pelo
@@ -223,6 +224,7 @@ final class Permissions
         self::INGRESSOS_PAGAMENTOS_BAIXA_MANUAL => ['Ingressos', 'Baixa manual de pedido (pago fora da eRede)'],
         self::INGRESSOS_PAGAMENTOS_ESTORNAR => ['Ingressos', 'Estornar pagamento de ingresso'],
         self::INGRESSOS_FINANCEIRO => ['Ingressos', 'Relatório financeiro dos ingressos'],
+        self::INGRESSOS_CAIXA_TODOS => ['Ingressos', 'Relatório de caixa de todos os vendedores (fechamento do financeiro)'],
 
         self::REPLAY => ['RePET', 'Câmeras, layouts de logomarca e vídeos das quadras'],
 

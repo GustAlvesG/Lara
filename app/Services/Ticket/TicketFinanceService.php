@@ -113,7 +113,7 @@ class TicketFinanceService
     {
         $money = fn ($v) => number_format((float) $v, 2, ',', '');
 
-        $tickets = Ticket::with(['order.payment', 'type', 'lot', 'seat'])
+        $tickets = Ticket::with(['order.payment.recordedBy', 'order.creator', 'type', 'lot', 'seat'])
             ->where('ticket_event_id', $event->id)
             ->whereIn('status', [...Ticket::SOLD, Ticket::STATUS_CANCELLED])
             ->orderBy('ticket_order_id')
@@ -123,6 +123,7 @@ class TicketFinanceService
         $rows = [[
             'Pedido', 'Pago em', 'Origem', 'Comprador', 'Tipo de comprador', 'Titular', 'CPF do titular', 'Ingresso', 'Lote', 'Preço',
             'Valor de face', 'Desconto', 'Cupom', 'Cobrado', 'Estornado', 'Pagamento', 'Cortesia', 'Situação', 'Entrada',
+            'Vendido por', 'Recebido por',
         ]];
 
         foreach ($tickets as $t) {
@@ -148,6 +149,9 @@ class TicketFinanceService
                 $order->courtesy ? 'Sim' : 'Não',
                 Ticket::STATUS_LABELS[$t->status] ?? $t->status,
                 $t->checked_in_at?->format('d/m/Y H:i') ?? '',
+                // Rastreio: quem emitiu no balcão ("Site" = o site) e quem registrou a baixa manual.
+                $order->origin === 'secretaria' ? (string) $order->creator?->name : 'Site',
+                $payment?->is_manual ? (string) $payment->recordedBy?->name : '',
             ];
         }
 

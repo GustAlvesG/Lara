@@ -11,6 +11,7 @@ use App\Models\Ticket\TicketCoupon;
 use App\Models\Ticket\TicketEvent;
 use App\Models\Ticket\TicketLot;
 use App\Models\Ticket\TicketOrder;
+use App\Models\Ticket\TicketOrderLog;
 use App\Models\Ticket\TicketPayment;
 use App\Models\Ticket\TicketSeat;
 use App\Models\Ticket\TicketType;
@@ -53,7 +54,13 @@ use InvalidArgumentException;
  *     `seat_id` escolhido no mapa; o lugar é preso ao ingresso no dia
  *     (TicketSeatService::claim, índice único). O ingresso do lugar não é
  *     entrada: fica fora do "um por CPF" e da lotação, e o titular é o
- *     responsável. Lugar ocupado recusa sempre, também no balcão.
+ *     responsável. Lugar ocupado recusa sempre, também no balcão;
+ *   - mesa cativa (`ticket_seats.captive_title`): até a liberação do evento,
+ *     só um sócio daquela matrícula compra o lugar — recusa sempre
+ *     (`seat_captive`), também no balcão.
+ *
+ * Toda ação grava uma linha em `ticket_order_logs` (TicketOrderLog): quem
+ * emitiu, cobrou, trocou, cancelou. Usuário nulo = site ou rotina.
  *
  * No balcão do Lara (`$counter`), venda fora do período, acima do limite por
  * pedido, além do estoque ou da lotação e CPF de sócio em pedido de não sócio
@@ -77,6 +84,12 @@ class TicketOrderService
         self::ISSUE_EXTERNAL => 'Pagamento recebido por fora',
         self::ISSUE_COURTESY => 'Cortesia (sem cobrança)',
     ];
+
+    /** Nome do ingresso de cortesia emitido sem nome. */
+    public const ANONYMOUS_NAME = 'Cortesia';
+
+    /** Cortesias em quantidade (sem nome e CPF) de uma vez só, no máximo. */
+    public const MAX_COURTESY_BATCH = 500;
 
     public function __construct(
         private TicketInventory $inventory,
@@ -112,12 +125,23 @@ class TicketOrderService
      *
      * Lugar marcado: `seat_id` no item do tipo com mapa (ignorado nos outros).
      *
+     * Cortesia do balcão para não sócio: o titular pode ficar sem CPF (nome
+     * vazio = "Cortesia"), e quem recebe também — o pedido de 30 cortesias
+     * para um patrocinador. Sem CPF, o ingresso fica fora do "um por CPF" e
+     * entra só pelo código (QR); o e-mail sai só se houver endereço.
+     *
      * @param  list<array{type_id: int, holder_name?: ?string, holder_cpf?: ?string, seat_id?: ?int}>  $items
      */
     public function create(TicketEvent $event, TicketBuyer $buyer, array $items, ?User $counter = null, bool $force = false, bool $courtesy = false, ?string $couponCode = null, bool $notify = true): TicketOrder
     {
         $warnings = [];
         $site = $counter === null;
+        // Cortesia do balcão para não sócio: CPF opcional (ingresso sem nome).
+        $anonymous = $courtesy && ! $site && ! $buyer->isMember();
+
+        if ($buyer->cpf === null && ! $anonymous) {
+            throw new TicketException(TicketException::INVALID_HOLDER, 'Informe o CPF de quem compra.', 422, ['field' => 'buyer_cpf']);
+        }
 
         if ($items === []) {
             throw new TicketException(TicketException::TYPE_NOT_FOUND, 'Escolha ao menos um ingresso.');
@@ -144,7 +168,7 @@ class TicketOrderService
             // O sócio compra para quem é do título dele (ele, o titular e os
             // dependentes), cada um com o nome do cadastro do clube.
             $items = $this->titleHolders($buyer, $items, $site, $warnings);
-        } elseif ($entryCount > $event->max_per_order) {
+        } elseif ($entryCount > $event->max_per_order && ! $anonymous) {
             if ($site) {
                 throw new TicketException(TicketException::LIMIT_PER_ORDER, "Este evento aceita até {$event->max_per_order} ingresso(s) por pedido.", 422, ['max' => $event->max_per_order]);
             }
@@ -160,11 +184,11 @@ class TicketOrderService
             $warnings[] = "O pedido tem {$seatCount} lugares; o site aceita até {$event->max_per_order} por pedido.";
         }
 
-        $items = $this->normalizeHolders($items, $event->types->pluck('ticket_event_day_id', 'id')->all(), $seatedTypes);
+        $items = $this->normalizeHolders($items, $event->types->pluck('ticket_event_day_id', 'id')->all(), $seatedTypes, $anonymous);
 
         if (! $buyer->isMember()) {
             foreach ($items as $index => $item) {
-                if ($this->isActiveMember($item['holder_cpf'])) {
+                if ($item['holder_cpf'] !== null && $this->isActiveMember($item['holder_cpf'])) {
                     if ($site) {
                         throw new TicketException(
                             TicketException::HOLDER_IS_MEMBER,
@@ -190,7 +214,7 @@ class TicketOrderService
             $this->assertNoActiveTicket($event, array_values(array_map(fn (array $item) => [
                 $item['holder_cpf'],
                 $event->types->firstWhere('id', $item['type_id'])?->ticket_event_day_id,
-            ], array_filter($items, fn (array $item) => ! in_array($item['type_id'], $seatedTypes, true)))));
+            ], array_filter($items, fn (array $item) => $item['holder_cpf'] !== null && ! in_array($item['type_id'], $seatedTypes, true)))));
 
             // Um ingresso de cada vez: o pedido pode atravessar a virada de lote.
             $occupied = $this->inventory->occupiedByLot($event->types->flatMap->lots->pluck('id'));
@@ -209,7 +233,7 @@ class TicketOrderService
                 }
 
                 $seat = $type->isSeated()
-                    ? $this->pickSeat($type, $item, $index, $seats, $occupants, $chosen, $taken, $site, $warnings)
+                    ? $this->pickSeat($event, $buyer, $type, $item, $index, $seats, $occupants, $chosen, $taken, $site, $warnings)
                     : null;
 
                 $lot = $this->inventory->currentLot($type, $occupied);
@@ -316,6 +340,13 @@ class TicketOrderService
                 }
             }
 
+            TicketOrderLog::record($order, TicketOrderLog::CREATED, $counter, [
+                'origin' => $order->origin,
+                'courtesy' => $courtesy,
+                'tickets' => count($allocations),
+                'total' => $total,
+            ]);
+
             return $order;
         });
 
@@ -337,7 +368,7 @@ class TicketOrderService
      * @param  list<int>  $taken
      * @param  list<string>  $warnings
      */
-    private function pickSeat(TicketType $type, array $item, int $index, Collection $seats, array $occupants, array &$chosen, array &$taken, bool $site, array &$warnings): TicketSeat
+    private function pickSeat(TicketEvent $event, TicketBuyer $buyer, TicketType $type, array $item, int $index, Collection $seats, array $occupants, array &$chosen, array &$taken, bool $site, array &$warnings): TicketSeat
     {
         $seatId = (int) ($item['seat_id'] ?? 0);
 
@@ -359,6 +390,18 @@ class TicketOrderService
                 throw new TicketException(TicketException::SEAT_NOT_FOUND, "O lugar {$seat->label} não está à venda.", 422, ['index' => $index, 'seat_id' => $seatId]);
             }
             $warnings[] = "O lugar {$seat->label} está desativado no mapa.";
+        }
+
+        // Mesa cativa: só a matrícula dela compra, até o evento liberar. Recusa
+        // sempre — no balcão, para vender a outra pessoa, tira-se a cativa antes.
+        $captive = $seat->captiveFor($event);
+        if ($captive !== null && ! ($buyer->isMember() && TicketSeat::sameTitle($buyer->title, $captive))) {
+            $release = $event->captiveReleaseAt();
+            $until = $release ? ' até ' . $release->format('d/m/Y') : '';
+            throw new TicketException(TicketException::SEAT_CAPTIVE, $site
+                ? "O lugar {$seat->label} é uma mesa cativa, reservada para outro sócio{$until}. Escolha outro no mapa."
+                : "O lugar {$seat->label} é mesa cativa da matrícula {$captive}" . ($seat->captive_name ? " ({$seat->captive_name})" : '') . "{$until}: só um sócio desse título compra. Para vender a outra pessoa, tire a cativa em Mapas › Mesas cativas.",
+                422, ['index' => $index, 'seat_id' => $seat->id, 'released_at' => $release?->toIso8601String()]);
         }
 
         $key = $seat->id . '|' . $type->dayKey();
@@ -409,6 +452,37 @@ class TicketOrderService
         $this->notifier->notify($order, TicketNotifier::PAID);
 
         return $order;
+    }
+
+    /**
+     * Cortesias em quantidade ("Emitir 30 cortesias"): os itens de N
+     * ingressos de um tipo de entrada, sem CPF, com o nome informado (vazio =
+     * "Cortesia"). Para `issueAtCounter` em modo cortesia, com comprador não
+     * sócio. Lugar marcado fica fora: cada mesa se escolhe no mapa.
+     *
+     * @return list<array{type_id: int, holder_name: string, holder_cpf: null}>
+     */
+    public function batchItems(TicketEvent $event, int $typeId, int $quantity, ?string $name = null): array
+    {
+        $type = $event->types()->find($typeId);
+
+        if (! $type) {
+            throw new TicketException(TicketException::TYPE_NOT_FOUND, 'Tipo de ingresso não encontrado neste evento.', 404);
+        }
+        if ($type->isSeated()) {
+            throw new TicketException(TicketException::SEAT_REQUIRED, "{$type->name} é de lugar marcado: cada lugar se escolhe no mapa. Cortesias em quantidade são de entrada.");
+        }
+        if ($quantity < 1 || $quantity > self::MAX_COURTESY_BATCH) {
+            throw new InvalidArgumentException('Emita de 1 a ' . self::MAX_COURTESY_BATCH . ' cortesias de uma vez.');
+        }
+
+        $name = trim((string) $name);
+
+        return array_fill(0, $quantity, [
+            'type_id' => $type->id,
+            'holder_name' => mb_strlen($name) >= 3 ? $name : self::ANONYMOUS_NAME,
+            'holder_cpf' => null,
+        ]);
     }
 
     /**
@@ -524,6 +598,12 @@ class TicketOrderService
             ]);
 
             $this->markPaid($order, $payment);
+            TicketOrderLog::record($order, TicketOrderLog::PAID_ONLINE, null, [
+                'method' => $payment->payment_method,
+                'method_label' => 'eRede · ' . (SchedulePayment::METHOD_LABELS[$payment->payment_method] ?? $payment->payment_method),
+                'amount' => (float) $payment->paid_amount,
+                'tid' => $payment->payment_integration_id,
+            ]);
 
             return $payment;
         });
@@ -562,6 +642,13 @@ class TicketOrderService
             $payment->save();
 
             $this->markPaid($order, $payment);
+            TicketOrderLog::record($order, TicketOrderLog::PAID_MANUAL, $user, [
+                'method' => $payment->payment_method,
+                'method_label' => SchedulePayment::MANUAL_METHODS[$payment->payment_method] ?? $payment->payment_method,
+                'amount' => (float) $payment->paid_amount,
+                'paid_at' => $payment->paid_at?->toIso8601String(),
+                'notes' => $payment->manual_notes,
+            ]);
 
             return $payment;
         });
@@ -588,6 +675,7 @@ class TicketOrderService
             $order->update(['status' => TicketOrder::STATUS_WITHDRAWN, 'withdrawn_at' => Carbon::now()]);
             $order->tickets()->where('status', Ticket::STATUS_PENDING)->update(['status' => Ticket::STATUS_EXPIRED]);
             $this->seats->release($order->tickets()->pluck('id'));
+            TicketOrderLog::record($order, TicketOrderLog::WITHDRAWN);
         });
 
         return $order;
@@ -618,6 +706,7 @@ class TicketOrderService
                         if ($updated) {
                             Ticket::where('ticket_order_id', $order->id)->where('status', Ticket::STATUS_PENDING)->update(['status' => Ticket::STATUS_EXPIRED]);
                             $this->seats->release(Ticket::where('ticket_order_id', $order->id)->pluck('id'));
+                            TicketOrderLog::record($order->id, TicketOrderLog::EXPIRED);
                             $count++;
                         }
                     });
@@ -691,6 +780,16 @@ class TicketOrderService
                     'cancel_reason' => $reason,
                     'refunded_amount' => $share,
                 ]);
+                TicketOrderLog::record($order, TicketOrderLog::CANCELLED, $user, [
+                    'holder' => $ticket->holder_name,
+                    'type' => $ticket->typeLabel(),
+                    'amount' => (float) $ticket->amount,
+                    'refunded' => $share,
+                    'reason' => $reason,
+                ], $ticket);
+            }
+            if ($refunded > 0) {
+                TicketOrderLog::record($order, TicketOrderLog::REFUNDED, $user, ['amount' => $refunded]);
             }
             $this->seats->release($tickets->pluck('id'));
 
@@ -724,28 +823,37 @@ class TicketOrderService
             throw new TicketException(TicketException::TICKET_NOT_VALID, 'Só ingresso válido ou aguardando pagamento troca de titular.');
         }
 
-        [$holder] = $this->normalizeHolders([['type_id' => $ticket->ticket_type_id, 'holder_name' => $name, 'holder_cpf' => $cpf]], []);
+        $order = $ticket->order;
+        // Cortesia de não sócio pode continuar (ou ficar) sem CPF, como na emissão.
+        $anonymous = $order->courtesy && $order->isGuest() && $order->origin === TicketOrder::ORIGIN_COUNTER;
+        [$holder] = $this->normalizeHolders([['type_id' => $ticket->ticket_type_id, 'holder_name' => $name, 'holder_cpf' => $cpf]], [], [], $anonymous);
         // Ingresso de lugar: o titular é o responsável pela mesa, fora do "um por CPF".
-        $entry = ! $ticket->isSeat();
+        $entry = ! $ticket->isSeat() && $holder['holder_cpf'] !== null;
+
+        $who = fn (string $name, ?string $cpf) => $name . ' (' . ($cpf ? Cpf::mask($cpf) : 'sem CPF') . ')';
+        $from = $who($ticket->holder_name, $ticket->holder_cpf);
+        $to = $who($holder['holder_name'], $holder['holder_cpf']);
 
         if ($holder['holder_cpf'] === $ticket->holder_cpf) {
-            $ticket->update(['holder_name' => $holder['holder_name']]);
+            if ($holder['holder_name'] !== $ticket->holder_name) {
+                $ticket->update(['holder_name' => $holder['holder_name']]);
+                TicketOrderLog::record($ticket->ticket_order_id, TicketOrderLog::HOLDER_CHANGED, $user, ['from' => $from, 'to' => $to], $ticket);
+            }
 
             return $ticket;
         }
 
-        $order = $ticket->order;
         $warnings = [];
         if (! $order->isGuest()) {
             // Pedido de sócio: o novo titular também tem de ser do título.
             if (! isset($this->titleMembers($order->buyer_title)[$holder['holder_cpf']])) {
                 $warnings[] = "{$holder['holder_name']} não é do título {$order->buyer_title}: o ingresso, com preço de sócio, vai para alguém de fora.";
             }
-        } elseif ($this->isActiveMember($holder['holder_cpf'])) {
+        } elseif ($holder['holder_cpf'] !== null && $this->isActiveMember($holder['holder_cpf'])) {
             $warnings[] = "{$holder['holder_name']} é sócio e vai ficar com um ingresso de não sócio.";
         }
 
-        DB::transaction(function () use ($ticket, $holder, $warnings, $force, $entry) {
+        DB::transaction(function () use ($ticket, $holder, $warnings, $force, $entry, $user, $from, $to) {
             $event = TicketEvent::whereKey($ticket->ticket_event_id)->lockForUpdate()->firstOrFail();
             if ($entry) {
                 $this->assertNoActiveTicket($event, [[$holder['holder_cpf'], $ticket->type->ticket_event_day_id]]);
@@ -753,15 +861,22 @@ class TicketOrderService
             ConfirmationRequired::unless($force, $warnings);
 
             $ticket->update(['holder_name' => $holder['holder_name'], 'holder_cpf' => $holder['holder_cpf']]);
+            TicketOrderLog::record($ticket->ticket_order_id, TicketOrderLog::HOLDER_CHANGED, $user, ['from' => $from, 'to' => $to], $ticket);
         });
 
         return $ticket->fresh();
     }
 
-    /** Reenvia ao não sócio o e-mail com o link do pedido (o "esqueci o link" do site). */
-    public function resendLink(TicketOrder $order): bool
+    /** Reenvia o e-mail do pedido (o "esqueci o link" do site; `$user` = pelo painel). */
+    public function resendLink(TicketOrder $order, ?User $user = null): bool
     {
-        return $this->notifier->notify($order, $order->status === TicketOrder::STATUS_PAID ? TicketNotifier::PAID : TicketNotifier::LINK);
+        $sent = $this->notifier->notify($order, $order->status === TicketOrder::STATUS_PAID ? TicketNotifier::PAID : TicketNotifier::LINK);
+
+        if ($sent) {
+            TicketOrderLog::record($order, TicketOrderLog::EMAIL_RESENT, $user, ['email' => $order->buyer_email]);
+        }
+
+        return $sent;
     }
 
     /**
@@ -773,17 +888,31 @@ class TicketOrderService
      * "mesma pessoa no mesmo dia": o responsável pela mesa também tem a
      * entrada dele. O `seat_id` do item segue junto.
      *
+     * `$anonymous` (cortesia do balcão para não sócio): CPF vazio vira nulo e
+     * nome vazio, "Cortesia"; CPF preenchido continua conferido.
+     *
      * @param  array<int, ?int>  $typeDays  type_id => dia (null = todos os dias)
      * @param  list<int>  $seatedTypes
-     * @return list<array{type_id: int, holder_name: string, holder_cpf: string, seat_id: ?int}>
+     * @return list<array{type_id: int, holder_name: string, holder_cpf: ?string, seat_id: ?int}>
      */
-    private function normalizeHolders(array $items, array $typeDays, array $seatedTypes = []): array
+    private function normalizeHolders(array $items, array $typeDays, array $seatedTypes = [], bool $anonymous = false): array
     {
         $seen = [];
 
         foreach (array_values($items) as $index => $item) {
             $name = trim(preg_replace('/\s+/', ' ', (string) ($item['holder_name'] ?? '')));
             $cpf = Cpf::digits((string) ($item['holder_cpf'] ?? ''));
+
+            if ($anonymous && $cpf === '') {
+                $seatId = (int) ($item['seat_id'] ?? 0);
+                $items[$index] = [
+                    'type_id' => (int) ($item['type_id'] ?? 0),
+                    'holder_name' => mb_strlen($name) >= 3 ? mb_substr($name, 0, 255) : self::ANONYMOUS_NAME,
+                    'holder_cpf' => null,
+                    'seat_id' => $seatId ?: null,
+                ];
+                continue;
+            }
 
             if (mb_strlen($name) < 3) {
                 throw new TicketException(TicketException::INVALID_HOLDER, 'Informe o nome de quem vai usar cada ingresso.', 422, ['index' => $index, 'field' => 'holder_name']);

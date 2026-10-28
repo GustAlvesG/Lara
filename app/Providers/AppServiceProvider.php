@@ -139,7 +139,20 @@ class AppServiceProvider extends ServiceProvider
                 || $user->can(Permissions::INGRESSOS_VENDAS)
                 || $user->can(Permissions::INGRESSOS_CHECKIN)
                 || $user->can(Permissions::INGRESSOS_FINANCEIRO)
+                || $user->can(Permissions::INGRESSOS_CAIXA_TODOS)
                 || $user->can(Permissions::INGRESSOS_CUPONS),
+        );
+
+        /**
+         * Relatório de caixa dos ingressos: quem vende no balcão vê o próprio
+         * caixa; com `ingressos.caixa.todos` (o financeiro), o de todos.
+         */
+        Gate::define(
+            'ver-caixa-ingressos',
+            fn (User $user) => $user->can(Permissions::INGRESSOS_VENDAS)
+                || $user->can(Permissions::INGRESSOS_PAGAMENTOS_BAIXA_MANUAL)
+                || $user->can(Permissions::INGRESSOS_CORTESIAS)
+                || $user->can(Permissions::INGRESSOS_CAIXA_TODOS),
         );
 
         /**

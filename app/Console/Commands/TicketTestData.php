@@ -10,6 +10,7 @@ use App\Models\Ticket\TicketEvent;
 use App\Models\Ticket\TicketLot;
 use App\Models\Ticket\TicketMap;
 use App\Models\Ticket\TicketOrder;
+use App\Models\Ticket\TicketOrderLog;
 use App\Models\Ticket\TicketPayment;
 use App\Models\Ticket\TicketSeat;
 use App\Models\Ticket\TicketSeatClaim;
@@ -96,6 +97,7 @@ class TicketTestData extends Command
 
         DB::transaction(function () use ($ids) {
             $orderIds = TicketOrder::whereIn('ticket_event_id', $ids)->pluck('id');
+            TicketOrderLog::whereIn('ticket_order_id', $orderIds)->delete();
             TicketCheckin::whereIn('ticket_id', Ticket::whereIn('ticket_order_id', $orderIds)->select('id'))->delete();
             Ticket::whereIn('ticket_order_id', $orderIds)->delete();
             // A diária aponta para o dia, e o tipo de lugar para o mapa, sem cascade: saem antes do evento.
@@ -208,6 +210,8 @@ class TicketTestData extends Command
         $event = $this->event('Réveillon (lugar marcado)', now()->addDays(60)->setTime(22, 0), [
             'venue' => 'Sede Social', 'capacity' => 800, 'max_per_order' => 6,
             'ends_at' => now()->addDays(61)->setTime(5, 0),
+            // Mesas cativas viram lugar comum 10 dias antes.
+            'captive_release_days' => 10,
         ]);
 
         $mesas = $event->maps()->create(['name' => 'Mesas', 'width' => 1000, 'height' => 640, 'sort_order' => 1, 'areas' => [
@@ -250,7 +254,14 @@ class TicketTestData extends Command
         $this->order($event, [[$bistroType, $bistroLot, $bistro[0]]], ['paid' => 'erede']);
         $this->order($event, [[$mesa, $mesaLot, TicketSeat::where('ticket_map_id', $mesas->id)->where('label', 'M5')->first()]], ['expired' => true]);
 
-        $this->report[] = [$event->title, 'lugar marcado: mapa Mesas (Vip V1–V12 e Comum M1–M21, preços diferentes; palco, pista, piscina, bar e banheiros), Bistrôs (B1–B18) e Camarotes (C1–C6); V1 e V2 vendidas, V7 reservada (pendente por 60 min), B1 vendido, M5 com pedido expirado (livre de novo)'];
+        // Mesas cativas: V3 e V4 guardadas para matrículas de teste (até 10 dias antes).
+        $vip[2]->update(['captive_title' => '900001', 'captive_name' => 'Titular Cativa Teste']);
+        $vip[3]->update(['captive_title' => '900002', 'captive_name' => 'Outro Titular Cativa']);
+
+        // 20 cortesias sem nome nem CPF, para um patrocinador (entram pelo código).
+        $this->order($event, array_fill(0, 20, [$pista, $pistaLot]), ['paid' => 'courtesy', 'counter' => true, 'anonymous' => 'Patrocinador Teste']);
+
+        $this->report[] = [$event->title, 'lugar marcado: mapa Mesas (Vip V1–V12 e Comum M1–M21, preços diferentes; palco, pista, piscina, bar e banheiros), Bistrôs (B1–B18) e Camarotes (C1–C6); V1 e V2 vendidas, V7 reservada (pendente por 60 min), B1 vendido, M5 com pedido expirado (livre de novo); V3 e V4 mesas cativas das matrículas 900001 e 900002 (liberam 10 dias antes); 20 cortesias sem CPF para "Patrocinador Teste"'];
     }
 
     /**
@@ -328,7 +339,9 @@ class TicketTestData extends Command
      * Um pedido gravado direto (sem e-mail nem eRede).
      *
      * @param  list<array{0: TicketType, 1: TicketLot, 2?: ?TicketSeat}>  $items
-     * @param  array{paid?: string, pending?: bool, expired?: bool, counter?: bool, kind?: string, member?: Member, coupon?: ?TicketCoupon, cancel_one?: bool, hold?: int}  $o
+     * `anonymous` (nome de quem recebe): cortesia sem CPF, sem e-mail, ingressos "Cortesia".
+     *
+     * @param  array{paid?: string, pending?: bool, expired?: bool, counter?: bool, kind?: string, member?: Member, coupon?: ?TicketCoupon, cancel_one?: bool, hold?: int, anonymous?: string}  $o
      */
     private function order(TicketEvent $event, array $items, array $o): TicketOrder
     {
@@ -337,16 +350,17 @@ class TicketTestData extends Command
         $courtesy = ($o['paid'] ?? null) === 'courtesy';
         $coupon = $o['coupon'] ?? null;
         $member = $o['member'] ?? null;
+        $anonymous = $o['anonymous'] ?? null;
 
         $holders = [];
         $lines = [];
         foreach ($items as $item) {
             [$type, $lot] = $item;
-            $cpf = $member ? Cpf::digits($member->cpf) : $this->nextCpf();
+            $cpf = $anonymous !== null ? null : ($member ? Cpf::digits($member->cpf) : $this->nextCpf());
             $price = (float) ($lot->priceFor($priceKind) ?? 0);
             $discount = $coupon && ! $courtesy && $coupon->appliesTo($type->id, $priceKind) ? $coupon->discountFor($price) : 0.0;
             $lines[] = ['type' => $type, 'lot' => $lot, 'seat' => $item[2] ?? null, 'list' => $price, 'discount' => $discount, 'amount' => $courtesy ? 0.0 : round($price - $discount, 2), 'cpf' => $cpf];
-            $holders[] = $member?->name ?? 'Pessoa Teste ' . $this->cpf;
+            $holders[] = $anonymous !== null ? 'Cortesia' : ($member?->name ?? 'Pessoa Teste ' . $this->cpf);
         }
 
         $total = round(array_sum(array_column($lines, 'amount')), 2);
@@ -362,8 +376,8 @@ class TicketTestData extends Command
             'buyer_kind' => $kind,
             'member_id' => $member?->id,
             'buyer_cpf' => $lines[0]['cpf'],
-            'buyer_name' => $member?->name ?? $holders[0],
-            'buyer_email' => $member?->email ?? 'teste+' . $lines[0]['cpf'] . '@teste.local',
+            'buyer_name' => $anonymous ?? $member?->name ?? $holders[0],
+            'buyer_email' => $anonymous !== null ? null : ($member?->email ?? 'teste+' . $lines[0]['cpf'] . '@teste.local'),
             'buyer_title' => $member?->title,
             'total' => $total,
             'ticket_coupon_id' => $coupon?->id,
@@ -381,6 +395,9 @@ class TicketTestData extends Command
             $order->access_token = Str::random(40);
         }
         $order->save();
+        TicketOrderLog::record($order, TicketOrderLog::CREATED, ! empty($o['counter']) ? $this->user : null, [
+            'origin' => $order->origin, 'courtesy' => $courtesy, 'tickets' => count($lines), 'total' => $total,
+        ]);
 
         foreach ($lines as $i => $line) {
             $ticket = $order->tickets()->create([

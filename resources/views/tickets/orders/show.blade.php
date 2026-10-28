@@ -1,12 +1,15 @@
 {{-- Um pedido: quem comprou, ingressos (troca de titular, cancelamento),
-     pagamento (baixa manual do pendente), reenvio do e-mail e PDF. Ingresso
-     de lugar marcado (mesa…): mostra o lugar e permite trocar no mapa. --}}
+     pagamento (baixa manual do pendente), reenvio do e-mail, PDF e impressão
+     na térmica (abre numa aba e conta a via). Ingresso de lugar marcado
+     (mesa…): mostra o lugar e permite trocar no mapa. No fim, o histórico:
+     quem fez o quê. --}}
 @php
     use App\Authorization\Permissions as P;
     use App\Models\SchedulePayment;
     use App\Models\Ticket\Ticket;
     use App\Models\Ticket\TicketLot;
     use App\Models\Ticket\TicketOrder;
+    use App\Models\Ticket\TicketOrderLog;
     use App\Models\Ticket\TicketPayment;
     use App\Support\Cpf;
 
@@ -15,6 +18,8 @@
     $select = 'mt-1 h-11 w-full rounded-xl border border-line-strong bg-surface px-3 text-ink';
     $label = 'text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3';
     $valid = $order->tickets->where('status', Ticket::STATUS_VALID);
+    // Cortesia de não sócio: o titular pode ficar sem CPF.
+    $anonymousOk = $order->courtesy && $order->isGuest();
     $ticketKind = fn (string $status) => match ($status) {
         Ticket::STATUS_VALID => 'ok',
         Ticket::STATUS_USED => 'info',
@@ -29,6 +34,12 @@
             <x-slot:actions>
                 @if ($order->status === TicketOrder::STATUS_PAID)
                     <x-secondary-button-a href="{{ route('tickets.orders.pdf', $order) }}"><x-icon name="download" /> PDF</x-secondary-button-a>
+                    @if ($valid->isNotEmpty())
+                        <form method="POST" action="{{ route('tickets.orders.print', $order) }}" target="_blank">
+                            @csrf
+                            <x-secondary-button type="submit"><x-icon name="printer" /> Imprimir {{ $valid->count() > 1 ? 'os ' . $valid->count() : '' }} (térmica)</x-secondary-button>
+                        </form>
+                    @endif
                 @endif
                 @if ($order->buyer_email)
                     <form method="POST" action="{{ route('tickets.orders.resend', $order) }}">
@@ -58,7 +69,7 @@
             <div>
                 <p class="{{ $label }}">Quem comprou</p>
                 <p class="mt-1 font-semibold text-ink">{{ $order->buyer_name }}</p>
-                <p class="text-xs text-ink-3">{{ TicketOrder::BUYER_LABELS[$order->buyer_kind] }} · {{ Cpf::format($order->buyer_cpf) }}@if ($order->buyer_title) · matrícula {{ $order->buyer_title }}@endif</p>
+                <p class="text-xs text-ink-3">{{ TicketOrder::BUYER_LABELS[$order->buyer_kind] }} · {{ $order->buyer_cpf ? Cpf::format($order->buyer_cpf) : 'sem CPF' }}@if ($order->buyer_title) · matrícula {{ $order->buyer_title }}@endif</p>
                 <p class="text-xs text-ink-3">{{ $order->buyer_email ?: 'sem e-mail' }}@if ($order->buyer_phone) · {{ $order->buyer_phone }}@endif</p>
             </div>
             <div>
@@ -90,7 +101,7 @@
                         <tbody class="divide-y divide-line">
                             @foreach ($order->tickets as $ticket)
                                 <tr>
-                                    <td class="px-4 py-3"><p class="font-semibold text-ink">{{ $ticket->holder_name }}</p><p class="text-xs text-ink-3">{{ Cpf::format($ticket->holder_cpf) }}</p></td>
+                                    <td class="px-4 py-3"><p class="font-semibold text-ink">{{ $ticket->holder_name }}</p><p class="text-xs text-ink-3">{{ $ticket->holder_cpf ? Cpf::format($ticket->holder_cpf) : 'sem CPF (entra pelo código)' }}</p></td>
                                     <td class="px-4 py-3 text-ink-2">
                                         {{ $ticket->type?->fullName() }}
                                         @if ($ticket->seat)<span class="block font-semibold text-ink">Lugar {{ $ticket->seat->fullLabel() }} <span class="font-normal text-xs text-ink-3">· {{ $ticket->type?->map?->name }} · não é entrada</span></span>@endif
@@ -108,6 +119,14 @@
                                             {{-- Passaporte: uma entrada por dia. --}}
                                             @foreach ($ticket->checkins as $entry)<span class="block text-xs text-ink-3">entrou {{ $entry->checked_in_at->format('d/m H:i') }}{{ $entry->checker ? ' · ' . $entry->checker->name : '' }}</span>@endforeach
                                         @elseif ($ticket->checked_in_at)<span class="block text-xs text-ink-3">entrou {{ $ticket->checked_in_at->format('d/m H:i') }}{{ $ticket->checker ? ' · ' . $ticket->checker->name : '' }}</span>@endif
+                                        @if ($ticket->print_count > 0)<span class="block text-xs text-ink-3">impresso {{ $ticket->print_count }}× · {{ $ticket->printed_at?->format('d/m H:i') }}</span>@endif
+                                        @if ($ticket->status === Ticket::STATUS_VALID && $order->status === TicketOrder::STATUS_PAID && $order->tickets->count() > 1)
+                                            <form method="POST" action="{{ route('tickets.orders.print', $order) }}" target="_blank" class="mt-1">
+                                                @csrf
+                                                <input type="hidden" name="ticket_ids[]" value="{{ $ticket->id }}">
+                                                <button type="submit" class="text-xs font-semibold text-grena hover:underline">{{ $ticket->print_count > 0 ? 'Imprimir ' . ($ticket->print_count + 1) . 'ª via' : 'Imprimir só este' }}</button>
+                                            </form>
+                                        @endif
                                     </td>
                                 </tr>
                                 @if (in_array($ticket->status, [Ticket::STATUS_VALID, Ticket::STATUS_PENDING], true))
@@ -117,8 +136,8 @@
                                                 <summary class="cursor-pointer text-sm font-semibold text-ink-2">Trocar titular</summary>
                                                 <form method="POST" action="{{ route('tickets.orders.holder', $ticket) }}" class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-4 sm:items-end">
                                                     @csrf @method('PUT')
-                                                    <div class="sm:col-span-2"><x-input-label for="h{{ $ticket->id }}-name" value="Nome" /><x-text-input id="h{{ $ticket->id }}-name" name="holder_name" class="mt-1" :value="$ticket->holder_name" required /></div>
-                                                    <div><x-input-label for="h{{ $ticket->id }}-cpf" value="CPF" /><x-text-input id="h{{ $ticket->id }}-cpf" name="holder_cpf" class="mt-1" :value="Cpf::format($ticket->holder_cpf)" required /></div>
+                                                    <div class="sm:col-span-2"><x-input-label for="h{{ $ticket->id }}-name" value="Nome" /><x-text-input id="h{{ $ticket->id }}-name" name="holder_name" class="mt-1" :value="$ticket->holder_name" :required="! $anonymousOk" /></div>
+                                                    <div><x-input-label for="h{{ $ticket->id }}-cpf" :value="$anonymousOk ? 'CPF (opcional na cortesia)' : 'CPF'" /><x-text-input id="h{{ $ticket->id }}-cpf" name="holder_cpf" class="mt-1" :value="Cpf::format($ticket->holder_cpf)" :required="! $anonymousOk" /></div>
                                                     <div class="sm:text-right"><x-primary-button>Trocar</x-primary-button></div>
                                                 </form>
                                             </details>
@@ -232,5 +251,28 @@
                 </form>
             </section>
         @endif
+
+        <section class="flex flex-col gap-3">
+            <h2 class="font-display text-lg font-semibold tracking-tight text-ink">Histórico</h2>
+            @if ($order->logs->isEmpty())
+                <p class="text-sm text-ink-3">Sem registro (pedido de antes do histórico, de 28/10/2026).</p>
+            @else
+                <div class="overflow-x-auto rounded-card bg-surface shadow-card">
+                    <table class="w-full text-sm">
+                        <thead><tr class="border-b border-line bg-subtle"><th class="{{ $th }}">Quando</th><th class="{{ $th }}">Quem</th><th class="{{ $th }}">O quê</th><th class="{{ $th }}">Detalhe</th></tr></thead>
+                        <tbody class="divide-y divide-line">
+                            @foreach ($order->logs as $log)
+                                <tr>
+                                    <td class="px-4 py-3 font-mono text-ink-2">{{ $log->created_at?->format('d/m/Y H:i') }}</td>
+                                    <td class="px-4 py-3 text-ink">{{ $log->user?->name ?? ($log->action === TicketOrderLog::EXPIRED ? 'Lara (rotina)' : 'Site') }}</td>
+                                    <td class="px-4 py-3 text-ink-2">{{ $log->label() }}</td>
+                                    <td class="px-4 py-3 text-ink-3">{{ $log->summary() }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </section>
     </x-page>
 </x-app-layout>

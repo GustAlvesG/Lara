@@ -11,12 +11,13 @@
 > mudanças marcadas **[v3]**; a 3 não tinha evento de vários dias — mudanças marcadas
 > **[v4]**; a 4 não tinha lote sem limite — mudança marcada **[v5]**; a 5 não tinha "meus
 > ingressos" do não sócio — mudança marcada **[v6]**; a 6 não tinha lugar marcado (mesas,
-> bistrôs, camarotes) — ver a atualização v7. Se o agente do site já começou por uma
+> bistrôs, camarotes) — ver a atualização v7; a 7 não tinha mesa cativa — ver a atualização v8. Se o agente do site já começou por uma
 > delas, siga as marcas.) **O site já implementou a v3**: para ele, entregue só os prompts de
 > atualização no fim deste arquivo — o [v4](#prompt-de-atualização--v4-evento-de-vários-dias)
 > e o [v5](#prompt-de-atualização--v5-lote-sem-limite) (se ainda não foram) e o
 > [v6](#prompt-de-atualização--v6-meus-ingressos-do-não-sócio) e o
-> [v7](#prompt-de-atualização--v7-lugar-marcado-mesas-bistrôs-camarotes) (28/10/2026). O contrato é o que o Lara expõe hoje
+> [v7](#prompt-de-atualização--v7-lugar-marcado-mesas-bistrôs-camarotes) e o
+> [v8](#prompt-de-atualização--v8-mesa-cativa) (28/10/2026). O contrato é o que o Lara expõe hoje
 > (`routes/api.php`, prefixo `tickets`); se a API mudar, este arquivo muda junto. As regras
 > por trás dele estão em [ingressos.md](ingressos.md). O check-in **não** é do site (é feito
 > no Lara e no Monitor de Acesso da portaria).
@@ -872,3 +873,76 @@ site estorna na eRede e avisa.
 - O site não cria nem edita mapas: o desenho é feito no Lara.
 
 ### Fim da atualização v7
+
+---
+
+## Prompt de atualização — v8 (mesa cativa)
+
+> Para o agente do site, depois da v7. Copie de "Início da atualização v8" até "Fim da
+> atualização v8". Regras no Lara: [ingressos.md](ingressos.md), seção "Mesa cativa".
+> (28/10/2026.) As outras novidades do mesmo dia no Lara — histórico de quem vendeu,
+> relatório de caixa, impressão térmica e cortesia sem CPF — **não mudam nada no site**: a
+> cortesia sem CPF é emitida só no balcão, para não sócio sem conta, e não aparece em
+> "meus ingressos" do site.
+
+### Início da atualização v8
+
+Algumas mesas (ou bistrôs, camarotes) agora podem ser **cativas**: guardadas para uma
+**matrícula** (título de sócio). Até a data de liberação, só um sócio daquele título — o
+titular ou um dependente, no login dele — compra o lugar. Depois da liberação, a mesa cativa
+não comprada vira um lugar comum e qualquer um compra. A liberação é a mesma para todas as
+cativas do evento; a cativa vale para todos os dias do evento.
+
+O site **não** precisa saber de quem é a cativa: o Lara decide e diz, em cada lugar, se é
+cativa e se é da matrícula de quem está logado.
+
+#### 1. O mapa ganha campos (`GET /api/tickets/events/{id}/maps/{mapId}`)
+
+No mapa:
+
+| Campo | O que é |
+|---|---|
+| `captive_release_at` | Quando as cativas não compradas viram lugar comum (ISO 8601). `null` = não há prazo (só a organização tira a cativa). Só informativo. |
+
+Em cada lugar (`seats[]`):
+
+| Campo | O que é |
+|---|---|
+| `status` | Ganha o valor **`captive`**: mesa cativa de outro sócio, ainda não liberada. Não se escolhe. |
+| `captive` | `true` se o lugar é cativa ainda guardada (de quem for). |
+| `captive_mine` | `true` se a cativa é da matrícula de quem está logado (só na rota do sócio, abaixo); nesse caso o `status` vem `free`. |
+
+Na rota pública (sem login), toda cativa ainda guardada vem `status: "captive"`,
+`captive: true`, `captive_mine: false`. Mostre-a como **"Mesa cativa — reservada para um
+sócio"** (cor própria, não clicável), com a dica "libera em {data}" quando
+`captive_release_at` vier preenchido e ainda não tiver passado.
+
+#### 2. Mapa visto pelo sócio logado — rota nova
+
+`GET /api/tickets/events/{id}/maps/{mapId}/member?day_id={dia}` — com o `api_token` e o JWT
+do sócio no header `Session`, como as outras rotas do sócio. Mesmo formato do mapa público;
+a diferença é que **a cativa da matrícula dele** vem `status: "free"` com
+`captive_mine: true` (as de outras matrículas continuam `captive`). Sem o header `Session`: 400; JWT inválido ou vencido: 401 (como nas outras rotas do sócio).
+Mesmo limite (120 por minuto) e mesmas recusas (`day_required`, `map_not_found`).
+
+- Sócio logado: **use esta rota** para desenhar o mapa (e no refresh de `refresh_after`).
+- Mostre a cativa dele em destaque: "Sua mesa cativa — garanta até {captive_release_at}".
+- Visitante e não sócio: a rota pública de sempre.
+
+#### 3. Recusa nova no pedido
+
+| `reason` | HTTP | Quando | No site |
+|---|---|---|---|
+| `seat_captive` | 422 | O lugar é cativa de outra matrícula e ainda não liberou (`context.index`, `context.seat_id`, `context.released_at` — `null` sem prazo) | Recarregue o mapa, marque o lugar como "mesa cativa" e peça outro. Não revele de quem é. |
+
+Também acontece com o não sócio (nunca compra cativa antes da liberação) e com o sócio de
+outro título. O pedido do sócio da matrícula certa passa normalmente
+(`POST /api/tickets/events/{id}/orders` com `seat_id`, como na v7).
+
+#### 4. O que não muda
+
+- `seat_taken`, `seat_required`, o limite por pedido, o lugar por dia e o "não é entrada"
+  seguem iguais.
+- O site não marca nem tira cativas: isso é feito no Lara.
+
+### Fim da atualização v8

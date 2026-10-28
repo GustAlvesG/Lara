@@ -12,6 +12,8 @@ use App\Http\Controllers\Company\CompanyController;
 use App\Http\Controllers\Company\CompanyWorkerController as WorkerController;
 use App\Http\Controllers\Company\CompanyAccessRulesController as CompanyRulesController;
 use App\Http\Controllers\Company\OneOffAccessController;
+use App\Http\Controllers\Ticket\TicketCaptiveController;
+use App\Http\Controllers\Ticket\TicketCashController;
 use App\Http\Controllers\Ticket\TicketCheckinController;
 use App\Http\Controllers\Ticket\TicketCouponController;
 use App\Http\Controllers\Ticket\TicketDayController;
@@ -832,6 +834,14 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::get('/{event}/financeiro/csv', [TicketFinanceController::class, 'csv'])->whereNumber('event')->name('finance.csv');
         });
 
+        // Relatório de caixa (vendas do dia por pessoa e forma de pagamento):
+        // cada um vê o próprio; com `ingressos.caixa.todos`, o de todos.
+        Route::middleware('can:ver-caixa-ingressos')->group(function () {
+            Route::get('/caixa', [TicketCashController::class, 'index'])->name('cash.index');
+            Route::get('/caixa/pdf', [TicketCashController::class, 'pdf'])->name('cash.pdf');
+            Route::get('/caixa/csv', [TicketCashController::class, 'csv'])->name('cash.csv');
+        });
+
         // Cupons de desconto do evento.
         Route::middleware('can:' . P::INGRESSOS_CUPONS)->scopeBindings()->prefix('/{event}/cupons')->whereNumber('event')->as('coupons.')->group(function () {
             Route::get('/', [TicketCouponController::class, 'index'])->name('index');
@@ -849,6 +859,8 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::post('/{event}/emitir', [TicketOrderController::class, 'store'])->whereNumber('event')->name('issue.store');
             Route::get('/pedidos/{order}', [TicketOrderController::class, 'show'])->whereNumber('order')->name('orders.show');
             Route::get('/pedidos/{order}/pdf', [TicketOrderController::class, 'pdf'])->whereNumber('order')->name('orders.pdf');
+            // Ingresso físico na impressora térmica (80 mm): conta a via e vai para o histórico.
+            Route::post('/pedidos/{order}/imprimir', [TicketOrderController::class, 'print'])->whereNumber('order')->name('orders.print');
             Route::post('/pedidos/{order}/reenviar', [TicketOrderController::class, 'resend'])->whereNumber('order')->middleware('throttle:10,1')->name('orders.resend');
             Route::post('/pedidos/{order}/cancelar', [TicketOrderController::class, 'cancel'])->whereNumber('order')->name('orders.cancel');
             Route::put('/pedidos/ingresso/{ticket}/titular', [TicketOrderController::class, 'changeHolder'])->whereNumber('ticket')->name('orders.holder');
@@ -885,6 +897,12 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
                 Route::put('/{map}', [TicketMapController::class, 'update'])->whereNumber('map')->name('update');
                 Route::put('/{map}/desenho', [TicketMapController::class, 'layout'])->whereNumber('map')->name('layout');
                 Route::delete('/{map}', [TicketMapController::class, 'destroy'])->whereNumber('map')->name('destroy');
+                // Mesas cativas: o lugar guardado para uma matrícula até a liberação do evento.
+                Route::get('/{map}/cativas', [TicketCaptiveController::class, 'index'])->whereNumber('map')->name('captives.index');
+                Route::post('/{map}/cativas', [TicketCaptiveController::class, 'store'])->whereNumber('map')->name('captives.store');
+                Route::put('/{map}/cativas/liberacao', [TicketCaptiveController::class, 'release'])->whereNumber('map')->name('captives.release');
+                Route::delete('/{map}/cativas', [TicketCaptiveController::class, 'destroyAll'])->whereNumber('map')->name('captives.clear');
+                Route::delete('/{map}/cativas/{seat}', [TicketCaptiveController::class, 'destroy'])->whereNumber(['map', 'seat'])->name('captives.destroy');
             });
 
             Route::scopeBindings()->prefix('/{event}/tipos')->whereNumber('event')->as('types.')->group(function () {

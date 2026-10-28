@@ -59,6 +59,7 @@ class TicketEvent extends Model
         'sales_ends_at',
         'capacity',
         'max_per_order',
+        'captive_release_days',
         'status',
         'created_by',
     ];
@@ -70,6 +71,7 @@ class TicketEvent extends Model
         'sales_ends_at' => 'datetime',
         'capacity' => 'integer',
         'max_per_order' => 'integer',
+        'captive_release_days' => 'integer',
     ];
 
     protected $attributes = [
@@ -123,6 +125,26 @@ class TicketEvent extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Quando as mesas cativas não compradas viram lugar comum: à 0h do dia,
+     * `captive_release_days` dias antes do início. Nulo = não liberam sozinhas
+     * (só tirando a cativa na tela de mesas cativas).
+     */
+    public function captiveReleaseAt(): ?Carbon
+    {
+        return $this->captive_release_days === null || ! $this->starts_at
+            ? null
+            : $this->starts_at->copy()->startOfDay()->subDays($this->captive_release_days);
+    }
+
+    /** As mesas cativas do evento já foram liberadas para a venda geral? */
+    public function captivesReleased(?Carbon $at = null): bool
+    {
+        $release = $this->captiveReleaseAt();
+
+        return $release !== null && ($at ?? now())->greaterThanOrEqualTo($release);
     }
 
     public function salesOpen(?Carbon $at = null): bool

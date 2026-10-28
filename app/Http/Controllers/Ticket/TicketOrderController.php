@@ -10,6 +10,8 @@ use App\Models\SchedulePayment;
 use App\Models\Ticket\Ticket;
 use App\Models\Ticket\TicketEvent;
 use App\Models\Ticket\TicketOrder;
+use App\Models\Ticket\TicketPayment;
+use App\Models\User;
 use App\Services\MultiClubes\MemberProfileLookup;
 use App\Services\Ticket\TicketBuyer;
 use App\Services\Ticket\TicketOrderService;
@@ -33,6 +35,10 @@ use InvalidArgumentException;
  *
  * Lugar marcado: na emissão, o item do tipo com mapa leva o `seat_id`
  * escolhido no mapa; a troca de lugar fica no TicketMapController.
+ *
+ * Cortesia para não sócio: CPF opcional (de quem recebe e de cada ingresso)
+ * e o formato "em quantidade" (`courtesy_format=batch`): N ingressos de um
+ * tipo de entrada, sem nome nem CPF, de uma vez. Impressão térmica: `print`.
  */
 class TicketOrderController extends Controller
 {
@@ -46,7 +52,7 @@ class TicketOrderController extends Controller
         $digits = Cpf::digits($q);
 
         $orders = $event->orders()
-            ->with(['tickets.type', 'payment'])
+            ->with(['tickets.type', 'payment.recordedBy', 'creator'])
             ->withCount('tickets')
             ->when($q !== '', function ($query) use ($q, $digits) {
                 $code = Ticket::normalizeCode($q);
@@ -63,35 +69,51 @@ class TicketOrderController extends Controller
                 });
             })
             ->when($request->filled('status'), fn ($query) => $query->where('status', $request->input('status')))
+            // Vendido por: quem emitiu no balcão ou recebeu a baixa manual; "site" = criado pelo site.
+            ->when($request->input('vendedor') === 'site', fn ($query) => $query->where('origin', TicketOrder::ORIGIN_SITE))
+            ->when(ctype_digit((string) $request->input('vendedor')), fn ($query) => $query->where(fn ($w) => $w
+                ->where('created_by', (int) $request->input('vendedor'))
+                ->orWhereHas('payment', fn ($p) => $p->where('recorded_by', (int) $request->input('vendedor')))))
             ->orderByDesc('id')
             ->paginate(30)
             ->withQueryString();
 
-        return view('tickets.orders.index', ['event' => $event, 'orders' => $orders]);
+        $sellerIds = $event->orders()->whereNotNull('created_by')->distinct()->pluck('created_by')
+            ->merge(TicketPayment::whereNotNull('recorded_by')->whereHas('order', fn ($q) => $q->where('ticket_event_id', $event->id))->distinct()->pluck('recorded_by'))
+            ->unique();
+
+        return view('tickets.orders.index', [
+            'event' => $event,
+            'orders' => $orders,
+            'sellers' => User::whereIn('id', $sellerIds)->orderBy('name')->get(['id', 'name']),
+        ]);
     }
 
     public function show(TicketOrder $order): View
     {
-        $order->load(['event.days', 'tickets.type.day', 'tickets.type.map', 'tickets.seat', 'tickets.lot', 'tickets.checker', 'tickets.checkins.checker', 'payment.recordedBy', 'payment.refundedBy', 'coupon', 'creator', 'canceller']);
+        $order->load(['event.days', 'tickets.type.day', 'tickets.type.map', 'tickets.seat', 'tickets.lot', 'tickets.checker', 'tickets.checkins.checker', 'payment.recordedBy', 'payment.refundedBy', 'coupon', 'creator', 'canceller', 'logs.user', 'logs.ticket']);
 
         return view('tickets.orders.show', ['order' => $order, 'manualMethods' => SchedulePayment::MANUAL_METHODS]);
     }
 
-    public function resend(TicketOrder $order): RedirectResponse
+    public function resend(Request $request, TicketOrder $order): RedirectResponse
     {
-        $sent = $this->orders->resendLink($order);
+        $sent = $this->orders->resendLink($order, $request->user());
 
         return back()->with($sent ? 'success' : 'error', $sent ? "E-mail reenviado para {$order->buyer_email}." : 'O e-mail não saiu (endereço inválido ou falha no envio).');
     }
 
     public function changeHolder(Request $request, Ticket $ticket): RedirectResponse
     {
+        // Cortesia de não sócio pode ficar sem nome e CPF ("Cortesia"); o resto, não.
+        $anonymous = $ticket->order->courtesy && $ticket->order->isGuest();
         $data = $request->validate([
-            'holder_name' => 'required|string|max:255',
-            'holder_cpf' => 'required|string|max:20',
+            'holder_name' => [$anonymous ? 'nullable' : 'required', 'string', 'max:255'],
+            'holder_cpf' => [$anonymous ? 'nullable' : 'required', 'string', 'max:20'],
         ], [], ['holder_name' => 'nome', 'holder_cpf' => 'CPF']);
+        $data += ['holder_name' => null, 'holder_cpf' => null];
 
-        $this->guard(fn () => $this->orders->changeHolder($ticket, $data['holder_name'], $data['holder_cpf'], $request->user(), $request->boolean('force')));
+        $this->guard(fn () => $this->orders->changeHolder($ticket, (string) $data['holder_name'], (string) $data['holder_cpf'], $request->user(), $request->boolean('force')));
 
         return redirect()->route('tickets.orders.show', $ticket->ticket_order_id)->with('success', 'Titular trocado.');
     }
@@ -152,28 +174,41 @@ class TicketOrderController extends Controller
      */
     public function store(Request $request, TicketEvent $event): RedirectResponse
     {
+        $courtesy = $request->input('mode') === TicketOrderService::ISSUE_COURTESY;
+        $guest = $request->input('buyer_kind') === TicketOrder::BUYER_GUEST;
+        $batch = $courtesy && $request->input('courtesy_format') === 'batch';
+        // Cortesia de não sócio: CPF opcional (de quem recebe e de cada ingresso).
+        $cpfRequired = $guest && ! $courtesy;
+
         $data = $request->validate([
             'mode' => ['required', Rule::in(array_keys(TicketOrderService::ISSUE_LABELS))],
             'buyer_kind' => ['required', Rule::in([TicketOrder::BUYER_MEMBER, TicketOrder::BUYER_GUEST])],
             'member_cpf' => 'required_if:buyer_kind,member|nullable|string|max:20',
             'member_title' => 'nullable|string|max:20',
-            'buyer_cpf' => 'required_if:buyer_kind,guest|nullable|string|max:20',
+            'buyer_cpf' => [$cpfRequired ? 'required' : 'nullable', 'string', 'max:20'],
             'buyer_name' => 'required_if:buyer_kind,guest|nullable|string|max:255',
             'buyer_email' => 'nullable|email|max:255',
             'buyer_phone' => 'nullable|string|max:30',
             // Sócio: CPF de alguém do título (vazio = o próprio sócio), nome do cadastro do clube.
-            'holders' => 'required|array|min:1|max:50',
+            'holders' => [$batch ? 'nullable' : 'required', 'array', 'min:1', 'max:50'],
             'holders.*.type_id' => 'required|integer',
-            'holders.*.holder_name' => 'required_if:buyer_kind,guest|nullable|string|max:255',
-            'holders.*.holder_cpf' => 'required_if:buyer_kind,guest|nullable|string|max:20',
+            'holders.*.holder_name' => [$cpfRequired ? 'required' : 'nullable', 'string', 'max:255'],
+            'holders.*.holder_cpf' => [$cpfRequired ? 'required' : 'nullable', 'string', 'max:20'],
             // Tipo de lugar marcado: o lugar escolhido no mapa.
             'holders.*.seat_id' => 'nullable|integer',
             'coupon_code' => 'nullable|string|max:40',
+            // Cortesias em quantidade: N ingressos de um tipo, sem nome nem CPF.
+            'courtesy_format' => 'nullable|in:nominal,batch',
+            'batch_type_id' => [$batch ? 'required' : 'nullable', 'integer'],
+            'batch_quantity' => [$batch ? 'required' : 'nullable', 'integer', 'min:1', 'max:' . TicketOrderService::MAX_COURTESY_BATCH],
+            'batch_name' => 'nullable|string|max:255',
         ], [], [
             'member_cpf' => 'CPF do sócio',
             'buyer_cpf' => 'CPF de quem compra',
             'buyer_name' => 'nome de quem compra',
             'holders' => 'ingressos',
+            'batch_type_id' => 'tipo das cortesias',
+            'batch_quantity' => 'quantidade de cortesias',
         ]);
 
         if (! $this->canIssue($request, $data['mode'])) {
@@ -182,15 +217,21 @@ class TicketOrderController extends Controller
 
         $payment = $data['mode'] === TicketOrderService::ISSUE_EXTERNAL ? $this->paymentData($request) : [];
 
+        if ($batch && ! $guest) {
+            throw ValidationException::withMessages(['buyer_kind' => 'Cortesias em quantidade são para não sócio (um patrocinador, uma ação): o sócio recebe cortesia para as pessoas do título dele.']);
+        }
+
         if ($data['buyer_kind'] === TicketOrder::BUYER_MEMBER) {
             $buyer = $this->memberBuyer($data['member_cpf'], $data['member_title'] ?? null);
         } else {
-            if (! Cpf::isValid(Cpf::digits($data['buyer_cpf']))) {
+            if (filled($data['buyer_cpf'] ?? null) && ! Cpf::isValid(Cpf::digits($data['buyer_cpf']))) {
                 throw ValidationException::withMessages(['buyer_cpf' => 'CPF de quem compra é inválido.']);
             }
-            $buyer = TicketBuyer::guest($data['buyer_cpf'], $data['buyer_name'], $data['buyer_email'] ?? null, $data['buyer_phone'] ?? null);
+            $buyer = TicketBuyer::guest($data['buyer_cpf'] ?? null, $data['buyer_name'], $data['buyer_email'] ?? null, $data['buyer_phone'] ?? null);
         }
-        $items = array_values($data['holders']);
+        $items = $batch
+            ? $this->guard(fn () => $this->orders->batchItems($event, (int) $data['batch_type_id'], (int) $data['batch_quantity'], $data['batch_name'] ?? null))
+            : array_values($data['holders']);
 
         $order = $this->guard(fn () => $this->orders->issueAtCounter(
             $event, $buyer, $items, $request->user(), $data['mode'], $payment,
@@ -198,7 +239,7 @@ class TicketOrderController extends Controller
             $request->boolean('force'),
         ));
 
-        return redirect()->route('tickets.orders.show', $order)->with('success', 'Ingressos emitidos' . ($order->buyer_email ? " e enviados para {$order->buyer_email}." : '. Quem comprou não tem e-mail: entregue o PDF.'));
+        return redirect()->route('tickets.orders.show', $order)->with('success', $order->tickets()->count() . ' ingresso(s) emitido(s)' . ($order->buyer_email ? " e enviados para {$order->buyer_email}." : '. Sem e-mail: baixe o PDF ou imprima na térmica.'));
     }
 
     public function pdf(TicketOrder $order, \App\Services\Ticket\TicketPdf $pdf)
@@ -206,6 +247,20 @@ class TicketOrderController extends Controller
         abort_unless($order->status === TicketOrder::STATUS_PAID, 404);
 
         return $pdf->download($order);
+    }
+
+    /**
+     * Ingresso físico na impressora térmica: a página de 80 mm, que abre a
+     * impressão sozinha. Conta a via e grava no histórico (POST, para não
+     * contar uma via a cada recarga sem querer). `ticket_ids` vazio = todos.
+     */
+    public function print(Request $request, TicketOrder $order, \App\Services\Ticket\TicketPrintService $printer): View
+    {
+        $data = $request->validate(['ticket_ids' => 'nullable|array', 'ticket_ids.*' => 'integer']);
+
+        $tickets = $this->guard(fn () => $printer->prepare($order->loadMissing('event'), array_map('intval', $data['ticket_ids'] ?? []), $request->user()));
+
+        return view('tickets.print.thermal', ['order' => $order, 'tickets' => $tickets, 'by' => $request->user()]);
     }
 
     private function canIssue(Request $request, string $mode): bool

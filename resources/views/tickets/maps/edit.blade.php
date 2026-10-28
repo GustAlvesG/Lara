@@ -20,6 +20,7 @@
                 Vendido por {{ $map->types->map(fn ($t) => $t->fullName() . ($t->seat_category ? " (categoria {$t->seat_category})" : ' (todos os lugares)'))->implode('; ') }}.
             @endif
             <x-slot:actions>
+                <x-secondary-button-a href="{{ route('tickets.maps.captives.index', [$event, $map]) }}"><x-icon name="star" /> Mesas cativas</x-secondary-button-a>
                 @can(\App\Authorization\Permissions::INGRESSOS_VENDAS)
                     <x-secondary-button-a href="{{ route('tickets.maps.occupancy', [$event, $map]) }}"><x-icon name="eye" /> Ocupação</x-secondary-button-a>
                 @endcan

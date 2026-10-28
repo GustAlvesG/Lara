@@ -1,6 +1,7 @@
 {{-- Ingressos pagos de um pedido, um por página (dompdf: CSS simples, sem
      Tailwind). O QR leva só o código; a portaria confere nome e CPF. O
-     ingresso de lugar marcado (mesa…) mostra o lugar e avisa que não é entrada. --}}
+     ingresso de lugar marcado (mesa…) mostra o lugar e avisa que não é entrada.
+     Cortesia sem CPF: sem a linha do CPF, entra pelo código. --}}
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -32,9 +33,11 @@
                         <div class="label">Nome</div>
                         <div class="value">{{ $ticket->holder_name }}</div>
                         <br>
-                        <div class="label">CPF</div>
-                        <div class="value">{{ \App\Support\Cpf::format($ticket->holder_cpf) }}</div>
-                        <br>
+                        @if ($ticket->holder_cpf)
+                            <div class="label">CPF</div>
+                            <div class="value">{{ \App\Support\Cpf::format($ticket->holder_cpf) }}</div>
+                            <br>
+                        @endif
                         <div class="label">Ingresso</div>
                         <div class="value">{{ $ticket->type?->fullName() }} · {{ $ticket->lot?->name }}</div>
                         <br>
@@ -54,6 +57,9 @@
             </table>
             @if ($ticket->seat)
                 <p class="foot"><strong>Este ingresso é do lugar, não é entrada:</strong> cada pessoa entra com o ingresso de entrada dela. O responsável pelo lugar é a pessoa acima. Pedido {{ $order->id }} · gerado pelo Lara em {{ now()->format('d/m/Y H:i') }}.</p>
+            @elseif (! $ticket->holder_cpf)
+                {{-- Cortesia sem CPF: entra pelo código (QR), uma vez. --}}
+                <p class="foot">Cortesia: vale uma entrada para quem apresentar este ingresso; o código é lido uma vez só. Pedido {{ $order->id }} · gerado pelo Lara em {{ now()->format('d/m/Y H:i') }}.</p>
             @else
                 <p class="foot">Ingresso pessoal e intransferível, válido para uma entrada da pessoa e do CPF acima. Leve um documento com foto. Pedido {{ $order->id }} · gerado pelo Lara em {{ now()->format('d/m/Y H:i') }}.</p>
             @endif

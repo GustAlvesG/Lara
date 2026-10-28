@@ -87,15 +87,20 @@ class TicketFinanceTest extends TestCase
         $this->assertSame(3, \App\Models\Ticket\TicketMap::count());
         $this->assertSame(4, \App\Models\Ticket\TicketSeatClaim::count());
 
-        // Um ingresso ativo por CPF em cada evento.
+        // Um ingresso ativo por CPF em cada evento (a cortesia sem CPF fica de fora).
         $duplicated = Ticket::whereIn('status', Ticket::SOLD)
+            ->whereNotNull('holder_cpf')
             ->selectRaw('ticket_event_id, holder_cpf, count(*) as total')
             ->groupBy('ticket_event_id', 'holder_cpf')
             ->having('total', '>', 1)
             ->count();
         $this->assertSame(0, $duplicated);
-        $this->assertTrue(Ticket::all()->every(fn (Ticket $t) => Cpf::isValid($t->holder_cpf)));
+        $this->assertTrue(Ticket::whereNotNull('holder_cpf')->get()->every(fn (Ticket $t) => Cpf::isValid($t->holder_cpf)));
         $this->assertGreaterThan(0, TicketOrder::where('courtesy', true)->count());
+        // 20 cortesias sem CPF, duas mesas cativas e o histórico das emissões.
+        $this->assertSame(20, Ticket::whereNull('holder_cpf')->count());
+        $this->assertSame(2, \App\Models\Ticket\TicketSeat::whereNotNull('captive_title')->count());
+        $this->assertGreaterThan(0, \App\Models\Ticket\TicketOrderLog::count());
 
         // Rodar de novo recria; --so-limpar apaga tudo.
         $this->artisan('ingressos:dados-teste')->assertSuccessful();
@@ -106,5 +111,6 @@ class TicketFinanceTest extends TestCase
         $this->assertSame(0, Ticket::count());
         $this->assertSame(0, \App\Models\Ticket\TicketEventDay::count());
         $this->assertSame(0, \App\Models\Ticket\TicketSeat::count());
+        $this->assertSame(0, \App\Models\Ticket\TicketOrderLog::count());
     }
 }

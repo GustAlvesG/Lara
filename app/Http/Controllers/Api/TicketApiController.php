@@ -66,8 +66,27 @@ class TicketApiController extends Controller
      * lugar no dia (`?day_id=`, obrigatório no evento de vários dias). O site
      * recarrega a cada `refresh_after` segundos enquanto a pessoa escolhe; a
      * garantia contra a venda dupla é a do pedido (`seat_taken`).
+     *
+     * Mesa cativa: aqui (sem login) sai `captive` para todo mundo; o sócio
+     * logado usa `mapMember`, em que a cativa da matrícula dele sai livre.
      */
     public function map(Request $request, int $id, int $mapId): JsonResponse
+    {
+        return $this->seatMap($request, $id, $mapId);
+    }
+
+    /** O mesmo mapa, visto pelo sócio do JWT: a mesa cativa da matrícula dele aparece livre (`captive_mine`). */
+    public function mapMember(Request $request, int $id, int $mapId): JsonResponse
+    {
+        $member = $this->member($request);
+        if (! $member) {
+            return $this->noSession();
+        }
+
+        return $this->seatMap($request, $id, $mapId, (string) $member->title);
+    }
+
+    private function seatMap(Request $request, int $id, int $mapId, ?string $title = null): JsonResponse
     {
         $event = $this->visible()->with('days')->find($id);
         if (! $event) {
@@ -89,7 +108,7 @@ class TicketApiController extends Controller
             }
         }
 
-        return response()->json($this->presenter->seatMap($map, $day));
+        return response()->json($this->presenter->seatMap($map, $day, title: $title));
     }
 
     /**

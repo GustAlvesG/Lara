@@ -90,6 +90,8 @@ class Ticket extends Model
         'amount' => 'decimal:2',
         'refunded_amount' => 'decimal:2',
         'checked_in_at' => 'datetime',
+        'print_count' => 'integer',
+        'printed_at' => 'datetime',
         'cancelled_at' => 'datetime',
     ];
 

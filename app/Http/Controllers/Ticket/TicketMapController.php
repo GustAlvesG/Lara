@@ -57,9 +57,16 @@ class TicketMapController extends Controller
 
         $map = $this->maps->saveMap($event, $data, copyFrom: $copyFrom);
 
-        return redirect()->route('tickets.maps.edit', [$event, $map])->with('success', $copyFrom
-            ? "Mapa {$map->name} criado com os lugares e áreas de {$copyFrom->name}."
-            : "Mapa {$map->name} criado. Desenhe as áreas e os lugares.");
+        // As mesas cativas vêm junto na cópia: o aviso leva para a tela delas.
+        $captives = $copyFrom ? $map->seats()->whereNotNull('captive_title')->count() : 0;
+
+        return redirect()->route('tickets.maps.edit', [$event, $map])
+            ->with('success', $copyFrom
+                ? "Mapa {$map->name} criado com os lugares e áreas de {$copyFrom->name}."
+                : "Mapa {$map->name} criado. Desenhe as áreas e os lugares.")
+            ->with('warning', $captives > 0
+                ? "{$captives} mesa(s) cativa(s) vieram junto do mapa copiado. Confira em Mesas cativas (tire as que não valem para este evento) e o prazo de liberação."
+                : null);
     }
 
     public function edit(TicketEvent $event, TicketMap $map): View
@@ -74,7 +81,7 @@ class TicketMapController extends Controller
                 'height' => $map->height,
                 'background_url' => $map->backgroundUrl(),
                 'areas' => array_values($map->areas ?? []),
-                'seats' => $map->seats->map(fn (TicketSeat $s) => $s->only(['id', 'label', 'category', 'shape', 'x', 'y', 'w', 'h', 'places', 'active']) + [
+                'seats' => $map->seats->map(fn (TicketSeat $s) => $s->only(['id', 'label', 'category', 'shape', 'x', 'y', 'w', 'h', 'places', 'active', 'captive_title']) + [
                     // Já teve ingresso: rótulo e categoria travados, não apaga.
                     'locked' => $s->tickets_count > 0,
                 ])->values(),

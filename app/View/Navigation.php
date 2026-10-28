@@ -180,6 +180,7 @@ final class Navigation
                         'active' => ['tickets.index', 'tickets.create', 'tickets.show', 'tickets.edit', 'tickets.coupons.*', 'tickets.orders.*', 'tickets.issue.*']],
                     ['route' => 'tickets.checkin.index', 'label' => 'Check-in', 'permission' => P::INGRESSOS_CHECKIN, 'active' => 'tickets.checkin.*'],
                     ['route' => 'tickets.finance.index', 'label' => 'Financeiro', 'permission' => P::INGRESSOS_FINANCEIRO, 'active' => 'tickets.finance.*'],
+                    ['route' => 'tickets.cash.index', 'label' => 'Caixa', 'permission' => 'ver-caixa-ingressos', 'active' => 'tickets.cash.*'],
                 ],
             ],
             // RePET (módulo Replay no código): as quatro telas são as etapas do mesmo trabalho — definir o

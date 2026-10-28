@@ -34,6 +34,7 @@
                 </div>
                 <div class="flex flex-wrap gap-2">
                     <x-secondary-button-a href="{{ route('tickets.maps.edit', [$event, $map]) }}"><x-icon name="pencil" /> Desenhar</x-secondary-button-a>
+                    <x-secondary-button-a href="{{ route('tickets.maps.captives.index', [$event, $map]) }}"><x-icon name="star" /> Mesas cativas</x-secondary-button-a>
                     @can(\App\Authorization\Permissions::INGRESSOS_VENDAS)
                         <x-secondary-button-a href="{{ route('tickets.maps.occupancy', [$event, $map]) }}"><x-icon name="eye" /> Ocupação</x-secondary-button-a>
                     @endcan

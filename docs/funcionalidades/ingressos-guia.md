@@ -20,6 +20,9 @@ Cada parte pede uma permissão, dada ao setor na tela de **Setores** (ou à pess
 | Criar cupons de desconto | Cupons de desconto |
 | Fazer a entrada no evento | Check-in na entrada do evento |
 | Relatório financeiro | Relatório financeiro dos ingressos |
+| Ver o próprio caixa (o que você recebeu no balcão) | Pedidos e ingressos, Baixa manual ou Emitir cortesia |
+| Ver o caixa de todos, para o fechamento | Relatório de caixa de todos os vendedores |
+| Marcar mesas cativas | Eventos, tipos de ingresso e lotes |
 
 ## 1. Criar o evento
 
@@ -110,6 +113,30 @@ categoria e não pode ser apagada — **desative** (desmarque **Ativo**) para ti
 com cada lugar livre, reservado ou vendido. Passe o mouse para ver o responsável; clique para
 abrir o pedido.
 
+### Mesa cativa
+
+A **mesa cativa** é a mesa guardada para um sócio: só alguém daquela **matrícula** (o titular
+ou um dependente do título) compra. Se ele não comprar até o prazo, a mesa vai para a venda
+geral.
+
+1. Em **Mapas**, no mapa, clique em **Mesas cativas**.
+2. **Liberação**: informe quantos **dias antes do evento** as cativas não compradas viram
+   mesa comum (ex.: 7 = à 0h, 7 dias antes do início) e **Salvar prazo**. Vale para todas as
+   cativas do evento. Em branco: a cativa só sai quando você tirar.
+3. **Guardar lugar para uma matrícula**: escolha a mesa, digite a matrícula e **Guardar**. O
+   nome do titular vem do cadastro do clube.
+4. A lista mostra cada cativa: **aguardando a compra**, **comprada pela matrícula**,
+   **liberada** (o prazo passou) ou **vendida a outra pessoa** (depois de liberada).
+   **Tirar cativa** solta uma mesa na hora; **Tirar todas** solta as do mapa.
+
+A cativa vale para todos os dias do evento. No site, ela aparece como **reservada** para todo
+mundo, e **livre** para o sócio da matrícula, logado. No balcão, a mesa cativa só é emitida
+para um sócio daquela matrícula; para vender a outra pessoa antes do prazo, tire a cativa
+primeiro. No desenho, a cativa tem uma ★.
+
+**Copiar o mapa** de outro evento traz as cativas junto: o Lara avisa quantas vieram —
+confira a lista (tire as que não valem mais) e o prazo do evento novo.
+
 ## 3. Lotes
 
 Cada tipo tem os seus lotes. Em **Novo lote em …**:
@@ -184,6 +211,8 @@ do pedido. No pedido:
 
 - **Reenviar e-mail** com os ingressos (ou o link, se ainda não pagou).
 - **PDF** dos ingressos pagos — para imprimir ou mandar por WhatsApp.
+- **Imprimir (térmica)**: o ingresso físico, na impressora de cupom (80 mm) — ver
+  *Ingresso físico* abaixo. **Imprimir só este** imprime um ingresso do pedido.
 - **Trocar titular**: a pessoa não vai e passa o ingresso para outra (nome e CPF). O código
   continua o mesmo. Cada CPF só tem um ingresso no evento (no evento de vários dias, um por
   dia: a diária de cada dia ou o passaporte).
@@ -195,6 +224,30 @@ do pedido. No pedido:
   você tem a permissão, marque **Estornar na eRede** — o Lara devolve a soma dos marcados de
   uma vez. Pagamento por baixa manual não tem estorno pelo Lara: a devolução é feita fora.
   Ingresso já usado não é cancelado.
+- **Histórico** (no fim da tela): quem fez o quê e quando — quem emitiu, quem recebeu o
+  pagamento e em qual forma, trocas de titular e de lugar, cancelamentos, estornos,
+  reenvios e impressões. O que veio do site aparece como **Site**.
+
+Na lista de **Pedidos**, o filtro **Vendido por** mostra os pedidos que uma pessoa emitiu ou
+recebeu no balcão (ou só os do **Site**).
+
+### Ingresso físico (impressora térmica)
+
+No pedido pago, **Imprimir (térmica)** abre uma aba com os ingressos no tamanho do cupom
+(80 mm), um por corte, com o QR e o código — o mesmo do PDF, que vale na entrada. A janela de
+impressão abre sozinha; escolha a térmica e imprima. Se imprimir de novo, o ingresso sai com
+**2ª VIA** (3ª, 4ª…), e cada impressão fica no histórico do pedido.
+
+**Preparar o computador da impressora** (uma vez, com o TI):
+
+1. Instale o driver da impressora térmica e deixe-a como **impressora padrão** do Windows.
+2. Nas preferências do driver: papel **80 mm** (rolo), margens zero e **cortar no fim da
+   página** (ou do documento).
+3. Para imprimir **direto, sem a janela**, abra o Lara por um atalho do Chrome com
+   `--kiosk-printing` no fim do destino (ex.: `"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk-printing https://endereço-do-lara/ingressos`).
+   Feche todas as janelas do Chrome antes de abrir pelo atalho.
+4. Sem o atalho, na janela de impressão: destino = a térmica, **Margens: nenhuma**, sem
+   cabeçalhos e rodapés.
 
 ## 7. Emitir ingressos pelo Lara
 
@@ -205,6 +258,13 @@ Em **Pedidos › Emitir ingressos** (ou **Emitir**, na tela do evento):
      maquininha, transferência). Informe a forma, a data e, se quiser, uma observação e um
      cupom.
    - **Cortesia (sem cobrança)** — ingresso com valor zerado, para convidados da organização.
+     Escolha no bloco **Cortesias**:
+     - **Uma por pessoa** — a lista de ingressos de sempre. Para **não sócio**, o nome e o CPF
+       ficam opcionais (sem nome, sai "Cortesia");
+     - **Em quantidade, sem nome nem CPF** — ex.: **30 cortesias** para um patrocinador.
+       Escolha o tipo (de entrada), a quantidade e, se quiser, um nome para todos. Só para
+       não sócio; em **Quem compra**, o nome pode ser o da empresa ou da ação e o CPF fica em
+       branco.
 2. **Quem compra**:
    - **Sócio**: o CPF de quem compra (e a matrícula, se o Lara pedir). Os dados e o e-mail vêm
      do cadastro do clube. Depois, um ingresso por pessoa do título (tipo e **CPF**; o nome vem
@@ -220,8 +280,11 @@ Em **Pedidos › Emitir ingressos** (ou **Emitir**, na tela do evento):
    período de vendas, sem estoque ou acima do limite por pedido, o Lara avisa e pede
    confirmação.
 
-O pedido já sai pago e os ingressos vão para o e-mail de quem comprou. Sem e-mail, entregue
-o PDF.
+O pedido já sai pago e os ingressos vão para o e-mail de quem comprou. Sem e-mail, baixe o
+**PDF** ou use **Imprimir (térmica)** no pedido.
+
+A **cortesia sem CPF** entra pelo **código** (QR) no check-in e na portaria, uma vez cada:
+como não tem CPF, não aparece na busca por CPF. Quem estiver com o ingresso na mão, entra.
 
 ## 8. Check-in na entrada
 
@@ -258,7 +321,29 @@ no evento — quem passou pela portaria com o ingresso não entra de novo com el
 **Ingressos › Financeiro**: os eventos do ano com vendidos, cortesias, descontos, estornado e
 **recebido** (pagamentos pela eRede e por baixa manual, menos estornos). No evento: os totais,
 a divisão por tipo e lote (sócio e não sócio), por forma de pagamento e por cupom, e o
-**CSV dos ingressos** (um por linha, abre no Excel).
+**CSV dos ingressos** (um por linha, abre no Excel), com **Vendido por** e **Recebido por**.
+
+## 10. Caixa (fechamento)
+
+**Ingressos › Caixa**: o que foi recebido **no balcão**, por **dia**, **pessoa** e **forma
+de pagamento** (dinheiro, Pix, maquininha, transferência, outro), juntando todos os eventos.
+
+- Escolha o dia (**De** e **Até** iguais) ou um período e **Ver**.
+- Em cima, o total recebido e cada forma; depois, cada dia com uma linha por pessoa: quanto
+  recebeu em cada forma, o total, vendas e ingressos, **cortesias** (só a quantidade) e
+  **cancelados**.
+- **Cancelados**: ingressos pagos no balcão e cancelados no período. Só informa — o
+  dinheiro, se foi devolvido, saiu por fora do Lara, então **não é descontado** do total.
+- **Lançamentos**: cada venda, cortesia e cancelamento, com o link do pedido.
+- **PDF** (com espaço para a assinatura de quem entrega e de quem confere) e **CSV**.
+
+Cada pessoa vê **só o próprio caixa**. Quem tem **Relatório de caixa de todos os
+vendedores** (o financeiro) vê todo mundo, escolhe a **Pessoa** e vê também o bloco **Site
+(eRede)** — o que foi pago no cartão pelo site, que não passa pelo caixa de ninguém.
+
+Conta no caixa de quem **registrou o pagamento**: na emissão com pagamento por fora, quem
+emitiu; na baixa manual de um pedido do site, quem deu a baixa. A data é a do pagamento
+informada na baixa (padrão: a hora em que foi registrada).
 
 ## Como o site vende
 

@@ -4,6 +4,8 @@
  *   TicketSeatMap.viewer(container, opts)  — mostra o mapa com a situação dos
  *     lugares (emissão: escolher um lugar livre; ocupação: ver quem está em
  *     cada um). Busca o JSON em `opts.url` e recarrega a cada `refresh_after`.
+ *     A mesa cativa (`captive`) também se escolhe no painel: quem confere a
+ *     matrícula de quem compra é o servidor (`seat_captive`).
  *   TicketSeatMap.editor(root, layout)     — desenha o mapa: lugares (clicar,
  *     arrastar, grade) e áreas de orientação (palco, piscina, banheiros).
  *
@@ -31,6 +33,7 @@
         held: { fill: tone('warn-soft'), stroke: tone('warn'), text: tone('warn') },
         sold: { fill: tone('danger-soft'), stroke: tone('danger'), text: tone('danger') },
         unavailable: { fill: tone('subtle'), stroke: tone('line-strong'), text: tone('ink-3'), dash: '4 3' },
+        captive: { fill: tone('a-info'), stroke: tone('a-info-ink'), text: tone('a-info-ink'), dash: '6 2' },
         selected: { fill: tone('grena'), stroke: tone('grena-hover'), text: '#fff' },
     };
 
@@ -39,6 +42,7 @@
         held: 'Reservado (aguardando pagamento)',
         sold: 'Vendido',
         unavailable: 'Indisponível',
+        captive: 'Mesa cativa',
     };
 
     // Cor por categoria no editor, para ver de relance quais mesas são de qual tipo.
@@ -151,7 +155,7 @@
 
         const pickable = (seat) => opts.mode === 'pick'
             && (seat.id === opts.currentSeatId
-                || (seat.status === 'free' && (!opts.typeId || seat.type_id === Number(opts.typeId))));
+                || ((seat.status === 'free' || seat.status === 'captive') && (!opts.typeId || seat.type_id === Number(opts.typeId))));
 
         const render = () => {
             const typeNames = Object.fromEntries((data.types || []).map((t) => [t.id, t.name]));
@@ -165,13 +169,15 @@
                 seatTitle: (seat) => {
                     const parts = [seatDescription(seat), seat.type_id ? typeNames[seat.type_id] : null, STATUS_LABELS[seat.status]];
                     if (seat.holder_name) parts.push(`${seat.holder_name} (pedido #${seat.order_id})`);
+                    if (seat.captive_title) parts.push(`cativa da matrícula ${seat.captive_title}${seat.captive_name ? ` (${seat.captive_name})` : ''}`);
                     if (seat.active === false) parts.push('desativado');
                     return parts.filter(Boolean).join(' · ');
                 },
             });
             if (status) {
                 const count = (s) => data.seats.filter((seat) => seat.status === s).length;
-                status.textContent = `${count('free')} livre(s) · ${count('held')} reservado(s) · ${count('sold')} vendido(s) · atualizado às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+                const captive = count('captive') ? ` · ${count('captive')} cativa(s)` : '';
+                status.textContent = `${count('free')} livre(s)${captive} · ${count('held')} reservado(s) · ${count('sold')} vendido(s) · atualizado às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
             }
         };
 
@@ -304,10 +310,10 @@
                         dash: seat.active ? '' : '4 3',
                         strokeWidth: sel ? 3 : 2,
                         cursor: tool === 'select' ? 'move' : 'crosshair',
-                        badge: seat.locked ? '🔒' : null,
+                        badge: [seat.locked ? '🔒' : '', seat.captive_title ? '★' : ''].join('') || null,
                     };
                 },
-                seatTitle: (seat) => [seatDescription(seat), seat.active ? null : 'desativado', seat.locked ? 'já teve ingresso: rótulo e categoria travados' : null].filter(Boolean).join(' · '),
+                seatTitle: (seat) => [seatDescription(seat), seat.active ? null : 'desativado', seat.locked ? 'já teve ingresso: rótulo e categoria travados' : null, seat.captive_title ? `mesa cativa da matrícula ${seat.captive_title}` : null].filter(Boolean).join(' · '),
             });
             if (drag && drag.band) {
                 const b = drag.band;

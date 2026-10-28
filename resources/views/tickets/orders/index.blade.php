@@ -1,4 +1,5 @@
-{{-- Pedidos de um evento: busca por nome, CPF, código do ingresso ou número do pedido. --}}
+{{-- Pedidos de um evento: busca por nome, CPF, código do ingresso ou número do
+     pedido; filtro por quem vendeu (emitiu ou recebeu no balcão). --}}
 @php
     use App\Authorization\Permissions as P;
     use App\Models\Ticket\TicketOrder;
@@ -26,13 +27,21 @@
 
         @include('partials.alerts')
 
-        <x-search-bar :filters="['status']" placeholder="Nome, CPF, código ING- ou nº do pedido">
+        <x-search-bar :filters="['status', 'vendedor']" placeholder="Nome, CPF, código ING- ou nº do pedido">
             <x-slot:controls>
                 <label for="filtro-situacao" class="sr-only">Situação</label>
                 <select id="filtro-situacao" name="status" class="{{ $field }} w-full sm:w-56">
                     <option value="">Todas as situações</option>
                     @foreach (TicketOrder::STATUS_LABELS as $value => $label)
                         <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+                <label for="filtro-vendedor" class="sr-only">Vendido por</label>
+                <select id="filtro-vendedor" name="vendedor" class="{{ $field }} w-full sm:w-56">
+                    <option value="">Vendido por: todos</option>
+                    <option value="site" @selected(request('vendedor') === 'site')>Site</option>
+                    @foreach ($sellers as $seller)
+                        <option value="{{ $seller->id }}" @selected((string) request('vendedor') === (string) $seller->id)>{{ $seller->name }}</option>
                     @endforeach
                 </select>
             </x-slot:controls>
@@ -58,13 +67,14 @@
                                 <tr>
                                     <td class="px-5 py-3.5">
                                         <a href="{{ route('tickets.orders.show', $order) }}" class="font-mono font-semibold text-ink no-underline hover:underline">#{{ $order->id }}</a>
-                                        <p class="text-xs text-ink-3">{{ $order->created_at->format('d/m H:i') }} · {{ $order->origin === TicketOrder::ORIGIN_COUNTER ? 'Lara' : 'site' }}</p>
+                                        <p class="text-xs text-ink-3">{{ $order->created_at->format('d/m H:i') }} · {{ $order->origin === TicketOrder::ORIGIN_COUNTER ? 'Lara' . ($order->creator ? ' · ' . $order->creator->name : '') : 'site' }}</p>
+                                        @if ($order->payment?->is_manual && $order->payment->recorded_by !== $order->created_by)<p class="text-xs text-ink-3">recebido por {{ $order->payment->recordedBy?->name ?? '—' }}</p>@endif
                                     </td>
                                     <td class="px-5 py-3.5">
                                         <p class="font-semibold text-ink">{{ $order->buyer_name }}</p>
-                                        <p class="text-xs text-ink-3">{{ TicketOrder::BUYER_LABELS[$order->buyer_kind] ?? '' }} · {{ \App\Support\Cpf::format($order->buyer_cpf) }}</p>
+                                        <p class="text-xs text-ink-3">{{ TicketOrder::BUYER_LABELS[$order->buyer_kind] ?? '' }} · {{ $order->buyer_cpf ? \App\Support\Cpf::format($order->buyer_cpf) : 'sem CPF' }}</p>
                                     </td>
-                                    <td class="px-5 py-3.5 text-ink-2">{{ $order->tickets->pluck('holder_name')->implode(', ') }}</td>
+                                    <td class="px-5 py-3.5 text-ink-2">{{ $order->tickets->count() > 5 ? $order->tickets->count() . ' ingressos' : $order->tickets->pluck('holder_name')->implode(', ') }}</td>
                                     <td class="px-5 py-3.5 font-mono">
                                         {{ $order->courtesy ? 'Cortesia' : $money($order->total) }}
                                         @if ($order->coupon_code)<span class="block text-xs text-ink-3">cupom {{ $order->coupon_code }}</span>@endif

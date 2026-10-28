@@ -8,6 +8,7 @@ use App\Models\Ticket\TicketEvent;
 use App\Models\Ticket\TicketEventDay;
 use App\Models\Ticket\TicketLot;
 use App\Models\Ticket\TicketMap;
+use App\Models\Ticket\TicketSeat;
 use App\Models\Ticket\TicketType;
 use App\Models\Ticket\TicketOrder;
 use App\Services\Signature\SignatureQrCode;
@@ -94,9 +95,10 @@ class TicketPresenter
      * `$panel` (só o Lara): também os tipos inativos, o lugar desativado, e
      * de quem é cada lugar ocupado. O site nunca recebe quem comprou.
      */
-    public function seatMap(TicketMap $map, ?TicketEventDay $day = null, bool $panel = false): array
+    public function seatMap(TicketMap $map, ?TicketEventDay $day = null, bool $panel = false, ?string $title = null): array
     {
-        $layout = $this->seats->layout($map, $day, includeInactiveTypes: $panel);
+        $layout = $this->seats->layout($map, $day, includeInactiveTypes: $panel, title: $title);
+        $releaseAt = $map->event->captiveReleaseAt();
 
         return [
             'id' => $map->id,
@@ -107,6 +109,8 @@ class TicketPresenter
             'background_url' => $map->backgroundUrl(),
             'day' => $day ? $this->day($day) : null,
             'refresh_after' => TicketSeatService::REFRESH_SECONDS,
+            // Mesas cativas: viram lugar comum a partir daqui (null = só tirando a cativa).
+            'captive_release_at' => $releaseAt?->toIso8601String(),
             'areas' => array_values($map->areas ?? []),
             'types' => array_map(fn (array $row) => [
                 'id' => $row['type']->id,
@@ -116,7 +120,7 @@ class TicketPresenter
                 'available' => $row['lot'] !== null,
                 'lot' => $row['lot'] ? $this->lot($row['lot']) + ['remaining' => $row['remaining']] : null,
             ], $layout['types']),
-            'seats' => array_map(function (array $row) use ($panel) {
+            'seats' => array_map(function (array $row) use ($panel, $title) {
                 $seat = $row['seat'];
                 $data = [
                     'id' => $seat->id,
@@ -130,6 +134,9 @@ class TicketPresenter
                     'places' => $seat->places,
                     'status' => $row['status'],
                     'type_id' => $row['type']?->id,
+                    // Cativa ainda guardada; `captive_mine` = da matrícula de quem pergunta.
+                    'captive' => $row['captive'] !== null,
+                    'captive_mine' => $row['captive'] !== null && TicketSeat::sameTitle($title, $row['captive']),
                 ];
 
                 if ($panel) {
@@ -139,6 +146,8 @@ class TicketPresenter
                         'holder_name' => $ticket?->holder_name,
                         'order_id' => $ticket?->ticket_order_id,
                         'ticket_id' => $ticket?->id,
+                        'captive_title' => $row['captive'],
+                        'captive_name' => $row['captive'] !== null ? $seat->captive_name : null,
                     ];
                 }
 

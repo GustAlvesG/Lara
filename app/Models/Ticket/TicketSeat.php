@@ -15,6 +15,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * (lugar, dia). `x`/`y` são o centro; `w`/`h` o tamanho, nas unidades do
  * mapa. `places` (quantas pessoas cabem) é só informação.
  *
+ * Mesa cativa (`captive_title`): só quem é daquela matrícula compra o lugar,
+ * até o evento liberar as cativas (`TicketEvent::captivesReleased`); depois,
+ * é um lugar comum. Ver `captiveFor()`.
+ *
  * Lugar que já teve ingresso não é apagado nem muda de rótulo ou categoria
  * (o rótulo está nos ingressos impressos): é desativado.
  */
@@ -42,6 +46,8 @@ class TicketSeat extends Model
         'h',
         'places',
         'active',
+        'captive_title',
+        'captive_name',
     ];
 
     protected $casts = [
@@ -81,6 +87,20 @@ class TicketSeat extends Model
     {
         return $type->ticket_map_id === $this->ticket_map_id
             && ($type->seat_category === null || $type->seat_category === $this->category);
+    }
+
+    /** A matrícula para quem o lugar está guardado agora (null = livre para todos). */
+    public function captiveFor(TicketEvent $event, ?\Illuminate\Support\Carbon $at = null): ?string
+    {
+        return $this->captive_title !== null && ! $event->captivesReleased($at) ? $this->captive_title : null;
+    }
+
+    /** A mesma matrícula, sem zeros à esquerda nem espaços ("0123" = "123"). */
+    public static function sameTitle(?string $a, ?string $b): bool
+    {
+        $norm = fn (?string $t) => ltrim(trim((string) $t), '0');
+
+        return filled($a) && filled($b) && $norm($a) === $norm($b);
     }
 
     /** "Mesa 12 (4 lugares)". */

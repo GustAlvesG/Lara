@@ -153,3 +153,32 @@ diferenciar. Nenhuma regra é decidida na guarita.
 
 Teste: `php artisan ingressos:dados-teste` cria o "[TESTE] Réveillon (lugar marcado)" com
 mesas vendidas; o código de uma mesa (na tela do pedido, no Lara) deve aparecer negado.
+
+## Atualização de 28/10/2026 (2) — cortesia sem CPF
+
+> Para o agente do app da guarita, depois da atualização do ingresso de mesa. Nada muda nas
+> rotas, na autenticação nem no formato da resposta.
+
+O Lara passou a emitir **cortesias sem CPF** — inclusive em quantidade ("30 cortesias para
+um patrocinador"). Esse ingresso tem código `ING-` e QR como os outros, mas **nenhum CPF** e,
+em geral, o nome **"Cortesia"** (ou o nome do patrocinador, se a organização pôs um).
+
+1. **Pela busca por CPF**, a cortesia sem CPF **não aparece** (não há CPF para achar). Ela só
+   é encontrada pelo **código** (`ING-…`, digitado ou lido do QR).
+2. Pelo código, a linha `type: "ticket"` vem como qualquer ingresso de entrada: `allowed`
+   true/false, `reason` e `ticket.message` como sempre, `name` = o nome do ingresso
+   ("Cortesia"). Registrar faz o check-in normalmente — **uma entrada** por ingresso (por dia,
+   no passaporte).
+3. A orientação para o porteiro muda só no texto: na cortesia sem CPF **não há documento a
+   conferir** — vale para quem apresentar o ingresso. Se a tela mostra "confira o documento",
+   troque, nesse caso, por "Cortesia: entra com o ingresso" quando `name` for "Cortesia" (ou
+   simplesmente mantenha o fluxo: o Lara já nega o ingresso usado).
+
+Se a guarita ainda não aceita o código `ING-` no campo de busca (só CPF), é este o ponto a
+implementar: o campo deve aceitar `ING-XXXXXXXX` (e o mesmo sem hífen, minúsculo), e o leitor
+de QR deve preencher o campo com o código. O contrato é o mesmo já descrito acima.
+
+Teste: `php artisan ingressos:dados-teste` cria, no "[TESTE] Réveillon (lugar marcado)", 20
+cortesias sem CPF para "Patrocinador Teste"; os códigos aparecem na tela do pedido, no Lara.
+O Réveillon é daqui a 60 dias: para testar a entrada aberta, use um evento cuja entrada
+esteja aberta (ou mude a data do Réveillon em homologação).
