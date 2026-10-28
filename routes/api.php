@@ -33,6 +33,7 @@ use App\Http\Controllers\Freelancer\DinnerApiController as FreelancerDinnerApiCo
 use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\UberAccessRequestWebhookController;
 use App\Http\Controllers\InformationSearchController;
+use App\Http\Controllers\AvisoSearchController;
 use App\Http\Controllers\Api\PurchaseApprovalController;
 use App\Http\Controllers\Api\MemberLightingController;
 use App\Http\Controllers\Api\SocialBookingApiController;
@@ -324,6 +325,13 @@ Route::middleware('api_token')->group(function () {
         //Busca por palavra-chave em name, description e category do data_info
         Route::get('/search', [InformationSearchController::class, 'index'])
             ->name('api.information.search');
+    });
+
+    Route::prefix('avisos')->group(function () {
+        // Busca em title, content e tags dos avisos DIRIGIDOS ao user_id
+        // informado (privacidade do aviso) — consumida pela Lara (IA).
+        Route::get('/search', [AvisoSearchController::class, 'index'])
+            ->name('api.avisos.search');
     });
 
     /*

@@ -24,6 +24,19 @@ resposta. O Lara não hospeda modelo nenhum.
 3. `POST /lara/reiniciar`: limpa a memória do lado da IA e sorteia `conversation_uuid` novo; o
    histórico fica no banco.
 
+## O que a IA consulta no Lara
+
+O caminho inverso: a IA chama **O Lara** por API (`api_token`) para responder sobre o clube.
+Contrato em [docs/funcionalidades/lara-ia-consultas.md](../funcionalidades/lara-ia-consultas.md).
+
+- `GET /api/information/search` — informações do InfoClube (públicas).
+- `GET /api/avisos/search` — avisos, **só os dirigidos** ao `user_id` (aceita `portal_{id}`, o
+  mesmo valor que o `LaraClient` manda como `usuario_id`). Régua `Aviso::scopeAddressedTo`, não
+  `scopeVisibleTo`: acesso total não amplia a busca.
+- As duas herdam de `KeywordSearchRequest` e usam `App\Support\KeywordSearch`. Mudou o contrato?
+  Atualize o doc acima e gere o prompt para o agente da VM da IA
+  (modelo: `docs/funcionalidades/lara-ia-busca-avisos-prompt.md`).
+
 ## Regras que costumam pegar
 
 - **Só `LARA_TIMEOUT` se ajusta.** Trava e navegador usam `+10 s`, `set_time_limit` usa `+30 s`;
@@ -50,8 +63,10 @@ resposta. O Lara não hospeda modelo nenhum.
 | `app/Models/LaraMessage.php` | Histórico (`role`, `conteudo`, `status`, `latencia_ms`, `erro`). |
 | `config/services.php` (`lara`) e `.env.example` (`LARA_*`) | Configuração. |
 | `resources/views/lara/index.blade.php` | Tela (Alpine). |
+| `app/Http/Controllers/InformationSearchController.php`, `AvisoSearchController.php` | APIs que a IA consulta. |
 
 ## Testes
 
-`tests/Unit/LaraClientTest.php` (Http fake) e `tests/Feature/LaraMessageHistoryTest.php`. Confira o
+`tests/Unit/LaraClientTest.php` (Http fake), `tests/Feature/LaraMessageHistoryTest.php`,
+`tests/Feature/InformationSearchTest.php` e `tests/Feature/AvisoSearchTest.php`. Confira o
 isolamento SQLite do `phpunit.xml` antes de rodar.

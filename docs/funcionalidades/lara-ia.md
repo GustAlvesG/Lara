@@ -153,6 +153,14 @@ taxa de erro real ficaria invisível.
 | Health check falhou | "A Lara não está respondendo agora — o servidor dela pode estar reiniciando" |
 | Demora acima de `LARA_TIMEOUT + 10s` | "A Lara demorou demais para responder…" |
 
+## O que a IA consulta no Lara
+
+Além do estatuto, a IA consulta o InfoClube por API, com o `api_token`:
+`GET /api/information/search` (informações, públicas) e, desde 28/10/2026,
+`GET /api/avisos/search` (avisos, filtrados pelo funcionário que pergunta — a IA repassa o
+mesmo `usuario_id: "portal_{id}"` que recebe do Lara). Contrato completo em
+[lara-ia-consultas.md](lara-ia-consultas.md).
+
 ## Como testar sem a tela
 
 ```bash
@@ -198,3 +206,4 @@ significa problema de rede entre o portal e ela. São donos diferentes.
 - Model: `LaraMessage` · Command: `app:prune-lara-messages`
 - View: `resources/views/lara/index.blade.php`
 - Testes: `tests/Unit/LaraClientTest.php`, `tests/Feature/LaraMessageHistoryTest.php`
+- Consultas da IA ao Lara: [lara-ia-consultas.md](lara-ia-consultas.md)

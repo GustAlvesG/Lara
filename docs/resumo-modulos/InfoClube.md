@@ -55,6 +55,11 @@ leitura obrigatória — `avisos.*`). Ler é de todo mundo logado; escrever info
   `avisos.pending` até a pessoa dar ciência (`AvisoAcknowledgement`, com IP). Se a consulta
   falhar, a navegação segue e o erro vai ao log — o middleware não pode derrubar o sistema.
 - Imagem do aviso em `public/images/avisos`.
+- **API:** `GET /api/avisos/search?q=&user_id=` (`AvisoSearchController`, grupo `api_token`),
+  consumida pela Lara (IA). Devolve só os avisos **dirigidos** ao `user_id` (`scopeAddressedTo`,
+  não `scopeVisibleTo`), ativos por padrão (`include_expired=1` traz os vencidos); pesos título 3,
+  tag 2, conteúdo 1. Contrato em [lara-ia-consultas.md](../funcionalidades/lara-ia-consultas.md).
+  Mexeu na privacidade do aviso? A busca segue a mesma régua — confira o `AvisoSearchTest`.
 
 ## Peças
 
@@ -62,6 +67,8 @@ leitura obrigatória — `avisos.*`). Ler é de todo mundo logado; escrever info
 |---|---|
 | `app/Http/Controllers/InformationController.php` | Lista paginada (12) com busca no servidor, criação/versão, histórico. |
 | `app/Http/Controllers/InformationSearchController.php` | Busca ranqueada da API. |
+| `app/Http/Controllers/AvisoSearchController.php` | Busca de avisos da API, filtrada por quem pergunta. |
+| `app/Http/Requests/KeywordSearchRequest.php`, `app/Support/KeywordSearch.php` | Base comum das duas buscas (palavras-chave, relevância, HTML → texto). |
 | `app/Http/Controllers/AvisoController.php` | CRUD de avisos, ciência, sincronia de tags/lembretes/usuários. |
 | `app/Models/Information.php`, `DataInfo.php`, `Tag.php` | Agrupador, versões e tags. |
 | `app/Models/Aviso.php`, `Lembrete.php`, `AvisoView.php`, `AvisoAcknowledgement.php` | Avisos e escopos de visibilidade. |
@@ -72,6 +79,7 @@ leitura obrigatória — `avisos.*`). Ler é de todo mundo logado; escrever info
 ## Testes
 
 - `tests/Feature/Rebrand/InfoClubeScreensTest.php` (telas no layout novo),
-  `tests/Feature/InformationSearchTest.php` (API), `tests/Feature/MandatoryAvisoReadingTest.php`
+  `tests/Feature/InformationSearchTest.php` e `tests/Feature/AvisoSearchTest.php` (APIs),
+  `tests/Feature/MandatoryAvisoReadingTest.php`
   e `tests/Unit/MandatoryAvisoInterceptionTest.php` (leitura obrigatória).
 - Confira o isolamento SQLite do `phpunit.xml` antes de rodar e rode só os arquivos do módulo.

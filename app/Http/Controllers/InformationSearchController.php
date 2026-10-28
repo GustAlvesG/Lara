@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\SearchInformationRequest;
 use App\Models\DataInfo;
+use App\Support\KeywordSearch;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 
@@ -70,7 +71,14 @@ class InformationSearchController extends Controller
             $query->whereIn('id', $this->currentVersionIds());
         }
 
-        [$relevanceSql, $relevanceBindings] = $this->relevanceScore($terms);
+        [$relevanceSql, $relevanceBindings] = KeywordSearch::relevance(
+            $terms,
+            self::WEIGHTS,
+            'SELECT 1 FROM data_info_tag dit '
+                . 'INNER JOIN tags tg ON tg.id = dit.tag_id '
+                . 'WHERE dit.data_info_id = data_infos.id AND tg.name LIKE ?',
+            self::TAG_WEIGHT,
+        );
 
         $results = $query
             ->selectRaw("data_infos.*, ({$relevanceSql}) as relevance", $relevanceBindings)
@@ -84,7 +92,7 @@ class InformationSearchController extends Controller
 
         $results->each(function (DataInfo $info) {
             $info->relevance = (int) $info->relevance;
-            $info->description = $this->stripHtml($info->description);
+            $info->description = KeywordSearch::stripHtml($info->description);
         });
 
         return response()->json([
@@ -94,59 +102,6 @@ class InformationSearchController extends Controller
             'total'        => $results->count(),
             'data'         => $results->values(),
         ]);
-    }
-
-    /**
-     * Soma ponderada de "CASE WHEN coluna LIKE termo THEN peso ELSE 0", uma
-     * parcela por termo x coluna. As chaves de WEIGHTS são constantes do
-     * próprio código (não entrada do usuário), então a interpolação na SQL
-     * é segura; os valores dos termos vão só como bindings.
-     *
-     * @param string[] $terms
-     * @return array{0: string, 1: array<int, string>}
-     */
-    private function relevanceScore(array $terms): array
-    {
-        $parts = [];
-        $bindings = [];
-
-        foreach ($terms as $term) {
-            $like = '%' . $term . '%';
-
-            foreach (self::WEIGHTS as $column => $weight) {
-                $parts[] = "(CASE WHEN {$column} LIKE ? THEN {$weight} ELSE 0 END)";
-                $bindings[] = $like;
-            }
-
-            // Acerto em qualquer tag da versão vale uma vez só, por termo.
-            $parts[] = '(CASE WHEN EXISTS ('
-                . 'SELECT 1 FROM data_info_tag dit '
-                . 'INNER JOIN tags tg ON tg.id = dit.tag_id '
-                . 'WHERE dit.data_info_id = data_infos.id AND tg.name LIKE ?'
-                . ") THEN " . self::TAG_WEIGHT . ' ELSE 0 END)';
-            $bindings[] = $like;
-        }
-
-        return [implode(' + ', $parts), $bindings];
-    }
-
-    /**
-     * A descrição é gravada como HTML (rich text do editor de information) —
-     * a busca devolve texto puro para o consumidor da API não receber markup.
-     * Troca cada tag por um espaço antes de decodificar entidades, senão
-     * "<p>Texto</p><p>Mais</p>" viraria "TextoMais" grudado.
-     */
-    private function stripHtml(?string $html): ?string
-    {
-        if ($html === null) {
-            return null;
-        }
-
-        $text = preg_replace('/<[^>]*>/', ' ', $html);
-        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $text = preg_replace('/\s+/u', ' ', $text);
-
-        return trim($text);
     }
 
     /**

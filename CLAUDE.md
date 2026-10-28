@@ -16,6 +16,8 @@ O módulo Assinaturas também se comunica com aplicação externa desde 21/10/20
 
 O módulo Ingressos (desde 27/10/2026) também se comunica com o site externo em Next.js (o mesmo das Reservas e dos Torneios) pela API `/api/tickets/*`: o Lara é o backend, a venda é no site. Mudou essa API ou o fluxo de compra, atualize `docs/funcionalidades/ingressos-site-prompt.md` e gere o prompt para o agent do site. O check-in dos ingressos pelo Monitor de Acesso mexe na API da portaria (Terceirizados): gere também o prompt para o agent do app da guarita.
 
+O módulo Lara (IA) também se comunica com aplicação externa nos dois sentidos: O Lara chama a VM da IA (`/perguntar`, `/reiniciar`, `/health`) e a IA consulta O Lara pelas APIs `/api/information/search` e `/api/avisos/search` (desde 28/10/2026). Mudou alguma dessas chamadas ou o formato da resposta, atualize `docs/funcionalidades/lara-ia-consultas.md` e gere o prompt para o agent da VM da IA (modelo em `docs/funcionalidades/lara-ia-busca-avisos-prompt.md`). A busca de avisos segue a privacidade do aviso (`Aviso::scopeAddressedTo`): mudou a régua de privacidade, a busca muda junto.
+
 Para cada módulo, crie um resumo do funcionamento dele em markdown para orientar outro agente claude code que vá fazer alguma nova implementação. Esse markdown de resumo deve ficar dentro docs/resumo-modulos e nomeado com o nome do módulo que aparece no Menu
 
 Sempre se refira ao sistema como "O Lara", nunca "A Lara".
