@@ -18,6 +18,14 @@
     $laraTimeoutMs = ((int) config('services.lara.timeout', 30) + 10) * 1000;
     $laraMaxChars = (int) config('services.lara.max_input_chars', 1000);
     $laraAbrir = (bool) session(\App\Http\Controllers\LaraChatController::OPEN_FLASH);
+
+    // Onde a pessoa está, para a Lara entender "como faço isso aqui?". Só
+    // nomes de rota: módulo e página o servidor tira do menu
+    // (AskLaraRequest::contexto), sem confiar em texto vindo do navegador.
+    $laraContexto = [
+        'rota' => request()->route()?->getName(),
+        'aba' => $navCurrent['key'] ?? null,
+    ];
 @endphp
 
 <script>
@@ -151,7 +159,7 @@
                         method: 'POST',
                         headers: cabecalhos(true),
                         credentials: 'same-origin',
-                        body: JSON.stringify({ mensagem: texto }),
+                        body: JSON.stringify({ mensagem: texto, contexto: opcoes.contexto }),
                         signal: abort.signal,
                     });
 
@@ -238,6 +246,7 @@
 <div x-data="laraWidget(@js([
         'abrir' => $laraAbrir,
         'timeoutMs' => $laraTimeoutMs,
+        'contexto' => $laraContexto,
         'urls' => [
             'conversa' => url('/lara/conversa'),
             'perguntar' => url('/lara/perguntar'),
@@ -310,8 +319,8 @@
             <template x-if="carregado && mensagens.length === 0 && !pensando">
                 <div class="flex h-full flex-col items-center justify-center px-6 text-center">
                     <x-icon name="chat" class="mb-2 h-7 w-7 text-ink-3" />
-                    <p class="text-sm text-ink-2">Pergunte sobre o estatuto, as atividades ou os avisos do clube.</p>
-                    <p class="mt-0.5 text-xs text-ink-3">Ex.: “qual o horário da academia?”</p>
+                    <p class="text-sm text-ink-2">Pergunte sobre o estatuto, as atividades, os avisos do clube ou como usar O Lara.</p>
+                    <p class="mt-0.5 text-xs text-ink-3">Ex.: “qual o horário da academia?” ou “como faço isso nesta tela?”</p>
                 </div>
             </template>
 
@@ -368,7 +377,7 @@
             <form @submit.prevent="enviar()" class="flex items-end gap-2">
                 <textarea x-model="pergunta" x-ref="entrada" rows="1" maxlength="{{ $laraMaxChars }}"
                     :disabled="pensando || !disponivel"
-                    @keydown.enter.prevent="if (!$event.shiftKey) enviar()"
+                    @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); enviar(); }"
                     @input="ajustarAltura()"
                     placeholder="Escreva sua pergunta…"
                     class="max-h-28 flex-1 resize-none rounded-xl border-line bg-canvas py-2 text-sm text-ink placeholder:text-ink-3 focus:border-grena focus:ring-grena disabled:opacity-60"></textarea>

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Services\Guides\GuideMarkdown;
+use App\Services\Guides\UserGuides;
 use Illuminate\Support\Str;
 
 class DocumentationService
@@ -18,14 +20,20 @@ class DocumentationService
      * Monta a árvore de navegação da documentação.
      *
      * Retorna seções, cada uma com seus documentos (slug + título).
-     * A seção "Geral" contém os arquivos da raiz de docs/ (ordenados pela
-     * numeração do nome) e a seção "Funcionalidades" agrupa docs/funcionalidades/.
+     * "Guias do usuário" (docs/guias, escritos para quem usa as telas) vem
+     * primeiro; a seção "Geral" contém os arquivos da raiz de docs/ (ordenados
+     * pela numeração do nome) e a seção "Funcionalidades" agrupa
+     * docs/funcionalidades/.
      *
      * @return array<int, array{label: string, items: array<int, array{slug: string, title: string}>}>
      */
     public function tree(): array
     {
         return [
+            [
+                'label' => 'Guias do usuário',
+                'items' => $this->itemsFromDirectory($this->base().'/'.UserGuides::DIRECTORY, UserGuides::DIRECTORY.'/'),
+            ],
             [
                 'label' => 'Geral',
                 'items' => $this->itemsFromDirectory($this->base(), ''),
@@ -76,17 +84,41 @@ class DocumentationService
     /**
      * Converte o arquivo Markdown em HTML, reescrevendo links internos (*.md)
      * para a rota do leitor.
+     *
+     * O cabeçalho e as anotações `<!-- telas: -->` dos guias saem antes: com
+     * `html_input => escape`, o comentário apareceria na tela como texto.
      */
     public function render(string $path): string
     {
-        $markdown = file_get_contents($path);
+        $markdown = GuideMarkdown::forDisplay((string) file_get_contents($path));
 
         $html = Str::markdown($markdown, [
             'html_input' => 'escape',
             'allow_unsafe_links' => false,
         ]);
 
-        return $this->rewriteInternalLinks($html, $path);
+        return $this->rewriteInternalLinks($this->anchorHeadings($html), $path);
+    }
+
+    /**
+     * Dá `id` a cada título, para a busca de guias da Lara (IA) mandar o link
+     * direto da seção. A âncora sai de GuideMarkdown::anchor(), na ordem do
+     * documento — a mesma conta que UserGuides faz.
+     */
+    private function anchorHeadings(string $html): string
+    {
+        $seen = [];
+
+        return preg_replace_callback(
+            '/<h([1-6])>(.*?)<\/h\1>/s',
+            function (array $m) use (&$seen) {
+                $text = html_entity_decode(strip_tags($m[2]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $id = GuideMarkdown::anchor(trim($text), $seen);
+
+                return '<h'.$m[1].' id="'.e($id).'">'.$m[2].'</h'.$m[1].'>';
+            },
+            $html
+        );
     }
 
     /**

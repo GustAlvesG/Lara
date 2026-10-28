@@ -12,6 +12,7 @@ rotas).
 
 | Guia | Descrição |
 |------|-----------|
+| [Guias do usuário](guias-do-usuario.md) | **Um guia por módulo, para quem usa as telas** (`docs/guias/`): formato, quando atualizar e como a Lara (IA) busca neles. Os guias aparecem na tela Documentação, em "Guias do usuário". |
 | [Sistema de Informações](informacoes.md) | Catálogo versionado de atividades/serviços do clube, com histórico de alterações. |
 | [Placas de Carro / Estacionamento](estacionamento-placas.md) | Busca de veículos por placa e identificação do condutor provável. |
 | [Agendamento de Espaços](agendamento.md) | Reserva de quadras/salões pelo sócio: horários, colisão, limite e pagamento. |
@@ -25,8 +26,8 @@ rotas).
 | [Funcionários](funcionarios.md) | Cadastro do RH (CRUD e planilha .xlsx) com matrícula, CPF e setor; férias, afastamentos e rescisão bloqueiam. Autentica o pedido de carro de aplicativo e o motorista da frota; o setor do funcionário coloca o usuário de mesma matrícula no setor. |
 | [Funcionários — ajuste da portaria](../funcionarios-prompt-portaria.md) | Prompt de **mudança** (20/10/2026) para a aplicação da guarita: `funcionario_bloqueado` no carro de aplicativo e `driver_blocked`/`driver_not_employee` na frota. |
 | [Banco de Horas](banco-de-horas.md) | Importação de ponto, cálculo de saldo e ajustes. |
-| [Torneios](torneios.md) | Catálogo de categorias, torneios, inscrição individual com pagamento eRede, times, chaveamento, resultados (Lara e site, com código de lançamento) e financeiro. [Guia do Esporte](torneios-guia.md); prompt do site: [torneios-site-prompt.md](torneios-site-prompt.md). |
-| [Ingressos](ingressos.md) | Eventos, tipos de ingresso e lotes (quantidade, data, preço sócio e não sócio), cupons de desconto; venda pelo site (sócio com login, não sócio sem conta), eRede; emissão pelo Lara (pago por fora e cortesia); ingresso nominal com QR e PDF; check-in no Lara e no Monitor de Acesso; financeiro. [Guia](ingressos-guia.md); prompts: site [ingressos-site-prompt.md](ingressos-site-prompt.md), portaria [ingressos-prompt-portaria.md](../ingressos-prompt-portaria.md). |
+| [Torneios](torneios.md) | Catálogo de categorias, torneios, inscrição individual com pagamento eRede, times, chaveamento, resultados (Lara e site, com código de lançamento) e financeiro. [Guia do Esporte](../guias/torneios.md); prompt do site: [torneios-site-prompt.md](torneios-site-prompt.md). |
+| [Ingressos](ingressos.md) | Eventos, tipos de ingresso e lotes (quantidade, data, preço sócio e não sócio), cupons de desconto; venda pelo site (sócio com login, não sócio sem conta), eRede; emissão pelo Lara (pago por fora e cortesia); ingresso nominal com QR e PDF; check-in no Lara e no Monitor de Acesso; financeiro. [Guia](../guias/ingressos.md); prompts: site [ingressos-site-prompt.md](ingressos-site-prompt.md), portaria [ingressos-prompt-portaria.md](../ingressos-prompt-portaria.md). |
 | [Contas do site](contas-do-site.md) | Reservas › Contas do site: senha provisória, e-mail e telefone (à mão ou do MultiClubes), cadastro manual e contas duplicadas dos sócios no site de locação. |
 | [Placar Clube — cadastro](placar-clube.md) | Equipes, times, jogadores, competições e jogos do placar eletrônico; "Cadastrar" × "Cadastrar e criar outro"; Novo Jogo filtrado por categoria. |
 | [Empresas e Controle de Acesso](empresas.md) | Empresas terceirizadas, trabalhadores e regras de acesso. |

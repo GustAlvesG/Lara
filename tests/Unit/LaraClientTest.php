@@ -71,6 +71,26 @@ class LaraClientTest extends TestCase
         });
     }
 
+    public function test_envia_o_contexto_da_tela_quando_ha(): void
+    {
+        Http::fake(['*' => Http::response(['resposta' => 'ok'])]);
+
+        $contexto = ['modulo' => 'Ingressos', 'pagina' => 'Eventos', 'caminho' => 'Ingressos › Eventos', 'rota' => 'tickets.create'];
+        $this->client()->ask('portal_7', 'como faço isso aqui?', $contexto);
+
+        Http::assertSent(fn (Request $request) => $request['contexto'] === $contexto);
+    }
+
+    public function test_sem_contexto_o_campo_nem_vai(): void
+    {
+        Http::fake(['*' => Http::response(['resposta' => 'ok'])]);
+
+        $this->client()->ask('portal_7', 'oi');
+
+        // Versões da IA que não conhecem o campo seguem recebendo o de sempre.
+        Http::assertSent(fn (Request $request) => !array_key_exists('contexto', $request->data()));
+    }
+
     public function test_base_url_com_barra_no_final_nao_duplica_a_barra(): void
     {
         config(['services.lara.base_url' => self::BASE_URL . '/']);

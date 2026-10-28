@@ -9,7 +9,7 @@ O Lara é o backend dos torneios vendidos no **site de locação** (o mesmo Next
 reservas) — catálogo de categorias por grupo de espaços, inscrição individual do sócio com
 pagamento eRede, formação de times, chaveamento, resultados (Lara e site) e financeiro.
 Refeito do zero em 22–23/10/2026 (F0 a F8). Guia do Esporte:
-[torneios-guia.md](../funcionalidades/torneios-guia.md).
+[guias/torneios.md](../guias/torneios.md).
 
 ## Onde está
 

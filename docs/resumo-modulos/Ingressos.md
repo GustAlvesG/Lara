@@ -1,7 +1,7 @@
 # Ingressos — resumo para quem vai mexer
 
 Documentação completa: [ingressos.md](../funcionalidades/ingressos.md) (regras decididas,
-modelagem, API e fases). Guia: [ingressos-guia.md](../funcionalidades/ingressos-guia.md).
+modelagem, API e fases). Guia: [guias/ingressos.md](../guias/ingressos.md).
 Prompts: site [ingressos-site-prompt.md](../funcionalidades/ingressos-site-prompt.md) e
 portaria [ingressos-prompt-portaria.md](../ingressos-prompt-portaria.md).
 

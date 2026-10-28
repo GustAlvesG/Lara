@@ -39,6 +39,13 @@ Contrato em [docs/funcionalidades/lara-ia-consultas.md](../funcionalidades/lara-
 - `GET /api/avisos/search` — avisos, **só os dirigidos** ao `user_id` (aceita `portal_{id}`, o
   mesmo valor que o `LaraClient` manda como `usuario_id`). Régua `Aviso::scopeAddressedTo`, não
   `scopeVisibleTo`: acesso total não amplia a busca.
+- `GET /api/guias/search` — seções dos guias do usuário (`docs/guias`, ver
+  [guias-do-usuario.md](../funcionalidades/guias-do-usuario.md)). Não esconde nada; cada seção
+  traz `tem_acesso`, os links das telas que a pessoa abre e `precisa_de`. Acesso pelas anotações
+  `<!-- telas: -->` + `Navigation::destinations()`. Busca em PHP (`GuideSearch`), sem acento.
+- **Contexto da tela** em `POST /perguntar` (`contexto: {modulo, pagina, caminho, rota}`): o balão
+  manda só nomes de rota; `AskLaraRequest::contexto()` valida e traduz pelo menu. Sem tela de
+  módulo, o campo não vai.
 - As duas herdam de `KeywordSearchRequest` e usam `App\Support\KeywordSearch`. Mudou o contrato?
   Atualize o doc acima e gere o prompt para o agente da VM da IA
   (modelo: `docs/funcionalidades/lara-ia-busca-avisos-prompt.md`).

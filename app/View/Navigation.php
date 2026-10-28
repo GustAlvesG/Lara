@@ -234,6 +234,45 @@ final class Navigation
         ];
     }
 
+    /**
+     * Toda tela do menu (e da conta), sem filtro de permissão: rota =>
+     * módulo, página, caminho legível e a permissão que a abre. É o que a
+     * busca de guias usa para transformar `<!-- telas: -->` em link e em
+     * "tem acesso?", e o contexto da Lara (IA) para dizer em que tela a pessoa
+     * está.
+     *
+     * @return array<string, array{modulo: string, pagina: string, caminho: string, permission: ?string}>
+     */
+    public static function destinations(): array
+    {
+        $destinations = [];
+
+        foreach (self::links() as $link) {
+            foreach ($link['children'] ?? [$link] as $item) {
+                $grouped = isset($link['children']);
+
+                $destinations[$item['route']] = [
+                    'modulo' => $link['label'],
+                    'pagina' => $item['label'],
+                    'caminho' => $grouped ? $link['label'] . ' › ' . $item['label'] : $item['label'],
+                    // Grupo com permissão própria vale para os filhos sem uma.
+                    'permission' => $item['permission'] ?? $link['permission'] ?? null,
+                ];
+            }
+        }
+
+        foreach (self::accountLinks() as $item) {
+            $destinations[$item['route']] = [
+                'modulo' => self::ACCOUNT_GROUP,
+                'pagina' => $item['label'],
+                'caminho' => self::ACCOUNT_GROUP . ' › ' . $item['label'],
+                'permission' => $item['permission'] ?? null,
+            ];
+        }
+
+        return $destinations;
+    }
+
     private const USER_ICON = 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z';
 
     private const GROUP_ICON = 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z';

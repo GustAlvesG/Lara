@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
  * Cliente HTTP do agente de IA (Lara), que roda numa VM própria.
  *
  * Contrato do serviço:
- *   POST /perguntar  {usuario_id, mensagem} -> {resposta, transferir}
+ *   POST /perguntar  {usuario_id, mensagem, contexto?} -> {resposta, transferir}
  *   POST /reiniciar  {usuario_id}           -> {status: "ok"}
  *   GET  /health                            -> 2xx (sem passar pelo modelo)
  *
@@ -65,7 +65,13 @@ class LaraClient
         });
     }
 
-    public function ask(string $usuarioId, string $mensagem): LaraAnswer
+    /**
+     * @param  array{modulo: string, pagina: string, caminho: string, rota: ?string}|null  $contexto
+     *         A tela em que a pessoa está (AskLaraRequest::contexto). Opcional
+     *         no contrato: sem ele, o campo nem vai — versões da IA que não o
+     *         conhecem seguem funcionando.
+     */
+    public function ask(string $usuarioId, string $mensagem, ?array $contexto = null): LaraAnswer
     {
         if (!$this->enabled()) {
             return new LaraAnswer($this->fallback(), LaraAnswer::STATUS_DESATIVADO, 0, 'integração desligada');
@@ -73,13 +79,19 @@ class LaraClient
 
         $inicio = microtime(true);
 
+        $payload = [
+            'usuario_id' => $usuarioId,
+            'mensagem' => $this->truncate($mensagem),
+        ];
+
+        if ($contexto) {
+            $payload['contexto'] = $contexto;
+        }
+
         try {
             $response = Http::timeout((int) config('services.lara.timeout', 30))
                 ->acceptJson()
-                ->post($this->url('/perguntar'), [
-                    'usuario_id' => $usuarioId,
-                    'mensagem' => $this->truncate($mensagem),
-                ]);
+                ->post($this->url('/perguntar'), $payload);
         } catch (ConnectionException $e) {
             return $this->falha($usuarioId, $inicio, 'conexão: ' . $e->getMessage());
         }

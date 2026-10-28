@@ -2,7 +2,7 @@
 
 > Módulo refeito do zero entre 22 e 23/10/2026 (fases F0 a F8, tabela no fim). Este
 > documento registra as decisões e o funcionamento; o passo a passo para o setor Esporte
-> está no [guia](torneios-guia.md).
+> está no [guia](../guias/torneios.md).
 
 ## O que é
 
@@ -456,7 +456,7 @@ Dois cuidados que os dados exigiram (conferidos em 22/10/2026):
 | F5 | Chaveamento: eliminatória e grupos + mata-mata, sorteio ou à mão, divulgação no site | feita (23/10/2026) |
 | F6 | Resultados no Lara e no site (código de lançamento por torneio), fechamento de grupo, histórico | feita (23/10/2026) |
 | F7 | Andamento por categoria na tela do torneio, relatório financeiro com CSV, menu | feita (23/10/2026) |
-| F8 | Fechamento: docs, [guia](torneios-guia.md), prompt do Next.js consolidado, suíte | feita (23/10/2026) |
+| F8 | Fechamento: docs, [guia](../guias/torneios.md), prompt do Next.js consolidado, suíte | feita (23/10/2026) |
 
 A "F9" pedida em 23/10 (cadastro manual de associados e senha) **não é do módulo de
 torneios**: virou **Reservas › Contas do site**, no Lara — ver

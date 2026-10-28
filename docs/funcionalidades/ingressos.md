@@ -1,7 +1,7 @@
 # Ingressos
 
 > Módulo novo, feito em 27/10/2026 (fases F1 a F8). Este documento registra as decisões e o
-> funcionamento; o passo a passo para quem opera está no [guia](ingressos-guia.md), o
+> funcionamento; o passo a passo para quem opera está no [guia](../guias/ingressos.md), o
 > contrato para o site no [prompt do Next.js](ingressos-site-prompt.md) e a mudança da
 > guarita no [prompt da portaria](../ingressos-prompt-portaria.md).
 

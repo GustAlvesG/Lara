@@ -66,7 +66,7 @@ class MemberController extends Controller
             dbo.Titles ON dbo.Members.Title = dbo.Titles.Id
             AND dbo.Titles.TitleType NOT IN (374, 375, 693320, 1297904, 3804861, 4062070, 6736996, 6736997, 6736998, 6737000)
         WHERE
-            dbo.Titles.Code = '". $title . "'");
+            dbo.Titles.Code = ?", [(string) $title]);
 
         return Response::json($members);
         
@@ -82,10 +82,10 @@ class MemberController extends Controller
             dbo.Titles ON dbo.Members.Title = dbo.Titles.Id
             AND dbo.Titles.TitleType NOT IN (374, 375, 693320, 1297904, 3804861, 4062070, 6736996, 6736997, 6736998, 6737000)
         WHERE
-            dbo.Titles.Code = '". $title . "' And 
+            dbo.Titles.Code = ? And
             dbo.Titles.Status = 0 And
-            dbo.Members.DocumentUnmasked = '" . $document . "' And
-            dbo.Members.BirthDate = '" . $birthDate . "'");
+            dbo.Members.DocumentUnmasked = ? And
+            dbo.Members.BirthDate = ?", [(string) $title, (string) $document, (string) $birthDate]);
     }
 
     

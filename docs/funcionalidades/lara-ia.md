@@ -172,11 +172,14 @@ taxa de erro real ficaria invisível.
 
 ## O que a IA consulta no Lara
 
-Além do estatuto, a IA consulta o InfoClube por API, com o `api_token`:
+Além do estatuto, a IA consulta O Lara por API, com o `api_token`:
 `GET /api/information/search` (informações, públicas) e, desde 28/10/2026,
 `GET /api/avisos/search` (avisos, filtrados pelo funcionário que pergunta — a IA repassa o
-mesmo `usuario_id: "portal_{id}"` que recebe do Lara). Contrato completo em
-[lara-ia-consultas.md](lara-ia-consultas.md).
+mesmo `usuario_id: "portal_{id}"` que recebe do Lara) e `GET /api/guias/search` (os
+[guias do usuário](guias-do-usuario.md), para ensinar a usar O Lara, dizendo em cada seção se a
+pessoa alcança a tarefa). Também desde 28/10, `POST /perguntar` leva o **contexto da tela** em que
+a pessoa está (`contexto: {modulo, pagina, caminho, rota}`), para "como faço isso aqui?". Contrato
+completo em [lara-ia-consultas.md](lara-ia-consultas.md).
 
 ## Como testar sem a tela
 

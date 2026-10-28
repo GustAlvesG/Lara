@@ -112,7 +112,7 @@ class LaraChatController extends Controller
                 'conteudo' => $pergunta,
             ]);
 
-            $answer = $lara->ask($this->usuarioId($user->id), $pergunta);
+            $answer = $lara->ask($this->usuarioId($user->id), $pergunta, $request->contexto());
 
             $mensagem = LaraMessage::create([
                 'user_id' => $user->id,

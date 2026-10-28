@@ -1,13 +1,17 @@
 # Lara (IA) — o que a IA consulta no Lara
 
 O agente de IA (VM separada, ver [lara-ia.md](lara-ia.md)) responde sobre o estatuto pela
-própria base, e sobre o dia a dia do clube consultando **O Lara** por API. São duas buscas por
-palavra-chave, ambas no grupo `api_token`:
+própria base, e sobre o dia a dia do clube e o uso do sistema consultando **O Lara** por API.
+São três buscas por palavra-chave, todas no grupo `api_token`:
 
 | Endpoint | Rota | O que devolve | Quem pode ver |
 |---|---|---|---|
 | `GET /api/information/search` | `api.information.search` | Informações do InfoClube (atividades, serviços, horários, preços) | Todos — informação é pública |
 | `GET /api/avisos/search` | `api.avisos.search` | Avisos do InfoClube (comunicados, mudanças, prazos) | **Só o que foi dirigido ao `user_id`** |
+| `GET /api/guias/search` | `api.guias.search` | Seções dos guias do usuário (como usar O Lara), desde 28/10/2026 | Todos; cada seção diz se o `user_id` **alcança** a tarefa |
+
+E, no sentido inverso, desde 28/10/2026 o Lara manda em `POST /perguntar` o **contexto da tela**
+em que a pessoa está (ver "Contexto da tela" no fim).
 
 ## Autenticação
 
@@ -127,11 +131,101 @@ confiança que o Lara já deposita no token para as outras integrações.
 `content` vem em texto puro (o editor grava HTML). A lista de campos é **explícita** no
 controller: destinatários, visualizações e ciências do aviso não saem pela API.
 
+## Busca de guias (como usar O Lara)
+
+`GET /api/guias/search?q=como emito uma cortesia&user_id=portal_12[&modulo=Ingressos][&limit=6]`
+
+Busca nos **guias do usuário** (`docs/guias/*.md`, um por módulo do menu, mais "Primeiros
+passos"), quebrados em seções pelos títulos `##`/`###`. É a fonte para "como faço…", "onde
+fica…", "por que não consigo…".
+
+### Parâmetros
+
+- `q` e `user_id` como nas outras (o `user_id` aceita `portal_{id}`; inexistente → 422).
+- `modulo` (opcional): o módulo da tela em que a pessoa está — o `contexto.modulo` que a IA recebe
+  em `/perguntar`. Só dá **preferência** às seções daquele módulo; não filtra.
+- `limit` (opcional, 1 a 20, padrão 6): quantas seções devolver.
+
+### Ranqueamento
+
+Em PHP, sobre o texto **sem acento** e com radical simples (plural e flexão casam: "inscrições"
+acha "inscrição", "busco" acha "buscar"). Pesos por termo: título da seção 4, módulo + título do
+guia + `palavras` do cabeçalho 2, título de cima (`###` dentro de um `##`) 1, texto 1; +3 para o
+`modulo` pedido. Empate: mais termos diferentes casados, depois a ordem do guia. Palavras de
+pergunta de uso ("faço", "consigo", "sistema", "lara"…) e termos de menos de 3 letras são
+descartados; pergunta sem nenhum termo útil devolve `total: 0`.
+
+### Acesso — o que muda por `user_id`
+
+Guia não é sigiloso (a tela Documentação abre para qualquer logado): **nenhuma seção é
+escondida**. Cada seção diz se a pessoa **alcança** a tarefa:
+
+- a seção cita telas do menu (`<!-- telas: -->` no guia) → `tem_acesso` se a pessoa abre alguma
+  delas; `telas` traz os links das que ela abre;
+- não cita → vale o módulo do guia inteiro (alguma tela do módulo), sem lista de links;
+- guia fora do menu ("Primeiros passos") → todos.
+
+Sem acesso, `precisa_de` diz o que pedir: `"SIV › Busca (permissão: SIV › Busca de placas)"`.
+Quem libera permissão é a **TI ou a Gerência** (tela Setores, ou por pessoa em Usuários); o
+**coordenador** só coloca a pessoa num setor que já tem a permissão (tela Meu setor).
+
+### Resposta
+
+```json
+{
+  "keyword": "como emito uma cortesia", "terms": ["emit", "cortesi"],
+  "user_id": 12, "modulo": "Ingressos", "total": 2,
+  "data": [{
+    "guia": "Ingressos — guia de uso",
+    "modulo": "Ingressos",
+    "secao": "Ingressos — guia de uso › Emitir ingressos no balcão e cortesias",
+    "texto": "Na tela Ingressos › Eventos, abra o evento…",
+    "url": "https://<lara>/docs/guias/ingressos#emitir-ingressos-no-balcao-e-cortesias",
+    "tem_acesso": true,
+    "telas": [{"nome": "Ingressos › Eventos", "url": "https://<lara>/ingressos"}],
+    "precisa_de": [],
+    "relevance": 11
+  }]
+}
+```
+
+`texto` vem em texto puro (sem Markdown), até 3000 caracteres. `url` abre o guia na seção
+(âncora). `terms` são os radicais usados.
+
+## Contexto da tela (`POST /perguntar`)
+
+Desde 28/10/2026 o balão da Lara manda a tela atual junto com a pergunta e O Lara repassa à IA:
+
+```json
+{
+  "usuario_id": "portal_12",
+  "mensagem": "como faço isso aqui?",
+  "contexto": {"modulo": "Ingressos", "pagina": "Eventos", "caminho": "Ingressos › Eventos", "rota": "tickets.create"}
+}
+```
+
+- **Opcional**: sem tela de módulo (Dashboard, telas fora do menu) o campo **não vai**.
+- `modulo`/`pagina`/`caminho` saem do menu do Lara (`Navigation::destinations()`), não do
+  navegador: o balão manda só nomes de rota (`rota` e a `aba` do menu) e `AskLaraRequest::contexto()`
+  descarta o que não é rota existente — o navegador não consegue fazer chegar à IA um texto
+  qualquer como contexto.
+- `rota` é o nome técnico da página exata (`.create` = criando, `.edit` = editando, `.show` =
+  vendo um registro). Serve de pista; não é para mostrar ao funcionário.
+
 ## Referência técnica
 
-- Controllers: `InformationSearchController`, `AvisoSearchController`
+- Controllers: `InformationSearchController`, `AvisoSearchController`, `GuideSearchController`
 - Requests: `KeywordSearchRequest` (base: palavra-chave, stopwords, 422 em JSON),
-  `SearchInformationRequest`, `SearchAvisoRequest` (resolve o `user_id`)
-- Apoio: `App\Support\KeywordSearch` (nota de relevância e remoção de HTML)
-- Testes: `tests/Feature/InformationSearchTest.php`, `tests/Feature/AvisoSearchTest.php`
+  `SearchInformationRequest`, `SearchAvisoRequest` e `SearchGuideRequest` (os dois resolvem o
+  `user_id` pela trait `Concerns\ResolvesAskingUser`); `AskLaraRequest::contexto()`
+- Apoio: `App\Support\KeywordSearch` (nota de relevância e remoção de HTML);
+  `App\Services\Guides\UserGuides` (lê e recorta os guias, em cache até um arquivo mudar),
+  `GuideSearch` (pontua e decide o acesso), `GuideMarkdown` (cabeçalho, anotações, âncoras —
+  as mesmas da tela Documentação); `App\View\Navigation::destinations()`
+- Testes: `tests/Feature/InformationSearchTest.php`, `tests/Feature/AvisoSearchTest.php`,
+  `tests/Feature/GuideSearchTest.php`, `tests/Unit/UserGuidesTest.php`,
+  `tests/Feature/UserGuidesContentTest.php` (confere os guias de verdade),
+  `tests/Feature/LaraWidgetTest.php` e `tests/Unit/LaraClientTest.php` (contexto)
+- Prompts para o agente da VM da IA: [lara-ia-busca-avisos-prompt.md](lara-ia-busca-avisos-prompt.md)
+  (avisos) e [lara-ia-guias-prompt.md](lara-ia-guias-prompt.md) (guias e contexto da tela)
 - Prompt para o agente da VM da IA: [lara-ia-busca-avisos-prompt.md](lara-ia-busca-avisos-prompt.md)
