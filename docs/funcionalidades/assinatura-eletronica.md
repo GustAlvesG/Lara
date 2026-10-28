@@ -1267,7 +1267,8 @@ Na lista de **Assinaturas → Modelos**, cada linha tem **Emitir Documento** (s�
 abre a emissão já com o modelo escolhido) e **Ver**. O **Revisar** fica dentro do **Ver**, na
 tela do modelo.
 
-Revisar um modelo é o mesmo gesto: corrige-se o `.docx`, envia-se de novo em **Revisar** e
+Revisar um modelo é o mesmo gesto: corrige-se o `.docx` (sem o original em mãos, baixe a base em
+Word — ver abaixo), envia-se de novo em **Revisar** e
 salva-se — nasce a versão seguinte. Os rótulos e a obrigatoriedade já ajustados na tela são
 mantidos para os campos que continuam existindo.
 
@@ -1289,6 +1290,30 @@ controle de alterações não entra; o inserido entra.
 
 Documento em **PDF** ou **.doc**: abrir no Word e salvar como `.docx`. PDF não tem estrutura de
 texto para converter com segurança.
+
+### Baixar a base em Word (28/10/2026)
+
+Como o `.docx` não é guardado, a base em Word é **gerada** do texto do modelo
+(`DocxTemplateExporter`, rota `signature-templates.docx`, `GET assinatura/modelos/{modelo}/word`,
+permissão `assinatura.modelos`). Botões: **Baixar Word** no topo da tela do modelo, **Word** em cada
+linha do histórico de versões (baixa aquela versão) e **Baixar o texto atual em Word** dentro de
+**Revisar**, ao lado de "Escolher arquivo .docx". Serve também para modelo escrito direto na tela,
+que nunca teve Word.
+
+O arquivo é feito para **voltar**: edita-se no Word e envia-se em **Revisar**. Por isso:
+
+- campo `[[chave]]` sai como `[[Rótulo]]` quando o rótulo, reimportado, dá a mesma chave
+  (`DocxTemplateImporter::keyFor`); senão sai `[[chave]]`. A tela casa os campos importados com os
+  do formulário **pela chave** — mantida a chave, tipo, pergunta, opções e obrigatoriedade continuam;
+- `[[assinatura:parte]]` sai `[[assinatura: Rótulo]]` (mesma regra), sempre numa linha só dele;
+  `[[assinatura]]` sai igual;
+- títulos usam os estilos "heading 1…3" (o `<h2>` vira Título 1), lista com marcador vira lista do
+  Word, tabela vira tabela; lista numerada sai com o número como texto (é o que o importador faria),
+  citação sai recuada, `<hr>` vira linha.
+
+O Word é cópia de trabalho: o modelo continua sendo o `body_html`. A escrita do XML é do
+`App\Support\DocxWriter`, o mesmo do Word do contrato (`ContractDocxExporter`). Teste:
+`SignatureTemplateDocxExportTest` (ida e volta pelo importador).
 
 Um `[[campo]]` que esteja no texto e não na lista de campos é declarado sozinho na gravação
 (obrigatório). Sem isso ele não viraria pergunta para o atendente e sairia impresso, com

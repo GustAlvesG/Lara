@@ -73,6 +73,14 @@
                 Escolher arquivo .docx
             </button>
 
+            @if($template?->exists)
+                {{-- Revisão: a base em Word é gerada do texto atual (DocxTemplateExporter). --}}
+                <a href="{{ route('signature-templates.docx', $template) }}"
+                   class="ml-2 inline-block px-5 py-2.5 rounded-full font-bold text-sm bg-surface text-ink hover:bg-line transition">
+                    Baixar o texto atual em Word
+                </a>
+            @endif
+
             <p id="docxStatus" class="mt-3 text-xs text-ink-2" role="status">
                 Entram o texto, os títulos, negrito, itálico, listas, numeração e tabelas. Cabeçalho, rodapé e
                 imagens do Word ficam de fora: o cabeçalho do clube e o título são aplicados em todo documento.

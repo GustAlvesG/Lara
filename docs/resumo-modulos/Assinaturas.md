@@ -50,7 +50,7 @@ Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Contratos, Revisã
 | `.../{doc}/congelar`, `cancelar`, `posicoes`, `pdf`, `arquivar` (POST arquiva, DELETE desarquiva) | atendente | `DocumentController` |
 | `.../{doc}/status`, `signatarios/{s}/liberar`, `signatarios/{s}/via`, `liberacoes/{r}` (DELETE) | atendente | `ReleaseController`; `status` é polling (não há broadcasting) |
 | `.../{doc}/govbr/preparar`, `.../{doc}/govbr` (POST), `.../{doc}/govbr/signatarios/{s}/convite`, `.../{doc}/govbr/{conferencia}/pdf` → `signature-documents.govbr.*` | atendente | `GovbrController`: aba **Assinatura gov.br** (`?aba=govbr`); preparar, enviar e convidar pedem `checkGovbr` (`assinatura.documentos`) |
-| `assinatura/modelos` → `signature-templates.*` | `assinatura.modelos` | `PUT` cria **nova versão**; `importar-docx` converte e não grava |
+| `assinatura/modelos` → `signature-templates.*` | `assinatura.modelos` | `PUT` cria **nova versão**; `importar-docx` converte e não grava; `{modelo}/word` (`docx`) baixa a base em Word gerada do texto |
 | `assinatura/papel-timbrado` → `signature-layout.*` | `assinatura.modelos` | Cabeçalho/rodapé versionados |
 | `assinatura/guia` → `signature-guide.*` | `acessar-guia-assinatura` | Página e PDF |
 | `assinatura/kiosk` → `quiosque.*` | **público** | `consumir` (throttle 10/min) dá o cookie `lara_sign`; o resto passa pelo middleware `signature_kiosk` |
@@ -242,6 +242,7 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 | `SignatureDocumentRenderer.php` | HTML do documento a partir do snapshot; resolve `[[campos]]`, posiciona assinaturas por parte (`placeSignatures`). Fonte única do que o tablet mostra e do que o PDF imprime. |
 | `SignatureFieldTypes.php` | Tipos de campo: validação, forma canônica, formatação. Único lugar que sabe o que é CPF/CNPJ válido. |
 | `DocxTemplateImporter.php` | `.docx` → `body_html` + campos (`[[Rótulo]]`, `[[assinatura: Parte]]`). |
+| `DocxTemplateExporter.php` | O caminho de volta (28/10/2026): `body_html` → `.docx` ("Baixar Word" no modelo e em Revisar). Feito para reimportar com as **mesmas chaves** (`[[Rótulo]]` só se `keyFor(rótulo)` = chave; senão `[[chave]]`), porque o formulário casa campos e partes pela chave. XML pelo `App\Support\DocxWriter` (compartilhado com o `ContractDocxExporter`). Teste de ida e volta: `SignatureTemplateDocxExportTest`. |
 | `SignaturePdfStamper.php` | Carimba por cima do PDF enviado pronto (FPDI): validação, vistos, assinaturas, folha final. |
 | `SignaturePdfSealer.php` | Lacre PAdES com o e-CNPJ do clube + carimbo de tempo (ver seção acima). |
 | `Pki/*` | `Certificates`, `CertificateRevocationList`, `PkiRepository`, `RevocationChecker`, `TimestampClient`, `PdfSignatureWriter`, `Der`. |

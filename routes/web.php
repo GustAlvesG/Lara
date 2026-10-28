@@ -1355,6 +1355,8 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::prefix('/{signatureTemplate}')->whereNumber('signatureTemplate')->group(function () {
                 Route::get('/', [SignatureTemplateController::class, 'show'])->name('show');
                 Route::get('/revisar', [SignatureTemplateController::class, 'edit'])->name('edit');
+                // Base em Word desta versão, gerada do texto — para editar e reenviar em "Revisar".
+                Route::get('/word', [SignatureTemplateController::class, 'docx'])->name('docx');
                 // PUT cria a versão seguinte; não sobrescreve a linha em uso.
                 Route::put('/', [SignatureTemplateController::class, 'update'])->name('update');
                 Route::delete('/', [SignatureTemplateController::class, 'destroy'])->name('destroy');

@@ -8,6 +8,7 @@ use App\Http\Requests\StoreSignatureTemplateRequest;
 use App\Models\SignatureDirectorArea;
 use App\Models\SignatureDocument;
 use App\Models\SignatureTemplate;
+use App\Services\Signature\DocxTemplateExporter;
 use App\Services\Signature\DocxTemplateImporter;
 use App\Services\Signature\SignatureAttachmentService;
 use App\Services\Signature\SignatureDocumentRenderer;
@@ -15,6 +16,7 @@ use App\Services\Signature\SignatureFieldTypes;
 use App\Support\HtmlSanitizer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Modelos de documento: o texto do termo, da ficha ou do contrato.
@@ -101,6 +103,22 @@ class TemplateController extends Controller
         } catch (DocxImportException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
+    }
+
+    /**
+     * A base em Word do modelo, para editar no Word e enviar de novo em
+     * "Revisar". Gerada do texto desta versão — o Word de origem não é
+     * guardado (ver `importDocx`). Ver DocxTemplateExporter.
+     */
+    public function docx(SignatureTemplate $signatureTemplate, DocxTemplateExporter $exporter)
+    {
+        $nome = Str::slug('modelo ' . $signatureTemplate->name . ' v' . $signatureTemplate->version) . '.docx';
+
+        return response($exporter->export($signatureTemplate), 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'Content-Disposition' => 'attachment; filename="' . $nome . '"',
+            'Cache-Control' => 'private, max-age=0, no-store',
+        ]);
     }
 
     public function show(SignatureTemplate $signatureTemplate)

@@ -15,6 +15,12 @@
                         Emitir documento
                     </a>
                 @endif
+                {{-- Gerado do texto desta versão; editado no Word, volta por "Revisar" → enviar .docx. --}}
+                <a href="{{ route('signature-templates.docx', $template) }}"
+                   title="O texto deste modelo em Word, com os campos entre colchetes. Edite e envie de novo em Revisar."
+                   class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
+                    Baixar Word
+                </a>
                 <a href="{{ route('signature-templates.edit', $template) }}"
                    class="px-5 py-2.5 bg-grena text-white rounded-full font-bold text-sm hover:bg-grena-hover transition">
                     Revisar
@@ -173,7 +179,9 @@
                             <td class="px-6 py-4 text-right">
                                 @if($versao->id !== $template->id)
                                     <a href="{{ route('signature-templates.show', $versao) }}" class="text-grena-ink hover:underline text-xs font-medium">Ver texto</a>
+                                    <span class="text-ink-3">·</span>
                                 @endif
+                                <a href="{{ route('signature-templates.docx', $versao) }}" class="text-grena-ink hover:underline text-xs font-medium">Word</a>
                             </td>
                         </tr>
                     @endforeach

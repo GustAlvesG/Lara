@@ -492,7 +492,12 @@
         </tr>
         <tr>
             <td class="n"><span class="num">2</span></td>
-            <td>Envie o Word corrigido em <span class="btn">Escolher arquivo .docx</span> — ou ajuste só os campos e as regras.</td>
+            <td>Envie o Word corrigido em <span class="btn">Escolher arquivo .docx</span> — ou ajuste só os campos e as regras.<br>
+                Não tem mais o Word original? Clique em <span class="btn2">Baixar o texto atual em Word</span> (ou em
+                <span class="btn2">Baixar Word</span>, na tela do modelo): sai o texto que está valendo, com os campos
+                entre colchetes. Edite no Word, sem mexer no que está entre os colchetes, salve e envie. Os campos
+                voltam com o tipo, a pergunta e as opções que já tinham. No histórico de versões, o link
+                <b>Word</b> baixa o texto de uma versão anterior.</td>
         </tr>
         <tr>
             <td class="n"><span class="num">3</span></td>
