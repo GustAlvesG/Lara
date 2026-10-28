@@ -48,7 +48,7 @@ Contrato em [docs/funcionalidades/lara-ia-consultas.md](../funcionalidades/lara-
   módulo, o campo não vai.
 - As duas herdam de `KeywordSearchRequest` e usam `App\Support\KeywordSearch`. Mudou o contrato?
   Atualize o doc acima e gere o prompt para o agente da VM da IA
-  (modelo: `docs/funcionalidades/lara-ia-busca-avisos-prompt.md`).
+  (os prompts ficam em `docs/prompts/IA/`).
 
 ## Regras que costumam pegar
 

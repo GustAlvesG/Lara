@@ -59,6 +59,7 @@ incremental do esquema (criação de tabelas + diversos `add_column`/`fix`). Des
 - `2026_10_28_110000` — Ingressos: `ticket_guest_access_codes` (código por e-mail de "meus ingressos" do não sócio).
 - `2026_10_29_100000` — Contratos (Assinaturas → Contratos): as 8 tabelas `signature_contract*`, nomes curtos de FK e índice, idempotente. Ver [contratos.md](funcionalidades/contratos.md#modelagem).
 - `2026_10_29_110000` — Contratos: `signature_contract_ai_reviews` (revisão automática pelo Claude: veredito, resumo, apontamentos, tokens), idempotente.
+- `2026_10_29_130000` — Contratos: `signature_contract_ai_reviews.withheld` (JSON, trechos sensíveis não enviados ao Claude), idempotente.
 - `2026_05_19_*` — freelancers, funções e serviços.
 - `2026_09_17_*` — Replay: configuração de vídeo, layouts de logomarca, câmeras, clipes e a
   permissão antiga `manage replay` (Spatie).

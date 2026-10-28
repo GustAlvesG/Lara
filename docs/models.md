@@ -287,7 +287,7 @@ Desde 27/10/2026 — regras em [contratos.md](funcionalidades/contratos.md).
 - **SignatureContractClause** (SoftDeletes) — biblioteca do setor: `title`, `category`, `items`.
 - **SignatureContractModel** (SoftDeletes) — modelo do setor: `name`, `content` sem partes, sem signatários, variáveis sem valor.
 - **SignatureContractParty** — contratada/fiador para reaproveitar, único por `document`.
-- **SignatureContractAiReview** — revisão automática pelo Claude: `content_hash` (sha256 do texto enviado), `model`, `verdict` (`VERDICT_LABELS`, `verdictKind()`), `summary`, `findings` (JSON: `clausula`, `trecho`, `gravidade`, `problema`, `sugestao`), tokens, quem pediu.
+- **SignatureContractAiReview** — revisão automática pelo Claude: `content_hash` (sha256 do texto inteiro do contrato), `model`, `verdict` (`VERDICT_LABELS`, `verdictKind()`), `summary`, `findings` (JSON: `clausula`, `trecho`, `gravidade`, `problema`, `sugestao`), `withheld` (JSON: trechos não enviados `{key, label, reasons}`, motivos em `SENSITIVE_LABELS`; `withheldKeys()`), tokens, quem pediu.
 - **User** ganhou `isManagementMember()` (setor Gerência, qualquer papel) e `sectorIds()`, memorizados.
 
 ---

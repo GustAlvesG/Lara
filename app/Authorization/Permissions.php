@@ -239,6 +239,71 @@ final class Permissions
         self::SETORES_GERENCIAR => ['Administração', 'Gerenciar setores e permissões'],
     ];
 
+    /**
+     * Habilidades que abrem com QUALQUER uma destas permissões do catálogo —
+     * os itens do menu pedem uma habilidade só, e estas juntam várias. O
+     * AppServiceProvider define os Gates a partir daqui, e a busca de guias da
+     * Lara (IA) usa a mesma lista para dizer o que pedir a quem não alcança a
+     * tela: uma fonte só, para as duas não divergirem.
+     *
+     * Não são permissões: não entram no CATALOG nem no banco.
+     */
+    public const ANY_OF = [
+        // Documentos: quem atende no balcão OU quem só consulta os assinados
+        // (a mesma regra de SignatureDocumentPolicy::viewAny).
+        'acessar-documentos-assinatura' => [self::ASSINATURA_DOCUMENTOS, self::ASSINATURA_CONSULTAR],
+
+        // Ingressos: a lista de eventos e a tela do evento abrem para quem
+        // alcança qualquer parte do módulo; o que cada um faz lá dentro
+        // continua na permissão própria.
+        'acessar-ingressos' => [
+            self::INGRESSOS_GERENCIAR, self::INGRESSOS_VENDAS, self::INGRESSOS_CHECKIN,
+            self::INGRESSOS_FINANCEIRO, self::INGRESSOS_CAIXA_TODOS, self::INGRESSOS_CUPONS,
+        ],
+
+        // Caixa dos ingressos: quem vende no balcão vê o próprio caixa; com
+        // `ingressos.caixa.todos` (o financeiro), o de todos.
+        'ver-caixa-ingressos' => [
+            self::INGRESSOS_VENDAS, self::INGRESSOS_PAGAMENTOS_BAIXA_MANUAL,
+            self::INGRESSOS_CORTESIAS, self::INGRESSOS_CAIXA_TODOS,
+        ],
+
+        // Fila de revisão interna: a revisão comum ou a da coordenação (ver
+        // SignatureReviewService).
+        'acessar-revisao-assinatura' => [self::ASSINATURA_REVISAR, self::ASSINATURA_REVISAR_COORDENACAO],
+
+        // Termo de Menores: termos, tablet ou histórico; cada tela confere a sua.
+        'acessar-termo-menores' => [
+            self::ASSINATURA_TERMO_MENORES_GERENCIAR, self::ASSINATURA_TERMO_MENORES_PAREAR,
+            self::ASSINATURA_TERMO_MENORES_HISTORICO,
+        ],
+
+        // O guia do módulo de assinatura abre para quem alcança QUALQUER parte
+        // dele (inclui as três do Termo de Menores).
+        'acessar-guia-assinatura' => [
+            self::ASSINATURA_DOCUMENTOS, self::ASSINATURA_CONSULTAR, self::ASSINATURA_MODELOS,
+            self::ASSINATURA_REVISAR, self::ASSINATURA_REVISAR_COORDENACAO, self::ASSINATURA_DIRETORIA,
+            self::ASSINATURA_CONTRATOS, self::ASSINATURA_TERMO_MENORES_GERENCIAR,
+            self::ASSINATURA_TERMO_MENORES_PAREAR, self::ASSINATURA_TERMO_MENORES_HISTORICO,
+        ],
+    ];
+
+    /**
+     * As permissões do catálogo que abrem uma habilidade: ela mesma, se é do
+     * catálogo; as do ANY_OF, se é composta; nenhuma, se é regra de cargo
+     * (`coordinate-sector`) ou desconhecida.
+     *
+     * @return list<string>
+     */
+    public static function grantedBy(string $ability): array
+    {
+        if (isset(self::ANY_OF[$ability])) {
+            return self::ANY_OF[$ability];
+        }
+
+        return self::exists($ability) ? [$ability] : [];
+    }
+
     /** @return list<string> */
     public static function all(): array
     {

@@ -11,10 +11,14 @@ use Illuminate\Support\Str;
 /**
  * Revisão automática do contrato pelo Claude (pedido da Gerência, 27/10/2026).
  *
- * Manda o contrato inteiro — qualificação das partes, considerandos, todas as
- * cláusulas e signatários, já com as variáveis resolvidas, como o gerente lê
- * na prévia — e recebe o básico conferido: um resumo das inconsistências e
- * os apontamentos com sugestão de alteração, cada um ligado a uma cláusula.
+ * Manda o contrato como o gerente lê na prévia — qualificação das partes,
+ * considerandos, cláusulas e signatários, com as variáveis resolvidas — e
+ * recebe o básico conferido: um resumo das inconsistências e os apontamentos
+ * com sugestão de alteração, cada um ligado a uma cláusula.
+ *
+ * Privacidade (28/10/2026): o trecho com valores, CPF, documentos ou endereço
+ * não vai, a menos que o gerente o marque na tela. No lugar dele segue só um
+ * aviso (e o título, no caso de cláusula), para a numeração continuar certa.
  *
  * Só orienta: não aprova, não devolve, não muda o texto. A conferência do
  * próprio Lara (ContractRenderer::problems) segue valendo e vai junto no
@@ -50,7 +54,16 @@ Regras da resposta:
 - "sugestao": a alteração proposta; quando for o caso, já com a redação sugerida.
 - Não repita o que a conferência automática do sistema já apontou.
 - Campos marcados como lacuna na minuta ainda serão preenchidos: só aponte se faltarem informações essenciais.
+- Trechos marcados "[não enviado: …]" foram retirados de propósito, por privacidade. Não aponte a falta deles nem suponha o que dizem.
 TXT;
+
+    /** O que tira um trecho da análise por padrão (ver SignatureContractAiReview::SENSITIVE_LABELS). */
+    private const SENSITIVE = [
+        'valores' => '/R\$|\breais\b|\b\d{1,3}(?:\.\d{3})*,\d{2}\b/iu',
+        'cpf' => '/\bCPF\b|\b\d{3}\.\d{3}\.\d{3}-\d{2}\b|\b\d{11}\b/u',
+        'documentos' => '/\bCNPJ\b|\bRG\b|\bCNH\b|passaporte|carteira de identidade|inscri[çc][ãa]o (?:estadual|municipal)|\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b|\b\d{14}\b/iu',
+        'endereco' => '/\b(?:rua|avenida|alameda|travessa|rodovia|estrada|pra[çc]a|bairro|CEP|residentes?|com sede)\b|\bav\.\s|\b\d{5}-\d{3}\b/iu',
+    ];
 
     public function __construct(
         private ClaudeClient $claude,
@@ -65,23 +78,38 @@ TXT;
     }
 
     /**
-     * Analisa o texto atual do contrato e guarda a revisão.
+     * Analisa o texto atual do contrato e guarda a revisão. Os trechos
+     * sensíveis só vão se a chave estiver em $include (marcados na tela).
      *
+     * @param  array<int, string>  $include
      * @return array{review: SignatureContractAiReview, reused: bool}
      *
      * @throws ClaudeException
      */
-    public function review(SignatureContract $contract, ?int $userId, ?string $userName): array
+    public function review(SignatureContract $contract, ?int $userId, ?string $userName, array $include = []): array
     {
         $conteudo = $contract->content ?? [];
-        $texto = $this->plainText($conteudo, $contract->number);
-        $hash = hash('sha256', $texto);
+        $trechos = $this->sections($conteudo, $contract->number);
 
-        $existente = $contract->aiReviews()->where('content_hash', $hash)->first();
+        // O hash é do texto inteiro (diz se o contrato mudou); o que foi
+        // retido entra na comparação para reaproveitar a revisão.
+        $hash = hash('sha256', $this->join($trechos));
+        $retidos = collect($trechos)
+            ->filter(fn(array $t) => $t['reasons'] !== [] && !in_array($t['key'], $include, true))
+            ->map(fn(array $t) => ['key' => $t['key'], 'label' => $t['label'], 'reasons' => $t['reasons']])
+            ->values()
+            ->all();
+        $chaves = array_column($retidos, 'key');
+        sort($chaves);
+
+        $existente = $contract->aiReviews()->where('content_hash', $hash)->get()
+            ->first(fn(SignatureContractAiReview $r) => $r->withheldKeys() === $chaves);
 
         if ($existente) {
             return ['review' => $existente, 'reused' => true];
         }
+
+        $texto = $this->join($trechos, $chaves);
 
         // A chamada pode passar do limite padrão do PHP (30 s).
         $tentativas = max(1, (int) config('claude.max_retries', 1) + 1);
@@ -90,7 +118,7 @@ TXT;
         $resposta = $this->claude->structured(
             model: (string) config('claude.contract_review.model'),
             system: self::SYSTEM,
-            prompt: $this->prompt($contract, $texto),
+            prompt: $this->prompt($contract, $texto, $retidos),
             schema: $this->schema(),
             maxTokens: (int) config('claude.contract_review.max_tokens', 16000),
             effort: config('claude.contract_review.effort'),
@@ -108,6 +136,7 @@ TXT;
                 : SignatureContractAiReview::VERDICT_ADJUST,
             'summary' => mb_substr(trim((string) ($dados['resumo'] ?? '')), 0, 4000),
             'findings' => $this->findings($dados['apontamentos'] ?? [], $totalClausulas),
+            'withheld' => $retidos,
             'input_tokens' => $resposta['input_tokens'],
             'output_tokens' => $resposta['output_tokens'],
             'requested_by' => $userId,
@@ -118,6 +147,7 @@ TXT;
             'review_id' => $review->id,
             'verdict' => $review->verdict,
             'findings' => count($review->findings),
+            'withheld' => count($retidos),
         ]);
 
         return ['review' => $review, 'reused' => false];
@@ -131,30 +161,144 @@ TXT;
 
     /**
      * O contrato em texto corrido, como na prévia (variáveis resolvidas,
-     * lacunas marcadas, numeração calculada).
+     * lacunas marcadas, numeração calculada), sem os trechos de $withheld.
+     *
+     * @param  array<int, string>  $withheld
      */
-    public function plainText(array $content, ?string $number): string
+    public function plainText(array $content, ?string $number, array $withheld = []): string
+    {
+        return $this->join($this->sections($content, $number), $withheld);
+    }
+
+    /**
+     * Os trechos que a tela oferece para incluir: os que têm valores, CPF,
+     * documentos ou endereço e, por isso, ficam de fora por padrão.
+     *
+     * @return array<int, array{key: string, label: string, reasons: array<int, string>}>
+     */
+    public function sensitiveSections(SignatureContract $contract): array
+    {
+        return collect($this->sections($contract->content ?? [], $contract->number))
+            ->filter(fn(array $t) => $t['reasons'] !== [])
+            ->map(fn(array $t) => ['key' => $t['key'], 'label' => $t['label'], 'reasons' => $t['reasons']])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * O contrato em trechos: cada parágrafo da qualificação, cada
+     * considerando, cada cláusula com seus itens e as assinaturas. Título,
+     * número e fecho (key nula) vão sempre. "head" segue mesmo quando o
+     * trecho é retido (o título da cláusula), "body" só quando vai.
+     *
+     * @return array<int, array{key: ?string, label: string, head: string, body: array<int, string>, reasons: array<int, string>}>
+     */
+    private function sections(array $content, ?string $number): array
+    {
+        $trechos = [];
+        $clausulas = array_values($content['clauses'] ?? []);
+        $c = 0;
+        $atual = null;
+
+        foreach ($this->renderer->blocks($content, $number) as $i => $bloco) {
+            switch ($bloco['type']) {
+                case 'heading':
+                case 'number':
+                    $trechos[] = ['key' => null, 'label' => '', 'head' => $bloco['text'], 'body' => []];
+                    break;
+
+                case 'closing':
+                    $trechos[] = ['key' => null, 'label' => '', 'head' => $this->text($bloco['html']), 'body' => []];
+                    break;
+
+                case 'html':
+                    $texto = $this->text($bloco['html']);
+                    $label = preg_match('/^([^:\n]{2,40}):/u', $texto, $m) ? 'Qualificação – ' . trim($m[1]) : 'Texto de abertura';
+                    $trechos[] = ['key' => 'texto-' . $i, 'label' => $label, 'head' => '', 'body' => [$texto]];
+                    break;
+
+                case 'consideration':
+                    $trechos[] = [
+                        'key' => 'considerando-' . $i,
+                        'label' => 'Considerando ' . $bloco['label'],
+                        'head' => '',
+                        'body' => [$bloco['label'] . ' ' . $this->text($bloco['html'])],
+                    ];
+                    break;
+
+                case 'clause':
+                    $titulo = trim((string) ($clausulas[$c]['title'] ?? ''));
+                    $c++;
+                    $trechos[] = [
+                        'key' => 'clausula-' . $bloco['uid'],
+                        'label' => 'Cláusula ' . $c . ($titulo !== '' ? ' – ' . $titulo : ''),
+                        'head' => "\n" . $bloco['text'],
+                        'body' => [],
+                    ];
+                    $atual = array_key_last($trechos);
+                    break;
+
+                case 'item':
+                    if ($atual !== null) {
+                        $trechos[$atual]['body'][] = ($bloco['level'] === 2 ? '    ' : '') . $bloco['number'] . ' ' . $this->text($bloco['html']);
+                    }
+                    break;
+
+                case 'clause_end':
+                    $atual = null;
+                    break;
+
+                case 'signatures':
+                    $trechos[] = [
+                        'key' => 'assinaturas',
+                        'label' => 'Assinaturas',
+                        'head' => '',
+                        'body' => ["\nASSINATURAS:\n" . collect($bloco['entries'])
+                            ->map(fn(array $s) => '- ' . $s['label'] . ': ' . ($s['name'] ?: '(sem nome)'))
+                            ->join("\n")],
+                    ];
+                    break;
+            }
+        }
+
+        return array_map(function (array $t) {
+            $t['reasons'] = $t['key'] === null ? [] : $this->reasons(implode("\n", $t['body']));
+
+            return $t;
+        }, $trechos);
+    }
+
+    /** @return array<int, string> as chaves de SENSITIVE que aparecem no texto */
+    private function reasons(string $texto): array
+    {
+        return array_keys(array_filter(self::SENSITIVE, fn(string $regex) => preg_match($regex, $texto) === 1));
+    }
+
+    /** @param  array<int, string>  $withheld */
+    private function join(array $trechos, array $withheld = []): string
     {
         $linhas = [];
 
-        foreach ($this->renderer->blocks($content, $number) as $bloco) {
-            $linhas[] = match ($bloco['type']) {
-                'heading', 'number' => $bloco['text'],
-                'html', 'closing' => $this->text($bloco['html']),
-                'consideration' => $bloco['label'] . ' ' . $this->text($bloco['html']),
-                'clause' => "\n" . $bloco['text'],
-                'item' => ($bloco['level'] === 2 ? '    ' : '') . $bloco['number'] . ' ' . $this->text($bloco['html']),
-                'signatures' => "\nASSINATURAS:\n" . collect($bloco['entries'])
-                    ->map(fn(array $s) => '- ' . $s['label'] . ': ' . ($s['name'] ?: '(sem nome)'))
-                    ->join("\n"),
-                default => null,
-            };
+        foreach ($trechos as $t) {
+            $linhas[] = $t['head'];
+
+            if ($t['key'] !== null && in_array($t['key'], $withheld, true)) {
+                $linhas[] = '[não enviado: ' . $this->reasonsText($t['reasons']) . ']';
+            } else {
+                array_push($linhas, ...$t['body']);
+            }
         }
 
-        return trim(implode("\n", array_filter($linhas, fn($l) => $l !== null && $l !== '')));
+        return trim(implode("\n", array_filter($linhas, fn($l) => $l !== '')));
     }
 
-    private function prompt(SignatureContract $contract, string $texto): string
+    /** @param  array<int, string>  $reasons */
+    private function reasonsText(array $reasons): string
+    {
+        return 'contém ' . collect($reasons)->map(fn($r) => SignatureContractAiReview::SENSITIVE_LABELS[$r] ?? $r)->join(', ', ' e ');
+    }
+
+    private function prompt(SignatureContract $contract, string $texto, array $retidos = []): string
     {
         $problemas = collect($this->renderer->problems($contract->content ?? []))
             ->map(fn(array $p) => '- ' . $p['message'])
@@ -162,12 +306,15 @@ TXT;
 
         $anexos = $contract->attachments()->pluck('label')->map(fn($l) => '- ' . $l)->join("\n");
 
+        $fora = collect($retidos)->map(fn(array $r) => '- ' . $r['label'] . ' (' . $this->reasonsText($r['reasons']) . ')')->join("\n");
+
         return "Revise a minuta abaixo.\n\n"
             . "Tipo: " . ($contract->kind === SignatureContract::KIND_ADDENDUM ? 'aditivo contratual' : 'contrato') . "\n"
             . "Título: {$contract->title}\n"
             . "Setor que redigiu: " . ($contract->sector_name ?? '—') . "\n\n"
             . "Conferência automática do sistema (já apontado, não repita):\n" . ($problemas ?: '- nada apontado') . "\n\n"
             . "Anexos que seguem com o contrato (só os nomes):\n" . ($anexos ?: '- nenhum') . "\n\n"
+            . "Trechos retirados por privacidade (não aponte a falta deles):\n" . ($fora ?: '- nenhum') . "\n\n"
             . "<minuta>\n{$texto}\n</minuta>";
     }
 

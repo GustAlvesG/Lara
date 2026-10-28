@@ -142,6 +142,8 @@ class ContractController extends Controller
         $revisor = app(ContractAiReviewer::class);
         $gerencia = $request->user()->isManagementMember() && $revisor->isAvailable();
         $revisao = $gerencia ? $contrato->aiReviews()->first() : null;
+        // Os trechos com valores, CPF, documentos ou endereço: ficam de fora, a menos que o gerente marque.
+        $sensiveis = $gerencia && $request->user()->can('aiReview', $contrato) ? $revisor->sensitiveSections($contrato) : [];
 
         return view('signature.contracts.show', [
             'contract' => $contrato,
@@ -153,6 +155,7 @@ class ContractController extends Controller
             'aiEnabled' => $gerencia,
             'aiReview' => $revisao,
             'aiReviewCurrent' => $revisao ? $revisor->isCurrent($revisao, $contrato) : false,
+            'aiSensitive' => $sensiveis,
         ]);
     }
 
@@ -273,8 +276,14 @@ class ContractController extends Controller
             return back()->with('error', 'A revisão automática não está configurada (falta a chave da API do Claude).');
         }
 
+        // Os trechos sensíveis que o gerente marcou para enviar; o resto deles fica de fora.
+        $dados = $request->validate([
+            'include' => ['nullable', 'array', 'max:200'],
+            'include.*' => ['string', 'max:80'],
+        ]);
+
         try {
-            $resultado = $reviewer->review($signatureContract, $request->user()->id, $request->user()->name);
+            $resultado = $reviewer->review($signatureContract, $request->user()->id, $request->user()->name, $dados['include'] ?? []);
         } catch (ClaudeException $e) {
             return redirect()->route('signature-contracts.show', $signatureContract)->with('error', $e->getMessage());
         }

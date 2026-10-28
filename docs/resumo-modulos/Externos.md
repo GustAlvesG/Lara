@@ -55,7 +55,9 @@ O `target` digitado decide o tipo (`registerAccess` / `validateTryToAccess`):
   `register-freelancer-access`, `register-one-off-access`, `register-ticket-access`) — os ids
   são de tabelas diferentes.
 - Mudou a resposta da API da portaria: gere o prompt para o agente do app da guarita (o de
-  Ingressos está em `docs/ingressos-prompt-portaria.md`).
+  Ingressos está em `docs/ingressos-prompt-portaria.md`) e atualize o prompt consolidado
+  `docs/externos-prompt-portaria-geral.md` (28/10/2026), que junta tudo o que a guarita
+  precisa (acesso, liberação pontual, ingressos, fila do Uber, funcionário bloqueado, frota).
 
 ## Carros de aplicativo (Uber)
 

@@ -1215,16 +1215,22 @@
     <h3>Revisão automática pelo Claude (Gerência)</h3>
     <ol>
         <li>Na tela do contrato (no computador), no cartão <span class="menu">Revisão automática (Claude)</span>,
-            clique em <b>Analisar com o Claude</b>. Leva de alguns segundos a um minuto.</li>
+            confira a lista <b>Trechos com dados sensíveis</b>: as partes do contrato com valores, CPF, documentos ou
+            endereço (a qualificação das partes, a cláusula do valor…) <b>não são enviadas</b>, a menos que você marque.
+            Marque só as que quiser que o Claude também confira.</li>
+        <li>Clique em <b>Analisar com o Claude</b>. Leva de alguns segundos a um minuto.</li>
         <li>Volta um resumo das inconsistências e uma lista de apontamentos (grave, atenção, detalhe), cada um com a
             cláusula, o problema e uma sugestão de alteração.</li>
         <li>Concordou com um apontamento? <b>Levar para a observação da cláusula</b> copia o texto para a observação
             daquela cláusula. Depois é só devolver como de costume.</li>
         <li>Mudou o texto? O cartão avisa, e <b>Analisar o texto atual</b> pede uma revisão nova. Sem mudança, a
-            revisão anterior continua valendo.</li>
+            revisão anterior continua valendo. Para incluir outros trechos, use <b>Analisar de novo escolhendo outros
+            trechos</b>.</li>
     </ol>
     <p>São sugestões de uma IA: confira antes de usar. Ela não aprova, não devolve nem altera nada, e não substitui a
-        leitura. O texto do contrato, com as partes, é enviado à Anthropic (a empresa do Claude) para a análise.</p>
+        leitura. O texto do contrato é enviado à Anthropic (a empresa do Claude) para a análise, menos os trechos
+        sensíveis que você não marcou; o cartão mostra em <b>Não enviados ao Claude</b> o que ficou de fora (e,
+        por isso, não foi analisado).</p>
 
     <h3>O que o Lara faz por você</h3>
     <ul>

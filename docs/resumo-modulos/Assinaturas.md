@@ -551,11 +551,14 @@ Guia do usuário: seção 13.
   Matrícula + PIN, cookie `lara_management`, `ContractKioskService` (desenho do `DirectorKioskService`: hash no cache,
   limite por matrícula, setor Gerência reconferido a cada chamada). Lê, comenta tocando na cláusula, aprova/devolve
   pelo `ContractService`; não edita texto. Rotas `quiosque.gerencia.*`. Testes: `SignatureContractKioskTest`.
-- **Revisão automática pelo Claude** (Gerência, 27/10/2026): cartão na tela do contrato manda o texto inteiro ao
+- **Revisão automática pelo Claude** (Gerência, 27/10/2026): cartão na tela do contrato manda o texto ao
   Claude Haiku 5.5 (`ContractAiReviewer` → `App\Services\Claude\ClaudeClient`, SDK `anthropic-ai/sdk`) e guarda
-  veredito, resumo e apontamentos por cláusula em `signature_contract_ai_reviews` (mesmo texto = mesma revisão,
-  pelo `sha256`). "Levar para a observação" preenche o formulário de devolução. Só orienta. Sem `ANTHROPIC_API_KEY`,
-  some. Rota `signature-contracts.ai-review`, policy `aiReview`. Testes: `SignatureContractAiReviewTest`.
+  veredito, resumo e apontamentos por cláusula em `signature_contract_ai_reviews` (mesmo texto e mesma escolha de
+  trechos = mesma revisão, pelo `sha256` + `withheld`). Desde 28/10, trecho (parágrafo da qualificação, considerando,
+  cláusula, assinaturas) com valores, CPF, documentos ou endereço (`SENSITIVE`) fica de fora, a menos que o gerente
+  marque (`include[]`); a revisão grava em `withheld` o que não foi. "Levar para a observação" preenche o formulário
+  de devolução. Só orienta. Sem `ANTHROPIC_API_KEY`, some. Rota `signature-contracts.ai-review`, policy `aiReview`.
+  Migrations `2026_10_29_110000` e `_130000`. Testes: `SignatureContractAiReviewTest`.
   Ver [claude-api.md](../funcionalidades/claude-api.md).
 - Não mexe em API externa nossa: nenhum prompt para outro agente (a Anthropic é serviço de terceiro).
 

@@ -210,15 +210,52 @@ class SignatureContractAiReviewTest extends TestCase
         $this->assertSame('Gerente', $review->requested_by_name);
         $this->assertTrue($contrato->events()->where('event', 'ai_reviewed')->exists());
 
-        // O que foi para a API: o texto como na prévia, com partes, cláusulas numeradas e extenso.
+        // O que foi para a API: o texto como na prévia, sem os trechos sensíveis.
         $corpo = json_decode((string) $this->historico[0]['request']->getBody(), true);
         $prompt = $corpo['messages'][0]['content'];
-        $this->assertStringContainsString('A.C.S TRADING LTDA', $prompt);
         $this->assertStringContainsString('CLÁUSULA PRIMEIRA – OBJETO', $prompt);
-        $this->assertStringContainsString('2.1 ', $prompt);
-        $this->assertStringContainsString('oito mil e novecentos reais', $prompt);
+        $this->assertStringContainsString('1.1 Manutenção preventiva', $prompt);
+        $this->assertStringContainsString('CLÁUSULA SEGUNDA – VALOR', $prompt, 'o título da cláusula retida segue');
+        $this->assertStringContainsString('[não enviado: contém valores]', $prompt);
+        foreach (['529.982.247-25', '04.758.575/0001-29', 'Rua Vereador', 'oito mil e novecentos reais', 'R$'] as $sensivel) {
+            $this->assertStringNotContainsString($sensivel, $prompt);
+        }
         $this->assertStringNotContainsString('<p>', $prompt);
         $this->assertSame('claude-haiku-5-5', $corpo['model']);
+
+        $retidos = array_column($review->withheld, 'reasons', 'key');
+        $this->assertSame(['valores'], $retidos['clausula-clvalor001']);
+        $this->assertArrayNotHasKey('clausula-clobjeto01', $retidos);
+        $this->assertContains('Qualificação – CONTRATADA', array_column($review->withheld, 'label'));
+    }
+
+    public function test_trecho_sensivel_vai_quando_o_gerente_marca(): void
+    {
+        $this->app->instance(ClaudeClient::class, $this->clienteComRespostas(
+            $this->respostaDaApi($this->revisaoPronta()),
+            $this->respostaDaApi($this->revisaoPronta()),
+        ));
+        $revisor = app(ContractAiReviewer::class);
+        $contrato = $this->contrato();
+
+        $todos = array_column($revisor->sensitiveSections($contrato), 'key');
+        $this->assertContains('clausula-clvalor001', $todos);
+
+        $tudo = $revisor->review($contrato, 9, 'Gerente', $todos);
+        $prompt = json_decode((string) $this->historico[0]['request']->getBody(), true)['messages'][0]['content'];
+
+        $this->assertSame([], $tudo['review']->withheld);
+        $this->assertStringContainsString('2.1 O valor global', $prompt);
+        $this->assertStringContainsString('oito mil e novecentos reais', $prompt);
+        $this->assertStringContainsString('04.758.575/0001-29', $prompt);
+        $this->assertStringNotContainsString('[não enviado', $prompt);
+
+        // Mesma escolha reaproveita; outra escolha é outra análise.
+        $this->assertTrue($revisor->review($contrato->fresh(), 9, 'Gerente', array_reverse($todos))['reused']);
+        $so = $revisor->review($contrato->fresh(), 9, 'Gerente', ['clausula-clvalor001']);
+        $this->assertFalse($so['reused']);
+        $this->assertNotContains('clausula-clvalor001', $so['review']->withheldKeys());
+        $this->assertCount(2, $this->historico);
     }
 
     public function test_mesmo_texto_reaproveita_a_revisao_e_texto_novo_pede_outra(): void
@@ -264,16 +301,25 @@ class SignatureContractAiReviewTest extends TestCase
 
         $gerente = $this->usuario(true);
         $this->actingAs($gerente)->get(route('signature-contracts.show', $contrato))
-            ->assertOk()->assertSee('Analisar com o Claude');
+            ->assertOk()
+            ->assertSee('Analisar com o Claude')
+            ->assertSee('value="clausula-clvalor001"', false)
+            ->assertSee('Cláusula 2 – Valor');
 
-        $this->actingAs($gerente)->post(route('signature-contracts.ai-review', $contrato))
+        $this->actingAs($gerente)->post(route('signature-contracts.ai-review', $contrato), ['include' => ['clausula-clvalor001']])
             ->assertRedirect(route('signature-contracts.show', $contrato) . '#revisao-ia');
+
+        $prompt = json_decode((string) $this->historico[0]['request']->getBody(), true)['messages'][0]['content'];
+        $this->assertStringContainsString('oito mil e novecentos reais', $prompt);
+        $this->assertStringNotContainsString('529.982.247-25', $prompt);
 
         $this->actingAs($gerente)->get(route('signature-contracts.show', $contrato))
             ->assertOk()
             ->assertSee('Ajustes recomendados')
             ->assertSee('Falta a cláusula de foro.')
             ->assertSee('Levar para a observação da cláusula')
+            ->assertSee('Não enviados ao Claude')
+            ->assertSee('Analisar de novo escolhendo outros trechos')
             ->assertDontSee('Analisar com o Claude');
     }
 

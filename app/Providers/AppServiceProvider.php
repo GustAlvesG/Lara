@@ -116,82 +116,19 @@ class AppServiceProvider extends ServiceProvider
         );
 
         /**
-         * A lista de documentos da assinatura eletrônica abre para quem atende
-         * no balcão OU para quem só consulta os assinados — duas permissões do
-         * catálogo. O menu pede uma habilidade só por item, e esta junta as
-         * duas (a mesma regra de SignatureDocumentPolicy::viewAny).
+         * Habilidades que abrem com qualquer uma de várias permissões do
+         * catálogo (documentos e revisão da assinatura, Termo de Menores,
+         * guia da assinatura, eventos e caixa dos ingressos). O menu pede uma
+         * habilidade só por item, e estas juntam várias. A regra de cada uma,
+         * com o porquê, está em Permissions::ANY_OF — a mesma lista que a
+         * busca de guias da Lara (IA) usa para dizer o que pedir.
          */
-        Gate::define(
-            'acessar-documentos-assinatura',
-            fn (User $user) => $user->can(Permissions::ASSINATURA_DOCUMENTOS)
-                || $user->can(Permissions::ASSINATURA_CONSULTAR),
-        );
-
-        /**
-         * Ingressos: a lista de eventos e a tela do evento abrem para quem
-         * alcança qualquer parte do módulo (quem cadastra, quem vende, quem faz
-         * check-in, quem vê o financeiro). O que cada um faz lá dentro continua
-         * na permissão própria.
-         */
-        Gate::define(
-            'acessar-ingressos',
-            fn (User $user) => $user->can(Permissions::INGRESSOS_GERENCIAR)
-                || $user->can(Permissions::INGRESSOS_VENDAS)
-                || $user->can(Permissions::INGRESSOS_CHECKIN)
-                || $user->can(Permissions::INGRESSOS_FINANCEIRO)
-                || $user->can(Permissions::INGRESSOS_CAIXA_TODOS)
-                || $user->can(Permissions::INGRESSOS_CUPONS),
-        );
-
-        /**
-         * Relatório de caixa dos ingressos: quem vende no balcão vê o próprio
-         * caixa; com `ingressos.caixa.todos` (o financeiro), o de todos.
-         */
-        Gate::define(
-            'ver-caixa-ingressos',
-            fn (User $user) => $user->can(Permissions::INGRESSOS_VENDAS)
-                || $user->can(Permissions::INGRESSOS_PAGAMENTOS_BAIXA_MANUAL)
-                || $user->can(Permissions::INGRESSOS_CORTESIAS)
-                || $user->can(Permissions::INGRESSOS_CAIXA_TODOS),
-        );
-
-        /**
-         * A fila de revisão interna dos documentos assinados: a revisão comum
-         * ou a da coordenação (ver SignatureReviewService).
-         */
-        Gate::define(
-            'acessar-revisao-assinatura',
-            fn (User $user) => $user->can(Permissions::ASSINATURA_REVISAR)
-                || $user->can(Permissions::ASSINATURA_REVISAR_COORDENACAO),
-        );
-
-        /**
-         * O guia do módulo de assinatura abre para quem alcança QUALQUER parte
-         * dele — quem atende, quem consulta e quem escreve os modelos leem o
-         * mesmo passo a passo.
-         */
-        Gate::define(
-            'acessar-guia-assinatura',
-            fn (User $user) => $user->can(Permissions::ASSINATURA_DOCUMENTOS)
-                || $user->can(Permissions::ASSINATURA_CONSULTAR)
-                || $user->can(Permissions::ASSINATURA_MODELOS)
-                || $user->can(Permissions::ASSINATURA_REVISAR)
-                || $user->can(Permissions::ASSINATURA_REVISAR_COORDENACAO)
-                || $user->can(Permissions::ASSINATURA_DIRETORIA)
-                || $user->can(Permissions::ASSINATURA_CONTRATOS)
-                || $user->can('acessar-termo-menores'),
-        );
-
-        /**
-         * Termo de Menores: o item do menu abre para quem tem qualquer uma das
-         * três permissões (termos, tablet, histórico); cada tela confere a sua.
-         */
-        Gate::define(
-            'acessar-termo-menores',
-            fn (User $user) => $user->can(Permissions::ASSINATURA_TERMO_MENORES_GERENCIAR)
-                || $user->can(Permissions::ASSINATURA_TERMO_MENORES_PAREAR)
-                || $user->can(Permissions::ASSINATURA_TERMO_MENORES_HISTORICO),
-        );
+        foreach (Permissions::ANY_OF as $ability => $permissions) {
+            Gate::define(
+                $ability,
+                fn (User $user) => collect($permissions)->contains(fn (string $p) => $user->can($p)),
+            );
+        }
 
         /**
          * Teto de envio da Poli Digital, por APLICAÇÃO (ver config/poli.php).

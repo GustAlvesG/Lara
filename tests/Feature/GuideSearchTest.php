@@ -76,6 +76,20 @@ modulo: Geral
 Na tela, digite a placa.
 MD);
 
+        File::put($this->dir . '/ingressos.md', <<<'MD'
+---
+modulo: Ingressos
+palavras: evento
+---
+
+# Ingressos
+
+## Emitir cortesia
+<!-- telas: tickets.index -->
+
+Na tela Ingressos › Eventos, abra o evento.
+MD);
+
         $this->app->instance(UserGuides::class, new UserGuides($this->dir));
 
         $this->ti = $this->makeUser('Pessoa da TI');
@@ -133,6 +147,37 @@ MD);
             ->assertJsonPath('data.0.tem_acesso', false)
             ->assertJsonPath('data.0.telas', [])
             ->assertJsonPath('data.0.precisa_de.0', 'SIV › Busca (permissão: SIV › Busca de placas)');
+    }
+
+    public function test_requisitos_estruturados_para_quem_nao_alcanca(): void
+    {
+        $item = $this->buscar('buscar placa', $this->semAcesso)->json('data.0');
+
+        $this->assertSame([[
+            'tela' => 'SIV › Busca',
+            'permissoes' => ['SIV › Busca de placas'],
+            'basta_uma' => false,
+            'regra' => null,
+        ]], $item['requisitos']);
+
+        // Quem alcança não recebe requisito nenhum.
+        $this->assertSame([], $this->buscar('buscar placa', $this->ti)->json('data.0.requisitos'));
+    }
+
+    public function test_tela_com_habilidade_composta_lista_as_permissoes_que_bastam(): void
+    {
+        // Ingressos › Eventos abre com qualquer permissão do módulo
+        // (Permissions::ANY_OF['acessar-ingressos']): a tela nunca vem sozinha.
+        $item = $this->buscar('emitir cortesia', $this->semAcesso)->assertOk()->json('data.0');
+
+        $this->assertFalse($item['tem_acesso']);
+        $this->assertStringStartsWith('Ingressos › Eventos (uma destas permissões: Ingressos › ', $item['precisa_de'][0]);
+
+        $requisito = $item['requisitos'][0];
+        $this->assertSame('Ingressos › Eventos', $requisito['tela']);
+        $this->assertTrue($requisito['basta_uma']);
+        $this->assertCount(count(\App\Authorization\Permissions::ANY_OF['acessar-ingressos']), $requisito['permissoes']);
+        $this->assertContains('Ingressos › Check-in na entrada do evento', $requisito['permissoes']);
     }
 
     public function test_subsecao_herda_a_tela_e_secao_sem_anotacao_vale_o_modulo(): void

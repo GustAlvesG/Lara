@@ -12,11 +12,13 @@ Sempre atualizar o que for pertinente. Uma mudança só está pronta quando tudo
 
 Os módulos Freelancers, Tercerizados, Home Assistant, Reservas se comunicam com aplicações externas via API. Sempre que qualquer alteração for feita, gere um prompt para orientar outro agent Claude Code das alterações necessárias na outra aplicação.
 
+Os prompts gerados devem ser salvos em docs/prompts e referenciados para qual sistema externo é: Lara Externos, NextJS, IA
+
 O módulo Assinaturas também se comunica com aplicação externa desde 21/10/2026: a assinatura remota por link usa o site externo em Next.js (o mesmo das Reservas) pela API `/api/assinatura/remota/*`. A mesma regra vale: mudou essa API ou o fluxo de quem assina, atualize `docs/funcionalidades/assinatura-remota-prompt-site.md` e gere o prompt para o agent do site.
 
 O módulo Ingressos (desde 27/10/2026) também se comunica com o site externo em Next.js (o mesmo das Reservas e dos Torneios) pela API `/api/tickets/*`: o Lara é o backend, a venda é no site. Mudou essa API ou o fluxo de compra, atualize `docs/funcionalidades/ingressos-site-prompt.md` e gere o prompt para o agent do site. O check-in dos ingressos pelo Monitor de Acesso mexe na API da portaria (Terceirizados): gere também o prompt para o agent do app da guarita.
 
-O módulo Lara (IA) também se comunica com aplicação externa nos dois sentidos: O Lara chama a VM da IA (`/perguntar`, `/reiniciar`, `/health`) e a IA consulta O Lara pelas APIs `/api/information/search`, `/api/avisos/search` e `/api/guias/search` (desde 28/10/2026). O `/perguntar` leva o contexto da tela (`contexto`) desde 28/10/2026. Mudou alguma dessas chamadas ou o formato da resposta, atualize `docs/funcionalidades/lara-ia-consultas.md` e gere o prompt para o agent da VM da IA (modelo em `docs/funcionalidades/lara-ia-busca-avisos-prompt.md`). A busca de avisos segue a privacidade do aviso (`Aviso::scopeAddressedTo`): mudou a régua de privacidade, a busca muda junto.
+O módulo Lara (IA) também se comunica com aplicação externa nos dois sentidos: O Lara chama a VM da IA (`/perguntar`, `/reiniciar`, `/health`) e a IA consulta O Lara pelas APIs `/api/information/search`, `/api/avisos/search` e `/api/guias/search` (desde 28/10/2026). O `/perguntar` leva o contexto da tela (`contexto`) desde 28/10/2026. Mudou alguma dessas chamadas ou o formato da resposta, atualize `docs/funcionalidades/lara-ia-consultas.md` e gere o prompt para o agent da VM da IA (os prompts da IA ficam em `docs/prompts/IA/`; modelo em `docs/prompts/IA/lara-ia-guias-prompt.md`). A busca de avisos segue a privacidade do aviso (`Aviso::scopeAddressedTo`): mudou a régua de privacidade, a busca muda junto.
 
 Para cada módulo, crie um resumo do funcionamento dele em markdown para orientar outro agente claude code que vá fazer alguma nova implementação. Esse markdown de resumo deve ficar dentro docs/resumo-modulos e nomeado com o nome do módulo que aparece no Menu
 

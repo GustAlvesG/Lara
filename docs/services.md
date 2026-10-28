@@ -247,7 +247,7 @@ Regras em [contratos.md](funcionalidades/contratos.md).
 | `ContractDiff` | O que mudou entre versões, por uid, palavra a palavra. |
 | `ContractDocxExporter` | .docx mínimo (ZipArchive) dos mesmos `blocks()`. |
 | `ContractKioskService` | Gerência no tablet do balcão: `login` (matrícula + PIN, limite por matrícula, só setor Gerência), `fromToken`/`logout` (hash no cache), `pending`, `detail` (texto, cláusulas, diff, problemas, anexos), `inReview`. |
-| `ContractAiReviewer` | Revisão automática pelo Claude: `review()` (texto inteiro por `plainText()` + conferência do Lara + anexos → `ClaudeClient::structured` com esquema; limpa e grava; mesmo texto reaproveita), `isCurrent()`, `isAvailable()`. |
+| `ContractAiReviewer` | Revisão automática pelo Claude: `review($contract, $userId, $userName, $include)` (texto por `plainText()` sem os trechos sensíveis não marcados + conferência do Lara + anexos → `ClaudeClient::structured` com esquema; limpa e grava com `withheld`; mesmo texto e mesma escolha reaproveitam), `sensitiveSections()` (trechos com valores, CPF, documentos ou endereço, pela régua `SENSITIVE`), `isCurrent()`, `isAvailable()`. |
 | `ContractRecipients` | E-mails: coordenador da Gerência e autor (consulta `users`; trocado nos testes). |
 | `App\Support\NumeroPorExtenso` | Extenso de inteiros, reais, decimais e ordinal feminino das cláusulas. |
 

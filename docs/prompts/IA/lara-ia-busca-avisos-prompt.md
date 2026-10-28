@@ -1,7 +1,7 @@
 # Prompt para o agente da VM da IA (Lara) — busca de avisos
 
 Cole o bloco abaixo numa sessão do Claude Code aberta no repositório do agente da Lara (a VM
-com Ollama). Contrato completo do lado do Lara em [lara-ia-consultas.md](lara-ia-consultas.md).
+com Ollama). Contrato completo do lado do Lara em [lara-ia-consultas.md](../../funcionalidades/lara-ia-consultas.md).
 
 ---
 

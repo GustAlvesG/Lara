@@ -129,6 +129,7 @@ class GuideSearch
             'tem_acesso' => $acesso['tem_acesso'],
             'telas' => $acesso['telas'],
             'precisa_de' => $acesso['precisa_de'],
+            'requisitos' => $acesso['requisitos'],
             'relevance' => $score,
         ];
     }
@@ -138,7 +139,7 @@ class GuideSearch
      * Guia de fora do menu (Primeiros passos) vale para todos.
      *
      * @param  array<string, mixed>  $section
-     * @return array{tem_acesso: bool, telas: list<array{nome: string, url: string}>, precisa_de: list<string>}
+     * @return array{tem_acesso: bool, telas: list<array{nome: string, url: string}>, precisa_de: list<string>, requisitos: list<array<string, mixed>>}
      */
     private function access(array $section, User $user): array
     {
@@ -159,7 +160,7 @@ class GuideSearch
         }
 
         if ($routes === [] && $permissions === []) {
-            return ['tem_acesso' => true, 'telas' => [], 'precisa_de' => []];
+            return ['tem_acesso' => true, 'telas' => [], 'precisa_de' => [], 'requisitos' => []];
         }
 
         $opens = fn (string $route) => ($p = $destinations[$route]['permission']) === null || $user->can($p);
@@ -174,31 +175,66 @@ class GuideSearch
             ? array_map(fn ($route) => ['nome' => $destinations[$route]['caminho'], 'url' => route($route)], $reachable)
             : [];
 
-        $precisaDe = [];
+        $requisitos = [];
         if (!$temAcesso) {
             foreach ($routes as $route) {
-                $precisaDe[] = $this->describe($destinations[$route]['caminho'], $destinations[$route]['permission']);
+                $requisitos[] = $this->requirement($destinations[$route]['caminho'], $destinations[$route]['permission']);
             }
             foreach ($permissions as $permission) {
-                $precisaDe[] = $this->describe(null, $permission);
+                $requisitos[] = $this->requirement(null, $permission);
             }
+            $requisitos = array_values(array_unique($requisitos, SORT_REGULAR));
         }
 
-        return ['tem_acesso' => $temAcesso, 'telas' => $telas, 'precisa_de' => array_values(array_unique($precisaDe))];
+        return [
+            'tem_acesso' => $temAcesso,
+            'telas' => $telas,
+            'precisa_de' => array_map(fn (array $r) => $this->describe($r), $requisitos),
+            'requisitos' => $requisitos,
+        ];
     }
 
-    /** "Ingressos › Check-in (permissão: Check-in na entrada do evento)". */
-    private function describe(?string $caminho, ?string $permission): string
+    /**
+     * O que abre uma tela (ou uma habilidade), com as permissões já no rótulo
+     * da tela Setores ("Ingressos › Check-in na entrada do evento"). Habilidade
+     * composta (Permissions::ANY_OF) vira a lista das que bastam; regra de
+     * cargo (`coordinate-sector`) não tem permissão e vai em `regra`.
+     *
+     * @return array{tela: ?string, permissoes: list<string>, basta_uma: bool, regra: ?string}
+     */
+    private function requirement(?string $caminho, ?string $ability): array
     {
-        $label = $permission && in_array($permission, Permissions::all(), true)
-            ? Permissions::group($permission) . ' › ' . Permissions::label($permission)
-            : null;
+        $permissoes = array_map(
+            fn (string $p) => Permissions::group($p) . ' › ' . Permissions::label($p),
+            $ability ? Permissions::grantedBy($ability) : []
+        );
+
+        return [
+            'tela' => $caminho,
+            'permissoes' => $permissoes,
+            'basta_uma' => count($permissoes) > 1,
+            'regra' => $ability === 'coordinate-sector' ? 'só para coordenadores de setor' : null,
+        ];
+    }
+
+    /**
+     * "SIV › Busca (permissão: SIV › Busca de placas)"; com várias, "(uma
+     * destas permissões: A; B)". A tela sempre vem acompanhada do que a abre,
+     * para a IA não chamar uma tela de permissão.
+     */
+    private function describe(array $r): string
+    {
+        $oQue = match (true) {
+            $r['regra'] !== null => $r['regra'],
+            count($r['permissoes']) === 1 => 'permissão: ' . $r['permissoes'][0],
+            count($r['permissoes']) > 1 => 'uma destas permissões: ' . implode('; ', $r['permissoes']),
+            default => null,
+        };
 
         return match (true) {
-            $caminho !== null && $label !== null => "{$caminho} (permissão: {$label})",
-            $caminho !== null => $caminho,
-            $label !== null => "permissão: {$label}",
-            default => (string) $permission,
+            $r['tela'] !== null && $oQue !== null => "{$r['tela']} ({$oQue})",
+            $r['tela'] !== null => $r['tela'],
+            default => (string) $oQue,
         };
     }
 

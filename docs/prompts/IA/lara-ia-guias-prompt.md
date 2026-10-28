@@ -1,7 +1,7 @@
 # Prompt para o agente da VM da IA (Lara) — guias de uso e contexto da tela
 
 Cole o bloco abaixo numa sessão do Claude Code aberta no repositório do agente da Lara. Contrato
-completo do lado do Lara em [lara-ia-consultas.md](lara-ia-consultas.md) (seções "Busca de guias"
+completo do lado do Lara em [lara-ia-consultas.md](../../funcionalidades/lara-ia-consultas.md) (seções "Busca de guias"
 e "Contexto da tela").
 
 ---

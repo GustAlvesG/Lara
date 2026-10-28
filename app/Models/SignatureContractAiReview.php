@@ -24,6 +24,14 @@ class SignatureContractAiReview extends Model
 
     public const SEVERITIES = ['alta', 'media', 'baixa'];
 
+    /** Por que um trecho fica fora da análise, a menos que o gerente o inclua. */
+    public const SENSITIVE_LABELS = [
+        'valores' => 'valores',
+        'cpf' => 'CPF',
+        'documentos' => 'documentos',
+        'endereco' => 'endereço',
+    ];
+
     protected $fillable = [
         'signature_contract_id',
         'content_hash',
@@ -31,6 +39,7 @@ class SignatureContractAiReview extends Model
         'verdict',
         'summary',
         'findings',
+        'withheld',
         'input_tokens',
         'output_tokens',
         'requested_by',
@@ -40,6 +49,7 @@ class SignatureContractAiReview extends Model
     protected $casts = [
         'signature_contract_id' => 'integer',
         'findings' => 'array',
+        'withheld' => 'array',
         'input_tokens' => 'integer',
         'output_tokens' => 'integer',
         'requested_by' => 'integer',
@@ -48,6 +58,15 @@ class SignatureContractAiReview extends Model
     public function contract(): BelongsTo
     {
         return $this->belongsTo(SignatureContract::class, 'signature_contract_id');
+    }
+
+    /** Chaves dos trechos que ficaram de fora, em ordem (para comparar pedidos). */
+    public function withheldKeys(): array
+    {
+        $chaves = array_column($this->withheld ?? [], 'key');
+        sort($chaves);
+
+        return $chaves;
     }
 
     public function verdictLabel(): string

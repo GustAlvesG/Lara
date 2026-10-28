@@ -2,12 +2,15 @@
     Revisão automática pelo Claude, na tela do contrato (só a Gerência).
     Mostra a última revisão — avisando se o texto mudou depois — e, durante a
     validação, leva cada sugestão para a observação da cláusula com um clique.
+    Trechos com valores, CPF, documentos ou endereço ($aiSensitive) só vão
+    ao Claude se o gerente marcar.
 --}}
 @php
     use App\Models\SignatureContractAiReview as R;
 
     $clausulas = array_values($contract->content['clauses'] ?? []);
     $podePedir = auth()->user()->can('aiReview', $contract);
+    $motivos = fn(array $r) => collect($r)->map(fn($m) => R::SENSITIVE_LABELS[$m] ?? $m)->join(', ', ' e ');
 @endphp
 <div id="revisao-ia" class="space-y-3 rounded-card bg-surface p-5 shadow-card">
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -25,6 +28,13 @@
             @endunless
         </p>
         <p class="whitespace-pre-line text-sm text-ink">{{ $aiReview->summary }}</p>
+
+        @if(!empty($aiReview->withheld))
+            <p class="text-xs text-ink-2">
+                <b>Não enviados ao Claude</b> (não foram analisados):
+                {{ collect($aiReview->withheld)->map(fn($w) => $w['label'] . ' (' . $motivos($w['reasons'] ?? []) . ')')->join('; ') }}.
+            </p>
+        @endif
 
         @if($aiReview->findings !== [])
             <div class="space-y-2">
@@ -70,14 +80,37 @@
 
     <p class="text-xs text-ink-3">
         Sugestões automáticas: confira antes de usar. Não substituem a leitura nem a conferência do Lara.
-        O texto do contrato, com as partes, é enviado à Anthropic (empresa do Claude) para a análise.
+        O texto do contrato é enviado à Anthropic (empresa do Claude) para a análise; os trechos com valores, CPF,
+        documentos ou endereço só vão se você marcar.
     </p>
 
-    @if($podePedir && !($aiReview && $aiReviewCurrent))
+    @php $atual = $aiReview && $aiReviewCurrent; @endphp
+    @if($podePedir && (!$atual || $aiSensitive !== []))
         <form method="POST" action="{{ route('signature-contracts.ai-review', $contract) }}" data-ai-form>
             @csrf
-            <x-secondary-button type="submit" size="sm">{{ $aiReview ? 'Analisar o texto atual' : 'Analisar com o Claude' }}</x-secondary-button>
+            @if($atual)
+                <details class="text-sm">
+                    <summary class="cursor-pointer text-xs font-bold text-grena-ink">Analisar de novo escolhendo outros trechos</summary>
+            @endif
+
+            @if($aiSensitive !== [])
+                <fieldset class="mb-3 space-y-1 rounded-xl border border-line p-3">
+                    <legend class="px-1 text-xs font-bold text-ink-2">Trechos com dados sensíveis — ficam de fora, a menos que você marque</legend>
+                    @foreach($aiSensitive as $s)
+                        <label class="flex items-start gap-2 text-sm text-ink">
+                            <input type="checkbox" name="include[]" value="{{ $s['key'] }}" class="mt-1 rounded border-line">
+                            <span>{{ $s['label'] }} <span class="text-xs text-ink-2">({{ $motivos($s['reasons']) }})</span></span>
+                        </label>
+                    @endforeach
+                </fieldset>
+            @endif
+
+            <x-secondary-button type="submit" size="sm">{{ $atual ? 'Analisar de novo' : ($aiReview ? 'Analisar o texto atual' : 'Analisar com o Claude') }}</x-secondary-button>
             <span class="ml-2 hidden text-xs text-ink-2" data-ai-wait>Analisando… pode levar até um minuto.</span>
+
+            @if($atual)
+                </details>
+            @endif
         </form>
     @endif
 </div>

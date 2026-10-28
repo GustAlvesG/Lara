@@ -101,10 +101,19 @@ com a API está em [claude-api.md](claude-api.md).
   validação. Sem `ANTHROPIC_API_KEY`, o cartão nem aparece.
 - **Onde:** cartão "Revisão automática (Claude)" na tela do contrato, logo abaixo da validação. Botão
   "Analisar com o Claude" → `POST signature-contracts.ai-review` (6 por minuto) → volta para `#revisao-ia`.
-- **O que vai:** `ContractAiReviewer::plainText()`, o contrato inteiro como na prévia (qualificação, considerandos,
-  todas as cláusulas numeradas, fecho e signatários, com as variáveis e o extenso resolvidos). Junto vão
-  o tipo, o título, o setor, os nomes dos anexos e a lista da conferência do Lara (`problems()`), para o
-  Claude não repetir o que já está apontado.
+- **O que vai:** `ContractAiReviewer::plainText()`, o contrato como na prévia (qualificação, considerandos,
+  cláusulas numeradas, fecho e signatários, com as variáveis e o extenso resolvidos), **menos os trechos
+  sensíveis** (abaixo). Junto vão o tipo, o título, o setor, os nomes dos anexos, a lista do que ficou de
+  fora e a conferência do Lara (`problems()`), para o Claude não repetir o que já está apontado.
+- **Trechos sensíveis ficam de fora por padrão** (pedido de 28/10/2026): o contrato é dividido em trechos
+  (cada parágrafo da qualificação, cada considerando, cada cláusula com seus itens, as assinaturas). O trecho
+  com **valores** (R$, "reais", 1.234,56), **CPF**, **documentos** (CNPJ, RG, CNH, inscrição estadual…) ou
+  **endereço** (rua, avenida, CEP, "residente", "com sede"…) não vai: no lugar segue `[não enviado: contém …]`,
+  e a cláusula mantém o título, para a numeração continuar certa. Título, número e fecho vão sempre. A tela lista
+  esses trechos com caixas **desmarcadas**; o gerente marca um a um o que quer incluir (`include[]`, as chaves
+  de `sensitiveSections()`). O Claude é instruído a não apontar a falta do que foi retirado. A revisão guarda
+  em `withheld` o que ficou de fora, e o cartão mostra "Não enviados ao Claude: …". Percentual sozinho
+  (ex.: multa de 10%) não conta como valor.
 - **O que volta** (JSON por esquema): `veredito` (`sem_ressalvas` | `ajustes_recomendados` |
   `revisar_antes_de_aprovar`), `resumo` (2 a 5 frases) e `apontamentos[]` com `clausula` (número; 0 = geral),
   `trecho`, `gravidade` (alta/media/baixa), `problema` e `sugestao`. O Lara limpa o resultado antes de gravar:
@@ -113,9 +122,10 @@ com a API está em [claude-api.md](claude-api.md).
 - **Na validação:** cada apontamento tem "Levar para a observação da cláusula" (ou "geral"). O botão copia
   o problema e a sugestão para o campo de observação daquela cláusula no formulário de devolução. Nada é
   gravado sem o gerente devolver.
-- **Mesmo texto, mesma revisão:** a revisão guarda o `sha256` do texto enviado. Pedir de novo sem mudança devolve a
-  existente, sem nova chamada. Se o texto mudou, o cartão avisa "O texto mudou depois desta revisão" e
-  oferece "Analisar o texto atual".
+- **Mesmo texto, mesma revisão:** a revisão guarda o `sha256` do texto inteiro do contrato e os trechos
+  retidos. Pedir de novo sem mudança e com a mesma escolha de trechos devolve a existente, sem nova chamada.
+  Se o texto mudou, o cartão avisa "O texto mudou depois desta revisão" e oferece "Analisar o texto atual".
+  Com a revisão em dia, "Analisar de novo escolhendo outros trechos" permite repetir com outra escolha.
 - **Só orienta:** não aprova, não devolve, não altera o texto, e não aparece no tablet do balcão. Fica no
   histórico como "Revisão automática pelo Claude".
 - Erro da API: volta como mensagem na tela (ver a tabela em [claude-api.md](claude-api.md#erros)), e nada é gravado.
@@ -219,7 +229,7 @@ Migration `2026_10_29_100000_create_signature_contracts` (idempotente, nomes cur
 | `signature_contract_clauses` | biblioteca por setor (`items` JSON), SoftDeletes |
 | `signature_contract_models` | modelos por setor (`content` JSON), SoftDeletes |
 | `signature_contract_parties` | contratadas/fiadores por `document` |
-| `signature_contract_ai_reviews` | revisão do Claude (migration `2026_10_29_110000`): `content_hash`, `model`, `verdict`, `summary`, `findings` (JSON), `input_tokens`/`output_tokens`, quem pediu |
+| `signature_contract_ai_reviews` | revisão do Claude (migration `2026_10_29_110000`): `content_hash`, `model`, `verdict`, `summary`, `findings` (JSON), `input_tokens`/`output_tokens`, quem pediu; `withheld` (JSON, migration `2026_10_29_130000`: trechos não enviados, `{key, label, reasons}`; nulo = tudo foi) |
 
 Forma do `content`: ver o docblock de `ContractContent`.
 

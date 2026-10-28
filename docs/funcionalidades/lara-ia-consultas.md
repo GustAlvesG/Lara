@@ -165,7 +165,22 @@ escondida**. Cada seção diz se a pessoa **alcança** a tarefa:
 - não cita → vale o módulo do guia inteiro (alguma tela do módulo), sem lista de links;
 - guia fora do menu ("Primeiros passos") → todos.
 
-Sem acesso, `precisa_de` diz o que pedir: `"SIV › Busca (permissão: SIV › Busca de placas)"`.
+Sem acesso, a seção diz o que pedir de dois jeitos (com acesso, os dois vêm vazios):
+
+- `precisa_de` — frases prontas, **sempre** com o que abre a tela entre parênteses (nunca a tela
+  sozinha, para a IA não chamar tela de permissão):
+  - `"SIV › Busca (permissão: SIV › Busca de placas)"`;
+  - `"Ingressos › Eventos (uma destas permissões: Ingressos › …; Ingressos › …)"` — tela que abre
+    com qualquer uma de várias (as habilidades compostas de `Permissions::ANY_OF`);
+  - `"Conta › Meu setor (só para coordenadores de setor)"` — regra de cargo, sem permissão.
+- `requisitos` (desde 28/10/2026) — o mesmo, estruturado:
+  `[{tela: "Ingressos › Eventos", permissoes: ["Ingressos › Check-in na entrada do evento", …], basta_uma: true, regra: null}]`.
+  `permissoes` vem com o rótulo da tela Setores ("Grupo › Rótulo"); `basta_uma` = qualquer uma
+  delas abre; `regra` só para o que não é permissão ("só para coordenadores de setor").
+  `tela: null` quando a seção pede uma permissão que não é de tela (`<!-- permissoes: -->`).
+
+O que vai em `requisitos` é o que abre a **tela**. Exigência de botão dentro da tela ("Emitir
+pede também Baixa manual ou Cortesia") só está no texto do guia.
 Quem libera permissão é a **TI ou a Gerência** (tela Setores, ou por pessoa em Usuários); o
 **coordenador** só coloca a pessoa num setor que já tem a permissão (tela Meu setor).
 
@@ -184,6 +199,7 @@ Quem libera permissão é a **TI ou a Gerência** (tela Setores, ou por pessoa e
     "tem_acesso": true,
     "telas": [{"nome": "Ingressos › Eventos", "url": "https://<lara>/ingressos"}],
     "precisa_de": [],
+    "requisitos": [],
     "relevance": 11
   }]
 }
@@ -226,6 +242,4 @@ Desde 28/10/2026 o balão da Lara manda a tela atual junto com a pergunta e O La
   `tests/Feature/GuideSearchTest.php`, `tests/Unit/UserGuidesTest.php`,
   `tests/Feature/UserGuidesContentTest.php` (confere os guias de verdade),
   `tests/Feature/LaraWidgetTest.php` e `tests/Unit/LaraClientTest.php` (contexto)
-- Prompts para o agente da VM da IA: [lara-ia-busca-avisos-prompt.md](lara-ia-busca-avisos-prompt.md)
-  (avisos) e [lara-ia-guias-prompt.md](lara-ia-guias-prompt.md) (guias e contexto da tela)
-- Prompt para o agente da VM da IA: [lara-ia-busca-avisos-prompt.md](lara-ia-busca-avisos-prompt.md)
+- Prompts para o agente da VM da IA, em [docs/prompts/IA](../prompts/IA/): avisos, guias e contexto da tela, e o retorno sobre requisitos
