@@ -22,7 +22,7 @@
 <header class="sticky z-40 border-b border-line bg-surface text-ink" style="top: env(safe-area-inset-top, 0px)">
     <div class="flex h-[62px] items-center gap-2.5 px-3 sm:gap-3 sm:px-5">
         <a href="{{ route('dashboard') }}" class="flex shrink-0 items-center gap-2 no-underline" aria-label="LARA, ir para o início">
-            <x-application-logo :width="'22px'" :height="'28px'" :color="'#A00001'" class="fill-carmim dark:fill-white" />
+            <img src="{{ asset('images/logo_girante.gif') }}" alt="" class="h-[48px] w-auto">
             <span class="hidden font-display text-[17px] font-bold tracking-tight text-ink sm:inline">LARA</span>
         </a>
 
