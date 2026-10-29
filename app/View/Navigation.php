@@ -202,6 +202,15 @@ final class Navigation
                     ['route' => 'employees.index', 'label' => 'Funcionários', 'permission' => P::FUNCIONARIOS_GERENCIAR, 'active' => 'employees.*'],
                 ],
             ],
+            // Disparo de E-mails: campanhas para listas importadas. Quem envia
+            // é o scheduler (email-campaigns:send), não a tela.
+            ['label' => 'Disparo de E-mails', 'area' => 'info', 'glyph' => 'mail',
+                'icon' => 'M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75',
+                'children' => [
+                    ['route' => 'email-campaigns.index', 'label' => 'Campanhas', 'permission' => P::DISPARO_EMAILS, 'active' => 'email-campaigns.*'],
+                    ['route' => 'email-suppressions.index', 'label' => 'Não enviar para', 'permission' => P::DISPARO_EMAILS, 'active' => 'email-suppressions.*'],
+                ],
+            ],
             // Banco de Horas: escondido do menu por decisão anterior. Para
             // voltar, é descomentar — a consulta é do Gate `view-comp-time`
             // (RH, coordenador ou quem tem matrícula) e o cadastro é da

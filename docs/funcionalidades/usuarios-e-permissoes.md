@@ -51,6 +51,7 @@ Setores. "Secretaria" é o setor **Atendimento**; "Financeiro" é a
 | Reservas › Contas do site (senha provisória, e-mail, cadastro manual, duplicadas) | `reservas.contas-site` | nasce sem setor (23/10/2026) — dar a quem atende os sócios |
 | RePET (câmeras, layouts e vídeos das quadras) | `replay` | TI (acesso total); Marketing recebe na tela de Setores |
 | Funcionários (cadastro, planilha, férias, afastamentos, rescisão) | `funcionarios.gerenciar` | nasce sem setor (desde 20/10/2026) — dar ao RH na tela de Setores |
+| Disparo de E-mails (campanhas, listas, envio e "Não enviar para") | `disparo-emails` | nasce sem setor (29/10/2026) — dar a quem faz as campanhas (Marketing, Comunicação) |
 | Banco de Horas (importação do espelho de ponto) | `banco-horas.admin` | RH |
 | Login da API do Telegram | `telegram.login` | Comercial |
 | Locais e regras de reserva, Sócios/Acessos | `reservas.configurar`, `socios.consulta` | TI (acesso total) |

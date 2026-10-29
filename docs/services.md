@@ -270,6 +270,21 @@ Regras em [ingressos.md](funcionalidades/ingressos.md).
 
 ---
 
+## EmailCampaign\* (Disparo de E-mails)
+
+Regras em [disparo-emails.md](funcionalidades/disparo-emails.md).
+
+| Serviço | Papel |
+|---------|-------|
+| `RecipientListReader` | `read(path, ext)`: .csv (separador `;`, `,`, tab ou barra vertical; UTF-8 ou Windows-1252) ou .xlsx/.xls (primeira aba). Coluna de e-mail por vários nomes (ou lista sem cabeçalho); sai como `email`, a de nome como `nome`, as outras pelo slug do cabeçalho. |
+| `RecipientImporter` | `import(campanha, path, ext, nome, $replace)`: não é tudo-ou-nada — inválido, repetido e acima de `max_recipients` ficam de fora e voltam contados (até 20 linhas de amostra); célula com vários e-mails vira um destinatário por e-mail; `insertOrIgnore` em lotes de 500. Pausada só acrescenta. |
+| `CampaignRenderer` | `render(campanha, variáveis, $embed)`: troca `{{coluna}}` (escapado no HTML; vazio se faltar), tira `<script>`, troca a URL de `email-campaigns.images.show` por `cid:` e devolve as imagens, gera o texto puro. `variablesFor(destinatário)`, `sampleVariables()` (primeiro da lista), `unknownVariables()`. |
+| `CampaignSender` | `run(?limite, segundos)`: o motor do `email-campaigns:send` (teto por rodada, relê a situação a cada lote, pula "Não enviar para"; 5xx falha na hora, 4xx tenta até `max_attempts`, servidor fora encerra a rodada sem gastar tentativa; recusas seguidas pausam a campanha). `sendTest()` na hora, com "[TESTE]". |
+| `EmailCampaignService` | `start(campanha, ?quando)` (recusa sem conteúdo, sem fila ou com variável que a lista não tem), `pause()`, `resume()`, `cancel()`, `unschedule()`, `retryFailed()`, `duplicate()` (lista copiada de volta para a fila), `clearRecipients()` (só rascunho). |
+| `CampaignImageStore` | Imagens do editor em `storage/app/email-campaigns/images` (nome uuid; `path()` só aceita esse formato). |
+
+---
+
 ## FreelancerService
 
 `app/Services/FreelancerService.php`

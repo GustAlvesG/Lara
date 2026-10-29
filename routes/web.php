@@ -48,6 +48,8 @@ use App\Http\Controllers\ParkingAuthorizationController;
 use App\Http\Controllers\Fleet\FleetController;
 use App\Http\Controllers\DocumentationController;
 use App\Http\Controllers\EmailController;
+use App\Http\Controllers\EmailCampaign\EmailCampaignController;
+use App\Http\Controllers\EmailCampaign\EmailSuppressionController;
 
 use App\Http\Controllers\AvisoController;
 use App\Http\Controllers\NotificationController;
@@ -681,6 +683,47 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         // os endereços antigos só redirecionam.
         Route::redirect('/employees', '/funcionarios')->name('comp-time.employees.index');
         Route::redirect('/employees/{employee}', '/funcionarios/{employee}')->name('comp-time.employees.show');
+    });
+
+    // Disparo de E-mails: campanhas para listas importadas (.csv/.xlsx). A
+    // tela só muda a situação; quem envia é o `email-campaigns:send` do
+    // scheduler — ver docs/funcionalidades/disparo-emails.md. `{campaign}`
+    // só número, para não engolir `nova`, `imagens` e `nao-enviar`.
+    Route::prefix('disparo-emails')->middleware('can:' . P::DISPARO_EMAILS)->group(function () {
+        Route::prefix('nao-enviar')->name('email-suppressions.')->controller(EmailSuppressionController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/', 'store')->name('store');
+            Route::delete('/{suppression}', 'destroy')->name('destroy')->whereNumber('suppression');
+        });
+
+        Route::name('email-campaigns.')->controller(EmailCampaignController::class)->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::get('/nova', 'create')->name('create');
+            Route::post('/', 'store')->name('store');
+            Route::get('/modelo-lista/{format}', 'listTemplate')->name('list-template')->whereIn('format', ['csv', 'xlsx']);
+            Route::post('/imagens', 'uploadImage')->name('images.store');
+            Route::get('/imagens/{file}', 'showImage')->name('images.show');
+
+            Route::prefix('/{campaign}')->whereNumber('campaign')->group(function () {
+                Route::get('/', 'show')->name('show');
+                Route::get('/editar', 'edit')->name('edit');
+                Route::put('/', 'update')->name('update');
+                Route::delete('/', 'destroy')->name('destroy');
+                Route::get('/previa', 'preview')->name('preview');
+                Route::get('/andamento', 'progress')->name('progress');
+                Route::post('/teste', 'sendTest')->name('test');
+                Route::post('/enviar', 'start')->name('start');
+                Route::post('/pausar', 'pause')->name('pause');
+                Route::post('/retomar', 'resume')->name('resume');
+                Route::post('/cancelar', 'cancel')->name('cancel');
+                Route::post('/desagendar', 'unschedule')->name('unschedule');
+                Route::post('/reenviar-falhas', 'retryFailed')->name('retry');
+                Route::post('/duplicar', 'duplicate')->name('duplicate');
+                Route::post('/destinatarios', 'importRecipients')->name('recipients.import');
+                Route::delete('/destinatarios', 'clearRecipients')->name('recipients.clear');
+                Route::get('/destinatarios/exportar', 'exportRecipients')->name('recipients.export');
+            });
+        });
     });
 
     // Funcionários: o cadastro do RH. É ele que autentica quem pede carro de

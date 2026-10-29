@@ -467,6 +467,34 @@ versionamento (toda alteração cria uma nova linha em `data_infos`) e permissõ
 
 ---
 
+## Disparo de E-mails (`app/Http/Controllers/EmailCampaign/`)
+
+Permissão `disparo-emails` no corte da rota. Regras em [disparo-emails.md](funcionalidades/disparo-emails.md).
+
+### EmailCampaignController
+| Método | Descrição |
+|--------|-----------|
+| `index` | Lista paginada com busca (nome/assunto) e filtro de situação; enviados/falhas por `withCount`. → View |
+| `create` / `store` | Nova campanha (`EmailCampaignRequest`: remetente da lista `email_campaigns.from_addresses`); nasce rascunho. |
+| `show` | Andamento, Enviar/Agendar, teste, lista (busca + situação, paginada), prévia. → View |
+| `edit` / `update` | Só rascunho ou pausada; o remetente atual continua aceito mesmo fora da configuração. |
+| `destroy` | Só rascunho, concluída ou cancelada. |
+| `preview` | O HTML com os dados do primeiro destinatário, com `Content-Security-Policy` sem script. |
+| `progress` | Situação e contagens → JSON (a tela consulta a cada 5 s enquanto ativa). |
+| `sendTest` | E-mail de teste na hora (`CampaignSender::sendTest`); a falha volta como erro na tela. |
+| `start` · `pause` · `resume` · `cancel` · `unschedule` · `retryFailed` · `duplicate` | Transições do `EmailCampaignService`; `EmailCampaignException` vira mensagem de erro. |
+| `importRecipients` | `.csv`/`.xlsx` até 20 MB, validado pela extensão (`RecipientImporter`); linhas recusadas em `import_rejected` na sessão. |
+| `clearRecipients` · `exportRecipients` | Apaga a lista (rascunho) · CSV com a situação de cada destinatário. |
+| `listTemplate` | Lista de exemplo em .csv ou .xlsx. |
+| `uploadImage` · `showImage` | Imagem do editor → JSON `{url}` · serve a imagem (só logado). |
+
+### EmailSuppressionController
+| Método | Descrição |
+|--------|-----------|
+| `index` | "Não enviar para", com busca. → View |
+| `store` | Vários e-mails de uma vez (linha, vírgula ou ponto e vírgula), normalizados em minúsculas; os inválidos são listados. |
+| `destroy` | Volta a enviar para o endereço. |
+
 ## Controllers auxiliares
 
 ### EnergyController (`EnergyController.php`)

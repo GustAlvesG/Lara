@@ -86,6 +86,11 @@ enviado. Ver [Autorização de Ordem de Compra](funcionalidades/questor-autoriza
   (`SignatureGovbrInviteMail`) e o código da conferência de identidade (`SignatureIdentityCodeMail`).
   Os dois últimos saem **na hora, fora da fila**: alguém espera o resultado, e o código não pode ficar
   gravado na tabela de jobs.
+- **Disparo de E-mails (campanhas):** `EmailCampaignMail`, mandado pelo comando agendado
+  `email-campaigns:send` (scheduler, **não** a fila), até `EMAIL_CAMPAIGNS_PER_MINUTE` por minuto, pelo
+  mailer padrão ou pelo de `EMAIL_CAMPAIGNS_MAILER`. Remetentes permitidos em
+  `EMAIL_CAMPAIGNS_FROM_ADDRESSES` (só domínio verificado no provedor). Imagens embutidas (`cid:`).
+  Ver [Disparo de E-mails](funcionalidades/disparo-emails.md).
 
 ---
 
