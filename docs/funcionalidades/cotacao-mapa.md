@@ -600,6 +600,32 @@ Quem quiser o dado de hoje usa o botão **"Atualizar histórico"**, que regrava 
 retrato de propósito e deixa registro no log — é uma ação que muda a base de
 comparação de um mapa que talvez já tenha preços digitados.
 
+## Atualizar itens da SC (desde 29/10/2026)
+
+A SC pode ganhar itens no Questor depois de o mapa ser gerado. O botão **"Atualizar
+itens da SC"** (`POST cotacao/mapas/{mapa}/atualizar-itens`, rota
+`cotacao.mapas.atualizar-itens`, policy `update`) chama
+`MapaImportService::atualizarItens()`, que relê a query 2 (itens) e a de última
+compra **fora da transação** e depois, casando por `questor_cd_item`:
+
+- **item novo na SC** → entra no fim da grade (`ordem` = máx + 1, `origem =
+  solicitacao`) com o retrato `ult_compra_*`, igual à importação;
+- **item já no mapa** → recebe `descricao`, `unidade`, `quantidade` e
+  `questor_cd_material` atuais; preços e `vencedor_id` não são tocados;
+- **item que saiu da SC** → **não é apagado** (pode ter preço); volta em
+  `fora_da_sc` e a tela mostra um aviso para o comprador remover à mão;
+- **item que o comprador removeu** → não volta. A remoção (`destroyItem`) grava
+  `questor_cd_item` no payload do log `item/removido` desde 29/10/2026, e é por
+  ele que o serviço reconhece. Remoções anteriores não têm o código e podem
+  voltar uma vez;
+- **avulso** (`questor_cd_item` nulo) → ignorado.
+
+SC sem itens na releitura dá `CotacaoException::solicitacaoSemItens` (é mais
+provável leitura errada que "tudo saiu"). Mapa fechado/cancelado recusa com
+`mapaSomenteLeitura`. A ação grava `CotacaoMapaLog::ACAO_ATUALIZOU_ITENS`
+(`atualizou_itens`) com as descrições incluídas, alteradas e fora da SC.
+Testes em `tests/Feature/Cotacao/MapaImportServiceTest.php`.
+
 ## Estrutura
 
 ```
@@ -653,7 +679,7 @@ php -d memory_limit=1G vendor/bin/phpunit tests/Unit/Cotacao tests/Feature/Cotac
   economia negativa, cobertura parcial.
 - `MapaImportServiceTest` — Questor por mock: SC inexistente, SC sem itens, item
   com `CD_MATERIAL` nulo, SC que já tem mapa, mapa cancelado que libera nova
-  importação, atualizar histórico, teto de colunas, fornecedor fora do ERP.
+  importação, atualizar histórico, atualizar itens da SC, teto de colunas, fornecedor fora do ERP.
 - `SalvarPrecoEscopoTest` — a trava de IDOR: item ou fornecedor de outro mapa é
   recusado na **autorização** (403), não na validação.
 - `MapaExportServiceTest` — o layout clássico (posição de cada linha, `NT` como

@@ -21,6 +21,7 @@ class CotacaoMapaLog extends Model
     public const ACAO_CRIACAO = 'criacao';
     public const ACAO_IMPORTACAO = 'importacao';
     public const ACAO_ATUALIZOU_HISTORICO = 'atualizou_historico';
+    public const ACAO_ATUALIZOU_ITENS = 'atualizou_itens';
     public const ACAO_PRECO = 'preco';
     public const ACAO_FORNECEDOR = 'fornecedor';
     public const ACAO_ITEM = 'item';
@@ -83,6 +84,7 @@ class CotacaoMapaLog extends Model
             self::ACAO_CRIACAO => 'Mapa criado',
             self::ACAO_IMPORTACAO => 'Itens importados da SC',
             self::ACAO_ATUALIZOU_HISTORICO => 'Histórico de compra atualizado',
+            self::ACAO_ATUALIZOU_ITENS => 'Itens atualizados da SC',
             self::ACAO_PRECO => 'Preço alterado',
             self::ACAO_FORNECEDOR => 'Coluna de fornecedor',
             self::ACAO_ITEM => 'Item do mapa',

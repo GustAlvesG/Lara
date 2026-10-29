@@ -1,6 +1,6 @@
 ---
 modulo: Compras
-palavras: compras, cotação, mapa de cotação, cotar, orçamento, fornecedor, loja, preço, solicitação de compra, SC, Questor, frete, prazo de entrega, condição de pagamento, desconto, vencedor, menor preço, economia, última compra, planilha, Excel, XLSX, fechar mapa, reabrir
+palavras: compras, cotação, mapa de cotação, cotar, orçamento, fornecedor, loja, preço, solicitação de compra, SC, Questor, frete, prazo de entrega, condição de pagamento, desconto, vencedor, menor preço, economia, última compra, planilha, Excel, XLSX, fechar mapa, reabrir, atualizar itens, item novo na SC, SC alterada
 ---
 
 # Compras — guia de uso
@@ -157,6 +157,29 @@ Na tela do mapa (**Compras › Mapas de Cotação**, clique no mapa), a coluna *
 Use quando uma compra nova entrou no Questor depois da criação do mapa. Lembre que isso **muda a base de comparação**: a variação percentual e a economia projetada são recalculadas. A atualização fica registrada no histórico de alterações do mapa.
 
 **Itens sem cadastro** (digitados como texto livre na SC, com o selo **sem cadastro**) não têm histórico por código: a coluna fica com "—" e o histórico mostra "item sem cadastro — sem histórico". Isso é normal e não impede a cotação.
+
+## Atualizar os itens quando a SC mudou
+<!-- telas: cotacao.mapas.index -->
+
+O mapa copia os itens da SC no momento em que é criado. Se depois disso o solicitante **acrescentar itens** (ou mudar a quantidade) na SC lá no Questor, o mapa não muda sozinho.
+
+**Para trazer as mudanças da SC para o mapa:**
+
+1. Abra o mapa (**Compras › Mapas de Cotação**, clique no mapa).
+2. Clique em **Atualizar itens da SC**, no topo do mapa.
+3. O Lara consulta a SC no Questor de novo e:
+   - **inclui no fim da grade** os itens novos, já com a última compra de cada um;
+   - **atualiza descrição, unidade e quantidade** dos itens que já estavam no mapa.
+4. A mensagem diz quais itens foram incluídos e quantos foram atualizados.
+
+O que **não** muda:
+
+- Os **preços já digitados** e o **vencedor** escolhido de cada item continuam como estavam. Se a quantidade mudou, os totais são recalculados com a quantidade nova.
+- Um item que **saiu da SC** não é apagado do mapa (ele pode ter preço digitado). A tela avisa em amarelo quais itens não estão mais na solicitação; remova-os você mesmo se não forem mais cotados.
+- Um item que **você removeu do mapa** não volta. (Itens removidos antes de 29/10/2026 podem voltar uma vez — a mensagem mostra quais entraram; é só remover de novo.)
+- Itens **avulsos** (acrescentados à mão no mapa) não são afetados.
+
+O botão só aparece com o mapa em aberto (rascunho ou em cotação). A atualização fica registrada no histórico de alterações do mapa como "Itens atualizados da SC".
 
 O botão só aparece com o mapa aberto (rascunho ou em cotação) e depende do Questor estar no ar.
 

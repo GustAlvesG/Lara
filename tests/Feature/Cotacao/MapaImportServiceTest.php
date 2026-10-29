@@ -4,6 +4,7 @@ namespace Tests\Feature\Cotacao;
 
 use App\Exceptions\CotacaoException;
 use App\Models\CotacaoMapa;
+use App\Models\CotacaoMapaFornecedor;
 use App\Models\CotacaoMapaItem;
 use App\Models\CotacaoMapaLog;
 use App\Models\User;
@@ -296,6 +297,114 @@ class MapaImportServiceTest extends TestCase
         $this->servico()->atualizarHistorico($mapa, $this->comprador());
     }
 
+    /**
+     * A SC ganhou itens no Questor com o mapa já em cotação: o novo entra no
+     * fim da grade e o que já estava recebe a quantidade atual, sem perder o
+     * que o comprador fez nele.
+     */
+    public function test_atualizar_itens_inclui_o_que_a_sc_ganhou_e_atualiza_o_que_mudou(): void
+    {
+        $mapa = CotacaoMapa::factory()->emCotacao()->create(['questor_solicitacao' => 34334]);
+        $vencedor = CotacaoMapaFornecedor::factory()->create(['cotacao_mapa_id' => $mapa->id]);
+
+        $existente = CotacaoMapaItem::factory()->create([
+            'cotacao_mapa_id' => $mapa->id,
+            'questor_cd_item' => 1,
+            'questor_cd_material' => 5001,
+            'descricao' => 'TINTA',
+            'unidade' => 'UN',
+            'quantidade' => 1,
+            'ordem' => 1,
+            'vencedor_id' => $vencedor->id,
+        ]);
+
+        $avulso = CotacaoMapaItem::factory()->create([
+            'cotacao_mapa_id' => $mapa->id,
+            'questor_cd_item' => null,
+            'origem' => CotacaoMapaItem::ORIGEM_AVULSO,
+            'ordem' => 2,
+        ]);
+
+        $this->solicitacoes->shouldReceive('itens')->with(34334)->once()->andReturn(collect([
+            $this->item(1, 5001, 'TINTA', quantidade: 4),
+            $this->item(2, 5002, 'PINCEL'),
+        ]));
+        $this->compras->shouldReceive('ultimaCompraPorItem')->with(34334)->once()->andReturn(collect([
+            2 => $this->ultimaCompra(2, 5002, 12.50, 'BARRA COR'),
+        ]));
+
+        $resultado = $this->servico()->atualizarItens($mapa->fresh(), $this->comprador());
+
+        $this->assertSame(['PINCEL'], array_values($resultado['incluidos']));
+        $this->assertSame(['TINTA'], array_values($resultado['alterados']));
+        $this->assertSame([], $resultado['fora_da_sc']);
+
+        $existente->refresh();
+        $this->assertEqualsWithDelta(4, (float) $existente->quantidade, 0.0001);
+        // A decisão já tomada no item não é desfeita.
+        $this->assertSame($vencedor->id, $existente->vencedor_id);
+
+        $novo = CotacaoMapaItem::where('cotacao_mapa_id', $mapa->id)->where('questor_cd_item', 2)->firstOrFail();
+        $this->assertSame(3, $novo->ordem);
+        $this->assertSame(CotacaoMapaItem::ORIGEM_SOLICITACAO, $novo->origem);
+        $this->assertSame('BARRA COR', $novo->ult_compra_fornecedor_nome);
+
+        // O avulso não veio da SC e não é afetado.
+        $this->assertNotNull($avulso->fresh());
+        $this->assertDatabaseCount('cotacao_mapa_itens', 3);
+
+        $this->assertDatabaseHas('cotacao_mapa_logs', [
+            'cotacao_mapa_id' => $mapa->id,
+            'acao' => CotacaoMapaLog::ACAO_ATUALIZOU_ITENS,
+        ]);
+    }
+
+    /**
+     * Item que saiu da SC pode ter preço digitado: fica no mapa e volta como
+     * aviso. Item que o comprador tirou do mapa não é trazido de volta.
+     */
+    public function test_atualizar_itens_nao_apaga_o_que_saiu_da_sc_nem_traz_o_que_o_comprador_removeu(): void
+    {
+        $mapa = CotacaoMapa::factory()->emCotacao()->create(['questor_solicitacao' => 34334]);
+
+        $saiuDaSc = CotacaoMapaItem::factory()->create([
+            'cotacao_mapa_id' => $mapa->id,
+            'questor_cd_item' => 3,
+            'descricao' => 'LIXA',
+        ]);
+
+        CotacaoMapaLog::registrar($mapa, CotacaoMapaLog::ACAO_ITEM, [
+            'evento' => 'removido',
+            'item_id' => 500,
+            'questor_cd_item' => 2,
+            'descricao' => 'PINCEL',
+        ]);
+
+        $this->solicitacoes->shouldReceive('itens')->andReturn(collect([
+            $this->item(2, 5002, 'PINCEL'),
+        ]));
+        $this->compras->shouldReceive('ultimaCompraPorItem')->andReturn(collect());
+
+        $resultado = $this->servico()->atualizarItens($mapa->fresh(), $this->comprador());
+
+        $this->assertSame([], $resultado['incluidos']);
+        $this->assertSame(['LIXA'], array_values($resultado['fora_da_sc']));
+        $this->assertNotNull($saiuDaSc->fresh());
+        $this->assertDatabaseMissing('cotacao_mapa_itens', ['cotacao_mapa_id' => $mapa->id, 'questor_cd_item' => 2]);
+    }
+
+    public function test_mapa_fechado_nao_aceita_atualizacao_de_itens(): void
+    {
+        $mapa = CotacaoMapa::factory()->fechado()->create();
+
+        $this->solicitacoes->shouldNotReceive('itens');
+
+        $this->expectException(CotacaoException::class);
+        $this->expectExceptionMessage('não aceita alterações');
+
+        $this->servico()->atualizarItens($mapa, $this->comprador());
+    }
+
     public function test_acrescentar_fornecedor_respeita_o_teto_de_colunas(): void
     {
         config()->set('questor.cotacao.max_fornecedores', 2);
@@ -371,7 +480,7 @@ class MapaImportServiceTest extends TestCase
         ]);
     }
 
-    private function item(int $cdItem, ?int $material, string $descricao): SolicitacaoItemDTO
+    private function item(int $cdItem, ?int $material, string $descricao, float $quantidade = 1): SolicitacaoItemDTO
     {
         return SolicitacaoItemDTO::deLinha((object) [
             'CD_SOLICITACAO' => 34334,
@@ -379,7 +488,7 @@ class MapaImportServiceTest extends TestCase
             'CD_MATERIAL' => $material,
             'DS_MATERIAL' => $descricao,
             'DS_UNIDADE' => 'UN',
-            'NR_QUANTIDADE' => 1,
+            'NR_QUANTIDADE' => $quantidade,
             'VL_UNITARIO' => 0,
             'DS_OBS' => null,
             'DS_ALMOXARIFADO' => null,

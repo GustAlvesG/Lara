@@ -45,6 +45,10 @@ estão no catálogo, então o `Gate::before` não as responde).
   como compra" = `ISNULL(X_ATUALIZA_DT_ULTIMA_COMPRA, 1) = 1`.
 - O retrato `ult_compra_*` é gravado na importação e congelado; "Atualizar histórico" regrava
   com log.
+- "Atualizar itens da SC" (`MapaImportService::atualizarItens`, desde 29/10/2026) relê os itens
+  da SC: inclui os novos, atualiza descrição/unidade/quantidade dos existentes, **não apaga** o
+  que saiu (avisa) e **não traz de volta** o que o comprador removeu — reconhecido pelo
+  `questor_cd_item` no log `item/removido`. Casamento sempre por `questor_cd_item`.
 - Contas em `MapaCalculoService` (puro). O XLSX tem dois layouts (`classico`, o papel impresso;
   `completo`, análise) e o teste compara as **fórmulas do Excel** com o serviço.
 - Tabelas `cotacao_*` sem FK para `users` (o `User` está preso à conexão `mysql`); um mapa aberto

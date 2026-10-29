@@ -159,6 +159,15 @@
                             Atualizar histórico
                         </button>
                     </form>
+
+                    <form method="POST" action="{{ route('cotacao.mapas.atualizar-itens', $mapa) }}">
+                        @csrf
+                        <button type="submit"
+                                title="Reconsulta a SC no Questor: inclui os itens novos e atualiza descrição, unidade e quantidade. Preços digitados não mudam."
+                                class="px-4 py-2 rounded-xl bg-surface border border-line text-ink text-sm font-bold hover:bg-subtle transition">
+                            Atualizar itens da SC
+                        </button>
+                    </form>
                 @endif
 
                 @if($podeDecidir && $mapa->editavel())

@@ -264,6 +264,46 @@ class MapaController extends Controller
     }
 
     /**
+     * Traz para o mapa os itens que a SC ganhou (ou mudou) no Questor depois
+     * da importação.
+     */
+    public function atualizarItens(Request $request, CotacaoMapa $mapa)
+    {
+        $this->authorize('update', $mapa);
+
+        try {
+            $resultado = $this->importacao->atualizarItens($mapa, $request->user());
+        } catch (CotacaoException|QuestorException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        $partes = [];
+
+        if ($resultado['incluidos'] !== []) {
+            $partes[] = count($resultado['incluidos']) . ' item(ns) incluído(s): ' . implode(', ', $resultado['incluidos']) . '.';
+        }
+
+        if ($resultado['alterados'] !== []) {
+            $partes[] = count($resultado['alterados']) . ' item(ns) com descrição, unidade ou quantidade atualizada.';
+        }
+
+        if ($partes === []) {
+            $partes[] = 'Itens conferidos — o mapa já está igual à solicitação.';
+        }
+
+        $redirect = back()->with('success', implode(' ', $partes));
+
+        // Item que saiu da SC fica no mapa (pode ter preço): o aviso é para o
+        // comprador decidir se remove.
+        if ($resultado['fora_da_sc'] !== []) {
+            $redirect->with('warning', 'Não estão mais na solicitação e continuam no mapa: '
+                . implode(', ', $resultado['fora_da_sc']) . '. Remova-os se não forem mais cotados.');
+        }
+
+        return $redirect;
+    }
+
+    /**
      * Drill-down do item: histórico de compras, quem já forneceu, quem está
      * homologado, cotações antigas do Questor e OCs em aberto.
      *
@@ -348,6 +388,9 @@ class MapaController extends Controller
             CotacaoMapaLog::registrar($mapa, CotacaoMapaLog::ACAO_ITEM, [
                 'evento' => 'removido',
                 'item_id' => $item->id,
+                // É por este código que "Atualizar itens da SC" sabe que o
+                // item foi tirado de propósito e não o traz de volta.
+                'questor_cd_item' => $item->questor_cd_item,
                 'descricao' => $item->descricao,
                 // Quantos preços foram embora junto: é o dado que explica uma
                 // queda de total depois.

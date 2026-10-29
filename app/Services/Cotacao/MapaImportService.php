@@ -186,6 +186,128 @@ class MapaImportService
     }
 
     /**
+     * Traz para o mapa o que mudou nos itens da SC depois da importação.
+     *
+     * Acontece de a SC ganhar itens no Questor com o mapa já em cotação. Aqui o
+     * item novo entra no fim da grade (com o retrato da última compra, como na
+     * importação) e o item que já estava no mapa recebe descrição, unidade,
+     * quantidade e código de material atuais. Preços digitados e vencedor não
+     * são tocados.
+     *
+     * Duas coisas NÃO acontecem, de propósito:
+     *  - item que saiu da SC não é apagado: pode ter preço digitado. Volta na
+     *    lista `fora_da_sc` para o comprador decidir se remove;
+     *  - item que o comprador removeu do mapa não volta: a remoção grava o
+     *    `questor_cd_item` na trilha, e é por ela que ele é reconhecido.
+     *
+     * @return array{incluidos: array<int, string>, alterados: array<int, string>, fora_da_sc: array<int, string>}
+     *
+     * @throws CotacaoException quando o mapa não aceita mais edição ou a SC sumiu
+     * @throws \App\Exceptions\QuestorException quando o ERP não responde
+     */
+    public function atualizarItens(CotacaoMapa $mapa, User $usuario): array
+    {
+        if (! $mapa->editavel()) {
+            throw CotacaoException::mapaSomenteLeitura($mapa);
+        }
+
+        // --- Leituras do Questor (fora da transação) ------------------------
+
+        $itensDaSc = $this->solicitacoes->itens($mapa->questor_solicitacao);
+
+        // SC vazia é mais provável de ser leitura errada (ou SC apagada) do que
+        // "todos os itens saíram" — e não há nada a acrescentar mesmo.
+        if ($itensDaSc->isEmpty()) {
+            throw CotacaoException::solicitacaoSemItens($mapa->questor_solicitacao);
+        }
+
+        $ultimasCompras = $this->compras->ultimaCompraPorItem($mapa->questor_solicitacao);
+
+        // --- Gravação local (em transação) ----------------------------------
+
+        return DB::transaction(function () use ($mapa, $itensDaSc, $ultimasCompras, $usuario) {
+            $doMapa = $mapa->itens()
+                ->whereNotNull('questor_cd_item')
+                ->get()
+                ->keyBy('questor_cd_item');
+
+            $removidos = $this->itensRemovidosPeloComprador($mapa);
+            $ordem = (int) $mapa->itens()->max('ordem');
+
+            $resultado = ['incluidos' => [], 'alterados' => [], 'fora_da_sc' => []];
+
+            foreach ($itensDaSc as $daSc) {
+                /** @var SolicitacaoItemDTO $daSc */
+                $existente = $doMapa->get($daSc->item);
+
+                if ($existente === null) {
+                    if (in_array($daSc->item, $removidos, true)) {
+                        continue;
+                    }
+
+                    $ordem++;
+                    $novo = $mapa->itens()->create(
+                        $this->linhaDoItem($daSc, $ultimasCompras->get($daSc->item), $ordem)
+                    );
+                    $resultado['incluidos'][$novo->id] = $novo->descricao;
+
+                    continue;
+                }
+
+                $existente->fill(array_intersect_key(
+                    $this->linhaDoItem($daSc, null, $existente->ordem),
+                    array_flip(['descricao', 'unidade', 'quantidade', 'questor_cd_material'])
+                ));
+
+                if ($existente->isDirty()) {
+                    $existente->save();
+                    $resultado['alterados'][$existente->id] = $existente->descricao;
+                }
+            }
+
+            $naSc = $itensDaSc->map(fn (SolicitacaoItemDTO $i) => $i->item)->all();
+
+            foreach ($doMapa as $cdItem => $item) {
+                if (! in_array((int) $cdItem, $naSc, true)) {
+                    $resultado['fora_da_sc'][$item->id] = $item->descricao;
+                }
+            }
+
+            CotacaoMapaLog::registrar($mapa, CotacaoMapaLog::ACAO_ATUALIZOU_ITENS, [
+                'solicitacao' => $mapa->questor_solicitacao,
+                'incluidos' => array_values($resultado['incluidos']),
+                'alterados' => array_values($resultado['alterados']),
+                'fora_da_sc' => array_values($resultado['fora_da_sc']),
+            ], $usuario);
+
+            return $resultado;
+        });
+    }
+
+    /**
+     * Os CD_ITEM que o comprador tirou do mapa, lidos da trilha.
+     *
+     * Remoções anteriores a 29/10/2026 não gravavam o código e não entram aqui:
+     * esses itens voltariam numa atualização — e a mensagem da tela diz quais
+     * entraram, para o comprador tirar de novo.
+     *
+     * @return array<int, int>
+     */
+    private function itensRemovidosPeloComprador(CotacaoMapa $mapa): array
+    {
+        return CotacaoMapaLog::query()
+            ->where('cotacao_mapa_id', $mapa->id)
+            ->where('acao', CotacaoMapaLog::ACAO_ITEM)
+            ->get()
+            ->filter(fn (CotacaoMapaLog $log) => ($log->payload['evento'] ?? null) === 'removido'
+                && isset($log->payload['questor_cd_item']))
+            ->map(fn (CotacaoMapaLog $log) => (int) $log->payload['questor_cd_item'])
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
      * Fornecedores candidatos a virar coluna, agregados por fornecedor.
      *
      * A query 5.c devolve uma linha por (item, fornecedor); o comprador precisa

@@ -1184,6 +1184,8 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::get('/exportar', [CotacaoMapaController::class, 'exportar'])->name('exportar');
             Route::post('/atualizar-historico', [CotacaoMapaController::class, 'atualizarHistorico'])
                 ->name('atualizar-historico');
+            Route::post('/atualizar-itens', [CotacaoMapaController::class, 'atualizarItens'])
+                ->name('atualizar-itens');
 
             // A grade salva por célula, a cada pausa de digitação: o teto é bem
             // mais alto que o das outras rotas de propósito.
