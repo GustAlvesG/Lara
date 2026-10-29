@@ -26,11 +26,13 @@
 <x-app-layout :bootstrap-grid="false">
     @include('signature.contracts.partials.styles')
 
-    <x-page>
+    <x-page wide>
         <x-page-title :title="($contract->number ? $contract->number . ' — ' : '') . $contract->title" :back="route('signature-contracts.show', $contract)">
             {{ $contract->statusLabel() }} · setor {{ $contract->sector_name ?? '—' }}
             @if($contract->isAddendum()) · aditivo de {{ $contract->parent?->number }} @endif
             <x-slot:actions>
+                {{-- Só na tela larga, onde a prévia fica ao lado: escondê-la dá a largura toda ao texto. --}}
+                <button type="button" data-preview-toggle class="hidden rounded-full bg-subtle px-4 py-2 text-sm font-bold text-ink hover:bg-line xl:inline-flex">Ocultar prévia</button>
                 <x-secondary-button-a href="{{ route('signature-contracts.show', $contract) }}">Ver contrato</x-secondary-button-a>
             </x-slot:actions>
         </x-page-title>
@@ -60,8 +62,8 @@
             </div>
         @endif
 
-        <div class="grid grid-cols-1 gap-6 xl:grid-cols-5">
-            <form id="ctForm" method="POST" action="{{ route('signature-contracts.update', $contract) }}" class="space-y-6 xl:col-span-3">
+        <div class="ct-layout grid grid-cols-1 gap-6 xl:grid-cols-12" data-layout>
+            <form id="ctForm" method="POST" action="{{ route('signature-contracts.update', $contract) }}" class="min-w-0 space-y-6 xl:col-span-7">
                 @csrf
                 @method('PUT')
                 <input type="hidden" name="next" value="" data-next>
@@ -71,13 +73,14 @@
                     <p class="{{ $h }}">Dados gerais</p>
                     <div>
                         <label class="{{ $l }}" for="title">Título</label>
-                        <input type="text" id="title" name="title" value="{{ $content['title'] ?? '' }}" class="{{ $f }}" maxlength="200" placeholder="Contrato de prestação de serviços">
+                        <textarea id="title" name="title" rows="1" class="{{ $f }} resize-none text-base font-bold" maxlength="200" data-autogrow
+                                  placeholder="Contrato de prestação de serviços">{{ $content['title'] ?? '' }}</textarea>
                         <p class="mt-1 text-xs text-ink-3">Sai no alto, à direita: "TÍTULO, QUE ENTRE SI CELEBRAM CLUBE DOS FUNCIONÁRIOS DA CSN E A CONTRATADA".</p>
                     </div>
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
                         <div class="sm:col-span-2">
                             <label class="{{ $l }}" for="establishment">Contratante (CNPJ do clube)</label>
-                            <select id="establishment" name="establishment" class="{{ $f }}">
+                            <select id="establishment" name="establishment" class="{{ $f }} pr-10">
                                 @foreach($establishments as $valor => $rotulo)
                                     <option value="{{ $valor }}" @selected(($content['establishment'] ?? '') === $valor)>{{ $rotulo }}</option>
                                 @endforeach
@@ -143,7 +146,7 @@
                 <section class="space-y-3">
                     <div class="flex flex-wrap items-center justify-between gap-2 px-1">
                         <p class="{{ $h }}">Cláusulas</p>
-                        <div class="relative flex gap-2">
+                        <div class="relative flex gap-2" data-library-wrap data-library-home>
                             <button type="button" data-library-open class="{{ $add }}">Da biblioteca…</button>
                             <button type="button" data-add="clause" class="rounded-full bg-grena px-3 py-1.5 text-xs font-bold text-white hover:bg-grena-hover">+ Cláusula</button>
                             <div data-library-panel class="absolute right-0 top-9 z-20 hidden max-h-96 w-[min(28rem,90vw)] overflow-y-auto rounded-2xl border border-line bg-surface p-3 shadow-card"></div>
@@ -161,6 +164,11 @@
                                 'comments' => $comentariosPorClausula->get($clausula['uid'], collect()),
                             ])
                         @endforeach
+                    </div>
+                    {{-- O mesmo par de botões no fim da lista: a cláusula entra por último. --}}
+                    <div class="relative flex flex-wrap justify-center gap-2 rounded-2xl border border-dashed border-line-strong p-3" data-library-wrap>
+                        <button type="button" data-add="clause" class="rounded-full bg-grena px-3 py-1.5 text-xs font-bold text-white hover:bg-grena-hover">+ Cláusula no fim</button>
+                        <button type="button" data-library-open class="{{ $add }}">Da biblioteca…</button>
                     </div>
                 </section>
 
@@ -200,7 +208,7 @@
             </form>
 
             {{-- Prévia e problemas --}}
-            <aside class="xl:col-span-2">
+            <aside class="min-w-0 xl:col-span-5">
                 <div class="space-y-4 xl:sticky xl:top-20">
                     <div class="rounded-card bg-surface p-5 shadow-card">
                         <div class="mb-3 flex items-center justify-between gap-2">
@@ -209,7 +217,7 @@
                         </div>
                         @include('signature.contracts.partials.problems', ['problems' => session('contractProblems') ?: $problems])
                     </div>
-                    <div class="max-h-[75vh] overflow-y-auto rounded-card shadow-card">
+                    <div class="max-h-[78vh] overflow-y-auto rounded-card shadow-card">
                         <div class="ct-paper" data-preview-paper>{!! $preview !!}</div>
                     </div>
                 </div>

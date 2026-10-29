@@ -17,10 +17,25 @@
 
     function chave() { return 'n' + Math.random().toString(36).slice(2, 11); }
 
+    // Serve para texto e para valor de atributo: o innerHTML não escapa aspas.
     function escape(texto) {
         var d = document.createElement('div');
         d.textContent = texto == null ? '' : String(texto);
-        return d.innerHTML;
+        return d.innerHTML.replace(/"/g, '&quot;');
+    }
+
+    // O que a biblioteca e o cadastro de contratadas devolveram: o botão leva só o índice.
+    var listaBiblioteca = [];
+    var listaPartes = [];
+    // Depois de qual cláusula entra a da biblioteca (null = no fim).
+    var depoisDe = null;
+
+    function insereClausula(card, depois) {
+        if (depois) {
+            depois.after(card);
+        } else {
+            document.querySelector('[data-list="clause"]').appendChild(card);
+        }
     }
 
     function molde(id, trocas) {
@@ -124,9 +139,15 @@
             var tipo = add.dataset.add;
             var k = chave();
             var linha = molde('tpl-' + tipo, { '__K__': k });
-            document.querySelector('[data-list="' + tipo + '"]').appendChild(linha);
-            if (tipo === 'clause') novoItem(linha);
+            if (tipo === 'clause') {
+                // O botão de dentro de uma cláusula põe a nova logo abaixo dela.
+                insereClausula(linha, add.closest('[data-row="clause"]'));
+                novoItem(linha);
+            } else {
+                document.querySelector('[data-list="' + tipo + '"]').appendChild(linha);
+            }
             preencheSelects(linha);
+            linha.querySelectorAll('textarea[data-autogrow]').forEach(cresce);
             renumera();
             var foco = linha.querySelector('input[type="text"], .ct-rich');
             if (foco) foco.focus();
@@ -157,7 +178,14 @@
         var remover = e.target.closest('[data-remove]');
         if (remover) {
             if (remover.dataset.confirm && !confirm(remover.dataset.confirm)) return;
-            remover.closest('.ct-row').remove();
+            var removida = remover.closest('.ct-row');
+            // O painel da biblioteca pode estar dentro dela: volta para o topo.
+            var painelDentro = removida.querySelector('[data-library-panel]');
+            if (painelDentro) {
+                painelDentro.classList.add('hidden');
+                document.querySelector('[data-library-home]').appendChild(painelDentro);
+            }
+            removida.remove();
             renumera();
             marca(true);
             return;
@@ -191,20 +219,23 @@
 
         var biblioteca = e.target.closest('[data-library-open]');
         if (biblioteca) {
-            abreBiblioteca();
+            abreBiblioteca(biblioteca);
             return;
         }
 
         var daBiblioteca = e.target.closest('[data-library-pick]');
         if (daBiblioteca) {
-            insereDaBiblioteca(JSON.parse(daBiblioteca.dataset.libraryPick));
+            var escolhida = listaBiblioteca[parseInt(daBiblioteca.dataset.libraryPick, 10)];
             document.querySelector('[data-library-panel]').classList.add('hidden');
+            if (escolhida) insereDaBiblioteca(escolhida);
             return;
         }
 
         var cadastro = e.target.closest('[data-party-pick]');
         if (cadastro) {
-            preencheParte(cadastro.closest('[data-row="party"]'), JSON.parse(cadastro.dataset.partyPick));
+            var parte = listaPartes[parseInt(cadastro.dataset.partyPick, 10)];
+            if (!parte) return;
+            preencheParte(cadastro.closest('[data-row="party"]'), parte);
             cadastro.closest('[data-party-results]').innerHTML = '';
             marca(true);
             return;
@@ -269,13 +300,91 @@
         marca(true);
     });
 
+    // ---- Colar (do Word, do PDF, de outro contrato) ----
+    // Fica só o que o contrato usa: negrito, itálico, sublinhado, parágrafo e lista.
+    // O servidor saneia de novo ao salvar (ContractContent::html).
+    var PERMITIDAS = { B: 1, STRONG: 1, I: 1, EM: 1, U: 1, P: 1, BR: 1, UL: 1, OL: 1, LI: 1 };
+
+    function limpaColado(html) {
+        var t = document.createElement('template');
+        t.innerHTML = html;
+        (function limpa(no) {
+            Array.prototype.slice.call(no.childNodes).forEach(function (filho) {
+                if (filho.nodeType === 8 || (filho.nodeType === 1 && /^(STYLE|SCRIPT|META|LINK|TITLE|XML)$/.test(filho.tagName))) {
+                    filho.remove();
+                    return;
+                }
+                if (filho.nodeType !== 1) return;
+                limpa(filho);
+                var tag = filho.tagName === 'DIV' || /^H\d$/.test(filho.tagName) ? 'P' : filho.tagName;
+                if (!PERMITIDAS[tag]) {
+                    filho.replaceWith.apply(filho, Array.prototype.slice.call(filho.childNodes));
+                    return;
+                }
+                var limpo = document.createElement(tag);
+                while (filho.firstChild) limpo.appendChild(filho.firstChild);
+                filho.replaceWith(limpo);
+            });
+        })(t.content);
+        var d = document.createElement('div');
+        d.appendChild(t.content);
+        return d.innerHTML.replace(/<p>(\s|&nbsp;)*<\/p>/g, '');
+    }
+
+    form.addEventListener('paste', function (e) {
+        var ed = e.target.closest && e.target.closest('.ct-rich');
+        if (!ed || !e.clipboardData) return;
+        var html = e.clipboardData.getData('text/html');
+        var texto = e.clipboardData.getData('text/plain');
+        e.preventDefault();
+        if (html) {
+            document.execCommand('insertHTML', false, limpaColado(html));
+        } else {
+            document.execCommand('insertText', false, texto);
+        }
+        marca(true);
+    });
+
+    // ---- Caixas que crescem com o texto (título, endereço, qualificação) ----
+    // São campos de uma linha no contrato: a quebra de linha vira espaço.
+    function cresce(campo) {
+        campo.style.height = 'auto';
+        campo.style.height = (campo.scrollHeight + 2) + 'px';
+    }
+
+    form.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && e.target.matches('textarea[data-autogrow]')) e.preventDefault();
+    });
+
     form.addEventListener('input', function (e) {
         if (e.target.closest('[data-party-search]')) {
             buscaParte(e.target);
             return;
         }
+        if (e.target.matches('textarea[data-autogrow]')) {
+            if (/[\r\n]/.test(e.target.value)) e.target.value = e.target.value.replace(/\s*[\r\n]+\s*/g, ' ');
+            cresce(e.target);
+        }
         marca(true);
     });
+
+    form.querySelectorAll('textarea[data-autogrow]').forEach(cresce);
+    window.addEventListener('resize', function () { form.querySelectorAll('textarea[data-autogrow]').forEach(cresce); });
+
+    // ---- Ocultar / mostrar a prévia (tela larga), lembrado neste navegador ----
+    var layout = document.querySelector('[data-layout]');
+    var alterna = document.querySelector('[data-preview-toggle]');
+    function mostraPrevia(oculta) {
+        layout.classList.toggle('ct-solo', oculta);
+        if (alterna) alterna.textContent = oculta ? 'Mostrar prévia' : 'Ocultar prévia';
+        try { localStorage.setItem('ct-preview-hidden', oculta ? '1' : '0'); } catch (err) {}
+    }
+    if (layout && alterna) {
+        var guardado = null;
+        try { guardado = localStorage.getItem('ct-preview-hidden'); } catch (err) {}
+        if (guardado === '1') mostraPrevia(true);
+        alterna.addEventListener('click', function () { mostraPrevia(!layout.classList.contains('ct-solo')); });
+    }
 
     form.addEventListener('submit', function () {
         sincroniza();
@@ -339,29 +448,39 @@
     }
 
     // ---- Biblioteca ----
-    function abreBiblioteca() {
+    // Um painel só: vai para junto do botão clicado (topo, entre cláusulas ou fim).
+    function abreBiblioteca(botao) {
         var painel = document.querySelector('[data-library-panel]');
+        var lugar = botao.closest('[data-library-wrap]');
+        if (lugar && painel.parentNode !== lugar) lugar.appendChild(painel);
+        depoisDe = botao.closest('[data-row="clause"]');
         painel.classList.remove('hidden');
         painel.innerHTML = '<p class="text-sm text-ink-2">Carregando…</p>';
         fetch(CT.urls.library, { headers: { 'Accept': 'application/json' } })
-            .then(function (r) { return r.json(); })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
             .then(function (lista) {
+                listaBiblioteca = lista;
                 if (!lista.length) {
                     painel.innerHTML = '<p class="text-sm text-ink-2">A biblioteca do setor está vazia. Use "Salvar na biblioteca" numa cláusula.</p>';
                     return;
                 }
-                painel.innerHTML = lista.map(function (c) {
+                painel.innerHTML = lista.map(function (c, i) {
                     return '<button type="button" class="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-subtle" data-library-pick="'
-                        + escape(JSON.stringify(c)) + '"><b>' + escape(c.title) + '</b>'
+                        + i + '"><b>' + escape(c.title) + '</b>'
                         + (c.category ? ' <span class="text-xs text-ink-3">' + escape(c.category) + '</span>' : '') + '</button>';
                 }).join('');
+            })
+            .catch(function () {
+                painel.innerHTML = '<p class="text-sm text-danger">Não foi possível carregar a biblioteca. Tente de novo.</p>';
             });
     }
 
     function insereDaBiblioteca(c) {
         var k = chave();
         var card = molde('tpl-clause', { '__K__': k });
-        document.querySelector('[data-list="clause"]').appendChild(card);
+        // A cláusula de referência pode ter sido removida com o painel aberto.
+        insereClausula(card, depoisDe && depoisDe.isConnected ? depoisDe : null);
+        depoisDe = null;
         card.querySelector('input[name$="[title]"]').value = c.title;
         (c.items || []).forEach(function (item) { novoItem(card, item.html, item.level); });
         if (!(c.items || []).length) novoItem(card);
@@ -405,10 +524,11 @@
             fetch(CT.urls.parties + '?q=' + encodeURIComponent(termo), { headers: { 'Accept': 'application/json' } })
                 .then(function (r) { return r.json(); })
                 .then(function (lista) {
+                    listaPartes = lista;
                     caixa.innerHTML = lista.length
-                        ? lista.map(function (p) {
+                        ? lista.map(function (p, i) {
                             return '<button type="button" class="block w-full rounded-lg bg-surface px-3 py-1.5 text-left text-sm hover:bg-line" data-party-pick="'
-                                + escape(JSON.stringify(p)) + '">' + escape(p.name) + ' <span class="text-xs text-ink-3">' + escape(p.document) + '</span></button>';
+                                + i + '">' + escape(p.name) + ' <span class="text-xs text-ink-3">' + escape(p.document) + '</span></button>';
                         }).join('')
                         : '<p class="px-1 text-xs text-ink-3">Nada no cadastro. Preencha abaixo: ao salvar, fica guardado.</p>';
                 });
@@ -420,6 +540,7 @@
             var el = linha.querySelector('[name$="[' + campo + ']"]');
             if (el && p[campo] != null) el.value = p[campo];
         });
+        linha.querySelectorAll('textarea[data-autogrow]').forEach(cresce);
         var tipo = linha.querySelector('[data-party-kind]');
         tipo.dispatchEvent(new Event('change', { bubbles: true }));
     }

@@ -88,7 +88,7 @@ de cada um. Depois disso, a navegação volta ao normal.
 ## Pedir ajuda à Lara (assistente de IA)
 <!-- telas: lara.index -->
 
-Quem tem acesso à Lara vê um balão vermelho no canto inferior direito de toda tela. Clique para
+Quem tem acesso à Lara vê um robozinho acenando no canto inferior direito de toda tela. Clique nele para
 abrir o chat ao lado e pergunte em linguagem normal: "como emito uma carteirinha?", "o que
 significa este status?", "como faço isso nesta tela?". A Lara sabe em que tela você está.
 

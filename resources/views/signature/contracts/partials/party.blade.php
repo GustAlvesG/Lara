@@ -11,12 +11,12 @@
     <input type="hidden" name="{{ $n('uid') }}" value="{{ $p['uid'] ?? '' }}">
     <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex flex-wrap items-center gap-2">
-            <select name="{{ $n('role') }}" class="{{ $f }} !w-auto" aria-label="Papel">
+            <select name="{{ $n('role') }}" class="{{ $f }} !w-auto pr-10" aria-label="Papel">
                 @foreach(\App\Services\Signature\Contracts\ContractContent::PARTY_ROLES as $valor => $rotulo)
                     <option value="{{ $valor }}" @selected(($p['role'] ?? 'contratada') === $valor)>{{ $rotulo }}</option>
                 @endforeach
             </select>
-            <select name="{{ $n('kind') }}" class="{{ $f }} !w-auto" data-party-kind aria-label="Tipo">
+            <select name="{{ $n('kind') }}" class="{{ $f }} !w-auto pr-10" data-party-kind aria-label="Tipo">
                 <option value="pj" @selected(($p['kind'] ?? 'pj') === 'pj')>Pessoa jurídica (CNPJ)</option>
                 <option value="pf" @selected(($p['kind'] ?? 'pj') === 'pf')>Pessoa física (CPF)</option>
             </select>
@@ -43,7 +43,7 @@
         </div>
         <div data-only="pf" @class(['hidden' => ($p['kind'] ?? 'pj') !== 'pf'])>
             <label class="{{ $l }}">Concordância ("inscrito/inscrita")</label>
-            <select name="{{ $n('gender') }}" class="{{ $f }}">
+            <select name="{{ $n('gender') }}" class="{{ $f }} pr-10">
                 <option value="m" @selected(($p['gender'] ?? 'm') === 'm')>Masculino</option>
                 <option value="f" @selected(($p['gender'] ?? 'm') === 'f')>Feminino</option>
             </select>
@@ -62,13 +62,14 @@
         </div>
         <div class="sm:col-span-2">
             <label class="{{ $l }}">Endereço (sede ou residência)</label>
-            <input type="text" name="{{ $n('address') }}" value="{{ $p['address'] ?? '' }}" class="{{ $f }}" maxlength="300"
-                   placeholder="Rua, nº, bairro, cidade/UF, CEP">
+            {{-- Texto longo numa linha só ficava cortado: a caixa cresce com o texto (data-autogrow), sem quebra de linha. --}}
+            <textarea name="{{ $n('address') }}" rows="1" class="{{ $f }} resize-none" maxlength="300" data-autogrow
+                      placeholder="Rua, nº, bairro, cidade/UF, CEP">{{ $p['address'] ?? '' }}</textarea>
         </div>
         <div class="sm:col-span-2">
             <label class="{{ $l }}">Qualificação complementar (opcional)</label>
-            <input type="text" name="{{ $n('details') }}" value="{{ $p['details'] ?? '' }}" class="{{ $f }}" maxlength="500"
-                   placeholder="Pessoa física: brasileira, casada, empresária, RG nº …   Empresa: Inscrição Estadual nº …">
+            <textarea name="{{ $n('details') }}" rows="2" class="{{ $f }} resize-none" maxlength="500" data-autogrow
+                      placeholder="Pessoa física: brasileira, casada, empresária, RG nº …   Empresa: Inscrição Estadual nº …">{{ $p['details'] ?? '' }}</textarea>
         </div>
         <div data-only="pj" @class(['hidden' => ($p['kind'] ?? 'pj') === 'pf'])>
             <label class="{{ $l }}">Representante (quem assina pela empresa)</label>

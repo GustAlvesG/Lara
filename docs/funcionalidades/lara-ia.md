@@ -98,6 +98,25 @@ a tela inteira, e o balão fica acima da barra de baixo). Fecha pelo X ou pelo E
   pergunta feita há menos de `LARA_TIMEOUT + 10s`) faz o balão mostrar "pensando" e consultar a
   cada 3 s até a resposta aparecer. Resposta que chega com o painel fechado acende um ponto no balão.
 
+**O robô da Lara** (29/10/2026). O balão é o mascote — um robô branco e grená que acena — e
+ele aparece também como avatar (cabeçalho do painel, respostas, "pensando") e grande, acenando,
+na conversa vazia. Arquivos em `public/images/lara/`:
+
+| Arquivo | Uso | Tamanho |
+|---|---|---|
+| `lara-robo-128.webp` | Balão (animado, mostrado a 74 px de altura) | ~335 KB |
+| `lara-robo-320.webp` | Conversa vazia (animado, 160 px); só baixa quando o painel abre vazio | ~980 KB |
+| `lara-robo.png` | Imagem parada, para quem pede menos movimento (`prefers-reduced-motion`) | ~80 KB |
+| `lara-robo-cabeca.png` | Avatar redondo (96×96) | ~13 KB |
+
+Foram gerados do GIF original (1920×1080, 211 quadros, 20 MB, **fundo preto opaco**) por
+`scripts/tratar-robo-lara.py` (`python -I scripts/tratar-robo-lara.py <gif> public/images/lara`):
+recorta o robô, troca o preto do fundo por transparência — o ligado à borda e as áreas fechadas de
+**preto puro**, como o vão entre o braço e o capacete; olhos e boca, azul-marinho escuro, ficam —,
+desfaz a franja escura das bordas, usa um quadro sim, um não (mesma duração total, 7 s) e grava
+WebP animado com alfa (GIF só tem transparência binária e deixaria contorno escuro no tema claro).
+Para trocar o mascote, rode o script com o GIF novo e confira num fundo claro e num escuro.
+
 O health check (`GET {LARA_BASE_URL}/health`, cache de 30 s) e a conversa vigente — em
 `lara_messages`, identificada por um `conversation_uuid` na sessão — vêm nessa chamada. O campo de
 envio fica bloqueado em dois casos, com mensagens diferentes: **desativada** (falta

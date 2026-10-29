@@ -188,7 +188,20 @@ de fora sem e-mail (não recebe o link remoto).
 - **Contratadas** (`signature_contract_parties`): todo `save` grava/atualiza por documento (CNPJ 14 / CPF 11
   caracteres). O editor busca por nome ou documento (`signature-contracts.parties`).
 - **Biblioteca** (`signature_contract_clauses`, por setor): "Salvar na biblioteca" no editor (JSON) ou a tela
-  da biblioteca. Inserir copia com **uid novo**.
+  da biblioteca. Inserir copia com **uid novo**. Desde 29/10/2026, "+ Cláusula" e "Da biblioteca…" existem no
+  topo e no fim da lista (entra no fim) e no pé de cada cláusula (entra logo abaixo dela). O painel da biblioteca é
+  um só (`[data-library-panel]`), movido para junto do botão clicado (`[data-library-wrap]`); os botões do painel e
+  da busca de contratadas levam só o índice da lista carregada. Antes levavam o JSON num atributo, e as aspas não
+  escapadas cortavam o atributo: o clique não inseria nada.
+- **Editor (29/10/2026):** `<x-page wide>` (até 1680px) com o formulário em 7/12 e a prévia em 5/12; "Ocultar
+  prévia" (`[data-preview-toggle]`, classe `ct-solo`, lembrado no `localStorage`) dá a largura toda ao formulário.
+  Caixa de texto (`.ct-rich`) com 9,5rem de altura mínima, fonte 15px, cresce até 70vh e tem `resize: vertical`;
+  barra com Limpar (`removeFormat`), desfazer e refazer. Colar passa por `limpaColado()` (só b/strong/i/em/u/p/br/
+  ul/ol/li, sem atributos); o servidor saneia de novo. Título do contrato, endereço e qualificação da parte são
+  `textarea[data-autogrow]` (crescem, Enter não quebra linha). Todo select leva `pr-8`/`pr-10`: o
+  `@tailwindcss/forms` desenha a seta à direita e o `px-*` tirava o espaço dela, cobrindo o fim do texto. Variável em
+  duas linhas (nome e valor; tipo embaixo, porque os rótulos dos tipos são longos). O título da cláusula ocupa
+  a linha inteira, com as ações acima.
 - **Modelos** (`signature_contract_models`, por setor): "Salvar como modelo do setor" na tela do contrato —
   sem dados das partes, sem signatários, variáveis sem valor. Contrato novo a partir do modelo ganha uid
   novo em tudo (`ContractContent::freshUids`, que também troca as remissões internas).
