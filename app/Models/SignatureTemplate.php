@@ -48,6 +48,7 @@ class SignatureTemplate extends Model
         'parties',
         'attachments',
         'review_items',
+        'linked_templates',
         'signature_placeholder',
         'signature_position',
         'requires_photo',
@@ -58,6 +59,22 @@ class SignatureTemplate extends Model
         'single_use',
         'created_by',
     ];
+
+    /**
+     * Modelo COMPOSTO (X + modelos vinculados), montado em memória pelo
+     * LinkedTemplateComposer. Nunca é gravado — ver `booted()`.
+     */
+    public bool $composite = false;
+
+    /**
+     * Num composto, as versões dos modelos vinculados que entraram, na ordem.
+     *
+     * @var array<int, array{id: int, root_id: int, name: string, version: int}>
+     */
+    public array $composedParts = [];
+
+    /** @var array<int, string> */
+    public array $compositionProblems = [];
 
     /**
      * Defaults no MODEL, e não só no schema: o código lê `version` logo depois
@@ -83,6 +100,7 @@ class SignatureTemplate extends Model
         'parties' => 'array',
         'attachments' => 'array',
         'review_items' => 'array',
+        'linked_templates' => 'array',
         'signature_position' => 'array',
         'requires_photo' => 'boolean',
         'requires_initials' => 'boolean',
@@ -99,6 +117,9 @@ class SignatureTemplate extends Model
      */
     protected static function booted(): void
     {
+        // O composto é uma leitura: gravá-lo criaria um modelo que ninguém escreveu.
+        static::saving(fn(SignatureTemplate $template) => !$template->composite);
+
         static::created(function (SignatureTemplate $template) {
             if ($template->root_id === null) {
                 $template->forceFill(['root_id' => $template->id])->saveQuietly();
@@ -151,6 +172,7 @@ class SignatureTemplate extends Model
                 'parties',
                 'attachments',
                 'review_items',
+                'linked_templates',
                 'signature_placeholder',
                 'signature_position',
                 'requires_photo',
@@ -174,12 +196,54 @@ class SignatureTemplate extends Model
         return $novo;
     }
 
+    /**
+     * Os modelos que todo documento deste exige junto (sentido único: quem
+     * assina este assina também aqueles). Cada item: a raiz do modelo exigido
+     * e a correspondência feita no ato de vincular — ver
+     * LinkedTemplateComposer.
+     *
+     * @return array<int, array{root_id: int, fields: array<string, ?string>, parties: array<string, string>}>
+     */
+    public function declaredLinks(): array
+    {
+        return collect($this->linked_templates ?? [])
+            ->filter(fn($l) => is_array($l) && (int) ($l['root_id'] ?? 0) > 0)
+            ->map(fn(array $l) => [
+                'root_id' => (int) $l['root_id'],
+                'fields' => collect((array) ($l['fields'] ?? []))
+                    ->mapWithKeys(fn($alvo, $chave) => [(string) $chave => $alvo === null || $alvo === '' ? null : (string) $alvo])
+                    ->all(),
+                'parties' => collect((array) ($l['parties'] ?? []))
+                    ->filter(fn($alvo) => is_string($alvo) && $alvo !== '')
+                    ->mapWithKeys(fn($alvo, $chave) => [(string) $chave => $alvo])
+                    ->all(),
+            ])
+            ->unique('root_id')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Este modelo com os vinculados dentro (texto, campos, partes e regras).
+     * Sem vínculo, ele mesmo.
+     *
+     * @param  array<int|string, int>|null  $versions  raiz => versão (a do documento); null = as ativas de agora
+     */
+    public function composed(?array $versions = null): self
+    {
+        return app(\App\Services\Signature\LinkedTemplateComposer::class)->compose($this, $versions);
+    }
+
     /** Já gerou documento? Modelo usado não é apagado, é desativado. */
     public function inUse(): bool
     {
-        return static::where('root_id', $this->root_id ?? $this->id)
-            ->whereHas('documents')
-            ->exists();
+        $raiz = (int) ($this->root_id ?? $this->id);
+
+        // Também conta o documento de OUTRO modelo que levou este junto
+        // (modelo vinculado): o mapa raiz => versão é gravado como
+        // {"raiz":versão}, e apagar a versão mudaria as regras dele.
+        return static::where('root_id', $raiz)->whereHas('documents')->exists()
+            || SignatureDocument::where('linked_templates', 'like', '%"' . $raiz . '":%')->exists();
     }
 
     /**
@@ -259,9 +323,12 @@ class SignatureTemplate extends Model
      * `SignatureDocument::fieldDefinitions()`. Um `ask_signer` antigo que
      * tenha ficado no JSON não é lido.
      *
+     * `attendant_only`: o modelo restringe o campo ao atendente — ele nunca
+     * vai ao tablet nem ao link remoto, nem que o atendente queira.
+     *
      * @return array<int, array{
      *     key: string, label: string, required: bool, type: string,
-     *     question: string, options: array<int, string>
+     *     question: string, options: array<int, string>, attendant_only: bool
      * }>
      */
     public function declaredVariables(): array
@@ -276,6 +343,8 @@ class SignatureTemplate extends Model
                     'label' => $rotulo,
                     'required' => (bool) ($v['required'] ?? false),
                     'type' => $tipo,
+                    'attendant_only' => (bool) ($v['attendant_only'] ?? false)
+                        && !SignatureFieldTypes::isAutomatic($tipo),
                     // Como perguntar, se o atendente mandar o campo ao tablet.
                     // Sem pergunta escrita, a pergunta é o rótulo.
                     'question' => trim((string) ($v['question'] ?? '')) ?: $rotulo,

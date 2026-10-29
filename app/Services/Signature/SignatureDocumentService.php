@@ -150,13 +150,18 @@ class SignatureDocumentService
         ?int $userId = null,
         ?string $userName = null,
     ): SignatureDocument {
-        return DB::transaction(function () use ($template, $attributes, $signers, $userId, $userName) {
+        // Modelo vinculado: as versões dos exigidos ficam presas ao documento
+        // agora, como a do próprio modelo.
+        $vinculados = app(LinkedTemplateComposer::class)->versionMap($template);
+
+        return DB::transaction(function () use ($template, $attributes, $signers, $userId, $userName, $vinculados) {
             $document = SignatureDocument::create([
                 // A versão do modelo é fixada AGORA: publicar uma revisão
                 // enquanto o atendente preenche não pode trocar o texto embaixo
                 // dele.
                 'signature_template_id' => $template->id,
                 'template_version' => $template->version,
+                'linked_templates' => $vinculados ?: null,
                 'title' => $this->titleFor($template, $attributes['title'] ?? null, $signers),
                 'data' => $attributes['data'] ?? [],
                 'attachment_requirements' => $attributes['attachment_requirements'] ?? [],
@@ -175,6 +180,10 @@ class SignatureDocumentService
                 'payload' => [
                     'modelo' => $template->name,
                     'versao' => $template->version,
+                    'modelos_vinculados' => array_values(array_map(
+                        fn(array $p) => $p['name'] . ' v' . $p['version'],
+                        $document->effectiveTemplate()?->composedParts ?? [],
+                    )),
                     'signatarios' => count($signers),
                     'gerado_por' => $userName,
                 ],
@@ -277,7 +286,7 @@ class SignatureDocumentService
 
         // Parte declarada no modelo e sem ninguém para assinar por ela: o
         // contrato sairia com o lugar do Contratado em branco, e "assinado".
-        $semSignatario = collect($document->template->declaredParties())
+        $semSignatario = collect($document->effectiveTemplate()->declaredParties())
             ->reject(fn(array $parte) => $document->signers->contains('party', $parte['key']))
             ->pluck('label');
 
@@ -289,7 +298,7 @@ class SignatureDocumentService
 
         // Conferência por código no e-mail: sem e-mail, o tablet não teria
         // para onde mandar o código, e a pessoa não conseguiria assinar.
-        if ($document->template->identity_check === SignatureTemplate::IDENTITY_EMAIL) {
+        if ($document->effectiveTemplate()->identity_check === SignatureTemplate::IDENTITY_EMAIL) {
             $semEmail = $document->signers->filter(fn($s) => !$s->email)->pluck('name');
 
             if ($semEmail->isNotEmpty()) {
@@ -430,7 +439,7 @@ class SignatureDocumentService
 
         // O rótulo da parte é copiado do modelo: é ele que sai impresso sob o
         // nome. Parte que o modelo não declara é ignorada, e não gravada.
-        $partes = collect($document->template->declaredParties())->pluck('label', 'key');
+        $partes = collect($document->effectiveTemplate()->declaredParties())->pluck('label', 'key');
 
         foreach ($signers as $signer) {
             $parte = $partes->has($signer['party'] ?? null) ? $signer['party'] : null;

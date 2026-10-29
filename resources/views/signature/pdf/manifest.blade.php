@@ -33,7 +33,7 @@
                 @if($document->isUploaded())
                     Documento enviado pronto, em PDF — aproveitado na íntegra<br>
                 @else
-                    Modelo: {{ $document->template?->name }} (versão {{ $document->template_version }})<br>
+                    Modelo: {{ $document->template?->name }} (versão {{ $document->template_version }})@if($document->linkedTemplateLabels())<br>Inclui também: {{ implode(' + ', $document->linkedTemplateLabels()) }}@endif<br>
                 @endif
                 Congelado em: {{ $document->frozen_at?->format('d/m/Y H:i:s') }}<br>
                 Finalizado em: {{ $document->finalized_at?->format('d/m/Y H:i:s') ?? now()->format('d/m/Y H:i:s') }}<br>
@@ -171,7 +171,7 @@
                         @if($liberacao && isset(\App\Models\SignatureRequest::IDENTITY_METHOD_LABELS[$liberacao->identity_method]))
                             Conferência de identidade: {{ \App\Models\SignatureRequest::IDENTITY_METHOD_LABELS[$liberacao->identity_method] }}<br>
                         @else
-                            Conferência de identidade: {{ \App\Models\SignatureTemplate::IDENTITY_CHECKS[$document->template?->identity_check] ?? 'não registrada' }}{{ $document->template?->identity_check === \App\Models\SignatureTemplate::IDENTITY_EMAIL && $signer->email ? ' (' . \App\Support\EmailMask::of($signer->email) . ')' : '' }}<br>
+                            Conferência de identidade: {{ \App\Models\SignatureTemplate::IDENTITY_CHECKS[$document->effectiveTemplate()?->identity_check] ?? 'não registrada' }}{{ $document->effectiveTemplate()?->identity_check === \App\Models\SignatureTemplate::IDENTITY_EMAIL && $signer->email ? ' (' . \App\Support\EmailMask::of($signer->email) . ')' : '' }}<br>
                         @endif
                         Aceite explícito dos termos: {{ $evidencia->accepted ? 'sim' : 'não' }}<br>
                         @if($evidencia->photo_consent)

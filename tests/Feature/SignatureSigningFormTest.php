@@ -394,6 +394,10 @@ class SignatureSigningFormTest extends TestCase
         ])->assertOk();
 
         $this->comSessao($cookie)->postJson(route('quiosque.identity', $documento), ['cpf' => '0'])->assertOk();
+
+        // Balcão com perguntas: o atendente confere antes (SignatureAnswerCheckService).
+        app(\App\Services\Signature\SignatureAnswerCheckService::class)->approve($documento->fresh(), 1, 'Atendente');
+
         $this->comSessao($cookie)->postJson(route('quiosque.sign', $documento), $this->assinatura())->assertOk();
 
         $hashAssinado = $documento->fresh()->original_sha256;

@@ -145,6 +145,9 @@
                             <h3 class="text-lg font-bold text-ink">{{ $document->title }}</h3>
                             <p class="text-xs text-ink-2">
                                 {{ $document->template?->name }} versão {{ $document->template_version }}
+                                @if($document->linkedTemplateLabels())
+                                    + {{ implode(' + ', $document->linkedTemplateLabels()) }}
+                                @endif
                                 · criado em {{ $document->created_at?->format('d/m/Y H:i') }}
                             </p>
                         </div>

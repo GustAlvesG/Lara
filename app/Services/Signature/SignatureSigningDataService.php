@@ -113,6 +113,73 @@ class SignatureSigningDataService
      */
     public function answer(SignatureDocument $document, array $answers, array $context = []): SignatureDocument
     {
+        $valores = $this->parseAnswers($document, $answers);
+
+        return $this->store(
+            $document,
+            // Reconstruído do zero: uma resposta apagada na correção não pode
+            // sobreviver da tentativa anterior.
+            array_merge($this->automaticValues($document), $valores),
+            ['signing_answered_at' => now()],
+            SignatureAuditEvent::EVENT_FORM_ANSWERED,
+            $context,
+            // As CHAVES, e não os valores: a trilha é impressa no manifesto, e
+            // uma resposta pode ser um CPF ou um telefone.
+            ['campos' => array_keys($valores)],
+        );
+    }
+
+    /**
+     * O atendente corrige as respostas na conferência (SignatureAnswerCheckService).
+     *
+     * Mesma conferência por tipo e mesma janela de `answer` — e o mesmo efeito:
+     * PDF e hash refeitos, e a pessoa lê de novo antes de assinar. A trilha
+     * leva as chaves que mudaram, nunca os valores.
+     *
+     * @param  array<string, mixed>  $answers
+     * @param  array<string, mixed>  $context  contexto da auditoria (o atendente)
+     * @return array{0: SignatureDocument, 1: array<int, string>}  documento e chaves alteradas
+     *
+     * @throws SignatureFormException
+     * @throws SignatureSessionException
+     */
+    public function correct(SignatureDocument $document, array $answers, array $context = []): array
+    {
+        $valores = $this->parseAnswers($document, $answers);
+        $anteriores = $document->signing_data ?? [];
+
+        $alteradas = array_values(array_filter(
+            array_map(fn(array $c) => $c['key'], $document->signerFields()),
+            fn(string $chave) => ($anteriores[$chave] ?? null) != ($valores[$chave] ?? null),
+        ));
+
+        if ($alteradas === []) {
+            return [$document, []];
+        }
+
+        $documento = $this->store(
+            $document,
+            array_merge($this->automaticValues($document), $valores),
+            ['signing_answered_at' => now()],
+            SignatureAuditEvent::EVENT_FORM_CORRECTED,
+            $context,
+            ['campos' => $alteradas],
+        );
+
+        return [$documento, $alteradas];
+    }
+
+    /**
+     * As respostas conferidas por tipo, na forma canônica.
+     *
+     * @param  array<string, mixed>  $answers
+     * @return array<string, mixed>
+     *
+     * @throws SignatureFormException
+     * @throws SignatureSessionException
+     */
+    private function parseAnswers(SignatureDocument $document, array $answers): array
+    {
         $campos = $document->signerFields();
 
         if ($campos === []) {
@@ -145,18 +212,7 @@ class SignatureSigningDataService
             throw new SignatureFormException($erros);
         }
 
-        return $this->store(
-            $document,
-            // Reconstruído do zero: uma resposta apagada na correção não pode
-            // sobreviver da tentativa anterior.
-            array_merge($this->automaticValues($document), $valores),
-            ['signing_answered_at' => now()],
-            SignatureAuditEvent::EVENT_FORM_ANSWERED,
-            $context,
-            // As CHAVES, e não os valores: a trilha é impressa no manifesto, e
-            // uma resposta pode ser um CPF ou um telefone.
-            ['campos' => array_keys($valores)],
-        );
+        return $valores;
     }
 
     /**

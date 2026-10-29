@@ -51,6 +51,18 @@
                 <div>
                     <p class="text-xs text-ink-2">Modelo</p>
                     <p class="font-bold text-ink">{{ $template->name }} <span class="text-ink-3">v{{ $template->version }}</span></p>
+                    @if($template->composedParts)
+                        {{-- Modelo vinculado: o texto dos exigidos entra no mesmo documento, em página nova. --}}
+                        <p class="text-xs text-ink-2 mt-1" data-linked-templates>
+                            Inclui também, no mesmo documento:
+                            {{ collect($template->composedParts)->map(fn($p) => $p['name'] . ' (v' . $p['version'] . ')')->join(', ') }}.
+                            Os campos em comum são preenchidos uma vez só.
+                        </p>
+                    @endif
+                    @foreach($template->compositionProblems as $problema)
+                        <p class="text-xs text-danger mt-1">{{ $problema }}</p>
+                    @endforeach
+                    @error('signature_template_id')<p class="text-xs text-danger mt-1">{{ $message }}</p>@enderror
                 </div>
                 <a href="{{ route('signature-documents.create') }}" class="text-xs text-ink-2 hover:underline">Trocar modelo</a>
             </div>

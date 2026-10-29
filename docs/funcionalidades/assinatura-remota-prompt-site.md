@@ -323,6 +323,12 @@ valer, ou recomece pela entrada).
 - **Testes:** cubra os estados de recusa da tabela acima com a API mockada, o bloqueio sem câmera, a
   etapa de anexos (enviar, trocar, obrigatório travando), a ordem das etapas, os headers de não
   indexação e a limpeza dos cookies no fim.
+- **Documento com mais de um texto (desde 29/10/2026):** um modelo pode exigir outro junto (modelo
+  vinculado). O PDF que a API entrega já traz os dois textos, um depois do outro, e o formulário de
+  `respostas` já traz os campos dos dois. Nada muda no contrato: trate como um PDF mais longo e um
+  formulário maior. Campo marcado no Lara como "Só o atendente responde" nunca chega ao formulário.
+  A conferência das respostas pelo atendente é só do tablet do balcão: a sessão remota não tem a
+  chave `answer_check` e não espera aprovação.
 - Variáveis novas no `.env` do site: `LARA_SIGNATURE_API_TOKEN` (o mesmo valor de
   `SIGNATURE_REMOTE_API_TOKEN` no Lara). No Lara, a TI também preenche `SIGNATURE_REMOTE_SITE_URL`
   com o endereço público deste site e `SIGNATURE_REMOTE_ALLOWED_IPS` com o IP deste servidor.

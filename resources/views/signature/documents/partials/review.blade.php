@@ -6,7 +6,7 @@
 @php
     use App\Models\SignatureReview;
 
-    $itens = $document->template?->declaredReviewItems() ?? [];
+    $itens = $document->effectiveTemplate()?->declaredReviewItems() ?? [];
     $feitosAntes = (array) old('feitos', []);
 @endphp
 

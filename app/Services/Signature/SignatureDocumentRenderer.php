@@ -73,7 +73,7 @@ class SignatureDocumentRenderer
      */
     public function body(SignatureDocument $document): string
     {
-        $corpo = $document->template->body_html;
+        $corpo = $document->effectiveTemplate()->body_html;
         $data = $document->data ?? [];
 
         $doAtendente = [];
@@ -252,7 +252,7 @@ class SignatureDocumentRenderer
      */
     private function placeSignatures(string $corpo, SignatureDocument $document, string $mode): string
     {
-        $generico = $document->template->signature_placeholder ?: '[[assinatura]]';
+        $generico = $document->effectiveTemplate()->signature_placeholder ?: '[[assinatura]]';
         $imagens = $mode === self::MODE_FINAL ? $this->signatureImages($document) : [];
 
         // '' é o grupo de quem vai para o marcador genérico.

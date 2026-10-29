@@ -72,6 +72,16 @@
                                     ->join(', ') ?: 'Sem partes — todos no mesmo lugar' }}
                             </dd>
                         </div>
+                        @php($composto = $template->composed())
+                        <div data-template-links>
+                            <dt class="text-xs text-ink-2">Exige também (no mesmo documento)</dt>
+                            <dd class="font-semibold text-ink">
+                                {{ collect($composto->composedParts)->map(fn($p) => $p['name'] . ' (v' . $p['version'] . ')')->join(', ') ?: 'Nenhum' }}
+                            </dd>
+                            @foreach($composto->compositionProblems as $problema)
+                                <dd class="text-xs text-danger">{{ $problema }}</dd>
+                            @endforeach
+                        </div>
                         <div>
                             <dt class="text-xs text-ink-2">Prazo de guarda</dt>
                             <dd class="font-semibold text-ink">
@@ -111,6 +121,9 @@
                                         @endif
                                         @if($variavel['required'])
                                             <span class="block text-[10px] font-bold text-grena-ink">obrigatória</span>
+                                        @endif
+                                        @if($variavel['attendant_only'])
+                                            <span class="block text-[10px] font-bold text-ink-2">só o atendente responde</span>
                                         @endif
                                     </span>
                                 </li>

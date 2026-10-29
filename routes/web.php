@@ -105,6 +105,7 @@ use App\Http\Controllers\Signature\MinorTermController;
 use App\Http\Controllers\Signature\MinorTermKioskController;
 use App\Http\Controllers\Signature\QuiosqueController;
 use App\Http\Controllers\Signature\ReleaseController as SignatureReleaseController;
+use App\Http\Controllers\Signature\AnswerCheckController as SignatureAnswerCheckController;
 use App\Http\Controllers\Signature\RemoteLinkController as SignatureRemoteLinkController;
 use App\Http\Controllers\Signature\ReviewController as SignatureReviewController;
 use App\Http\Controllers\Signature\TemplateController as SignatureTemplateController;
@@ -252,6 +253,10 @@ Route::prefix('assinatura/kiosk')->name('quiosque.')->group(function () {
             // cada envio, daí o teto.
             Route::post('/respostas', [QuiosqueController::class, 'answers'])
                 ->middleware('throttle:20,1')->name('answers');
+            // Rascunho campo a campo, para o atendente acompanhar e conferir.
+            // Só cache, sem PDF: teto alto, como o batimento.
+            Route::post('/respostas/rascunho', [QuiosqueController::class, 'draft'])
+                ->middleware('throttle:120,1')->name('answers-draft');
             Route::post('/visualizado', [QuiosqueController::class, 'viewed'])
                 ->middleware('throttle:60,1')->name('viewed');
 
@@ -1394,6 +1399,8 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
                 Route::get('/revisar', [SignatureTemplateController::class, 'edit'])->name('edit');
                 // Base em Word desta versão, gerada do texto — para editar e reenviar em "Revisar".
                 Route::get('/word', [SignatureTemplateController::class, 'docx'])->name('docx');
+                // Campos e partes do modelo (composto), para a correspondência no ato de vincular.
+                Route::get('/vinculo', [SignatureTemplateController::class, 'linkInfo'])->name('link-info');
                 // PUT cria a versão seguinte; não sobrescreve a linha em uso.
                 Route::put('/', [SignatureTemplateController::class, 'update'])->name('update');
                 Route::delete('/', [SignatureTemplateController::class, 'destroy'])->name('destroy');
@@ -1557,6 +1564,15 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             // cada poucos segundos enquanto o atendimento corre.
             Route::get('/status', [SignatureReleaseController::class, 'status'])
                 ->middleware('throttle:120,1')->name('status');
+
+            // Conferência das respostas do tablet pelo atendente — aprovar,
+            // devolver com observação, corrigir (que já aprova).
+            Route::post('/conferencia/aprovar', [SignatureAnswerCheckController::class, 'approve'])
+                ->middleware('throttle:30,1')->name('answers.approve');
+            Route::post('/conferencia/devolver', [SignatureAnswerCheckController::class, 'giveBack'])
+                ->middleware('throttle:30,1')->name('answers.return');
+            Route::post('/conferencia/corrigir', [SignatureAnswerCheckController::class, 'correct'])
+                ->middleware('throttle:20,1')->name('answers.correct');
 
             // Gerar o QR de um signatário. A mesma rota regera: "gerar outro"
             // e "gerar o primeiro" são o mesmo ato no balcão, e duas rotas

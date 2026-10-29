@@ -106,6 +106,8 @@ Cada campo do modelo tem um tipo, escolhido em **Assinaturas › Modelos** ao ca
 
 Quem responde cada campo se decide **no documento**, não no modelo. O padrão é o atendente preencher. Para que a própria pessoa responda no tablet (telefone, opções de uso), marque **Perguntar ao signatário** ao lado do campo, no formulário do documento. A pergunta mostrada é a **Pergunta no tablet** do modelo ou, em branco, o nome do campo.
 
+Há campos que a pessoa nunca deve responder sozinha, como valor, número do contrato ou desconto. No modelo, marque **Só o atendente responde** nesse campo. No documento, ele aparece com o aviso "Só o atendente responde (regra do modelo)", sem a opção de perguntar ao signatário, e nem o link remoto o pergunta.
+
 A data automática é a do dia em que a pessoa abre o documento para assinar. Com mais de um signatário, vale a data do primeiro que assinar.
 
 Documento com campo marcado para perguntar ao signatário não pode ir para o gov.br: lá não há perguntas. Para o gov.br, o atendente preenche tudo.
@@ -124,6 +126,21 @@ Revisar nunca altera o que já foi emitido: cada revisão cria uma versão nova.
 Um modelo que já gerou documentos não é apagado: ao excluí-lo, ele fica **inativo** e passa para a aba **Inativos** da lista. Modelo sem nenhum documento é excluído de vez.
 
 Na lista de modelos, o botão **Emitir Documento** abre um documento novo já com aquele modelo escolhido.
+
+## Exigir outro modelo junto (modelo vinculado)
+<!-- telas: signature-templates.index -->
+
+Use quando quem assina um modelo também precisa assinar outro. Por exemplo: todo contrato de locação leva junto o termo de uso de imagem. O vínculo vale num sentido só: quem assina o contrato assina também o termo, mas um documento só do termo não traz o contrato.
+
+1. Em **Assinaturas › Modelos**, abra o modelo principal e clique em **Revisar** (ou cadastre um novo).
+2. Em **Modelos exigidos junto**, escolha o outro modelo e clique em **+ Exigir este modelo**.
+3. Em **Campos**, diga para cada campo do outro modelo se ele é o **mesmo campo** de um deste modelo (mesmo tipo, mesmo com nomes diferentes, como "Nome completo" e "Nome") ou um **campo próprio**. Campo ligado é preenchido uma vez só e sai nos dois textos. Campos com o mesmo nome e o mesmo tipo já vêm ligados.
+4. Em **Onde assina**, diga para cada parte do outro modelo onde ela assina: **junto com todos que assinam este modelo**, **na parte deste modelo** escolhida, ou como **parte nova**. A parte nova se soma às deste modelo e pede um signatário a mais no documento.
+5. Salve. A tela do modelo mostra, nas regras, **Exige também**.
+
+No documento, o texto do outro modelo entra no **mesmo PDF**, em página nova. A pessoa assina uma vez, e a assinatura aparece no lugar de cada texto. Valem as regras mais exigentes dos dois modelos: se um pede foto, há foto; vale a conferência de identidade mais forte; e os anexos e os itens de revisão dos dois se somam.
+
+Revisar o outro modelo depois não muda os documentos já criados. Se ele for desativado, o modelo principal deixa de gerar documento novo até o vínculo sair ou o outro voltar (o aviso aparece ao desativar e ao emitir). Um modelo que só entrou em documentos por vínculo também conta como usado e não pode ser excluído.
 
 ## Ajustar o cabeçalho e o rodapé (papel timbrado)
 <!-- telas: signature-templates.index -->
@@ -151,6 +168,8 @@ Em **Assinaturas › Documentos**, clique em **Novo documento** e escolha o mode
 
 O e-mail do signatário é o que permite à pessoa receber a via assinada. Depois de congelar, libere o QR Code (próxima seção), envie o link remoto ou use o gov.br.
 
+Se o modelo exige outro junto, o formulário avisa no alto ("Inclui também, no mesmo documento: …") e já traz os campos, as partes e os anexos dos dois.
+
 ## Liberar o QR Code e acompanhar a assinatura no tablet
 <!-- telas: signature-documents.index -->
 
@@ -171,6 +190,21 @@ Situações do balcão:
 
 Diretor não assina pelo QR Code: ele entra no tablet com matrícula e PIN (veja "Como o diretor assina no tablet").
 
+## Conferir as respostas da pessoa antes da assinatura
+<!-- telas: signature-documents.index -->
+
+Quando o documento tem campo marcado para **Perguntar ao signatário** e é assinado no tablet do balcão, o atendente confere as respostas antes. A pessoa só assina depois da sua aprovação.
+
+1. Libere o QR Code. No quadro **Assinatura no tablet** aparece **Conferência das respostas**.
+2. Enquanto a pessoa responde no tablet, as respostas aparecem na sua tela, campo a campo ("Preenchendo no tablet").
+3. A pessoa toca em **Continuar** e passa a ler o documento. Na sua tela aparece "Aguardando a sua conferência". Confira as respostas com ela.
+4. Escolha uma opção:
+   - **Aprovar respostas**: o tablet libera o aceite e a assinatura.
+   - **Devolver com observação**: escreva o que precisa ser corrigido e clique em **Devolver ao tablet**. O tablet volta às perguntas com o seu recado. Quando a pessoa envia de novo, a conferência recomeça.
+   - **Corrigir**: ajuste você mesmo as respostas e clique em **Salvar correção e aprovar**. O documento é refeito, e o tablet pede à pessoa que leia de novo antes de assinar.
+
+Se a pessoa voltar e mudar uma resposta depois da aprovação, a conferência volta a ser exigida. Depois que alguém assina, as respostas não mudam mais, e os próximos signatários não passam pela conferência. O link remoto, a entrada da diretoria e o Termo de Menores não têm conferência: não há atendente ao lado.
+
 ## O que a pessoa vê no tablet ao assinar
 
 Conhecer as telas ajuda a orientar quem está assinando no tablet do balcão. Algumas etapas só aparecem se o modelo pedir.
@@ -179,7 +213,7 @@ Conhecer as telas ajuda a orientar quem está assinando no tablet do balcão. Al
 2. **Perguntas** (se houver): "Antes de ler, responda". Depois, **Continuar**.
 3. **Documento**: rola o texto até o fim; só então o botão vira **Li o documento**.
 4. **Identidade**: digita os quatro primeiros dígitos do CPF, o CPF completo ou o código que chegou no e-mail (se não chegar, **Reenviar código**, depois de um minuto). São cinco tentativas.
-5. **Aceite**: marca "Li e concordo" e, quando o modelo pede foto, também a autorização de imagem. Pode pedir a via por e-mail.
+5. **Aceite**: marca "Li e concordo" e, quando o modelo pede foto, também a autorização de imagem. Pode pedir a via por e-mail. Se houve perguntas, o botão só libera depois que o atendente aprova as respostas ("Aguardando o atendente conferir as suas respostas").
 6. **Assinatura**: com o dedo ou a caneta. **Limpar** apaga e deixa refazer.
 7. **Visto** (se houver): a rubrica que vai em todas as páginas.
 8. **Foto** (se houver): a pessoa toca em **Tirar foto**, o tablet conta 3 segundos, e ela escolhe **Tirar nova foto** ou **Usar esta foto**.

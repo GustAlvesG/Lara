@@ -180,6 +180,9 @@ class ReleaseController extends Controller
                     ] : null,
                 ];
             })->all(),
+            // Conferência das respostas do tablet (null = nada a conferir agora).
+            'answer_check' => app(\App\Services\Signature\SignatureAnswerCheckService::class)
+                ->panelPayload($signatureDocument),
             'server_time' => now()->toIso8601String(),
         ]);
     }
