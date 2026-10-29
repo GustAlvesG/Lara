@@ -1313,6 +1313,10 @@
             Presidência em <span class="menu">Assinaturas → Diretoria</span>), que assina sem precisar ser incluído.</li>
         <li><b>A data</b> do fecho ("Volta Redonda, 3 de novembro de 2026") é a da assinatura, preenchida sozinha.
             O documento sai com visto (rubrica) em todas as páginas.</li>
+        <li><b>Escrever com conforto.</b> A caixa de texto cresce com o que você digita e pode ser puxada pelo canto de
+            baixo. A barra tem "Limpar" (tira a formatação do trecho selecionado), "↶" desfazer e "↷" refazer. Ao colar
+            do Word ou de um PDF, ficam só negrito, itálico, sublinhado, parágrafos e listas. Na tela larga,
+            <b>Ocultar prévia</b> (no alto) dá a largura toda ao editor; <b>Mostrar prévia</b> a traz de volta.</li>
     </ul>
 
     <h3>Reaproveitar</h3>
@@ -1320,6 +1324,9 @@
         <li><b>Contratada:</b> ao salvar, os dados dela ficam guardados. No próximo contrato, use "Buscar no cadastro".</li>
         <li><b>Biblioteca de cláusulas:</b> o botão "Salvar na biblioteca" de cada cláusula guarda-a para o setor;
             "Da biblioteca…" insere uma cópia. Mudar a biblioteca não mexe em contrato já feito.</li>
+        <li><b>Onde a cláusula entra:</b> "+ Cláusula" e "Da biblioteca…" aparecem no alto da lista e no fim dela
+            (a cláusula entra por último). No pé de cada cláusula, "+ Cláusula abaixo" e "Da biblioteca abaixo…" põem a
+            nova logo depois daquela. A numeração se ajusta sozinha.</li>
         <li><b>Modelos:</b> na tela de um contrato pronto, "Salvar como modelo do setor" leva título, termos,
             variáveis (sem valor), considerandos e cláusulas.</li>
         <li><b>Aditivo:</b> de um contrato aprovado, "Criar aditivo" já vem com as partes, as variáveis e os

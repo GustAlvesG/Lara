@@ -14,12 +14,12 @@
     <input type="hidden" name="{{ $n('uid') }}" value="{{ $s['uid'] ?? '' }}">
     <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex flex-wrap items-center gap-2">
-            <select name="{{ $n('party') }}" class="{{ $f }} !w-auto" aria-label="Assina como">
+            <select name="{{ $n('party') }}" class="{{ $f }} !w-auto pr-10" aria-label="Assina como">
                 @foreach(\App\Services\Signature\Contracts\ContractContent::SIGNER_PARTIES as $valor => $rotulo)
                     <option value="{{ $valor }}" @selected(($s['party'] ?? 'contratada') === $valor)>{{ $rotulo }}</option>
                 @endforeach
             </select>
-            <select name="{{ $n('source') }}" class="{{ $f }} !w-auto" data-signer-source aria-label="Quem é">
+            <select name="{{ $n('source') }}" class="{{ $f }} !w-auto pr-10" data-signer-source aria-label="Quem é">
                 <option value="person" @selected($fonte === 'person')>Pessoa (digitar os dados)</option>
                 <option value="director" @selected($fonte === 'director')>Diretor do clube</option>
             </select>
@@ -33,7 +33,7 @@
 
     <div data-only-source="director" @class(['hidden' => $fonte !== 'director'])>
         <label class="{{ $l }}">Diretor (área — pessoa)</label>
-        <select name="{{ $n('director') }}" class="{{ $f }}">
+        <select name="{{ $n('director') }}" class="{{ $f }} pr-10">
             <option value="">Escolha…</option>
             @foreach($directors as $area)
                 <optgroup label="{{ $area['area'] }}">

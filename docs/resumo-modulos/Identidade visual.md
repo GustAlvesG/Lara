@@ -124,7 +124,7 @@ nos dois temas em `app.css`, a chave em `AreaColor::AREAS` e em `AREAS` do `tail
 ```blade
 {{-- O que a tela é, em uma ou duas linhas. --}}
 <x-app-layout :bootstrap-grid="false">
-    <x-page>                                   {{-- largura 1200px; `narrow` = 860px --}}
+    <x-page>                                   {{-- largura 1200px; `narrow` = 860px; `wide` = 1680px --}}
         <x-page-title title="Veículos" :back="route('fleet.index')">
             Linha de apoio: o que se faz aqui.
             <x-slot:actions>
@@ -179,7 +179,7 @@ nos dois temas em `app.css`, a chave em `AreaColor::AREAS` e em `AREAS` do `tail
 
 | Componente | Para quê | Props principais |
 |---|---|---|
-| `x-page` | Miolo da tela | `narrow` |
+| `x-page` | Miolo da tela | `narrow` (860px), `wide` (1680px, editor com prévia ao lado) |
 | `x-page-title` | Título, apoio (slot) e ações (`actions`) | `title`, `back` (URL da seta) |
 | `x-search-bar` | Busca de lista | `mode` (`server`/`client`), `name` (`q`), `target`, `filters`, slot `controls` |
 | `x-card` | Cartão de lista | `href`; slots `media` e `footer`; `data-search` para a busca na página |

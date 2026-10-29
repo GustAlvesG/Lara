@@ -447,6 +447,7 @@ O que O Lara faz por você:
 - **Variáveis**: valor, prazo e datas preenchidos uma vez e usados com **Inserir variável**. Valor sai com o extenso.
 - **Conferência**: a lista ao lado da prévia diz o que falta (trava o envio): variável sem valor, CNPJ ou CPF inválido, remissão quebrada, cláusula vazia, falta de quem assina pela contratada.
 - O clube é representado pelo presidente (o titular da Presidência em **Assinaturas › Diretoria**), que assina sem precisar ser incluído. A data do fecho é a da assinatura, e o documento sai com visto em todas as páginas.
+- **Escrever com conforto**: a caixa de texto cresce com o que você digita e pode ser puxada pelo canto de baixo. A barra tem **Limpar** (tira a formatação do trecho), **↶ desfazer** e **↷ refazer**. Ao colar do Word ou de um PDF, ficam só negrito, itálico, sublinhado, parágrafos e listas. Na tela larga, **Ocultar prévia** (no alto) dá a largura toda ao editor; **Mostrar prévia** a traz de volta.
 
 Para o fornecedor revisar, o botão **Word** baixa o contrato em .docx; mudanças pedidas por ele são feitas no editor.
 
@@ -481,7 +482,7 @@ Anexos do contrato (a proposta, um projeto) são incluídos na tela do contrato 
 
 Em **Assinaturas › Contratos**, o botão **Biblioteca e modelos** abre o que o seu setor guardou para reaproveitar.
 
-- **Biblioteca de cláusulas**: no editor, o botão **Salvar na biblioteca** de cada cláusula guarda-a para o setor; **Da biblioteca…** insere uma cópia num contrato. Também dá para escrever uma cláusula direto na tela da biblioteca. Mudar ou remover da biblioteca não mexe em contrato já feito.
+- **Biblioteca de cláusulas**: no editor, o botão **Salvar na biblioteca** de cada cláusula guarda-a para o setor; **Da biblioteca…** insere uma cópia num contrato. **+ Cláusula** e **Da biblioteca…** ficam no alto e no fim da lista de cláusulas (entra por último); no pé de cada cláusula, **+ Cláusula abaixo** e **Da biblioteca abaixo…** põem a nova logo depois dela, e a numeração se ajusta. Também dá para escrever uma cláusula direto na tela da biblioteca. Mudar ou remover da biblioteca não mexe em contrato já feito.
 - **Modelos de contrato**: na tela de um contrato pronto, **Salvar como modelo do setor** guarda título, termos, variáveis (sem valor), considerandos e cláusulas. Ao criar um **Novo contrato**, escolha o modelo. Remover um modelo não muda os contratos feitos com ele.
 - **Contratada**: ao salvar, os dados dela ficam guardados. No próximo contrato, use **Buscar no cadastro (contratadas e fiadores já usados)**.
 - **Aditivo**: num contrato aprovado, **Criar aditivo** já vem com as partes, as variáveis e os signatários; escreva só as cláusulas do aditivo. O número é o do contrato com A1, A2…

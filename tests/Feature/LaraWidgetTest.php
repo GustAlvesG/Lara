@@ -61,6 +61,12 @@ class LaraWidgetTest extends TestCase
 
         $this->assertStringContainsString('laraWidget(', $html);
         $this->assertStringContainsString('aria-label="Abrir a Lara (assistente de IA)"', $html);
+        // O robô animado, com a imagem parada para quem pede menos movimento.
+        $this->assertStringContainsString(asset('images/lara/lara-robo-128.webp'), $html);
+        $this->assertStringContainsString('media="(prefers-reduced-motion: reduce)"', $html);
+        foreach (['lara-robo-128.webp', 'lara-robo-320.webp', 'lara-robo.png', 'lara-robo-cabeca.png'] as $arquivo) {
+            $this->assertFileExists(public_path('images/lara/' . $arquivo));
+        }
         // URLs fixas, não route(): o layout não pode cair por cache de rotas.
         // Vêm no JSON do x-data, com as barras escapadas.
         $this->assertStringContainsString(url('/lara/conversa'), str_replace('\\', '', $html));

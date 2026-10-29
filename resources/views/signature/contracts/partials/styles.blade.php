@@ -18,7 +18,13 @@
     .ct-paper .ct-sig-line { border-top: 1px solid #1f1819; margin: 28px 0 4px; }
     .ct-diff ins { background: #d1fae5; color: #065f46; text-decoration: none; border-radius: 3px; padding: 0 2px; }
     .ct-diff del { background: #fee2e2; color: #991b1b; border-radius: 3px; padding: 0 2px; }
-    .ct-rich { min-height: 64px; max-height: 420px; overflow-y: auto; padding: 10px 12px; outline: none; }
+    /* Caixa de digitação: começa com umas 6 linhas, cresce com o texto até 70% da tela e pode ser puxada pelo canto. */
+    .ct-rich { min-height: 9.5rem; max-height: 70vh; overflow-y: auto; resize: vertical; padding: 12px 14px; outline: none; font-size: 15px; line-height: 1.6; border-radius: 0 0 12px 12px; }
+    /* "Ocultar prévia" no editor: o formulário ocupa a largura toda. */
+    @media (min-width: 1280px) {
+        .ct-layout.ct-solo > form { grid-column: 1 / -1; }
+        .ct-layout.ct-solo > aside { display: none; }
+    }
     .ct-rich:empty::before { content: attr(data-placeholder); color: var(--ink-3, #9a8e90); }
     .ct-rich ul { list-style: disc; margin-left: 22px; }
     .ct-rich ol { list-style: decimal; margin-left: 22px; }

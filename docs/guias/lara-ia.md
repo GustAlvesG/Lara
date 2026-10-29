@@ -7,7 +7,7 @@ palavras: Lara, IA, inteligência artificial, assistente, chat, conversa, pergun
 
 A Lara é a assistente de inteligência artificial do clube, dentro d'O Lara. Você pergunta em português, do seu jeito, e ela responde na hora, num chat. Ela conhece o estatuto do clube, as atividades e serviços cadastrados no InfoClube, os avisos dirigidos a você e o funcionamento das telas d'O Lara.
 
-O chat fica num **balão no canto inferior direito** de toda tela d'O Lara. Clicando nele, abre um painel lateral com a conversa, sem sair da página em que você está: dá para perguntar sobre o que está vendo na tela.
+O chat fica no **robozinho branco e grená do canto inferior direito** de toda tela d'O Lara — é a Lara acenando. Clicando nele, abre um painel lateral com a conversa, sem sair da página em que você está: dá para perguntar sobre o que está vendo na tela.
 
 As respostas são geradas por IA. Elas ajudam a encontrar a informação mais rápido, mas podem conter erros: em caso de dúvida, sobretudo sobre regras, valores e prazos, confirme com o setor responsável.
 
@@ -26,7 +26,7 @@ Sem essa permissão, o balão não aparece e o item **Lara (IA)** não está no 
 
 Há três jeitos de abrir o chat:
 
-1. Clicar no **balão redondo com o ícone de conversa**, no canto inferior direito de qualquer tela. No celular, ele fica logo acima da barra de baixo.
+1. Clicar no **robozinho que acena**, no canto inferior direito de qualquer tela. No celular, ele fica logo acima da barra de baixo. Quando chega uma resposta com o painel fechado, aparece um pontinho grená no alto dele.
 2. Clicar em **Lara (IA)** no menu.
 3. Procurar "Lara" na busca rápida (Ctrl+K).
 
@@ -39,7 +39,7 @@ Se uma resposta chegar com o painel fechado, aparece um pontinho branco no balã
 ## Fazer uma pergunta à Lara
 <!-- telas: lara.index -->
 
-Com o painel da Lara aberto (balão no canto inferior direito):
+Com o painel da Lara aberto (o robozinho no canto inferior direito):
 
 1. Escreva a pergunta no campo **Escreva sua pergunta…**, no pé do painel.
 2. Aperte **Enter** ou clique no botão de enviar (a setinha). Para pular linha sem enviar, use **Shift + Enter**.
@@ -62,7 +62,7 @@ Passe o mouse sobre uma mensagem para ver o horário dela.
 ## Começar uma nova conversa
 <!-- telas: lara.index -->
 
-No painel da Lara (balão no canto inferior direito), o botão **Nova conversa**, no topo, limpa a tela e faz a Lara esquecer o assunto anterior.
+No painel da Lara (o robozinho no canto inferior direito), o botão **Nova conversa**, no topo, limpa a tela e faz a Lara esquecer o assunto anterior.
 
 Use quando:
 
