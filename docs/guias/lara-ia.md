@@ -7,7 +7,7 @@ palavras: Lara, IA, inteligência artificial, assistente, chat, conversa, pergun
 
 A Lara é a assistente de inteligência artificial do clube, dentro d'O Lara. Você pergunta em português, do seu jeito, e ela responde na hora, num chat. Ela conhece o estatuto do clube, as atividades e serviços cadastrados no InfoClube, os avisos dirigidos a você e o funcionamento das telas d'O Lara.
 
-O chat fica no **robozinho branco e grená do canto inferior direito** de toda tela d'O Lara — é a Lara acenando. Clicando nele, abre um painel lateral com a conversa, sem sair da página em que você está: dá para perguntar sobre o que está vendo na tela.
+O chat fica no **robozinho branco e grená, dentro de um círculo vermelho, no canto inferior direito** de toda tela d'O Lara — é a Lara acenando. Clicando nele, abre um painel lateral com a conversa, sem sair da página em que você está: dá para perguntar sobre o que está vendo na tela.
 
 As respostas são geradas por IA. Elas ajudam a encontrar a informação mais rápido, mas podem conter erros: em caso de dúvida, sobretudo sobre regras, valores e prazos, confirme com o setor responsável.
 
@@ -34,7 +34,7 @@ Em todos os casos, você continua na tela onde estava e o painel da Lara se abre
 
 Para fechar, clique no **X** no canto do painel ou aperte **Esc**. O painel acompanha você: se ficar aberto e você trocar de tela, ele continua aberto na tela seguinte, com a mesma conversa.
 
-Se uma resposta chegar com o painel fechado, aparece um pontinho branco no balão. Clique para ler.
+Se uma resposta chegar com o painel fechado, aparece um pontinho grená no alto do robozinho. Clique para ler.
 
 ## Fazer uma pergunta à Lara
 <!-- telas: lara.index -->

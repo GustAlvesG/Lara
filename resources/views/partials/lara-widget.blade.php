@@ -21,8 +21,10 @@
 
     // O robô da Lara (public/images/lara, gerado do GIF original — ver
     // docs/funcionalidades/lara-ia.md). WebP animado com transparência; quem
-    // pede menos movimento no sistema vê a imagem parada.
-    $laraRobo = asset('images/lara/lara-robo-128.webp');
+    // pede menos movimento no sistema vê a imagem parada. O balão é o robô
+    // dentro do anel grená (GIF próprio); o resto usa o robô de corpo inteiro.
+    $laraBalao = asset('images/lara/lara-balao.webp');
+    $laraBalaoParado = asset('images/lara/lara-balao.png');
     $laraRoboGrande = asset('images/lara/lara-robo-320.webp');
     $laraRoboParado = asset('images/lara/lara-robo.png');
     $laraCabeca = asset('images/lara/lara-robo-cabeca.png');
@@ -264,15 +266,15 @@
     @keydown.escape.window="if (aberto) fechar()"
     @lara-abrir.window="abrir()">
 
-    {{-- Balão: o robô da Lara, de pé no canto. No celular fica acima da barra
+    {{-- Balão: o robô da Lara no anel grená, acenando. No celular fica acima da barra
          de baixo. A sombra segue o contorno (drop-shadow), não uma caixa. --}}
     <button type="button" x-show="!aberto" @click="abrir()" aria-label="Abrir a Lara (assistente de IA)" title="Lara (IA)"
         class="fixed right-3 z-[55] block rounded-2xl transition hover:-translate-y-1 focus:outline-none focus-visible:ring-4 focus-visible:ring-grena-tint sm:right-5"
         style="bottom: var(--lara-balao-bottom)">
         <picture>
-            <source srcset="{{ $laraRoboParado }}" media="(prefers-reduced-motion: reduce)">
-            <img src="{{ $laraRobo }}" alt="" width="52" height="74"
-                class="h-[74px] w-auto drop-shadow-[0_6px_10px_rgba(0,0,0,0.28)]">
+            <source srcset="{{ $laraBalaoParado }}" media="(prefers-reduced-motion: reduce)">
+            <img src="{{ $laraBalao }}" alt="" width="96" height="72"
+                class="h-[72px] w-auto drop-shadow-[0_6px_10px_rgba(0,0,0,0.28)]">
         </picture>
         <span x-show="novidade || pensando" x-cloak
             class="absolute right-0 top-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-grena"
