@@ -77,6 +77,10 @@ class SignatureAuditEvent extends Model
     public const EVENT_REMOTE_LINK_LOCKED = 'remote_link_locked';
     /** O link foi aberto no site e a sessão de assinatura começou. */
     public const EVENT_REMOTE_OPENED = 'remote_opened';
+    /* Conferência das respostas do tablet pelo atendente (SignatureAnswerCheckService). */
+    public const EVENT_ANSWERS_APPROVED = 'answers_approved';
+    public const EVENT_ANSWERS_RETURNED = 'answers_returned';
+    public const EVENT_FORM_CORRECTED = 'form_corrected';
 
     public const EVENT_LABELS = [
         self::EVENT_CREATED => 'Documento criado',
@@ -117,6 +121,9 @@ class SignatureAuditEvent extends Model
         self::EVENT_REMOTE_LINK_REVOKED => 'Link de assinatura remota revogado',
         self::EVENT_REMOTE_LINK_LOCKED => 'Link de assinatura remota bloqueado (tentativas de CPF esgotadas)',
         self::EVENT_REMOTE_OPENED => 'Link de assinatura remota aberto',
+        self::EVENT_ANSWERS_APPROVED => 'Respostas conferidas e aprovadas pelo atendente',
+        self::EVENT_ANSWERS_RETURNED => 'Respostas devolvidas pelo atendente para correção',
+        self::EVENT_FORM_CORRECTED => 'Respostas corrigidas pelo atendente',
     ];
 
     public const ACTOR_USER = 'user';

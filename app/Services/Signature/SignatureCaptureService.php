@@ -81,7 +81,7 @@ class SignatureCaptureService
          */
         $modo = $request->isRemote()
             ? SignatureTemplate::IDENTITY_FULL
-            : $signer->document->template->identity_check;
+            : $signer->document->effectiveTemplate()->identity_check;
 
         if ($request->identity_attempts >= self::MAX_IDENTITY_ATTEMPTS) {
             $this->requests->cancel($request);
@@ -156,7 +156,7 @@ class SignatureCaptureService
     {
         $signer = $request->signer;
 
-        if ($signer->document->template->identity_check !== SignatureTemplate::IDENTITY_EMAIL) {
+        if ($signer->document->effectiveTemplate()->identity_check !== SignatureTemplate::IDENTITY_EMAIL) {
             throw new SignatureSessionException('Este documento não usa código por e-mail.', 422);
         }
 
@@ -271,7 +271,7 @@ class SignatureCaptureService
          */
         if ($request->identity_confirmed_at === null
             && !$request->isRemote()
-            && $document->template->identity_check === SignatureTemplate::IDENTITY_NONE) {
+            && $document->effectiveTemplate()->identity_check === SignatureTemplate::IDENTITY_NONE) {
             $this->confirmIdentity($request, null, $context);
             $request->refresh();
         }
@@ -286,6 +286,10 @@ class SignatureCaptureService
         if ($document->signingFormPending()) {
             throw new SignatureSessionException('Responda as perguntas do documento antes de assinar.', 409);
         }
+
+        // Balcão com perguntas: o atendente confere as respostas antes. A
+        // aprovação vale para o original de agora (SignatureAnswerCheckService).
+        app(SignatureAnswerCheckService::class)->assertApproved($request);
 
         if (!($payload['accepted'] ?? false)) {
             throw new SignatureSessionException('É preciso aceitar os termos do documento para assinar.', 422);

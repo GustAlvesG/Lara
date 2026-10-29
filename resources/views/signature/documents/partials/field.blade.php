@@ -14,7 +14,8 @@
      */
     use App\Services\Signature\SignatureFieldTypes as T;
 
-    $perguntar = $perguntar ?? false;
+    // Restrito ao atendente pelo modelo: nunca vai ao tablet.
+    $perguntar = ($perguntar ?? false) && !($campo['attendant_only'] ?? false);
     $nome = 'data[' . $campo['key'] . ']';
     $id = 'data_' . $campo['key'];
     $classe = 'w-full rounded-xl border-line-strong shadow-card focus:border-grena focus:ring-grena-tint';
@@ -56,12 +57,17 @@
                 <span class="block text-xs font-normal text-ink-3">{{ $campo['label'] }}</span>
             @endif
         </label>
-        <label class="flex items-center gap-2 text-xs text-ink-2">
-            <input type="checkbox" name="ask_signer[]" value="{{ $campo['key'] }}" data-ask-toggle
-                   @checked($perguntar)
-                   class="rounded border-line-strong text-grena-ink focus:ring-grena-tint">
-            Perguntar ao signatário
-        </label>
+        @if($campo['attendant_only'] ?? false)
+            {{-- O modelo restringe o campo ao atendente: não há como mandá-lo ao tablet. --}}
+            <span class="text-xs text-ink-2" data-attendant-only>Só o atendente responde (regra do modelo)</span>
+        @else
+            <label class="flex items-center gap-2 text-xs text-ink-2">
+                <input type="checkbox" name="ask_signer[]" value="{{ $campo['key'] }}" data-ask-toggle
+                       @checked($perguntar)
+                       class="rounded border-line-strong text-grena-ink focus:ring-grena-tint">
+                Perguntar ao signatário
+            </label>
+        @endif
     </div>
 
     <p data-ask-note class="text-xs text-ink-2 rounded-lg bg-subtle px-3 py-2" @if(!$perguntar) hidden @endif>

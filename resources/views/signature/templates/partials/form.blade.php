@@ -24,6 +24,8 @@
     $template = $template ?? null;
     $variaveis = array_values(old('variables', $template?->variables ?? []));
     $partes = array_values(old('parties', $template?->parties ?? []));
+    // Modelos exigidos junto, com campos e partes de cada um (TemplateController::linksForForm).
+    $vinculosIniciais = $vinculos ?? [];
 @endphp
 
 <div class="bg-surface rounded-card shadow-card p-6 space-y-6">
@@ -131,7 +133,8 @@
             Cada campo é um <code class="font-mono">[[marcador]]</code> do texto. Vindo do Word, a lista já chega
             pronta. Escolha o <strong>tipo</strong> de cada um. Quem preenche é decidido em cada documento: o
             atendente preenche, ou marca <strong>Perguntar ao signatário</strong> e a pessoa responde no tablet,
-            antes de ler o documento.
+            antes de ler o documento. Campo marcado como <strong>Só o atendente responde</strong> nunca vai a quem
+            assina.
         </p>
 
         @foreach($errors->get('variables.*') as $mensagens)
@@ -187,6 +190,13 @@
                         <input type="checkbox" data-field="required" value="1"
                                class="rounded border-line-strong text-grena-ink focus:ring-grena-tint">
                         Obrigatório
+                    </label>
+                    {{-- Restrito: o documento não oferece "Perguntar ao signatário" para este campo. --}}
+                    <label class="flex items-center gap-2 text-xs text-ink" data-manual-only>
+                        <input type="hidden" data-field="attendant_only" data-off value="0">
+                        <input type="checkbox" data-field="attendant_only" value="1"
+                               class="rounded border-line-strong text-grena-ink focus:ring-grena-tint">
+                        Só o atendente responde
                     </label>
                     <button type="button" class="text-xs text-danger hover:underline" data-remove-variable>Remover campo</button>
                 </div>
@@ -261,6 +271,46 @@
                 </div>
             </div>
         </template>
+    </div>
+
+    {{-- Modelo vinculado (LinkedTemplateComposer): o texto dos exigidos entra no mesmo documento. --}}
+    <div data-linked-templates-box>
+        <label class="block text-sm font-bold text-ink mb-2">Modelos exigidos junto</label>
+        <p class="text-xs text-ink-2 mb-3">
+            Quem assina este modelo assina também os escolhidos aqui: o texto deles entra <strong>no mesmo
+            documento</strong>, em página nova, e a assinatura aparece no lugar de cada um. O contrário não vale — um
+            documento só do outro modelo não traz este. Para cada campo do outro modelo, diga se é o
+            <strong>mesmo campo</strong> de um deste (preenchido uma vez só, vale nos dois textos) ou um campo
+            próprio; e, para cada parte, onde ela assina: com todos, numa parte deste modelo, ou como
+            <strong>parte nova</strong> (soma-se às deste e pede signatário no documento).
+        </p>
+
+        @foreach($errors->get('linked_templates*') as $mensagens)
+            @foreach($mensagens as $mensagem)
+                <p class="mb-2 text-xs text-danger">{{ $mensagem }}</p>
+            @endforeach
+        @endforeach
+
+        @if(($modelosParaVincular ?? collect())->isNotEmpty())
+            <div class="flex flex-wrap items-center gap-3 mb-3">
+                <select id="linkTemplateSelect" class="rounded-lg border-line-strong text-sm" aria-label="Modelo a exigir">
+                    <option value="">Escolha um modelo…</option>
+                    @foreach($modelosParaVincular as $opcao)
+                        <option value="{{ $opcao->root_id }}" data-url="{{ route('signature-templates.link-info', $opcao) }}">
+                            {{ $opcao->name }} (v{{ $opcao->version }})
+                        </option>
+                    @endforeach
+                </select>
+                <button type="button" id="addLink" class="text-xs font-bold text-grena-ink hover:underline">+ Exigir este modelo</button>
+                <span id="linkStatus" class="text-xs text-ink-2" role="status"></span>
+            </div>
+        @endif
+
+        <div id="links" class="space-y-4"></div>
+
+        <p id="noLinks" class="text-xs text-ink-2" @if(count($vinculos ?? [])) hidden @endif>
+            Nenhum — o documento traz só este modelo.
+        </p>
     </div>
 
     <div>
@@ -469,6 +519,7 @@
         campo(row, 'label').value = variavel.label || '';
         campo(row, 'type').value = variavel.type || 'text';
         campo(row, 'required').checked = sim(variavel.required);
+        campo(row, 'attendant_only').checked = sim(variavel.attendant_only);
         campo(row, 'question').value = variavel.question || '';
         campo(row, 'options').value = Array.isArray(variavel.options)
             ? variavel.options.join('\n')
@@ -491,6 +542,7 @@
                 label: campo(row, 'label').value.trim(),
                 type: campo(row, 'type').value,
                 required: campo(row, 'required').checked,
+                attendant_only: campo(row, 'attendant_only').checked,
                 question: campo(row, 'question').value,
                 options: campo(row, 'options').value
             };
@@ -729,6 +781,278 @@
         });
     }
 
+    /*
+     | Modelos exigidos junto. Cada cartão guarda os campos e as partes do
+     | outro modelo (vindos do servidor) e oferece, para cada um, os campos e
+     | as partes DESTE como estão na tela agora — por isso as opções são
+     | refeitas a cada mudança nas listas acima.
+     */
+    var caixaVinculos = document.getElementById('links');
+    var semVinculos = document.getElementById('noLinks');
+    var escolhaVinculo = document.getElementById('linkTemplateSelect');
+    var statusVinculo = document.getElementById('linkStatus');
+    var indiceVinculo = 0;
+    var TODOS = @json(\App\Services\Signature\LinkedTemplateComposer::GENERIC);
+    var NOVA = @json(\App\Services\Signature\LinkedTemplateComposer::NEW_PARTY);
+
+    function el(tag, classe, texto) {
+        var e = document.createElement(tag);
+
+        if (classe) {
+            e.className = classe;
+        }
+
+        if (texto !== undefined) {
+            e.textContent = texto;
+        }
+
+        return e;
+    }
+
+    function opcao(select, valor, texto) {
+        var o = document.createElement('option');
+        o.value = valor;
+        o.textContent = texto;
+        select.appendChild(o);
+    }
+
+    function atualizaSemVinculos() {
+        semVinculos.hidden = caixaVinculos.querySelectorAll('[data-link-row]').length > 0;
+    }
+
+    function linhaDoVinculo(rotulo, detalhe, select) {
+        var linhaV = el('div', 'grid grid-cols-1 md:grid-cols-2 gap-2 items-center');
+        var texto = el('div', 'text-sm text-ink', rotulo);
+
+        if (detalhe) {
+            texto.appendChild(el('span', 'block text-[11px] text-ink-2', detalhe));
+        }
+
+        linhaV.appendChild(texto);
+        linhaV.appendChild(select);
+
+        return linhaV;
+    }
+
+    function cartaoVinculo(info) {
+        var i = indiceVinculo++;
+        var base = 'linked_templates[' + i + ']';
+        var cartao = el('div', 'rounded-xl border border-line p-4 space-y-4');
+        cartao.dataset.linkRow = '';
+        cartao.dataset.rootId = info.root_id;
+
+        var topo = el('div', 'flex items-start justify-between gap-3');
+        var titulo = el('div');
+        titulo.appendChild(el('p', 'text-sm font-bold text-ink', info.name + ' (v' + info.version + ')'));
+
+        if (info.includes && info.includes.length) {
+            titulo.appendChild(el('p', 'text-xs text-ink-2', 'Leva junto: ' + info.includes.join(', ') + '.'));
+        }
+
+        topo.appendChild(titulo);
+        var remover = el('button', 'text-xs text-danger hover:underline', 'Remover');
+        remover.type = 'button';
+        remover.dataset.removeLink = '';
+        topo.appendChild(remover);
+        cartao.appendChild(topo);
+
+        var raiz = document.createElement('input');
+        raiz.type = 'hidden';
+        raiz.name = base + '[root_id]';
+        raiz.value = info.root_id;
+        cartao.appendChild(raiz);
+
+        var salvosCampos = info.fields || {};
+        var salvasPartes = info.party_map || {};
+
+        if (info.variables.length) {
+            var blocoCampos = el('div', 'space-y-2');
+            blocoCampos.appendChild(el('p', 'text-xs font-bold text-ink-2 uppercase tracking-wider', 'Campos'));
+
+            info.variables.forEach(function (v) {
+                var s = el('select', 'w-full rounded-lg border-line-strong text-sm');
+                s.name = base + '[fields][' + v.key + ']';
+                s.dataset.linkField = '';
+                s.dataset.key = v.key;
+                s.dataset.type = v.type;
+                s.dataset.label = v.label;
+
+                if (Object.prototype.hasOwnProperty.call(salvosCampos, v.key)) {
+                    s.dataset.value = salvosCampos[v.key] || '';
+                }
+
+                blocoCampos.appendChild(linhaDoVinculo(v.label, v.type_label + ' · [[' + v.key + ']]', s));
+            });
+
+            cartao.appendChild(blocoCampos);
+        }
+
+        var blocoPartes = el('div', 'space-y-2');
+        blocoPartes.appendChild(el('p', 'text-xs font-bold text-ink-2 uppercase tracking-wider', 'Onde assina'));
+
+        var origens = info.parties.map(function (p) {
+            return { key: p.key, label: p.label, generico: false };
+        });
+        origens.push({ key: TODOS, label: 'Quem assina sem parte', generico: true });
+
+        origens.forEach(function (p) {
+            var s = el('select', 'w-full rounded-lg border-line-strong text-sm');
+            s.name = base + '[parties][' + p.key + ']';
+            s.dataset.linkParty = '';
+            s.dataset.key = p.key;
+            s.dataset.label = p.label;
+            s.dataset.generic = p.generico ? '1' : '';
+
+            if (salvasPartes[p.key]) {
+                s.dataset.value = salvasPartes[p.key];
+            }
+
+            blocoPartes.appendChild(linhaDoVinculo(
+                p.label,
+                p.generico ? 'o [[assinatura]] do outro modelo' : '[[assinatura: ' + p.key + ']]',
+                s
+            ));
+        });
+
+        cartao.appendChild(blocoPartes);
+        preencheVinculo(cartao);
+
+        return cartao;
+    }
+
+    // As opções de cada escolha, com o que está na tela agora. Vale o que a
+    // pessoa já escolheu; sem escolha, a regra padrão (mesma chave e mesmo
+    // tipo = mesmo campo; parte de mesma chave = a mesma; senão, nova).
+    function preencheVinculo(cartao) {
+        var camposDeX = linhas().filter(function (v) { return v.key !== ''; });
+        var partesDeX = listaDePartes().filter(function (p) { return p.key !== ''; });
+
+        Array.prototype.forEach.call(cartao.querySelectorAll('[data-link-field]'), function (s) {
+            var atual = s.dataset.value !== undefined ? s.dataset.value : null;
+            s.innerHTML = '';
+            opcao(s, '', 'Campo próprio (entra como campo novo)');
+
+            camposDeX.forEach(function (v) {
+                if (v.type === s.dataset.type) {
+                    opcao(s, v.key, 'Mesmo campo que: ' + (v.label || v.key));
+                }
+            });
+
+            if (atual === null) {
+                atual = camposDeX.some(function (v) { return v.key === s.dataset.key && v.type === s.dataset.type; })
+                    ? s.dataset.key : '';
+            }
+
+            s.value = atual;
+
+            if (s.value !== atual) {
+                s.value = '';
+            }
+        });
+
+        Array.prototype.forEach.call(cartao.querySelectorAll('[data-link-party]'), function (s) {
+            var atual = s.dataset.value || null;
+            var generico = s.dataset.generic === '1';
+            s.innerHTML = '';
+            opcao(s, TODOS, 'Junto com todos que assinam este modelo');
+
+            partesDeX.forEach(function (p) {
+                opcao(s, p.key, 'Na parte deste modelo: ' + (p.label || p.key));
+            });
+
+            if (!generico) {
+                opcao(s, NOVA, 'Parte nova: ' + s.dataset.label + ' (soma-se às deste)');
+            }
+
+            if (atual === null) {
+                atual = generico ? TODOS
+                    : (partesDeX.some(function (p) { return p.key === s.dataset.key; }) ? s.dataset.key : NOVA);
+            }
+
+            s.value = atual;
+
+            if (s.value !== atual) {
+                s.value = generico ? TODOS : NOVA;
+            }
+        });
+    }
+
+    function atualizaVinculos() {
+        Array.prototype.forEach.call(caixaVinculos.querySelectorAll('[data-link-row]'), preencheVinculo);
+    }
+
+    // O que a pessoa escolhe fica guardado no próprio select: refazer as
+    // opções não pode desfazer a escolha.
+    caixaVinculos.addEventListener('change', function (event) {
+        if (event.target.matches('[data-link-field], [data-link-party]')) {
+            event.target.dataset.value = event.target.value;
+        }
+    });
+
+    caixaVinculos.addEventListener('click', function (event) {
+        if (event.target.matches('[data-remove-link]')) {
+            event.target.closest('[data-link-row]').remove();
+            atualizaSemVinculos();
+        }
+    });
+
+    var esperaVinculos = null;
+
+    function agendaVinculos() {
+        clearTimeout(esperaVinculos);
+        esperaVinculos = setTimeout(atualizaVinculos, 400);
+    }
+
+    container.addEventListener('input', agendaVinculos);
+    container.addEventListener('change', agendaVinculos);
+    container.addEventListener('click', agendaVinculos);
+    caixaPartes.addEventListener('input', agendaVinculos);
+    caixaPartes.addEventListener('click', agendaVinculos);
+
+    var botaoVinculo = document.getElementById('addLink');
+
+    if (botaoVinculo && escolhaVinculo) {
+        botaoVinculo.addEventListener('click', function () {
+            var escolhida = escolhaVinculo.options[escolhaVinculo.selectedIndex];
+
+            if (!escolhida || !escolhida.value) {
+                statusVinculo.textContent = 'Escolha o modelo a exigir.';
+
+                return;
+            }
+
+            if (caixaVinculos.querySelector('[data-link-row][data-root-id="' + escolhida.value + '"]')) {
+                statusVinculo.textContent = 'Este modelo já está na lista.';
+
+                return;
+            }
+
+            botaoVinculo.disabled = true;
+            statusVinculo.textContent = 'Carregando os campos…';
+
+            fetch(escolhida.dataset.url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+                .then(function (resposta) {
+                    if (!resposta.ok) {
+                        throw new Error('falha');
+                    }
+
+                    return resposta.json();
+                })
+                .then(function (info) {
+                    caixaVinculos.appendChild(cartaoVinculo(info));
+                    atualizaSemVinculos();
+                    escolhaVinculo.value = '';
+                    statusVinculo.textContent = 'Confira a correspondência de campos e partes antes de salvar.';
+                })
+                .catch(function () {
+                    statusVinculo.textContent = 'Não foi possível carregar o modelo. Tente de novo.';
+                })
+                .then(function () {
+                    botaoVinculo.disabled = false;
+                });
+        });
+    }
+
     iniciais.forEach(function (v) {
         container.appendChild(linha(v));
     });
@@ -738,6 +1062,13 @@
     });
 
     atualizaSemPartes();
+
+    // Depois dos campos e das partes: as opções de cada vínculo saem deles.
+    @json($vinculosIniciais).forEach(function (info) {
+        caixaVinculos.appendChild(cartaoVinculo(info));
+    });
+
+    atualizaSemVinculos();
 
     atualizaVazio();
     atualizaPrevia();

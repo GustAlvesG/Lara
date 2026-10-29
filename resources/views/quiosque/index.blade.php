@@ -76,6 +76,7 @@
       // Os caminhos por documento são montados na hora, com o id que a leitura
       // do QR devolveu — o tablet nunca escolhe um id.
       respostas: @json(route('quiosque.answers', ['signatureDocument' => '__DOC__'])),
+      rascunho: @json(route('quiosque.answers-draft', ['signatureDocument' => '__DOC__'])),
       visualizado: @json(route('quiosque.viewed', ['signatureDocument' => '__DOC__'])),
       identidade: @json(route('quiosque.identity', ['signatureDocument' => '__DOC__'])),
       codigoIdentidade: @json(route('quiosque.identity-code', ['signatureDocument' => '__DOC__'])),
@@ -332,6 +333,8 @@
       <div class="pad grow" id="formScroll">
         <h2>Antes de ler, responda</h2>
         <p class="lead">Suas respostas entram no documento que você vai ler e assinar em seguida.</p>
+        <!-- Conferência do atendente: o recado de quando ele devolve as respostas para correção. -->
+        <p class="note note-info hidden" id="avisoConferencia"></p>
         <div id="formCampos"></div>
         <p class="note note-danger hidden" id="erroFormulario"></p>
       </div>
@@ -406,6 +409,11 @@
           <input type="checkbox" id="viaCheck">
           <span>Quero receber uma via assinada no meu e-mail cadastrado.</span>
         </label>
+
+        <!-- Conferência do atendente: a assinatura espera a aprovação das respostas. -->
+        <div class="note note-info hidden" id="aguardaConferencia" style="margin-top:18px;">
+          Aguardando o atendente conferir as suas respostas. Assim que ele aprovar, você poderá continuar.
+        </div>
 
         <div class="note note-info" id="avisoFoto" style="margin-top:18px;">
           Ao confirmar a assinatura, a foto é tirada pela câmera frontal do tablet e registrada
@@ -578,6 +586,13 @@
       identidadeOk: false,
       // Assinatura em lote da diretoria: { docs, idx, leituras }. Ver diretoria-js.
       lote: null,
+      // Conferência das respostas pelo atendente (balcão com perguntas):
+      // { required, status, note } do servidor; null quando não há.
+      conferencia: null,
+      // Versão do PDF (início do hash): muda quando o atendente corrige uma
+      // resposta — e a pessoa precisa ler de novo.
+      pdfVersao: null,
+      respondidoEm: null,
       sessao: { restante: 0, aviso: 60 },
     };
   }
@@ -589,6 +604,17 @@
   function mostra(id) {
     document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('on'); });
     $('#' + id).classList.add('on');
+
+    // O aceite depende da conferência do atendente: confere ao chegar.
+    if (id === 'tela-aceite') {
+      atualizaAceite();
+    }
+  }
+
+  function telaAtual() {
+    var tela = document.querySelector('.screen.on');
+
+    return tela ? tela.id : null;
   }
 
   function erro(mensagem, titulo) {
@@ -917,6 +943,8 @@
     S.regras = dados.rules;
     S.sessao.restante = dados.session.remaining_seconds;
     S.sessao.aviso = dados.session.warning_seconds;
+    S.conferencia = dados.answer_check || null;
+    S.pdfVersao = dados.document.pdf_version;
 
     $('#tituloDoc').textContent = S.titulo;
     $('#subtituloDoc').textContent = S.signatario.name;
@@ -1106,10 +1134,36 @@
     });
 
     $('#erroFormulario').classList.add('hidden');
+    $('#avisoConferencia').classList.add('hidden');
     $('#btnFormulario').disabled = false;
     $('#formScroll').scrollTop = 0;
 
     mostra('tela-formulario');
+
+    // O atendente já vê o que está preenchido (numa correção, as respostas anteriores).
+    agendaRascunho();
+  }
+
+  /*
+   * Conferência do atendente: o rascunho vai ao servidor a cada campo, para
+   * aparecer no computador enquanto a pessoa responde. Nada fica no tablet.
+   */
+  var timerRascunho = null;
+
+  function agendaRascunho() {
+    if (!S || !S.conferencia) {
+      return;
+    }
+
+    clearTimeout(timerRascunho);
+    timerRascunho = setTimeout(function () {
+      if (!S || !S.conferencia || telaAtual() !== 'tela-formulario') {
+        return;
+      }
+
+      api('POST', rota('rascunho'), { answers: respostas() })
+        .catch(function () { /* o atendente confere o envio de qualquer forma */ });
+    }, 600);
   }
 
   function respostas() {
@@ -1150,6 +1204,7 @@
     }
 
     limpaErroDa(bloco);
+    agendaRascunho();
   });
 
   $('#formCampos').addEventListener('change', function (ev) {
@@ -1164,11 +1219,13 @@
     });
 
     limpaErroDa(bloco);
+    agendaRascunho();
   });
 
   $('#btnFormulario').addEventListener('click', function () {
     $('#btnFormulario').disabled = true;
     $('#erroFormulario').classList.add('hidden');
+    S.respondidoEm = Date.now();
 
     api('POST', rota('respostas'), { answers: respostas() })
       .then(function (dados) {
@@ -1176,6 +1233,10 @@
         // formulário volta com o que ficou gravado, para uma eventual correção.
         S.pdfUrl = dados.document.pdf_url;
         S.formulario = dados.form;
+        S.pdfVersao = dados.document.pdf_version;
+        S.conferencia = dados.answer_check || null;
+        S.respondidoEm = Date.now();
+        clearTimeout(timerRascunho);
 
         mostra('tela-documento');
         carregaPdf();
@@ -1355,14 +1416,69 @@
         return;
       }
 
+      // Batimento que saiu antes do envio das respostas traz o PDF antigo:
+      // não pode ser lido como correção do atendente.
+      var pedidoEm = Date.now();
+
       api('GET', CFG.rotas.sessao)
         .then(function (dados) {
           S.sessao.restante = dados.session.remaining_seconds;
+
+          if (!S.respondidoEm || pedidoEm > S.respondidoEm) {
+            atualizaConferencia(dados);
+          }
         })
         .catch(function (e) {
           trataFalha(e);
         });
     }, 5000);
+  }
+
+  /*
+   * Conferência das respostas, a cada batimento: o atendente aprovou (libera
+   * o aceite), devolveu (volta às perguntas, com o recado) ou corrigiu (o
+   * documento é outro: lê de novo).
+   */
+  function atualizaConferencia(dados) {
+    if (!S || S.lote || !('answer_check' in dados)) {
+      return;
+    }
+
+    var antes = S.conferencia;
+    S.conferencia = dados.answer_check || null;
+    var tela = telaAtual();
+
+    if (S.pdfVersao && dados.document.pdf_version !== S.pdfVersao && tela !== 'tela-formulario') {
+      S.pdfVersao = dados.document.pdf_version;
+      S.pdfUrl = dados.document.pdf_url;
+      S.formulario = dados.form || S.formulario;
+      limpaCanvas();
+      mostra('tela-documento');
+      carregaPdf();
+      erro('O atendente corrigiu uma das suas respostas. Leia o documento de novo antes de assinar.', 'Documento atualizado');
+
+      return;
+    }
+
+    if (S.conferencia && S.conferencia.status === 'returned' && !(antes && antes.status === 'returned')) {
+      S.formulario = dados.form || S.formulario;
+
+      if (S.formulario) {
+        // Já nas perguntas (tocou em "Corrigir respostas"): só o recado, sem
+        // refazer o formulário e perder o que ela está digitando.
+        if (tela !== 'tela-formulario') {
+          limpaCanvas();
+          abreFormulario();
+        }
+
+        $('#avisoConferencia').textContent = 'O atendente pediu uma correção: ' + (S.conferencia.note || '');
+        $('#avisoConferencia').classList.remove('hidden');
+
+        return;
+      }
+    }
+
+    atualizaAceite();
   }
 
   function pararBatimento() {
@@ -1735,9 +1851,13 @@
     var aceitou = $('#aceiteCheck').checked;
     var autorizou = $('#fotoCheck').checked;
 
+    // Balcão com perguntas: a assinatura espera o atendente aprovar as respostas.
+    var aguardando = !!(S && S.conferencia && S.conferencia.status !== 'approved');
+
     $('#aceiteBox').classList.toggle('on', aceitou);
     $('#fotoBox').classList.toggle('on', autorizou);
-    $('#btnAceite').disabled = !(aceitou && (!vaiTirarFoto() || autorizou));
+    $('#aguardaConferencia').classList.toggle('hidden', !aguardando);
+    $('#btnAceite').disabled = !(aceitou && (!vaiTirarFoto() || autorizou)) || aguardando;
 
     if (S) {
       S.aceitou = aceitou;

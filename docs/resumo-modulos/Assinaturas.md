@@ -50,7 +50,8 @@ Menu **Assinaturas** (`app/View/Navigation.php`): Documentos, Contratos, Revisã
 | `.../{doc}/congelar`, `cancelar`, `posicoes`, `pdf`, `arquivar` (POST arquiva, DELETE desarquiva) | atendente | `DocumentController` |
 | `.../{doc}/status`, `signatarios/{s}/liberar`, `signatarios/{s}/via`, `liberacoes/{r}` (DELETE) | atendente | `ReleaseController`; `status` é polling (não há broadcasting) |
 | `.../{doc}/govbr/preparar`, `.../{doc}/govbr` (POST), `.../{doc}/govbr/signatarios/{s}/convite`, `.../{doc}/govbr/{conferencia}/pdf` → `signature-documents.govbr.*` | atendente | `GovbrController`: aba **Assinatura gov.br** (`?aba=govbr`); preparar, enviar e convidar pedem `checkGovbr` (`assinatura.documentos`) |
-| `assinatura/modelos` → `signature-templates.*` | `assinatura.modelos` | `PUT` cria **nova versão**; `importar-docx` converte e não grava; `{modelo}/word` (`docx`) baixa a base em Word gerada do texto |
+| `assinatura/modelos` → `signature-templates.*` | `assinatura.modelos` | `PUT` cria **nova versão**; `importar-docx` converte e não grava; `{modelo}/word` (`docx`) baixa a base em Word gerada do texto; `{modelo}/vinculo` (`link-info`) devolve campos e partes do composto para o vínculo |
+| `.../{doc}/conferencia/aprovar`, `devolver`, `corrigir` → `signature-documents.answers.*` (`approve`, `return`, `correct`) | atendente (`checkAnswers` = `assinatura.documentos`) | Conferência das respostas do tablet. `AnswerCheckController`, JSON |
 | `assinatura/papel-timbrado` → `signature-layout.*` | `assinatura.modelos` | Cabeçalho/rodapé versionados |
 | `assinatura/guia` → `signature-guide.*` | `acessar-guia-assinatura` | Página e PDF |
 | `assinatura/kiosk` → `quiosque.*` | **público** | `consumir` (throttle 10/min) dá o cookie `lara_sign`; o resto passa pelo middleware `signature_kiosk` |
@@ -309,7 +310,9 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
   usuário por `Tests\Concerns\MocksSignatureUser`. Nenhuma tabela do módulo tem FK para `users`
   (o model `User` fixa a conexão `mysql`).
 - **Sem `RefreshDatabase`.** Antes de rodar, confira o isolamento SQLite do `phpunit.xml`. Rode só o módulo:
-  `php -d memory_limit=1G vendor/bin/phpunit --filter Signature`.
+  `php -d memory_limit=1G vendor/bin/phpunit --filter '/^(?!.*SignatureContractAiReviewTest).*Signature/'`
+  e o `SignatureContractAiReviewTest` à parte — o `ContractAiReviewer` chama `set_time_limit(120)`, e o
+  processo inteiro morre 120 s depois ("Maximum execution time").
 
 ## Ao adicionar algo
 
@@ -349,9 +352,55 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
   `missingVariables($document)` recebem o documento.
 - Migration `2026_10_11_100300` backfill: documentos existentes herdam o `ask_signer` legado do JSON do modelo.
 - Efeito: qualquer modelo pode ir ao gov.br, se o atendente não marcar nenhum campo para o tablet (o visto, se houver, é dispensado no documento ao preparar — 20/10/2026).
+- **Campo restrito ao atendente (29/10/2026):** `attendant_only` na variável do modelo ("Só o atendente
+  responde"). Sem a caixa no documento, marca forçada recusada no `StoreSignatureDocumentRequest`, e
+  `fieldDefinitions()` nunca o marca `ask_signer` (vale para o remoto). Teste: `SignatureLinkedTemplateTest`.
 - **Título do campo na web = pergunta do tablet (13/10/2026):** `field.blade.php` mostra `$campo['question']`
   (que já cai no rótulo quando está em branco — `SignatureTemplate`); o rótulo vai miúdo embaixo só se for
   diferente. Não volte a mostrar o rótulo como título. `data-fill-label` segue com o rótulo (palpite do dado).
+
+## Modelo vinculado (29/10/2026)
+
+"Quem assina X assina também Y", num sentido só. Y entra **no mesmo PDF** de X, em página nova; o
+traço único sai no lugar de cada parte. Doc completa: seção "Modelo vinculado" de `assinatura-eletronica.md`.
+
+- **Decisões do usuário:** mesmo PDF (não documento separado); campos ligados no ato de vincular, **mesmo
+  com chaves diferentes** (tipo igual); partes de Y ligadas a uma de X, a todos, ou **somadas** como parte
+  nova; Y entra **sempre** (sem olhar se a pessoa já assinou Y antes).
+- `signature_templates.linked_templates` (JSON, versionado): `[{root_id, fields: {chaveY: chaveX|null},
+  parties: {parteY|_todos: parteX|_todos|_nova}}]`. Validado em `StoreSignatureTemplateRequest::validateLinks`
+  (ciclo, tipo, a si mesmo, inativo). Tela: seção **Modelos exigidos junto** do `templates/partials/form`
+  (JS puro; opções refeitas a cada mudança nos campos/partes de X).
+- `LinkedTemplateComposer` monta um `SignatureTemplate` **composto em memória** (`composite = true`,
+  `saving` recusa; `composedParts`, `compositionProblems`). `SignatureTemplate::composed($versoes)`.
+- `signature_documents.linked_templates` = raiz ⇒ versão, gravado no `create`. **Leia regra do documento
+  SEMPRE por `SignatureDocument::effectiveTemplate()`** (renderer, captura, congelamento, sessão do tablet,
+  revisão, manifesto, `SignatureSigner::requiresPhoto`). `template` direto só para nome/versão de X.
+- `SignatureTemplate::inUse()` também conta documento que levou o modelo por vínculo (LIKE na raiz).
+- Migration `2026_10_30_100000` (no `CreatesSignatureSchema`). Teste: `SignatureLinkedTemplateTest`.
+
+## Conferência das respostas no tablet (29/10/2026)
+
+Balcão + documento com pergunta ao signatário: o atendente confere as respostas antes da assinatura.
+Doc completa: seção "Conferência das respostas pelo atendente" de `assinatura-eletronica.md`.
+
+- **Decisões do usuário:** todo documento com pergunta (sem opção no modelo); ao vivo, campo a campo;
+  atendente aprova, devolve com observação ou corrige (corrigir já aprova); fora: remoto, Diretoria,
+  Termo de Menores.
+- `SignatureAnswerCheckService`: `requiredFor`/`documentRequires`, `status` (filling|pending|returned|approved),
+  `saveDraft` (só `Cache`, chave por liberação), `approve`/`giveBack`/`correct`, `assertApproved` (chamado
+  no `SignatureCaptureService::capture`), `kioskPayload` (chave `answer_check` no `sessionPayload`, **só
+  fora do remoto**) e `panelPayload` (chave `answer_check` no `ReleaseController::status`).
+- A aprovação vale para o `document_sha256` dela: resposta mudada = original novo = conferência de novo.
+- `signature_answer_checks` (só inserção, `user_name` retrato). Eventos `answers_approved`,
+  `answers_returned` (sem a observação), `form_corrected` (`SignatureSigningDataService::correct`, só chaves).
+- Tablet: rota `quiosque.answers-draft`; aceite travado (`#aguardaConferencia`); devolvido volta ao
+  formulário com `#avisoConferencia`; `pdf_version` novo sem ser envio próprio = correção do atendente
+  (releitura). Batimento mais velho que o último envio é ignorado (`S.respondidoEm`).
+- Painel: `documents/partials/answer-check.blade.php` dentro do cartão do QR; ouve o evento
+  `signature:status` que o polling do `release.blade.php` dispara.
+- Migration `2026_10_30_100100` (no `CreatesSignatureSchema`). Teste: `SignatureAnswerCheckTest`.
+- Não muda a API do site: nenhum prompt novo de API (ver `docs/prompts/NextJS/`).
 
 ## Throttle por rota (08/10/2026)
 

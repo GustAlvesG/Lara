@@ -10,6 +10,7 @@ use App\Http\Middleware\EnsureSignatureKioskSession;
 use App\Models\SignatureAuditEvent;
 use App\Models\SignatureDocument;
 use App\Models\SignatureRequest;
+use App\Services\Signature\SignatureAnswerCheckService;
 use App\Services\Signature\SignatureCaptureService;
 use App\Services\Signature\SignatureRequestService;
 use App\Services\Signature\SignatureSigningDataService;
@@ -132,7 +133,26 @@ class QuiosqueController extends Controller
             return response()->json(['error' => $e->getMessage()], $e->status);
         }
 
+        // Enviado: o atendente passa a conferir o que foi gravado, não o rascunho.
+        app(SignatureAnswerCheckService::class)->forgetDraft($solicitacao);
+
         return response()->json($this->sessionPayload($solicitacao->fresh()));
+    }
+
+    /**
+     * O rascunho do formulário, campo a campo, para o atendente acompanhar
+     * no computador enquanto a pessoa responde (conferência das respostas).
+     * Não grava nada no documento — ver SignatureAnswerCheckService::saveDraft.
+     */
+    public function draft(Request $request, SignatureDocument $signatureDocument)
+    {
+        $dados = $request->validate([
+            'answers' => ['present', 'array', 'max:60'],
+        ]);
+
+        app(SignatureAnswerCheckService::class)->saveDraft($this->current($request), $dados['answers']);
+
+        return response()->json(['ok' => true]);
     }
 
     /**

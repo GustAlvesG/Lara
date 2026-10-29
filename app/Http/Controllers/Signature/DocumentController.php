@@ -126,7 +126,9 @@ class DocumentController extends Controller
 
         return view('signature.documents.create', [
             'templates' => $modelos,
-            'template' => $escolhido,
+            // Com modelo vinculado, o formulário já traz os campos, as partes
+            // e os anexos dos exigidos (o composto).
+            'template' => $escolhido?->composed(),
             'diretoria' => $escolhido ? $this->directorOptions() : [],
         ]);
     }
@@ -266,7 +268,7 @@ class DocumentController extends Controller
 
         return view('signature.documents.edit', [
             'document' => $signatureDocument,
-            'template' => $signatureDocument->template,
+            'template' => $signatureDocument->effectiveTemplate(),
             'diretoria' => $this->directorOptions(),
         ]);
     }

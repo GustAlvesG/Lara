@@ -105,6 +105,8 @@
 
         <p class="hidden mt-3 text-xs text-danger" data-release-error></p>
 
+        @include('signature.documents.partials.answer-check')
+
         @if($diretoresPendentes->isNotEmpty())
             <p class="mt-4 text-xs text-ink-2" data-release-directors>
                 {{ $diretoresPendentes->pluck('name')->join(', ') }} {{ $diretoresPendentes->count() > 1 ? 'assinam' : 'assina' }}
@@ -354,6 +356,9 @@
                 if (!dados) {
                     return;
                 }
+
+                // Conferência das respostas (partials/answer-check) ouve o mesmo polling.
+                document.dispatchEvent(new CustomEvent('signature:status', { detail: dados }));
 
                 dados.signers.forEach(function (signatario) {
                     var cartao = document.querySelector('[data-signer-card="' + signatario.id + '"]');

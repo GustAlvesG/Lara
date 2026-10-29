@@ -29,11 +29,17 @@ trait RespondsWithKioskSession
     {
         $signatario = $solicitacao->signer;
         $documento = $signatario->document;
-        $modelo = $documento->template;
+        $modelo = $documento->effectiveTemplate();
 
         $versao = substr((string) $documento->original_sha256, 0, 12);
 
-        return [
+        // Conferência das respostas pelo atendente: só no balcão. A chave nem
+        // existe na resposta do link remoto (a API do site não muda).
+        $conferencia = $solicitacao->isRemote()
+            ? []
+            : ['answer_check' => app(\App\Services\Signature\SignatureAnswerCheckService::class)->kioskPayload($solicitacao)];
+
+        return $conferencia + [
             'document' => [
                 'id' => $documento->id,
                 'title' => $documento->title,

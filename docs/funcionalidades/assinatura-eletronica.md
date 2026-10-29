@@ -1422,6 +1422,103 @@ Na tela do documento há o botão **Corrigir respostas**: a pessoa viu um erro n
 volta, corrige, e o documento é refeito. Vale **até a primeira assinatura**; dali em diante o
 texto não muda mais, nem para o signatário seguinte (que não vê formulário).
 
+### Campo restrito ao atendente (29/10/2026)
+
+No modelo, cada campo (não automático) tem **Só o atendente responde** (`attendant_only` no JSON
+de `signature_templates.variables`, versionado com o modelo). Campo restrito nunca vai a quem assina:
+
+- a tela do documento (`documents/partials/field.blade.php`) não mostra a caixa **Perguntar ao
+  signatário** e diz "Só o atendente responde (regra do modelo)";
+- o `StoreSignatureDocumentRequest` recusa a marca forçada (`data.<chave>`);
+- `SignatureDocument::fieldDefinitions()` nunca marca `ask_signer` num campo restrito, nem que a
+  chave esteja em `signer_field_keys` — vale também para o link remoto, que lê `signerFields()`.
+
+Documento já criado aponta para a versão dele do modelo: restringir um campo numa revisão não
+muda documento antigo.
+
+### Conferência das respostas pelo atendente (29/10/2026)
+
+No **tablet do balcão**, documento com pergunta a quem assina só é assinado depois de o
+atendente conferir as respostas (decisão do usuário: vale para **todo** documento com pergunta).
+Ficam de fora o link remoto (não há atendente ao lado), a Diretoria (o próprio diretor abre, com
+matrícula e PIN) e o Termo de Menores (autoatendimento). Peças: `SignatureAnswerCheckService`,
+`SignatureAnswerCheck` (tabela `signature_answer_checks`), `AnswerCheckController`,
+`documents/partials/answer-check.blade.php`.
+
+1. **Ao vivo, campo a campo.** A cada campo alterado (600 ms depois da última tecla), o tablet manda o
+   rascunho a `quiosque.answers-draft`. Ele fica **só no cache do servidor**, ligado à liberação
+   (TTL da sessão): não entra no documento, não vai à trilha e o tablet não guarda nada. O polling
+   do painel (`signature-documents.status`, chave `answer_check`) o mostra no cartão
+   **Conferência das respostas**.
+2. **"Continuar"** grava as respostas como sempre (`SignatureSigningDataService::answer`: PDF e hash
+   refeitos, evento `form_answered`) e a conferência fica **pendente**. A pessoa já pode ler o
+   documento e confirmar a identidade; o tablet segura o **aceite** ("Aguardando o atendente
+   conferir as suas respostas") até a aprovação chegar pelo batimento (`answer_check` no `/sessao`).
+3. O atendente (`assinatura.documentos`, policy `checkAnswers`):
+   - **Aprovar** (`signature-documents.answers.approve`): libera o aceite e o traço. Evento `answers_approved`.
+   - **Devolver com observação** (`answers.return`): o tablet volta ao formulário com o recado. O
+     reenvio grava `signing_answered_at` depois da devolução e a conferência volta a pendente. Evento
+     `answers_returned` **sem** a observação (o manifesto é impresso); a observação fica só na tabela.
+   - **Corrigir** (`answers.correct`): o atendente edita as respostas, `SignatureSigningDataService::correct`
+     confere pelos tipos, refaz PDF e hash (evento `form_corrected`, só as chaves alteradas), e a
+     correção **já aprova**. O tablet percebe o `pdf_version` novo e manda a pessoa ler de novo.
+
+**Quem garante é o servidor:** `SignatureCaptureService::capture` chama
+`SignatureAnswerCheckService::assertApproved` (409 enquanto não aprovado). A aprovação vale para o
+`document_sha256` em que foi dada: resposta mudada depois (a pessoa voltou em **Corrigir respostas**)
+é outro `original_sha256`, e a conferência volta a ser exigida sozinha — nada é apagado. Depois da
+primeira assinatura (`signingDataIsOpen()` fecha) não há mais conferência, e os próximos
+signatários não passam por ela. A chave `answer_check` **não existe** na resposta da API do link
+remoto: a API do site não muda.
+
+| Situação (`SignatureAnswerCheckService::status`) | Quando |
+|---|---|
+| `filling` | a pessoa ainda não tocou em "Continuar" (`signing_answered_at` nulo) |
+| `pending` | respostas gravadas, sem aprovação válida |
+| `returned` | última ação foi devolver e a pessoa ainda não reenviou |
+| `approved` | última ação foi aprovar, para o `original_sha256` de agora |
+
+### Modelo vinculado (29/10/2026)
+
+"Quem assina X assina também Y", **num sentido só**: um documento de X traz Y junto; um documento
+só de Y continua só Y. O texto de Y entra **no mesmo documento** de X (mesmo PDF, um código de
+validação, um hash, uma via), em página nova (`page-break-before`), e o traço único de quem assina
+é carimbado no lugar de assinatura de cada parte (decisões do usuário, 29/10/2026).
+
+**No ato de vincular** (tela do modelo, **Modelos exigidos junto**), a tela compara os campos e as
+partes dos dois (`signature-templates.link-info` devolve o composto de Y) e grava em
+`signature_templates.linked_templates`, versionado com X:
+
+- `fields`: campo de Y ⇒ campo de X **do mesmo tipo**, mesmo com chave diferente (`nome_completo` ⇒
+  `nome`), ou `null` (campo próprio). Sem entrada, a regra padrão: chave e tipo iguais = mesmo campo.
+  Campo próprio com chave já usada ganha sufixo (`telefone_2`). Campo ligado: preenchido uma vez,
+  sai nos dois textos; obrigatório e restrito somam (o mais exigente).
+- `parties`: parte de Y (ou `_todos`, o `[[assinatura]]` de Y) ⇒ parte de X, `_todos` (todos que
+  assinam X) ou `_nova` (parte nova: **soma-se** às de X e pede signatário no documento — o
+  congelamento cobra). Sem entrada: parte de mesma chave = a mesma; senão, nova; o genérico vai a todos.
+
+O `StoreSignatureTemplateRequest::validateLinks` recusa: modelo inexistente ou inativo, o próprio
+modelo, repetido, **ciclo** (Y que já exige X, direta ou indiretamente —
+`LinkedTemplateComposer::reachableRoots`) e campo ligado a outro tipo. Correspondência de campo
+que Y não tem é descartada.
+
+**Composição em memória** (`LinkedTemplateComposer`): `SignatureTemplate::composed()` devolve um
+`SignatureTemplate` **composto** (nunca gravado: `saving` devolve false quando `composite`) com o
+texto de X + Y (chaves e marcadores de Y reescritos), campos, partes, anexos e itens de revisão
+unidos, foto e visto se qualquer um pedir, a conferência de identidade mais forte (`none` < `partial`
+< `full` < `email`) e o maior prazo de guarda. Y que exige Z leva Z junto; cada modelo entra uma vez.
+
+**No documento:** a criação grava `signature_documents.linked_templates` (raiz ⇒ versão de cada
+exigido, `LinkedTemplateComposer::versionMap`). **Toda regra do documento é lida de
+`SignatureDocument::effectiveTemplate()`** — campos, partes, foto, visto, identidade, anexos,
+revisão, texto. `template` direto só para o nome e a versão "do documento" (X). Revisar Y depois
+não muda documento já criado. Y desativado trava documento **novo** de X
+(`compositionProblems`, mostrado no formulário e recusado no request) e o aviso aparece ao desativar.
+Y que entrou em documento só por vínculo conta como em uso (`SignatureTemplate::inUse`, busca a
+raiz em `linked_templates`) e não é excluído. Manifesto, relatório gov.br e tela do documento dizem
+"Inclui também: Y (versão n)". Termo de Menores recusa modelo com vínculo (`MinorTermFields`).
+PDF pronto e contratos usam modelo `single_use`, sem vínculo.
+
 ### O que isso muda no congelamento
 
 O congelamento do atendente continua fixando o texto (`body_snapshot`) e os dados dele, e esse
@@ -1780,6 +1877,21 @@ a sessão, sessão remota que não abre o tablet, recusa, gov.br revogando o lin
 manifesto e o cartão do painel; e os anexos pelo link (obrigatório travando a assinatura até o envio,
 trilha com o IP de quem assina, troca do próprio anexo sem poder apagar o do atendente, CPF antes,
 item não pedido e tipo pelo conteúdo).
+
+`SignatureLinkedTemplateTest` cobre o campo restrito (gravação, tela sem a caixa, marca forçada
+recusada, documento que não pergunta) e o modelo vinculado (composição de texto, campos ligados por
+chave diferente, sufixo do campo próprio, regras somadas, composto que não grava, parte ligada e parte
+nova cobrada no congelamento, genérico de Y para todos, versões presas ao documento, assinatura nas
+duas partes, exigido desativado, cadastro com correspondência, tipo diferente, a si mesmo, ciclo, em
+uso por vínculo, telas e Termo de Menores). `SignatureAnswerCheckTest` cobre a conferência (rascunho no
+painel sem tocar o documento, assinatura travada até aprovar, devolver com recado e reenvio, correção
+que refaz o PDF e aprova, aprovação que não vale para resposta mudada, aprovar antes da resposta,
+documento sem pergunta, remoto e diretoria de fora, segundo signatário sem conferência e a tela).
+
+> Rode a suíte **sem** `SignatureContractAiReviewTest` e ele à parte: o `ContractAiReviewer` chama
+> `set_time_limit(120)` e, depois dele, o processo inteiro do phpunit morre 120 s adiante
+> ("Maximum execution time of 120 seconds exceeded"):
+> `php -d memory_limit=1G vendor/bin/phpunit --filter '/^(?!.*SignatureContractAiReviewTest).*Signature/'`.
 
 > As tabelas são criadas pelo trait `Tests\Concerns\CreatesSignatureSchema`, que aplica as
 > migrations **de verdade** — a cadeia completa de migrations não roda na suíte, e nenhuma tabela

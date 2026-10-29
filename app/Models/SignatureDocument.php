@@ -58,6 +58,7 @@ class SignatureDocument extends Model
     protected $fillable = [
         'signature_template_id',
         'template_version',
+        'linked_templates',
         'signature_layout_id',
         'title',
         'data',
@@ -108,6 +109,7 @@ class SignatureDocument extends Model
     protected $casts = [
         'signature_template_id' => 'integer',
         'template_version' => 'integer',
+        'linked_templates' => 'array',
         'signature_layout_id' => 'integer',
         'data' => 'array',
         'attachment_requirements' => 'array',
@@ -133,6 +135,48 @@ class SignatureDocument extends Model
     public function template(): BelongsTo
     {
         return $this->belongsTo(SignatureTemplate::class, 'signature_template_id');
+    }
+
+    /** O composto já montado (ver `effectiveTemplate`). */
+    private ?SignatureTemplate $effectiveTemplateCache = null;
+
+    /**
+     * O modelo que vale para ESTE documento: o próprio modelo, ou — quando ele
+     * exige outros (modelo vinculado) — o composto com os textos, campos,
+     * partes e regras de todos, nas versões gravadas na criação
+     * (`linked_templates`: raiz => versão).
+     *
+     * Toda regra do documento (campos, partes, foto, visto, identidade,
+     * anexos, revisão, texto) é lida daqui — nunca de `template` direto.
+     * Só o nome e a versão "do documento" continuam sendo os de X.
+     */
+    public function effectiveTemplate(): ?SignatureTemplate
+    {
+        $modelo = $this->template;
+
+        if (!$modelo || empty($this->linked_templates)) {
+            return $modelo;
+        }
+
+        if ($this->effectiveTemplateCache?->id !== $modelo->id) {
+            $this->effectiveTemplateCache = $modelo->composed(array_map('intval', $this->linked_templates));
+        }
+
+        return $this->effectiveTemplateCache;
+    }
+
+    /**
+     * Os modelos vinculados que entraram neste documento, para as telas e o
+     * manifesto: "Termo de uso (versão 2)".
+     *
+     * @return array<int, string>
+     */
+    public function linkedTemplateLabels(): array
+    {
+        return array_map(
+            fn(array $p) => $p['name'] . ' (versão ' . $p['version'] . ')',
+            $this->effectiveTemplate()?->composedParts ?? [],
+        );
     }
 
     /**
@@ -244,7 +288,7 @@ class SignatureDocument extends Model
     {
         $doModelo = array_map(
             fn(array $item) => $item + ['origin' => 'modelo'],
-            $this->template?->declaredAttachments() ?? [],
+            $this->effectiveTemplate()?->declaredAttachments() ?? [],
         );
 
         $doDocumento = collect($this->attachment_requirements ?? [])
@@ -276,6 +320,16 @@ class SignatureDocument extends Model
             ->pluck('label')
             ->values()
             ->all();
+    }
+
+    /**
+     * A conferência das respostas do tablet pelo atendente, em ordem.
+     *
+     * @return HasMany<SignatureAnswerCheck>
+     */
+    public function answerChecks(): HasMany
+    {
+        return $this->hasMany(SignatureAnswerCheck::class)->orderBy('id');
     }
 
     public function govbrChecks(): HasMany
@@ -407,7 +461,7 @@ class SignatureDocument extends Model
      */
     public function requiresInitials(): bool
     {
-        return (bool) $this->template?->requires_initials && $this->initials_waived_at === null;
+        return (bool) $this->effectiveTemplate()?->requires_initials && $this->initials_waived_at === null;
     }
 
     /** O modelo pedia visto e ele foi dispensado neste documento (gov.br). */
@@ -554,9 +608,13 @@ class SignatureDocument extends Model
     {
         $perguntados = $this->signerFieldKeys();
 
+        // Campo restrito ao atendente pelo modelo nunca é perguntado, nem que
+        // a chave tenha chegado a `signer_field_keys`.
         return array_map(fn(array $v) => $v + [
-            'ask_signer' => !SignatureFieldTypes::isAutomatic($v['type']) && in_array($v['key'], $perguntados, true),
-        ], $this->template?->declaredVariables() ?? []);
+            'ask_signer' => !SignatureFieldTypes::isAutomatic($v['type'])
+                && !$v['attendant_only']
+                && in_array($v['key'], $perguntados, true),
+        ], $this->effectiveTemplate()?->declaredVariables() ?? []);
     }
 
     /**

@@ -77,7 +77,7 @@
                     @if($document->isUploaded())
                         Documento enviado pronto, em PDF<br>
                     @else
-                        Modelo: {{ $document->template?->name }} (versão {{ $document->template_version }})<br>
+                        Modelo: {{ $document->template?->name }} (versão {{ $document->template_version }})@if($document->linkedTemplateLabels())<br>Inclui também: {{ implode(' + ', $document->linkedTemplateLabels()) }}@endif<br>
                     @endif
                     Congelado em: {{ $document->frozen_at?->format('d/m/Y H:i:s') }}<br>
                     Preparado para o gov.br em: {{ $document->govbr_sent_at?->format('d/m/Y H:i:s') ?? 'não registrado' }}<br>

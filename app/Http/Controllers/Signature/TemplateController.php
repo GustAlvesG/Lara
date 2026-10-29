@@ -10,6 +10,7 @@ use App\Models\SignatureDocument;
 use App\Models\SignatureTemplate;
 use App\Services\Signature\DocxTemplateExporter;
 use App\Services\Signature\DocxTemplateImporter;
+use App\Services\Signature\LinkedTemplateComposer;
 use App\Services\Signature\SignatureAttachmentService;
 use App\Services\Signature\SignatureDocumentRenderer;
 use App\Services\Signature\SignatureFieldTypes;
@@ -68,7 +69,99 @@ class TemplateController extends Controller
 
     public function create()
     {
-        return view('signature.templates.create', ['areasDaDiretoria' => $this->directorAreas()]);
+        return view('signature.templates.create', [
+            'areasDaDiretoria' => $this->directorAreas(),
+            'modelosParaVincular' => $this->linkOptions(null),
+            'vinculos' => $this->linksForForm(null),
+        ]);
+    }
+
+    /**
+     * Os campos e as partes de um modelo que se quer exigir junto — para a
+     * tela montar a correspondência no ato de vincular. É o composto da
+     * versão ativa: se ele exige outro, os campos desse vêm junto.
+     */
+    public function linkInfo(SignatureTemplate $signatureTemplate, LinkedTemplateComposer $composer)
+    {
+        $info = $this->linkPayload((int) ($signatureTemplate->root_id ?? $signatureTemplate->id), $composer);
+
+        abort_if($info === null, 404);
+
+        return response()->json($info);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function linkPayload(int $root, LinkedTemplateComposer $composer): ?array
+    {
+        $modelo = $composer->current($root);
+
+        if (!$modelo) {
+            return null;
+        }
+
+        $composto = $modelo->composed();
+
+        return [
+            'root_id' => $root,
+            'name' => $modelo->name,
+            'version' => $modelo->version,
+            'includes' => array_column($composto->composedParts, 'name'),
+            'variables' => array_map(fn(array $v) => [
+                'key' => $v['key'],
+                'label' => $v['label'],
+                'type' => $v['type'],
+                'type_label' => SignatureFieldTypes::LABELS[$v['type']] ?? $v['type'],
+            ], $composto->declaredVariables()),
+            'parties' => array_map(
+                fn(array $p) => ['key' => $p['key'], 'label' => $p['label']],
+                $composto->declaredParties(),
+            ),
+        ];
+    }
+
+    /**
+     * Os modelos que podem ser exigidos por este: ativos, de uso comum, menos
+     * ele mesmo. Ciclo é recusado na gravação (StoreSignatureTemplateRequest).
+     */
+    private function linkOptions(?SignatureTemplate $template)
+    {
+        $minhaRaiz = $template ? (int) ($template->root_id ?? $template->id) : null;
+
+        return SignatureTemplate::whereIn('id', fn($q) => $q->selectRaw('MAX(id)')
+            ->from('signature_templates')
+            ->groupBy('root_id'))
+            ->where('active', true)
+            ->where('single_use', false)
+            ->when($minhaRaiz, fn($q) => $q->where('root_id', '!=', $minhaRaiz))
+            ->orderBy('name')
+            ->get(['id', 'root_id', 'name', 'version']);
+    }
+
+    /**
+     * Os vínculos gravados (ou do envio recusado), com os campos e as partes
+     * de cada exigido para a tela.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function linksForForm(?SignatureTemplate $template): array
+    {
+        $composer = app(LinkedTemplateComposer::class);
+        $vinculos = old('linked_templates', $template?->declaredLinks() ?? []);
+
+        return collect($vinculos)
+            ->map(function ($vinculo) use ($composer) {
+                $info = $this->linkPayload((int) ($vinculo['root_id'] ?? 0), $composer);
+
+                return $info ? $info + [
+                    'fields' => (array) ($vinculo['fields'] ?? []),
+                    'party_map' => (array) ($vinculo['parties'] ?? []),
+                ] : null;
+            })
+            ->filter()
+            ->values()
+            ->all();
     }
 
     public function store(StoreSignatureTemplateRequest $request)
@@ -142,6 +235,8 @@ class TemplateController extends Controller
         return view('signature.templates.edit', [
             'template' => $signatureTemplate,
             'areasDaDiretoria' => $this->directorAreas(),
+            'modelosParaVincular' => $this->linkOptions($signatureTemplate),
+            'vinculos' => $this->linksForForm($signatureTemplate),
         ]);
     }
 
@@ -174,20 +269,32 @@ class TemplateController extends Controller
     public function destroy(SignatureTemplate $signatureTemplate)
     {
         $nome = $signatureTemplate->name;
+        $raiz = (int) ($signatureTemplate->root_id ?? $signatureTemplate->id);
+
+        // Modelos ativos que exigem este: sem ele, nenhum documento deles pode
+        // ser criado até alguém tirar o vínculo.
+        $dependentes = SignatureTemplate::where('active', true)
+            ->whereNotNull('linked_templates')
+            ->get()
+            ->filter(fn(SignatureTemplate $t) => in_array($raiz, array_column($t->declaredLinks(), 'root_id'), true))
+            ->pluck('name');
+        $aviso = $dependentes->isNotEmpty()
+            ? ' Atenção: ' . $dependentes->join(', ') . ' exige(m) este modelo e não gera(m) documento novo até o '
+                . 'vínculo sair ou este modelo voltar.'
+            : '';
 
         if ($signatureTemplate->inUse()) {
-            SignatureTemplate::where('root_id', $signatureTemplate->root_id ?? $signatureTemplate->id)
-                ->update(['active' => false]);
+            SignatureTemplate::where('root_id', $raiz)->update(['active' => false]);
 
             return redirect()->route('signature-templates.index')
                 ->with('success', 'Modelo "' . $nome . '" desativado. Ele não pode ser excluído porque '
-                    . 'já gerou documentos, que continuam apontando para o texto que imprimiram.');
+                    . 'já gerou documentos, que continuam apontando para o texto que imprimiram.' . $aviso);
         }
 
-        SignatureTemplate::where('root_id', $signatureTemplate->root_id ?? $signatureTemplate->id)->delete();
+        SignatureTemplate::where('root_id', $raiz)->delete();
 
         return redirect()->route('signature-templates.index')
-            ->with('success', 'Modelo "' . $nome . '" excluído.');
+            ->with('success', 'Modelo "' . $nome . '" excluído.' . $aviso);
     }
 
     /**
@@ -218,6 +325,8 @@ class TemplateController extends Controller
             'parties' => $this->parties($corpo, array_values($dados['parties'] ?? [])),
             'attachments' => SignatureAttachmentService::normalize(array_values($dados['attachments'] ?? []), 'mod'),
             'review_items' => \App\Services\Signature\SignatureReviewService::normalize(array_values($dados['review_items'] ?? [])),
+            // Modelos exigidos junto, já conferidos (ciclo, tipos, partes) no request.
+            'linked_templates' => $request->linkedTemplates() ?: null,
             'requires_photo' => (bool) ($dados['requires_photo'] ?? false),
             'requires_initials' => (bool) ($dados['requires_initials'] ?? false),
             'identity_check' => $dados['identity_check'],
@@ -283,6 +392,8 @@ class TemplateController extends Controller
             // Campo automático nunca fica em branco: obrigatório não se aplica.
             'required' => (bool) ($variavel['required'] ?? false) && !$automatico,
             'question' => $automatico ? null : (trim((string) ($variavel['question'] ?? '')) ?: null),
+            // Restrito ao atendente: o documento não pode mandá-lo ao tablet.
+            'attendant_only' => !$automatico && (bool) ($variavel['attendant_only'] ?? false),
             'options' => SignatureFieldTypes::hasOptions($tipo) ? array_values($variavel['options'] ?? []) : [],
         ];
     }

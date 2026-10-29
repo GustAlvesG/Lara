@@ -89,6 +89,15 @@ class SignatureDocumentPolicy
         return $user->can(P::ASSINATURA_DOCUMENTOS);
     }
 
+    /**
+     * Conferir as respostas do tablet: aprovar, devolver ou corrigir. Ato de
+     * atendimento, de quem libera a assinatura (SignatureAnswerCheckService).
+     */
+    public function checkAnswers(User $user, SignatureDocument $document): bool
+    {
+        return $user->can(P::ASSINATURA_DOCUMENTOS);
+    }
+
     public function cancel(User $user, SignatureDocument $document): bool
     {
         return $user->can(P::ASSINATURA_DOCUMENTOS);

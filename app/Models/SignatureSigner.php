@@ -244,7 +244,7 @@ class SignatureSigner extends Model
     {
         return $this->isDirector()
             || (bool) $via?->isRemote()
-            || (bool) $this->document?->template?->requires_photo;
+            || (bool) $this->document?->effectiveTemplate()?->requires_photo;
     }
 
     /**

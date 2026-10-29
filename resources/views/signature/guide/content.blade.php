@@ -442,6 +442,13 @@
     </table>
     </div>
 
+    <div class="box tip">
+        <b class="h">Campo que a pessoa nunca responde: "Só o atendente responde"</b>
+        Valor, número do contrato, desconto: no modelo, marque <b>Só o atendente responde</b> no campo. No documento
+        ele aparece sem a opção <b>Perguntar ao signatário</b> ("Só o atendente responde (regra do modelo)"), e nem o
+        link remoto o pergunta.
+    </div>
+
     <h3>Os tipos</h3>
     <table class="ref">
         <tr><th style="width:27%">Tipo</th><th style="width:36%">O que a pessoa digita</th><th>Como sai no documento</th></tr>
@@ -513,6 +520,40 @@
 
     <p>Um modelo que já gerou documentos não é apagado: ao excluí-lo, ele fica <b>inativo</b>. Os inativos saem da
         lista principal e ficam na aba <b>Inativos</b> de <span class="menu">Assinaturas → Modelos</span>.</p>
+
+    <div class="keep">
+    <h3>Exigir outro modelo junto (modelo vinculado)</h3>
+    <p>Quando quem assina um modelo precisa assinar também outro (todo contrato de locação leva o termo de uso de
+        imagem, por exemplo). <b>O vínculo vale num sentido só</b>: quem assina o contrato assina o termo, mas um
+        documento só do termo não traz o contrato.</p>
+    <table class="steps">
+        <tr>
+            <td class="n"><span class="num">1</span></td>
+            <td>No modelo principal, em <span class="btn">Revisar</span>, vá a <b>Modelos exigidos junto</b>, escolha o
+                outro modelo e clique em <span class="btn2">+ Exigir este modelo</span>.</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">2</span></td>
+            <td><span class="t">Campos:</span> para cada campo do outro modelo, escolha <b>Mesmo campo que…</b> (um
+                campo deste modelo do mesmo tipo, mesmo com nome diferente, como "Nome completo" e "Nome") ou
+                <b>Campo próprio</b>. Campo ligado é preenchido uma vez e sai nos dois textos. Os de mesmo nome e
+                mesmo tipo já vêm ligados.</td>
+        </tr>
+        <tr>
+            <td class="n"><span class="num">3</span></td>
+            <td><span class="t">Onde assina:</span> para cada parte do outro modelo, <b>junto com todos</b>, <b>na
+                parte deste modelo</b> escolhida, ou <b>parte nova</b> — que se soma às deste modelo e pede um
+                signatário a mais no documento.</td>
+        </tr>
+    </table>
+    <div class="box tip">
+        <b class="h">No documento</b>
+        O texto do outro modelo entra no <b>mesmo PDF</b>, em página nova, e a assinatura aparece no lugar de cada
+        texto. Valem as regras mais exigentes dos dois (foto, conferência de identidade, visto), e os anexos e itens
+        de revisão se somam. Revisar o outro modelo depois não muda documento já criado; desativado, ele trava os
+        documentos novos do principal até o vínculo sair.
+    </div>
+    </div>
 
     <h3>Cabeçalho e rodapé da empresa</h3>
     <p>O papel timbrado é <b>um só</b> para todos os documentos.</p>
@@ -625,7 +666,25 @@
         <tr><td>O tablet não tem câmera funcionando</td><td>Se aparecer na sua tela "Sem câmera no tablet? Dite este código", dite o código de 8 caracteres; no tablet, a pessoa toca em <b>Digitar código</b>.</td></tr>
         <tr><td>O sistema não deixa congelar</td><td>Leia a mensagem: falta um campo obrigatório, um signatário, ou alguém para assinar por uma das partes.</td></tr>
         <tr><td>Todos assinaram, mas o documento não conclui</td><td>Falta um anexo obrigatório: o quadro <b>Anexos</b> diz qual. Envie, e o documento conclui sozinho.</td></tr>
+        <tr><td>O tablet diz "Aguardando o atendente conferir as suas respostas"</td><td>Confira as respostas no quadro <b>Conferência das respostas</b> e aprove, devolva ou corrija (abaixo).</td></tr>
     </table>
+    </div>
+
+    <div class="keep">
+    <h3>Conferência das respostas (documento com perguntas no tablet)</h3>
+    <p>Quando há campo marcado para <b>Perguntar ao signatário</b>, a pessoa só assina no balcão depois que você
+        confere as respostas. No quadro <b>Assinatura no tablet</b>, o cartão <b>Conferência das respostas</b> mostra
+        o que ela digita, <b>campo a campo</b>. Quando ela toca em <i>Continuar</i>, aparece "Aguardando a sua
+        conferência":</p>
+    <table class="ref">
+        <tr><th style="width:32%">Botão</th><th>O que acontece</th></tr>
+        <tr><td><span class="btn">Aprovar respostas</span></td><td>O tablet libera o aceite e a assinatura.</td></tr>
+        <tr><td><span class="btn2">Devolver com observação</span></td><td>Escreva o que corrigir. O tablet volta às perguntas com o seu recado; o reenvio volta para a sua conferência.</td></tr>
+        <tr><td><span class="btn2">Corrigir</span></td><td>Você ajusta as respostas e clica em <b>Salvar correção e aprovar</b>. O documento é refeito, e a pessoa lê de novo antes de assinar.</td></tr>
+    </table>
+    <p>Se a pessoa mudar uma resposta depois da aprovação, a conferência volta. Depois da primeira assinatura as
+        respostas não mudam mais, e os próximos signatários não passam por ela. Link remoto, diretoria e Termo de
+        Menores não têm conferência.</p>
     </div>
 
     <div class="keep">
@@ -687,7 +746,7 @@
         <tr>
             <td><b>5. Aceite</b>Marca "Li e concordo" e, quando o modelo pede foto, marca também que
                 <b>autoriza a captura da imagem</b> — sem as duas marcações o tablet não segue. Se quiser, pede a
-                via por e-mail.</td>
+                via por e-mail. Com perguntas, espera a <b>conferência do atendente</b>.</td>
             <td><b>6. Assinatura</b>Assina com o dedo ou a caneta. <i>Limpar</i> apaga e deixa refazer.</td>
             <td><span class="opt">se o modelo pedir</span><b>7. Visto</b>"Agora faça o seu visto": a rubrica que vai em todas as páginas.</td>
             <td><span class="opt">se o modelo pedir</span><b>8. Foto</b>A câmera abre; a pessoa toca em <span class="btn">Tirar foto</span> quando estiver pronta, e o tablet conta 3 segundos e fotografa. Ela vê a foto e escolhe <i>Tirar nova foto</i> ou <i>Usar esta foto</i>. Depois: "Assinatura concluída".</td>
@@ -699,6 +758,9 @@
         <li><b>As respostas entram no documento antes da leitura.</b> O texto que a pessoa lê já traz o que ela
             respondeu. Se ela notar um erro, o botão <b>Corrigir respostas</b>, na tela do documento, volta às
             perguntas.</li>
+        <li><b>O atendente confere as respostas antes da assinatura.</b> Enquanto ele não aprova, o aceite fica
+            travado com "Aguardando o atendente conferir as suas respostas". Se ele devolver, o tablet volta às
+            perguntas com o recado; se ele corrigir, o documento é refeito e a pessoa lê de novo.</li>
         <li><b>Depois da assinatura, as respostas não mudam mais</b> — nem para o próximo signatário, que já vê o
             documento respondido e não recebe as perguntas.</li>
         <li><b>Recusar</b> está disponível em todas as etapas. Se a pessoa recusa, o documento inteiro é encerrado

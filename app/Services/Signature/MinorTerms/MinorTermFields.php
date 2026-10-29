@@ -105,6 +105,11 @@ class MinorTermFields
             $problemas[] = 'O modelo declara partes; o Termo de Menores tem um signatário só (o responsável), no [[assinatura]].';
         }
 
+        if ($template->declaredLinks() !== []) {
+            $problemas[] = 'O modelo exige outros modelos junto; o Termo de Menores leva só o próprio termo. Tire o vínculo '
+                . 'ou use outro modelo.';
+        }
+
         return $problemas;
     }
 

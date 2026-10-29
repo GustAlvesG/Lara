@@ -108,7 +108,7 @@ class SignatureReviewService
 
         $itens = array_map(fn(array $item) => $item + [
             'done' => in_array($item['key'], $done, true),
-        ], $document->template?->declaredReviewItems() ?? []);
+        ], $document->effectiveTemplate()?->declaredReviewItems() ?? []);
 
         $faltando = array_values(array_filter($itens, fn(array $item) => !$item['done']));
 

@@ -97,14 +97,19 @@ class StoreSignatureDocumentRequest extends FormRequest
             }
 
             // Na correção o modelo é o do documento: ele não muda depois de criado.
+            // Com modelo vinculado, os campos são os do composto (X + exigidos).
             $documento = $this->route('signatureDocument');
 
             $modelo = is_object($documento)
-                ? $documento->template
-                : SignatureTemplate::find($this->input('signature_template_id'));
+                ? $documento->effectiveTemplate()
+                : SignatureTemplate::find($this->input('signature_template_id'))?->composed();
 
             if (!$modelo) {
                 return;
+            }
+
+            foreach (is_object($documento) ? [] : $modelo->compositionProblems as $problema) {
+                $validator->errors()->add('signature_template_id', $problema);
             }
 
             $bruto = (array) $this->input('data', []);
@@ -114,6 +119,18 @@ class StoreSignatureDocumentRequest extends FormRequest
                 // Vai ao tablet: quem responde é quem assina, e o que o
                 // atendente tenha digitado nele não é gravado.
                 if (in_array($campo['key'], $marcados, true)) {
+                    // Restrito pelo modelo: a tela nem oferece a caixa, e o
+                    // servidor não aceita que ela chegue marcada.
+                    if ($campo['attendant_only']) {
+                        $validator->errors()->add(
+                            'data.' . $campo['key'],
+                            'O campo "' . $campo['label'] . '" é restrito ao atendente pelo modelo: não pode ser '
+                                . 'perguntado a quem assina.',
+                        );
+
+                        continue;
+                    }
+
                     $this->signerFieldKeys[] = $campo['key'];
 
                     continue;
