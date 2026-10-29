@@ -4,7 +4,12 @@ Recorta o robô, troca o fundo preto por transparência (só o preto ligado às
 bordas — os olhos e o sorriso, também pretos, ficam), limpa a franja escura das
 bordas, reduz e grava WebP animado com alfa, mais PNGs estáticos.
 
-Uso: python -I robo.py <gif> <pasta-de-saida>
+Uso: python -I scripts/tratar-robo-lara.py <gif> <pasta-de-saida>
+     python -I scripts/tratar-robo-lara.py <gif> <pasta-de-saida> --balao
+
+Sem opção, gera o robô de corpo inteiro (estado vazio e avatares). Com --balao,
+gera só o ícone do balão (o robô dentro do anel grená): lara-balao.webp e
+lara-balao.png.
 """
 import sys
 from pathlib import Path
@@ -15,19 +20,12 @@ from PIL import Image, ImageSequence
 SRC, OUT = Path(sys.argv[1]), Path(sys.argv[2])
 OUT.mkdir(parents=True, exist_ok=True)
 
-STEP = 2          # um quadro sim, um não (30 ms -> 60 ms)
+BALAO = "--balao" in sys.argv
+# Quadros: um a cada STEP. O GIF do balão tem 395 quadros de 30 ms; um a cada
+# 3 (90 ms) ainda acena liso e deixa o arquivo pequeno.
+STEP = 3 if BALAO else 2
 DARK = 40         # abaixo disso (no canal mais claro) conta como fundo
 PAD = 12
-
-gif = Image.open(SRC)
-frames, total = [], 0
-for i, f in enumerate(ImageSequence.Iterator(gif)):
-    total += f.info.get("duration", 0) or 30
-    if i % STEP == 0:
-        frames.append(f.convert("RGB"))
-# Mesma duração total do original, dividida pelos quadros que ficaram.
-delay = round(total / len(frames))
-print(f"{len(frames)} quadros, {delay} ms cada, {total} ms no total")
 
 # Área preta fechada maior que isto (fração do quadro) também é fundo: o vão
 # entre o braço que acena e o capacete. Olhos e boca são bem menores.
@@ -36,16 +34,27 @@ ENCLOSED_BG = 0.0005
 BG_MEAN = 12.0
 DEBUG = "--debug" in sys.argv
 
-# 1) Caixa do robô somando todos os quadros (o braço que acena mexe).
-box = None
-for f in frames:
-    a = np.asarray(f)
+# 1) Caixa do robô somando todos os quadros (o braço que acena mexe). Duas
+# passadas para não guardar centenas de quadros 1920x1080 na memória.
+box, total, count = None, 0, 0
+gif = Image.open(SRC)
+for i, f in enumerate(ImageSequence.Iterator(gif)):
+    total += f.info.get("duration", 0) or 30
+    if i % STEP:
+        continue
+    count += 1
+    a = np.asarray(f.convert("RGB"))
     ys, xs = np.nonzero(a.max(axis=2) > DARK)
     b = (xs.min(), ys.min(), xs.max(), ys.max())
     box = b if box is None else (min(box[0], b[0]), min(box[1], b[1]), max(box[2], b[2]), max(box[3], b[3]))
-W, H = frames[0].size
+W, H = gif.size
 box = (max(0, box[0] - PAD), max(0, box[1] - PAD), min(W, box[2] + PAD), min(H, box[3] + PAD))
-print("recorte", box)
+# Mesma duração total do original, dividida pelos quadros que ficaram.
+delay = round(total / count)
+print(f"{count} quadros, {delay} ms cada, {total} ms no total; recorte {box}")
+
+gif = Image.open(SRC)
+frames = [f.convert("RGB").crop(box) for i, f in enumerate(ImageSequence.Iterator(gif)) if i % STEP == 0]
 
 
 def dilate(m):
@@ -58,7 +67,7 @@ def dilate(m):
 
 
 def cutout(frame, height):
-    f = frame.crop(box)
+    f = frame
     w = round(f.width * height / f.height)
     f = f.resize((w, height), Image.LANCZOS)
     rgb = np.asarray(f).astype(np.float32)
@@ -74,8 +83,9 @@ def cutout(frame, height):
             break
         bg = nxt
 
-    # Regiões escuras que sobraram: as grandes viram fundo também.
-    rest = dark & ~bg
+    # Regiões escuras que sobraram: as grandes viram fundo também. No balão o
+    # vão do braço é o cinza de dentro do anel, e a regra apagaria a pupila.
+    rest = dark & ~bg & (not BALAO)
     seen = np.zeros_like(rest)
     limit = ENCLOSED_BG * rest.size
     hh, ww = rest.shape
@@ -112,7 +122,18 @@ def cutout(frame, height):
     return Image.fromarray(out, "RGBA")
 
 
-for height, quality in ((128, 72), (320, 75)):
+if BALAO:
+    # Mostrado com 72 px de altura: 144 cobre tela de alta densidade.
+    seq = [cutout(f, 144) for f in frames]
+    path = OUT / "lara-balao.webp"
+    seq[0].save(path, save_all=True, append_images=seq[1:], duration=delay, loop=0,
+                quality=72, alpha_quality=85, method=6)
+    seq[0].save(OUT / "lara-balao.png", optimize=True)
+    for p in (path, OUT / "lara-balao.png"):
+        print(p.name, f"{p.stat().st_size / 1024:.0f} KB", seq[0].size)
+    sys.exit()
+
+for height, quality in ((320, 75),):
     seq = [cutout(f, height) for f in frames]
     path = OUT / f"lara-robo-{height}.webp"
     seq[0].save(path, save_all=True, append_images=seq[1:], duration=delay, loop=0,
