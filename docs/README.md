@@ -14,7 +14,7 @@ Documentação de cada funcionalidade do ponto de vista de uso (o que faz, passo
 campos e regras). Comece por aqui se quer entender **o que o sistema faz**:
 [**Índice dos guias funcionais**](funcionalidades/README.md) — Informações, Placas de
 carro/Estacionamento, Agendamento, Espaços, Sócios, Freelancers, Banco de Horas, Torneios,
-Ingressos, Empresas, WhatsApp, Telegram, Usuários/Permissões, Home Assistant e RePET.
+Ingressos, Disparo de E-mails, Empresas, WhatsApp, Telegram, Usuários/Permissões, Home Assistant e RePET.
 
 > ⚠️ **[Pix automático (Sicoob)](funcionalidades/pix-sicoob.md)** — única funcionalidade que
 > movimenta dinheiro real. Instalação em

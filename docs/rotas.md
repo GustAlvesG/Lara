@@ -277,6 +277,36 @@ Guia: [Ingressos](funcionalidades/ingressos.md). Tipo, lote e cupom presos ao ev
 | DELETE | `/contas-site/{member}` | SiteAccountController@destroy | site-accounts.destroy | auth, can:reservas.contas-site |
 | POST | `/contas-site/{member}/reativar` | SiteAccountController@restore | site-accounts.restore | auth, can:reservas.contas-site |
 
+### Disparo de E-mails (`email-campaigns.*`, `email-suppressions.*`, `can:disparo-emails`)
+
+Guia: [Disparo de E-mails](funcionalidades/disparo-emails.md). A tela só muda a situação da campanha; quem envia é o `email-campaigns:send`. `{campaign}` só número.
+
+| Método | URI | Ação | Nome |
+|---|---|---|---|
+| GET | `/disparo-emails` | EmailCampaign\EmailCampaignController@index | email-campaigns.index |
+| GET | `/disparo-emails/nova` | …@create | email-campaigns.create |
+| POST | `/disparo-emails` | …@store | email-campaigns.store |
+| GET | `/disparo-emails/modelo-lista/{format}` | …@listTemplate (`csv`/`xlsx`) | email-campaigns.list-template |
+| POST | `/disparo-emails/imagens` | …@uploadImage → JSON `{url}` | email-campaigns.images.store |
+| GET | `/disparo-emails/imagens/{file}` | …@showImage (só para a prévia; no e-mail vai embutida) | email-campaigns.images.show |
+| GET | `/disparo-emails/{campaign}` | …@show | email-campaigns.show |
+| GET | `/disparo-emails/{campaign}/editar` | …@edit (rascunho ou pausada) | email-campaigns.edit |
+| PUT | `/disparo-emails/{campaign}` | …@update | email-campaigns.update |
+| DELETE | `/disparo-emails/{campaign}` | …@destroy (rascunho, concluída ou cancelada) | email-campaigns.destroy |
+| GET | `/disparo-emails/{campaign}/previa` | …@preview (HTML, CSP sem script) | email-campaigns.preview |
+| GET | `/disparo-emails/{campaign}/andamento` | …@progress → JSON | email-campaigns.progress |
+| POST | `/disparo-emails/{campaign}/teste` | …@sendTest (na hora) | email-campaigns.test |
+| POST | `/disparo-emails/{campaign}/enviar` | …@start (`when=now` ou `schedule`, `scheduled_at`) | email-campaigns.start |
+| POST | `/disparo-emails/{campaign}/pausar` · `/retomar` · `/cancelar` · `/desagendar` | …@pause · @resume · @cancel · @unschedule | email-campaigns.pause · .resume · .cancel · .unschedule |
+| POST | `/disparo-emails/{campaign}/reenviar-falhas` | …@retryFailed | email-campaigns.retry |
+| POST | `/disparo-emails/{campaign}/duplicar` | …@duplicate | email-campaigns.duplicate |
+| POST | `/disparo-emails/{campaign}/destinatarios` | …@importRecipients (`list`, `mode=append` ou `replace`) | email-campaigns.recipients.import |
+| DELETE | `/disparo-emails/{campaign}/destinatarios` | …@clearRecipients (só rascunho) | email-campaigns.recipients.clear |
+| GET | `/disparo-emails/{campaign}/destinatarios/exportar` | …@exportRecipients (CSV) | email-campaigns.recipients.export |
+| GET | `/disparo-emails/nao-enviar` | EmailCampaign\EmailSuppressionController@index | email-suppressions.index |
+| POST | `/disparo-emails/nao-enviar` | …@store (vários de uma vez) | email-suppressions.store |
+| DELETE | `/disparo-emails/nao-enviar/{suppression}` | …@destroy | email-suppressions.destroy |
+
 ### Replay — vídeos das quadras (`can:replay`)
 
 Quatro telas, quatro etapas do mesmo trabalho: formato, layout, câmera, vídeos gravados.
@@ -533,6 +563,7 @@ Contrato completo em [ingressos.md](funcionalidades/ingressos.md#api-do-site-api
 | `social:contact-reminders` | Avisa no sino quem tem `reservas.sociais` das pré-reservas com prazo de contato vencido (uma vez cada). | a cada 15 minutos |
 | `social:expire-bookings` | Expira reserva de espaço social aprovada e não paga até `payment_due_at` (libera a data e avisa o sócio). | a cada 5 minutos |
 | `ingressos:expirar-pedidos` | Expira pedido de ingresso pendente com o prazo de pagamento (`TICKETS_HOLD_MINUTES`) vencido. | a cada minuto |
+| `email-campaigns:send [--limit=] [--seconds=50]` | Disparo de E-mails: promove as agendadas cuja hora chegou e manda o próximo lote das campanhas em andamento (até `EMAIL_CAMPAIGNS_PER_MINUTE`). `withoutOverlapping` + `runInBackground`. | a cada minuto |
 | `ingressos:dados-teste` | Gera ou limpa (`--so-limpar`) eventos `[TESTE]` de Ingressos em homologação; recusa produção. | manual |
 | `social:copy-config --from=lara_hml --to=lara [--dry-run] [--force]` | Copia a configuração dos espaços sociais (grupos, dias, espaços, conflitos, catálogo) de um banco para outro, casando pelo nome; não apaga nem copia reservas. | manual |
 

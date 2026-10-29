@@ -83,6 +83,15 @@ volta à venda no fim do prazo sem o comando (`Ticket::occupying`); ele só põe
 gravada em dia. Pagamento tardio ainda é aceito se houver lugar. Ver
 [ingressos.md](funcionalidades/ingressos.md#estoque-e-reserva-temporária).
 
+### `email-campaigns:send`
+
+`app/Console/Commands/SendEmailCampaigns.php` — a cada minuto (`routes/console.php`, com
+`withoutOverlapping` e `runInBackground`). É o motor do Disparo de E-mails: promove as
+campanhas agendadas cuja hora chegou e manda o próximo lote das em andamento
+(`CampaignSender::run`), até `EMAIL_CAMPAIGNS_PER_MINUTE` e-mails em no máximo ~50 s. **Não usa a
+fila** de propósito: o worker é um só e atende o bot do WhatsApp. Ver
+[disparo-emails.md](funcionalidades/disparo-emails.md).
+
 ### `sicoob:pix-reconciliar`
 
 `app/Console/Commands/ReconcilePixPayments.php` — agendado a cada minuto
@@ -157,6 +166,15 @@ administrativo) e por `EmailService::sendScheduleMail()` (agendamento → e-mail
 campo `type` dos dados escolhe a view: `schedule.confirm`, `schedule.pending`, `schedule.cancel`,
 `replay.available` (vídeos do RePET prontos, enviado pelo Job `SendReplayVideosMail`) ou o
 template de contato. Os tipos transacionais não levam o prefixo `[Contato]` no assunto.
+
+---
+
+### EmailCampaignMail
+`extends Mailable` (fora da fila) — um e-mail do Disparo de E-mails já personalizado
+(`CampaignRenderer`): HTML de quem montou a campanha (`Content(htmlString:)`), versão em texto
+(`emails.campaign-text`), remetente/resposta da campanha, cabeçalho `List-Unsubscribe` (mailto do
+"Responder para") e as imagens do editor embutidas (`cid:`) em `build()`. Mandado pelo
+`CampaignSender`.
 
 ---
 

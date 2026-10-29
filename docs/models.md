@@ -275,6 +275,16 @@ Módulo novo desde 27/10/2026 — regras em [ingressos.md](funcionalidades/ingre
 
 ---
 
+## Disparo de E-mails (`app/Models/EmailCampaign/`)
+
+Desde 29/10/2026 — regras em [disparo-emails.md](funcionalidades/disparo-emails.md). `created_by` sem FK (`users` em outra conexão).
+
+- **EmailCampaign** — `name`, `subject`, `from_address`, `from_name`, `reply_to`, `html`, `status` (`draft`, `scheduled`, `sending`, `paused`, `done`, `canceled`; `STATUS_LABELS`, `STATUS_PILLS`), `scheduled_at`, `started_at`, `finished_at`, `columns` (array slug => rótulo da última lista), `list_name`, `last_error`; `isEditable()` (rascunho ou pausada), `canStart()`, `canPause()`, `canResume()`, `canCancel()`, `canUnschedule()`, `canDelete()`, `isActive()`, `counts()` (total e por situação, numa consulta), `variables()` (email, nome, primeiro_nome + colunas). Relações: `recipients`, `author`.
+- **EmailCampaignRecipient** — `email_campaign_id`, `email` (minúsculas; único por campanha), `name`, `data` (array: as outras colunas da lista), `status` (`pending`, `sent`, `failed`, `skipped` = estava em "Não enviar para" na hora do envio), `attempts`, `error`, `sent_at`.
+- **EmailSuppression** — "Não enviar para": `email` (único, minúsculas; `normalize()`), `reason`, `created_by`. Vale para todas as campanhas, inclusive as em andamento.
+
+---
+
 ## Contratos (`app/Models/SignatureContract*.php`)
 
 Desde 27/10/2026 — regras em [contratos.md](funcionalidades/contratos.md).

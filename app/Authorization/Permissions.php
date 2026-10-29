@@ -144,6 +144,11 @@ final class Permissions
     // quem pede carro de aplicativo e quem dirige a frota.
     public const FUNCIONARIOS_GERENCIAR = 'funcionarios.gerenciar';
 
+    // Disparo de E-mails (29/10/2026): campanhas por e-mail para listas
+    // importadas (.csv/.xlsx). Uma permissão só cobre criar, importar a
+    // lista, enviar e o "Não enviar para". Nasce sem setor.
+    public const DISPARO_EMAILS = 'disparo-emails';
+
     public const BANCO_HORAS_ADMIN = 'banco-horas.admin';
     public const TELEGRAM_LOGIN = 'telegram.login';
     public const SOCIOS_CONSULTA = 'socios.consulta';
@@ -229,6 +234,8 @@ final class Permissions
         self::REPLAY => ['RePET', 'Câmeras, layouts de logomarca e vídeos das quadras'],
 
         self::FUNCIONARIOS_GERENCIAR => ['Funcionários', 'Cadastro de funcionários, férias, afastamentos e importação por planilha'],
+
+        self::DISPARO_EMAILS => ['Disparo de E-mails', 'Criar campanhas, importar listas de destinatários, enviar e manter o "Não enviar para"'],
 
         self::BANCO_HORAS_ADMIN => ['Banco de Horas', 'Importar espelho de ponto'],
 
