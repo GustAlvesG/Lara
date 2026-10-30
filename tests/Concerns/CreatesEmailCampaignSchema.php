@@ -28,6 +28,7 @@ trait CreatesEmailCampaignSchema
             'database/migrations/2026_06_12_000002_create_aviso_user_table.php',
             'database/migrations/2026_07_31_120000_add_mandatory_reading_to_avisos.php',
             'database/migrations/2026_10_30_110000_create_email_campaign_tables.php',
+            'database/migrations/2026_10_30_120000_add_visual_editor_to_email_campaigns.php',
         ]]);
 
         $this->shareSqliteWithUserConnection();

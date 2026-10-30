@@ -29,6 +29,10 @@ class EmailCampaign extends Model
     public const STATUS_DONE = 'done';
     public const STATUS_CANCELED = 'canceled';
 
+    /** Texto formatado no editor visual (O Lara monta o HTML) ou HTML à mão. */
+    public const EDITOR_VISUAL = 'visual';
+    public const EDITOR_HTML = 'html';
+
     /** @var array<string, string> */
     public const STATUS_LABELS = [
         self::STATUS_DRAFT => 'Rascunho',
@@ -55,6 +59,8 @@ class EmailCampaign extends Model
         'from_address',
         'from_name',
         'reply_to',
+        'editor',
+        'body',
         'html',
         'status',
         'scheduled_at',
@@ -81,6 +87,11 @@ class EmailCampaign extends Model
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function usesVisualEditor(): bool
+    {
+        return $this->editor === self::EDITOR_VISUAL;
     }
 
     public function statusLabel(): string
