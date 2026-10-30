@@ -398,6 +398,25 @@ class FreelancerDirectorSignatureFlowTest extends TestCase
         $this->assertStringContainsString('Assinado digitalmente por Carlos Diretor', $html);
     }
 
+    /** O diretor decide pelo e-mail: cada contrato diz onde foi e por quê. */
+    public function test_o_email_traz_o_local_e_a_justificativa_de_cada_contrato(): void
+    {
+        $diretor = $this->diretorComAssinatura();
+        $lote = $this->loteAprovadoPelaGerencia([
+            $this->contratoValidado(['location' => 'Salão Nobre', 'description' => 'Reforço para o baile']),
+            $this->contratoValidado(['location' => 'Restaurante da Sede', 'description' => null]),
+        ]);
+
+        $lote->load(['services.freelancer', 'services.functionFreelancer']);
+
+        $html = (new DirectorBatchApprovalMail($lote, $diretor, '111111', '222222'))->render();
+
+        $this->assertStringContainsString('Evento / local:</span> Salão Nobre', $html);
+        $this->assertStringContainsString('Descrição / justificativa:</span> Reforço para o baile', $html);
+        $this->assertStringContainsString('Evento / local:</span> Restaurante da Sede', $html);
+        $this->assertSame(1, substr_count($html, 'Descrição / justificativa:'), 'Sem descrição, a linha não aparece.');
+    }
+
     /* ---------------------------------------------------------------------
      | Cadastro da diretoria
      |---------------------------------------------------------------------*/

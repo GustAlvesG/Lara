@@ -421,9 +421,11 @@ Doc completa: seção "Conferência das respostas pelo atendente" de `assinatura
 - Regras: só `finalized`; a partir de `finalized_at`+1 dia 00:00; não quem acompanhou (`involvedUserIds()`: criador,
   QR, convite e conferência gov.br). `assinatura.revisar-coordenacao` dispensa as duas e grava `early`/`own`.
 - "ok" exige todos os itens; "issues" exige observação e mantém na fila; "ok" encerra. Evento `reviewed` sem a observação.
+- **"Pendente envio de anexo" (30/10/2026):** também só de exibição. `statusLabel()` mostra isso, em amarelo, para
+  `signed` com `missingAttachments()` (`awaitsAttachments()`). O filtro "Assinado" da lista traz os dois casos.
 - **`Assinado*` (30/10/2026):** só de exibição. No banco segue `finalized` (via, arquivamento e fila dependem dele).
-  `statusLabel()` mostra `Assinado*` enquanto `awaitsReview()`, e "Finalizado" depois da revisão "ok" ou no termo de
-  menores. Filtro da lista: `?status=aguardando-revisao` (`scopeAwaitingReview`) e `?status=finalized` (`scopeReviewSettled`).
+  `statusLabel()` mostra `Assinado*` enquanto `awaitsReview()`, e "Finalizado" depois da revisão "ok", no termo de
+  menores e no contrato (`skipsReview()`). Filtro da lista: `?status=aguardando-revisao` (`scopeAwaitingReview`) e `?status=finalized` (`scopeReviewSettled`).
   Frase com a situação usa `statusLabelInline()`. Regra nova sobre "concluído" pergunta ao status, não ao rótulo.
 - Fila `GET assinatura/revisao` (`ReviewController@index`), registro `POST .../{doc}/revisao` (aba `?aba=revisao`).
   Quem revisa vê o documento (`viewAny` inclui as duas permissões). Teste: `SignatureReviewTest`.
@@ -606,7 +608,13 @@ Guia do usuário: seção 13.
   Matrícula + PIN, cookie `lara_management`, `ContractKioskService` (desenho do `DirectorKioskService`: hash no cache,
   limite por matrícula, setor Gerência reconferido a cada chamada). Lê, comenta tocando na cláusula, aprova/devolve
   pelo `ContractService`; não edita texto. Rotas `quiosque.gerencia.*`. Testes: `SignatureContractKioskTest`.
-- **Revisão automática pelo Claude** (Gerência, 27/10/2026): cartão na tela do contrato manda o texto ao
+- **Fora da revisão interna (30/10/2026):** `SignatureDocument::isContract()` (relação `contract`, por
+  `signature_document_id`) em `skipsReview()`. Por isso `signature_contracts` entrou no `CreatesSignatureSchema`.
+- **Busca (30/10/2026):** `SignatureContract::scopeSearch` e `SignatureDocument::scopeSearch` acham número em
+  qualquer grafia (`splitNumberSearch`), parte e CNPJ (`parties_search`, mantido pelo `saving`). Filtro de
+  documentos `?modelo=contratos`.
+- **Revisão automática pelo Claude** (Gerência, 27/10/2026; quem redige, 30/10/2026, policy `aiReview` = `update`;
+  no editor, "Salvar e analisar" = `next=ai-review`): cartão na tela do contrato manda o texto ao
   Claude Haiku 5.5 (`ContractAiReviewer` → `App\Services\Claude\ClaudeClient`, SDK `anthropic-ai/sdk`) e guarda
   veredito, resumo e apontamentos por cláusula em `signature_contract_ai_reviews` (mesmo texto e mesma escolha de
   trechos = mesma revisão, pelo `sha256` + `withheld`). Desde 28/10, trecho (parágrafo da qualificação, considerando,

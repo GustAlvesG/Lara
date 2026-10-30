@@ -6,8 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Revisão automática de um contrato pelo Claude, pedida pela Gerência: o
- * resumo das inconsistências e os apontamentos com sugestão de alteração.
+ * Revisão automática de um contrato pelo Claude, pedida por quem redige ou
+ * pela Gerência: o resumo das inconsistências e os apontamentos com sugestão de alteração.
  * Só orienta — não aprova nem devolve nada. Ver ContractAiReviewer.
  */
 class SignatureContractAiReview extends Model
@@ -24,7 +24,7 @@ class SignatureContractAiReview extends Model
 
     public const SEVERITIES = ['alta', 'media', 'baixa'];
 
-    /** Por que um trecho fica fora da análise, a menos que o gerente o inclua. */
+    /** Por que um trecho fica fora da análise, a menos que quem pede o inclua. */
     public const SENSITIVE_LABELS = [
         'valores' => 'valores',
         'cpf' => 'CPF',

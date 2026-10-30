@@ -23,6 +23,7 @@ use App\Services\Signature\Contracts\ContractVariables;
 use App\Services\Signature\Directors\DirectorAreaService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -55,18 +56,7 @@ class ContractController extends Controller
             ->visibleTo($user->sectorIds(), $gerencia)
             ->when($aba === 'validar', fn($q) => $q->where('status', SignatureContract::STATUS_IN_REVIEW))
             ->when($aba === 'todos' && isset(SignatureContract::STATUS_LABELS[$status]), fn($q) => $q->where('status', $status))
-            ->when($busca !== '', function ($q) use ($busca) {
-                foreach (array_slice(preg_split('/\s+/u', $busca) ?: [], 0, 6) as $palavra) {
-                    $termo = '%' . $palavra . '%';
-
-                    // `content` entra para achar a contratada (nome, CNPJ) sem coluna própria.
-                    $q->where(fn($w) => $w->where('title', 'like', $termo)
-                        ->orWhere('number', 'like', $termo)
-                        ->orWhere('sector_name', 'like', $termo)
-                        ->orWhere('created_by_name', 'like', $termo)
-                        ->orWhere('content', 'like', $termo));
-                }
-            })
+            ->search($busca)
             ->orderByDesc('id')
             ->paginate(20)
             ->withQueryString();
@@ -138,24 +128,13 @@ class ContractController extends Controller
             ? app(ContractDiff::class)->compare($devolvida->content ?? [], $conteudo)
             : null;
 
-        // Revisão automática: só a Gerência vê, e só com a chave configurada.
-        $revisor = app(ContractAiReviewer::class);
-        $gerencia = $request->user()->isManagementMember() && $revisor->isAvailable();
-        $revisao = $gerencia ? $contrato->aiReviews()->first() : null;
-        // Os trechos com valores, CPF, documentos ou endereço: ficam de fora, a menos que o gerente marque.
-        $sensiveis = $gerencia && $request->user()->can('aiReview', $contrato) ? $revisor->sensitiveSections($contrato) : [];
-
-        return view('signature.contracts.show', [
+        return view('signature.contracts.show', $this->aiReviewData($request, $contrato) + [
             'contract' => $contrato,
             'preview' => $this->renderer->html($conteudo, $contrato->number),
             'problems' => $this->renderer->problems($conteudo),
             'outline' => $this->renderer->outline($conteudo),
             'diff' => $diff,
             'diffVersion' => $devolvida,
-            'aiEnabled' => $gerencia,
-            'aiReview' => $revisao,
-            'aiReviewCurrent' => $revisao ? $revisor->isCurrent($revisao, $contrato) : false,
-            'aiSensitive' => $sensiveis,
         ]);
     }
 
@@ -165,7 +144,7 @@ class ContractController extends Controller
 
         $conteudo = $signatureContract->content ?? ContractContent::blank();
 
-        return view('signature.contracts.edit', [
+        return view('signature.contracts.edit', $this->aiReviewData($request, $signatureContract) + [
             'contract' => $signatureContract->load(['comments']),
             'content' => $conteudo,
             'preview' => $this->renderer->html($conteudo, $signatureContract->number),
@@ -184,6 +163,10 @@ class ContractController extends Controller
     {
         $this->authorize('update', $signatureContract);
 
+        if ($request->input('next') === 'ai-review') {
+            $this->authorize('aiReview', $signatureContract);
+        }
+
         try {
             $this->contracts->save($signatureContract, $this->contentInput($request), $request->user()->id, $request->user()->name);
         } catch (ContractException $e) {
@@ -192,6 +175,11 @@ class ContractController extends Controller
 
         if ($request->input('next') === 'submit') {
             return $this->submit($request, $signatureContract->fresh());
+        }
+
+        // "Salvar e analisar", no editor: a análise é sempre do texto salvo.
+        if ($request->input('next') === 'ai-review') {
+            return $this->runAiReview($request, $signatureContract->fresh(), 'signature-contracts.edit');
         }
 
         return redirect()->route('signature-contracts.edit', $signatureContract)->with('success', 'Contrato salvo.');
@@ -267,28 +255,45 @@ class ContractController extends Controller
         return $resultado['warnings'] !== [] ? $redirect->with('warning', implode(' ', $resultado['warnings'])) : $redirect;
     }
 
-    /** Revisão automática pelo Claude: resumo das inconsistências e sugestões (Gerência). */
-    public function aiReview(Request $request, SignatureContract $signatureContract, ContractAiReviewer $reviewer)
+    /** Revisão automática pelo Claude: resumo das inconsistências e sugestões (quem redige e a Gerência). */
+    public function aiReview(Request $request, SignatureContract $signatureContract)
     {
         $this->authorize('aiReview', $signatureContract);
 
+        return $this->runAiReview($request, $signatureContract, 'signature-contracts.show');
+    }
+
+    /** @param  string  $rota  a tela para onde voltar (a do contrato ou o editor) */
+    private function runAiReview(Request $request, SignatureContract $signatureContract, string $rota)
+    {
+        $reviewer = app(ContractAiReviewer::class);
+
         if (!$reviewer->isAvailable()) {
-            return back()->with('error', 'A revisão automática não está configurada (falta a chave da API do Claude).');
+            return redirect()->route($rota, $signatureContract)->with('error', 'A revisão automática não está configurada (falta a chave da API do Claude).');
         }
 
-        // Os trechos sensíveis que o gerente marcou para enviar; o resto deles fica de fora.
+        // Os trechos sensíveis que a pessoa marcou para enviar; o resto deles fica de fora.
         $dados = $request->validate([
             'include' => ['nullable', 'array', 'max:200'],
             'include.*' => ['string', 'max:80'],
         ]);
 
+        // O "Salvar e analisar" passa pela rota de salvar, sem o throttle da rota da revisão.
+        $limite = 'contract-ai-review:' . $request->user()->id;
+
+        if (RateLimiter::tooManyAttempts($limite, 6)) {
+            return redirect()->route($rota, $signatureContract)->with('warning', 'Muitas análises seguidas. Espere um minuto e peça de novo.');
+        }
+
+        RateLimiter::hit($limite, 60);
+
         try {
             $resultado = $reviewer->review($signatureContract, $request->user()->id, $request->user()->name, $dados['include'] ?? []);
         } catch (ClaudeException $e) {
-            return redirect()->route('signature-contracts.show', $signatureContract)->with('error', $e->getMessage());
+            return redirect()->route($rota, $signatureContract)->with('error', $e->getMessage());
         }
 
-        return redirect()->to(route('signature-contracts.show', $signatureContract) . '#revisao-ia')
+        return redirect()->to(route($rota, $signatureContract) . '#revisao-ia')
             ->with('success', $resultado['reused']
                 ? 'O texto não mudou desde a última revisão automática: ela continua valendo.'
                 : 'Revisão automática concluída. Confira os apontamentos antes de usar.');
@@ -472,6 +477,27 @@ class ContractController extends Controller
                 ->get()
                 ->map(fn(SignatureContractParty $p) => ['kind' => $p->kind, 'name' => $p->name, 'document' => $p->document] + ($p->data ?? [])),
         );
+    }
+
+    /**
+     * O cartão da revisão automática, para a tela do contrato e o editor. Quem
+     * vê o contrato vê a revisão; só some sem a chave configurada.
+     *
+     * @return array<string, mixed>
+     */
+    private function aiReviewData(Request $request, SignatureContract $contrato): array
+    {
+        $revisor = app(ContractAiReviewer::class);
+        $disponivel = $revisor->isAvailable();
+        $revisao = $disponivel ? $contrato->aiReviews()->first() : null;
+
+        return [
+            'aiEnabled' => $disponivel,
+            'aiReview' => $revisao,
+            'aiReviewCurrent' => $revisao ? $revisor->isCurrent($revisao, $contrato) : false,
+            // Os trechos com valores, CPF, documentos ou endereço: ficam de fora, a menos que a pessoa marque.
+            'aiSensitive' => $disponivel && $request->user()->can('aiReview', $contrato) ? $revisor->sensitiveSections($contrato) : [],
+        ];
     }
 
     /** O que o formulário do editor manda, como entrada do ContractContent. */

@@ -86,6 +86,78 @@ class SignatureContract extends Model
         'canceled_at' => 'datetime',
     ];
 
+    protected static function booted(): void
+    {
+        static::saving(function (SignatureContract $contract) {
+            $contract->parties_search = self::partiesSearchOf($contract->content ?? []);
+        });
+    }
+
+    /**
+     * O que a busca lê das partes: nome, representante e documento (só os
+     * caracteres, como o ContractContent guarda). Ver a migration da coluna.
+     *
+     * @param  array<string, mixed>  $content
+     */
+    public static function partiesSearchOf(array $content): string
+    {
+        return collect($content['parties'] ?? [])
+            ->flatMap(fn($parte) => [$parte['name'] ?? '', $parte['rep_name'] ?? '', $parte['document'] ?? ''])
+            ->filter()
+            ->join(' ');
+    }
+
+    /**
+     * Separa da busca o número do contrato, do jeito que a pessoa digitar:
+     * "ctl3/26", "CTL-3/26", "ctl 3". Devolve o resto do texto e o padrão LIKE
+     * do número (null se não há). O padrão pega também os aditivos ("… A1").
+     *
+     * @return array{0: string, 1: ?string}
+     */
+    public static function splitNumberSearch(?string $busca): array
+    {
+        $prefixo = (string) config('signature.contracts.number_prefix', 'CTL');
+        $regex = '/(?<![\p{L}\d])' . preg_quote($prefixo, '/') . '\s*-?\s*(\d+)(?:\s*\/\s*(\d{2,4}))?(?![\p{L}\d])/iu';
+
+        if (preg_match($regex, (string) $busca, $m) !== 1) {
+            return [trim((string) $busca), null];
+        }
+
+        $ano = isset($m[2]) ? substr($m[2], -2) : '';
+
+        return [
+            trim(str_replace($m[0], ' ', (string) $busca)),
+            $prefixo . ' - ' . $m[1] . '/' . $ano . '%',
+        ];
+    }
+
+    /**
+     * Busca da lista de contratos: número em qualquer grafia e cada palavra em
+     * título, número, setor, quem redigiu, partes (nome e CNPJ, com ou sem
+     * pontuação) ou no texto.
+     */
+    public function scopeSearch(Builder $query, ?string $busca): Builder
+    {
+        [$resto, $numero] = self::splitNumberSearch($busca);
+
+        $query->when($numero, fn($q) => $q->where('number', 'like', $numero));
+
+        foreach (array_slice(preg_split('/\s+/u', $resto, -1, PREG_SPLIT_NO_EMPTY) ?: [], 0, 6) as $palavra) {
+            $termo = '%' . addcslashes($palavra, '%_\\') . '%';
+            $documento = strtoupper((string) preg_replace('/[^0-9A-Za-z]/', '', $palavra));
+
+            $query->where(fn($w) => $w->where('title', 'like', $termo)
+                ->orWhere('number', 'like', $termo)
+                ->orWhere('sector_name', 'like', $termo)
+                ->orWhere('created_by_name', 'like', $termo)
+                ->orWhere('parties_search', 'like', $termo)
+                ->orWhere('content', 'like', $termo)
+                ->when(preg_match('/\d{3}/', $documento) === 1, fn($d) => $d->orWhere('parties_search', 'like', '%' . $documento . '%')));
+        }
+
+        return $query;
+    }
+
     /** @return HasMany<SignatureContractVersion> */
     public function versions(): HasMany
     {

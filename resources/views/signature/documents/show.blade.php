@@ -151,12 +151,14 @@
                                 · criado em {{ $document->created_at?->format('d/m/Y H:i') }}
                             </p>
                         </div>
+                        @php $rotuloStatus = $document->statusLabel(); @endphp
                         <x-pill :kind="match (true) {
                             $document->status === \App\Models\SignatureDocument::STATUS_AWAITING_SIGNATURE => 'warn',
+                            $rotuloStatus === \App\Models\SignatureDocument::LABEL_AWAITING_ATTACHMENTS => 'warn',
                             in_array($document->status, [\App\Models\SignatureDocument::STATUS_SIGNED, \App\Models\SignatureDocument::STATUS_FINALIZED], true) => 'ok',
                             in_array($document->status, [\App\Models\SignatureDocument::STATUS_REFUSED, \App\Models\SignatureDocument::STATUS_CANCELED, \App\Models\SignatureDocument::STATUS_EXPIRED], true) => 'danger',
                             default => 'off',
-                        }">{{ $document->statusLabel() }}</x-pill>
+                        }">{{ $rotuloStatus }}</x-pill>
                     </div>
 
                     @if($document->awaitsReview())

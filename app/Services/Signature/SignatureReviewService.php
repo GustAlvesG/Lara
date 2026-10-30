@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\DB;
 /**
  * A revisão interna do documento assinado.
  *
- * Todo documento concluído passa por ela: outra pessoa — que não acompanhou a
+ * Todo documento concluído passa por ela, menos termo de menores e contrato
+ * (`SignatureDocument::skipsReview`): outra pessoa — que não acompanhou a
  * assinatura — confere se os processos internos daquele atendimento foram
  * feitos. O que conferir vem do modelo (`review_items`); a revisão marca cada
  * item, dá o resultado ("Tudo em ordem" ou "Com pendência") e, com pendência,
@@ -59,6 +60,10 @@ class SignatureReviewService
 
         if ($document->isMinorTerm()) {
             return 'Termo de menores não passa pela revisão interna.';
+        }
+
+        if ($document->isContract()) {
+            return 'Contrato não passa pela revisão interna: a Gerência já validou o texto.';
         }
 
         if ($document->review_status === SignatureReview::RESULT_OK) {

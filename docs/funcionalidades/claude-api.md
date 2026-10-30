@@ -55,7 +55,7 @@ seja, frações de centavo por revisão. Cada revisão guarda os tokens usados (
 
 O texto enviado sai do Lara e vai para a Anthropic. A tela avisa isso ao lado do botão. Não mande dados que
 não precisem ir: cada uso monta o próprio texto, só com o necessário. Nos contratos (desde 28/10/2026), os
-trechos com valores, CPF, documentos ou endereço ficam de fora por padrão e só vão se o gerente marcar cada um
+trechos com valores, CPF, documentos ou endereço ficam de fora por padrão e só vão se quem pede marcar cada um
 (`ContractAiReviewer::SENSITIVE`, ver [contratos.md](contratos.md#revisão-automática-pelo-claude)). Novo uso
 com dado pessoal: siga a mesma régua.
 

@@ -51,10 +51,12 @@ class DocumentController extends Controller
         // Arquivados saem da lista padrão; o filtro mostra só eles.
         $arquivados = $request->boolean('arquivados');
 
-        $documentos = SignatureDocument::with(['template', 'signers', 'minorAuthorization'])
+        $documentos = SignatureDocument::with(['template', 'signers', 'minorAuthorization', 'contract'])
             ->hidden($arquivados)
             ->search($busca)
-            ->when($modelo === 'avulso', fn($query) => $query->whereHas('template', fn($t) => $t->where('single_use', true)))
+            // O modelo do contrato também é de uso único, mas não é PDF enviado pronto.
+            ->when($modelo === 'avulso', fn($query) => $query->whereDoesntHave('contract')->whereHas('template', fn($t) => $t->where('single_use', true)))
+            ->when($modelo === 'contratos', fn($query) => $query->has('contract'))
             ->when(ctype_digit($modelo), fn($query) => $query->whereHas('template', fn($t) => $t->where('root_id', (int) $modelo)))
             ->when($de, fn($query) => $query->where('created_at', '>=', $de->startOfDay()))
             ->when($ate, fn($query) => $query->where('created_at', '<=', $ate->endOfDay()))

@@ -482,7 +482,8 @@ documento assinado (nem PDF, nem hash): é registro interno, com evento na trilh
 **Situação na tela (30/10/2026):** enquanto a revisão não dá "Tudo em ordem", o documento aparece como
 **`Assinado*`**; depois, como **Finalizado**. É só exibição (`SignatureDocument::statusLabel`, a partir de
 `awaitsReview`): no banco o status continua `finalized` desde a emissão do PDF, e a via, o arquivamento e a fila
-de revisão seguem dependendo dele. Termo de menores não passa pela revisão e mostra "Finalizado" direto. Documentos
+de revisão seguem dependendo dele. Termo de menores e contrato não passam pela revisão
+(`SignatureDocument::skipsReview`) e mostram "Finalizado" direto. Documentos
 antigos sem revisão também passam a mostrar `Assinado*`. O filtro da lista usa `?status=aguardando-revisao` e
 `?status=finalized`. O evento `finalized` da trilha aparece como "Via final emitida"; o nome interno não mudou.
 
@@ -891,7 +892,8 @@ receber mais de um arquivo (frente e verso) — e **Outro anexo**, avulso, com o
 - **Obrigatório trava a CONCLUSÃO, não o congelamento nem a assinatura.** O anexo pode chegar a
   qualquer momento antes de o documento concluir. Com todos assinados e obrigatório faltando
   (`SignatureDocument::missingAttachments`), o `FinalizeSignatureDocument` sai sem finalizar: o
-  documento fica **"Assinado"**, à espera, e a tela diz o que falta. O envio que completa a lista
+  documento fica `signed`, à espera. A tela mostra **"Pendente envio de anexo"**, em amarelo
+  (`SignatureDocument::awaitsAttachments`, só exibição), e diz o que falta. O envio que completa a lista
   despacha a finalização (`SignatureAttachmentService::store`). Não é falha: não gera evento nem
   retentativa.
 - **Tipos:** PDF, JPG e PNG, pelo **conteúdo** (`finfo`), nunca pela extensão. Até

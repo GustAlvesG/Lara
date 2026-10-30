@@ -1,7 +1,7 @@
 {{--
     Documentos da assinatura eletrônica. Lista paginada: a busca
     (SignatureDocument::scopeSearch — cada palavra em título, modelo, código,
-    quem gerou, nome/e-mail/CPF do signatário) e os filtros (situação, modelo,
+    quem gerou, nome/e-mail/CPF do signatário, número e partes do contrato) e os filtros (situação, modelo ou contratos,
     período, gerados por mim, arquivados) vão ao servidor. Arquivado
     (`hidden_at`) só aparece com o filtro "Arquivados".
 --}}
@@ -30,7 +30,7 @@
 
         @include('partials.alerts')
 
-        <x-search-bar :filters="['status', 'modelo', 'de', 'ate', 'meus', 'arquivados']" placeholder="Título, modelo, signatário, e-mail, CPF, código ou quem gerou">
+        <x-search-bar :filters="['status', 'modelo', 'de', 'ate', 'meus', 'arquivados']" placeholder="Título, modelo, signatário, e-mail, CPF, código, nº do contrato, contratada ou CNPJ">
             <x-slot:controls>
                 <label for="status" class="sr-only">Situação</label>
                 <select name="status" id="status" class="{{ $field }} w-full sm:w-56">
@@ -46,6 +46,7 @@
                 <label for="modelo" class="sr-only">Modelo</label>
                 <select name="modelo" id="modelo" class="{{ $field }} w-full sm:w-64">
                     <option value="">Todos os modelos</option>
+                    <option value="contratos" @selected($modelo === 'contratos')>Contratos</option>
                     @foreach($modelos as $opcao)
                         <option value="{{ $opcao->root_id }}" @selected($modelo === (string) $opcao->root_id)>
                             {{ $opcao->name }}{{ $opcao->active ? '' : ' (inativo)' }}
@@ -113,6 +114,9 @@
                                     <td class="px-5 py-3.5">
                                         <a href="{{ route('signature-documents.show', $document) }}" class="font-semibold text-ink hover:text-grena-ink">{{ $document->title }}</a>
                                         <div class="text-xs text-ink-2">
+                                            @if($document->contract)
+                                                <b>Contrato</b> ·
+                                            @endif
                                             {{ $document->template?->name }} v{{ $document->template_version }}
                                             @if($document->validation_code)
                                                 · <span class="font-mono">{{ $document->validation_code }}</span>
@@ -125,7 +129,8 @@
                                         @endforeach
                                     </td>
                                     <td class="px-5 py-3.5">
-                                        <x-pill :kind="$statusKind($document->status)">{{ $document->statusLabel() }}</x-pill>
+                                        @php $rotulo = $document->statusLabel(); @endphp
+                                        <x-pill :kind="$rotulo === Doc::LABEL_AWAITING_ATTACHMENTS ? 'warn' : $statusKind($document->status)">{{ $rotulo }}</x-pill>
                                     </td>
                                     <td class="whitespace-nowrap px-5 py-3.5 text-xs text-ink-2">
                                         <span class="font-mono">{{ $document->created_at?->format('d/m/Y H:i') }}</span>

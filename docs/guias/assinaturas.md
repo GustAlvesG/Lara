@@ -40,9 +40,10 @@ Na tela **Assinaturas › Documentos**, cada documento mostra uma situação:
 
 - **Rascunho**: ainda pode ser editado. Não vai para o tablet.
 - **Aguardando assinatura**: foi congelado. O texto e os dados não mudam mais, e já pode ser liberado para assinar.
-- **Assinado**: todos assinaram. O Lara está montando o PDF final (leva alguns segundos), ou está esperando um anexo obrigatório que ainda não foi enviado. O quadro **Anexos** diz qual falta.
+- **Pendente envio de anexo** (em amarelo): todos assinaram, mas falta um anexo obrigatório. O PDF final só sai depois dele. O quadro **Anexos** diz qual falta.
+- **Assinado**: todos assinaram e O Lara está montando o PDF final (leva alguns segundos).
 - **Assinado\***: todos assinaram e o PDF assinado está pronto para baixar e enviar, mas falta a revisão interna. Continua assim também se a revisão deu **Com pendência**.
-- **Finalizado**: a revisão interna deu **Tudo em ordem**. O Termo de Menores não passa pela revisão e chega aqui direto.
+- **Finalizado**: a revisão interna deu **Tudo em ordem**. O Termo de Menores e os contratos não passam pela revisão e chegam aqui direto.
 - **Recusado**, **Cancelado** ou **Expirado**: encerrado sem assinatura. A pessoa recusou, o atendente cancelou, ou ninguém assinou dentro do prazo.
 
 Os prazos padrão para assinar, contados do congelamento: 24 horas no balcão, 7 dias depois de preparar para o gov.br, 7 dias quando há diretor entre os signatários. O link remoto vale 72 horas e estende o prazo do documento até lá. A TI pode ter ajustado esses valores.
@@ -290,7 +291,7 @@ Cada documento é assinado todo no tablet ou todo pelo gov.br. Se alguém já as
 ## Encontrar um documento assinado e baixar o PDF
 <!-- telas: signature-documents.index -->
 
-Em **Assinaturas › Documentos**, a busca aceita título, nome do modelo, nome ou e-mail do signatário, CPF (inteiro ou um pedaço), código de validação e o nome de quem gerou. Várias palavras estreitam a busca: "maria piscina" acha o termo da piscina da Maria. Ao lado há filtros por **Situação** (inclui **Aguardando diretoria**), **Modelo** (inclusive inativos e **Documento enviado pronto (PDF)**), período (**De** / **até**), **Gerados por mim** e **Arquivados**.
+Em **Assinaturas › Documentos**, a busca aceita título, nome do modelo, nome ou e-mail do signatário, CPF (inteiro ou um pedaço), código de validação, o nome de quem gerou e, nos contratos, o número (ctl3/26, CTL-3/26 ou ctl 3), a contratada e o CNPJ. Várias palavras estreitam a busca: "maria piscina" acha o termo da piscina da Maria. Ao lado há filtros por **Situação** (inclui **Aguardando diretoria**), **Modelo** (inclusive inativos, **Contratos** e **Documento enviado pronto (PDF)**), período (**De** / **até**), **Gerados por mim** e **Arquivados**.
 
 Abra o documento e use os botões do topo:
 
@@ -352,7 +353,7 @@ Regras:
 - O documento fica disponível a partir do dia seguinte à conclusão.
 - Quem acompanhou a assinatura (gerou o documento, o QR Code, o convite gov.br ou conferiu o arquivo do gov.br) não revisa. A lista mostra o motivo no lugar do botão.
 - A coordenação (permissão "Revisar antes do prazo e os próprios documentos") pode revisar antes do prazo e os próprios documentos; a revisão fica marcada assim.
-- Termo de Menores não passa pela revisão.
+- Termo de Menores e contratos não passam pela revisão. O contrato já foi validado pela Gerência.
 
 ## Termo de Menores: cadastrar o termo do evento
 <!-- telas: minor-terms.index -->
@@ -450,6 +451,7 @@ O que O Lara faz por você:
 - **Remissão**: para citar outra cláusula, use **Inserir remissão**; o número acompanha se a ordem mudar.
 - **Variáveis**: valor, prazo e datas preenchidos uma vez e usados com **Inserir variável**. Valor sai com o extenso.
 - **Conferência**: a lista ao lado da prévia diz o que falta (trava o envio): variável sem valor, CNPJ ou CPF inválido, remissão quebrada, cláusula vazia, falta de quem assina pela contratada.
+- **Revisão automática (Claude)**: enquanto redige, clique em **Salvar e analisar**, ao lado da prévia. O Lara salva o contrato e o Claude aponta inconsistências, com sugestões. Trechos com valores, CPF, documentos ou endereço não são enviados, a menos que você os marque em **Incluir trechos com dados sensíveis**. São sugestões de IA: não aprovam nada, e o contrato continua indo à Gerência.
 - O clube é representado pelo presidente (o titular da Presidência em **Assinaturas › Diretoria**), que assina sem precisar ser incluído. A data do fecho é a da assinatura, e o documento sai com visto em todas as páginas.
 - **Escrever com conforto**: a caixa de texto cresce com o que você digita e pode ser puxada pelo canto de baixo. A barra tem **Limpar** (tira a formatação do trecho), **↶ desfazer** e **↷ refazer**. Ao colar do Word ou de um PDF, ficam só negrito, itálico, sublinhado, parágrafos e listas. Na tela larga, **Ocultar prévia** (no alto) dá a largura toda ao editor; **Mostrar prévia** a traz de volta.
 
@@ -510,10 +512,15 @@ Leia a mensagem em vermelho. As mais comuns: "Documento sem signatário: informe
 
 Só a revisão interna. O PDF está pronto e a via pode ser enviada. O documento passa a **Finalizado** quando a revisão em **Assinaturas › Revisão** der **Tudo em ordem**.
 
+### O documento está em "Pendente envio de anexo"
+<!-- telas: signature-documents.index -->
+
+Todos assinaram, mas falta um anexo obrigatório. Abra o documento, veja no quadro **Anexos** qual falta e envie. O documento conclui sozinho.
+
 ### Todos assinaram, mas o documento não sai de "Assinado" (sem asterisco)
 <!-- telas: signature-documents.index -->
 
-Primeiro, veja o quadro **Anexos**: falta um anexo obrigatório. Envie e o documento conclui sozinho. Se não falta anexo e passou de alguns minutos, avise a TI: o serviço que monta o PDF final está parado. Nada se perde, a assinatura está registrada.
+Se passou de alguns minutos, avise a TI: o serviço que monta o PDF final está parado. Nada se perde, a assinatura está registrada.
 
 ### O tablet diz "QR Code expirado" ou "já foi usado"
 <!-- telas: signature-documents.index -->

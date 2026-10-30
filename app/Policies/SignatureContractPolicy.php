@@ -64,17 +64,13 @@ class SignatureContractPolicy
     }
 
     /**
-     * Pedir a revisão automática pelo Claude: a Gerência, enquanto o texto
-     * ainda pode mudar (rascunho, devolvido ou em validação).
+     * Pedir a revisão automática pelo Claude: quem pode mexer no texto agora.
+     * O setor durante a redação (rascunho ou devolvido, decisão do usuário,
+     * 30/10/2026); a Gerência também durante a validação.
      */
     public function aiReview(User $user, SignatureContract $contract): bool
     {
-        return $user->isManagementMember()
-            && in_array($contract->status, [
-                SignatureContract::STATUS_DRAFT,
-                SignatureContract::STATUS_RETURNED,
-                SignatureContract::STATUS_IN_REVIEW,
-            ], true);
+        return $this->update($user, $contract);
     }
 
     public function manage(User $user, SignatureContract $contract): bool

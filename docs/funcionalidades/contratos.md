@@ -93,14 +93,20 @@ comenta e decide** — ajustar o texto continua no computador.
 
 ## Revisão automática pelo Claude
 
-Pedido do usuário (27/10/2026): o gerente manda o contrato para o Claude (modelo **Claude Haiku 5.5**), que
-confere o básico e escreve um breve resumo das inconsistências com sugestões de alteração. A integração
-com a API está em [claude-api.md](claude-api.md).
+Pedido do usuário (27/10/2026; para quem redige, 30/10/2026): o contrato vai para o Claude (modelo **Claude
+Haiku 5.5**), que confere o básico e escreve um breve resumo das inconsistências com sugestões de alteração. A
+integração com a API está em [claude-api.md](claude-api.md).
 
-- **Quem:** só a Gerência (`SignatureContractPolicy::aiReview`), com o contrato em rascunho, devolvido ou em
-  validação. Sem `ANTHROPIC_API_KEY`, o cartão nem aparece.
+- **Quem pede:** quem pode mexer no texto agora (`SignatureContractPolicy::aiReview`, igual a `update`): o setor
+  com o contrato em rascunho ou devolvido, e a Gerência também em validação. Quem vê o contrato vê a última
+  revisão, em qualquer situação. Sem `ANTHROPIC_API_KEY`, o cartão nem aparece.
 - **Onde:** cartão "Revisão automática (Claude)" na tela do contrato, logo abaixo da validação. Botão
   "Analisar com o Claude" → `POST signature-contracts.ai-review` (6 por minuto) → volta para `#revisao-ia`.
+- **No editor:** o mesmo cartão fica ao lado da prévia, com o botão **Salvar e analisar**. Ele é do formulário do
+  contrato (`form="ctForm"`, `next=ai-review`): salva primeiro, analisa o texto salvo e volta ao editor, sem
+  perder o que foi digitado. Trecho novo só aparece para marcar depois de salvo; até lá, se for sensível, fica de
+  fora. Limite de 6 análises por minuto por pessoa no `ContractController::runAiReview`, porque esse caminho passa
+  pela rota de salvar.
 - **O que vai:** `ContractAiReviewer::plainText()`, o contrato como na prévia (qualificação, considerandos,
   cláusulas numeradas, fecho e signatários, com as variáveis e o extenso resolvidos), **menos os trechos
   sensíveis** (abaixo). Junto vão o tipo, o título, o setor, os nomes dos anexos, a lista do que ficou de
@@ -110,7 +116,7 @@ com a API está em [claude-api.md](claude-api.md).
   com **valores** (R$, "reais", 1.234,56), **CPF**, **documentos** (CNPJ, RG, CNH, inscrição estadual…) ou
   **endereço** (rua, avenida, CEP, "residente", "com sede"…) não vai: no lugar segue `[não enviado: contém …]`,
   e a cláusula mantém o título, para a numeração continuar certa. Título, número e fecho vão sempre. A tela lista
-  esses trechos com caixas **desmarcadas**; o gerente marca um a um o que quer incluir (`include[]`, as chaves
+  esses trechos com caixas **desmarcadas**; quem pede marca um a um o que quer incluir (`include[]`, as chaves
   de `sensitiveSections()`). O Claude é instruído a não apontar a falta do que foi retirado. A revisão guarda
   em `withheld` o que ficou de fora, e o cartão mostra "Não enviados ao Claude: …". Percentual sozinho
   (ex.: multa de 10%) não conta como valor.
@@ -218,14 +224,24 @@ branco. É cópia de trabalho: o que vale é o documento assinado no Lara.
 
 | Quem | O quê |
 |---|---|
-| `assinatura.contratos` + membro do setor do contrato | Vê, redige (rascunho/devolvido), envia, anexos, reabre, cancela, aditivo |
-| Membro do setor **Gerência** (`User::isManagementMember()`) | Vê todos; ajusta em validação; aprova/devolve (`decide`); pede a revisão automática pelo Claude (`aiReview`) |
+| `assinatura.contratos` + membro do setor do contrato | Vê, redige (rascunho/devolvido), pede a revisão automática pelo Claude (`aiReview`) enquanto redige, envia, anexos, reabre, cancela, aditivo |
+| Membro do setor **Gerência** (`User::isManagementMember()`) | Vê todos; ajusta em validação; aprova/devolve (`decide`); pede a revisão automática pelo Claude (`aiReview`) também em validação |
 
 - Permissão nova só no catálogo (`Permissions::ASSINATURA_CONTRATOS`); o `PermissionCatalogSeeder` cria no
   deploy, **sem setor** — configure em Setores.
 - Validar é **cargo** (setor Gerência), não permissão. O menu usa só a permissão do catálogo (a Gerência
   tem acesso total e a alcança): Gate de cargo no menu consultaria o banco em toda tela.
 - `User::sectorIds()` e `isManagementMember()` são memorizados por requisição; nos testes, mocke os dois.
+
+## Depois da assinatura e busca (30/10/2026)
+
+- **Fora da revisão interna:** documento que veio de contrato (`SignatureDocument::isContract()`, pelo
+  `signature_contracts.signature_document_id`) não entra na fila e, assinado, mostra "Finalizado" direto. A
+  Gerência já validou o texto. Regra em `SignatureDocument::skipsReview()`, junto com o termo de menores.
+- **Busca, nas listas de Contratos e de Documentos:** número em qualquer grafia (`ctl3/26`, `CTL-3/26`, `ctl 3`,
+  com os aditivos; `SignatureContract::splitNumberSearch`), nome da contratada e do representante, CNPJ com ou
+  sem pontuação. Na lista de Documentos, o filtro **Modelo** ganhou **Contratos**, e a opção **Documento enviado
+  pronto (PDF)** deixou de trazer contratos, que também usam modelo de uso único.
 
 ## Modelagem
 
@@ -234,7 +250,7 @@ Migration `2026_10_29_100000_create_signature_contracts` (idempotente, nomes cur
 
 | Tabela | Conteúdo |
 |---|---|
-| `signature_contracts` | setor, `kind`, `parent_id`, `addendum_seq`, `number_seq`/`number_year`/`number` (únicos), `title`, `status`, `content` (JSON), `current_version`, `approved_version_id`, `signature_document_id`, retratos |
+| `signature_contracts` | setor, `kind`, `parent_id`, `addendum_seq`, `number_seq`/`number_year`/`number` (únicos), `title`, `status`, `content` (JSON), `parties_search` (migration `2026_10_30_130000`: nome e documento das partes em texto puro, porque o JSON escapa o acento e a busca não acharia), `current_version`, `approved_version_id`, `signature_document_id`, retratos |
 | `signature_contract_versions` | `version`, `content`, envio (`note`, `by_reviewer`), decisão (`decision`, `decision_note`) |
 | `signature_contract_comments` | `clause_uid` (nulo = geral), `body`, `resolved_at` |
 | `signature_contract_events` | histórico (só inserção) |

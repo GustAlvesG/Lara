@@ -302,7 +302,7 @@ Esta etapa é do **coordenador do setor Gerência**, na aba **Aprovação** da t
 3. Use **Abrir contrato assinado** para conferir um documento.
 4. Clique em **Concluir análise do lote** e confirme. A decisão é definitiva.
 
-Se sobrar algum contrato aprovado, o Lara envia na hora o e-mail à Diretoria com **dois códigos de 6 dígitos**: um aprova, o outro recusa o lote inteiro. Se tudo foi recusado, nada segue para a Diretoria.
+Se sobrar algum contrato aprovado, o Lara envia na hora o e-mail à Diretoria com **dois códigos de 6 dígitos**: um aprova, o outro recusa o lote inteiro. O e-mail lista cada contrato com o **Evento / Local** e a **Descrição / Justificativa** registrados, por isso vale preencher esses campos com clareza: é o que o diretor lê para decidir. Se tudo foi recusado, nada segue para a Diretoria.
 
 **2. Decisão da Diretoria**
 

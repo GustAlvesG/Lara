@@ -1,13 +1,17 @@
 {{--
-    Revisão automática pelo Claude, na tela do contrato (só a Gerência).
+    Revisão automática pelo Claude, na tela do contrato e no editor.
     Mostra a última revisão — avisando se o texto mudou depois — e, durante a
     validação, leva cada sugestão para a observação da cláusula com um clique.
     Trechos com valores, CPF, documentos ou endereço ($aiSensitive) só vão
-    ao Claude se o gerente marcar.
+    ao Claude se quem pede marcar.
+
+    No editor ($noEditor), o botão é do formulário do contrato (`form="ctForm"`):
+    salva primeiro e analisa o texto salvo, para não perder o que foi digitado.
 --}}
 @php
     use App\Models\SignatureContractAiReview as R;
 
+    $noEditor = $noEditor ?? false;
     $clausulas = array_values($contract->content['clauses'] ?? []);
     $podePedir = auth()->user()->can('aiReview', $contract);
     $motivos = fn(array $r) => collect($r)->map(fn($m) => R::SENSITIVE_LABELS[$m] ?? $m)->join(', ', ' e ');
@@ -85,7 +89,23 @@
     </p>
 
     @php $atual = $aiReview && $aiReviewCurrent; @endphp
-    @if($podePedir && (!$atual || $aiSensitive !== []))
+    @if($noEditor && $podePedir)
+        @if($aiSensitive !== [])
+            <details class="text-sm">
+                <summary class="cursor-pointer text-xs font-bold text-grena-ink">Incluir trechos com dados sensíveis ({{ count($aiSensitive) }})</summary>
+                <div class="mt-2 space-y-1 rounded-xl border border-line p-3">
+                    @foreach($aiSensitive as $s)
+                        <label class="flex items-start gap-2 text-sm text-ink">
+                            <input type="checkbox" form="ctForm" name="include[]" value="{{ $s['key'] }}" class="mt-1 rounded border-line">
+                            <span>{{ $s['label'] }} <span class="text-xs text-ink-2">({{ $motivos($s['reasons']) }})</span></span>
+                        </label>
+                    @endforeach
+                </div>
+            </details>
+        @endif
+        <x-secondary-button type="submit" size="sm" form="ctForm" data-ai-editor>Salvar e analisar</x-secondary-button>
+        <span class="ml-2 hidden text-xs text-ink-2" data-ai-wait>Analisando… pode levar até um minuto.</span>
+    @elseif($podePedir && (!$atual || $aiSensitive !== []))
         <form method="POST" action="{{ route('signature-contracts.ai-review', $contract) }}" data-ai-form>
             @csrf
             @if($atual)
@@ -122,6 +142,15 @@
                 form.querySelector('button[type=submit]').disabled = true;
                 form.querySelector('[data-ai-wait]').classList.remove('hidden');
             });
+        });
+
+        // No editor: quem define o que acontece depois de salvar é o botão clicado.
+        document.getElementById('ctForm')?.addEventListener('submit', (e) => {
+            if (!e.submitter?.hasAttribute('data-ai-editor')) return;
+
+            e.currentTarget.querySelector('[data-next]').value = 'ai-review';
+            setTimeout(() => { e.submitter.disabled = true; });
+            document.querySelector('[data-ai-wait]').classList.remove('hidden');
         });
 
         document.querySelectorAll('[data-ai-take]').forEach((botao) => {

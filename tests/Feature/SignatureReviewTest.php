@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Authorization\Permissions as P;
 use App\Models\SignatureAuditEvent;
+use App\Models\SignatureContract;
 use App\Models\SignatureDocument;
 use App\Models\SignatureMinorAuthorization;
 use App\Models\SignatureRequest;
@@ -211,6 +212,36 @@ class SignatureReviewTest extends TestCase
         $documento->setRelation('minorAuthorization', new SignatureMinorAuthorization());
 
         $this->assertSame('Finalizado', $documento->statusLabel());
+    }
+
+    public function test_contrato_nao_passa_pela_revisao_e_vai_direto_a_finalizado(): void
+    {
+        $documento = $this->concluido();
+        $documento->forceFill(['title' => 'Documento do contrato'])->save();
+        SignatureContract::create(['title' => 'Contrato', 'signature_document_id' => $documento->id]);
+
+        $documento->refresh();
+        $this->assertFalse($documento->awaitsReview());
+        $this->assertSame('Finalizado', $documento->statusLabel());
+        $this->assertSame('Não se aplica', $documento->reviewStatusLabel());
+
+        Carbon::setTestNow('2026-10-09 08:00:00');
+
+        $this->actingAs($this->usuario(2))->get(route('signature-reviews.index'))
+            ->assertOk()
+            ->assertDontSee('Documento do contrato');
+
+        $this->revisa($this->usuario(2), $documento, ['resultado' => 'ok', 'feitos' => ['rev_cadastro', 'rev_pagamento']])
+            ->assertSessionHas('warning', 'Contrato não passa pela revisão interna: a Gerência já validou o texto.');
+
+        $this->assertSame(0, SignatureReview::count());
+
+        $usuario = $this->usuario(2, [P::ASSINATURA_DOCUMENTOS]);
+
+        $this->actingAs($usuario)->get(route('signature-documents.index', ['status' => SignatureDocument::STATUS_FINALIZED]))
+            ->assertSee('Documento do contrato');
+        $this->actingAs($usuario)->get(route('signature-documents.index', ['status' => SignatureDocument::FILTER_AWAITING_REVIEW]))
+            ->assertDontSee('Documento do contrato');
     }
 
     public function test_filtro_da_lista_separa_assinado_com_asterisco_de_finalizado(): void

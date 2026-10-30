@@ -1,7 +1,7 @@
 {{--
     Contratos (Assinaturas → Contratos). Cada setor vê os seus; a Gerência vê
-    todos e tem a aba "Para validar". Busca no servidor: título, número,
-    setor, quem redigiu e o conteúdo (nome e CNPJ da contratada).
+    todos e tem a aba "Para validar". Busca no servidor (SignatureContract::scopeSearch):
+    número em qualquer grafia, título, setor, quem redigiu, partes e o texto.
 --}}
 @php
     use App\Models\SignatureContract as C;

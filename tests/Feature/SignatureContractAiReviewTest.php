@@ -19,6 +19,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\CreatesContractSchema;
 use Tests\Concerns\MocksSignatureUser;
@@ -288,7 +289,53 @@ class SignatureContractAiReviewTest extends TestCase
 
     // ---------------------------------------------------------------- tela
 
-    public function test_so_a_gerencia_pede_e_ve_a_revisao(): void
+    public function test_quem_redige_pede_durante_a_redacao_e_salva_antes_de_analisar(): void
+    {
+        $this->app->instance(ClaudeClient::class, $this->clienteComRespostas($this->respostaDaApi($this->revisaoPronta())));
+        $contrato = $this->contrato();
+        $compradora = $this->usuario(false);
+
+        $this->actingAs($compradora)->get(route('signature-contracts.edit', $contrato))
+            ->assertOk()
+            ->assertSee('Revisão automática (Claude)')
+            ->assertSee('Salvar e analisar')
+            ->assertSee('form="ctForm" name="include[]"', false)
+            ->assertDontSee('Levar para a observação');
+
+        $conteudo = $this->conteudoCompleto(['title' => 'Título que ainda não estava salvo']);
+
+        $this->actingAs($compradora)
+            ->put(route('signature-contracts.update', $contrato), $conteudo + ['next' => 'ai-review'])
+            ->assertRedirect(route('signature-contracts.edit', $contrato) . '#revisao-ia')
+            ->assertSessionHas('success');
+
+        // Analisou o texto que acabou de ser salvo, sem os trechos sensíveis não marcados.
+        $prompt = json_decode((string) $this->historico[0]['request']->getBody(), true)['messages'][0]['content'];
+        $this->assertStringContainsString('Título que ainda não estava salvo', $prompt);
+        $this->assertStringNotContainsString('529.982.247-25', $prompt);
+        $this->assertSame('Título que ainda não estava salvo', $contrato->fresh()->content['title']);
+
+        $this->actingAs($compradora)->get(route('signature-contracts.show', $contrato))
+            ->assertOk()
+            ->assertSee('Falta a cláusula de foro.')
+            ->assertDontSee('Levar para a observação');
+    }
+
+    public function test_analises_seguidas_pelo_editor_tem_limite(): void
+    {
+        $contrato = $this->contrato();
+        $compradora = $this->usuario(false);
+        RateLimiter::increment('contract-ai-review:' . $compradora->id, 60, 6);
+
+        $this->actingAs($compradora)
+            ->put(route('signature-contracts.update', $contrato), $this->conteudoCompleto() + ['next' => 'ai-review'])
+            ->assertRedirect(route('signature-contracts.edit', $contrato))
+            ->assertSessionHas('warning');
+
+        $this->assertSame(0, $contrato->aiReviews()->count());
+    }
+
+    public function test_em_validacao_quem_redige_ve_e_so_a_gerencia_pede(): void
     {
         $this->app->instance(ClaudeClient::class, $this->clienteComRespostas($this->respostaDaApi($this->revisaoPronta())));
         $contrato = $this->contrato();
@@ -297,7 +344,7 @@ class SignatureContractAiReviewTest extends TestCase
         $compradora = $this->usuario(false);
         $this->actingAs($compradora)->post(route('signature-contracts.ai-review', $contrato))->assertForbidden();
         $this->actingAs($compradora)->get(route('signature-contracts.show', $contrato))
-            ->assertOk()->assertDontSee('Revisão automática (Claude)');
+            ->assertOk()->assertDontSee('Analisar com o Claude');
 
         $gerente = $this->usuario(true);
         $this->actingAs($gerente)->get(route('signature-contracts.show', $contrato))

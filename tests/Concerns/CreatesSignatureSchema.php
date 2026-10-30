@@ -62,6 +62,9 @@ trait CreatesSignatureSchema
             '2026_10_29_120000_add_hidden_to_signature_documents.php',
             '2026_10_30_100000_add_linked_templates_to_signature_tables.php',
             '2026_10_30_100100_create_signature_answer_checks.php',
+            // O documento pergunta ao contrato se passa pela revisão e entra na busca dele.
+            '2026_10_29_100000_create_signature_contracts.php',
+            '2026_10_30_130000_add_parties_search_to_signature_contracts.php',
         ];
 
         foreach ($migrations as $arquivo) {

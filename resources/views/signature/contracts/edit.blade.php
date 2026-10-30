@@ -210,6 +210,11 @@
             {{-- Prévia e problemas --}}
             <aside class="min-w-0 xl:col-span-5">
                 <div class="space-y-4 xl:sticky xl:top-20">
+                    @if($aiEnabled && auth()->user()->can('aiReview', $contract))
+                        <div class="max-h-[45vh] overflow-y-auto rounded-card">
+                            @include('signature.contracts.partials.ai-review', ['podeDecidir' => false, 'noEditor' => true])
+                        </div>
+                    @endif
                     <div class="rounded-card bg-surface p-5 shadow-card">
                         <div class="mb-3 flex items-center justify-between gap-2">
                             <p class="{{ $h }}">Conferência</p>

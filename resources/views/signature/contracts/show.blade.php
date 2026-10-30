@@ -102,7 +102,7 @@
                     </form>
                 @endif
 
-                {{-- Revisão automática pelo Claude (Gerência) --}}
+                {{-- Revisão automática pelo Claude --}}
                 @if($aiEnabled && ($aiReview || auth()->user()->can('aiReview', $contract)))
                     @include('signature.contracts.partials.ai-review', ['podeDecidir' => $podeDecidir])
                 @endif

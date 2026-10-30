@@ -139,8 +139,11 @@
                     @php
                         $nota = $service->kindNote();
                         // A borda fecha a última linha do contrato, seja ela a
-                        // principal, a do tipo ou a da descrição.
-                        $borda = ($nota || filled($service->description)) ? '' : 'border-bottom:1px solid #f0eae9;';
+                        // principal, a do tipo, a do local ou a da descrição.
+                        $temLocal = filled($service->location);
+                        $temDescricao = filled($service->description);
+                        $fechamento = 'border-bottom:1px solid #f0eae9;';
+                        $borda = ($nota || $temLocal || $temDescricao) ? '' : $fechamento;
                         $cor = $service->isCommissionAmendment() ? '#157a58' : '#4f46e5';
                     @endphp
                     <tr>
@@ -157,12 +160,19 @@
                     </tr>
                     @if($nota)
                         <tr>
-                            <td colspan="5" style="padding:0 10px 9px;{{ filled($service->description) ? '' : 'border-bottom:1px solid #f0eae9;' }}color:{{ $cor }};font-size:12.5px;line-height:1.45;">
+                            <td colspan="5" style="padding:0 10px 9px;{{ ($temLocal || $temDescricao) ? '' : $fechamento }}color:{{ $cor }};font-size:12.5px;line-height:1.45;">
                                 {{ $nota }}
                             </td>
                         </tr>
                     @endif
-                    @if(filled($service->description))
+                    @if($temLocal)
+                        <tr>
+                            <td colspan="5" style="padding:0 10px 9px;{{ $temDescricao ? '' : $fechamento }}color:#6d6062;font-size:12.5px;line-height:1.45;">
+                                <span style="color:#9a8e90;">Evento / local:</span> {{ $service->location }}
+                            </td>
+                        </tr>
+                    @endif
+                    @if($temDescricao)
                         <tr>
                             <td colspan="5" style="padding:0 10px 9px;border-bottom:1px solid #f0eae9;color:#6d6062;font-size:12.5px;line-height:1.45;">
                                 <span style="color:#9a8e90;">Descrição / justificativa:</span> {{ $service->description }}

@@ -9,15 +9,16 @@ use App\Services\Claude\ClaudeClient;
 use Illuminate\Support\Str;
 
 /**
- * Revisão automática do contrato pelo Claude (pedido da Gerência, 27/10/2026).
+ * Revisão automática do contrato pelo Claude: da Gerência (27/10/2026) e de
+ * quem redige, durante a redação (30/10/2026).
  *
- * Manda o contrato como o gerente lê na prévia — qualificação das partes,
+ * Manda o contrato como se lê na prévia — qualificação das partes,
  * considerandos, cláusulas e signatários, com as variáveis resolvidas — e
  * recebe o básico conferido: um resumo das inconsistências e os apontamentos
  * com sugestão de alteração, cada um ligado a uma cláusula.
  *
  * Privacidade (28/10/2026): o trecho com valores, CPF, documentos ou endereço
- * não vai, a menos que o gerente o marque na tela. No lugar dele segue só um
+ * não vai, a menos que quem pede o marque na tela. No lugar dele segue só um
  * aviso (e o título, no caso de cláusula), para a numeração continuar certa.
  *
  * Só orienta: não aprova, não devolve, não muda o texto. A conferência do
@@ -32,8 +33,8 @@ class ContractAiReviewer
     public const MAX_FINDINGS = 30;
 
     private const SYSTEM = <<<'TXT'
-Você revisa minutas de contrato de um clube social brasileiro antes de a Gerência aprová-las para assinatura.
-Seu papel é conferir o básico e apontar inconsistências, com sugestão objetiva de alteração. Você não aprova nem reprova: quem decide é o gerente.
+Você revisa minutas de contrato de um clube social brasileiro, durante a redação ou antes de a Gerência aprová-las para assinatura.
+Seu papel é conferir o básico e apontar inconsistências, com sugestão objetiva de alteração. Você não aprova nem reprova: quem decide é a Gerência.
 
 Confira, entre outros:
 - partes: nome, CPF/CNPJ, endereço e representante coerentes entre a qualificação, as cláusulas e os signatários;

@@ -220,12 +220,13 @@
         <tr><th style="width:26%">Situação</th><th>O que significa</th></tr>
         <tr><td><b>Rascunho</b></td><td>Ainda pode ser editado. Não aparece no tablet.</td></tr>
         <tr><td><b>Aguardando assinatura</b></td><td>Foi congelado: o texto e os dados não mudam mais. Pode ser liberado para o tablet.</td></tr>
-        <tr><td><b>Assinado</b></td><td>Todos assinaram. O sistema está montando o PDF final (leva alguns segundos) — ou
-            esperando um <b>anexo obrigatório</b> que ainda não foi enviado; o quadro Anexos diz qual.</td></tr>
+        <tr><td><b>Pendente envio de anexo</b></td><td>Todos assinaram, mas falta um <b>anexo obrigatório</b>. O PDF final só
+            sai depois dele; o quadro Anexos diz qual.</td></tr>
+        <tr><td><b>Assinado</b></td><td>Todos assinaram. O sistema está montando o PDF final (leva alguns segundos).</td></tr>
         <tr><td><b>Assinado*</b></td><td>Todos assinaram e o PDF assinado está pronto para baixar e enviar, mas falta a
             revisão interna. Continua assim também se a revisão deu <b>Com pendência</b>.</td></tr>
-        <tr><td><b>Finalizado</b></td><td>A revisão interna deu <b>Tudo em ordem</b>. O Termo de Menores não passa pela
-            revisão e chega aqui direto.</td></tr>
+        <tr><td><b>Finalizado</b></td><td>A revisão interna deu <b>Tudo em ordem</b>. O Termo de Menores e os contratos não
+            passam pela revisão e chegam aqui direto.</td></tr>
         <tr><td><b>Recusado, Cancelado ou Expirado</b></td><td>Encerrado sem assinatura: a pessoa recusou no tablet, o
             atendente cancelou, ou ninguém assinou dentro do prazo (por padrão, 24 horas no balcão, 7 dias pelo
             gov.br e 7 dias quando há diretor entre os signatários).</td></tr>
@@ -857,9 +858,9 @@
 
     <div class="keep">
     <h3>A revisão interna</h3>
-    <p>Todo documento concluído passa por uma <b>revisão</b>: outra pessoa confere se os processos internos daquele
-        atendimento foram feitos. O que conferir vem do modelo, em <b>Itens da revisão</b> (por exemplo "Cadastro
-        atualizado no sistema", "Pagamento lançado").</p>
+    <p>Todo documento concluído passa por uma <b>revisão</b>, menos o Termo de Menores e os contratos: outra pessoa
+        confere se os processos internos daquele atendimento foram feitos. O que conferir vem do modelo, em <b>Itens
+        da revisão</b> (por exemplo "Cadastro atualizado no sistema", "Pagamento lançado").</p>
     <table class="steps">
         <tr>
             <td class="n"><span class="num">1</span></td>
@@ -1279,7 +1280,9 @@
         <li>Toque em <b>Sair</b> ao terminar. Parado por alguns minutos, o tablet sai sozinho.</li>
     </ol>
 
-    <h3>Revisão automática pelo Claude (Gerência)</h3>
+    <h3>Revisão automática pelo Claude</h3>
+    <p>Quem redige pode pedir enquanto escreve: no editor, ao lado da prévia, <b>Salvar e analisar</b> salva o contrato
+        e pede a análise. A Gerência pede também durante a validação, na tela do contrato:</p>
     <ol>
         <li>Na tela do contrato (no computador), no cartão <span class="menu">Revisão automática (Claude)</span>,
             confira a lista <b>Trechos com dados sensíveis</b>: as partes do contrato com valores, CPF, documentos ou

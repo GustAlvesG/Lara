@@ -71,7 +71,7 @@ registro (painel, massa, planilha, tablet, bot)
   → 08h do dia seguinte ao start_date: liberado
   → redação 1: coordenador assina no tablet | redação 2: coordenador VALIDA pela web (PIN)
   → lote (rascunho → sent) → gerência aprova/recusa item a item
-  → e-mail à diretoria com 2 códigos → gerência digita o ditado
+  → e-mail à diretoria com 2 códigos (e evento/local + descrição de cada contrato) → gerência digita o ditado
      (redação 2: a imagem do diretor entra no documento)
   → financeiro: baixa manual ou Pix Sicoob → freelancers:archive manda o PDF ao FTP
 ```

@@ -1189,7 +1189,9 @@ O diretor **não acessa a plataforma** — a rede é interna e ele pode estar fo
 para o sistema o alcançaria, o retorno vem por um caminho humano com prova de origem:
 
 1. A gerência aprova o lote → o sistema gera **dois PINs de 6 dígitos** (um aprova, outro recusa) e
-   envia um e-mail à diretoria com os dois códigos e o **PDF da relação de contratos** em anexo.
+   envia um e-mail à diretoria com os dois códigos e o **PDF da relação de contratos** em anexo. O
+   corpo do e-mail lista os contratos com o **evento/local** e, quando preenchida, a
+   **descrição/justificativa**, para o diretor decidir sem precisar abrir o anexo.
 2. O diretor lê o e-mail, decide e **dita o código escolhido** para a gerência (telefone, WhatsApp,
    pessoalmente — tanto faz).
 3. A gerência digita o código na tela do lote. **O próprio código diz qual foi a decisão** — não há

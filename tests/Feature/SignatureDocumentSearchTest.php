@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\SignatureContract;
 use App\Models\SignatureDocument;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\CreatesSignatureSchema;
@@ -83,6 +84,59 @@ class SignatureDocumentSearchTest extends TestCase
             ->assertSee('Ficha antiga')->assertSee('Ficha nova')->assertDontSee('Arquivo pronto');
         $this->lista(['modelo' => 'avulso'])
             ->assertSee('Arquivo pronto')->assertDontSee('Ficha antiga');
+    }
+
+    /** Documento nascido de contrato, como o ContractDocumentGenerator deixa. */
+    private function documentoDeContrato(string $numero, string $contratada, string $cnpj): SignatureDocument
+    {
+        $modelo = $this->criaModeloDeAssinatura(['name' => $numero, 'single_use' => true]);
+        $documento = $this->criaDocumentoDeAssinatura(['title' => $numero . ' — Serviços', 'template' => $modelo]);
+
+        SignatureContract::create([
+            'number' => $numero,
+            'title' => 'Serviços',
+            'status' => SignatureContract::STATUS_APPROVED,
+            'signature_document_id' => $documento->id,
+            'content' => ['parties' => [['role' => 'contratada', 'name' => $contratada, 'document' => $cnpj]]],
+        ]);
+
+        return $documento;
+    }
+
+    public function test_acha_contrato_pelo_numero_em_qualquer_grafia_e_pela_contratada(): void
+    {
+        $this->documentoDeContrato('CTL - 3/26', 'Construções Alfa LTDA', '04758575000129');
+        $this->documentoDeContrato('CTL - 13/26', 'Beta Serviços', '11222333000181');
+        $this->criaDocumentoDeAssinatura(['title' => 'Termo comum']);
+
+        foreach (['ctl3/26', 'CTL-3/26', 'ctl 3', 'CTL - 3/2026'] as $busca) {
+            $this->lista(['q' => $busca])->assertSee('CTL - 3/26')->assertDontSee('CTL - 13/26')->assertDontSee('Termo comum');
+        }
+
+        $this->lista(['q' => 'Construções'])->assertSee('CTL - 3/26')->assertDontSee('CTL - 13/26');
+        $this->lista(['q' => '04.758.575/0001-29'])->assertSee('CTL - 3/26')->assertDontSee('CTL - 13/26');
+        $this->lista(['q' => 'ctl 3 alfa'])->assertSee('CTL - 3/26');
+        $this->lista(['q' => 'ctl 3 beta'])->assertDontSee('CTL - 3/26');
+    }
+
+    public function test_filtro_contratos_nao_se_mistura_com_pdf_enviado_pronto(): void
+    {
+        $this->documentoDeContrato('CTL - 3/26', 'Alfa', '04758575000129');
+        $avulso = $this->criaModeloDeAssinatura(['name' => 'PDF enviado', 'single_use' => true]);
+        $this->criaDocumentoDeAssinatura(['title' => 'Arquivo pronto', 'template' => $avulso]);
+
+        $this->lista(['modelo' => 'contratos'])->assertSee('CTL - 3/26 — Serviços')->assertDontSee('Arquivo pronto');
+        $this->lista(['modelo' => 'avulso'])->assertSee('Arquivo pronto')->assertDontSee('CTL - 3/26 — Serviços');
+    }
+
+    public function test_lista_de_contratos_acha_numero_e_contratada_com_acento(): void
+    {
+        SignatureContract::create(['number' => 'CTL - 3/26', 'title' => 'Primeiro', 'sector_id' => 1, 'content' => ['parties' => [['name' => 'Construções Alfa', 'document' => '04758575000129']]]]);
+        SignatureContract::create(['number' => 'CTL - 13/26', 'title' => 'Segundo', 'sector_id' => 1, 'content' => ['parties' => [['name' => 'Beta', 'document' => '11222333000181']]]]);
+
+        $this->assertSame(['Primeiro'], SignatureContract::search('ctl3/26')->pluck('title')->all());
+        $this->assertSame(['Primeiro'], SignatureContract::search('Construções')->pluck('title')->all());
+        $this->assertSame(['Primeiro'], SignatureContract::search('04.758.575/0001-29')->pluck('title')->all());
     }
 
     public function test_filtra_por_periodo_e_por_quem_gerou(): void

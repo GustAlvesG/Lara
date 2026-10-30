@@ -57,6 +57,13 @@ class SignatureDocument extends Model
      */
     public const LABEL_AWAITING_REVIEW = 'Assinado*';
 
+    /**
+     * O que a tela mostra para `signed` quando falta anexo obrigatório: o PDF
+     * final só sai depois dele (ver `awaitsAttachments`). Também não é status
+     * do banco.
+     */
+    public const LABEL_AWAITING_ATTACHMENTS = 'Pendente envio de anexo';
+
     /** Valor do filtro "Situação" da lista para os documentos em `Assinado*`. */
     public const FILTER_AWAITING_REVIEW = 'aguardando-revisao';
 
@@ -231,15 +238,21 @@ class SignatureDocument extends Model
      * algum lugar — "maria piscina" acha o termo da piscina da Maria —, e cada
      * uma pode vir de um campo diferente: título, nome do modelo, código de
      * validação (inteiro ou um pedaço), quem gerou, nome ou e-mail de um
-     * signatário. Palavra com 3 dígitos ou mais também procura no CPF, como
-     * pedaço: "247" acha "529.982.247-25". A pontuação do CPF não atrapalha.
+     * signatário, nome ou CNPJ de uma parte do contrato. Palavra com 3 dígitos
+     * ou mais também procura no CPF, como pedaço: "247" acha "529.982.247-25".
+     * A pontuação do CPF e do CNPJ não atrapalha. O número do contrato vale em
+     * qualquer grafia: "ctl3/26", "CTL-3/26", "ctl 3".
      *
      * Acento e maiúscula: o MySQL compara pela collation (`utf8mb4_unicode_ci`
      * ignora os dois).
      */
     public function scopeSearch($query, ?string $busca)
     {
-        $termos = preg_split('/\s+/u', trim((string) $busca), -1, PREG_SPLIT_NO_EMPTY);
+        [$busca, $numero] = SignatureContract::splitNumberSearch($busca);
+
+        $query->when($numero, fn($q) => $q->whereHas('contract', fn($c) => $c->where('number', 'like', $numero)));
+
+        $termos = preg_split('/\s+/u', $busca, -1, PREG_SPLIT_NO_EMPTY);
 
         foreach (array_slice($termos, 0, 8) as $termo) {
             $like = '%' . addcslashes($termo, '%_\\') . '%';
@@ -252,6 +265,8 @@ class SignatureDocument extends Model
                     ->orWhere('validation_code', 'like', '%' . mb_strtoupper(addcslashes($termo, '%_\\')) . '%')
                     ->orWhere('created_by_name', 'like', $like)
                     ->orWhereHas('template', fn($t) => $t->where('name', 'like', $like))
+                    ->orWhereHas('contract', fn($c) => $c->where('parties_search', 'like', $like)
+                        ->when($soNumero && strlen($digitos) >= 3, fn($d) => $d->orWhere('parties_search', 'like', '%' . $digitos . '%')))
                     ->orWhereHas('signers', function ($s) use ($like, $digitos, $soNumero) {
                         $s->where(function ($s) use ($like, $digitos, $soNumero) {
                             $s->where('name', 'like', $like)->orWhere('email', 'like', $like);
@@ -388,12 +403,39 @@ class SignatureDocument extends Model
             : $this->minorAuthorization()->exists();
     }
 
+    /**
+     * O contrato de que este documento nasceu (Assinaturas → Contratos).
+     *
+     * @return HasOne<SignatureContract>
+     */
+    public function contract(): HasOne
+    {
+        return $this->hasOne(SignatureContract::class, 'signature_document_id');
+    }
+
+    /**
+     * Veio de um contrato: a Gerência já validou, e ele fica fora da revisão
+     * interna (decisão do usuário, 30/10/2026).
+     */
+    public function isContract(): bool
+    {
+        return $this->relationLoaded('contract')
+            ? $this->contract !== null
+            : $this->contract()->exists();
+    }
+
+    /** Fora da revisão interna: termo de menores e contrato. */
+    public function skipsReview(): bool
+    {
+        return $this->isMinorTerm() || $this->isContract();
+    }
+
     /** Concluído e ainda sem revisão "em ordem": está na fila. */
     public function awaitsReview(): bool
     {
         return $this->status === self::STATUS_FINALIZED
             && $this->review_status !== SignatureReview::RESULT_OK
-            && !$this->isMinorTerm();
+            && !$this->skipsReview();
     }
 
     /** Mesma regra de `awaitsReview`, em consulta. */
@@ -402,6 +444,7 @@ class SignatureDocument extends Model
         return $query
             ->where('status', self::STATUS_FINALIZED)
             ->whereDoesntHave('minorAuthorization')
+            ->whereDoesntHave('contract')
             ->where(fn($q) => $q->whereNull('review_status')
                 ->orWhere('review_status', '!=', SignatureReview::RESULT_OK));
     }
@@ -412,12 +455,13 @@ class SignatureDocument extends Model
         return $query
             ->where('status', self::STATUS_FINALIZED)
             ->where(fn($q) => $q->where('review_status', SignatureReview::RESULT_OK)
-                ->orWhereHas('minorAuthorization'));
+                ->orWhereHas('minorAuthorization')
+                ->orWhereHas('contract'));
     }
 
     public function reviewStatusLabel(): string
     {
-        if ($this->status !== self::STATUS_FINALIZED || $this->isMinorTerm()) {
+        if ($this->status !== self::STATUS_FINALIZED || $this->skipsReview()) {
             return 'Não se aplica';
         }
 
@@ -540,15 +584,25 @@ class SignatureDocument extends Model
     /**
      * A situação que a tela mostra. "Finalizado" só depois da revisão interna
      * em ordem (decisão do usuário, 30/10/2026); até lá, `Assinado*`. Termo de
-     * menores não passa pela revisão e vai direto a "Finalizado".
+     * menores e contrato não passam pela revisão e vão direto a "Finalizado".
      */
     public function statusLabel(): string
     {
+        if ($this->awaitsAttachments()) {
+            return self::LABEL_AWAITING_ATTACHMENTS;
+        }
+
         if ($this->awaitsReview()) {
             return self::LABEL_AWAITING_REVIEW;
         }
 
         return self::STATUS_LABELS[$this->status] ?? $this->status;
+    }
+
+    /** Todos assinaram, mas o PDF final espera um anexo obrigatório. */
+    public function awaitsAttachments(): bool
+    {
+        return $this->status === self::STATUS_SIGNED && $this->missingAttachments() !== [];
     }
 
     /** A situação para ir no meio de uma frase: minúscula e sem o asterisco. */

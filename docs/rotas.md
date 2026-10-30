@@ -196,7 +196,7 @@ Guia: [Contratos](funcionalidades/contratos.md). Quem pode cada ação: `Signatu
 | POST | `/assinatura/contratos/{c}/previa` | Signature\ContractController@preview (60/min) | signature-contracts.preview |
 | POST | `/assinatura/contratos/{c}/enviar` | Signature\ContractController@submit (20/min) | signature-contracts.submit |
 | POST | `/assinatura/contratos/{c}/decisao` | Signature\ContractController@decide (20/min) | signature-contracts.decide |
-| POST | `/assinatura/contratos/{c}/revisao-ia` | Signature\ContractController@aiReview (6/min; Gerência) | signature-contracts.ai-review |
+| POST | `/assinatura/contratos/{c}/revisao-ia` | Signature\ContractController@aiReview (6/min; quem redige, no rascunho ou devolvido, e a Gerência) | signature-contracts.ai-review |
 | POST | `/assinatura/contratos/{c}/reabrir` | Signature\ContractController@reopen | signature-contracts.reopen |
 | POST | `/assinatura/contratos/{c}/cancelar` | Signature\ContractController@cancel | signature-contracts.cancel |
 | POST | `/assinatura/contratos/{c}/aditivo` | Signature\ContractController@addendum | signature-contracts.addendum |

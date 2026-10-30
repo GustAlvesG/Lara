@@ -205,12 +205,19 @@ class SignatureAttachmentTest extends TestCase
             ->assertSee('Para concluir, falta enviar:', false)
             ->assertSee('Documento de identidade');
 
+        // Na tela, a situação diz o que falta, em amarelo.
+        $this->assertSame('Pendente envio de anexo', $documento->fresh()->statusLabel());
+        $this->atendente()->get(route('signature-documents.index'))
+            ->assertOk()
+            ->assertSeeInOrder(['bg-warn-soft', 'Pendente envio de anexo'], false);
+
         // Assinado ainda recebe anexo. O opcional não segura nada; o obrigatório que faltava despacha a finalização.
         $this->envia($documento, 'mod_comprovante_de_residencia', $this->pdf('conta.pdf'))->assertSessionHas('success');
         Queue::assertNotPushed(FinalizeSignatureDocument::class);
 
         $this->envia($documento, 'mod_documento_de_identidade', $this->pdf())->assertSessionHas('success');
         Queue::assertPushed(FinalizeSignatureDocument::class, fn($job) => $job->documentId === $documento->id);
+        $this->assertSame('Assinado', $documento->fresh()->statusLabel());
 
         $this->finaliza($documento);
         $this->assertSame(SignatureDocument::STATUS_FINALIZED, $documento->fresh()->status);
