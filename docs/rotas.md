@@ -288,6 +288,7 @@ Guia: [Disparo de E-mails](funcionalidades/disparo-emails.md). A tela só muda a
 | POST | `/disparo-emails` | …@store | email-campaigns.store |
 | GET | `/disparo-emails/modelo-lista/{format}` | …@listTemplate (`csv`/`xlsx`) | email-campaigns.list-template |
 | POST | `/disparo-emails/imagens` | …@uploadImage → JSON `{url}` | email-campaigns.images.store |
+| POST | `/disparo-emails/compor` | …@compose → JSON `{html}` (o e-mail do editor visual, para a prévia) | email-campaigns.compose |
 | GET | `/disparo-emails/imagens/{file}` | …@showImage (só para a prévia; no e-mail vai embutida) | email-campaigns.images.show |
 | GET | `/disparo-emails/{campaign}` | …@show | email-campaigns.show |
 | GET | `/disparo-emails/{campaign}/editar` | …@edit (rascunho ou pausada) | email-campaigns.edit |

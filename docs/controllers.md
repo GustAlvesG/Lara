@@ -475,10 +475,11 @@ Permissão `disparo-emails` no corte da rota. Regras em [disparo-emails.md](func
 | Método | Descrição |
 |--------|-----------|
 | `index` | Lista paginada com busca (nome/assunto) e filtro de situação; enviados/falhas por `withCount`. → View |
-| `create` / `store` | Nova campanha (`EmailCampaignRequest`: remetente da lista `email_campaigns.from_addresses`); nasce rascunho. |
+| `create` / `store` | Nova campanha (`EmailCampaignRequest`: remetente da lista `email_campaigns.from_addresses`); nasce rascunho, no editor visual. No modo visual, grava `body` limpo e `html` composto. |
 | `show` | Andamento, Enviar/Agendar, teste, lista (busca + situação, paginada), prévia. → View |
 | `edit` / `update` | Só rascunho ou pausada; o remetente atual continua aceito mesmo fora da configuração. |
 | `destroy` | Só rascunho, concluída ou cancelada. |
+| `compose` | O e-mail que o editor visual monta (`EmailComposer::compose`) → JSON, para a prévia e o "Passar para HTML". |
 | `preview` | O HTML com os dados do primeiro destinatário, com `Content-Security-Policy` sem script. |
 | `progress` | Situação e contagens → JSON (a tela consulta a cada 5 s enquanto ativa). |
 | `sendTest` | E-mail de teste na hora (`CampaignSender::sendTest`); a falha volta como erro na tela. |

@@ -5,8 +5,8 @@ Documentação completa: [docs/funcionalidades/disparo-emails.md](../funcionalid
 ## Em uma frase
 
 Campanhas de e-mail (`/disparo-emails`, rotas `email-campaigns.*` e `email-suppressions.*`,
-permissão `disparo-emails`): lista importada de `.csv`/`.xlsx`, HTML com editor e prévia,
-variáveis por coluna, teste, envio agora ou agendado — **mandado pelo scheduler**
+permissão `disparo-emails`): lista importada de `.csv`/`.xlsx`, editor visual para quem não sabe
+HTML (ou o código à mão), prévia, variáveis por coluna, teste, envio agora ou agendado — **mandado pelo scheduler**
 (`email-campaigns:send`, a cada minuto), nunca pela tela nem pela fila.
 
 ## Regras que costumam pegar
@@ -18,6 +18,11 @@ variáveis por coluna, teste, envio agora ou agendado — **mandado pelo schedul
   duplicado).
 - **Teto por minuto** (`EMAIL_CAMPAIGNS_PER_MINUTE`) soma todas as campanhas. Quem está em
   "Não enviar para" vira `skipped` e não conta.
+- **O envio só conhece `html`.** No editor visual (`editor = visual`), o `EmailComposer` limpa o
+  texto para `body` e monta o `html` no `layout.html` ao salvar; a prévia usa o mesmo `compose()`
+  (rota `email-campaigns.compose`). Tag ou atributo novo no editor precisa entrar na lista do
+  `EmailComposer`, senão some ao salvar. Como o `html` visual sempre tem layout, "tem conteúdo?" se
+  confere no `body` (`EmailCampaignService::start`). HTML não volta para o visual.
 - **Três falhas diferentes** (`CampaignSender::failure`): `UnexpectedResponseException` 5xx →
   `failed` na hora; 4xx/outros → tentativa (até `max_attempts`); `TransportException` sem resposta
   → não conta tentativa, encerra a rodada e grava `last_error`. 5xx/4xx seguidos
@@ -52,7 +57,7 @@ Só o SMTP. Nenhum sistema externo consome API deste módulo — não há prompt
 
 ## Testes
 
-`tests/Feature/EmailCampaigns/` com o trait `CreatesEmailCampaignSchema` (acesso + layout + a
+`tests/Feature/EmailCampaigns/` (o `EmailComposerTest` não usa banco) com o trait `CreatesEmailCampaignSchema` (acesso + layout + a
 migration real do módulo, `SharesSqliteWithUserConnection`). O `EmailCampaignSenderTest` registra
 um transporte Symfony de mentira (`Mail::extend`) como mailer da campanha: simula 5xx, 4xx e
 servidor fora, e confere o e-mail como sai (cabeçalhos, `cid:`). Rode com
