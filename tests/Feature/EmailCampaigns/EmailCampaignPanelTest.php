@@ -82,16 +82,60 @@ class EmailCampaignPanelTest extends TestCase
     public function test_cria_rascunho_com_remetente_da_lista(): void
     {
         $this->actingAs($this->staff)->post(route('email-campaigns.store'), [
-            'name' => 'Convite', 'subject' => 'Venha', 'from_address' => 'qualquer@outro.test', 'html' => '<p>x</p>',
+            'name' => 'Convite', 'subject' => 'Venha', 'from_address' => 'qualquer@outro.test', 'editor' => 'html', 'html' => '<p>x</p>',
         ])->assertSessionHasErrors('from_address');
 
         $this->actingAs($this->staff)->post(route('email-campaigns.store'), [
-            'name' => 'Convite', 'subject' => 'Venha', 'from_address' => 'social@clube.test', 'from_name' => 'Social', 'html' => '<p>x</p>',
+            'name' => 'Convite', 'subject' => 'Venha', 'from_address' => 'social@clube.test', 'from_name' => 'Social', 'editor' => 'html', 'html' => '<p>x</p>',
         ])->assertRedirect();
 
         $campaign = EmailCampaign::where('name', 'Convite')->firstOrFail();
         $this->assertSame(EmailCampaign::STATUS_DRAFT, $campaign->status);
         $this->assertSame($this->staff->id, $campaign->created_by);
+    }
+
+    public function test_editor_visual_grava_o_texto_limpo_e_monta_o_html(): void
+    {
+        $this->actingAs($this->staff)->post(route('email-campaigns.store'), [
+            'name' => 'Visual', 'subject' => 'Oi', 'from_address' => 'social@clube.test', 'from_name' => 'Social do Clube',
+            'editor' => 'visual',
+            'body' => '<h2>Festa</h2><div>Olá {{nome}}<script>x()</script></div>',
+            'html' => '<p>ignorado no modo visual</p>',
+        ])->assertRedirect();
+
+        $campaign = EmailCampaign::where('name', 'Visual')->firstOrFail();
+        $this->assertTrue($campaign->usesVisualEditor());
+        $this->assertSame('<h2>Festa</h2><p>Olá {{nome}}</p>', $campaign->body);
+        $this->assertStringContainsString('Social do Clube', $campaign->html);
+        $this->assertStringContainsString('Olá {{nome}}</p>', $campaign->html);
+        $this->assertStringNotContainsString('ignorado', $campaign->html);
+
+        // Passou para HTML: vale o código; o texto visual fica guardado.
+        $this->actingAs($this->staff)->put(route('email-campaigns.update', $campaign), [
+            'name' => 'Visual', 'subject' => 'Oi', 'from_address' => 'social@clube.test',
+            'editor' => 'html', 'body' => '<p>outro</p>', 'html' => '<p>código à mão</p>',
+        ])->assertRedirect();
+
+        $campaign->refresh();
+        $this->assertSame('<p>código à mão</p>', $campaign->html);
+        $this->assertSame('<h2>Festa</h2><p>Olá {{nome}}</p>', $campaign->body);
+    }
+
+    public function test_editor_visual_sem_texto_nao_envia_e_a_previa_vem_do_servidor(): void
+    {
+        $campaign = $this->campaign(['editor' => 'visual', 'body' => '<p><br></p>']);
+        $campaign->update(['html' => app(\App\Services\EmailCampaign\EmailComposer::class)->compose($campaign->body)]);
+        $this->import($campaign, $this->csv("email\na@x.com.br\n"));
+
+        $this->actingAs($this->staff)->post(route('email-campaigns.start', $campaign), ['when' => 'now'])
+            ->assertSessionHas('error', fn ($message) => str_contains($message, 'Escreva o conteúdo'));
+
+        $this->actingAs($this->staff)->postJson(route('email-campaigns.compose'), ['body' => '<p>Oi <b>você</b></p>', 'from_name' => 'Clube'])
+            ->assertOk()
+            ->assertJsonPath('html', fn ($html) => str_contains($html, '<strong>você</strong>') && str_contains($html, 'Clube'));
+
+        $this->actingAs($this->staff)->get(route('email-campaigns.create'))->assertOk()
+            ->assertSee('Editor visual')->assertSee('HTML (avançado)');
     }
 
     public function test_csv_do_excel_com_ponto_e_virgula_e_acento_windows(): void

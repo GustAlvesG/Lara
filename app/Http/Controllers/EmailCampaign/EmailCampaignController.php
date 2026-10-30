@@ -12,6 +12,7 @@ use App\Services\EmailCampaign\CampaignImageStore;
 use App\Services\EmailCampaign\CampaignRenderer;
 use App\Services\EmailCampaign\CampaignSender;
 use App\Services\EmailCampaign\EmailCampaignService;
+use App\Services\EmailCampaign\EmailComposer;
 use App\Services\EmailCampaign\RecipientImporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -37,6 +38,7 @@ class EmailCampaignController extends Controller
     public function __construct(
         private readonly EmailCampaignService $campaigns,
         private readonly CampaignRenderer $renderer,
+        private readonly EmailComposer $composer,
     ) {
     }
 
@@ -74,6 +76,8 @@ class EmailCampaignController extends Controller
             'campaign' => new EmailCampaign([
                 'from_address' => config('email_campaigns.from_addresses')[0] ?? null,
                 'from_name' => config('mail.from.name'),
+                'editor' => EmailCampaign::EDITOR_VISUAL,
+                'body' => EmailComposer::starterBody(),
             ]),
             'fromAddresses' => config('email_campaigns.from_addresses'),
             'sample' => ['email' => 'fulano@exemplo.com.br', 'nome' => 'Fulano de Tal', 'primeiro_nome' => 'Fulano'],
@@ -82,7 +86,7 @@ class EmailCampaignController extends Controller
 
     public function store(EmailCampaignRequest $request): RedirectResponse
     {
-        $campaign = EmailCampaign::create($request->validated() + [
+        $campaign = EmailCampaign::create($this->content($request) + [
             'status' => EmailCampaign::STATUS_DRAFT,
             'created_by' => Auth::id(),
         ]);
@@ -138,7 +142,7 @@ class EmailCampaignController extends Controller
                 ->with('error', 'A campanha só pode ser editada em rascunho ou pausada.');
         }
 
-        $campaign->update($request->validated());
+        $campaign->update($this->content($request));
 
         return redirect()->route('email-campaigns.show', $campaign)->with('success', 'Campanha atualizada.');
     }
@@ -166,6 +170,20 @@ class EmailCampaignController extends Controller
             'Content-Type' => 'text/html; charset=UTF-8',
             'Content-Security-Policy' => "script-src 'none'; object-src 'none'; frame-ancestors 'self'",
         ]);
+    }
+
+    /**
+     * O e-mail que o editor visual monta, para a prévia ao vivo e para o
+     * "Passar para HTML". O mesmo compose() da gravação: a prévia é o e-mail.
+     */
+    public function compose(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'body' => ['nullable', 'string', 'max:1000000'],
+            'from_name' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        return response()->json(['html' => $this->composer->compose($data['body'] ?? '', $data['from_name'] ?? null)]);
     }
 
     public function progress(EmailCampaign $campaign): JsonResponse
@@ -379,6 +397,25 @@ class EmailCampaignController extends Controller
         abort_unless($path, 404);
 
         return response()->file($path, ['Cache-Control' => 'private, max-age=86400']);
+    }
+
+    /**
+     * No editor visual, o texto é limpo e o HTML do e-mail é montado aqui —
+     * o envio só conhece `html`. No modo HTML, o texto visual fica como estava
+     * (para voltar a ele, se quiser) e vale o código escrito.
+     */
+    private function content(EmailCampaignRequest $request): array
+    {
+        $data = $request->validated();
+
+        if ($data['editor'] === EmailCampaign::EDITOR_VISUAL) {
+            $data['body'] = $this->composer->sanitize($data['body'] ?? '');
+            $data['html'] = $this->composer->compose($data['body'], $data['from_name'] ?? null);
+        } else {
+            unset($data['body']);
+        }
+
+        return $data;
     }
 
     /**

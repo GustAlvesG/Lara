@@ -5,7 +5,7 @@ palavras: e-mail, email, disparo, disparar, campanha, newsletter, e-mail marketi
 
 # Disparo de E-mails — guia de uso
 
-O módulo **Disparo de E-mails** manda um e-mail para uma lista grande de pessoas: convites, comunicados, novidades do clube. Você monta o e-mail (com texto, botões e imagens), importa a lista em planilha e clica em Enviar.
+O módulo **Disparo de E-mails** manda um e-mail para uma lista grande de pessoas: convites, comunicados, novidades do clube. Você escreve o texto como num editor comum, sem precisar saber HTML, importa a lista em planilha e clica em Enviar. O Lara transforma o texto num e-mail pronto, com cabeçalho e rodapé.
 
 O envio é feito **pelo servidor do Lara, aos poucos** (por padrão, até 120 e-mails por minuto). Depois de clicar em Enviar, **pode fechar a tela ou desligar o computador**: o envio continua sozinho até o último destinatário. Quando quiser, volte à campanha para ver o andamento.
 
@@ -26,24 +26,43 @@ Na tela **Disparo de E-mails › Campanhas**, clique em **Nova campanha** e pree
 2. **Assunto**: o que aparece na caixa de entrada. Aceita variáveis, como `{{primeiro_nome}}, venha para a festa!`.
 3. **E-mail do remetente**: escolha um da lista. Só aparecem os endereços liberados pela TI no servidor de e-mail — outro endereço faria o e-mail cair no spam.
 4. **Nome do remetente** (ex.: "Clube dos Funcionários") e **Responder para**: o e-mail que recebe as respostas e os pedidos de descadastro. Em branco, as respostas vão para o remetente.
-5. Escreva o **Conteúdo** (veja a seção sobre o editor).
+5. Escreva o **Texto do e-mail** (veja a seção sobre o editor).
 6. Clique em **Salvar e importar a lista**. A campanha fica como **Rascunho** e abre a tela dela, onde você importa a lista.
 
 Nada é enviado ao salvar. O envio só começa quando você clica em **Enviar** na tela da campanha.
 
-## Montar o e-mail no editor
+## Escrever o e-mail no editor visual
 <!-- telas: email-campaigns.index -->
 
-Na tela da campanha (**Editar**, ou na **Nova campanha**), o bloco **Conteúdo (HTML)** tem o código do e-mail à esquerda e a **prévia** à direita, que se atualiza enquanto você digita.
+Na **Nova campanha** (ou em **Editar**, na tela da campanha), o bloco **Texto do e-mail** abre no **Editor visual**: você escreve à esquerda, como num editor de texto, e a **prévia** à direita mostra o e-mail como ele vai sair. Não precisa saber HTML. O cabeçalho (com o nome do remetente) e o rodapé (com o aviso de descadastro) são colocados pelo Lara.
 
-- **Modelo inicial**: um e-mail pronto nas cores do clube, com título, texto, botão e rodapé. É o jeito mais fácil de começar: troque os textos e apague o que não usar.
-- **Título**, **Parágrafo**, **Botão** e **Divisória**: inserem o bloco onde está o cursor. No botão, troque o texto e o endereço em `href="..."`.
+A campanha nova já vem com um texto de exemplo: troque o que quiser. Na barra de cima:
+
+- **Texto**, **Título** e **Subtítulo**: o tipo do parágrafo onde está o cursor.
+- **N**, **I** e **S**: negrito, itálico e sublinhado do trecho selecionado.
+- **Lista** com marcadores ou numerada, e **Esquerda** ou **Centro** para alinhar.
+- **Link**: selecione o texto, clique e informe o endereço.
+- **Botão**: informe o texto e o endereço; entra um botão grená.
 - **Imagem**: escolha um arquivo PNG, JPG, GIF ou WEBP de até 1 MB. A imagem vai **dentro do e-mail**, então chega certinha para quem recebe.
-- **Abrir arquivo .html**: carrega um e-mail feito em outro programa (por exemplo, exportado de um site de modelos de e-mail).
-- **Computador** e **Celular**: mudam a largura da prévia.
-- **Expandir**: abre a prévia na tela inteira, para ver o e-mail em tamanho real. **Fechar** (ou a tecla Esc) volta ao editor. A prévia da tela da campanha também tem o botão **Expandir**.
+- **Divisória**: uma linha separando os assuntos.
+- **Limpar formatação**: tira negrito, itálico e link do trecho selecionado.
 
-Dicas: use o modelo inicial como base, porque os programas de e-mail (Gmail, Outlook) só respeitam HTML simples, em tabelas e com o estilo escrito dentro das tags. Script não é enviado. A prévia é uma aproximação: **sempre mande um teste** antes.
+Texto **colado** do Word ou de um site entra sem a formatação de lá, com os parágrafos separados: formate aqui depois.
+
+Abaixo da barra ficam os botões de **Personalizar**, que inserem o nome e as outras colunas da lista (veja a seção sobre variáveis).
+
+Na prévia, **Computador** e **Celular** mudam a largura, e **Expandir** abre em tela inteira; **Fechar** (ou a tecla Esc) volta ao editor. A prévia da tela da campanha também tem o botão **Expandir**. Cada programa de e-mail desenha um pouco diferente: **sempre mande um teste** antes.
+
+## Usar um e-mail pronto em HTML (avançado)
+<!-- telas: email-campaigns.index -->
+
+Quem já tem o código do e-mail, ou sabe HTML, usa a aba **HTML (avançado)** no bloco **Texto do e-mail**. Ao passar para ela, o texto do editor visual vira código, já com cabeçalho e rodapé.
+
+- **Modelo inicial**: um e-mail pronto nas cores do clube, para editar no código.
+- **Título**, **Parágrafo**, **Botão**, **Divisória** e **Imagem**: inserem o bloco onde está o cursor.
+- **Abrir arquivo .html**: carrega um e-mail feito em outro programa.
+
+O código **não volta** para o editor visual: ao voltar para a aba **Editor visual**, vale o texto que estava lá, e as mudanças feitas no código se perdem (o Lara avisa antes). A aba selecionada ao salvar é a que vale no envio. Use tabelas e estilo escrito dentro das tags, que é o que Gmail e Outlook respeitam. Script não é enviado.
 
 ## Personalizar com o nome e outras colunas (variáveis)
 <!-- telas: email-campaigns.index -->
@@ -55,7 +74,7 @@ Variáveis são trocadas pelo dado de cada destinatário na hora do envio. Escre
 - `{{email}}`: o e-mail da pessoa;
 - **qualquer outra coluna da planilha**, pelo nome do cabeçalho em minúsculas, sem acento e com `_` no lugar dos espaços: "Título" vira `{{titulo}}`, "Número da mesa" vira `{{numero_da_mesa}}`.
 
-No editor, as variáveis da lista aparecem como botões: clique para inserir no cursor. Se o texto usar uma variável que a lista **não tem**, aparece um aviso em amarelo e o **Enviar fica bloqueado**: ela sairia vazia para todo mundo. Corrija o texto ou importe uma lista com essa coluna. Para quem a coluna estiver vazia na planilha, a variável sai em branco.
+No editor, as variáveis da lista aparecem como botões em **Personalizar**: clique para inserir no cursor. As colunas da planilha só aparecem ali depois de importar a lista e abrir **Editar**. Se o texto usar uma variável que a lista **não tem**, aparece um aviso em amarelo e o **Enviar fica bloqueado**: ela sairia vazia para todo mundo. Corrija o texto ou importe uma lista com essa coluna. Para quem a coluna estiver vazia na planilha, a variável sai em branco.
 
 ## Importar a lista de destinatários
 <!-- telas: email-campaigns.index -->
@@ -126,6 +145,11 @@ Na tela da campanha, **Duplicar** cria uma cópia em **Rascunho** com o mesmo te
 **Excluir** apaga a campanha e a lista inteira, sem volta. Só aparece em rascunho, concluída ou cancelada. Para excluir uma campanha que está enviando, cancele primeiro.
 
 ## Dúvidas comuns
+
+### Preciso saber HTML para mandar um e-mail?
+<!-- telas: email-campaigns.index -->
+
+Não. Na **Nova campanha**, escreva no **Editor visual**, como num editor de texto: o Lara monta o e-mail com cabeçalho e rodapé. A aba **HTML (avançado)** é só para quem já tem o código pronto.
 
 ### Posso fechar a tela depois de clicar em Enviar?
 <!-- telas: email-campaigns.index -->

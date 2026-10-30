@@ -31,7 +31,11 @@ final class EmailCampaignService
             throw new EmailCampaignException('Só a campanha em rascunho pode ser enviada.');
         }
 
-        if (trim(strip_tags((string) $campaign->html, '<img>')) === '') {
+        // No editor visual o HTML sempre tem o layout (cabeçalho e rodapé):
+        // o que diz se há conteúdo é o texto escrito.
+        $content = $campaign->usesVisualEditor() ? $campaign->body : $campaign->html;
+
+        if (trim(strip_tags((string) $content, '<img>')) === '') {
             throw new EmailCampaignException('Escreva o conteúdo do e-mail antes de enviar.');
         }
 

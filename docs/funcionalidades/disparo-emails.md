@@ -5,7 +5,7 @@
 Campanhas de e-mail para listas grandes, montadas e disparadas pelo menu **Disparo de E-mails**
 (desde 29/10/2026):
 
-1. a pessoa cria a campanha (nome, assunto, remetente) e escreve o **HTML** no editor com prévia;
+1. a pessoa cria a campanha (nome, assunto, remetente) e **escreve o texto no editor visual**, sem saber HTML; O Lara monta o e-mail (quem tem o código pronto usa o modo HTML);
 2. importa a **lista de destinatários** em `.csv` ou `.xlsx`; cada coluna vira uma variável do
    texto (`{{nome}}`, `{{titulo}}`…);
 3. manda um **e-mail de teste** e clica em **Enviar** (agora ou agendado).
@@ -26,7 +26,7 @@ a alcançam.
 | Tela | Rota | O que faz |
 |---|---|---|
 | Campanhas | `GET /disparo-emails` (`email-campaigns.index`) | Lista com situação e "enviados / total". Busca por nome ou assunto, filtro de situação. |
-| Nova / Editar | `email-campaigns.create`, `email-campaigns.edit` | Dados do envio e o editor do HTML com prévia ao lado. Editar só em rascunho ou pausada. |
+| Nova / Editar | `email-campaigns.create`, `email-campaigns.edit` | Dados do envio e o texto, no editor visual ou em HTML, com prévia ao lado. Editar só em rascunho ou pausada. |
 | Campanha | `GET /disparo-emails/{id}` (`email-campaigns.show`) | Andamento (atualiza sozinho a cada 5 s), Enviar/Agendar, e-mail de teste, Pausar/Retomar/Cancelar, Reenviar falhas, Duplicar, importar a lista, lista de destinatários com a situação de cada um, baixar o resultado em CSV e a prévia. |
 | Não enviar para | `GET /disparo-emails/nao-enviar` (`email-suppressions.index`) | Quem pediu para sair. Nenhuma campanha manda para esses endereços, nem as que já estão enviando. |
 
@@ -76,13 +76,44 @@ histórico e mandaria de novo para quem voltasse no arquivo novo.
 - **Acrescentar** ou **Substituir** a lista atual (substituir só em rascunho). Modelo para baixar
   em `.csv` e `.xlsx` (`email-campaigns.list-template`).
 
-## O conteúdo (HTML)
+## O conteúdo
 
-Editor de código com prévia ao vivo (iframe sem script), largura de computador ou celular.
-Botões: **Modelo inicial** (e-mail em tabela, nas cores do clube, em
-`resources/email-campaigns/modelo-inicial.html`), **Título**, **Parágrafo**, **Botão**,
-**Divisória**, **Imagem** e **Abrir arquivo .html**. As variáveis da lista aparecem como botões
-para inserir.
+Dois modos (`email_campaigns.editor`), em abas na mesma tela, com prévia ao vivo (iframe sem
+script), largura de computador ou celular e botão Expandir. **O envio só conhece `html`**: o modo
+decide de onde ele vem.
+
+### Editor visual (`visual`, o padrão da campanha nova)
+
+Para quem não sabe HTML. Um `contenteditable` com barra de formatação (Texto, Título, Subtítulo,
+negrito, itálico, sublinhado, listas, alinhamento, Link, Botão, Imagem, Divisória, Limpar
+formatação). Texto colado entra **sempre como texto puro** (`pastePlain`), com os parágrafos
+separados: a formatação do Word quebra o e-mail.
+
+`App\Services\EmailCampaign\EmailComposer` faz a conversão, em duas etapas:
+
+- **`sanitize()`**: o que fica em `email_campaigns.body` e reabre no editor. Lista de tags permitidas
+  (`p`, `br`, `h2`, `h3`, `strong`, `em`, `u`, `a`, `ul`, `ol`, `li`, `img`, `hr`), sem estilo; só
+  sobrevivem o alinhamento, `href` (`http`, `https`, `mailto`, `tel` ou variável), `src`/`alt` (`http`,
+  `https`) e a classe `email-button` (o link que vira botão). Script e afins somem com o conteúdo; o
+  resto é desembrulhado, ficando o texto.
+- **`compose()`**: o e-mail de verdade. Põe o estilo dentro de cada tag e encaixa em
+  `resources/email-campaigns/layout.html` (faixa com o nome do remetente, rodapé com `{{email}}` e o
+  aviso de descadastro).
+
+Ao salvar, o controller grava `body` limpo e `html` composto. A prévia vem do mesmo `compose()`, pela
+rota `email-campaigns.compose`: **a prévia é o e-mail que vai sair**. O Enviar confere o conteúdo pelo
+`body`, porque o `html` sempre tem o layout.
+
+### HTML (`html`, avançado)
+
+Editor de código, com **Modelo inicial** (`resources/email-campaigns/modelo-inicial.html`),
+**Título**, **Parágrafo**, **Botão**, **Divisória**, **Imagem** e **Abrir arquivo .html**.
+
+**Passar para HTML** leva o e-mail composto para o código. O caminho de volta **não converte**: retoma
+o texto do editor visual, e a tela avisa que as mudanças no código se perdem. No modo HTML, o `body`
+fica como estava. As campanhas anteriores ao editor visual ficam em `html` (padrão da coluna).
+
+### Regras dos dois modos
 
 - **Variáveis**: `{{coluna}}` no assunto e no HTML. Sempre existem `{{email}}`, `{{nome}}` e
   `{{primeiro_nome}}`. Valor que o destinatário não tem sai vazio — nunca sai `{{nome}}` escrito.
@@ -181,11 +212,11 @@ email-campaigns:send` à mão) e use `MAIL_MAILER=log` para não mandar de verda
 
 | Tabela | O que guarda |
 |---|---|
-| `email_campaigns` | O e-mail (assunto, remetente, HTML), situação, datas, `columns` (slug => rótulo da última lista), `list_name`, `last_error`, `created_by` (sem FK). |
+| `email_campaigns` | O e-mail (assunto, remetente, `editor`, `body` do editor visual, `html` que é enviado), situação, datas, `columns` (slug => rótulo da última lista), `list_name`, `last_error`, `created_by` (sem FK). |
 | `email_campaign_recipients` | Um por destinatário: `email`, `name`, `data` (colunas), `status` (`pending`, `sent`, `failed`, `skipped`), `attempts`, `error`, `sent_at`. Único por campanha + e-mail. Apaga junto com a campanha. |
 | `email_suppressions` | "Não enviar para": `email` único em minúsculas, `reason`, `created_by`. |
 
-Migration: `2026_10_30_110000_create_email_campaign_tables.php` (idempotente).
+Migrations: `2026_10_30_110000_create_email_campaign_tables.php` e `2026_10_30_120000_add_visual_editor_to_email_campaigns.php` (idempotentes).
 
 ## Integrações
 
@@ -197,10 +228,10 @@ para outro agent.
 - Rotas: [rotas.md](../rotas.md#disparo-de-e-mails-email-campaigns-email-suppressions-candisparo-emails)
 - Controllers: `EmailCampaign\EmailCampaignController`, `EmailCampaign\EmailSuppressionController`
 - Services (`app/Services/EmailCampaign/`): `RecipientListReader`, `RecipientImporter`,
-  `CampaignRenderer`, `CampaignSender`, `EmailCampaignService`, `CampaignImageStore`
+  `EmailComposer`, `CampaignRenderer`, `CampaignSender`, `EmailCampaignService`, `CampaignImageStore`
 - Models (`app/Models/EmailCampaign/`): `EmailCampaign`, `EmailCampaignRecipient`,
   `EmailSuppression`
 - Mail: `App\Mail\EmailCampaignMail` · Comando: `email-campaigns:send` (`SendEmailCampaigns`)
-- Testes: `tests/Feature/EmailCampaigns/EmailCampaignPanelTest.php` e
+- Testes: `tests/Feature/EmailCampaigns/EmailCampaignPanelTest.php`, `EmailComposerTest.php` e
   `EmailCampaignSenderTest.php` (transporte SMTP de mentira registrado como mailer)
 - Guia do usuário: [docs/guias/disparo-emails.md](../guias/disparo-emails.md)

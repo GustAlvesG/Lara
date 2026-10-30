@@ -702,6 +702,7 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::post('/', 'store')->name('store');
             Route::get('/modelo-lista/{format}', 'listTemplate')->name('list-template')->whereIn('format', ['csv', 'xlsx']);
             Route::post('/imagens', 'uploadImage')->name('images.store');
+            Route::post('/compor', 'compose')->name('compose');
             Route::get('/imagens/{file}', 'showImage')->name('images.show');
 
             Route::prefix('/{campaign}')->whereNumber('campaign')->group(function () {

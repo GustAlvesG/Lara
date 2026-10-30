@@ -29,6 +29,8 @@ class EmailCampaignRequest extends FormRequest
             )))],
             'from_name' => ['nullable', 'string', 'max:100'],
             'reply_to' => ['nullable', 'email', 'max:255'],
+            'editor' => ['required', 'in:visual,html'],
+            'body' => ['nullable', 'string', 'max:1000000'],
             'html' => ['nullable', 'string', 'max:1000000'],
         ];
     }
@@ -41,6 +43,7 @@ class EmailCampaignRequest extends FormRequest
             'from_address' => 'e-mail do remetente',
             'from_name' => 'nome do remetente',
             'reply_to' => 'responder para',
+            'body' => 'texto do e-mail',
             'html' => 'conteúdo',
         ];
     }
@@ -49,6 +52,7 @@ class EmailCampaignRequest extends FormRequest
     {
         return [
             'from_address.in' => 'Escolha um dos remetentes da lista.',
+            'body.max' => 'O texto passou de 1 MB. Imagens coladas no texto pesam muito: envie pelo botão Imagem.',
             'html.max' => 'O conteúdo passou de 1 MB. Diminua o HTML (imagens em base64 pesam muito: envie pelo botão Imagem).',
         ];
     }
