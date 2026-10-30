@@ -107,7 +107,7 @@ class ReleaseController extends Controller
         abort_if($signatureSigner->signature_document_id !== $signatureDocument->id, 404);
 
         if ($signatureDocument->status !== SignatureDocument::STATUS_FINALIZED) {
-            return back()->with('error', 'A via só pode ser enviada depois que o documento é finalizado.');
+            return back()->with('error', 'A via só pode ser enviada depois que o PDF final é gerado.');
         }
 
         if (!$signatureSigner->email) {

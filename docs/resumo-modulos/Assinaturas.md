@@ -421,6 +421,10 @@ Doc completa: seção "Conferência das respostas pelo atendente" de `assinatura
 - Regras: só `finalized`; a partir de `finalized_at`+1 dia 00:00; não quem acompanhou (`involvedUserIds()`: criador,
   QR, convite e conferência gov.br). `assinatura.revisar-coordenacao` dispensa as duas e grava `early`/`own`.
 - "ok" exige todos os itens; "issues" exige observação e mantém na fila; "ok" encerra. Evento `reviewed` sem a observação.
+- **`Assinado*` (30/10/2026):** só de exibição. No banco segue `finalized` (via, arquivamento e fila dependem dele).
+  `statusLabel()` mostra `Assinado*` enquanto `awaitsReview()`, e "Finalizado" depois da revisão "ok" ou no termo de
+  menores. Filtro da lista: `?status=aguardando-revisao` (`scopeAwaitingReview`) e `?status=finalized` (`scopeReviewSettled`).
+  Frase com a situação usa `statusLabelInline()`. Regra nova sobre "concluído" pergunta ao status, não ao rótulo.
 - Fila `GET assinatura/revisao` (`ReviewController@index`), registro `POST .../{doc}/revisao` (aba `?aba=revisao`).
   Quem revisa vê o documento (`viewAny` inclui as duas permissões). Teste: `SignatureReviewTest`.
 
@@ -558,7 +562,9 @@ prompt e gere um novo para o agente do site** (regra do CLAUDE.md).
   `{error, reason}` (`SignatureRemoteLinkException::reason`).
 - `App\Support\IpRange` (saiu do `SignatureRequestService`): faixas de IP do tablet e do site.
 - Painel: cartão `partials/remote.blade.php`, só com `SIGNATURE_REMOTE_SITE_URL`; o status do
-  acompanhamento leva `request.remote` ("Assinando a distância, pelo link").
+  acompanhamento leva `request.remote` ("Assinando a distância, pelo link"). Desde 30/10/2026, na volta do envio,
+  o cartão mostra o link uma vez, com **Copiar link** (`SignatureRemoteLink::plainUrl`, flash `remote_link` cifrado).
+  Não grave o token em claro para mostrar depois: o banco guarda só o hash de propósito.
 - Config `signature.remote.*` e `SIGNATURE_REMOTE_*` no `.env.example`. Migration `2026_10_21_120000`
   (no `CreatesSignatureSchema`). Testes: `SignatureRemoteLinkTest`.
 

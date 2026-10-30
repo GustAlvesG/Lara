@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Authorization\Permissions as P;
 use App\Models\SignatureAuditEvent;
 use App\Models\SignatureDocument;
+use App\Models\SignatureMinorAuthorization;
 use App\Models\SignatureRequest;
 use App\Models\SignatureReview;
 use App\Models\SignatureTemplate;
@@ -180,6 +181,57 @@ class SignatureReviewTest extends TestCase
             ->assertSessionHas('warning', 'Este documento já foi revisado e está em ordem.');
 
         $this->assertSame(2, SignatureReview::count());
+    }
+
+    public function test_fica_assinado_com_asterisco_ate_a_revisao_em_ordem(): void
+    {
+        $documento = $this->concluido();
+        $this->assertSame('Assinado*', $documento->statusLabel());
+        $this->assertSame('assinado', $documento->statusLabelInline());
+
+        Carbon::setTestNow('2026-10-09 08:00:00');
+        $revisor = $this->usuario(2);
+
+        // Com pendência, continua sem finalizar.
+        $this->revisa($revisor, $documento, [
+            'resultado' => 'issues', 'feitos' => ['rev_cadastro'], 'observacao' => 'Falta lançar o pagamento.',
+        ]);
+        $this->assertSame('Assinado*', $documento->fresh()->statusLabel());
+
+        $this->revisa($revisor, $documento, ['resultado' => 'ok', 'feitos' => ['rev_cadastro', 'rev_pagamento']]);
+        $documento->refresh();
+        $this->assertSame('Finalizado', $documento->statusLabel());
+        // O status do banco não muda: a via e o arquivamento continuam valendo.
+        $this->assertSame(SignatureDocument::STATUS_FINALIZED, $documento->status);
+    }
+
+    public function test_termo_de_menores_vai_direto_a_finalizado(): void
+    {
+        $documento = $this->concluido();
+        $documento->setRelation('minorAuthorization', new SignatureMinorAuthorization());
+
+        $this->assertSame('Finalizado', $documento->statusLabel());
+    }
+
+    public function test_filtro_da_lista_separa_assinado_com_asterisco_de_finalizado(): void
+    {
+        $aguardando = $this->concluido();
+        $aguardando->forceFill(['title' => 'Termo aguardando'])->save();
+
+        $revisado = $this->concluido();
+        $revisado->forceFill(['title' => 'Termo revisado', 'review_status' => SignatureReview::RESULT_OK])->save();
+
+        $usuario = $this->usuario(2, [P::ASSINATURA_DOCUMENTOS]);
+
+        $this->actingAs($usuario)->get(route('signature-documents.index', ['status' => SignatureDocument::FILTER_AWAITING_REVIEW]))
+            ->assertOk()
+            ->assertSee('Termo aguardando')
+            ->assertDontSee('Termo revisado');
+
+        $this->actingAs($usuario)->get(route('signature-documents.index', ['status' => SignatureDocument::STATUS_FINALIZED]))
+            ->assertOk()
+            ->assertSee('Termo revisado')
+            ->assertDontSee('Termo aguardando');
     }
 
     public function test_documento_nao_concluido_nao_e_revisado(): void

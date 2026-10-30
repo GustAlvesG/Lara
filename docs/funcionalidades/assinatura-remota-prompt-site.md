@@ -87,6 +87,9 @@ local. As respostas da área vão com `Cache-Control: no-store`.
 ## O endereço
 
 O e-mail leva `https://<este site>/assinar/<token>`. O token tem 64 caracteres `[A-Za-z0-9]`.
+Desde 30/10/2026 o atendente também pode copiar o mesmo endereço e encaminhar por outro canal, como o WhatsApp.
+Por isso, a tela não deve dizer que o link veio por e-mail, e a primeira carga precisa aguentar a pré-visualização
+de link do aplicativo: nada de abrir sessão (`abrir`) nem consumir o link sem um clique da pessoa.
 
 Na primeira carga de `/assinar/[token]`:
 1. no servidor, guarde o token num cookie httpOnly (`path=/assinar`, validade de 3 dias);

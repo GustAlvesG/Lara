@@ -10,6 +10,7 @@ use App\Models\SignatureSigner;
 use App\Services\Signature\RemoteSignatureService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -63,10 +64,11 @@ class RemoteLinkController extends Controller
             return redirect($voltar)->with('error', 'O e-mail não pôde ser enviado. Nada foi registrado como enviado.');
         }
 
-        return redirect($voltar)->with(
-            'success',
-            'Link de assinatura enviado a ' . $link->maskedEmail() . '. Vale até ' . $link->expires_at->format('d/m/Y H:i') . '.',
-        );
+        return redirect($voltar)
+            ->with('success', 'Link de assinatura enviado a ' . $link->maskedEmail() . '. Vale até ' . $link->expires_at->format('d/m/Y H:i') . '.')
+            // Uma vez só, para o atendente copiar. Cifrado porque a sessão fica no banco,
+            // e o banco não guarda link que abra a assinatura.
+            ->with('remote_link', ['signer' => $signatureSigner->id, 'url' => Crypt::encryptString($link->plainUrl)]);
     }
 
     public function destroy(SignatureDocument $signatureDocument, SignatureRemoteLink $signatureRemoteLink)

@@ -41,7 +41,8 @@ Na tela **Assinaturas › Documentos**, cada documento mostra uma situação:
 - **Rascunho**: ainda pode ser editado. Não vai para o tablet.
 - **Aguardando assinatura**: foi congelado. O texto e os dados não mudam mais, e já pode ser liberado para assinar.
 - **Assinado**: todos assinaram. O Lara está montando o PDF final (leva alguns segundos), ou está esperando um anexo obrigatório que ainda não foi enviado. O quadro **Anexos** diz qual falta.
-- **Finalizado**: o PDF assinado está pronto para baixar.
+- **Assinado\***: todos assinaram e o PDF assinado está pronto para baixar e enviar, mas falta a revisão interna. Continua assim também se a revisão deu **Com pendência**.
+- **Finalizado**: a revisão interna deu **Tudo em ordem**. O Termo de Menores não passa pela revisão e chega aqui direto.
 - **Recusado**, **Cancelado** ou **Expirado**: encerrado sem assinatura. A pessoa recusou, o atendente cancelou, ou ninguém assinou dentro do prazo.
 
 Os prazos padrão para assinar, contados do congelamento: 24 horas no balcão, 7 dias depois de preparar para o gov.br, 7 dias quando há diretor entre os signatários. O link remoto vale 72 horas e estende o prazo do documento até lá. A TI pode ter ajustado esses valores.
@@ -235,7 +236,7 @@ Regras:
 
 - Aceita PDF, JPG ou PNG, até 10 MB cada. Foto do celular serve.
 - Os anexos podem chegar antes ou depois da assinatura. Mas o documento só conclui com os **obrigatórios**: se todos assinaram e falta algum, ele fica em **Assinado**, esperando, e conclui sozinho quando o último chegar.
-- No rascunho, dá para remover e enviar de novo. Depois de congelar, ainda dá para enviar, mas o que foi enviado não sai mais. Finalizado, nada muda.
+- No rascunho, dá para remover e enviar de novo. Depois de congelar, ainda dá para enviar, mas o que foi enviado não sai mais. Em **Assinado\*** ou Finalizado, nada muda.
 - Os anexos não entram no PDF assinado: ficam guardados com ele, e o manifesto lista cada um. Não vão na via por e-mail.
 - Na assinatura por link, a própria pessoa envia os anexos pela tela do link, e lá o anexo obrigatório impede a assinatura. Aparecem como enviados por "nome (signatário, pelo link)".
 
@@ -258,7 +259,8 @@ Quem não pode vir ao clube assina por um link enviado por e-mail. O link abre u
 
 1. Congele o documento. Na página dele, abaixo de **Assinatura no tablet**, fica o quadro **Assinatura remota**.
 2. Confira o e-mail de quem vai assinar (vem do cadastro e pode ser corrigido) e clique em **Enviar link**. A pessoa recebe na hora.
-3. O quadro mostra até quando o link vale, quantas vezes foi aberto e quantas vezes o CPF errou. Enquanto ela assina, o cartão mostra "Assinando a distância, pelo link".
+3. Logo depois de enviar, o link aparece no quadro. Clique em **Copiar link** para encaminhar também por outro canal, como o WhatsApp. Ele aparece só nessa hora: ao sair ou recarregar a página, não dá para ver de novo. Se precisar dele depois, use **Enviar novo link**, que manda outro e-mail, mostra o link novo e faz o anterior parar de valer.
+4. O quadro mostra até quando o link vale, quantas vezes foi aberto e quantas vezes o CPF errou. Enquanto ela assina, o cartão mostra "Assinando a distância, pelo link".
 
 O que vale saber:
 
@@ -266,7 +268,7 @@ O que vale saber:
 - Serve para qualquer documento, inclusive com perguntas e visto. Tablet e link podem ser usados no mesmo documento, um para cada pessoa.
 - A conferência é sempre pelo CPF completo. São 5 tentativas por link, somadas entre aberturas; na quinta errada o link é bloqueado.
 - A foto é sempre obrigatória no link. Sem câmera, a pessoa não conclui.
-- **Enviar novo link** faz o anterior parar de valer: use quando a pessoa perdeu o e-mail, o link venceu ou foi bloqueado. **Revogar link** faz parar de abrir na hora.
+- **Enviar novo link** faz o anterior parar de valer: use quando a pessoa perdeu o link, ele venceu ou foi bloqueado. **Revogar link** faz parar de abrir na hora.
 - Preparar o documento para o gov.br cancela os links enviados.
 - Diretor e Termo de Menores não usam link.
 - Se o quadro **Assinatura remota** não aparece, a assinatura remota não está configurada: fale com a TI.
@@ -281,7 +283,7 @@ Quem não vem ao clube também pode assinar o PDF com a própria conta gov.br (n
 3. A pessoa assina em assinador.iti.br e **entrega o arquivo assinado no atendimento do clube**: o retorno não é por e-mail, e o e-mail não tem link para O Lara.
 4. Abra a aba **Assinatura gov.br**, escolha o arquivo e clique em **Conferir assinatura**. Se estiver certo, a pessoa passa a **Assinou**; se não, a aba mostra o que não passou.
 5. Tem mais alguém? Clique em **Enviar por e-mail** ao lado do nome: o e-mail já leva o arquivo com as assinaturas anteriores. Um de cada vez, em qualquer ordem.
-6. Com todos, o documento fica **Finalizado**. O PDF assinado é o próprio arquivo do gov.br, e o comprovante sai à parte, no **Relatório gov.br**.
+6. Com todos, o documento fica **Assinado\*** até a revisão interna. O PDF assinado é o próprio arquivo do gov.br, e o comprovante sai à parte, no **Relatório gov.br**.
 
 Cada documento é assinado todo no tablet ou todo pelo gov.br. Se alguém já assinou no tablet, não dá para preparar para o gov.br; para mudar de caminho, cancele e emita outro. Documento com perguntas ao signatário também não vai ao gov.br.
 
@@ -303,13 +305,13 @@ Outros lugares onde o documento fica: quem pediu a via e tem e-mail recebe o PDF
 ## Enviar a via por e-mail de novo
 <!-- telas: signature-documents.index -->
 
-Depois que o documento está **Finalizado**, a via (o PDF assinado) pode ser enviada ou reenviada a cada signatário. Abra o documento em **Assinaturas › Documentos** e, no cartão do signatário, veja a situação da via: "Via enviada em…", "Via pedida, ainda não enviada" ou "Via não solicitada".
+Depois que o documento está **Assinado\*** ou **Finalizado**, a via (o PDF assinado) pode ser enviada ou reenviada a cada signatário. Abra o documento em **Assinaturas › Documentos** e, no cartão do signatário, veja a situação da via: "Via enviada em…", "Via pedida, ainda não enviada" ou "Via não solicitada".
 
 Clique em **Enviar via** (ou **Reenviar**, se já foi enviada). O envio vai para a fila e sai em instantes, para o e-mail cadastrado no documento. Aparece a mensagem "Envio da via colocado na fila para…".
 
 Limites:
 
-- Só depois de finalizado. Antes disso aparece "A via só pode ser enviada depois que o documento é finalizado."
+- Só depois que o PDF final fica pronto; não precisa esperar a revisão. Antes disso aparece "A via só pode ser enviada depois que o PDF final é gerado."
 - O signatário precisa ter e-mail no documento. Sem e-mail aparece "Este signatário não tem e-mail cadastrado." Como o documento congelado não muda, a saída é baixar o **PDF assinado** e enviar por fora.
 - A via não leva os anexos. Do gov.br, vão o arquivo assinado e o relatório.
 
@@ -328,7 +330,7 @@ O lacre do clube não assina por ninguém: prova que o arquivo não mudou depois
 
 Abra o documento em **Assinaturas › Documentos**. Os botões ficam no topo.
 
-**Cancelar** encerra o documento sem assinatura. Use quando percebeu um erro depois de congelar ou quando a assinatura não vai mais acontecer. Qualquer sessão aberta no tablet é encerrada. O documento fica como **Cancelado** e não volta: para corrigir, emita um documento novo. O botão só aparece enquanto o documento está em **Rascunho** ou **Aguardando assinatura**: assinado ou finalizado não se cancela.
+**Cancelar** encerra o documento sem assinatura. Use quando percebeu um erro depois de congelar ou quando a assinatura não vai mais acontecer. Qualquer sessão aberta no tablet é encerrada. O documento fica como **Cancelado** e não volta: para corrigir, emita um documento novo. O botão só aparece enquanto o documento está em **Rascunho** ou **Aguardando assinatura**: assinado (com ou sem asterisco) ou finalizado não se cancela.
 
 **Arquivar** só tira o documento da lista padrão, para ela não ficar cheia do que não precisa mais aparecer. Nada muda no documento: a situação continua a mesma e, se ainda falta alguém, a pessoa ainda pode assinar. Ele passa a aparecer só com o filtro **Arquivados**. Para trazê-lo de volta, abra-o e clique em **Desarquivar**.
 
@@ -342,6 +344,8 @@ Todo documento concluído passa por uma revisão: outra pessoa confere se os pro
 1. Abra **Assinaturas › Revisão**. A lista traz os documentos concluídos ainda não revisados, o mais antigo primeiro. O filtro **Situação** alterna entre **A revisar** e **Revisados em ordem**.
 2. Clique em **Revisar**. Na aba **Revisão** do documento, marque cada item feito, escolha **Tudo em ordem** ou **Com pendência** e clique em **Registrar revisão**.
 3. Com pendência, escreva na observação o que falta. O documento continua na lista; resolvido, revise de novo e marque **Tudo em ordem**.
+
+Até a revisão dar **Tudo em ordem**, o documento aparece como **Assinado\*** em **Assinaturas › Documentos**. Com **Tudo em ordem**, passa a **Finalizado**. O filtro **Situação** da lista separa os dois.
 
 Regras:
 
@@ -501,7 +505,12 @@ Documento congelado não muda: a mensagem é "Documento já congelado: o texto e
 
 Leia a mensagem em vermelho. As mais comuns: "Documento sem signatário: informe quem vai assinar antes de congelar."; "Falta informar quem assina como: …" (uma parte do modelo ficou sem signatário); "Faltam dados obrigatórios do modelo: …"; e, em modelo com código por e-mail, "Informe o e-mail de: …". Clique em **Editar**, complete e congele de novo.
 
-### Todos assinaram, mas o documento não passa a "Finalizado"
+### O documento está em "Assinado*": o que falta?
+<!-- telas: signature-documents.index -->
+
+Só a revisão interna. O PDF está pronto e a via pode ser enviada. O documento passa a **Finalizado** quando a revisão em **Assinaturas › Revisão** der **Tudo em ordem**.
+
+### Todos assinaram, mas o documento não sai de "Assinado" (sem asterisco)
 <!-- telas: signature-documents.index -->
 
 Primeiro, veja o quadro **Anexos**: falta um anexo obrigatório. Envie e o documento conclui sozinho. Se não falta anexo e passou de alguns minutos, avise a TI: o serviço que monta o PDF final está parado. Nada se perde, a assinatura está registrada.

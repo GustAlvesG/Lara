@@ -11,8 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * O link de assinatura remota: enviado por e-mail, abre a tela de quem assina
  * no site externo, sem login. Ver RemoteSignatureService.
  *
- * O token em claro existe só no e-mail. O banco guarda o sha256 — quem lê a
- * tabela não abre link nenhum.
+ * O token em claro existe só no e-mail e na tela de quem acabou de enviar
+ * (`plainUrl`). O banco guarda o sha256 — quem lê a tabela não abre link nenhum.
  *
  * Vencido não é um status gravado: é `active` com `expires_at` no passado
  * (`isExpired()`). Assim o link não depende de um comando agendado para
@@ -41,6 +41,12 @@ class SignatureRemoteLink extends Model
         self::STATUS_SUPERSEDED => 'Substituído',
         self::STATUS_LOCKED => 'Bloqueado por tentativas de CPF',
     ];
+
+    /**
+     * O endereço com o token em claro. Só existe no objeto devolvido pelo envio:
+     * não é coluna, e o link lido do banco vem sempre null.
+     */
+    public ?string $plainUrl = null;
 
     protected $fillable = [
         'signature_signer_id',

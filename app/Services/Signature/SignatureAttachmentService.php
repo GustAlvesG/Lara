@@ -94,7 +94,7 @@ class SignatureAttachmentService
             SignatureDocument::STATUS_SIGNED,
         ], true)
             ? null
-            : 'Documento ' . mb_strtolower($document->statusLabel()) . ': os anexos não mudam mais.';
+            : 'Documento ' . $document->statusLabelInline() . ': os anexos não mudam mais.';
     }
 
     /** Por que este anexo não pode ser removido. null = pode. */

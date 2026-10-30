@@ -479,6 +479,13 @@ Todo documento **concluído** passa por uma revisão interna: outra pessoa, que 
 assinatura, confere se os processos internos daquele atendimento foram feitos. Não mexe no
 documento assinado (nem PDF, nem hash): é registro interno, com evento na trilha.
 
+**Situação na tela (30/10/2026):** enquanto a revisão não dá "Tudo em ordem", o documento aparece como
+**`Assinado*`**; depois, como **Finalizado**. É só exibição (`SignatureDocument::statusLabel`, a partir de
+`awaitsReview`): no banco o status continua `finalized` desde a emissão do PDF, e a via, o arquivamento e a fila
+de revisão seguem dependendo dele. Termo de menores não passa pela revisão e mostra "Finalizado" direto. Documentos
+antigos sem revisão também passam a mostrar `Assinado*`. O filtro da lista usa `?status=aguardando-revisao` e
+`?status=finalized`. O evento `finalized` da trilha aparece como "Via final emitida"; o nome interno não mudou.
+
 | Regra | Como |
 |---|---|
 | **O que conferir** | Os **Itens da revisão** do modelo (`signature_templates.review_items`, chave `rev_…` a partir do rótulo — `SignatureReviewService::normalize`). Modelo sem itens: a revisão registra só resultado e observação |
@@ -653,6 +660,11 @@ como no convite do gov.br) e o botão **Enviar link**. O cartão mostra também 
 link: para quem foi, por quem, até quando vale, quantas vezes foi aberto e quantas vezes o CPF
 errou. O botão **Revogar link** está ali também.
 
+- **Copiar o link (30/10/2026):** na volta do envio, o cartão mostra o endereço com **Copiar link**, para o
+  atendente encaminhar por outro canal (WhatsApp, por exemplo). Aparece uma vez só, porque o banco guarda o
+  `sha256` do token e não há como remontar o link. Ele vem de `SignatureRemoteLink::plainUrl` (não é coluna) e
+  passa pela sessão cifrado (`Crypt`), porque `SESSION_DRIVER=database`. Para ver de novo, **Enviar novo link**. O
+  e-mail continua obrigatório, e falha no envio não gera link.
 - Mesma permissão de liberar o QR (`release` = `assinatura.documentos`). Sem permissão nova.
 - **Enviar de novo substitui o anterior** (`superseded`).
 - O e-mail sai **na hora, dentro da transação**: SMTP fora do ar → nada fica registrado.

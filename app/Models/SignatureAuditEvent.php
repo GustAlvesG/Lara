@@ -103,7 +103,7 @@ class SignatureAuditEvent extends Model
         self::EVENT_REFUSED => 'Recusado',
         self::EVENT_CANCELED => 'Cancelado',
         self::EVENT_EXPIRED => 'Expirado',
-        self::EVENT_FINALIZED => 'Finalizado',
+        self::EVENT_FINALIZED => 'Via final emitida',
         self::EVENT_FINALIZATION_FAILED => 'Falha na finalização',
         self::EVENT_COPY_SENT => 'Via enviada',
         self::EVENT_ARCHIVED => 'Cópia arquivada no servidor de arquivos',

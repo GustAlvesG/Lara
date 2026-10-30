@@ -38,6 +38,7 @@
                     @foreach(Doc::STATUS_LABELS as $valor => $rotulo)
                         <option value="{{ $valor }}" @selected($status === $valor)>{{ $rotulo }}</option>
                     @endforeach
+                    <option value="{{ Doc::FILTER_AWAITING_REVIEW }}" @selected($status === Doc::FILTER_AWAITING_REVIEW)>{{ Doc::LABEL_AWAITING_REVIEW }} (aguardando revisão)</option>
                     {{-- Aguardando a assinatura de um diretor (Assinatura Diretoria). --}}
                     <option value="diretoria" @selected($status === 'diretoria')>Aguardando diretoria</option>
                 </select>
@@ -141,6 +142,8 @@
                     </table>
                 </div>
             </div>
+
+            <p class="mt-3 text-xs text-ink-2">* {{ Doc::LABEL_AWAITING_REVIEW }}: todos assinaram e o PDF está pronto. Vira Finalizado depois da revisão interna em ordem.</p>
 
             {{ $documents->links() }}
         @endif

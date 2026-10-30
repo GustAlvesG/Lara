@@ -159,6 +159,10 @@
                         }">{{ $document->statusLabel() }}</x-pill>
                     </div>
 
+                    @if($document->awaitsReview())
+                        <p class="text-xs text-ink-2 mb-3">* {{ \App\Models\SignatureDocument::LABEL_AWAITING_REVIEW }}: todos assinaram e o PDF está pronto. Vira Finalizado depois da revisão interna em ordem.</p>
+                    @endif
+
                     {{-- Rastreio: quem, no sistema, gerou este documento. O QR Code de cada pessoa tem o seu, na lista de signatários. --}}
                     <p class="text-xs text-ink-2 mb-3">
                         <span class="font-bold">Gerado por:</span> {{ $document->created_by_name ?? 'não registrado' }}

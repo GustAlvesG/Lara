@@ -18,7 +18,7 @@ class SignatureRemoteLinkException extends SignatureSessionException
 
     public static function invalid(): self
     {
-        return new self('Link de assinatura inválido. Confira se abriu o link inteiro do e-mail.', 404, 'invalid_link');
+        return new self('Link de assinatura inválido. Confira se abriu o link inteiro.', 404, 'invalid_link');
     }
 
     public static function expired(): self
@@ -28,7 +28,7 @@ class SignatureRemoteLinkException extends SignatureSessionException
 
     public static function superseded(): self
     {
-        return new self('Este link foi substituído por um mais recente. Use o último e-mail que você recebeu.', 410, 'link_superseded');
+        return new self('Este link foi substituído por um mais recente. Use o último link que você recebeu.', 410, 'link_superseded');
     }
 
     public static function revoked(): self

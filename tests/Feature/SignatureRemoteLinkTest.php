@@ -32,7 +32,7 @@ use Tests\TestCase;
  * Assinatura remota: o link por e-mail que abre a tela de quem assina no site
  * externo, e a API que o SERVIDOR do site chama.
  *
- * O que estes testes travam: o token só existe no e-mail; a API exige o token
+ * O que estes testes travam: o token só existe no e-mail e na tela, uma vez, de quem enviou; a API exige o token
  * próprio do site; a identidade é sempre o CPF completo e a foto é sempre
  * obrigatória; as 5 tentativas contam no LINK; o IP gravado é o de quem
  * assina (header do site); e a sessão remota não abre o tablet.
@@ -175,6 +175,32 @@ class SignatureRemoteLinkTest extends TestCase
         $evento = SignatureAuditEvent::where('event', SignatureAuditEvent::EVENT_REMOTE_LINK_SENT)->sole();
         $this->assertSame('m***a@example.com', $evento->payload['email']);
         $this->assertStringNotContainsString($token, json_encode(SignatureAuditEvent::all()->pluck('payload')));
+    }
+
+    public function test_link_aparece_uma_vez_para_quem_enviou_e_nao_vai_em_claro_para_a_sessao(): void
+    {
+        $documento = $this->documentoCongelado();
+        $atendente = $this->usuarioComPermissoes(['assinatura.documentos']);
+
+        $envio = $this->actingAs($atendente)
+            ->post(route('signature-documents.remote-link.store', [$documento, $documento->signers()->first()]), ['email' => 'maria@example.com']);
+
+        preg_match('#/assinar/([A-Za-z0-9]{64})#', Mail::sent(SignatureRemoteLinkMail::class)->last()->render(), $m);
+        $url = 'https://reservas.example.com/assinar/' . $m[1];
+
+        // A sessão fica no banco: ali o link vai cifrado.
+        $this->assertStringNotContainsString($m[1], json_encode($envio->getSession()->all()));
+
+        $this->actingAs($atendente)->get(route('signature-documents.show', $documento))
+            ->assertOk()
+            ->assertSee('data-remote-link-url', false)
+            ->assertSee($url, false);
+
+        // Recarregou: o link não volta, mas o cartão continua com a situação dele.
+        $this->actingAs($atendente)->get(route('signature-documents.show', $documento))
+            ->assertOk()
+            ->assertDontSee($url, false)
+            ->assertSee('data-remote-link-status', false);
     }
 
     public function test_sem_endereco_do_site_nao_envia(): void

@@ -51,7 +51,7 @@ class DocumentController extends Controller
         // Arquivados saem da lista padrão; o filtro mostra só eles.
         $arquivados = $request->boolean('arquivados');
 
-        $documentos = SignatureDocument::with(['template', 'signers'])
+        $documentos = SignatureDocument::with(['template', 'signers', 'minorAuthorization'])
             ->hidden($arquivados)
             ->search($busca)
             ->when($modelo === 'avulso', fn($query) => $query->whereHas('template', fn($t) => $t->where('single_use', true)))
@@ -68,7 +68,13 @@ class DocumentController extends Controller
                     ->whereNotNull('director_area_id')
                     ->where('status', \App\Models\SignatureSigner::STATUS_PENDING))
                 ->releasedToDirectors())
-            ->when($status && $status !== 'diretoria', fn($query) => $query->where('status', $status))
+            // "Finalizado" e "Assinado*" são o mesmo status no banco: quem separa é a revisão.
+            ->when($status === SignatureDocument::FILTER_AWAITING_REVIEW, fn($query) => $query->awaitingReview())
+            ->when($status === SignatureDocument::STATUS_FINALIZED, fn($query) => $query->reviewSettled())
+            ->when(
+                $status && !in_array($status, ['diretoria', SignatureDocument::FILTER_AWAITING_REVIEW, SignatureDocument::STATUS_FINALIZED], true),
+                fn($query) => $query->where('status', $status),
+            )
             ->orderByDesc('id')
             ->paginate(20)
             ->withQueryString();

@@ -15,7 +15,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  *
  * Ciclo: `draft` (ainda editável) → `awaiting_signature` (congelado, com PDF e
  * hash) → `signed` (todos assinaram) → `finalized` (PDF final com manifesto).
- * Saídas: `refused`, `canceled`, `expired`.
+ * Saídas: `refused`, `canceled`, `expired`. Em `finalized`, a tela mostra
+ * `Assinado*` até a revisão interna em ordem (ver `statusLabel`).
  *
  * Quem move o documento de um estado a outro é SignatureStateMachine — nunca
  * um `update(['status' => ...])` solto, que passaria por fora da auditoria.
@@ -48,6 +49,16 @@ class SignatureDocument extends Model
         self::STATUS_CANCELED => 'Cancelado',
         self::STATUS_EXPIRED => 'Expirado',
     ];
+
+    /**
+     * O que a tela mostra para `finalized` enquanto a revisão interna não dá
+     * "Tudo em ordem" (ver `statusLabel`). Não é um status do banco: o PDF final
+     * já existe, e a via e o arquivamento seguem valendo.
+     */
+    public const LABEL_AWAITING_REVIEW = 'Assinado*';
+
+    /** Valor do filtro "Situação" da lista para os documentos em `Assinado*`. */
+    public const FILTER_AWAITING_REVIEW = 'aguardando-revisao';
 
     /** Estados em que o documento ainda espera alguma coisa de alguém. */
     public const STATUS_OPEN = [
@@ -385,6 +396,25 @@ class SignatureDocument extends Model
             && !$this->isMinorTerm();
     }
 
+    /** Mesma regra de `awaitsReview`, em consulta. */
+    public function scopeAwaitingReview($query)
+    {
+        return $query
+            ->where('status', self::STATUS_FINALIZED)
+            ->whereDoesntHave('minorAuthorization')
+            ->where(fn($q) => $q->whereNull('review_status')
+                ->orWhere('review_status', '!=', SignatureReview::RESULT_OK));
+    }
+
+    /** O inverso de `scopeAwaitingReview`: os que a tela mostra como "Finalizado". */
+    public function scopeReviewSettled($query)
+    {
+        return $query
+            ->where('status', self::STATUS_FINALIZED)
+            ->where(fn($q) => $q->where('review_status', SignatureReview::RESULT_OK)
+                ->orWhereHas('minorAuthorization'));
+    }
+
     public function reviewStatusLabel(): string
     {
         if ($this->status !== self::STATUS_FINALIZED || $this->isMinorTerm()) {
@@ -487,7 +517,7 @@ class SignatureDocument extends Model
         }
 
         if ($this->status !== self::STATUS_AWAITING_SIGNATURE) {
-            return 'Documento em ' . mb_strtolower($this->statusLabel()) . ': não há assinatura a colher.';
+            return 'Documento em ' . $this->statusLabelInline() . ': não há assinatura a colher.';
         }
 
         if ($this->signerFields() !== []) {
@@ -507,9 +537,24 @@ class SignatureDocument extends Model
         return null;
     }
 
+    /**
+     * A situação que a tela mostra. "Finalizado" só depois da revisão interna
+     * em ordem (decisão do usuário, 30/10/2026); até lá, `Assinado*`. Termo de
+     * menores não passa pela revisão e vai direto a "Finalizado".
+     */
     public function statusLabel(): string
     {
+        if ($this->awaitsReview()) {
+            return self::LABEL_AWAITING_REVIEW;
+        }
+
         return self::STATUS_LABELS[$this->status] ?? $this->status;
+    }
+
+    /** A situação para ir no meio de uma frase: minúscula e sem o asterisco. */
+    public function statusLabelInline(): string
+    {
+        return mb_strtolower(rtrim($this->statusLabel(), '*'));
     }
 
     /**
@@ -545,7 +590,7 @@ class SignatureDocument extends Model
         }
 
         if ($this->status !== self::STATUS_DRAFT) {
-            return 'Documento em ' . mb_strtolower($this->statusLabel()) . ': não pode ser editado.';
+            return 'Documento em ' . $this->statusLabelInline() . ': não pode ser editado.';
         }
 
         return null;

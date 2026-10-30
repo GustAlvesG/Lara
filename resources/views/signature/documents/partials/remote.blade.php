@@ -20,7 +20,7 @@
     <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider mb-1">Assinatura remota</h3>
     <p class="text-xs text-ink-2 mb-4">
         A pessoa recebe um link por e-mail e assina pelo site do clube, com o CPF completo e uma foto.
-        O link vale {{ (int) config('signature.remote.link_ttl_hours', 72) }} horas.
+        Depois de enviar, o link aparece aqui para você copiar e encaminhar também. Ele vale {{ (int) config('signature.remote.link_ttl_hours', 72) }} horas.
     </p>
 
         <ul class="space-y-4">
@@ -48,6 +48,25 @@
                                 CPF errado {{ $ultimo->identity_attempts }} vez(es).
                             @endif
                         </div>
+
+                        {{-- Só na volta do envio: o banco guarda o hash, e o link não pode ser mostrado de novo. --}}
+                        @if(session('remote_link.signer') === $signer->id && $ultimo->isUsable())
+                            <div class="mt-3 rounded-xl bg-subtle p-3" x-data="{ copiado: false }" data-remote-link-url>
+                                <label for="remote-url-{{ $signer->id }}" class="block text-[11px] font-bold text-ink">Link para copiar e encaminhar (pelo WhatsApp, por exemplo)</label>
+                                <div class="mt-1 flex flex-col gap-2 sm:flex-row">
+                                    <input type="text" id="remote-url-{{ $signer->id }}" readonly x-ref="link" @focus="$el.select()"
+                                           value="{{ \Illuminate\Support\Facades\Crypt::decryptString(session('remote_link.url')) }}"
+                                           class="min-w-0 flex-1 rounded-xl border-line-strong font-mono text-xs">
+                                    {{-- O Lara pode estar em http na rede interna, onde navigator.clipboard não existe. --}}
+                                    <button type="button"
+                                            @click="$refs.link.select(); navigator.clipboard ? navigator.clipboard.writeText($refs.link.value) : document.execCommand('copy'); copiado = true; setTimeout(() => copiado = false, 1500)"
+                                            class="px-4 py-2 rounded-full text-xs font-bold bg-grena text-white hover:bg-grena-hover transition whitespace-nowrap">
+                                        <span x-text="copiado ? 'Copiado!' : 'Copiar link'">Copiar link</span>
+                                    </button>
+                                </div>
+                                <p class="mt-1 text-[11px] text-ink-2">Aparece só agora: ao sair desta página, não dá para ver de novo. Quem tem o link ainda precisa do CPF para assinar.</p>
+                            </div>
+                        @endif
 
                         @if($ultimo->isUsable())
                             <form method="POST" action="{{ route('signature-documents.remote-link.destroy', [$document, $ultimo]) }}" class="mt-2"

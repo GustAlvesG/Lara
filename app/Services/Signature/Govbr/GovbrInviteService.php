@@ -44,7 +44,7 @@ class GovbrInviteService
         }
 
         if ($document->status !== SignatureDocument::STATUS_AWAITING_SIGNATURE) {
-            return 'Documento em ' . mb_strtolower($document->statusLabel()) . ': não há assinatura a colher.';
+            return 'Documento em ' . $document->statusLabelInline() . ': não há assinatura a colher.';
         }
 
         if ($signer->status !== SignatureSigner::STATUS_PENDING) {

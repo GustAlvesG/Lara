@@ -95,7 +95,8 @@ class RemoteSignatureService
      *
      * Enviar de novo substitui o link anterior. O e-mail sai NA HORA, dentro
      * da transação: se o envio falhar, nada fica registrado, e o atendente vê
-     * o erro no mesmo clique. O token em claro existe só no e-mail.
+     * o erro no mesmo clique. O token em claro existe só no e-mail e em
+     * `plainUrl` do objeto devolvido, para a tela mostrar uma vez ao atendente.
      *
      * @param  ?string  $replyTo  e-mail do atendente: a resposta ao e-mail vai para ele
      *
@@ -148,7 +149,9 @@ class RemoteSignatureService
                 'sent_by_name' => $userName,
             ]);
 
-            $mail = new SignatureRemoteLinkMail($link->setRelation('signer', $signer), $this->url($token));
+            $link->plainUrl = $this->url($token);
+
+            $mail = new SignatureRemoteLinkMail($link->setRelation('signer', $signer), $link->plainUrl);
 
             if ($replyTo !== null) {
                 $mail->replyTo($replyTo, $userName);

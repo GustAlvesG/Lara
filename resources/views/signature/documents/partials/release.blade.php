@@ -130,7 +130,7 @@
     @else
         <p class="text-sm text-ink-2">
             {{ $document->isFrozen()
-                ? 'Documento em ' . mb_strtolower($document->statusLabel()) . ': não há assinatura a liberar.'
+                ? 'Documento em ' . $document->statusLabelInline() . ': não há assinatura a liberar.'
                 : 'Congele o documento para liberar a assinatura no tablet.' }}
         </p>
     @endif

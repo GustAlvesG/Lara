@@ -222,7 +222,10 @@
         <tr><td><b>Aguardando assinatura</b></td><td>Foi congelado: o texto e os dados não mudam mais. Pode ser liberado para o tablet.</td></tr>
         <tr><td><b>Assinado</b></td><td>Todos assinaram. O sistema está montando o PDF final (leva alguns segundos) — ou
             esperando um <b>anexo obrigatório</b> que ainda não foi enviado; o quadro Anexos diz qual.</td></tr>
-        <tr><td><b>Finalizado</b></td><td>O PDF assinado está pronto para baixar.</td></tr>
+        <tr><td><b>Assinado*</b></td><td>Todos assinaram e o PDF assinado está pronto para baixar e enviar, mas falta a
+            revisão interna. Continua assim também se a revisão deu <b>Com pendência</b>.</td></tr>
+        <tr><td><b>Finalizado</b></td><td>A revisão interna deu <b>Tudo em ordem</b>. O Termo de Menores não passa pela
+            revisão e chega aqui direto.</td></tr>
         <tr><td><b>Recusado, Cancelado ou Expirado</b></td><td>Encerrado sem assinatura: a pessoa recusou no tablet, o
             atendente cancelou, ou ninguém assinou dentro do prazo (por padrão, 24 horas no balcão, 7 dias pelo
             gov.br e 7 dias quando há diretor entre os signatários).</td></tr>
@@ -872,7 +875,7 @@
         <tr>
             <td class="n"><span class="num">3</span></td>
             <td>Com pendência, o documento continua na lista. Resolvido o que faltava, revise de novo e marque
-                <b>Tudo em ordem</b>.</td>
+                <b>Tudo em ordem</b>. É aí que ele sai de <b>Assinado*</b> e passa a <b>Finalizado</b>.</td>
         </tr>
     </table>
     <div class="box tip">
@@ -938,7 +941,7 @@
         </tr>
         <tr>
             <td class="n"><span class="num">6</span></td>
-            <td>Quando todos assinaram, o documento fica <b>Assinado</b> e, em seguida, <b>Finalizado</b>: o PDF
+            <td>Quando todos assinaram, o documento fica <b>Assinado</b> e, em seguida, <b>Assinado*</b> até a revisão interna: o PDF
                 assinado é o arquivo que voltou do gov.br, acompanhado do <b>relatório</b> da conferência. A via (os
                 dois arquivos) vai por e-mail a quem tem e-mail cadastrado e a cópia vai para a pasta de rede.</td>
         </tr>
@@ -1018,7 +1021,9 @@
         <tr>
             <td class="n"><span class="num">2</span></td>
             <td>Confira o e-mail de quem vai assinar (ele vem preenchido com o do cadastro e pode ser corrigido) e clique
-                em <span class="btn">Enviar link</span>. A pessoa recebe o e-mail na hora.<br>
+                em <span class="btn">Enviar link</span>. A pessoa recebe o e-mail na hora. Logo depois, o link aparece no quadro:
+                clique em <span class="btn2">Copiar link</span> para encaminhar também pelo WhatsApp, por exemplo. Ele
+                aparece só nessa hora; ao sair ou recarregar a página, não dá para ver de novo.<br>
                 <span class="small">O link vale <b>72 horas</b>. O prazo do documento é estendido até lá.</span></td>
         </tr>
         <tr>
@@ -1031,7 +1036,7 @@
         <tr>
             <td class="n"><span class="num">4</span></td>
             <td>Assinou: a pessoa passa a <b>Assinou</b>. Com todos assinados, o documento fica <b>Assinado</b> e depois
-                <b>Finalizado</b>, como no tablet.</td>
+                <b>Assinado*</b>, como no tablet.</td>
         </tr>
     </table>
 
@@ -1411,7 +1416,7 @@
                 CPF do documento estiver errado, cancele e emita outro.</td>
         </tr>
         <tr>
-            <td>O documento ficou em "Assinado" e não passa a "Finalizado"</td>
+            <td>O documento ficou em "Assinado" (sem asterisco) e não passa a "Assinado*"</td>
             <td>O PDF final é montado em segundo plano. Se passar de alguns minutos, avise a TI: o serviço que monta
                 o arquivo está parado. Nada se perde — a assinatura está registrada.</td>
         </tr>

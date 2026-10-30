@@ -392,7 +392,7 @@ class SignatureDocumentService
     ): SignatureDocument {
         if (!$this->states->canDocumentGoTo($document->status, SignatureDocument::STATUS_CANCELED)) {
             throw new SignatureDocumentLockedException(
-                'Documento em ' . mb_strtolower($document->statusLabel()) . ': não pode ser cancelado.'
+                'Documento em ' . $document->statusLabelInline() . ': não pode ser cancelado.'
             );
         }
 
