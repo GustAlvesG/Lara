@@ -180,35 +180,38 @@ Guia: [Torneios](funcionalidades/torneios.md). Catálogo de categorias, torneios
 | GET | `/torneios/{tournament}/financeiro` | Tournament\TournamentFinanceController@show | tournaments.finance.show | auth, can:torneios.financeiro |
 | GET | `/torneios/{tournament}/financeiro/csv` | Tournament\TournamentFinanceController@csv | tournaments.finance.csv | auth, can:torneios.financeiro |
 
-### Contratos (`signature-contracts.*`, `signature-contract-library.*`)
+### Contratos (`contracts.*`, `contract-library.*`)
 
-Guia: [Contratos](funcionalidades/contratos.md). Quem pode cada ação: `SignatureContractPolicy` (setor do contrato + `assinatura.contratos`; validar = setor Gerência). Menu: Assinaturas → Contratos (`assinatura.contratos`).
+Guia: [Contratos](funcionalidades/contratos.md). Quem pode cada ação: `SignatureContractPolicy` (setor do contrato + `assinatura.contratos`; validar = setor Gerência). Menu: **Contratos** (módulo próprio desde 04/11/2026): Contratos (`assinatura.contratos`), Assinaturas (`contratos.assinatura`, `contract-signatures.*` = as rotas de documento de assinatura sob `/contratos/assinaturas`, só documento de contrato — `EnsureContractDocument`) e Biblioteca (`acessar-biblioteca-contratos`; cadastrar/editar/excluir = `contratos.biblioteca`). URLs em `/contratos`; `/assinatura/contratos/*` redireciona (301, `contracts.legacy`). Tablet: `quiosque.gerencia.update` e `quiosque.gerencia.ai-review` (04/11/2026).
 
 | Método | URI | Controller@método | Nome |
 |--------|-----|-------------------|------|
-| GET | `/assinatura/contratos` | Signature\ContractController@index | signature-contracts.index |
-| GET | `/assinatura/contratos/novo` | Signature\ContractController@create | signature-contracts.create |
-| POST | `/assinatura/contratos` | Signature\ContractController@store | signature-contracts.store |
-| GET | `/assinatura/contratos/contratadas` | Signature\ContractController@parties (60/min) | signature-contracts.parties |
-| GET | `/assinatura/contratos/{c}` | Signature\ContractController@show | signature-contracts.show |
-| GET | `/assinatura/contratos/{c}/editar` | Signature\ContractController@edit | signature-contracts.edit |
-| PUT | `/assinatura/contratos/{c}` | Signature\ContractController@update | signature-contracts.update |
-| POST | `/assinatura/contratos/{c}/previa` | Signature\ContractController@preview (60/min) | signature-contracts.preview |
-| POST | `/assinatura/contratos/{c}/enviar` | Signature\ContractController@submit (20/min) | signature-contracts.submit |
-| POST | `/assinatura/contratos/{c}/decisao` | Signature\ContractController@decide (20/min) | signature-contracts.decide |
-| POST | `/assinatura/contratos/{c}/revisao-ia` | Signature\ContractController@aiReview (6/min; quem redige, no rascunho ou devolvido, e a Gerência) | signature-contracts.ai-review |
-| POST | `/assinatura/contratos/{c}/reabrir` | Signature\ContractController@reopen | signature-contracts.reopen |
-| POST | `/assinatura/contratos/{c}/cancelar` | Signature\ContractController@cancel | signature-contracts.cancel |
-| POST | `/assinatura/contratos/{c}/aditivo` | Signature\ContractController@addendum | signature-contracts.addendum |
-| POST | `/assinatura/contratos/{c}/documento` | Signature\ContractController@generateDocument (10/min) | signature-contracts.document |
-| GET | `/assinatura/contratos/{c}/word` | Signature\ContractController@docx | signature-contracts.docx |
-| POST | `/assinatura/contratos/{c}/modelo` | Signature\ContractController@saveModel | signature-contracts.save-model |
-| POST | `/assinatura/contratos/{c}/observacoes/{comment}` | Signature\ContractController@resolveComment | signature-contracts.comments.resolve |
-| POST/GET/DELETE | `/assinatura/contratos/{c}/anexos[/{anexo}]` | Signature\ContractController@storeAttachment / showAttachment / destroyAttachment | signature-contracts.attachments.* |
-| GET | `/assinatura/contratos/{c}/biblioteca` | Signature\ContractLibraryController@json | signature-contracts.library |
-| GET/POST | `/assinatura/contratos/biblioteca` | Signature\ContractLibraryController@index / store | signature-contract-library.index / store |
-| PUT/DELETE | `/assinatura/contratos/biblioteca/{clausula}` | Signature\ContractLibraryController@update / destroy | signature-contract-library.update / destroy |
-| DELETE | `/assinatura/contratos/biblioteca/modelos/{modelo}` | Signature\ContractLibraryController@destroyModel | signature-contract-library.models.destroy |
+| GET | `/contratos` | Signature\ContractController@index | contracts.index |
+| GET | `/contratos/novo` | Signature\ContractController@create | contracts.create |
+| POST | `/contratos` | Signature\ContractController@store | contracts.store |
+| GET | `/contratos/contratadas` | Signature\ContractController@parties (60/min) | contracts.parties |
+| GET | `/contratos/{c}` | Signature\ContractController@show | contracts.show |
+| GET | `/contratos/{c}/editar` | Signature\ContractController@edit | contracts.edit |
+| PUT | `/contratos/{c}` | Signature\ContractController@update | contracts.update |
+| POST | `/contratos/{c}/previa` | Signature\ContractController@preview (60/min) | contracts.preview |
+| POST | `/contratos/{c}/enviar` | Signature\ContractController@submit (20/min) | contracts.submit |
+| POST | `/contratos/{c}/decisao` | Signature\ContractController@decide (20/min) | contracts.decide |
+| POST | `/contratos/{c}/revisao-ia` | Signature\ContractController@aiReview (6/min; quem redige, no rascunho ou devolvido, e a Gerência) | contracts.ai-review |
+| POST | `/contratos/{c}/reabrir` | Signature\ContractController@reopen | contracts.reopen |
+| POST | `/contratos/{c}/cancelar` | Signature\ContractController@cancel | contracts.cancel |
+| POST | `/contratos/{c}/aditivo` | Signature\ContractController@addendum | contracts.addendum |
+| POST | `/contratos/{c}/documento` | Signature\ContractController@generateDocument (10/min) | contracts.document |
+| GET | `/contratos/{c}/word` | Signature\ContractController@docx | contracts.docx |
+| POST | `/contratos/{c}/modelo` | Signature\ContractController@saveModel | contracts.save-model |
+| POST | `/contratos/{c}/observacoes/{comment}` | Signature\ContractController@resolveComment | contracts.comments.resolve |
+| POST/GET/DELETE | `/contratos/{c}/anexos[/{anexo}]` | Signature\ContractController@storeAttachment / showAttachment / destroyAttachment | contracts.attachments.* |
+| GET | `/contratos/{c}/biblioteca` | Signature\ContractLibraryController@json | contracts.library |
+| GET/POST | `/contratos/biblioteca` | Signature\ContractLibraryController@index / store | contract-library.index / store |
+| PUT/DELETE | `/contratos/biblioteca/{clausula}` | Signature\ContractLibraryController@update / destroy | contract-library.update / destroy |
+| DELETE | `/contratos/biblioteca/modelos/{modelo}` | Signature\ContractLibraryController@destroyModel | contract-library.models.destroy |
+| GET | `/assinatura/contratos/{caminho?}` | redireciona (301) para `/contratos/{caminho}` — endereço antigo | contracts.legacy |
+| GET | `/contratos/assinaturas` | Signature\DocumentController@contractIndex (`contratos.assinatura` ou `assinatura.documentos`) | contract-signatures.index |
+| * | `/contratos/assinaturas/{documento}/…` | as mesmas rotas de `/assinatura/documentos/{documento}/…` (mostrar, editar, congelar, liberar, link remoto, gov.br, anexos, conferência, cancelar, arquivar, PDF), só para documento de contrato (`EnsureContractDocument`, senão 404) | contract-signatures.* |
 
 **Tablet do balcão — validação pela Gerência** (públicas, entrada por matrícula + PIN, cookie `lara_management`; Signature\ContractKioskController):
 
@@ -219,6 +222,8 @@ Guia: [Contratos](funcionalidades/contratos.md). Quem pode cada ação: `Signatu
 | GET | `/assinatura/kiosk/gerencia/contratos` | pending (120/min, batimento) | quiosque.gerencia.pending |
 | GET | `/assinatura/kiosk/gerencia/contratos/{contract}` | show (60/min) | quiosque.gerencia.show |
 | POST | `/assinatura/kiosk/gerencia/contratos/{contract}/decisao` | decide (20/min) | quiosque.gerencia.decide |
+| POST | `/assinatura/kiosk/gerencia/contratos/{contract}/texto` | update (30/min; título e texto das cláusulas, 04/11/2026) | quiosque.gerencia.update |
+| POST | `/assinatura/kiosk/gerencia/contratos/{contract}/revisao-ia` | aiReview (6/min; revisão pelo Claude com trechos sensíveis e anexados, 04/11/2026) | quiosque.gerencia.ai-review |
 | GET | `/assinatura/kiosk/gerencia/contratos/{contract}/anexos/{attachment}` | attachment (60/min) | quiosque.gerencia.attachment |
 | POST | `/assinatura/kiosk/gerencia/sair` | logout | quiosque.gerencia.logout |
 

@@ -31,16 +31,16 @@
     @include('signature.contracts.partials.styles')
 
     <x-page>
-        <x-page-title :title="($contract->number ? $contract->number . ' — ' : '') . $contract->title" :back="route('signature-contracts.index')">
+        <x-page-title :title="($contract->number ? $contract->number . ' — ' : '') . $contract->title" :back="route('contracts.index')">
             <x-pill :kind="$kind">{{ $contract->statusLabel() }}</x-pill>
             <span class="ml-1">setor {{ $contract->sector_name ?? '—' }} · redigido por {{ $contract->created_by_name ?? '—' }}</span>
             <x-slot:actions>
-                <x-secondary-button-a href="{{ route('signature-contracts.docx', $contract) }}"><x-icon name="download" /> Word</x-secondary-button-a>
+                <x-secondary-button-a href="{{ route('contracts.docx', $contract) }}"><x-icon name="download" /> Word</x-secondary-button-a>
                 @if($podeEditar)
-                    <x-secondary-button-a href="{{ route('signature-contracts.edit', $contract) }}"><x-icon name="pencil" /> {{ $contract->status === C::STATUS_IN_REVIEW ? 'Ajustar o texto' : 'Editar' }}</x-secondary-button-a>
+                    <x-secondary-button-a href="{{ route('contracts.edit', $contract) }}"><x-icon name="pencil" /> {{ $contract->status === C::STATUS_IN_REVIEW ? 'Ajustar o texto' : 'Editar' }}</x-secondary-button-a>
                 @endif
                 @if($podeEnviar)
-                    <form method="POST" action="{{ route('signature-contracts.submit', $contract) }}" onsubmit="return confirm('Enviar à Gerência para validação?')">
+                    <form method="POST" action="{{ route('contracts.submit', $contract) }}" onsubmit="return confirm('Enviar à Gerência para validação?')">
                         @csrf
                         <x-primary-button>Enviar à Gerência</x-primary-button>
                     </form>
@@ -62,7 +62,7 @@
 
                 {{-- Validação da Gerência --}}
                 @if($podeDecidir)
-                    <form method="POST" action="{{ route('signature-contracts.decide', $contract) }}" class="{{ $card }} border-2 border-warn">
+                    <form method="POST" action="{{ route('contracts.decide', $contract) }}" class="{{ $card }} border-2 border-warn">
                         @csrf
                         <p class="{{ $h }}">Validação da Gerência</p>
                         <p class="text-sm text-ink-2">
@@ -151,7 +151,7 @@
                         <p class="{{ $h }}">Documento de assinatura</p>
                         @if($documento)
                             <p class="text-sm text-ink">
-                                <a href="{{ route('signature-documents.show', $documento) }}" class="font-bold text-grena-ink hover:underline">{{ $documento->title }}</a>
+                                <a href="{{ route('contract-signatures.show', $documento) }}" class="font-bold text-grena-ink hover:underline">{{ $documento->title }}</a>
                                 <br><span class="text-xs text-ink-2">{{ $documento->statusLabel() }}</span>
                             </p>
                             @if($documento->status === \App\Models\SignatureDocument::STATUS_DRAFT)
@@ -161,20 +161,20 @@
                             <p class="text-sm text-ink-2">Sem documento de assinatura.</p>
                         @endif
                         @if($podeGerir && (!$documento || $documento->status === \App\Models\SignatureDocument::STATUS_CANCELED))
-                            <form method="POST" action="{{ route('signature-contracts.document', $contract) }}">
+                            <form method="POST" action="{{ route('contracts.document', $contract) }}">
                                 @csrf
                                 <x-primary-button size="sm">Gerar documento de assinatura</x-primary-button>
                             </form>
                         @endif
                         <div class="flex flex-wrap gap-2 border-t border-line pt-3">
                             @can('addendum', $contract)
-                                <form method="POST" action="{{ route('signature-contracts.addendum', $contract) }}" onsubmit="return confirm('Criar um aditivo deste contrato?')">
+                                <form method="POST" action="{{ route('contracts.addendum', $contract) }}" onsubmit="return confirm('Criar um aditivo deste contrato?')">
                                     @csrf
                                     <x-secondary-button type="submit" size="sm">Criar aditivo</x-secondary-button>
                                 </form>
                             @endcan
                             @if($podeGerir && (!$documento || !$documento->isFrozen() || $documento->status === \App\Models\SignatureDocument::STATUS_CANCELED))
-                                <form method="POST" action="{{ route('signature-contracts.reopen', $contract) }}"
+                                <form method="POST" action="{{ route('contracts.reopen', $contract) }}"
                                       onsubmit="return confirm('Reabrir para alteração? O rascunho do documento de assinatura é cancelado e o contrato precisa ser validado de novo.')">
                                     @csrf
                                     <x-secondary-button type="submit" size="sm">Reabrir para alteração</x-secondary-button>
@@ -205,7 +205,7 @@
                                     · {{ $comment->author_name }} · {{ $comment->created_at?->format('d/m H:i') }}
                                 </p>
                                 <p class="whitespace-pre-line">{{ $comment->body }}</p>
-                                <form method="POST" action="{{ route('signature-contracts.comments.resolve', [$contract, $comment]) }}" class="mt-1">
+                                <form method="POST" action="{{ route('contracts.comments.resolve', [$contract, $comment]) }}" class="mt-1">
                                     @csrf
                                     <input type="hidden" name="resolved" value="{{ $comment->isResolved() ? 0 : 1 }}">
                                     <button type="submit" class="text-xs font-bold text-grena-ink hover:underline">
@@ -223,9 +223,9 @@
                     <p class="text-xs text-ink-3">Propostas, projetos: seguem junto para a assinatura quando o contrato é aprovado.</p>
                     @forelse($contract->attachments as $anexo)
                         <div class="flex items-center justify-between gap-2 text-sm">
-                            <a href="{{ route('signature-contracts.attachments.show', [$contract, $anexo]) }}" target="_blank" class="min-w-0 truncate font-bold text-grena-ink hover:underline">{{ $anexo->label }}</a>
+                            <a href="{{ route('contracts.attachments.show', [$contract, $anexo]) }}" target="_blank" class="min-w-0 truncate font-bold text-grena-ink hover:underline">{{ $anexo->label }}</a>
                             @if($anexosAbertos && $podeGerir)
-                                <form method="POST" action="{{ route('signature-contracts.attachments.destroy', [$contract, $anexo]) }}" onsubmit="return confirm('Remover o anexo?')">
+                                <form method="POST" action="{{ route('contracts.attachments.destroy', [$contract, $anexo]) }}" onsubmit="return confirm('Remover o anexo?')">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="text-xs font-bold text-danger hover:underline">Remover</button>
@@ -236,7 +236,7 @@
                         <p class="text-sm text-ink-2">Nenhum anexo.</p>
                     @endforelse
                     @if($anexosAbertos && $podeGerir)
-                        <form method="POST" action="{{ route('signature-contracts.attachments.store', $contract) }}" enctype="multipart/form-data" class="space-y-2 border-t border-line pt-3">
+                        <form method="POST" action="{{ route('contracts.attachments.store', $contract) }}" enctype="multipart/form-data" class="space-y-2 border-t border-line pt-3">
                             @csrf
                             <input type="text" name="label" maxlength="120" class="{{ $f }}" placeholder="Anexo I — Proposta nº 3653498" required>
                             <input type="file" name="file" accept="application/pdf,image/jpeg,image/png" class="block w-full text-sm" required>
@@ -250,10 +250,10 @@
                     <div class="{{ $card }}">
                         <p class="{{ $h }}">Contrato e aditivos</p>
                         @if($contract->parent)
-                            <p class="text-sm">Aditivo de <a href="{{ route('signature-contracts.show', $contract->parent) }}" class="font-bold text-grena-ink hover:underline">{{ $contract->parent->number }} — {{ $contract->parent->title }}</a></p>
+                            <p class="text-sm">Aditivo de <a href="{{ route('contracts.show', $contract->parent) }}" class="font-bold text-grena-ink hover:underline">{{ $contract->parent->number }} — {{ $contract->parent->title }}</a></p>
                         @endif
                         @foreach($contract->addenda as $aditivo)
-                            <p class="text-sm"><a href="{{ route('signature-contracts.show', $aditivo) }}" class="font-bold text-grena-ink hover:underline">{{ $aditivo->number ?? 'Aditivo sem número' }}</a> — {{ $aditivo->statusLabel() }}</p>
+                            <p class="text-sm"><a href="{{ route('contracts.show', $aditivo) }}" class="font-bold text-grena-ink hover:underline">{{ $aditivo->number ?? 'Aditivo sem número' }}</a> — {{ $aditivo->statusLabel() }}</p>
                         @endforeach
                     </div>
                 @endif
@@ -278,8 +278,8 @@
                 @endif
 
                 {{-- Modelo --}}
-                @can('create', C::class)
-                    <form method="POST" action="{{ route('signature-contracts.save-model', $contract) }}" class="{{ $card }}">
+                @can('manageLibrary', C::class)
+                    <form method="POST" action="{{ route('contracts.save-model', $contract) }}" class="{{ $card }}">
                         @csrf
                         <p class="{{ $h }}">Salvar como modelo do setor</p>
                         <p class="text-xs text-ink-3">Leva título, termos, variáveis (sem valor), considerandos e cláusulas. Não leva as partes nem os signatários.</p>
@@ -300,7 +300,7 @@
                 </div>
 
                 @if($podeGerir && !in_array($contract->status, [C::STATUS_APPROVED, C::STATUS_CANCELED], true))
-                    <form method="POST" action="{{ route('signature-contracts.cancel', $contract) }}" onsubmit="return confirm('Cancelar este contrato?')" class="text-right">
+                    <form method="POST" action="{{ route('contracts.cancel', $contract) }}" onsubmit="return confirm('Cancelar este contrato?')" class="text-right">
                         @csrf
                         <button type="submit" class="text-sm font-bold text-danger hover:underline">Cancelar o contrato</button>
                     </form>

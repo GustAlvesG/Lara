@@ -99,10 +99,19 @@ final class Permissions
     // por cada uma (titular e substitutos). Escolher o diretor num documento
     // é parte de `assinatura.documentos`.
     public const ASSINATURA_DIRETORIA = 'assinatura.diretoria';
-    // Contratos (27/10/2026): redigir contratos do próprio setor, biblioteca
-    // de cláusulas e modelos. VALIDAR não é permissão: é de quem está no
-    // setor Gerência (Gate `validar-contratos`).
+    // Contratos (27/10/2026; módulo próprio no menu desde 04/11/2026):
+    // redigir contratos do próprio setor. VALIDAR não é permissão: é de quem
+    // está no setor Gerência. A CHAVE continua `assinatura.contratos` para não
+    // perder os setores já configurados; o grupo na tela de Setores é
+    // "Contratos".
     public const ASSINATURA_CONTRATOS = 'assinatura.contratos';
+    // Biblioteca de cláusulas e modelos do setor: cadastrar, editar e excluir
+    // (04/11/2026). Usar a biblioteca no editor continua de quem redige.
+    public const CONTRATOS_BIBLIOTECA = 'contratos.biblioteca';
+    // Aba Assinaturas do módulo Contratos (04/11/2026): conduzir a assinatura
+    // dos documentos gerados dos contratos do próprio setor — o mesmo
+    // processo de Assinaturas, sem precisar de `assinatura.documentos`.
+    public const CONTRATOS_ASSINATURA = 'contratos.assinatura';
 
     public const PLACAR_CADASTRO = 'placar.cadastro';
     public const PLACAR_SCOUT = 'placar.scout';
@@ -209,7 +218,9 @@ final class Permissions
         self::ASSINATURA_TERMO_MENORES_PAREAR => ['Assinaturas', 'Termo de Menores: parear o tablet de autoatendimento'],
         self::ASSINATURA_TERMO_MENORES_HISTORICO => ['Assinaturas', 'Termo de Menores: consultar o histórico de autorizações'],
         self::ASSINATURA_DIRETORIA => ['Assinaturas', 'Diretoria: áreas da diretoria, titulares e substitutos que assinam documentos'],
-        self::ASSINATURA_CONTRATOS => ['Assinaturas', 'Contratos: redigir os contratos do próprio setor, biblioteca de cláusulas e modelos (validar é da Gerência)'],
+        self::ASSINATURA_CONTRATOS => ['Contratos', 'Redigir os contratos do próprio setor (validar é da Gerência)'],
+        self::CONTRATOS_BIBLIOTECA => ['Contratos', 'Biblioteca de cláusulas e modelos do setor: cadastrar, editar e excluir'],
+        self::CONTRATOS_ASSINATURA => ['Contratos', 'Assinaturas: conduzir a assinatura dos documentos dos contratos do setor (tablet, link, gov.br)'],
 
         self::PLACAR_CADASTRO => ['Placar Clube', 'Cadastro (equipes, times, jogadores, jogos)'],
         self::PLACAR_SCOUT => ['Placar Clube', 'Súmulas e scout'],
@@ -285,12 +296,17 @@ final class Permissions
             self::ASSINATURA_TERMO_MENORES_HISTORICO,
         ],
 
+        // Biblioteca de cláusulas e modelos (Contratos): quem redige consulta
+        // (e usa no editor); quem tem `contratos.biblioteca` também cadastra,
+        // edita e exclui (SignatureContractPolicy::manageLibrary).
+        'acessar-biblioteca-contratos' => [self::ASSINATURA_CONTRATOS, self::CONTRATOS_BIBLIOTECA],
+
         // O guia do módulo de assinatura abre para quem alcança QUALQUER parte
         // dele (inclui as três do Termo de Menores).
         'acessar-guia-assinatura' => [
             self::ASSINATURA_DOCUMENTOS, self::ASSINATURA_CONSULTAR, self::ASSINATURA_MODELOS,
             self::ASSINATURA_REVISAR, self::ASSINATURA_REVISAR_COORDENACAO, self::ASSINATURA_DIRETORIA,
-            self::ASSINATURA_CONTRATOS, self::ASSINATURA_TERMO_MENORES_GERENCIAR,
+            self::ASSINATURA_CONTRATOS, self::CONTRATOS_ASSINATURA, self::ASSINATURA_TERMO_MENORES_GERENCIAR,
             self::ASSINATURA_TERMO_MENORES_PAREAR, self::ASSINATURA_TERMO_MENORES_HISTORICO,
         ],
     ];

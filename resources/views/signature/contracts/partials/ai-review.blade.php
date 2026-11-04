@@ -3,7 +3,8 @@
     Mostra a última revisão — avisando se o texto mudou depois — e, durante a
     validação, leva cada sugestão para a observação da cláusula com um clique.
     Trechos com valores, CPF, documentos ou endereço ($aiSensitive) só vão
-    ao Claude se quem pede marcar.
+    ao Claude se quem pede marcar. Em todo pedido dá para anexar trechos de
+    texto como referência (partials/ai-extras, 04/11/2026).
 
     No editor ($noEditor), o botão é do formulário do contrato (`form="ctForm"`):
     salva primeiro e analisa o texto salvo, para não perder o que foi digitado.
@@ -37,6 +38,13 @@
             <p class="text-xs text-ink-2">
                 <b>Não enviados ao Claude</b> (não foram analisados):
                 {{ collect($aiReview->withheld)->map(fn($w) => $w['label'] . ' (' . $motivos($w['reasons'] ?? []) . ')')->join('; ') }}.
+            </p>
+        @endif
+
+        @if($aiReview->extraParts() !== [])
+            <p class="text-xs text-ink-2">
+                <b>Trechos anexados ao pedido:</b>
+                {{ collect($aiReview->extraParts())->map(fn($x) => $x['title'] . ' (' . number_format(mb_strlen($x['text']), 0, ',', '.') . ' caracteres)')->join('; ') }}.
             </p>
         @endif
 
@@ -103,14 +111,15 @@
                 </div>
             </details>
         @endif
+        @include('signature.contracts.partials.ai-extras', ['form' => 'ctForm'])
         <x-secondary-button type="submit" size="sm" form="ctForm" data-ai-editor>Salvar e analisar</x-secondary-button>
         <span class="ml-2 hidden text-xs text-ink-2" data-ai-wait>Analisando… pode levar até um minuto.</span>
-    @elseif($podePedir && (!$atual || $aiSensitive !== []))
-        <form method="POST" action="{{ route('signature-contracts.ai-review', $contract) }}" data-ai-form>
+    @elseif($podePedir)
+        <form method="POST" action="{{ route('contracts.ai-review', $contract) }}" data-ai-form>
             @csrf
             @if($atual)
                 <details class="text-sm">
-                    <summary class="cursor-pointer text-xs font-bold text-grena-ink">Analisar de novo escolhendo outros trechos</summary>
+                    <summary class="cursor-pointer text-xs font-bold text-grena-ink">Analisar de novo escolhendo outros trechos ou anexando material</summary>
             @endif
 
             @if($aiSensitive !== [])
@@ -124,6 +133,10 @@
                     @endforeach
                 </fieldset>
             @endif
+
+            <div class="mb-3">
+                @include('signature.contracts.partials.ai-extras')
+            </div>
 
             <x-secondary-button type="submit" size="sm">{{ $atual ? 'Analisar de novo' : ($aiReview ? 'Analisar o texto atual' : 'Analisar com o Claude') }}</x-secondary-button>
             <span class="ml-2 hidden text-xs text-ink-2" data-ai-wait>Analisando… pode levar até um minuto.</span>

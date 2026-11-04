@@ -7,7 +7,7 @@
 @endphp
 <x-app-layout :bootstrap-grid="false">
     <x-page narrow>
-        <x-page-title title="Novo contrato" :back="route('signature-contracts.index')">
+        <x-page-title title="Novo contrato" :back="route('contracts.index')">
             Comece em branco ou a partir de um modelo do seu setor.
         </x-page-title>
 
@@ -19,7 +19,7 @@
                 o contrato pertence ao setor de quem o redige.
             </x-empty-state>
         @else
-            <form method="POST" action="{{ route('signature-contracts.store') }}" class="space-y-5 rounded-card bg-surface p-6 shadow-card">
+            <form method="POST" action="{{ route('contracts.store') }}" class="space-y-5 rounded-card bg-surface p-6 shadow-card">
                 @csrf
 
                 <div>

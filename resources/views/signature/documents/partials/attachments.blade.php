@@ -59,7 +59,7 @@
 
             @if($podeEnviar)
                 @can('attach', $document)
-                    <form method="POST" action="{{ route('signature-documents.attachments.store', $document) }}"
+                    <form method="POST" action="{{ \App\Support\DocumentRoutes::route('attachments.store', $document) }}"
                           enctype="multipart/form-data" class="flex flex-wrap items-center gap-3">
                         @csrf
                         <input type="hidden" name="item" value="{{ $item['key'] }}">
@@ -88,7 +88,7 @@
     @if($podeEnviar)
         @can('attach', $document)
             {{-- Anexo que ninguém pediu, mas que o atendimento quer guardar com o documento. --}}
-            <form method="POST" action="{{ route('signature-documents.attachments.store', $document) }}"
+            <form method="POST" action="{{ \App\Support\DocumentRoutes::route('attachments.store', $document) }}"
                   enctype="multipart/form-data" class="border-t border-line pt-4 space-y-2">
                 @csrf
                 <div class="text-xs font-bold text-ink-2">Outro anexo</div>

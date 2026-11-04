@@ -40,7 +40,7 @@ class RemoteLinkController extends Controller
             'email.email' => 'O e-mail informado não é válido.',
         ]);
 
-        $voltar = route('signature-documents.show', $signatureDocument);
+        $voltar = \App\Support\DocumentRoutes::route('show', $signatureDocument);
 
         try {
             $link = $this->remote->send(
@@ -77,7 +77,7 @@ class RemoteLinkController extends Controller
 
         abort_unless($signatureRemoteLink->signer?->signature_document_id === $signatureDocument->id, 404);
 
-        $voltar = route('signature-documents.show', $signatureDocument);
+        $voltar = \App\Support\DocumentRoutes::route('show', $signatureDocument);
 
         try {
             $this->remote->revoke($signatureRemoteLink, auth()->id(), auth()->user()?->name);

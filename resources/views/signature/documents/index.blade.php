@@ -4,9 +4,15 @@
     quem gerou, nome/e-mail/CPF do signatário, número e partes do contrato) e os filtros (situação, modelo ou contratos,
     período, gerados por mim, arquivados) vão ao servidor. Arquivado
     (`hidden_at`) só aparece com o filtro "Arquivados".
+
+    `$contractsTab` (04/11/2026): a mesma lista na aba Assinaturas do módulo
+    Contratos — só documentos de contrato, sem "Novo documento" nem o filtro de
+    modelo; os links seguem na aba (App\Support\DocumentRoutes).
 --}}
 @php
     use App\Models\SignatureDocument as Doc;
+
+    $contractsTab = $contractsTab ?? false;
 
     $th = 'px-5 py-3 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3';
     $field = 'h-11 rounded-full border border-line-strong bg-surface px-4 text-sm text-ink focus:border-grena focus:ring-4 focus:ring-grena-tint';
@@ -19,12 +25,18 @@
 @endphp
 <x-app-layout :bootstrap-grid="false">
     <x-page>
-        <x-page-title title="Documentos">
-            Termos, fichas e contratos assinados no tablet do balcão.
+        <x-page-title :title="$contractsTab ? 'Assinaturas dos contratos' : 'Documentos'">
+            @if($contractsTab)
+                Os documentos de assinatura gerados dos contratos aprovados. O processo é o de Assinaturas: liberar no tablet, link por e-mail ou gov.br.
+            @else
+                Termos, fichas e contratos assinados no tablet do balcão.
+            @endif
             <x-slot:actions>
+                @if(!$contractsTab)
                 @can('create', Doc::class)
                     <x-primary-button-a href="{{ route('signature-documents.create') }}"><x-icon name="plus" /> Novo documento</x-primary-button-a>
                 @endcan
+                @endif
             </x-slot:actions>
         </x-page-title>
 
@@ -43,6 +55,7 @@
                     <option value="diretoria" @selected($status === 'diretoria')>Aguardando diretoria</option>
                 </select>
 
+                @if(!$contractsTab)
                 <label for="modelo" class="sr-only">Modelo</label>
                 <select name="modelo" id="modelo" class="{{ $field }} w-full sm:w-64">
                     <option value="">Todos os modelos</option>
@@ -54,6 +67,7 @@
                     @endforeach
                     <option value="avulso" @selected($modelo === 'avulso')>Documento enviado pronto (PDF)</option>
                 </select>
+                @endif
 
                 <div class="flex w-full items-center gap-2 sm:w-auto">
                     <label for="de" class="text-xs font-bold text-ink-3">De</label>
@@ -77,7 +91,8 @@
             </x-slot:controls>
         </x-search-bar>
 
-        @if($documents->isNotEmpty() && (filled($busca) || filled($status) || filled($modelo) || $de || $ate || $meus || $arquivados))
+        @php $filtrou = filled($busca) || filled($status) || (filled($modelo) && !$contractsTab) || $de || $ate || $meus || $arquivados; @endphp
+        @if($documents->isNotEmpty() && $filtrou)
             <p class="px-1 text-[13px] text-ink-3" aria-live="polite">
                 {{ $documents->total() }} {{ $documents->total() === 1 ? 'documento encontrado' : 'documentos encontrados' }}
             </p>
@@ -85,13 +100,19 @@
 
         @if($documents->isEmpty())
             <x-empty-state icon="doc">
-                @if(filled($busca) || filled($status) || filled($modelo) || $de || $ate || $meus || $arquivados)
+                @if($filtrou)
                     Nenhum documento com esses filtros.
-                    <a href="{{ route('signature-documents.index') }}" class="font-bold text-grena-ink hover:underline">Limpar a busca</a>.
+                    <a href="{{ \App\Support\DocumentRoutes::route('index') }}" class="font-bold text-grena-ink hover:underline">Limpar a busca</a>.
                 @else
+                    @if($contractsTab)
+                    Nenhum contrato foi para assinatura ainda. O documento nasce quando a Gerência aprova o contrato.
+                    @else
                     Nenhum documento por aqui ainda.
+                    @endif
                     @can('create', Doc::class)
+                    @if(!$contractsTab)
                         <a href="{{ route('signature-documents.create') }}" class="font-bold text-grena-ink hover:underline">Criar o primeiro</a>.
+                    @endif
                     @endcan
                 @endif
             </x-empty-state>
@@ -112,7 +133,7 @@
                             @foreach($documents as $document)
                                 <tr class="transition hover:bg-subtle">
                                     <td class="px-5 py-3.5">
-                                        <a href="{{ route('signature-documents.show', $document) }}" class="font-semibold text-ink hover:text-grena-ink">{{ $document->title }}</a>
+                                        <a href="{{ \App\Support\DocumentRoutes::route('show', $document) }}" class="font-semibold text-ink hover:text-grena-ink">{{ $document->title }}</a>
                                         <div class="text-xs text-ink-2">
                                             @if($document->contract)
                                                 <b>Contrato</b> ·
@@ -139,7 +160,7 @@
                                         @endif
                                     </td>
                                     <td class="whitespace-nowrap px-5 py-3.5 text-right">
-                                        <x-secondary-button-a size="sm" href="{{ route('signature-documents.show', $document) }}">Abrir</x-secondary-button-a>
+                                        <x-secondary-button-a size="sm" href="{{ \App\Support\DocumentRoutes::route('show', $document) }}">Abrir</x-secondary-button-a>
                                     </td>
                                 </tr>
                             @endforeach

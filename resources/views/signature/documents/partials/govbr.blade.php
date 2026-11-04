@@ -52,7 +52,7 @@
                         atendimento do clube (não por e-mail), e você o envia aqui embaixo.
                     </div>
                     @foreach($pendentes as $pendente)
-                        <form method="POST" action="{{ route('signature-documents.govbr.invite', [$document, $pendente]) }}"
+                        <form method="POST" action="{{ \App\Support\DocumentRoutes::route('govbr.invite', [$document, $pendente]) }}"
                               class="flex flex-wrap items-center gap-3" data-govbr-invite-form="{{ $pendente->id }}">
                             @csrf
                             <input type="hidden" name="convite_para" value="{{ $pendente->id }}">
@@ -98,11 +98,11 @@
                 <li>
                     Envie à pessoa o arquivo
                     @if($ultimoAprovado)
-                        <a href="{{ route('signature-documents.govbr.pdf', [$document, $ultimoAprovado]) }}" target="_blank"
+                        <a href="{{ \App\Support\DocumentRoutes::route('govbr.pdf', [$document, $ultimoAprovado]) }}" target="_blank"
                            class="font-bold text-grena-ink hover:underline">já assinado por {{ collect($ultimoAprovado->concludedNames())->join(', ') }}</a>
                         — é sobre ele que a próxima assinatura entra, e não sobre o original.
                     @else
-                        <a href="{{ route('signature-documents.pdf', $document) }}" target="_blank"
+                        <a href="{{ \App\Support\DocumentRoutes::route('pdf', $document) }}" target="_blank"
                            class="font-bold text-grena-ink hover:underline">PDF original</a>.
                     @endif
                     Envie como foi baixado: salvo de novo por outro programa, ele é recusado.
@@ -151,7 +151,7 @@
         </div>
 
         @can('checkGovbr', $document)
-            <form method="POST" action="{{ route('signature-documents.govbr.prepare', $document) }}"
+            <form method="POST" action="{{ \App\Support\DocumentRoutes::route('govbr.prepare', $document) }}"
                   onsubmit="return confirm(@js($document->requiresInitials()
                       ? 'Preparar para o gov.br? O visto será retirado deste documento e ele não é mais assinado no tablet.'
                       : 'Preparar para o gov.br? A partir daqui este documento não é mais assinado no tablet.'))">
@@ -167,7 +167,7 @@
 
     @can('checkGovbr', $document)
         @if($document->isFrozen())
-            <form method="POST" action="{{ route('signature-documents.govbr.store', $document) }}" enctype="multipart/form-data"
+            <form method="POST" action="{{ \App\Support\DocumentRoutes::route('govbr.store', $document) }}" enctype="multipart/form-data"
                   class="flex flex-wrap items-center gap-3 border-t border-line pt-4">
                 @csrf
                 <input type="file" name="documento" accept="application/pdf" required
@@ -280,7 +280,7 @@
             <div class="flex flex-wrap items-center justify-between gap-3 text-[11px] text-ink-3">
                 <span class="font-mono break-all">SHA-256 {{ $conferencia->file_sha256 }}</span>
                 @can('download', $document)
-                    <a href="{{ route('signature-documents.govbr.pdf', [$document, $conferencia]) }}" target="_blank"
+                    <a href="{{ \App\Support\DocumentRoutes::route('govbr.pdf', [$document, $conferencia]) }}" target="_blank"
                        class="font-bold text-grena-ink hover:underline whitespace-nowrap">
                         Baixar o arquivo enviado
                     </a>

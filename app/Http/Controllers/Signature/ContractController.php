@@ -111,7 +111,7 @@ class ContractController extends Controller
             $request->user()->name,
         );
 
-        return redirect()->route('signature-contracts.edit', $contrato)
+        return redirect()->route('contracts.edit', $contrato)
             ->with('success', 'Contrato criado. Preencha as partes, as variáveis e as cláusulas.');
     }
 
@@ -179,10 +179,10 @@ class ContractController extends Controller
 
         // "Salvar e analisar", no editor: a análise é sempre do texto salvo.
         if ($request->input('next') === 'ai-review') {
-            return $this->runAiReview($request, $signatureContract->fresh(), 'signature-contracts.edit');
+            return $this->runAiReview($request, $signatureContract->fresh(), 'contracts.edit');
         }
 
-        return redirect()->route('signature-contracts.edit', $signatureContract)->with('success', 'Contrato salvo.');
+        return redirect()->route('contracts.edit', $signatureContract)->with('success', 'Contrato salvo.');
     }
 
     /**
@@ -217,7 +217,7 @@ class ContractController extends Controller
             return $this->refused($e, $signatureContract);
         }
 
-        return redirect()->route('signature-contracts.show', $signatureContract)
+        return redirect()->route('contracts.show', $signatureContract)
             ->with('success', 'Contrato enviado à Gerência para validação.');
     }
 
@@ -239,7 +239,7 @@ class ContractController extends Controller
             if ($dados['decision'] === 'return') {
                 $this->contracts->returnToAuthor($signatureContract, $dados['note'] ?? null, $dados['comments'] ?? [], $user->id, $user->name);
 
-                return redirect()->route('signature-contracts.show', $signatureContract)
+                return redirect()->route('contracts.show', $signatureContract)
                     ->with('success', 'Contrato devolvido com as observações. Quem redigiu foi avisado por e-mail.');
             }
 
@@ -248,7 +248,7 @@ class ContractController extends Controller
             return $this->refused($e, $signatureContract);
         }
 
-        $redirect = redirect()->route('signature-contracts.show', $signatureContract)
+        $redirect = redirect()->route('contracts.show', $signatureContract)
             ->with('success', 'Contrato aprovado: ' . $resultado['contract']->number
                 . ($resultado['document'] ? '. O documento de assinatura foi gerado em rascunho.' : '.'));
 
@@ -260,7 +260,7 @@ class ContractController extends Controller
     {
         $this->authorize('aiReview', $signatureContract);
 
-        return $this->runAiReview($request, $signatureContract, 'signature-contracts.show');
+        return $this->runAiReview($request, $signatureContract, 'contracts.show');
     }
 
     /** @param  string  $rota  a tela para onde voltar (a do contrato ou o editor) */
@@ -273,9 +273,16 @@ class ContractController extends Controller
         }
 
         // Os trechos sensíveis que a pessoa marcou para enviar; o resto deles fica de fora.
+        // `extras`: trechos de texto anexados ao pedido (04/11/2026).
         $dados = $request->validate([
             'include' => ['nullable', 'array', 'max:200'],
             'include.*' => ['string', 'max:80'],
+            'extras' => ['nullable', 'array', 'max:' . ContractAiReviewer::MAX_EXTRAS],
+            'extras.*.title' => ['nullable', 'string', 'max:' . ContractAiReviewer::MAX_EXTRA_TITLE],
+            'extras.*.text' => ['nullable', 'string', 'max:' . ContractAiReviewer::MAX_EXTRA_TEXT],
+        ], [
+            'extras.max' => 'Anexe no máximo ' . ContractAiReviewer::MAX_EXTRAS . ' trechos.',
+            'extras.*.text.max' => 'Cada trecho anexado pode ter até ' . number_format(ContractAiReviewer::MAX_EXTRA_TEXT, 0, ',', '.') . ' caracteres.',
         ]);
 
         // O "Salvar e analisar" passa pela rota de salvar, sem o throttle da rota da revisão.
@@ -288,7 +295,7 @@ class ContractController extends Controller
         RateLimiter::hit($limite, 60);
 
         try {
-            $resultado = $reviewer->review($signatureContract, $request->user()->id, $request->user()->name, $dados['include'] ?? []);
+            $resultado = $reviewer->review($signatureContract, $request->user()->id, $request->user()->name, $dados['include'] ?? [], $dados['extras'] ?? []);
         } catch (ClaudeException $e) {
             return redirect()->route($rota, $signatureContract)->with('error', $e->getMessage());
         }
@@ -309,7 +316,7 @@ class ContractController extends Controller
             return back()->with('warning', $e->getMessage());
         }
 
-        return redirect()->route('signature-contracts.edit', $signatureContract)
+        return redirect()->route('contracts.edit', $signatureContract)
             ->with('success', 'Contrato reaberto. Depois de alterar, envie de novo à Gerência.');
     }
 
@@ -325,7 +332,7 @@ class ContractController extends Controller
             return back()->with('warning', $e->getMessage());
         }
 
-        return redirect()->route('signature-contracts.show', $signatureContract)->with('success', 'Contrato cancelado.');
+        return redirect()->route('contracts.show', $signatureContract)->with('success', 'Contrato cancelado.');
     }
 
     public function addendum(Request $request, SignatureContract $signatureContract)
@@ -338,7 +345,7 @@ class ContractController extends Controller
             return back()->with('warning', $e->getMessage());
         }
 
-        return redirect()->route('signature-contracts.edit', $aditivo)
+        return redirect()->route('contracts.edit', $aditivo)
             ->with('success', 'Aditivo criado com as partes, variáveis e signatários do contrato. Escreva as cláusulas do aditivo.');
     }
 
@@ -352,7 +359,7 @@ class ContractController extends Controller
             return back()->with('warning', $e->getMessage());
         }
 
-        $redirect = redirect()->route('signature-contracts.show', $signatureContract);
+        $redirect = redirect()->route('contracts.show', $signatureContract);
 
         if (!$resultado['document']) {
             return $redirect->with('warning', implode(' ', $resultado['warnings']));
@@ -381,7 +388,7 @@ class ContractController extends Controller
     public function saveModel(Request $request, SignatureContract $signatureContract)
     {
         $this->authorize('view', $signatureContract);
-        $this->authorize('create', SignatureContract::class);
+        $this->authorize('manageLibrary', SignatureContract::class);
 
         $dados = $request->validate(['name' => ['required', 'string', 'max:150']]);
 
@@ -509,8 +516,8 @@ class ContractController extends Controller
     private function refused(ContractException $e, SignatureContract $contract)
     {
         return redirect()->route($contract->isEditableBySector() && request()->user()->can('update', $contract)
-            ? 'signature-contracts.edit'
-            : 'signature-contracts.show', $contract)
+            ? 'contracts.edit'
+            : 'contracts.show', $contract)
             ->with('warning', $e->getMessage())
             ->with('contractProblems', $e->problems);
     }

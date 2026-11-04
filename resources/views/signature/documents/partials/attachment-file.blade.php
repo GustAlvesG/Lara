@@ -2,7 +2,7 @@
 <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-subtle px-3 py-2 text-xs" data-attachment-file="{{ $anexo->id }}">
     <div class="min-w-0">
         @can('download', $document)
-            <a href="{{ route('signature-documents.attachments.show', [$document, $anexo]) }}" target="_blank"
+            <a href="{{ \App\Support\DocumentRoutes::route('attachments.show', [$document, $anexo]) }}" target="_blank"
                class="font-bold text-grena-ink hover:underline break-all">{{ $anexo->original_name }}</a>
         @else
             <span class="font-bold text-ink break-all">{{ $anexo->original_name }}</span>
@@ -17,7 +17,7 @@
 
     @if($podeRemover)
         @can('attach', $document)
-            <form method="POST" action="{{ route('signature-documents.attachments.destroy', [$document, $anexo]) }}"
+            <form method="POST" action="{{ \App\Support\DocumentRoutes::route('attachments.destroy', [$document, $anexo]) }}"
                   onsubmit="return confirm('Remover este anexo?')">
                 @csrf
                 @method('DELETE')

@@ -16,9 +16,9 @@
 
 @if($haConferencia)
 <div class="hidden mt-5 rounded-xl border border-line p-4 space-y-3" data-answer-check
-     data-approve-url="{{ route('signature-documents.answers.approve', $document) }}"
-     data-return-url="{{ route('signature-documents.answers.return', $document) }}"
-     data-correct-url="{{ route('signature-documents.answers.correct', $document) }}"
+     data-approve-url="{{ \App\Support\DocumentRoutes::route('answers.approve', $document) }}"
+     data-return-url="{{ \App\Support\DocumentRoutes::route('answers.return', $document) }}"
+     data-correct-url="{{ \App\Support\DocumentRoutes::route('answers.correct', $document) }}"
      data-csrf="{{ csrf_token() }}">
     <div class="flex flex-wrap items-center justify-between gap-2">
         <p class="text-sm font-bold text-ink">Conferência das respostas</p>

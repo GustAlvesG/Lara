@@ -111,12 +111,12 @@ class ReviewController extends Controller
                 $request->user()->can(P::ASSINATURA_REVISAR_COORDENACAO),
             );
         } catch (SignatureDocumentLockedException $e) {
-            return redirect()->route('signature-documents.show', [$signatureDocument, 'aba' => 'revisao'])
+            return redirect(\App\Support\DocumentRoutes::route('show', [$signatureDocument, 'aba' => 'revisao']))
                 ->withInput()
                 ->with('warning', $e->getMessage());
         }
 
-        return redirect()->route('signature-documents.show', [$signatureDocument, 'aba' => 'revisao'])
+        return redirect(\App\Support\DocumentRoutes::route('show', [$signatureDocument, 'aba' => 'revisao']))
             ->with('success', $dados['resultado'] === SignatureReview::RESULT_OK
                 ? 'Revisão registrada: tudo em ordem.'
                 : 'Revisão registrada com pendência. O documento continua na fila até ser revisado em ordem.');

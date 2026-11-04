@@ -40,6 +40,7 @@ class SignatureContractAiReview extends Model
         'summary',
         'findings',
         'withheld',
+        'extras',
         'input_tokens',
         'output_tokens',
         'requested_by',
@@ -50,6 +51,7 @@ class SignatureContractAiReview extends Model
         'signature_contract_id' => 'integer',
         'findings' => 'array',
         'withheld' => 'array',
+        'extras' => 'array',
         'input_tokens' => 'integer',
         'output_tokens' => 'integer',
         'requested_by' => 'integer',
@@ -58,6 +60,16 @@ class SignatureContractAiReview extends Model
     public function contract(): BelongsTo
     {
         return $this->belongsTo(SignatureContract::class, 'signature_contract_id');
+    }
+
+    /**
+     * Os trechos anexados ao pedido (04/11/2026), como foram enviados.
+     *
+     * @return array<int, array{title: string, text: string}>
+     */
+    public function extraParts(): array
+    {
+        return array_values($this->extras ?? []);
     }
 
     /** Chaves dos trechos que ficaram de fora, em ordem (para comparar pedidos). */

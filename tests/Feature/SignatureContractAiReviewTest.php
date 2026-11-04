@@ -259,6 +259,59 @@ class SignatureContractAiReviewTest extends TestCase
         $this->assertCount(2, $this->historico);
     }
 
+    public function test_trechos_anexados_vao_como_referencia_e_ficam_na_revisao(): void
+    {
+        $this->app->instance(ClaudeClient::class, $this->clienteComRespostas(
+            $this->respostaDaApi($this->revisaoPronta()),
+            $this->respostaDaApi($this->revisaoPronta()),
+        ));
+        $revisor = app(ContractAiReviewer::class);
+        $contrato = $this->contrato();
+
+        $extras = [
+            ['title' => 'Proposta comercial', 'text' => "Prazo de 12 meses.\r\nReajuste pelo IPCA."],
+            ['title' => '', 'text' => 'Garantia de 90 dias.'],
+            ['title' => 'Vazio', 'text' => '   '],
+        ];
+
+        $primeira = $revisor->review($contrato, 9, 'Gerente', [], $extras);
+        $prompt = json_decode((string) $this->historico[0]['request']->getBody(), true)['messages'][0]['content'];
+
+        // Depois da minuta, marcados como material de referência; o vazio cai.
+        $this->assertStringContainsString("<material titulo=\"Proposta comercial\">\nPrazo de 12 meses.\nReajuste pelo IPCA.\n</material>", $prompt);
+        $this->assertStringContainsString('<material titulo="Trecho 2">', $prompt);
+        $this->assertStringNotContainsString('Vazio', $prompt);
+        $this->assertGreaterThan(strpos($prompt, '</minuta>'), strpos($prompt, '<material'));
+        $this->assertSame(['Proposta comercial', 'Trecho 2'], array_column($primeira['review']->extraParts(), 'title'));
+
+        // Os mesmos trechos reaproveitam; sem eles, é outro pedido.
+        $this->assertTrue($revisor->review($contrato->fresh(), 9, 'Gerente', [], $extras)['reused']);
+        $sem = $revisor->review($contrato->fresh(), 9, 'Gerente');
+        $this->assertFalse($sem['reused']);
+        $this->assertSame([], $sem['review']->extraParts());
+        $this->assertCount(2, $this->historico);
+    }
+
+    public function test_trechos_anexados_pela_tela_do_contrato(): void
+    {
+        $this->app->instance(ClaudeClient::class, $this->clienteComRespostas($this->respostaDaApi($this->revisaoPronta())));
+        $contrato = $this->contrato();
+
+        $this->actingAs($this->usuario(false))
+            ->post(route('contracts.ai-review', $contrato), [
+                'extras' => [['title' => 'Contrato anterior', 'text' => 'Multa de 10%.']],
+            ])
+            ->assertRedirect();
+
+        $this->assertSame('Contrato anterior', $contrato->aiReviews()->first()->extraParts()[0]['title']);
+
+        $this->actingAs($this->usuario(false))
+            ->get(route('contracts.show', $contrato))
+            ->assertOk()
+            ->assertSee('Trechos anexados ao pedido')
+            ->assertSee('name="extras[0][text]"', false);
+    }
+
     public function test_mesmo_texto_reaproveita_a_revisao_e_texto_novo_pede_outra(): void
     {
         $claude = \Mockery::mock(ClaudeClient::class);
@@ -295,7 +348,7 @@ class SignatureContractAiReviewTest extends TestCase
         $contrato = $this->contrato();
         $compradora = $this->usuario(false);
 
-        $this->actingAs($compradora)->get(route('signature-contracts.edit', $contrato))
+        $this->actingAs($compradora)->get(route('contracts.edit', $contrato))
             ->assertOk()
             ->assertSee('Revisão automática (Claude)')
             ->assertSee('Salvar e analisar')
@@ -305,8 +358,8 @@ class SignatureContractAiReviewTest extends TestCase
         $conteudo = $this->conteudoCompleto(['title' => 'Título que ainda não estava salvo']);
 
         $this->actingAs($compradora)
-            ->put(route('signature-contracts.update', $contrato), $conteudo + ['next' => 'ai-review'])
-            ->assertRedirect(route('signature-contracts.edit', $contrato) . '#revisao-ia')
+            ->put(route('contracts.update', $contrato), $conteudo + ['next' => 'ai-review'])
+            ->assertRedirect(route('contracts.edit', $contrato) . '#revisao-ia')
             ->assertSessionHas('success');
 
         // Analisou o texto que acabou de ser salvo, sem os trechos sensíveis não marcados.
@@ -315,7 +368,7 @@ class SignatureContractAiReviewTest extends TestCase
         $this->assertStringNotContainsString('529.982.247-25', $prompt);
         $this->assertSame('Título que ainda não estava salvo', $contrato->fresh()->content['title']);
 
-        $this->actingAs($compradora)->get(route('signature-contracts.show', $contrato))
+        $this->actingAs($compradora)->get(route('contracts.show', $contrato))
             ->assertOk()
             ->assertSee('Falta a cláusula de foro.')
             ->assertDontSee('Levar para a observação');
@@ -328,8 +381,8 @@ class SignatureContractAiReviewTest extends TestCase
         RateLimiter::increment('contract-ai-review:' . $compradora->id, 60, 6);
 
         $this->actingAs($compradora)
-            ->put(route('signature-contracts.update', $contrato), $this->conteudoCompleto() + ['next' => 'ai-review'])
-            ->assertRedirect(route('signature-contracts.edit', $contrato))
+            ->put(route('contracts.update', $contrato), $this->conteudoCompleto() + ['next' => 'ai-review'])
+            ->assertRedirect(route('contracts.edit', $contrato))
             ->assertSessionHas('warning');
 
         $this->assertSame(0, $contrato->aiReviews()->count());
@@ -342,25 +395,25 @@ class SignatureContractAiReviewTest extends TestCase
         app(ContractService::class)->submit($contrato, null, 7, 'Compradora');
 
         $compradora = $this->usuario(false);
-        $this->actingAs($compradora)->post(route('signature-contracts.ai-review', $contrato))->assertForbidden();
-        $this->actingAs($compradora)->get(route('signature-contracts.show', $contrato))
+        $this->actingAs($compradora)->post(route('contracts.ai-review', $contrato))->assertForbidden();
+        $this->actingAs($compradora)->get(route('contracts.show', $contrato))
             ->assertOk()->assertDontSee('Analisar com o Claude');
 
         $gerente = $this->usuario(true);
-        $this->actingAs($gerente)->get(route('signature-contracts.show', $contrato))
+        $this->actingAs($gerente)->get(route('contracts.show', $contrato))
             ->assertOk()
             ->assertSee('Analisar com o Claude')
             ->assertSee('value="clausula-clvalor001"', false)
             ->assertSee('Cláusula 2 – Valor');
 
-        $this->actingAs($gerente)->post(route('signature-contracts.ai-review', $contrato), ['include' => ['clausula-clvalor001']])
-            ->assertRedirect(route('signature-contracts.show', $contrato) . '#revisao-ia');
+        $this->actingAs($gerente)->post(route('contracts.ai-review', $contrato), ['include' => ['clausula-clvalor001']])
+            ->assertRedirect(route('contracts.show', $contrato) . '#revisao-ia');
 
         $prompt = json_decode((string) $this->historico[0]['request']->getBody(), true)['messages'][0]['content'];
         $this->assertStringContainsString('oito mil e novecentos reais', $prompt);
         $this->assertStringNotContainsString('529.982.247-25', $prompt);
 
-        $this->actingAs($gerente)->get(route('signature-contracts.show', $contrato))
+        $this->actingAs($gerente)->get(route('contracts.show', $contrato))
             ->assertOk()
             ->assertSee('Ajustes recomendados')
             ->assertSee('Falta a cláusula de foro.')
@@ -376,10 +429,10 @@ class SignatureContractAiReviewTest extends TestCase
         $contrato = $this->contrato();
         $gerente = $this->usuario(true);
 
-        $this->actingAs($gerente)->get(route('signature-contracts.show', $contrato))
+        $this->actingAs($gerente)->get(route('contracts.show', $contrato))
             ->assertOk()->assertDontSee('Revisão automática (Claude)');
 
-        $this->actingAs($gerente)->post(route('signature-contracts.ai-review', $contrato))
+        $this->actingAs($gerente)->post(route('contracts.ai-review', $contrato))
             ->assertSessionHas('error');
     }
 
@@ -393,8 +446,8 @@ class SignatureContractAiReviewTest extends TestCase
 
         $contrato = $this->contrato();
 
-        $this->actingAs($this->usuario(true))->post(route('signature-contracts.ai-review', $contrato))
-            ->assertRedirect(route('signature-contracts.show', $contrato))
+        $this->actingAs($this->usuario(true))->post(route('contracts.ai-review', $contrato))
+            ->assertRedirect(route('contracts.show', $contrato))
             ->assertSessionHas('error', 'O Claude está indisponível no momento. Tente de novo em alguns minutos.');
 
         $this->assertSame(0, $contrato->aiReviews()->count());

@@ -17,6 +17,12 @@ use App\Models\User;
  * Quem cria documentos também os consulta (`assinatura.documentos` cobre
  * a leitura): exigir as duas permissões faria o atendente perder o próprio
  * atendimento de vista assim que o documento fosse assinado.
+ *
+ * Documento gerado de contrato (04/11/2026): quem tem `contratos.assinatura`
+ * e é do setor do contrato (ou da Gerência)
+ * conduz a assinatura como o atendente de Assinaturas: ver, editar o rascunho,
+ * congelar, liberar, link remoto, gov.br, anexos, conferência, cancelar e
+ * arquivar. Evidências e revisão continuam com as permissões de Assinaturas.
  */
 class SignatureDocumentPolicy
 {
@@ -47,7 +53,34 @@ class SignatureDocumentPolicy
 
     public function view(User $user, SignatureDocument $document): bool
     {
-        return $this->viewAny($user);
+        return $this->viewAny($user) || $this->conductsContract($user, $document);
+    }
+
+    /**
+     * A aba Assinaturas do módulo Contratos: a lista dos documentos dos
+     * contratos que a pessoa enxerga.
+     */
+    public function viewContractSignatures(User $user): bool
+    {
+        return $user->can(P::CONTRATOS_ASSINATURA) || $user->can(P::ASSINATURA_DOCUMENTOS);
+    }
+
+    /**
+     * Conduz a assinatura deste documento pelo módulo Contratos: o documento
+     * veio de um contrato que a pessoa enxerga, e ela tem `contratos.assinatura`.
+     */
+    private function conductsContract(User $user, SignatureDocument $document): bool
+    {
+        if (!$user->can(P::CONTRATOS_ASSINATURA)) {
+            return false;
+        }
+
+        $contrato = $document->contract;
+
+        // O setor do contrato (ou a Gerência), como na lista da aba. Não é o
+        // `view` do contrato: aquele exige também a permissão de redigir.
+        return $contrato !== null
+            && ($user->isManagementMember() || in_array((int) $contrato->sector_id, $user->sectorIds(), true));
     }
 
     public function create(User $user): bool
@@ -58,14 +91,14 @@ class SignatureDocumentPolicy
     /** Editar só existe enquanto é rascunho — a regra de estado é do model. */
     public function update(User $user, SignatureDocument $document): bool
     {
-        return $user->can(P::ASSINATURA_DOCUMENTOS)
+        return ($user->can(P::ASSINATURA_DOCUMENTOS) || $this->conductsContract($user, $document))
             && $document->editBlockReason() === null;
     }
 
     /** Congelar e liberar para o tablet. */
     public function release(User $user, SignatureDocument $document): bool
     {
-        return $user->can(P::ASSINATURA_DOCUMENTOS);
+        return $user->can(P::ASSINATURA_DOCUMENTOS) || $this->conductsContract($user, $document);
     }
 
     /**
@@ -76,7 +109,7 @@ class SignatureDocumentPolicy
      */
     public function checkGovbr(User $user, SignatureDocument $document): bool
     {
-        return $user->can(P::ASSINATURA_DOCUMENTOS);
+        return $user->can(P::ASSINATURA_DOCUMENTOS) || $this->conductsContract($user, $document);
     }
 
     /**
@@ -86,7 +119,7 @@ class SignatureDocumentPolicy
      */
     public function attach(User $user, SignatureDocument $document): bool
     {
-        return $user->can(P::ASSINATURA_DOCUMENTOS);
+        return $user->can(P::ASSINATURA_DOCUMENTOS) || $this->conductsContract($user, $document);
     }
 
     /**
@@ -95,12 +128,12 @@ class SignatureDocumentPolicy
      */
     public function checkAnswers(User $user, SignatureDocument $document): bool
     {
-        return $user->can(P::ASSINATURA_DOCUMENTOS);
+        return $user->can(P::ASSINATURA_DOCUMENTOS) || $this->conductsContract($user, $document);
     }
 
     public function cancel(User $user, SignatureDocument $document): bool
     {
-        return $user->can(P::ASSINATURA_DOCUMENTOS);
+        return $user->can(P::ASSINATURA_DOCUMENTOS) || $this->conductsContract($user, $document);
     }
 
     /**
@@ -109,13 +142,13 @@ class SignatureDocumentPolicy
      */
     public function hide(User $user, SignatureDocument $document): bool
     {
-        return $user->can(P::ASSINATURA_DOCUMENTOS);
+        return $user->can(P::ASSINATURA_DOCUMENTOS) || $this->conductsContract($user, $document);
     }
 
     /** Baixar o PDF (original ou final). */
     public function download(User $user, SignatureDocument $document): bool
     {
-        return $this->viewAny($user);
+        return $this->viewAny($user) || $this->conductsContract($user, $document);
     }
 
     /**

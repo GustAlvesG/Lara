@@ -1,5 +1,5 @@
 {{--
-    Contratos (Assinaturas → Contratos). Cada setor vê os seus; a Gerência vê
+    Contratos (módulo próprio no menu desde 04/11/2026). Cada setor vê os seus; a Gerência vê
     todos e tem a aba "Para validar". Busca no servidor (SignatureContract::scopeSearch):
     número em qualquer grafia, título, setor, quem redigiu, partes e o texto.
 --}}
@@ -20,11 +20,10 @@
 <x-app-layout :bootstrap-grid="false">
     <x-page>
         <x-page-title title="Contratos">
-            Redigidos aqui, validados pela Gerência e enviados para assinatura.
+            Redigidos aqui, validados pela Gerência e assinados na aba Assinaturas. O cabeçalho e o rodapé (papel timbrado) e o presidente que assina vêm das configurações de Assinaturas.
             <x-slot:actions>
-                <x-secondary-button-a href="{{ route('signature-contract-library.index') }}">Biblioteca e modelos</x-secondary-button-a>
                 @can('create', C::class)
-                    <x-primary-button-a href="{{ route('signature-contracts.create') }}"><x-icon name="plus" /> Novo contrato</x-primary-button-a>
+                    <x-primary-button-a href="{{ route('contracts.create') }}"><x-icon name="plus" /> Novo contrato</x-primary-button-a>
                 @endcan
             </x-slot:actions>
         </x-page-title>
@@ -33,8 +32,8 @@
 
         @if($gerencia)
             <div class="flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-subtle p-1" role="tablist" aria-label="Contratos">
-                <a href="{{ route('signature-contracts.index') }}" role="tab" aria-selected="{{ $aba === 'todos' ? 'true' : 'false' }}" class="{{ $tab }}">Todos</a>
-                <a href="{{ route('signature-contracts.index', ['aba' => 'validar']) }}" role="tab" aria-selected="{{ $aba === 'validar' ? 'true' : 'false' }}" class="{{ $tab }}">
+                <a href="{{ route('contracts.index') }}" role="tab" aria-selected="{{ $aba === 'todos' ? 'true' : 'false' }}" class="{{ $tab }}">Todos</a>
+                <a href="{{ route('contracts.index', ['aba' => 'validar']) }}" role="tab" aria-selected="{{ $aba === 'validar' ? 'true' : 'false' }}" class="{{ $tab }}">
                     Para validar
                     @if($aguardando > 0)
                         <span class="rounded-full bg-grena px-2 text-[11px] text-white">{{ $aguardando }}</span>
@@ -63,13 +62,13 @@
             <x-empty-state icon="doc">
                 @if(filled($busca) || filled($status))
                     Nenhum contrato com esses filtros.
-                    <a href="{{ route('signature-contracts.index', $aba === 'validar' ? ['aba' => 'validar'] : []) }}" class="font-bold text-grena-ink hover:underline">Limpar a busca</a>.
+                    <a href="{{ route('contracts.index', $aba === 'validar' ? ['aba' => 'validar'] : []) }}" class="font-bold text-grena-ink hover:underline">Limpar a busca</a>.
                 @elseif($aba === 'validar')
                     Nenhum contrato aguardando validação.
                 @else
                     Nenhum contrato por aqui ainda.
                     @can('create', C::class)
-                        <a href="{{ route('signature-contracts.create') }}" class="font-bold text-grena-ink hover:underline">Redigir o primeiro</a>.
+                        <a href="{{ route('contracts.create') }}" class="font-bold text-grena-ink hover:underline">Redigir o primeiro</a>.
                     @endcan
                 @endif
             </x-empty-state>
@@ -90,7 +89,7 @@
                             @foreach($contracts as $contract)
                                 <tr class="transition hover:bg-subtle">
                                     <td class="px-5 py-3.5">
-                                        <a href="{{ route('signature-contracts.show', $contract) }}" class="font-semibold text-ink hover:text-grena-ink">{{ $contract->title }}</a>
+                                        <a href="{{ route('contracts.show', $contract) }}" class="font-semibold text-ink hover:text-grena-ink">{{ $contract->title }}</a>
                                         <div class="text-xs text-ink-2">
                                             {{ $contract->number ?? 'Sem número' }}
                                             @if($contract->isAddendum()) · aditivo @endif

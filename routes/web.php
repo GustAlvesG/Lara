@@ -236,6 +236,11 @@ Route::prefix('assinatura/kiosk')->name('quiosque.')->group(function () {
             ->whereNumber('contract')->middleware('throttle:60,1')->name('show');
         Route::post('/contratos/{contract}/decisao', [SignatureContractKioskController::class, 'decide'])
             ->whereNumber('contract')->middleware('throttle:20,1')->name('decide');
+        // Ajustar o texto e pedir a revisão pelo Claude no tablet (04/11/2026).
+        Route::post('/contratos/{contract}/texto', [SignatureContractKioskController::class, 'update'])
+            ->whereNumber('contract')->middleware('throttle:30,1')->name('update');
+        Route::post('/contratos/{contract}/revisao-ia', [SignatureContractKioskController::class, 'aiReview'])
+            ->whereNumber('contract')->middleware('throttle:6,1')->name('ai-review');
         Route::get('/contratos/{contract}/anexos/{attachment}', [SignatureContractKioskController::class, 'attachment'])
             ->whereNumber('contract')->whereNumber('attachment')->middleware('throttle:60,1')->name('attachment');
         Route::post('/sair', [SignatureContractKioskController::class, 'logout'])
@@ -1516,7 +1521,17 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
     // aprovados, transformados em documento de assinatura em rascunho. Quem
     // pode cada ação é da SignatureContractPolicy (setor + Gerência) — ver
     // docs/funcionalidades/contratos.md.
-    Route::prefix('assinatura/contratos/biblioteca')->name('signature-contract-library.')->group(function () {
+    //
+    // Módulo próprio no menu desde 04/11/2026: o endereço saiu de
+    // `/assinatura/contratos` para `/contratos`. O antigo redireciona (GET),
+    // porque há e-mails de "para validar" e "decisão" com ele na caixa de
+    // entrada de alguém.
+    Route::get('/assinatura/contratos/{caminho?}', fn (?string $caminho = null) => redirect(
+        '/contratos' . ($caminho !== null ? '/' . $caminho : '') . (request()->getQueryString() ? '?' . request()->getQueryString() : ''),
+        301,
+    ))->where('caminho', '.*')->name('contracts.legacy');
+
+    Route::prefix('contratos/biblioteca')->name('contract-library.')->group(function () {
         Route::get('/', [SignatureContractLibraryController::class, 'index'])->name('index');
         Route::post('/', [SignatureContractLibraryController::class, 'store'])->middleware('throttle:30,1')->name('store');
         Route::put('/{signatureContractClause}', [SignatureContractLibraryController::class, 'update'])
@@ -1527,7 +1542,7 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             ->whereNumber('signatureContractModel')->name('models.destroy');
     });
 
-    Route::prefix('assinatura/contratos')->name('signature-contracts.')->group(function () {
+    Route::prefix('contratos')->name('contracts.')->group(function () {
         Route::get('/', [SignatureContractController::class, 'index'])->name('index');
         Route::get('/novo', [SignatureContractController::class, 'create'])->name('create');
         Route::post('/', [SignatureContractController::class, 'store'])->name('store');
@@ -1570,7 +1585,102 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         });
     });
 
-    Route::prefix('assinatura/documentos')->name('signature-documents.')->group(function () {
+    // As rotas de UM documento: Assinaturas (`signature-documents.*`) e a aba
+    // Assinaturas de Contratos (`contract-signatures.*`) registram as mesmas.
+    $rotasDoDocumento = function () {
+        Route::get('/', [SignatureDocumentController::class, 'show'])->name('show');
+        Route::get('/editar', [SignatureDocumentController::class, 'edit'])->name('edit');
+        Route::put('/', [SignatureDocumentController::class, 'update'])->name('update');
+
+        Route::post('/congelar', [SignatureDocumentController::class, 'freeze'])
+            ->middleware('throttle:20,1')->name('freeze');
+        Route::post('/cancelar', [SignatureDocumentController::class, 'cancel'])
+            ->middleware('throttle:20,1')->name('cancel');
+
+        // Arquivar: só tira da lista padrão (filtro "Arquivados"). Não
+        // confundir com a cópia no FTP (`archived_at`).
+        Route::post('/arquivar', [SignatureDocumentController::class, 'hide'])
+            ->middleware('throttle:30,1')->name('hide');
+        Route::delete('/arquivar', [SignatureDocumentController::class, 'unhide'])
+            ->middleware('throttle:30,1')->name('unhide');
+
+        Route::get('/pdf', [SignatureDocumentController::class, 'pdf'])->name('pdf');
+
+        // Onde cada pessoa assina no PDF enviado (só no rascunho).
+        Route::post('/posicoes', [SignatureDocumentController::class, 'positions'])->name('positions');
+
+        // Acompanhamento da tela do atendente (polling — não há
+        // broadcasting neste projeto). Teto alto porque a tela consulta a
+        // cada poucos segundos enquanto o atendimento corre.
+        Route::get('/status', [SignatureReleaseController::class, 'status'])
+            ->middleware('throttle:120,1')->name('status');
+
+        // Conferência das respostas do tablet pelo atendente — aprovar,
+        // devolver com observação, corrigir (que já aprova).
+        Route::post('/conferencia/aprovar', [SignatureAnswerCheckController::class, 'approve'])
+            ->middleware('throttle:30,1')->name('answers.approve');
+        Route::post('/conferencia/devolver', [SignatureAnswerCheckController::class, 'giveBack'])
+            ->middleware('throttle:30,1')->name('answers.return');
+        Route::post('/conferencia/corrigir', [SignatureAnswerCheckController::class, 'correct'])
+            ->middleware('throttle:20,1')->name('answers.correct');
+
+        // Gerar o QR de um signatário. A mesma rota regera: "gerar outro"
+        // e "gerar o primeiro" são o mesmo ato no balcão, e duas rotas
+        // abririam a chance de dois QRs válidos ao mesmo tempo.
+        Route::post('/signatarios/{signatureSigner}/liberar', [SignatureReleaseController::class, 'store'])
+            ->whereNumber('signatureSigner')
+            ->middleware('throttle:30,1')->name('release');
+
+        // Reenvio da via assinada — e-mail falha, e o documento já está
+        // guardado: o que falta é a entrega.
+        Route::post('/signatarios/{signatureSigner}/via', [SignatureReleaseController::class, 'resend'])
+            ->whereNumber('signatureSigner')
+            ->middleware('throttle:10,1')->name('resend-copy');
+
+        Route::delete('/liberacoes/{signatureRequest}', [SignatureReleaseController::class, 'destroy'])
+            ->whereNumber('signatureRequest')
+            ->middleware('throttle:30,1')->name('release.cancel');
+
+        // Assinatura remota: o link por e-mail que abre a tela de quem
+        // assina no site externo. Enviar de novo substitui o anterior —
+        // ver RemoteSignatureService.
+        Route::post('/signatarios/{signatureSigner}/link-remoto', [SignatureRemoteLinkController::class, 'store'])
+            ->whereNumber('signatureSigner')
+            ->middleware('throttle:10,1')->name('remote-link.store');
+        Route::delete('/links-remotos/{signatureRemoteLink}', [SignatureRemoteLinkController::class, 'destroy'])
+            ->whereNumber('signatureRemoteLink')
+            ->middleware('throttle:30,1')->name('remote-link.destroy');
+
+        // Aba "Assinatura gov.br": preparar o documento para o gov.br e
+        // enviar o PDF que voltou assinado. Aprovado, o envio conclui a
+        // assinatura de quem assinou — ver GovbrCheckService.
+        Route::post('/govbr/preparar', [SignatureGovbrController::class, 'prepare'])
+            ->middleware('throttle:20,1')->name('govbr.prepare');
+        // Botão "Enviar por e-mail": o PDF a assinar; a resposta volta ao atendente.
+        Route::post('/govbr/signatarios/{signatureSigner}/convite', [SignatureGovbrController::class, 'invite'])
+            ->whereNumber('signatureSigner')
+            ->middleware('throttle:10,1')->name('govbr.invite');
+        Route::post('/govbr', [SignatureGovbrController::class, 'store'])
+            ->middleware('throttle:20,1')->name('govbr.store');
+        Route::get('/govbr/{signatureGovbrCheck}/pdf', [SignatureGovbrController::class, 'pdf'])
+            ->whereNumber('signatureGovbrCheck')->name('govbr.pdf');
+
+        // Anexos (identidade, comprovante): o atendente envia na tela do
+        // documento. Remover só em rascunho — ver SignatureAttachmentService.
+        Route::post('/anexos', [SignatureAttachmentController::class, 'store'])
+            ->middleware('throttle:30,1')->name('attachments.store');
+        Route::get('/anexos/{signatureAttachment}', [SignatureAttachmentController::class, 'show'])
+            ->whereNumber('signatureAttachment')->name('attachments.show');
+        Route::delete('/anexos/{signatureAttachment}', [SignatureAttachmentController::class, 'destroy'])
+            ->whereNumber('signatureAttachment')
+            ->middleware('throttle:30,1')->name('attachments.destroy');
+
+        // Revisão interna (aba "Revisão"): ver SignatureReviewService.
+        Route::post('/revisao', [SignatureReviewController::class, 'store'])
+            ->middleware('throttle:30,1')->name('review');
+    };
+
+    Route::prefix('assinatura/documentos')->name('signature-documents.')->group(function () use ($rotasDoDocumento) {
         Route::get('/', [SignatureDocumentController::class, 'index'])->name('index');
 
         // Rotas fixas ANTES de `/{signatureDocument}`: sem isso, "novo" seria
@@ -1585,98 +1695,21 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         Route::post('/enviar', [SignatureDocumentController::class, 'storeUpload'])
             ->middleware('throttle:20,1')->name('upload.store');
 
-        Route::prefix('/{signatureDocument}')->whereNumber('signatureDocument')->group(function () {
-            Route::get('/', [SignatureDocumentController::class, 'show'])->name('show');
-            Route::get('/editar', [SignatureDocumentController::class, 'edit'])->name('edit');
-            Route::put('/', [SignatureDocumentController::class, 'update'])->name('update');
+        Route::prefix('/{signatureDocument}')->whereNumber('signatureDocument')->group($rotasDoDocumento);
+    });
 
-            Route::post('/congelar', [SignatureDocumentController::class, 'freeze'])
-                ->middleware('throttle:20,1')->name('freeze');
-            Route::post('/cancelar', [SignatureDocumentController::class, 'cancel'])
-                ->middleware('throttle:20,1')->name('cancel');
+    // Aba Assinaturas do módulo Contratos (04/11/2026): os documentos gerados
+    // dos contratos, com O MESMO processo de Assinaturas (mesmos controllers e
+    // telas), em rotas próprias — o menu marca a aba de Contratos, e quem tem
+    // só `contratos.assinatura` não entra em Assinaturas. As telas e os
+    // redirecionamentos escolhem o prefixo por App\Support\DocumentRoutes.
+    // Só documento de contrato (EnsureContractDocument); o QUEM é da policy.
+    Route::prefix('contratos/assinaturas')->name('contract-signatures.')->group(function () use ($rotasDoDocumento) {
+        Route::get('/', [SignatureDocumentController::class, 'contractIndex'])->name('index');
 
-            // Arquivar: só tira da lista padrão (filtro "Arquivados"). Não
-            // confundir com a cópia no FTP (`archived_at`).
-            Route::post('/arquivar', [SignatureDocumentController::class, 'hide'])
-                ->middleware('throttle:30,1')->name('hide');
-            Route::delete('/arquivar', [SignatureDocumentController::class, 'unhide'])
-                ->middleware('throttle:30,1')->name('unhide');
-
-            Route::get('/pdf', [SignatureDocumentController::class, 'pdf'])->name('pdf');
-
-            // Onde cada pessoa assina no PDF enviado (só no rascunho).
-            Route::post('/posicoes', [SignatureDocumentController::class, 'positions'])->name('positions');
-
-            // Acompanhamento da tela do atendente (polling — não há
-            // broadcasting neste projeto). Teto alto porque a tela consulta a
-            // cada poucos segundos enquanto o atendimento corre.
-            Route::get('/status', [SignatureReleaseController::class, 'status'])
-                ->middleware('throttle:120,1')->name('status');
-
-            // Conferência das respostas do tablet pelo atendente — aprovar,
-            // devolver com observação, corrigir (que já aprova).
-            Route::post('/conferencia/aprovar', [SignatureAnswerCheckController::class, 'approve'])
-                ->middleware('throttle:30,1')->name('answers.approve');
-            Route::post('/conferencia/devolver', [SignatureAnswerCheckController::class, 'giveBack'])
-                ->middleware('throttle:30,1')->name('answers.return');
-            Route::post('/conferencia/corrigir', [SignatureAnswerCheckController::class, 'correct'])
-                ->middleware('throttle:20,1')->name('answers.correct');
-
-            // Gerar o QR de um signatário. A mesma rota regera: "gerar outro"
-            // e "gerar o primeiro" são o mesmo ato no balcão, e duas rotas
-            // abririam a chance de dois QRs válidos ao mesmo tempo.
-            Route::post('/signatarios/{signatureSigner}/liberar', [SignatureReleaseController::class, 'store'])
-                ->whereNumber('signatureSigner')
-                ->middleware('throttle:30,1')->name('release');
-
-            // Reenvio da via assinada — e-mail falha, e o documento já está
-            // guardado: o que falta é a entrega.
-            Route::post('/signatarios/{signatureSigner}/via', [SignatureReleaseController::class, 'resend'])
-                ->whereNumber('signatureSigner')
-                ->middleware('throttle:10,1')->name('resend-copy');
-
-            Route::delete('/liberacoes/{signatureRequest}', [SignatureReleaseController::class, 'destroy'])
-                ->whereNumber('signatureRequest')
-                ->middleware('throttle:30,1')->name('release.cancel');
-
-            // Assinatura remota: o link por e-mail que abre a tela de quem
-            // assina no site externo. Enviar de novo substitui o anterior —
-            // ver RemoteSignatureService.
-            Route::post('/signatarios/{signatureSigner}/link-remoto', [SignatureRemoteLinkController::class, 'store'])
-                ->whereNumber('signatureSigner')
-                ->middleware('throttle:10,1')->name('remote-link.store');
-            Route::delete('/links-remotos/{signatureRemoteLink}', [SignatureRemoteLinkController::class, 'destroy'])
-                ->whereNumber('signatureRemoteLink')
-                ->middleware('throttle:30,1')->name('remote-link.destroy');
-
-            // Aba "Assinatura gov.br": preparar o documento para o gov.br e
-            // enviar o PDF que voltou assinado. Aprovado, o envio conclui a
-            // assinatura de quem assinou — ver GovbrCheckService.
-            Route::post('/govbr/preparar', [SignatureGovbrController::class, 'prepare'])
-                ->middleware('throttle:20,1')->name('govbr.prepare');
-            // Botão "Enviar por e-mail": o PDF a assinar; a resposta volta ao atendente.
-            Route::post('/govbr/signatarios/{signatureSigner}/convite', [SignatureGovbrController::class, 'invite'])
-                ->whereNumber('signatureSigner')
-                ->middleware('throttle:10,1')->name('govbr.invite');
-            Route::post('/govbr', [SignatureGovbrController::class, 'store'])
-                ->middleware('throttle:20,1')->name('govbr.store');
-            Route::get('/govbr/{signatureGovbrCheck}/pdf', [SignatureGovbrController::class, 'pdf'])
-                ->whereNumber('signatureGovbrCheck')->name('govbr.pdf');
-
-            // Anexos (identidade, comprovante): o atendente envia na tela do
-            // documento. Remover só em rascunho — ver SignatureAttachmentService.
-            Route::post('/anexos', [SignatureAttachmentController::class, 'store'])
-                ->middleware('throttle:30,1')->name('attachments.store');
-            Route::get('/anexos/{signatureAttachment}', [SignatureAttachmentController::class, 'show'])
-                ->whereNumber('signatureAttachment')->name('attachments.show');
-            Route::delete('/anexos/{signatureAttachment}', [SignatureAttachmentController::class, 'destroy'])
-                ->whereNumber('signatureAttachment')
-                ->middleware('throttle:30,1')->name('attachments.destroy');
-
-            // Revisão interna (aba "Revisão"): ver SignatureReviewService.
-            Route::post('/revisao', [SignatureReviewController::class, 'store'])
-                ->middleware('throttle:30,1')->name('review');
-        });
+        Route::prefix('/{signatureDocument}')->whereNumber('signatureDocument')
+            ->middleware(\App\Http\Middleware\EnsureContractDocument::class)
+            ->group($rotasDoDocumento);
     });
 
 });

@@ -188,7 +188,7 @@
             tablet de autoatendimento e o histórico de menores autorizados (seção 11).</li>
         <li><span class="menu">Assinaturas → Diretoria</span> — as áreas da diretoria e quem assina por cada uma,
             titular e substitutos (seção 12).</li>
-        <li><span class="menu">Assinaturas → Contratos</span> — redigir um contrato em cláusulas, mandar para a
+        <li><span class="menu">Contratos → Contratos</span> (módulo próprio no menu desde 04/11/2026; a assinatura fica em <span class="menu">Contratos → Assinaturas</span>) — redigir um contrato em cláusulas, mandar para a
             validação da Gerência e, aprovado, gerar o documento de assinatura (seção 13).</li>
         <li>Um item do menu que não aparece para você depende de permissão: peça o acesso à TI.</li>
     </ul>
@@ -1252,7 +1252,7 @@
 
     <h3>O caminho</h3>
     <ol>
-        <li><span class="menu">Assinaturas → Contratos → Novo contrato</span>: escolha o setor (só o seu setor e a
+        <li><span class="menu">Contratos → Contratos → Novo contrato</span>: escolha o setor (só o seu setor e a
             Gerência veem o contrato) e, se quiser, um modelo do setor.</li>
         <li>Preencha: <b>dados gerais</b> (título e por qual CNPJ do clube), <b>contratada</b> (e fiadores, se houver),
             <b>variáveis</b>, <b>considerandos</b> (opcional), <b>cláusulas</b> e <b>quem assina</b>. A prévia ao

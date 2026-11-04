@@ -15,7 +15,9 @@
         <div class="flex flex-wrap items-center gap-1">
             <button type="button" data-move="up" class="rounded-md px-2 py-1 text-xs text-ink-2 hover:bg-subtle" title="Subir a cláusula">↑</button>
             <button type="button" data-move="down" class="rounded-md px-2 py-1 text-xs text-ink-2 hover:bg-subtle" title="Descer a cláusula">↓</button>
+            @can('manageLibrary', \App\Models\SignatureContract::class)
             <button type="button" data-save-library class="rounded-md px-2 py-1 text-xs font-bold text-grena-ink hover:bg-grena-tint" title="Salvar esta cláusula na biblioteca do setor">Salvar na biblioteca</button>
+            @endcan
             <button type="button" data-remove data-confirm="Remover a cláusula inteira?" class="rounded-md px-2 py-1 text-xs font-bold text-danger hover:bg-danger-soft">Remover</button>
         </div>
     </div>
@@ -28,7 +30,7 @@
                 <span class="text-xs font-bold text-warn">Observação da Gerência · {{ $comment->author_name }}</span>
                 <p class="whitespace-pre-line">{{ $comment->body }}</p>
             </div>
-            <button type="button" data-resolve="{{ route('signature-contracts.comments.resolve', [$contract, $comment]) }}"
+            <button type="button" data-resolve="{{ route('contracts.comments.resolve', [$contract, $comment]) }}"
                     class="shrink-0 rounded-full bg-surface px-3 py-1 text-xs font-bold text-ink hover:bg-subtle">Resolvida</button>
         </div>
     @endforeach

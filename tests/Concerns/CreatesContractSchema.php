@@ -27,6 +27,7 @@ trait CreatesContractSchema
         $arquivos[] = '2026_10_29_100000_create_signature_contracts.php';
         $arquivos[] = '2026_10_29_110000_create_signature_contract_ai_reviews.php';
         $arquivos[] = '2026_10_29_130000_add_withheld_to_signature_contract_ai_reviews.php';
+        $arquivos[] = '2026_11_04_100000_add_extras_to_signature_contract_ai_reviews.php';
 
         foreach ($arquivos as $arquivo) {
             (require base_path('database/migrations/' . $arquivo))->up();

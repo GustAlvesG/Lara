@@ -3,9 +3,12 @@
 
     Página própria (não é a tela de assinatura): entrada por matrícula + PIN,
     lista dos contratos em validação, leitura com "o que mudou", observação
-    por cláusula TOCANDO nela, e Aprovar / Devolver. Ajustar o texto é no
-    computador. O texto do contrato vem pronto do servidor
-    (ContractRenderer), como na tela web — aqui nada é montado.
+    por cláusula TOCANDO nela, e Aprovar / Devolver. Desde 04/11/2026 também:
+    "Revisão do Claude" (pedir a análise, com trechos sensíveis e trechos
+    anexados, e levar cada apontamento para a observação da cláusula) e
+    "Editar texto" (título e o texto das cláusulas; partes, variáveis e
+    signatários seguem no computador). O texto do contrato vem pronto do
+    servidor (ContractRenderer), como na tela web — aqui nada é montado.
 
     O tablet não guarda nada: as observações em andamento ficam só na
     memória da página, e a entrada cai sozinha depois de um tempo parado.
@@ -92,6 +95,27 @@
   .toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:14px 20px;border-radius:14px;font-weight:700;z-index:30;display:none;max-width:90%;text-align:center;}
   .toast.on{display:block;}
   ul.plain{margin:6px 0 0;padding-left:20px;}
+  .tools{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 14px;}
+  .pill{display:inline-block;font-size:12.5px;font-weight:800;border-radius:999px;padding:4px 12px;background:var(--surface-3);color:var(--ink-2);}
+  .pill.ok{background:var(--success-tint);color:var(--success);}
+  .pill.warn{background:var(--warning-tint);color:var(--warning);}
+  .pill.danger{background:var(--danger-tint);color:var(--danger);}
+  .achado{border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:10px;font-size:15px;line-height:1.45;}
+  .achado .meta{margin-bottom:4px;}
+  .linkbtn{background:none;border:none;color:var(--brand);font-weight:800;font-size:14px;padding:8px 0 0;cursor:pointer;}
+  .check{display:flex;gap:10px;align-items:flex-start;font-size:15px;padding:6px 0;}
+  .check input{width:22px;height:22px;margin-top:2px;}
+  .ed-clausula{border:1px solid var(--border-strong);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;}
+  .ed-item{display:flex;gap:8px;align-items:flex-start;margin-top:10px;}
+  .ed-item.n2{padding-left:28px;}
+  .ed-texto{flex:1 1 auto;min-height:56px;border-radius:12px;border:2px solid var(--border-strong);background:var(--surface-2);font-size:16px;line-height:1.5;padding:10px 12px;}
+  .ed-texto:focus{outline:none;border-color:var(--brand);background:#fff;}
+  .ed-texto p{margin:0 0 6px;}
+  .ed-lado{display:flex;flex-direction:column;gap:6px;flex:0 0 auto;}
+  .ed-lado select,.ed-lado button{min-height:40px;border-radius:10px;border:1px solid var(--border-strong);background:var(--surface);font-size:13px;font-weight:700;padding:0 8px;}
+  .ed-barra{position:sticky;top:-22px;z-index:2;display:flex;gap:8px;padding:8px 0;background:var(--surface);}
+  .ed-barra button{min-width:52px;min-height:44px;border-radius:10px;border:1px solid var(--border-strong);background:var(--surface-2);font-size:17px;}
+  .field.small{min-height:48px;font-size:16px;}
   </style>
 </head>
 <body>
@@ -139,6 +163,10 @@
       <button type="button" class="btn btn-ghost btn-small" id="btnVoltar" style="margin-bottom:14px;">← Lista</button>
       <h1 id="cTitulo"></h1>
       <p class="meta" id="cMeta" style="margin:0 0 14px;"></p>
+      <div class="tools">
+        <button type="button" class="btn btn-ghost btn-small" id="btnIA" style="display:none;">Revisão do Claude</button>
+        <button type="button" class="btn btn-ghost btn-small" id="btnEditar">Editar texto</button>
+      </div>
       <div id="cAvisos"></div>
       <div class="ct-paper" id="cTexto"></div>
     </div>
@@ -187,6 +215,42 @@
   <div class="row">
     <button type="button" class="btn btn-ghost" data-fechar>Voltar</button>
     <button type="button" class="btn btn-ok" id="faConfirmar">Aprovar</button>
+  </div>
+</div>
+
+{{-- Revisão pelo Claude --}}
+<div class="sheet" id="folhaIA">
+  <h2>Revisão do Claude</h2>
+  <div id="iaUltima"></div>
+  <p class="meta">Sugestões automáticas: confira antes de usar. O texto do contrato vai à Anthropic (empresa do Claude); os trechos com valores, CPF, documentos ou endereço só vão se você marcar.</p>
+  <div id="iaSensiveis"></div>
+  <label class="lbl">Anexar trechos ao pedido (opcional)</label>
+  <p class="meta" id="iaExtrasAjuda"></p>
+  <div id="iaExtras"></div>
+  <button type="button" class="btn btn-ghost btn-small" id="iaMaisTrecho">+ Outro trecho</button>
+  <div class="err" id="iaErro"></div>
+  <div class="row">
+    <button type="button" class="btn btn-ghost" data-fechar>Fechar</button>
+    <button type="button" class="btn btn-primary" id="iaAnalisar">Analisar com o Claude</button>
+  </div>
+</div>
+
+{{-- Editar o texto --}}
+<div class="sheet" id="folhaEditar">
+  <h2>Editar o texto</h2>
+  <p class="meta">Título do contrato e o texto das cláusulas. Partes, variáveis e signatários são ajustados no computador. Na decisão, fica registrado como ajuste da Gerência.</p>
+  <div class="ed-barra">
+    <button type="button" data-cmd="bold" title="Negrito"><b>N</b></button>
+    <button type="button" data-cmd="italic" title="Itálico"><i>I</i></button>
+    <button type="button" data-cmd="underline" title="Sublinhado"><u>S</u></button>
+  </div>
+  <label class="lbl" for="edTitulo">Título do contrato</label>
+  <input class="field small" id="edTitulo" maxlength="200">
+  <div id="edClausulas"></div>
+  <div class="err" id="edErro"></div>
+  <div class="row">
+    <button type="button" class="btn btn-ghost" data-fechar>Cancelar</button>
+    <button type="button" class="btn btn-primary" id="edSalvar">Salvar texto</button>
   </div>
 </div>
 
@@ -317,8 +381,20 @@
   // ---- Contrato ----
   function abre(id) {
     api(URLS.show.replace('__ID__', id)).then(function (c) {
-      atual = c; obs = {}; clausulas = {};
+      obs = {};
+      mostraContrato(c);
+      $('#contratoScroll').scrollTop = 0;
+      tela('tela-contrato');
+    }).catch(function (e) { if (e.message !== 'ended') { aviso(e.message); api(URLS.pending).then(mostraLista).catch(function () {}); } });
+  }
+
+  // Desenha o contrato. As observações (obs) ficam: são por uid de cláusula,
+  // que editar o texto não muda.
+  function mostraContrato(c) {
+    {
+      atual = c; clausulas = {};
       c.clauses.forEach(function (cl) { clausulas[cl.uid] = cl.label; });
+      Object.keys(obs).forEach(function (u) { if (!clausulas[u]) delete obs[u]; });
       $('#cTitulo').textContent = c.title;
       $('#cMeta').textContent = [c.counterparty, 'Setor ' + (c.sector || '—'), 'por ' + (c.author || '—'), 'versão ' + c.version].filter(Boolean).join(' · ');
 
@@ -345,10 +421,193 @@
       $('#cAvisos').innerHTML = avisos;
       $('#cTexto').innerHTML = c.html;
       $('#btnAprovar').disabled = c.errors.length > 0;
-      $('#contratoScroll').scrollTop = 0;
-      tela('tela-contrato');
-    }).catch(function (e) { if (e.message !== 'ended') { aviso(e.message); api(URLS.pending).then(mostraLista).catch(function () {}); } });
+      $('#btnIA').style.display = c.ai && c.ai.enabled ? '' : 'none';
+      if (c.ai && c.ai.review) {
+        $('#btnIA').textContent = 'Revisão do Claude · ' + c.ai.review.verdict + (c.ai.review.current ? '' : ' (texto mudou)');
+      } else {
+        $('#btnIA').textContent = 'Revisão do Claude';
+      }
+      marcaClausulas();
+    }
   }
+
+  // ---- Revisão pelo Claude ----
+  var GRAVIDADE = { alta: 'Grave', media: 'Atenção', baixa: 'Detalhe' };
+
+  function trechoExtra(n) {
+    var lim = atual.ai.limits;
+    return '<div class="box soft" data-extra>'
+      + '<input class="field small" data-extra-title maxlength="' + lim.title + '" placeholder="Título (ex.: Proposta comercial)">'
+      + '<textarea class="field" data-extra-text maxlength="' + lim.text + '" placeholder="Cole aqui o trecho" style="margin-top:8px;"></textarea>'
+      + '</div>';
+  }
+
+  function mostraIA() {
+    var ai = atual.ai, r = ai.review, h = '';
+    if (r) {
+      var kind = { ok: 'ok', warn: 'warn', danger: 'danger' }[r.kind] || '';
+      h += '<div class="box soft"><span class="pill ' + kind + '">' + esc(r.verdict) + '</span> '
+        + '<span class="meta">pedida por ' + esc(r.by || '—') + ' em ' + esc(r.at || '') + '</span>'
+        + (r.current ? '' : '<div class="meta" style="color:var(--warning);font-weight:700;">O texto mudou depois desta revisão.</div>')
+        + '<p style="white-space:pre-line;margin:10px 0 0;">' + esc(r.summary) + '</p>'
+        + (r.withheld.length ? '<p class="meta"><b>Não enviados:</b> ' + esc(r.withheld.join('; ')) + '.</p>' : '')
+        + (r.extras.length ? '<p class="meta"><b>Trechos anexados:</b> ' + esc(r.extras.join('; ')) + '.</p>' : '')
+        + '</div>';
+      r.findings.forEach(function (a, i) {
+        h += '<div class="achado"><div class="meta"><b>' + esc(GRAVIDADE[a.severity] || a.severity) + '</b>'
+          + (a.clause > 0 ? ' · Cláusula ' + a.clause : '') + (a.where ? ' · ' + esc(a.where) : '') + '</div>'
+          + esc(a.problem)
+          + (a.suggestion ? '<div class="meta" style="margin-top:4px;"><b>Sugestão:</b> ' + esc(a.suggestion) + '</div>' : '')
+          + '<button type="button" class="linkbtn" data-levar="' + i + '">Levar para a observação ' + (a.uid ? 'da cláusula' : 'geral') + '</button>'
+          + '</div>';
+      });
+    } else {
+      h += '<p class="lead">O Claude lê o contrato inteiro e aponta inconsistências (partes, valores por extenso, prazos, remissões, cláusulas contraditórias ou faltando), com sugestão de alteração.</p>';
+    }
+    $('#iaUltima').innerHTML = h;
+
+    $('#iaSensiveis').innerHTML = ai.sensitive.length
+      ? '<div class="box soft"><b>Trechos com dados sensíveis — ficam de fora, a menos que você marque</b>'
+        + ai.sensitive.map(function (t) {
+            return '<label class="check"><input type="checkbox" value="' + esc(t.key) + '" data-incluir><span>' + esc(t.label) + ' <span class="meta">(' + esc(t.reasons) + ')</span></span></label>';
+          }).join('') + '</div>'
+      : '';
+
+    $('#iaExtrasAjuda').textContent = 'Cole um texto de referência (proposta do fornecedor, contrato anterior, orientação): o Claude confere a minuta contra ele. Até '
+      + ai.limits.extras + ' trechos. Esse texto também vai à Anthropic.';
+    $('#iaExtras').innerHTML = trechoExtra(0);
+    $('#iaMaisTrecho').disabled = false;
+    $('#iaErro').textContent = '';
+    $('#iaAnalisar').textContent = r ? (r.current ? 'Analisar de novo' : 'Analisar o texto atual') : 'Analisar com o Claude';
+  }
+
+  $('#btnIA').addEventListener('click', function () { mostraIA(); abrirFolha('#folhaIA'); });
+
+  $('#iaMaisTrecho').addEventListener('click', function () {
+    var n = document.querySelectorAll('#iaExtras [data-extra]').length;
+    if (n >= atual.ai.limits.extras) return;
+    $('#iaExtras').insertAdjacentHTML('beforeend', trechoExtra(n));
+    if (n + 1 >= atual.ai.limits.extras) $('#iaMaisTrecho').disabled = true;
+  });
+
+  $('#iaUltima').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-levar]');
+    if (!b) return;
+    var a = atual.ai.review.findings[+b.dataset.levar];
+    var texto = a.problem + (a.suggestion ? ' Sugestão: ' + a.suggestion : '');
+    if (a.uid && clausulas[a.uid]) {
+      obs[a.uid] = (obs[a.uid] ? obs[a.uid] + '\n' : '') + texto;
+      marcaClausulas();
+    } else {
+      var nota = $('#fdNota');
+      nota.value = (nota.value.trim() ? nota.value.trim() + '\n' : '') + texto;
+    }
+    b.textContent = 'Levado ✓';
+    b.disabled = true;
+  });
+
+  $('#iaAnalisar').addEventListener('click', function () {
+    var botao = $('#iaAnalisar');
+    var incluir = Array.prototype.map.call(document.querySelectorAll('#iaSensiveis [data-incluir]:checked'), function (el) { return el.value; });
+    var extras = Array.prototype.map.call(document.querySelectorAll('#iaExtras [data-extra]'), function (el) {
+      return { title: el.querySelector('[data-extra-title]').value, text: el.querySelector('[data-extra-text]').value };
+    }).filter(function (x) { return x.text.trim() !== ''; });
+
+    botao.disabled = true;
+    botao.textContent = 'Analisando… até um minuto';
+    $('#iaErro').textContent = '';
+    api(URLS.aiReview.replace('__ID__', atual.id), 'POST', { include: incluir, extras: extras })
+      .then(function (j) {
+        atual.ai = j.ai;
+        mostraContrato(atual);
+        mostraIA();
+        aviso(j.message);
+        $('#folhaIA').scrollTop = 0;
+      })
+      .catch(function (e) { if (e.message !== 'ended') $('#iaErro').textContent = e.message; })
+      .then(function () { botao.disabled = false; if (botao.textContent.indexOf('Analisando') === 0) botao.textContent = 'Analisar com o Claude'; });
+  });
+
+  // ---- Editar o texto ----
+  function itemEd(it) {
+    return '<div class="ed-item' + (it.level === 2 ? ' n2' : '') + '" data-item data-uid="' + esc(it.uid || '') + '">'
+      + '<div class="ed-texto" contenteditable="true">' + (it.html || '') + '</div>'
+      + '<div class="ed-lado">'
+      + '<select data-nivel><option value="1"' + (it.level === 2 ? '' : ' selected') + '>Item</option><option value="2"' + (it.level === 2 ? ' selected' : '') + '>Subitem</option></select>'
+      + '<button type="button" data-tirar>Tirar</button>'
+      + '</div></div>';
+  }
+
+  function mostraEditar() {
+    var ed = atual.edit;
+    $('#edTitulo').value = ed.title;
+    $('#edClausulas').innerHTML = ed.clauses.map(function (c) {
+      return '<div class="ed-clausula" data-clausula="' + esc(c.uid) + '">'
+        + '<label class="lbl" style="margin-top:0;">Cláusula ' + c.number + '</label>'
+        + '<input class="field small" data-titulo maxlength="200" value="' + esc(c.title) + '" placeholder="Título da cláusula">'
+        + '<div data-itens>' + c.items.map(itemEd).join('') + '</div>'
+        + '<button type="button" class="linkbtn" data-mais-item>+ Item</button>'
+        + '</div>';
+    }).join('');
+    $('#edErro').textContent = '';
+  }
+
+  $('#btnEditar').addEventListener('click', function () { mostraEditar(); abrirFolha('#folhaEditar'); });
+
+  // Os botões de formatação não podem tirar o foco do texto.
+  document.querySelectorAll('.ed-barra [data-cmd]').forEach(function (b) {
+    b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    b.addEventListener('touchstart', function (e) { e.preventDefault(); document.execCommand(b.dataset.cmd, false, null); }, { passive: false });
+    b.addEventListener('click', function () { document.execCommand(b.dataset.cmd, false, null); });
+  });
+
+  $('#edClausulas').addEventListener('click', function (e) {
+    if (e.target.closest('[data-tirar]')) {
+      var item = e.target.closest('[data-item]');
+      var lista = item.parentNode;
+      if (lista.querySelectorAll('[data-item]').length > 1) item.remove();
+      else aviso('A cláusula precisa de pelo menos um item.');
+      return;
+    }
+    if (e.target.closest('[data-mais-item]')) {
+      var bloco = e.target.closest('[data-clausula]').querySelector('[data-itens]');
+      bloco.insertAdjacentHTML('beforeend', itemEd({ uid: '', level: 1, html: '' }));
+      bloco.lastElementChild.querySelector('.ed-texto').focus();
+    }
+  });
+
+  $('#edClausulas').addEventListener('change', function (e) {
+    if (e.target.matches('[data-nivel]')) e.target.closest('[data-item]').classList.toggle('n2', e.target.value === '2');
+  });
+
+  // Colar: só o texto (o servidor saneia de novo).
+  $('#edClausulas').addEventListener('paste', function (e) {
+    if (!e.target.closest('.ed-texto')) return;
+    e.preventDefault();
+    document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain'));
+  });
+
+  $('#edSalvar').addEventListener('click', function () {
+    var botao = $('#edSalvar');
+    var corpo = {
+      title: $('#edTitulo').value,
+      clauses: Array.prototype.map.call(document.querySelectorAll('#edClausulas [data-clausula]'), function (c) {
+        return {
+          uid: c.dataset.clausula,
+          title: c.querySelector('[data-titulo]').value,
+          items: Array.prototype.map.call(c.querySelectorAll('[data-item]'), function (it) {
+            return { uid: it.dataset.uid || null, level: +it.querySelector('[data-nivel]').value, html: it.querySelector('.ed-texto').innerHTML };
+          })
+        };
+      })
+    };
+    botao.disabled = true;
+    $('#edErro').textContent = '';
+    api(URLS.update.replace('__ID__', atual.id), 'POST', corpo)
+      .then(function (j) { fecharFolhas(); mostraContrato(j.contract); aviso(j.message); })
+      .catch(function (e) { if (e.message !== 'ended') $('#edErro').textContent = e.message; })
+      .then(function () { botao.disabled = false; });
+  });
 
   $('#btnVoltar').addEventListener('click', function () {
     if (Object.keys(obs).length && !confirm('Voltar à lista? As observações ainda não enviadas se perdem.')) return;

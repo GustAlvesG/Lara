@@ -1,7 +1,7 @@
 <x-app-layout :bootstrap-grid="false">
 <div>
     <div class="mx-auto flex w-full max-w-[900px] flex-col gap-5 px-4 pb-12 pt-6 sm:px-6 lg:px-8">
-        <x-page-title title="Novo documento" :back="route('signature-documents.index')">
+        <x-page-title title="Novo documento" :back="\App\Support\DocumentRoutes::route('index')">
             Escolha o modelo, preencha os dados e libere para assinatura no tablet.
         </x-page-title>
 
@@ -74,7 +74,7 @@
                 @include('signature.documents.partials.form', ['document' => null, 'template' => $template])
 
                 <div class="mt-6 flex justify-end gap-3" data-step-actions>
-                    <a href="{{ route('signature-documents.index') }}" class="px-6 py-3 rounded-full font-bold text-ink-2 hover:bg-subtle transition">Cancelar</a>
+                    <a href="{{ \App\Support\DocumentRoutes::route('index') }}" class="px-6 py-3 rounded-full font-bold text-ink-2 hover:bg-subtle transition">Cancelar</a>
                     <button type="submit" class="px-6 py-3 bg-grena text-white rounded-full font-bold hover:bg-grena-hover transition">Criar rascunho</button>
                 </div>
             </form>

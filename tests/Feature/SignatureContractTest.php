@@ -450,13 +450,13 @@ class SignatureContractTest extends TestCase
 
         $compradora = $this->usuario([$this->compras->id]);
 
-        $this->actingAs($compradora)->get(route('signature-contracts.show', $doRh))->assertForbidden();
-        $this->actingAs($compradora)->get(route('signature-contracts.show', $deCompras))->assertOk()->assertSee('A.C.S TRADING LTDA');
+        $this->actingAs($compradora)->get(route('contracts.show', $doRh))->assertForbidden();
+        $this->actingAs($compradora)->get(route('contracts.show', $deCompras))->assertOk()->assertSee('A.C.S TRADING LTDA');
 
-        $this->actingAs($compradora)->get(route('signature-contracts.index'))
+        $this->actingAs($compradora)->get(route('contracts.index'))
             ->assertOk()
-            ->assertSee(route('signature-contracts.show', $deCompras))
-            ->assertDontSee(route('signature-contracts.show', $doRh));
+            ->assertSee(route('contracts.show', $deCompras))
+            ->assertDontSee(route('contracts.show', $doRh));
     }
 
     public function test_so_a_gerencia_valida_e_ve_todos(): void
@@ -466,14 +466,14 @@ class SignatureContractTest extends TestCase
 
         $outroSetor = $this->usuario([$this->rh->id]);
         $this->actingAs($outroSetor)
-            ->post(route('signature-contracts.decide', $contrato), ['decision' => 'approve'])
+            ->post(route('contracts.decide', $contrato), ['decision' => 'approve'])
             ->assertForbidden();
 
         $gerente = $this->usuario([999], true);
-        $this->actingAs($gerente)->get(route('signature-contracts.show', $contrato))->assertOk()->assertSee('Validação da Gerência');
+        $this->actingAs($gerente)->get(route('contracts.show', $contrato))->assertOk()->assertSee('Validação da Gerência');
         $this->actingAs($gerente)
-            ->post(route('signature-contracts.decide', $contrato), ['decision' => 'approve'])
-            ->assertRedirect(route('signature-contracts.show', $contrato));
+            ->post(route('contracts.decide', $contrato), ['decision' => 'approve'])
+            ->assertRedirect(route('contracts.show', $contrato));
 
         $this->assertSame(SignatureContract::STATUS_APPROVED, $contrato->fresh()->status);
     }
@@ -482,19 +482,19 @@ class SignatureContractTest extends TestCase
     {
         $compradora = $this->usuario([$this->compras->id]);
 
-        $this->actingAs($compradora)->get(route('signature-contracts.create'))->assertOk();
+        $this->actingAs($compradora)->get(route('contracts.create'))->assertOk();
 
         $this->actingAs($compradora)
-            ->post(route('signature-contracts.store'), ['sector_id' => $this->rh->id])
+            ->post(route('contracts.store'), ['sector_id' => $this->rh->id])
             ->assertSessionHasErrors('sector_id');
 
-        $resposta = $this->actingAs($compradora)->post(route('signature-contracts.store'), [
+        $resposta = $this->actingAs($compradora)->post(route('contracts.store'), [
             'sector_id' => $this->compras->id,
             'title' => 'Contrato de locação de imóvel',
         ]);
 
         $contrato = SignatureContract::latest('id')->first();
-        $resposta->assertRedirect(route('signature-contracts.edit', $contrato));
+        $resposta->assertRedirect(route('contracts.edit', $contrato));
         $this->assertSame('Contrato de locação de imóvel', $contrato->title);
         $this->assertSame('Compras', $contrato->sector_name);
     }
@@ -504,7 +504,7 @@ class SignatureContractTest extends TestCase
         $contrato = $this->contrato();
         $compradora = $this->usuario([$this->compras->id]);
 
-        $this->actingAs($compradora)->get(route('signature-contracts.edit', $contrato))
+        $this->actingAs($compradora)->get(route('contracts.edit', $contrato))
             ->assertOk()
             ->assertSee('CLÁUSULA PRIMEIRA – OBJETO', false);
 
@@ -512,13 +512,13 @@ class SignatureContractTest extends TestCase
         $input['clauses'][0]['title'] = 'Do objeto do contrato';
 
         $this->actingAs($compradora)
-            ->put(route('signature-contracts.update', $contrato), $input)
-            ->assertRedirect(route('signature-contracts.edit', $contrato));
+            ->put(route('contracts.update', $contrato), $input)
+            ->assertRedirect(route('contracts.edit', $contrato));
 
         $this->assertSame('Do objeto do contrato', $contrato->fresh()->content['clauses'][0]['title']);
 
         $this->actingAs($compradora)
-            ->postJson(route('signature-contracts.preview', $contrato), $input)
+            ->postJson(route('contracts.preview', $contrato), $input)
             ->assertOk()
             ->assertJsonPath('problems', fn($p) => collect($p)->where('level', 'error')->isEmpty())
             ->assertJsonFragment(['uid' => 'itvalor011', 'number' => '2.1']);
@@ -533,27 +533,121 @@ class SignatureContractTest extends TestCase
         $this->assertSame('<p>Oi</p>', $conteudo['clauses'][0]['items'][0]['html']);
     }
 
+    // -------------------------------------- módulo Contratos (04/11/2026)
+
+    /** Contrato aprovado, com o documento de assinatura em rascunho. */
+    private function contratoAprovado(?Sector $setor = null): SignatureContract
+    {
+        $contrato = $this->contrato($setor);
+        $this->service()->submit($contrato->fresh(), null, 7, 'Compradora');
+        $this->service()->approve($contrato->fresh(), null, 9, 'Gerente');
+
+        return $contrato->fresh();
+    }
+
+    public function test_aba_assinaturas_de_contratos_lista_e_abre_o_documento_do_setor(): void
+    {
+        $contrato = $this->contratoAprovado();
+        $documento = SignatureDocument::findOrFail($contrato->signature_document_id);
+        // Só a permissão da aba: sem `assinatura.documentos`.
+        $assina = $this->usuario([$this->compras->id], false, ['contratos.assinatura']);
+
+        $this->actingAs($assina)->get(route('contract-signatures.index'))
+            ->assertOk()
+            ->assertSee('Assinaturas dos contratos')
+            ->assertSee($documento->title)
+            ->assertDontSee('Novo documento')
+            ->assertSee(route('contract-signatures.show', $documento), false);
+
+        // O mesmo processo de Assinaturas, com os links na aba de Contratos.
+        $this->actingAs($assina)->get(route('contract-signatures.show', $documento))
+            ->assertOk()
+            ->assertSee(route('contract-signatures.freeze', $documento), false)
+            ->assertDontSee(route('signature-documents.freeze', $documento), false);
+
+        $this->assertTrue($assina->can('release', $documento));
+        $this->assertTrue($assina->can('update', $documento));
+        // Assinaturas segue fechado para ela.
+        $this->actingAs($assina)->get(route('signature-documents.index'))->assertForbidden();
+    }
+
+    public function test_aba_assinaturas_nao_abre_contrato_de_outro_setor(): void
+    {
+        $contrato = $this->contratoAprovado();
+        $documento = SignatureDocument::findOrFail($contrato->signature_document_id);
+        $doRh = $this->usuario([$this->rh->id], false, ['contratos.assinatura']);
+
+        $this->actingAs($doRh)->get(route('contract-signatures.index'))->assertOk()->assertDontSee($documento->title);
+        $this->actingAs($doRh)->get(route('contract-signatures.show', $documento))->assertForbidden();
+        $this->assertFalse($doRh->can('release', $documento));
+    }
+
+    public function test_aba_assinaturas_so_abre_documento_de_contrato(): void
+    {
+        $contrato = $this->contratoAprovado();
+        $documento = SignatureDocument::findOrFail($contrato->signature_document_id);
+        // Desligado do contrato, é um documento qualquer de Assinaturas.
+        $contrato->forceFill(['signature_document_id' => null])->save();
+
+        $atendente = $this->usuario([$this->compras->id], false, ['assinatura.documentos', 'contratos.assinatura']);
+
+        $this->actingAs($atendente)->get(route('contract-signatures.show', $documento))->assertNotFound();
+    }
+
+    public function test_endereco_antigo_de_contratos_redireciona(): void
+    {
+        $contrato = $this->contrato();
+        $user = $this->usuario([$this->compras->id]);
+
+        $this->actingAs($user)->get('/assinatura/contratos/' . $contrato->id . '?aba=x')
+            ->assertStatus(301)
+            ->assertRedirect('/contratos/' . $contrato->id . '?aba=x');
+        $this->actingAs($user)->get('/assinatura/contratos')->assertRedirect('/contratos');
+        $this->assertSame(url('/contratos/' . $contrato->id), route('contracts.show', $contrato));
+    }
+
+    public function test_biblioteca_so_consulta_sem_a_permissao_da_biblioteca(): void
+    {
+        // Desde 04/11/2026, cadastrar/editar/excluir pede `contratos.biblioteca`.
+        $redatora = $this->usuario([$this->compras->id]);
+
+        $this->actingAs($redatora)->postJson(route('contract-library.store'), [
+            'sector_id' => $this->compras->id,
+            'title' => 'Foro',
+            'items' => [['html' => '<p>Foro.</p>', 'level' => 1]],
+        ])->assertForbidden();
+
+        $this->actingAs($redatora)->get(route('contract-library.index'))
+            ->assertOk()
+            ->assertSee('permissão da biblioteca')
+            ->assertDontSee('id="libForm"', false);
+
+        // Quem só cuida da biblioteca também a abre.
+        $curadora = $this->usuario([$this->compras->id], false, ['contratos.biblioteca']);
+        $this->actingAs($curadora)->get(route('contract-library.index'))->assertOk()->assertSee('id="libForm"', false);
+    }
+
     public function test_biblioteca_guarda_e_lista_por_setor(): void
     {
-        $compradora = $this->usuario([$this->compras->id]);
+        $compradora = $this->usuario([$this->compras->id], false, ['assinatura.contratos', 'contratos.biblioteca']);
 
-        $this->actingAs($compradora)->postJson(route('signature-contract-library.store'), [
+        $this->actingAs($compradora)->postJson(route('contract-library.store'), [
             'sector_id' => $this->compras->id,
             'title' => 'Foro',
             'category' => 'Foro',
             'items' => [['html' => '<p>Fica eleito o Foro de Volta Redonda.</p>', 'level' => 1]],
         ])->assertOk();
 
-        $this->actingAs($compradora)->postJson(route('signature-contract-library.store'), [
+        $this->actingAs($compradora)->postJson(route('contract-library.store'), [
             'sector_id' => $this->rh->id,
             'title' => 'De outro setor',
             'items' => [['html' => '<p>x</p>']],
         ])->assertStatus(422);
 
-        $this->actingAs($compradora)->get(route('signature-contract-library.index'))->assertOk()->assertSee('Fica eleito o Foro');
+        $this->actingAs($compradora)->get(route('contract-library.index'))->assertOk()->assertSee('Fica eleito o Foro');
 
         $contrato = $this->contrato();
-        $this->actingAs($compradora)->getJson(route('signature-contracts.library', $contrato))
+        $this->actingAs($compradora)->getJson(route('contracts.library', $contrato))
             ->assertOk()
             ->assertJsonPath('0.title', 'Foro');
     }

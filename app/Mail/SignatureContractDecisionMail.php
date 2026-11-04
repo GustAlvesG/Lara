@@ -42,7 +42,7 @@ class SignatureContractDecisionMail extends Mailable
                 'version' => $this->version,
                 'approved' => $this->version->decision === SignatureContractVersion::DECISION_APPROVED,
                 'comments' => $this->version->comments()->count(),
-                'url' => route('signature-contracts.show', $this->contract),
+                'url' => route('contracts.show', $this->contract),
             ],
         );
     }

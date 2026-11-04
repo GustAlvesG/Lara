@@ -27,10 +27,21 @@ use Illuminate\Support\Str;
  *
  * Mesmo texto, mesma revisão: pedir de novo sem o contrato ter mudado
  * devolve a que já existe, sem nova chamada.
+ *
+ * Trechos anexados (04/11/2026): em todo pedido — tela do contrato, editor e
+ * tablet da Gerência — quem pede pode anexar trechos de texto (proposta do
+ * fornecedor, contrato anterior, orientação do jurídico). Vão ao Claude como
+ * material de referência, fora da minuta, e ficam guardados na revisão.
+ * Outros trechos = outro pedido (não reaproveita a revisão anterior).
  */
 class ContractAiReviewer
 {
     public const MAX_FINDINGS = 30;
+
+    /** Trechos anexados a um pedido: quantos e o tamanho de cada um. */
+    public const MAX_EXTRAS = 5;
+    public const MAX_EXTRA_TITLE = 120;
+    public const MAX_EXTRA_TEXT = 12000;
 
     private const SYSTEM = <<<'TXT'
 Você revisa minutas de contrato de um clube social brasileiro, durante a redação ou antes de a Gerência aprová-las para assinatura.
@@ -56,6 +67,7 @@ Regras da resposta:
 - Não repita o que a conferência automática do sistema já apontou.
 - Campos marcados como lacuna na minuta ainda serão preenchidos: só aponte se faltarem informações essenciais.
 - Trechos marcados "[não enviado: …]" foram retirados de propósito, por privacidade. Não aponte a falta deles nem suponha o que dizem.
+- O "material de referência", quando houver, foi anexado por quem pediu a revisão (proposta, contrato anterior, orientação). Não é parte do contrato: use-o para conferir a minuta e aponte as divergências entre os dois (com clausula = a cláusula da minuta afetada).
 TXT;
 
     /** O que tira um trecho da análise por padrão (ver SignatureContractAiReview::SENSITIVE_LABELS). */
@@ -83,12 +95,15 @@ TXT;
      * sensíveis só vão se a chave estiver em $include (marcados na tela).
      *
      * @param  array<int, string>  $include
+     * @param  array<int, mixed>  $extras  trechos anexados ao pedido: [{title, text}]
      * @return array{review: SignatureContractAiReview, reused: bool}
      *
      * @throws ClaudeException
      */
-    public function review(SignatureContract $contract, ?int $userId, ?string $userName, array $include = []): array
+    public function review(SignatureContract $contract, ?int $userId, ?string $userName, array $include = [], array $extras = []): array
     {
+        $extras = self::normalizeExtras($extras);
+
         $conteudo = $contract->content ?? [];
         $trechos = $this->sections($conteudo, $contract->number);
 
@@ -104,7 +119,7 @@ TXT;
         sort($chaves);
 
         $existente = $contract->aiReviews()->where('content_hash', $hash)->get()
-            ->first(fn(SignatureContractAiReview $r) => $r->withheldKeys() === $chaves);
+            ->first(fn(SignatureContractAiReview $r) => $r->withheldKeys() === $chaves && $r->extraParts() === $extras);
 
         if ($existente) {
             return ['review' => $existente, 'reused' => true];
@@ -119,7 +134,7 @@ TXT;
         $resposta = $this->claude->structured(
             model: (string) config('claude.contract_review.model'),
             system: self::SYSTEM,
-            prompt: $this->prompt($contract, $texto, $retidos),
+            prompt: $this->prompt($contract, $texto, $retidos, $extras),
             schema: $this->schema(),
             maxTokens: (int) config('claude.contract_review.max_tokens', 16000),
             effort: config('claude.contract_review.effort'),
@@ -138,6 +153,7 @@ TXT;
             'summary' => mb_substr(trim((string) ($dados['resumo'] ?? '')), 0, 4000),
             'findings' => $this->findings($dados['apontamentos'] ?? [], $totalClausulas),
             'withheld' => $retidos,
+            'extras' => $extras !== [] ? $extras : null,
             'input_tokens' => $resposta['input_tokens'],
             'output_tokens' => $resposta['output_tokens'],
             'requested_by' => $userId,
@@ -149,9 +165,47 @@ TXT;
             'verdict' => $review->verdict,
             'findings' => count($review->findings),
             'withheld' => count($retidos),
+            'extras' => count($extras),
         ]);
 
         return ['review' => $review, 'reused' => false];
+    }
+
+    /**
+     * Os trechos anexados, limpos: sem os vazios, no máximo MAX_EXTRAS, cada
+     * um cortado no tamanho máximo. Título vazio vira "Trecho N".
+     *
+     * @param  array<int, mixed>  $extras
+     * @return array<int, array{title: string, text: string}>
+     */
+    public static function normalizeExtras(array $extras): array
+    {
+        $saida = [];
+
+        foreach ($extras as $extra) {
+            if (!is_array($extra)) {
+                continue;
+            }
+
+            $texto = trim(str_replace(["\r\n", "\r"], "\n", (string) ($extra['text'] ?? '')));
+
+            if ($texto === '') {
+                continue;
+            }
+
+            $titulo = trim(preg_replace('/\s+/u', ' ', (string) ($extra['title'] ?? '')));
+
+            $saida[] = [
+                'title' => mb_substr($titulo !== '' ? $titulo : 'Trecho ' . (count($saida) + 1), 0, self::MAX_EXTRA_TITLE),
+                'text' => mb_substr($texto, 0, self::MAX_EXTRA_TEXT),
+            ];
+
+            if (count($saida) === self::MAX_EXTRAS) {
+                break;
+            }
+        }
+
+        return $saida;
     }
 
     /** Se a revisão é do texto que está no contrato agora. */
@@ -299,8 +353,12 @@ TXT;
         return 'contém ' . collect($reasons)->map(fn($r) => SignatureContractAiReview::SENSITIVE_LABELS[$r] ?? $r)->join(', ', ' e ');
     }
 
-    private function prompt(SignatureContract $contract, string $texto, array $retidos = []): string
+    private function prompt(SignatureContract $contract, string $texto, array $retidos = [], array $extras = []): string
     {
+        $referencia = collect($extras)
+            ->map(fn(array $e) => '<material titulo="' . htmlspecialchars($e['title'], ENT_QUOTES, 'UTF-8') . "\">\n" . $e['text'] . "\n</material>")
+            ->join("\n\n");
+
         $problemas = collect($this->renderer->problems($contract->content ?? []))
             ->map(fn(array $p) => '- ' . $p['message'])
             ->join("\n");
@@ -316,7 +374,10 @@ TXT;
             . "Conferência automática do sistema (já apontado, não repita):\n" . ($problemas ?: '- nada apontado') . "\n\n"
             . "Anexos que seguem com o contrato (só os nomes):\n" . ($anexos ?: '- nenhum') . "\n\n"
             . "Trechos retirados por privacidade (não aponte a falta deles):\n" . ($fora ?: '- nenhum') . "\n\n"
-            . "<minuta>\n{$texto}\n</minuta>";
+            . "<minuta>\n{$texto}\n</minuta>"
+            . ($referencia !== ''
+                ? "\n\nMaterial de referência anexado por quem pediu a revisão (não é parte do contrato):\n" . $referencia
+                : '');
     }
 
     /** @return array<string, mixed> */

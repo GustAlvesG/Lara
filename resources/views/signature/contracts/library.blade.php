@@ -2,6 +2,9 @@
     Biblioteca de cláusulas e modelos de contrato, por setor. A cláusula
     inserida num contrato é copiada: mudar aqui não mexe em contrato feito.
     Modelos nascem de um contrato ("Salvar como modelo", na tela dele).
+
+    Cadastrar, editar e excluir pedem `contratos.biblioteca` (04/11/2026,
+    SignatureContractPolicy::manageLibrary); sem ela, a tela só consulta.
 --}}
 @php
     $f = 'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-grena focus:ring-2 focus:ring-grena-tint';
@@ -9,13 +12,18 @@
     $card = 'space-y-3 rounded-card bg-surface p-5 shadow-card';
     $h = 'font-display text-base font-semibold text-ink';
     $itens = $editing ? ($editing->items ?? []) : [['level' => 1, 'html' => '']];
+    $cuida = auth()->user()?->can('manageLibrary', \App\Models\SignatureContract::class) ?? false;
+    $editing = $cuida ? $editing : null;
 @endphp
 <x-app-layout :bootstrap-grid="false">
     @include('signature.contracts.partials.styles')
 
     <x-page>
-        <x-page-title title="Biblioteca de cláusulas e modelos" :back="route('signature-contracts.index')">
+        <x-page-title title="Biblioteca de cláusulas e modelos">
             Cláusulas e modelos do seu setor, para reaproveitar em contratos novos.
+            @unless($cuida)
+                Para cadastrar, editar ou excluir, é preciso a permissão da biblioteca (configurada em Setores).
+            @endunless
         </x-page-title>
 
         @include('partials.alerts')
@@ -34,14 +42,16 @@
                                     · por {{ $clausula->updated_by_name ?? $clausula->created_by_name ?? '—' }}
                                 </p>
                             </div>
+                            @if($cuida)
                             <div class="flex gap-2">
-                                <a href="{{ route('signature-contract-library.index', ['editar' => $clausula->id]) }}" class="text-xs font-bold text-grena-ink hover:underline">Editar</a>
-                                <form method="POST" action="{{ route('signature-contract-library.destroy', $clausula) }}" onsubmit="return confirm('Remover esta cláusula da biblioteca?')">
+                                <a href="{{ route('contract-library.index', ['editar' => $clausula->id]) }}" class="text-xs font-bold text-grena-ink hover:underline">Editar</a>
+                                <form method="POST" action="{{ route('contract-library.destroy', $clausula) }}" onsubmit="return confirm('Remover esta cláusula da biblioteca?')">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="text-xs font-bold text-danger hover:underline">Remover</button>
                                 </form>
                             </div>
+                            @endif
                         </div>
                         <div class="ct-paper !p-4 text-sm">
                             @foreach($clausula->items ?? [] as $item)
@@ -63,11 +73,13 @@
                     @forelse($models as $modelo)
                         <div class="flex items-center justify-between gap-2 text-sm">
                             <span><b>{{ $modelo->name }}</b> <span class="text-xs text-ink-2">· {{ $modelo->sector_name }} · {{ count($modelo->content['clauses'] ?? []) }} cláusulas</span></span>
-                            <form method="POST" action="{{ route('signature-contract-library.models.destroy', $modelo) }}" onsubmit="return confirm('Remover o modelo?')">
+                            @if($cuida)
+                            <form method="POST" action="{{ route('contract-library.models.destroy', $modelo) }}" onsubmit="return confirm('Remover o modelo?')">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="text-xs font-bold text-danger hover:underline">Remover</button>
                             </form>
+                            @endif
                         </div>
                     @empty
                         <p class="text-sm text-ink-2">Nenhum modelo. Abra um contrato pronto e use "Salvar como modelo do setor".</p>
@@ -75,9 +87,10 @@
                 </div>
             </div>
 
+            @if($cuida)
             <aside class="xl:col-span-2">
                 <form method="POST" id="libForm"
-                      action="{{ $editing ? route('signature-contract-library.update', $editing) : route('signature-contract-library.store') }}"
+                      action="{{ $editing ? route('contract-library.update', $editing) : route('contract-library.store') }}"
                       class="{{ $card }} xl:sticky xl:top-20">
                     @csrf
                     @if($editing) @method('PUT') @endif
@@ -122,7 +135,7 @@
                             <button type="button" data-lib-add class="rounded-full bg-subtle px-3 py-1.5 text-xs font-bold text-ink hover:bg-line">+ Item</button>
                             <div class="flex gap-2">
                                 @if($editing)
-                                    <x-secondary-button-a href="{{ route('signature-contract-library.index') }}" size="sm">Cancelar</x-secondary-button-a>
+                                    <x-secondary-button-a href="{{ route('contract-library.index') }}" size="sm">Cancelar</x-secondary-button-a>
                                 @endif
                                 <x-primary-button size="sm">{{ $editing ? 'Salvar alterações' : 'Salvar na biblioteca' }}</x-primary-button>
                             </div>
@@ -130,6 +143,7 @@
                     @endif
                 </form>
             </aside>
+            @endif
         </div>
     </x-page>
 

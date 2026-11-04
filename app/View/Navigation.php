@@ -127,16 +127,26 @@ final class Navigation
                 'icon' => 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z',
                 'children' => [
                     ['route' => 'signature-documents.index', 'label' => 'Documentos', 'permission' => 'acessar-documentos-assinatura', 'active' => 'signature-documents.*'],
-                    // Só a permissão do catálogo: a Gerência (que valida) tem acesso
-                    // total e a alcança. Gate de cargo aqui consultaria o banco em
-                    // toda tela.
-                    ['route' => 'signature-contracts.index', 'label' => 'Contratos', 'permission' => P::ASSINATURA_CONTRATOS, 'active' => ['signature-contracts.*', 'signature-contract-library.*']],
                     ['route' => 'signature-reviews.index', 'label' => 'Revisão', 'permission' => 'acessar-revisao-assinatura', 'active' => 'signature-reviews.*'],
                     // O papel timbrado abre pela tela de Modelos.
                     ['route' => 'signature-templates.index', 'label' => 'Modelos', 'permission' => P::ASSINATURA_MODELOS, 'active' => ['signature-templates.*', 'signature-layout.*']],
                     ['route' => 'minor-terms.index', 'label' => 'Termo de Menores', 'permission' => 'acessar-termo-menores', 'active' => 'minor-terms.*'],
                     ['route' => 'signature-directors.index', 'label' => 'Diretoria', 'permission' => P::ASSINATURA_DIRETORIA, 'active' => 'signature-directors.*'],
                     ['route' => 'signature-guide.index', 'label' => 'Guia', 'permission' => 'acessar-guia-assinatura', 'active' => 'signature-guide.*'],
+                ]],
+            // Contratos (módulo próprio desde 04/11/2026): redigir, validar na
+            // Gerência e, aprovado, assinar — a aba Assinaturas é o MESMO
+            // processo de Assinaturas, só com os documentos dos contratos.
+            // Papel timbrado e Diretoria continuam configurados em Assinaturas.
+            // Só permissões do catálogo: a Gerência (que valida) tem acesso
+            // total e as alcança. Gate de cargo aqui consultaria o banco em
+            // toda tela.
+            ['label' => 'Contratos', 'area' => 'cartao', 'glyph' => 'doc',
+                'icon' => 'M9 12h6m-6 4h6M7 3h7l5 5v11a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z',
+                'children' => [
+                    ['route' => 'contracts.index', 'label' => 'Contratos', 'permission' => P::ASSINATURA_CONTRATOS, 'active' => 'contracts.*'],
+                    ['route' => 'contract-signatures.index', 'label' => 'Assinaturas', 'permission' => P::CONTRATOS_ASSINATURA, 'active' => 'contract-signatures.*'],
+                    ['route' => 'contract-library.index', 'label' => 'Biblioteca', 'permission' => 'acessar-biblioteca-contratos', 'active' => 'contract-library.*'],
                 ]],
             ['label' => 'Freelancers', 'area' => 'freela', 'glyph' => 'user',
                 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',

@@ -13,8 +13,10 @@ use Illuminate\Http\Request;
 
 /**
  * Biblioteca de cláusulas e modelos de contrato, POR SETOR (decisão do
- * usuário): cada setor vê e mantém os seus; qualquer usuário do módulo cria.
- * A Gerência enxerga as de todos, como enxerga os contratos.
+ * usuário): cada setor vê e mantém os seus. A Gerência enxerga as de todos,
+ * como enxerga os contratos. Desde 04/11/2026, cadastrar, editar e excluir
+ * pede `contratos.biblioteca` (SignatureContractPolicy::manageLibrary);
+ * consultar e usar no editor seguem de quem redige.
  */
 class ContractLibraryController extends Controller
 {
@@ -22,7 +24,7 @@ class ContractLibraryController extends Controller
 
     public function index(Request $request)
     {
-        $this->authorize('create', SignatureContract::class);
+        $this->authorize('viewLibrary', SignatureContract::class);
 
         $setores = $this->visibleSectorIds($request);
         $busca = trim((string) $request->query('q', ''));
@@ -86,7 +88,7 @@ class ContractLibraryController extends Controller
      */
     public function store(Request $request)
     {
-        $this->authorize('create', SignatureContract::class);
+        $this->authorize('manageLibrary', SignatureContract::class);
 
         $dados = $this->validated($request);
 
@@ -104,12 +106,12 @@ class ContractLibraryController extends Controller
             return response()->json(['ok' => true, 'id' => $clausula->id]);
         }
 
-        return redirect()->route('signature-contract-library.index')->with('success', 'Cláusula salva na biblioteca.');
+        return redirect()->route('contract-library.index')->with('success', 'Cláusula salva na biblioteca.');
     }
 
     public function update(Request $request, SignatureContractClause $signatureContractClause)
     {
-        $this->authorize('create', SignatureContract::class);
+        $this->authorize('manageLibrary', SignatureContract::class);
         $this->ensureVisible($request, $signatureContractClause->sector_id);
 
         $dados = $this->validated($request);
@@ -123,12 +125,12 @@ class ContractLibraryController extends Controller
             'updated_by_name' => $request->user()->name,
         ]);
 
-        return redirect()->route('signature-contract-library.index')->with('success', 'Cláusula atualizada. Os contratos que já a usam não mudam.');
+        return redirect()->route('contract-library.index')->with('success', 'Cláusula atualizada. Os contratos que já a usam não mudam.');
     }
 
     public function destroy(Request $request, SignatureContractClause $signatureContractClause)
     {
-        $this->authorize('create', SignatureContract::class);
+        $this->authorize('manageLibrary', SignatureContract::class);
         $this->ensureVisible($request, $signatureContractClause->sector_id);
 
         $signatureContractClause->delete();
@@ -138,7 +140,7 @@ class ContractLibraryController extends Controller
 
     public function destroyModel(Request $request, SignatureContractModel $signatureContractModel)
     {
-        $this->authorize('create', SignatureContract::class);
+        $this->authorize('manageLibrary', SignatureContract::class);
         $this->ensureVisible($request, $signatureContractModel->sector_id);
 
         $signatureContractModel->delete();

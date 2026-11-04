@@ -49,7 +49,7 @@
     </p>
 
     <p style="font-size:12.5px;line-height:1.6;color:#6d6062;margin:18px 0 0;border-top:1px solid #e8dedd;padding-top:14px;">
-      Você recebeu esta mensagem porque coordena a Gerência, que valida os contratos (Assinaturas → Contratos).
+      Você recebeu esta mensagem porque coordena a Gerência, que valida os contratos (menu Contratos).
     </p>
   </div>
 </body>

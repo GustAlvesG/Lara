@@ -38,7 +38,7 @@ class SignatureContractReviewMail extends Mailable
             with: [
                 'contract' => $this->contract,
                 'version' => $this->version,
-                'url' => route('signature-contracts.show', $this->contract),
+                'url' => route('contracts.show', $this->contract),
             ],
         );
     }

@@ -18,8 +18,8 @@
 @endphp
 
 <div class="bg-surface rounded-card shadow-card p-6" data-positions-box
-     data-pdf-url="{{ route('signature-documents.pdf', [$document, 'versao' => 'enviado']) }}"
-     data-save-url="{{ route('signature-documents.positions', $document) }}"
+     data-pdf-url="{{ \App\Support\DocumentRoutes::route('pdf', [$document, 'versao' => 'enviado']) }}"
+     data-save-url="{{ \App\Support\DocumentRoutes::route('positions', $document) }}"
      data-csrf="{{ csrf_token() }}"
      data-box-width="{{ \App\Services\Signature\SignaturePdfStamper::SIGNATURE_WIDTH }}"
      data-box-height="{{ \App\Services\Signature\SignaturePdfStamper::SIGNATURE_HEIGHT }}">

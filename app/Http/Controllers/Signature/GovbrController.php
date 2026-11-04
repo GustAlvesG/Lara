@@ -32,7 +32,7 @@ class GovbrController extends Controller
     {
         $this->authorize('checkGovbr', $signatureDocument);
 
-        $voltar = route('signature-documents.show', [$signatureDocument, 'aba' => 'govbr']);
+        $voltar = \App\Support\DocumentRoutes::route('show', [$signatureDocument, 'aba' => 'govbr']);
 
         try {
             $documento = $service->prepare($signatureDocument, auth()->id(), auth()->user()?->name);
@@ -68,7 +68,7 @@ class GovbrController extends Controller
             'email.email' => 'O e-mail informado não é válido.',
         ]);
 
-        $voltar = route('signature-documents.show', [$signatureDocument, 'aba' => 'govbr']);
+        $voltar = \App\Support\DocumentRoutes::route('show', [$signatureDocument, 'aba' => 'govbr']);
 
         try {
             $convite = $invites->send(
@@ -115,7 +115,7 @@ class GovbrController extends Controller
             'documento.max' => 'O arquivo é grande demais.',
         ]);
 
-        $voltar = route('signature-documents.show', [$signatureDocument, 'aba' => 'govbr']);
+        $voltar = \App\Support\DocumentRoutes::route('show', [$signatureDocument, 'aba' => 'govbr']);
 
         try {
             $conferencia = $service->check(

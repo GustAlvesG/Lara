@@ -72,7 +72,7 @@
             @include('signature.documents.partials.form', ['document' => null, 'template' => $template])
 
             <div class="mt-6 flex justify-end gap-3" data-step-actions>
-                <a href="{{ route('signature-documents.index') }}" class="px-6 py-3 rounded-full font-bold text-ink-2 hover:bg-subtle transition">Cancelar</a>
+                <a href="{{ \App\Support\DocumentRoutes::route('index') }}" class="px-6 py-3 rounded-full font-bold text-ink-2 hover:bg-subtle transition">Cancelar</a>
                 <button type="submit" class="px-6 py-3 bg-grena text-white rounded-full font-bold hover:bg-grena-hover transition">Enviar e criar rascunho</button>
             </div>
         </form>

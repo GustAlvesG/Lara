@@ -7,7 +7,8 @@ use App\Models\SignatureContract;
 use App\Models\User;
 
 /**
- * Quem pode o quê com um contrato (Assinaturas → Contratos).
+ * Quem pode o quê com um contrato (módulo Contratos; até 04/11/2026 era
+ * Assinaturas → Contratos).
  *
  * Duas regras, ambas decisão do usuário (27/10/2026):
  *
@@ -76,6 +77,26 @@ class SignatureContractPolicy
     public function manage(User $user, SignatureContract $contract): bool
     {
         return $this->view($user, $contract);
+    }
+
+    /**
+     * Consultar a biblioteca de cláusulas e modelos do setor: quem redige ou
+     * quem cuida da biblioteca (e a Gerência).
+     */
+    public function viewLibrary(User $user): bool
+    {
+        return $user->can(P::ASSINATURA_CONTRATOS) || $user->can(P::CONTRATOS_BIBLIOTECA) || $user->isManagementMember();
+    }
+
+    /**
+     * Cadastrar, editar e excluir cláusulas e modelos da biblioteca (inclui
+     * "Salvar na biblioteca" e "Salvar como modelo do setor"). Permissão
+     * própria desde 04/11/2026; USAR a biblioteca no editor segue de quem
+     * redige (`update` do contrato).
+     */
+    public function manageLibrary(User $user): bool
+    {
+        return $user->can(P::CONTRATOS_BIBLIOTECA);
     }
 
     /** Criar aditivo: de quem redige pelo setor. */

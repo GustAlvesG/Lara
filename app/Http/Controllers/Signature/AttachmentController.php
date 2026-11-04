@@ -56,7 +56,7 @@ class AttachmentController extends Controller
             'arquivos.max' => 'Envie no máximo ' . self::MAX_FILES_PER_UPLOAD . ' arquivos de uma vez.',
         ]);
 
-        $voltar = route('signature-documents.show', $signatureDocument) . '#anexos';
+        $voltar = \App\Support\DocumentRoutes::route('show', $signatureDocument) . '#anexos';
         $arquivos = $request->file('arquivos') ?: [$request->file('arquivo')];
 
         $enviados = [];
@@ -123,7 +123,7 @@ class AttachmentController extends Controller
 
         abort_unless($signatureAttachment->signature_document_id === $signatureDocument->id, 404);
 
-        $voltar = route('signature-documents.show', $signatureDocument) . '#anexos';
+        $voltar = \App\Support\DocumentRoutes::route('show', $signatureDocument) . '#anexos';
 
         try {
             $this->attachments->remove($signatureAttachment, auth()->id(), auth()->user()?->name);

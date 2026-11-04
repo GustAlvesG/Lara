@@ -4,6 +4,7 @@ namespace App\Services\Signature\Contracts;
 
 use App\Exceptions\ContractException;
 use App\Models\SignatureContract;
+use App\Models\SignatureContractAiReview;
 use App\Models\SignatureContractVersion;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -39,6 +40,7 @@ class ContractKioskService
     public function __construct(
         private ContractRenderer $renderer,
         private ContractDiff $diff,
+        private ContractService $contracts,
     ) {
     }
 
@@ -191,6 +193,125 @@ class ContractKioskService
                 'label' => $a->label,
                 'mime' => $a->mime,
             ])->values(),
+            // Editar no tablet (04/11/2026): título e o texto das cláusulas.
+            'edit' => $this->editable($contrato),
+            // Revisão pelo Claude no tablet (04/11/2026).
+            'ai' => $this->aiPayload($contrato),
+        ];
+    }
+
+    /**
+     * O que o tablet deixa editar: o título do contrato e, em cada cláusula,
+     * o título e os itens (texto com negrito, itálico e sublinhado; incluir,
+     * tirar e mudar o nível de item). Partes, variáveis, considerandos e
+     * signatários continuam no computador.
+     *
+     * @return array<string, mixed>
+     */
+    public function editable(SignatureContract $contrato): array
+    {
+        $conteudo = $contrato->content ?? [];
+
+        return [
+            'title' => (string) ($conteudo['title'] ?? $contrato->title),
+            'clauses' => collect($conteudo['clauses'] ?? [])->map(fn(array $c, int $i) => [
+                'uid' => $c['uid'],
+                'number' => $i + 1,
+                'title' => (string) ($c['title'] ?? ''),
+                'items' => array_map(fn(array $it) => [
+                    'uid' => $it['uid'] ?? null,
+                    'level' => (int) ($it['level'] ?? 1),
+                    'html' => (string) ($it['html'] ?? ''),
+                ], $c['items'] ?? []),
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * Grava o que a Gerência ajustou no tablet: só título do contrato e
+     * título/itens das cláusulas que JÁ existem (pelo uid); o resto do
+     * conteúdo fica como está. Passa pelo ContractService::save, como o
+     * ajuste feito no computador — na decisão, vira a versão "Ajustado pela
+     * Gerência na validação".
+     *
+     * @param  array<string, mixed>  $input
+     *
+     * @throws ContractException
+     */
+    public function applyEdits(SignatureContract $contrato, array $input, int $userId, string $userName): SignatureContract
+    {
+        $conteudo = $contrato->content ?? [];
+        $porUid = collect($input['clauses'] ?? [])->filter(fn($c) => is_array($c) && isset($c['uid']))->keyBy('uid');
+
+        if (array_key_exists('title', $input) && trim((string) $input['title']) !== '') {
+            $conteudo['title'] = (string) $input['title'];
+        }
+
+        foreach ($conteudo['clauses'] ?? [] as $i => $clausula) {
+            $editada = $porUid->get($clausula['uid'] ?? null);
+
+            if (!$editada) {
+                continue;
+            }
+
+            $conteudo['clauses'][$i]['title'] = (string) ($editada['title'] ?? $clausula['title'] ?? '');
+            $conteudo['clauses'][$i]['items'] = array_values(array_filter(
+                is_array($editada['items'] ?? null) ? $editada['items'] : [],
+                'is_array',
+            ));
+        }
+
+        return $this->contracts->save($contrato, $conteudo, $userId, $userName);
+    }
+
+    /**
+     * A revisão automática como o tablet mostra: a última, se é do texto
+     * atual, os apontamentos com o uid da cláusula (para "Levar para a
+     * observação") e os trechos sensíveis que podem ser incluídos.
+     *
+     * @return array<string, mixed>
+     */
+    public function aiPayload(SignatureContract $contrato): array
+    {
+        $revisor = app(ContractAiReviewer::class);
+
+        if (!$revisor->isAvailable()) {
+            return ['enabled' => false];
+        }
+
+        $revisao = $contrato->aiReviews()->first();
+        $uids = array_column($contrato->content['clauses'] ?? [], 'uid');
+
+        return [
+            'enabled' => true,
+            'limits' => [
+                'extras' => ContractAiReviewer::MAX_EXTRAS,
+                'text' => ContractAiReviewer::MAX_EXTRA_TEXT,
+                'title' => ContractAiReviewer::MAX_EXTRA_TITLE,
+            ],
+            'sensitive' => array_map(fn(array $t) => [
+                'key' => $t['key'],
+                'label' => $t['label'],
+                'reasons' => collect($t['reasons'])->map(fn($m) => SignatureContractAiReview::SENSITIVE_LABELS[$m] ?? $m)->join(', ', ' e '),
+            ], $revisor->sensitiveSections($contrato)),
+            'review' => $revisao ? [
+                'verdict' => $revisao->verdictLabel(),
+                'kind' => $revisao->verdictKind(),
+                'current' => $revisor->isCurrent($revisao, $contrato),
+                'by' => $revisao->requested_by_name,
+                'at' => $revisao->created_at?->format('d/m/Y H:i'),
+                'summary' => $revisao->summary,
+                'withheld' => array_column($revisao->withheld ?? [], 'label'),
+                'extras' => array_column($revisao->extraParts(), 'title'),
+                'findings' => array_map(fn(array $a) => [
+                    'clause' => $a['clausula'],
+                    'uid' => $a['clausula'] > 0 ? ($uids[$a['clausula'] - 1] ?? null) : null,
+                    'where' => $a['trecho'],
+                    'severity' => $a['gravidade'],
+                    'problem' => $a['problema'],
+                    'suggestion' => $a['sugestao'],
+                ], $revisao->findings ?? []),
+            ] : null,
         ];
     }
 

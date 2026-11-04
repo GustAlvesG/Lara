@@ -41,10 +41,28 @@ class DocumentController extends Controller
     {
         $this->authorize('viewAny', SignatureDocument::class);
 
+        return $this->listing($request, false);
+    }
+
+    /**
+     * Aba Assinaturas do módulo Contratos (04/11/2026): a mesma lista, só com
+     * os documentos gerados dos contratos que a pessoa enxerga (setor dela, ou
+     * todos para a Gerência), sem "Novo documento" e sem o filtro de modelo.
+     */
+    public function contractIndex(Request $request)
+    {
+        $this->authorize('viewContractSignatures', SignatureDocument::class);
+
+        return $this->listing($request, true);
+    }
+
+    private function listing(Request $request, bool $contratos)
+    {
         $status = $request->query('status');
         $busca = trim((string) $request->query('q', ''));
         // Modelo: a raiz (todas as versões dele) ou "avulso" (PDF enviado pronto).
-        $modelo = (string) $request->query('modelo', '');
+        $modelo = $contratos ? 'contratos' : (string) $request->query('modelo', '');
+        $user = $request->user();
         $de = $this->queryDate($request, 'de');
         $ate = $this->queryDate($request, 'ate');
         $meus = $request->boolean('meus');
@@ -56,11 +74,12 @@ class DocumentController extends Controller
             ->search($busca)
             // O modelo do contrato também é de uso único, mas não é PDF enviado pronto.
             ->when($modelo === 'avulso', fn($query) => $query->whereDoesntHave('contract')->whereHas('template', fn($t) => $t->where('single_use', true)))
-            ->when($modelo === 'contratos', fn($query) => $query->has('contract'))
+            ->when($modelo === 'contratos' && !$contratos, fn($query) => $query->has('contract'))
+            ->when($contratos, fn($query) => $query->whereHas('contract', fn($c) => $c->visibleTo($user->sectorIds(), $user->isManagementMember())))
             ->when(ctype_digit($modelo), fn($query) => $query->whereHas('template', fn($t) => $t->where('root_id', (int) $modelo)))
             ->when($de, fn($query) => $query->where('created_at', '>=', $de->startOfDay()))
             ->when($ate, fn($query) => $query->where('created_at', '<=', $ate->endOfDay()))
-            ->when($meus, fn($query) => $query->where('created_by', $request->user()->id))
+            ->when($meus, fn($query) => $query->where('created_by', $user->id))
             // "Aguardando diretoria": aguardando assinatura, com diretor pendente
             // e já sem ninguém de fora da diretoria por assinar — antes disso o
             // documento ainda não chegou à diretoria.
@@ -83,7 +102,7 @@ class DocumentController extends Controller
 
         // Um item por modelo (a versão mais nova dá o nome), ativos e inativos:
         // documento antigo também se procura pelo modelo que saiu de uso.
-        $modelos = SignatureTemplate::whereIn('id', fn($q) => $q->selectRaw('MAX(id)')
+        $modelos = $contratos ? collect() : SignatureTemplate::whereIn('id', fn($q) => $q->selectRaw('MAX(id)')
             ->from('signature_templates')
             ->groupBy('root_id'))
             ->where('single_use', false)
@@ -100,6 +119,7 @@ class DocumentController extends Controller
             'ate' => $ate?->toDateString(),
             'meus' => $meus,
             'arquivados' => $arquivados,
+            'contractsTab' => $contratos,
         ]);
     }
 
@@ -162,7 +182,7 @@ class DocumentController extends Controller
             auth()->user()?->name,
         );
 
-        return redirect()->route('signature-documents.show', $documento)
+        return redirect(\App\Support\DocumentRoutes::route('show', $documento))
             ->with('success', 'Documento criado. Confira o texto com a pessoa antes de congelar.');
     }
 
@@ -209,7 +229,7 @@ class DocumentController extends Controller
             return back()->withErrors(['file' => $e->getMessage()])->withInput();
         }
 
-        return redirect()->route('signature-documents.show', $documento)
+        return redirect(\App\Support\DocumentRoutes::route('show', $documento))
             ->with('success', 'Documento enviado. Marque o lugar de cada assinatura e confira antes de congelar.');
     }
 
@@ -314,7 +334,7 @@ class DocumentController extends Controller
             return back()->with('error', $e->getMessage())->withInput();
         }
 
-        return redirect()->route('signature-documents.show', $signatureDocument)
+        return redirect(\App\Support\DocumentRoutes::route('show', $signatureDocument))
             ->with('success', 'Documento atualizado.');
     }
 
@@ -335,7 +355,7 @@ class DocumentController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('signature-documents.show', $signatureDocument)
+        return redirect(\App\Support\DocumentRoutes::route('show', $signatureDocument))
             ->with('success', 'Documento congelado. Agora é possível liberar a assinatura no tablet.');
     }
 
@@ -351,7 +371,7 @@ class DocumentController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        return redirect()->route('signature-documents.show', $signatureDocument)
+        return redirect(\App\Support\DocumentRoutes::route('show', $signatureDocument))
             ->with('success', 'Documento cancelado. Qualquer sessão aberta no tablet foi encerrada.');
     }
 
@@ -372,7 +392,7 @@ class DocumentController extends Controller
             ])->save();
         }
 
-        return redirect()->route('signature-documents.index')
+        return redirect(\App\Support\DocumentRoutes::route('index'))
             ->with('success', "Documento \"{$signatureDocument->title}\" arquivado. Ele continua no filtro \"Arquivados\".");
     }
 
@@ -387,7 +407,7 @@ class DocumentController extends Controller
             'hidden_by_name' => null,
         ])->save();
 
-        return redirect()->route('signature-documents.show', $signatureDocument)
+        return redirect(\App\Support\DocumentRoutes::route('show', $signatureDocument))
             ->with('success', 'Documento desarquivado: voltou à lista.');
     }
 

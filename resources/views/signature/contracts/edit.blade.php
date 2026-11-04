@@ -27,13 +27,13 @@
     @include('signature.contracts.partials.styles')
 
     <x-page wide>
-        <x-page-title :title="($contract->number ? $contract->number . ' — ' : '') . $contract->title" :back="route('signature-contracts.show', $contract)">
+        <x-page-title :title="($contract->number ? $contract->number . ' — ' : '') . $contract->title" :back="route('contracts.show', $contract)">
             {{ $contract->statusLabel() }} · setor {{ $contract->sector_name ?? '—' }}
             @if($contract->isAddendum()) · aditivo de {{ $contract->parent?->number }} @endif
             <x-slot:actions>
                 {{-- Só na tela larga, onde a prévia fica ao lado: escondê-la dá a largura toda ao texto. --}}
                 <button type="button" data-preview-toggle class="hidden rounded-full bg-subtle px-4 py-2 text-sm font-bold text-ink hover:bg-line xl:inline-flex">Ocultar prévia</button>
-                <x-secondary-button-a href="{{ route('signature-contracts.show', $contract) }}">Ver contrato</x-secondary-button-a>
+                <x-secondary-button-a href="{{ route('contracts.show', $contract) }}">Ver contrato</x-secondary-button-a>
             </x-slot:actions>
         </x-page-title>
 
@@ -55,7 +55,7 @@
                             <span class="text-xs font-bold text-warn">{{ $comment->author_name }}{{ $comment->clause_uid ? ' · sobre uma cláusula que foi removida' : '' }}</span>
                             <p class="whitespace-pre-line">{{ $comment->body }}</p>
                         </div>
-                        <button type="button" data-resolve="{{ route('signature-contracts.comments.resolve', [$contract, $comment]) }}"
+                        <button type="button" data-resolve="{{ route('contracts.comments.resolve', [$contract, $comment]) }}"
                                 class="shrink-0 rounded-full bg-surface px-3 py-1 text-xs font-bold text-ink hover:bg-subtle">Resolvida</button>
                     </div>
                 @endforeach
@@ -63,7 +63,7 @@
         @endif
 
         <div class="ct-layout grid grid-cols-1 gap-6 xl:grid-cols-12" data-layout>
-            <form id="ctForm" method="POST" action="{{ route('signature-contracts.update', $contract) }}" class="min-w-0 space-y-6 xl:col-span-7">
+            <form id="ctForm" method="POST" action="{{ route('contracts.update', $contract) }}" class="min-w-0 space-y-6 xl:col-span-7">
                 @csrf
                 @method('PUT')
                 <input type="hidden" name="next" value="" data-next>
@@ -245,10 +245,10 @@
             'tokens' => $tokens,
             'outline' => collect($outline)->map(fn ($o, $uid) => ['uid' => $uid] + $o)->values(),
             'urls' => [
-                'preview' => route('signature-contracts.preview', $contract),
-                'library' => route('signature-contracts.library', $contract),
-                'libraryStore' => route('signature-contract-library.store'),
-                'parties' => route('signature-contracts.parties'),
+                'preview' => route('contracts.preview', $contract),
+                'library' => route('contracts.library', $contract),
+                'libraryStore' => route('contract-library.store'),
+                'parties' => route('contracts.parties'),
             ],
         ],
     ])

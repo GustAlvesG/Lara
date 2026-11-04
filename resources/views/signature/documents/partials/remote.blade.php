@@ -69,7 +69,7 @@
                         @endif
 
                         @if($ultimo->isUsable())
-                            <form method="POST" action="{{ route('signature-documents.remote-link.destroy', [$document, $ultimo]) }}" class="mt-2"
+                            <form method="POST" action="{{ \App\Support\DocumentRoutes::route('remote-link.destroy', [$document, $ultimo]) }}" class="mt-2"
                                   onsubmit="return confirm('Revogar o link de {{ $signer->name }}? Ele deixa de abrir, e a sessão aberta por ele é encerrada.')">
                                 @csrf
                                 @method('DELETE')
@@ -81,7 +81,7 @@
                     @if($motivo)
                         <p class="mt-2 text-[11px] text-ink-2">{{ $motivo }}</p>
                     @else
-                        <form method="POST" action="{{ route('signature-documents.remote-link.store', [$document, $signer]) }}"
+                        <form method="POST" action="{{ \App\Support\DocumentRoutes::route('remote-link.store', [$document, $signer]) }}"
                               class="mt-3 flex flex-col gap-2 sm:flex-row"
                               @if($ultimo?->isUsable()) onsubmit="return confirm('Enviar um novo link? O anterior deixa de valer.')" @endif>
                             @csrf

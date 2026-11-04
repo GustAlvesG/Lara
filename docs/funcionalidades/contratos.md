@@ -1,6 +1,7 @@
-# Contratos (Assinaturas → Contratos)
+# Contratos (módulo Contratos)
 
-Desde 27/10/2026. Branch `contratos`.
+Desde 27/10/2026. Branch `contratos`. **Módulo próprio no menu desde 04/11/2026** (antes: Assinaturas →
+Contratos) — ver [Módulo próprio](#módulo-próprio-04112026).
 
 O contrato é **redigido no Lara em cláusulas**, **validado pela Gerência no Lara** e, aprovado, vira um
 **documento de assinatura em rascunho** do módulo Assinaturas. Antes, a compradora imprimia o contrato,
@@ -9,8 +10,59 @@ como referência (CT 175/26, prestação de serviços; CT 135.26, locação) tin
 evita: remissão para o item errado ("cláusula penal do item 7.1", que era o 6.1), termo digitado errado
 ("CONTRADATA", "CONTRATADO", "O LOCATÁRIA") e nome de outro fornecedor esquecido no texto.
 
-Guia do usuário: seção 13 do guia de Assinaturas (`resources/views/signature/guide/content.blade.php`).
-Resumo para agentes: [docs/resumo-modulos/Assinaturas.md](../resumo-modulos/Assinaturas.md#contratos-27102026).
+Guia do usuário: [docs/guias/contratos.md](../guias/contratos.md) (a seção 13 do guia ilustrado de Assinaturas,
+`resources/views/signature/guide/content.blade.php`, segue com o passo a passo).
+Resumo para agentes: [docs/resumo-modulos/Contratos.md](../resumo-modulos/Contratos.md).
+
+## Módulo próprio (04/11/2026)
+
+Pedido do gerente: separar Contratos de Assinaturas, que seguem partilhando configuração. Decisões do usuário:
+
+| Tema | Decisão |
+|---|---|
+| Menu | Grupo **Contratos** (ícone de documento, `glyph` `doc`) com três abas: **Contratos**, **Assinaturas** e **Biblioteca**. O item saiu de Assinaturas. |
+| Assinatura | Os documentos produzidos pelos contratos têm aba própria de assinatura **dentro de Contratos**, com **o mesmo processo** de Assinaturas (mesmas telas e controllers, rotas novas). |
+| Biblioteca | Permissão **separada** já (`contratos.biblioteca`) para cadastrar, editar e excluir. |
+| Configuração | Papel timbrado, Diretoria (presidente), CNPJs e o tablet do balcão seguem os de Assinaturas. |
+
+Como foi feito (o "motor" não mudou: classes `Signature\Contract*`, tabelas `signature_contract*`, config
+`signature.contracts.*` e `SIGNATURE_CONTRACT_*` ficam onde estavam):
+
+- **URLs e rotas:** `/contratos` (`contracts.*`), `/contratos/biblioteca` (`contract-library.*`),
+  `/contratos/assinaturas` (`contract-signatures.*`). Os antigos `signature-contracts.*` e
+  `signature-contract-library.*` foram renomeados. `/assinatura/contratos/{caminho?}` (GET) redireciona com 301
+  para `/contratos/{caminho}`, com a query (rota `contracts.legacy`): há e-mails com o link antigo.
+- **Aba Assinaturas:** as rotas de UM documento foram para uma closure (`$rotasDoDocumento` em `routes/web.php`)
+  registrada duas vezes — em `signature-documents.*` e em `contract-signatures.*` (esta com o middleware
+  `EnsureContractDocument`: documento que não veio de contrato dá 404). A lista é
+  `DocumentController::contractIndex` (mesma view `signature.documents.index` com `$contractsTab`: só
+  documentos de contrato do setor — `SignatureContract::visibleTo` —, sem "Novo documento" nem filtro de modelo).
+  As views de documento e os redirecionamentos dos controllers (Document, Attachment, Govbr, RemoteLink, Review)
+  pedem a rota por `App\Support\DocumentRoutes::route('show', …)`: dentro da aba de Contratos o prefixo é
+  `contract-signatures.`, fora dela (Assinaturas, e-mail) é `signature-documents.`. Rotas que só existem em
+  Assinaturas (novo documento, PDF pronto, busca de sócios) seguem fixas. A tela do contrato liga o documento
+  pela aba de Contratos.
+- **Permissões** (catálogo, grupo **Contratos** na tela Setores; o seed cria no deploy, sem setor):
+  `assinatura.contratos` (a CHAVE ficou a mesma para não perder os setores configurados; rótulo "Redigir os
+  contratos do próprio setor"), `contratos.biblioteca` (nova) e `contratos.assinatura` (nova). Habilidade
+  composta `acessar-biblioteca-contratos` (= redigir OU biblioteca) para o menu. `contratos.assinatura`
+  também abre o guia ilustrado de Assinaturas (`acessar-guia-assinatura`).
+- **`SignatureDocumentPolicy`:** quem tem `contratos.assinatura` e é do setor do contrato (ou da Gerência)
+  conduz a assinatura do documento do contrato como o atendente de Assinaturas (`view`, `update`, `release`,
+  `checkGovbr`, `attach`, `checkAnswers`, `cancel`, `hide`, `download`), sem precisar de
+  `assinatura.documentos`. Não é o `view` do contrato (aquele exige também `assinatura.contratos`).
+  Evidências e revisão interna seguem nas permissões de Assinaturas. `viewContractSignatures` abre a lista
+  (`contratos.assinatura` ou `assinatura.documentos`).
+- **Biblioteca:** `SignatureContractPolicy::viewLibrary` (redigir, biblioteca ou Gerência) e `manageLibrary`
+  (`contratos.biblioteca`): `ContractLibraryController::store/update/destroy/destroyModel` e
+  `ContractController::saveModel`. "Salvar na biblioteca" (editor), "Salvar como modelo do setor" (tela do
+  contrato) e o formulário/Remover da tela da biblioteca só aparecem com ela. Usar a biblioteca no editor
+  (`contracts.library`) continua de quem redige.
+- **Atenção no deploy:** quem hoje redige perde o cadastro na biblioteca até alguém dar
+  `contratos.biblioteca` ao setor; e a aba Assinaturas só aparece para quem receber `contratos.assinatura`.
+  Quem tem `assinatura.documentos` continua assinando os contratos por Assinaturas → Documentos.
+- Testes: `SignatureContractTest::test_aba_assinaturas_*`, `test_endereco_antigo_de_contratos_redireciona`,
+  `test_biblioteca_so_consulta_sem_a_permissao_da_biblioteca`.
 
 ## Decisões do usuário (27/10/2026)
 
@@ -27,10 +79,10 @@ Resumo para agentes: [docs/resumo-modulos/Assinaturas.md](../resumo-modulos/Assi
 | Visto | Rubrica em **todas as páginas**. |
 | Anexos | Seguem junto para a assinatura. |
 | Aprovado | Gera o documento de assinatura **em rascunho, sem congelar** (corrigido pelo usuário). |
-| Biblioteca e modelos | Cláusulas e modelos completos, **por setor**; qualquer usuário do módulo cria. |
+| Biblioteca e modelos | Cláusulas e modelos completos, **por setor**; qualquer usuário do módulo cria (desde 04/11/2026, cadastrar pede `contratos.biblioteca`). |
 | Aditivo | Nasce do contrato original, herdando partes e variáveis. |
 | Word | Só a plataforma para redigir (sem importar Word), mas **exporta Word** (para o fornecedor revisar). |
-| Tablet | A Gerência valida também no **tablet do balcão**, com matrícula + PIN; lá só lê, comenta e decide. |
+| Tablet | A Gerência valida também no **tablet do balcão**, com matrícula + PIN; lá lê, comenta e decide (e, desde 04/11/2026, pede a revisão do Claude e edita o texto). |
 
 Decisões tomadas na implementação (não perguntadas — revisar se o usuário discordar):
 
@@ -70,8 +122,9 @@ aprovado ─criar aditivo→ novo contrato (kind = addendum) em rascunho
 ## Validação no tablet do balcão (Gerência)
 
 Decisão do usuário (27/10/2026): a Gerência também valida pelo **tablet de assinatura do balcão**, numa
-versão mobile, entrando com **matrícula + PIN** (como a Assinatura da Diretoria). No tablet só se **lê,
-comenta e decide** — ajustar o texto continua no computador.
+versão mobile, entrando com **matrícula + PIN** (como a Assinatura da Diretoria). No tablet se **lê,
+comenta e decide**. Desde 04/11/2026 (pedido do usuário), também se **pede a revisão pelo Claude** e se
+**edita o texto** (abaixo).
 
 - **Entrada:** botão "Validação de contratos (Gerência)" na tela de espera do quiosque (só no balcão, não no
   Termo de Menores) → página própria `/assinatura/kiosk/gerencia` (`resources/views/quiosque/gerencia.blade.php`),
@@ -87,8 +140,25 @@ comenta e decide** — ajustar o texto continua no computador.
   página até "Devolver". "Aprovar" fica desligado enquanto houver problema que trava.
 - **Decisão:** `ContractService::returnToAuthor` / `approve`, os mesmos da tela web, com o usuário que entrou
   como quem decidiu. Contrato que outro gerente já decidiu responde 409 ("atualize a lista").
+- **Revisão do Claude no tablet (04/11/2026):** botão "Revisão do Claude" (some sem `ANTHROPIC_API_KEY`) abre a
+  folha com a última revisão (veredito, aviso de texto mudado, resumo, não enviados, trechos anexados) e os
+  apontamentos; "Levar para a observação" põe o apontamento na observação da cláusula (pelo `uid` que o
+  `ContractKioskService::aiPayload` devolve) ou na observação geral da devolução. Para pedir: os trechos
+  sensíveis a incluir (desmarcados), os trechos anexados e "Analisar com o Claude" →
+  `POST quiosque.gerencia.ai-review` (`include[]`, `extras[]`; 6/min na rota e o mesmo limite por pessoa do
+  computador, `contract-ai-review:{id}`), com o gerente que entrou como quem pediu.
+- **Editar no tablet (04/11/2026):** botão "Editar texto" abre a folha com o título do contrato e, por
+  cláusula, título e itens (`contenteditable`, barra com negrito/itálico/sublinhado, Item/Subitem, Tirar,
+  + Item; colar entra como texto puro). "Salvar texto" → `POST quiosque.gerencia.update` →
+  `ContractKioskService::applyEdits`: só o título e título/itens das cláusulas que JÁ existem (pelo uid);
+  cláusula nova ou desconhecida é ignorada, o resto do conteúdo fica. Grava pelo `ContractService::save` (que
+  aceita contrato em validação) e o HTML passa pelo `ContractContent::normalize` (saneado). Na decisão, o
+  ajuste vira a versão "Ajustado pela Gerência na validação" (`reviewerVersion`), como no computador. As
+  observações abertas na página continuam (são por uid de cláusula). Partes, variáveis, considerandos e
+  signatários seguem só no computador.
 - Rotas `quiosque.gerencia.*` (públicas, throttle por rota): `index`, `login`, `pending` (batimento),
-  `show`, `decide`, `attachment`, `logout`. Controller `Signature\ContractKioskController`.
+  `show` (com `edit` e `ai`), `decide`, `update`, `ai-review`, `attachment`, `logout`. Controller
+  `Signature\ContractKioskController`.
 - Testes: `tests/Feature/SignatureContractKioskTest.php` (usuários reais com `SharesSqliteWithUserConnection`).
 
 ## Revisão automática pelo Claude
@@ -101,7 +171,7 @@ integração com a API está em [claude-api.md](claude-api.md).
   com o contrato em rascunho ou devolvido, e a Gerência também em validação. Quem vê o contrato vê a última
   revisão, em qualquer situação. Sem `ANTHROPIC_API_KEY`, o cartão nem aparece.
 - **Onde:** cartão "Revisão automática (Claude)" na tela do contrato, logo abaixo da validação. Botão
-  "Analisar com o Claude" → `POST signature-contracts.ai-review` (6 por minuto) → volta para `#revisao-ia`.
+  "Analisar com o Claude" → `POST contracts.ai-review` (6 por minuto) → volta para `#revisao-ia`.
 - **No editor:** o mesmo cartão fica ao lado da prévia, com o botão **Salvar e analisar**. Ele é do formulário do
   contrato (`form="ctForm"`, `next=ai-review`): salva primeiro, analisa o texto salvo e volta ao editor, sem
   perder o que foi digitado. Trecho novo só aparece para marcar depois de salvo; até lá, se for sensível, fica de
@@ -132,8 +202,20 @@ integração com a API está em [claude-api.md](claude-api.md).
   retidos. Pedir de novo sem mudança e com a mesma escolha de trechos devolve a existente, sem nova chamada.
   Se o texto mudou, o cartão avisa "O texto mudou depois desta revisão" e oferece "Analisar o texto atual".
   Com a revisão em dia, "Analisar de novo escolhendo outros trechos" permite repetir com outra escolha.
-- **Só orienta:** não aprova, não devolve, não altera o texto, e não aparece no tablet do balcão. Fica no
-  histórico como "Revisão automática pelo Claude".
+- **Trechos anexados (04/11/2026, pedido do usuário):** em todo pedido — tela do contrato, "Salvar e analisar"
+  do editor e tablet — quem pede pode anexar até `ContractAiReviewer::MAX_EXTRAS` (5) trechos de texto, com
+  título opcional (até 120) e texto até 12.000 caracteres (`extras[N][title]`, `extras[N][text]`; partial
+  `partials/ai-extras.blade.php`). `normalizeExtras()` tira os vazios e dá "Trecho N" ao sem título. Vão
+  DEPOIS da minuta, como `<material titulo="…">…</material>` sob "Material de referência anexado por quem
+  pediu a revisão (não é parte do contrato)"; o system prompt manda usá-los para conferir a minuta e apontar
+  divergências. Ficam guardados na revisão (`extras`, migration `2026_11_04_100000`, idempotente) e o cartão
+  mostra "Trechos anexados ao pedido". Outros trechos = outro pedido: a revisão só é reaproveitada com o mesmo
+  texto, os mesmos retidos E os mesmos anexados. O formulário da tela do contrato aparece sempre (antes sumia
+  com a revisão em dia e sem trecho sensível), dentro de "Analisar de novo escolhendo outros trechos ou
+  anexando material". Os trechos colados não passam pelo filtro de dado sensível: a tela avisa que vão à
+  Anthropic.
+- **Só orienta:** não aprova, não devolve, não altera o texto. Fica no histórico como "Revisão automática
+  pelo Claude". Desde 04/11/2026 também é pedida no tablet do balcão (acima).
 - Erro da API: volta como mensagem na tela (ver a tabela em [claude-api.md](claude-api.md#erros)), e nada é gravado.
 
 ## O texto (ContractRenderer)
@@ -192,7 +274,7 @@ de fora sem e-mail (não recebe o link remoto).
 ## Reaproveitamento
 
 - **Contratadas** (`signature_contract_parties`): todo `save` grava/atualiza por documento (CNPJ 14 / CPF 11
-  caracteres). O editor busca por nome ou documento (`signature-contracts.parties`).
+  caracteres). O editor busca por nome ou documento (`contracts.parties`).
 - **Biblioteca** (`signature_contract_clauses`, por setor): "Salvar na biblioteca" no editor (JSON) ou a tela
   da biblioteca. Inserir copia com **uid novo**. Desde 29/10/2026, "+ Cláusula" e "Da biblioteca…" existem no
   topo e no fim da lista (entra no fim) e no pé de cada cláusula (entra logo abaixo dela). O painel da biblioteca é
@@ -241,11 +323,14 @@ Pedido do usuário: o contrato produzido sai com o cabeçalho e o rodapé do pap
 
 | Quem | O quê |
 |---|---|
-| `assinatura.contratos` + membro do setor do contrato | Vê, redige (rascunho/devolvido), pede a revisão automática pelo Claude (`aiReview`) enquanto redige, envia, anexos, reabre, cancela, aditivo |
+| `assinatura.contratos` + membro do setor do contrato | Vê, redige (rascunho/devolvido), pede a revisão automática pelo Claude (`aiReview`) enquanto redige, envia, anexos, reabre, cancela, aditivo; consulta e usa a biblioteca |
+| `contratos.biblioteca` (04/11/2026) | Cadastra, edita e exclui cláusulas e modelos da biblioteca dos setores dele (`manageLibrary`) |
+| `contratos.assinatura` (04/11/2026) + membro do setor do contrato | Aba Assinaturas: conduz a assinatura do documento do contrato (o processo de Assinaturas) |
 | Membro do setor **Gerência** (`User::isManagementMember()`) | Vê todos; ajusta em validação; aprova/devolve (`decide`); pede a revisão automática pelo Claude (`aiReview`) também em validação |
 
-- Permissão nova só no catálogo (`Permissions::ASSINATURA_CONTRATOS`); o `PermissionCatalogSeeder` cria no
-  deploy, **sem setor** — configure em Setores.
+- Permissões só no catálogo (`Permissions::ASSINATURA_CONTRATOS`, `CONTRATOS_BIBLIOTECA`,
+  `CONTRATOS_ASSINATURA`, grupo "Contratos"); o `PermissionCatalogSeeder` cria no deploy, **sem setor** —
+  configure em Setores.
 - Validar é **cargo** (setor Gerência), não permissão. O menu usa só a permissão do catálogo (a Gerência
   tem acesso total e a alcança): Gate de cargo no menu consultaria o banco em toda tela.
 - `User::sectorIds()` e `isManagementMember()` são memorizados por requisição; nos testes, mocke os dois.
@@ -306,6 +391,11 @@ A revisão automática usa `config/claude.php` (`ANTHROPIC_API_KEY`, `CLAUDE_CON
   ponha `ANTHROPIC_API_KEY` no `.env` do servidor e rode `php artisan config:cache`.
 - Depois do deploy: cadastrar a área "Presidência" com o titular em Assinaturas → Diretoria (se ainda não
   houver) e dar `assinatura.contratos` aos setores que redigem (Setores).
+- Deploy de 04/11/2026 (módulo próprio): a migration `2026_11_04_100000` (trechos anexados), o seed cria
+  `contratos.biblioteca` e `contratos.assinatura` e atualiza a descrição de `assinatura.contratos` (grupo
+  Contratos), `route:cache` (rotas renomeadas). Depois, em **Setores**, dar as duas permissões novas aos setores
+  que redigem: sem `contratos.biblioteca` eles só consultam a biblioteca; sem `contratos.assinatura` não veem a
+  aba Assinaturas.
 
 ## Testes
 
@@ -313,7 +403,8 @@ A revisão automática usa `config/claude.php` (`ANTHROPIC_API_KEY`, `CLAUDE_CON
 completo com e-mails, número único entre setores, ajuste da Gerência, aditivo, reabrir, anexos, cadastro
 de contratadas, Word, modelos, acesso por setor, telas e biblioteca), `tests/Unit/NumeroPorExtensoTest.php` e
 `tests/Feature/SignatureContractAiReviewTest.php` (pedido à API por HTTP falso, erros traduzidos, revisão guardada
-e reaproveitada, só a Gerência). Nenhum teste chama a API de verdade.
+e reaproveitada, só a Gerência, trechos anexados). `tests/Feature/SignatureContractKioskTest.php` cobre o tablet
+(entrada, decisão, edição do texto e revisão pelo Claude com trechos anexados). Nenhum teste chama a API de verdade.
 Esquema por `Tests\Concerns\CreatesContractSchema` (inclui `sectors` e o presidente de teste).
 `ContractRecipients` e `DirectorAreaService` são trocados no container (consultam `users`, conexão mysql).
 

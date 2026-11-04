@@ -9,7 +9,7 @@ O módulo Assinaturas d'O Lara colhe a assinatura eletrônica de sócios, fornec
 
 O trabalho se divide em duas partes. Os **modelos** (o texto-padrão de cada tipo de documento) são cadastrados uma vez, a partir de um arquivo do Word. Os **documentos** são um modelo preenchido para uma pessoa, e são eles que vão para assinatura. Depois de assinado, o documento vira um PDF com o comprovante (manifesto) e um código de validação.
 
-O módulo também tem o Termo de Menores (autorização de entrada de menor em evento, assinada pelo próprio sócio num tablet de autoatendimento), a assinatura da Diretoria (o diretor entra no tablet com matrícula e PIN) e os Contratos (redigidos em cláusulas, validados pela Gerência e depois enviados para assinatura).
+O módulo também tem o Termo de Menores (autorização de entrada de menor em evento, assinada pelo próprio sócio num tablet de autoatendimento) e a assinatura da Diretoria (o diretor entra no tablet com matrícula e PIN). Os contratos redigidos em cláusulas têm módulo próprio no menu desde 04/11/2026, **Contratos**, com guia próprio; a assinatura deles segue o mesmo processo descrito aqui.
 
 Há um guia ilustrado completo dentro d'O Lara, em **Assinaturas › Guia**, que também pode ser baixado em PDF.
 
@@ -29,9 +29,8 @@ Cada tela do menu Assinaturas depende de uma permissão. Quem libera é a TI ou 
 | Parear o tablet de autoatendimento | Termo de Menores: parear o tablet de autoatendimento |
 | Consultar os menores autorizados (pulseira) | Termo de Menores: consultar o histórico de autorizações |
 | Cadastrar áreas da diretoria, titulares e substitutos | Diretoria: áreas da diretoria, titulares e substitutos que assinam documentos |
-| Redigir contratos do próprio setor, biblioteca e modelos | Contratos: redigir os contratos do próprio setor, biblioteca de cláusulas e modelos (validar é da Gerência) |
 
-Todas ficam no grupo **Assinaturas** da tela Setores. Validar contratos não é uma permissão: é ser do setor Gerência. O item **Guia** aparece para quem tem qualquer uma das permissões de documentos, modelos ou Termo de Menores.
+Todas ficam no grupo **Assinaturas** da tela Setores. As permissões de contratos ficam no grupo **Contratos** (veja o guia do módulo Contratos). O item **Guia** aparece para quem tem qualquer uma das permissões de documentos, modelos ou Termo de Menores.
 
 ## As situações de um documento
 <!-- telas: signature-documents.index -->
@@ -438,64 +437,10 @@ O diretor assina sem passar pelo atendente, no tablet do balcão:
 
 Errar o PIN cinco vezes trava a matrícula por 15 minutos. O comprovante do PDF registra que o próprio diretor abriu o documento, com matrícula e PIN.
 
-## Redigir um contrato e enviar à Gerência
-<!-- telas: signature-contracts.index -->
+## Contratos (módulo próprio)
+<!-- telas: contracts.index -->
 
-Contratos são escritos no Lara, em cláusulas, validados pela Gerência e só então viram documento de assinatura.
-
-1. Em **Assinaturas › Contratos**, clique em **Novo contrato**. Escolha o **Setor** (só esse setor e a Gerência veem o contrato), o título e, se quiser, um modelo do setor.
-2. Preencha: dados gerais (título e por qual CNPJ do clube), contratada (e fiadores, se houver; **Buscar no cadastro** traz as já usadas), variáveis, considerandos (opcional), cláusulas e quem assina. A prévia ao lado mostra o contrato como vai ficar.
-3. Clique em **Salvar e enviar à Gerência**. O coordenador da Gerência recebe um e-mail.
-
-O que O Lara faz por você:
-
-- **Numeração automática**: CLÁUSULA PRIMEIRA, 1.1, 1.1.1 não se digitam. Use "Subitem →" para o 1.1.1.
-- **Remissão**: para citar outra cláusula, use **Inserir remissão**; o número acompanha se a ordem mudar.
-- **Variáveis**: valor, prazo e datas preenchidos uma vez e usados com **Inserir variável**. Valor sai com o extenso.
-- **Conferência**: a lista ao lado da prévia diz o que falta (trava o envio): variável sem valor, CNPJ ou CPF inválido, remissão quebrada, cláusula vazia, falta de quem assina pela contratada.
-- **Revisão automática (Claude)**: enquanto redige, clique em **Salvar e analisar**, ao lado da prévia. O Lara salva o contrato e o Claude aponta inconsistências, com sugestões. Trechos com valores, CPF, documentos ou endereço não são enviados, a menos que você os marque em **Incluir trechos com dados sensíveis**. São sugestões de IA: não aprovam nada, e o contrato continua indo à Gerência.
-- O clube é representado pelo presidente (o titular da Presidência em **Assinaturas › Diretoria**), que assina sem precisar ser incluído. A data do fecho é a da assinatura, e o documento sai com visto em todas as páginas.
-- **Escrever com conforto**: a caixa de texto cresce com o que você digita e pode ser puxada pelo canto de baixo. A barra tem **Limpar** (tira a formatação do trecho), **↶ desfazer** e **↷ refazer**. Ao colar do Word ou de um PDF, ficam só negrito, itálico, sublinhado, parágrafos e listas. Na tela larga, **Ocultar prévia** (no alto) dá a largura toda ao editor; **Mostrar prévia** a traz de volta.
-
-Para o fornecedor revisar, o botão **Word** baixa o contrato em .docx, já no papel timbrado do Clube (o cabeçalho e o rodapé de **Assinaturas › Modelos › Cabeçalho e rodapé**; sem imagem cadastrada, sai o nome do Clube no alto). Mudanças pedidas pelo fornecedor são feitas no editor. O documento de assinatura gerado do contrato também sai no papel timbrado.
-
-## Validar um contrato (Gerência)
-<!-- telas: signature-contracts.index -->
-
-Só o setor Gerência valida contratos. Em **Assinaturas › Contratos**, a aba **Para validar** mostra os que esperam validação.
-
-1. Abra o contrato. Aparecem o recado de quem enviou, o que mudou desde a última devolução e o contrato inteiro.
-2. Para pedir mudança, escreva observações gerais ou em cada cláusula.
-3. Clique em **Devolver com observações** (quem redigiu é avisado por e-mail) ou em **Aprovar**. A Gerência também pode ajustar o texto direto e aprovar.
-
-Aprovado, o contrato ganha o número (por exemplo **CTL - 12/26**, uma sequência só para todos os setores) e o documento de assinatura é gerado em rascunho.
-
-**Pelo tablet do balcão**: na tela de espera, toque em **Validação de contratos (Gerência)** e entre com a matrícula e o PIN d'O Lara. Toque num contrato; para comentar uma cláusula, toque nela e escreva. Toque em **Devolver** ou **Aprovar**. Ajustar o texto só pelo computador. Toque em **Sair** ao terminar.
-
-**Revisão automática (Claude)**: na tela do contrato, no cartão **Revisão automática (Claude)**, confira a lista **Trechos com dados sensíveis**: os trechos com valores, CPF, documentos ou endereço (qualificação das partes, cláusula do valor…) **não são enviados**, a menos que você marque cada um. Depois clique em **Analisar com o Claude** (leva até um minuto). Volta um resumo e apontamentos por cláusula (grave, atenção, detalhe) com sugestão. **Levar para a observação** copia o apontamento para a observação da cláusula. Se o texto mudou, use **Analisar o texto atual**; para incluir outros trechos, **Analisar de novo escolhendo outros trechos**. O cartão mostra em **Não enviados ao Claude** o que ficou de fora (e não foi analisado). São sugestões de IA: não aprovam nem devolvem nada, e o texto enviado vai para a empresa do Claude.
-
-## Contrato devolvido, aprovado ou que precisa mudar
-<!-- telas: signature-contracts.index -->
-
-Em **Assinaturas › Contratos**, abra o contrato:
-
-- **Devolvido**: as observações aparecem em cada cláusula do editor. Ajuste, clique em **Resolvida** em cada observação atendida e envie de novo com **Salvar e enviar à Gerência**. A Gerência vê só o que mudou.
-- **Aprovado**: o documento de assinatura é gerado em rascunho em **Assinaturas › Documentos**. Abra-o, confira signatários e anexos e congele; daí em diante é a assinatura de sempre (balcão, link ou gov.br; o presidente e os diretores assinam no tablet, depois de quem é de fora da diretoria). Se a geração falhou ou o rascunho foi cancelado, use **Gerar documento de assinatura** na tela do contrato.
-- **Mudar depois de aprovado**: **Reabrir para alteração** volta o contrato a rascunho e cancela o rascunho do documento de assinatura; o contrato precisa ser validado de novo. Depois que o documento foi congelado, não reabre: cancele o documento ou faça um aditivo.
-
-Anexos do contrato (a proposta, um projeto) são incluídos na tela do contrato e seguem junto para a assinatura.
-
-## Reaproveitar: biblioteca de cláusulas, modelos e aditivos
-<!-- telas: signature-contracts.index -->
-
-Em **Assinaturas › Contratos**, o botão **Biblioteca e modelos** abre o que o seu setor guardou para reaproveitar.
-
-- **Biblioteca de cláusulas**: no editor, o botão **Salvar na biblioteca** de cada cláusula guarda-a para o setor; **Da biblioteca…** insere uma cópia num contrato. **+ Cláusula** e **Da biblioteca…** ficam no alto e no fim da lista de cláusulas (entra por último); no pé de cada cláusula, **+ Cláusula abaixo** e **Da biblioteca abaixo…** põem a nova logo depois dela, e a numeração se ajusta. Também dá para escrever uma cláusula direto na tela da biblioteca. Mudar ou remover da biblioteca não mexe em contrato já feito.
-- **Modelos de contrato**: na tela de um contrato pronto, **Salvar como modelo do setor** guarda título, termos, variáveis (sem valor), considerandos e cláusulas. Ao criar um **Novo contrato**, escolha o modelo. Remover um modelo não muda os contratos feitos com ele.
-- **Contratada**: ao salvar, os dados dela ficam guardados. No próximo contrato, use **Buscar no cadastro (contratadas e fiadores já usados)**.
-- **Aditivo**: num contrato aprovado, **Criar aditivo** já vem com as partes, as variáveis e os signatários; escreva só as cláusulas do aditivo. O número é o do contrato com A1, A2…
-
-Cada setor vê só a própria biblioteca e os próprios modelos.
+Desde 04/11/2026, os contratos redigidos em cláusulas ficam no menu **Contratos**, com o guia próprio: redigir, validar na Gerência (também pelo tablet do balcão), a revisão pelo Claude, a biblioteca e a assinatura, na aba **Contratos › Assinaturas**. A assinatura de um contrato segue o processo deste guia (congelar, QR Code no balcão, link por e-mail, gov.br, diretoria), e o documento dele também aparece em **Assinaturas › Documentos** com o filtro **Contratos**. O cabeçalho e o rodapé (papel timbrado) e o presidente que assina continuam configurados aqui, em Assinaturas.
 
 ## Dúvidas comuns
 
@@ -606,8 +551,3 @@ Na área: ele precisa ser do setor Diretoria, estar ativo e ter matrícula. No d
 ### O diretor não vê o documento na lista do tablet
 
 Ou ainda falta a assinatura de quem é de fora da diretoria (o documento só chega depois), ou o documento foi preparado para o gov.br, ou o prazo de 7 dias venceu. O documento só aparece para a pessoa escolhida (titular ou substituto) ao criar.
-
-### Não vejo o item Contratos, ou "Você não está em nenhum setor"
-<!-- telas: signature-contracts.index -->
-
-O item exige a permissão de Contratos. E o contrato pertence ao setor de quem o redige: sem setor, peça à TI para incluí-lo no seu setor antes de redigir.

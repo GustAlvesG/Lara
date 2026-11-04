@@ -30,7 +30,7 @@
     </div>
 
     @if($podeRevisar && $bloqueioRevisao === null)
-        <form method="POST" action="{{ route('signature-documents.review', $document) }}" class="space-y-4 border-t border-line pt-4" data-review-form>
+        <form method="POST" action="{{ \App\Support\DocumentRoutes::route('review', $document) }}" class="space-y-4 border-t border-line pt-4" data-review-form>
             @csrf
 
             @if($itens)

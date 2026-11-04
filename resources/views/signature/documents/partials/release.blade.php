@@ -27,9 +27,9 @@
 
 <div class="bg-surface rounded-card shadow-card p-6"
      data-release-box
-     data-release-url="{{ route('signature-documents.release', [$document, '__SIGNER__']) }}"
-     data-cancel-url="{{ route('signature-documents.release.cancel', [$document, '__REQUEST__']) }}"
-     data-status-url="{{ route('signature-documents.status', $document) }}"
+     data-release-url="{{ \App\Support\DocumentRoutes::route('release', [$document, '__SIGNER__']) }}"
+     data-cancel-url="{{ \App\Support\DocumentRoutes::route('release.cancel', [$document, '__REQUEST__']) }}"
+     data-status-url="{{ \App\Support\DocumentRoutes::route('status', $document) }}"
      data-csrf="{{ csrf_token() }}">
 
     <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider mb-4">
@@ -121,7 +121,7 @@
     @elseif($document->status === \App\Models\SignatureDocument::STATUS_AWAITING_SIGNATURE && $document->isGovbr())
         <p class="text-sm text-ink-2">
             Este documento está sendo assinado pelo gov.br.
-            <a href="{{ route('signature-documents.show', [$document, 'aba' => 'govbr']) }}" class="font-bold text-grena-ink hover:underline">Abrir a aba Assinatura gov.br</a>
+            <a href="{{ \App\Support\DocumentRoutes::route('show', [$document, 'aba' => 'govbr']) }}" class="font-bold text-grena-ink hover:underline">Abrir a aba Assinatura gov.br</a>
         </p>
     @elseif($document->status === \App\Models\SignatureDocument::STATUS_AWAITING_SIGNATURE)
         <p class="text-sm text-ink-2">

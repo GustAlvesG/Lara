@@ -159,6 +159,105 @@ class SignatureContractKioskTest extends TestCase
         $this->assertSame(SignatureContractVersion::DECISION_RETURNED, $contrato->latestVersion()->decision);
     }
 
+    public function test_edita_o_texto_pelo_tablet_e_vira_ajuste_da_gerencia(): void
+    {
+        $gerente = $this->usuario('Gerente', '900', 'Gerência');
+        $contrato = $this->contratoEmValidacao();
+        $cookie = $this->entra()->getCookie(ContractKioskService::COOKIE)->getValue();
+
+        $this->withCredentials()->withCookie(ContractKioskService::COOKIE, $cookie)
+            ->getJson(route('quiosque.gerencia.show', ['contract' => $contrato->id]))
+            ->assertOk()
+            ->assertJsonPath('edit.clauses.0.uid', 'clobjeto01')
+            ->assertJsonPath('edit.clauses.0.items.1.level', 2);
+
+        $this->withCredentials()->withCookie(ContractKioskService::COOKIE, $cookie)
+            ->postJson(route('quiosque.gerencia.update', ['contract' => $contrato->id]), [
+                'title' => 'Prestação de serviços de manutenção',
+                'clauses' => [
+                    ['uid' => 'clobjeto01', 'title' => 'Do objeto', 'items' => [
+                        ['uid' => 'itobjeto11', 'level' => 1, 'html' => '<p>Manutenção <b>corretiva</b> na subestação.</p><script>x</script>'],
+                        ['uid' => null, 'level' => 1, 'html' => 'Item novo do tablet'],
+                    ]],
+                    // Cláusula que não existe não entra.
+                    ['uid' => 'naoexiste1', 'title' => 'Intrusa', 'items' => [['html' => 'x']]],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('contract.edit.clauses.0.title', 'Do objeto');
+
+        $conteudo = $contrato->fresh()->content;
+        $this->assertSame('Prestação de serviços de manutenção', $conteudo['title']);
+        $this->assertCount(3, $conteudo['clauses'], 'cláusulas não somem nem aparecem');
+        $this->assertSame('Do objeto', $conteudo['clauses'][0]['title']);
+        $this->assertCount(2, $conteudo['clauses'][0]['items']);
+        $this->assertStringContainsString('<b>corretiva</b>', $conteudo['clauses'][0]['items'][0]['html']);
+        $this->assertStringNotContainsString('script', $conteudo['clauses'][0]['items'][0]['html']);
+        $this->assertSame('Valor', $conteudo['clauses'][1]['title'], 'o que não veio fica como estava');
+
+        // Na decisão, o ajuste vira versão da Gerência.
+        $this->withCredentials()->withCookie(ContractKioskService::COOKIE, $cookie)
+            ->postJson(route('quiosque.gerencia.decide', ['contract' => $contrato->id]), ['decision' => 'approve'])
+            ->assertOk();
+
+        $contrato = $contrato->fresh();
+        $this->assertTrue((bool) $contrato->latestVersion()->by_reviewer);
+        $this->assertTrue($contrato->events()->where('event', 'reviewer_edited')->where('actor_id', $gerente->id)->exists());
+    }
+
+    public function test_sem_entrada_nao_edita_nem_pede_revisao(): void
+    {
+        $contrato = $this->contratoEmValidacao();
+
+        $this->postJson(route('quiosque.gerencia.update', ['contract' => $contrato->id]), ['clauses' => [['uid' => 'clobjeto01', 'title' => 'X']]])
+            ->assertStatus(401);
+        $this->postJson(route('quiosque.gerencia.ai-review', ['contract' => $contrato->id]))->assertStatus(401);
+        $this->assertSame('Objeto', $contrato->fresh()->content['clauses'][0]['title']);
+    }
+
+    public function test_pede_a_revisao_do_claude_pelo_tablet_com_trechos_anexados(): void
+    {
+        config(['claude.api_key' => 'sk-ant-teste', 'claude.contract_review.model' => 'claude-haiku-5-5']);
+        $claude = \Mockery::mock(\App\Services\Claude\ClaudeClient::class);
+        $claude->shouldReceive('isConfigured')->andReturn(true);
+        $claude->shouldReceive('structured')->once()
+            ->withArgs(fn(...$a) => str_contains($a['prompt'] ?? $a[2] ?? '', '<material titulo="Proposta">'))
+            ->andReturn([
+                'data' => [
+                    'veredito' => 'ajustes_recomendados',
+                    'resumo' => 'Prazo diverge da proposta.',
+                    'apontamentos' => [['clausula' => 2, 'trecho' => 'Item 2.1', 'gravidade' => 'alta', 'problema' => 'Valor diferente da proposta.', 'sugestao' => 'Conferir.']],
+                ],
+                'model' => 'claude-haiku-5-5', 'input_tokens' => 1, 'output_tokens' => 1,
+            ]);
+        $this->app->instance(\App\Services\Claude\ClaudeClient::class, $claude);
+
+        $gerente = $this->usuario('Gerente', '900', 'Gerência');
+        $contrato = $this->contratoEmValidacao();
+        RateLimiter::clear('contract-ai-review:' . $gerente->id);
+        $cookie = $this->entra()->getCookie(ContractKioskService::COOKIE)->getValue();
+
+        $this->withCredentials()->withCookie(ContractKioskService::COOKIE, $cookie)
+            ->getJson(route('quiosque.gerencia.show', ['contract' => $contrato->id]))
+            ->assertOk()
+            ->assertJsonPath('ai.enabled', true)
+            ->assertJsonPath('ai.review', null);
+
+        $this->withCredentials()->withCookie(ContractKioskService::COOKIE, $cookie)
+            ->postJson(route('quiosque.gerencia.ai-review', ['contract' => $contrato->id]), [
+                'extras' => [['title' => 'Proposta', 'text' => 'Valor de R$ 9.000,00.']],
+            ])
+            ->assertOk()
+            ->assertJsonPath('ai.review.summary', 'Prazo diverge da proposta.')
+            ->assertJsonPath('ai.review.extras.0', 'Proposta')
+            // O apontamento chega com o uid da cláusula, para virar observação.
+            ->assertJsonPath('ai.review.findings.0.uid', 'clvalor001')
+            ->assertJsonPath('ai.review.by', 'Gerente');
+
+        $this->assertSame($gerente->id, $contrato->aiReviews()->first()->requested_by);
+    }
+
     public function test_aprova_pelo_tablet(): void
     {
         $this->usuario('Gerente', '900', 'Gerência');

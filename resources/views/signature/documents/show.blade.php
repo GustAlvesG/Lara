@@ -1,7 +1,7 @@
 <x-app-layout :bootstrap-grid="false">
 <div>
     <div class="mx-auto flex w-full max-w-[1200px] flex-col gap-5 px-4 pb-12 pt-6 sm:px-6 lg:px-8">
-        <x-page-title :title="$document->title" :back="route('signature-documents.index')"></x-page-title>
+        <x-page-title :title="$document->title" :back="\App\Support\DocumentRoutes::route('index')"></x-page-title>
 
         @include('partials.alerts')
 
@@ -10,21 +10,21 @@
 
             <div class="flex flex-wrap gap-3">
                 @if($document->isUploaded())
-                    <a href="{{ route('signature-documents.pdf', [$document, 'versao' => 'enviado']) }}" target="_blank"
+                    <a href="{{ \App\Support\DocumentRoutes::route('pdf', [$document, 'versao' => 'enviado']) }}" target="_blank"
                        class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
                         PDF enviado
                     </a>
                 @endif
 
                 @if($document->original_path)
-                    <a href="{{ route('signature-documents.pdf', $document) }}" target="_blank"
+                    <a href="{{ \App\Support\DocumentRoutes::route('pdf', $document) }}" target="_blank"
                        class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
                         PDF original
                     </a>
                 @endif
 
                 @if($document->final_path)
-                    <a href="{{ route('signature-documents.pdf', [$document, 'versao' => 'final']) }}" target="_blank"
+                    <a href="{{ \App\Support\DocumentRoutes::route('pdf', [$document, 'versao' => 'final']) }}" target="_blank"
                        class="px-5 py-2.5 rounded-full font-bold text-sm bg-ok text-white dark:text-canvas hover:bg-ok/90 transition">
                         PDF assinado
                     </a>
@@ -32,19 +32,19 @@
 
                 @if($document->report_path)
                     {{-- Assinado pelo gov.br: o manifesto é este PDF à parte — ver FinalizeSignatureDocument. --}}
-                    <a href="{{ route('signature-documents.pdf', [$document, 'versao' => 'relatorio']) }}" target="_blank"
+                    <a href="{{ \App\Support\DocumentRoutes::route('pdf', [$document, 'versao' => 'relatorio']) }}" target="_blank"
                        class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
                         Relatório gov.br
                     </a>
                 @endif
 
                 @can('update', $document)
-                    <a href="{{ route('signature-documents.edit', $document) }}"
+                    <a href="{{ \App\Support\DocumentRoutes::route('edit', $document) }}"
                        class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
                         Editar
                     </a>
 
-                    <form method="POST" action="{{ route('signature-documents.freeze', $document) }}"
+                    <form method="POST" action="{{ \App\Support\DocumentRoutes::route('freeze', $document) }}"
                           onsubmit="return confirm('Congelar o documento? Depois disso o texto e os dados não mudam mais — para corrigir algo será preciso cancelar e emitir outro.')">
                         @csrf
                         <button type="submit" class="px-5 py-2.5 bg-grena text-white rounded-full font-bold text-sm hover:bg-grena-hover transition">
@@ -55,7 +55,7 @@
 
                 @can('cancel', $document)
                     @if($document->isOpen())
-                        <form method="POST" action="{{ route('signature-documents.cancel', $document) }}"
+                        <form method="POST" action="{{ \App\Support\DocumentRoutes::route('cancel', $document) }}"
                               onsubmit="return confirm('Cancelar este documento? A sessão aberta no tablet será encerrada.')">
                             @csrf
                             <input type="hidden" name="reason" value="Cancelado pelo atendente">
@@ -69,7 +69,7 @@
                 {{-- Arquivar só tira da lista padrão; não muda a situação do documento. --}}
                 @can('hide', $document)
                     @if($document->isHidden())
-                        <form method="POST" action="{{ route('signature-documents.unhide', $document) }}">
+                        <form method="POST" action="{{ \App\Support\DocumentRoutes::route('unhide', $document) }}">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
@@ -77,7 +77,7 @@
                             </button>
                         </form>
                     @else
-                        <form method="POST" action="{{ route('signature-documents.hide', $document) }}"
+                        <form method="POST" action="{{ \App\Support\DocumentRoutes::route('hide', $document) }}"
                               onsubmit="return confirm('Arquivar este documento? Ele sai da lista de documentos (fica no filtro &quot;Arquivados&quot;). Nada mais muda: a situação continua a mesma.')">
                             @csrf
                             <button type="submit" class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
@@ -105,11 +105,11 @@
                     $tabClasses = 'inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-bold text-ink-2 transition aria-selected:bg-surface aria-selected:text-ink aria-selected:shadow-card';
                 @endphp
                 <div class="flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-subtle p-1" role="tablist" aria-label="Seções do documento">
-                    <a href="{{ route('signature-documents.show', $document) }}" role="tab"
+                    <a href="{{ \App\Support\DocumentRoutes::route('show', $document) }}" role="tab"
                        aria-selected="{{ $aba === 'documento' ? 'true' : 'false' }}" class="{{ $tabClasses }}">
                         Documento
                     </a>
-                    <a href="{{ route('signature-documents.show', [$document, 'aba' => 'govbr']) }}" role="tab"
+                    <a href="{{ \App\Support\DocumentRoutes::route('show', [$document, 'aba' => 'govbr']) }}" role="tab"
                        aria-selected="{{ $aba === 'govbr' ? 'true' : 'false' }}" class="{{ $tabClasses }}">
                         Assinatura gov.br
                         @if($document->govbrChecks->isNotEmpty())
@@ -117,7 +117,7 @@
                         @endif
                     </a>
                     @if($document->status === \App\Models\SignatureDocument::STATUS_FINALIZED)
-                        <a href="{{ route('signature-documents.show', [$document, 'aba' => 'revisao']) }}" role="tab"
+                        <a href="{{ \App\Support\DocumentRoutes::route('show', [$document, 'aba' => 'revisao']) }}" role="tab"
                            aria-selected="{{ $aba === 'revisao' ? 'true' : 'false' }}" class="{{ $tabClasses }}">
                             Revisão
                             @if($document->awaitsReview())
@@ -385,7 +385,7 @@
                                         </span>
 
                                         @can('release', $document)
-                                            <form method="POST" action="{{ route('signature-documents.resend-copy', [$document, $signer]) }}">
+                                            <form method="POST" action="{{ \App\Support\DocumentRoutes::route('resend-copy', [$document, $signer]) }}">
                                                 @csrf
                                                 <button type="submit" class="text-[11px] font-bold text-grena-ink hover:underline">
                                                     {{ $signer->copy_sent_at ? 'Reenviar' : 'Enviar via' }}
