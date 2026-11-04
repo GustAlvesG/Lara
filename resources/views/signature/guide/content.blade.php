@@ -1259,11 +1259,13 @@
             lado mostra o contrato como ele vai ficar.</li>
         <li><b>Salvar e enviar à Gerência.</b> O coordenador da Gerência recebe um e-mail.</li>
         <li>A Gerência lê e <b>aprova</b>, ou <b>devolve</b> com observações (gerais ou em cada cláusula). Ela também
-            pode ajustar o texto direto e aprovar.</li>
+            pode ajustar o texto direto e aprovar. Para aprovar, o gerente faz o seu <b>visto</b> (rubrica) no quadro
+            <b>Seu visto</b>: ele sai no pé de todas as páginas do documento de assinatura.</li>
         <li>Devolvido: as observações aparecem em cada cláusula do editor. Ajuste, marque como "Resolvida" e envie de
             novo. A Gerência vê o que mudou desde a última devolução, sem reler tudo.</li>
         <li>Aprovado: o contrato ganha o número (<code>CTL - 12/26</code>, uma sequência só para todos os setores) e o
-            <b>documento de assinatura é gerado em rascunho</b>, em <span class="menu">Assinaturas → Documentos</span>.
+            <b>documento de assinatura é gerado em rascunho</b>, em <span class="menu">Contratos → Assinaturas</span>
+            (também em <span class="menu">Assinaturas → Documentos</span>, filtro Contratos).
             Confira os signatários e os anexos e congele: daí em diante é a assinatura de sempre (balcão, link ou
             gov.br; diretores no tablet, depois de quem é de fora da diretoria).</li>
     </ol>
@@ -1275,8 +1277,10 @@
         <li>Toque num contrato da lista. Aparecem o recado de quem enviou, o que mudou desde a última devolução,
             os anexos e o contrato inteiro.</li>
         <li>Para pedir mudança numa cláusula, <b>toque nela</b> e escreva a observação. A cláusula fica marcada.</li>
-        <li>Toque em <b>Devolver</b> (as observações vão juntas) ou <b>Aprovar</b>. Ajustar o texto você mesmo só
-            pelo computador.</li>
+        <li><b>Revisão do Claude</b> mostra e pede a análise automática; <b>Editar texto</b> ajusta o título e o texto
+            das cláusulas (partes, variáveis e signatários, só no computador).</li>
+        <li>Toque em <b>Devolver</b> (as observações vão juntas) ou <b>Aprovar</b>. Para aprovar, faça o seu
+            <b>visto</b> com o dedo no quadro: ele vai em todas as páginas do documento.</li>
         <li>Toque em <b>Sair</b> ao terminar. Parado por alguns minutos, o tablet sai sozinho.</li>
     </ol>
 

@@ -198,7 +198,7 @@ class SignatureContractKioskTest extends TestCase
 
         // Na decisão, o ajuste vira versão da Gerência.
         $this->withCredentials()->withCookie(ContractKioskService::COOKIE, $cookie)
-            ->postJson(route('quiosque.gerencia.decide', ['contract' => $contrato->id]), ['decision' => 'approve'])
+            ->postJson(route('quiosque.gerencia.decide', ['contract' => $contrato->id]), ['decision' => 'approve'] + $this->vistoDeTeste())
             ->assertOk();
 
         $contrato = $contrato->fresh();
@@ -258,6 +258,30 @@ class SignatureContractKioskTest extends TestCase
         $this->assertSame($gerente->id, $contrato->aiReviews()->first()->requested_by);
     }
 
+    public function test_aprovar_pelo_tablet_exige_o_visto(): void
+    {
+        $this->usuario('Gerente', '900', 'Gerência');
+        $contrato = $this->contratoEmValidacao();
+        $cookie = $this->entra()->getCookie(ContractKioskService::COOKIE)->getValue();
+
+        $this->get(route('quiosque.gerencia.index'))->assertSee('id="faVisto"', false);
+
+        $this->withCredentials()->withCookie(ContractKioskService::COOKIE, $cookie)
+            ->postJson(route('quiosque.gerencia.decide', ['contract' => $contrato->id]), ['decision' => 'approve'])
+            ->assertStatus(409)
+            ->assertJsonFragment(['error' => 'Faça o seu visto no quadro antes de aprovar: ele vai em todas as páginas do contrato.']);
+
+        $this->assertSame(SignatureContract::STATUS_IN_REVIEW, $contrato->fresh()->status);
+
+        $this->withCredentials()->withCookie(ContractKioskService::COOKIE, $cookie)
+            ->postJson(route('quiosque.gerencia.decide', ['contract' => $contrato->id]), ['decision' => 'approve'] + $this->vistoDeTeste())
+            ->assertOk();
+
+        $contrato = $contrato->fresh();
+        $this->assertNotNull(SignatureContractVersion::find($contrato->approved_version_id)->approval_initials_path);
+        $this->assertNotNull($contrato->document->approval_initials_path);
+    }
+
     public function test_aprova_pelo_tablet(): void
     {
         $this->usuario('Gerente', '900', 'Gerência');
@@ -266,7 +290,7 @@ class SignatureContractKioskTest extends TestCase
         $cookie = $this->entra()->getCookie(ContractKioskService::COOKIE)->getValue();
 
         $this->withCredentials()->withCookie(ContractKioskService::COOKIE, $cookie)
-            ->postJson(route('quiosque.gerencia.decide', ['contract' => $contrato->id]), ['decision' => 'approve'])
+            ->postJson(route('quiosque.gerencia.decide', ['contract' => $contrato->id]), ['decision' => 'approve'] + $this->vistoDeTeste())
             ->assertOk();
 
         $contrato = $contrato->fresh();

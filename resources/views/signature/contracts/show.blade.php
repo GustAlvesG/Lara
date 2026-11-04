@@ -92,14 +92,32 @@
                                 @endforeach
                             </div>
                         </details>
+                        {{-- Visto da Gerência (04/11/2026): obrigatório para aprovar; sai em todas as páginas do documento. --}}
+                        <div class="rounded-xl border border-line p-3 text-ink">
+                            @include('signature.contracts.partials.initials-pad', ['id' => 'vistoGerencia'])
+                            <p class="mt-2 text-xs text-ink-2">Só para aprovar. O visto aparece no pé de cada página do documento de assinatura, ao lado dos vistos de quem assina.</p>
+                        </div>
                         <div class="flex flex-wrap justify-end gap-2">
                             <button type="submit" name="decision" value="return" class="{{ $btn }} bg-subtle text-ink hover:bg-line">Devolver com observações</button>
                             <button type="submit" name="decision" value="approve" class="{{ $btn }} bg-ok text-white hover:bg-ok/90 dark:text-canvas" @disabled($erros->isNotEmpty())
-                                    onclick="return confirm('Aprovar? O contrato ganha número e o documento de assinatura é gerado em rascunho.')">
+                                    data-approve-with-initials>
                                 Aprovar
                             </button>
                         </div>
                     </form>
+                    <script>
+                        document.querySelector('[data-approve-with-initials]')?.addEventListener('click', function (e) {
+                            var pad = window.laraInitialsPad(document.getElementById('vistoGerencia'));
+                            if (pad.points() < {{ (int) config('signature.evidence.min_initials_points', 8) }}) {
+                                e.preventDefault();
+                                alert('Faça o seu visto no quadro antes de aprovar.');
+                                return;
+                            }
+                            if (!confirm('Aprovar? O contrato ganha número, o seu visto vai em todas as páginas e o documento de assinatura é gerado em rascunho.')) {
+                                e.preventDefault();
+                            }
+                        });
+                    </script>
                 @endif
 
                 {{-- Revisão automática pelo Claude --}}

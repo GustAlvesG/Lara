@@ -39,6 +39,11 @@ o contrato vira um documento de assinatura **em rascunho** do motor de Assinatur
   pode não ter permissão).
 - **Tablet da Gerência:** lê, comenta, decide, pede a revisão do Claude e edita o título e o texto das
   cláusulas (`ContractKioskService::applyEdits`, só cláusulas existentes, pelo uid).
+- **Visto da Gerência na aprovação (04/11/2026):** obrigatório para aprovar (computador e tablet, quadro
+  `partials/initials-pad`), validado e gravado por `ContractApprovalInitials`, guardado na versão aprovada e
+  copiado para o documento (`signature_documents.approval_initials_path`/`_label`). O renderer desenha a caixa
+  "Visto — Gerência" primeiro na faixa do visto de todas as páginas, já preenchida no original; a faixa existe
+  também com o visto dos signatários dispensado (gov.br).
 - **Revisão pelo Claude:** em todo pedido dá para anexar trechos de texto (`extras`, até 5 × 12.000
   caracteres) que vão como material de referência depois da minuta e ficam na revisão.
 - Nenhuma API externa: nenhum prompt para outro agente.

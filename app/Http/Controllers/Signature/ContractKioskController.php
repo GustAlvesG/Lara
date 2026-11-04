@@ -7,6 +7,7 @@ use App\Exceptions\ContractException;
 use App\Http\Controllers\Controller;
 use App\Models\SignatureContractAttachment;
 use App\Services\Signature\Contracts\ContractAiReviewer;
+use App\Services\Signature\Contracts\ContractApprovalInitials;
 use App\Services\Signature\Contracts\ContractContent;
 use App\Services\Signature\Contracts\ContractKioskService;
 use App\Services\Signature\Contracts\ContractService;
@@ -110,7 +111,13 @@ class ContractKioskController extends Controller
             'note' => ['nullable', 'string', 'max:3000'],
             'comments' => ['nullable', 'array', 'max:60'],
             'comments.*' => ['nullable', 'string', 'max:3000'],
+            // Visto da Gerência (04/11/2026): obrigatório para aprovar.
+            'initials' => ['nullable', 'string', 'max:4000000'],
+            'initials_strokes' => ['nullable', 'array', 'max:500'],
         ]);
+
+        $vistos = app(ContractApprovalInitials::class);
+        $visto = null;
 
         try {
             $contrato = $this->kiosk->inReview($contract);
@@ -121,8 +128,11 @@ class ContractKioskController extends Controller
                 return response()->json(['ok' => true, 'message' => 'Contrato devolvido. Quem redigiu foi avisado por e-mail.']);
             }
 
-            $resultado = $this->contracts->approve($contrato, $dados['note'] ?? null, $user->id, $user->name);
+            $visto = $vistos->store($contrato, $dados['initials'] ?? null, $dados['initials_strokes'] ?? null);
+            $resultado = $this->contracts->approve($contrato, $dados['note'] ?? null, $user->id, $user->name, $visto);
         } catch (ContractException $e) {
+            $vistos->discard($visto);
+
             return response()->json(['error' => $e->getMessage(), 'problems' => array_column($e->problems, 'message')], 409);
         }
 

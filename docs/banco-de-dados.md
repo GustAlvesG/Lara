@@ -61,6 +61,7 @@ incremental do esquema (criação de tabelas + diversos `add_column`/`fix`). Des
 - `2026_10_29_100000` — Contratos (módulo Contratos; até 04/11/2026 em Assinaturas → Contratos): as 8 tabelas `signature_contract*`, nomes curtos de FK e índice, idempotente. Ver [contratos.md](funcionalidades/contratos.md#modelagem).
 - `2026_10_29_110000` — Contratos: `signature_contract_ai_reviews` (revisão automática pelo Claude: veredito, resumo, apontamentos, tokens), idempotente.
 - `2026_10_29_130000` — Contratos: `signature_contract_ai_reviews.withheld` (JSON, trechos sensíveis não enviados ao Claude), idempotente.
+- `2026_11_04_110000` — Contratos: visto da Gerência na aprovação — `signature_contract_versions.approval_initials_path` e `signature_documents.approval_initials_path`/`approval_initials_label`, idempotente.
 - `2026_11_04_100000` — Contratos: `signature_contract_ai_reviews.extras` (JSON `[{title, text}]`, trechos de texto anexados ao pedido de revisão pelo Claude), idempotente.
 - `2026_10_30_130000` — Contratos: `signature_contracts.parties_search` (nome e documento das partes em texto puro, para a busca; preenche os existentes), idempotente.
 - `2026_05_19_*` — freelancers, funções e serviços.

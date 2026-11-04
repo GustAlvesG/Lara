@@ -13,6 +13,7 @@ use App\Models\SignatureContractModel;
 use App\Models\SignatureContractParty;
 use App\Models\SignatureContractVersion;
 use App\Services\Signature\Contracts\ContractAiReviewer;
+use App\Services\Signature\Contracts\ContractApprovalInitials;
 use App\Services\Signature\Contracts\ContractClub;
 use App\Services\Signature\Contracts\ContractContent;
 use App\Services\Signature\Contracts\ContractDiff;
@@ -231,9 +232,14 @@ class ContractController extends Controller
             'note' => ['nullable', 'string', 'max:3000'],
             'comments' => ['nullable', 'array', 'max:' . ContractContent::MAX_CLAUSES],
             'comments.*' => ['nullable', 'string', 'max:3000'],
+            // Visto da Gerência (04/11/2026): obrigatório para aprovar — ContractApprovalInitials.
+            'initials' => ['nullable', 'string', 'max:4000000'],
+            'initials_strokes' => ['nullable', 'string', 'max:2000000'],
         ]);
 
         $user = $request->user();
+        $visto = null;
+        $vistos = app(ContractApprovalInitials::class);
 
         try {
             if ($dados['decision'] === 'return') {
@@ -243,8 +249,11 @@ class ContractController extends Controller
                     ->with('success', 'Contrato devolvido com as observações. Quem redigiu foi avisado por e-mail.');
             }
 
-            $resultado = $this->contracts->approve($signatureContract, $dados['note'] ?? null, $user->id, $user->name);
+            $visto = $vistos->store($signatureContract, $dados['initials'] ?? null, json_decode((string) ($dados['initials_strokes'] ?? ''), true));
+            $resultado = $this->contracts->approve($signatureContract, $dados['note'] ?? null, $user->id, $user->name, $visto);
         } catch (ContractException $e) {
+            $vistos->discard($visto);
+
             return $this->refused($e, $signatureContract);
         }
 

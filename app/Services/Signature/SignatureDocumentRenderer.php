@@ -229,7 +229,10 @@ class SignatureDocumentRenderer
             ? $document->layout
             : ($document->isFrozen() ? null : SignatureLayout::current());
 
-        return new SignaturePageGeometry($layout, $document->requiresInitials());
+        // A faixa do visto existe com o visto dos signatários OU com o visto da
+        // Gerência na aprovação do contrato (04/11/2026), que vale mesmo quando
+        // o visto dos signatários foi dispensado (gov.br).
+        return new SignaturePageGeometry($layout, $document->requiresInitials() || $document->approval_initials_path !== null);
     }
 
     /**
@@ -472,13 +475,21 @@ class SignatureDocumentRenderer
         ?int $ultimaPagina,
         array &$temporarios,
     ): void {
-        $signers = $document->signers()->with('evidence')->get()->values();
+        $signers = $document->requiresInitials()
+            ? $document->signers()->with('evidence')->get()->values()
+            : collect();
 
-        if ($signers->isEmpty()) {
+        // O visto da Gerência na aprovação do contrato: já existe antes do
+        // documento, então sai preenchido também no original. Fica à esquerda
+        // das caixas dos signatários.
+        $gerencia = $this->approvalInitialsFile($document, $temporarios);
+
+        if ($signers->isEmpty() && $gerencia === null) {
             return;
         }
 
         $vistos = $mode === self::MODE_FINAL ? $this->initialsFiles($signers, $temporarios) : [];
+        $caixas = $signers->count() + ($gerencia !== null ? 1 : 0);
 
         $pt = SignaturePageGeometry::PT_PER_PX;
         $largura = SignaturePageGeometry::VISTO_BOX_WIDTH;
@@ -489,22 +500,54 @@ class SignatureDocumentRenderer
 
         // Bloco alinhado à direita, na ordem em que as pessoas assinam.
         $inicio = SignaturePageGeometry::PAGE_WIDTH - SignaturePageGeometry::SIDE
-            - $signers->count() * $largura - ($signers->count() - 1) * $vao;
+            - $caixas * $largura - ($caixas - 1) * $vao;
 
         $dompdf->getCanvas()->page_script(function (
             int $pagina,
             int $total,
             $canvas,
             $fontMetrics,
-        ) use ($signers, $vistos, $ultimaPagina, $pt, $largura, $altura, $vao, $topo, $inicio) {
+        ) use ($signers, $vistos, $gerencia, $ultimaPagina, $pt, $largura, $altura, $vao, $topo, $inicio) {
             if ($ultimaPagina !== null && $pagina > $ultimaPagina) {
                 return;
             }
 
             $fonte = $fontMetrics->getFont('DejaVu Sans', 'normal');
+            $desloca = 0;
+
+            if ($gerencia !== null) {
+                [$arquivo, $w, $h, $rotulo] = $gerencia;
+
+                $canvas->rectangle($inicio * $pt, $topo * $pt, $largura * $pt, $altura * $pt, [0.82, 0.78, 0.77], 0.5);
+                // Duas linhas: "Visto — Gerência" e o nome de quem aprovou.
+                // Fonte um pouco menor: as duas linhas cabem antes do traço do rodapé.
+                $canvas->text($inicio * $pt, ($topo + $altura + 2) * $pt, 'Visto — Gerência', $fonte, 5, [0.43, 0.38, 0.38]);
+
+                if ($rotulo !== '') {
+                    $canvas->text(
+                        $inicio * $pt,
+                        ($topo + $altura + 8.5) * $pt,
+                        \Illuminate\Support\Str::limit($rotulo, 28, '…'),
+                        $fonte,
+                        5,
+                        [0.43, 0.38, 0.38],
+                    );
+                }
+
+                $escala = min(($largura - 10) / $w, ($altura - 6) / $h);
+                $canvas->image(
+                    $arquivo,
+                    ($inicio + ($largura - $w * $escala) / 2) * $pt,
+                    ($topo + ($altura - $h * $escala) / 2) * $pt,
+                    $w * $escala * $pt,
+                    $h * $escala * $pt,
+                );
+
+                $desloca = 1;
+            }
 
             foreach ($signers as $i => $signer) {
-                $x = $inicio + $i * ($largura + $vao);
+                $x = $inicio + ($i + $desloca) * ($largura + $vao);
 
                 $canvas->rectangle($x * $pt, $topo * $pt, $largura * $pt, $altura * $pt, [0.82, 0.78, 0.77], 0.5);
 
@@ -513,7 +556,7 @@ class SignatureDocumentRenderer
                     ($topo + $altura + 3) * $pt,
                     'Visto — ' . \Illuminate\Support\Str::limit($signer->capacityLabel() === $signer->roleLabel()
                         ? $signer->name
-                        : $signer->capacityLabel(), 22, '…'),
+                        : $signer->capacityLabel(), 18, '…'),
                     $fonte,
                     5.5,
                     [0.43, 0.38, 0.38],
@@ -539,6 +582,38 @@ class SignatureDocumentRenderer
                 );
             }
         });
+    }
+
+    /**
+     * O visto da Gerência na aprovação do contrato, em arquivo temporário,
+     * com o rótulo da caixa. Null quando o documento não tem (ou o arquivo
+     * sumiu do disco: o documento ainda precisa sair).
+     *
+     * @param  array<int, string>  $temporarios
+     * @return array{0: string, 1: int, 2: int, 3: string}|null
+     */
+    private function approvalInitialsFile(SignatureDocument $document, array &$temporarios): ?array
+    {
+        $caminho = $document->approval_initials_path;
+        $disk = Storage::disk(config('signature.disk'));
+
+        if (!$caminho || !$disk->exists($caminho)) {
+            return null;
+        }
+
+        $bytes = $disk->get($caminho);
+        $info = @getimagesizefromstring($bytes);
+
+        if (!$info) {
+            return null;
+        }
+
+        $arquivo = tempnam(sys_get_temp_dir(), 'visto') . '.png';
+        file_put_contents($arquivo, $bytes);
+        $temporarios[] = $arquivo;
+        $temporarios[] = substr($arquivo, 0, -4);
+
+        return [$arquivo, $info[0], $info[1], (string) $document->approval_initials_label];
     }
 
     /**

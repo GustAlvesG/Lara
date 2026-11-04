@@ -32,6 +32,7 @@ class SignatureContractVersion extends Model
         'decided_by_name',
         'decided_at',
         'decision_note',
+        'approval_initials_path',
     ];
 
     protected $casts = [

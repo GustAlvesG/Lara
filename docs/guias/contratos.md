@@ -1,6 +1,6 @@
 ---
 modulo: Contratos
-palavras: contrato, contratos, cláusula, minuta, CTL, Gerência, validar, aprovar, devolver, aditivo, biblioteca, modelo de contrato, contratada, fiador, Word, docx, papel timbrado, revisão automática, Claude, assinatura do contrato, tablet da Gerência
+palavras: contrato, contratos, cláusula, minuta, CTL, Gerência, validar, aprovar, devolver, visto da Gerência, rubrica, aditivo, biblioteca, modelo de contrato, contratada, fiador, Word, docx, papel timbrado, revisão automática, Claude, assinatura do contrato, tablet da Gerência
 ---
 
 # Contratos — guia de uso
@@ -60,7 +60,9 @@ Só o setor Gerência valida contratos. Em **Contratos › Contratos**, a aba **
 
 1. Abra o contrato. Aparecem o recado de quem enviou, o que mudou desde a última devolução e o contrato inteiro.
 2. Para pedir mudança, escreva observações gerais ou em cada cláusula. Se preferir, ajuste o texto direto.
-3. Clique em **Devolver com observações** (quem redigiu é avisado por e-mail) ou em **Aprovar**.
+3. Clique em **Devolver com observações** (quem redigiu é avisado por e-mail) ou, para aprovar, faça o seu **visto** (a rubrica) no quadro **Seu visto** com o mouse e clique em **Aprovar**. Sem o visto, O Lara não aprova; **Limpar** apaga o desenho para refazer. Devolver não pede visto.
+
+O visto da Gerência sai no pé de **todas as páginas** do documento de assinatura, na primeira caixa da faixa de vistos ("Visto — Gerência" e o nome de quem aprovou), ao lado das caixas de quem assina. Ele já aparece no documento antes de qualquer assinatura e fica registrado no comprovante (manifesto) do PDF assinado. Mesmo quando o documento vai para o gov.br e o visto de quem assina é dispensado, o da Gerência continua.
 
 Aprovado, o contrato ganha o número (por exemplo **CTL - 12/26**, uma sequência só para todos os setores) e o documento de assinatura é gerado em rascunho, na aba **Contratos › Assinaturas**. O ajuste feito pela Gerência fica no histórico como "Ajustado pela Gerência na validação".
 
@@ -71,7 +73,7 @@ Aprovado, o contrato ganha o número (por exemplo **CTL - 12/26**, uma sequênci
 2. Toque num contrato. Para comentar uma cláusula, toque nela e escreva.
 3. **Revisão do Claude**: mostra a última revisão (com o aviso se o texto mudou depois) e os apontamentos. **Levar para a observação** copia o apontamento para a cláusula (ou para a observação geral da devolução). Para pedir uma análise, marque os trechos sensíveis que podem ir, anexe trechos de referência se quiser (**+ Outro trecho**) e toque em **Analisar com o Claude**.
 4. **Editar texto**: ajuste o título do contrato e, em cada cláusula, o título e os itens. A barra no alto tem negrito, itálico e sublinhado; cada item pode virar **Subitem**, ser tirado (**Tirar**) e a cláusula pode ganhar **+ Item**. Toque em **Salvar texto**. Partes, variáveis, considerandos e signatários só se ajustam no computador. As observações já escritas continuam.
-5. Toque em **Devolver** ou **Aprovar**. Toque em **Sair** ao terminar; parado por um tempo, a entrada cai sozinha.
+5. Toque em **Devolver** ou **Aprovar**. Para aprovar, faça o seu **visto** com o dedo no quadro **Seu visto** (ele vai em todas as páginas do documento) e toque em **Aprovar**. Toque em **Sair** ao terminar; parado por um tempo, a entrada cai sozinha.
 
 ## Assinar um contrato aprovado
 <!-- telas: contract-signatures.index -->
@@ -127,6 +129,11 @@ Cadastrar, editar e excluir na biblioteca pede a permissão "Biblioteca de cláu
 <!-- telas: contracts.index -->
 
 Sim. Até 04/11/2026 os contratos ficavam em Assinaturas › Contratos; o endereço antigo leva automaticamente para o novo, em Contratos.
+
+### O Lara não deixa aprovar: "Faça o seu visto no quadro"
+<!-- telas: contracts.index -->
+
+Aprovar pede o visto (rubrica) de quem aprova, que vai em todas as páginas do documento. Desenhe no quadro **Seu visto**, acima do botão **Aprovar** (no tablet, na janela de aprovação). Um risco curto demais não conta: faça a rubrica inteira.
 
 ### O tablet não mostra "Revisão do Claude"
 <!-- telas: contracts.index -->

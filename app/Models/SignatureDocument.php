@@ -108,6 +108,9 @@ class SignatureDocument extends Model
         'govbr_sent_at',
         'govbr_check_id',
         'initials_waived_at',
+        // Visto da Gerência na aprovação do contrato (04/11/2026): sai em todas as páginas.
+        'approval_initials_path',
+        'approval_initials_label',
         'hidden_at',
         'hidden_by',
         'hidden_by_name',

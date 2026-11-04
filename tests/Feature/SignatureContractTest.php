@@ -472,7 +472,7 @@ class SignatureContractTest extends TestCase
         $gerente = $this->usuario([999], true);
         $this->actingAs($gerente)->get(route('contracts.show', $contrato))->assertOk()->assertSee('Validação da Gerência');
         $this->actingAs($gerente)
-            ->post(route('contracts.decide', $contrato), ['decision' => 'approve'])
+            ->post(route('contracts.decide', $contrato), ['decision' => 'approve'] + $this->vistoWeb())
             ->assertRedirect(route('contracts.show', $contrato));
 
         $this->assertSame(SignatureContract::STATUS_APPROVED, $contrato->fresh()->status);
@@ -604,6 +604,69 @@ class SignatureContractTest extends TestCase
             ->assertRedirect('/contratos/' . $contrato->id . '?aba=x');
         $this->actingAs($user)->get('/assinatura/contratos')->assertRedirect('/contratos');
         $this->assertSame(url('/contratos/' . $contrato->id), route('contracts.show', $contrato));
+    }
+
+    /** O visto como o formulário do computador manda: traços em JSON. */
+    private function vistoWeb(): array
+    {
+        $visto = $this->vistoDeTeste();
+
+        return ['initials' => $visto['initials'], 'initials_strokes' => json_encode($visto['initials_strokes'])];
+    }
+
+    public function test_aprovar_exige_o_visto_da_gerencia(): void
+    {
+        $contrato = $this->contrato();
+        $this->service()->submit($contrato, null, 7, 'Compradora');
+        $gerente = $this->usuario([999], true);
+
+        $this->actingAs($gerente)->get(route('contracts.show', $contrato))
+            ->assertOk()
+            ->assertSee('data-initials-pad', false);
+
+        // Sem visto, ou com um risco só, não aprova.
+        $this->actingAs($gerente)
+            ->post(route('contracts.decide', $contrato), ['decision' => 'approve'])
+            ->assertRedirect()
+            ->assertSessionHas('warning', fn($m) => str_contains($m, 'visto'));
+        $this->actingAs($gerente)
+            ->post(route('contracts.decide', $contrato), ['decision' => 'approve', 'initials' => $this->vistoWeb()['initials'], 'initials_strokes' => '[[{"x":1,"y":1}]]'])
+            ->assertSessionHas('warning');
+        $this->assertSame(SignatureContract::STATUS_IN_REVIEW, $contrato->fresh()->status);
+
+        // Devolver não pede visto.
+        $this->assertSame([], Storage::disk(config('signature.disk'))->allFiles('signature/contracts/' . $contrato->id));
+    }
+
+    public function test_visto_da_gerencia_vai_para_o_documento_em_todas_as_paginas(): void
+    {
+        $contrato = $this->contrato();
+        $this->service()->submit($contrato, null, 7, 'Compradora');
+
+        $this->actingAs($this->usuario([999], true))
+            ->post(route('contracts.decide', $contrato), ['decision' => 'approve'] + $this->vistoWeb())
+            ->assertSessionHas('success');
+
+        $contrato = $contrato->fresh();
+        $versao = SignatureContractVersion::find($contrato->approved_version_id);
+        $documento = SignatureDocument::findOrFail($contrato->signature_document_id);
+
+        $this->assertNotNull($versao->approval_initials_path);
+        Storage::disk(config('signature.disk'))->assertExists($versao->approval_initials_path);
+        $this->assertSame($versao->approval_initials_path, $documento->approval_initials_path);
+        $this->assertNotSame('', (string) $documento->approval_initials_label, 'o nome de quem aprovou');
+
+        // A faixa do visto existe por causa dele, mesmo sem o visto dos signatários (gov.br).
+        $renderer = app(\App\Services\Signature\SignatureDocumentRenderer::class);
+        $this->assertTrue($renderer->geometry($documento)->initials);
+        $documento->forceFill(['initials_waived_at' => now()])->save();
+        $this->assertFalse($documento->fresh()->requiresInitials());
+        $this->assertTrue($renderer->geometry($documento->fresh())->initials);
+
+        // O PDF sai (o visto é desenhado em cada página) e o manifesto registra.
+        $this->assertStringStartsWith('%PDF', $renderer->pdf($documento->fresh()));
+        $manifesto = (new \ReflectionMethod($renderer, 'manifest'))->invoke($renderer, $documento->fresh());
+        $this->assertStringContainsString('Visto da validação do contrato', $manifesto);
     }
 
     public function test_biblioteca_so_consulta_sem_a_permissao_da_biblioteca(): void

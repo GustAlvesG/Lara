@@ -88,6 +88,16 @@
     </div>
 @endif
 
+@if($document->approval_initials_path)
+    {{-- Visto da Gerência na aprovação do contrato (04/11/2026): desenhado antes do congelamento. --}}
+    <div style="border:1px solid #d8cbc9;padding:8px;margin-bottom:14px;font-size:9px;">
+        <b style="font-size:10px;">Visto da validação do contrato</b><br>
+        Gerência{{ $document->approval_initials_label ? ' (' . $document->approval_initials_label . ')' : '' }}: visto (rubrica) desenhado ao aprovar o contrato
+        @if($document->contract?->approved_at) em {{ $document->contract->approved_at->format('d/m/Y H:i') }} @endif
+        e aplicado pelo sistema a todas as páginas do documento, já no original, antes de qualquer assinatura.
+    </div>
+@endif
+
 @php
     $doSignatario = collect($document->signerFields())->pluck('label');
     $automaticos = collect($document->automaticFields())->pluck('label');

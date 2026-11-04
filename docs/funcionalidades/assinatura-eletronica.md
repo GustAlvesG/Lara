@@ -1601,6 +1601,11 @@ Com **Visto em todas as páginas** marcado no modelo:
   **manifesto não levam visto**: são anexo gerado depois, e ninguém as rubricou. O manifesto
   registra que o visto foi desenhado no tablet e aplicado pelo sistema.
 
+**Visto da Gerência (contratos, 04/11/2026):** documento gerado de contrato traz também o visto que o gerente
+desenhou ao aprovar (`signature_documents.approval_initials_path`), na primeira caixa da faixa ("Visto —
+Gerência" e o nome), em todas as páginas, já preenchido no original. Ele mantém a faixa mesmo com o visto dos
+signatários dispensado (gov.br) — `SignatureDocumentRenderer::geometry()`. Ver [contratos.md](contratos.md).
+
 O visto é desenhado direto na página depois de o PDF estar montado (`page_script` do dompdf), e
 não como bloco fixo do HTML — um bloco fixo se repetiria também no manifesto. Por isso o PDF
 final de um modelo com visto é montado duas vezes: uma só para saber em que página o manifesto

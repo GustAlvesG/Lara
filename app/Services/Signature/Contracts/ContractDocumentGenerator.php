@@ -3,6 +3,7 @@
 namespace App\Services\Signature\Contracts;
 
 use App\Models\SignatureContract;
+use App\Models\SignatureContractVersion;
 use App\Models\SignatureDocument;
 use App\Models\SignatureTemplate;
 use App\Services\Signature\Directors\DirectorAreaService;
@@ -52,7 +53,7 @@ class ContractDocumentGenerator
         $documento = DB::transaction(function () use ($contract, $content, $signatarios, &$avisos) {
             $modelo = SignatureTemplate::create([
                 'name' => mb_substr($contract->number . ' — ' . $contract->title, 0, 150),
-                'description' => 'Contrato redigido em Assinaturas → Contratos (contrato #' . $contract->id . ').',
+                'description' => 'Contrato redigido no módulo Contratos (contrato #' . $contract->id . ').',
                 'body_html' => $this->renderer->html($content, $contract->number, ContractRenderer::MODE_DOCUMENT),
                 'variables' => [[
                     'key' => ContractRenderer::SIGNING_DATE_KEY,
@@ -109,6 +110,17 @@ class ContractDocumentGenerator
                 $contract->created_by_name,
             );
         });
+
+        // O visto da Gerência na aprovação (04/11/2026) vai em todas as páginas do documento.
+        $aprovada = $contract->approved_version_id ? SignatureContractVersion::find($contract->approved_version_id) : null;
+
+        if ($aprovada?->approval_initials_path) {
+            $documento->forceFill([
+                'approval_initials_path' => $aprovada->approval_initials_path,
+                // O nome de quem aprovou: o PDF escreve "Visto — Gerência" e o nome embaixo.
+                'approval_initials_label' => mb_substr((string) ($aprovada->decided_by_name ?? ''), 0, 120) ?: null,
+            ])->save();
+        }
 
         $avisos = array_merge($avisos, $this->copyAttachments($contract, $documento, $userId, $userName));
 

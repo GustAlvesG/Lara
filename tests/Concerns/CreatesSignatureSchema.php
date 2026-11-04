@@ -65,6 +65,8 @@ trait CreatesSignatureSchema
             // O documento pergunta ao contrato se passa pela revisão e entra na busca dele.
             '2026_10_29_100000_create_signature_contracts.php',
             '2026_10_30_130000_add_parties_search_to_signature_contracts.php',
+            // Visto da Gerência na aprovação (versão do contrato e documento gerado).
+            '2026_11_04_110000_add_approval_initials_to_contracts_and_documents.php',
         ];
 
         foreach ($migrations as $arquivo) {

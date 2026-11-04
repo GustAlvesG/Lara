@@ -215,12 +215,18 @@ class ContractService
      *
      * @throws ContractException
      */
-    public function approve(SignatureContract $contract, ?string $note, ?int $userId, ?string $userName): array
+    /**
+     * `$initialsPath`: o visto que o gerente desenhou ao aprovar, já gravado
+     * (ContractApprovalInitials). Vai na versão aprovada e no documento gerado.
+     * Obrigatório nas telas (computador e tablet); aqui é opcional para o
+     * serviço servir também a quem aprova por código (testes, comandos).
+     */
+    public function approve(SignatureContract $contract, ?string $note, ?int $userId, ?string $userName, ?string $initialsPath = null): array
     {
         $this->ensureInReview($contract);
         $this->ensureReady($contract, 'O contrato ainda tem o que corrigir. Ajuste ou devolva antes de aprovar.');
 
-        $versao = DB::transaction(function () use ($contract, $note, $userId, $userName) {
+        $versao = DB::transaction(function () use ($contract, $note, $userId, $userName, $initialsPath) {
             $versao = $this->reviewerVersion($contract, $userId, $userName);
 
             $versao->forceFill([
@@ -229,6 +235,7 @@ class ContractService
                 'decided_by_name' => $userName,
                 'decided_at' => now(),
                 'decision_note' => trim((string) $note) ?: null,
+                'approval_initials_path' => $initialsPath,
             ])->save();
 
             $this->assignNumber($contract);
@@ -241,7 +248,11 @@ class ContractService
                 'approved_by_name' => $userName,
             ])->save();
 
-            $this->event($contract, 'approved', $userId, $userName, ['versao' => $versao->version, 'numero' => $contract->number]);
+            $this->event($contract, 'approved', $userId, $userName, [
+                'versao' => $versao->version,
+                'numero' => $contract->number,
+                'visto' => $initialsPath !== null,
+            ]);
 
             return $versao;
         });

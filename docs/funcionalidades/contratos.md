@@ -119,6 +119,39 @@ aprovado ─criar aditivo→ novo contrato (kind = addendum) em rascunho
   cláusulas e itens casados por `uid` (mover não é apagar+criar), diferença palavra a palavra, mais
   partes, variáveis, considerandos e signatários.
 
+## Visto da Gerência na aprovação (04/11/2026)
+
+Pedido do usuário: o gerente põe um visto por página do documento ao aprovar o contrato.
+
+- **Obrigatório para aprovar**, no computador (quadro "Seu visto" no formulário da validação, com o mouse) e no
+  tablet (folha "Aprovar", com o dedo). Devolver não pede. Quadro: `partials/initials-pad.blade.php`
+  (`window.laraInitialsPad`, estilos próprios porque o tablet não usa Tailwind), que manda `initials` (PNG em data
+  URL) e `initials_strokes` (traços; JSON no formulário, array no tablet).
+- **Validação e gravação:** `ContractApprovalInitials::store` — a régua do visto do tablet de assinatura
+  (`signature.evidence.min_initials_points`, PNG, `max_signature_kb`, recorte `PngTrimmer`); arquivo em
+  `signature/contracts/{id}/visto-aprovacao-{uuid}.png` no disco do módulo. Falhou a aprovação, `discard()`.
+  A recusa é `ContractException` ("Faça o seu visto no quadro antes de aprovar…"). A obrigação está nos dois
+  controllers (`ContractController::decide`, `ContractKioskController::decide`); `ContractService::approve`
+  aceita o caminho como opcional (`$initialsPath`) para servir a testes e comandos.
+- **Onde fica:** `signature_contract_versions.approval_initials_path` (a versão aprovada) e, copiado pelo
+  `ContractDocumentGenerator` (também no "Gerar documento de assinatura" depois), `signature_documents.
+  approval_initials_path` + `approval_initials_label` (o nome de quem aprovou). Migration
+  `2026_11_04_110000_add_approval_initials_to_contracts_and_documents` (idempotente). O evento `approved` leva
+  `visto: true|false`.
+- **No PDF:** `SignatureDocumentRenderer::stampInitials` desenha a caixa da Gerência PRIMEIRO (à esquerda) na
+  faixa do visto, em todas as páginas do documento (não no manifesto), JÁ PREENCHIDA no original e no final
+  — a aprovação vem antes do documento. Rótulo em duas linhas: "Visto — Gerência" e o nome. A faixa existe se
+  `requiresInitials()` OU houver o visto da Gerência (`geometry()`): com o visto dos signatários dispensado pelo
+  gov.br, a faixa fica só com a caixa da Gerência (o original refeito na preparação já sai assim, e a assinatura
+  do gov.br cobre o arquivo com ela). O manifesto ganha o quadro "Visto da validação do contrato".
+- Contratos aprovados antes de 04/11/2026 não têm visto: o documento sai como antes.
+- Ajuste junto (o visto da Gerência deixava a faixa mais cheia): o rótulo da caixa de cada signatário passou de
+  22 para 18 caracteres, porque invadia o da caixa ao lado.
+- Testes: `SignatureContractTest::test_aprovar_exige_o_visto_da_gerencia`,
+  `test_visto_da_gerencia_vai_para_o_documento_em_todas_as_paginas`;
+  `SignatureContractKioskTest::test_aprovar_pelo_tablet_exige_o_visto`. Visto de teste:
+  `CreatesContractSchema::vistoDeTeste()`.
+
 ## Validação no tablet do balcão (Gerência)
 
 Decisão do usuário (27/10/2026): a Gerência também valida pelo **tablet de assinatura do balcão**, numa

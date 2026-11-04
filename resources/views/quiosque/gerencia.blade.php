@@ -209,6 +209,8 @@
   <h2>Aprovar o contrato?</h2>
   <p class="lead">O contrato ganha o número e o documento de assinatura é gerado em rascunho, para quem redigiu conferir e congelar.</p>
   <div id="faAviso"></div>
+  {{-- Visto da Gerência (04/11/2026): obrigatório; vai em todas as páginas do documento. --}}
+  @include('signature.contracts.partials.initials-pad', ['id' => 'faVisto'])
   <label class="lbl" for="faNota">Observação (opcional)</label>
   <textarea class="field" id="faNota" maxlength="3000"></textarea>
   <div class="err" id="faErro"></div>
@@ -666,16 +668,24 @@
       ? '<div class="box warn">Você comentou ' + Object.keys(obs).length + ' cláusula(s). Aprovando, essas observações não são enviadas — para pedir mudança, use Devolver.</div>'
       : '';
     $('#faErro').textContent = '';
+    window.laraInitialsPad($('#faVisto')).clear();
     abrirFolha('#folhaAprovar');
   });
 
   $('#faConfirmar').addEventListener('click', function () {
-    decide('approve', $('#faNota').value.trim(), $('#faConfirmar'), $('#faErro'));
+    var visto = window.laraInitialsPad($('#faVisto'));
+    if (visto.points() < {{ (int) config('signature.evidence.min_initials_points', 8) }}) {
+      $('#faErro').textContent = 'Faça o seu visto no quadro antes de aprovar.';
+      return;
+    }
+    decide('approve', $('#faNota').value.trim(), $('#faConfirmar'), $('#faErro'), { initials: visto.data(), initials_strokes: visto.strokes() });
   });
 
-  function decide(decisao, nota, botao, erro) {
+  function decide(decisao, nota, botao, erro, extra) {
     botao.disabled = true;
-    api(URLS.decide.replace('__ID__', atual.id), 'POST', { decision: decisao, note: nota || null, comments: decisao === 'return' ? obs : {} })
+    var corpo = { decision: decisao, note: nota || null, comments: decisao === 'return' ? obs : {} };
+    Object.keys(extra || {}).forEach(function (k) { corpo[k] = extra[k]; });
+    api(URLS.decide.replace('__ID__', atual.id), 'POST', corpo)
       .then(function (j) {
         fecharFolhas();
         $('#fdNota').value = ''; $('#faNota').value = '';
