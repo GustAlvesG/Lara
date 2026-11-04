@@ -72,6 +72,10 @@ Guia do usuário: [docs/guias/contratos.md](../guias/contratos.md) (e a seção 
   `ContractDocxExporter` (ZipArchive, sem dependência), `ContractRecipients`. `App\Support\NumeroPorExtenso`.
   Controllers `Signature\ContractController` e `ContractLibraryController`; `SignatureContractPolicy`; 8 models
   `SignatureContract*`; views em `resources/views/signature/contracts/`.
+- **Criação em passos (04/11/2026):** Novo contrato = 1. Contrato, 2. Contratado (obrigatório; vira a primeira
+  contratada com o termo do modelo e o signatário da contratada — `ContractService::withMainParty`); o editor é em
+  passos livres (Contratado, Variáveis, Cláusulas, Quem assina) com o partial `signature.documents.partials.steps`
+  (`data-step-start`, `data-step-current`, evento `step:shown`).
 - **Modelos-base (04/11/2026):** `ContractBaseModels` (10 modelos e 9 cláusulas avulsas tirados dos PDFs do
   clube) gravados por `php artisan contratos:modelos-base --setor=…` (`ImportContractBaseModels`, idempotente,
   não roda no deploy). Remissão no catálogo: `{ref:chave.N}`. Teste: `SignatureContractBaseModelsTest`.

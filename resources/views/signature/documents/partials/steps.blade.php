@@ -14,6 +14,9 @@
      *   daquele passo: depois de um envio recusado, a tela abre nele.
      * - `data-steps-free` no <form> (edição do rascunho) libera ir a qualquer
      *   passo e gravar de qualquer um: ali tudo já foi preenchido uma vez.
+     * - `data-step-start="N"` no <form> abre no passo N (contando de 0) quando
+     *   não há erro; um `input[data-step-current]` recebe o passo aberto ao
+     *   gravar, para a tela voltar nele (editor de contratos, 04/11/2026).
      */
 @endphp
 <script>
@@ -105,6 +108,9 @@
 
         var ultimo = i === passos.length - 1;
 
+        // Quem mede algo no passo (caixa que cresce com o texto) mede de novo agora que ele aparece.
+        passos[i].dispatchEvent(new CustomEvent('step:shown', { bubbles: true }));
+
         voltar.style.display = i === 0 ? 'none' : '';
         continuar.style.display = ultimo ? 'none' : '';
 
@@ -194,8 +200,15 @@
         }
     }, true);
 
+    var passoAtual = form.querySelector('input[data-step-current]');
+
+    if (passoAtual) {
+        form.addEventListener('submit', function () { passoAtual.value = atual; });
+    }
+
     // Depois de um envio recusado pelo servidor, abre no primeiro passo com erro.
-    var inicial = 0;
+    var pedido = parseInt(form.getAttribute('data-step-start') || '0', 10);
+    var inicial = pedido > 0 && pedido < passos.length ? pedido : 0;
 
     passos.some(function (passo, i) {
         var chaves = (passo.getAttribute('data-step-keys') || '').split(',').filter(Boolean);

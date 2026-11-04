@@ -63,11 +63,16 @@
         @endif
 
         <div class="ct-layout grid grid-cols-1 gap-6 xl:grid-cols-12" data-layout>
-            <form id="ctForm" method="POST" action="{{ route('contracts.update', $contract) }}" class="min-w-0 space-y-6 xl:col-span-7">
+            {{-- Em passos livres, como o documento comum (04/11/2026): Contratado → Variáveis → Cláusulas → Quem assina.
+                 Grava de qualquer passo e volta no mesmo (`passo`). --}}
+            <form id="ctForm" method="POST" action="{{ route('contracts.update', $contract) }}" class="min-w-0 space-y-6 xl:col-span-7"
+                  data-steps-free data-step-start="{{ max(0, min(3, (int) request('passo', 0))) }}">
                 @csrf
                 @method('PUT')
                 <input type="hidden" name="next" value="" data-next>
+                <input type="hidden" name="passo" value="{{ (int) request('passo', 0) }}" data-step-current>
 
+                <div class="space-y-6" data-step="Contratado" data-step-keys="title,establishment,contractor_term,parties">
                 {{-- 1. Dados gerais --}}
                 <section class="{{ $card }}">
                     <p class="{{ $h }}">Dados gerais</p>
@@ -111,9 +116,10 @@
                         @endforeach
                     </div>
                 </section>
+                </div>
 
                 {{-- 3. Variáveis --}}
-                <section class="{{ $card }}">
+                <section class="{{ $card }}" data-step="Variáveis" data-step-keys="variables">
                     <div class="flex items-center justify-between gap-2">
                         <p class="{{ $h }}">Variáveis</p>
                         <button type="button" data-add="variable" class="{{ $add }}">+ Variável</button>
@@ -129,6 +135,7 @@
                     </div>
                 </section>
 
+                <div class="space-y-6" data-step="Cláusulas" data-step-keys="considerations,clauses">
                 {{-- 4. Considerandos --}}
                 <section class="{{ $card }}">
                     <div class="flex items-center justify-between gap-2">
@@ -171,9 +178,10 @@
                         <button type="button" data-library-open class="{{ $add }}">Da biblioteca…</button>
                     </div>
                 </section>
+                </div>
 
                 {{-- 6. Signatários --}}
-                <section class="{{ $card }}">
+                <section class="{{ $card }}" data-step="Quem assina" data-step-keys="signers">
                     <div class="flex items-center justify-between gap-2">
                         <p class="{{ $h }}">Quem assina</p>
                         <button type="button" data-add="signer" class="{{ $add }}">+ Signatário</button>
@@ -189,6 +197,8 @@
                     </div>
                 </section>
 
+                @include('signature.documents.partials.steps')
+
                 {{-- Ações --}}
                 <div class="sticky bottom-3 z-10 space-y-3 rounded-card bg-surface p-4 shadow-card">
                     @if(!$revisando)
@@ -197,7 +207,7 @@
                             <textarea name="note" rows="2" maxlength="2000" class="{{ $f }} mt-2" placeholder="Ex.: ajustei as cláusulas 3 e 5 conforme pedido."></textarea>
                         </details>
                     @endif
-                    <div class="flex flex-wrap items-center justify-end gap-2">
+                    <div class="flex flex-wrap items-center justify-end gap-2" data-step-actions>
                         <span class="mr-auto text-xs text-ink-3" data-save-state></span>
                         <x-secondary-button type="submit">{{ $revisando ? 'Salvar ajustes' : 'Salvar' }}</x-secondary-button>
                         @if(!$revisando)

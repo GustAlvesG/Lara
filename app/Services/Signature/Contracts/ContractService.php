@@ -59,11 +59,17 @@ class ContractService
         ?SignatureContractModel $model,
         ?int $userId,
         ?string $userName,
+        ?array $party = null,
     ): SignatureContract {
         $conteudo = $model ? $this->modelContent($model) : ContractContent::blank();
 
         if (filled($title)) {
             $conteudo['title'] = mb_substr(trim((string) $title), 0, 200);
+        }
+
+        if ($party !== null) {
+            $conteudo = $this->withMainParty($conteudo, $party);
+            $this->rememberParties($conteudo, $userName);
         }
 
         return DB::transaction(function () use ($sectorId, $sectorName, $conteudo, $model, $userId, $userName) {
@@ -551,6 +557,57 @@ class ContractService
      * reaproveitamento — o próximo contrato com a mesma empresa sai
      * preenchido.
      */
+    /**
+     * O contratado informado no passo "Contratado" da criação (04/11/2026):
+     * entra como a primeira contratada (mantendo o termo do modelo, como
+     * LOCATÁRIO ou ANUNCIANTE) e preenche quem assina pela contratada — o
+     * representante, na empresa; a própria pessoa, na pessoa física.
+     *
+     * @param  array<string, mixed>  $content
+     * @param  array<string, mixed>  $party
+     * @return array<string, mixed>
+     */
+    private function withMainParty(array $content, array $party): array
+    {
+        $partes = $content['parties'] ?? [];
+        $indice = collect($partes)->search(fn(array $p) => $p['role'] === ContractContent::ROLE_CONTRATADA);
+        $dados = array_intersect_key($party, array_flip([
+            'kind', 'gender', 'name', 'document', 'address', 'details', 'rep_name', 'rep_cpf', 'email', 'phone',
+        ]));
+
+        if ($indice === false) {
+            array_unshift($partes, ['role' => ContractContent::ROLE_CONTRATADA, 'term' => 'CONTRATADA'] + $dados);
+        } else {
+            $partes[$indice] = array_merge($partes[$indice], $dados);
+        }
+
+        $content['parties'] = $partes;
+        $content = ContractContent::normalize($content);
+
+        $parte = collect($content['parties'])->firstWhere('role', ContractContent::ROLE_CONTRATADA);
+        $pj = $parte['kind'] === 'pj';
+        $assinante = [
+            'name' => $pj ? $parte['rep_name'] : $parte['name'],
+            'cpf' => $pj ? $parte['rep_cpf'] : $parte['document'],
+            'email' => $parte['email'],
+            'phone' => $parte['phone'],
+        ];
+
+        $signers = $content['signers'] ?? [];
+        $vago = collect($signers)->search(fn(array $s) => $s['party'] === ContractContent::SIGNER_CONTRATADA
+            && $s['source'] === 'person' && $s['name'] === '');
+
+        if ($vago !== false) {
+            $signers[$vago] = array_merge($signers[$vago], $assinante);
+        } elseif (!collect($signers)->contains('party', ContractContent::SIGNER_CONTRATADA)) {
+            array_unshift($signers, ['party' => ContractContent::SIGNER_CONTRATADA, 'source' => 'person'] + $assinante);
+        }
+
+        $content['signers'] = $signers;
+
+        return ContractContent::normalize($content);
+    }
+
     private function rememberParties(array $content, ?string $userName): void
     {
         foreach ($content['parties'] ?? [] as $parte) {

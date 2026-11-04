@@ -491,12 +491,118 @@ class SignatureContractTest extends TestCase
         $resposta = $this->actingAs($compradora)->post(route('contracts.store'), [
             'sector_id' => $this->compras->id,
             'title' => 'Contrato de locação de imóvel',
+            'party' => $this->contratadoDoPasso(),
         ]);
 
         $contrato = SignatureContract::latest('id')->first();
-        $resposta->assertRedirect(route('contracts.edit', $contrato));
+        // Abre no passo "Variáveis": o contratado já foi dito.
+        $resposta->assertRedirect(route('contracts.edit', ['signatureContract' => $contrato, 'passo' => 1]));
         $this->assertSame('Contrato de locação de imóvel', $contrato->title);
         $this->assertSame('Compras', $contrato->sector_name);
+    }
+
+    /** Passo "Contratado" da criação (04/11/2026). */
+    private function contratadoDoPasso(array $troca = []): array
+    {
+        return array_merge([
+            'kind' => 'pj',
+            'name' => 'ELLO SERVIÇOS ESPECIALIZADOS LTDA',
+            'document' => '04.758.575/0001-29',
+            'address' => 'Av. Dezessete de Julho, nº 29, Aterrado, Volta Redonda/RJ',
+            'rep_name' => 'Alexandre Henrique de Azevedo',
+            'rep_cpf' => '529.982.247-25',
+            'email' => 'ello@example.com',
+            'phone' => '(24) 99834-0467',
+        ], $troca);
+    }
+
+    public function test_criar_pede_o_contratado_e_ja_o_poe_como_parte_e_signatario(): void
+    {
+        $compradora = $this->usuario([$this->compras->id]);
+
+        $this->actingAs($compradora)->get(route('contracts.create'))
+            ->assertOk()
+            ->assertSee('data-step="Contratado"', false);
+
+        $this->actingAs($compradora)
+            ->post(route('contracts.store'), ['sector_id' => $this->compras->id])
+            ->assertSessionHasErrors(['party.kind', 'party.name', 'party.document', 'party.address']);
+
+        $this->actingAs($compradora)
+            ->post(route('contracts.store'), ['sector_id' => $this->compras->id, 'party' => $this->contratadoDoPasso(['document' => '11.111.111/1111-11', 'rep_cpf' => ''])])
+            ->assertSessionHasErrors(['party.document', 'party.rep_cpf']);
+
+        $this->actingAs($compradora)
+            ->post(route('contracts.store'), ['sector_id' => $this->compras->id, 'party' => $this->contratadoDoPasso()])
+            ->assertSessionHasNoErrors();
+
+        $conteudo = SignatureContract::latest('id')->first()->content;
+        $parte = $conteudo['parties'][0];
+
+        $this->assertSame('ELLO SERVIÇOS ESPECIALIZADOS LTDA', $parte['name']);
+        $this->assertSame('04758575000129', $parte['document']);
+        $this->assertSame('CONTRATADA', $parte['term']);
+
+        $assina = collect($conteudo['signers'])->firstWhere('party', 'contratada');
+        $this->assertSame('Alexandre Henrique de Azevedo', $assina['name']);
+        $this->assertSame('52998224725', $assina['cpf']);
+        $this->assertSame('ello@example.com', $assina['email']);
+
+        // Guardado no cadastro para o próximo contrato.
+        $this->assertSame('ELLO SERVIÇOS ESPECIALIZADOS LTDA', SignatureContractParty::where('document', '04758575000129')->value('name'));
+
+        // O editor em passos abre em "Variáveis" e, ao salvar, volta no passo em que estava.
+        $contrato = SignatureContract::latest('id')->first();
+        $this->actingAs($compradora)->get(route('contracts.edit', ['signatureContract' => $contrato, 'passo' => 1]))
+            ->assertOk()
+            ->assertSee('data-step-start="1"', false)
+            ->assertSee('data-step="Variáveis"', false)
+            ->assertSee('data-step="Quem assina"', false);
+
+        $this->actingAs($compradora)
+            ->put(route('contracts.update', $contrato), $contrato->content + ['passo' => 2])
+            ->assertRedirect(route('contracts.edit', ['signatureContract' => $contrato, 'passo' => 2]));
+    }
+
+    public function test_contratado_pessoa_fisica_assina_ele_mesmo_e_o_termo_do_modelo_fica(): void
+    {
+        $compradora = $this->usuario([$this->compras->id]);
+
+        $modelo = \App\Models\SignatureContractModel::create([
+            'sector_id' => $this->compras->id,
+            'sector_name' => 'Compras',
+            'name' => 'Locação',
+            'content' => ContractContent::normalize([
+                'title' => 'Contrato de locação',
+                'contractor_term' => 'LOCADOR',
+                'parties' => [['role' => 'contratada', 'term' => 'LOCATÁRIA', 'kind' => 'pj']],
+                'clauses' => [['title' => 'Objeto', 'items' => [['html' => 'Locação.']]]],
+            ]),
+        ]);
+
+        $this->actingAs($compradora)->post(route('contracts.store'), [
+            'sector_id' => $this->compras->id,
+            'model_id' => $modelo->id,
+            'party' => [
+                'kind' => 'pf',
+                'gender' => 'f',
+                'name' => 'Denise Frizas Pires Grijó',
+                'document' => '111.444.777-35',
+                'address' => 'Rua 657, nº 118, Siderópolis, Volta Redonda/RJ',
+                // Sobra de quando estava marcado "Empresa": ignorado na pessoa física.
+                'rep_name' => 'X',
+                'rep_cpf' => '123',
+            ],
+        ])->assertSessionHasNoErrors();
+
+        $conteudo = SignatureContract::latest('id')->first()->content;
+
+        $this->assertSame('LOCATÁRIA', $conteudo['parties'][0]['term']);
+        $this->assertSame('pf', $conteudo['parties'][0]['kind']);
+        $this->assertSame('', $conteudo['parties'][0]['rep_name']);
+        $assina = collect($conteudo['signers'])->firstWhere('party', 'contratada');
+        $this->assertSame('Denise Frizas Pires Grijó', $assina['name']);
+        $this->assertSame('11144477735', $assina['cpf']);
     }
 
     public function test_editor_salva_e_mostra_a_previa(): void

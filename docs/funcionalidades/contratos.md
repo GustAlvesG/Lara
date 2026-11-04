@@ -96,6 +96,19 @@ Decisões tomadas na implementação (não perguntadas — revisar se o usuário
 
 ## Fluxo
 
+**Criação em passos (04/11/2026, pedido do usuário):** "Crio o contrato, digo o contratado, depois vou para as
+cláusulas, variáveis e afins". `contracts.create` usa o mesmo `signature.documents.partials.steps` do documento
+comum: **1. Contrato** (setor, modelo, título) e **2. Contratado** (`party[kind|name|document|address|details|
+rep_name|rep_cpf|email|phone|gender]`, com a busca de `contracts.parties`). O `store` exige o contratado (CNPJ/CPF
+conferidos por `SignatureFieldTypes`; representante e CPF dele só na empresa — `exclude_if` na pessoa física) e
+`ContractService::create(..., $party)` o põe como a primeira contratada **mantendo o termo do modelo**
+(`withMainParty`), preenche o signatário `contratada` vago (empresa: representante; pessoa física: a própria) e grava
+no cadastro (`rememberParties`). Redireciona para `contracts.edit?passo=1`. O editor também é em passos **livres**
+(`data-steps-free`): Contratado (dados gerais + partes), Variáveis, Cláusulas (considerandos + cláusulas) e Quem
+assina. O partial de passos ganhou `data-step-start` (passo inicial) e `input[data-step-current]` (o `update`
+redireciona com `passo`, e a tela volta no mesmo), e dispara `step:shown` no passo aberto (o editor remede as caixas
+`data-autogrow`, que medem zero escondidas). Aditivo continua nascendo do original, sem o passo.
+
 ```
 rascunho ─enviar→ em validação ─devolver→ devolvido ─enviar→ em validação …
                                └aprovar→ aprovado (número + documento de assinatura em RASCUNHO)

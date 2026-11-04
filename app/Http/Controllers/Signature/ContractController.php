@@ -22,6 +22,7 @@ use App\Services\Signature\Contracts\ContractRenderer;
 use App\Services\Signature\Contracts\ContractService;
 use App\Services\Signature\Contracts\ContractVariables;
 use App\Services\Signature\Directors\DirectorAreaService;
+use App\Services\Signature\SignatureFieldTypes;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -94,9 +95,40 @@ class ContractController extends Controller
             'sector_id' => ['required', 'integer', 'in:' . $setores->pluck('id')->join(',')],
             'title' => ['nullable', 'string', 'max:200'],
             'model_id' => ['nullable', 'integer'],
+            // Passo "Contratado" (04/11/2026): quem é a outra parte, antes das cláusulas.
+            'party.kind' => ['required', 'in:pj,pf'],
+            'party.gender' => ['nullable', 'in:m,f'],
+            'party.name' => ['required', 'string', 'max:200'],
+            'party.document' => ['required', 'string', 'max:20', function ($attr, $valor, $fail) use ($request) {
+                $tipo = $request->input('party.kind') === 'pf' ? SignatureFieldTypes::CPF : SignatureFieldTypes::CNPJ;
+                [, $erro] = SignatureFieldTypes::parse(['type' => $tipo], (string) $valor);
+
+                if ($erro !== null) {
+                    $fail(($tipo === SignatureFieldTypes::CPF ? 'CPF' : 'CNPJ') . ' inválido.');
+                }
+            }],
+            'party.address' => ['required', 'string', 'max:300'],
+            'party.details' => ['nullable', 'string', 'max:500'],
+            'party.rep_name' => ['exclude_if:party.kind,pf', 'nullable', 'required_if:party.kind,pj', 'string', 'max:200'],
+            'party.rep_cpf' => ['exclude_if:party.kind,pf', 'nullable', 'required_if:party.kind,pj', 'string', 'max:14', function ($attr, $valor, $fail) {
+                [, $erro] = SignatureFieldTypes::parse(['type' => SignatureFieldTypes::CPF], (string) $valor);
+
+                if ($erro !== null) {
+                    $fail('CPF do representante inválido.');
+                }
+            }],
+            'party.email' => ['nullable', 'email', 'max:150'],
+            'party.phone' => ['nullable', 'string', 'max:30'],
         ], [
             'sector_id.in' => 'Escolha um dos seus setores.',
             'sector_id.required' => 'Você não está em nenhum setor: peça para ser incluído antes de redigir contratos.',
+            'party.kind.required' => 'Diga se o contratado é empresa (CNPJ) ou pessoa física (CPF).',
+            'party.name.required' => 'Informe o nome ou a razão social do contratado.',
+            'party.document.required' => 'Informe o CNPJ ou o CPF do contratado.',
+            'party.address.required' => 'Informe o endereço do contratado.',
+            'party.rep_name.required_if' => 'Informe quem assina pela empresa.',
+            'party.rep_cpf.required_if' => 'Informe o CPF de quem assina pela empresa.',
+            'party.email.email' => 'E-mail do contratado inválido.',
         ]);
 
         $modelo = !empty($dados['model_id'])
@@ -110,10 +142,12 @@ class ContractController extends Controller
             $modelo,
             $request->user()->id,
             $request->user()->name,
+            $dados['party'],
         );
 
-        return redirect()->route('contracts.edit', $contrato)
-            ->with('success', 'Contrato criado. Preencha as partes, as variáveis e as cláusulas.');
+        // Abre no passo "Variáveis": o contratado já foi dito.
+        return redirect()->route('contracts.edit', ['signatureContract' => $contrato, 'passo' => 1])
+            ->with('success', 'Contrato criado com o contratado. Agora as variáveis, as cláusulas e quem assina.');
     }
 
     public function show(Request $request, SignatureContract $signatureContract)
@@ -183,7 +217,11 @@ class ContractController extends Controller
             return $this->runAiReview($request, $signatureContract->fresh(), 'contracts.edit');
         }
 
-        return redirect()->route('contracts.edit', $signatureContract)->with('success', 'Contrato salvo.');
+        // Volta no passo em que a pessoa estava (editor em passos).
+        $passo = max(0, min(3, (int) $request->input('passo', 0)));
+
+        return redirect()->route('contracts.edit', array_filter(['signatureContract' => $signatureContract, 'passo' => $passo]))
+            ->with('success', 'Contrato salvo.');
     }
 
     /**

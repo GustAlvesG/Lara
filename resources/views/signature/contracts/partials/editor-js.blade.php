@@ -369,6 +369,10 @@
     });
 
     form.querySelectorAll('textarea[data-autogrow]').forEach(cresce);
+    // Editor em passos: escondida, a caixa mede zero; ao abrir o passo, mede de novo.
+    form.addEventListener('step:shown', function (e) {
+        e.target.querySelectorAll('textarea[data-autogrow]').forEach(cresce);
+    });
     window.addEventListener('resize', function () { form.querySelectorAll('textarea[data-autogrow]').forEach(cresce); });
 
     // ---- Ocultar / mostrar a prévia (tela larga), lembrado neste navegador ----

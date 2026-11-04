@@ -25,8 +25,11 @@ Validar contratos não é uma permissão: é ser do setor **Gerência**, que vê
 ## Redigir um contrato e enviar à Gerência
 <!-- telas: contracts.index -->
 
-1. Em **Contratos › Contratos**, clique em **Novo contrato**. Escolha o **Setor** (só esse setor e a Gerência veem o contrato), o título e, se quiser, um modelo do setor.
-2. Preencha: dados gerais (título e por qual CNPJ do clube), contratada (e fiadores, se houver; **Buscar no cadastro** traz as já usadas), variáveis, considerandos (opcional), cláusulas e quem assina. A prévia ao lado mostra o contrato como vai ficar.
+1. Em **Contratos › Contratos**, clique em **Novo contrato**. A tela tem dois passos, como a de um documento comum:
+   - **1. Contrato**: o **Setor** (só esse setor e a Gerência veem o contrato), o modelo do setor (se quiser) e o título.
+   - **2. Contratado**: **Buscar no cadastro** traz quem já foi contratado; ou escolha **Empresa (CNPJ)** ou **Pessoa física (CPF)** e preencha nome, documento, endereço, e-mail e, na empresa, quem assina por ela (nome e CPF). Clique em **Criar e ir para as cláusulas**.
+   O contratado já entra no contrato, fica guardado no cadastro e já aparece em **Quem assina** (na empresa, o representante; na pessoa física, a própria pessoa). O termo do modelo (CONTRATADA, LOCATÁRIO, ANUNCIANTE…) é mantido.
+2. O editor abre em passos: **Contratado** (título, CNPJ do clube, contratada e fiadores), **Variáveis**, **Cláusulas** (considerandos e cláusulas) e **Quem assina**. Ele abre direto em **Variáveis**. Os botões no alto e **Voltar**/**Continuar** levam a qualquer passo, e **Salvar** grava de qualquer um e volta no mesmo passo. A prévia ao lado mostra o contrato como vai ficar.
 3. Clique em **Salvar e enviar à Gerência**. O coordenador da Gerência recebe um e-mail.
 
 O que O Lara faz por você:
