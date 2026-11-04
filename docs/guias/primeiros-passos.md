@@ -139,6 +139,27 @@ telas de sempre, marque-as como favoritas.
 O sino de notificações agora fica na barra de cima, à direita, ao lado das suas iniciais. O canto
 inferior direito é do balão da Lara.
 
+### Apareceu um erro. O que faço?
+<!-- telas: lara.index -->
+
+Quem tem acesso à Lara pode clicar em **Verificar com a Lara**, que aparece junto do erro: ela explica o que aconteceu e como resolver. Sem esse botão, leia a mensagem: a maioria diz o que corrigir.
+
+### Apareceu "Algo deu errado do nosso lado" (erro 500). O que faço?
+
+É uma falha interna do sistema, não algo que você fez. Tente de novo; se continuar, avise a TI dizendo em que tela estava e o que tentava fazer.
+
+### Apareceu "Sua sessão expirou" (erro 419). O que faço?
+
+Você ficou tempo demais sem usar a tela. Clique em **Voltar**, recarregue a página e tente de novo. O que estava digitado pode ter se perdido.
+
+### Apareceu "Página não encontrada" (erro 404). O que faço?
+
+O endereço pode estar errado ou o registro pode ter sido removido. Volte e abra a tela pelo botão **Módulos**. Se foi um favorito antigo, marque a tela de novo.
+
+### Apareceu "Muitas tentativas" (erro 429). O que faço?
+
+O sistema limita ações repetidas em pouco tempo. Espere um minuto e tente de novo.
+
 ### A tela ficou estranha, desalinhada ou sem cores. O que faço?
 
 Recarregue a página com **Ctrl F5**. Se continuar, avise a TI informando qual tela era.

@@ -12,13 +12,16 @@ use ZipArchive;
  * Usado pela exportação do contrato (`ContractDocxExporter`) e pela do modelo
  * de assinatura (`DocxTemplateExporter`). Só o que os dois precisam:
  * parágrafo, negrito/itálico/sublinhado, quebra, tabulação, títulos com o
- * estilo do Word e lista com marcador de verdade — o importador
+ * estilo do Word, lista com marcador de verdade e — para o papel timbrado do
+ * contrato (`SignatureLayoutDocx`) — cabeçalho e rodapé com imagem — o importador
  * (`DocxTemplateImporter`) reconhece título pelo NOME do estilo e marcador pela
  * numeração, e é por isso que eles saem como o Word os grava.
  */
 final class DocxWriter
 {
     public const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    public const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    public const WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
 
     /** numId da lista com marcador (numbering.xml de `package(..., bullets: true)`). */
     public const BULLET_NUM_ID = 1;
@@ -58,10 +61,17 @@ final class DocxWriter
         return '<w:p>' . $pr . implode('', $runs) . '</w:p>';
     }
 
-    /** @param  array{b?: bool, i?: bool, u?: bool}  $fmt */
+    /**
+     * @param  array{b?: bool, i?: bool, u?: bool, color?: string, sz?: int}  $fmt
+     *     `color` = hex sem `#`; `sz` = tamanho em meios-pontos (16 = 8 pt).
+     */
     public static function run(string $texto, array $fmt = []): string
     {
-        $pr = (!empty($fmt['b']) ? '<w:b/>' : '') . (!empty($fmt['i']) ? '<w:i/>' : '') . (!empty($fmt['u']) ? '<w:u w:val="single"/>' : '');
+        // Ordem do esquema dentro de <w:rPr>: b, i, color, sz, u.
+        $pr = (!empty($fmt['b']) ? '<w:b/>' : '') . (!empty($fmt['i']) ? '<w:i/>' : '')
+            . (!empty($fmt['color']) ? '<w:color w:val="' . preg_replace('/[^0-9A-Fa-f]/', '', $fmt['color']) . '"/>' : '')
+            . (!empty($fmt['sz']) ? '<w:sz w:val="' . (int) $fmt['sz'] . '"/><w:szCs w:val="' . (int) $fmt['sz'] . '"/>' : '')
+            . (!empty($fmt['u']) ? '<w:u w:val="single"/>' : '');
 
         $partes = explode("\t", $texto);
         $xml = '';
@@ -77,6 +87,61 @@ final class DocxWriter
         }
 
         return '<w:r>' . ($pr !== '' ? '<w:rPr>' . $pr . '</w:rPr>' : '') . $xml . '</w:r>';
+    }
+
+    /** EMU (unidade do DrawingML) por pixel CSS a 96 dpi. */
+    public const EMU_PER_PX = 9525;
+
+    /** Twips (1/20 de ponto, a unidade das medidas da página) por pixel CSS. */
+    public const TWIPS_PER_PX = 15;
+
+    /** A4 em twips. */
+    public const PAGE_WIDTH = 11906;
+    public const PAGE_HEIGHT = 16838;
+
+    /**
+     * Uma imagem, como run. `$relId` é o da relação na PARTE onde ela entra
+     * (cabeçalho e rodapé têm cada um o seu .rels).
+     *
+     * `$anchor` null = em linha, segue o alinhamento do parágrafo. `top` ou
+     * `bottom` = presa à borda de cima/de baixo do PAPEL, a partir da esquerda,
+     * atrás do texto — é como o papel timbrado "de borda a borda" sai da margem.
+     */
+    public static function picture(string $relId, int $docPrId, int $widthPx, int $heightPx, ?string $anchor = null): string
+    {
+        $cx = max(1, $widthPx) * self::EMU_PER_PX;
+        $cy = max(1, $heightPx) * self::EMU_PER_PX;
+        $nome = 'Imagem ' . $docPrId;
+
+        $grafico = '<wp:docPr id="' . $docPrId . '" name="' . $nome . '"/>'
+            . '<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>'
+            . '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+            . '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+            . '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+            . '<pic:nvPicPr><pic:cNvPr id="0" name="' . $nome . '"/><pic:cNvPicPr/></pic:nvPicPr>'
+            . '<pic:blipFill><a:blip r:embed="' . htmlspecialchars($relId, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+            . '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' . $cx . '" cy="' . $cy . '"/></a:xfrm>'
+            . '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+            . '</pic:pic></a:graphicData></a:graphic>';
+
+        $medida = '<wp:extent cx="' . $cx . '" cy="' . $cy . '"/><wp:effectExtent l="0" t="0" r="0" b="0"/>';
+
+        if ($anchor === null) {
+            $desenho = '<wp:inline distT="0" distB="0" distL="0" distR="0">' . $medida . $grafico . '</wp:inline>';
+        } else {
+            $vertical = $anchor === 'bottom' ? '<wp:align>bottom</wp:align>' : '<wp:posOffset>0</wp:posOffset>';
+
+            // Ordem do esquema: simplePos, positionH, positionV, extent,
+            // effectExtent, wrap, docPr, cNvGraphicFramePr, graphic.
+            $desenho = '<wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="251658240"'
+                . ' behindDoc="1" locked="1" layoutInCell="1" allowOverlap="1">'
+                . '<wp:simplePos x="0" y="0"/>'
+                . '<wp:positionH relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionH>'
+                . '<wp:positionV relativeFrom="page">' . $vertical . '</wp:positionV>'
+                . $medida . '<wp:wrapNone/>' . $grafico . '</wp:anchor>';
+        }
+
+        return '<w:r><w:drawing>' . $desenho . '</w:drawing></w:r>';
     }
 
     /** Quebra de linha dentro do parágrafo. */
@@ -125,13 +190,29 @@ final class DocxWriter
      *
      * @param  bool  $headings  inclui os estilos "heading 1…3" (o importador lê o NOME do estilo)
      * @param  bool  $bullets  inclui a numeração da lista com marcador (`BULLET_NUM_ID`)
+     * @param  array{
+     *     header?: array{xml: string, media?: array<string, array{bytes: string, ext: string}>},
+     *     footer?: array{xml: string, media?: array<string, array{bytes: string, ext: string}>},
+     *     margins?: array{top?: int, bottom?: int, header?: int, footer?: int},
+     * }|null  $pages  cabeçalho e rodapé de toda página: `xml` = os parágrafos,
+     *     `media` = as imagens por id de relação (o mesmo de `picture()`), e as margens em twips.
      */
-    public static function package(string $corpo, bool $headings = false, bool $bullets = false): string
+    public static function package(string $corpo, bool $headings = false, bool $bullets = false, ?array $pages = null): string
     {
+        $margens = ($pages['margins'] ?? []) + ['top' => 1418, 'bottom' => 1418, 'header' => 709, 'footer' => 709];
+        $partes = array_filter(['header' => $pages['header'] ?? null, 'footer' => $pages['footer'] ?? null]);
+
+        $refs = '';
+
+        foreach (array_keys($partes) as $tipo) {
+            $refs .= '<w:' . $tipo . 'Reference w:type="default" r:id="rId' . $tipo . '"/>';
+        }
+
         $documento = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-            . '<w:document xmlns:w="' . self::W . '"><w:body>' . $corpo
-            . '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'
-            . '<w:pgMar w:top="1418" w:right="1134" w:bottom="1418" w:left="1418" w:header="709" w:footer="709" w:gutter="0"/>'
+            . '<w:document xmlns:w="' . self::W . '" xmlns:r="' . self::R . '"><w:body>' . $corpo
+            . '<w:sectPr>' . $refs . '<w:pgSz w:w="' . self::PAGE_WIDTH . '" w:h="' . self::PAGE_HEIGHT . '"/>'
+            . '<w:pgMar w:top="' . (int) $margens['top'] . '" w:right="1134" w:bottom="' . (int) $margens['bottom'] . '" w:left="1418"'
+            . ' w:header="' . (int) $margens['header'] . '" w:footer="' . (int) $margens['footer'] . '" w:gutter="0"/>'
             . '</w:sectPr></w:body></w:document>';
 
         $titulos = '';
@@ -160,6 +241,10 @@ final class DocxWriter
             . '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
             . '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
             . ($bullets ? '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' : '')
+            . (isset($partes['header']) ? '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : '')
+            . (isset($partes['footer']) ? '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' : '')
+            . '<Default Extension="png" ContentType="image/png"/>'
+            . '<Default Extension="jpeg" ContentType="image/jpeg"/>'
             . '</Types>';
 
         $rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -171,6 +256,8 @@ final class DocxWriter
             . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
             . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
             . ($bullets ? '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>' : '')
+            . (isset($partes['header']) ? '<Relationship Id="rIdheader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' : '')
+            . (isset($partes['footer']) ? '<Relationship Id="rIdfooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' : '')
             . '</Relationships>';
 
         $arquivo = tempnam(sys_get_temp_dir(), 'ctdocx');
@@ -190,6 +277,29 @@ final class DocxWriter
 
         if ($bullets) {
             $zip->addFromString('word/numbering.xml', self::bulletNumbering());
+        }
+
+        foreach ($partes as $tipo => $parte) {
+            $raiz = $tipo === 'header' ? 'hdr' : 'ftr';
+            $relacoes = '';
+
+            foreach ($parte['media'] ?? [] as $relId => $midia) {
+                $ext = $midia['ext'] === 'png' ? 'png' : 'jpeg';
+                $nome = $tipo . '-' . preg_replace('/[^A-Za-z0-9]/', '', $relId) . '.' . $ext;
+                $zip->addFromString('word/media/' . $nome, $midia['bytes']);
+                $relacoes .= '<Relationship Id="' . htmlspecialchars($relId, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '"'
+                    . ' Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/' . $nome . '"/>';
+            }
+
+            // Parte sem parágrafo é XML inválido para o Word.
+            $zip->addFromString('word/' . $tipo . '1.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                . '<w:' . $raiz . ' xmlns:w="' . self::W . '" xmlns:r="' . self::R . '" xmlns:wp="' . self::WP . '">'
+                . ($parte['xml'] !== '' ? $parte['xml'] : '<w:p/>') . '</w:' . $raiz . '>');
+
+            if ($relacoes !== '') {
+                $zip->addFromString('word/_rels/' . $tipo . '1.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                    . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' . $relacoes . '</Relationships>');
+            }
         }
 
         $zip->close();

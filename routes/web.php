@@ -610,7 +610,9 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
     Route::group(['prefix' => 'payments'], function () {
         Route::middleware('can:' . P::RESERVAS_PAGAMENTOS)->group(function () {
             Route::get('/', [SchedulePaymentController::class, 'index'])->name('payment.index');
-            Route::get('/{schedulePayment}', [SchedulePaymentController::class, 'show'])->name('payment.show');
+            // Extração (CSV) com os mesmos filtros da lista; antes do /{id}.
+            Route::get('/exportar', [SchedulePaymentController::class, 'export'])->name('payment.export');
+            Route::get('/{schedulePayment}',[SchedulePaymentController::class, 'show'])->name('payment.show');
         });
         Route::post('/{schedulePayment}/refund', [SchedulePaymentController::class, 'refund'])
             ->middleware('can:' . P::RESERVAS_PAGAMENTOS_ESTORNAR)->name('payment.refund');

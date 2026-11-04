@@ -2,12 +2,15 @@
 
 namespace App\Http\Requests;
 
+use App\Services\Lara\ScreenError;
 use App\View\Navigation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Route;
 
 class AskLaraRequest extends FormRequest
 {
+    private ?ScreenError $erroDaTela = null;
+
     /**
      * O controle de acesso é da rota (`can:` permissão `lara` do catálogo).
      */
@@ -23,6 +26,24 @@ class AskLaraRequest extends FormRequest
         if (is_string($mensagem)) {
             $this->merge(['mensagem' => trim($mensagem)]);
         }
+
+        // "Verificar com a Lara": a pergunta é montada aqui, do erro da tela.
+        $erro = $this->input('erro');
+
+        if (is_array($erro) && blank($mensagem)) {
+            $this->erroDaTela = ScreenError::from($erro['status'] ?? null, $erro['texto'] ?? null);
+            $this->merge(['mensagem' => $this->erroDaTela->pergunta()]);
+        }
+    }
+
+    /**
+     * O erro que a pessoa pediu para verificar, só com o tipo e o status.
+     *
+     * @return array{tipo: string, status: ?int}|null
+     */
+    public function erro(): ?array
+    {
+        return $this->erroDaTela?->contrato();
     }
 
     /**
@@ -40,6 +61,10 @@ class AskLaraRequest extends FormRequest
             'contexto' => ['nullable', 'array'],
             'contexto.rota' => ['nullable', 'string', 'max:150'],
             'contexto.aba' => ['nullable', 'string', 'max:150'],
+            // Erro da tela ("Verificar com a Lara"; ver prepareForValidation()).
+            'erro' => ['nullable', 'array'],
+            'erro.status' => ['nullable', 'integer'],
+            'erro.texto' => ['nullable', 'string'],
         ];
     }
 

@@ -156,6 +156,8 @@ O papel timbrado é um só para todos os documentos. Para mudar:
 
 A mudança vale para os documentos congelados dali em diante. Os anteriores mantêm o cabeçalho que tinham. O código de validação continua no rodapé de todas as páginas, com qualquer papel timbrado. O logotipo não precisa estar no Word do modelo: ele vem do papel timbrado.
 
+O mesmo papel timbrado sai no **Word dos contratos** (botão **Word** na tela do contrato): cabeçalho, rodapé e texto do rodapé, sempre os que estão valendo no momento do download.
+
 ## Emitir um documento para assinatura no balcão
 <!-- telas: signature-documents.index -->
 
@@ -455,7 +457,7 @@ O que O Lara faz por você:
 - O clube é representado pelo presidente (o titular da Presidência em **Assinaturas › Diretoria**), que assina sem precisar ser incluído. A data do fecho é a da assinatura, e o documento sai com visto em todas as páginas.
 - **Escrever com conforto**: a caixa de texto cresce com o que você digita e pode ser puxada pelo canto de baixo. A barra tem **Limpar** (tira a formatação do trecho), **↶ desfazer** e **↷ refazer**. Ao colar do Word ou de um PDF, ficam só negrito, itálico, sublinhado, parágrafos e listas. Na tela larga, **Ocultar prévia** (no alto) dá a largura toda ao editor; **Mostrar prévia** a traz de volta.
 
-Para o fornecedor revisar, o botão **Word** baixa o contrato em .docx; mudanças pedidas por ele são feitas no editor.
+Para o fornecedor revisar, o botão **Word** baixa o contrato em .docx, já no papel timbrado do Clube (o cabeçalho e o rodapé de **Assinaturas › Modelos › Cabeçalho e rodapé**; sem imagem cadastrada, sai o nome do Clube no alto). Mudanças pedidas pelo fornecedor são feitas no editor. O documento de assinatura gerado do contrato também sai no papel timbrado.
 
 ## Validar um contrato (Gerência)
 <!-- telas: signature-contracts.index -->

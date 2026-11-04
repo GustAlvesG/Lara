@@ -1,5 +1,6 @@
 {{-- Pagamentos de reservas. Busca por sócio (nome ou CPF) no servidor, junto
-     dos filtros de status e método. --}}
+     dos filtros de status, método e período (pela data do pagamento ou do
+     horário — SchedulePaymentReport). "Exportar CSV" leva os mesmos filtros. --}}
 @php
     $field = 'h-11 rounded-full border border-line-strong bg-surface px-4 text-sm text-ink focus:border-grena focus:ring-4 focus:ring-grena-tint';
     // Filtro: as formas que o site grava (credit/debit) e as da baixa manual,
@@ -10,11 +11,14 @@
     <x-page>
         <x-page-title title="Pagamentos">
             Consulte na Rede e estorne pagamentos de reservas. As baixas manuais (pago fora da plataforma) também aparecem aqui.
+            <x-slot:actions>
+                <x-secondary-button-a href="{{ route('payment.export', request()->except('page')) }}"><x-icon name="download" /> Exportar CSV</x-secondary-button-a>
+            </x-slot:actions>
         </x-page-title>
 
         @include('partials.alerts')
 
-        <x-search-bar name="member" :filters="['status_id', 'payment_method', 'date_from', 'date_to']" placeholder="Sócio: nome ou CPF" label="Buscar sócio">
+        <x-search-bar name="member" :filters="['status_id', 'payment_method', 'period_by', 'date_from', 'date_to']" placeholder="Sócio: nome ou CPF" label="Buscar sócio">
             <x-slot:controls>
                 <label for="filtro-status" class="sr-only">Status</label>
                 <select id="filtro-status" name="status_id" class="{{ $field }} w-full sm:w-44">
@@ -30,6 +34,16 @@
                         <option value="{{ $value }}" @selected(request('payment_method') === $value)>{{ $label }}</option>
                     @endforeach
                 </select>
+                <label for="filtro-periodo" class="sr-only">Período por</label>
+                <select id="filtro-periodo" name="period_by" class="{{ $field }} w-full pr-10 sm:w-48">
+                    @foreach(\App\Services\SchedulePaymentReport::PERIODS as $value => $label)
+                        <option value="{{ $value }}" @selected((request('period_by') ?: 'paid') === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+                <label for="filtro-de" class="sr-only">De</label>
+                <input id="filtro-de" type="date" name="date_from" value="{{ request('date_from') }}" title="De" class="{{ $field }} w-full sm:w-44">
+                <label for="filtro-ate" class="sr-only">Até</label>
+                <input id="filtro-ate" type="date" name="date_to" value="{{ request('date_to') }}" title="Até" class="{{ $field }} w-full sm:w-44">
             </x-slot:controls>
         </x-search-bar>
 
@@ -47,6 +61,7 @@
                             <tr class="border-b border-line bg-subtle">
                                 <th class="px-5 py-3.5 text-left text-[11px] font-bold text-ink-3 uppercase tracking-[0.08em]">#</th>
                                 <th class="px-5 py-3.5 text-left text-[11px] font-bold text-ink-3 uppercase tracking-[0.08em]">Sócio</th>
+                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-ink-3 uppercase tracking-[0.08em]">Local e horário</th>
                                 <th class="px-5 py-3.5 text-left text-[11px] font-bold text-ink-3 uppercase tracking-[0.08em]">Método</th>
                                 <th class="px-5 py-3.5 text-left text-[11px] font-bold text-ink-3 uppercase tracking-[0.08em]">Pago em</th>
                                 <th class="px-5 py-3.5 text-center text-[11px] font-bold text-ink-3 uppercase tracking-[0.08em]">Status</th>
@@ -60,6 +75,7 @@
                                 @php
                                     $firstSchedule = $payment->schedules->first();
                                     $member = optional($firstSchedule)->member;
+                                    $horarios = $payment->schedules->sortBy('start_schedule')->values();
                                 @endphp
                                 <tr class="hover:bg-subtle transition">
                                     <td class="px-5 py-3.5 font-mono text-xs text-ink-3">#{{ $payment->id }}</td>
@@ -67,6 +83,21 @@
                                         <p class="font-semibold text-ink">{{ $member->name ?? 'Não identificado' }}</p>
                                         @if($payment->schedules->count() > 1)
                                             <p class="text-xs text-ink-3">{{ $payment->schedules->count() }} agendamentos vinculados</p>
+                                        @endif
+                                    </td>
+                                    <td class="px-5 py-3.5 text-ink-2">
+                                        @forelse($horarios->take(2) as $horario)
+                                            <p class="whitespace-nowrap">
+                                                <span class="font-semibold text-ink">{{ $horario->place->name ?? 'Local removido' }}</span>
+                                                @if($horario->start_schedule)
+                                                    <span class="font-mono text-xs">{{ $horario->start_schedule->format('d/m/Y H:i') }}@if($horario->end_schedule)–{{ $horario->end_schedule->isSameDay($horario->start_schedule) ? $horario->end_schedule->format('H:i') : $horario->end_schedule->format('d/m H:i') }}@endif</span>
+                                                @endif
+                                            </p>
+                                        @empty
+                                            <span class="text-ink-3">—</span>
+                                        @endforelse
+                                        @if($horarios->count() > 2)
+                                            <p class="text-xs text-ink-3">+ {{ $horarios->count() - 2 }} {{ $horarios->count() - 2 === 1 ? 'horário' : 'horários' }} (ver detalhes)</p>
                                         @endif
                                     </td>
                                     <td class="px-5 py-3.5 text-ink-2">

@@ -18,7 +18,7 @@ acende a luz (Home Assistant) e é o que vincula os clipes do RePET.
 |---|---|---|
 | Novo Agendamento | `schedule.index` (agenda do dia), `schedule.create`, `schedule.store.web` | `reservas.agendamentos` |
 | Todos os Agendamentos | `schedule.list`, `schedule.show`, `schedule.update` (cancelar) | `reservas.agendamentos` |
-| Pagamentos | `payment.index`, `payment.show` (consulta ao vivo na Rede) | `reservas.pagamentos` |
+| Pagamentos | `payment.index`, `payment.show` (consulta ao vivo na Rede), `payment.export` (CSV, desde 04/11/2026) | `reservas.pagamentos` |
 | Estorno | `payment.refund` | `reservas.pagamentos.estornar` |
 | Baixa manual (pago fora da plataforma; botões no detalhe do agendamento e da reserva social) | `payment.manual` | `reservas.pagamentos.baixa-manual` |
 | Espaços Sociais | `social-booking.index/create/store/show/details/guests/guests.pdf/contract.download/availability` | `reservas.sociais` |
@@ -112,6 +112,21 @@ contator. `--dry-run` só lê (não abre transação no destino). Teste:
 - Sem Rede: `isOnline()` esconde consulta/estorno; `RedeItauService::refundPayment` recusa
   pagamento manual com `InvalidArgumentException`.
 
+## Pagamentos: período e extração (desde 04/11/2026)
+
+- `App\Services\SchedulePaymentReport` é a **fonte única dos filtros** da tela `payment.index` e do CSV
+  `payment.export` (`GET /payments/exportar`, mesma permissão `reservas.pagamentos`, rota declarada antes de
+  `/{schedulePayment}`): `member`, `status_id`, `payment_method` (`manual` = toda baixa manual), `date_from`/`date_to`
+  (Y-m-d; o "até" vale o dia inteiro) e `period_by` — `paid` (padrão, `paid_at`) ou `use`
+  (`schedules.start_schedule`, via `whereHas`). Filtro novo entra no `query()` e vale para os dois.
+- CSV (`;`, BOM, vírgula decimal sem milhar): **uma linha por horário** (`HEADER`), em ordem de horário, com grupo,
+  local, data, início, fim (com data quando vira o dia), valor e status do horário. `Valor pago` e `Estornado` só
+  na primeira linha do pagamento (a soma fecha). Pagamento sem horário sai numa linha com as colunas do horário
+  vazias. Percorre com `lazy(500)`.
+- A lista ganhou a coluna "Local e horário" (até 2 horários; "+ N horários" leva ao detalhe).
+- Não mexe na API do site: nenhum prompt para o agent do Next.js.
+- Testes: `tests/Feature/Payments/PaymentReportTest.php` e `ReservasScreensTest::test_pagamentos_com_busca_e_metodo_por_extenso`.
+
 ## Imagens de grupo e espaço (desde 19/10/2026)
 
 `image_vertical`, `image_horizontal` e `places.image` guardam **nome de arquivo** (`public/images`)
@@ -162,6 +177,7 @@ Rede: `RedeItauService` (token em cache 55 s, `getTransaction`, `refundPayment` 
 | `app/Http/Controllers/SchedulePaymentController.php` | Pagamento, baixa manual (`storeManual`), consulta na Rede, estorno. |
 | `app/Services/SchedulesService.php`, `ScheduleRulesService.php`, `SchedulePricingService.php`, `PlaceGroupService.php`, `PlaceService.php` | Regras. |
 | `app/Services/RedeItauService.php`, `SchedulePaymentService.php`, `ManualPaymentService.php` | Pagamento. |
+| `app/Services/SchedulePaymentReport.php` | Filtros da lista de pagamentos e extração CSV. |
 | `resources/views/payments/partials/manual-fields.blade.php` | Campos da baixa manual (forma, data, comprovante). |
 | `app/Console/Commands/ExpirePendingSchedules.php` | Expira o hold (agendado). |
 | `app/Services/Social/*`, `app/Models/Social/*`, `app/Http/Controllers/Social/*`, `Api/SocialBookingApiController.php` | Espaços sociais. |
@@ -175,5 +191,5 @@ Rede: `RedeItauService` (token em cache 55 s, `getTransaction`, `refundPayment` 
 `tests/Unit/ScheduleNotificationTest.php`, `tests/Feature/Rebrand/ReservasScreensTest.php`,
 `tests/Feature/Social/*` (fluxo e API, sobre as migrations reais via `Tests\Concerns\CreatesSocialBookingSchema`),
 `tests/Feature/Rebrand/EspacosSociaisScreensTest.php`, `tests/Feature/Payments/ManualPaymentTest.php`,
-`tests/Feature/Rebrand/BaixaManualScreensTest.php`.
+`tests/Feature/Rebrand/BaixaManualScreensTest.php`, `tests/Feature/Payments/PaymentReportTest.php`.
 Confira o isolamento SQLite do `phpunit.xml` antes de rodar.

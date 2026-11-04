@@ -15,6 +15,8 @@ use App\Exceptions\ManualPaymentException;
 use App\Exceptions\SocialBookingException;
 use App\Models\Social\SocialBooking;
 use App\Services\ManualPaymentService;
+use App\Services\SchedulePaymentReport;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Validation\Rule;
 use App\Services\Social\SocialBookingNotifier;
 use App\Services\Social\SocialBookingService;
@@ -40,42 +42,33 @@ class SchedulePaymentController extends Controller
 
     /**
      * Lista todos os pagamentos, com filtros para a tela de gestão de pagamentos.
+     * Os filtros moram no SchedulePaymentReport: a extração usa os mesmos.
      */
-    public function index(Request $request)
+    public function index(Request $request, SchedulePaymentReport $report)
     {
-        $query = SchedulePayment::with(['status', 'schedules.place.group', 'schedules.member']);
-
-        if ($request->filled('status_id')) {
-            $query->where('status_id', $request->input('status_id'));
-        }
-
-        // "manual" = toda baixa manual, qualquer que seja a forma.
-        if ($request->input('payment_method') === 'manual') {
-            $query->where('is_manual', true);
-        } elseif ($request->filled('payment_method')) {
-            $query->where('payment_method', $request->input('payment_method'));
-        }
-
-        if ($request->filled('member')) {
-            $term = $request->input('member');
-            $query->whereHas('schedules.member', function ($q) use ($term) {
-                $q->where('name', 'like', "%{$term}%")
-                  ->orWhere('cpf', 'like', "%{$term}%");
-            });
-        }
-
-        if ($request->filled('date_from')) {
-            $query->whereDate('paid_at', '>=', $request->input('date_from'));
-        }
-
-        if ($request->filled('date_to')) {
-            $query->whereDate('paid_at', '<=', $request->input('date_to'));
-        }
-
-        $payments = $query->orderByDesc('paid_at')->paginate(25)->withQueryString();
+        $payments = $report->query($request)->paginate(25)->withQueryString();
         $statuses = Status::all();
 
         return view('payments.index', compact('payments', 'statuses'));
+    }
+
+    /**
+     * Extração em CSV do que a tela está filtrando: uma linha por horário pago,
+     * com grupo, local, data e hora de cada um.
+     */
+    public function export(Request $request, SchedulePaymentReport $report): StreamedResponse
+    {
+        $rows = $report->rows($request);
+
+        return response()->streamDownload(function () use ($rows) {
+            $out = fopen('php://output', 'w');
+            // BOM: o Excel abre com acento certo.
+            fwrite($out, "\xEF\xBB\xBF");
+            foreach ($rows as $row) {
+                fputcsv($out, $row, ';');
+            }
+            fclose($out);
+        }, $report->filename($request), ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 
     /**

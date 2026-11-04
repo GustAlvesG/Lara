@@ -36,9 +36,59 @@
         'rota' => request()->route()?->getName(),
         'aba' => $navCurrent['key'] ?? null,
     ];
+
+    // Erro que esta tela está mostrando, para o "Verificar com a Lara". A
+    // página de erro (errors/pagina) passa o dela; o resto vem do retorno da
+    // ação. O servidor filtra o texto ao receber (App\Services\Lara\ScreenError).
+    $laraErroTela = $laraErroPagina ?? null;
+    if ($laraErroTela === null) {
+        if (filled(session('error')) && is_string(session('error'))) {
+            $laraErroTela = ['status' => null, 'texto' => session('error')];
+        } elseif (isset($errors) && $errors->any()) {
+            $laraErroTela = ['status' => 422, 'texto' => implode(' ', array_slice($errors->all(), 0, 5))];
+        } elseif (request()->has('error')) {
+            $laraErroTela = ['status' => null, 'texto' => null];
+        }
+    }
 @endphp
 
 <script>
+    // Ação por fetch que falhou (tela que não recarrega): avisa o balão. Só
+    // observa uma cópia da resposta — a tela segue tratando o erro como sempre.
+    // GET fica de fora: consulta em segundo plano não é ação da pessoa.
+    (function () {
+        var fetchOriginal = window.fetch;
+        var prefixoLara = @js(url('/lara')) + '/';
+
+        function avisar(res) {
+            res.json().catch(() => ({})).then(function (data) {
+                var campos = Object.values(data.errors || {}).flat().slice(0, 5);
+                var texto = campos.length ? campos.join(' ') : data.message;
+                window.dispatchEvent(new CustomEvent('lara-erro', {
+                    detail: { status: res.status, texto: typeof texto === 'string' ? texto : null },
+                }));
+            });
+        }
+
+        window.fetch = function (entrada, init) {
+            var promessa = fetchOriginal.apply(this, arguments);
+
+            try {
+                var pedido = entrada instanceof Request ? entrada : null;
+                var metodo = String((init && init.method) || (pedido && pedido.method) || 'GET').toUpperCase();
+                var url = new URL(pedido ? pedido.url : String(entrada), location.href);
+
+                if (metodo !== 'GET' && url.origin === location.origin && !url.href.startsWith(prefixoLara)) {
+                    promessa.then(function (res) {
+                        if (res.status >= 400) avisar(res.clone());
+                    }).catch(function () {});
+                }
+            } catch (e) {}
+
+            return promessa;
+        };
+    })();
+
     window.laraWidget = function (opcoes) {
         var CHAVE = 'laraWidgetAberto';
 
@@ -83,6 +133,11 @@
             consulta: null,
             // Resposta que chegou com o painel fechado: ponto no balão.
             novidade: false,
+            // Erro da tela à espera do "Verificar com a Lara".
+            erroTela: opcoes.erroTela || null,
+            // Na página de erro o botão já está na própria página.
+            mostrarAtalhoErro: !opcoes.paginaDeErro,
+            verificarAoCarregar: false,
 
             init() {
                 if (this.aberto) {
@@ -135,6 +190,11 @@
                     this.carregando = false;
                     this.scrollToEnd();
                     this.focar();
+
+                    if (this.verificarAoCarregar) {
+                        this.verificarAoCarregar = false;
+                        if (this.carregado) this.verificarErro();
+                    }
                 }
             },
 
@@ -152,10 +212,34 @@
                 var texto = this.pergunta.trim();
                 if (this.pensando || !this.disponivel || texto.length < 2) return;
 
-                this.erro = null;
                 this.pergunta = '';
                 this.ajustarAltura();
-                this.mensagens.push({ role: 'user', conteudo: texto, horario: this.agora() });
+                await this.perguntar(texto, { mensagem: texto, contexto: opcoes.contexto });
+            },
+
+            // "Verificar com a Lara": abre o painel e pergunta sobre o erro. A
+            // pergunta é montada no servidor e substitui o rótulo da bolha.
+            async verificarErro() {
+                if (!this.erroTela) return;
+
+                if (!this.aberto || !this.carregado) {
+                    this.verificarAoCarregar = !this.carregado;
+                    this.abrir();
+                    if (!this.carregado) return;
+                }
+
+                // Fora do ar ou com outra resposta a caminho: o aviso fica no
+                // painel, para tentar de novo.
+                if (this.pensando || !this.disponivel) return;
+
+                var erro = this.erroTela;
+                this.erroTela = null;
+                await this.perguntar('Verificar o erro desta tela', { contexto: opcoes.contexto, erro: erro });
+            },
+
+            async perguntar(rotulo, corpo) {
+                this.erro = null;
+                var indice = this.mensagens.push({ role: 'user', conteudo: rotulo, horario: this.agora() }) - 1;
                 this.scrollToEnd();
                 this.iniciarEspera();
 
@@ -169,7 +253,7 @@
                         method: 'POST',
                         headers: cabecalhos(true),
                         credentials: 'same-origin',
-                        body: JSON.stringify({ mensagem: texto, contexto: opcoes.contexto }),
+                        body: JSON.stringify(corpo),
                         signal: abort.signal,
                     });
 
@@ -182,6 +266,7 @@
                         return;
                     }
 
+                    if (data.pergunta) this.mensagens[indice].conteudo = data.pergunta;
                     this.mensagens.push({ role: 'assistant', conteudo: data.resposta, horario: data.horario || this.agora() });
                     if (!this.aberto) this.novidade = true;
                 } catch (e) {
@@ -257,6 +342,8 @@
         'abrir' => $laraAbrir,
         'timeoutMs' => $laraTimeoutMs,
         'contexto' => $laraContexto,
+        'erroTela' => $laraErroTela,
+        'paginaDeErro' => isset($laraErroPagina),
         'urls' => [
             'conversa' => url('/lara/conversa'),
             'perguntar' => url('/lara/perguntar'),
@@ -264,7 +351,26 @@
         ],
     ]))"
     @keydown.escape.window="if (aberto) fechar()"
-    @lara-abrir.window="abrir()">
+    @lara-abrir.window="abrir()"
+    @lara-erro.window="erroTela = $event.detail"
+    @lara-verificar-erro.window="verificarErro()">
+
+    {{-- Atalho sobre o balão quando a tela mostra um erro. --}}
+    <div x-show="erroTela && !aberto && mostrarAtalhoErro" x-cloak role="status"
+        class="fixed right-3 z-[55] flex max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-2xl border border-line bg-surface py-1.5 pl-3 pr-1.5 text-sm text-ink-2 shadow-pop sm:right-5"
+        style="bottom: calc(var(--lara-balao-bottom) + 80px)">
+        <span>Deu erro?</span>
+        <button type="button" @click="verificarErro()"
+            class="rounded-full bg-grena px-3 py-1.5 text-xs font-bold text-white transition hover:bg-grena-hover">
+            Verificar com a Lara
+        </button>
+        <button type="button" @click="erroTela = null" aria-label="Dispensar"
+            class="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-3 transition hover:bg-subtle hover:text-ink">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+        </button>
+    </div>
 
     {{-- Balão: o robô da Lara no anel grená, acenando. No celular fica acima da barra
          de baixo. A sombra segue o contorno (drop-shadow), não uma caixa. --}}
@@ -393,6 +499,16 @@
         <div class="shrink-0 border-t border-line px-3 py-2.5">
             <template x-if="erro">
                 <div class="mb-2 rounded-xl bg-danger-soft px-3 py-1.5 text-xs text-danger" x-text="erro"></div>
+            </template>
+
+            <template x-if="erroTela">
+                <div class="mb-2 flex items-center justify-between gap-2 rounded-xl bg-danger-soft px-3 py-1.5 text-xs text-danger">
+                    <span>Apareceu um erro nesta tela.</span>
+                    <button type="button" @click="verificarErro()" :disabled="pensando || !disponivel"
+                        class="shrink-0 rounded-full bg-grena px-2.5 py-1 font-bold text-white transition hover:bg-grena-hover disabled:opacity-40">
+                        Verificar com a Lara
+                    </button>
+                </div>
             </template>
 
             <form @submit.prevent="enviar()" class="flex items-end gap-2">

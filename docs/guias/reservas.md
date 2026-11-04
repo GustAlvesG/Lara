@@ -144,7 +144,9 @@ A tela **Reservas › Pagamentos** lista os pagamentos das reservas: os feitos n
 
 - **Buscar sócio** por nome ou CPF.
 - **Filtros:** status e método (Cartão de crédito, Cartão de débito, "Baixa manual (todas)" ou uma forma de baixa manual específica).
-- A lista mostra método, data do pagamento, status, valor pago e valor estornado. **Detalhes** abre o pagamento.
+- **Período:** preencha **De** e **Até** e escolha se o período vale pela **Data do pagamento** (o padrão, para o fechamento do caixa) ou pela **Data do horário** (o que foi usado no período, pago antes ou depois). O dia do **Até** entra inteiro. Clique em **Buscar**.
+- A lista mostra o sócio, o **local e horário** a que o pagamento se refere (até dois; se houver mais, aparece "+ N horários" e a lista completa fica em **Detalhes**), método, data do pagamento, status, valor pago e valor estornado. **Detalhes** abre o pagamento.
+- **Exportar CSV** (no alto da tela) baixa uma planilha com **o que a tela está filtrando** (busca, status, método e período). Abre no Excel. Cada linha é um horário pago: pagamento, data do pagamento, sócio, CPF, título, forma, status, grupo, local, data, início e fim do horário, valor do horário e status do horário. Um pagamento de vários horários ocupa várias linhas; o **Valor pago** e o **Estornado** aparecem só na primeira delas, para a soma da coluna dar o total certo.
 
 Na tela do pagamento:
 

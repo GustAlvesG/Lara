@@ -81,6 +81,25 @@ class LaraClientTest extends TestCase
         Http::assertSent(fn (Request $request) => $request['contexto'] === $contexto);
     }
 
+    public function test_envia_o_erro_da_tela_quando_ha(): void
+    {
+        Http::fake(['*' => Http::response(['resposta' => 'ok'])]);
+
+        $erro = ['tipo' => 'permissao', 'status' => 403];
+        $this->client()->ask('portal_7', 'Apareceu "acesso negado".', null, $erro);
+
+        Http::assertSent(fn (Request $request) => $request['erro'] === $erro);
+    }
+
+    public function test_sem_erro_o_campo_nem_vai(): void
+    {
+        Http::fake(['*' => Http::response(['resposta' => 'ok'])]);
+
+        $this->client()->ask('portal_7', 'oi');
+
+        Http::assertSent(fn (Request $request) => !array_key_exists('erro', $request->data()));
+    }
+
     public function test_sem_contexto_o_campo_nem_vai(): void
     {
         Http::fake(['*' => Http::response(['resposta' => 'ok'])]);

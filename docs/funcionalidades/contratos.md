@@ -220,6 +220,23 @@ de fora sem e-mail (não recebe o link remoto).
 `blocks()`. Parágrafos, negrito/itálico/sublinhado, listas, recuo de subitem, linhas de assinatura em
 branco. É cópia de trabalho: o que vale é o documento assinado no Lara.
 
+### Papel timbrado no Word (04/11/2026)
+
+Pedido do usuário: o contrato produzido sai com o cabeçalho e o rodapé do papel timbrado do Clube.
+
+- `App\Services\Signature\SignatureLayoutDocx::pages($layout, $titulo)` monta o cabeçalho e o rodapé do Word a
+  partir do papel timbrado **vigente** (`SignatureLayout::current()`, o de **Assinaturas › Modelos › Cabeçalho e
+  rodapé**) e devolve o `$pages` de `DocxWriter::package()`.
+- Medidas: as de `SignaturePageGeometry` (as mesmas do PDF de assinatura: altura em mm, alinhamento). Fora do modo
+  "de borda a borda", a largura é limitada à área de texto do Word (A4 com margens 2,5 cm / 2 cm). De borda a
+  borda, a imagem fica ancorada na borda de cima/de baixo do papel, atrás do texto, e a linha do rodapé sobe para
+  cima da imagem. As margens da página crescem para o texto não encostar na arte.
+- Rodapé: a linha de texto do papel timbrado (8 pt) e, embaixo, a imagem. Sem imagem e sem texto, sem rodapé.
+- Sem imagem de cabeçalho: o cabeçalho de texto padrão do PDF (nome do Clube em grená e "CTL - X/AA — Título",
+  com linha embaixo).
+- O documento de assinatura (PDF) já saía no papel timbrado — o que estava vigente no congelamento
+  (`signature_layout_id`). Nada mudou nele.
+
 ## Acesso
 
 | Quem | O quê |

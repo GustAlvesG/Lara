@@ -11,7 +11,8 @@ São três buscas por palavra-chave, todas no grupo `api_token`:
 | `GET /api/guias/search` | `api.guias.search` | Seções dos guias do usuário (como usar O Lara), desde 28/10/2026 | Todos; cada seção diz se o `user_id` **alcança** a tarefa |
 
 E, no sentido inverso, desde 28/10/2026 o Lara manda em `POST /perguntar` o **contexto da tela**
-em que a pessoa está (ver "Contexto da tela" no fim).
+em que a pessoa está (ver "Contexto da tela" no fim) e, desde 30/10/2026, o **erro da tela** quando a pessoa clica em
+"Verificar com a Lara" (ver "Erro da tela").
 
 ## Autenticação
 
@@ -228,6 +229,29 @@ Desde 28/10/2026 o balão da Lara manda a tela atual junto com a pergunta e O La
 - `rota` é o nome técnico da página exata (`.create` = criando, `.edit` = editando, `.show` =
   vendo um registro). Serve de pista; não é para mostrar ao funcionário.
 
+## Erro da tela (`POST /perguntar`)
+
+Desde 30/10/2026, "Verificar com a Lara" manda a pergunta com um campo opcional no primeiro nível:
+
+```json
+{
+  "usuario_id": "portal_12",
+  "mensagem": "Apareceu este erro na tela: \"Este título já tem reserva neste dia.\". O que aconteceu e como resolvo?",
+  "contexto": {"modulo": "Reservas", "pagina": "Sociais", "caminho": "Reservas › Sociais", "rota": "social.create"},
+  "erro": {"tipo": "regra", "status": null}
+}
+```
+
+- `tipo`: `validacao`, `regra`, `permissao`, `sessao`, `nao_encontrado`, `limite` ou `sistema`.
+- `status`: o código HTTP, ou nulo em mensagem de retorno de ação (flash).
+- O balão manda só `{status, texto}`; `App\Services\Lara\ScreenError` monta a `mensagem` no
+  servidor. Status 5xx e texto técnico (SQL, classe, caminho) viram `tipo: sistema` **sem o texto**;
+  CPF vira `[CPF]`; o texto é cortado em 400 caracteres.
+- `erro` não leva texto de propósito, como o `contexto`: dado estruturado é confiável, e o que veio
+  do navegador fica na `mensagem`, tratada como fala do usuário.
+
+Prompt: [lara-ia-verificar-erro-prompt.md](../prompts/IA/lara-ia-verificar-erro-prompt.md).
+
 ## Referência técnica
 
 - Controllers: `InformationSearchController`, `AvisoSearchController`, `GuideSearchController`
@@ -236,10 +260,11 @@ Desde 28/10/2026 o balão da Lara manda a tela atual junto com a pergunta e O La
   `user_id` pela trait `Concerns\ResolvesAskingUser`); `AskLaraRequest::contexto()`
 - Apoio: `App\Support\KeywordSearch` (nota de relevância e remoção de HTML);
   `App\Services\Guides\UserGuides` (lê e recorta os guias, em cache até um arquivo mudar),
-  `GuideSearch` (pontua e decide o acesso), `GuideMarkdown` (cabeçalho, anotações, âncoras —
+  `GuideSearch` (pontua e decide o acesso), `App\Services\Lara\ScreenError` (erro da tela); `GuideMarkdown` (cabeçalho, anotações, âncoras —
   as mesmas da tela Documentação); `App\View\Navigation::destinations()`
 - Testes: `tests/Feature/InformationSearchTest.php`, `tests/Feature/AvisoSearchTest.php`,
   `tests/Feature/GuideSearchTest.php`, `tests/Unit/UserGuidesTest.php`,
   `tests/Feature/UserGuidesContentTest.php` (confere os guias de verdade),
-  `tests/Feature/LaraWidgetTest.php` e `tests/Unit/LaraClientTest.php` (contexto)
+  `tests/Feature/LaraWidgetTest.php`, `tests/Unit/LaraClientTest.php` (contexto, erro) e
+  `tests/Unit/ScreenErrorTest.php`
 - Prompts para o agente da VM da IA, em [docs/prompts/IA](../prompts/IA/): avisos, guias e contexto da tela, e o retorno sobre requisitos

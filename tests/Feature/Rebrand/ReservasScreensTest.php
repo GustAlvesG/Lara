@@ -138,6 +138,13 @@ class ReservasScreensTest extends TestCase
         $this->assertStringContainsString('name="payment_method"', $html);
         $this->assertStringContainsString('Cartão de crédito', $html);
         $this->assertStringContainsString(route('payment.show', 12), $html);
+
+        // Período (pagamento ou horário), extração e a coluna do local/horário.
+        $this->assertStringContainsString('name="date_from"', $html);
+        $this->assertStringContainsString('name="date_to"', $html);
+        $this->assertStringContainsString('name="period_by"', $html);
+        $this->assertStringContainsString(route('payment.export'), $html);
+        $this->assertStringContainsString('Local e horário', $html);
     }
 
     public function test_modalidades_em_cartoes_com_busca(): void

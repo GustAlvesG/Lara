@@ -1,6 +1,6 @@
 ---
 modulo: Lara (IA)
-palavras: Lara, IA, inteligência artificial, assistente, chat, conversa, pergunta, perguntar, balão, robô, chatbot, estatuto, regulamento, avisos, comunicados, atividades, horário, InfoClube, nova conversa, ajuda, dúvida, como usar o sistema
+palavras: Lara, IA, erro, verificar erro, deu erro, inteligência artificial, assistente, chat, conversa, pergunta, perguntar, balão, robô, chatbot, estatuto, regulamento, avisos, comunicados, atividades, horário, InfoClube, nova conversa, ajuda, dúvida, como usar o sistema
 ---
 
 # Lara (IA) — guia de uso
@@ -73,6 +73,16 @@ Use quando:
 O botão fica desabilitado enquanto ela está respondendo ou quando a conversa ainda está vazia.
 
 A conversa também recomeça sozinha: depois de 24 horas sem nenhuma mensagem, o painel abre limpo, porque a Lara já não lembra do assunto. Às vezes, quando o serviço da Lara é reiniciado pela TI, ela esquece o assunto mesmo com as mensagens ainda na tela; se a resposta parecer fora de contexto, clique em **Nova conversa** e repita a pergunta completa.
+
+## Verificar um erro com a Lara
+<!-- telas: lara.index -->
+
+Quando uma ação dá errado, a tela mostra **Verificar com a Lara**: sobre o robozinho, no painel dela ou, nas páginas de erro, no meio da tela. Clique e o painel abre com a explicação do que aconteceu e de como resolver, sem você precisar copiar a mensagem.
+
+- Funciona para mensagens de erro em vermelho, formulários recusados e páginas de erro como "Acesso negado".
+- Para tirar o aviso sem perguntar, clique no **X** ao lado do botão.
+- A Lara recebe a mensagem que apareceu e a tela em que você está. Detalhes técnicos não são enviados, e CPF é escondido. Por isso, num erro do sistema, ela não sabe a causa exata: orienta tentar de novo e avisar a TI.
+- Se o botão não aparecer, o erro foi mostrado de um jeito que ela não acompanha (uma janelinha do navegador, por exemplo): escreva a mensagem no chat.
 
 ## O que a Lara sabe responder
 

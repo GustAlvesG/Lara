@@ -3,6 +3,8 @@
 namespace App\Services\Signature\Contracts;
 
 use App\Models\SignatureContract;
+use App\Models\SignatureLayout;
+use App\Services\Signature\SignatureLayoutDocx;
 use App\Support\DocxWriter;
 use DOMDocument;
 use DOMElement;
@@ -20,11 +22,16 @@ use DOMText;
  * numeração automática do Word. Sem dependência nova no deploy.
  *
  * O Word é cópia de trabalho: a validade é do documento assinado no Lara.
+ *
+ * Sai no papel timbrado do Clube (desde 04/11/2026): cabeçalho e rodapé
+ * vigentes em "Papel timbrado" (`SignatureLayoutDocx`), os mesmos do PDF.
  */
 class ContractDocxExporter
 {
-    public function __construct(private ContractRenderer $renderer)
-    {
+    public function __construct(
+        private ContractRenderer $renderer,
+        private SignatureLayoutDocx $letterhead,
+    ) {
     }
 
     public function export(SignatureContract $contract): string
@@ -45,7 +52,9 @@ class ContractDocxExporter
             };
         }
 
-        return DocxWriter::package($corpo);
+        $titulo = trim(($contract->number ? $contract->number . ' — ' : '') . (string) $contract->title);
+
+        return DocxWriter::package($corpo, pages: $this->letterhead->pages(SignatureLayout::current(), $titulo));
     }
 
     /**

@@ -624,6 +624,14 @@ Guia do usuário: seção 13.
   Migrations `2026_10_29_110000` e `_130000`. Testes: `SignatureContractAiReviewTest`.
   Ver [claude-api.md](../funcionalidades/claude-api.md).
 - Não mexe em API externa nossa: nenhum prompt para outro agente (a Anthropic é serviço de terceiro).
+- **Word no papel timbrado (04/11/2026):** `ContractDocxExporter` passa `pages:` ao `DocxWriter::package()`, montado
+  por `App\Services\Signature\SignatureLayoutDocx` a partir do `SignatureLayout::current()` (o VIGENTE no download;
+  o Word é cópia de trabalho). Tamanhos de `SignaturePageGeometry` (os mesmos do PDF), largura limitada à área de
+  texto do Word; "de borda a borda" vira imagem ancorada na borda do papel (`DocxWriter::picture(..., 'top'|'bottom')`).
+  Sem imagem de cabeçalho, sai o cabeçalho de texto padrão (nome do Clube + número/título). `DocxWriter` ganhou
+  `picture()`, `run()` com `color`/`sz` e cabeçalho/rodapé no pacote (`header1.xml`, `footer1.xml`, `word/media/`).
+  O `DocxTemplateExporter` (modelos) segue sem papel timbrado. O PDF de assinatura já usava o papel timbrado (preso no
+  congelamento). Testes: `SignatureContractTest::test_word_sai_no_papel_timbrado` e `..._sem_papel_timbrado_...`.
 
 ## Pendências (atualizado em 09/10/2026)
 

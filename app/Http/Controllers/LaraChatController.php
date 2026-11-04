@@ -112,7 +112,7 @@ class LaraChatController extends Controller
                 'conteudo' => $pergunta,
             ]);
 
-            $answer = $lara->ask($this->usuarioId($user->id), $pergunta, $request->contexto());
+            $answer = $lara->ask($this->usuarioId($user->id), $pergunta, $request->contexto(), $request->erro());
 
             $mensagem = LaraMessage::create([
                 'user_id' => $user->id,
@@ -125,6 +125,8 @@ class LaraChatController extends Controller
             ]);
 
             return response()->json([
+                // Em "Verificar com a Lara" a pergunta foi montada aqui.
+                'pergunta' => $pergunta,
                 'resposta' => $answer->texto,
                 'status' => $answer->status,
                 'horario' => $mensagem->created_at?->format('H:i'),

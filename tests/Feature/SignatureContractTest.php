@@ -360,6 +360,70 @@ class SignatureContractTest extends TestCase
         $this->assertStringContainsString('1.1.1 - ', $xml);
     }
 
+    /** @return array<string, string> as partes do .docx, por nome */
+    private function partesDoWord(string $bytes): array
+    {
+        $arquivo = tempnam(sys_get_temp_dir(), 'docx');
+        file_put_contents($arquivo, $bytes);
+        $zip = new \ZipArchive();
+        $this->assertTrue($zip->open($arquivo) === true);
+        $partes = [];
+
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $nome = (string) $zip->getNameIndex($i);
+            $partes[$nome] = (string) $zip->getFromIndex($i);
+        }
+
+        $zip->close();
+        @unlink($arquivo);
+
+        return $partes;
+    }
+
+    public function test_word_sai_no_papel_timbrado(): void
+    {
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+        Storage::disk(config('signature.disk'))->put('signature/layouts/cab.png', $png);
+        Storage::disk(config('signature.disk'))->put('signature/layouts/rod.png', $png);
+        \App\Models\SignatureLayout::create([
+            'header_path' => 'signature/layouts/cab.png',
+            'footer_path' => 'signature/layouts/rod.png',
+            'header_height_mm' => 22,
+            'footer_height_mm' => 16,
+            'footer_text' => 'Rua 90, 1000 — Volta Redonda/RJ',
+            'align' => 'center',
+        ]);
+
+        $partes = $this->partesDoWord(app(ContractDocxExporter::class)->export($this->contrato()));
+
+        // Cabeçalho e rodapé ligados à seção, com as imagens dentro do pacote.
+        $this->assertStringContainsString('<w:headerReference w:type="default" r:id="rIdheader"/>', $partes['word/document.xml']);
+        $this->assertStringContainsString('<w:footerReference w:type="default" r:id="rIdfooter"/>', $partes['word/document.xml']);
+        $this->assertStringContainsString('r:embed="rIdImgHeader"', $partes['word/header1.xml']);
+        $this->assertStringContainsString('<w:jc w:val="center"/>', $partes['word/header1.xml']);
+        $this->assertStringContainsString('Rua 90, 1000', $partes['word/footer1.xml']);
+        $this->assertStringContainsString('r:embed="rIdImgFooter"', $partes['word/footer1.xml']);
+        $this->assertSame($png, $partes['word/media/header-rIdImgHeader.png']);
+        $this->assertStringContainsString('media/footer-rIdImgFooter.png', $partes['word/_rels/footer1.xml.rels']);
+        $this->assertStringContainsString('Extension="png"', $partes['[Content_Types].xml']);
+
+        // Todo XML do pacote abre.
+        foreach ($partes as $nome => $conteudo) {
+            if (str_ends_with($nome, '.xml') || str_ends_with($nome, '.rels')) {
+                $this->assertNotFalse(@simplexml_load_string($conteudo), "XML inválido: {$nome}");
+            }
+        }
+    }
+
+    public function test_word_sem_papel_timbrado_leva_o_cabecalho_de_texto(): void
+    {
+        $partes = $this->partesDoWord(app(ContractDocxExporter::class)->export($this->contrato()));
+
+        $this->assertStringContainsString('Clube dos Funcionários da CSN', $partes['word/header1.xml']);
+        $this->assertArrayNotHasKey('word/footer1.xml', $partes);
+        $this->assertNotFalse(@simplexml_load_string($partes['word/header1.xml']));
+    }
+
     public function test_modelo_do_setor_nao_leva_partes_nem_valores(): void
     {
         $modelo = $this->service()->saveAsModel($this->contrato(), 'Prestação de serviços', 7, 'Compradora');

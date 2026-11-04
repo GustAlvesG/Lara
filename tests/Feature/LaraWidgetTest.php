@@ -197,6 +197,133 @@ class LaraWidgetTest extends TestCase
         $this->assertNull($recebido);
     }
 
+    /** @return array<string, mixed> As opções que o layout passa ao balão. */
+    private function opcoesDoBalao(string $html): array
+    {
+        $this->assertSame(1, preg_match("/laraWidget\(JSON\.parse\('(.*?)'\)\)/s", $html, $m));
+
+        return json_decode(json_decode('"' . $m[1] . '"'), true);
+    }
+
+    /** Dublê da IA que guarda o que recebeu em ['mensagem'] e ['erro']. */
+    private function laraQueGuarda(array &$recebido): void
+    {
+        $lara = \Mockery::mock(LaraClient::class);
+        $lara->shouldReceive('ask')->once()->andReturnUsing(function ($usuario, $mensagem, $contexto, $erro) use (&$recebido) {
+            $recebido = ['mensagem' => $mensagem, 'erro' => $erro];
+
+            return new \App\Services\Lara\LaraAnswer('ok', \App\Services\Lara\LaraAnswer::STATUS_OK, 10);
+        });
+        $this->app->instance(LaraClient::class, $lara);
+    }
+
+    public function test_tela_com_erro_oferece_verificar_com_a_lara(): void
+    {
+        $html = $this->actingAs($this->comLara())
+            ->withSession(['error' => 'Este título já tem reserva neste dia.'])
+            ->get(route('docs.show', 'README'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('Verificar com a Lara', $html);
+        $this->assertSame(
+            ['status' => null, 'texto' => 'Este título já tem reserva neste dia.'],
+            $this->opcoesDoBalao($html)['erroTela']
+        );
+    }
+
+    public function test_formulario_rejeitado_leva_as_mensagens_de_validacao(): void
+    {
+        $erros = new \Illuminate\Support\ViewErrorBag;
+        $erros->put('default', new \Illuminate\Support\MessageBag(['cpf' => ['O CPF é obrigatório.']]));
+
+        $html = $this->actingAs($this->comLara())
+            ->withSession(['errors' => $erros])
+            ->get(route('docs.show', 'README'))->assertOk()->getContent();
+
+        $this->assertSame(['status' => 422, 'texto' => 'O CPF é obrigatório.'], $this->opcoesDoBalao($html)['erroTela']);
+    }
+
+    public function test_tela_sem_erro_nao_leva_erro_ao_balao(): void
+    {
+        $html = $this->actingAs($this->comLara())->get(route('docs.show', 'README'))->assertOk()->getContent();
+
+        $this->assertNull($this->opcoesDoBalao($html)['erroTela']);
+    }
+
+    public function test_verificar_monta_a_pergunta_no_servidor(): void
+    {
+        $recebido = [];
+        $this->laraQueGuarda($recebido);
+
+        $this->actingAs($this->comLara())
+            ->postJson(route('lara.ask'), ['erro' => ['status' => 422, 'texto' => 'O CPF 123.456.789-09 já está cadastrado.']])
+            ->assertOk()
+            ->assertJsonPath('pergunta', 'Apareceu este erro na tela: "O CPF [CPF] já está cadastrado.". O que aconteceu e como resolvo?');
+
+        $this->assertSame(['tipo' => 'validacao', 'status' => 422], $recebido['erro']);
+        $this->assertDatabaseHas('lara_messages', ['role' => LaraMessage::ROLE_USER, 'conteudo' => $recebido['mensagem']]);
+    }
+
+    public function test_mensagem_tecnica_nao_chega_a_ia(): void
+    {
+        $recebido = [];
+        $this->laraQueGuarda($recebido);
+
+        $this->actingAs($this->comLara())
+            ->postJson(route('lara.ask'), ['erro' => ['status' => null, 'texto' => 'SQLSTATE[23000]: insert into members values (segredo)']])
+            ->assertOk();
+
+        $this->assertStringNotContainsString('segredo', $recebido['mensagem']);
+        $this->assertSame(['tipo' => 'sistema', 'status' => null], $recebido['erro']);
+    }
+
+    public function test_pergunta_digitada_nao_e_trocada_pelo_erro(): void
+    {
+        $recebido = [];
+        $this->laraQueGuarda($recebido);
+
+        $this->actingAs($this->comLara())
+            ->postJson(route('lara.ask'), ['mensagem' => 'qual o horário da academia?', 'erro' => ['status' => 500]])
+            ->assertOk();
+
+        $this->assertSame('qual o horário da academia?', $recebido['mensagem']);
+        $this->assertNull($recebido['erro']);
+    }
+
+    public function test_pagina_403_oferece_verificar_com_a_lara(): void
+    {
+        $response = $this->actingAs($this->comLara())->get(route('fleet.vehicles'))->assertForbidden();
+
+        $html = $response->getContent();
+        $this->assertStringContainsString('Acesso negado', $html);
+        $this->assertStringContainsString('lara-verificar-erro', $html);
+        $this->assertSame(403, $this->opcoesDoBalao($html)['erroTela']['status']);
+        $this->assertTrue($this->opcoesDoBalao($html)['paginaDeErro']);
+    }
+
+    public function test_pagina_de_erro_sem_a_permissao_nao_tem_o_botao(): void
+    {
+        $html = $this->actingAs($this->usuario(new UserAccess([P::SIV_BUSCA])))
+            ->get(route('fleet.vehicles'))->assertForbidden()->getContent();
+
+        $this->assertStringContainsString('Acesso negado', $html);
+        $this->assertStringNotContainsString('Verificar com a Lara', $html);
+    }
+
+    public function test_pagina_500_nao_mostra_o_erro_tecnico(): void
+    {
+        config(['app.debug' => false]);
+        \Illuminate\Support\Facades\Route::middleware('web')->get('/_teste_erro_500', function () {
+            throw new \RuntimeException('SQLSTATE segredo');
+        });
+
+        $html = $this->actingAs($this->comLara())->get('/_teste_erro_500')->assertStatus(500)->getContent();
+
+        $this->assertStringContainsString('Algo deu errado do nosso lado', $html);
+        $this->assertStringContainsString('lara-verificar-erro', $html);
+        $this->assertStringNotContainsString('segredo', $html);
+        $this->assertSame(['status' => 500, 'texto' => null], $this->opcoesDoBalao($html)['erroTela']);
+    }
+
     public function test_conversa_exige_a_permissao(): void
     {
         $this->actingAs($this->usuario(new UserAccess([P::SIV_BUSCA])))

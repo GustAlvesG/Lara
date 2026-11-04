@@ -132,6 +132,30 @@ Se a última mensagem da conversa tiver mais de `LARA_HISTORY_TTL_HOURS`, o pain
 conversa nova. É o espelho da expiração da memória do lado da IA: sem isso o funcionário veria o
 assunto antigo e a Lara não lembraria nada dele.
 
+### Verificar um erro com a Lara (30/10/2026)
+
+Quando a tela mostra um erro, quem tem a permissão `lara` vê **Verificar com a Lara**. O balão
+descobre o erro em três lugares, todos no layout, sem mexer nas telas:
+
+| Origem | De onde vem | Onde aparece o botão |
+|---|---|---|
+| Retorno de ação | `session('error')`, `$errors` da validação, `?error=` na URL | Sobre o balão e no painel |
+| Ação por `fetch` sem recarregar | O balão observa respostas `>= 400` de pedidos não GET da própria origem (fora `/lara/`), numa cópia, sem interferir na tela | Sobre o balão e no painel |
+| Página de erro | `resources/views/errors/pagina.blade.php` (401, 402, 403, 404, 419, 429, 500, 503, `4xx`, `5xx`) | No meio da página e no painel |
+
+O clique manda `POST /lara/perguntar` com `erro: {status, texto}` em vez de `mensagem`;
+`App\Services\Lara\ScreenError` filtra o texto e monta a pergunta (formato para a IA em
+[lara-ia-consultas.md](lara-ia-consultas.md)). A resposta traz `pergunta`, que substitui o rótulo
+da bolha.
+
+Limites conhecidos: erros mostrados só por `alert()` ou em variável própria de tela sem `fetch` com
+falha HTTP (falha de rede, câmera) não acionam o botão; pedidos por `$.ajax`/`XMLHttpRequest`
+também não. Quem não está logado (login, ou 404 de endereço inexistente, que roda sem sessão) vê a
+página de erro sem o botão.
+
+As páginas de erro ficam fora do layout de propósito, e o que consulta dados está em `try`: com o
+banco fora do ar, a página aparece sem o botão.
+
 ### 2. Perguntar — `POST /lara/perguntar`
 Grava a pergunta, chama `POST {LARA_BASE_URL}/perguntar` com `{usuario_id, mensagem}`, grava a
 resposta e devolve o texto para a tela. O `usuario_id` enviado é `portal_{id do usuário}` — é

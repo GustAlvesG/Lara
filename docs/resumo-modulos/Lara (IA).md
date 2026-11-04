@@ -43,6 +43,7 @@ Contrato em [docs/funcionalidades/lara-ia-consultas.md](../funcionalidades/lara-
   [guias-do-usuario.md](../funcionalidades/guias-do-usuario.md)). Não esconde nada; cada seção
   traz `tem_acesso`, os links das telas que a pessoa abre e `precisa_de`. Acesso pelas anotações
   `<!-- telas: -->` + `Navigation::destinations()`. Busca em PHP (`GuideSearch`), sem acento.
+- **Verificar com a Lara** (30/10/2026): o balão detecta o erro da tela (flash, validação, `fetch` não GET com falha, páginas `resources/views/errors`) e manda `erro: {status, texto}`; `ScreenError` filtra o texto e monta a pergunta. Para a IA vai `erro: {tipo, status}`, nunca o detalhe técnico.
 - **Contexto da tela** em `POST /perguntar` (`contexto: {modulo, pagina, caminho, rota}`): o balão
   manda só nomes de rota; `AskLaraRequest::contexto()` valida e traduz pelo menu. Sem tela de
   módulo, o campo não vai.

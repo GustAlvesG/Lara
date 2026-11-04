@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
  * Cliente HTTP do agente de IA (Lara), que roda numa VM própria.
  *
  * Contrato do serviço:
- *   POST /perguntar  {usuario_id, mensagem, contexto?} -> {resposta, transferir}
+ *   POST /perguntar  {usuario_id, mensagem, contexto?, erro?} -> {resposta, transferir}
  *   POST /reiniciar  {usuario_id}           -> {status: "ok"}
  *   GET  /health                            -> 2xx (sem passar pelo modelo)
  *
@@ -70,8 +70,10 @@ class LaraClient
      *         A tela em que a pessoa está (AskLaraRequest::contexto). Opcional
      *         no contrato: sem ele, o campo nem vai — versões da IA que não o
      *         conhecem seguem funcionando.
+     * @param  array{tipo: string, status: ?int}|null  $erro
+     *         A pergunta é sobre um erro da tela (ScreenError). Também opcional.
      */
-    public function ask(string $usuarioId, string $mensagem, ?array $contexto = null): LaraAnswer
+    public function ask(string $usuarioId, string $mensagem, ?array $contexto = null, ?array $erro = null): LaraAnswer
     {
         if (!$this->enabled()) {
             return new LaraAnswer($this->fallback(), LaraAnswer::STATUS_DESATIVADO, 0, 'integração desligada');
@@ -86,6 +88,10 @@ class LaraClient
 
         if ($contexto) {
             $payload['contexto'] = $contexto;
+        }
+
+        if ($erro) {
+            $payload['erro'] = $erro;
         }
 
         try {
