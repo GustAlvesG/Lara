@@ -1,6 +1,6 @@
 ---
 modulo: Contratos
-palavras: contrato, contratos, cláusula, minuta, CTL, Gerência, validar, aprovar, devolver, visto da Gerência, rubrica, aditivo, biblioteca, modelo de contrato, contratada, fiador, Word, docx, papel timbrado, revisão automática, Claude, assinatura do contrato, tablet da Gerência
+palavras: contrato, contratos, cláusula, minuta, CTL, Gerência, revisão jurídica, risco jurídico, advogado, jurídico especializado, validar, aprovar, devolver, visto da Gerência, rubrica, aditivo, biblioteca, modelo de contrato, contratada, fiador, Word, docx, papel timbrado, revisão automática, Claude, assinatura do contrato, tablet da Gerência
 ---
 
 # Contratos — guia de uso
@@ -50,6 +50,7 @@ O Claude lê o contrato inteiro e aponta inconsistências (partes, valores por e
 - **Trechos com dados sensíveis**: os trechos com valores, CPF, documentos ou endereço (qualificação das partes, cláusula do valor…) **não são enviados**, a menos que você marque cada um. O cartão mostra em **Não enviados ao Claude** o que ficou de fora.
 - **Anexar trechos ao pedido** (em todo pedido: editor, tela do contrato e tablet): abra **Anexar trechos ao pedido**, dê um título e cole um texto de referência, como a proposta do fornecedor, o contrato anterior ou uma orientação do jurídico. **+ Outro trecho** acrescenta mais (até 5, de até 12.000 caracteres cada). O Claude confere a minuta contra esse material e aponta as divergências. O texto colado também vai à Anthropic: não cole dado que não deva sair. A revisão mostra em **Trechos anexados ao pedido** o que foi junto.
 - Volta um resumo e apontamentos por cláusula (grave, atenção, detalhe) com sugestão. Na validação, **Levar para a observação** copia o apontamento para a observação da cláusula.
+- **Revisão jurídica (Gerência)**: quando quem pede é da Gerência (na tela do contrato, no editor ou no tablet), o cartão traz também o bloco **Revisão jurídica**: o nível de risco do contrato para o clube (**baixo**, **médio** ou **alto**), um resumo em linguagem simples e as possíveis fraquezas (multa só contra o clube, rescisão sem saída, falta de garantia, foro, dados pessoais…), cada uma com sugestão e **Levar para a observação**. Em **risco alto** (ou quando o tema pede um advogado), o bloco fica em vermelho com **Procure um jurídico especializado antes de aprovar este contrato.** É orientação automática, não é parecer jurídico, e não impede de aprovar.
 
 Pedir de novo sem mudar o texto, os trechos marcados e os trechos anexados devolve a mesma revisão, sem nova análise.
 
@@ -71,7 +72,7 @@ Aprovado, o contrato ganha o número (por exemplo **CTL - 12/26**, uma sequênci
 
 1. Na tela de espera do tablet, toque em **Validação de contratos (Gerência)** e entre com a matrícula e o PIN d'O Lara.
 2. Toque num contrato. Para comentar uma cláusula, toque nela e escreva.
-3. **Revisão do Claude**: mostra a última revisão (com o aviso se o texto mudou depois) e os apontamentos. **Levar para a observação** copia o apontamento para a cláusula (ou para a observação geral da devolução). Para pedir uma análise, marque os trechos sensíveis que podem ir, anexe trechos de referência se quiser (**+ Outro trecho**) e toque em **Analisar com o Claude**.
+3. **Revisão do Claude**: mostra a última revisão (com o aviso se o texto mudou depois), a **revisão jurídica** (risco, fraquezas e, em risco alto, o aviso para procurar um jurídico especializado; o botão avisa "risco jurídico alto") e os apontamentos. **Levar para a observação** copia o apontamento para a cláusula (ou para a observação geral da devolução). Para pedir uma análise, marque os trechos sensíveis que podem ir, anexe trechos de referência se quiser (**+ Outro trecho**) e toque em **Analisar com o Claude**.
 4. **Editar texto**: ajuste o título do contrato e, em cada cláusula, o título e os itens. A barra no alto tem negrito, itálico e sublinhado; cada item pode virar **Subitem**, ser tirado (**Tirar**) e a cláusula pode ganhar **+ Item**. Toque em **Salvar texto**. Partes, variáveis, considerandos e signatários só se ajustam no computador. As observações já escritas continuam.
 5. Toque em **Devolver** ou **Aprovar**. Para aprovar, faça o seu **visto** com o dedo no quadro **Seu visto** (ele vai em todas as páginas do documento) e toque em **Aprovar**. Toque em **Sair** ao terminar; parado por um tempo, a entrada cai sozinha.
 
@@ -105,6 +106,7 @@ Em **Contratos › Biblioteca** fica o que o seu setor guardou para reaproveitar
 
 - **Biblioteca de cláusulas**: no editor, **Da biblioteca…** insere uma cópia num contrato. **+ Cláusula** e **Da biblioteca…** ficam no alto e no fim da lista de cláusulas (entra por último); no pé de cada cláusula, **+ Cláusula abaixo** e **Da biblioteca abaixo…** põem a nova logo depois dela, e a numeração se ajusta. Com a permissão da biblioteca, o botão **Salvar na biblioteca** de cada cláusula guarda-a para o setor, e dá para escrever, editar ou remover uma cláusula direto na tela da biblioteca. Mudar ou remover da biblioteca não mexe em contrato já feito.
 - **Modelos de contrato**: com a permissão da biblioteca, na tela de um contrato pronto, **Salvar como modelo do setor** guarda título, termos, variáveis (sem valor), considerandos e cláusulas. Ao criar um **Novo contrato**, escolha o modelo. Remover um modelo não muda os contratos feitos com ele.
+- **Modelos-base do clube**: a partir dos contratos já usados pelo clube, há modelos prontos — obra de engenharia, reforma com medições, serviço pontual (poda, pequenos reparos), mão de obra por diárias, confecção de uniformes, locação de loja ou sala com fiador, publicidade nos telões de LED, permuta, escolinha esportiva e aditivo de contrato feito fora do Lara. Eles aparecem em **Novo contrato** para os setores em que a TI os instalou. Escolha o modelo, preencha a contratada, as **variáveis** (valores, prazos, datas, dados bancários) e os signatários; a lista de problemas diz o que falta. Apague a cláusula ou o item que não se aplicar ao caso. Na biblioteca também há cláusulas avulsas para inserir quando couber: carência para reforma, aluguel escalonado, comissão de agência, amortização de investimento, ratificação do contrato-mãe, proteção de dados (LGPD), inexistência de vínculo, responsabilidade tributária e assinatura eletrônica. Se a cláusula avulsa usar uma variável (como `[[dias_de_carencia]]`), crie a variável com esse nome no contrato.
 - **Contratada**: ao salvar, os dados dela ficam guardados. No próximo contrato, use **Buscar no cadastro (contratadas e fiadores já usados)**.
 - **Aditivo**: num contrato aprovado, **Criar aditivo** já vem com as partes, as variáveis e os signatários; escreva só as cláusulas do aditivo. O número é o do contrato com A1, A2…
 
@@ -120,6 +122,11 @@ O menu exige uma das permissões do grupo Contratos. E o contrato pertence ao se
 
 A aba exige a permissão "Assinaturas: conduzir a assinatura dos documentos dos contratos do setor". E ela só mostra os contratos do seu setor: contrato de outro setor não abre (só a Gerência vê todos).
 
+### Não aparecem os modelos-base em Novo contrato
+<!-- telas: contracts.index -->
+
+Os modelos são por setor: o **Novo contrato** só mostra os do setor escolhido. Peça à TI para instalar os modelos-base no seu setor.
+
 ### Não aparecem os botões Salvar na biblioteca e Salvar como modelo
 <!-- telas: contract-library.index -->
 
@@ -134,6 +141,11 @@ Sim. Até 04/11/2026 os contratos ficavam em Assinaturas › Contratos; o endere
 <!-- telas: contracts.index -->
 
 Aprovar pede o visto (rubrica) de quem aprova, que vai em todas as páginas do documento. Desenhe no quadro **Seu visto**, acima do botão **Aprovar** (no tablet, na janela de aprovação). Um risco curto demais não conta: faça a rubrica inteira.
+
+### A revisão jurídica diz "Procure um jurídico especializado"
+<!-- telas: contracts.index -->
+
+O Claude classificou o risco jurídico do contrato como alto, ou viu um tema que pede análise de advogado. Antes de aprovar, leve o contrato ao jurídico (interno ou contratado). A revisão é só orientação: não aprova, não reprova e não substitui o parecer de um advogado. Quem redige não recebe a parte jurídica; ela vem quando a Gerência pede a análise.
 
 ### O tablet não mostra "Revisão do Claude"
 <!-- telas: contracts.index -->

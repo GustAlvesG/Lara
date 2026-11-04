@@ -304,7 +304,15 @@ class ContractController extends Controller
         RateLimiter::hit($limite, 60);
 
         try {
-            $resultado = $reviewer->review($signatureContract, $request->user()->id, $request->user()->name, $dados['include'] ?? [], $dados['extras'] ?? []);
+            // A revisão jurídica vem junto quando quem pede é da Gerência (04/11/2026).
+            $resultado = $reviewer->review(
+                $signatureContract,
+                $request->user()->id,
+                $request->user()->name,
+                $dados['include'] ?? [],
+                $dados['extras'] ?? [],
+                $request->user()->isManagementMember(),
+            );
         } catch (ClaudeException $e) {
             return redirect()->route($rota, $signatureContract)->with('error', $e->getMessage());
         }

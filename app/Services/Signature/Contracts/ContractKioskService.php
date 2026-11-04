@@ -303,6 +303,20 @@ class ContractKioskService
                 'summary' => $revisao->summary,
                 'withheld' => array_column($revisao->withheld ?? [], 'label'),
                 'extras' => array_column($revisao->extraParts(), 'title'),
+                // Revisão jurídica (04/11/2026): risco, resumo, fraquezas e se deve procurar o jurídico.
+                'legal' => ($juridica = $revisao->legalReview()) ? [
+                    'risk' => $juridica['risk'],
+                    'label' => $revisao->legalRiskLabel(),
+                    'kind' => $revisao->legalRiskKind(),
+                    'summary' => $juridica['summary'],
+                    'seek_lawyer' => $revisao->seeksLawyer(),
+                    'weaknesses' => array_map(fn(array $f) => [
+                        'clause' => $f['clausula'],
+                        'uid' => $f['clausula'] > 0 ? ($uids[$f['clausula'] - 1] ?? null) : null,
+                        'point' => $f['point'],
+                        'suggestion' => $f['suggestion'],
+                    ], $juridica['weaknesses']),
+                ] : null,
                 'findings' => array_map(fn(array $a) => [
                     'clause' => $a['clausula'],
                     'uid' => $a['clausula'] > 0 ? ($uids[$a['clausula'] - 1] ?? null) : null,

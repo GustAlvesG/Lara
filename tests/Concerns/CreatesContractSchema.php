@@ -28,6 +28,7 @@ trait CreatesContractSchema
         $arquivos[] = '2026_10_29_110000_create_signature_contract_ai_reviews.php';
         $arquivos[] = '2026_10_29_130000_add_withheld_to_signature_contract_ai_reviews.php';
         $arquivos[] = '2026_11_04_100000_add_extras_to_signature_contract_ai_reviews.php';
+        $arquivos[] = '2026_11_04_120000_add_legal_to_signature_contract_ai_reviews.php';
         // De novo: o esquema de assinatura roda antes de `signature_contract_versions` existir aqui.
         $arquivos[] = '2026_11_04_110000_add_approval_initials_to_contracts_and_documents.php';
 

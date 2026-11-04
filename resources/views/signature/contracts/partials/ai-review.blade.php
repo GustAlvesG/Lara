@@ -4,7 +4,9 @@
     validação, leva cada sugestão para a observação da cláusula com um clique.
     Trechos com valores, CPF, documentos ou endereço ($aiSensitive) só vão
     ao Claude se quem pede marcar. Em todo pedido dá para anexar trechos de
-    texto como referência (partials/ai-extras, 04/11/2026).
+    texto como referência (partials/ai-extras, 04/11/2026). Pedida pela Gerência,
+    traz também a revisão jurídica (risco, fraquezas e, em risco alto, a
+    orientação de procurar um jurídico especializado — 04/11/2026).
 
     No editor ($noEditor), o botão é do formulário do contrato (`form="ctForm"`):
     salva primeiro e analisa o texto salvo, para não perder o que foi digitado.
@@ -48,6 +50,49 @@
             </p>
         @endif
 
+        @if($juridica = $aiReview->legalReview())
+            <div @class([
+                'space-y-2 rounded-xl border p-3',
+                'border-danger bg-danger-soft' => $aiReview->seeksLawyer(),
+                'border-line' => !$aiReview->seeksLawyer(),
+            ])>
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <p class="text-sm font-bold text-ink">Revisão jurídica</p>
+                    <x-pill :kind="$aiReview->legalRiskKind()">{{ $aiReview->legalRiskLabel() }}</x-pill>
+                </div>
+                @if($aiReview->seeksLawyer())
+                    <p class="text-sm font-bold text-danger">
+                        Procure um jurídico especializado antes de aprovar este contrato.
+                    </p>
+                @endif
+                @if($juridica['summary'] !== '')
+                    <p class="whitespace-pre-line text-sm text-ink">{{ $juridica['summary'] }}</p>
+                @endif
+                @foreach($juridica['weaknesses'] as $f)
+                    @php
+                        $clausulaJ = $f['clausula'] > 0 ? ($clausulas[$f['clausula'] - 1] ?? null) : null;
+                    @endphp
+                    <div class="rounded-lg bg-surface p-2 text-sm">
+                        @if($clausulaJ)
+                            <a href="#ct-{{ $clausulaJ['uid'] }}" class="text-xs font-bold text-grena-ink hover:underline">Cláusula {{ $f['clausula'] }}</a>
+                        @endif
+                        <p class="text-ink">{{ $f['point'] }}</p>
+                        @if($f['suggestion'] !== '')
+                            <p class="mt-1 text-ink-2"><b>Sugestão:</b> {{ $f['suggestion'] }}</p>
+                        @endif
+                        @if($podeDecidir)
+                            <button type="button" class="mt-1 text-xs font-bold text-grena-ink hover:underline"
+                                    data-ai-take="{{ $clausulaJ ? 'cm-' . $clausulaJ['uid'] : 'note' }}"
+                                    data-ai-text="{{ 'Jurídico: ' . $f['point'] . ($f['suggestion'] !== '' ? ' Sugestão: ' . $f['suggestion'] : '') }}">
+                                Levar para a observação {{ $clausulaJ ? 'da cláusula' : 'geral' }}
+                            </button>
+                        @endif
+                    </div>
+                @endforeach
+                <p class="text-xs text-ink-2">Orientação automática, não é parecer jurídico. Não substitui a análise de um advogado.</p>
+            </div>
+        @endif
+
         @if($aiReview->findings !== [])
             <div class="space-y-2">
                 @foreach($aiReview->findings as $a)
@@ -86,7 +131,8 @@
     @else
         <p class="text-sm text-ink-2">
             O Claude lê o contrato inteiro e aponta inconsistências (partes, valores por extenso, prazos, remissões,
-            cláusulas contraditórias ou faltando), com sugestão de alteração.
+            cláusulas contraditórias ou faltando), com sugestão de alteração. Pedida pela Gerência, traz também uma
+            revisão jurídica simples, com as possíveis fraquezas do contrato para o clube.
         </p>
     @endif
 

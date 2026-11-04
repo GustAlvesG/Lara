@@ -235,6 +235,18 @@ integração com a API está em [claude-api.md](claude-api.md).
   retidos. Pedir de novo sem mudança e com a mesma escolha de trechos devolve a existente, sem nova chamada.
   Se o texto mudou, o cartão avisa "O texto mudou depois desta revisão" e oferece "Analisar o texto atual".
   Com a revisão em dia, "Analisar de novo escolhendo outros trechos" permite repetir com outra escolha.
+- **Revisão jurídica (04/11/2026, pedido do usuário):** quando quem pede é da Gerência
+  (`ContractController::runAiReview` passa `isManagementMember()`; o tablet passa sempre `true`), a MESMA chamada
+  leva o bloco `LEGAL_SYSTEM` no system prompt e o objeto `juridico` no esquema: `risco` (baixo | medio | alto),
+  `resumo` (1 a 3 frases simples), `fraquezas[]` (`clausula`, `ponto`, `sugestao`; até 10) e `procurar_juridico`.
+  O Lara limpa (`ContractAiReviewer::legal`): risco desconhecido vira médio, fraqueza sem ponto cai, cláusula
+  inexistente vira geral e **risco alto sempre orienta procurar o jurídico** (`seek_lawyer`), diga o modelo o que
+  disser. Grava em `signature_contract_ai_reviews.legal` (`{risk, summary, weaknesses, seek_lawyer}`, migration
+  `2026_11_04_120000`); o evento `ai_reviewed` leva `juridico`. Tela: bloco "Revisão jurídica" no cartão (pílula do
+  risco; vermelho com "Procure um jurídico especializado antes de aprovar este contrato." quando `seeksLawyer()`;
+  "Levar para a observação" com o prefixo "Jurídico:"); no tablet, o mesmo na folha e "· risco jurídico alto" no
+  botão. **Só orienta:** não trava a aprovação. Reaproveitamento: pedido com a parte jurídica só reaproveita
+  revisão que a tenha; quem redige pode reaproveitar a da Gerência (e vê a parte jurídica dela).
 - **Trechos anexados (04/11/2026, pedido do usuário):** em todo pedido — tela do contrato, "Salvar e analisar"
   do editor e tablet — quem pede pode anexar até `ContractAiReviewer::MAX_EXTRAS` (5) trechos de texto, com
   título opcional (até 120) e texto até 12.000 caracteres (`extras[N][title]`, `extras[N][text]`; partial
@@ -328,6 +340,22 @@ de fora sem e-mail (não recebe o link remoto).
   novo em tudo (`ContractContent::freshUids`, que também troca as remissões internas).
 - **Aditivo**: copia o conteúdo do original (partes, variáveis, signatários, estabelecimento), título
   "Termo aditivo ao contrato {número}" e uma cláusula em branco. Aditivo de aditivo vira aditivo do original.
+- **Modelos-base (04/11/2026, pedido do usuário):** os contratos reais do clube (PDFs) viraram 10 modelos e
+  9 cláusulas avulsas em `App\Services\Signature\Contracts\ContractBaseModels`: obra de engenharia (CT 106/26),
+  reforma com medições (CT 145/26), serviço pontual (CT 188/26), mão de obra por diárias (CT 189/26), uniformes
+  (CT 194/26), locação de loja/sala com fiador (CT 088/26 e CT 09-22 A1), telões de LED (CT 131, 139 e 184/26),
+  permuta (CT 148/26), escolinha esportiva (CT 109/26) e aditivo de contrato feito fora do Lara (CT 145/26 A1 e
+  CT 106/26 A2). Cláusulas avulsas: carência para reforma, aluguel escalonado, comissão de agência, amortização de
+  investimento, ratificação do contrato-mãe, LGPD, inexistência de vínculo, responsabilidade tributária e
+  assinatura eletrônica. O que muda por contrato virou variável (sem valor); preâmbulo, data e assinaturas saíram do
+  texto porque o `ContractRenderer` os monta. Remissões no catálogo são `{ref:chave.N}` → `[[ref:uid]]`.
+  Ajustes em relação aos PDFs: numeração e remissões erradas; fiança com os artigos do Código Civil de 2002
+  (827/828 e 835, outorga do cônjuge), não os de 1916; IVA retirado; nos telões o clube vende o espaço, então os
+  termos são CLUBE e ANUNCIANTE (os PDFs tinham CONTRATANTE/CONTRATADA invertidos e CNPJ 35.500… em vez de 32.500…,
+  corrigido sozinho pelo estabelecimento); teto das multas (art. 412 do Código Civil); assinatura eletrônica no lugar
+  das "duas vias"; LGPD na escolinha (dados de crianças). Gravação: `php artisan contratos:modelos-base
+  --setor=Comercial --setor=Manutenção` (setor por id ou nome, repetível; idempotente por nome no setor;
+  `--atualizar` regrava, `--sem-clausulas`, `--listar`). Não roda no deploy: o setor é escolha de quem usa.
 
 ## Word
 
@@ -424,6 +452,8 @@ A revisão automática usa `config/claude.php` (`ANTHROPIC_API_KEY`, `CLAUDE_CON
   ponha `ANTHROPIC_API_KEY` no `.env` do servidor e rode `php artisan config:cache`.
 - Depois do deploy: cadastrar a área "Presidência" com o titular em Assinaturas → Diretoria (se ainda não
   houver) e dar `assinatura.contratos` aos setores que redigem (Setores).
+- Modelos-base (04/11/2026): depois do deploy, `php artisan contratos:modelos-base --setor=<setor>` para cada
+  setor que vai usá-los (modelo e cláusula são por setor). Rodar de novo não duplica.
 - Deploy de 04/11/2026 (módulo próprio): a migration `2026_11_04_100000` (trechos anexados), o seed cria
   `contratos.biblioteca` e `contratos.assinatura` e atualiza a descrição de `assinatura.contratos` (grupo
   Contratos), `route:cache` (rotas renomeadas). Depois, em **Setores**, dar as duas permissões novas aos setores
@@ -436,7 +466,9 @@ A revisão automática usa `config/claude.php` (`ANTHROPIC_API_KEY`, `CLAUDE_CON
 completo com e-mails, número único entre setores, ajuste da Gerência, aditivo, reabrir, anexos, cadastro
 de contratadas, Word, modelos, acesso por setor, telas e biblioteca), `tests/Unit/NumeroPorExtensoTest.php` e
 `tests/Feature/SignatureContractAiReviewTest.php` (pedido à API por HTTP falso, erros traduzidos, revisão guardada
-e reaproveitada, só a Gerência, trechos anexados). `tests/Feature/SignatureContractKioskTest.php` cobre o tablet
+e reaproveitada, só a Gerência, trechos anexados). `tests/Feature/SignatureContractBaseModelsTest.php` preenche cada modelo-base e exige zero problemas no
+`problems()` (variável inexistente, remissão quebrada ou digitada, termo parecido) e testa o comando.
+`tests/Feature/SignatureContractKioskTest.php` cobre o tablet
 (entrada, decisão, edição do texto e revisão pelo Claude com trechos anexados). Nenhum teste chama a API de verdade.
 Esquema por `Tests\Concerns\CreatesContractSchema` (inclui `sectors` e o presidente de teste).
 `ContractRecipients` e `DirectorAreaService` são trocados no container (consultam `users`, conexão mysql).

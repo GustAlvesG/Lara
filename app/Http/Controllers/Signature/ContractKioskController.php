@@ -216,7 +216,8 @@ class ContractKioskController extends Controller
 
         try {
             $contrato = $this->kiosk->inReview($contract);
-            $resultado = $reviewer->review($contrato, $user->id, $user->name, $dados['include'] ?? [], $dados['extras'] ?? []);
+            // No tablet só entra a Gerência: a revisão jurídica vem sempre.
+            $resultado = $reviewer->review($contrato, $user->id, $user->name, $dados['include'] ?? [], $dados['extras'] ?? [], true);
         } catch (ContractException $e) {
             return response()->json(['error' => $e->getMessage()], 409);
         } catch (ClaudeException $e) {

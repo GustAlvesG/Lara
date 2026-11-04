@@ -44,6 +44,10 @@ o contrato vira um documento de assinatura **em rascunho** do motor de Assinatur
   copiado para o documento (`signature_documents.approval_initials_path`/`_label`). O renderer desenha a caixa
   "Visto — Gerência" primeiro na faixa do visto de todas as páginas, já preenchida no original; a faixa existe
   também com o visto dos signatários dispensado (gov.br).
+- **Revisão jurídica (04/11/2026):** pedida pela Gerência (computador ou tablet), a revisão do Claude traz
+  `legal` = risco baixo/médio/alto, resumo e fraquezas; risco alto força `seek_lawyer` e a tela orienta procurar
+  um jurídico especializado. Só orienta (não trava aprovar). `ContractAiReviewer::LEGAL_SYSTEM`/`legal()`,
+  `SignatureContractAiReview::legalReview()/seeksLawyer()`.
 - **Revisão pelo Claude:** em todo pedido dá para anexar trechos de texto (`extras`, até 5 × 12.000
   caracteres) que vão como material de referência depois da minuta e ficam na revisão.
 - Nenhuma API externa: nenhum prompt para outro agente.
@@ -68,6 +72,9 @@ Guia do usuário: [docs/guias/contratos.md](../guias/contratos.md) (e a seção 
   `ContractDocxExporter` (ZipArchive, sem dependência), `ContractRecipients`. `App\Support\NumeroPorExtenso`.
   Controllers `Signature\ContractController` e `ContractLibraryController`; `SignatureContractPolicy`; 8 models
   `SignatureContract*`; views em `resources/views/signature/contracts/`.
+- **Modelos-base (04/11/2026):** `ContractBaseModels` (10 modelos e 9 cláusulas avulsas tirados dos PDFs do
+  clube) gravados por `php artisan contratos:modelos-base --setor=…` (`ImportContractBaseModels`, idempotente,
+  não roda no deploy). Remissão no catálogo: `{ref:chave.N}`. Teste: `SignatureContractBaseModelsTest`.
 - **Numeração não se guarda:** é calculada da posição. Remissão é `[[ref:uid]]` (uid de cláusula/item). Ao copiar
   cláusula (biblioteca, modelo, aditivo), `ContractContent::freshUids` dá uid novo e troca as remissões internas.
 - **Documento gerado:** uma parte por signatário (`p1…`, marcadores `[[assinatura:pN]]` vizinhos), presidente

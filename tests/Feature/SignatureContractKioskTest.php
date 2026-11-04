@@ -222,12 +222,19 @@ class SignatureContractKioskTest extends TestCase
         $claude = \Mockery::mock(\App\Services\Claude\ClaudeClient::class);
         $claude->shouldReceive('isConfigured')->andReturn(true);
         $claude->shouldReceive('structured')->once()
-            ->withArgs(fn(...$a) => str_contains($a['prompt'] ?? $a[2] ?? '', '<material titulo="Proposta">'))
+            ->withArgs(fn(...$a) => str_contains($a['prompt'] ?? $a[2] ?? '', '<material titulo="Proposta">')
+                && str_contains($a['system'] ?? $a[1] ?? '', 'Revisão jurídica'))
             ->andReturn([
                 'data' => [
                     'veredito' => 'ajustes_recomendados',
                     'resumo' => 'Prazo diverge da proposta.',
                     'apontamentos' => [['clausula' => 2, 'trecho' => 'Item 2.1', 'gravidade' => 'alta', 'problema' => 'Valor diferente da proposta.', 'sugestao' => 'Conferir.']],
+                    'juridico' => [
+                        'risco' => 'alto',
+                        'resumo' => 'Sem garantia de execução.',
+                        'fraquezas' => [['clausula' => 1, 'ponto' => 'Objeto sem prazo de entrega.', 'sugestao' => 'Definir o prazo.']],
+                        'procurar_juridico' => true,
+                    ],
                 ],
                 'model' => 'claude-haiku-5-5', 'input_tokens' => 1, 'output_tokens' => 1,
             ]);
@@ -253,7 +260,11 @@ class SignatureContractKioskTest extends TestCase
             ->assertJsonPath('ai.review.extras.0', 'Proposta')
             // O apontamento chega com o uid da cláusula, para virar observação.
             ->assertJsonPath('ai.review.findings.0.uid', 'clvalor001')
-            ->assertJsonPath('ai.review.by', 'Gerente');
+            ->assertJsonPath('ai.review.by', 'Gerente')
+            // No tablet só entra a Gerência: vem a revisão jurídica.
+            ->assertJsonPath('ai.review.legal.risk', 'alto')
+            ->assertJsonPath('ai.review.legal.seek_lawyer', true)
+            ->assertJsonPath('ai.review.legal.weaknesses.0.uid', 'clobjeto01');
 
         $this->assertSame($gerente->id, $contrato->aiReviews()->first()->requested_by);
     }

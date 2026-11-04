@@ -425,7 +425,9 @@
       $('#btnAprovar').disabled = c.errors.length > 0;
       $('#btnIA').style.display = c.ai && c.ai.enabled ? '' : 'none';
       if (c.ai && c.ai.review) {
-        $('#btnIA').textContent = 'Revisão do Claude · ' + c.ai.review.verdict + (c.ai.review.current ? '' : ' (texto mudou)');
+        $('#btnIA').textContent = 'Revisão do Claude · ' + c.ai.review.verdict
+        + (c.ai.review.legal && c.ai.review.legal.seek_lawyer ? ' · risco jurídico alto' : '')
+        + (c.ai.review.current ? '' : ' (texto mudou)');
       } else {
         $('#btnIA').textContent = 'Revisão do Claude';
       }
@@ -455,6 +457,22 @@
         + (r.withheld.length ? '<p class="meta"><b>Não enviados:</b> ' + esc(r.withheld.join('; ')) + '.</p>' : '')
         + (r.extras.length ? '<p class="meta"><b>Trechos anexados:</b> ' + esc(r.extras.join('; ')) + '.</p>' : '')
         + '</div>';
+      // Revisão jurídica (04/11/2026): risco, fraquezas e, no risco alto, procurar o jurídico.
+      if (r.legal) {
+        var lk = { ok: 'ok', warn: 'warn', danger: 'danger' }[r.legal.kind] || '';
+        h += '<div class="box ' + (r.legal.seek_lawyer ? 'danger' : 'soft') + '"><b>Revisão jurídica</b> <span class="pill ' + lk + '">' + esc(r.legal.label) + '</span>'
+          + (r.legal.seek_lawyer ? '<p style="margin:10px 0 0;font-weight:800;color:var(--danger);">Procure um jurídico especializado antes de aprovar este contrato.</p>' : '')
+          + (r.legal.summary ? '<p style="white-space:pre-line;margin:10px 0 0;">' + esc(r.legal.summary) + '</p>' : '')
+          + r.legal.weaknesses.map(function (f, i) {
+              return '<div class="achado" style="background:var(--surface);margin-top:10px;">'
+                + (f.clause > 0 ? '<div class="meta"><b>Cláusula ' + f.clause + '</b></div>' : '')
+                + esc(f.point)
+                + (f.suggestion ? '<div class="meta" style="margin-top:4px;"><b>Sugestão:</b> ' + esc(f.suggestion) + '</div>' : '')
+                + '<button type="button" class="linkbtn" data-levar-j="' + i + '">Levar para a observação ' + (f.uid ? 'da cláusula' : 'geral') + '</button>'
+                + '</div>';
+            }).join('')
+          + '<p class="meta">Orientação automática, não é parecer jurídico.</p></div>';
+      }
       r.findings.forEach(function (a, i) {
         h += '<div class="achado"><div class="meta"><b>' + esc(GRAVIDADE[a.severity] || a.severity) + '</b>'
           + (a.clause > 0 ? ' · Cláusula ' + a.clause : '') + (a.where ? ' · ' + esc(a.where) : '') + '</div>'
@@ -493,9 +511,15 @@
   });
 
   $('#iaUltima').addEventListener('click', function (e) {
-    var b = e.target.closest('[data-levar]');
+    var b = e.target.closest('[data-levar], [data-levar-j]');
     if (!b) return;
-    var a = atual.ai.review.findings[+b.dataset.levar];
+    var a;
+    if (b.dataset.levarJ !== undefined) {
+      var f = atual.ai.review.legal.weaknesses[+b.dataset.levarJ];
+      a = { uid: f.uid, problem: 'Jurídico: ' + f.point, suggestion: f.suggestion };
+    } else {
+      a = atual.ai.review.findings[+b.dataset.levar];
+    }
     var texto = a.problem + (a.suggestion ? ' Sugestão: ' + a.suggestion : '');
     if (a.uid && clausulas[a.uid]) {
       obs[a.uid] = (obs[a.uid] ? obs[a.uid] + '\n' : '') + texto;

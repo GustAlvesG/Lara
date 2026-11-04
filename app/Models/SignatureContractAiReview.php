@@ -24,6 +24,17 @@ class SignatureContractAiReview extends Model
 
     public const SEVERITIES = ['alta', 'media', 'baixa'];
 
+    /** Revisão jurídica (04/11/2026): o nível de risco do contrato para o clube. */
+    public const LEGAL_RISK_LOW = 'baixo';
+    public const LEGAL_RISK_MEDIUM = 'medio';
+    public const LEGAL_RISK_HIGH = 'alto';
+
+    public const LEGAL_RISK_LABELS = [
+        self::LEGAL_RISK_LOW => 'Risco jurídico baixo',
+        self::LEGAL_RISK_MEDIUM => 'Risco jurídico médio',
+        self::LEGAL_RISK_HIGH => 'Risco jurídico alto',
+    ];
+
     /** Por que um trecho fica fora da análise, a menos que quem pede o inclua. */
     public const SENSITIVE_LABELS = [
         'valores' => 'valores',
@@ -41,6 +52,7 @@ class SignatureContractAiReview extends Model
         'findings',
         'withheld',
         'extras',
+        'legal',
         'input_tokens',
         'output_tokens',
         'requested_by',
@@ -52,6 +64,7 @@ class SignatureContractAiReview extends Model
         'findings' => 'array',
         'withheld' => 'array',
         'extras' => 'array',
+        'legal' => 'array',
         'input_tokens' => 'integer',
         'output_tokens' => 'integer',
         'requested_by' => 'integer',
@@ -70,6 +83,39 @@ class SignatureContractAiReview extends Model
     public function extraParts(): array
     {
         return array_values($this->extras ?? []);
+    }
+
+    /**
+     * A revisão jurídica (só nas pedidas pela Gerência), ou null.
+     *
+     * @return array{risk: string, summary: string, weaknesses: array<int, array{clausula: int, point: string, suggestion: string}>, seek_lawyer: bool}|null
+     */
+    public function legalReview(): ?array
+    {
+        return is_array($this->legal) && isset($this->legal['risk']) ? $this->legal : null;
+    }
+
+    public function legalRiskLabel(): ?string
+    {
+        $juridica = $this->legalReview();
+
+        return $juridica ? (self::LEGAL_RISK_LABELS[$juridica['risk']] ?? $juridica['risk']) : null;
+    }
+
+    /** Para a pílula da tela: ok | warn | danger. */
+    public function legalRiskKind(): string
+    {
+        return match ($this->legalReview()['risk'] ?? null) {
+            self::LEGAL_RISK_HIGH => 'danger',
+            self::LEGAL_RISK_MEDIUM => 'warn',
+            default => 'ok',
+        };
+    }
+
+    /** Risco alto: a tela orienta procurar um jurídico especializado. */
+    public function seeksLawyer(): bool
+    {
+        return (bool) ($this->legalReview()['seek_lawyer'] ?? false);
     }
 
     /** Chaves dos trechos que ficaram de fora, em ordem (para comparar pedidos). */

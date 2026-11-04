@@ -423,6 +423,74 @@ class SignatureContractAiReviewTest extends TestCase
             ->assertDontSee('Analisar com o Claude');
     }
 
+    /** A resposta da Gerência, com a parte jurídica. */
+    private function revisaoComJuridico(string $risco, bool $procurar = false): array
+    {
+        return $this->revisaoPronta() + ['juridico' => [
+            'risco' => $risco,
+            'resumo' => 'A multa só pesa contra o clube.',
+            'fraquezas' => [
+                ['clausula' => 3, 'ponto' => 'Multa sem contrapartida para a contratada.', 'sugestao' => 'Prever multa recíproca.'],
+                ['clausula' => 0, 'ponto' => '', 'sugestao' => 'vazio: some'],
+            ],
+            'procurar_juridico' => $procurar,
+        ]];
+    }
+
+    public function test_gerencia_recebe_a_revisao_juridica_e_risco_alto_orienta_procurar_o_juridico(): void
+    {
+        // O modelo diz "não precisa", mas o risco é alto: o Lara orienta mesmo assim.
+        $this->app->instance(ClaudeClient::class, $this->clienteComRespostas($this->respostaDaApi($this->revisaoComJuridico('alto', false))));
+        $contrato = $this->contrato();
+        app(ContractService::class)->submit($contrato, null, 7, 'Compradora');
+        $gerente = $this->usuario(true);
+
+        $this->actingAs($gerente)->post(route('contracts.ai-review', $contrato))->assertRedirect();
+
+        $corpo = json_encode(json_decode((string) $this->historico[0]['request']->getBody(), true), JSON_UNESCAPED_UNICODE);
+        $this->assertStringContainsString('Revisão jurídica (pedida pela Gerência)', $corpo);
+        $this->assertStringContainsString('procurar_juridico', $corpo);
+
+        $revisao = $contrato->aiReviews()->first();
+        $this->assertSame('alto', $revisao->legalReview()['risk']);
+        $this->assertTrue($revisao->seeksLawyer());
+        $this->assertCount(1, $revisao->legalReview()['weaknesses'], 'fraqueza sem ponto é descartada');
+        $this->assertSame(3, $revisao->legalReview()['weaknesses'][0]['clausula']);
+
+        $this->actingAs($gerente)->get(route('contracts.show', $contrato))
+            ->assertOk()
+            ->assertSee('Revisão jurídica')
+            ->assertSee('Risco jurídico alto')
+            ->assertSee('Procure um jurídico especializado antes de aprovar este contrato.')
+            ->assertSee('Multa sem contrapartida para a contratada.')
+            ->assertSee('não é parecer jurídico');
+    }
+
+    public function test_quem_redige_nao_recebe_a_parte_juridica_e_a_gerencia_pede_de_novo(): void
+    {
+        $this->app->instance(ClaudeClient::class, $this->clienteComRespostas(
+            $this->respostaDaApi($this->revisaoPronta()),
+            $this->respostaDaApi($this->revisaoComJuridico('medio')),
+        ));
+        $revisor = app(ContractAiReviewer::class);
+        $contrato = $this->contrato();
+
+        $sem = $revisor->review($contrato, 7, 'Compradora');
+        $corpo = json_encode(json_decode((string) $this->historico[0]['request']->getBody(), true), JSON_UNESCAPED_UNICODE);
+        $this->assertStringNotContainsString('procurar_juridico', $corpo);
+        $this->assertNull($sem['review']->legalReview());
+
+        // O mesmo texto, agora pela Gerência: a revisão sem a parte jurídica não serve.
+        $com = $revisor->review($contrato->fresh(), 9, 'Gerente', [], [], true);
+        $this->assertFalse($com['reused']);
+        $this->assertSame('medio', $com['review']->legalReview()['risk']);
+        $this->assertFalse($com['review']->seeksLawyer());
+
+        // E a de quem redige, depois, pode reaproveitar a que já tem tudo.
+        $this->assertTrue($revisor->review($contrato->fresh(), 7, 'Compradora')['reused']);
+        $this->assertCount(2, $this->historico);
+    }
+
     public function test_sem_chave_a_revisao_some_da_tela(): void
     {
         config(['claude.api_key' => '']);

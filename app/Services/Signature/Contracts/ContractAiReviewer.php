@@ -33,10 +33,32 @@ use Illuminate\Support\Str;
  * fornecedor, contrato anterior, orientação do jurídico). Vão ao Claude como
  * material de referência, fora da minuta, e ficam guardados na revisão.
  * Outros trechos = outro pedido (não reaproveita a revisão anterior).
+ *
+ * Revisão jurídica (04/11/2026, pedido do usuário): quando quem pede é da
+ * Gerência, a MESMA chamada traz também uma revisão jurídica simples — nível
+ * de risco do contrato para o clube (baixo, médio, alto), um resumo e as
+ * possíveis fraquezas. Em risco alto, a orientação é procurar um jurídico
+ * especializado antes de aprovar (`seek_lawyer`, forçado pelo Lara). Só
+ * orienta: não trava a aprovação e não é parecer jurídico.
  */
 class ContractAiReviewer
 {
     public const MAX_FINDINGS = 30;
+
+    /** Revisão jurídica: quantas fraquezas guardar. */
+    public const MAX_LEGAL_WEAKNESSES = 10;
+
+    private const LEGAL_SYSTEM = <<<'TXT'
+
+Revisão jurídica (pedida pela Gerência):
+- Além da revisão acima, preencha "juridico" com uma revisão jurídica SIMPLES, do ponto de vista do clube (o CONTRATANTE), à luz do direito brasileiro.
+- Aponte possíveis fraquezas: responsabilidades e obrigações mal definidas, falta de garantias, multas ou penalidades desproporcionais ou só contra o clube, rescisão sem saída para o clube, reajuste sem índice, prazos de aviso, foro, cláusulas que podem ser nulas ou abusivas, falta de proteção de dados pessoais (LGPD) quando houver, propriedade intelectual, seguros e responsabilidade trabalhista de terceirizados quando couber.
+- "risco": "baixo" (só ajustes de redação ou pontos menores), "medio" (fraquezas que convém corrigir antes de assinar) ou "alto" (pode causar prejuízo relevante, nulidade ou exposição séria do clube).
+- "resumo": 1 a 3 frases em linguagem simples, para quem não é advogado.
+- "fraquezas": no máximo 10, da mais séria para a menor, com a cláusula (0 = geral), o ponto fraco e a sugestão.
+- "procurar_juridico": true quando o risco for alto, ou quando o tema exigir análise de um advogado especializado; nesse caso diga isso no resumo.
+- Isto não é parecer jurídico: não afirme que o contrato é válido ou seguro.
+TXT;
 
     /** Trechos anexados a um pedido: quantos e o tamanho de cada um. */
     public const MAX_EXTRAS = 5;
@@ -96,11 +118,12 @@ TXT;
      *
      * @param  array<int, string>  $include
      * @param  array<int, mixed>  $extras  trechos anexados ao pedido: [{title, text}]
+     * @param  bool  $legal  inclui a revisão jurídica (quem pede é da Gerência)
      * @return array{review: SignatureContractAiReview, reused: bool}
      *
      * @throws ClaudeException
      */
-    public function review(SignatureContract $contract, ?int $userId, ?string $userName, array $include = [], array $extras = []): array
+    public function review(SignatureContract $contract, ?int $userId, ?string $userName, array $include = [], array $extras = [], bool $legal = false): array
     {
         $extras = self::normalizeExtras($extras);
 
@@ -119,7 +142,9 @@ TXT;
         sort($chaves);
 
         $existente = $contract->aiReviews()->where('content_hash', $hash)->get()
-            ->first(fn(SignatureContractAiReview $r) => $r->withheldKeys() === $chaves && $r->extraParts() === $extras);
+            // Pedido com a parte jurídica só reaproveita revisão que a tenha.
+            ->first(fn(SignatureContractAiReview $r) => $r->withheldKeys() === $chaves && $r->extraParts() === $extras
+                && (!$legal || $r->legalReview() !== null));
 
         if ($existente) {
             return ['review' => $existente, 'reused' => true];
@@ -133,9 +158,9 @@ TXT;
 
         $resposta = $this->claude->structured(
             model: (string) config('claude.contract_review.model'),
-            system: self::SYSTEM,
+            system: self::SYSTEM . ($legal ? self::LEGAL_SYSTEM : ''),
             prompt: $this->prompt($contract, $texto, $retidos, $extras),
-            schema: $this->schema(),
+            schema: $this->schema($legal),
             maxTokens: (int) config('claude.contract_review.max_tokens', 16000),
             effort: config('claude.contract_review.effort'),
         );
@@ -154,6 +179,7 @@ TXT;
             'findings' => $this->findings($dados['apontamentos'] ?? [], $totalClausulas),
             'withheld' => $retidos,
             'extras' => $extras !== [] ? $extras : null,
+            'legal' => $legal ? $this->legal($dados['juridico'] ?? null, $totalClausulas) : null,
             'input_tokens' => $resposta['input_tokens'],
             'output_tokens' => $resposta['output_tokens'],
             'requested_by' => $userId,
@@ -166,6 +192,7 @@ TXT;
             'findings' => count($review->findings),
             'withheld' => count($retidos),
             'extras' => count($extras),
+            'juridico' => $review->legalReview()['risk'] ?? null,
         ]);
 
         return ['review' => $review, 'reused' => false];
@@ -381,9 +408,9 @@ TXT;
     }
 
     /** @return array<string, mixed> */
-    private function schema(): array
+    private function schema(bool $legal = false): array
     {
-        return [
+        $esquema = [
             'type' => 'object',
             'properties' => [
                 'veredito' => [
@@ -410,6 +437,76 @@ TXT;
             ],
             'required' => ['veredito', 'resumo', 'apontamentos'],
             'additionalProperties' => false,
+        ];
+
+        if ($legal) {
+            $esquema['properties']['juridico'] = [
+                'type' => 'object',
+                'properties' => [
+                    'risco' => [
+                        'type' => 'string',
+                        'enum' => array_keys(SignatureContractAiReview::LEGAL_RISK_LABELS),
+                        'description' => 'baixo, medio ou alto (pode causar prejuízo relevante, nulidade ou exposição séria do clube)',
+                    ],
+                    'resumo' => ['type' => 'string', 'description' => '1 a 3 frases em linguagem simples.'],
+                    'fraquezas' => [
+                        'type' => 'array',
+                        'items' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'clausula' => ['type' => 'integer', 'description' => 'Número da cláusula; 0 = geral.'],
+                                'ponto' => ['type' => 'string'],
+                                'sugestao' => ['type' => 'string'],
+                            ],
+                            'required' => ['clausula', 'ponto', 'sugestao'],
+                            'additionalProperties' => false,
+                        ],
+                    ],
+                    'procurar_juridico' => ['type' => 'boolean', 'description' => 'true quando convém procurar um jurídico especializado (sempre no risco alto).'],
+                ],
+                'required' => ['risco', 'resumo', 'fraquezas', 'procurar_juridico'],
+                'additionalProperties' => false,
+            ];
+            $esquema['required'][] = 'juridico';
+        }
+
+        return $esquema;
+    }
+
+    /**
+     * A revisão jurídica limpa. Risco desconhecido vira médio; risco alto
+     * SEMPRE orienta procurar o jurídico, diga o modelo o que disser.
+     *
+     * @return array{risk: string, summary: string, weaknesses: array<int, array{clausula: int, point: string, suggestion: string}>, seek_lawyer: bool}
+     */
+    private function legal(mixed $dados, int $totalClausulas): array
+    {
+        $dados = is_array($dados) ? $dados : [];
+        $risco = array_key_exists($dados['risco'] ?? null, SignatureContractAiReview::LEGAL_RISK_LABELS)
+            ? $dados['risco']
+            : SignatureContractAiReview::LEGAL_RISK_MEDIUM;
+
+        $fraquezas = [];
+
+        foreach (array_slice(is_array($dados['fraquezas'] ?? null) ? $dados['fraquezas'] : [], 0, self::MAX_LEGAL_WEAKNESSES) as $f) {
+            if (!is_array($f) || trim((string) ($f['ponto'] ?? '')) === '') {
+                continue;
+            }
+
+            $clausula = (int) ($f['clausula'] ?? 0);
+
+            $fraquezas[] = [
+                'clausula' => $clausula >= 1 && $clausula <= $totalClausulas ? $clausula : 0,
+                'point' => Str::limit(trim((string) $f['ponto']), 1500),
+                'suggestion' => Str::limit(trim((string) ($f['sugestao'] ?? '')), 2000),
+            ];
+        }
+
+        return [
+            'risk' => $risco,
+            'summary' => Str::limit(trim((string) ($dados['resumo'] ?? '')), 2000),
+            'weaknesses' => $fraquezas,
+            'seek_lawyer' => $risco === SignatureContractAiReview::LEGAL_RISK_HIGH || (bool) ($dados['procurar_juridico'] ?? false),
         ];
     }
 

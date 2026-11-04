@@ -57,7 +57,9 @@ O texto enviado sai do Lara e vai para a Anthropic. A tela avisa isso ao lado do
 não precisem ir: cada uso monta o próprio texto, só com o necessário. Nos contratos (desde 28/10/2026), os
 trechos com valores, CPF, documentos ou endereço ficam de fora por padrão e só vão se quem pede marcar cada um
 (`ContractAiReviewer::SENSITIVE`, ver [contratos.md](contratos.md#revisão-automática-pelo-claude)). Novo uso
-com dado pessoal: siga a mesma régua. Desde 04/11/2026, quem pede pode anexar trechos de texto ao pedido
+com dado pessoal: siga a mesma régua. Desde 04/11/2026, a revisão pedida pela Gerência inclui uma revisão
+jurídica simples na mesma chamada (ver [contratos.md](contratos.md#revisão-automática-pelo-claude)): orienta, não é
+parecer, e em risco alto manda procurar um jurídico especializado. Também desde 04/11/2026, quem pede pode anexar trechos de texto ao pedido
 (proposta, contrato anterior): eles vão como digitados, sem esse filtro, e a tela avisa que o texto vai à
 Anthropic.
 
