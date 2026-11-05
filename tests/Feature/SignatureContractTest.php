@@ -126,7 +126,8 @@ class SignatureContractTest extends TestCase
         $this->assertStringContainsString('10% (dez por cento)', $html);
         $this->assertStringContainsString('previsto no item 2.1', $html);
         $this->assertStringContainsString('A <strong>CONTRATADA</strong> é pessoa jurídica', $html);
-        $this->assertStringContainsString('CONTRATO DE PRESTAÇÃO DE SERVIÇOS, QUE ENTRE SI CELEBRAM CLUBE DOS FUNCIONÁRIOS DA CSN E A.C.S TRADING LTDA.', $html);
+        // Cabeçalho fixo desde 05/11/2026 (o título digitado é só o nome interno).
+        $this->assertStringContainsString('CONTRATO DE PRESTAÇÃO DE SERVIÇO QUE ENTRE SI FAZEM: CLUBE DOS FUNCIONÁRIOS DA CSN E A.C.S TRADING LTDA.', $html);
         // O clube pelo CNPJ escolhido, representado pelo presidente.
         $this->assertStringContainsString('32.500.951/0005-40', $html);
         $this->assertStringContainsString('representado por seu Presidente, Alex Ribeiro da Silva', $html);
@@ -291,6 +292,9 @@ class SignatureContractTest extends TestCase
         $contrato = $this->contrato();
         $this->service()->submit($contrato, null, 7, 'Compradora');
         $this->service()->approve($contrato->fresh(), null, 9, 'Gerente');
+
+        // Aditivo só de contrato já assinado (05/11/2026).
+        $contrato->fresh()->document->forceFill(['status' => SignatureDocument::STATUS_FINALIZED])->save();
 
         $aditivo = $this->service()->createAddendum($contrato->fresh(), 7, 'Compradora');
 

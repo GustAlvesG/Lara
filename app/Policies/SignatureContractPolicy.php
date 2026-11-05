@@ -129,11 +129,20 @@ class SignatureContractPolicy
         return $user->can(P::ASSINATURA_CONTRATOS) || $user->isManagementMember();
     }
 
-    /** Criar aditivo: de quem redige pelo setor. */
+    /** Criar aditivo: de quem redige pelo setor, e só de contrato já assinado (05/11/2026). */
     public function addendum(User $user, SignatureContract $contract): bool
     {
-        return $contract->status === SignatureContract::STATUS_APPROVED
+        return $contract->isSigned()
             && ($this->isSectorWriter($user, $contract) || ($user->isManagementMember() && $user->can(P::ASSINATURA_CONTRATOS)));
+    }
+
+    /**
+     * Marcar/desmarcar como aditivo (05/11/2026): quem pode mexer no texto,
+     * enquanto o contrato não foi aprovado.
+     */
+    public function changeKind(User $user, SignatureContract $contract): bool
+    {
+        return $contract->canChangeKind() && $this->update($user, $contract);
     }
 
     /** O titular da área da Presidência (quem assina pelo clube). */

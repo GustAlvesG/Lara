@@ -4,6 +4,11 @@
     outra parte, com busca no cadastro). Ao criar, o contratado já entra como
     parte e como quem assina pela contratada; o editor abre nas variáveis,
     cláusulas e signatários (04/11/2026, pedido do usuário).
+
+    05/11/2026: no alto, Contrato ou Aditivo. Aditivo é um formulário à parte
+    (kind=addendum + o contrato assinado): nasce com as partes, o CNPJ, as
+    variáveis e quem assina pela contratada do último aditivo assinado (ou do
+    principal) — ContractService::createAddendum.
 --}}
 @php
     $field = 'w-full rounded-xl border border-line-strong bg-surface px-4 py-2.5 text-sm text-ink focus:border-grena focus:ring-4 focus:ring-grena-tint';
@@ -25,7 +30,55 @@
                 o contrato pertence ao setor de quem o redige.
             </x-empty-state>
         @else
-            <form method="POST" action="{{ route('contracts.store') }}" class="space-y-5" data-contract-create>
+            @php $tipoInicial = old('kind') === 'addendum' ? 'addendum' : 'contract'; @endphp
+            <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Contrato ou aditivo">
+                @foreach(['contract' => 'Contrato novo', 'addendum' => 'Aditivo de contrato assinado'] as $valor => $rotulo)
+                    <label class="cursor-pointer">
+                        <input type="radio" name="tipo_novo" value="{{ $valor }}" class="peer sr-only" data-new-kind @checked($tipoInicial === $valor)>
+                        <span class="inline-block rounded-full bg-subtle px-4 py-2 text-sm font-bold text-ink peer-checked:bg-grena peer-checked:text-white">{{ $rotulo }}</span>
+                    </label>
+                @endforeach
+            </div>
+
+            {{-- Aditivo: escolhe o contrato assinado; partes, variáveis e o signatário da contratada vêm dele. --}}
+            <form method="POST" action="{{ route('contracts.store') }}" @class(['space-y-5', 'hidden' => $tipoInicial !== 'addendum']) data-addendum-create>
+                @csrf
+                <input type="hidden" name="kind" value="addendum">
+                <section class="{{ $card }}">
+                    @if($originals->isEmpty())
+                        <p class="text-sm text-ink-2">Nenhum contrato assinado que você possa ver. Aditivo só de contrato já assinado.</p>
+                    @else
+                        <div>
+                            <label for="parent_id" class="{{ $label }}">Aditivo do contrato</label>
+                            <select name="parent_id" id="parent_id" class="{{ $field }}" required>
+                                <option value="">Escolha o contrato assinado…</option>
+                                @foreach($originals as $original)
+                                    <option value="{{ $original->id }}" @selected((int) old('parent_id') === $original->id)>
+                                        {{ $original->number }} — {{ $original->title }}{{ $original->counterpartyName() ? ' — ' . $original->counterpartyName() : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('parent_id')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
+                            <p class="mt-1 text-xs text-ink-3">Só contratos já assinados. O aditivo fica no setor do contrato e ganha o número dele com A1, A2…</p>
+                        </div>
+                        <div>
+                            <label for="addendum_title" class="{{ $label }}">Título (nome interno)</label>
+                            <input type="text" name="title" id="addendum_title" maxlength="200" value="{{ old('title') }}" class="{{ $field }}"
+                                   placeholder="Em branco = Termo aditivo ao contrato CTL - …">
+                        </div>
+                        <p class="text-xs text-ink-3">
+                            Vêm do último aditivo assinado (ou do contrato, se não houver): a contratada e os fiadores, o CNPJ do clube,
+                            as variáveis e quem assina pela contratada. Testemunhas e fiador que assina, você escolhe de novo. No texto,
+                            use também as variáveis do contrato original (<code class="font-mono">[[original:…]]</code>, em "Inserir variável").
+                        </p>
+                        <div class="flex justify-end">
+                            <x-primary-button>Criar aditivo e ir para as cláusulas</x-primary-button>
+                        </div>
+                    @endif
+                </section>
+            </form>
+
+            <form method="POST" action="{{ route('contracts.store') }}" @class(['space-y-5', 'hidden' => $tipoInicial === 'addendum']) data-contract-create>
                 @csrf
 
                 {{-- 1. Contrato --}}
@@ -150,6 +203,16 @@
         (function () {
             var form = document.querySelector('[data-contract-create]');
             if (!form) return;
+
+            // Contrato novo × aditivo: um formulário de cada.
+            var aditivo = document.querySelector('[data-addendum-create]');
+            document.querySelectorAll('[data-new-kind]').forEach(function (r) {
+                r.addEventListener('change', function () {
+                    var ehAditivo = r.value === 'addendum' && r.checked;
+                    aditivo.classList.toggle('hidden', !ehAditivo);
+                    form.classList.toggle('hidden', ehAditivo);
+                });
+            });
 
             // O modelo é do setor: ao trocar o setor, só os modelos dele ficam escolhíveis.
             var setor = document.getElementById('sector_id');

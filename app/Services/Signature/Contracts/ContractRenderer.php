@@ -237,7 +237,12 @@ class ContractRenderer
 
         $chave = 0;
 
-        return array_map(function (array $signer) use (&$chave, $termoClube, $contratada, $termoFiador) {
+        // O cargo que sai sob o nome (05/11/2026): do diretor, a área da Diretoria; dos
+        // demais, o cargo digitado. O papel (CONTRATANTE, CONTRATADA, Testemunha) não sai.
+        $areas = \App\Models\SignatureDirectorArea::whereIn('id', collect($lista)->where('source', 'director')->pluck('area_id')->filter()->all())
+            ->pluck('name', 'id');
+
+        return array_map(function (array $signer) use (&$chave, $termoClube, $contratada, $termoFiador, $areas, $presidente) {
             $base = match ($signer['party']) {
                 ContractContent::SIGNER_CONTRATANTE => $termoClube,
                 ContractContent::SIGNER_CONTRATADA => trim(($contratada['term'] ?? 'CONTRATADA')
@@ -246,9 +251,14 @@ class ContractRenderer
                 default => 'Testemunha',
             };
 
+            $cargo = $signer['source'] === 'director'
+                ? (string) ($areas[(int) $signer['area_id']] ?? (!empty($signer['president']) ? ($presidente['area_name'] ?? '') : ''))
+                : (string) $signer['caption'];
+
             return $signer + [
                 'key' => 'p' . (++$chave),
                 'label' => mb_substr($base . (filled($signer['caption']) ? ' — ' . $signer['caption'] : ''), 0, 190),
+                'cargo' => $cargo,
             ];
         }, $lista);
     }
@@ -299,6 +309,13 @@ class ContractRenderer
             $lista[] = ['token' => '[[' . $variavel['key'] . ']]', 'label' => $variavel['label']];
         }
 
+        // Aditivo (05/11/2026): as variáveis do contrato original, como estão na base.
+        $base = $content['addendum']['base_number'] ?? null;
+
+        foreach ($content['addendum']['variables'] ?? [] as $variavel) {
+            $lista[] = ['token' => '[[original:' . $variavel['key'] . ']]', 'label' => 'Do contrato ' . $base . ': ' . $variavel['label']];
+        }
+
         return $lista;
     }
 
@@ -323,7 +340,7 @@ class ContractRenderer
             foreach ($marcadores[1] as $token) {
                 [$tipo, $chave] = $this->parseToken($token);
 
-                if ($tipo === 'ref' || $chave === '') {
+                if ($tipo !== 'var' || $chave === '') {
                     continue;
                 }
 
@@ -494,7 +511,16 @@ class ContractRenderer
 
         $refs = collect($this->outline($content))->map(fn(array $o) => $o['number'])->all();
 
-        return ['values' => $valores, 'refs' => $refs, 'preview' => !$documento];
+        // Aditivo: as variáveis da base (último aditivo assinado ou o principal), para [[original:chave]].
+        $originais = [];
+
+        foreach (($content['addendum']['variables'] ?? []) as $variavel) {
+            [$texto, $falha] = ContractVariables::format($variavel['type'], $variavel['value']);
+
+            $originais[$variavel['key']] = [e($texto), $falha];
+        }
+
+        return ['values' => $valores, 'refs' => $refs, 'original' => $originais, 'addendum' => !empty($content['addendum']), 'preview' => !$documento];
     }
 
     /**
@@ -511,9 +537,10 @@ class ContractRenderer
             function (array $m) use ($ctx) {
                 [$tipo, $chave] = $this->parseToken($m[1]);
 
+                $fonte = $tipo === 'orig' ? $ctx['original'] : $ctx['values'];
                 $valor = $tipo === 'ref'
                     ? ($ctx['refs'][$chave] ?? null)
-                    : (isset($ctx['values'][$chave]) && $ctx['values'][$chave][0] !== '' ? $ctx['values'][$chave][0] : null);
+                    : (isset($fonte[$chave]) && $fonte[$chave][0] !== '' ? $fonte[$chave][0] : null);
 
                 if ($valor !== null) {
                     return $valor;
@@ -530,7 +557,9 @@ class ContractRenderer
     }
 
     /**
-     * "ref:abc123" → ['ref', 'abc123']; "Valor global" → ['var', 'valor_global'].
+     * "ref:abc123" → ['ref', 'abc123']; "Valor global" → ['var', 'valor_global'];
+     * "original:valor_global" → ['orig', 'valor_global'] (variável do contrato
+     * original, num aditivo — 05/11/2026).
      *
      * @return array{0: string, 1: string}
      */
@@ -540,6 +569,10 @@ class ContractRenderer
 
         if (preg_match('/^ref:\s*([a-z0-9]+)$/i', $token, $m)) {
             return ['ref', strtolower($m[1])];
+        }
+
+        if (preg_match('/^original\s*:\s*(.+)$/iu', $token, $m)) {
+            return ['orig', ContractContent::keyFor($m[1])];
         }
 
         return ['var', ContractContent::keyFor($token)];
@@ -567,6 +600,18 @@ class ContractRenderer
             if ($tipo === 'ref') {
                 if (!isset($ctx['refs'][$chave])) {
                     $erro('Remissão ' . $onde . ' aponta para uma cláusula ou item que não existe mais. Refaça a remissão.', $clausula);
+                }
+
+                continue;
+            }
+
+            if ($tipo === 'orig') {
+                if (!$ctx['addendum']) {
+                    $erro('[[' . $token . ']] ' . $onde . ': só aditivo usa variável do contrato original.', $clausula);
+                } elseif (!isset($ctx['original'][$chave])) {
+                    $erro('O contrato original não tem a variável [[' . $token . ']] (' . $onde . '). Escolha em "Inserir variável".', $clausula);
+                } elseif ($ctx['original'][$chave][0] === '') {
+                    $erro('A variável [[' . $token . ']] ' . $onde . ' não está preenchida no contrato original.', $clausula);
                 }
 
                 continue;
@@ -760,10 +805,18 @@ class ContractRenderer
             ->values()
             ->all();
 
-        $outra = $nomes === [] ? '…' : (count($nomes) === 1 ? $nomes[0] : implode(', ', array_slice($nomes, 0, -1)) . ' E ' . end($nomes));
+        // Várias contratadas: "A E B E C" (decisão do usuário, 05/11/2026); fiador não entra.
+        $outra = $nomes === [] ? '…' : implode(' E ', $nomes);
 
-        return mb_strtoupper(rtrim((string) ($content['title'] ?? ''), '. ')
-            . ', QUE ENTRE SI CELEBRAM CLUBE DOS FUNCIONÁRIOS DA CSN E ' . $outra) . '.';
+        // Texto FIXO para todo contrato (decisão do usuário, 05/11/2026): o título digitado
+        // é só o nome interno (listas, busca). Aditivo: "1º TERMO ADITIVO AO CONTRATO CTL - 12/26 DE …".
+        $aditivo = $content['addendum'] ?? null;
+        $inicio = $aditivo
+            ? trim(($aditivo['ordinal'] ? $aditivo['ordinal'] . 'º ' : '') . 'TERMO ADITIVO AO CONTRATO ' . $aditivo['parent_number'])
+                . ' DE PRESTAÇÃO DE SERVIÇO'
+            : 'CONTRATO DE PRESTAÇÃO DE SERVIÇO';
+
+        return mb_strtoupper($inicio . ' QUE ENTRE SI FAZEM: CLUBE DOS FUNCIONÁRIOS DA CSN E ' . $outra) . '.';
     }
 
     private function signaturesHtml(array $bloco, bool $documento): string
@@ -784,9 +837,10 @@ class ContractRenderer
             return $html;
         }
 
+        // Nome em maiúsculas e, embaixo, só o cargo (05/11/2026, decisão do usuário).
         $linha = fn(array $s) => '<div class="ct-sig"><div class="ct-sig-line"></div><strong>'
-            . e($s['name'] !== '' ? $s['name'] : '(nome a informar)') . '</strong><br><span>'
-            . e($s['label']) . ($s['source'] === 'director' ? ' (diretoria)' : '') . '</span></div>';
+            . e($s['name'] !== '' ? mb_strtoupper($s['name']) : '(nome a informar)') . '</strong>'
+            . ($s['cargo'] !== '' ? '<br><span>' . e($s['cargo']) . '</span>' : '') . '</div>';
 
         $html = '<div class="ct-sigs">' . $partes->map($linha)->join('') . '</div>';
 

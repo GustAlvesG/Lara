@@ -115,7 +115,8 @@ rascunho ─enviar→ em validação ─devolver→ devolvido ─enviar→ em va
 aprovado ─presidente ou contratada recusa a assinatura→ devolvido (documento encerrado; aprovado de novo, documento novo)
 aprovado ─reabrir→ rascunho   (só enquanto o documento não foi congelado; o rascunho do documento é cancelado)
 rascunho/devolvido/em validação ─cancelar→ cancelado
-aprovado ─criar aditivo→ novo contrato (kind = addendum) em rascunho
+assinado ─criar aditivo (ou Novo contrato → Aditivo)→ novo contrato (kind = addendum) em rascunho
+rascunho/devolvido/em validação ─marcar como aditivo de um assinado→ aditivo (só completa) ─desmarcar→ contrato
 ```
 
 - **Enviar** (`ContractService::submit`): trava se `ContractRenderer::problems()` tem `error`; congela a
@@ -132,6 +133,63 @@ aprovado ─criar aditivo→ novo contrato (kind = addendum) em rascunho
 - **O que mudou**: a tela compara a cópia atual com a última versão **devolvida** (`ContractDiff`):
   cláusulas e itens casados por `uid` (mover não é apagar+criar), diferença palavra a palavra, mais
   partes, variáveis, considerandos e signatários.
+
+## Cabeçalho fixo e aditivos (05/11/2026)
+
+Decisões do usuário entre parênteses.
+
+### Cabeçalho
+- `ContractRenderer::headingText`: **"CONTRATO DE PRESTAÇÃO DE SERVIÇO QUE ENTRE SI FAZEM: CLUBE DOS FUNCIONÁRIOS
+  DA CSN E <PRESTADOR>."** — texto fixo para todo contrato (o título digitado virou só o nome interno: listas,
+  busca, título do documento de assinatura). Várias contratadas: "A E B"; fiador fora.
+- Aditivo: **"1º TERMO ADITIVO AO CONTRATO CTL - 12/26 DE PRESTAÇÃO DE SERVIÇO QUE ENTRE SI FAZEM: …"**. A ordem
+  é a prevista (próximo `addendum_seq`) até a aprovação, quando fica a definitiva.
+- O número continua logo abaixo do cabeçalho.
+- **Sem o título "CTL — título — contratada" no documento final**: `signature/pdf/document.blade.php` não imprime
+  o `<h1>` nem o título do cabeçalho de texto quando o documento é de contrato (`isContract()`); no Word, o
+  cabeçalho de texto (sem papel timbrado) fica só com o nome do Clube (`SignatureLayoutDocx::pages` com título
+  vazio). Listas, tablet e e-mails seguem com o título do documento.
+
+### Bloco de assinaturas
+- Nome em **maiúsculas** e, embaixo, só o **cargo** — sem o papel (CONTRATANTE, CONTRATADA, Testemunha). Decisão
+  do usuário (05/11/2026).
+- Cargo: diretor = a área da relação em Assinaturas → Diretoria (no PDF, `SignatureSigner::directorLabel()`, com
+  "(substituto)"; na prévia e no Word, o nome da área); demais = o "Cargo / qualidade" digitado (`caption`).
+  `ContractRenderer::documentSigners` devolve `cargo`; o PDF usa `SignatureDocumentRenderer::contractCaptions`
+  (só documento de contrato; o documento comum segue com a parte do modelo) na área de assinatura
+  (`pdf/signature-area`, `$contractCaptions`) e na caixa do visto ("Visto — NOME").
+- O `party_label` do signatário continua "CONTRATADA — Empresa…" nas telas de Assinaturas (é o que o atendente
+  lê); só o papel impresso no documento mudou.
+
+### Aditivos
+- **Só de contrato já assinado** (`SignatureContract::isSigned()`: aprovado com documento assinado ou
+  finalizado; `scopeSignedMain`). Policy `addendum` exige isso.
+- **Dois caminhos** (decisão do usuário): o botão **Criar aditivo** na tela do contrato (vincula sozinho) e a
+  opção **Aditivo de contrato assinado** no Novo contrato (`store` com `kind=addendum` + `parent_id`,
+  `storeAddendum`; lista `addendumTargets`: principais assinados que o usuário vê). Nasce no setor do original e
+  abre no passo Cláusulas.
+- **Base** = o último aditivo assinado do contrato principal ou, sem ele, o principal
+  (`ContractService::addendumBase`). Aditivo de aditivo é aditivo do principal (número "CTL - 12/26 A2").
+- **Herda** (`inheritedContent`): partes (contratada e fiadores), CNPJ do clube, termo do clube e variáveis;
+  dos signatários, **só quem assina pela contratada** — o presidente entra sozinho; fiador que assina e
+  testemunhas, quem redige escolhe de novo.
+- **`[[original:chave]]`**: a variável da base no texto (ex.: "o valor de [[original:valor_global]] passa a
+  [[valor_global]]"). Aparece em "Inserir variável" como "Do contrato CTL - …: Valor global". Fora de aditivo,
+  variável que a base não tem ou sem preenchimento = erro na Conferência.
+- **Retrato do original no conteúdo**: `content.addendum` = `{parent_id, parent_number, ordinal, base_number,
+  variables}` (`ContractContent::addendum`), refeito a cada gravação por `ContractService::withAddendumContext`
+  (no `save`, na prévia, na criação, ao vincular e no número da aprovação). O formulário não manda; `null` = não
+  é aditivo. `kind`/`parent_id` do model seguem sendo a fonte.
+- **Marcar/desmarcar como aditivo** (decisão do usuário: "desde que ainda não assinado"; ficou: antes da
+  aprovação — aprovado, o contrato já tem número próprio): `SignatureContract::canChangeKind()` (sem número e em
+  rascunho/devolvido/em validação) + policy `changeKind` (= `update`). Rotas `contracts.link-addendum` e
+  `contracts.unlink-addendum`, na tela do contrato (cartão "Contrato e aditivos"). **Marcar só completa**
+  (`completeFrom`, decisão do usuário): entram as partes que faltam (pelo documento; parte em branco sai), as
+  variáveis que faltam (pela chave) e quem assina pela contratada se ninguém foi indicado; o que já estava fica.
+  Desmarcar mantém o que veio; `[[original:…]]` vira problema. Eventos `linked_addendum`/`unlinked_addendum`.
+- Número: o do original + A1, A2… (na aprovação, como antes).
+- O modelo-base "aditivo de contrato feito fora do Lara" continua sendo um contrato comum (cabeçalho fixo de
+  contrato): aditivo vinculado só existe para contrato assinado no Lara.
 
 ## Revisões da apresentação (05/11/2026)
 
@@ -549,7 +607,8 @@ A revisão automática usa `config/claude.php` (`ANTHROPIC_API_KEY`, `CLAUDE_CON
 - Depois do deploy: cadastrar a área "Presidência" com o titular em Assinaturas → Diretoria (se ainda não
   houver) e dar `assinatura.contratos` aos setores que redigem (Setores).
 - Deploy de 05/11/2026: migration `2026_11_05_100000` (prestador ativo, revisão do texto), `route:cache`
-  (rotas novas: `contracts.autosave`, `contracts.refuse-signature`, `contract-providers.*`) e `npm run build`
+  (rotas novas: `contracts.autosave`, `contracts.refuse-signature`, `contract-providers.*`,
+  `contracts.link-addendum`, `contracts.unlink-addendum`) e `npm run build`
   (`split-*` e classes novas). Nenhuma permissão nova.
 - Modelos-base (04/11/2026): depois do deploy, `php artisan contratos:modelos-base --setor=<setor>` para cada
   setor que vai usá-los (modelo e cláusula são por setor). Rodar de novo não duplica.
@@ -561,6 +620,9 @@ A revisão automática usa `config/claude.php` (`ANTHROPIC_API_KEY`, `CLAUDE_CON
 
 ## Testes
 
+`tests/Feature/SignatureContractAddendumTest.php` (05/11/2026): cabeçalho fixo, PDF sem o título, aditivo só de
+assinado, herança (só a contratada assina), base no último aditivo assinado, `[[original:…]]`, Novo contrato como
+aditivo, marcar (só completa) e desmarcar, e não mudar depois de aprovado.
 `tests/Feature/SignatureContractRevisionsTest.php` (05/11/2026): tipo pelo nome, uso das variáveis e marcador
 sem variável, editor com "Preenchimento" e abas, salvar automático e conflito, Prestadores (cadastro, documento
 único, inativo fora da busca, acesso), recusa do presidente/contratada/testemunha (tablet) e do presidente pela

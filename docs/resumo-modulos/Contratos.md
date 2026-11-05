@@ -53,6 +53,22 @@ o contrato vira um documento de assinatura **em rascunho** do motor de Assinatur
   caracteres) que vão como material de referência depois da minuta e ficam na revisão.
 - Nenhuma API externa: nenhum prompt para outro agente.
 
+## Cabeçalho fixo e aditivos (05/11/2026)
+
+Detalhes em [contratos.md › Cabeçalho fixo e aditivos](../funcionalidades/contratos.md#cabeçalho-fixo-e-aditivos-05112026).
+
+- Cabeçalho FIXO "CONTRATO DE PRESTAÇÃO DE SERVIÇO QUE ENTRE SI FAZEM: CLUBE DOS FUNCIONÁRIOS DA CSN E <PRESTADOR>"
+  (`headingText`; o título é só nome interno); aditivo "1º TERMO ADITIVO AO CONTRATO CTL - … DE PRESTAÇÃO…". O PDF
+  de contrato não imprime o título do documento; o Word não leva título no cabeçalho de texto.
+- Aditivo só de contrato **assinado** (`isSigned`), pelo botão ou pelo Novo contrato (`kind=addendum`). Base =
+  último aditivo assinado ou o principal (`addendumBase`). Herda partes, CNPJ, variáveis e só o signatário da
+  contratada. `[[original:chave]]` no texto. `content.addendum` é refeito por `withAddendumContext` a cada
+  gravação — quem grava `content` por fora tem de passar por ele.
+- Bloco de assinaturas: nome em MAIÚSCULAS e só o cargo (diretor = área da Diretoria; demais = `caption`), sem
+  o papel. `documentSigners()['cargo']` (prévia/Word) e `SignatureDocumentRenderer::contractCaptions` (PDF e visto).
+- Marcar/desmarcar como aditivo antes da aprovação (`canChangeKind`, policy `changeKind`, rotas
+  `contracts.link-addendum`/`unlink-addendum`); marcar só completa (`completeFrom`).
+
 ## Revisões da apresentação (05/11/2026)
 
 Detalhes em [contratos.md › Revisões da apresentação](../funcionalidades/contratos.md#revisões-da-apresentação-05112026).

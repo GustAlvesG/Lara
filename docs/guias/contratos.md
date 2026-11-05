@@ -1,6 +1,6 @@
 ---
 modulo: Contratos
-palavras: contrato, contratos, prestador, prestadores, cadastro de prestadores, inativar prestador, salvar automático, alguém salvou antes de você, preenchimento, variável, recusar assinatura, presidente recusou, contrato recusado, em assinatura, andamento da assinatura, cláusula, minuta, CTL, Gerência, revisão jurídica, risco jurídico, advogado, jurídico especializado, validar, aprovar, devolver, visto da Gerência, rubrica, aditivo, biblioteca, modelo de contrato, contratada, fiador, Word, docx, papel timbrado, revisão automática, Claude, assinatura do contrato, tablet da Gerência
+palavras: contrato, contratos, termo aditivo, aditivo de contrato, marcar como aditivo, variável do contrato original, cabeçalho do contrato, prestador, prestadores, cadastro de prestadores, inativar prestador, salvar automático, alguém salvou antes de você, preenchimento, variável, recusar assinatura, presidente recusou, contrato recusado, em assinatura, andamento da assinatura, cláusula, minuta, CTL, Gerência, revisão jurídica, risco jurídico, advogado, jurídico especializado, validar, aprovar, devolver, visto da Gerência, rubrica, aditivo, biblioteca, modelo de contrato, contratada, fiador, Word, docx, papel timbrado, revisão automática, Claude, assinatura do contrato, tablet da Gerência
 ---
 
 # Contratos — guia de uso
@@ -34,6 +34,9 @@ Validar contratos não é uma permissão: é ser do setor **Gerência**, que vê
 3. Clique em **Salvar e enviar à Gerência**. O coordenador da Gerência recebe um e-mail.
 
 O que O Lara faz por você:
+
+- **Assinaturas no fim do contrato**: cada pessoa aparece com o nome em **maiúsculas** e, embaixo, só o cargo — sem "CONTRATANTE", "CONTRATADA" ou "Testemunha". O cargo do presidente e dos diretores é o da área deles em **Assinaturas › Diretoria** (por exemplo, Presidência); o dos demais é o que você escreve em **Cargo / qualidade** no passo **Quem assina** (em branco, sai só o nome e o CPF). Vale na prévia, no Word e no documento de assinatura.
+- **Cabeçalho do contrato**: sai sempre "CONTRATO DE PRESTAÇÃO DE SERVIÇO QUE ENTRE SI FAZEM: CLUBE DOS FUNCIONÁRIOS DA CSN E <prestador>", com o número embaixo. O **Título** que você digita é só o nome do contrato nas listas e na busca; ele não aparece no documento assinado nem no Word.
 
 - **Numeração automática**: CLÁUSULA PRIMEIRA, 1.1, 1.1.1 não se digitam. Use "Subitem →" para o 1.1.1.
 - **Remissão**: para citar outra cláusula, use **Inserir remissão**; o número acompanha se a ordem mudar.
@@ -136,7 +139,9 @@ Em **Contratos › Biblioteca** fica o que o seu setor guardou para reaproveitar
 - **Modelos de contrato**: com a permissão da biblioteca, na tela de um contrato pronto, **Salvar como modelo do setor** guarda título, termos, variáveis (sem valor), considerandos e cláusulas. Ao criar um **Novo contrato**, escolha o modelo. Remover um modelo não muda os contratos feitos com ele.
 - **Modelos-base do clube**: a partir dos contratos já usados pelo clube, há modelos prontos — obra de engenharia, reforma com medições, serviço pontual (poda, pequenos reparos), mão de obra por diárias, confecção de uniformes, locação de loja ou sala com fiador, publicidade nos telões de LED, permuta, escolinha esportiva e aditivo de contrato feito fora do Lara. Eles aparecem em **Novo contrato** para os setores em que a TI os instalou. Escolha o modelo, preencha a contratada, as **variáveis** (valores, prazos, datas, dados bancários) e os signatários; a lista de problemas diz o que falta. Apague a cláusula ou o item que não se aplicar ao caso. Na biblioteca também há cláusulas avulsas para inserir quando couber: carência para reforma, aluguel escalonado, comissão de agência, amortização de investimento, ratificação do contrato-mãe, proteção de dados (LGPD), inexistência de vínculo, responsabilidade tributária e assinatura eletrônica. Se a cláusula avulsa usar uma variável (como `[[dias_de_carencia]]`), crie a variável com esse nome no contrato.
 - **Contratada**: ao salvar, os dados dela ficam guardados em **Prestadores**. No próximo contrato, use **Buscar nos Prestadores**.
-- **Aditivo**: num contrato aprovado, **Criar aditivo** já vem com as partes, as variáveis e os signatários; escreva só as cláusulas do aditivo. O número é o do contrato com A1, A2…
+- **Aditivo**: só de contrato **já assinado**. Dá para criar de dois jeitos: na tela do contrato assinado, **Criar aditivo**; ou em **Novo contrato**, escolhendo **Aditivo de contrato assinado** e o contrato na lista. O aditivo já vem com a contratada e os fiadores, o CNPJ do clube, as variáveis e quem assina pela contratada — do último aditivo assinado ou, se não houver, do contrato. Testemunhas e fiador que assina, escolha de novo. Escreva as cláusulas do aditivo. O cabeçalho sai "1º TERMO ADITIVO AO CONTRATO CTL - 12/26 DE PRESTAÇÃO DE SERVIÇO…" e o número é o do contrato com A1, A2…
+- **Variável do contrato original**: no aditivo, **Inserir variável** mostra também as do contrato ("Do contrato CTL - 12/26: Valor global"), que entram como `[[original:valor_global]]`. Assim dá para escrever "o valor de [[original:valor_global]] passa a [[valor_global]]".
+- **Marcar um contrato como aditivo**: um contrato ainda não aprovado pode virar aditivo de um contrato assinado. Na tela dele, no cartão **Contrato e aditivos**, escolha o contrato e clique em **Marcar como aditivo**. O que você já escreveu fica; entram só a contratada, as variáveis e quem assina pela contratada que estiverem faltando. **Desmarcar como aditivo** volta a ser contrato comum (o que veio do original continua). Depois de aprovado, não muda mais.
 
 ## Prestadores
 <!-- telas: contract-providers.index -->

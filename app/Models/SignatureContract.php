@@ -274,6 +274,38 @@ class SignatureContract extends Model
         ];
     }
 
+    /**
+     * Assinado: o documento de assinatura terminou (assinado ou finalizado).
+     * Só contrato assinado recebe aditivo (decisão do usuário, 05/11/2026).
+     */
+    public function isSigned(): bool
+    {
+        return $this->status === self::STATUS_APPROVED
+            && $this->document
+            && in_array($this->document->status, [SignatureDocument::STATUS_SIGNED, SignatureDocument::STATUS_FINALIZED], true);
+    }
+
+    /** Contratos principais assinados — os que podem receber aditivo. */
+    public function scopeSignedMain(Builder $query): Builder
+    {
+        return $query->where('kind', self::KIND_CONTRACT)
+            ->where('status', self::STATUS_APPROVED)
+            ->whereHas('document', fn(Builder $d) => $d->whereIn('status', [
+                SignatureDocument::STATUS_SIGNED,
+                SignatureDocument::STATUS_FINALIZED,
+            ]));
+    }
+
+    /**
+     * Dá para marcar/desmarcar como aditivo (05/11/2026): só antes da
+     * aprovação — aprovado, o contrato já tem número próprio.
+     */
+    public function canChangeKind(): bool
+    {
+        return $this->number === null
+            && in_array($this->status, [self::STATUS_DRAFT, self::STATUS_RETURNED, self::STATUS_IN_REVIEW], true);
+    }
+
     public function statusLabel(): string
     {
         return self::STATUS_LABELS[$this->status] ?? $this->status;

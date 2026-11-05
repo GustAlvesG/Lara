@@ -52,9 +52,12 @@ class SignatureLayoutDocx
             $margens['header'] = $sangra ? 0 : 28 * $px;
             $margens['top'] = max(1134, ($cabecalho['height'] + ($sangra ? 28 : 40)) * $px);
         } else {
+            // Título vazio (contrato, 05/11/2026): só o nome do Clube, com o traço embaixo.
             $header = [
-                'xml' => DocxWriter::paragraph([DocxWriter::run(self::CLUB, ['b' => true, 'color' => 'A00001', 'sz' => 23])], ['jc' => 'left'])
-                    . DocxWriter::paragraph([DocxWriter::run($title, ['color' => '6D6062', 'sz' => 16])], ['jc' => 'left', 'border' => true]),
+                'xml' => trim($title) === ''
+                    ? DocxWriter::paragraph([DocxWriter::run(self::CLUB, ['b' => true, 'color' => 'A00001', 'sz' => 23])], ['jc' => 'left', 'border' => true])
+                    : DocxWriter::paragraph([DocxWriter::run(self::CLUB, ['b' => true, 'color' => 'A00001', 'sz' => 23])], ['jc' => 'left'])
+                        . DocxWriter::paragraph([DocxWriter::run($title, ['color' => '6D6062', 'sz' => 16])], ['jc' => 'left', 'border' => true]),
             ];
         }
 

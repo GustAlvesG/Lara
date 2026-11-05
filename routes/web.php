@@ -1590,6 +1590,11 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::post('/reabrir', [SignatureContractController::class, 'reopen'])->name('reopen');
             Route::post('/cancelar', [SignatureContractController::class, 'cancel'])->name('cancel');
             Route::post('/aditivo', [SignatureContractController::class, 'addendum'])->name('addendum');
+            // Marcar/desmarcar como aditivo de um contrato assinado, antes da aprovação (05/11/2026).
+            Route::post('/vincular-aditivo', [SignatureContractController::class, 'linkAddendum'])
+                ->middleware('throttle:20,1')->name('link-addendum');
+            Route::post('/desvincular-aditivo', [SignatureContractController::class, 'unlinkAddendum'])
+                ->middleware('throttle:20,1')->name('unlink-addendum');
             Route::post('/documento', [SignatureContractController::class, 'generateDocument'])
                 ->middleware('throttle:10,1')->name('document');
             Route::get('/word', [SignatureContractController::class, 'docx'])->name('docx');

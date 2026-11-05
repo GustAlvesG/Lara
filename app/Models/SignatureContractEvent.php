@@ -29,6 +29,8 @@ class SignatureContractEvent extends Model
         'attachment_removed' => 'Anexo removido',
         'ai_reviewed' => 'Revisão automática pelo Claude',
         'signature_refused' => 'Assinatura recusada',
+        'linked_addendum' => 'Marcado como aditivo',
+        'unlinked_addendum' => 'Deixou de ser aditivo',
     ];
 
     protected $fillable = [
@@ -61,6 +63,10 @@ class SignatureContractEvent extends Model
             $rotulo .= ' por ' . ($p['por'] ?? 'um signatário')
                 . (!empty($p['devolvido']) ? ' — voltou para revisão' : ' — o documento foi encerrado')
                 . (!empty($p['motivo']) ? '. Motivo: ' . $p['motivo'] : '');
+        }
+
+        if ($this->event === 'linked_addendum' && !empty($this->payload['aditivo_de'])) {
+            $rotulo .= ' do contrato ' . $this->payload['aditivo_de'];
         }
 
         return $rotulo;

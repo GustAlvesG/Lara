@@ -298,12 +298,42 @@
                     @endif
                 </div>
 
-                {{-- Aditivos --}}
-                @if($contract->parent || $contract->addenda->isNotEmpty())
+                {{-- Aditivos. Marcar/desmarcar como aditivo antes da aprovação (05/11/2026): só completa. --}}
+                @php $podeMudarTipo = auth()->user()->can('changeKind', $contract); @endphp
+                @if($contract->parent || $contract->addenda->isNotEmpty() || ($podeMudarTipo && $addendumTargets->isNotEmpty()))
                     <div class="{{ $card }}">
                         <p class="{{ $h }}">Contrato e aditivos</p>
                         @if($contract->parent)
-                            <p class="text-sm">Aditivo de <a href="{{ route('contracts.show', $contract->parent) }}" class="font-bold text-grena-ink hover:underline">{{ $contract->parent->number }} — {{ $contract->parent->title }}</a></p>
+                            <p class="text-sm">Aditivo de
+                                @can('view', $contract->parent)
+                                    <a href="{{ route('contracts.show', $contract->parent) }}" class="font-bold text-grena-ink hover:underline">{{ $contract->parent->number }} — {{ $contract->parent->title }}</a>
+                                @else
+                                    <b>{{ $contract->parent->number }} — {{ $contract->parent->title }}</b>
+                                @endcan
+                            </p>
+                            @if(!empty($contract->content['addendum']['base_number']) && $contract->content['addendum']['base_number'] !== $contract->parent->number)
+                                <p class="text-xs text-ink-2">As variáveis do original vêm do último aditivo assinado: {{ $contract->content['addendum']['base_number'] }}.</p>
+                            @endif
+                            @if($podeMudarTipo)
+                                <form method="POST" action="{{ route('contracts.unlink-addendum', $contract) }}"
+                                      onsubmit="return confirm('Deixar de ser aditivo? O que veio do contrato original continua no texto.')">
+                                    @csrf
+                                    <button type="submit" class="text-xs font-bold text-danger hover:underline">Desmarcar como aditivo</button>
+                                </form>
+                            @endif
+                        @elseif($podeMudarTipo && $addendumTargets->isNotEmpty())
+                            <form method="POST" action="{{ route('contracts.link-addendum', $contract) }}" class="space-y-2"
+                                  onsubmit="return confirm('Marcar como aditivo? Entram as partes, as variáveis e quem assina pela contratada que faltam; o que já está aqui fica.')">
+                                @csrf
+                                <label for="link_parent" class="block text-xs font-bold text-ink-2">É aditivo de um contrato assinado?</label>
+                                <select id="link_parent" name="parent_id" class="{{ $f }}" required>
+                                    <option value="">Escolha o contrato…</option>
+                                    @foreach($addendumTargets as $alvo)
+                                        <option value="{{ $alvo->id }}">{{ $alvo->number }} — {{ $alvo->title }}</option>
+                                    @endforeach
+                                </select>
+                                <x-secondary-button type="submit" size="sm">Marcar como aditivo</x-secondary-button>
+                            </form>
                         @endif
                         @foreach($contract->addenda as $aditivo)
                             <p class="text-sm"><a href="{{ route('contracts.show', $aditivo) }}" class="font-bold text-grena-ink hover:underline">{{ $aditivo->number ?? 'Aditivo sem número' }}</a> — {{ $aditivo->statusLabel() }}</p>

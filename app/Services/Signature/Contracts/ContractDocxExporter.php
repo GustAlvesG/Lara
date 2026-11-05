@@ -52,9 +52,8 @@ class ContractDocxExporter
             };
         }
 
-        $titulo = trim(($contract->number ? $contract->number . ' — ' : '') . (string) $contract->title);
-
-        return DocxWriter::package($corpo, pages: $this->letterhead->pages(SignatureLayout::current(), $titulo));
+        // Sem o título "CTL — título" no cabeçalho de texto (05/11/2026): o cabeçalho do contrato basta.
+        return DocxWriter::package($corpo, pages: $this->letterhead->pages(SignatureLayout::current(), ''));
     }
 
     /**
@@ -75,8 +74,12 @@ class ContractDocxExporter
             }
 
             $xml .= DocxWriter::paragraph([DocxWriter::run('________________________________________')], ['before' => 480, 'jc' => 'left']);
-            $xml .= DocxWriter::paragraph([DocxWriter::run($s['name'] !== '' ? $s['name'] : '(nome a informar)', ['b' => true])], ['jc' => 'left']);
-            $xml .= DocxWriter::paragraph([DocxWriter::run($s['label'])], ['jc' => 'left']);
+            // Nome em maiúsculas e só o cargo embaixo, como na prévia e no PDF (05/11/2026).
+            $xml .= DocxWriter::paragraph([DocxWriter::run($s['name'] !== '' ? mb_strtoupper($s['name']) : '(nome a informar)', ['b' => true])], ['jc' => 'left']);
+
+            if ($s['cargo'] !== '') {
+                $xml .= DocxWriter::paragraph([DocxWriter::run($s['cargo'])], ['jc' => 'left']);
+            }
         }
 
         return $xml;

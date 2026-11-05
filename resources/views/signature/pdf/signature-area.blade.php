@@ -22,10 +22,18 @@
             @endif
 
             <div class="sig-line">
-                <div class="sig-name">{{ $signer->name }}</div>
-                <div class="sig-meta">
-                    {{ $signer->capacityLabel() }} — CPF {{ $signer->maskedCpf() }}
-                </div>
+                @if(isset($contractCaptions))
+                    {{-- Contrato (05/11/2026): nome em maiúsculas e só o cargo, sem o papel (Contratante, Testemunha…). --}}
+                    <div class="sig-name">{{ mb_strtoupper($signer->name) }}</div>
+                    <div class="sig-meta">
+                        {{ ($contractCaptions[$signer->id] ?? '') !== '' ? $contractCaptions[$signer->id] . ' — ' : '' }}CPF {{ $signer->maskedCpf() }}
+                    </div>
+                @else
+                    <div class="sig-name">{{ $signer->name }}</div>
+                    <div class="sig-meta">
+                        {{ $signer->capacityLabel() }} — CPF {{ $signer->maskedCpf() }}
+                    </div>
+                @endif
 
                 @if($mode === SignatureDocumentRenderer::MODE_FINAL && $signer->signed_at)
                     <div class="sig-meta">

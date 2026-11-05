@@ -265,7 +265,10 @@ class SignatureDocumentRenderer
                 : '',
         );
 
-        $area = function (string $parte) use ($grupos, $document, $mode, $imagens): string {
+        // Documento de contrato (05/11/2026): nome em maiúsculas e só o cargo sob ele.
+        $cargos = $this->contractCaptions($document);
+
+        $area = function (string $parte) use ($grupos, $document, $mode, $imagens, $cargos): string {
             $signers = $grupos->get($parte);
 
             if (!$signers || $signers->isEmpty()) {
@@ -277,6 +280,7 @@ class SignatureDocumentRenderer
                 'signers' => $signers,
                 'mode' => $mode,
                 'signatureImages' => $imagens,
+                'contractCaptions' => $cargos,
             ])->render();
         };
 
@@ -490,6 +494,8 @@ class SignatureDocumentRenderer
 
         $vistos = $mode === self::MODE_FINAL ? $this->initialsFiles($signers, $temporarios) : [];
         $caixas = $signers->count() + ($gerencia !== null ? 1 : 0);
+        // Contrato: a caixa leva o nome (em maiúsculas), não o papel.
+        $ehContrato = $this->contractCaptions($document) !== null;
 
         $pt = SignaturePageGeometry::PT_PER_PX;
         $largura = SignaturePageGeometry::VISTO_BOX_WIDTH;
@@ -507,7 +513,7 @@ class SignatureDocumentRenderer
             int $total,
             $canvas,
             $fontMetrics,
-        ) use ($signers, $vistos, $gerencia, $ultimaPagina, $pt, $largura, $altura, $vao, $topo, $inicio) {
+        ) use ($signers, $vistos, $gerencia, $ultimaPagina, $pt, $largura, $altura, $vao, $topo, $inicio, $ehContrato) {
             if ($ultimaPagina !== null && $pagina > $ultimaPagina) {
                 return;
             }
@@ -554,9 +560,9 @@ class SignatureDocumentRenderer
                 $canvas->text(
                     $x * $pt,
                     ($topo + $altura + 3) * $pt,
-                    'Visto — ' . \Illuminate\Support\Str::limit($signer->capacityLabel() === $signer->roleLabel()
-                        ? $signer->name
-                        : $signer->capacityLabel(), 18, '…'),
+                    'Visto — ' . \Illuminate\Support\Str::limit($ehContrato
+                        ? mb_strtoupper($signer->name)
+                        : ($signer->capacityLabel() === $signer->roleLabel() ? $signer->name : $signer->capacityLabel()), 18, '…'),
                     $fonte,
                     5.5,
                     [0.43, 0.38, 0.38],
@@ -582,6 +588,34 @@ class SignatureDocumentRenderer
                 );
             }
         });
+    }
+
+    /**
+     * O que sai sob o nome de cada signatário num documento de CONTRATO
+     * (05/11/2026, decisão do usuário): o diretor, o cargo da relação em
+     * Assinaturas → Diretoria (a área, e "substituto" se for); os demais, o
+     * cargo digitado no contrato. O papel (Contratante, Contratada,
+     * Testemunha) não sai. Null = não é contrato (o documento comum segue com
+     * a parte do modelo).
+     *
+     * @return array<int, string>|null  signatário => cargo ('' = nada)
+     */
+    private function contractCaptions(SignatureDocument $document): ?array
+    {
+        $contrato = $document->relationLoaded('contract') ? $document->contract : $document->contract()->first();
+
+        if (!$contrato) {
+            return null;
+        }
+
+        $porParte = collect(app(\App\Services\Signature\Contracts\ContractRenderer::class)->documentSigners($contrato->content ?? []))
+            ->keyBy('key');
+
+        return $document->signers()->get()->mapWithKeys(fn($s) => [
+            $s->id => $s->isDirector()
+                ? (string) $s->directorLabel()
+                : (string) ($porParte->get((string) $s->party)['caption'] ?? ''),
+        ])->all();
     }
 
     /**

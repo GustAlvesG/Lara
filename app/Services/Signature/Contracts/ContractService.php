@@ -120,7 +120,8 @@ class ContractService
                 . ($contract->status === SignatureContract::STATUS_APPROVED ? ' Para alterar, reabra o contrato.' : ''));
         }
 
-        $conteudo = ContractContent::normalize($input);
+        // O formulário não manda o retrato do original: ele é refeito aqui (aditivo, 05/11/2026).
+        $conteudo = $this->withAddendumContext($contract, $input);
 
         DB::transaction(function () use ($contract, $conteudo, $userName, $expectedRevision, $force) {
             // Lida travada: dois salvando ao mesmo tempo não passam os dois pela conferência.
@@ -609,31 +610,45 @@ class ContractService
         return $contract;
     }
 
+    /*
+     | Aditivos (05/11/2026, decisões do usuário)
+     |
+     | - Só de contrato JÁ ASSINADO (documento assinado ou finalizado).
+     | - Nasce pelo "Criar aditivo" da tela do contrato (vincula sozinho) ou
+     |   pela opção "Aditivo" no Novo contrato; um contrato em redação também
+     |   pode ser marcado como aditivo (e desmarcado) antes da aprovação.
+     | - Herda partes, CNPJ, termos e variáveis da BASE — o último aditivo
+     |   assinado ou, sem ele, o contrato principal — e, dos signatários, só
+     |   quem assina pela contratada (o presidente entra sozinho; fiador e
+     |   testemunhas, quem redige escolhe de novo).
+     | - Marcar um rascunho existente SÓ COMPLETA: o que já está nele fica.
+     | - O texto pode citar a base com [[original:chave]]; o cabeçalho vira
+     |   "1º TERMO ADITIVO AO CONTRATO CTL - 12/26 DE PRESTAÇÃO DE SERVIÇO…".
+     | - Número: o do original + A1, A2… (na aprovação).
+     */
+
     /**
-     * Aditivo de um contrato aprovado: herda partes, variáveis, signatários e
-     * o estabelecimento; começa com uma cláusula em branco. O número
-     * ("CTL - 12/26 A1") sai na aprovação do aditivo.
+     * Aditivo novo de um contrato assinado. Aditivo de aditivo é aditivo do
+     * contrato principal.
      *
      * @throws ContractException
      */
-    public function createAddendum(SignatureContract $contract, ?int $userId, ?string $userName): SignatureContract
+    public function createAddendum(SignatureContract $contract, ?int $userId, ?string $userName, ?string $title = null): SignatureContract
     {
-        if ($contract->status !== SignatureContract::STATUS_APPROVED) {
-            throw new ContractException('Aditivo só de contrato aprovado.');
+        if (!$contract->isSigned()) {
+            throw new ContractException('Aditivo só de contrato já assinado.');
         }
 
-        // Aditivo de aditivo é aditivo do contrato original.
         $original = $contract->isAddendum() && $contract->parent ? $contract->parent : $contract;
+        $base = $this->addendumBase($original)->content ?? [];
 
-        $base = $original->content ?? [];
-
-        $conteudo = ContractContent::normalize(array_merge($base, [
-            'title' => 'Termo aditivo ao contrato ' . $original->number,
+        $conteudo = $this->inheritedContent($base, [
+            'title' => filled($title) ? mb_substr(trim((string) $title), 0, 200) : 'Termo aditivo ao contrato ' . $original->number,
             'considerations' => [],
             'clauses' => [
                 ['title' => 'Do objeto do aditivo', 'items' => [['level' => 1, 'html' => '']]],
             ],
-        ]));
+        ]);
 
         return DB::transaction(function () use ($original, $conteudo, $userId, $userName) {
             $aditivo = SignatureContract::create([
@@ -647,11 +662,219 @@ class ContractService
                 'created_by_name' => $userName,
             ]);
 
+            $aditivo->forceFill(['content' => $this->withAddendumContext($aditivo, $conteudo)])->save();
+
             $this->event($aditivo, 'created', $userId, $userName, ['aditivo_de' => $original->number]);
             $this->event($original, 'addendum_created', $userId, $userName, ['aditivo' => $aditivo->id]);
 
             return $aditivo;
         });
+    }
+
+    /**
+     * Marca um contrato em redação como aditivo de um contrato assinado. Só
+     * completa: entram as partes, variáveis e o signatário da contratada que
+     * faltam; o que já está no contrato fica.
+     *
+     * @throws ContractException
+     */
+    public function linkAddendum(SignatureContract $contract, SignatureContract $target, ?int $userId, ?string $userName): SignatureContract
+    {
+        if (!$contract->canChangeKind()) {
+            throw new ContractException('Só dá para marcar como aditivo antes da aprovação.');
+        }
+
+        if (!$target->isSigned()) {
+            throw new ContractException('Aditivo só de contrato já assinado.');
+        }
+
+        $original = $target->isAddendum() && $target->parent ? $target->parent : $target;
+
+        if ($original->id === $contract->id) {
+            throw new ContractException('Um contrato não pode ser aditivo dele mesmo.');
+        }
+
+        $base = $this->addendumBase($original)->content ?? [];
+
+        return DB::transaction(function () use ($contract, $original, $base, $userId, $userName) {
+            $contract->forceFill([
+                'kind' => SignatureContract::KIND_ADDENDUM,
+                'parent_id' => $original->id,
+            ]);
+
+            $conteudo = $this->completeFrom($contract->content ?? ContractContent::blank(), $base);
+
+            $contract->forceFill([
+                'content' => $this->withAddendumContext($contract, $conteudo),
+                'content_revision' => (int) $contract->content_revision + 1,
+                'content_saved_by_name' => $userName,
+                'content_saved_at' => now(),
+            ])->save();
+
+            $this->event($contract, 'linked_addendum', $userId, $userName, ['aditivo_de' => $original->number]);
+            $this->event($original, 'addendum_created', $userId, $userName, ['aditivo' => $contract->id]);
+
+            return $contract;
+        });
+    }
+
+    /**
+     * Desfaz o vínculo (antes da aprovação): volta a ser contrato comum. O que
+     * foi herdado fica; [[original:…]] passa a ser problema na Conferência.
+     *
+     * @throws ContractException
+     */
+    public function unlinkAddendum(SignatureContract $contract, ?int $userId, ?string $userName): SignatureContract
+    {
+        if (!$contract->isAddendum() || !$contract->canChangeKind()) {
+            throw new ContractException('Só dá para desmarcar o aditivo antes da aprovação.');
+        }
+
+        $antes = $contract->parent?->number;
+
+        $conteudo = $contract->content ?? [];
+        $conteudo['addendum'] = null;
+
+        $contract->forceFill([
+            'kind' => SignatureContract::KIND_CONTRACT,
+            'parent_id' => null,
+            'content' => ContractContent::normalize($conteudo),
+            'content_revision' => (int) $contract->content_revision + 1,
+            'content_saved_by_name' => $userName,
+            'content_saved_at' => now(),
+        ])->save();
+
+        $this->event($contract, 'unlinked_addendum', $userId, $userName, ['era_aditivo_de' => $antes]);
+
+        return $contract;
+    }
+
+    /**
+     * A base do aditivo: o último aditivo ASSINADO do contrato principal ou,
+     * sem nenhum, o próprio principal (decisão do usuário, 05/11/2026).
+     */
+    public function addendumBase(SignatureContract $original, ?int $exceptId = null): SignatureContract
+    {
+        $ultimo = SignatureContract::query()
+            ->where('parent_id', $original->id)
+            ->where('kind', SignatureContract::KIND_ADDENDUM)
+            ->where('status', SignatureContract::STATUS_APPROVED)
+            ->when($exceptId, fn($q) => $q->where('id', '!=', $exceptId))
+            ->whereHas('document', fn($d) => $d->whereIn('status', [SignatureDocument::STATUS_SIGNED, SignatureDocument::STATUS_FINALIZED]))
+            ->orderByDesc('addendum_seq')
+            ->orderByDesc('id')
+            ->first();
+
+        return $ultimo ?? $original;
+    }
+
+    /**
+     * Põe no conteúdo o retrato do original (cabeçalho e [[original:…]]) —
+     * ou tira, se não é aditivo. Chamado a cada gravação: a base pode mudar
+     * (outro aditivo assinado) e a ordem sai na aprovação.
+     *
+     * @param  array<string, mixed>  $content
+     * @return array<string, mixed>
+     */
+    public function withAddendumContext(SignatureContract $contract, array $content): array
+    {
+        $original = $contract->isAddendum() && $contract->parent_id ? SignatureContract::find($contract->parent_id) : null;
+
+        if (!$original || !$original->number) {
+            $content['addendum'] = null;
+
+            return ContractContent::normalize($content);
+        }
+
+        $base = $this->addendumBase($original, $contract->id);
+        $ordem = $contract->addendum_seq
+            ?: (int) SignatureContract::where('parent_id', $original->id)->max('addendum_seq') + 1;
+
+        $content['addendum'] = [
+            'parent_id' => $original->id,
+            'parent_number' => $original->number,
+            'ordinal' => $ordem,
+            'base_number' => $base->number ?? $original->number,
+            'variables' => $base->content['variables'] ?? [],
+        ];
+
+        return ContractContent::normalize($content);
+    }
+
+    /**
+     * O conteúdo de um aditivo novo a partir da base: partes, CNPJ, termos e
+     * variáveis; dos signatários, só quem assina pela contratada.
+     *
+     * @param  array<string, mixed>  $base
+     * @param  array<string, mixed>  $troca
+     * @return array<string, mixed>
+     */
+    private function inheritedContent(array $base, array $troca): array
+    {
+        $semUid = fn(array $linha) => ['uid' => null] + $linha;
+
+        return ContractContent::normalize(array_merge([
+            'establishment' => $base['establishment'] ?? null,
+            'contractor_term' => $base['contractor_term'] ?? null,
+            'parties' => array_map($semUid, $base['parties'] ?? []),
+            'variables' => $base['variables'] ?? [],
+            'signers' => array_map($semUid, $this->contractorSigners($base)),
+        ], $troca));
+    }
+
+    /**
+     * Só completa (marcar um rascunho como aditivo): partes que faltam (pelo
+     * documento; parte em branco é trocada), variáveis que faltam (pela chave)
+     * e quem assina pela contratada, se ninguém foi indicado.
+     *
+     * @param  array<string, mixed>  $content
+     * @param  array<string, mixed>  $base
+     * @return array<string, mixed>
+     */
+    private function completeFrom(array $content, array $base): array
+    {
+        $vazia = fn(array $p) => trim((string) ($p['name'] ?? '')) === '' && trim((string) ($p['document'] ?? '')) === '';
+        $partes = array_values(array_filter($content['parties'] ?? [], fn(array $p) => !$vazia($p)));
+        $documentos = array_column($partes, 'document');
+
+        foreach ($base['parties'] ?? [] as $parte) {
+            if (!in_array($parte['document'], $documentos, true)) {
+                $partes[] = ['uid' => null] + $parte;
+            }
+        }
+
+        $variaveis = $content['variables'] ?? [];
+        $chaves = array_column($variaveis, 'key');
+
+        foreach ($base['variables'] ?? [] as $variavel) {
+            if (!in_array($variavel['key'], $chaves, true)) {
+                $variaveis[] = $variavel;
+            }
+        }
+
+        $signatarios = $content['signers'] ?? [];
+        $temContratada = collect($signatarios)->contains(fn(array $s) => $s['party'] === ContractContent::SIGNER_CONTRATADA
+            && ($s['source'] !== 'person' || trim((string) $s['name']) !== ''));
+
+        if (!$temContratada) {
+            $signatarios = array_values(array_filter($signatarios, fn(array $s) => $s['party'] !== ContractContent::SIGNER_CONTRATADA));
+            $signatarios = array_merge(array_map(fn(array $s) => ['uid' => null] + $s, $this->contractorSigners($base)), $signatarios);
+        }
+
+        $content['parties'] = $partes;
+        $content['variables'] = $variaveis;
+        $content['signers'] = $signatarios;
+
+        return ContractContent::normalize($content);
+    }
+
+    /** Os signatários da contratada (sem fiador, testemunha nem outros do clube). */
+    private function contractorSigners(array $content): array
+    {
+        return array_values(array_filter(
+            $content['signers'] ?? [],
+            fn(array $s) => ($s['party'] ?? null) === ContractContent::SIGNER_CONTRATADA,
+        ));
     }
 
     /** Marca a observação como resolvida (ou a reabre). */
@@ -942,6 +1165,9 @@ class ContractService
                 'addendum_seq' => $seq,
                 'number' => $original->number . ' A' . $seq,
             ])->save();
+
+            // A ordem do aditivo ("1º TERMO ADITIVO…") fica a definitiva.
+            $contract->forceFill(['content' => $this->withAddendumContext($contract, $contract->content ?? [])])->save();
 
             return;
         }

@@ -17,6 +17,8 @@
     $rodape = $geometry->footerImage();
     $sangra = $geometry->fullWidth();
     $lado = \App\Services\Signature\SignaturePageGeometry::SIDE;
+    // Documento de contrato (05/11/2026): o PDF não repete o título "CTL — título — contratada".
+    $ehContrato = $document->isContract();
 @endphp
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -84,7 +86,10 @@
     @else
         <header>
             <div class="club">Clube dos Funcionários da CSN</div>
-            <div class="doc">{{ $document->title }}</div>
+            {{-- Contrato (05/11/2026): sem o título "CTL — …"; o cabeçalho do próprio contrato basta. --}}
+            @unless($ehContrato)
+                <div class="doc">{{ $document->title }}</div>
+            @endunless
         </header>
     @endif
 
@@ -111,7 +116,9 @@
     </footer>
 
     @if($body !== null)
-        <h1>{{ $document->title }}</h1>
+        @unless($ehContrato)
+            <h1>{{ $document->title }}</h1>
+        @endunless
 
         {!! $body !!}
     @endif

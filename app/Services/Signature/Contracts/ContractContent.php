@@ -99,6 +99,34 @@ class ContractContent
             'considerations' => self::considerations($input['considerations'] ?? []),
             'clauses' => self::clauses($input['clauses'] ?? []),
             'signers' => self::signers($input['signers'] ?? []),
+            'addendum' => self::addendum($input['addendum'] ?? null),
+        ];
+    }
+
+    /**
+     * O retrato do contrato original de um aditivo (05/11/2026), para o texto:
+     * o número do original (cabeçalho "1º TERMO ADITIVO AO CONTRATO …"), a
+     * ordem do aditivo e as variáveis da base — o último aditivo assinado ou,
+     * sem ele, o contrato principal — que o marcador `[[original:chave]]` usa.
+     * Quem preenche é o ContractService (`withAddendumContext`), a cada
+     * gravação; o formulário não manda. Null = não é aditivo.
+     *
+     * @return array{parent_id: int, parent_number: string, ordinal: ?int, base_number: string, variables: array<int, array<string, string>>}|null
+     */
+    private static function addendum(mixed $valor): ?array
+    {
+        if (!is_array($valor) || trim((string) ($valor['parent_number'] ?? '')) === '') {
+            return null;
+        }
+
+        $ordem = (int) ($valor['ordinal'] ?? 0);
+
+        return [
+            'parent_id' => (int) ($valor['parent_id'] ?? 0),
+            'parent_number' => self::line($valor['parent_number'], 60),
+            'ordinal' => $ordem > 0 ? $ordem : null,
+            'base_number' => self::line($valor['base_number'] ?? $valor['parent_number'], 60),
+            'variables' => self::variables($valor['variables'] ?? []),
         ];
     }
 

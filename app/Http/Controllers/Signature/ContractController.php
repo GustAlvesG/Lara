@@ -99,6 +99,8 @@ class ContractController extends Controller
         return view('signature.contracts.create', [
             'sectors' => $setores,
             'models' => SignatureContractModel::whereIn('sector_id', $setores->pluck('id'))->orderBy('name')->get(),
+            // Aditivo (05/11/2026): os contratos assinados que o usuário vê.
+            'originals' => $this->addendumTargets($request),
         ]);
     }
 
@@ -107,6 +109,11 @@ class ContractController extends Controller
         $this->authorize('create', SignatureContract::class);
 
         $setores = $this->sectorsOf($request);
+
+        // Aditivo (05/11/2026): nasce do contrato assinado escolhido, com as partes dele.
+        if ($request->input('kind') === SignatureContract::KIND_ADDENDUM) {
+            return $this->storeAddendum($request);
+        }
 
         $dados = $request->validate([
             'sector_id' => ['required', 'integer', 'in:' . $setores->pluck('id')->join(',')],
@@ -182,6 +189,10 @@ class ContractController extends Controller
 
         return view('signature.contracts.show', $this->aiReviewData($request, $contrato) + [
             'contract' => $contrato,
+            // Marcar como aditivo (05/11/2026): os contratos assinados que ele pode completar.
+            'addendumTargets' => $request->user()->can('changeKind', $contrato) && !$contrato->isAddendum()
+                ? $this->addendumTargets($request)->reject(fn($c) => $c->id === $contrato->id)
+                : collect(),
             'preview' => $this->renderer->html($conteudo, $contrato->number),
             'problems' => $this->renderer->problems($conteudo),
             'outline' => $this->renderer->outline($conteudo),
@@ -306,7 +317,8 @@ class ContractController extends Controller
     {
         $this->authorize('update', $signatureContract);
 
-        $conteudo = ContractContent::normalize($this->contentInput($request));
+        // Aditivo: o retrato do original (cabeçalho e [[original:…]]) vem do serviço, não do formulário.
+        $conteudo = $this->contracts->withAddendumContext($signatureContract, $this->contentInput($request));
         $uso = $this->renderer->variableUsage($conteudo);
 
         return response()->json([
@@ -320,6 +332,88 @@ class ContractController extends Controller
             'usage' => (object) $uso['usage'],
             'unknown' => $uso['unknown'],
         ]);
+    }
+
+    /** Aditivo pelo Novo contrato (05/11/2026): só de contrato assinado que o usuário vê. */
+    private function storeAddendum(Request $request)
+    {
+        $dados = $request->validate([
+            'parent_id' => ['required', 'integer'],
+            'title' => ['nullable', 'string', 'max:200'],
+        ], ['parent_id.required' => 'Escolha o contrato assinado do qual este é aditivo.']);
+
+        $original = $this->addendumTargets($request)->firstWhere('id', (int) $dados['parent_id']);
+
+        if (!$original) {
+            return back()->withInput()->withErrors(['parent_id' => 'Escolha um contrato já assinado.']);
+        }
+
+        $this->authorize('addendum', $original);
+
+        try {
+            $aditivo = $this->contracts->createAddendum($original, $request->user()->id, $request->user()->name, $dados['title'] ?? null);
+        } catch (ContractException $e) {
+            return back()->withInput()->with('warning', $e->getMessage());
+        }
+
+        return redirect()->route('contracts.edit', ['signatureContract' => $aditivo, 'passo' => 2])
+            ->with('success', 'Aditivo criado com as partes e as variáveis de ' . ($aditivo->content['addendum']['base_number'] ?? $original->number)
+                . '. Escreva as cláusulas do aditivo e confira quem assina.');
+    }
+
+    /** Marca o contrato em redação como aditivo de um contrato assinado (só completa). */
+    public function linkAddendum(Request $request, SignatureContract $signatureContract)
+    {
+        $this->authorize('changeKind', $signatureContract);
+
+        $dados = $request->validate(
+            ['parent_id' => ['required', 'integer']],
+            ['parent_id.required' => 'Escolha o contrato assinado do qual este é aditivo.'],
+        );
+
+        $original = $this->addendumTargets($request)->firstWhere('id', (int) $dados['parent_id']);
+
+        if (!$original) {
+            return back()->with('warning', 'Escolha um contrato já assinado.');
+        }
+
+        try {
+            $this->contracts->linkAddendum($signatureContract, $original, $request->user()->id, $request->user()->name);
+        } catch (ContractException $e) {
+            return back()->with('warning', $e->getMessage());
+        }
+
+        return back()->with('success', 'Agora é aditivo do contrato ' . $original->number
+            . '. Entraram as partes, as variáveis e quem assina pela contratada que ainda faltavam; o que já estava aqui ficou.');
+    }
+
+    public function unlinkAddendum(Request $request, SignatureContract $signatureContract)
+    {
+        $this->authorize('changeKind', $signatureContract);
+
+        try {
+            $this->contracts->unlinkAddendum($signatureContract, $request->user()->id, $request->user()->name);
+        } catch (ContractException $e) {
+            return back()->with('warning', $e->getMessage());
+        }
+
+        return back()->with('success', 'O contrato deixou de ser aditivo. O que tinha vindo do original continua no texto.');
+    }
+
+    /**
+     * Os contratos principais já assinados que o usuário vê — os que podem
+     * receber aditivo (05/11/2026).
+     */
+    private function addendumTargets(Request $request)
+    {
+        $user = $request->user();
+
+        return SignatureContract::query()
+            ->visibleTo($user->sectorIds(), $user->isManagementMember())
+            ->signedMain()
+            ->orderByDesc('id')
+            ->limit(300)
+            ->get(['id', 'number', 'title', 'sector_id', 'sector_name', 'content', 'status', 'signature_document_id', 'kind']);
     }
 
     /** O presidente recusa a assinatura pela tela do contrato: o contrato volta para revisão. */
@@ -498,8 +592,9 @@ class ContractController extends Controller
             return back()->with('warning', $e->getMessage());
         }
 
-        return redirect()->route('contracts.edit', $aditivo)
-            ->with('success', 'Aditivo criado com as partes, variáveis e signatários do contrato. Escreva as cláusulas do aditivo.');
+        return redirect()->route('contracts.edit', ['signatureContract' => $aditivo, 'passo' => 2])
+            ->with('success', 'Aditivo criado com as partes e as variáveis do contrato e quem assina pela contratada. '
+                . 'Escreva as cláusulas do aditivo e escolha de novo as testemunhas e o fiador, se houver.');
     }
 
     public function generateDocument(Request $request, SignatureContract $signatureContract)
