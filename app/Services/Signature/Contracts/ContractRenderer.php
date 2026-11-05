@@ -830,7 +830,7 @@ class ContractRenderer
             $html = $partes->map(fn($s) => '[[assinatura:' . $s['key'] . ']]')->join('');
 
             if ($testemunhas->isNotEmpty()) {
-                $html .= '<p style="margin-top:22px;"><strong>Testemunhas:</strong></p>'
+                $html .= '<p style="margin-top:22px;page-break-after:avoid;"><strong>Testemunhas:</strong></p>'
                     . $testemunhas->map(fn($s) => '[[assinatura:' . $s['key'] . ']]')->join('');
             }
 

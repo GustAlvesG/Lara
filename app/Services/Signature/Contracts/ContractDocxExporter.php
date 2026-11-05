@@ -64,25 +64,52 @@ class ContractDocxExporter
      */
     private function signatures(array $entries): string
     {
-        $xml = '';
-        $testemunhas = false;
+        $testemunha = fn(array $s) => $s['party'] === ContractContent::SIGNER_TESTEMUNHA;
+        $partes = array_values(array_filter($entries, fn($s) => !$testemunha($s)));
+        $testemunhas = array_values(array_filter($entries, $testemunha));
 
-        foreach ($entries as $s) {
-            if ($s['party'] === ContractContent::SIGNER_TESTEMUNHA && !$testemunhas) {
-                $testemunhas = true;
-                $xml .= DocxWriter::paragraph([DocxWriter::run('Testemunhas:', ['b' => true])], ['before' => 360]);
-            }
+        $xml = $this->signatureGrid($partes);
 
-            $xml .= DocxWriter::paragraph([DocxWriter::run('________________________________________')], ['before' => 480, 'jc' => 'left']);
-            // Nome em maiúsculas e só o cargo embaixo, como na prévia e no PDF (05/11/2026).
-            $xml .= DocxWriter::paragraph([DocxWriter::run($s['name'] !== '' ? mb_strtoupper($s['name']) : '(nome a informar)', ['b' => true])], ['jc' => 'left']);
-
-            if ($s['cargo'] !== '') {
-                $xml .= DocxWriter::paragraph([DocxWriter::run($s['cargo'])], ['jc' => 'left']);
-            }
+        if ($testemunhas !== []) {
+            $xml .= DocxWriter::paragraph([DocxWriter::run('Testemunhas:', ['b' => true])], ['before' => 360, 'keepNext' => true]);
+            $xml .= $this->signatureGrid($testemunhas);
         }
 
         return $xml;
+    }
+
+    /**
+     * Assinaturas em duas colunas (05/11/2026), como no PDF: tabela sem borda,
+     * linha da tabela inteira na mesma folha — a linha "____", o nome e o cargo
+     * nunca se separam entre páginas.
+     *
+     * @param  array<int, array<string, mixed>>  $entries
+     */
+    private function signatureGrid(array $entries): string
+    {
+        if ($entries === []) {
+            return '';
+        }
+
+        $celula = function (array $s): string {
+            $temCargo = $s['cargo'] !== '';
+            $xml = DocxWriter::paragraph([DocxWriter::run('______________________________')], ['before' => 480, 'jc' => 'left', 'keepNext' => true]);
+            // Nome em maiúsculas e só o cargo embaixo, como na prévia e no PDF (05/11/2026).
+            $xml .= DocxWriter::paragraph([DocxWriter::run($s['name'] !== '' ? mb_strtoupper($s['name']) : '(nome a informar)', ['b' => true])], ['jc' => 'left', 'keepNext' => $temCargo]);
+
+            if ($temCargo) {
+                $xml .= DocxWriter::paragraph([DocxWriter::run($s['cargo'])], ['jc' => 'left']);
+            }
+
+            return $xml;
+        };
+
+        $linhas = array_map(
+            fn(array $par) => [$celula($par[0]), isset($par[1]) ? $celula($par[1]) : ''],
+            array_chunk($entries, 2),
+        );
+
+        return DocxWriter::table($linhas, layout: true);
     }
 
     /**

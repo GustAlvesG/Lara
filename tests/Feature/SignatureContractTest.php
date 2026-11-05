@@ -362,6 +362,13 @@ class SignatureContractTest extends TestCase
         $this->assertStringContainsString('CLÁUSULA PRIMEIRA – OBJETO', $xml);
         $this->assertStringContainsString('oito mil e novecentos reais', $xml);
         $this->assertStringContainsString('1.1.1 - ', $xml);
+
+        // Assinaturas em duas colunas, numa tabela sem borda cuja linha não se parte
+        // entre folhas, e a linha "____" presa ao nome (05/11/2026).
+        $this->assertMatchesRegularExpression('#<w:pPr><w:keepNext/><w:keepLines/>[^<]*<w:spacing[^>]*/><w:jc w:val="left"/></w:pPr><w:r><w:t[^>]*>_{10,}#', $xml);
+        $this->assertStringContainsString('<w:top w:val="nil"', $xml);
+        $this->assertMatchesRegularExpression('#<w:tr><w:trPr><w:cantSplit/></w:trPr><w:tc>.*?_{10,}.*?</w:tc><w:tc>.*?_{10,}#s', $xml);
+        $this->assertNotFalse(@simplexml_load_string($xml));
     }
 
     /** @return array<string, string> as partes do .docx, por nome */

@@ -158,6 +158,14 @@ Decisões do usuário entre parênteses.
   `ContractRenderer::documentSigners` devolve `cargo`; o PDF usa `SignatureDocumentRenderer::contractCaptions`
   (só documento de contrato; o documento comum segue com a parte do modelo) na área de assinatura
   (`pdf/signature-area`, `$contractCaptions`) e na caixa do visto ("Visto — NOME").
+- **Duas colunas** (05/11/2026): partes e, depois de "Testemunhas:", as testemunhas, de duas em duas. No PDF,
+  os marcadores vizinhos já viram `table.sig-grid` (`SignatureDocumentRenderer::placeSignatures`); na prévia,
+  `.ct-sigs` com `repeat(2, …)`; no Word, `ContractDocxExporter::signatureGrid` → `DocxWriter::table($linhas,
+  layout: true)` (sem borda, `w:cantSplit` em cada linha).
+- **Linha, nome e cargo na mesma folha** (05/11/2026): no Word, a linha da tabela não se parte (`cantSplit`) e a
+  linha "____" e o nome saem com "manter com o próximo" (`DocxWriter::paragraph` opção `keepNext` →
+  `<w:keepNext/><w:keepLines/>`), e "Testemunhas:" também; no PDF a linha é a borda do próprio bloco do nome
+  (`.sig-block`/`sig-grid`, `page-break-inside: avoid`); na prévia impressa, `.ct-sig` com `break-inside: avoid`.
 - O `party_label` do signatário continua "CONTRATADA — Empresa…" nas telas de Assinaturas (é o que o atendente
   lê); só o papel impresso no documento mudou.
 

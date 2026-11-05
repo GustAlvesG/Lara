@@ -35,7 +35,7 @@ Validar contratos não é uma permissão: é ser do setor **Gerência**, que vê
 
 O que O Lara faz por você:
 
-- **Assinaturas no fim do contrato**: cada pessoa aparece com o nome em **maiúsculas** e, embaixo, só o cargo — sem "CONTRATANTE", "CONTRATADA" ou "Testemunha". O cargo do presidente e dos diretores é o da área deles em **Assinaturas › Diretoria** (por exemplo, Presidência); o dos demais é o que você escreve em **Cargo / qualidade** no passo **Quem assina** (em branco, sai só o nome e o CPF). Vale na prévia, no Word e no documento de assinatura.
+- **Assinaturas no fim do contrato**: cada pessoa aparece com o nome em **maiúsculas** e, embaixo, só o cargo — sem "CONTRATANTE", "CONTRATADA" ou "Testemunha". O cargo do presidente e dos diretores é o da área deles em **Assinaturas › Diretoria** (por exemplo, Presidência); o dos demais é o que você escreve em **Cargo / qualidade** no passo **Quem assina** (em branco, sai só o nome e o CPF). Vale na prévia, no Word e no documento de assinatura. As assinaturas saem em **duas colunas** (as partes e, depois, as testemunhas, de duas em duas). A linha de assinatura nunca fica numa folha e o nome na outra: se não couberem juntos, os dois passam para a folha seguinte.
 - **Cabeçalho do contrato**: sai sempre "CONTRATO DE PRESTAÇÃO DE SERVIÇO QUE ENTRE SI FAZEM: CLUBE DOS FUNCIONÁRIOS DA CSN E <prestador>", com o número embaixo. O **Título** que você digita é só o nome do contrato nas listas e na busca; ele não aparece no documento assinado nem no Word.
 
 - **Numeração automática**: CLÁUSULA PRIMEIRA, 1.1, 1.1.1 não se digitam. Use "Subitem →" para o 1.1.1.

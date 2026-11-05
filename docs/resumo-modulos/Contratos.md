@@ -66,6 +66,8 @@ Detalhes em [contratos.md › Cabeçalho fixo e aditivos](../funcionalidades/con
   gravação — quem grava `content` por fora tem de passar por ele.
 - Bloco de assinaturas: nome em MAIÚSCULAS e só o cargo (diretor = área da Diretoria; demais = `caption`), sem
   o papel. `documentSigners()['cargo']` (prévia/Word) e `SignatureDocumentRenderer::contractCaptions` (PDF e visto).
+  Duas colunas em todo lugar (PDF `sig-grid`, prévia `.ct-sigs`, Word `signatureGrid` = tabela sem borda com
+  `cantSplit`); no Word, linha + nome + cargo também com `keepNext` para não se separarem entre folhas.
 - Marcar/desmarcar como aditivo antes da aprovação (`canChangeKind`, policy `changeKind`, rotas
   `contracts.link-addendum`/`unlink-addendum`); marcar só completa (`completeFrom`).
 

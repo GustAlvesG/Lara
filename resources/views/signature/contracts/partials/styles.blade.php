@@ -15,8 +15,8 @@
     /* A cláusula em que se está digitando, no editor (05/11/2026): a prévia rola até ela e a marca. */
     .ct-paper .ct-clause.ct-active { background: #fff8e1; box-shadow: 0 0 0 6px #fff8e1; transition: background .3s; }
     .ct-paper .ct-clause.ct-flash { transition: outline-color .6s; }
-    .ct-paper .ct-sigs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 22px 28px; margin: 14px 0 6px; }
-    .ct-paper .ct-sig { font-size: 12.5px; }
+    .ct-paper .ct-sigs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 28px; margin: 14px 0 6px; }
+    .ct-paper .ct-sig { font-size: 12.5px; break-inside: avoid; page-break-inside: avoid; }
     .ct-paper .ct-sig span { color: #6d6062; }
     .ct-paper .ct-sig-line { border-top: 1px solid #1f1819; margin: 28px 0 4px; }
     .ct-diff ins { background: #d1fae5; color: #065f46; text-decoration: none; border-radius: 3px; padding: 0 2px; }

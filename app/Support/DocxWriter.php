@@ -41,6 +41,12 @@ final class DocxWriter
             $pr .= '<w:pStyle w:val="' . htmlspecialchars($opts['style'], ENT_XML1 | ENT_QUOTES, 'UTF-8') . '"/>';
         }
 
+        // "Manter com o próximo": o Word não deixa quebra de página entre este
+        // parágrafo e o seguinte (ex.: a linha de assinatura e o nome).
+        if (!empty($opts['keepNext'])) {
+            $pr .= '<w:keepNext/><w:keepLines/>';
+        }
+
         if (isset($opts['bullet'])) {
             $pr .= '<w:numPr><w:ilvl w:val="' . (int) $opts['bullet'] . '"/><w:numId w:val="' . self::BULLET_NUM_ID . '"/></w:numPr>';
         }
@@ -153,16 +159,20 @@ final class DocxWriter
     /**
      * Tabela com borda simples. Cada célula é o XML de um ou mais parágrafos.
      *
+     * `$layout` (05/11/2026): tabela só de diagramação — sem borda e com a
+     * linha inteira na mesma folha (`cantSplit`), como as assinaturas em duas
+     * colunas do contrato.
+     *
      * @param  array<int, array<int, string>>  $rows
      */
-    public static function table(array $rows): string
+    public static function table(array $rows, bool $layout = false): string
     {
-        $borda = '<w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
-            . '<w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
-            . '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
-            . '<w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
-            . '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="auto"/>'
-            . '<w:insideV w:val="single" w:sz="4" w:space="0" w:color="auto"/>';
+        $tipo = $layout ? 'nil' : 'single';
+        $borda = '';
+
+        foreach (['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as $lado) {
+            $borda .= '<w:' . $lado . ' w:val="' . $tipo . '" w:sz="4" w:space="0" w:color="auto"/>';
+        }
 
         $colunas = max(array_map('count', $rows) ?: [1]);
         $grade = str_repeat('<w:gridCol w:w="' . intdiv(9354, $colunas) . '"/>', $colunas);
@@ -171,11 +181,11 @@ final class DocxWriter
             . '<w:tblGrid>' . $grade . '</w:tblGrid>';
 
         foreach ($rows as $celulas) {
-            $xml .= '<w:tr>';
+            $xml .= $layout ? '<w:tr><w:trPr><w:cantSplit/></w:trPr>' : '<w:tr>';
 
             foreach ($celulas as $celula) {
                 // Célula sem parágrafo é XML inválido para o Word.
-                $xml .= '<w:tc><w:tcPr><w:tcW w:w="0" w:type="auto"/></w:tcPr>'
+                $xml .= '<w:tc><w:tcPr><w:tcW w:w="' . ($layout ? intdiv(9354, $colunas) . '" w:type="dxa' : '0" w:type="auto') . '"/></w:tcPr>'
                     . ($celula !== '' ? $celula : '<w:p/>') . '</w:tc>';
             }
 
