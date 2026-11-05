@@ -28,8 +28,8 @@
 
         @include('partials.alerts')
 
-        <div class="grid grid-cols-1 gap-6 xl:grid-cols-5">
-            <div class="space-y-4 xl:col-span-3">
+        <div class="split-xl grid grid-cols-1 gap-6 xl:grid-cols-5">
+            <div class="split-pane space-y-4 xl:col-span-3">
                 <x-search-bar :filters="['setor']" placeholder="Título, categoria ou texto" />
 
                 @forelse($clauses as $clausula)
@@ -88,10 +88,10 @@
             </div>
 
             @if($cuida)
-            <aside class="xl:col-span-2">
+            <aside class="split-pane xl:col-span-2">
                 <form method="POST" id="libForm"
                       action="{{ $editing ? route('contract-library.update', $editing) : route('contract-library.store') }}"
-                      class="{{ $card }} xl:sticky xl:top-20">
+                      class="{{ $card }}">
                     @csrf
                     @if($editing) @method('PUT') @endif
                     <p class="{{ $h }}">{{ $editing ? 'Editar cláusula' : 'Nova cláusula' }}</p>

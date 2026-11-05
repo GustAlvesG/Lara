@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Signature;
 
 use App\Exceptions\ClaudeException;
+use App\Exceptions\ContractConflictException;
 use App\Exceptions\ContractException;
 use App\Http\Controllers\Controller;
 use App\Models\Sector;
@@ -12,6 +13,9 @@ use App\Models\SignatureContractComment;
 use App\Models\SignatureContractModel;
 use App\Models\SignatureContractParty;
 use App\Models\SignatureContractVersion;
+use App\Models\SignatureDocument;
+use App\Models\SignatureSigner;
+use App\Models\User;
 use App\Services\Signature\Contracts\ContractAiReviewer;
 use App\Services\Signature\Contracts\ContractApprovalInitials;
 use App\Services\Signature\Contracts\ContractClub;
@@ -50,13 +54,25 @@ class ContractController extends Controller
 
         $user = $request->user();
         $gerencia = $user->isManagementMember();
-        $aba = $gerencia && $request->query('aba') === 'validar' ? 'validar' : 'todos';
+        $aba = match ($request->query('aba')) {
+            'validar' => $gerencia ? 'validar' : 'todos',
+            'assinatura' => 'assinatura',
+            default => 'todos',
+        };
         $status = $request->query('status');
         $busca = trim((string) $request->query('q', ''));
 
+        // O presidente vê também os contratos que aguardam a assinatura dele (05/11/2026).
+        $doPresidente = $this->awaitingPresident($user);
+
+        $visiveis = fn($q) => $q->where(fn($w) => $w->visibleTo($user->sectorIds(), $gerencia)
+            ->when($doPresidente !== [], fn($o) => $o->orWhereIn('id', $doPresidente)));
+
         $contratos = SignatureContract::query()
-            ->visibleTo($user->sectorIds(), $gerencia)
+            ->tap($visiveis)
+            ->with(['document.signers'])
             ->when($aba === 'validar', fn($q) => $q->where('status', SignatureContract::STATUS_IN_REVIEW))
+            ->when($aba === 'assinatura', fn($q) => $q->inSigning())
             ->when($aba === 'todos' && isset(SignatureContract::STATUS_LABELS[$status]), fn($q) => $q->where('status', $status))
             ->search($busca)
             ->orderByDesc('id')
@@ -70,6 +86,7 @@ class ContractController extends Controller
             'busca' => $busca,
             'gerencia' => $gerencia,
             'aguardando' => $gerencia ? SignatureContract::where('status', SignatureContract::STATUS_IN_REVIEW)->count() : 0,
+            'emAssinatura' => SignatureContract::query()->tap($visiveis)->inSigning()->count(),
         ]);
     }
 
@@ -154,7 +171,7 @@ class ContractController extends Controller
     {
         $this->authorize('view', $signatureContract);
 
-        $contrato = $signatureContract->load(['versions', 'comments', 'events', 'attachments', 'document', 'parent', 'addenda']);
+        $contrato = $signatureContract->load(['versions', 'comments', 'events', 'attachments', 'document.signers', 'parent', 'addenda']);
         $conteudo = $contrato->content ?? [];
 
         // A comparação é com a última versão DEVOLVIDA: é o que a Gerência viu por último.
@@ -189,6 +206,8 @@ class ContractController extends Controller
             'establishments' => app(ContractClub::class)->establishmentOptions(),
             'president' => app(ContractClub::class)->president(),
             'variableTypes' => ContractVariables::LABELS,
+            'commonVariables' => ContractVariables::COMMON,
+            'variableUsage' => $this->renderer->variableUsage($conteudo)['usage'],
             'directors' => app(DirectorAreaService::class)->options(),
             'openComments' => $signatureContract->comments->whereNull('resolved_at'),
         ]);
@@ -203,7 +222,14 @@ class ContractController extends Controller
         }
 
         try {
-            $this->contracts->save($signatureContract, $this->contentInput($request), $request->user()->id, $request->user()->name);
+            $this->contracts->save(
+                $signatureContract,
+                $this->contentInput($request),
+                $request->user()->id,
+                $request->user()->name,
+                $request->filled('revision') ? (int) $request->input('revision') : null,
+                $request->boolean('force'),
+            );
         } catch (ContractException $e) {
             return back()->with('error', $e->getMessage())->withInput();
         }
@@ -225,14 +251,63 @@ class ContractController extends Controller
     }
 
     /**
+     * Salvar automático do editor (05/11/2026): grava o formulário inteiro
+     * sem recarregar a tela. Leva a revisão do texto que a tela tem; se
+     * alguém gravou depois, devolve 409 com quem e quando ("alguém salvou
+     * antes de você") — `force` grava por cima, se a pessoa escolher.
+     */
+    public function autosave(Request $request, SignatureContract $signatureContract)
+    {
+        if (!$request->user()->can('update', $signatureContract)) {
+            return response()->json([
+                'error' => 'O contrato mudou de situação (' . mb_strtolower($signatureContract->statusLabel()) . ') e não pode mais ser editado aqui. Recarregue a página.',
+                'reload' => true,
+            ], 409);
+        }
+
+        $request->validate(['revision' => ['required', 'integer', 'min:0']]);
+
+        try {
+            $contrato = $this->contracts->save(
+                $signatureContract,
+                $this->contentInput($request),
+                $request->user()->id,
+                $request->user()->name,
+                (int) $request->input('revision'),
+                $request->boolean('force'),
+            );
+        } catch (ContractConflictException $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+                'conflict' => true,
+                'saved_by' => $e->savedBy,
+                'revision' => $e->revision,
+            ], 409);
+        } catch (ContractException $e) {
+            return response()->json(['error' => $e->getMessage(), 'reload' => true], 409);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'revision' => $contrato->content_revision,
+            'saved_at' => $contrato->content_saved_at?->format('H:i'),
+            // As chaves das variáveis novas: o editor guarda para o nome mudar sem quebrar o [[marcador]].
+            'variables' => array_column($contrato->content['variables'] ?? [], 'key'),
+        ]);
+    }
+
+    /**
      * A prévia do que está no formulário, sem gravar: texto numerado e lista
-     * de problemas. Mesmo renderizador do documento final.
+     * de problemas. Mesmo renderizador do documento final. Desde 05/11/2026
+     * diz também onde cada variável é usada e quais [[marcadores]] do texto
+     * ainda não são variável (o editor cria sozinho).
      */
     public function preview(Request $request, SignatureContract $signatureContract)
     {
         $this->authorize('update', $signatureContract);
 
         $conteudo = ContractContent::normalize($this->contentInput($request));
+        $uso = $this->renderer->variableUsage($conteudo);
 
         return response()->json([
             'html' => $this->renderer->html($conteudo, $signatureContract->number),
@@ -241,7 +316,30 @@ class ContractController extends Controller
                 ->map(fn(array $o, string $uid) => ['uid' => $uid] + $o)
                 ->values(),
             'tokens' => $this->renderer->availableTokens($conteudo),
+            'variables' => array_column($conteudo['variables'] ?? [], 'key'),
+            'usage' => (object) $uso['usage'],
+            'unknown' => $uso['unknown'],
         ]);
+    }
+
+    /** O presidente recusa a assinatura pela tela do contrato: o contrato volta para revisão. */
+    public function refuseSignature(Request $request, SignatureContract $signatureContract)
+    {
+        $this->authorize('refuseSignature', $signatureContract);
+
+        $dados = $request->validate(
+            ['reason' => ['required', 'string', 'max:2000']],
+            ['reason.required' => 'Escreva o motivo da recusa: é ele que orienta a revisão do contrato.'],
+        );
+
+        try {
+            $this->contracts->refuseByPresident($signatureContract, $dados['reason'], $request->user()->id, $request->user()->name);
+        } catch (ContractException $e) {
+            return back()->with('warning', $e->getMessage());
+        }
+
+        return redirect()->route('contracts.index')
+            ->with('success', 'Assinatura recusada. O contrato voltou para quem redigiu, com o seu motivo como observação.');
     }
 
     public function submit(Request $request, SignatureContract $signatureContract)
@@ -454,7 +552,7 @@ class ContractController extends Controller
 
     public function resolveComment(Request $request, SignatureContract $signatureContract, SignatureContractComment $signatureContractComment)
     {
-        $this->authorize('view', $signatureContract);
+        $this->authorize('manage', $signatureContract);
 
         abort_unless($signatureContractComment->signature_contract_id === $signatureContract->id, 404);
 
@@ -528,16 +626,15 @@ class ContractController extends Controller
             return response()->json([]);
         }
 
-        $digitos = strtoupper((string) preg_replace('/[^0-9A-Za-z]/', '', $termo));
-
+        // Prestador inativado (Contratos → Prestadores) não aparece (05/11/2026).
         return response()->json(
             SignatureContractParty::query()
-                ->where(fn($q) => $q->where('name', 'like', '%' . $termo . '%')
-                    ->when(strlen($digitos) >= 3, fn($w) => $w->orWhere('document', 'like', $digitos . '%')))
+                ->active()
+                ->search($termo)
                 ->orderBy('name')
                 ->limit(10)
                 ->get()
-                ->map(fn(SignatureContractParty $p) => ['kind' => $p->kind, 'name' => $p->name, 'document' => $p->document] + ($p->data ?? [])),
+                ->map(fn(SignatureContractParty $p) => $p->toPartyArray()),
         );
     }
 
@@ -560,6 +657,29 @@ class ContractController extends Controller
             // Os trechos com valores, CPF, documentos ou endereço: ficam de fora, a menos que a pessoa marque.
             'aiSensitive' => $disponivel && $request->user()->can('aiReview', $contrato) ? $revisor->sensitiveSections($contrato) : [],
         ];
+    }
+
+    /**
+     * Os contratos que aguardam a assinatura do usuário como presidente — o
+     * que ele vê na lista sem ser do setor nem da Gerência (05/11/2026).
+     *
+     * @return array<int, int>
+     */
+    private function awaitingPresident(User $user): array
+    {
+        $presidente = app(ContractClub::class)->president();
+
+        if (!$presidente || (int) $presidente['user_id'] !== (int) $user->id) {
+            return [];
+        }
+
+        return SignatureContract::query()
+            ->where('status', SignatureContract::STATUS_APPROVED)
+            ->whereHas('document', fn($d) => $d
+                ->whereIn('status', [SignatureDocument::STATUS_DRAFT, SignatureDocument::STATUS_AWAITING_SIGNATURE])
+                ->whereHas('signers', fn($s) => $s->where('user_id', $user->id)->where('status', SignatureSigner::STATUS_PENDING)))
+            ->pluck('id')
+            ->all();
     }
 
     /** O que o formulário do editor manda, como entrada do ContractContent. */

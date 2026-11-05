@@ -5,6 +5,8 @@ namespace App\Policies;
 use App\Authorization\Permissions as P;
 use App\Models\SignatureContract;
 use App\Models\User;
+use App\Services\Signature\Contracts\ContractClub;
+use App\Services\Signature\Contracts\ContractService;
 
 /**
  * Quem pode o quê com um contrato (módulo Contratos; até 04/11/2026 era
@@ -23,14 +25,32 @@ use App\Models\User;
  */
 class SignatureContractPolicy
 {
+    /**
+     * A lista: quem redige, a Gerência e o presidente (05/11/2026: ele
+     * acompanha e recusa o que aguarda a assinatura dele).
+     */
     public function viewAny(User $user): bool
     {
-        return $user->can(P::ASSINATURA_CONTRATOS) || $user->isManagementMember();
+        return $user->can(P::ASSINATURA_CONTRATOS) || $user->isManagementMember() || $this->isPresident($user);
     }
 
     public function view(User $user, SignatureContract $contract): bool
     {
-        return $user->isManagementMember() || $this->isSectorWriter($user, $contract);
+        return $user->isManagementMember()
+            || $this->isSectorWriter($user, $contract)
+            || $this->refuseSignature($user, $contract);
+    }
+
+    /**
+     * Recusar a assinatura pela tela do contrato (05/11/2026): só o
+     * presidente, com o documento aguardando a assinatura dele. Recusa
+     * devolve o contrato a quem redigiu (ContractService::refuseByPresident).
+     */
+    public function refuseSignature(User $user, SignatureContract $contract): bool
+    {
+        return $contract->status === SignatureContract::STATUS_APPROVED
+            && $this->isPresident($user)
+            && app(ContractService::class)->presidentSignerFor($contract, (int) $user->id) !== null;
     }
 
     public function create(User $user): bool
@@ -74,9 +94,10 @@ class SignatureContractPolicy
         return $this->update($user, $contract);
     }
 
+    /** Anexos, reabrir, cancelar, gerar documento: o setor e a Gerência (o presidente só lê e recusa). */
     public function manage(User $user, SignatureContract $contract): bool
     {
-        return $this->view($user, $contract);
+        return $user->isManagementMember() || $this->isSectorWriter($user, $contract);
     }
 
     /**
@@ -99,11 +120,28 @@ class SignatureContractPolicy
         return $user->can(P::CONTRATOS_BIBLIOTECA);
     }
 
+    /**
+     * Prestadores (05/11/2026): cadastrar, editar e inativar. Decisão do
+     * usuário: quem tem acesso a Contratos — sem permissão própria.
+     */
+    public function manageProviders(User $user): bool
+    {
+        return $user->can(P::ASSINATURA_CONTRATOS) || $user->isManagementMember();
+    }
+
     /** Criar aditivo: de quem redige pelo setor. */
     public function addendum(User $user, SignatureContract $contract): bool
     {
         return $contract->status === SignatureContract::STATUS_APPROVED
             && ($this->isSectorWriter($user, $contract) || ($user->isManagementMember() && $user->can(P::ASSINATURA_CONTRATOS)));
+    }
+
+    /** O titular da área da Presidência (quem assina pelo clube). */
+    private function isPresident(User $user): bool
+    {
+        $presidente = app(ContractClub::class)->president();
+
+        return $presidente !== null && $user->id !== null && (int) $presidente['user_id'] === (int) $user->id;
     }
 
     private function isSectorWriter(User $user, SignatureContract $contract): bool

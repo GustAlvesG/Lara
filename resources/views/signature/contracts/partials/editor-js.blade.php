@@ -3,6 +3,12 @@
     numeração, as variáveis e os problemas vêm da prévia do servidor
     (ContractController::preview). O script só monta linhas, move, sincroniza
     o texto rico com o textarea e pede a prévia.
+
+    Desde 05/11/2026 também: abas ao lado (Prévia | Conferência | Claude),
+    rolar a prévia até a cláusula em que se digita, salvar automático com
+    aviso de conflito (`contracts.autosave`) e as ajudas das variáveis
+    (criar do [[marcador]], tipo pelo nome, variável comum, onde é usada,
+    "Falta preencher").
 --}}
 <script>
 (function () {
@@ -14,6 +20,8 @@
     var problemsBox = document.querySelector('[data-problems]');
     var estado = document.querySelector('[data-save-state]');
     var alterado = false;
+    // Cada alteração sobe este número: o salvar automático sabe se algo mudou enquanto gravava.
+    var edicao = 0;
 
     function chave() { return 'n' + Math.random().toString(36).slice(2, 11); }
 
@@ -131,6 +139,36 @@
             if (document.activeElement !== ed) focaNoFim(ed);
             document.execCommand(cmd.dataset.cmd, false, null);
             marca();
+            return;
+        }
+
+        var aba = e.target.closest('[data-side-tab]');
+        if (aba) {
+            abreAba(aba.dataset.sideTab);
+            return;
+        }
+
+        var falta = e.target.closest('[data-var-focus]');
+        if (falta) {
+            var linhaVar = document.querySelectorAll('[data-list="variable"] > [data-row="variable"]')[parseInt(falta.dataset.varFocus, 10)];
+            if (linhaVar) {
+                linhaVar.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                linhaVar.querySelector('[data-var-value]').focus({ preventScroll: true });
+            }
+            return;
+        }
+
+        if (e.target.closest('[data-conflict-reload]')) {
+            alterado = false;
+            location.reload();
+            return;
+        }
+
+        if (e.target.closest('[data-conflict-force]')) {
+            if (!confirm('Gravar o seu texto por cima do que a outra pessoa salvou?')) return;
+            conflito = false;
+            document.querySelector('[data-conflict]').classList.add('hidden');
+            salvaAuto(true);
             return;
         }
 
@@ -256,6 +294,22 @@
     });
 
     document.addEventListener('change', function (e) {
+        // Variável comum: entra pronta, com nome e tipo (ou vai para a que já existe).
+        var comum = e.target.closest('[data-common-variable]');
+        if (comum) {
+            var escolhida = CT.common[parseInt(comum.value, 10)];
+            comum.value = '';
+            if (escolhida) adicionaVariavel(escolhida.label, escolhida.type, { foco: true });
+            return;
+        }
+
+        // Tipo escolhido à mão: o palpite pelo nome não mexe mais.
+        var tipoVar = e.target.closest('[data-var-type]');
+        if (tipoVar) {
+            tipoVar.dataset.touched = '1';
+            delete tipoVar.closest('[data-row="variable"]').dataset.auto;
+        }
+
         var ins = e.target.closest('select[data-insert]');
         if (ins && ins.value) {
             var ed = ins.closest('.ct-editor').querySelector('.ct-rich');
@@ -365,7 +419,25 @@
             if (/[\r\n]/.test(e.target.value)) e.target.value = e.target.value.replace(/\s*[\r\n]+\s*/g, ' ');
             cresce(e.target);
         }
+
+        var linhaVar = e.target.closest('[data-row="variable"]');
+        if (linhaVar) {
+            // Mexeu: deixa de ser a variável criada sozinha do [[marcador]] (não some mais).
+            delete linhaVar.dataset.auto;
+            if (e.target.matches('[data-var-label]')) palpiteDoTipo(linhaVar);
+            if (e.target.matches('[data-var-value]')) desenhaFaltaPreencher();
+        }
+
+        var clausula = e.target.closest('[data-row="clause"]');
+        if (clausula) ativaClausula(clausula.dataset.uid, false);
+
         marca(true);
+    });
+
+    // Entrar numa cláusula leva a prévia até ela (05/11/2026).
+    form.addEventListener('focusin', function (e) {
+        var clausula = e.target.closest('[data-row="clause"]');
+        if (clausula) ativaClausula(clausula.dataset.uid, true);
     });
 
     form.querySelectorAll('textarea[data-autogrow]').forEach(cresce);
@@ -390,26 +462,97 @@
         alterna.addEventListener('click', function () { mostraPrevia(!layout.classList.contains('ct-solo')); });
     }
 
-    form.addEventListener('submit', function () {
+    var enviando = false;
+    var aposSalvar = null;
+    form.addEventListener('submit', function (e) {
+        // Um salvar automático em andamento muda a revisão: espera ele, senão o envio
+        // daria "alguém salvou antes de você" por causa da própria pessoa.
+        if (salvando) {
+            e.preventDefault();
+            var botao = e.submitter || null;
+            aposSalvar = function () {
+                if (botao) botao.disabled = false;
+                form.requestSubmit(botao);
+            };
+            return;
+        }
         sincroniza();
         alterado = false;
+        enviando = true;
+        clearTimeout(esperaSalvar);
     });
 
     window.addEventListener('beforeunload', function (e) {
-        if (alterado) {
+        if (alterado && !enviando) {
             e.preventDefault();
             e.returnValue = '';
         }
     });
 
-    // ---- Prévia (servidor) ----
+    // ---- Abas ao lado: Prévia | Conferência | Claude (05/11/2026) ----
+    var aside = document.querySelector('[data-side]');
+    function abreAba(nome) {
+        document.querySelectorAll('[data-side-tab]').forEach(function (b) {
+            b.setAttribute('aria-selected', b.dataset.sideTab === nome ? 'true' : 'false');
+        });
+        document.querySelectorAll('[data-side-panel]').forEach(function (p) {
+            p.classList.toggle('hidden', p.dataset.sidePanel !== nome);
+        });
+        if (aside && colunaPresa()) aside.scrollTop = 0;
+        if (nome === 'previa' && clausulaAtiva) rolaPrevia(clausulaAtiva, false);
+    }
+    // Voltando da revisão do Claude ("Salvar e analisar"), abre a aba dela.
+    if (location.hash === '#revisao-ia' && document.querySelector('[data-side-tab="claude"]')) abreAba('claude');
+
+    // ---- A prévia acompanha a cláusula em que se digita (05/11/2026) ----
+    var clausulaAtiva = null;
+
+    // Tela larga: a coluna da prévia rola sozinha (split-pane). Na estreita, ela fica embaixo do texto.
+    function colunaPresa() {
+        return aside && getComputedStyle(aside).position === 'sticky';
+    }
+
+    function ativaClausula(uid, mudouDeLugar) {
+        if (!uid) return;
+        var nova = uid !== clausulaAtiva;
+        clausulaAtiva = uid;
+        if (nova || mudouDeLugar) rolaPrevia(uid, nova);
+    }
+
+    function rolaPrevia(uid, destaca) {
+        if (!paper || !colunaPresa()) return;
+        var painel = paper.closest('[data-side-panel]');
+        if (!painel || painel.classList.contains('hidden')) return;
+        if (document.querySelector('[data-layout]').classList.contains('ct-solo')) return;
+
+        paper.querySelectorAll('.ct-clause.ct-active').forEach(function (c) { c.classList.remove('ct-active'); });
+        var alvo = paper.querySelector('[data-clause="' + uid + '"]');
+        if (!alvo) return;
+        alvo.classList.add('ct-active');
+
+        var topo = aside.scrollTop + alvo.getBoundingClientRect().top - aside.getBoundingClientRect().top - 56;
+        aside.scrollTo({ top: Math.max(0, topo), behavior: 'smooth' });
+
+        if (destaca) {
+            alvo.classList.add('ct-flash');
+            setTimeout(function () { alvo.classList.remove('ct-flash'); }, 900);
+        }
+    }
+
+    // ---- Prévia (servidor) e salvar automático ----
     var espera = null;
+    var esperaSalvar = null;
     function marca(previa) {
         alterado = true;
-        if (estado) estado.textContent = 'Alterações não salvas.';
+        edicao++;
+        if (estado && !conflito) estado.textContent = 'Alterações ainda não salvas…';
         if (previa !== false) {
             clearTimeout(espera);
             espera = setTimeout(atualizaPrevia, 1500);
+        }
+        if (!conflito) {
+            clearTimeout(esperaSalvar);
+            esperaSalvar = setTimeout(function () { salvaAuto(false); }, 3000);
         }
     }
 
@@ -427,15 +570,254 @@
             paper.innerHTML = j.html;
             CT.tokens = j.tokens;
             CT.outline = j.outline;
+            CT.usage = j.usage || {};
             preencheSelects();
             desenhaProblemas(j.problems);
+            guardaChaves(j.variables || []);
+            // Antes de criar: a criada agora ainda não aparece no uso desta prévia.
+            limpaAutomaticas();
+            var criadas = criaDasMarcas(j.unknown || []);
+            desenhaUso();
+            desenhaFaltaPreencher();
+            if (clausulaAtiva) rolaPrevia(clausulaAtiva, false);
+            // Variável nova: a prévia de novo, já com ela (e com o tipo do palpite).
+            if (criadas) marca(true);
         });
     }
 
+    // Grava sem sair da tela. `forca`: depois do aviso de conflito, a pessoa escolheu gravar por cima.
+    var conflito = false;
+    var salvando = false;
+    var revisao = document.querySelector('[data-revision]');
+    function salvaAuto(forca) {
+        if (enviando || (conflito && !forca)) return;
+        if (salvando) {
+            clearTimeout(esperaSalvar);
+            esperaSalvar = setTimeout(function () { salvaAuto(forca); }, 1000);
+            return;
+        }
+        salvando = true;
+        var versao = edicao;
+        sincroniza();
+        var dados = new FormData(form);
+        dados.set('_method', 'PUT');
+        dados.set('revision', String(CT.revision));
+        if (forca) dados.set('force', '1');
+        if (estado) estado.textContent = 'Salvando…';
+
+        fetch(CT.urls.autosave, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CT.csrf, 'Accept': 'application/json' },
+            body: dados
+        }).then(function (r) {
+            return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, j: j }; });
+        }).then(function (res) {
+            salvando = false;
+            if (aposSalvar && !(res.status === 409)) {
+                var segue = aposSalvar;
+                aposSalvar = null;
+                if (res.status === 200 && res.j.ok) {
+                    CT.revision = res.j.revision;
+                    if (revisao) revisao.value = res.j.revision;
+                }
+                segue();
+                return;
+            }
+            aposSalvar = null;
+            if (res.status === 200 && res.j.ok) {
+                CT.revision = res.j.revision;
+                if (revisao) revisao.value = res.j.revision;
+                guardaChaves(res.j.variables || []);
+                if (edicao === versao) alterado = false;
+                if (estado) estado.textContent = edicao === versao
+                    ? 'Salvo automaticamente às ' + res.j.saved_at + '.'
+                    : 'Alterações ainda não salvas…';
+                return;
+            }
+            if (res.status === 409) {
+                mostraConflito(res.j.error || 'Não foi possível salvar.', !!res.j.conflict);
+                return;
+            }
+            if (res.status === 422) {
+                if (estado) estado.textContent = 'Não salvou: ' + ((res.j && res.j.message) || 'confira os campos.');
+                return;
+            }
+            if (res.status === 419 || res.status === 401) {
+                mostraConflito('A sua sessão expirou. Copie o que digitou por último e recarregue a página para entrar de novo.', false);
+                return;
+            }
+            tentaDeNovo();
+        }).catch(function () {
+            salvando = false;
+            if (aposSalvar) {
+                var segue = aposSalvar;
+                aposSalvar = null;
+                segue();
+                return;
+            }
+            tentaDeNovo();
+        });
+    }
+
+    function tentaDeNovo() {
+        if (estado) estado.textContent = 'Sem conexão para salvar agora — tentando de novo…';
+        clearTimeout(esperaSalvar);
+        esperaSalvar = setTimeout(function () { salvaAuto(false); }, 10000);
+    }
+
+    function mostraConflito(mensagem, podeForcar) {
+        conflito = true;
+        clearTimeout(esperaSalvar);
+        var caixa = document.querySelector('[data-conflict]');
+        caixa.querySelector('[data-conflict-message]').textContent = mensagem;
+        caixa.querySelector('[data-conflict-force]').classList.toggle('hidden', !podeForcar);
+        caixa.querySelector('[data-conflict-hint]').classList.toggle('hidden', !podeForcar);
+        caixa.classList.remove('hidden');
+        caixa.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (estado) estado.textContent = 'Não salvo: veja o aviso no alto da tela.';
+    }
+
+    // ---- Variáveis (05/11/2026) ----
+    function linhasVariaveis() {
+        return Array.prototype.slice.call(document.querySelectorAll('[data-list="variable"] > [data-row="variable"]'));
+    }
+
+    // A ordem das chaves que o servidor devolve é a das linhas que ele aceitou (pula as em branco).
+    function linhasAceitas() {
+        return linhasVariaveis().filter(function (l) {
+            return l.querySelector('[data-var-label]').value.trim() !== '' || l.querySelector('[data-var-key]').value !== '';
+        });
+    }
+
+    // Linha nova ganha a chave depois que o nome para de mudar: trocar o nome depois não quebra o [[marcador]].
+    function guardaChaves(chaves) {
+        linhasAceitas().forEach(function (l, i) {
+            var campo = l.querySelector('[data-var-key]');
+            if (campo.value || !chaves[i] || l.contains(document.activeElement)) return;
+            campo.value = chaves[i];
+            var token = l.querySelector('[data-var-token]');
+            token.textContent = '[[' + chaves[i] + ']]';
+            token.classList.remove('hidden');
+        });
+    }
+
+    function semAcento(texto) {
+        return String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    }
+
+    function adivinhaTipo(nome) {
+        var limpo = semAcento(nome);
+        var tipos = Object.keys(CT.guess || {});
+        for (var i = 0; i < tipos.length; i++) {
+            if (new RegExp(CT.guess[tipos[i]]).test(limpo)) return tipos[i];
+        }
+        return 'text';
+    }
+
+    function palpiteDoTipo(linha) {
+        var tipo = linha.querySelector('[data-var-type]');
+        if (tipo.dataset.touched) return;
+        tipo.value = adivinhaTipo(linha.querySelector('[data-var-label]').value);
+    }
+
+    // Variável nova (comum, ou do [[marcador]]). Se o nome já existe, vai para ela.
+    function adicionaVariavel(nome, tipo, opcoes) {
+        opcoes = opcoes || {};
+        var existente = linhasVariaveis().filter(function (l) {
+            var chave = l.querySelector('[data-var-key]').value;
+            return semAcento(l.querySelector('[data-var-label]').value) === semAcento(nome) || (opcoes.chave && chave === opcoes.chave);
+        })[0];
+        if (existente) {
+            if (opcoes.foco) existente.querySelector('[data-var-value]').focus();
+            return null;
+        }
+        var linha = molde('tpl-variable', { '__K__': chave() });
+        document.querySelector('[data-list="variable"]').appendChild(linha);
+        linha.querySelector('[data-var-label]').value = nome;
+        var campoTipo = linha.querySelector('[data-var-type]');
+        campoTipo.value = tipo || adivinhaTipo(nome);
+        if (opcoes.chave) {
+            linha.querySelector('[data-var-key]').value = opcoes.chave;
+            var token = linha.querySelector('[data-var-token]');
+            token.textContent = '[[' + opcoes.chave + ']]';
+            token.classList.remove('hidden');
+        }
+        if (opcoes.auto) {
+            linha.dataset.auto = '1';
+        } else {
+            campoTipo.dataset.touched = '1';
+        }
+        if (opcoes.foco) {
+            linha.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            linha.querySelector('[data-var-value]').focus({ preventScroll: true });
+        }
+        marca(true);
+        return linha;
+    }
+
+    // [[Prazo de vigência]] escrito na cláusula e sem variável: ela aparece sozinha.
+    function criaDasMarcas(desconhecidas) {
+        var criadas = 0;
+        desconhecidas.forEach(function (v) {
+            if (adicionaVariavel(v.label, v.type, { chave: v.key, auto: true })) criadas++;
+        });
+        desenhaFaltaPreencher();
+        return criadas;
+    }
+
+    // A criada sozinha que ninguém preencheu e o texto deixou de usar (o [[marcador]] foi
+    // apagado ou ainda estava sendo digitado) some de novo.
+    function limpaAutomaticas() {
+        linhasVariaveis().forEach(function (l) {
+            if (!l.dataset.auto || l.contains(document.activeElement)) return;
+            var chaveVar = l.querySelector('[data-var-key]').value;
+            if (l.querySelector('[data-var-value]').value.trim() === '' && chaveVar && !(CT.usage || {})[chaveVar]) {
+                l.remove();
+            }
+        });
+    }
+
+    function desenhaUso() {
+        linhasVariaveis().forEach(function (l) {
+            var chaveVar = l.querySelector('[data-var-key]').value;
+            var campo = l.querySelector('[data-var-usage]');
+            if (!chaveVar) {
+                campo.textContent = '';
+                return;
+            }
+            var usos = (CT.usage || {})[chaveVar] || [];
+            campo.textContent = usos.length ? 'Usada em: ' + usos.join(', ') + '.' : 'Ainda não usada no texto.';
+            campo.classList.toggle('text-warn', !usos.length);
+            campo.classList.toggle('text-ink-3', !!usos.length);
+        });
+    }
+
+    function desenhaFaltaPreencher() {
+        var caixa = document.querySelector('[data-var-missing]');
+        if (!caixa) return;
+        var faltam = [];
+        linhasVariaveis().forEach(function (l, i) {
+            var nome = l.querySelector('[data-var-label]').value.trim();
+            if (nome && l.querySelector('[data-var-value]').value.trim() === '') faltam.push({ i: i, nome: nome });
+        });
+        caixa.classList.toggle('hidden', !faltam.length);
+        caixa.innerHTML = faltam.length
+            ? '<p class="mb-1 text-xs font-bold text-warn">Falta preencher (' + faltam.length + ')</p><div class="flex flex-wrap gap-1.5">'
+                + faltam.map(function (f) {
+                    return '<button type="button" class="rounded-full bg-surface px-3 py-1 text-xs font-bold text-ink hover:bg-subtle" data-var-focus="' + f.i + '">' + escape(f.nome) + '</button>';
+                }).join('') + '</div>'
+            : '';
+    }
+
     function desenhaProblemas(lista) {
-        if (!problemsBox) return;
         var erros = lista.filter(function (p) { return p.level === 'error'; });
         var avisos = lista.filter(function (p) { return p.level === 'warning'; });
+        var contador = document.querySelector('[data-problem-count]');
+        if (contador) {
+            contador.textContent = erros.length ? erros.length : (avisos.length ? avisos.length : '✓');
+            contador.className = 'rounded-full px-2 text-[11px] ' + (erros.length ? 'bg-danger text-white' : (avisos.length ? 'bg-warn-soft text-warn' : 'bg-ok-soft text-ok'));
+        }
+        if (!problemsBox) return;
         var html = '';
         if (!erros.length && !avisos.length) {
             html = '<p class="rounded-xl bg-ok-soft px-3 py-2 text-sm font-bold text-ok">Nenhum problema encontrado.</p>';
@@ -551,5 +933,6 @@
 
     preencheSelects();
     renumera();
+    desenhaFaltaPreencher();
 })();
 </script>

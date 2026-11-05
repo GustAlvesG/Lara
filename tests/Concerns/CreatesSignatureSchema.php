@@ -67,6 +67,8 @@ trait CreatesSignatureSchema
             '2026_10_30_130000_add_parties_search_to_signature_contracts.php',
             // Visto da Gerência na aprovação (versão do contrato e documento gerado).
             '2026_11_04_110000_add_approval_initials_to_contracts_and_documents.php',
+            // Salvar automático do contrato (revisão do texto) e prestadores (05/11/2026).
+            '2026_11_05_100000_add_providers_and_autosave_to_contracts.php',
         ];
 
         foreach ($migrations as $arquivo) {

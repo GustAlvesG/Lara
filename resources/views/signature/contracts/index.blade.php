@@ -2,6 +2,10 @@
     Contratos (módulo próprio no menu desde 04/11/2026). Cada setor vê os seus; a Gerência vê
     todos e tem a aba "Para validar". Busca no servidor (SignatureContract::scopeSearch):
     número em qualquer grafia, título, setor, quem redigiu, partes e o texto.
+
+    Desde 05/11/2026: aba "Em assinatura" (aprovados com o documento colhendo assinaturas) e a
+    coluna "Assinatura" com o andamento (quantos assinaram e quem falta —
+    SignatureContract::signingProgress). O presidente vê aqui também o que aguarda a assinatura dele.
 --}}
 @php
     use App\Models\SignatureContract as C;
@@ -30,17 +34,23 @@
 
         @include('partials.alerts')
 
-        @if($gerencia)
-            <div class="flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-subtle p-1" role="tablist" aria-label="Contratos">
-                <a href="{{ route('contracts.index') }}" role="tab" aria-selected="{{ $aba === 'todos' ? 'true' : 'false' }}" class="{{ $tab }}">Todos</a>
+        <div class="flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-subtle p-1" role="tablist" aria-label="Contratos">
+            <a href="{{ route('contracts.index') }}" role="tab" aria-selected="{{ $aba === 'todos' ? 'true' : 'false' }}" class="{{ $tab }}">Todos</a>
+            @if($gerencia)
                 <a href="{{ route('contracts.index', ['aba' => 'validar']) }}" role="tab" aria-selected="{{ $aba === 'validar' ? 'true' : 'false' }}" class="{{ $tab }}">
                     Para validar
                     @if($aguardando > 0)
                         <span class="rounded-full bg-grena px-2 text-[11px] text-white">{{ $aguardando }}</span>
                     @endif
                 </a>
-            </div>
-        @endif
+            @endif
+            <a href="{{ route('contracts.index', ['aba' => 'assinatura']) }}" role="tab" aria-selected="{{ $aba === 'assinatura' ? 'true' : 'false' }}" class="{{ $tab }}">
+                Em assinatura
+                @if($emAssinatura > 0)
+                    <span class="rounded-full bg-line px-2 text-[11px] text-ink">{{ $emAssinatura }}</span>
+                @endif
+            </a>
+        </div>
 
         <x-search-bar :filters="['status', 'aba']" placeholder="Título, número, contratada, CNPJ, setor ou quem redigiu">
             <x-slot:controls>
@@ -53,7 +63,7 @@
                         @endforeach
                     </select>
                 @else
-                    <input type="hidden" name="aba" value="validar">
+                    <input type="hidden" name="aba" value="{{ $aba }}">
                 @endif
             </x-slot:controls>
         </x-search-bar>
@@ -62,9 +72,11 @@
             <x-empty-state icon="doc">
                 @if(filled($busca) || filled($status))
                     Nenhum contrato com esses filtros.
-                    <a href="{{ route('contracts.index', $aba === 'validar' ? ['aba' => 'validar'] : []) }}" class="font-bold text-grena-ink hover:underline">Limpar a busca</a>.
+                    <a href="{{ route('contracts.index', $aba !== 'todos' ? ['aba' => $aba] : []) }}" class="font-bold text-grena-ink hover:underline">Limpar a busca</a>.
                 @elseif($aba === 'validar')
                     Nenhum contrato aguardando validação.
+                @elseif($aba === 'assinatura')
+                    Nenhum contrato colhendo assinaturas agora.
                 @else
                     Nenhum contrato por aqui ainda.
                     @can('create', C::class)
@@ -82,6 +94,7 @@
                                 <th class="{{ $th }}">Contratada</th>
                                 <th class="{{ $th }}">Setor</th>
                                 <th class="{{ $th }}">Situação</th>
+                                <th class="{{ $th }}">Assinatura</th>
                                 <th class="{{ $th }}">Atualizado</th>
                             </tr>
                         </thead>
@@ -99,6 +112,9 @@
                                     <td class="px-5 py-3.5 text-ink">{{ $contract->counterpartyName() ?? '—' }}</td>
                                     <td class="px-5 py-3.5 text-ink-2">{{ $contract->sector_name ?? '—' }}</td>
                                     <td class="px-5 py-3.5"><x-pill :kind="$kind($contract->status)">{{ $contract->statusLabel() }}</x-pill></td>
+                                    <td class="px-5 py-3.5 text-xs">
+                                        @include('signature.contracts.partials.signing-progress', ['contract' => $contract, 'compact' => true])
+                                    </td>
                                     <td class="px-5 py-3.5 text-xs text-ink-2 whitespace-nowrap">{{ $contract->updated_at?->format('d/m/Y H:i') }}</td>
                                 </tr>
                             @endforeach

@@ -30,7 +30,7 @@
 
     <div class="flex flex-wrap items-end gap-2 rounded-lg bg-subtle p-2">
         <div class="min-w-0 flex-1">
-            <label class="{{ $l }}">Buscar no cadastro (contratadas e fiadores já usados)</label>
+            <label class="{{ $l }}">Buscar nos Prestadores</label>
             <input type="search" data-party-search class="{{ $f }}" placeholder="Nome, CNPJ ou CPF">
         </div>
         <div data-party-results class="w-full space-y-1"></div>

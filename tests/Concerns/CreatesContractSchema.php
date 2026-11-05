@@ -31,6 +31,8 @@ trait CreatesContractSchema
         $arquivos[] = '2026_11_04_120000_add_legal_to_signature_contract_ai_reviews.php';
         // De novo: o esquema de assinatura roda antes de `signature_contract_versions` existir aqui.
         $arquivos[] = '2026_11_04_110000_add_approval_initials_to_contracts_and_documents.php';
+        // Prestadores (ativo/inativo) e o salvar automático do editor (05/11/2026).
+        $arquivos[] = '2026_11_05_100000_add_providers_and_autosave_to_contracts.php';
 
         foreach ($arquivos as $arquivo) {
             (require base_path('database/migrations/' . $arquivo))->up();

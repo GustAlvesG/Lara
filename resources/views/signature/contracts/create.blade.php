@@ -65,7 +65,7 @@
                 {{-- 2. Contratado --}}
                 <section class="{{ $card }}" data-step="Contratado" data-step-keys="party">
                     <div class="rounded-xl bg-subtle p-3">
-                        <label for="party_search" class="mb-1 block text-xs font-bold text-ink-2">Buscar no cadastro (contratadas e fiadores já usados)</label>
+                        <label for="party_search" class="mb-1 block text-xs font-bold text-ink-2">Buscar nos Prestadores (Contratos → Prestadores)</label>
                         <input type="search" id="party_search" data-member-search data-party-search class="{{ $field }}" placeholder="Nome, CNPJ ou CPF">
                         <div data-party-results class="mt-2 space-y-1"></div>
                     </div>
@@ -132,7 +132,7 @@
                         </div>
                     </div>
                     <p class="text-xs text-ink-3">
-                        O contratado fica guardado no cadastro para os próximos contratos e já entra em "Quem assina".
+                        O contratado fica guardado em Prestadores para os próximos contratos e já entra em "Quem assina".
                         Fiadores e outras partes se incluem no editor.
                     </p>
                 </section>

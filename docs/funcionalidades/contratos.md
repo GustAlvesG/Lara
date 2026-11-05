@@ -112,6 +112,7 @@ redireciona com `passo`, e a tela volta no mesmo), e dispara `step:shown` no pas
 ```
 rascunho ─enviar→ em validação ─devolver→ devolvido ─enviar→ em validação …
                                └aprovar→ aprovado (número + documento de assinatura em RASCUNHO)
+aprovado ─presidente ou contratada recusa a assinatura→ devolvido (documento encerrado; aprovado de novo, documento novo)
 aprovado ─reabrir→ rascunho   (só enquanto o documento não foi congelado; o rascunho do documento é cancelado)
 rascunho/devolvido/em validação ─cancelar→ cancelado
 aprovado ─criar aditivo→ novo contrato (kind = addendum) em rascunho
@@ -131,6 +132,86 @@ aprovado ─criar aditivo→ novo contrato (kind = addendum) em rascunho
 - **O que mudou**: a tela compara a cópia atual com a última versão **devolvida** (`ContractDiff`):
   cláusulas e itens casados por `uid` (mover não é apagar+criar), diferença palavra a palavra, mais
   partes, variáveis, considerandos e signatários.
+
+## Revisões da apresentação (05/11/2026)
+
+Pedidos do usuário depois de apresentar o módulo. Decisões dele entre parênteses.
+
+### Variáveis
+- "Valor" virou **Preenchimento** no editor (os usuários liam "valor" como dinheiro). O tipo "Valor em reais"
+  continua (é dinheiro mesmo). Mensagens da Conferência: "não foi preenchida" / "sem preenchimento".
+- **Variável comum**: `ContractVariables::COMMON` (rótulo + tipo), escolhida no select do passo Variáveis.
+- **Tipo pelo nome**: `ContractVariables::GUESS` (regex por tipo, sobre o nome sem acento e em minúsculas;
+  a primeira que casa vale) e `guessType()`. As mesmas expressões vão para o editor (`CT.guess`), que só palpita
+  enquanto o select não foi mexido (`data-touched`; variável já salva nasce "mexida").
+- **Marcador vira variável**: `ContractRenderer::variableUsage()` devolve `usage` (chave → "Cláusula 3",
+  "Considerando II") e `unknown` (`[[marcador]]` que não é variável nem dado pronto, com chave, rótulo e tipo
+  do palpite). A rota `preview` manda os dois e as `variables` (chaves na ordem); o editor cria a linha
+  (`data-auto`) e, se ninguém preencheu e o texto deixou de usar, tira de novo.
+- **Chave estável**: a linha nova recebe a chave do servidor (prévia ou salvar automático) quando o nome para de
+  mudar (`guardaChaves`, pula a linha com foco) — renomear depois não quebra o `[[marcador]]`.
+- "Usada em …" / "Ainda não usada no texto" em cada variável e o quadro **Falta preencher**.
+
+### Salvar automático (formulário inteiro; também no tablet da Gerência)
+- `signature_contracts.content_revision` (sobe a cada gravação do texto), `content_saved_by_name`,
+  `content_saved_at` — migration `2026_11_05_100000`.
+- `ContractService::save(..., ?int $expectedRevision, bool $force)`: lê a linha com `lockForUpdate`; revisão
+  diferente → `ContractConflictException` (quem e quando). Situação mudou (ex.: enviado) → `ContractException`.
+- Rota `PUT contracts.autosave` (`/contratos/{id}/automatico`, JSON): 200 com `revision`, `saved_at`,
+  `variables`; 409 com `conflict` (alguém salvou antes) ou `reload` (não dá mais para editar). O formulário
+  normal leva `revision` (input `data-revision`) e confere também.
+- Editor: 3 s depois da última alteração; "Salvando…", "Salvo automaticamente às HH:MM". No conflito para de
+  salvar e mostra o aviso com **Recarregar** e **Gravar o meu texto por cima** (`force`) — decisão do usuário:
+  avisar "alguém salvou antes de você". Um envio do formulário com salvar em andamento espera ele terminar
+  (senão a própria pessoa causaria o conflito).
+- Tablet (`quiosque.gerencia.update`): aceita `revision`/`force`/`auto`; `editable()` manda `revision`; a folha
+  salva sozinha 3 s depois e ao fechar; conflito mostra **Gravar o meu texto por cima**.
+
+### Telas
+- **Duas colunas rolando cada uma por si** (todas as telas de duas colunas, decisão do usuário):
+  classes `split-lg`/`split-xl` (na grade) e `split-pane` (em cada coluna), em `resources/css/app.css`
+  (`--split-top` = altura do cabeçalho). Aplicadas no editor, na tela do contrato, na biblioteca, na tela do
+  documento de assinatura e na do modelo de Assinaturas.
+- **Editor: abas ao lado** — Prévia (primeira), Conferência (contador de problemas) e Claude. Volta na
+  Conferência quando o envio é recusado e no Claude quando a URL tem `#revisao-ia`.
+- **Prévia acompanha a cláusula**: focar ou digitar numa cláusula rola a coluna até `[data-clause=uid]` e marca
+  (`.ct-active`, destaque `.ct-flash` ao trocar de cláusula); depois de cada prévia, rola de novo.
+- **Revisão do Claude colapsável** (`partials/ai-review`, `<details data-ai-result>`): fechada mostra quantos
+  apontamentos, o risco jurídico e se o texto mudou. `$aberto` abre de saída (editor); `#revisao-ia` abre.
+
+### Prestadores (Contratos → Prestadores)
+- `ContractProviderController`, rotas `contract-providers.*` (`/contratos/prestadores`), views em
+  `signature/contracts/providers/`. Mesma tabela `signature_contract_parties`, com `active` e `created_by_name`.
+- Quem cuida: quem acessa Contratos (`SignatureContractPolicy::manageProviders` = `assinatura.contratos` ou
+  Gerência) — sem permissão nova (decisão do usuário). No menu: `P::ASSINATURA_CONTRATOS`.
+- Não se exclui, só se inativa (decisão do usuário). Inativo some de `contracts.parties`; salvar contrato não
+  reativa (`rememberParties` usa `firstOrNew` e não toca `active`). Documento único (só caracteres).
+- A edição lista os contratos que o usam (`parties_search` LIKE documento), filtrados por `can('view')`.
+
+### Recusa na assinatura → volta para revisão
+- Só **presidente** e **contratada** devolvem (decisão do usuário): `ContractService::refusalRole()` casa o
+  `party` do signatário com `ContractRenderer::documentSigners()` (presidente = `president`; ou diretor da área
+  `SIGNATURE_CONTRACT_PRESIDENT_AREA`).
+- Tablet e link remoto: `SignatureCaptureService::refuse` chama `ContractService::signatureRefused()` depois do
+  commit (falha só vai ao log). Presidente/contratada: o contrato vira **devolvido**, `signature_document_id`
+  e a aprovação são limpos, o motivo vira observação geral ("Recusado na assinatura por …"), evento
+  `signature_refused`, e-mail `SignatureContractRefusedMail` a quem redigiu. Número fica. Aprovado de novo, gera
+  documento **novo** (assinaturas do zero — decisão do usuário). Testemunha/fiador: só o evento; o contrato
+  segue aprovado e "Gerar documento de assinatura" e "Reabrir" passam a aceitar documento **recusado**.
+- Pela tela do Lara (decisão do usuário: "nos dois"): `contracts.refuse-signature` (motivo obrigatório),
+  `SignatureContractPolicy::refuseSignature` = presidente (titular da Presidência) com assinatura pendente
+  (`presidentSignerFor`). Documento congelado: signatário e documento → recusado pelo `SignatureStateMachine`
+  (ator usuário). Rascunho: o documento é cancelado.
+- O presidente **vê** a lista e o contrato que aguardam a assinatura dele (`viewAny`/`view`), sem gerir
+  (`manage` deixou de ser igual a `view`). O menu continua só com a permissão do catálogo; sem ela, ele entra
+  por `/contratos`. O e-mail do diretor (`signature-director-pending`) explica como recusar quando o documento é
+  de contrato (sem link, de propósito).
+
+### Andamento da assinatura dentro de Contratos
+- Aba **Em assinatura** (`SignatureContract::scopeInSigning`: aprovado com documento em rascunho, aguardando ou
+  assinado) para todos, e coluna **Assinatura** na lista; cartão **Assinatura** na tela do contrato.
+  `SignatureContract::signingProgress()` (assinaram/total, quem falta, quem recusou) e o partial
+  `partials/signing-progress` (`compact` na lista).
 
 ## Visto da Gerência na aprovação (04/11/2026)
 
@@ -401,6 +482,8 @@ Pedido do usuário: o contrato produzido sai com o cabeçalho e o rodapé do pap
 | `contratos.biblioteca` (04/11/2026) | Cadastra, edita e exclui cláusulas e modelos da biblioteca dos setores dele (`manageLibrary`) |
 | `contratos.assinatura` (04/11/2026) + membro do setor do contrato | Aba Assinaturas: conduz a assinatura do documento do contrato (o processo de Assinaturas) |
 | Membro do setor **Gerência** (`User::isManagementMember()`) | Vê todos; ajusta em validação; aprova/devolve (`decide`); pede a revisão automática pelo Claude (`aiReview`) também em validação |
+| `assinatura.contratos` ou Gerência (05/11/2026) | Prestadores: cadastra, edita, inativa (`manageProviders`) |
+| Presidente (titular da Presidência) com assinatura pendente (05/11/2026) | Vê o contrato e o lista; recusa e devolve para revisão (`refuseSignature`). Não gere (`manage`) |
 
 - Permissões só no catálogo (`Permissions::ASSINATURA_CONTRATOS`, `CONTRATOS_BIBLIOTECA`,
   `CONTRATOS_ASSINATURA`, grupo "Contratos"); o `PermissionCatalogSeeder` cria no deploy, **sem setor** —
@@ -426,14 +509,14 @@ Migration `2026_10_29_100000_create_signature_contracts` (idempotente, nomes cur
 
 | Tabela | Conteúdo |
 |---|---|
-| `signature_contracts` | setor, `kind`, `parent_id`, `addendum_seq`, `number_seq`/`number_year`/`number` (únicos), `title`, `status`, `content` (JSON), `parties_search` (migration `2026_10_30_130000`: nome e documento das partes em texto puro, porque o JSON escapa o acento e a busca não acharia), `current_version`, `approved_version_id`, `signature_document_id`, retratos |
+| `signature_contracts` | setor, `kind`, `parent_id`, `addendum_seq`, `number_seq`/`number_year`/`number` (únicos), `title`, `status`, `content` (JSON), `parties_search` (migration `2026_10_30_130000`: nome e documento das partes em texto puro, porque o JSON escapa o acento e a busca não acharia), `current_version`, `approved_version_id`, `signature_document_id`, retratos; `content_revision`, `content_saved_by_name`, `content_saved_at` (salvar automático, migration `2026_11_05_100000`) |
 | `signature_contract_versions` | `version`, `content`, envio (`note`, `by_reviewer`), decisão (`decision`, `decision_note`) |
 | `signature_contract_comments` | `clause_uid` (nulo = geral), `body`, `resolved_at` |
 | `signature_contract_events` | histórico (só inserção) |
 | `signature_contract_attachments` | arquivo no disco `signature.disk` em `signature/contracts/{id}/anexos/`, `sha256` |
 | `signature_contract_clauses` | biblioteca por setor (`items` JSON), SoftDeletes |
 | `signature_contract_models` | modelos por setor (`content` JSON), SoftDeletes |
-| `signature_contract_parties` | contratadas/fiadores por `document` |
+| `signature_contract_parties` | prestadores (contratadas/fiadores) por `document`; `active` e `created_by_name` (migration `2026_11_05_100000`) |
 | `signature_contract_ai_reviews` | revisão do Claude (migration `2026_10_29_110000`): `content_hash`, `model`, `verdict`, `summary`, `findings` (JSON), `input_tokens`/`output_tokens`, quem pediu; `withheld` (JSON, migration `2026_10_29_130000`: trechos não enviados, `{key, label, reasons}`; nulo = tudo foi) |
 
 Forma do `content`: ver o docblock de `ContractContent`.
@@ -465,6 +548,9 @@ A revisão automática usa `config/claude.php` (`ANTHROPIC_API_KEY`, `CLAUDE_CON
   ponha `ANTHROPIC_API_KEY` no `.env` do servidor e rode `php artisan config:cache`.
 - Depois do deploy: cadastrar a área "Presidência" com o titular em Assinaturas → Diretoria (se ainda não
   houver) e dar `assinatura.contratos` aos setores que redigem (Setores).
+- Deploy de 05/11/2026: migration `2026_11_05_100000` (prestador ativo, revisão do texto), `route:cache`
+  (rotas novas: `contracts.autosave`, `contracts.refuse-signature`, `contract-providers.*`) e `npm run build`
+  (`split-*` e classes novas). Nenhuma permissão nova.
 - Modelos-base (04/11/2026): depois do deploy, `php artisan contratos:modelos-base --setor=<setor>` para cada
   setor que vai usá-los (modelo e cláusula são por setor). Rodar de novo não duplica.
 - Deploy de 04/11/2026 (módulo próprio): a migration `2026_11_04_100000` (trechos anexados), o seed cria
@@ -474,6 +560,11 @@ A revisão automática usa `config/claude.php` (`ANTHROPIC_API_KEY`, `CLAUDE_CON
   aba Assinaturas.
 
 ## Testes
+
+`tests/Feature/SignatureContractRevisionsTest.php` (05/11/2026): tipo pelo nome, uso das variáveis e marcador
+sem variável, editor com "Preenchimento" e abas, salvar automático e conflito, Prestadores (cadastro, documento
+único, inativo fora da busca, acesso), recusa do presidente/contratada/testemunha (tablet) e do presidente pela
+tela, aba "Em assinatura" com o andamento.
 
 `tests/Feature/SignatureContractTest.php` (numeração, remissão que acompanha, extenso, problemas, ciclo
 completo com e-mails, número único entre setores, ajuste da Gerência, aditivo, reabrir, anexos, cadastro

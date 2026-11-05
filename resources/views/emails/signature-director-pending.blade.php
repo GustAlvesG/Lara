@@ -36,6 +36,15 @@
       <b>matrícula e o PIN</b> do Lara. A lista mostra todos os documentos pendentes de sua assinatura.
     </p>
 
+    {{-- Contrato (05/11/2026): o presidente pode recusar e devolver para revisão. --}}
+    @if($document->isContract())
+      <p style="font-size:15px;line-height:1.6;margin:0 0 14px;">
+        Não concorda com o texto do contrato? Abra o documento no tablet e toque em <b>Recusar</b> dizendo o motivo,
+        ou recuse no Lara, em <b>Contratos</b> (o contrato aparece na lista enquanto aguarda a sua assinatura).
+        O contrato volta para quem redigiu, para revisão.
+      </p>
+    @endif
+
     <p style="font-size:13px;line-height:1.6;color:#6d6062;margin:0 0 6px;">
       Ainda não tem PIN? Cadastre no seu Perfil, no Lara.
     </p>

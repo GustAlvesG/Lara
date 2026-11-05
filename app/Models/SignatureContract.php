@@ -51,6 +51,9 @@ class SignatureContract extends Model
         'title',
         'status',
         'content',
+        'content_revision',
+        'content_saved_by_name',
+        'content_saved_at',
         'current_version',
         'approved_version_id',
         'signature_document_id',
@@ -67,6 +70,7 @@ class SignatureContract extends Model
         'kind' => self::KIND_CONTRACT,
         'status' => self::STATUS_DRAFT,
         'current_version' => 0,
+        'content_revision' => 0,
     ];
 
     protected $casts = [
@@ -76,6 +80,8 @@ class SignatureContract extends Model
         'number_seq' => 'integer',
         'number_year' => 'integer',
         'content' => 'array',
+        'content_revision' => 'integer',
+        'content_saved_at' => 'datetime',
         'current_version' => 'integer',
         'approved_version_id' => 'integer',
         'signature_document_id' => 'integer',
@@ -223,6 +229,49 @@ class SignatureContract extends Model
         return $isManagement
             ? $query
             : $query->whereIn('sector_id', $sectorIds === [] ? [0] : $sectorIds);
+    }
+
+    /**
+     * Em assinatura (05/11/2026): aprovado, com o documento em rascunho ou
+     * colhendo assinaturas. A aba "Em assinatura" da lista de Contratos.
+     */
+    public function scopeInSigning(Builder $query): Builder
+    {
+        return $query->where('status', self::STATUS_APPROVED)
+            ->whereHas('document', fn(Builder $d) => $d->whereIn('status', [
+                SignatureDocument::STATUS_DRAFT,
+                SignatureDocument::STATUS_AWAITING_SIGNATURE,
+                SignatureDocument::STATUS_SIGNED,
+            ]));
+    }
+
+    /**
+     * O andamento da assinatura para a lista e a tela do contrato: quantos
+     * assinaram, de quantos, e quem falta. Null sem documento.
+     *
+     * @return array{status: string, label: string, signed: int, total: int, pending: array<int, string>, refused: ?string}|null
+     */
+    public function signingProgress(): ?array
+    {
+        $documento = $this->document;
+
+        if (!$documento) {
+            return null;
+        }
+
+        $signatarios = $documento->signers->where('role', SignatureSigner::ROLE_SIGNER);
+        $ativos = $signatarios->reject(fn(SignatureSigner $s) => $s->status === SignatureSigner::STATUS_CANCELED);
+        $recusou = $signatarios->firstWhere('status', SignatureSigner::STATUS_REFUSED);
+
+        return [
+            'status' => $documento->status,
+            'label' => $documento->statusLabel(),
+            'signed' => $ativos->where('status', SignatureSigner::STATUS_SIGNED)->count(),
+            'total' => $ativos->count(),
+            'pending' => $ativos->where('status', SignatureSigner::STATUS_PENDING)->sortBy('position')
+                ->map(fn(SignatureSigner $s) => $s->name . ($s->party_label ? ' (' . $s->party_label . ')' : ''))->values()->all(),
+            'refused' => $recusou?->name,
+        ];
     }
 
     public function statusLabel(): string

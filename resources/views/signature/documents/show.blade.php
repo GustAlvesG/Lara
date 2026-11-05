@@ -96,9 +96,9 @@
             </div>
         @endif
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="split-lg grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            <div class="lg:col-span-2 space-y-6">
+            <div class="split-pane lg:col-span-2 space-y-6">
 
                 {{-- Abas pelo endereço (?aba=govbr), e não por script: o envio do PDF do gov.br volta direto para a aba dele. --}}
                 @php
@@ -291,7 +291,7 @@
                 @endif
             </div>
 
-            <div class="space-y-6">
+            <div class="split-pane space-y-6">
                 <div class="bg-surface rounded-card shadow-card p-6"
                      data-signers-box>
                     <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider mb-4">Signatários</h3>

@@ -2,6 +2,10 @@
     Tela do contrato: a leitura (prévia), a validação da Gerência (aprovar ou
     devolver com observações por cláusula), o que mudou desde a última
     devolução, anexos, versões, histórico e o documento de assinatura.
+
+    05/11/2026: as duas colunas rolam cada uma por si (split-xl); o andamento da
+    assinatura aparece aqui (quem assinou e quem falta); o presidente, com o contrato
+    aguardando a assinatura dele, pode recusar e devolver para revisão (contracts.refuse-signature).
 --}}
 @php
     use App\Models\SignatureContract as C;
@@ -26,6 +30,8 @@
     $erros = collect($problems)->where('level', 'error');
     $abertas = $contract->comments->whereNull('resolved_at');
     $documento = $contract->document;
+    $podeRecusar = auth()->user()->can('refuseSignature', $contract);
+    $docEncerrado = $documento && in_array($documento->status, [\App\Models\SignatureDocument::STATUS_CANCELED, \App\Models\SignatureDocument::STATUS_REFUSED], true);
 @endphp
 <x-app-layout :bootstrap-grid="false">
     @include('signature.contracts.partials.styles')
@@ -57,8 +63,31 @@
             </div>
         @endif
 
-        <div class="grid grid-cols-1 gap-6 xl:grid-cols-5">
-            <div class="space-y-6 xl:col-span-3">
+        <div class="split-xl grid grid-cols-1 gap-6 xl:grid-cols-5">
+            <div class="split-pane space-y-6 xl:col-span-3">
+
+                {{-- O presidente recusa a assinatura e devolve para revisão (05/11/2026). --}}
+                @if($podeRecusar)
+                    <form method="POST" action="{{ route('contracts.refuse-signature', $contract) }}" class="{{ $card }} border-2 border-warn"
+                          onsubmit="return confirm('Recusar a assinatura? O contrato volta para quem redigiu, com o seu motivo, e as assinaturas recomeçam do zero quando ele for aprovado de novo.')">
+                        @csrf
+                        <p class="{{ $h }}">Aguardando a sua assinatura</p>
+                        <p class="text-sm text-ink-2">
+                            Você assina este contrato pelo clube no tablet da Diretoria. Se não concorda com o texto, recuse aqui
+                            dizendo o que precisa mudar: o contrato volta para quem redigiu, passa de novo pela Gerência e, aprovado,
+                            gera um documento novo — quem já assinou assina de novo.
+                        </p>
+                        <div>
+                            <label class="mb-1 block text-xs font-bold text-ink-2" for="refuse_reason">Motivo da recusa</label>
+                            <textarea id="refuse_reason" name="reason" rows="3" maxlength="2000" required class="{{ $f }}"
+                                      placeholder="Ex.: a cláusula 4 precisa prever a multa por atraso; o prazo de vigência é de 6 meses, não 12.">{{ old('reason') }}</textarea>
+                            @error('reason')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="submit" class="{{ $btn }} bg-danger text-white hover:opacity-90">Recusar e devolver para revisão</button>
+                        </div>
+                    </form>
+                @endif
 
                 {{-- Validação da Gerência --}}
                 @if($podeDecidir)
@@ -162,23 +191,29 @@
                 </div>
             </div>
 
-            <aside class="space-y-4 xl:col-span-2">
-                {{-- Documento de assinatura --}}
+            <aside class="split-pane space-y-4 xl:col-span-2">
+                {{-- Documento de assinatura e o andamento (05/11/2026: acompanhar dentro de Contratos) --}}
                 @if($contract->status === C::STATUS_APPROVED)
                     <div class="{{ $card }}">
-                        <p class="{{ $h }}">Documento de assinatura</p>
+                        <p class="{{ $h }}">Assinatura</p>
                         @if($documento)
                             <p class="text-sm text-ink">
-                                <a href="{{ route('contract-signatures.show', $documento) }}" class="font-bold text-grena-ink hover:underline">{{ $documento->title }}</a>
-                                <br><span class="text-xs text-ink-2">{{ $documento->statusLabel() }}</span>
+                                @if(auth()->user()->can('view', $documento))
+                                    <a href="{{ route('contract-signatures.show', $documento) }}" class="font-bold text-grena-ink hover:underline">{{ $documento->title }}</a>
+                                @else
+                                    <b>{{ $documento->title }}</b>
+                                @endif
                             </p>
+                            @include('signature.contracts.partials.signing-progress', ['contract' => $contract])
                             @if($documento->status === \App\Models\SignatureDocument::STATUS_DRAFT)
                                 <p class="text-xs text-ink-2">Em rascunho: confira os signatários e os anexos e congele para colher as assinaturas.</p>
+                            @elseif($documento->status === \App\Models\SignatureDocument::STATUS_REFUSED)
+                                <p class="text-xs text-ink-2">Recusado por uma testemunha ou um fiador: gere um documento novo para colher as assinaturas de novo, ou reabra o contrato para alterar.</p>
                             @endif
                         @else
                             <p class="text-sm text-ink-2">Sem documento de assinatura.</p>
                         @endif
-                        @if($podeGerir && (!$documento || $documento->status === \App\Models\SignatureDocument::STATUS_CANCELED))
+                        @if($podeGerir && (!$documento || $docEncerrado))
                             <form method="POST" action="{{ route('contracts.document', $contract) }}">
                                 @csrf
                                 <x-primary-button size="sm">Gerar documento de assinatura</x-primary-button>
@@ -191,7 +226,7 @@
                                     <x-secondary-button type="submit" size="sm">Criar aditivo</x-secondary-button>
                                 </form>
                             @endcan
-                            @if($podeGerir && (!$documento || !$documento->isFrozen() || $documento->status === \App\Models\SignatureDocument::STATUS_CANCELED))
+                            @if($podeGerir && (!$documento || !$documento->isFrozen() || $docEncerrado))
                                 <form method="POST" action="{{ route('contracts.reopen', $contract) }}"
                                       onsubmit="return confirm('Reabrir para alteração? O rascunho do documento de assinatura é cancelado e o contrato precisa ser validado de novo.')">
                                     @csrf

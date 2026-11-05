@@ -28,8 +28,10 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2 bg-surface rounded-card shadow-card p-6">
+        {{-- As duas colunas rolam cada uma por si na tela larga (split-lg, 05/11/2026). --}}
+        <div class="split-lg grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="split-pane lg:col-span-2">
+            <div class="bg-surface rounded-card shadow-card p-6">
                 <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider mb-4">Texto</h3>
 
                 {{-- Prévia do corpo saneado. Sai sem escapar porque é HTML da allow-list, saneado na gravação. --}}
@@ -37,8 +39,9 @@
                     {!! $template->body_html !!}
                 </div>
             </div>
+            </div>
 
-            <div class="space-y-6">
+            <div class="split-pane space-y-6">
                 <div class="bg-surface rounded-card shadow-card p-6">
                     <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider mb-4">Regras</h3>
                     <dl class="space-y-3 text-sm">

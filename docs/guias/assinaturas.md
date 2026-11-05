@@ -221,7 +221,7 @@ Conhecer as telas ajuda a orientar quem está assinando no tablet do balcão. Al
 7. **Visto** (se houver): a rubrica que vai em todas as páginas.
 8. **Foto** (se houver): a pessoa toca em **Tirar foto**, o tablet conta 3 segundos, e ela escolhe **Tirar nova foto** ou **Usar esta foto**.
 
-O que vale saber: as respostas entram no texto antes da leitura (há **Corrigir respostas** na tela do documento); **Recusar** existe em todas as etapas e encerra o documento inteiro como "Recusado"; toda tela tem **Voltar**, e no primeiro passo voltar sai sem assinar (não é recusa, o documento continua pendente; gere outro QR). O tablet avisa antes de encerrar por inatividade e não guarda nada: ao fim volta à tela de espera. A via por e-mail só é oferecida a quem tem e-mail no documento.
+O que vale saber: as respostas entram no texto antes da leitura (há **Corrigir respostas** na tela do documento); **Recusar** existe em todas as etapas e encerra o documento inteiro como "Recusado" (num contrato, a recusa do presidente ou da contratada devolve o contrato para revisão em Contratos); toda tela tem **Voltar**, e no primeiro passo voltar sai sem assinar (não é recusa, o documento continua pendente; gere outro QR). O tablet avisa antes de encerrar por inatividade e não guarda nada: ao fim volta à tela de espera. A via por e-mail só é oferecida a quem tem e-mail no documento.
 
 ## Anexar identidade, comprovante e outros arquivos
 <!-- telas: signature-documents.index -->

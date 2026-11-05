@@ -10,11 +10,16 @@
 
     No editor ($noEditor), o botão é do formulário do contrato (`form="ctForm"`):
     salva primeiro e analisa o texto salvo, para não perder o que foi digitado.
+
+    O resultado colapsa (05/11/2026, pedido do usuário: estava ficando muito grande):
+    fechado, mostra o veredito, o risco jurídico e quantos apontamentos há. $aberto
+    (o editor, na aba Claude) abre de saída; voltando de uma análise (#revisao-ia), abre também.
 --}}
 @php
     use App\Models\SignatureContractAiReview as R;
 
     $noEditor = $noEditor ?? false;
+    $aberto = $aberto ?? false;
     $clausulas = array_values($contract->content['clauses'] ?? []);
     $podePedir = auth()->user()->can('aiReview', $contract);
     $motivos = fn(array $r) => collect($r)->map(fn($m) => R::SENSITIVE_LABELS[$m] ?? $m)->join(', ', ' e ');
@@ -28,6 +33,25 @@
     </div>
 
     @if($aiReview)
+        @php
+            $qtdApontamentos = count($aiReview->findings ?? []);
+            $juridicaResumo = $aiReview->legalReview();
+        @endphp
+        <details class="group space-y-3" data-ai-result @if($aberto) open @endif>
+        <summary class="flex cursor-pointer list-none flex-wrap items-center gap-2 rounded-xl bg-subtle px-3 py-2 text-sm text-ink hover:bg-line [&::-webkit-details-marker]:hidden">
+            <span class="font-bold">
+                {{ $qtdApontamentos === 0 ? 'Nenhum apontamento' : $qtdApontamentos . ' ' . ($qtdApontamentos === 1 ? 'apontamento' : 'apontamentos') }}
+            </span>
+            @if($juridicaResumo)
+                <span class="text-ink-2">· revisão jurídica:</span>
+                <x-pill :kind="$aiReview->legalRiskKind()">{{ $aiReview->legalRiskLabel() }}</x-pill>
+            @endif
+            @unless($aiReviewCurrent)
+                <span class="text-xs font-bold text-warn">· o texto mudou depois</span>
+            @endunless
+            <span class="ml-auto text-xs font-bold text-grena-ink group-open:hidden">Ver o resultado</span>
+            <span class="ml-auto hidden text-xs font-bold text-grena-ink group-open:inline">Esconder</span>
+        </summary>
         <p class="text-xs text-ink-2">
             Pedida por {{ $aiReview->requested_by_name ?? '—' }} em {{ $aiReview->created_at?->format('d/m/Y H:i') }}.
             @unless($aiReviewCurrent)
@@ -128,6 +152,7 @@
                 @endforeach
             </div>
         @endif
+        </details>
     @else
         <p class="text-sm text-ink-2">
             O Claude lê o contrato inteiro e aponta inconsistências (partes, valores por extenso, prazos, remissões,
@@ -196,6 +221,11 @@
 
 <script>
     (() => {
+        // Voltando de uma análise (#revisao-ia), o resultado abre.
+        if (location.hash === '#revisao-ia') {
+            document.querySelectorAll('[data-ai-result]').forEach((d) => { d.open = true; });
+        }
+
         document.querySelectorAll('[data-ai-form]').forEach((form) => {
             form.addEventListener('submit', () => {
                 form.querySelector('button[type=submit]').disabled = true;

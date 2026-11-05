@@ -28,6 +28,7 @@ class SignatureContractEvent extends Model
         'attachment_added' => 'Anexo incluído',
         'attachment_removed' => 'Anexo removido',
         'ai_reviewed' => 'Revisão automática pelo Claude',
+        'signature_refused' => 'Assinatura recusada',
     ];
 
     protected $fillable = [
@@ -52,6 +53,16 @@ class SignatureContractEvent extends Model
 
     public function label(): string
     {
-        return self::LABELS[$this->event] ?? $this->event;
+        $rotulo = self::LABELS[$this->event] ?? $this->event;
+
+        // Recusa na assinatura (05/11/2026): quem recusou e se o contrato voltou para revisão.
+        if ($this->event === 'signature_refused') {
+            $p = $this->payload ?? [];
+            $rotulo .= ' por ' . ($p['por'] ?? 'um signatário')
+                . (!empty($p['devolvido']) ? ' — voltou para revisão' : ' — o documento foi encerrado')
+                . (!empty($p['motivo']) ? '. Motivo: ' . $p['motivo'] : '');
+        }
+
+        return $rotulo;
     }
 }

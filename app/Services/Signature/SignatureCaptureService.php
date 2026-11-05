@@ -603,6 +603,21 @@ class SignatureCaptureService
             ]);
         });
 
+        // Documento de contrato (05/11/2026): a recusa do presidente ou da
+        // contratada devolve o contrato a quem redigiu. Depois do commit, e
+        // falha aqui não desfaz a recusa — ela aconteceu.
+        if ($documento->isContract()) {
+            try {
+                app(\App\Services\Signature\Contracts\ContractService::class)
+                    ->signatureRefused($documento->fresh(), $signatario->fresh(), $reason);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Recusa de documento de contrato: o contrato não voltou para revisão.', [
+                    'documento' => $documento->id,
+                    'erro' => $e->getMessage(),
+                ]);
+            }
+        }
+
         return $signatario->fresh();
     }
 

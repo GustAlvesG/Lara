@@ -2,10 +2,13 @@
 
 namespace App\Services\Signature\Contracts;
 
+use App\Exceptions\ContractConflictException;
 use App\Exceptions\ContractException;
 use App\Exceptions\SignatureDocumentLockedException;
 use App\Mail\SignatureContractDecisionMail;
+use App\Mail\SignatureContractRefusedMail;
 use App\Mail\SignatureContractReviewMail;
+use App\Models\SignatureAuditEvent;
 use App\Models\SignatureContract;
 use App\Models\SignatureContractAttachment;
 use App\Models\SignatureContractComment;
@@ -14,6 +17,7 @@ use App\Models\SignatureContractModel;
 use App\Models\SignatureContractParty;
 use App\Models\SignatureContractVersion;
 use App\Models\SignatureDocument;
+use App\Models\SignatureSigner;
 use App\Services\Signature\SignatureDocumentService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -92,12 +96,25 @@ class ContractService
      * Grava a cópia de trabalho. O setor grava rascunho e devolvido; a
      * Gerência grava também durante a validação (o ajuste direto).
      *
+     * Salvar automático (05/11/2026): `$expectedRevision` é a revisão do texto
+     * que a tela abriu (`content_revision`). Se outra pessoa gravou depois, a
+     * gravação é recusada (ContractConflictException) — o editor avisa
+     * "alguém salvou antes de você" em vez de apagar o que ela gravou. `null`
+     * não confere (comandos, testes antigos); `$force` grava por cima, quando
+     * a pessoa escolhe isso depois do aviso.
+     *
      * @param  array<string, mixed>  $input  o que veio do formulário
      *
      * @throws ContractException
      */
-    public function save(SignatureContract $contract, array $input, ?int $userId, ?string $userName): SignatureContract
-    {
+    public function save(
+        SignatureContract $contract,
+        array $input,
+        ?int $userId,
+        ?string $userName,
+        ?int $expectedRevision = null,
+        bool $force = false,
+    ): SignatureContract {
         if (!$contract->isEditableBySector() && $contract->status !== SignatureContract::STATUS_IN_REVIEW) {
             throw new ContractException('Contrato ' . mb_strtolower($contract->statusLabel()) . ': o texto não muda mais.'
                 . ($contract->status === SignatureContract::STATUS_APPROVED ? ' Para alterar, reabra o contrato.' : ''));
@@ -105,10 +122,26 @@ class ContractService
 
         $conteudo = ContractContent::normalize($input);
 
-        $contract->forceFill([
-            'content' => $conteudo,
-            'title' => $conteudo['title'] ?: $contract->title,
-        ])->save();
+        DB::transaction(function () use ($contract, $conteudo, $userName, $expectedRevision, $force) {
+            // Lida travada: dois salvando ao mesmo tempo não passam os dois pela conferência.
+            $atual = SignatureContract::whereKey($contract->id)->lockForUpdate()->first(['id', 'status', 'content_revision', 'content_saved_by_name', 'content_saved_at']);
+
+            if ($atual && $atual->status !== $contract->status) {
+                throw new ContractException('O contrato mudou de situação (' . mb_strtolower($atual->statusLabel()) . ') enquanto você editava. Recarregue a página.');
+            }
+
+            if ($expectedRevision !== null && !$force && $atual && (int) $atual->content_revision !== $expectedRevision) {
+                throw new ContractConflictException($atual->content_saved_by_name, $atual->content_saved_at, (int) $atual->content_revision);
+            }
+
+            $contract->forceFill([
+                'content' => $conteudo,
+                'title' => $conteudo['title'] ?: $contract->title,
+                'content_revision' => (int) ($atual?->content_revision ?? $contract->content_revision) + 1,
+                'content_saved_by_name' => $userName,
+                'content_saved_at' => now(),
+            ])->save();
+        });
 
         $this->rememberParties($conteudo, $userName);
 
@@ -284,7 +317,9 @@ class ContractService
 
         $atual = $contract->document;
 
-        if ($atual && $atual->status !== SignatureDocument::STATUS_CANCELED) {
+        // Recusado por uma testemunha ou um fiador (a recusa do presidente e da
+        // contratada devolve o contrato): gera-se outro, do zero.
+        if ($atual && !in_array($atual->status, [SignatureDocument::STATUS_CANCELED, SignatureDocument::STATUS_REFUSED], true)) {
             throw new ContractException('Este contrato já tem documento de assinatura em andamento.');
         }
 
@@ -328,7 +363,8 @@ class ContractService
 
         $documento = $contract->document;
 
-        if ($documento && $documento->isFrozen() && $documento->status !== SignatureDocument::STATUS_CANCELED) {
+        if ($documento && $documento->isFrozen()
+            && !in_array($documento->status, [SignatureDocument::STATUS_CANCELED, SignatureDocument::STATUS_REFUSED], true)) {
             throw new ContractException('O documento de assinatura já foi congelado: o texto pode ter sido lido e assinado. '
                 . 'Cancele o documento em Assinaturas → Documentos antes de reabrir, ou faça um aditivo.');
         }
@@ -355,6 +391,204 @@ class ContractService
 
             return $contract;
         });
+    }
+
+    /*
+     | Recusa na assinatura (05/11/2026, pedido do usuário)
+     |
+     | O presidente ou a contratada pode não concordar com o texto na hora de
+     | assinar. A recusa deles devolve o contrato a quem redigiu (situação
+     | "devolvido"), com o motivo como observação; o documento recusado fica
+     | encerrado e, aprovado de novo, nasce um documento novo — as assinaturas
+     | recomeçam do zero. O número fica. A recusa de testemunha ou fiador só
+     | encerra o documento: o contrato continua aprovado e dá para gerar outro
+     | documento (decisão do usuário: só presidente e contratada devolvem).
+     |
+     | Onde se recusa: no tablet (balcão e Assinatura Diretoria, documento por
+     | documento) e no link remoto — os dois chegam aqui pelo
+     | SignatureCaptureService::refuse — e, o presidente, também na tela do
+     | contrato no Lara (refuseByPresident).
+     */
+
+    /**
+     * Quem é o signatário para o contrato: `presidente`, `contratada` ou
+     * null (testemunha, fiador, outro diretor).
+     */
+    public function refusalRole(SignatureContract $contract, SignatureSigner $signer): ?string
+    {
+        $entrada = collect($this->renderer->documentSigners($contract->content ?? []))
+            ->firstWhere('key', (string) $signer->party);
+
+        if ($entrada && !empty($entrada['president'])) {
+            return 'presidente';
+        }
+
+        // A área da Presidência vale mesmo se a ordem das partes mudou (presidente trocado no rascunho).
+        if ($signer->isDirector() && $signer->director_area_name === (string) config('signature.contracts.president_area')) {
+            return 'presidente';
+        }
+
+        return $entrada && $entrada['party'] === ContractContent::SIGNER_CONTRATADA ? 'contratada' : null;
+    }
+
+    /**
+     * Um signatário recusou o documento de um contrato (tablet ou link
+     * remoto, chamado DEPOIS do commit da recusa). Devolve true se o
+     * contrato voltou para revisão.
+     */
+    public function signatureRefused(SignatureDocument $document, SignatureSigner $signer, ?string $reason): bool
+    {
+        $contrato = SignatureContract::where('signature_document_id', $document->id)->first();
+
+        if (!$contrato || $contrato->status !== SignatureContract::STATUS_APPROVED) {
+            return false;
+        }
+
+        $papel = $this->refusalRole($contrato, $signer);
+
+        if ($papel === null) {
+            $this->event($contrato, 'signature_refused', null, $signer->name, array_filter([
+                'documento' => $document->id,
+                'por' => $signer->name,
+                'motivo' => trim((string) $reason) ?: null,
+            ]));
+
+            return false;
+        }
+
+        DB::transaction(fn() => $this->returnFromSignature($contrato, $document, $signer->name, $papel, $reason, null));
+
+        $this->mailRefusal($contrato, $signer->name, $reason);
+
+        return true;
+    }
+
+    /**
+     * O signatário que o presidente é neste contrato, ainda pendente — o
+     * que a tela do contrato deixa recusar. Null se não há.
+     */
+    public function presidentSignerFor(SignatureContract $contract, int $userId): ?SignatureSigner
+    {
+        $documento = $contract->status === SignatureContract::STATUS_APPROVED ? $contract->document : null;
+
+        if (!$documento || !in_array($documento->status, [SignatureDocument::STATUS_DRAFT, SignatureDocument::STATUS_AWAITING_SIGNATURE], true)) {
+            return null;
+        }
+
+        return $documento->signers()
+            ->where('user_id', $userId)
+            ->where('status', SignatureSigner::STATUS_PENDING)
+            ->get()
+            ->first(fn(SignatureSigner $s) => $this->refusalRole($contract, $s) === 'presidente');
+    }
+
+    /**
+     * O presidente recusa pela tela do contrato no Lara. Com o documento já
+     * congelado, a recusa é registrada no documento como a do tablet; em
+     * rascunho (ainda ninguém assinou), o rascunho é cancelado.
+     *
+     * @throws ContractException
+     */
+    public function refuseByPresident(SignatureContract $contract, string $reason, int $userId, string $userName): void
+    {
+        $reason = trim($reason);
+
+        if ($reason === '') {
+            throw new ContractException('Escreva o motivo da recusa: é ele que orienta a revisão do contrato.');
+        }
+
+        $signatario = $this->presidentSignerFor($contract, $userId);
+
+        if (!$signatario) {
+            throw new ContractException('Este contrato não está aguardando a sua assinatura.');
+        }
+
+        $documento = $contract->document;
+        $estados = app(\App\Services\Signature\SignatureStateMachine::class);
+
+        DB::transaction(function () use ($contract, $documento, $signatario, $reason, $userId, $userName, $estados) {
+            if ($documento->status === SignatureDocument::STATUS_DRAFT) {
+                try {
+                    $this->documents->cancel($documento, 'Recusado pelo presidente: ' . mb_substr($reason, 0, 200), $userId);
+                } catch (SignatureDocumentLockedException $e) {
+                    throw new ContractException($e->getMessage());
+                }
+            } else {
+                $contexto = ['actor_type' => SignatureAuditEvent::ACTOR_USER, 'actor_id' => $userId];
+
+                $estados->signerTo(
+                    $signatario,
+                    SignatureSigner::STATUS_REFUSED,
+                    SignatureAuditEvent::EVENT_REFUSED,
+                    ['refused_at' => now(), 'refusal_reason' => mb_substr($reason, 0, 255)],
+                    $contexto + ['payload' => ['motivo' => $reason, 'onde' => 'tela do contrato no Lara']],
+                );
+
+                $estados->documentTo(
+                    $documento,
+                    SignatureDocument::STATUS_REFUSED,
+                    SignatureAuditEvent::EVENT_REFUSED,
+                    [],
+                    $contexto + ['signer' => $signatario->id],
+                );
+            }
+
+            $this->returnFromSignature($contract, $documento, $userName, 'presidente', $reason, $userId);
+        });
+
+        $this->mailRefusal($contract->fresh(), $userName, $reason);
+    }
+
+    /** Volta o contrato para quem redigiu, com o motivo da recusa como observação. */
+    private function returnFromSignature(
+        SignatureContract $contract,
+        SignatureDocument $document,
+        string $refusedBy,
+        string $role,
+        ?string $reason,
+        ?int $userId,
+    ): void {
+        $motivo = trim((string) $reason) ?: null;
+        $versao = $contract->approved_version_id
+            ? SignatureContractVersion::find($contract->approved_version_id)
+            : $contract->latestVersion();
+
+        if ($versao) {
+            $this->comment(
+                $contract,
+                $versao,
+                null,
+                'Recusado na assinatura por ' . $refusedBy . ' (' . ($role === 'presidente' ? 'presidente' : 'contratada') . '): '
+                    . ($motivo ?? 'sem motivo informado.'),
+                $userId,
+                $refusedBy,
+            );
+        }
+
+        $contract->forceFill([
+            'status' => SignatureContract::STATUS_RETURNED,
+            'signature_document_id' => null,
+            'approved_version_id' => null,
+            'approved_at' => null,
+            'approved_by' => null,
+            'approved_by_name' => null,
+        ])->save();
+
+        $this->event($contract, 'signature_refused', $userId, $refusedBy, array_filter([
+            'documento' => $document->id,
+            'por' => $refusedBy,
+            'papel' => $role,
+            'motivo' => $motivo,
+            'devolvido' => true,
+        ]));
+    }
+
+    private function mailRefusal(SignatureContract $contract, string $refusedBy, ?string $reason): void
+    {
+        $this->mail(
+            fn() => array_filter([$this->recipients->author($contract)]),
+            new SignatureContractRefusedMail($contract, $refusedBy, trim((string) $reason) ?: null),
+        );
     }
 
     /**
@@ -617,17 +851,21 @@ class ContractService
                 continue;
             }
 
-            SignatureContractParty::updateOrCreate(
-                ['document' => $parte['document']],
-                [
-                    'kind' => $parte['kind'],
-                    'name' => $parte['name'],
-                    'data' => array_intersect_key($parte, array_flip([
-                        'gender', 'address', 'details', 'rep_name', 'rep_cpf', 'email', 'phone',
-                    ])),
-                    'updated_by_name' => $userName,
-                ],
-            );
+            // `active` não muda aqui: prestador inativado na tela de Prestadores continua inativo.
+            $prestador = SignatureContractParty::firstOrNew(['document' => $parte['document']]);
+
+            $prestador->fill([
+                'kind' => $parte['kind'],
+                'name' => $parte['name'],
+                'data' => array_intersect_key($parte, array_flip(SignatureContractParty::DATA_FIELDS)),
+                'updated_by_name' => $userName,
+            ]);
+
+            if (!$prestador->exists) {
+                $prestador->created_by_name = $userName;
+            }
+
+            $prestador->save();
         }
     }
 

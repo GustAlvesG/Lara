@@ -69,6 +69,7 @@
   textarea.field{min-height:140px;font-size:17px;line-height:1.45;resize:vertical;}
   label.lbl{display:block;font-weight:700;margin:14px 0 8px;}
   .err{color:var(--danger);font-weight:600;font-size:15px;margin-top:12px;}
+  .hidden{display:none !important;}
   .center{max-width:420px;margin:0 auto;padding-top:8vh;}
   .card{display:block;width:100%;text-align:left;border:1px solid var(--border-strong);background:var(--surface-2);border-radius:var(--r);padding:16px 18px;margin-bottom:12px;cursor:pointer;color:var(--ink);font-size:15px;}
   .card:active{background:var(--surface-3);}
@@ -250,8 +251,11 @@
   <input class="field small" id="edTitulo" maxlength="200">
   <div id="edClausulas"></div>
   <div class="err" id="edErro"></div>
+  {{-- Salvar automático (05/11/2026): grava sozinho enquanto se digita; alguém salvou antes, avisa. --}}
+  <p class="meta" id="edEstado" aria-live="polite">Salvo automaticamente enquanto você digita.</p>
+  <button type="button" class="btn btn-ghost hidden" id="edForcar">Gravar o meu texto por cima</button>
   <div class="row">
-    <button type="button" class="btn btn-ghost" data-fechar>Cancelar</button>
+    <button type="button" class="btn btn-ghost" data-fechar>Fechar</button>
     <button type="button" class="btn btn-primary" id="edSalvar">Salvar texto</button>
   </div>
 </div>
@@ -564,8 +568,18 @@
       + '</div></div>';
   }
 
+  // Salvar automático do texto (05/11/2026): a revisão que o tablet abriu.
+  var edRevisao = 0;
+  var edEspera = null;
+  var edConflito = false;
+  var edSalvando = false;
+
   function mostraEditar() {
     var ed = atual.edit;
+    edRevisao = ed.revision || 0;
+    edConflito = false;
+    $('#edForcar').classList.add('hidden');
+    $('#edEstado').textContent = 'Salvo automaticamente enquanto você digita.';
     $('#edTitulo').value = ed.title;
     $('#edClausulas').innerHTML = ed.clauses.map(function (c) {
       return '<div class="ed-clausula" data-clausula="' + esc(c.uid) + '">'
@@ -613,9 +627,8 @@
     document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain'));
   });
 
-  $('#edSalvar').addEventListener('click', function () {
-    var botao = $('#edSalvar');
-    var corpo = {
+  function corpoDoTexto() {
+    return {
       title: $('#edTitulo').value,
       clauses: Array.prototype.map.call(document.querySelectorAll('#edClausulas [data-clausula]'), function (c) {
         return {
@@ -627,12 +640,90 @@
         };
       })
     };
-    botao.disabled = true;
+  }
+
+  // Os itens novos ganham uid no servidor: guardar evita uid novo a cada gravação.
+  function guardaUids(edit) {
+    (edit.clauses || []).forEach(function (c) {
+      var bloco = document.querySelector('#edClausulas [data-clausula="' + c.uid + '"]');
+      if (!bloco) return;
+      var itens = bloco.querySelectorAll('[data-item]');
+      (c.items || []).forEach(function (it, i) {
+        if (itens[i] && !itens[i].dataset.uid && it.uid) itens[i].dataset.uid = it.uid;
+      });
+    });
+  }
+
+  // auto: grava e continua na folha; forca: grava por cima depois do aviso de conflito.
+  function salvaTexto(auto, forca) {
+    if (!atual || (edConflito && !forca)) return Promise.resolve();
+    if (edSalvando) {
+      clearTimeout(edEspera);
+      edEspera = setTimeout(function () { salvaTexto(auto, forca); }, 1000);
+      return Promise.resolve();
+    }
+    var corpo = corpoDoTexto();
+    corpo.revision = edRevisao;
+    corpo.auto = auto;
+    if (forca) corpo.force = true;
+    edSalvando = true;
     $('#edErro').textContent = '';
-    api(URLS.update.replace('__ID__', atual.id), 'POST', corpo)
-      .then(function (j) { fecharFolhas(); mostraContrato(j.contract); aviso(j.message); })
-      .catch(function (e) { if (e.message !== 'ended') $('#edErro').textContent = e.message; })
-      .then(function () { botao.disabled = false; });
+    $('#edEstado').textContent = 'Salvando…';
+    return api(URLS.update.replace('__ID__', atual.id), 'POST', corpo)
+      .then(function (j) {
+        edRevisao = j.contract.edit.revision;
+        edConflito = false;
+        $('#edForcar').classList.add('hidden');
+        $('#edEstado').textContent = 'Salvo automaticamente às ' + j.saved_at + '.';
+        if (auto) {
+          guardaUids(j.contract.edit);
+          // A leitura atrás da folha acompanha o texto salvo.
+          mostraContrato(j.contract);
+          edPendente = false;
+        } else {
+          fecharFolhas();
+          mostraContrato(j.contract);
+          aviso(j.message);
+        }
+      })
+      .catch(function (e) {
+        if (e.message === 'ended') return;
+        $('#edErro').textContent = e.message;
+        $('#edEstado').textContent = 'Não salvo.';
+        if (e.dados && e.dados.conflict) {
+          edConflito = true;
+          $('#edForcar').classList.remove('hidden');
+        }
+      })
+      .then(function () { edSalvando = false; });
+  }
+
+  var edPendente = false;
+  $('#folhaEditar').addEventListener('input', function () {
+    if (edConflito) return;
+    edPendente = true;
+    $('#edEstado').textContent = 'Alterações ainda não salvas…';
+    clearTimeout(edEspera);
+    edEspera = setTimeout(function () { salvaTexto(true, false); }, 3000);
+  });
+
+  // Fechar a folha com algo por salvar: grava antes (o tablet não pergunta).
+  $('#folhaEditar [data-fechar]').addEventListener('click', function () {
+    if (!edPendente || edConflito) return;
+    clearTimeout(edEspera);
+    salvaTexto(true, false);
+  });
+
+  $('#edForcar').addEventListener('click', function () {
+    if (!confirm('Gravar o seu texto por cima do que a outra pessoa salvou?')) return;
+    salvaTexto(true, true);
+  });
+
+  $('#edSalvar').addEventListener('click', function () {
+    var botao = $('#edSalvar');
+    clearTimeout(edEspera);
+    botao.disabled = true;
+    salvaTexto(false, false).then(function () { botao.disabled = false; });
   });
 
   $('#btnVoltar').addEventListener('click', function () {

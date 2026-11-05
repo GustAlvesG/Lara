@@ -97,6 +97,7 @@ use App\Http\Controllers\Signature\AttachmentController as SignatureAttachmentCo
 use App\Http\Controllers\Signature\ContractController as SignatureContractController;
 use App\Http\Controllers\Signature\ContractKioskController as SignatureContractKioskController;
 use App\Http\Controllers\Signature\ContractLibraryController as SignatureContractLibraryController;
+use App\Http\Controllers\Signature\ContractProviderController as SignatureContractProviderController;
 use App\Http\Controllers\Signature\DirectorAreaController as SignatureDirectorAreaController;
 use App\Http\Controllers\Signature\DirectorKioskController as SignatureDirectorKioskController;
 use App\Http\Controllers\Signature\DocumentController as SignatureDocumentController;
@@ -238,7 +239,7 @@ Route::prefix('assinatura/kiosk')->name('quiosque.')->group(function () {
             ->whereNumber('contract')->middleware('throttle:20,1')->name('decide');
         // Ajustar o texto e pedir a revisão pelo Claude no tablet (04/11/2026).
         Route::post('/contratos/{contract}/texto', [SignatureContractKioskController::class, 'update'])
-            ->whereNumber('contract')->middleware('throttle:30,1')->name('update');
+            ->whereNumber('contract')->middleware('throttle:60,1')->name('update');
         Route::post('/contratos/{contract}/revisao-ia', [SignatureContractKioskController::class, 'aiReview'])
             ->whereNumber('contract')->middleware('throttle:6,1')->name('ai-review');
         Route::get('/contratos/{contract}/anexos/{attachment}', [SignatureContractKioskController::class, 'attachment'])
@@ -1542,6 +1543,21 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             ->whereNumber('signatureContractModel')->name('models.destroy');
     });
 
+    // Prestadores (05/11/2026): o cadastro de contratadas e fiadores com tela
+    // própria — cadastrar sem contrato, editar e inativar (não se exclui).
+    // Quem acessa Contratos (SignatureContractPolicy::viewProviders).
+    Route::prefix('contratos/prestadores')->name('contract-providers.')->group(function () {
+        Route::get('/', [SignatureContractProviderController::class, 'index'])->name('index');
+        Route::get('/novo', [SignatureContractProviderController::class, 'create'])->name('create');
+        Route::post('/', [SignatureContractProviderController::class, 'store'])->middleware('throttle:30,1')->name('store');
+        Route::get('/{signatureContractParty}/editar', [SignatureContractProviderController::class, 'edit'])
+            ->whereNumber('signatureContractParty')->name('edit');
+        Route::put('/{signatureContractParty}', [SignatureContractProviderController::class, 'update'])
+            ->whereNumber('signatureContractParty')->name('update');
+        Route::post('/{signatureContractParty}/situacao', [SignatureContractProviderController::class, 'toggle'])
+            ->whereNumber('signatureContractParty')->name('toggle');
+    });
+
     Route::prefix('contratos')->name('contracts.')->group(function () {
         Route::get('/', [SignatureContractController::class, 'index'])->name('index');
         Route::get('/novo', [SignatureContractController::class, 'create'])->name('create');
@@ -1554,6 +1570,12 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::get('/', [SignatureContractController::class, 'show'])->name('show');
             Route::get('/editar', [SignatureContractController::class, 'edit'])->name('edit');
             Route::put('/', [SignatureContractController::class, 'update'])->name('update');
+            // Salvar automático do editor (05/11/2026): JSON, confere a revisão do texto.
+            Route::put('/automatico', [SignatureContractController::class, 'autosave'])
+                ->middleware('throttle:120,1')->name('autosave');
+            // O presidente recusa a assinatura pela tela: o contrato volta para revisão (05/11/2026).
+            Route::post('/recusar-assinatura', [SignatureContractController::class, 'refuseSignature'])
+                ->middleware('throttle:10,1')->name('refuse-signature');
             // Prévia do formulário sem gravar (texto numerado + problemas).
             Route::post('/previa', [SignatureContractController::class, 'preview'])
                 ->middleware('throttle:60,1')->name('preview');

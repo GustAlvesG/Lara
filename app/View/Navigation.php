@@ -147,6 +147,8 @@ final class Navigation
                     ['route' => 'contracts.index', 'label' => 'Contratos', 'permission' => P::ASSINATURA_CONTRATOS, 'active' => 'contracts.*'],
                     ['route' => 'contract-signatures.index', 'label' => 'Assinaturas', 'permission' => P::CONTRATOS_ASSINATURA, 'active' => 'contract-signatures.*'],
                     ['route' => 'contract-library.index', 'label' => 'Biblioteca', 'permission' => 'acessar-biblioteca-contratos', 'active' => 'contract-library.*'],
+                    // Prestadores (05/11/2026): quem acessa Contratos cuida do cadastro (decisão do usuário).
+                    ['route' => 'contract-providers.index', 'label' => 'Prestadores', 'permission' => P::ASSINATURA_CONTRATOS, 'active' => 'contract-providers.*'],
                 ]],
             ['label' => 'Freelancers', 'area' => 'freela', 'glyph' => 'user',
                 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',

@@ -23,7 +23,8 @@ o contrato vira um documento de assinatura **em rascunho** do motor de Assinatur
   fica o botão da Gerência).
 - **Menu** (`app/View/Navigation.php`, grupo "Contratos", `glyph` `doc`): Contratos (`contracts.index`,
   `assinatura.contratos`), Assinaturas (`contract-signatures.index`, `contratos.assinatura`), Biblioteca
-  (`contract-library.index`, `acessar-biblioteca-contratos`). Só permissão de catálogo no menu (a Gerência tem
+  (`contract-library.index`, `acessar-biblioteca-contratos`), Prestadores (`contract-providers.index`,
+  `assinatura.contratos`, desde 05/11/2026). Só permissão de catálogo no menu (a Gerência tem
   acesso total): Gate de cargo consultaria o banco em toda tela.
 - **Permissões** (grupo "Contratos" no catálogo): `assinatura.contratos` (chave mantida de propósito: os setores
   já configurados não se perdem), `contratos.biblioteca` (cadastrar/editar/excluir na biblioteca e salvar
@@ -51,6 +52,28 @@ o contrato vira um documento de assinatura **em rascunho** do motor de Assinatur
 - **Revisão pelo Claude:** em todo pedido dá para anexar trechos de texto (`extras`, até 5 × 12.000
   caracteres) que vão como material de referência depois da minuta e ficam na revisão.
 - Nenhuma API externa: nenhum prompt para outro agente.
+
+## Revisões da apresentação (05/11/2026)
+
+Detalhes em [contratos.md › Revisões da apresentação](../funcionalidades/contratos.md#revisões-da-apresentação-05112026).
+
+- **Variáveis:** campo "Preenchimento" (não "Valor"); `ContractVariables::GUESS`/`guessType()` (tipo pelo nome,
+  mesmas regex no editor) e `COMMON` (variáveis comuns); `ContractRenderer::variableUsage()` (onde é usada +
+  `[[marcador]]` sem variável, que o editor cria sozinho).
+- **Salvar automático:** `content_revision` + `ContractService::save(..., $expectedRevision, $force)` →
+  `ContractConflictException`; rota `contracts.autosave` (JSON, 409 `conflict`/`reload`); tablet idem pelo
+  `quiosque.gerencia.update`. Mexeu no que grava `content`? Suba a revisão (passe pelo `save`).
+- **Telas de duas colunas:** `split-lg`/`split-xl` + `split-pane` (app.css). Editor com abas Prévia | Conferência |
+  Claude; a prévia rola até a cláusula em edição (`rolaPrevia`). Revisão do Claude em `<details data-ai-result>`.
+- **Prestadores** (`/contratos/prestadores`, `ContractProviderController`, `manageProviders` = quem acessa
+  Contratos): mesma tabela de contratadas, `active` (inativa, não exclui), documento único.
+- **Recusa na assinatura:** presidente ou contratada recusa (tablet, link, ou o presidente na tela —
+  `contracts.refuse-signature`) → contrato devolvido com o motivo, documento encerrado, aprovado de novo gera
+  documento novo. Testemunha/fiador só encerram o documento (gera-se outro). `ContractService::signatureRefused`
+  (chamado pelo `SignatureCaptureService::refuse`), `refuseByPresident`, `refusalRole`, `presidentSignerFor`.
+  O presidente vê o que aguarda a assinatura dele (`view`), mas `manage` não.
+- **Andamento:** aba "Em assinatura" (`scopeInSigning`), coluna Assinatura e cartão na tela
+  (`signingProgress()`, `partials/signing-progress`).
 
 ## Detalhes (desde 27/10/2026)
 

@@ -122,6 +122,50 @@
             padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
         }
     }
+
+    /*
+     | Telas de duas colunas (05/11/2026, pedido do usuário): na tela larga,
+     | cada coluna rola sozinha, presa abaixo do cabeçalho — chegar à coluna
+     | menor não exige descer a maior inteira. `split-lg`/`split-xl` vão na
+     | grade (o ponto em que ela vira duas colunas) e `split-pane` em cada
+     | coluna. Abaixo do ponto, tudo empilha e a página rola como sempre.
+     | O padding/margem negativos deixam a sombra dos cartões aparecer.
+     */
+    :root {
+        --split-top: 7.25rem;
+    }
+
+    @media (min-width: 1024px) {
+        .split-lg {
+            align-items: start;
+        }
+
+        .split-lg > .split-pane {
+            position: sticky;
+            top: var(--split-top);
+            max-height: calc(100vh - var(--split-top) - 1rem);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding: 6px;
+            margin: -6px;
+        }
+    }
+
+    @media (min-width: 1280px) {
+        .split-xl {
+            align-items: start;
+        }
+
+        .split-xl > .split-pane {
+            position: sticky;
+            top: var(--split-top);
+            max-height: calc(100vh - var(--split-top) - 1rem);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding: 6px;
+            margin: -6px;
+        }
+    }
 }
 
 /*

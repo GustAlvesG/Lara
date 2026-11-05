@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Signature;
 
 use App\Exceptions\ClaudeException;
+use App\Exceptions\ContractConflictException;
 use App\Exceptions\ContractException;
 use App\Http\Controllers\Controller;
 use App\Models\SignatureContractAttachment;
@@ -165,17 +166,31 @@ class ContractKioskController extends Controller
             'clauses.*.items.*.uid' => ['nullable', 'string', 'max:40'],
             'clauses.*.items.*.level' => ['nullable', 'integer', 'in:1,2'],
             'clauses.*.items.*.html' => ['nullable', 'string', 'max:20000'],
+            // Salvar automático (05/11/2026): a revisão que o tablet abriu e, depois do aviso, gravar por cima.
+            'revision' => ['nullable', 'integer', 'min:0'],
+            'force' => ['nullable', 'boolean'],
+            'auto' => ['nullable', 'boolean'],
         ]);
 
         try {
             $contrato = $this->kiosk->inReview($contract);
-            $this->kiosk->applyEdits($contrato, $dados, $user->id, $user->name);
+            $salvo = $this->kiosk->applyEdits(
+                $contrato,
+                $dados,
+                $user->id,
+                $user->name,
+                isset($dados['revision']) ? (int) $dados['revision'] : null,
+                (bool) ($dados['force'] ?? false),
+            );
 
             return response()->json([
                 'ok' => true,
                 'message' => 'Texto ajustado. Na decisão, fica registrado como ajuste da Gerência.',
+                'saved_at' => $salvo->content_saved_at?->format('H:i'),
                 'contract' => $this->kiosk->detail($contract),
             ]);
+        } catch (ContractConflictException $e) {
+            return response()->json(['error' => $e->getMessage(), 'conflict' => true], 409);
         } catch (ContractException $e) {
             return response()->json(['error' => $e->getMessage()], 409);
         }

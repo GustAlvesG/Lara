@@ -303,6 +303,60 @@ class ContractRenderer
     }
 
     /**
+     * Onde cada variável declarada aparece no texto ("Cláusula 3",
+     * "Considerando II") e os [[marcadores]] escritos que ainda não são
+     * variável nem dado pronto — o editor cria a variável sozinho a partir
+     * deles (05/11/2026). Remissão (`ref:`) fica de fora.
+     *
+     * @return array{usage: array<string, array<int, string>>, unknown: array<int, array{key: string, label: string, type: string}>}
+     */
+    public function variableUsage(array $content): array
+    {
+        $ctx = $this->context($content, null, false);
+        $declaradas = array_flip(array_column($content['variables'] ?? [], 'key'));
+        $uso = [];
+        $novas = [];
+
+        $varre = function (string $html, string $onde) use ($ctx, $declaradas, &$uso, &$novas) {
+            preg_match_all('/\[\[\s*([^\[\]<>]{1,80}?)\s*\]\]/u', $html, $marcadores);
+
+            foreach ($marcadores[1] as $token) {
+                [$tipo, $chave] = $this->parseToken($token);
+
+                if ($tipo === 'ref' || $chave === '') {
+                    continue;
+                }
+
+                if (isset($declaradas[$chave])) {
+                    $uso[$chave] ??= [];
+
+                    if (!in_array($onde, $uso[$chave], true)) {
+                        $uso[$chave][] = $onde;
+                    }
+                } elseif (!isset($ctx['values'][$chave]) && !isset($novas[$chave])) {
+                    $rotulo = trim(html_entity_decode($token, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                    // "valor_global" vira "Valor global"; "Prazo de vigência" fica como foi escrito.
+                    $rotulo = str_contains($rotulo, ' ') ? $rotulo : Str::ucfirst(str_replace('_', ' ', $rotulo));
+
+                    $novas[$chave] = ['key' => $chave, 'label' => mb_substr($rotulo, 0, 120), 'type' => ContractVariables::guessType($rotulo)];
+                }
+            }
+        };
+
+        foreach ($content['considerations'] ?? [] as $i => $html) {
+            $varre((string) $html, 'Considerando ' . $this->roman($i + 1));
+        }
+
+        foreach ($content['clauses'] ?? [] as $c => $clausula) {
+            foreach ($clausula['items'] ?? [] as $item) {
+                $varre((string) ($item['html'] ?? ''), 'Cláusula ' . ($c + 1));
+            }
+        }
+
+        return ['usage' => $uso, 'unknown' => array_values($novas)];
+    }
+
+    /**
      * O que impede o contrato de ir à Gerência (`error`) e o que vale
      * conferir (`warning`). A mesma lista trava o envio e a aprovação.
      *
@@ -521,7 +575,7 @@ class ContractRenderer
             if (!isset($ctx['values'][$chave])) {
                 $erro('A variável [[' . $token . ']] ' . $onde . ' não existe. Crie a variável ou corrija o nome.', $clausula);
             } elseif ($ctx['values'][$chave][0] === '' && $ctx['values'][$chave][1] === null && !in_array($chave, ['numero'], true)) {
-                $erro('A variável [[' . $token . ']] ' . $onde . ' está sem valor.', $clausula);
+                $erro('A variável [[' . $token . ']] ' . $onde . ' não foi preenchida (passo Variáveis).', $clausula);
             }
         }
 
@@ -603,7 +657,7 @@ class ContractRenderer
             if ($falha !== null) {
                 $erro('Variável "' . $variavel['label'] . '": ' . $falha);
             } elseif ($texto === '') {
-                $erro('Variável "' . $variavel['label'] . '" sem valor.');
+                $erro('Variável "' . $variavel['label'] . '" sem preenchimento.');
             }
         }
     }

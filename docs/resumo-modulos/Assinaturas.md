@@ -237,7 +237,7 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 | `SignatureAuditor.php` | Trilha `signature_audit_events` encadeada por hash, só inserção; `verify()` confere a cadeia. |
 | `SignatureDocumentService.php` | Criar/editar rascunho, título padrão (`titleFor`), congelar. |
 | `SignatureRequestService.php` | Emitir/consumir/cancelar QR e código digitado; sessão do tablet. |
-| `SignatureCaptureService.php` | Identidade, aceite, traço, visto, foto, recusa (`refuse`, comum ao tablet e ao link remoto). Recusa assinar com formulário pendente. |
+| `SignatureCaptureService.php` | Identidade, aceite, traço, visto, foto, recusa (`refuse`, comum ao tablet e ao link remoto). Recusa assinar com formulário pendente. Documento de contrato recusado chama `ContractService::signatureRefused` depois do commit (05/11/2026): presidente ou contratada devolvem o contrato para revisão — ver [Contratos.md](Contratos.md). |
 | `RemoteSignatureService.php` | Assinatura remota por link — ver a seção dela. |
 | `SignatureSigningDataService.php` | Respostas do signatário e data automática (`signing_data`); refaz PDF e hash antes da leitura. |
 | `SignatureDocumentRenderer.php` | HTML do documento a partir do snapshot; resolve `[[campos]]`, posiciona assinaturas por parte (`placeSignatures`). Fonte única do que o tablet mostra e do que o PDF imprime. |

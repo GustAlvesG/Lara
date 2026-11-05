@@ -51,9 +51,62 @@ class ContractVariables
         self::CNPJ => SignatureFieldTypes::CNPJ,
     ];
 
+    /**
+     * O palpite do tipo pelo nome da variável (05/11/2026): "Valor global" é
+     * dinheiro, "Data de início" é data por extenso, "Prazo em meses" é
+     * número. A primeira regra que casa vale; nada casa, é texto. As mesmas
+     * expressões vão para o editor (JavaScript), sobre o nome sem acento e em
+     * minúsculas — por isso só `\b`, classes simples e nenhum modificador.
+     *
+     * @var array<string, string>
+     */
+    public const GUESS = [
+        self::CPF => '\bcpf\b',
+        self::CNPJ => '\bcnpj\b',
+        self::PERCENT => 'percent|porcent|%|\bjuros\b|\bindice de\b',
+        self::DATE_LONG => '\bdata\b|\binicio\b|\btermino\b|\bassinatura em\b',
+        self::MONEY => '\bvalor\b|\bvalores\b|\bpreco\b|\baluguel\b|\bmensalidade\b|\btaxa\b|\bmulta\b|\bcusto\b|\bsinal\b|\bpagamento\b|\breais\b|\bcaucao\b|\bdiaria\b',
+        self::NUMBER => '\bprazo\b|\bquantidade\b|\bnumero\b|\bdias\b|\bmeses\b|\bparcelas\b|\bqtd\b|\bdia\b|\bhoras\b|\banos\b|\bvagas\b|\bpessoas\b',
+    ];
+
+    /**
+     * Variáveis comuns para escolher pronto, com o tipo certo (05/11/2026).
+     *
+     * @var array<int, array{label: string, type: string}>
+     */
+    public const COMMON = [
+        ['label' => 'Valor global', 'type' => self::MONEY],
+        ['label' => 'Valor mensal', 'type' => self::MONEY],
+        ['label' => 'Valor da parcela', 'type' => self::MONEY],
+        ['label' => 'Número de parcelas', 'type' => self::NUMBER],
+        ['label' => 'Dia do vencimento', 'type' => self::NUMBER],
+        ['label' => 'Prazo de vigência em meses', 'type' => self::NUMBER],
+        ['label' => 'Prazo de execução em dias', 'type' => self::NUMBER],
+        ['label' => 'Data de início', 'type' => self::DATE_LONG],
+        ['label' => 'Data de término', 'type' => self::DATE_LONG],
+        ['label' => 'Multa por atraso em percentual', 'type' => self::PERCENT],
+        ['label' => 'Índice de reajuste', 'type' => self::TEXT],
+        ['label' => 'Forma de pagamento', 'type' => self::TEXT],
+        ['label' => 'Local da prestação do serviço', 'type' => self::TEXT],
+    ];
+
     public static function exists(?string $type): bool
     {
         return $type !== null && isset(self::LABELS[$type]);
+    }
+
+    /** O tipo pelo nome — ver GUESS. */
+    public static function guessType(string $label): string
+    {
+        $nome = mb_strtolower(\Illuminate\Support\Str::ascii($label));
+
+        foreach (self::GUESS as $tipo => $regra) {
+            if (preg_match('/' . $regra . '/', $nome)) {
+                return $tipo;
+            }
+        }
+
+        return self::TEXT;
     }
 
     /**

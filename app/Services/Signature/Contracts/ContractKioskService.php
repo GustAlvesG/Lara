@@ -213,6 +213,8 @@ class ContractKioskService
         $conteudo = $contrato->content ?? [];
 
         return [
+            // A revisão do texto aberta: o salvar automático do tablet confere (05/11/2026).
+            'revision' => (int) $contrato->content_revision,
             'title' => (string) ($conteudo['title'] ?? $contrato->title),
             'clauses' => collect($conteudo['clauses'] ?? [])->map(fn(array $c, int $i) => [
                 'uid' => $c['uid'],
@@ -238,8 +240,14 @@ class ContractKioskService
      *
      * @throws ContractException
      */
-    public function applyEdits(SignatureContract $contrato, array $input, int $userId, string $userName): SignatureContract
-    {
+    public function applyEdits(
+        SignatureContract $contrato,
+        array $input,
+        int $userId,
+        string $userName,
+        ?int $expectedRevision = null,
+        bool $force = false,
+    ): SignatureContract {
         $conteudo = $contrato->content ?? [];
         $porUid = collect($input['clauses'] ?? [])->filter(fn($c) => is_array($c) && isset($c['uid']))->keyBy('uid');
 
@@ -261,7 +269,7 @@ class ContractKioskService
             ));
         }
 
-        return $this->contracts->save($contrato, $conteudo, $userId, $userName);
+        return $this->contracts->save($contrato, $conteudo, $userId, $userName, $expectedRevision, $force);
     }
 
     /**

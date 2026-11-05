@@ -12,6 +12,9 @@
     .ct-paper .ct-missing { background: #fde68a; color: #7c2d12; border-radius: 4px; padding: 0 3px; }
     .ct-paper .ct-clause { scroll-margin-top: 90px; border-radius: 10px; }
     .ct-paper .ct-clause.ct-flash { outline: 3px solid #f2c94c; outline-offset: 6px; }
+    /* A cláusula em que se está digitando, no editor (05/11/2026): a prévia rola até ela e a marca. */
+    .ct-paper .ct-clause.ct-active { background: #fff8e1; box-shadow: 0 0 0 6px #fff8e1; transition: background .3s; }
+    .ct-paper .ct-clause.ct-flash { transition: outline-color .6s; }
     .ct-paper .ct-sigs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 22px 28px; margin: 14px 0 6px; }
     .ct-paper .ct-sig { font-size: 12.5px; }
     .ct-paper .ct-sig span { color: #6d6062; }
