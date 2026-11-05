@@ -401,6 +401,10 @@ Doc completa: seção "Conferência das respostas pelo atendente" de `assinatura
   `signature:status` que o polling do `release.blade.php` dispara.
 - Migration `2026_10_30_100100` (no `CreatesSignatureSchema`). Teste: `SignatureAnswerCheckTest`.
 - Não muda a API do site: nenhum prompt novo de API (ver `docs/prompts/NextJS/`).
+- **05/11/2026 (documento 131):** resposta dada pelo link remoto mostrava o cartão "Aguardando a sua conferência"
+  e aceitava aprovar/corrigir. Agora, sem liberação do balcão viva, `panelPayload` devolve null e `assertCanAct`
+  dá 409 quando o último `form_answered` veio de `link_email`/`matricula_pin` (`answeredAtCounter`). Respondeu
+  pelo link e foi ao balcão: a conferência vale. Teste `test_resposta_pelo_link_remoto_nao_mostra_cartao_nem_aceita_conferencia`.
 
 ## Throttle por rota (08/10/2026)
 
@@ -516,6 +520,11 @@ pendentes dele. Doc completa: seção "Assinatura Diretoria" de `docs/funcionali
   `lara_director` — sem `lara_sign` e sem batimento. Nada no cache: a liberação viva de cada documento é achada no
   banco (`batchRequest`: do diretor, `matricula_pin`, consumida, no prazo). Abrir é tudo-ou-nada (cancela o que abriu);
   assinar é documento a documento (o que falhar volta no resultado). Máximo `BATCH_MAX` = 20. Um marcado só = fluxo avulso.
+- **Ler um por um é opcional (05/11/2026):** aberto o lote, a tela `tela-d-lote-ver` pergunta "Deseja ver cada
+  documento individualmente?". Sim → leitura de sempre (rolar até o fim de cada um). Não → direto ao aceite;
+  `lote/assinar` com `skip_reading: true`, sem `viewed`, e o `signed` de cada documento leva `leitura_dispensada: true`.
+  JS em `quiosque/partials/diretoria-js.blade.php` (`lotePergunta`, `S.lote.dispensou`). Teste
+  `test_lote_assina_sem_ver_cada_documento_e_a_trilha_registra`.
 - **"Já assinados" (26/10/2026):** aba na lista do tablet (`signedPayload`: últimos 90 dias, até 50) com a situação
   (falta quem, gerando via final, concluído, recusado…). Só leitura, sem PDF.
 - **Painel:** tela Assinaturas → Diretoria (áreas, mandatos, histórico, pendentes de quem saiu do mandato); filtro

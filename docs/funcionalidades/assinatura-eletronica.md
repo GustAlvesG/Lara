@@ -595,15 +595,22 @@ regras em `DirectorKioskService`):
 
 - cada documento é aberto como na assinatura avulsa (liberação emitida e consumida, `matricula_pin`,
   `identity_confirmed`, data automática). Se um não abrir, os já abertos são cancelados;
-- o tablet mostra **um documento de cada vez** ("Documento 1 de N", PDF por `lote/{signer}/pdf`) e
-  registra a leitura de cada um (`lote/{signer}/visualizado`, evento `viewed` com `em_lote`);
+- aberto o lote, o tablet pergunta **"Deseja ver cada documento individualmente?"** (05/11/2026; antes,
+  ler e rolar até o fim de cada um era obrigatório), com a lista dos títulos:
+  - **Sim, ver um por um:** o tablet mostra **um documento de cada vez** ("Documento 1 de N", PDF por
+    `lote/{signer}/pdf`), cada um com "rolar até o fim", e registra a leitura de cada um
+    (`lote/{signer}/visualizado`, evento `viewed` com `em_lote`). "Voltar" no primeiro volta à pergunta;
+  - **Não, assinar:** vai direto ao aceite ("Concordo com os termos destes N documentos, que dispensei
+    ver um por um"). Nenhum `viewed` é gravado; `lote/assinar` recebe `skip_reading: true`, e o
+    evento `signed` de cada documento leva `leitura_dispensada: true` (a evidência fica sem tempo de
+    leitura e com "rolou até o fim: não", como mostra o manifesto). "Voltar" no aceite volta à pergunta;
 - depois, **um** aceite ("Li e concordo com os termos destes N documentos"), **um** traço, **um** visto
   (se algum documento pedir — vai só para os que pedem) e **uma** foto;
 - `lote/assinar` grava **uma captura por documento** (`SignatureCaptureService::capture`, o evento
   `signed` leva `em_lote` = N). Um documento que falhe não desfaz os outros: o resultado diz qual entrou;
 - fora do lote: documento com **perguntas a responder** (cada um tem o seu formulário) — a lista avisa
   "assine sozinho". No lote não há via por e-mail nem recusa (recusa é de um documento);
-- "Voltar" no primeiro documento desiste do lote (`lote/cancelar`); um marcado só segue o fluxo avulso.
+- "Voltar" na pergunta desiste do lote (`lote/cancelar`); um marcado só segue o fluxo avulso.
 
 Tudo pelo cookie `lara_director`, sem `lara_sign`: a liberação viva de cada documento é achada no banco
 (`DirectorKioskService::batchRequest`: deste diretor, `matricula_pin`, consumida, no prazo).
@@ -1485,6 +1492,16 @@ matrícula e PIN) e o Termo de Menores (autoatendimento). Peças: `SignatureAnsw
 primeira assinatura (`signingDataIsOpen()` fecha) não há mais conferência, e os próximos
 signatários não passam por ela. A chave `answer_check` **não existe** na resposta da API do link
 remoto: a API do site não muda.
+
+**Resposta dada pelo link remoto não aparece no painel (05/11/2026).** Antes, o cartão olhava só o
+documento: com a resposta gravada pelo site e ninguém no balcão, mostrava "Aguardando a sua
+conferência", e aprovar/corrigir funcionavam — o atendente podia mudar a resposta de quem assinou
+remoto (caso do documento 131 em produção). Agora, sem liberação do balcão viva, o cartão
+(`panelPayload`) e as ações (`assertCanAct`, 409) olham **de onde veio a última resposta**: a
+liberação do último evento `form_answered` (`answeredAtCounter`). Se é `link_email` ou
+`matricula_pin`, não há conferência. Se a pessoa respondeu pelo link e depois foi ao balcão, a
+liberação do balcão está viva e a conferência volta a valer normalmente. Evento antigo sem
+liberação conta como balcão (o comportamento de antes).
 
 | Situação (`SignatureAnswerCheckService::status`) | Quando |
 |---|---|

@@ -431,7 +431,7 @@ O diretor assina sem passar pelo atendente, no tablet do balcão:
 
 1. Na tela de espera do tablet, toque em **Assinatura da Diretoria** e entre com a **matrícula** e o **PIN** d'O Lara. Sem PIN? Cadastre no seu **Perfil**, n'O Lara.
 2. Aparece a lista dos documentos que esperam a sua assinatura. Toque num deles, leia até o fim, aceite, assine, faça o visto (se o documento pedir) e tire a foto. Para o diretor, a foto é sempre obrigatória. Não há conferência de CPF: o PIN já identifica.
-3. Para assinar vários de uma vez, marque a caixa de cada documento (ou **Marcar todos**) e toque em **Assinar selecionados**. O tablet mostra um documento de cada vez para leitura; depois, um aceite, uma assinatura e uma foto valem para todos. Documento com perguntas a responder não entra no lote: assine sozinho.
+3. Para assinar vários de uma vez, marque a caixa de cada documento (ou **Marcar todos**) e toque em **Assinar selecionados**. O tablet pergunta **"Deseja ver cada documento individualmente?"**: em **Sim, ver um por um**, mostra um documento de cada vez para leitura (role até o fim de cada um); em **Não, assinar**, pula direto para o aceite. Depois, um aceite, uma assinatura e uma foto valem para todos. Quando você escolhe não ver, o registro de cada documento diz que a leitura individual foi dispensada. Documento com perguntas a responder não entra no lote: assine sozinho.
 4. A aba **Já assinados** mostra o que você assinou nos últimos 90 dias e em que pé está (quem ainda falta, ou "Concluído").
 5. Toque em **Sair** ao terminar. Se esquecer, o tablet sai sozinho depois de um tempo parado.
 

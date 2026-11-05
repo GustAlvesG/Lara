@@ -326,8 +326,69 @@
 
     // Sem batimento: o do quiosque é da sessão `lara_sign`, que o lote não usa.
     iniciaContagem();
-    loteMostra(0);
+    lotePergunta();
   }
+
+  /*
+   | 05/11/2026: ler um por um deixou de ser obrigatório. Ao abrir o lote, a
+   | pergunta "Deseja ver cada documento individualmente?": sim → a leitura de
+   | sempre (rolar até o fim de cada um); não → direto ao aceite e à assinatura,
+   | e a trilha de cada documento marca `leitura_dispensada`.
+   */
+  function lotePergunta() {
+    S.lote.dispensou = false;
+    S.lote.leituras = {};
+
+    var alvo = $('#dLoteVerLista');
+    alvo.innerHTML = '';
+
+    S.lote.docs.forEach(function (doc) {
+      var linha = document.createElement('div');
+      linha.className = 'pessoa';
+
+      var texto = document.createElement('span');
+      texto.textContent = doc.title;
+
+      if (doc.area) {
+        var detalhe = document.createElement('small');
+        detalhe.textContent = doc.area;
+        texto.appendChild(detalhe);
+      }
+
+      linha.appendChild(texto);
+      alvo.appendChild(linha);
+    });
+
+    $('#dLoteVerResumo').textContent = 'Você vai assinar ' + S.lote.docs.length + ' documentos de uma vez.';
+    $('#aceiteTexto').textContent = 'Li e concordo com os termos destes ' + S.lote.docs.length + ' documentos.';
+
+    mostra('tela-d-lote-ver');
+  }
+
+  $('#dLoteVerSim').addEventListener('click', function () {
+    if (!S || !S.lote) {
+      return;
+    }
+
+    S.lote.dispensou = false;
+    loteMostra(0);
+  });
+
+  $('#dLoteVerNao').addEventListener('click', function () {
+    if (!S || !S.lote) {
+      return;
+    }
+
+    S.lote.dispensou = true;
+    S.lote.leituras = {};
+    $('#aceiteTexto').textContent = 'Concordo com os termos destes ' + S.lote.docs.length
+      + ' documentos, que dispensei ver um por um.';
+    mostra('tela-aceite');
+  });
+
+  $('#dLoteVerVoltar').addEventListener('click', function () {
+    pedeSair();
+  });
 
   function loteMostra(i) {
     var doc = S.lote.docs[i];
@@ -358,14 +419,14 @@
     mostra('tela-aceite');
   }
 
-  // Voltar no documento: ao anterior; no primeiro, sair do lote.
+  // Voltar no documento: ao anterior; no primeiro, de volta à pergunta.
   function loteVoltaDocumento() {
     if (S.lote.idx > 0) {
       loteMostra(S.lote.idx - 1);
       return;
     }
 
-    pedeSair();
+    lotePergunta();
   }
 
   // Entrada do diretor ou sessão do documento acabou: volta à lista.
@@ -384,7 +445,8 @@
 
     api('POST', dRotas.loteAssinar, {
       signers: ids,
-      reads: S.lote.leituras,
+      reads: S.lote.dispensou ? {} : S.lote.leituras,
+      skip_reading: !!S.lote.dispensou,
       signature: S.assinaturaPng,
       strokes: S.tracosAssinatura,
       initials: S.vistoPng,

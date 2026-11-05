@@ -473,6 +473,8 @@ class DirectorKioskService
                     'read_seconds' => $leitura['read_seconds'] ?? null,
                     'scrolled_to_end' => (bool) ($leitura['scrolled_to_end'] ?? false),
                     'batch_size' => count($ids),
+                    // Leitura dispensada: nada de segundos nem "rolou até o fim".
+                    'skipped_reading' => (bool) ($payload['skipped_reading'] ?? false),
                     // A via por e-mail é do signatário avulso; no lote, não.
                     'wants_copy' => false,
                 ]), $context);

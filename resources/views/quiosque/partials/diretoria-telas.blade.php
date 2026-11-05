@@ -64,4 +64,19 @@
         <button type="button" class="btn btn-primary hidden" id="dAssinarLote" disabled>Assinar selecionados</button>
       </div>
     </section>
+
+    <!-- D3. Lote aberto (05/11/2026): ver um por um é opcional. Não → direto ao aceite e à assinatura. -->
+    <section class="screen" id="tela-d-lote-ver">
+      <div class="pad grow">
+        <h2>Assinatura em lote</h2>
+        <p class="lead" id="dLoteVerResumo">Você vai assinar vários documentos de uma vez.</p>
+        <p class="lead" style="font-weight:600;">Deseja ver cada documento individualmente?</p>
+        <div class="lista" id="dLoteVerLista"></div>
+      </div>
+      <div class="foot">
+        <button type="button" class="btn btn-ghost" id="dLoteVerVoltar">Voltar</button>
+        <button type="button" class="btn btn-ghost" id="dLoteVerNao">Não, assinar</button>
+        <button type="button" class="btn btn-primary" id="dLoteVerSim">Sim, ver um por um</button>
+      </div>
+    </section>
 @endverbatim

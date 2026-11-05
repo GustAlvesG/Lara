@@ -1666,6 +1666,12 @@
   });
 
   $('#btnVoltarAceite').addEventListener('click', function () {
+    // Lote da diretoria sem ver um por um: volta à pergunta.
+    if (S && S.lote && S.lote.dispensou) {
+      lotePergunta();
+      return;
+    }
+
     mostra('tela-documento');
   });
 

@@ -542,6 +542,43 @@ class SignatureDirectorTest extends TestCase
         $this->assertEqualsCanonicalizing($ids, array_column($lista->json('signed'), 'signer_id'));
     }
 
+    /**
+     * 05/11/2026: "Deseja ver cada documento individualmente?" → Não. O lote
+     * assina sem leitura nenhuma, e a trilha diz que a leitura foi dispensada.
+     */
+    public function test_lote_assina_sem_ver_cada_documento_e_a_trilha_registra(): void
+    {
+        $ana = $this->diretor('Ana Diretora', '777', '12345678909');
+        $area = $this->areaCom($ana);
+        $ids = collect([$this->documentoComDiretor($area, $ana), $this->documentoComDiretor($area, $ana)])
+            ->map(fn(SignatureDocument $d) => $d->signers()->whereNotNull('director_area_id')->value('id'))
+            ->all();
+
+        $cookie = $this->cookieDoDiretor($this->entra());
+        $comDiretor = fn() => $this->withCredentials()->withCookie(DirectorKioskService::COOKIE, $cookie);
+
+        $comDiretor()->postJson(route('quiosque.diretoria.batch.open'), ['signers' => $ids])->assertOk();
+
+        // Sem abrir PDF nem marcar leitura.
+        $comDiretor()->postJson(route('quiosque.diretoria.batch.sign'), [
+            'signers' => $ids,
+            'skip_reading' => true,
+            'signature' => self::PNG,
+            'strokes' => [['points' => array_fill(0, 40, ['x' => 1, 'y' => 1, 't' => 0])]],
+            'photo' => 'data:image/jpeg;base64,' . base64_encode(self::JPEG_HEAD . str_repeat('x', 200)),
+            'photo_consent' => true,
+            'accepted' => true,
+        ])->assertOk()->assertJsonPath('signed', 2);
+
+        $assinados = SignatureAuditEvent::where('event', SignatureAuditEvent::EVENT_SIGNED)->whereNotNull('signature_signer_id')->get();
+        $this->assertSame([true, true], $assinados->map(fn($e) => $e->payload['leitura_dispensada'] ?? null)->all());
+        $this->assertSame(0, SignatureAuditEvent::where('event', SignatureAuditEvent::EVENT_VIEWED)->count());
+
+        foreach ($ids as $id) {
+            $this->assertFalse(SignatureSigner::find($id)->evidence->scrolled_to_end);
+        }
+    }
+
     public function test_lote_nao_abre_documento_que_nao_e_do_diretor_e_nao_deixa_nada_aberto(): void
     {
         $ana = $this->diretor('Ana Diretora', '777', '12345678909');

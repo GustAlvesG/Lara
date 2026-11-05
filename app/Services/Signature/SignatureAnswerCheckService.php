@@ -298,6 +298,12 @@ class SignatureAnswerCheckService
             return null;
         }
 
+        // Sem ninguém no balcão e a resposta veio do link remoto (ou da
+        // Diretoria): não passa pela conferência — 05/11/2026, documento 131.
+        if (!$liberacao && !$this->answeredAtCounter($document)) {
+            return null;
+        }
+
         $valores = $document->signing_data ?? [];
         $ultima = $this->latest($document);
 
@@ -352,6 +358,31 @@ class SignatureAnswerCheckService
     }
 
     /**
+     * As respostas gravadas vieram do balcão? Olha a liberação do último
+     * "formulário respondido" da trilha: link remoto ou entrada do diretor
+     * ficam de fora. Sem evento com liberação (ex.: documento antigo), vale
+     * o comportamento de antes — conta como balcão.
+     */
+    private function answeredAtCounter(SignatureDocument $document): bool
+    {
+        $requestId = SignatureAuditEvent::where('signature_document_id', $document->id)
+            ->where('event', SignatureAuditEvent::EVENT_FORM_ANSWERED)
+            ->orderByDesc('id')
+            ->value('signature_request_id');
+
+        if ($requestId === null) {
+            return true;
+        }
+
+        $metodo = SignatureRequest::whereKey($requestId)->value('identity_method');
+
+        return !in_array($metodo, [
+            SignatureRequest::IDENTITY_METHOD_REMOTE_LINK,
+            SignatureRequest::IDENTITY_METHOD_DIRECTOR_PIN,
+        ], true);
+    }
+
+    /**
      * @param  array<int, string>  $permitidos
      *
      * @throws SignatureSessionException
@@ -361,6 +392,17 @@ class SignatureAnswerCheckService
         if (!$this->documentRequires($document)) {
             throw new SignatureSessionException(
                 'Não há respostas a conferir neste documento (ou alguém já assinou, e elas não mudam mais).',
+                409,
+            );
+        }
+
+        // Respostas dadas pelo link remoto ou pela Diretoria são de quem assina:
+        // o atendente não aprova nem corrige (a não ser que a pessoa esteja no
+        // tablet do balcão agora — aí a conferência volta a valer).
+        if (!$this->liveRequest($document) && $document->signing_answered_at !== null
+            && !$this->answeredAtCounter($document)) {
+            throw new SignatureSessionException(
+                'As respostas foram dadas por quem assina pelo link remoto e não passam pela conferência do atendente.',
                 409,
             );
         }

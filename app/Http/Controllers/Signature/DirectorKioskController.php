@@ -179,6 +179,8 @@ class DirectorKioskController extends Controller
             'reads' => ['nullable', 'array'],
             'reads.*.read_seconds' => ['nullable', 'integer', 'min:0', 'max:86400'],
             'reads.*.scrolled_to_end' => ['nullable', 'boolean'],
+            // "Deseja ver cada documento individualmente?" → Não (05/11/2026).
+            'skip_reading' => ['nullable', 'boolean'],
             'signature' => ['required', 'string'],
             'strokes' => ['nullable', 'array'],
             'initials' => ['nullable', 'string'],
@@ -200,6 +202,7 @@ class DirectorKioskController extends Controller
             'photo_consent' => (bool) ($dados['photo_consent'] ?? false),
             'accepted' => true,
             'viewport' => $dados['viewport'] ?? null,
+            'skipped_reading' => (bool) ($dados['skip_reading'] ?? false),
         ], $dados['reads'] ?? [], [
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),

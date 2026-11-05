@@ -281,6 +281,43 @@ class SignatureAnswerCheckTest extends TestCase
         $this->assertTrue($servico->requiredFor($balcao));
     }
 
+    /**
+     * Documento 131 em produção (05/11/2026): a pessoa respondeu pelo link
+     * remoto e o painel mostrava "Aguardando a sua conferência", com aprovar e
+     * corrigir funcionando. Resposta remota não passa pelo atendente.
+     */
+    public function test_resposta_pelo_link_remoto_nao_mostra_cartao_nem_aceita_conferencia(): void
+    {
+        $documento = $this->congelado();
+
+        $remota = SignatureRequest::create([
+            'signature_signer_id' => $documento->signers()->first()->id,
+            'token_hash' => str_repeat('b', 64),
+            'status' => SignatureRequest::STATUS_CANCELED,
+            'identity_method' => SignatureRequest::IDENTITY_METHOD_REMOTE_LINK,
+            'expires_at' => now(),
+        ]);
+
+        app(\App\Services\Signature\SignatureSigningDataService::class)
+            ->answer($documento, ['telefone' => '24999991234'], ['request' => $remota->id]);
+
+        $this->assertNotNull($documento->fresh()->signing_answered_at);
+        $this->assertNull($this->atendente()->getJson(route('signature-documents.status', $documento))->json('answer_check'));
+
+        $this->atendente()->postJson(route('signature-documents.answers.approve', $documento))->assertStatus(409);
+        $this->atendente()->postJson(route('signature-documents.answers.correct', $documento), ['answers' => ['telefone' => '21988887777']])
+            ->assertStatus(409);
+
+        $this->assertSame('24999991234', $documento->fresh()->signing_data['telefone']);
+        $this->assertSame(0, $documento->answerChecks()->count());
+
+        // Respondeu pelo link e foi ao balcão: lá a conferência volta a valer.
+        ['payload' => $payload] = $this->sessaoAberta($documento->fresh());
+
+        $this->assertSame('pending', $payload['answer_check']['status']);
+        $this->assertSame('pending', $this->atendente()->getJson(route('signature-documents.status', $documento))->json('answer_check.status'));
+    }
+
     public function test_depois_da_primeira_assinatura_nao_ha_mais_conferencia(): void
     {
         $documento = $this->congelado();

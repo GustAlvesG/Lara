@@ -501,6 +501,11 @@ class SignatureCaptureService
                             // Diretor assinando vários de uma vez: o mesmo traço
                             // e a mesma foto valem para todos os do lote.
                             ? ['em_lote' => (int) $payload['batch_size']]
+                            : [])
+                        + (!empty($payload['skipped_reading']) && isset($payload['batch_size'])
+                            // Respondeu "não" a "deseja ver cada documento
+                            // individualmente?": assinou sem abrir um a um.
+                            ? ['leitura_dispensada' => true]
                             : []),
                     ],
                 );
