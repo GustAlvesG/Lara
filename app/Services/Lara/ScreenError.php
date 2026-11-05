@@ -5,12 +5,12 @@ namespace App\Services\Lara;
 use Illuminate\Support\Str;
 
 /**
- * Um erro que a pessoa viu na tela e pediu para a Lara verificar.
+ * Um erro que a pessoa viu na tela e pediu para o HAL verificar.
  *
  * O texto vem do navegador e pode trazer o que não deve sair daqui: telas
  * antigas ainda põem $e->getMessage() no flash (SQL, caminhos, nomes de
  * classe) e há mensagens com CPF. Por isso a pergunta é montada no servidor, e
- * erro do sistema nunca leva texto: o tipo basta para a Lara orientar.
+ * erro do sistema nunca leva texto: o tipo basta para o HAL orientar.
  *
  * Só `tipo` e `status` vão como dado estruturado para a IA. O texto vai dentro
  * da pergunta, que é o que a IA já trata como fala do usuário.

@@ -12,7 +12,7 @@ O InfoClube é o mural interno do clube no Lara. Ele tem duas telas:
 
 Todo funcionário logado lê as informações e os avisos que são para ele. Criar e editar informações pede permissão; avisos qualquer pessoa logada pode publicar.
 
-A Lara, a assistente de IA do chat, também consulta as informações e os avisos para responder perguntas — por isso vale manter nomes, tags e textos claros.
+O HAL, o assistente de IA do chat, também consulta as informações e os avisos para responder perguntas — por isso vale manter nomes, tags e textos claros.
 
 ## Quem faz o quê
 
@@ -98,7 +98,7 @@ O Lara copia a versão antiga como uma versão nova, com as tags daquela época.
 
 Em **InfoClube › Informações**, abra a informação e clique em **Excluir** (só para quem tem a permissão). Confirme a mensagem "Você tem certeza que deseja apagar essa informação? Essa ação é irreversível."
 
-A informação sai da lista e da busca, e a tela dela e o histórico deixam de abrir. A Lara (assistente de IA) também deixa de usá-la nas respostas.
+A informação sai da lista e da busca, e a tela dela e o histórico deixam de abrir. O HAL (assistente de IA) também deixa de usá-la nas respostas.
 
 Se a ideia é só corrigir ou atualizar, prefira **Editar**: a versão anterior fica guardada no histórico. Se a atividade foi suspensa temporariamente, uma alternativa é editar e mudar o **Status** (ex.: "Inscrições encerradas").
 
@@ -132,7 +132,7 @@ Ao criar ou editar um aviso em **InfoClube › Avisos**, a **Visibilidade** defi
 
 O padrão de um aviso novo é **Setor**. Quem tem acesso total (Gerência, Diretoria e TI) enxerga todos os avisos na lista, mesmo os que não são para eles — mas só recebe notificação e leitura obrigatória do que é dirigido a eles.
 
-A visibilidade aparece numa etiqueta no cartão e na tela do aviso. A Lara (assistente de IA) segue a mesma regra: só usa, para cada pessoa, os avisos dirigidos a ela.
+A visibilidade aparece numa etiqueta no cartão e na tela do aviso. O HAL (assistente de IA) segue a mesma regra: só usa, para cada pessoa, os avisos dirigidos a ela.
 
 ## Lembretes e data de expiração dos avisos
 <!-- telas: avisos.index -->

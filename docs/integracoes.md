@@ -134,7 +134,7 @@ enviado. Ver [Autorização de Ordem de Compra](funcionalidades/questor-autoriza
 
 ---
 
-## 11.10. Lara — agente de IA (Ollama)
+## 11.10. HAL — agente de IA (Ollama)
 
 - **Componente:** `App\Services\Lara\LaraClient`.
 - **Endpoints consumidos:** `POST /perguntar` `{usuario_id, mensagem}` → `{resposta, transferir}`,
@@ -148,7 +148,7 @@ enviado. Ver [Autorização de Ordem de Compra](funcionalidades/questor-autoriza
   ou erro do modelo) e vira `status = fallback`. Com `false`, é resposta de negócio e vira `ok`.
 - **Indisponibilidade:** nunca propaga exceção; devolve a frase de `LARA_FALLBACK_MESSAGE`
   marcada com `status = erro` em `lara_messages`.
-- **Guia de uso:** [Lara — Assistente de IA](funcionalidades/lara-ia.md).
+- **Guia de uso:** [HAL — Assistente de IA](funcionalidades/lara-ia.md).
 
 ---
 

@@ -1,5 +1,5 @@
 {{--
-    Lara (IA) — balão no canto inferior direito que abre o chat num painel
+    HAL (IA) — balão no canto inferior direito que abre o chat num painel
     lateral. Fica em toda tela do layout, para quem tem a permissão `lara`
     (o layout pergunta por @can — Gate, sem consulta de model).
 
@@ -19,7 +19,7 @@
     $laraMaxChars = (int) config('services.lara.max_input_chars', 1000);
     $laraAbrir = (bool) session(\App\Http\Controllers\LaraChatController::OPEN_FLASH);
 
-    // O robô da Lara (public/images/lara, gerado do GIF original — ver
+    // O robô do HAL (public/images/lara, gerado do GIF original — ver
     // docs/funcionalidades/lara-ia.md). WebP animado com transparência; quem
     // pede menos movimento no sistema vê a imagem parada. O balão é o robô
     // dentro do anel grená (GIF próprio); o resto usa o robô de corpo inteiro.
@@ -29,7 +29,7 @@
     $laraRoboParado = asset('images/lara/lara-robo.png');
     $laraCabeca = asset('images/lara/lara-robo-cabeca.png');
 
-    // Onde a pessoa está, para a Lara entender "como faço isso aqui?". Só
+    // Onde a pessoa está, para o HAL entender "como faço isso aqui?". Só
     // nomes de rota: módulo e página o servidor tira do menu
     // (AskLaraRequest::contexto), sem confiar em texto vindo do navegador.
     $laraContexto = [
@@ -37,7 +37,7 @@
         'aba' => $navCurrent['key'] ?? null,
     ];
 
-    // Erro que esta tela está mostrando, para o "Verificar com a Lara". A
+    // Erro que esta tela está mostrando, para o "Verificar com o HAL". A
     // página de erro (errors/pagina) passa o dela; o resto vem do retorno da
     // ação. O servidor filtra o texto ao receber (App\Services\Lara\ScreenError).
     $laraErroTela = $laraErroPagina ?? null;
@@ -133,7 +133,7 @@
             consulta: null,
             // Resposta que chegou com o painel fechado: ponto no balão.
             novidade: false,
-            // Erro da tela à espera do "Verificar com a Lara".
+            // Erro da tela à espera do "Verificar com o HAL".
             erroTela: opcoes.erroTela || null,
             // Na página de erro o botão já está na própria página.
             mostrarAtalhoErro: !opcoes.paginaDeErro,
@@ -217,7 +217,7 @@
                 await this.perguntar(texto, { mensagem: texto, contexto: opcoes.contexto });
             },
 
-            // "Verificar com a Lara": abre o painel e pergunta sobre o erro. A
+            // "Verificar com o HAL": abre o painel e pergunta sobre o erro. A
             // pergunta é montada no servidor e substitui o rótulo da bolha.
             async verificarErro() {
                 if (!this.erroTela) return;
@@ -271,7 +271,7 @@
                     if (!this.aberto) this.novidade = true;
                 } catch (e) {
                     this.erro = e.name === 'AbortError'
-                        ? 'A Lara demorou demais para responder. Tente de novo em instantes.'
+                        ? 'O HAL demorou demais para responder. Tente de novo em instantes.'
                         : 'Falha de conexão com o portal. Tente de novo.';
                 } finally {
                     clearTimeout(timer);
@@ -362,7 +362,7 @@
         <span>Deu erro?</span>
         <button type="button" @click="verificarErro()"
             class="rounded-full bg-grena px-3 py-1.5 text-xs font-bold text-white transition hover:bg-grena-hover">
-            Verificar com a Lara
+            Verificar com o HAL
         </button>
         <button type="button" @click="erroTela = null" aria-label="Dispensar"
             class="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-3 transition hover:bg-subtle hover:text-ink">
@@ -372,9 +372,9 @@
         </button>
     </div>
 
-    {{-- Balão: o robô da Lara no anel grená, acenando. No celular fica acima da barra
+    {{-- Balão: o robô do HAL no anel grená, acenando. No celular fica acima da barra
          de baixo. A sombra segue o contorno (drop-shadow), não uma caixa. --}}
-    <button type="button" x-show="!aberto" @click="abrir()" aria-label="Abrir a Lara (assistente de IA)" title="Lara (IA)"
+    <button type="button" x-show="!aberto" @click="abrir()" aria-label="Abrir o HAL (assistente de IA)" title="HAL (IA)"
         class="fixed right-3 z-[55] block rounded-2xl transition hover:-translate-y-1 focus:outline-none focus-visible:ring-4 focus-visible:ring-grena-tint sm:right-5"
         style="bottom: var(--lara-balao-bottom)">
         <picture>
@@ -389,7 +389,7 @@
 
     {{-- Painel lateral. Sem fundo escurecido: a página continua à vista para
          quem pergunta sobre o que está vendo. No celular ocupa a tela. --}}
-    <aside x-show="aberto" x-cloak role="dialog" aria-label="Lara, assistente de IA"
+    <aside x-show="aberto" x-cloak role="dialog" aria-label="HAL, assistente de IA"
         x-transition:enter="transition ease-out duration-200"
         x-transition:enter-start="translate-x-full opacity-0"
         x-transition:enter-end="translate-x-0 opacity-100"
@@ -403,7 +403,7 @@
             <img src="{{ $laraCabeca }}" alt="" width="36" height="36" class="h-9 w-9 shrink-0 rounded-full bg-grena-tint">
 
             <div class="min-w-0 flex-1 leading-tight">
-                <b class="block text-[15px] font-bold">Lara</b>
+                <b class="block text-[15px] font-bold">HAL</b>
                 <span class="flex items-center gap-1.5 text-xs text-ink-3">
                     <template x-if="carregado && disponivel">
                         <span class="flex items-center gap-1.5"><span class="h-1.5 w-1.5 rounded-full bg-ok"></span>Disponível</span>
@@ -417,7 +417,7 @@
                 class="rounded-full px-3 py-1.5 text-xs font-bold text-ink-2 transition hover:bg-subtle hover:text-ink disabled:opacity-40">
                 Nova conversa
             </button>
-            <button type="button" @click="fechar()" aria-label="Fechar a Lara"
+            <button type="button" @click="fechar()" aria-label="Fechar o HAL"
                 class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-2 transition hover:bg-subtle hover:text-ink">
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -428,8 +428,8 @@
         <template x-if="carregado && !disponivel">
             <div class="mx-4 mt-3 rounded-xl bg-warn-soft px-3 py-2 text-xs leading-relaxed text-warn"
                 x-text="configurado
-                    ? 'A Lara não está respondendo agora — o servidor dela pode estar reiniciando. Tente em instantes; se continuar, avise a TI.'
-                    : 'A Lara está desativada no momento. Fale com a TI se precisar dela agora.'"></div>
+                    ? 'O HAL não está respondendo agora — o servidor dele pode estar reiniciando. Tente em instantes; se continuar, avise a TI.'
+                    : 'O HAL está desativado no momento. Fale com a TI se precisar dele agora.'"></div>
         </template>
 
         {{-- Conversa --}}
@@ -445,13 +445,13 @@
                         <source srcset="{{ $laraRoboParado }}" media="(prefers-reduced-motion: reduce)">
                         <img src="{{ $laraRoboGrande }}" alt="" width="113" height="160" class="mb-3 h-40 w-auto">
                     </picture>
-                    <p class="font-display text-base font-bold text-ink">Olá! Eu sou a Lara.</p>
+                    <p class="font-display text-base font-bold text-ink">Olá! Eu sou o HAL.</p>
                     <p class="mt-1 text-sm text-ink-2">Pergunte sobre o estatuto, as atividades, os avisos do clube ou como usar O Lara.</p>
                     <p class="mt-0.5 text-xs text-ink-3">Ex.: “qual o horário da academia?” ou “como faço isso nesta tela?”</p>
                 </div>
             </template>
 
-            {{-- Balão só para quem pergunta; a resposta da Lara é longa e lê
+            {{-- Balão só para quem pergunta; a resposta do HAL é longa e lê
                  melhor como texto corrido. --}}
             <template x-for="(m, i) in mensagens" :key="i">
                 <div class="group">
@@ -506,7 +506,7 @@
                     <span>Apareceu um erro nesta tela.</span>
                     <button type="button" @click="verificarErro()" :disabled="pensando || !disponivel"
                         class="shrink-0 rounded-full bg-grena px-2.5 py-1 font-bold text-white transition hover:bg-grena-hover disabled:opacity-40">
-                        Verificar com a Lara
+                        Verificar com o HAL
                     </button>
                 </div>
             </template>

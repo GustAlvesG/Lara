@@ -101,7 +101,7 @@ class DocumentationService
     }
 
     /**
-     * Dá `id` a cada título, para a busca de guias da Lara (IA) mandar o link
+     * Dá `id` a cada título, para a busca de guias do HAL (IA) mandar o link
      * direto da seção. A âncora sai de GuideMarkdown::anchor(), na ordem do
      * documento — a mesma conta que UserGuides faz.
      */

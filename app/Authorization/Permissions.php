@@ -194,7 +194,7 @@ final class Permissions
         self::EXTERNOS_HISTORICO => ['Externos', 'Histórico de acessos'],
         self::EXTERNOS_CARROS_APLICATIVO => ['Externos', 'Carros de aplicativo e fila da portaria'],
 
-        self::LARA => ['Lara (IA)', 'Chat com a Lara'],
+        self::LARA => ['HAL (IA)', 'Chat com o HAL'],
         self::BOT_WHATSAPP => ['Bot WhatsApp', 'Editar os fluxos do bot'],
         self::BOT_WHATSAPP_OCORRENCIAS => ['Bot WhatsApp', 'Ver transferências e encerramentos'],
         self::COMPRAS => ['Compras', 'Mapas de cotação e ordens de compra'],
@@ -261,7 +261,7 @@ final class Permissions
      * Habilidades que abrem com QUALQUER uma destas permissões do catálogo —
      * os itens do menu pedem uma habilidade só, e estas juntam várias. O
      * AppServiceProvider define os Gates a partir daqui, e a busca de guias da
-     * Lara (IA) usa a mesma lista para dizer o que pedir a quem não alcança a
+     * HAL (IA) usa a mesma lista para dizer o que pedir a quem não alcança a
      * tela: uma fonte só, para as duas não divergirem.
      *
      * Não são permissões: não entram no CATALOG nem no banco.

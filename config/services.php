@@ -51,7 +51,7 @@ return [
     ],
 
     /*
-     * Lara — agente de IA (Ollama + base do estatuto) hospedado numa VM
+     * HAL (até 05/11/2026, "Lara") — agente de IA (Ollama + base do estatuto) numa VM
      * própria. O endpoint não tem autenticação: a proteção é de rede (só o IP
      * do portal alcança a porta), por isso a base_url mora no .env do servidor
      * e nunca no repositório.

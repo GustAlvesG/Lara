@@ -7,7 +7,7 @@ use App\Services\Guides\GuideSearch;
 use Illuminate\Http\JsonResponse;
 
 /**
- * Busca nos guias do usuário (docs/guias), consumida pela Lara (IA) para
+ * Busca nos guias do usuário (docs/guias), consumida pelo HAL (IA) para
  * ensinar o funcionário a usar O Lara. Ver GuideSearch e
  * docs/funcionalidades/lara-ia-consultas.md.
  */

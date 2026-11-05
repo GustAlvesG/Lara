@@ -7,7 +7,7 @@ use App\Http\Requests\Concerns\ResolvesAskingUser;
 /**
  * Busca nos guias do usuário em nome de um funcionário. O `user_id` não
  * filtra (guia não é sigiloso): decide `tem_acesso` e os links de cada seção.
- * `modulo` é o da tela em que a pessoa está (contexto que a Lara recebe do
+ * `modulo` é o da tela em que a pessoa está (contexto que o HAL recebe do
  * balão) e só dá preferência às seções daquele módulo.
  */
 class SearchGuideRequest extends KeywordSearchRequest

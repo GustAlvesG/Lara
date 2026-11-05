@@ -105,7 +105,7 @@
 }
 
 @layer components {
-    /* Altura do balão da Lara: no celular, acima da barra de baixo (62px). */
+    /* Altura do balão do HAL: no celular, acima da barra de baixo (62px). */
     :root {
         --lara-balao-bottom: calc(74px + env(safe-area-inset-bottom, 0px));
     }

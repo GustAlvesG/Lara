@@ -24,5 +24,5 @@ Para cada módulo, crie um resumo do funcionamento dele em markdown para orienta
 
 Sempre se refira ao sistema como "O Lara", nunca "A Lara".
 
-O "guia do usuário" de cada módulo mora em `docs/guias/<modulo>.md` (desde 28/10/2026), escrito para quem usa as telas, no formato de `docs/funcionalidades/guias-do-usuario.md`. É dele que a Lara (IA) tira as respostas de "como faço…": mudou uma tela, um botão, um fluxo ou uma regra que o funcionário percebe, atualize o guia do módulo na mesma mudança. Módulo novo no menu ganha guia novo. Renomeou um item do menu ou uma rota citada em `<!-- telas: -->`, ajuste o guia — o `tests/Feature/UserGuidesContentTest.php` acusa.
+O "guia do usuário" de cada módulo mora em `docs/guias/<modulo>.md` (desde 28/10/2026), escrito para quem usa as telas, no formato de `docs/funcionalidades/guias-do-usuario.md`. É dele que o HAL (IA) tira as respostas de "como faço…": mudou uma tela, um botão, um fluxo ou uma regra que o funcionário percebe, atualize o guia do módulo na mesma mudança. Módulo novo no menu ganha guia novo. Renomeou um item do menu ou uma rota citada em `<!-- telas: -->`, ajuste o guia — o `tests/Feature/UserGuidesContentTest.php` acusa.
 

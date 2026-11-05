@@ -7,7 +7,7 @@ passo, os botões, as regras em linguagem simples e as dúvidas comuns. Ficam em
 têm dois leitores:
 
 - a **tela Documentação** (menu da conta), na seção "Guias do usuário";
-- a **Lara (IA)**, que busca neles pela API `GET /api/guias/search` para ensinar o funcionário a
+- a **HAL (IA)**, que busca neles pela API `GET /api/guias/search` para ensinar o funcionário a
   usar O Lara (contrato em [lara-ia-consultas.md](lara-ia-consultas.md)).
 
 Os outros documentos de `docs/` são técnicos. Guia **não** cita classe, rota, tabela, API, `.env`,
@@ -62,7 +62,7 @@ Na tela **Ingressos › Eventos**, …
 - **Permissões**: quem libera é a TI ou a Gerência (tela Setores, ou por pessoa em Usuários); o
   coordenador coloca a pessoa num setor que já tem a permissão (tela Meu setor). Use os rótulos do
   catálogo (`App\Authorization\Permissions`) como aparecem na tela Setores.
-- Sempre "O Lara" para o sistema; "a Lara" é a assistente de IA.
+- Sempre "O Lara" para o sistema; "o HAL" é a assistente de IA.
 
 ## Como é lido
 

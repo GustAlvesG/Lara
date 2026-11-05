@@ -30,7 +30,7 @@ temas: rota `design.components` (`/design/componentes`, `resources/views/design/
    portaria na Busca do SIV.
 10. **Só existe a navegação por Módulos** desde 28/10/2026: os menus Lateral e Superior (que eram
     opção) e o sino flutuante saíram. O título da tela continua existindo além da capa do módulo.
-    O canto inferior direito é do **balão da Lara** (IA) — não ponha outro elemento fixo ali.
+    O canto inferior direito é do **balão do HAL** (IA) — não ponha outro elemento fixo ali.
 11. **Na tela, é "Módulo"**; no código o nome ainda é `area` (`AreaColor`, `area=`,
     `navigation-areas`). Não renomeie o código.
 
@@ -99,7 +99,7 @@ inline**, nunca por classe montada com variável (o Tailwind não enxerga `bg-ar
 | `externos` | Externos | `#E8E0FF` | `#5A2DB0` |
 | `freela` | Freelancers | `#FFE4D3` | `#9A4312` |
 | `placar` | Placar Clube | `#E3F0C0` | `#4A6508` |
-| `lara` | Lara (IA), Bot WhatsApp | `#FFDDEC` | `#A01E5E` |
+| `lara` | HAL (IA), Bot WhatsApp | `#FFDDEC` | `#A01E5E` |
 | `info` | InfoClube, Avisos | `#D2F1EE` | `#0C6660` |
 | `compras` | Compras | `#ECE5DB` | `#6A4F2F` |
 | `cartao` | Carteirinhas, Assinaturas | `#DDE3F0` | `#34426A` |

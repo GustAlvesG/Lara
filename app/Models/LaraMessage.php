@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Uma linha do chat com a Lara — a pergunta do funcionário e a resposta da IA
+ * Uma linha do chat com o HAL — a pergunta do funcionário e a resposta da IA
  * são duas linhas irmãs, unidas pelo `conversation_uuid`.
  *
  * Linhas nunca são editadas (é histórico), então não há `updated_at`.

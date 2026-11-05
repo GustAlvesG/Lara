@@ -11,7 +11,7 @@ use Tests\Feature\Rebrand\Concerns\RendersScreens;
 use Tests\TestCase;
 
 /**
- * Lara (IA) como balão do layout: aparece em toda tela para quem tem a
+ * HAL (IA) como balão do layout: aparece em toda tela para quem tem a
  * permissão, carrega a conversa só quando abre (GET /lara/conversa) e /lara
  * virou atalho que abre o balão na página de onde a pessoa veio.
  *
@@ -60,7 +60,7 @@ class LaraWidgetTest extends TestCase
         $html = $this->actingAs($this->comLara())->get(route('docs.show', 'README'))->assertOk()->getContent();
 
         $this->assertStringContainsString('laraWidget(', $html);
-        $this->assertStringContainsString('aria-label="Abrir a Lara (assistente de IA)"', $html);
+        $this->assertStringContainsString('aria-label="Abrir o HAL (assistente de IA)"', $html);
         // O robô animado, com a imagem parada para quem pede menos movimento.
         $this->assertStringContainsString(asset('images/lara/lara-balao.webp'), $html);
         $this->assertStringContainsString(asset('images/lara/lara-balao.png'), $html);
@@ -223,7 +223,7 @@ class LaraWidgetTest extends TestCase
             ->withSession(['error' => 'Este título já tem reserva neste dia.'])
             ->get(route('docs.show', 'README'))->assertOk()->getContent();
 
-        $this->assertStringContainsString('Verificar com a Lara', $html);
+        $this->assertStringContainsString('Verificar com o HAL', $html);
         $this->assertSame(
             ['status' => null, 'texto' => 'Este título já tem reserva neste dia.'],
             $this->opcoesDoBalao($html)['erroTela']
@@ -306,7 +306,7 @@ class LaraWidgetTest extends TestCase
             ->get(route('fleet.vehicles'))->assertForbidden()->getContent();
 
         $this->assertStringContainsString('Acesso negado', $html);
-        $this->assertStringNotContainsString('Verificar com a Lara', $html);
+        $this->assertStringNotContainsString('Verificar com o HAL', $html);
     }
 
     public function test_pagina_500_nao_mostra_o_erro_tecnico(): void

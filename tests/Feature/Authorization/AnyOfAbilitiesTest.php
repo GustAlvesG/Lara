@@ -10,7 +10,7 @@ use Tests\TestCase;
 /**
  * As habilidades compostas (Permissions::ANY_OF) viram Gates no
  * AppServiceProvider: cada uma abre com qualquer uma das permissões da lista
- * e com nenhuma outra. A busca de guias da Lara (IA) lê a mesma lista para
+ * e com nenhuma outra. A busca de guias do HAL (IA) lê a mesma lista para
  * dizer o que pedir — se a lista e o Gate divergissem, a IA mandaria pedir a
  * permissão errada.
  */

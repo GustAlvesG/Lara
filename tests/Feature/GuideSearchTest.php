@@ -10,7 +10,7 @@ use Tests\Concerns\SharesSqliteWithUserConnection;
 use Tests\TestCase;
 
 /**
- * Busca nos guias do usuário (GET /api/guias/search), consumida pela Lara
+ * Busca nos guias do usuário (GET /api/guias/search), consumida pelo HAL
  * (IA). Guias de teste numa pasta própria; usuários de verdade (as permissões
  * passam por setor), no SQLite compartilhado com a conexão do User.
  */

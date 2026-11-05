@@ -1,4 +1,4 @@
-# Lara (IA) — o que a IA consulta no Lara
+# HAL (IA) — o que a IA consulta no Lara
 
 O agente de IA (VM separada, ver [lara-ia.md](lara-ia.md)) responde sobre o estatuto pela
 própria base, e sobre o dia a dia do clube e o uso do sistema consultando **O Lara** por API.
@@ -12,7 +12,7 @@ São três buscas por palavra-chave, todas no grupo `api_token`:
 
 E, no sentido inverso, desde 28/10/2026 o Lara manda em `POST /perguntar` o **contexto da tela**
 em que a pessoa está (ver "Contexto da tela" no fim) e, desde 30/10/2026, o **erro da tela** quando a pessoa clica em
-"Verificar com a Lara" (ver "Erro da tela").
+"Verificar com o HAL" (ver "Erro da tela").
 
 ## Autenticação
 
@@ -211,7 +211,7 @@ Quem libera permissão é a **TI ou a Gerência** (tela Setores, ou por pessoa e
 
 ## Contexto da tela (`POST /perguntar`)
 
-Desde 28/10/2026 o balão da Lara manda a tela atual junto com a pergunta e O Lara repassa à IA:
+Desde 28/10/2026 o balão do HAL manda a tela atual junto com a pergunta e O Lara repassa à IA:
 
 ```json
 {
@@ -231,7 +231,7 @@ Desde 28/10/2026 o balão da Lara manda a tela atual junto com a pergunta e O La
 
 ## Erro da tela (`POST /perguntar`)
 
-Desde 30/10/2026, "Verificar com a Lara" manda a pergunta com um campo opcional no primeiro nível:
+Desde 30/10/2026, "Verificar com o HAL" manda a pergunta com um campo opcional no primeiro nível:
 
 ```json
 {

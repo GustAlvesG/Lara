@@ -4,7 +4,7 @@ Desde 27/10/2026, O Lara chama a API do Claude, a IA da Anthropic, pelo SDK ofic
 (`anthropic-ai/sdk`, no `composer.json`). O primeiro uso é a **revisão automática de contratos**
 pela Gerência (ver [contratos.md](contratos.md#revisão-automática-pelo-claude)).
 
-Não tem relação com a "Lara" do chat interno ([lara-ia.md](lara-ia.md)), que roda numa VM própria com Ollama.
+Não tem relação com o "HAL" (antes "Lara") do chat interno ([lara-ia.md](lara-ia.md)), que roda numa VM própria com Ollama.
 
 ## Peças
 

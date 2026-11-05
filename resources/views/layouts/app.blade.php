@@ -471,7 +471,7 @@
                 @include('partials.footer')
             </div>
 
-            {{-- Lara (IA): balão no canto, em toda tela, para quem tem a
+            {{-- HAL (IA): balão no canto, em toda tela, para quem tem a
                  permissão. O sino mora na barra de cima. --}}
             @can(\App\Authorization\Permissions::LARA)
                 @include('partials.lara-widget')

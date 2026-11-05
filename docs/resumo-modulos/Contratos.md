@@ -2,7 +2,7 @@
 
 Módulo próprio no menu desde 04/11/2026 (antes era Assinaturas → Contratos). Doc completa:
 [docs/funcionalidades/contratos.md](../funcionalidades/contratos.md). Guia do usuário:
-[docs/guias/contratos.md](../guias/contratos.md) (é dele que a Lara (IA) tira as respostas).
+[docs/guias/contratos.md](../guias/contratos.md) (é dele que o HAL (IA) tira as respostas).
 
 ## Em uma frase
 

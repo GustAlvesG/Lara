@@ -27,7 +27,7 @@ class AskLaraRequest extends FormRequest
             $this->merge(['mensagem' => trim($mensagem)]);
         }
 
-        // "Verificar com a Lara": a pergunta é montada aqui, do erro da tela.
+        // "Verificar com o HAL": a pergunta é montada aqui, do erro da tela.
         $erro = $this->input('erro');
 
         if (is_array($erro) && blank($mensagem)) {
@@ -61,7 +61,7 @@ class AskLaraRequest extends FormRequest
             'contexto' => ['nullable', 'array'],
             'contexto.rota' => ['nullable', 'string', 'max:150'],
             'contexto.aba' => ['nullable', 'string', 'max:150'],
-            // Erro da tela ("Verificar com a Lara"; ver prepareForValidation()).
+            // Erro da tela ("Verificar com o HAL"; ver prepareForValidation()).
             'erro' => ['nullable', 'array'],
             'erro.status' => ['nullable', 'integer'],
             'erro.texto' => ['nullable', 'string'],

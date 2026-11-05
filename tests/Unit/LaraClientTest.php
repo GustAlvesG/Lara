@@ -13,7 +13,7 @@ use Tests\TestCase;
 
 /**
  * Testes do cliente da IA. Nenhum toca o banco (o histórico é problema do
- * controller) e nenhum toca a rede — a VM da Lara nunca é chamada de verdade
+ * controller) e nenhum toca a rede — a VM do HAL nunca é chamada de verdade
  * aqui, tudo passa por Http::fake().
  */
 class LaraClientTest extends TestCase

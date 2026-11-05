@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 /**
- * Chat interno com a Lara, o agente de IA que responde sobre o estatuto.
+ * Chat interno com o HAL, o agente de IA que responde sobre o estatuto.
  *
  * A chamada à IA é síncrona: o funcionário pergunta e espera na tela. Isso é
  * proposital nesta primeira versão (é uma ferramenta interna, de poucos
@@ -125,7 +125,7 @@ class LaraChatController extends Controller
             ]);
 
             return response()->json([
-                // Em "Verificar com a Lara" a pergunta foi montada aqui.
+                // Em "Verificar com o HAL" a pergunta foi montada aqui.
                 'pergunta' => $pergunta,
                 'resposta' => $answer->texto,
                 'status' => $answer->status,
@@ -165,7 +165,7 @@ class LaraChatController extends Controller
     /**
      * O histórico do lado da IA expira depois de 24h de inatividade. Manter a
      * conversa antiga na tela depois disso seria enganoso: o funcionário veria
-     * o assunto anterior e a Lara não lembraria nada dele. Quando a memória lá
+     * o assunto anterior e o HAL não lembraria nada dele. Quando a memória lá
      * zera, a tela começa limpa aqui também.
      */
     private function conversaExpirou(int $userId, string $uuid): bool

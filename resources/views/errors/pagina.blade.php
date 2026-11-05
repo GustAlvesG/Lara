@@ -3,7 +3,7 @@
     sistema de propósito: o erro pode ser justamente algo que o layout usa.
 
     Tudo o que consulta dados está no try: banco fora do ar não pode virar um
-    erro dentro da página de erro — fica só sem o "Verificar com a Lara".
+    erro dentro da página de erro — fica só sem o "Verificar com o HAL".
 --}}
 @php
     use App\Authorization\Permissions;
@@ -24,7 +24,7 @@
     };
 
     // Mensagem escrita para a pessoa (abort(403, 'texto')). O filtro é o mesmo
-    // do que vai para a Lara: erro do sistema e mensagem técnica não aparecem.
+    // do que vai para o HAL: erro do sistema e mensagem técnica não aparecem.
     $detalhe = ScreenError::from($status, $exception->getMessage())->texto;
 
     $podeLara = false;
@@ -65,7 +65,7 @@
             @if ($podeLara)
                 <button type="button" onclick="window.dispatchEvent(new CustomEvent('lara-verificar-erro'))"
                     class="rounded-full bg-grena px-4 py-2 text-sm font-bold text-white transition hover:bg-grena-hover">
-                    Verificar com a Lara
+                    Verificar com o HAL
                 </button>
             @endif
             <a href="{{ $anterior !== url()->current() ? $anterior : url('/') }}"

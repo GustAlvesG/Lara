@@ -63,7 +63,7 @@ O quadro avisa se você já tem PIN ("PIN definido. Preencha abaixo para trocá-
 
 Clique nas suas iniciais, no canto superior direito, e escolha **Documentação**. A tela tem um índice à esquerda, dividido em **Guias do usuário** (o passo a passo de cada módulo, escrito para quem usa o sistema), **Geral** e **Funcionalidades** (documentos mais detalhados de cada parte). Clique no título para abrir o documento à direita.
 
-Também dá para perguntar à Lara, a assistente do chat: ela responde com base nesses mesmos guias e indica a tela onde a tarefa é feita.
+Também dá para perguntar ao HAL, o assistente do chat: ele responde com base nesses mesmos guias e indica a tela onde a tarefa é feita.
 
 ## Como colocar alguém da minha equipe no meu setor
 <!-- telas: my-sector.index -->

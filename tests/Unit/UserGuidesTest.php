@@ -8,7 +8,7 @@ use App\Services\Guides\UserGuides;
 use Tests\TestCase;
 
 /**
- * O recorte dos guias do usuário em seções (o que a busca da Lara IA lê) e a
+ * O recorte dos guias do usuário em seções (o que a busca do HAL IA lê) e a
  * exibição deles na tela Documentação. Sem banco.
  */
 class UserGuidesTest extends TestCase

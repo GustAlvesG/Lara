@@ -1,9 +1,11 @@
-# Lara (IA) — resumo para quem vai mexer
+# HAL (IA) — resumo para quem vai mexer
+
+Até 05/11/2026 o módulo e a IA se chamavam **Lara (IA)** / "a Lara"; os nomes técnicos (`lara.*`, `LARA_*`, `LaraClient`, permissão `lara`) ficaram. Prompt da troca para a VM: [docs/prompts/IA/hal-novo-nome-prompt.md](../prompts/IA/hal-novo-nome-prompt.md).
 
 Documentação completa (timeouts, Apache, rollout, consultas de qualidade):
 [docs/funcionalidades/lara-ia.md](../funcionalidades/lara-ia.md).
 
-Não confundir: **O Lara** é o sistema; **a Lara** (IA) é o agente do estatuto que este módulo
+Não confundir: **O Lara** é o sistema; **o HAL** (IA) é o agente do estatuto que este módulo
 consulta. O usuário "O Lara" da Poli é do [Bot WhatsApp](Bot%20WhatsApp.md), outro módulo.
 
 ## Em uma frase
@@ -43,7 +45,7 @@ Contrato em [docs/funcionalidades/lara-ia-consultas.md](../funcionalidades/lara-
   [guias-do-usuario.md](../funcionalidades/guias-do-usuario.md)). Não esconde nada; cada seção
   traz `tem_acesso`, os links das telas que a pessoa abre e `precisa_de`. Acesso pelas anotações
   `<!-- telas: -->` + `Navigation::destinations()`. Busca em PHP (`GuideSearch`), sem acento.
-- **Verificar com a Lara** (30/10/2026): o balão detecta o erro da tela (flash, validação, `fetch` não GET com falha, páginas `resources/views/errors`) e manda `erro: {status, texto}`; `ScreenError` filtra o texto e monta a pergunta. Para a IA vai `erro: {tipo, status}`, nunca o detalhe técnico.
+- **Verificar com o HAL** (30/10/2026): o balão detecta o erro da tela (flash, validação, `fetch` não GET com falha, páginas `resources/views/errors`) e manda `erro: {status, texto}`; `ScreenError` filtra o texto e monta a pergunta. Para a IA vai `erro: {tipo, status}`, nunca o detalhe técnico.
 - **Contexto da tela** em `POST /perguntar` (`contexto: {modulo, pagina, caminho, rota}`): o balão
   manda só nomes de rota; `AskLaraRequest::contexto()` valida e traduz pelo menu. Sem tela de
   módulo, o campo não vai.

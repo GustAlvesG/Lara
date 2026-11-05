@@ -114,7 +114,7 @@ class LaraClient
 
         // `transferir: true` é a IA avisando que aquilo é fallback de sistema
         // dela — timeout interno, limite de concorrência ou erro do modelo — e
-        // não uma resposta de negócio. É o que separa "a Lara quebrou" de "a
+        // não uma resposta de negócio. É o que separa "o HAL quebrou" de "a
         // Lara respondeu que o assunto é de outro setor", já que as duas coisas
         // chegam aqui com exatamente o mesmo texto.
         // filter_var em vez de cast: o campo pode não vir (versões antigas do
@@ -134,7 +134,7 @@ class LaraClient
      * Limpa o histórico daquele usuário do lado da IA (botão "Nova conversa").
      *
      * Devolve false em vez de falhar: se a IA não responder, a conversa nova
-     * começa mesmo assim do lado do portal. O pior caso é a Lara ainda lembrar
+     * começa mesmo assim do lado do portal. O pior caso é o HAL ainda lembrar
      * do assunto anterior por um tempo, o que é bem menos ruim que travar o
      * botão.
      */

@@ -12,7 +12,7 @@ use Tests\Concerns\SharesSqliteWithUserConnection;
 use Tests\TestCase;
 
 /**
- * Busca de avisos da API (GET /api/avisos/search), consumida pela Lara (IA).
+ * Busca de avisos da API (GET /api/avisos/search), consumida pelo HAL (IA).
  *
  * O que importa aqui é a privacidade: o aviso tem dono e destinatário, e a
  * busca só pode devolver o que foi dirigido a quem pergunta. Por isso o teste

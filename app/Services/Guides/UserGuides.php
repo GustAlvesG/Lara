@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Cache;
 
 /**
  * Os guias do usuário (docs/guias/*.md), quebrados em seções para a busca da
- * Lara (IA). Cada título `##` ou `###` vira uma seção com o texto que vem logo
+ * HAL (IA). Cada título `##` ou `###` vira uma seção com o texto que vem logo
  * abaixo dele; `####` em diante fica dentro da seção de cima. O texto entre o
  * título do guia (`#`) e o primeiro `##` é a "Visão geral".
  *

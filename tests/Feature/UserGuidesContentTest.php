@@ -10,7 +10,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
- * Confere os guias de verdade (docs/guias): a busca da Lara (IA) depende do
+ * Confere os guias de verdade (docs/guias): a busca do HAL (IA) depende do
  * cabeçalho e das anotações estarem certos, e um erro ali não quebra nada à
  * vista — só faz a IA mandar link errado ou dizer que a pessoa não tem
  * acesso. Este teste é o que pega isso.

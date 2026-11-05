@@ -1,8 +1,8 @@
-# Lara — Assistente de IA (chat interno)
+# HAL — Assistente de IA (chat interno)
 
 ## O que é
 
-Um chat de pergunta e resposta dentro do portal, ligado a um agente de IA ("Lara") que roda
+Um chat de pergunta e resposta dentro do portal, ligado a um agente de IA ("HAL"; até 05/11/2026 se chamava "Lara") que roda
 numa **VM separada** (Ollama + base de conhecimento do estatuto do clube). O funcionário
 pergunta em linguagem natural e recebe a resposta na própria tela.
 
@@ -38,7 +38,7 @@ Os três limites são escalonados de propósito, do mais interno para o mais ext
 | Serviço da IA | 22s | Devolve o fallback dele com `transferir: true` |
 | Portal (`LARA_TIMEOUT`) | 60s | Devolve o fallback com `status = erro` |
 | Trava por usuário | `LARA_TIMEOUT + 10` = 70s | Libera a próxima pergunta |
-| Navegador | `LARA_TIMEOUT + 10` = 70s | Mostra "A Lara demorou demais para responder" |
+| Navegador | `LARA_TIMEOUT + 10` = 70s | Mostra "O HAL demorou demais para responder" |
 | PHP (`set_time_limit`) | `LARA_TIMEOUT + 30` = 90s | Erro 500 (não deve acontecer) |
 
 **Só `LARA_TIMEOUT` se ajusta** — os outros quatro derivam dele no código.
@@ -98,7 +98,7 @@ a tela inteira, e o balão fica acima da barra de baixo). Fecha pelo X ou pelo E
   pergunta feita há menos de `LARA_TIMEOUT + 10s`) faz o balão mostrar "pensando" e consultar a
   cada 3 s até a resposta aparecer. Resposta que chega com o painel fechado acende um ponto no balão.
 
-**O robô da Lara** (29/10/2026). O balão é o mascote — um robô branco e grená que acena, dentro
+**O robô do HAL** (29/10/2026). O balão é o mascote — um robô branco e grená que acena, dentro
 de um anel grená — e o robô de corpo inteiro aparece também como avatar (cabeçalho do painel, respostas, "pensando") e grande, acenando,
 na conversa vazia. Arquivos em `public/images/lara/`:
 
@@ -130,11 +130,11 @@ para a TI).
 
 Se a última mensagem da conversa tiver mais de `LARA_HISTORY_TTL_HOURS`, o painel abre uma
 conversa nova. É o espelho da expiração da memória do lado da IA: sem isso o funcionário veria o
-assunto antigo e a Lara não lembraria nada dele.
+assunto antigo e o HAL não lembraria nada dele.
 
-### Verificar um erro com a Lara (30/10/2026)
+### Verificar um erro com o HAL (30/10/2026)
 
-Quando a tela mostra um erro, quem tem a permissão `lara` vê **Verificar com a Lara**. O balão
+Quando a tela mostra um erro, quem tem a permissão `lara` vê **Verificar com o HAL**. O balão
 descobre o erro em três lugares, todos no layout, sem mexer nas telas:
 
 | Origem | De onde vem | Onde aparece o botão |
@@ -175,7 +175,7 @@ Chama `POST {LARA_BASE_URL}/reiniciar` (limpa o histórico do lado da IA) e sort
 
 | Status | Significa | De onde vem |
 |--------|-----------|-------------|
-| `ok` | Resposta de verdade — inclusive quando a Lara encaminha o assunto por decisão dela | `transferir: false` ou campo ausente |
+| `ok` | Resposta de verdade — inclusive quando o HAL encaminha o assunto por decisão dele | `transferir: false` ou campo ausente |
 | `fallback` | A IA quebrou: timeout dela, limite de 3 chamadas simultâneas ou erro do modelo | `transferir: true` |
 | `erro` | Não chegamos a falar com a IA: rede, HTTP != 2xx, corpo inválido | Falha no portal |
 | `desativado` | Nem tentamos: integração desligada | Configuração |
@@ -199,7 +199,7 @@ taxa de erro real ficaria invisível.
 - **O histórico tem dois donos.** A IA guarda contexto em memória (expira em 24h de inatividade,
   ou quando o processo dela reinicia); o portal guarda o texto no banco. A tela acompanha a
   expiração de 24h abrindo uma conversa nova, mas não tem como saber de um restart da IA — nesse
-  caso a conversa continua na tela e a Lara não lembra dela.
+  caso a conversa continua na tela e o HAL não lembra dela.
 - **A resposta é limitada na origem** (`num_predict=300` no modelo, 3–4 parágrafos em texto
   corrido). O portal não trunca nem reformata o que chega.
 - **A resposta é exibida como texto puro** (`x-text`, nunca `x-html`): o conteúdo vem de um
@@ -214,9 +214,9 @@ taxa de erro real ficaria invisível.
 | Mais de 3 conversas simultâneas na VM | A mesma frase, na hora (a IA nem enfileira) |
 | Pergunta anterior ainda em curso | "Sua pergunta anterior ainda está sendo respondida…" (HTTP 429) |
 | Pergunta vazia, curta ou longa demais | Mensagem de validação (HTTP 422) |
-| `LARA_ENABLED=false` ou sem `LARA_BASE_URL` | "A Lara está desativada no momento" |
-| Health check falhou | "A Lara não está respondendo agora — o servidor dela pode estar reiniciando" |
-| Demora acima de `LARA_TIMEOUT + 10s` | "A Lara demorou demais para responder…" |
+| `LARA_ENABLED=false` ou sem `LARA_BASE_URL` | "O HAL está desativado no momento" |
+| Health check falhou | "O HAL não está respondendo agora — o servidor dele pode estar reiniciando" |
+| Demora acima de `LARA_TIMEOUT + 10s` | "O HAL demorou demais para responder…" |
 
 ## O que a IA consulta no Lara
 

@@ -3,7 +3,7 @@
 namespace App\Services\Lara;
 
 /**
- * Resultado de uma pergunta feita à Lara.
+ * Resultado de uma pergunta feita ao HAL.
  *
  * `texto` nunca vem vazio: quando algo falha, ele carrega a frase de fallback e
  * é o `status` que conta o que realmente aconteceu. Os quatro status separam as

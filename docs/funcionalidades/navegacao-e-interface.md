@@ -1,7 +1,7 @@
 # Navegação e interface
 
 Como a pessoa chega às telas do painel: a navegação por Módulos, o painel de Módulos, os
-favoritos, a busca de páginas, o tema e o balão da Lara. Vale para todas as telas que usam o layout do sistema
+favoritos, a busca de páginas, o tema e o balão do HAL. Vale para todas as telas que usam o layout do sistema
 (`resources/views/layouts/app.blade.php`).
 
 ## De onde vem o menu
@@ -39,7 +39,7 @@ Tela nova dentro do endereço do módulo não precisa de nada. Só use `active` 
 outro endereço e se abre por uma página do módulo — é o caso do papel timbrado (aba Modelos, em
 Assinaturas) e das modalidades `place-group` (aba Novo Agendamento, em Reservas).
 
-- **Item solto** do menu (Home Assistant, Lara, Bot WhatsApp) tem capa sem abas, com a estrela.
+- **Item solto** do menu (Home Assistant, HAL, Bot WhatsApp) tem capa sem abas, com a estrela.
 - **Conta** (Perfil, Documentação, Meu setor, Usuários, Setores) entra como grupo só para a capa:
   as abas são os atalhos da conta que a pessoa alcança. Não aparece nos menus.
 - **Fora de qualquer módulo** (a vitrine de componentes, Banco de Horas e Questor, que saíram do
@@ -60,7 +60,7 @@ Os menus **Lateral** e **Superior** de antes do rebrand, que eram opção no men
 **removidos em 28/10/2026**, junto com o sino flutuante que eles usavam. A chave `laraNavMode` que
 ficou no navegador de quem os usava é simplesmente ignorada.
 
-## Balão da Lara (IA)
+## Balão do HAL (IA)
 
 Quem tem a permissão `lara` vê um balão no canto inferior direito de toda tela. Ele abre o chat
 num painel lateral (no celular, em tela cheia, com o balão acima da barra de baixo). Detalhes em
@@ -130,4 +130,4 @@ faz isso a cada deploy.
 `tests/Feature/Rebrand/ShellTest.php` (menu, capa, página atual em criar/editar, só Módulos),
 `NavPreferencesTest.php` (favoritos na conta), `tests/Feature/Authorization/NavigationMenuTest.php`
 (o que cada setor enxerga — as páginas chegam no JSON do `laraShell`, por isso o teste compara sem
-as barras escapadas) e `tests/Feature/LaraWidgetTest.php` (balão da Lara).
+as barras escapadas) e `tests/Feature/LaraWidgetTest.php` (balão do HAL).

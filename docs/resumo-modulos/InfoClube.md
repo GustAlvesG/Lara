@@ -56,7 +56,7 @@ leitura obrigatória — `avisos.*`). Ler é de todo mundo logado; escrever info
   falhar, a navegação segue e o erro vai ao log — o middleware não pode derrubar o sistema.
 - Imagem do aviso em `public/images/avisos`.
 - **API:** `GET /api/avisos/search?q=&user_id=` (`AvisoSearchController`, grupo `api_token`),
-  consumida pela Lara (IA). Devolve só os avisos **dirigidos** ao `user_id` (`scopeAddressedTo`,
+  consumida pelo HAL (IA). Devolve só os avisos **dirigidos** ao `user_id` (`scopeAddressedTo`,
   não `scopeVisibleTo`), ativos por padrão (`include_expired=1` traz os vencidos); pesos título 3,
   tag 2, conteúdo 1. Contrato em [lara-ia-consultas.md](../funcionalidades/lara-ia-consultas.md).
   Mexeu na privacidade do aviso? A busca segue a mesma régua — confira o `AvisoSearchTest`.

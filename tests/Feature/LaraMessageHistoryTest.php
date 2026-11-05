@@ -6,13 +6,13 @@ use App\Models\LaraMessage;
 use Tests\TestCase;
 
 /**
- * Histórico do chat da Lara: a migration, o escopo que a tela usa e a
+ * Histórico do chat do HAL: a migration, o escopo que a tela usa e a
  * retenção. Nenhum teste aqui autentica ninguém — o model User fixa a conexão
  * `mysql`, então tocá-lo levaria a suíte para fora do SQLite.
  *
  * Sem RefreshDatabase de propósito: rodar a cadeia inteira de migrations hoje
  * falha em `add_columns_member` x `tourments` (as duas adicionam `members.title`),
- * o que derruba qualquer teste que use a trait — nada a ver com a Lara. Aqui só
+ * o que derruba qualquer teste que use a trait — nada a ver com o HAL. Aqui só
  * a migration desta feature é aplicada, no SQLite :memory: que o phpunit.xml
  * configura, e cada teste recebe um banco novo.
  */

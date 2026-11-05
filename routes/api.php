@@ -330,14 +330,14 @@ Route::middleware('api_token')->group(function () {
 
     Route::prefix('avisos')->group(function () {
         // Busca em title, content e tags dos avisos DIRIGIDOS ao user_id
-        // informado (privacidade do aviso) — consumida pela Lara (IA).
+        // informado (privacidade do aviso) — consumida pelo HAL (IA).
         Route::get('/search', [AvisoSearchController::class, 'index'])
             ->name('api.avisos.search');
     });
 
     Route::prefix('guias')->group(function () {
         // Busca nos guias do usuário (docs/guias), em nome do user_id: diz
-        // em cada seção se a pessoa alcança a tarefa — consumida pela Lara (IA).
+        // em cada seção se a pessoa alcança a tarefa — consumida pelo HAL (IA).
         Route::get('/search', [GuideSearchController::class, 'index'])
             ->name('api.guias.search');
     });

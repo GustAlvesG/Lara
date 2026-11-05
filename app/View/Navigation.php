@@ -89,7 +89,7 @@ final class Navigation
                     ['route' => 'company.uber.requests', 'label' => 'Carros de Aplicativo', 'permission' => P::EXTERNOS_CARROS_APLICATIVO, 'active' => 'company.uber.*'],
                 ],
             ],
-            ['route' => 'lara.index', 'label' => 'Lara (IA)', 'area' => 'lara', 'glyph' => 'chat',
+            ['route' => 'lara.index', 'label' => 'HAL (IA)', 'area' => 'lara', 'glyph' => 'chat',
                 'icon' => 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z',
                 'permission' => P::LARA,
             ],
@@ -259,7 +259,7 @@ final class Navigation
      * Toda tela do menu (e da conta), sem filtro de permissão: rota =>
      * módulo, página, caminho legível e a permissão que a abre. É o que a
      * busca de guias usa para transformar `<!-- telas: -->` em link e em
-     * "tem acesso?", e o contexto da Lara (IA) para dizer em que tela a pessoa
+     * "tem acesso?", e o contexto do HAL (IA) para dizer em que tela a pessoa
      * está.
      *
      * @return array<string, array{modulo: string, pagina: string, caminho: string, permission: ?string}>

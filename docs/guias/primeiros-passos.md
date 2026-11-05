@@ -9,7 +9,7 @@ O Lara é o sistema interno do clube. Cada funcionário vê só os módulos que 
 menu muda de pessoa para pessoa, conforme as permissões dos setores de que a pessoa faz parte.
 
 Este guia vale para todo mundo: como entrar, como achar uma tela, como guardar as telas que você
-mais usa, onde chegam as notificações e como pedir ajuda à Lara, a assistente de IA.
+mais usa, onde chegam as notificações e como pedir ajuda ao HAL, o assistente de IA.
 
 ## Entrar no Lara
 
@@ -85,16 +85,16 @@ tiver permitido notificações para o site.
 avisos de **leitura obrigatória** que um coordenador enviou para você: leia e confirme a ciência
 de cada um. Depois disso, a navegação volta ao normal.
 
-## Pedir ajuda à Lara (assistente de IA)
+## Pedir ajuda ao HAL (assistente de IA)
 <!-- telas: lara.index -->
 
-Quem tem acesso à Lara vê um robozinho acenando no canto inferior direito de toda tela. Clique nele para
+Quem tem acesso ao HAL vê um robozinho acenando no canto inferior direito de toda tela. Clique nele para
 abrir o chat ao lado e pergunte em linguagem normal: "como emito uma carteirinha?", "o que
-significa este status?", "como faço isso nesta tela?". A Lara sabe em que tela você está.
+significa este status?", "como faço isso nesta tela?". O HAL sabe em que tela você está.
 
-Ela responde sobre o estatuto, as atividades e os avisos do clube e sobre como usar O Lara —
+Ele responde sobre o estatuto, as atividades e os avisos do clube e sobre como usar O Lara —
 inclusive dizendo quando uma tarefa depende de uma permissão que você não tem. As respostas são de
-IA: em caso de dúvida, confirme com o setor responsável. Detalhes no guia da Lara (IA).
+IA: em caso de dúvida, confirme com o setor responsável. Detalhes no guia do HAL (IA).
 
 ## Tema claro ou escuro
 
@@ -137,12 +137,12 @@ telas de sempre, marque-as como favoritas.
 ### Onde ficou o sino que ficava no canto da tela?
 
 O sino de notificações agora fica na barra de cima, à direita, ao lado das suas iniciais. O canto
-inferior direito é do balão da Lara.
+inferior direito é do balão do HAL.
 
 ### Apareceu um erro. O que faço?
 <!-- telas: lara.index -->
 
-Quem tem acesso à Lara pode clicar em **Verificar com a Lara**, que aparece junto do erro: ela explica o que aconteceu e como resolver. Sem esse botão, leia a mensagem: a maioria diz o que corrigir.
+Quem tem acesso ao HAL pode clicar em **Verificar com o HAL**, que aparece junto do erro: ele explica o que aconteceu e como resolver. Sem esse botão, leia a mensagem: a maioria diz o que corrigir.
 
 ### Apareceu "Algo deu errado do nosso lado" (erro 500). O que faço?
 

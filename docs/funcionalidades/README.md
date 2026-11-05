@@ -12,7 +12,7 @@ rotas).
 
 | Guia | Descrição |
 |------|-----------|
-| [Guias do usuário](guias-do-usuario.md) | **Um guia por módulo, para quem usa as telas** (`docs/guias/`): formato, quando atualizar e como a Lara (IA) busca neles. Os guias aparecem na tela Documentação, em "Guias do usuário". |
+| [Guias do usuário](guias-do-usuario.md) | **Um guia por módulo, para quem usa as telas** (`docs/guias/`): formato, quando atualizar e como o HAL (IA) busca neles. Os guias aparecem na tela Documentação, em "Guias do usuário". |
 | [Sistema de Informações](informacoes.md) | Catálogo versionado de atividades/serviços do clube, com histórico de alterações. |
 | [Placas de Carro / Estacionamento](estacionamento-placas.md) | Busca de veículos por placa e identificação do condutor provável. |
 | [Agendamento de Espaços](agendamento.md) | Reserva de quadras/salões pelo sócio: horários, colisão, limite e pagamento. |
@@ -37,7 +37,7 @@ rotas).
 | [Front-end da aprovação (Next.js)](questor-frontend-prompt.md) | Contrato da API de aprovação externa e o prompt de implementação do site em DMZ. |
 | [Mapa de Cotação (Questor)](cotacao-mapa.md) | Comparação de preço entre fornecedores a partir de uma solicitação de compra. **Somente leitura no ERP.** |
 | [Frota — Quilometragem](frota.md) | Saída e retorno dos veículos da empresa: motorista, destino e hodômetro, registrados pela portaria. |
-| [Lara — Assistente de IA](lara-ia.md) | Chat interno de pergunta e resposta sobre o estatuto, ligado à VM da IA. |
+| [HAL — Assistente de IA](lara-ia.md) | Chat interno de pergunta e resposta sobre o estatuto, ligado à VM da IA. |
 | [API do Claude (Anthropic)](claude-api.md) | Integração com a IA da Anthropic pelo SDK oficial; primeiro uso: revisão automática de contratos pela Gerência. |
 | [WhatsApp](whatsapp.md) | Webhook, envio de mensagens e gestão de conversas/mídia. |
 | [Bot do WhatsApp (Poli)](bot-whatsapp.md) | Fluxos de atendimento editáveis na tela, com validação de respostas, transbordo para atendente e simulador; diário de transferências e encerramentos com o motivo de cada um. |

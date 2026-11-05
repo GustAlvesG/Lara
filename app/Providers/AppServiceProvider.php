@@ -121,7 +121,7 @@ class AppServiceProvider extends ServiceProvider
          * guia da assinatura, eventos e caixa dos ingressos). O menu pede uma
          * habilidade só por item, e estas juntam várias. A regra de cada uma,
          * com o porquê, está em Permissions::ANY_OF — a mesma lista que a
-         * busca de guias da Lara (IA) usa para dizer o que pedir.
+         * busca de guias do HAL (IA) usa para dizer o que pedir.
          */
         foreach (Permissions::ANY_OF as $ability => $permissions) {
             Gate::define(
