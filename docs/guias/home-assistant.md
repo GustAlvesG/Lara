@@ -34,6 +34,8 @@ O topo da tela mostra os números do momento: **Ligados agora**, **Em modo manua
 
 O acendimento pelo sócio (autoatendimento) entra como um comando manual com prazo: enquanto o tempo dele não acaba, a luz fica acesa.
 
+O botão **Acender** da agenda de reservas (Reservas › Novo Agendamento, faixa **Luz da quadra**) também entra como comando manual com prazo, em minutos. Acender de novo renova o prazo. No cartão do contator ele aparece como **Manual**; para apagar antes, use **Desligado** ou **Automático**.
+
 ## Ligar ou desligar uma luz agora
 <!-- telas: home-assistant.index -->
 

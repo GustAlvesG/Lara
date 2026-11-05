@@ -34,13 +34,71 @@ class ScheduleController extends Controller
     
             $modalities = $this->schedulesService->getSchedules($date);
 
-        
-            // return $modalities->toArray();
-            return view('location.index', compact('modalities', 'date'));
+            // Luz de cada quadra agora (independe da data da agenda): só para
+            // quem pode acender, e só das quadras que têm contator.
+            $lights = $request->user()?->can(\App\Authorization\Permissions::RESERVAS_LUZ)
+                ? $this->lightsFor($modalities)
+                : [];
+            $lightMaxMinutes = (int) config('home_assistant.manual_max_minutes', 720);
+            $lightDefaultMinutes = min($lightMaxMinutes, (int) config('home_assistant.manual_default_minutes', 120));
+
+            return view('location.index', compact('modalities', 'date', 'lights', 'lightMaxMinutes', 'lightDefaultMinutes'));
         }
         catch (\Exception $e) {
             return redirect()->back()->with('error', 'Ocorreu um erro ao carregar os agendamentos: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Estado atual da luz por quadra, indexado pelo id do local.
+     *
+     * Mesmo cálculo do painel do Home Assistant (ContactorStateResolver). Se
+     * falhar, a agenda abre sem o quadro de luz em vez de cair inteira.
+     *
+     * @return array<int, array{on: bool, label: string}>
+     */
+    private function lightsFor($modalities): array
+    {
+        try {
+            $places = collect($modalities)->flatten(1)->filter(fn ($place) => $place->contactor_id);
+
+            if ($places->isEmpty()) {
+                return [];
+            }
+
+            $resolver = app(\App\Services\HomeAssistant\ContactorStateResolver::class);
+            $contactors = \App\Models\Contactor::with([
+                'places',
+                'overrides' => fn ($q) => $q->with(['weekdays', 'windows']),
+            ])->whereIn('id', $places->pluck('contactor_id')->unique())->get();
+            $states = $resolver->resolveAll($contactors);
+
+            $lights = [];
+            foreach ($places as $place) {
+                $state = $states->get($place->contactor_id);
+                if ($state) {
+                    $lights[$place->id] = ['on' => $state->on, 'label' => $this->lightLabel($state)];
+                }
+            }
+
+            return $lights;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return [];
+        }
+    }
+
+    private function lightLabel(\App\Services\HomeAssistant\ContactorState $state): string
+    {
+        $status = $state->on ? 'Acesa' : 'Apagada';
+
+        return match ($state->source) {
+            \App\Services\HomeAssistant\ContactorState::SOURCE_QUICK => $status . ' manualmente até '
+                . ($state->override?->expires_at?->format('H:i') ?? '23:59'),
+            \App\Services\HomeAssistant\ContactorState::SOURCE_IDLE => 'Apagada',
+            default => $status . ' · ' . $state->reason(),
+        };
     }
 
     public function list(Request $request)

@@ -1,6 +1,6 @@
 ---
 modulo: Reservas
-palavras: reserva, agendamento, quadra, horário, agenda, churrasqueira, salão, espaço social, festa, pré-reserva, contrato, convidados, pagamento, estorno, baixa manual, cancelar reserva, locais, grupos, regra de locação, bloquear horário, conta do site, senha do site, login do sócio, esqueci a senha, CPF duplicado
+palavras: reserva, agendamento, quadra, horário, agenda, churrasqueira, salão, espaço social, festa, pré-reserva, contrato, convidados, pagamento, estorno, baixa manual, cancelar reserva, locais, grupos, regra de locação, bloquear horário, conta do site, senha do site, login do sócio, esqueci a senha, CPF duplicado, luz da quadra, acender a luz, refletor, renovar luz
 ---
 
 # Reservas — guia de uso
@@ -25,6 +25,7 @@ Quem libera é a TI ou a Gerência, na tela **Setores** (ou só para uma pessoa,
 | Consultar espaços sociais, lançar pré-reserva e cuidar da lista de convidados | Reservas › Espaços sociais: consultar, pré-reservar e lista de convidados |
 | Marcar contrato ok, aprovar com desconto, recusar e cancelar reserva social | Reservas › Espaços sociais: contrato, aprovar, recusar e cancelar |
 | Corrigir conta do sócio no site, gerar senha provisória, cadastrar conta e resolver duplicadas | Reservas › Contas do site: corrigir dados, senha provisória, cadastro manual e duplicadas |
+| Acender a luz de uma quadra pela agenda, por alguns minutos | Reservas › Acender a luz da quadra pela agenda (além de Agendamentos) |
 
 Quem recebe o aviso no sino quando chega uma pré-reserva de espaço social pelo site é quem tem a permissão de espaços sociais pelo setor (ou dada individualmente). Gerência, Diretoria e TI, que têm acesso total, não recebem esse aviso.
 
@@ -45,6 +46,8 @@ Local com o selo "Indisponível nesta data" não tem horário à venda naquele d
 
 Espaços sociais (churrasqueiras, salões) não aparecem nesta agenda: eles têm tela própria, em Reservas › Espaços Sociais.
 
+Nas quadras com luz ligada ao sistema, quem tem a permissão vê também a faixa **Luz da quadra**, para acender a luz por alguns minutos (veja "Acender a luz de uma quadra pela agenda").
+
 ## Agendar uma quadra para um sócio no balcão
 <!-- telas: schedule.index -->
 
@@ -57,6 +60,24 @@ Na tela **Reservas › Novo Agendamento**:
 5. Confira o resumo "Reserva para:" (horários e total) e clique em **Confirmar reserva**.
 
 A tela mostra "Agendamento criado com sucesso!". A reserva feita no balcão já nasce **confirmada**, e o sócio recebe o e-mail de confirmação.
+
+## Acender a luz de uma quadra pela agenda
+<!-- telas: schedule.index -->
+
+Na tela **Reservas › Novo Agendamento**, o cartão de cada quadra que tem luz ligada ao sistema mostra a faixa **Luz da quadra**, com a situação da luz **agora** (por exemplo "Apagada", "Acesa manualmente até 20:30" ou "Acesa · Reserva até 21:10 · Quadra 1"). A faixa vale para o momento atual, qualquer que seja o dia escolhido na agenda.
+
+1. Em **Minutos**, informe por quanto tempo a luz deve ficar acesa (o campo já vem com 120).
+2. Clique em **Acender**.
+
+A tela confirma com "Luz de Quadra 1 acesa até 20:30.". O Home Assistant aplica na próxima consulta ao Lara, o que pode levar alguns instantes. Passado o prazo, a luz volta ao automático (reservas e agendamentos de iluminação).
+
+- **Acender uma quadra já acesa renova o prazo** para a nova minutagem, contada a partir de agora: acesa até 21:00, às 20:00 acender com 30 minutos faz a luz ir até 20:30.
+- O prazo nunca passa da meia-noite (23:59).
+- O máximo de uma vez é 720 minutos (12 horas).
+- O comando vale para o interruptor da quadra: se o mesmo interruptor atende mais de uma quadra, todas acendem.
+- Acender pela agenda vence agendamentos de iluminação "Manter desligado" e as faixas "Desliga", até o fim do prazo.
+
+A faixa só aparece para quem tem a permissão **Reservas › Acender a luz da quadra pela agenda**, e só nas quadras com **Switch vinculado** (Reservas › Locais e Grupos › editar o local). Para apagar antes do prazo, use **Desligado** ou **Automático** no cartão do contator, na tela **Home Assistant** (pede a permissão do Home Assistant).
 
 Lançar a reserva no balcão **não registra pagamento**. Se o sócio pagou na secretaria (dinheiro, Pix direto ao clube, maquininha), abra o agendamento e use a **Baixa manual de pagamento** (veja a seção sobre baixa manual).
 

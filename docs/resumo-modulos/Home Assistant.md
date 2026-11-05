@@ -36,6 +36,11 @@ começou; reserva buscada por sobreposição.
 | `POST /api/schedule/home-assistant/contactors/{entity_id}/manual` (`HomeAssistantApiController`) | HA/Telegram, comando manual `on`/`off`/`auto` | `api_token`, `throttle:30,1` |
 | `/api/lighting/*` (`Api\MemberLightingController`) | App de reservas (Next.js) — autoatendimento do sócio | `api_token` **e** `login_token` |
 
+Outra porta de escrita (desde 05/11/2026): a faixa **Luz da quadra** da agenda de Reservas
+(`/schedule`, `ScheduleLightingController`, permissão `reservas.luz`) grava o mesmo comando manual
+com prazo em minutos, `origin` = "Agenda de reservas". Acender de novo renova o prazo (o comando
+substitui o anterior). Detalhes em [Reservas](Reservas.md).
+
 O manual devolve o estado **recalculado** (um "liga" pode perder para agendamento maior).
 `created_by` é nulo vindo da API; a procedência fica em `origin`.
 
@@ -73,6 +78,6 @@ aberto ou alguém digitando.
 ## Testes
 
 `tests/Unit/HomeAssistant/*` (resolver, acesso, janela), `tests/Feature/HomeAssistantAutomationEndpointTest.php`,
-`HomeAssistantManualCommandTest.php`, `MemberLightingSelfServiceTest.php`. Confira o isolamento
+`HomeAssistantManualCommandTest.php`, `MemberLightingSelfServiceTest.php`, `ScheduleLightingTest.php` (agenda). Confira o isolamento
 SQLite do `phpunit.xml` antes de rodar. Teste com `login_token` que usa `Carbon::setTestNow`
 nasce com JWT vencido (401) — ver memória do JWT.

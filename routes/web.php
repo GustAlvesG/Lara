@@ -35,6 +35,7 @@ use App\Http\Controllers\Tournament\TournamentTeamController;
 use App\Http\Controllers\PlaceGroupController;
 use App\Http\Controllers\PlaceController;
 use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\ScheduleLightingController;
 use App\Http\Controllers\SchedulePaymentController;
 use App\Http\Controllers\ScheduleRulesController;
 use App\Http\Controllers\Social\SocialBookingController;
@@ -575,6 +576,11 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         Route::get('/{id}', [ScheduleController::class, 'show'])->name('schedule.show');
         Route::put('/update', [ScheduleController::class, 'update'])->name('schedule.update');
         Route::post('/store/web', [ScheduleController::class, 'store'])->name('schedule.store.web');
+        // Acender a luz da quadra por N minutos (comando manual do Home Assistant).
+        Route::post('/lights/{place}', [ScheduleLightingController::class, 'store'])
+            ->whereNumber('place')
+            ->middleware('can:' . P::RESERVAS_LUZ)
+            ->name('schedule.lights.store');
     });
 
     // Reservas de espaços sociais (churrasqueiras, salões). Pré-reserva →

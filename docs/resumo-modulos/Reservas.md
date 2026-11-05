@@ -26,6 +26,7 @@ acende a luz (Home Assistant) e é o que vincula os clipes do RePET.
 | Bebidas dos espaços sociais (botão na lista) | `social-booking.beverages.*` | `reservas.configurar` |
 | Locais e Grupos (aba desde 14/10/2026; também pelo botão Configurações da agenda) | `place-group.*`, `schedule-rules.store` | `reservas.configurar` |
 | Contas do site (desde 23/10/2026: senha provisória, e-mail, cadastro manual, duplicadas — ver [Contas do site](Contas%20do%20site.md)) | `site-accounts.*` | `reservas.contas-site` |
+| Luz da quadra na agenda (desde 05/11/2026; faixa no cartão da quadra com contator) | `schedule.lights.store` (`ScheduleLightingController`) | `reservas.luz` (+ `reservas.agendamentos` do grupo) |
 
 Pagamentos é sub-aba de Reservas, mas a URL continua `/payments`.
 
@@ -127,6 +128,20 @@ contator. `--dry-run` só lê (não abre transação no destino). Teste:
 - Não mexe na API do site: nenhum prompt para o agent do Next.js.
 - Testes: `tests/Feature/Payments/PaymentReportTest.php` e `ReservasScreensTest::test_pagamentos_com_busca_e_metodo_por_extenso`.
 
+## Luz da quadra pela agenda (desde 05/11/2026)
+
+Faixa **Luz da quadra** no cartão de cada quadra com `contactor_id` em `/schedule`: campo de
+minutos + **Acender**. `ScheduleLightingController@store` grava o **comando manual do Home
+Assistant** (`ManualCommandService::apply(..., 'on', $minutes, 'Agenda de reservas', user_id)`):
+um comando substitui o anterior, então acender quadra acesa **renova** o prazo para a nova
+minutagem a partir de agora (pode encurtar). Prazo de 1 a `home_assistant.manual_max_minutes`
+(720), truncado na meia-noite; o campo vem com `manual_default_minutes` (120). Recusa volta como
+`warning` de sessão (a agenda não mostra `$errors`). O estado mostrado vem de
+`ContactorStateResolver::resolveAll` (`ScheduleController::lightsFor`), só para quem tem
+`reservas.luz`; se o cálculo falhar, a agenda abre sem a faixa. Os `<form>` ficam fora de
+`#agenda` (atributo `form=` nos campos — o cartão já é um `<form>`). O Lara não aciona o relé:
+o HA aplica no polling. Ver [Home Assistant](Home%20Assistant.md).
+
 ## Imagens de grupo e espaço (desde 19/10/2026)
 
 `image_vertical`, `image_horizontal` e `places.image` guardam **nome de arquivo** (`public/images`)
@@ -174,6 +189,7 @@ Rede: `RedeItauService` (token em cache 55 s, `getTransaction`, `refundPayment` 
 | Arquivo | Papel |
 |---|---|
 | `app/Http/Controllers/ScheduleController.php`, `ScheduleRulesController.php`, `PlaceGroupController.php`, `PlaceController.php` | Painel e API. |
+| `app/Http/Controllers/ScheduleLightingController.php` | Acender a luz da quadra pela agenda. |
 | `app/Http/Controllers/SchedulePaymentController.php` | Pagamento, baixa manual (`storeManual`), consulta na Rede, estorno. |
 | `app/Services/SchedulesService.php`, `ScheduleRulesService.php`, `SchedulePricingService.php`, `PlaceGroupService.php`, `PlaceService.php` | Regras. |
 | `app/Services/RedeItauService.php`, `SchedulePaymentService.php`, `ManualPaymentService.php` | Pagamento. |
@@ -191,5 +207,6 @@ Rede: `RedeItauService` (token em cache 55 s, `getTransaction`, `refundPayment` 
 `tests/Unit/ScheduleNotificationTest.php`, `tests/Feature/Rebrand/ReservasScreensTest.php`,
 `tests/Feature/Social/*` (fluxo e API, sobre as migrations reais via `Tests\Concerns\CreatesSocialBookingSchema`),
 `tests/Feature/Rebrand/EspacosSociaisScreensTest.php`, `tests/Feature/Payments/ManualPaymentTest.php`,
-`tests/Feature/Rebrand/BaixaManualScreensTest.php`, `tests/Feature/Payments/PaymentReportTest.php`.
+`tests/Feature/Rebrand/BaixaManualScreensTest.php`, `tests/Feature/Payments/PaymentReportTest.php`,
+`tests/Feature/ScheduleLightingTest.php`.
 Confira o isolamento SQLite do `phpunit.xml` antes de rodar.

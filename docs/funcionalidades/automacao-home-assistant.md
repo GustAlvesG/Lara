@@ -238,6 +238,19 @@ aceita sócio vindo do corpo da requisição**.
   o agendamento vai fazer.
 - A página recarrega a cada minuto, exceto quando há um modal aberto ou alguém digitando.
 
+### Acender pela agenda de reservas (desde 05/11/2026)
+
+A agenda `/schedule` mostra, no cartão de cada quadra com contator, a faixa **Luz da quadra**:
+estado atual (mesmo `ContactorStateResolver`), campo de minutos e **Acender**.
+`POST /schedule/lights/{place}` (`schedule.lights.store`, `ScheduleLightingController`, permissão
+`reservas.luz`) chama `ManualCommandService::apply($contactor, 'on', $minutes, 'Agenda de reservas',
+$userId)`. Como um manual substitui o anterior, acender quadra acesa renova o prazo para a nova
+minutagem, contada de agora. Limites: 1 a `manual_max_minutes`, truncado na meia-noite.
+
+Interação com o autoatendimento: o comando da agenda não é "do autoatendimento", então um sócio
+devolvendo a quadra não o apaga (`lightIsOurs`). Já um sócio que aciona **depois** regrava o
+manual com o maior prazo dos acionamentos dos sócios (`syncLight`), por cima do da agenda.
+
 Todas as rotas do painel exigem a permissão `manage home assistant`. Trocar o contator de um
 espaço também exige essa permissão (`PlaceGroupController::contactorIdFor`).
 

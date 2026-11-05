@@ -106,6 +106,36 @@
                                     @endforeach
                                 </div>
 
+                                {{-- Luz da quadra, agora (não depende da data da agenda). Só para
+                                     quem tem "Acender a luz da quadra pela agenda" e quadra com
+                                     contator. Os campos pertencem ao formulário light-form-*, no fim
+                                     da página: formulário dentro de formulário não existe em HTML. --}}
+                                @if(isset($lights[$place['id']]))
+                                    @php $light = $lights[$place['id']]; @endphp
+                                    <div class="flex flex-col gap-3 rounded-2xl bg-subtle p-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div class="flex min-w-0 items-center gap-2.5">
+                                            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full {{ $light['on'] ? 'bg-warn text-white dark:text-canvas' : 'bg-surface text-ink-3' }}">
+                                                <x-icon name="bulb" class="h-4 w-4" />
+                                            </span>
+                                            <div class="min-w-0">
+                                                <p class="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3">Luz da quadra</p>
+                                                <p class="truncate text-sm font-semibold text-ink">{{ $light['label'] }}</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <label for="light-minutes-{{ $place['id'] }}" class="text-xs font-bold text-ink-2">Minutos</label>
+                                            <input type="number" id="light-minutes-{{ $place['id'] }}" name="minutes"
+                                                   form="light-form-{{ $place['id'] }}"
+                                                   value="{{ $lightDefaultMinutes }}" min="1" max="{{ $lightMaxMinutes }}" step="1" required
+                                                   class="h-10 w-24 rounded-full border border-line-strong bg-surface px-4 font-mono text-ink focus:border-grena focus:ring-4 focus:ring-grena-tint">
+                                            <button type="submit" form="light-form-{{ $place['id'] }}"
+                                                    class="inline-flex h-10 items-center gap-1.5 rounded-full bg-grena px-4 text-sm font-bold text-white transition hover:opacity-90 dark:text-canvas">
+                                                <x-icon name="bulb" class="h-4 w-4" /> Acender
+                                            </button>
+                                        </div>
+                                    </div>
+                                @endif
+
                                 {{-- Aparece ao marcar um horário: busca do sócio e confirmação. --}}
                                 <div id="form-container-{{ $place['id'] }}" class="animate-fadeIn relative z-20 mt-auto hidden border-t border-line pt-4">
                                     <div class="flex flex-col items-start gap-4 md:flex-row md:items-end">
@@ -166,6 +196,14 @@
                 <x-empty-state icon="calendar">Nenhuma modalidade com locais cadastrados.</x-empty-state>
             @endforelse
         </div>
+
+        {{-- Formulários do "Acender" de cada quadra (os campos ficam nos cartões, via
+             atributo form). Fora de #agenda para a busca não tratá-los como itens. --}}
+        @foreach(($lights ?? []) as $lightPlaceId => $light)
+            <form id="light-form-{{ $lightPlaceId }}" action="{{ route('schedule.lights.store', $lightPlaceId) }}" method="POST" hidden>
+                @csrf
+            </form>
+        @endforeach
     </x-page>
 
     <script>

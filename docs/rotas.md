@@ -81,6 +81,7 @@ Todas, salvo `/`, `/members` e `/dashboard`, estão sob o middleware `auth`.
 | GET | `/schedule/{id}` | ScheduleController@show | schedule.show | auth |
 | PUT | `/schedule/update` | ScheduleController@update | schedule.update | auth |
 | POST | `/schedule/store/web` | ScheduleController@store | schedule.store.web | auth |
+| POST | `/schedule/lights/{place}` | ScheduleLightingController@store | schedule.lights.store | auth, can:reservas.agendamentos, can:reservas.luz |
 | GET | `/users` | UserController@index | users.index | auth, can:usuarios.gerenciar |
 | GET | `/users/{id}/edit` | UserController@edit | users.edit | auth, can:usuarios.gerenciar |
 | PUT | `/users/{id}` | UserController@update | users.update | auth, can:usuarios.gerenciar |

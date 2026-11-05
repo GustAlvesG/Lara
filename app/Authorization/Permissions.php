@@ -55,6 +55,10 @@ final class Permissions
     public const RESERVAS_SOCIAIS = 'reservas.sociais';
     public const RESERVAS_SOCIAIS_APROVAR = 'reservas.sociais.aprovar';
     public const RESERVAS_CONTAS_SITE = 'reservas.contas-site';
+    // Acender a luz de uma quadra pela agenda (/schedule) por N minutos. É o
+    // mesmo comando manual do painel do Home Assistant, mas sem dar o painel
+    // inteiro a quem só atende o balcão.
+    public const RESERVAS_LUZ = 'reservas.luz';
 
     public const EXTERNOS_LIBERACAO_PONTUAL = 'externos.liberacao-pontual';
     public const EXTERNOS_HISTORICO = 'externos.historico';
@@ -189,6 +193,7 @@ final class Permissions
         self::RESERVAS_SOCIAIS => ['Reservas', 'Espaços sociais: consultar, pré-reservar e lista de convidados'],
         self::RESERVAS_SOCIAIS_APROVAR => ['Reservas', 'Espaços sociais: contrato, aprovar, recusar e cancelar'],
         self::RESERVAS_CONTAS_SITE => ['Reservas', 'Contas do site: corrigir dados, senha provisória, cadastro manual e duplicadas'],
+        self::RESERVAS_LUZ => ['Reservas', 'Acender a luz da quadra pela agenda'],
 
         self::EXTERNOS_LIBERACAO_PONTUAL => ['Externos', 'Liberação pontual'],
         self::EXTERNOS_HISTORICO => ['Externos', 'Histórico de acessos'],
