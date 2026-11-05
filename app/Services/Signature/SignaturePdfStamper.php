@@ -304,7 +304,7 @@ class SignaturePdfStamper
 
             $pdf->SetFont('Helvetica', '', 8.5);
             $pdf->SetTextColor(110, 100, 100);
-            $pdf->Text(20, $base + 9.5, $this->t($signer->capacityLabel() . ' — CPF ' . $signer->maskedCpf()));
+            $pdf->Text(20, $base + 9.5, $this->t($signer->documentCapacityLabel() . ' — CPF ' . $signer->maskedCpf()));
 
             if ($final) {
                 $pdf->Text(20, $base + 14, $this->t($signer->signed_at

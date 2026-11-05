@@ -57,6 +57,8 @@ class ContractController extends Controller
         $aba = match ($request->query('aba')) {
             'validar' => $gerencia ? 'validar' : 'todos',
             'assinatura' => 'assinatura',
+            'arquivados' => 'arquivados',
+            'vencendo' => 'vencendo',
             default => 'todos',
         };
         $status = $request->query('status');
@@ -71,9 +73,13 @@ class ContractController extends Controller
         $contratos = SignatureContract::query()
             ->tap($visiveis)
             ->with(['document.signers'])
+            // Arquivados (05/11/2026) só na aba deles; nas outras, nunca.
+            ->archived($aba === 'arquivados')
             ->when($aba === 'validar', fn($q) => $q->where('status', SignatureContract::STATUS_IN_REVIEW))
             ->when($aba === 'assinatura', fn($q) => $q->inSigning())
-            ->when($aba === 'todos' && isset(SignatureContract::STATUS_LABELS[$status]), fn($q) => $q->where('status', $status))
+            // Vencendo (05/11/2026): término em até 60 dias ou já vencido, o mais perto primeiro.
+            ->when($aba === 'vencendo', fn($q) => $q->expiring()->reorder()->orderBy('expires_on'))
+            ->when(in_array($aba, ['todos', 'arquivados'], true) && isset(SignatureContract::STATUS_LABELS[$status]), fn($q) => $q->where('status', $status))
             ->search($busca)
             ->orderByDesc('id')
             ->paginate(20)
@@ -85,8 +91,9 @@ class ContractController extends Controller
             'status' => $status,
             'busca' => $busca,
             'gerencia' => $gerencia,
-            'aguardando' => $gerencia ? SignatureContract::where('status', SignatureContract::STATUS_IN_REVIEW)->count() : 0,
-            'emAssinatura' => SignatureContract::query()->tap($visiveis)->inSigning()->count(),
+            'aguardando' => $gerencia ? SignatureContract::where('status', SignatureContract::STATUS_IN_REVIEW)->archived(false)->count() : 0,
+            'emAssinatura' => SignatureContract::query()->tap($visiveis)->archived(false)->inSigning()->count(),
+            'vencendo' => SignatureContract::query()->tap($visiveis)->archived(false)->expiring()->count(),
         ]);
     }
 
@@ -569,9 +576,12 @@ class ContractController extends Controller
 
     public function cancel(Request $request, SignatureContract $signatureContract)
     {
-        $this->authorize('manage', $signatureContract);
+        $this->authorize('cancel', $signatureContract);
 
-        $request->validate(['reason' => ['nullable', 'string', 'max:255']]);
+        // Motivo obrigatório (05/11/2026): histórico e e-mail para quem redigiu.
+        $request->validate(['reason' => ['required', 'string', 'max:255']], [
+            'reason.required' => 'Informe o motivo do cancelamento.',
+        ]);
 
         try {
             $this->contracts->cancel($signatureContract, $request->input('reason'), $request->user()->id, $request->user()->name);
@@ -580,6 +590,60 @@ class ContractController extends Controller
         }
 
         return redirect()->route('contracts.show', $signatureContract)->with('success', 'Contrato cancelado.');
+    }
+
+    /** Vigência de um contrato já assinado (05/11/2026): os antigos e a correção de prazo. */
+    public function validity(Request $request, SignatureContract $signatureContract)
+    {
+        $this->authorize('manage', $signatureContract);
+
+        $dados = $request->validate([
+            'validity.months' => ['nullable', 'integer', 'min:1', 'max:' . ContractContent::MAX_VALIDITY_MONTHS],
+            'validity.until' => ['nullable', 'date'],
+        ], [
+            'validity.months.integer' => 'O prazo é em meses (número inteiro).',
+            'validity.until.date' => 'Data de término inválida.',
+        ]);
+
+        try {
+            $this->contracts->setValidity($signatureContract, $dados['validity'] ?? [], $request->user()->id, $request->user()->name);
+        } catch (ContractException $e) {
+            return back()->with('warning', $e->getMessage());
+        }
+
+        return redirect()->route('contracts.show', $signatureContract)->with('success', 'Vigência atualizada.');
+    }
+
+    /** Arquivar (05/11/2026): sai das abas do dia a dia e vai para "Arquivados". */
+    public function archive(Request $request, SignatureContract $signatureContract)
+    {
+        $this->authorize('archive', $signatureContract);
+
+        $request->validate(['reason' => ['required', 'string', 'max:255']], [
+            'reason.required' => 'Informe o motivo para arquivar.',
+        ]);
+
+        try {
+            $this->contracts->archive($signatureContract, $request->input('reason'), $request->user()->id, $request->user()->name);
+        } catch (ContractException $e) {
+            return back()->with('warning', $e->getMessage());
+        }
+
+        return redirect()->route('contracts.show', $signatureContract)
+            ->with('success', 'Contrato arquivado. Ele fica na aba Arquivados da lista.');
+    }
+
+    public function unarchive(Request $request, SignatureContract $signatureContract)
+    {
+        $this->authorize('archive', $signatureContract);
+
+        try {
+            $this->contracts->unarchive($signatureContract, $request->user()->id, $request->user()->name);
+        } catch (ContractException $e) {
+            return back()->with('warning', $e->getMessage());
+        }
+
+        return redirect()->route('contracts.show', $signatureContract)->with('success', 'Contrato desarquivado.');
     }
 
     public function addendum(Request $request, SignatureContract $signatureContract)
@@ -780,7 +844,8 @@ class ContractController extends Controller
     /** O que o formulário do editor manda, como entrada do ContractContent. */
     private function contentInput(Request $request): array
     {
-        return $request->only(['title', 'establishment', 'contractor_term', 'parties', 'variables', 'considerations', 'clauses', 'signers']);
+        // `validity` (05/11/2026): prazo em meses a partir da assinatura ou data de término.
+        return $request->only(['title', 'establishment', 'contractor_term', 'parties', 'variables', 'considerations', 'clauses', 'signers', 'validity']);
     }
 
     private function refused(ContractException $e, SignatureContract $contract)

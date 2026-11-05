@@ -9,6 +9,8 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote')->hourly();
 
 Schedule::command('avisos:process-notifications')->everyMinute();
+// Contratos: aviso de término da vigência (60, 30 e 15 dias), uma vez por dia (05/11/2026).
+Schedule::command('contratos:avisar-vencimento')->dailyAt('08:00');
 Schedule::command('app:expire-pending-schedules')->everyMinute();
 // Espaço social: o prazo de pagamento é em dias e vence no fim do dia; a cada
 // 5 minutos é preciso de sobra.

@@ -102,7 +102,7 @@
                 {{-- A revisão do texto que esta tela abriu: o salvar confere se ninguém gravou depois. --}}
                 <input type="hidden" name="revision" value="{{ (int) $contract->content_revision }}" data-revision>
 
-                <div class="space-y-6" data-step="Contratado" data-step-keys="title,establishment,contractor_term,parties">
+                <div class="space-y-6" data-step="Contratado" data-step-keys="title,establishment,contractor_term,parties,validity">
                 {{-- 1. Dados gerais --}}
                 <section class="{{ $card }}">
                     <p class="{{ $h }}">Dados gerais</p>
@@ -110,8 +110,25 @@
                         <label class="{{ $l }}" for="title">Título</label>
                         <textarea id="title" name="title" rows="1" class="{{ $f }} resize-none text-base font-bold" maxlength="200" data-autogrow
                                   placeholder="Contrato de prestação de serviços">{{ $content['title'] ?? '' }}</textarea>
-                        <p class="mt-1 text-xs text-ink-3">Sai no alto, à direita: "TÍTULO, QUE ENTRE SI CELEBRAM CLUBE DOS FUNCIONÁRIOS DA CSN E A CONTRATADA".</p>
+                        <p class="mt-1 text-xs text-ink-3">É o nome do contrato nas listas e na busca. Não sai no documento: o cabeçalho é sempre "CONTRATO DE PRESTAÇÃO DE SERVIÇO QUE ENTRE SI FAZEM: CLUBE DOS FUNCIONÁRIOS DA CSN E …".</p>
                     </div>
+                    {{-- Vigência (05/11/2026): prazo a partir da assinatura ou data de término; avisa a 60, 30 e 15 dias do fim. --}}
+                    @php $vigencia = \App\Services\Signature\Contracts\ContractContent::validity($content['validity'] ?? null); @endphp
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                            <label class="{{ $l }}" for="validity_months">Vigência (meses a partir da assinatura)</label>
+                            <input type="number" id="validity_months" name="validity[months]" min="1" max="{{ \App\Services\Signature\Contracts\ContractContent::MAX_VALIDITY_MONTHS }}"
+                                   value="{{ $vigencia['months'] }}" class="{{ $f }}" placeholder="12">
+                        </div>
+                        <div>
+                            <label class="{{ $l }}" for="validity_until">ou termina em (data fixa)</label>
+                            <input type="date" id="validity_until" name="validity[until]" value="{{ $vigencia['until'] }}" class="{{ $f }}">
+                        </div>
+                    </div>
+                    <p class="text-xs text-ink-3">
+                        O término conta do dia em que todos terminarem de assinar. A data fixa, se preenchida, vale no lugar do prazo.
+                        Quem redigiu e o setor são avisados a 60, 30 e 15 dias do fim. Em branco, o contrato fica sem vigência e sem aviso.
+                    </p>
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
                         <div class="sm:col-span-2">
                             <label class="{{ $l }}" for="establishment">Contratante (CNPJ do clube)</label>

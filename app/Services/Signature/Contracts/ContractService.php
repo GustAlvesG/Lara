@@ -5,6 +5,7 @@ namespace App\Services\Signature\Contracts;
 use App\Exceptions\ContractConflictException;
 use App\Exceptions\ContractException;
 use App\Exceptions\SignatureDocumentLockedException;
+use App\Mail\SignatureContractCanceledMail;
 use App\Mail\SignatureContractDecisionMail;
 use App\Mail\SignatureContractRefusedMail;
 use App\Mail\SignatureContractReviewMail;
@@ -50,7 +51,14 @@ class ContractService
         private ContractDocumentGenerator $generator,
         private SignatureDocumentService $documents,
         private ContractRecipients $recipients,
+        private ContractNotifier $notifier,
     ) {
+    }
+
+    /** "CTL - 3/26 — Título" ou só o título, para as notificações. */
+    private function contractName(SignatureContract $contract): string
+    {
+        return ($contract->number ? $contract->number . ' — ' : '') . $contract->title;
     }
 
     /**
@@ -123,6 +131,8 @@ class ContractService
         // O formulário não manda o retrato do original: ele é refeito aqui (aditivo, 05/11/2026).
         $conteudo = $this->withAddendumContext($contract, $input);
 
+        $emValidacao = $contract->status === SignatureContract::STATUS_IN_REVIEW;
+
         DB::transaction(function () use ($contract, $conteudo, $userName, $expectedRevision, $force) {
             // Lida travada: dois salvando ao mesmo tempo não passam os dois pela conferência.
             $atual = SignatureContract::whereKey($contract->id)->lockForUpdate()->first(['id', 'status', 'content_revision', 'content_saved_by_name', 'content_saved_at']);
@@ -145,6 +155,11 @@ class ContractService
         });
 
         $this->rememberParties($conteudo, $userName);
+
+        // Ajuste da Gerência durante a validação: avisa quem redigiu (05/11/2026).
+        if ($emValidacao) {
+            $this->notifier->adjusted($contract, $userId, $userName);
+        }
 
         return $contract;
     }
@@ -176,6 +191,8 @@ class ContractService
         });
 
         $this->mail(fn() => $this->recipients->reviewers(), new SignatureContractReviewMail($contract->fresh(), $versao));
+        $this->notifier->notify($contract, 'submitted', [ContractNotifier::TO_MANAGEMENT],
+            ($userName ?: 'Alguém') . ' enviou ' . $this->contractName($contract) . ' (setor ' . ($contract->sector_name ?? '—') . ') para validação.', $userId);
 
         return $versao;
     }
@@ -239,6 +256,8 @@ class ContractService
         });
 
         $this->mail(fn() => array_filter([$this->recipients->author($contract)]), new SignatureContractDecisionMail($contract->fresh(), $versao));
+        $this->notifier->notify($contract, 'returned', [ContractNotifier::TO_AUTHOR],
+            ($userName ?: 'A Gerência') . ' devolveu ' . $this->contractName($contract) . ' com observações para ajustar.', $userId);
 
         return $versao;
     }
@@ -300,6 +319,8 @@ class ContractService
         $resultado = $this->generateDocument($contract->fresh(), $userId, $userName);
 
         $this->mail(fn() => array_filter([$this->recipients->author($contract)]), new SignatureContractDecisionMail($contract->fresh(), $versao));
+        $this->notifier->notify($contract->fresh(), 'approved', [ContractNotifier::TO_AUTHOR],
+            ($userName ?: 'A Gerência') . ' aprovou ' . $this->contractName($contract->fresh()) . '. O documento de assinatura foi gerado.', $userId);
 
         return ['contract' => $contract->fresh()] + $resultado;
     }
@@ -590,22 +611,216 @@ class ContractService
             fn() => array_filter([$this->recipients->author($contract)]),
             new SignatureContractRefusedMail($contract, $refusedBy, trim((string) $reason) ?: null),
         );
+
+        // Notificação (05/11/2026): quem redigiu e a Gerência.
+        $this->notifier->notify($contract, 'refused', [ContractNotifier::TO_AUTHOR, ContractNotifier::TO_MANAGEMENT],
+            $refusedBy . ' recusou a assinatura de ' . $this->contractName($contract) . '; ele voltou para revisão.'
+                . (trim((string) $reason) !== '' ? ' Motivo: ' . mb_substr(trim((string) $reason), 0, 150) : ''));
     }
 
     /**
      * @throws ContractException
      */
+    /**
+     * Cancelar (05/11/2026, decisões do usuário): em qualquer fase ATÉ A
+     * ASSINATURA TERMINAR — aprovado e em assinatura também, e aí o documento
+     * de assinatura é cancelado junto (quem ainda não assinou não assina
+     * mais). Assinado não se cancela. Motivo obrigatório: vai para o
+     * histórico e, por e-mail, para quem redigiu.
+     *
+     * @throws ContractException
+     */
     public function cancel(SignatureContract $contract, ?string $reason, ?int $userId, ?string $userName): SignatureContract
     {
-        if (in_array($contract->status, [SignatureContract::STATUS_APPROVED, SignatureContract::STATUS_CANCELED], true)) {
-            throw new ContractException($contract->status === SignatureContract::STATUS_APPROVED
-                ? 'Contrato aprovado não se cancela aqui: reabra-o, ou cancele o documento de assinatura.'
-                : 'O contrato já está cancelado.');
+        $reason = trim((string) $reason);
+
+        if ($contract->status === SignatureContract::STATUS_CANCELED) {
+            throw new ContractException('O contrato já está cancelado.');
         }
 
-        $contract->forceFill(['status' => SignatureContract::STATUS_CANCELED, 'canceled_at' => now()])->save();
+        if (!$contract->canBeCanceled()) {
+            throw new ContractException('Contrato já assinado não se cancela: para mudar ou encerrar, faça um aditivo.');
+        }
 
-        $this->event($contract, 'canceled', $userId, $userName, array_filter(['motivo' => trim((string) $reason) ?: null]));
+        if ($reason === '') {
+            throw new ContractException('Informe o motivo do cancelamento.');
+        }
+
+        DB::transaction(function () use ($contract, $reason, $userId, $userName) {
+            $documento = $contract->document;
+            $docCancelado = false;
+
+            if ($documento && in_array($documento->status, [SignatureDocument::STATUS_DRAFT, SignatureDocument::STATUS_AWAITING_SIGNATURE], true)) {
+                try {
+                    $this->documents->cancel($documento, 'Contrato cancelado: ' . mb_substr($reason, 0, 200), $userId);
+                    $docCancelado = true;
+                } catch (SignatureDocumentLockedException $e) {
+                    throw new ContractException($e->getMessage());
+                }
+            }
+
+            $contract->forceFill(['status' => SignatureContract::STATUS_CANCELED, 'canceled_at' => now()])->save();
+
+            $this->event($contract, 'canceled', $userId, $userName, array_filter([
+                'motivo' => $reason,
+                'documento_cancelado' => $docCancelado ?: null,
+            ]));
+        });
+
+        $this->mail(
+            fn() => array_filter([$this->recipients->author($contract)]),
+            new SignatureContractCanceledMail($contract, (string) $userName, $reason),
+        );
+        $this->notifier->notify($contract, 'canceled', [ContractNotifier::TO_AUTHOR, ContractNotifier::TO_MANAGEMENT],
+            ($userName ?: 'Alguém') . ' cancelou ' . $this->contractName($contract) . '. Motivo: ' . mb_substr($reason, 0, 150), $userId);
+
+        return $contract;
+    }
+
+    /**
+     * Arquivar (05/11/2026, decisão do usuário): só tira das abas do dia a
+     * dia — qualquer contrato, em qualquer situação, nada muda nele.
+     * Motivo obrigatório (histórico).
+     *
+     * @throws ContractException
+     */
+    public function archive(SignatureContract $contract, ?string $reason, ?int $userId, ?string $userName): SignatureContract
+    {
+        $reason = trim((string) $reason);
+
+        if ($contract->isArchived()) {
+            throw new ContractException('O contrato já está arquivado.');
+        }
+
+        if ($reason === '') {
+            throw new ContractException('Informe o motivo para arquivar.');
+        }
+
+        $contract->forceFill(['archived_at' => now(), 'archived_by_name' => $userName])->save();
+        $this->event($contract, 'archived', $userId, $userName, ['motivo' => $reason]);
+
+        return $contract;
+    }
+
+    /**
+     * O documento de assinatura do contrato terminou de ser assinado
+     * (SignatureStateMachine, ao ir para "assinado"; 05/11/2026): grava a
+     * data, calcula o término da vigência (prazo a partir da assinatura ou
+     * data fixa) e avisa quem redigiu e a Gerência.
+     */
+    public function documentSigned(SignatureDocument $document): void
+    {
+        $contrato = SignatureContract::where('signature_document_id', $document->id)->first();
+
+        if (!$contrato || $contrato->status !== SignatureContract::STATUS_APPROVED || $contrato->signed_at !== null) {
+            return;
+        }
+
+        $assinadoEm = now();
+        $termino = $contrato->expiryFrom($assinadoEm);
+
+        $contrato->forceFill([
+            'signed_at' => $assinadoEm,
+            'expires_on' => $termino?->toDateString(),
+            'expiry_alerts' => null,
+        ])->save();
+
+        $this->event($contrato, 'signed', null, null, array_filter(['termino' => $termino?->format('d/m/Y')]));
+
+        $this->notifier->notify($contrato, 'signed', [ContractNotifier::TO_AUTHOR, ContractNotifier::TO_MANAGEMENT],
+            'Todos assinaram ' . $this->contractName($contrato) . '.'
+                . ($termino ? ' Vigência até ' . $termino->format('d/m/Y') . '.' : ''));
+    }
+
+    /**
+     * Informar ou mudar a vigência de um contrato JÁ ASSINADO (05/11/2026):
+     * os assinados antes de existir a vigência e a correção de um prazo. Só
+     * o campo de vigência muda — o texto e o documento assinado ficam. O
+     * término é recalculado pela data em que foi assinado (ou, nos antigos,
+     * pela do documento), e os avisos recomeçam.
+     *
+     * @param  array{months?: mixed, until?: mixed}  $validity
+     *
+     * @throws ContractException
+     */
+    public function setValidity(SignatureContract $contract, array $validity, ?int $userId, ?string $userName): SignatureContract
+    {
+        if (!$contract->isSigned()) {
+            throw new ContractException('A vigência de um contrato ainda não assinado se informa no editor (Dados gerais).');
+        }
+
+        $conteudo = $contract->content ?? [];
+        $conteudo['validity'] = ContractContent::validity($validity);
+
+        $assinadoEm = $contract->signed_at
+            ?? $contract->document?->signers()->max('signed_at')
+            ?? $contract->document?->updated_at
+            ?? now();
+        $assinadoEm = \Illuminate\Support\Carbon::parse($assinadoEm);
+
+        $contract->forceFill(['content' => $conteudo, 'signed_at' => $assinadoEm])->save();
+
+        $termino = $contract->expiryFrom($assinadoEm);
+        $contract->forceFill(['expires_on' => $termino?->toDateString(), 'expiry_alerts' => null])->save();
+
+        $this->event($contract, 'validity_changed', $userId, $userName, array_filter(['termino' => $termino?->format('d/m/Y')]));
+
+        return $contract;
+    }
+
+    /**
+     * Avisos de término (comando diário `contratos:avisar-vencimento`,
+     * 05/11/2026): a 60, 30 e 15 dias do fim, para quem redigiu e o setor do
+     * contrato. Cada marco vai uma vez só; quem passou de vários de uma vez
+     * (vigência curta, comando parado) recebe só o mais próximo. Cancelados
+     * e arquivados não avisam.
+     *
+     * @return int quantos contratos foram avisados
+     */
+    public function sendExpiryAlerts(): int
+    {
+        $avisados = 0;
+        $limite = now()->addDays(max(SignatureContract::EXPIRY_ALERT_DAYS))->toDateString();
+
+        SignatureContract::query()
+            ->whereNotNull('expires_on')
+            ->where('status', SignatureContract::STATUS_APPROVED)
+            ->archived(false)
+            ->whereDate('expires_on', '<=', $limite)
+            ->whereDate('expires_on', '>=', now()->toDateString())
+            ->orderBy('id')
+            ->each(function (SignatureContract $contrato) use (&$avisados) {
+                $dias = $contrato->daysToExpiry();
+                $enviados = array_map('intval', $contrato->expiry_alerts ?? []);
+                $devidos = array_values(array_filter(SignatureContract::EXPIRY_ALERT_DAYS, fn(int $d) => $dias <= $d));
+                $novos = array_diff($devidos, $enviados);
+
+                if ($novos === []) {
+                    return;
+                }
+
+                $contrato->forceFill(['expiry_alerts' => array_values(array_unique(array_merge($enviados, $devidos)))])->save();
+
+                $this->notifier->notify($contrato, 'expiring', [ContractNotifier::TO_AUTHOR, ContractNotifier::TO_SECTOR],
+                    $this->contractName($contrato) . ' termina em ' . $contrato->expires_on->format('d/m/Y')
+                        . ' (' . ($dias === 0 ? 'hoje' : ($dias === 1 ? 'amanhã' : 'faltam ' . $dias . ' dias')) . ').'
+                        . ' Se for continuar, prepare o aditivo.');
+
+                $avisados++;
+            });
+
+        return $avisados;
+    }
+
+    /** Desarquivar: volta para as abas, como estava. */
+    public function unarchive(SignatureContract $contract, ?int $userId, ?string $userName): SignatureContract
+    {
+        if (!$contract->isArchived()) {
+            throw new ContractException('O contrato não está arquivado.');
+        }
+
+        $contract->forceFill(['archived_at' => null, 'archived_by_name' => null])->save();
+        $this->event($contract, 'unarchived', $userId, $userName);
 
         return $contract;
     }

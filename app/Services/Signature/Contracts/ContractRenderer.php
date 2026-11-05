@@ -255,6 +255,11 @@ class ContractRenderer
                 ? (string) ($areas[(int) $signer['area_id']] ?? (!empty($signer['president']) ? ($presidente['area_name'] ?? '') : ''))
                 : (string) $signer['caption'];
 
+            // Contratos gravados antes da correção ainda trazem "Fulano (Titular)" (05/11/2026).
+            if ($signer['source'] === 'director') {
+                $signer['name'] = ContractContent::directorName((string) $signer['name']);
+            }
+
             return $signer + [
                 'key' => 'p' . (++$chave),
                 'label' => mb_substr($base . (filled($signer['caption']) ? ' — ' . $signer['caption'] : ''), 0, 190),

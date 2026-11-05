@@ -31,7 +31,7 @@
                 @else
                     <div class="sig-name">{{ $signer->name }}</div>
                     <div class="sig-meta">
-                        {{ $signer->capacityLabel() }} — CPF {{ $signer->maskedCpf() }}
+                        {{ $signer->documentCapacityLabel() }} — CPF {{ $signer->maskedCpf() }}
                     </div>
                 @endif
 

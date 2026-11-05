@@ -64,7 +64,15 @@ class SignatureContract extends Model
         'approved_by',
         'approved_by_name',
         'canceled_at',
+        'archived_at',
+        'archived_by_name',
+        'signed_at',
+        'expires_on',
+        'expiry_alerts',
     ];
+
+    /** Avisos de término (05/11/2026, decisão do usuário): dias antes do fim. */
+    public const EXPIRY_ALERT_DAYS = [60, 30, 15];
 
     protected $attributes = [
         'kind' => self::KIND_CONTRACT,
@@ -90,6 +98,10 @@ class SignatureContract extends Model
         'submitted_at' => 'datetime',
         'approved_at' => 'datetime',
         'canceled_at' => 'datetime',
+        'archived_at' => 'datetime',
+        'signed_at' => 'datetime',
+        'expires_on' => 'date',
+        'expiry_alerts' => 'array',
     ];
 
     protected static function booted(): void
@@ -304,6 +316,105 @@ class SignatureContract extends Model
     {
         return $this->number === null
             && in_array($this->status, [self::STATUS_DRAFT, self::STATUS_RETURNED, self::STATUS_IN_REVIEW], true);
+    }
+
+    /**
+     * Cancelável (05/11/2026, decisão do usuário): até a assinatura terminar.
+     * Aprovado, só enquanto o documento está em rascunho ou colhendo
+     * assinaturas — cancelar o contrato cancela o documento junto. Assinado
+     * não se cancela (vira aditivo/rescisão).
+     */
+    public function canBeCanceled(): bool
+    {
+        if ($this->status === self::STATUS_CANCELED) {
+            return false;
+        }
+
+        if ($this->status !== self::STATUS_APPROVED) {
+            return true;
+        }
+
+        return !$this->document || in_array($this->document->status, [
+            SignatureDocument::STATUS_DRAFT,
+            SignatureDocument::STATUS_AWAITING_SIGNATURE,
+            SignatureDocument::STATUS_REFUSED,
+            SignatureDocument::STATUS_CANCELED,
+        ], true);
+    }
+
+    /** Arquivado (05/11/2026): fora das abas do dia a dia, na aba "Arquivados". Nada mais muda. */
+    public function isArchived(): bool
+    {
+        return $this->archived_at !== null;
+    }
+
+    public function scopeArchived(Builder $query, bool $archived = true): Builder
+    {
+        return $archived ? $query->whereNotNull('archived_at') : $query->whereNull('archived_at');
+    }
+
+    /**
+     * Término calculado a partir de uma data de assinatura (05/11/2026): a
+     * data fixa, se houver; senão a assinatura + o prazo em meses. Null =
+     * contrato sem vigência informada.
+     */
+    public function expiryFrom(\DateTimeInterface $signedAt): ?\Illuminate\Support\Carbon
+    {
+        $vigencia = \App\Services\Signature\Contracts\ContractContent::validity($this->content['validity'] ?? null);
+
+        if ($vigencia['until']) {
+            return \Illuminate\Support\Carbon::parse($vigencia['until'])->startOfDay();
+        }
+
+        return $vigencia['months']
+            ? \Illuminate\Support\Carbon::instance($signedAt)->startOfDay()->addMonthsNoOverflow($vigencia['months'])
+            : null;
+    }
+
+    /** "12 meses a partir da assinatura", "até 31/12/2027" ou null. */
+    public function validityLabel(): ?string
+    {
+        $vigencia = \App\Services\Signature\Contracts\ContractContent::validity($this->content['validity'] ?? null);
+
+        if ($vigencia['until']) {
+            return 'até ' . \Illuminate\Support\Carbon::parse($vigencia['until'])->format('d/m/Y');
+        }
+
+        return $vigencia['months']
+            ? $vigencia['months'] . ' ' . ($vigencia['months'] === 1 ? 'mês' : 'meses') . ' a partir da assinatura'
+            : null;
+    }
+
+    /** Dias até o término (negativo = vencido); null sem término. */
+    public function daysToExpiry(): ?int
+    {
+        return $this->expires_on
+            ? (int) now()->startOfDay()->diffInDays($this->expires_on->copy()->startOfDay(), false)
+            : null;
+    }
+
+    /** Situação da vigência para a lista e a tela: null, `ok`, `expiring` (até 60 dias) ou `expired`. */
+    public function expiryState(): ?string
+    {
+        $dias = $this->daysToExpiry();
+
+        return match (true) {
+            $dias === null || $this->status === self::STATUS_CANCELED => null,
+            $dias < 0 => 'expired',
+            $dias <= max(self::EXPIRY_ALERT_DAYS) => 'expiring',
+            default => 'ok',
+        };
+    }
+
+    /**
+     * Vencendo (aba da lista, 05/11/2026): assinados com término em até 60
+     * dias ou já vencidos, sem os cancelados.
+     */
+    public function scopeExpiring(Builder $query): Builder
+    {
+        return $query->whereNotNull('expires_on')
+            ->where('status', '!=', self::STATUS_CANCELED)
+            ->whereDate('expires_on', '<=', now()->addDays(max(self::EXPIRY_ALERT_DAYS))->toDateString());
     }
 
     public function statusLabel(): string

@@ -31,6 +31,10 @@ class SignatureContractEvent extends Model
         'signature_refused' => 'Assinatura recusada',
         'linked_addendum' => 'Marcado como aditivo',
         'unlinked_addendum' => 'Deixou de ser aditivo',
+        'signed' => 'Assinado por todos',
+        'validity_changed' => 'Vigência alterada',
+        'archived' => 'Arquivado',
+        'unarchived' => 'Desarquivado',
     ];
 
     protected $fillable = [
@@ -63,6 +67,17 @@ class SignatureContractEvent extends Model
             $rotulo .= ' por ' . ($p['por'] ?? 'um signatário')
                 . (!empty($p['devolvido']) ? ' — voltou para revisão' : ' — o documento foi encerrado')
                 . (!empty($p['motivo']) ? '. Motivo: ' . $p['motivo'] : '');
+        }
+
+        // Cancelar e arquivar (05/11/2026): o motivo é obrigatório e aparece no histórico.
+        if (in_array($this->event, ['canceled', 'archived'], true)) {
+            $p = $this->payload ?? [];
+            $rotulo .= (!empty($p['documento_cancelado']) ? ' — o documento de assinatura foi cancelado junto' : '')
+                . (!empty($p['motivo']) ? '. Motivo: ' . $p['motivo'] : '');
+        }
+
+        if (in_array($this->event, ['signed', 'validity_changed'], true)) {
+            $rotulo .= !empty($this->payload['termino']) ? ' — vigência até ' . $this->payload['termino'] : ' — sem vigência informada';
         }
 
         if ($this->event === 'linked_addendum' && !empty($this->payload['aditivo_de'])) {

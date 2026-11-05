@@ -562,7 +562,7 @@ class SignatureDocumentRenderer
                     ($topo + $altura + 3) * $pt,
                     'Visto — ' . \Illuminate\Support\Str::limit($ehContrato
                         ? mb_strtoupper($signer->name)
-                        : ($signer->capacityLabel() === $signer->roleLabel() ? $signer->name : $signer->capacityLabel()), 18, '…'),
+                        : ($signer->documentCapacityLabel() === $signer->roleLabel() ? $signer->name : $signer->documentCapacityLabel()), 18, '…'),
                     $fonte,
                     5.5,
                     [0.43, 0.38, 0.38],
@@ -593,7 +593,7 @@ class SignatureDocumentRenderer
     /**
      * O que sai sob o nome de cada signatário num documento de CONTRATO
      * (05/11/2026, decisão do usuário): o diretor, o cargo da relação em
-     * Assinaturas → Diretoria (a área, e "substituto" se for); os demais, o
+     * Assinaturas → Diretoria (só a área, sem titular/substituto); os demais, o
      * cargo digitado no contrato. O papel (Contratante, Contratada,
      * Testemunha) não sai. Null = não é contrato (o documento comum segue com
      * a parte do modelo).
@@ -613,7 +613,7 @@ class SignatureDocumentRenderer
 
         return $document->signers()->get()->mapWithKeys(fn($s) => [
             $s->id => $s->isDirector()
-                ? (string) $s->directorLabel()
+                ? (string) $s->directorLabel(false)
                 : (string) ($porParte->get((string) $s->party)['caption'] ?? ''),
         ])->all();
     }

@@ -6,6 +6,7 @@
     Desde 05/11/2026: aba "Em assinatura" (aprovados com o documento colhendo assinaturas) e a
     coluna "Assinatura" com o andamento (quantos assinaram e quem falta —
     SignatureContract::signingProgress). O presidente vê aqui também o que aguarda a assinatura dele.
+    Aba "Arquivados" (05/11/2026): os arquivados só aparecem nela.
 --}}
 @php
     use App\Models\SignatureContract as C;
@@ -50,11 +51,23 @@
                     <span class="rounded-full bg-line px-2 text-[11px] text-ink">{{ $emAssinatura }}</span>
                 @endif
             </a>
+            {{-- Vencendo (05/11/2026): término em até 60 dias ou já vencido. --}}
+            <a href="{{ route('contracts.index', ['aba' => 'vencendo']) }}" role="tab" aria-selected="{{ $aba === 'vencendo' ? 'true' : 'false' }}" class="{{ $tab }}">
+                Vencendo
+                @if($vencendo > 0)
+                    <span class="rounded-full bg-warn px-2 text-[11px] text-white">{{ $vencendo }}</span>
+                @endif
+            </a>
+            {{-- Arquivados (05/11/2026): fora das outras abas, nada muda no contrato. --}}
+            <a href="{{ route('contracts.index', ['aba' => 'arquivados']) }}" role="tab" aria-selected="{{ $aba === 'arquivados' ? 'true' : 'false' }}" class="{{ $tab }}">Arquivados</a>
         </div>
 
         <x-search-bar :filters="['status', 'aba']" placeholder="Título, número, contratada, CNPJ, setor ou quem redigiu">
             <x-slot:controls>
-                @if($aba === 'todos')
+                @if($aba === 'arquivados')
+                    <input type="hidden" name="aba" value="arquivados">
+                @endif
+                @if(in_array($aba, ['todos', 'arquivados'], true))
                     <label for="status" class="sr-only">Situação</label>
                     <select name="status" id="status" class="{{ $field }} w-full sm:w-60">
                         <option value="">Todas as situações</option>
@@ -77,6 +90,10 @@
                     Nenhum contrato aguardando validação.
                 @elseif($aba === 'assinatura')
                     Nenhum contrato colhendo assinaturas agora.
+                @elseif($aba === 'arquivados')
+                    Nenhum contrato arquivado.
+                @elseif($aba === 'vencendo')
+                    Nenhum contrato terminando nos próximos 60 dias.
                 @else
                     Nenhum contrato por aqui ainda.
                     @can('create', C::class)
@@ -111,7 +128,15 @@
                                     </td>
                                     <td class="px-5 py-3.5 text-ink">{{ $contract->counterpartyName() ?? '—' }}</td>
                                     <td class="px-5 py-3.5 text-ink-2">{{ $contract->sector_name ?? '—' }}</td>
-                                    <td class="px-5 py-3.5"><x-pill :kind="$kind($contract->status)">{{ $contract->statusLabel() }}</x-pill></td>
+                                    <td class="px-5 py-3.5">
+                                        <x-pill :kind="$kind($contract->status)">{{ $contract->statusLabel() }}</x-pill>
+                                        @if($contract->expires_on && $contract->status !== C::STATUS_CANCELED)
+                                            @php $dias = $contract->daysToExpiry(); @endphp
+                                            <div class="mt-1 text-xs {{ $dias < 0 ? 'font-bold text-danger' : ($dias <= max(C::EXPIRY_ALERT_DAYS) ? 'font-bold text-warn' : 'text-ink-2') }}">
+                                                {{ $dias < 0 ? 'Venceu em' : 'Vigente até' }} {{ $contract->expires_on->format('d/m/Y') }}
+                                            </div>
+                                        @endif
+                                    </td>
                                     <td class="px-5 py-3.5 text-xs">
                                         @include('signature.contracts.partials.signing-progress', ['contract' => $contract, 'compact' => true])
                                     </td>

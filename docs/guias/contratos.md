@@ -1,6 +1,6 @@
 ---
 modulo: Contratos
-palavras: contrato, contratos, termo aditivo, aditivo de contrato, marcar como aditivo, variável do contrato original, cabeçalho do contrato, prestador, prestadores, cadastro de prestadores, inativar prestador, salvar automático, alguém salvou antes de você, preenchimento, variável, recusar assinatura, presidente recusou, contrato recusado, em assinatura, andamento da assinatura, cláusula, minuta, CTL, Gerência, revisão jurídica, risco jurídico, advogado, jurídico especializado, validar, aprovar, devolver, visto da Gerência, rubrica, aditivo, biblioteca, modelo de contrato, contratada, fiador, Word, docx, papel timbrado, revisão automática, Claude, assinatura do contrato, tablet da Gerência
+palavras: contrato, contratos, vigência do contrato, vencimento, contrato vencendo, prazo do contrato, cancelar contrato, arquivar contrato, desarquivar, notificação de contrato, termo aditivo, aditivo de contrato, marcar como aditivo, variável do contrato original, cabeçalho do contrato, prestador, prestadores, cadastro de prestadores, inativar prestador, salvar automático, alguém salvou antes de você, preenchimento, variável, recusar assinatura, presidente recusou, contrato recusado, em assinatura, andamento da assinatura, cláusula, minuta, CTL, Gerência, revisão jurídica, risco jurídico, advogado, jurídico especializado, validar, aprovar, devolver, visto da Gerência, rubrica, aditivo, biblioteca, modelo de contrato, contratada, fiador, Word, docx, papel timbrado, revisão automática, Claude, assinatura do contrato, tablet da Gerência
 ---
 
 # Contratos — guia de uso
@@ -35,7 +35,7 @@ Validar contratos não é uma permissão: é ser do setor **Gerência**, que vê
 
 O que O Lara faz por você:
 
-- **Assinaturas no fim do contrato**: cada pessoa aparece com o nome em **maiúsculas** e, embaixo, só o cargo — sem "CONTRATANTE", "CONTRATADA" ou "Testemunha". O cargo do presidente e dos diretores é o da área deles em **Assinaturas › Diretoria** (por exemplo, Presidência); o dos demais é o que você escreve em **Cargo / qualidade** no passo **Quem assina** (em branco, sai só o nome e o CPF). Vale na prévia, no Word e no documento de assinatura. As assinaturas saem em **duas colunas** (as partes e, depois, as testemunhas, de duas em duas). A linha de assinatura nunca fica numa folha e o nome na outra: se não couberem juntos, os dois passam para a folha seguinte.
+- **Assinaturas no fim do contrato**: cada pessoa aparece com o nome em **maiúsculas** e, embaixo, só o cargo — sem "CONTRATANTE", "CONTRATADA" ou "Testemunha". O cargo do presidente e dos diretores é o da área deles em **Assinaturas › Diretoria** (por exemplo, Presidência), sem "titular" ou "substituto"; o dos demais é o que você escreve em **Cargo / qualidade** no passo **Quem assina** (em branco, sai só o nome e o CPF). Vale na prévia, no Word e no documento de assinatura. As assinaturas saem em **duas colunas** (as partes e, depois, as testemunhas, de duas em duas). A linha de assinatura nunca fica numa folha e o nome na outra: se não couberem juntos, os dois passam para a folha seguinte.
 - **Cabeçalho do contrato**: sai sempre "CONTRATO DE PRESTAÇÃO DE SERVIÇO QUE ENTRE SI FAZEM: CLUBE DOS FUNCIONÁRIOS DA CSN E <prestador>", com o número embaixo. O **Título** que você digita é só o nome do contrato nas listas e na busca; ele não aparece no documento assinado nem no Word.
 
 - **Numeração automática**: CLÁUSULA PRIMEIRA, 1.1, 1.1.1 não se digitam. Use "Subitem →" para o 1.1.1.
@@ -129,6 +129,34 @@ Em **Contratos › Contratos**, abra o contrato:
 - **Mudar depois de aprovado**: **Reabrir para alteração** volta o contrato a rascunho e cancela o rascunho do documento de assinatura; o contrato precisa ser validado de novo. Depois que o documento foi congelado, não reabre: cancele o documento ou faça um aditivo.
 
 Anexos do contrato (a proposta, um projeto) são incluídos na tela do contrato e seguem junto para a assinatura.
+
+## Vigência e aviso de término
+<!-- telas: contracts.index -->
+
+- **Onde informar**: no editor, passo **Contratado**, cartão **Dados gerais**: **Vigência (meses a partir da assinatura)** — por exemplo 12 — ou, se preferir, **ou termina em (data fixa)**. A data fixa, se preenchida, vale no lugar do prazo. Em branco, o contrato fica sem vigência e sem aviso.
+- **Quando começa**: no dia em que todos terminam de assinar. O Lara calcula o término nessa hora e mostra no cartão **Vigência** da tela do contrato ("Até 05/11/2027 · assinado em 05/11/2026").
+- **Contrato já assinado sem vigência** (ou com prazo errado): no cartão **Vigência**, clique em **Informar a vigência** (ou **Mudar a vigência**), preencha e **Salvar vigência**. Só a vigência muda: o texto e o documento assinado ficam como estão.
+- **Avisos**: a **60, 30 e 15 dias** do fim, quem redigiu e o pessoal do setor do contrato recebem uma notificação no sino e no navegador ("Contrato perto do fim"). Contrato cancelado ou arquivado não avisa.
+- **Na lista**: a aba **Vencendo** mostra os contratos que terminam nos próximos 60 dias e os já vencidos, o mais perto primeiro. Na coluna **Situação** aparece "Vigente até …" (em laranja quando falta pouco, em vermelho quando venceu). Para continuar com o serviço, faça um **aditivo** antes do fim.
+
+## Notificações no navegador
+<!-- telas: contracts.index -->
+
+Como nos avisos, as movimentações dos contratos chegam no **sino** do alto da tela e como notificação do navegador (se você permitiu as notificações para O Lara). Clicar abre o contrato.
+
+- **Gerência (todos do setor)**: contrato **enviado para validação**; **recusado na assinatura**, **assinado por todos** e **cancelado**.
+- **Quem redigiu**: **devolvido com observações**, **aprovado**, **a Gerência ajustou o texto** durante a validação (um aviso só até você abrir), **recusado na assinatura**, **assinado por todos** e **cancelado**.
+- **Quem redigiu e o setor**: **contrato perto do fim** (60, 30 e 15 dias).
+
+Quem fez a movimentação não recebe aviso dela. Os e-mails de sempre (para validar, decisão, recusa, cancelamento) continuam.
+
+## Cancelar ou arquivar um contrato
+<!-- telas: contracts.index -->
+
+Na tela do contrato, o cartão **Cancelar ou arquivar** (para o setor do contrato e para a Gerência):
+
+- **Cancelar o contrato**: vale em qualquer fase até a assinatura terminar — rascunho, devolvido, em validação, aprovado ou em assinatura. Escreva o **Motivo do cancelamento** (obrigatório) e confirme. Se o contrato estava em assinatura, o documento de assinatura é cancelado junto: quem ainda não assinou não assina mais. Quem redigiu recebe o motivo por e-mail, e ele fica no **Histórico**. Não dá para desfazer. Contrato **já assinado** não se cancela: para mudar ou encerrar, faça um aditivo.
+- **Arquivar**: vale para qualquer contrato (um rascunho esquecido, um cancelado, um assinado que já terminou). Escreva o **Motivo** e clique em **Arquivar**. O contrato sai das abas **Todos**, **Para validar** e **Em assinatura** e passa a aparecer só na aba **Arquivados** da lista. Nada muda nele — a situação, o documento e os aditivos continuam iguais. Para trazê-lo de volta, abra-o pela aba **Arquivados** e clique em **Desarquivar**.
 
 ## Reaproveitar: biblioteca de cláusulas, modelos e aditivos
 <!-- telas: contract-library.index -->

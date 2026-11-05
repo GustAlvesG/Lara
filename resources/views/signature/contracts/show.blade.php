@@ -6,6 +6,8 @@
     05/11/2026: as duas colunas rolam cada uma por si (split-xl); o andamento da
     assinatura aparece aqui (quem assinou e quem falta); o presidente, com o contrato
     aguardando a assinatura dele, pode recusar e devolver para revisão (contracts.refuse-signature).
+    Cartão "Cancelar ou arquivar" (05/11/2026): cancelar até a assinatura terminar (cancela o documento
+    junto), arquivar qualquer um; os dois com motivo obrigatório.
 --}}
 @php
     use App\Models\SignatureContract as C;
@@ -55,6 +57,13 @@
         </x-page-title>
 
         @include('partials.alerts')
+
+        @if($contract->isArchived())
+            <div class="rounded-card bg-subtle px-5 py-3 text-sm text-ink-2">
+                <b class="text-ink">Arquivado</b> em {{ $contract->archived_at->format('d/m/Y H:i') }} por {{ $contract->archived_by_name ?? '—' }}:
+                ele só aparece na aba Arquivados da lista. Nada mudou no contrato.
+            </div>
+        @endif
 
         @if(session('contractProblems'))
             <div class="{{ $card }}">
@@ -298,6 +307,59 @@
                     @endif
                 </div>
 
+                {{-- Vigência (05/11/2026): prazo a partir da assinatura ou data fixa; aviso a 60, 30 e 15 dias. --}}
+                @php
+                    $vigenciaRotulo = $contract->validityLabel();
+                    $estadoVigencia = $contract->expiryState();
+                    $diasVigencia = $contract->daysToExpiry();
+                    $vig = \App\Services\Signature\Contracts\ContractContent::validity($contract->content['validity'] ?? null);
+                @endphp
+                @if($vigenciaRotulo || $contract->expires_on || ($podeGerir && $contract->isSigned()))
+                    <div class="{{ $card }}">
+                        <div class="flex items-center justify-between gap-2">
+                            <p class="{{ $h }}">Vigência</p>
+                            @if($estadoVigencia === 'expired')
+                                <x-pill kind="danger">Vencido</x-pill>
+                            @elseif($estadoVigencia === 'expiring')
+                                <x-pill kind="warn">Vence em {{ $diasVigencia }} {{ $diasVigencia === 1 ? 'dia' : 'dias' }}</x-pill>
+                            @endif
+                        </div>
+                        @if($contract->expires_on)
+                            <p class="text-sm">
+                                Até <b>{{ $contract->expires_on->format('d/m/Y') }}</b>
+                                <span class="text-ink-2">· assinado em {{ $contract->signed_at?->format('d/m/Y') }} · {{ $vigenciaRotulo }}</span>
+                            </p>
+                        @elseif($vigenciaRotulo)
+                            <p class="text-sm">{{ ucfirst($vigenciaRotulo) }}. <span class="text-ink-2">O término é calculado quando todos assinarem.</span></p>
+                        @else
+                            <p class="text-sm text-ink-2">Sem vigência informada: não há aviso de término.</p>
+                        @endif
+
+                        @if($podeGerir && $contract->isSigned())
+                            <details @if($errors->has('validity.*')) open @endif>
+                                <summary class="cursor-pointer text-xs font-bold text-grena-ink">{{ $vigenciaRotulo ? 'Mudar a vigência' : 'Informar a vigência' }}</summary>
+                                <form method="POST" action="{{ route('contracts.validity', $contract) }}" class="mt-2 space-y-2">
+                                    @csrf
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label for="v_months" class="block text-xs font-bold text-ink-2">Meses a partir da assinatura</label>
+                                            <input type="number" id="v_months" name="validity[months]" min="1" max="{{ \App\Services\Signature\Contracts\ContractContent::MAX_VALIDITY_MONTHS }}" value="{{ old('validity.months', $vig['months']) }}" class="{{ $f }}">
+                                        </div>
+                                        <div>
+                                            <label for="v_until" class="block text-xs font-bold text-ink-2">ou termina em</label>
+                                            <input type="date" id="v_until" name="validity[until]" value="{{ old('validity.until', $vig['until']) }}" class="{{ $f }}">
+                                        </div>
+                                    </div>
+                                    @error('validity.months')<p class="text-xs text-danger">{{ $message }}</p>@enderror
+                                    @error('validity.until')<p class="text-xs text-danger">{{ $message }}</p>@enderror
+                                    <p class="text-xs text-ink-3">Só a vigência muda: o texto e o documento assinado ficam como estão. Os avisos de término recomeçam.</p>
+                                    <x-secondary-button type="submit" size="sm">Salvar vigência</x-secondary-button>
+                                </form>
+                            </details>
+                        @endif
+                    </div>
+                @endif
+
                 {{-- Aditivos. Marcar/desmarcar como aditivo antes da aprovação (05/11/2026): só completa. --}}
                 @php $podeMudarTipo = auth()->user()->can('changeKind', $contract); @endphp
                 @if($contract->parent || $contract->addenda->isNotEmpty() || ($podeMudarTipo && $addendumTargets->isNotEmpty()))
@@ -382,11 +444,61 @@
                     @endforeach
                 </div>
 
-                @if($podeGerir && !in_array($contract->status, [C::STATUS_APPROVED, C::STATUS_CANCELED], true))
-                    <form method="POST" action="{{ route('contracts.cancel', $contract) }}" onsubmit="return confirm('Cancelar este contrato?')" class="text-right">
-                        @csrf
-                        <button type="submit" class="text-sm font-bold text-danger hover:underline">Cancelar o contrato</button>
-                    </form>
+                {{-- Cancelar (até a assinatura terminar) e arquivar (qualquer um), motivo obrigatório (05/11/2026). --}}
+                @php
+                    $podeCancelar = auth()->user()->can('cancel', $contract);
+                    $podeArquivar = auth()->user()->can('archive', $contract);
+                @endphp
+                @if($podeCancelar || $podeArquivar)
+                    <div class="{{ $card }}">
+                        <p class="{{ $h }}">Cancelar ou arquivar</p>
+
+                        @if($podeCancelar)
+                            <details class="group" @if(old('_acao') === 'cancelar') open @endif>
+                                <summary class="cursor-pointer text-sm font-bold text-danger">Cancelar o contrato</summary>
+                                <form method="POST" action="{{ route('contracts.cancel', $contract) }}" class="mt-2 space-y-2"
+                                      onsubmit="return confirm('Cancelar este contrato? {{ $contract->status === C::STATUS_APPROVED ? 'O documento de assinatura é cancelado junto: quem ainda não assinou não assina mais. ' : '' }}Não dá para desfazer.')">
+                                    @csrf
+                                    <input type="hidden" name="_acao" value="cancelar">
+                                    <p class="text-xs text-ink-2">
+                                        @if($contract->status === C::STATUS_APPROVED)
+                                            O documento de assinatura é cancelado junto: quem ainda não assinou não assina mais.
+                                        @endif
+                                        Quem redigiu recebe o motivo por e-mail. Não dá para desfazer.
+                                    </p>
+                                    <label for="cancel_reason" class="block text-xs font-bold text-ink-2">Motivo do cancelamento</label>
+                                    <textarea id="cancel_reason" name="reason" rows="2" maxlength="255" required class="{{ $f }}"
+                                              placeholder="Ex.: o fornecedor desistiu; o serviço não será mais contratado.">{{ old('_acao') === 'cancelar' ? old('reason') : '' }}</textarea>
+                                    @if(old('_acao') === 'cancelar') @error('reason')<p class="text-xs text-danger">{{ $message }}</p>@enderror @endif
+                                    <button type="submit" class="{{ $btn }} bg-danger text-white hover:opacity-90">Cancelar o contrato</button>
+                                </form>
+                            </details>
+                        @endif
+
+                        @if($podeArquivar)
+                            @if($contract->isArchived())
+                                <p class="text-sm text-ink-2">Arquivado por {{ $contract->archived_by_name ?? '—' }} em {{ $contract->archived_at->format('d/m/Y H:i') }}.</p>
+                                <form method="POST" action="{{ route('contracts.unarchive', $contract) }}">
+                                    @csrf
+                                    <x-secondary-button type="submit" size="sm">Desarquivar</x-secondary-button>
+                                </form>
+                            @else
+                                <details class="group" @if(old('_acao') === 'arquivar') open @endif>
+                                    <summary class="cursor-pointer text-sm font-bold text-ink">Arquivar</summary>
+                                    <form method="POST" action="{{ route('contracts.archive', $contract) }}" class="mt-2 space-y-2">
+                                        @csrf
+                                        <input type="hidden" name="_acao" value="arquivar">
+                                        <p class="text-xs text-ink-2">O contrato sai das abas da lista e vai para <b>Arquivados</b>. Nada muda nele, e dá para desarquivar.</p>
+                                        <label for="archive_reason" class="block text-xs font-bold text-ink-2">Motivo</label>
+                                        <textarea id="archive_reason" name="reason" rows="2" maxlength="255" required class="{{ $f }}"
+                                                  placeholder="Ex.: contrato encerrado; rascunho que não vai seguir.">{{ old('_acao') === 'arquivar' ? old('reason') : '' }}</textarea>
+                                        @if(old('_acao') === 'arquivar') @error('reason')<p class="text-xs text-danger">{{ $message }}</p>@enderror @endif
+                                        <x-secondary-button type="submit" size="sm">Arquivar</x-secondary-button>
+                                    </form>
+                                </details>
+                            @endif
+                        @endif
+                    </div>
                 @endif
             </aside>
         </div>

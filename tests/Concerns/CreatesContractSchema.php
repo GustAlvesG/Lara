@@ -33,6 +33,10 @@ trait CreatesContractSchema
         $arquivos[] = '2026_11_04_110000_add_approval_initials_to_contracts_and_documents.php';
         // Prestadores (ativo/inativo) e o salvar automático do editor (05/11/2026).
         $arquivos[] = '2026_11_05_100000_add_providers_and_autosave_to_contracts.php';
+        // Arquivar contrato (05/11/2026).
+        $arquivos[] = '2026_11_05_110000_add_archive_to_signature_contracts.php';
+        // Vigência e aviso de término (05/11/2026).
+        $arquivos[] = '2026_11_05_120000_add_validity_to_signature_contracts.php';
 
         foreach ($arquivos as $arquivo) {
             (require base_path('database/migrations/' . $arquivo))->up();

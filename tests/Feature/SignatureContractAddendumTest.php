@@ -180,6 +180,28 @@ class SignatureContractAddendumTest extends TestCase
         $this->assertStringNotContainsString('CONTRATADA — A.C.S TRADING LTDA — CPF', $pdf);
     }
 
+    public function test_documentos_sem_titular_ou_substituto(): void
+    {
+        // O editor gravava "Fulano (Titular)" a partir do texto da lista de diretores.
+        $this->assertSame('Jose Fausto Ferreira Junior', \App\Services\Signature\Contracts\ContractContent::directorName('Jose Fausto Ferreira Junior (Titular)'));
+        $this->assertSame('Ana Souza', \App\Services\Signature\Contracts\ContractContent::directorName('Ana Souza (substituto)'));
+        $this->assertSame('Ana Souza', \App\Services\Signature\Contracts\ContractContent::directorName('Ana Souza (Suplente)'));
+
+        $conteudo = $this->conteudoCompleto();
+        $conteudo['signers'][] = ['uid' => 'dirx', 'party' => 'contratante', 'source' => 'director', 'area_id' => 777, 'user_id' => 777,
+            'name' => 'Jose Fausto Ferreira Junior (Titular)', 'cpf' => '', 'email' => '', 'phone' => '', 'caption' => ''];
+        $previa = app(ContractRenderer::class)->html($conteudo, null);
+        $this->assertStringContainsString('JOSE FAUSTO FERREIRA JUNIOR</strong>', $previa);
+        $this->assertStringNotContainsString('TITULAR', $previa);
+
+        // No PDF, o substituto sai só com a área; nas telas, o papel continua.
+        $s = new \App\Models\SignatureSigner(['director_area_name' => 'Diretoria de Patrimônio', 'director_role' => \App\Models\SignatureDirectorAreaHolder::ROLE_SUBSTITUTE]);
+        $s->director_area_id = 1;
+        $s->user_id = 1;
+        $this->assertSame('Diretoria de Patrimônio', $s->documentCapacityLabel());
+        $this->assertSame('Diretoria de Patrimônio (substituto)', $s->capacityLabel());
+    }
+
     // --------------------------------------------------------------- aditivo
 
     public function test_aditivo_so_de_contrato_assinado(): void

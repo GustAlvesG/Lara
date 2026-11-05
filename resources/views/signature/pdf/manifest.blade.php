@@ -142,7 +142,7 @@
         <tr>
             <td style="border:1px solid #d8cbc9;padding:8px;vertical-align:top;">
                 <b style="font-size:10.5px;">{{ $signer->name }}</b>
-                <span style="font-size:9px;color:#6d6062;">— {{ $signer->capacityLabel() }}</span><br>
+                <span style="font-size:9px;color:#6d6062;">— {{ $signer->documentCapacityLabel() }}</span><br>
                 <span style="font-size:9.5px;">CPF {{ $signer->maskedCpf() }}</span><br>
 
                 <span style="font-size:9px;color:#6d6062;">

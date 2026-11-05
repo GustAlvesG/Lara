@@ -114,7 +114,8 @@ rascunho ─enviar→ em validação ─devolver→ devolvido ─enviar→ em va
                                └aprovar→ aprovado (número + documento de assinatura em RASCUNHO)
 aprovado ─presidente ou contratada recusa a assinatura→ devolvido (documento encerrado; aprovado de novo, documento novo)
 aprovado ─reabrir→ rascunho   (só enquanto o documento não foi congelado; o rascunho do documento é cancelado)
-rascunho/devolvido/em validação ─cancelar→ cancelado
+qualquer situação até a assinatura terminar ─cancelar (motivo)→ cancelado (em assinatura: o documento é cancelado junto)
+qualquer contrato ─arquivar (motivo)→ só sai das abas (archived_at) ─desarquivar→ volta
 assinado ─criar aditivo (ou Novo contrato → Aditivo)→ novo contrato (kind = addendum) em rascunho
 rascunho/devolvido/em validação ─marcar como aditivo de um assinado→ aditivo (só completa) ─desmarcar→ contrato
 ```
@@ -130,6 +131,41 @@ rascunho/devolvido/em validação ─marcar como aditivo de um assinado→ aditi
   aprovada e, **depois do commit**, gera o documento (`generateDocument`). Falha na geração não desfaz a
   aprovação: a tela oferece "Gerar documento de assinatura" de novo. O mesmo botão aparece se o
   documento for cancelado no módulo de assinatura.
+- **Cancelar** (`cancel`, 05/11/2026, decisões do usuário): até a assinatura terminar —
+  `SignatureContract::canBeCanceled()` (não cancelado; aprovado só com o documento em rascunho, colhendo
+  assinaturas, recusado ou cancelado). Em rascunho/colhendo, cancela o documento junto
+  (`SignatureDocumentService::cancel`, pendentes caem). Assinado/finalizado não cancela (aditivo). Motivo
+  obrigatório: evento `canceled` (`motivo`, `documento_cancelado`) e e-mail a quem redigiu
+  (`SignatureContractCanceledMail`). Policy `cancel` = `canBeCanceled` + `manage` (setor e Gerência).
+- **Arquivar** (`archive`/`unarchive`, 05/11/2026): só tira das abas — `archived_at`/`archived_by_name`
+  (migration `2026_11_05_110000`), qualquer situação, nada mais muda (aditivos, documento e situação seguem).
+  Motivo obrigatório (evento `archived`; `unarchived` sem motivo). Lista: `scopeArchived(false)` em
+  Todos/Para validar/Em assinatura e nos contadores; aba `?aba=arquivados` com `scopeArchived()`. Policy
+  `archive` = `manage`. Rotas `contracts.archive`, `contracts.unarchive`. Cartão "Cancelar ou arquivar" na
+  tela do contrato (substituiu o link "Cancelar o contrato").
+- **Vigência** (05/11/2026, decisões do usuário): `content.validity` = `{months, until}`
+  (`ContractContent::validity`; meses a partir da assinatura, ou data fixa que vale no lugar). Campo em
+  Dados gerais do editor (`contentInput` aceita `validity`). Quando o documento vai para **assinado**,
+  `SignatureStateMachine::documentTo` chama (depois do commit, `DB::afterCommit`)
+  `ContractService::documentSigned`: grava `signed_at`, `expires_on` (`SignatureContract::expiryFrom`:
+  `addMonthsNoOverflow`) e o evento `signed`. Contrato já assinado (os antigos, correção):
+  `setValidity` (rota `contracts.validity`, policy `manage`, cartão Vigência) — só a vigência muda,
+  término recalculado pela assinatura, avisos zerados (evento `validity_changed`). Migration
+  `2026_11_05_120000` (`signed_at`, `expires_on`, `expiry_alerts`).
+- **Aviso de término**: comando `contratos:avisar-vencimento` (diário, 08:00, `routes/console.php`) →
+  `sendExpiryAlerts`: aprovados não arquivados com término entre hoje e +60 dias; marcos
+  `SignatureContract::EXPIRY_ALERT_DAYS` = 60, 30, 15, cada um uma vez (`expiry_alerts`); passou de vários
+  de uma vez = um aviso só. Para quem redigiu e o setor (`TO_AUTHOR`, `TO_SECTOR`). Sem e-mail. Lista:
+  aba `?aba=vencendo` (`scopeExpiring`: término até +60 dias ou vencido, sem cancelados), "Vigente até"
+  na coluna Situação; tela: cartão Vigência com "Vence em N dias"/"Vencido" (`expiryState`).
+- **Notificações no navegador** (05/11/2026): `ContractNotifier` → `App\Notifications\ContractMovement`
+  (canal `database`, `type` = `contract_<tipo>`, `url` = tela do contrato) — o mesmo caminho dos avisos: o
+  sino e o poll do layout (`notifications.unread-json`) que mostra a notificação do navegador. Gerência =
+  TODOS os membros do setor Gerência (o e-mail continua só para o coordenador). Tipos: `submitted`
+  (Gerência), `returned`/`approved`/`adjusted` (quem redigiu; `adjusted` = salvar em validação, um só
+  enquanto não lido), `refused`/`signed`/`canceled` (quem redigiu + Gerência), `expiring` (quem redigiu +
+  setor). Quem fez não recebe. Falha só vai ao log. O notificador consulta `users` (mysql): os testes
+  trocam por um espião (`CreatesSignatureSchema`).
 - **O que mudou**: a tela compara a cópia atual com a última versão **devolvida** (`ContractDiff`):
   cláusulas e itens casados por `uid` (mover não é apagar+criar), diferença palavra a palavra, mais
   partes, variáveis, considerandos e signatários.
@@ -153,8 +189,11 @@ Decisões do usuário entre parênteses.
 ### Bloco de assinaturas
 - Nome em **maiúsculas** e, embaixo, só o **cargo** — sem o papel (CONTRATANTE, CONTRATADA, Testemunha). Decisão
   do usuário (05/11/2026).
-- Cargo: diretor = a área da relação em Assinaturas → Diretoria (no PDF, `SignatureSigner::directorLabel()`, com
-  "(substituto)"; na prévia e no Word, o nome da área); demais = o "Cargo / qualidade" digitado (`caption`).
+- Cargo: diretor = a área da relação em Assinaturas → Diretoria (no PDF, `SignatureSigner::directorLabel(false)`;
+  na prévia e no Word, o nome da área) — **sem "titular"/"substituto"/"suplente"** em lugar nenhum do documento
+  (05/11/2026); demais = o "Cargo / qualidade" digitado (`caption`). O editor gravava o nome do diretor como
+  "Fulano (Titular)" (o texto da opção tinha quebra de linha e o regex não limpava): corrigido no JS, e
+  `ContractContent::directorName` limpa no `normalize` e no `documentSigners` (contratos já gravados).
   `ContractRenderer::documentSigners` devolve `cargo`; o PDF usa `SignatureDocumentRenderer::contractCaptions`
   (só documento de contrato; o documento comum segue com a parte do modelo) na área de assinatura
   (`pdf/signature-area`, `$contractCaptions`) e na caixa do visto ("Visto — NOME").
@@ -618,6 +657,11 @@ A revisão automática usa `config/claude.php` (`ANTHROPIC_API_KEY`, `CLAUDE_CON
   (rotas novas: `contracts.autosave`, `contracts.refuse-signature`, `contract-providers.*`,
   `contracts.link-addendum`, `contracts.unlink-addendum`) e `npm run build`
   (`split-*` e classes novas). Nenhuma permissão nova.
+- Também 05/11/2026 (cancelar e arquivar): migration `2026_11_05_110000` (`archived_at`, `archived_by_name`)
+  e `route:cache` (`contracts.archive`, `contracts.unarchive`). Nenhuma permissão nova.
+- Também 05/11/2026 (vigência e notificações): migration `2026_11_05_120000`, `route:cache`
+  (`contracts.validity`) e o comando agendado `contratos:avisar-vencimento` (precisa do `schedule:run` no cron do
+  servidor, o mesmo dos avisos). Nenhuma permissão nova.
 - Modelos-base (04/11/2026): depois do deploy, `php artisan contratos:modelos-base --setor=<setor>` para cada
   setor que vai usá-los (modelo e cláusula são por setor). Rodar de novo não duplica.
 - Deploy de 04/11/2026 (módulo próprio): a migration `2026_11_04_100000` (trechos anexados), o seed cria
@@ -628,6 +672,12 @@ A revisão automática usa `config/claude.php` (`ANTHROPIC_API_KEY`, `CLAUDE_CON
 
 ## Testes
 
+`tests/Feature/SignatureContractValidityNotificationsTest.php` (05/11/2026): vigência (normalizar, término pela
+assinatura, data fixa, informar depois de assinado, campo no editor), avisos 60/30/15 uma vez cada, aba Vencendo,
+quem recebe cada notificação, formato da notificação e o notificador que não avisa quem fez nem derruba o fluxo.
+`tests/Feature/SignatureContractCancelArchiveTest.php` (05/11/2026): cancelar com motivo e e-mail, sem motivo não
+cancela, em assinatura cancela o documento junto, assinado não cancela, arquivar/desarquivar e a aba Arquivados,
+acesso do setor e o cartão na tela.
 `tests/Feature/SignatureContractAddendumTest.php` (05/11/2026): cabeçalho fixo, PDF sem o título, aditivo só de
 assinado, herança (só a contratada assina), base no último aditivo assinado, `[[original:…]]`, Novo contrato como
 aditivo, marcar (só completa) e desmarcar, e não mudar depois de aprovado.

@@ -100,6 +100,36 @@ class ContractContent
             'clauses' => self::clauses($input['clauses'] ?? []),
             'signers' => self::signers($input['signers'] ?? []),
             'addendum' => self::addendum($input['addendum'] ?? null),
+            'validity' => self::validity($input['validity'] ?? null),
+        ];
+    }
+
+    /** Prazo de vigência: até 30 anos. */
+    public const MAX_VALIDITY_MONTHS = 360;
+
+    /**
+     * Vigência (05/11/2026, decisão do usuário): o prazo em meses A PARTIR DA
+     * ASSINATURA (o término é calculado quando o documento termina de ser
+     * assinado) ou, se preferir, uma data de término fixa. A data fixa vence
+     * o prazo. Os dois em branco = sem vigência (não há aviso de término).
+     *
+     * @return array{months: ?int, until: ?string}
+     */
+    public static function validity(mixed $valor): array
+    {
+        $valor = is_array($valor) ? $valor : [];
+        $meses = (int) ($valor['months'] ?? 0);
+        $ate = trim((string) ($valor['until'] ?? ''));
+
+        try {
+            $ate = $ate !== '' ? \Illuminate\Support\Carbon::parse($ate)->toDateString() : null;
+        } catch (\Throwable) {
+            $ate = null;
+        }
+
+        return [
+            'months' => $meses > 0 ? min($meses, self::MAX_VALIDITY_MONTHS) : null,
+            'until' => $ate,
         ];
     }
 
@@ -206,6 +236,16 @@ class ContractContent
     public static function keyFor(string $label): string
     {
         return mb_substr(Str::slug($label, '_'), 0, 40);
+    }
+
+    /**
+     * Nome do diretor sem o papel (05/11/2026): o editor gravava "Fulano
+     * (Titular)" a partir do texto da lista. Nos documentos não sai
+     * titular, substituto nem suplente.
+     */
+    public static function directorName(string $name): string
+    {
+        return trim((string) preg_replace('/\s*\((titular|substitut[oa]|suplente)\)\s*$/iu', '', $name));
     }
 
     /** Identificador curto e estável de cláusula, item, parte e signatário. */
@@ -367,7 +407,9 @@ class ContractContent
                 'source' => $fonte,
                 'area_id' => $fonte === 'director' && $areaId > 0 ? $areaId : null,
                 'user_id' => $fonte === 'director' && $userId > 0 ? $userId : null,
-                'name' => self::line($signer['name'] ?? '', 200),
+                'name' => $fonte === 'director'
+                    ? self::directorName(self::line($signer['name'] ?? '', 200))
+                    : self::line($signer['name'] ?? '', 200),
                 'cpf' => Cpf::digits($signer['cpf'] ?? ''),
                 'email' => mb_strtolower(self::line($signer['email'] ?? '', 150)),
                 'phone' => self::line($signer['phone'] ?? '', 30),

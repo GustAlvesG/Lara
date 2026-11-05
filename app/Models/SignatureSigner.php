@@ -204,13 +204,23 @@ class SignatureSigner extends Model
      * A parte declarada no modelo ("Contratante") quando há; senão o papel
      * genérico ("Signatário"), como sempre foi.
      */
-    public function capacityLabel(): string
+    public function capacityLabel(bool $withDirectorRole = true): string
     {
         if ($this->isDirector()) {
-            return collect([$this->party_label, $this->directorLabel()])->filter()->join(' — ');
+            return collect([$this->party_label, $this->directorLabel($withDirectorRole)])->filter()->join(' — ');
         }
 
         return $this->party_label ?: $this->roleLabel();
+    }
+
+    /**
+     * O que sai nos DOCUMENTOS (PDF, manifesto, relatório, carimbo): sem
+     * "titular"/"substituto" (decisão do usuário, 05/11/2026). As telas e
+     * e-mails seguem com o papel do diretor.
+     */
+    public function documentCapacityLabel(): string
+    {
+        return $this->capacityLabel(false);
     }
 
     /**
@@ -223,15 +233,18 @@ class SignatureSigner extends Model
         return $this->director_area_id !== null && $this->user_id !== null;
     }
 
-    /** "Diretoria Financeira" ou "Diretoria Financeira (substituto)". */
-    public function directorLabel(): ?string
+    /**
+     * "Diretoria Financeira" ou "Diretoria Financeira (substituto)". Sem o
+     * papel (`$withRole = false`) nos documentos (05/11/2026).
+     */
+    public function directorLabel(bool $withRole = true): ?string
     {
         if (!$this->isDirector()) {
             return null;
         }
 
         return $this->director_area_name
-            . ($this->director_role === SignatureDirectorAreaHolder::ROLE_SUBSTITUTE ? ' (substituto)' : '');
+            . ($withRole && $this->director_role === SignatureDirectorAreaHolder::ROLE_SUBSTITUTE ? ' (substituto)' : '');
     }
 
     /**

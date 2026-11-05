@@ -179,7 +179,7 @@
             @foreach($signers as $signer)
                 <tr>
                     <td>
-                        <b>{{ $signer->name }}</b> — {{ $signer->capacityLabel() }}<br>
+                        <b>{{ $signer->name }}</b> — {{ $signer->documentCapacityLabel() }}<br>
                         <span class="muted">CPF {{ $signer->maskedCpf() }}</span>
                     </td>
                     <td>

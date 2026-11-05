@@ -143,7 +143,7 @@ class SignatureStateMachine
             );
         }
 
-        return DB::transaction(function () use ($document, $to, $event, $attributes, $context) {
+        $resultado = DB::transaction(function () use ($document, $to, $event, $attributes, $context) {
             $from = $document->status;
 
             $document->forceFill(array_merge($attributes, ['status' => $to]))->save();
@@ -152,6 +152,24 @@ class SignatureStateMachine
 
             return $document;
         });
+
+        // Contrato (05/11/2026): todos assinaram — começa a vigência e avisa quem redigiu e a
+        // Gerência. Depois do commit (DB::afterCommit cobre a transação de quem chamou);
+        // falha aqui não desfaz a assinatura.
+        if ($to === SignatureDocument::STATUS_SIGNED && $document->isContract()) {
+            DB::afterCommit(function () use ($document) {
+                try {
+                    app(\App\Services\Signature\Contracts\ContractService::class)->documentSigned($document);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Contrato: vigência/aviso de assinatura não registrados.', [
+                        'documento' => $document->id,
+                        'erro' => $e->getMessage(),
+                    ]);
+                }
+            });
+        }
+
+        return $resultado;
     }
 
     /**

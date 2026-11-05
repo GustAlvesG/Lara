@@ -70,6 +70,17 @@ Detalhes em [contratos.md › Cabeçalho fixo e aditivos](../funcionalidades/con
   `cantSplit`); no Word, linha + nome + cargo também com `keepNext` para não se separarem entre folhas.
 - Marcar/desmarcar como aditivo antes da aprovação (`canChangeKind`, policy `changeKind`, rotas
   `contracts.link-addendum`/`unlink-addendum`); marcar só completa (`completeFrom`).
+- Cancelar até a assinatura terminar (`canBeCanceled`; cancela o documento junto) e arquivar qualquer um
+  (`archived_at`, só tira das abas; aba `arquivados`), motivo obrigatório nos dois; policies `cancel`/`archive`
+  (setor e Gerência); rotas `contracts.cancel`/`archive`/`unarchive`; e-mail `SignatureContractCanceledMail`.
+  Toda consulta nova da lista precisa de `archived(false)`.
+- Vigência: `content.validity` {months, until}; ao ir para assinado (`SignatureStateMachine::documentTo` →
+  `ContractService::documentSigned`) grava `signed_at`/`expires_on`; `setValidity` para os já assinados
+  (`contracts.validity`). Aviso a 60/30/15 dias (`contratos:avisar-vencimento`, diário 08:00, `expiry_alerts`),
+  aba `vencendo`.
+- Notificações (sino + navegador, como os avisos): `ContractNotifier` → `ContractMovement` (database). Consulta
+  `users` (mysql): nos testes é um espião (`CreatesSignatureSchema`). Movimentação nova = chame
+  `$this->notifier->notify(...)` no ContractService.
 
 ## Revisões da apresentação (05/11/2026)
 

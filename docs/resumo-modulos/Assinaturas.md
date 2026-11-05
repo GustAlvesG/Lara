@@ -484,6 +484,8 @@ pendentes dele. Doc completa: seção "Assinatura Diretoria" de `docs/funcionali
   resolve no servidor (`DirectorAreaService::signerData`) e descarta nome/CPF/`user_id`/`director_*` do formulário.
   Signatário ganha `user_id`, `director_area_id`, retrato `director_area_name`/`director_role`, `director_notified_at`
   (`isDirector()`, `directorLabel()`, `capacityLabel()`). O `role` continua `signer` (enum intocado).
+  Nos DOCUMENTOS (PDF, manifesto, relatório, carimbo, visto) use `documentCapacityLabel()`: sem
+  titular/substituto (05/11/2026); telas e e-mails seguem com `capacityLabel()`.
   Parte do modelo pode ter `director_area_id` (JSON `parties`): o formulário já traz o titular.
 - **Congelar:** prazo `signature.directors.ttl_days`; job `NotifySignatureDirector` (fila, `afterCommit`) manda
   `SignatureDirectorPendingMail`, grava `director_notified_at` e o evento `director_notified`.

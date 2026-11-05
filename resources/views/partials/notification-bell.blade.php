@@ -38,8 +38,8 @@
                 @php
                     $data = $notification->data;
                     $glyph = match ($data['type'] ?? '') {
-                        'aviso_expiring' => 'clock',
-                        default => 'bell',
+                        'aviso_expiring', 'contract_expiring' => 'clock',
+                        default => str_starts_with($data['type'] ?? '', 'contract_') ? 'doc' : 'bell',
                     };
                 @endphp
                 <a href="{{ route('notifications.markRead', $notification->id) }}"

@@ -27,6 +27,10 @@ trait CreatesSignatureSchema
 {
     protected function createSignatureSchema(): void
     {
+        // As notificações dos contratos consultam `users` (conexão mysql): na suíte,
+        // um espião no lugar (05/11/2026). Quem testa as notificações troca por outro.
+        $this->app->instance(\App\Services\Signature\Contracts\ContractNotifier::class, \Mockery::spy(\App\Services\Signature\Contracts\ContractNotifier::class));
+
         $migrations = [
             '2026_09_22_120000_create_signature_templates_table.php',
             '2026_09_22_120100_create_signature_documents_table.php',
@@ -69,6 +73,10 @@ trait CreatesSignatureSchema
             '2026_11_04_110000_add_approval_initials_to_contracts_and_documents.php',
             // Salvar automático do contrato (revisão do texto) e prestadores (05/11/2026).
             '2026_11_05_100000_add_providers_and_autosave_to_contracts.php',
+            // Arquivar contrato (05/11/2026).
+            '2026_11_05_110000_add_archive_to_signature_contracts.php',
+            // Vigência e aviso de término (05/11/2026).
+            '2026_11_05_120000_add_validity_to_signature_contracts.php',
         ];
 
         foreach ($migrations as $arquivo) {

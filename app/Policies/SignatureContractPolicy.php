@@ -101,6 +101,21 @@ class SignatureContractPolicy
     }
 
     /**
+     * Cancelar (05/11/2026): o setor e a Gerência, até a assinatura terminar
+     * (`SignatureContract::canBeCanceled`).
+     */
+    public function cancel(User $user, SignatureContract $contract): bool
+    {
+        return $contract->canBeCanceled() && $this->manage($user, $contract);
+    }
+
+    /** Arquivar e desarquivar (05/11/2026): o setor e a Gerência, qualquer contrato. */
+    public function archive(User $user, SignatureContract $contract): bool
+    {
+        return $this->manage($user, $contract);
+    }
+
+    /**
      * Consultar a biblioteca de cláusulas e modelos do setor: quem redige ou
      * quem cuida da biblioteca (e a Gerência).
      */

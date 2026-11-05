@@ -1589,6 +1589,11 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
                 ->middleware('throttle:6,1')->name('ai-review');
             Route::post('/reabrir', [SignatureContractController::class, 'reopen'])->name('reopen');
             Route::post('/cancelar', [SignatureContractController::class, 'cancel'])->name('cancel');
+            // Arquivar/desarquivar: só tira das abas do dia a dia (05/11/2026).
+            Route::post('/arquivar', [SignatureContractController::class, 'archive'])->name('archive');
+            Route::post('/desarquivar', [SignatureContractController::class, 'unarchive'])->name('unarchive');
+            // Vigência de contrato já assinado (05/11/2026).
+            Route::post('/vigencia', [SignatureContractController::class, 'validity'])->name('validity');
             Route::post('/aditivo', [SignatureContractController::class, 'addendum'])->name('addendum');
             // Marcar/desmarcar como aditivo de um contrato assinado, antes da aprovação (05/11/2026).
             Route::post('/vincular-aditivo', [SignatureContractController::class, 'linkAddendum'])

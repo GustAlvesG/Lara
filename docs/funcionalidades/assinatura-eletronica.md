@@ -549,8 +549,9 @@ Regras em `App\Services\Signature\Directors\DirectorAreaService`.
 - No modelo, uma parte pode ser **Assinada pela diretoria** (`parties[].director_area_id`): o
   documento nasce com o titular da área escolhido, e o atendente pode trocar por um substituto.
 - O signatário guarda `user_id`, `director_area_id` e o retrato `director_area_name`/`director_role`.
-  Sob o nome sai "Parte — Diretoria Financeira" ou "Diretoria Financeira (substituto)"
-  (`SignatureSigner::capacityLabel`).
+  Nas telas e e-mails sai "Parte — Diretoria Financeira" ou "Diretoria Financeira (substituto)"
+  (`SignatureSigner::capacityLabel`). **Nos documentos** (PDF, manifesto, relatório gov.br, carimbo e caixa do
+  visto) sai só a área, sem titular/substituto (`documentCapacityLabel()`, decisão do usuário, 05/11/2026).
 
 ### Congelamento: prazo e aviso
 

@@ -348,7 +348,8 @@
         if (diretor) {
             var opcao = diretor.options[diretor.selectedIndex];
             diretor.closest('[data-row="signer"]').querySelector('[data-director-name]').value =
-                diretor.value ? opcao.textContent.replace(/\s*\(.*$/, '').trim() : '';
+                // trim ANTES: a quebra de linha do <option> impedia o regex de tirar o "(Titular)" (05/11/2026).
+                diretor.value ? opcao.textContent.trim().replace(/\s*\([^)]*\)[\s\S]*$/, '').trim() : '';
         }
 
         marca(true);
