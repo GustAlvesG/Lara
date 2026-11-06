@@ -103,6 +103,14 @@ Detalhes em [contratos.md › Revisões da apresentação](../funcionalidades/co
   O presidente vê o que aguarda a assinatura dele (`view`), mas `manage` não.
 - **Andamento:** aba "Em assinatura" (`scopeInSigning`), coluna Assinatura e cartão na tela
   (`signingProgress()`, `partials/signing-progress`).
+- **Editar modelo (06/11/2026):** Biblioteca › Modelos › **Editar** (`contract-library.models.edit|update|preview|
+  clauses`, `ContractLibraryController`, `manageLibrary` + setor visível). View `signature/contracts/model-edit`,
+  que reaproveita as partials do editor com `'modelo' => true` (party: só papel/tipo/termo; signer: só papel,
+  cargo e diretor; variable: sem "Preenchimento") e o `editor-js` com `urls.autosave = null` (sem salvar
+  automático). Grava por `ContractService::updateModel` → `modelOnly()` (a mesma régua do `saveAsModel`, que
+  descarta dados de pessoa, valores e a data fixa da vigência). Conferência: `ContractRenderer::problems($c, true)`
+  (não cobra contratada, preenchimento, signatários nem presidente). Contrato já feito não muda (tem cópia).
+  Coluna `updated_by_name` (migration `2026_11_06_100000`).
 
 ## Detalhes (desde 27/10/2026)
 

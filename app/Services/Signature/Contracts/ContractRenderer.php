@@ -382,9 +382,14 @@ class ContractRenderer
      * O que impede o contrato de ir à Gerência (`error`) e o que vale
      * conferir (`warning`). A mesma lista trava o envio e a aprovação.
      *
+     * Com `$model` (edição do modelo, 06/11/2026), confere só o que é do
+     * modelo: título, CNPJ do clube, cláusulas, itens, remissões e variáveis
+     * que não existem. Não cobra o que só o contrato preenche — dados da
+     * contratada, preenchimento das variáveis, quem assina, presidente.
+     *
      * @return array<int, array{level: string, message: string, clause: ?string}>
      */
-    public function problems(array $content): array
+    public function problems(array $content, bool $model = false): array
     {
         $problemas = [];
         $erro = function (string $mensagem, ?string $clausula = null) use (&$problemas) {
@@ -402,21 +407,25 @@ class ContractRenderer
             $erro('Escolha por qual CNPJ do clube o contrato é feito.');
         }
 
-        if (!$this->club->president()) {
-            $erro('Não há titular na área "' . config('signature.contracts.president_area')
-                . '" (Assinaturas → Diretoria). O presidente representa o clube e assina o contrato.');
+        if (!$model) {
+            if (!$this->club->president()) {
+                $erro('Não há titular na área "' . config('signature.contracts.president_area')
+                    . '" (Assinaturas → Diretoria). O presidente representa o clube e assina o contrato.');
+            }
+
+            $this->partyProblems($content, $erro, $aviso);
+            $this->variableProblems($content, $erro);
+            $this->signerProblems($content, $erro, $aviso);
         }
 
-        $this->partyProblems($content, $erro, $aviso);
-        $this->variableProblems($content, $erro);
-        $this->signerProblems($content, $erro, $aviso);
-
         if (($content['clauses'] ?? []) === []) {
-            $erro('O contrato não tem cláusulas.');
+            $erro($model ? 'O modelo não tem cláusulas.' : 'O contrato não tem cláusulas.');
         }
 
         // Variáveis e remissões: o mesmo resolvedor da montagem, recolhendo o que não fecha.
         $ctx = $this->context($content, null, false);
+        // No modelo, variável sem preenchimento é o normal: quem preenche é o contrato.
+        $ctx['model'] = $model;
         $termos = $this->terms($content);
 
         foreach ($content['considerations'] ?? [] as $i => $html) {
@@ -624,7 +633,7 @@ class ContractRenderer
 
             if (!isset($ctx['values'][$chave])) {
                 $erro('A variável [[' . $token . ']] ' . $onde . ' não existe. Crie a variável ou corrija o nome.', $clausula);
-            } elseif ($ctx['values'][$chave][0] === '' && $ctx['values'][$chave][1] === null && !in_array($chave, ['numero'], true)) {
+            } elseif (empty($ctx['model']) && $ctx['values'][$chave][0] === '' && $ctx['values'][$chave][1] === null && !in_array($chave, ['numero'], true)) {
                 $erro('A variável [[' . $token . ']] ' . $onde . ' não foi preenchida (passo Variáveis).', $clausula);
             }
         }

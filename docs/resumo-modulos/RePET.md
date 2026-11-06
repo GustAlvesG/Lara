@@ -33,6 +33,22 @@ sócio** (portal do site de locação + e-mail). Telas no menu **RePET** (`repla
 5. `replay:prune` (03:30, `routes/console.php`) apaga do FTP, a cópia e o registro do que passou
    de 7 dias **da gravação**. FTP fora → para e sai com falha; o resto fica para a noite seguinte.
 
+## Transmissões ao vivo (desde 06/11/2026)
+
+Aba **Transmissões** (`replay.broadcasts.*`, permissão própria `P::REPLAY_TRANSMISSAO` =
+`replay.transmissao`, rotas fora do grupo `can:replay`). Aqui o **Lara chama** o servidor do
+rePET (`app/Services/Replay/RepetClient.php`, config `services.repet` ← `REPET_API_URL` /
+`REPET_API_TOKEN`). Nada é gravado no banco: a tela (Alpine, `resources/views/replay/broadcasts/index.blade.php`)
+consulta `GET /status` a cada 3 s via `replay.broadcasts.status`, e as ações (`Web\BroadcastController`)
+respondem JSON.
+
+- Dois modos excludentes por quadra: com placar (`/broadcast/{q}/*`) e direta (`/live/{q}`).
+- **Nunca adicione retry** no `RepetClient`: ponto, set e volume em passo não são idempotentes.
+- Erro do servidor vira `RepetUnavailable` com o `detail` dele (já em português).
+- `quadra_id` ≠ nome da quadra no servidor (ex.: `loc1-quadra1` é a "Quadra 2"); mostre o `nome`.
+- Ligar/desligar publica no YouTube: em teste, sempre `Http::fake` + `Http::preventStrayRequests()`.
+- Não há vínculo entre `quadra_id` do rePET e `places`/`replay_cameras` do Lara (ainda).
+
 ## Onde mora o arquivo
 
 - `replay_videos.file_path` = caminho **no FTP**, relativo a `REPLAY_FTP_ROOT` (disco `replay_ftp`).
@@ -92,6 +108,8 @@ sócio** (portal do site de locação + e-mail). Telas no menu **RePET** (`repla
   que lança `UnableToConnectToFtpHost` (`Storage::set`).
 - `tests/Feature/Rebrand/ReplayScreensTest.php`: as quatro telas no layout novo, abas da capa e
   menu condicionado à permissão.
+- `tests/Feature/Replay/ReplayBroadcastTest.php`: cliente do rePET, rotas das transmissões,
+  permissão e aba (tudo com `Http::fake`).
 - Confira o isolamento SQLite do `phpunit.xml` antes de rodar:
   `php -d memory_limit=1G vendor/bin/phpunit tests/Feature/Replay`.
 

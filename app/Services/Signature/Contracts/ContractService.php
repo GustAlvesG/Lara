@@ -1114,20 +1114,12 @@ class ContractService
     {
         $conteudo = $contract->content ?? [];
 
-        $modelo = ContractContent::normalize([
+        // Do contrato, o modelo não leva quem assina nem a vigência (só a edição do modelo os põe).
+        $modelo = $this->modelOnly([
             'title' => $conteudo['title'] ?? $contract->title,
-            'establishment' => $conteudo['establishment'] ?? null,
-            'contractor_term' => $conteudo['contractor_term'] ?? null,
-            'parties' => array_map(fn(array $p) => [
-                'role' => $p['role'],
-                'term' => $p['term'],
-                'kind' => $p['kind'],
-            ], $conteudo['parties'] ?? []),
-            'variables' => array_map(fn(array $v) => ['key' => $v['key'], 'label' => $v['label'], 'type' => $v['type'], 'value' => ''], $conteudo['variables'] ?? []),
-            'considerations' => $conteudo['considerations'] ?? [],
-            'clauses' => $conteudo['clauses'] ?? [],
             'signers' => [],
-        ]);
+            'validity' => null,
+        ] + $conteudo);
 
         return SignatureContractModel::create([
             'sector_id' => $contract->sector_id,
@@ -1136,6 +1128,52 @@ class ContractService
             'content' => $modelo,
             'created_by' => $userId,
             'created_by_name' => $userName,
+        ]);
+    }
+
+    /**
+     * Edição do modelo pela Biblioteca (06/11/2026): o mesmo editor do
+     * contrato, gravando por cima do modelo. Passa pela mesma régua do
+     * "Salvar como modelo" (modelOnly): nada de dados de pessoa nem de valor.
+     * Os contratos já feitos com o modelo não mudam — cada um tem a sua cópia.
+     */
+    public function updateModel(SignatureContractModel $model, string $name, array $input, ?string $userName): SignatureContractModel
+    {
+        $model->update([
+            'name' => mb_substr(trim($name), 0, 150),
+            'content' => $this->modelOnly(ContractContent::normalize($input)),
+            'updated_by_name' => $userName !== null ? mb_substr($userName, 0, 120) : null,
+        ]);
+
+        return $model;
+    }
+
+    /**
+     * O que um modelo guarda de um conteúdo: estrutura, termos e texto. Das
+     * partes, só papel, termo e tipo; das variáveis, sem preenchimento; de
+     * quem assina, o papel, o cargo e o diretor (se escolhido) — sem nome,
+     * CPF, e-mail ou telefone; da vigência, só o prazo em meses (data fixa
+     * venceria no modelo).
+     */
+    private function modelOnly(array $conteudo): array
+    {
+        return ContractContent::normalize([
+            'title' => $conteudo['title'] ?? '',
+            'establishment' => $conteudo['establishment'] ?? null,
+            'contractor_term' => $conteudo['contractor_term'] ?? null,
+            'parties' => array_map(fn(array $p) => [
+                'uid' => $p['uid'] ?? null,
+                'role' => $p['role'] ?? null,
+                'term' => $p['term'] ?? null,
+                'kind' => $p['kind'] ?? null,
+            ], $conteudo['parties'] ?? []),
+            'variables' => array_map(fn(array $v) => ['key' => $v['key'], 'label' => $v['label'], 'type' => $v['type'], 'value' => ''], $conteudo['variables'] ?? []),
+            'considerations' => $conteudo['considerations'] ?? [],
+            'clauses' => $conteudo['clauses'] ?? [],
+            'signers' => array_map(fn(array $s) => ($s['source'] ?? 'person') === 'director'
+                ? array_intersect_key($s, array_flip(['uid', 'party', 'source', 'area_id', 'user_id', 'name', 'caption']))
+                : ['uid' => $s['uid'] ?? null, 'party' => $s['party'] ?? null, 'source' => 'person', 'caption' => $s['caption'] ?? ''], $conteudo['signers'] ?? []),
+            'validity' => ['months' => $conteudo['validity']['months'] ?? null, 'until' => null],
         ]);
     }
 

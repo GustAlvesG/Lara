@@ -204,6 +204,7 @@ final class Navigation
                     ['route' => 'replay.layouts.index', 'label' => 'Layouts de Logomarca', 'permission' => P::REPLAY, 'active' => 'replay.layouts.*'],
                     ['route' => 'replay.cameras.index', 'label' => 'Câmeras', 'permission' => P::REPLAY, 'active' => 'replay.cameras.*'],
                     ['route' => 'replay.videos.index', 'label' => 'Vídeos', 'permission' => P::REPLAY, 'active' => 'replay.videos.*'],
+                    ['route' => 'replay.broadcasts.index', 'label' => 'Transmissões', 'permission' => P::REPLAY_TRANSMISSAO, 'active' => 'replay.broadcasts.*'],
                 ],
             ],
             // Funcionários: o cadastro do RH, que autentica o pedido de carro

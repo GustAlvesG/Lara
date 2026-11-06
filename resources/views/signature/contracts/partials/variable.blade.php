@@ -7,8 +7,13 @@
     05/11/2026: "Preenchimento" no lugar de "Valor" (os usuários liam "valor" como dinheiro);
     o tipo sai do nome enquanto a pessoa não escolhe (`data-var-type`, ContractVariables::GUESS);
     embaixo, onde a variável é usada (`data-var-usage`, da prévia). $variableUsage vem do editor.
+
+    $modelo (edição do modelo, 06/11/2026): sem "Preenchimento" — o modelo guarda a
+    variável vazia; quem preenche é o contrato. O campo fica escondido e vazio
+    (`data-var-value`), porque o editor-js o procura.
 --}}
 @php
+    $modelo = $modelo ?? false;
     $f = 'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-grena focus:ring-2 focus:ring-grena-tint';
     $l = 'mb-1 block text-xs font-bold text-ink-2';
     $n = fn (string $campo) => 'variables[' . $k . '][' . $campo . ']';
@@ -23,6 +28,12 @@
         </label>
         <input type="text" name="{{ $n('label') }}" value="{{ $v['label'] ?? '' }}" class="{{ $f }}" maxlength="120" placeholder="Ex.: Prazo de vigência" data-var-label>
     </div>
+    @if($modelo)
+    <div class="flex items-end justify-end">
+        <input type="hidden" name="{{ $n('value') }}" value="" data-var-value>
+        <button type="button" data-remove class="rounded-md px-2 py-1 text-xs font-bold text-danger hover:bg-danger-soft" title="Remover a variável">Remover</button>
+    </div>
+    @else
     <div>
         <div class="flex items-center justify-between gap-2">
             <label class="{{ $l }}">Preenchimento</label>
@@ -30,6 +41,7 @@
         </div>
         <input type="text" name="{{ $n('value') }}" value="{{ $v['value'] ?? '' }}" class="{{ $f }}" maxlength="500" placeholder="O que entra no texto. Ex.: 12, 10/11/2026, 8.900,00" data-var-value>
     </div>
+    @endif
     <div class="sm:col-span-2">
         <label class="{{ $l }}">Tipo (como sai no texto)</label>
         {{-- Já escolhido (variável salva): o palpite pelo nome não mexe mais. --}}

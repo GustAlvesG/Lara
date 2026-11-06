@@ -1,8 +1,11 @@
 {{--
     Uma parte do contrato (contratada ou fiador). $k = chave do formulário
     (o uid, ou __K__ no molde); $p = os dados. Ver ContractContent::parties.
+    $modelo (edição do modelo, 06/11/2026): só papel, tipo e termo — os dados
+    da pessoa são do contrato.
 --}}
 @php
+    $modelo = $modelo ?? false;
     $f = 'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-grena focus:ring-2 focus:ring-grena-tint';
     $l = 'mb-1 block text-xs font-bold text-ink-2';
     $n = fn (string $campo) => 'parties[' . $k . '][' . $campo . ']';
@@ -28,6 +31,7 @@
         </div>
     </div>
 
+    @unless($modelo)
     <div class="flex flex-wrap items-end gap-2 rounded-lg bg-subtle p-2">
         <div class="min-w-0 flex-1">
             <label class="{{ $l }}">Buscar nos Prestadores</label>
@@ -35,12 +39,16 @@
         </div>
         <div data-party-results class="w-full space-y-1"></div>
     </div>
+    @endunless
 
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
             <label class="{{ $l }}">Termo no contrato</label>
             <input type="text" name="{{ $n('term') }}" value="{{ $p['term'] ?? 'CONTRATADA' }}" class="{{ $f }} uppercase" maxlength="40" placeholder="CONTRATADA, LOCATÁRIA…">
         </div>
+        @if($modelo)
+        <p class="self-end text-xs text-ink-3">Nome, documento e endereço se preenchem no contrato feito com o modelo.</p>
+        @else
         <div data-only="pf" @class(['hidden' => ($p['kind'] ?? 'pj') !== 'pf'])>
             <label class="{{ $l }}">Concordância ("inscrito/inscrita")</label>
             <select name="{{ $n('gender') }}" class="{{ $f }} pr-10">
@@ -83,5 +91,6 @@
             <label class="{{ $l }}">E-mail</label>
             <input type="email" name="{{ $n('email') }}" value="{{ $p['email'] ?? '' }}" class="{{ $f }}" maxlength="150">
         </div>
+        @endif
     </div>
 </div>

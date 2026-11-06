@@ -9,6 +9,10 @@
     aviso de conflito (`contracts.autosave`) e as ajudas das variáveis
     (criar do [[marcador]], tipo pelo nome, variável comum, onde é usada,
     "Falta preencher").
+
+    Desde 06/11/2026 serve também à edição do modelo (model-edit): sem
+    `urls.autosave`, não salva sozinho; sem `[data-var-missing]`, não há
+    "Falta preencher".
 --}}
 <script>
 (function () {
@@ -551,7 +555,8 @@
             clearTimeout(espera);
             espera = setTimeout(atualizaPrevia, 1500);
         }
-        if (!conflito) {
+        // Sem `autosave` (edição do modelo, 06/11/2026): grava só no botão Salvar.
+        if (!conflito && CT.urls.autosave) {
             clearTimeout(esperaSalvar);
             esperaSalvar = setTimeout(function () { salvaAuto(false); }, 3000);
         }

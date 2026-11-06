@@ -1,7 +1,8 @@
 {{--
     Biblioteca de cláusulas e modelos de contrato, por setor. A cláusula
     inserida num contrato é copiada: mudar aqui não mexe em contrato feito.
-    Modelos nascem de um contrato ("Salvar como modelo", na tela dele).
+    Modelos nascem de um contrato ("Salvar como modelo", na tela dele) e,
+    desde 06/11/2026, se editam em "Editar" (model-edit, o editor do contrato).
 
     Cadastrar, editar e excluir pedem `contratos.biblioteca` (04/11/2026,
     SignatureContractPolicy::manageLibrary); sem ela, a tela só consulta.
@@ -72,13 +73,17 @@
                     <p class="{{ $h }}">Modelos de contrato</p>
                     @forelse($models as $modelo)
                         <div class="flex items-center justify-between gap-2 text-sm">
-                            <span><b>{{ $modelo->name }}</b> <span class="text-xs text-ink-2">· {{ $modelo->sector_name }} · {{ count($modelo->content['clauses'] ?? []) }} cláusulas</span></span>
+                            <span><b>{{ $modelo->name }}</b> <span class="text-xs text-ink-2">· {{ $modelo->sector_name }} · {{ count($modelo->content['clauses'] ?? []) }} cláusulas
+                                · por {{ $modelo->updated_by_name ?? $modelo->created_by_name ?? '—' }}</span></span>
                             @if($cuida)
-                            <form method="POST" action="{{ route('contract-library.models.destroy', $modelo) }}" onsubmit="return confirm('Remover o modelo?')">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="text-xs font-bold text-danger hover:underline">Remover</button>
-                            </form>
+                            <div class="flex shrink-0 gap-2">
+                                <a href="{{ route('contract-library.models.edit', $modelo) }}" class="text-xs font-bold text-grena-ink hover:underline">Editar</a>
+                                <form method="POST" action="{{ route('contract-library.models.destroy', $modelo) }}" onsubmit="return confirm('Remover o modelo?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-xs font-bold text-danger hover:underline">Remover</button>
+                                </form>
+                            </div>
                             @endif
                         </div>
                     @empty

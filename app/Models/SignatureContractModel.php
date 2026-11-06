@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * Modelo de contrato completo do setor ("Prestação de serviços", "Locação"):
  * título, termos das partes, variáveis (sem valor), considerandos e cláusulas.
  * Um contrato novo parte de uma cópia dele. Ver ContractService::modelContent.
+ * Desde 06/11/2026 se edita pela Biblioteca (ContractService::updateModel).
  */
 class SignatureContractModel extends Model
 {
@@ -21,6 +22,7 @@ class SignatureContractModel extends Model
         'content',
         'created_by',
         'created_by_name',
+        'updated_by_name',
     ];
 
     protected $casts = [

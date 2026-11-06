@@ -537,6 +537,16 @@ de fora sem e-mail (não recebe o link remoto).
 - **Modelos** (`signature_contract_models`, por setor): "Salvar como modelo do setor" na tela do contrato —
   sem dados das partes, sem signatários, variáveis sem valor. Contrato novo a partir do modelo ganha uid
   novo em tudo (`ContractContent::freshUids`, que também troca as remissões internas).
+- **Editar modelo (06/11/2026, pedido do usuário):** na Biblioteca, **Editar** ao lado de cada modelo abre o
+  editor do contrato no modo modelo (`contract-library.models.edit`, view `model-edit`): nome do modelo, título,
+  vigência padrão em meses, CNPJ e termo do clube, partes (papel, tipo e termo), variáveis (nome e tipo, sem
+  preenchimento), considerandos, cláusulas (com "Da biblioteca…" e remissões) e quem assina (papel, cargo e
+  diretor). Prévia e Conferência ao lado (`models.preview`; `ContractRenderer::problems($conteudo, true)` não
+  cobra o que só o contrato preenche). **Sem salvar automático:** grava no botão Salvar (`models.update`), por
+  `ContractService::updateModel`, que passa pela mesma régua do "Salvar como modelo" (`modelOnly`: descarta nome,
+  documento, CPF, e-mail, preenchimento e data fixa da vigência). Quem: `contratos.biblioteca`, nos setores que
+  vê (a Gerência, em todos). Contratos já feitos com o modelo não mudam; os próximos saem do modelo editado,
+  inclusive com os signatários que ele tiver. Quem editou por último: `updated_by_name`.
 - **Aditivo**: copia o conteúdo do original (partes, variáveis, signatários, estabelecimento), título
   "Termo aditivo ao contrato {número}" e uma cláusula em branco. Aditivo de aditivo vira aditivo do original.
 - **Modelos-base (04/11/2026, pedido do usuário):** os contratos reais do clube (PDFs) viraram 10 modelos e
@@ -620,7 +630,7 @@ Migration `2026_10_29_100000_create_signature_contracts` (idempotente, nomes cur
 | `signature_contract_events` | histórico (só inserção) |
 | `signature_contract_attachments` | arquivo no disco `signature.disk` em `signature/contracts/{id}/anexos/`, `sha256` |
 | `signature_contract_clauses` | biblioteca por setor (`items` JSON), SoftDeletes |
-| `signature_contract_models` | modelos por setor (`content` JSON), SoftDeletes |
+| `signature_contract_models` | modelos por setor (`content` JSON), SoftDeletes; `updated_by_name` (quem editou por último, migration `2026_11_06_100000`) |
 | `signature_contract_parties` | prestadores (contratadas/fiadores) por `document`; `active` e `created_by_name` (migration `2026_11_05_100000`) |
 | `signature_contract_ai_reviews` | revisão do Claude (migration `2026_10_29_110000`): `content_hash`, `model`, `verdict`, `summary`, `findings` (JSON), `input_tokens`/`output_tokens`, quem pediu; `withheld` (JSON, migration `2026_10_29_130000`: trechos não enviados, `{key, label, reasons}`; nulo = tudo foi) |
 
@@ -662,6 +672,9 @@ A revisão automática usa `config/claude.php` (`ANTHROPIC_API_KEY`, `CLAUDE_CON
 - Também 05/11/2026 (vigência e notificações): migration `2026_11_05_120000`, `route:cache`
   (`contracts.validity`) e o comando agendado `contratos:avisar-vencimento` (precisa do `schedule:run` no cron do
   servidor, o mesmo dos avisos). Nenhuma permissão nova.
+- Deploy de 06/11/2026 (editar modelo): migration `2026_11_06_100000` (`updated_by_name` em
+  `signature_contract_models`) e `route:cache` (`contract-library.models.edit`, `.update`, `.preview`,
+  `.clauses`). Nenhuma permissão nova (usa `contratos.biblioteca`).
 - Modelos-base (04/11/2026): depois do deploy, `php artisan contratos:modelos-base --setor=<setor>` para cada
   setor que vai usá-los (modelo e cláusula são por setor). Rodar de novo não duplica.
 - Deploy de 04/11/2026 (módulo próprio): a migration `2026_11_04_100000` (trechos anexados), o seed cria
@@ -688,7 +701,8 @@ tela, aba "Em assinatura" com o andamento.
 
 `tests/Feature/SignatureContractTest.php` (numeração, remissão que acompanha, extenso, problemas, ciclo
 completo com e-mails, número único entre setores, ajuste da Gerência, aditivo, reabrir, anexos, cadastro
-de contratadas, Word, modelos, acesso por setor, telas e biblioteca), `tests/Unit/NumeroPorExtensoTest.php` e
+de contratadas, Word, modelos, edição do modelo — acesso, gravar sem dados de pessoa sem mexer no contrato feito,
+conferência do modelo —, acesso por setor, telas e biblioteca), `tests/Unit/NumeroPorExtensoTest.php` e
 `tests/Feature/SignatureContractAiReviewTest.php` (pedido à API por HTTP falso, erros traduzidos, revisão guardada
 e reaproveitada, só a Gerência, trechos anexados). `tests/Feature/SignatureContractBaseModelsTest.php` preenche cada modelo-base e exige zero problemas no
 `problems()` (variável inexistente, remissão quebrada ou digitada, termo parecido) e testa o comando.

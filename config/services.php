@@ -101,4 +101,23 @@ return [
         'portal_url' => env('REPLAY_PORTAL_URL'),
         'ffmpeg' => env('REPLAY_FFMPEG_PATH', 'ffmpeg'),
     ],
+
+    /*
+     * Servidor do rePET nas quadras — transmissão ao vivo no YouTube (com
+     * placar ou direta). É o Lara que CHAMA o servidor (RepetClient), ao
+     * contrário dos clipes, que o servidor manda ao Lara.
+     *
+     * Sem `url` ou sem `token` a aba Transmissões mostra a integração como
+     * desligada. O token é uma chave nomeada do servidor do rePET, revogável
+     * sozinha: só no .env do servidor, nunca no repositório.
+     *
+     * Timeouts do contrato: leitura e placar 10 s; ligar 30 s (o servidor
+     * sonda a câmera, às vezes por ~10 s).
+     */
+    'repet' => [
+        'url' => env('REPET_API_URL'),
+        'token' => env('REPET_API_TOKEN'),
+        'timeout' => (int) env('REPET_API_TIMEOUT', 10),
+        'start_timeout' => (int) env('REPET_API_START_TIMEOUT', 30),
+    ],
 ];

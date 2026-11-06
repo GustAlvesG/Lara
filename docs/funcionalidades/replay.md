@@ -26,7 +26,7 @@ Nas quadras há uma câmera e um botão. Quem aperta o botão guarda os **últim
 
 ## No menu
 
-Grupo **RePET** (área do Placar), com as quatro telas como páginas. Na navegação por **Módulos**, a capa da área mostra as quatro como abas. O módulo não tem mais abas próprias.
+Grupo **RePET** (área do Placar), com as quatro telas como páginas, mais **Transmissões** (desde 06/11/2026, permissão própria). Na navegação por **Módulos**, a capa da área mostra como abas as que a pessoa alcança. O módulo não tem mais abas próprias.
 
 ## 1. Configuração de Vídeo
 
@@ -91,6 +91,49 @@ Tela: **RePET › Vídeos**.
 Galeria com player, filtros (esporte, quadra, data, com/sem reserva), download e exclusão manual. Cada card mostra quantos dias faltam para o vídeo expirar.
 
 A exclusão manual apaga o clipe **do FTP** e a cópia do Lara. Com o FTP fora do ar, nada é apagado: a tela avisa e é só tentar de novo.
+
+## 5. Transmissões (ao vivo no YouTube)
+
+Tela: **RePET › Transmissões** (`replay.broadcasts.index`), desde 06/11/2026. Permissão própria
+`replay.transmissao` ("Transmissões ao vivo no YouTube: ligar, desligar e controlar o placar"),
+separada da `replay`: ligar publica vídeo para o público, e quem opera o placar na quadra não
+precisa mexer em câmera nem layout. Nasce sem setor.
+
+Aqui o sentido da integração é o inverso dos clipes: **o Lara chama o servidor do rePET**
+(`RepetClient`, `REPET_API_URL` + `REPET_API_TOKEN`, Bearer). O Lara não guarda estado nenhum: a
+tela consulta `GET /status` do servidor a cada 3 s e mostra um cartão por quadra.
+
+Dois modos, **excludentes na mesma quadra**:
+
+- **Com placar** (`/broadcast/{q}/*`): o servidor desenha nomes das duplas, pontos e sets sobre o
+  vídeo. Botões `+1 ponto`, `−1 ponto`, `+1 set` (zera os pontos dos dois lados; pede confirmação),
+  `−1 set` (não mexe nos pontos). Em "Nomes, correção do placar e volume": trocar nomes, gravar o
+  placar exato (campo vazio não muda), zerar e volume (0–400 %, 100 = original).
+- **Sem placar / direta** (`/live/{q}`): a câmera empurra o vídeo ao YouTube sozinha. Só liga e desliga.
+
+Regras do servidor que a tela reflete:
+
+- Quadra sem stream key (`tem_stream_key: false`) não liga — os botões ficam desabilitados.
+- Quadras que dividem a mesma stream key: com uma no ar, a outra não liga (aviso no cartão).
+- No máximo 2 transmissões com placar ao mesmo tempo (o servidor recusa a 3ª com 409; a mensagem
+  dele aparece no cartão).
+- A transmissão desliga sozinha no prazo máximo do servidor (2 h por padrão); o cartão mostra
+  "desliga sozinho em…". O servidor reinicia às 06:00 e relança as transmissões com placar.
+- "Jogo novo" (padrão ao ligar) = `reset: true`: placar 0 × 0 **e volume 100 %**. Desmarcado,
+  religa o mesmo jogo sem zerar.
+- Nomes viram maiúsculas com até 14 caracteres no vídeo (normalização do servidor).
+
+**Ponto, set e volume não são idempotentes.** O `RepetClient` nunca repete uma chamada; a tela
+trava os botões da quadra enquanto uma ação está em curso e, depois de timeout, pede para conferir
+o placar antes de repetir. Ligar e desligar vão para o log (`RePET: ligou/desligou a transmissão`,
+com `quadra`, `modo` e `user_id`).
+
+O `quadra_id` (ex.: `loc1-quadra1`) é a chave do servidor; o que a tela mostra é o `nome` — e os
+dois **não batem** (em 06/11/2026, `loc1-quadra1` é a "Quadra 2"). Os cartões são ordenados pelo nome.
+
+Fora do escopo, de propósito: o replay manual (`POST /replay/{q}`) e a exclusão de clipe no servidor.
+
+Nenhuma mudança na aplicação externa: o Lara só consome a API do rePET como ela está.
 
 ---
 
@@ -178,12 +221,13 @@ conta como "já sem arquivo no FTP" e segue.
 - **Servidor de arquivos (FTP)** — disco `replay_ftp`, pasta `Lara/Repet`: o original dos clipes.
 - **Site de locação de espaços** — galeria pública com `api_token`; área do sócio com o JWT de sempre.
 - **E-mail** — `EmailService` + `ContactMail` (tipo `replay.available`).
+- **Servidor do rePET (transmissão ao vivo)** — o Lara chama, Bearer `REPET_API_TOKEN`. Rotas usadas: `/status`, `/broadcast/*`, `/live/*`. Contrato vivo em `{REPET_API_URL}/openapi.json`.
 
 ## Referência técnica
 
 - Models: `App\Models\Replay\{Setting, Layout, LayoutItem, Camera, Video, MemberNotification, ApiClient}`
-- Services: `ReplayResolver` (herança), `OverlayRenderer` (composição), `MediaService` (mídia), `VideoIntakeService` (recepção e expurgo), `RemoteVideoStore` (FTP e cópia local)
-- Controllers: `App\Http\Controllers\Replay\{Web,Api}` e `Replay\VideoFileController` (refaz a cópia)
+- Services: `ReplayResolver` (herança), `OverlayRenderer` (composição), `MediaService` (mídia), `VideoIntakeService` (recepção e expurgo), `RemoteVideoStore` (FTP e cópia local), `RepetClient` (transmissão ao vivo)
+- Controllers: `App\Http\Controllers\Replay\{Web,Api}` (inclui `Web\BroadcastController`, a aba Transmissões) e `Replay\VideoFileController` (refaz a cópia)
 - Comandos: `replay:token`, `replay:prune`, `replay:demo-videos` (só desenvolvimento)
 - Job: `SendReplayVideosMail`
-- Testes: `tests/Feature/Replay`
+- Testes: `tests/Feature/Replay` (transmissões: `ReplayBroadcastTest`, com `Http::fake` — nenhum teste fala com o servidor real)

@@ -37,6 +37,8 @@ trait CreatesContractSchema
         $arquivos[] = '2026_11_05_110000_add_archive_to_signature_contracts.php';
         // Vigência e aviso de término (05/11/2026).
         $arquivos[] = '2026_11_05_120000_add_validity_to_signature_contracts.php';
+        // Edição do modelo pela Biblioteca: quem editou por último (06/11/2026).
+        $arquivos[] = '2026_11_06_100000_add_updated_by_to_signature_contract_models.php';
 
         foreach ($arquivos as $arquivo) {
             (require base_path('database/migrations/' . $arquivo))->up();

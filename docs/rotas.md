@@ -209,6 +209,10 @@ Guia: [Contratos](funcionalidades/contratos.md). Quem pode cada ação: `Signatu
 | GET | `/contratos/{c}/biblioteca` | Signature\ContractLibraryController@json | contracts.library |
 | GET/POST | `/contratos/biblioteca` | Signature\ContractLibraryController@index / store | contract-library.index / store |
 | PUT/DELETE | `/contratos/biblioteca/{clausula}` | Signature\ContractLibraryController@update / destroy | contract-library.update / destroy |
+| GET | `/contratos/biblioteca/modelos/{modelo}/editar` | Signature\ContractLibraryController@editModel | contract-library.models.edit |
+| PUT | `/contratos/biblioteca/modelos/{modelo}` | Signature\ContractLibraryController@updateModel | contract-library.models.update |
+| POST | `/contratos/biblioteca/modelos/{modelo}/previa` | Signature\ContractLibraryController@previewModel | contract-library.models.preview |
+| GET | `/contratos/biblioteca/modelos/{modelo}/clausulas` | Signature\ContractLibraryController@modelClauses | contract-library.models.clauses |
 | DELETE | `/contratos/biblioteca/modelos/{modelo}` | Signature\ContractLibraryController@destroyModel | contract-library.models.destroy |
 | GET | `/assinatura/contratos/{caminho?}` | redireciona (301) para `/contratos/{caminho}` — endereço antigo | contracts.legacy |
 | GET | `/contratos/assinaturas` | Signature\DocumentController@contractIndex (`contratos.assinatura` ou `assinatura.documentos`) | contract-signatures.index |
@@ -341,6 +345,24 @@ Quatro telas, quatro etapas do mesmo trabalho: formato, layout, câmera, vídeos
 | GET | `/replay/videos` | Replay\Web\VideoController@index | replay.videos.index |
 | DELETE | `/replay/videos/{video}` | Replay\Web\VideoController@destroy | replay.videos.destroy |
 | GET | `/replay/arquivo/{uuid}` | Replay\VideoFileController@show — **pública**, 120/min; refaz a cópia do FTP e redireciona | replay.videos.file |
+
+### RePET — Transmissões ao vivo (`can:replay.transmissao`)
+
+Desde 06/11/2026. Repassam ao servidor do rePET (`RepetClient`); as ações respondem JSON.
+`{court}` é o `quadra_id` do servidor do rePET (`[A-Za-z0-9_-]+`).
+
+| Método | URI | Controller | Nome |
+|--------|-----|-----------|------|
+| GET | `/replay/transmissoes` | Replay\Web\BroadcastController@index | replay.broadcasts.index |
+| GET | `/replay/transmissoes/estado` | Replay\Web\BroadcastController@status — `GET /status` do servidor | replay.broadcasts.status |
+| POST | `/replay/transmissoes/{court}/ligar` | Replay\Web\BroadcastController@start — `modo` placar\|direta, nomes, `reset` | replay.broadcasts.start |
+| POST | `/replay/transmissoes/{court}/desligar` | Replay\Web\BroadcastController@stop — `modo` placar\|direta | replay.broadcasts.stop |
+| POST | `/replay/transmissoes/{court}/ponto` | Replay\Web\BroadcastController@point — `lado` a\|b, `delta` ±1 | replay.broadcasts.point |
+| POST | `/replay/transmissoes/{court}/set` | Replay\Web\BroadcastController@set — `lado` a\|b, `delta` ±1 | replay.broadcasts.set |
+| PUT | `/replay/transmissoes/{court}/placar` | Replay\Web\BroadcastController@score — correção exata | replay.broadcasts.score |
+| POST | `/replay/transmissoes/{court}/zerar` | Replay\Web\BroadcastController@reset | replay.broadcasts.reset |
+| PUT | `/replay/transmissoes/{court}/nomes` | Replay\Web\BroadcastController@names | replay.broadcasts.names |
+| PUT | `/replay/transmissoes/{court}/volume` | Replay\Web\BroadcastController@volume — `nivel` 0–400 | replay.broadcasts.volume |
 
 ---
 

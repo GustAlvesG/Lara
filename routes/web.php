@@ -87,6 +87,7 @@ use App\Http\Controllers\Replay\Web\SettingController as ReplaySettingController
 use App\Http\Controllers\Replay\Web\LayoutController as ReplayLayoutController;
 use App\Http\Controllers\Replay\Web\CameraController as ReplayCameraController;
 use App\Http\Controllers\Replay\Web\VideoController as ReplayVideoWebController;
+use App\Http\Controllers\Replay\Web\BroadcastController as ReplayBroadcastController;
 use App\Http\Controllers\Replay\VideoFileController as ReplayVideoFileController;
 
 use App\Http\Controllers\PoliBot\AttendanceEventController as PoliBotAttendanceEventController;
@@ -1410,6 +1411,29 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
     });
 
     /*
+    | RePET — Transmissões ao vivo (06/11/2026). Permissão própria
+    | (`replay.transmissao`): ligar a live publica vídeo no YouTube, e quem
+    | opera o placar na quadra não precisa mexer em câmera nem layout.
+    | Tudo aqui repassa para o servidor do rePET (RepetClient); as ações
+    | respondem JSON para a tela não recarregar no meio do jogo.
+    */
+    Route::prefix('replay/transmissoes')->name('replay.broadcasts.')
+        ->middleware('can:' . P::REPLAY_TRANSMISSAO)
+        ->where(['court' => '[A-Za-z0-9_-]+'])
+        ->group(function () {
+            Route::get('/', [ReplayBroadcastController::class, 'index'])->name('index');
+            Route::get('estado', [ReplayBroadcastController::class, 'status'])->name('status');
+            Route::post('{court}/ligar', [ReplayBroadcastController::class, 'start'])->name('start');
+            Route::post('{court}/desligar', [ReplayBroadcastController::class, 'stop'])->name('stop');
+            Route::post('{court}/ponto', [ReplayBroadcastController::class, 'point'])->name('point');
+            Route::post('{court}/set', [ReplayBroadcastController::class, 'set'])->name('set');
+            Route::put('{court}/placar', [ReplayBroadcastController::class, 'score'])->name('score');
+            Route::post('{court}/zerar', [ReplayBroadcastController::class, 'reset'])->name('reset');
+            Route::put('{court}/nomes', [ReplayBroadcastController::class, 'names'])->name('names');
+            Route::put('{court}/volume', [ReplayBroadcastController::class, 'volume'])->name('volume');
+        });
+
+    /*
     |--------------------------------------------------------------------------
     | Assinatura eletrônica presencial — lado do ATENDENTE
     |--------------------------------------------------------------------------
@@ -1545,6 +1569,15 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             ->whereNumber('signatureContractClause')->name('update');
         Route::delete('/{signatureContractClause}', [SignatureContractLibraryController::class, 'destroy'])
             ->whereNumber('signatureContractClause')->name('destroy');
+        // Editar o modelo no editor do contrato (06/11/2026); sem salvar automático.
+        Route::get('/modelos/{signatureContractModel}/editar', [SignatureContractLibraryController::class, 'editModel'])
+            ->whereNumber('signatureContractModel')->name('models.edit');
+        Route::put('/modelos/{signatureContractModel}', [SignatureContractLibraryController::class, 'updateModel'])
+            ->whereNumber('signatureContractModel')->middleware('throttle:30,1')->name('models.update');
+        Route::post('/modelos/{signatureContractModel}/previa', [SignatureContractLibraryController::class, 'previewModel'])
+            ->whereNumber('signatureContractModel')->middleware('throttle:60,1')->name('models.preview');
+        Route::get('/modelos/{signatureContractModel}/clausulas', [SignatureContractLibraryController::class, 'modelClauses'])
+            ->whereNumber('signatureContractModel')->name('models.clauses');
         Route::delete('/modelos/{signatureContractModel}', [SignatureContractLibraryController::class, 'destroyModel'])
             ->whereNumber('signatureContractModel')->name('models.destroy');
     });

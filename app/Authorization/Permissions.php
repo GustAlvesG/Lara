@@ -151,6 +151,10 @@ final class Permissions
     // repositório dos clipes. Marketing e TI configuram; TI já alcança pelo
     // acesso total, o Marketing recebe na tela de Setores.
     public const REPLAY = 'replay';
+    // Transmissão ao vivo das quadras no YouTube (06/11/2026): ligar,
+    // desligar, placar, nomes e volume. Separada da `replay` porque publica
+    // vídeo para o público e quem opera o placar não configura câmera.
+    public const REPLAY_TRANSMISSAO = 'replay.transmissao';
 
     // Cadastro de funcionários (RH): criar, editar, desligar, excluir, férias
     // e afastamentos e a importação por planilha. É o cadastro que autentica
@@ -248,6 +252,7 @@ final class Permissions
         self::INGRESSOS_CAIXA_TODOS => ['Ingressos', 'Relatório de caixa de todos os vendedores (fechamento do financeiro)'],
 
         self::REPLAY => ['RePET', 'Câmeras, layouts de logomarca e vídeos das quadras'],
+        self::REPLAY_TRANSMISSAO => ['RePET', 'Transmissões ao vivo no YouTube: ligar, desligar e controlar o placar'],
 
         self::FUNCIONARIOS_GERENCIAR => ['Funcionários', 'Cadastro de funcionários, férias, afastamentos e importação por planilha'],
 

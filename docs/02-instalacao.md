@@ -119,6 +119,16 @@ Duas exigências de **servidor**, não de aplicação:
 
 Token da integração com o sistema de captura: `php artisan replay:token captura-producao`.
 
+Transmissão ao vivo (RePET › Transmissões): é o Lara que chama o servidor do rePET.
+
+```env
+REPET_API_URL=http://IP-DO-SERVIDOR-REPET:8000
+# Chave nomeada gerada no servidor do rePET para o Lara. Só no .env do servidor.
+REPET_API_TOKEN=
+```
+
+Confira sem efeito colateral com `php artisan tinker --execute="dump(app(App\Services\Replay\RepetClient::class)->status());"`.
+
 ## Filas (processamento assíncrono)
 
 O webhook do WhatsApp é processado por um **Job** (`ProcessWhatsAppWebhook`) na fila

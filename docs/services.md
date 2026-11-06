@@ -528,6 +528,22 @@ como fora por 60 s (`replay:ftp-offline`), para os pedidos seguintes não espera
 O adaptador FTP só lê o arquivo inteiro (`readStream` baixa tudo): por isso a validação na
 recepção já produz a cópia que vai ser servida.
 
+### RepetClient
+Cliente da API do servidor do rePET para a transmissão ao vivo (aba **Transmissões**, desde
+06/11/2026). Config em `services.repet` (`REPET_API_URL`, `REPET_API_TOKEN`); Bearer em toda chamada.
+
+| Método | Descrição |
+|--------|-----------|
+| `enabled()` | Há URL e token. |
+| `status()` | `GET /status`: quadras, modo de cada uma, objeto de estado do placar. |
+| `startBroadcast` / `stopBroadcast` | Transmissão com placar (`/broadcast/{q}/start\|stop`); ligar usa o timeout longo (30 s). |
+| `point` / `set` / `putScore` / `resetScore` / `names` / `volume` | Placar, nomes e volume (`/broadcast/{q}/...`). |
+| `startLive` / `stopLive` | Live direta pela câmera, sem placar (`/live/{q}`). |
+
+Sem retry nunca (ponto, set e volume em passo não são idempotentes). Erro vira
+`RepetUnavailable` com a mensagem para a tela (o `detail` do servidor; 401 vira aviso de chave;
+`uncertain` = timeout depois de enviar). `quadra_id` fora de `[A-Za-z0-9_-]` é recusado antes da chamada.
+
 ## Claude\ClaudeClient
 
 `app/Services/Claude/ClaudeClient.php` — porta única do Lara para a API do Claude (Anthropic), pelo SDK oficial

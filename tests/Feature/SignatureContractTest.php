@@ -831,4 +831,102 @@ class SignatureContractTest extends TestCase
             ->assertOk()
             ->assertJsonPath('0.title', 'Foro');
     }
+
+    // ---------------------------------------------------------------- edição do modelo (06/11/2026)
+
+    public function test_editar_modelo_pede_a_permissao_da_biblioteca_e_o_setor(): void
+    {
+        $modelo = $this->service()->saveAsModel($this->contrato(), 'Prestação de serviços', 7, 'Compradora');
+
+        // Quem só redige vê a biblioteca, mas não edita o modelo.
+        $redatora = $this->usuario([$this->compras->id]);
+        $this->actingAs($redatora)->get(route('contract-library.models.edit', $modelo))->assertForbidden();
+        $this->actingAs($redatora)->get(route('contract-library.index'))
+            ->assertDontSee(route('contract-library.models.edit', $modelo));
+
+        // Curadora de outro setor também não.
+        $doRh = $this->usuario([$this->rh->id], false, ['contratos.biblioteca']);
+        $this->actingAs($doRh)->get(route('contract-library.models.edit', $modelo))->assertForbidden();
+        $this->actingAs($doRh)->put(route('contract-library.models.update', $modelo), ['name' => 'Tomado'])->assertForbidden();
+
+        $curadora = $this->usuario([$this->compras->id], false, ['contratos.biblioteca']);
+        $this->actingAs($curadora)->get(route('contract-library.index'))
+            ->assertSee(route('contract-library.models.edit', $modelo));
+        $this->actingAs($curadora)->get(route('contract-library.models.edit', $modelo))
+            ->assertOk()
+            ->assertSee('Modelo — Prestação de serviços')
+            ->assertSee('id="ctForm"', false)
+            // O modelo não tem dados de pessoa nem preenchimento.
+            ->assertDontSee('Buscar nos Prestadores')
+            ->assertDontSee('>Preenchimento<', false);
+    }
+
+    public function test_editar_modelo_grava_por_cima_sem_dados_de_pessoa_e_nao_mexe_no_contrato_feito(): void
+    {
+        $modelo = $this->service()->saveAsModel($this->contrato(), 'Prestação de serviços', 7, 'Compradora');
+        $feito = $this->service()->create($this->compras->id, 'Compras', null, $modelo, 7, 'Compradora');
+        $clausulasDoFeito = $feito->content['clauses'];
+
+        $curadora = $this->usuario([$this->compras->id], false, ['contratos.biblioteca']);
+
+        $this->actingAs($curadora)->put(route('contract-library.models.update', $modelo), [
+            'name' => 'Prestação de serviços (2026)',
+            'title' => 'Contrato de manutenção',
+            'establishment' => $modelo->content['establishment'],
+            'contractor_term' => 'CONTRATANTE',
+            // O que vier de pessoa é descartado: o modelo guarda só papel, termo e tipo.
+            'parties' => [['role' => 'contratada', 'term' => 'prestadora', 'kind' => 'pj', 'name' => 'Não deve ficar', 'document' => '11222333000181']],
+            'variables' => [['key' => '', 'label' => 'Valor mensal', 'type' => 'money', 'value' => '8.900,00']],
+            'clauses' => [['title' => 'Objeto', 'items' => [['level' => 1, 'html' => '<p>Manutenção mensal por [[valor_mensal]].</p>']]]],
+            'signers' => [
+                ['party' => 'contratada', 'source' => 'person', 'name' => 'Fulano', 'cpf' => '52998224725', 'caption' => 'Sócio-administrador'],
+                ['party' => 'testemunha', 'source' => 'person'],
+            ],
+            'validity' => ['months' => 12, 'until' => '2027-01-31'],
+        ])->assertRedirect()->assertSessionHas('success');
+
+        $modelo->refresh();
+        $this->assertSame('Prestação de serviços (2026)', $modelo->name);
+        $this->assertSame('Contrato de manutenção', $modelo->content['title']);
+        $this->assertSame('PRESTADORA', $modelo->content['parties'][0]['term']);
+        $this->assertSame('', $modelo->content['parties'][0]['name']);
+        $this->assertSame('', $modelo->content['parties'][0]['document']);
+        $this->assertSame('', $modelo->content['variables'][0]['value']);
+        $this->assertSame('Sócio-administrador', $modelo->content['signers'][0]['caption']);
+        $this->assertSame('', $modelo->content['signers'][0]['name']);
+        $this->assertSame('', $modelo->content['signers'][0]['cpf']);
+        // Do prazo, só os meses: data fixa venceria no modelo.
+        $this->assertSame(['months' => 12, 'until' => null], $modelo->content['validity']);
+        $this->assertCount(1, $modelo->content['clauses']);
+
+        // O contrato já feito com o modelo não muda.
+        $this->assertSame($clausulasDoFeito, $feito->fresh()->content['clauses']);
+
+        // O próximo contrato sai do modelo editado, com quem assina do modelo.
+        $novo = $this->service()->create($this->compras->id, 'Compras', null, $modelo, 7, 'Compradora');
+        $this->assertSame('Objeto', $novo->content['clauses'][0]['title']);
+        $this->assertSame('PRESTADORA', $novo->content['parties'][0]['term']);
+        $this->assertCount(2, $novo->content['signers']);
+    }
+
+    public function test_previa_do_modelo_nao_cobra_o_que_so_o_contrato_preenche(): void
+    {
+        $modelo = $this->service()->saveAsModel($this->contrato(), 'Prestação de serviços', 7, 'Compradora');
+        $curadora = $this->usuario([$this->compras->id], false, ['contratos.biblioteca']);
+
+        $resposta = $this->actingAs($curadora)->postJson(route('contract-library.models.preview', $modelo), [
+            'title' => 'Contrato',
+            'establishment' => $modelo->content['establishment'],
+            'parties' => [['role' => 'contratada', 'term' => 'CONTRATADA', 'kind' => 'pj']],
+            'variables' => [['key' => 'valor_mensal', 'label' => 'Valor mensal', 'type' => 'money', 'value' => '']],
+            'clauses' => [['title' => 'Objeto', 'items' => [['level' => 1, 'html' => '<p>Por [[valor_mensal]] e [[nao_existe]].</p>']]]],
+        ])->assertOk();
+
+        $mensagens = collect($resposta->json('problems'))->pluck('message')->implode(' | ');
+        $this->assertStringNotContainsString('sem preenchimento', $mensagens);
+        $this->assertStringNotContainsString('não foi preenchida', $mensagens);
+        $this->assertStringNotContainsString('Informe quem assina', $mensagens);
+        // Variável que não existe continua sendo erro do modelo.
+        $this->assertStringContainsString('[[nao_existe]]', $mensagens);
+    }
 }

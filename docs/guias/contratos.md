@@ -161,10 +161,11 @@ Na tela do contrato, o cartão **Cancelar ou arquivar** (para o setor do contrat
 ## Reaproveitar: biblioteca de cláusulas, modelos e aditivos
 <!-- telas: contract-library.index -->
 
-Em **Contratos › Biblioteca** fica o que o seu setor guardou para reaproveitar. Consultar e usar no editor é de quem redige; cadastrar, editar e excluir pede a permissão da biblioteca.
+Em **Contratos › Biblioteca** fica o que o seu setor guardou para reaproveitar. Consultar e usar no editor é de quem redige; cadastrar, editar e excluir cláusulas e modelos pede a permissão da biblioteca.
 
 - **Biblioteca de cláusulas**: no editor, **Da biblioteca…** insere uma cópia num contrato. **+ Cláusula** e **Da biblioteca…** ficam no alto e no fim da lista de cláusulas (entra por último); no pé de cada cláusula, **+ Cláusula abaixo** e **Da biblioteca abaixo…** põem a nova logo depois dela, e a numeração se ajusta. Com a permissão da biblioteca, o botão **Salvar na biblioteca** de cada cláusula guarda-a para o setor, e dá para escrever, editar ou remover uma cláusula direto na tela da biblioteca. Mudar ou remover da biblioteca não mexe em contrato já feito.
 - **Modelos de contrato**: com a permissão da biblioteca, na tela de um contrato pronto, **Salvar como modelo do setor** guarda título, termos, variáveis (sem valor), considerandos e cláusulas. Ao criar um **Novo contrato**, escolha o modelo. Remover um modelo não muda os contratos feitos com ele.
+- **Editar um modelo**: com a permissão da biblioteca, em **Contratos › Biblioteca**, na lista **Modelos de contrato**, clique em **Editar** ao lado do modelo. Abre o mesmo editor do contrato, com a prévia ao lado. Dá para mudar o nome do modelo, o título, a vigência padrão (em meses), o CNPJ e o termo do clube, as partes (papel, tipo e termo, como CONTRATADA ou LOCATÁRIO), as variáveis (nome e tipo), os considerandos, as cláusulas (inclusive **Da biblioteca…**) e quem assina (o papel, o cargo e, se quiser, o diretor). Nome, CNPJ/CPF e endereço da contratada, o preenchimento das variáveis e os dados de quem assina não ficam no modelo: são preenchidos em cada contrato. O modelo **não salva sozinho**: clique em **Salvar modelo**. Os contratos já feitos com ele não mudam; os próximos saem do modelo editado.
 - **Modelos-base do clube**: a partir dos contratos já usados pelo clube, há modelos prontos — obra de engenharia, reforma com medições, serviço pontual (poda, pequenos reparos), mão de obra por diárias, confecção de uniformes, locação de loja ou sala com fiador, publicidade nos telões de LED, permuta, escolinha esportiva e aditivo de contrato feito fora do Lara. Eles aparecem em **Novo contrato** para os setores em que a TI os instalou. Escolha o modelo, preencha a contratada, as **variáveis** (valores, prazos, datas, dados bancários) e os signatários; a lista de problemas diz o que falta. Apague a cláusula ou o item que não se aplicar ao caso. Na biblioteca também há cláusulas avulsas para inserir quando couber: carência para reforma, aluguel escalonado, comissão de agência, amortização de investimento, ratificação do contrato-mãe, proteção de dados (LGPD), inexistência de vínculo, responsabilidade tributária e assinatura eletrônica. Se a cláusula avulsa usar uma variável (como `[[dias_de_carencia]]`), crie a variável com esse nome no contrato.
 - **Contratada**: ao salvar, os dados dela ficam guardados em **Prestadores**. No próximo contrato, use **Buscar nos Prestadores**.
 - **Aditivo**: só de contrato **já assinado**. Dá para criar de dois jeitos: na tela do contrato assinado, **Criar aditivo**; ou em **Novo contrato**, escolhendo **Aditivo de contrato assinado** e o contrato na lista. O aditivo já vem com a contratada e os fiadores, o CNPJ do clube, as variáveis e quem assina pela contratada — do último aditivo assinado ou, se não houver, do contrato. Testemunhas e fiador que assina, escolha de novo. Escreva as cláusulas do aditivo. O cabeçalho sai "1º TERMO ADITIVO AO CONTRATO CTL - 12/26 DE PRESTAÇÃO DE SERVIÇO…" e o número é o do contrato com A1, A2…
@@ -217,7 +218,17 @@ Os modelos são por setor: o **Novo contrato** só mostra os do setor escolhido.
 ### Não aparecem os botões Salvar na biblioteca e Salvar como modelo
 <!-- telas: contract-library.index -->
 
-Cadastrar, editar e excluir na biblioteca pede a permissão "Biblioteca de cláusulas e modelos do setor". Sem ela, a biblioteca só é consultada e usada no editor.
+Cadastrar, editar e excluir na biblioteca pede a permissão "Biblioteca de cláusulas e modelos do setor". Sem ela, a biblioteca só é consultada e usada no editor. O mesmo vale para o **Editar** dos modelos.
+
+### Editei o modelo, mas o contrato que fiz com ele não mudou
+<!-- telas: contract-library.index -->
+
+É assim mesmo: cada contrato guarda a própria cópia do modelo no dia em que foi criado. A edição vale para os contratos criados **depois** dela. Para levar a mudança a um contrato já feito, altere o contrato no editor dele.
+
+### Editei o modelo e saí da tela sem salvar
+<!-- telas: contract-library.index -->
+
+Diferente do contrato, o modelo não salva sozinho: só grava quando você clica em **Salvar modelo**. Se o navegador avisar que há alterações não salvas ao sair, volte e salve.
 
 ### O link antigo do contrato (no e-mail) ainda funciona?
 <!-- telas: contracts.index -->

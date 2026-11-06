@@ -2,8 +2,11 @@
     Quem assina. $k = chave; $s = ContractContent::signers. Diretor vem de
     Assinaturas → Diretoria (assina no tablet com matrícula e PIN); pessoa é
     digitada. O presidente não aparece aqui: entra sozinho, pelo clube.
+    $modelo (edição do modelo, 06/11/2026): da pessoa, só o papel e o cargo —
+    nome, CPF, e-mail e telefone são do contrato.
 --}}
 @php
+    $modelo = $modelo ?? false;
     $f = 'w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink focus:border-grena focus:ring-2 focus:ring-grena-tint';
     $l = 'mb-1 block text-xs font-bold text-ink-2';
     $n = fn (string $campo) => 'signers[' . $k . '][' . $campo . ']';
@@ -52,6 +55,11 @@
         <input type="hidden" name="{{ $n('name') }}" value="{{ $fonte === 'director' ? ($s['name'] ?? '') : '' }}" data-director-name @disabled($fonte !== 'director')>
     </div>
 
+    @if($modelo)
+    {{-- O editor-js liga e desliga este campo ao trocar a fonte: fica, vazio. --}}
+    <input type="hidden" name="{{ $n('name') }}" data-person-name value="" @disabled($fonte !== 'person')>
+    <p data-only-source="person" @class(['text-xs text-ink-3', 'hidden' => $fonte !== 'person'])>Nome, CPF e e-mail se preenchem no contrato feito com o modelo.</p>
+    @else
     <div data-only-source="person" @class(['grid grid-cols-1 gap-3 sm:grid-cols-2', 'hidden' => $fonte !== 'person'])>
         <div class="sm:col-span-2">
             <label class="{{ $l }}">Nome</label>
@@ -70,6 +78,7 @@
             <input type="text" name="{{ $n('phone') }}" value="{{ $s['phone'] ?? '' }}" class="{{ $f }}" maxlength="30">
         </div>
     </div>
+    @endif
 
     <div>
         <label class="{{ $l }}">Cargo / qualidade, sai sob o nome (opcional)</label>
