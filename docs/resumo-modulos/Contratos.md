@@ -136,8 +136,8 @@ Guia do usuário: [docs/guias/contratos.md](../guias/contratos.md) (e a seção 
   contratada com o termo do modelo e o signatário da contratada — `ContractService::withMainParty`); o editor é em
   passos livres (Contratado, Variáveis, Cláusulas, Quem assina) com o partial `signature.documents.partials.steps`
   (`data-step-start`, `data-step-current`, evento `step:shown`).
-- **Modelos-base (04/11/2026):** `ContractBaseModels` (10 modelos e 9 cláusulas avulsas tirados dos PDFs do
-  clube) gravados por `php artisan contratos:modelos-base --setor=…` (`ImportContractBaseModels`, idempotente,
+- **Modelos-base (04/11/2026):** `ContractBaseModels` (11 modelos — o 11º, atração musical, em 06/11/2026 —
+  e 9 cláusulas avulsas tirados dos PDFs do clube) gravados por `php artisan contratos:modelos-base --setor=…` (`ImportContractBaseModels`, idempotente,
   não roda no deploy). Remissão no catálogo: `{ref:chave.N}`. Teste: `SignatureContractBaseModelsTest`.
 - **Numeração não se guarda:** é calculada da posição. Remissão é `[[ref:uid]]` (uid de cláusula/item). Ao copiar
   cláusula (biblioteca, modelo, aditivo), `ContractContent::freshUids` dá uid novo e troca as remissões internas.

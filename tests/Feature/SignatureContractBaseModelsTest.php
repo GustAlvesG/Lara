@@ -60,7 +60,7 @@ class SignatureContractBaseModelsTest extends TestCase
             }
         }
 
-        $this->assertCount(10, array_unique($nomes));
+        $this->assertCount(11, array_unique($nomes));
     }
 
     public function test_clausulas_avulsas_tem_itens(): void
@@ -79,7 +79,7 @@ class SignatureContractBaseModelsTest extends TestCase
         $this->artisan('contratos:modelos-base', ['--setor' => ['comercial']])->assertSuccessful();
         $this->artisan('contratos:modelos-base', ['--setor' => [(string) $comercial->id]])->assertSuccessful();
 
-        $this->assertSame(10, SignatureContractModel::where('sector_id', $comercial->id)->count());
+        $this->assertSame(11, SignatureContractModel::where('sector_id', $comercial->id)->count());
         $this->assertSame(count(ContractBaseModels::clauses()), SignatureContractClause::where('sector_id', $comercial->id)->count());
         $this->assertSame(0, SignatureContractModel::where('sector_id', '!=', $comercial->id)->count());
         $this->assertSame(ContractBaseModels::AUTHOR, SignatureContractModel::first()->created_by_name);

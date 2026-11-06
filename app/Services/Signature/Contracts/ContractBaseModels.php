@@ -10,7 +10,8 @@ use LogicException;
  * CT 145/26), serviço pontual (CT 188/26), diárias (CT 189/26), uniformes
  * (CT 194/26), locação de loja (CT 088/26 e CT 09-22 A1), telões de LED
  * (CT 131, 139 e 184/26), permuta (CT 148/26), escolinha (CT 109/26) e
- * aditivo (CT 145/26 A1 e CT 106/26 A2).
+ * aditivo (CT 145/26 A1 e CT 106/26 A2). Em 06/11/2026, atração musical
+ * (contrato 283/26, DJ em evento do clube).
  *
  * O que muda de um contrato para outro virou variável; o que O Lara já monta
  * sozinho (cabeçalho, qualificação das partes, cidade e data, assinaturas)
@@ -46,6 +47,7 @@ class ContractBaseModels
             self::permuta(),
             self::escolinha(),
             self::aditivo(),
+            self::atracaoMusical(),
         ];
     }
 
@@ -849,6 +851,58 @@ class ContractBaseModels
             'As partes reconhecem como válida, para comprovação de autoria e integridade, a assinatura eletrônica deste instrumento, inclusive pelo sistema de assinaturas do clube ou pela plataforma gov.br, nos termos do art. 10, § 2º, da Medida Provisória nº 2.200-2/2001.',
             'E, por estarem assim justos e contratados, as partes firmam o presente instrumento, juntamente com 2 (duas) testemunhas.',
         ];
+    }
+
+    /**
+     * Atração musical (06/11/2026, contrato 283/26 — DJ no evento do clube).
+     * Contratado pessoa física (quem assina e recebe), com o nome artístico em
+     * variável. Ajustes em relação ao PDF: a multa saiu do título "Obrigações
+     * da contratada e multa" e ficou só na rescisão; o "Aplicação: evento e
+     * data" repetia o objeto e saiu; o nome artístico da assinatura (que no PDF
+     * divergia do objeto) vem da variável; duas testemunhas, como nos demais.
+     */
+    private static function atracaoMusical(): array
+    {
+        return self::model('Atração musical — apresentação em evento (DJ, banda, cantor)', 'musica', [
+            'title' => 'Contrato de atração musical',
+            'establishment' => 'pet',
+            'contractor_term' => 'CONTRATANTE',
+            'parties' => [['role' => ContractContent::ROLE_CONTRATADA, 'term' => 'CONTRATADO', 'kind' => 'pf', 'gender' => 'm']],
+            'variables' => [
+                ['nome_artistico', 'Nome artístico (ex.: DJ Sérgio Mamma e DJ Flavinho)', 'text'],
+                ['nome_do_evento', 'Nome do evento', 'text'],
+                ['data_do_evento', 'Data da apresentação', 'date_long'],
+                ['horarios', 'Horários previstos (ex.: 21h, 23h e 1h30)', 'text'],
+                ['valor_global', 'Valor global', 'money'],
+                ['data_de_pagamento', 'Data do pagamento', 'date'],
+                ['multa_por_descumprimento', 'Multa por descumprimento', 'percent'],
+            ],
+            'clauses' => [
+                self::c('objeto', 'Do objeto e da apresentação', [
+                    'O objeto deste contrato é a apresentação de [[nome_artistico]] no evento denominado [[nome_do_evento]], promovido pela [[contratante]].',
+                    'A apresentação será realizada em [[data_do_evento]], nos horários previstos e previamente acordados entre as partes: [[horarios]].',
+                ]),
+                self::c('execucao', 'Da execução do serviço', [
+                    'Os serviços serão executados em conformidade com o projeto do evento elaborado pela [[contratante]].',
+                ]),
+                self::c('obrigacoes', 'Das obrigações do contratado', [
+                    'Correm por conta do [[contratada]] todas as obrigações trabalhistas e previdenciárias de seus colaboradores, bem como quaisquer outras obrigações legais, durante a vigência deste contrato.',
+                    'Toda a estrutura e o equipamento serão transportados por conta e risco do [[contratada]] até o local do evento.',
+                ]),
+                self::c('contratante', 'Das obrigações da contratante', [
+                    'A [[contratante]] se obriga a zelar pela guarda do material do [[contratada]] durante o período de execução do evento.',
+                ]),
+                self::c('condicoes', 'Das condições contratadas', [
+                    'O valor global dos serviços é de [[valor_global]].',
+                    'O pagamento será feito em [[data_de_pagamento]], após a apresentação.',
+                    'A nota fiscal será emitida em nome de [[clube_nome]], CNPJ [[clube_cnpj]], Inscrição Estadual 80540590 e Inscrição Municipal 002976056, e trará no corpo o número deste contrato ([[numero]]), o que agiliza o processamento do pagamento. Telefone do Setor Financeiro: (24) 2102-2759.',
+                ]),
+                self::c('rescisao', 'Da rescisão', [
+                    'A parte que infringir qualquer das obrigações deste contrato pagará à parte inocente multa de [[multa_por_descumprimento]] sobre o valor global do contrato, além das despesas por perdas e danos.',
+                ]),
+                self::c('foro', 'Do foro', self::foro()),
+            ],
+        ]);
     }
 
     // ------------------------------------------------------------------

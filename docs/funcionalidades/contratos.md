@@ -565,6 +565,13 @@ de fora sem e-mail (não recebe o link remoto).
   das "duas vias"; LGPD na escolinha (dados de crianças). Gravação: `php artisan contratos:modelos-base
   --setor=Comercial --setor=Manutenção` (setor por id ou nome, repetível; idempotente por nome no setor;
   `--atualizar` regrava, `--sem-clausulas`, `--listar`). Não roda no deploy: o setor é escolha de quem usa.
+- **Atração musical (06/11/2026, 11º modelo-base):** do contrato 283/26 (DJ em evento). Contratado pessoa física
+  (termo CONTRATADO, PET), variáveis nome artístico, evento, data (por extenso), horários, valor global, data do
+  pagamento e multa; nota fiscal com IE/IM do PET e o `[[numero]]` do contrato. Ajustes em relação ao PDF: a multa
+  só na rescisão (o título "Obrigações da contratada e multa" não tinha multa), "Aplicação" (repetia o objeto)
+  retirada, nome artístico da assinatura pela variável (o PDF dizia "DJ Raí" na assinatura e "Flavinho" no
+  objeto) e duas testemunhas como nos demais (o PDF tinha uma; com duas o contrato vale como título executivo,
+  art. 784, III, do CPC). Rodar de novo o comando no setor só acrescenta este (os outros já existem pelo nome).
 
 ## Word
 
