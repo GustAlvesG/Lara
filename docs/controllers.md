@@ -593,6 +593,7 @@ pelo `RepetClient`; o Lara não guarda estado. Ações respondem `{ok, message?,
 | `start` / `stop` | `start(Request, string $court)` | `modo=placar` → `/broadcast/{q}/start\|stop`; `modo=direta` → `/live/{q}[/stop]`. Vão para o log com o `user_id`. |
 | `point` / `set` | `point(Request, string $court)` | `lado` a\|b, `delta` ±1. Não idempotentes: sem retry. |
 | `score` / `reset` / `names` / `volume` | | Correção exata, zerar, nomes e volume (0–400). Valem também com a transmissão desligada. |
+| `channel` / `updateChannel` | `updateChannel(Request, string $court)` | Canal do YouTube da quadra (permissão a mais `replay.transmissao.canal`). Lê e troca stream key e/ou URL RTMP; a key nunca volta ao navegador (`onlySafeFields`) nem entra no log (só os nomes dos campos trocados). |
 
 ### VideoFileController
 | Método | Assinatura | Descrição |

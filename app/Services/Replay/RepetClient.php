@@ -106,6 +106,30 @@ class RepetClient
         return $this->send('post', "/live/{$this->court($court)}/stop", slow: true);
     }
 
+    // ── Canal do YouTube da quadra (stream key e URL RTMP) ────────────────
+
+    /**
+     * Destino da quadra. O servidor NUNCA devolve a key aqui, só os 4 últimos
+     * caracteres (`stream_key_final`). A rota que devolve a key inteira não é
+     * usada pelo Lara, de propósito: a tela não precisa dela.
+     */
+    public function youtubeConfig(string $court): array
+    {
+        return $this->send('get', "/quadras/{$this->court($court)}/youtube");
+    }
+
+    /**
+     * Troca a stream key e/ou a URL RTMP (o que vier; o resto não muda).
+     * Quadra no ar → 409; URL fora dos hosts permitidos → 422. A key só vai
+     * no corpo: nunca em log, mensagem ou resposta.
+     *
+     * @param  array{stream_key?: string, rtmp_url?: string}  $changes
+     */
+    public function updateYoutube(string $court, array $changes): array
+    {
+        return $this->send('put', "/quadras/{$this->court($court)}/youtube", $changes);
+    }
+
     // ── Infra ─────────────────────────────────────────────────────────────
 
     public static function validCourt(string $court): bool

@@ -131,6 +131,27 @@ com `quadra`, `modo` e `user_id`).
 O `quadra_id` (ex.: `loc1-quadra1`) é a chave do servidor; o que a tela mostra é o `nome` — e os
 dois **não batem** (em 06/11/2026, `loc1-quadra1` é a "Quadra 2"). Os cartões são ordenados pelo nome.
 
+### Canal do YouTube da quadra (stream key e URL RTMP)
+
+Painel **Canal do YouTube (stream key e URL)** no cartão da quadra, só para quem tem também
+`replay.transmissao.canal` ("Transmissões: trocar o canal do YouTube da quadra"). A key é
+credencial: quem opera o placar não precisa dela.
+
+- Lê `GET /quadras/{q}/youtube`: key **mascarada** (`••••••••` + 4 últimos caracteres), URL RTMP
+  efetiva, se é a padrão do servidor ou própria da quadra, e os hosts aceitos.
+- Troca com `PUT /quadras/{q}/youtube` (`stream_key` e/ou `rtmp_url`; o que não vier não muda).
+  Responde `atualizada` ou `sem_mudanca`. Vale a partir da próxima vez que a transmissão for ligada.
+- Quadra no ar → o servidor recusa (409); a tela já trava o formulário e pede para desligar antes.
+- URL: só `rtmp://`, sem usuário/senha/query, host na lista do servidor (senão 422 com o motivo).
+- **A key não fica no Lara**: vai só no corpo do PUT; não volta ao navegador (o controller remove
+  `stream_key` da resposta, mesmo que o servidor a devolva), não entra no log (só os nomes dos
+  campos trocados, com `user_id`) e o campo da tela é apagado depois do envio.
+
+A atualização do contrato do rePET de 06/11/2026 também descreve `GET/PUT /quadras/{q}/youtube/key`
+e `/youtube/url` (esta com `null` = voltar à URL padrão). Em 06/11 o servidor em execução **não
+tinha** essas rotas (só as duas acima, conferido no `openapi.json`), então o Lara não as usa. Não há
+botão "voltar à URL padrão" por isso; e a de ler a key inteira não será usada de propósito.
+
 Fora do escopo, de propósito: o replay manual (`POST /replay/{q}`) e a exclusão de clipe no servidor.
 
 Nenhuma mudança na aplicação externa: o Lara só consome a API do rePET como ela está.
@@ -221,7 +242,7 @@ conta como "já sem arquivo no FTP" e segue.
 - **Servidor de arquivos (FTP)** — disco `replay_ftp`, pasta `Lara/Repet`: o original dos clipes.
 - **Site de locação de espaços** — galeria pública com `api_token`; área do sócio com o JWT de sempre.
 - **E-mail** — `EmailService` + `ContactMail` (tipo `replay.available`).
-- **Servidor do rePET (transmissão ao vivo)** — o Lara chama, Bearer `REPET_API_TOKEN`. Rotas usadas: `/status`, `/broadcast/*`, `/live/*`. Contrato vivo em `{REPET_API_URL}/openapi.json`.
+- **Servidor do rePET (transmissão ao vivo)** — o Lara chama, Bearer `REPET_API_TOKEN`. Rotas usadas: `/status`, `/broadcast/*`, `/live/*`, `/quadras/{q}/youtube`. Contrato vivo em `{REPET_API_URL}/openapi.json`.
 
 ## Referência técnica
 

@@ -31,6 +31,7 @@ class BroadcastController extends Controller
     {
         return view('replay.broadcasts.index', [
             'enabled' => $this->repet->enabled(),
+            'canManageChannel' => (bool) auth()->user()?->can(\App\Authorization\Permissions::REPLAY_TRANSMISSAO_CANAL),
         ]);
     }
 
@@ -155,6 +156,65 @@ class BroadcastController extends Controller
         ]);
 
         return $this->call(fn () => ['state' => $this->repet->volume($court, (int) $data['nivel'])]);
+    }
+
+    // ── Canal do YouTube (permissão replay.transmissao.canal) ────────────
+
+    /** Destino da quadra: só os 4 últimos caracteres da key, nunca ela inteira. */
+    public function channel(string $court): JsonResponse
+    {
+        return $this->call(fn () => ['state' => $this->onlySafeFields($this->repet->youtubeConfig($court))]);
+    }
+
+    /**
+     * Troca a stream key e/ou a URL RTMP. Campo vazio não muda. A key só vai
+     * no corpo ao servidor: não volta na resposta nem entra no log.
+     */
+    public function updateChannel(Request $request, string $court): JsonResponse
+    {
+        $data = $request->validate([
+            'stream_key' => ['nullable', 'string', 'min:8', 'max:128', 'regex:/^\S+$/'],
+            'rtmp_url' => ['nullable', 'string', 'max:300', 'starts_with:rtmp://'],
+        ], [
+            'stream_key.min' => 'A stream key tem pelo menos 8 caracteres.',
+            'stream_key.regex' => 'A stream key não tem espaços.',
+            'rtmp_url.starts_with' => 'A URL precisa começar com rtmp://.',
+        ]);
+
+        $changes = array_filter($data, fn ($v) => $v !== null && $v !== '');
+
+        if ($changes === []) {
+            return response()->json(['ok' => false, 'message' => 'Preencha a nova stream key, a nova URL ou as duas.'], 422);
+        }
+
+        return $this->call(function () use ($court, $changes) {
+            $result = $this->repet->updateYoutube($court, $changes);
+
+            Log::info('RePET: trocou o canal do YouTube da quadra', [
+                'quadra' => $court,
+                'campos' => array_keys($changes),
+                'status' => $result['status'] ?? null,
+                'user_id' => auth()->id(),
+            ]);
+
+            return [
+                'state' => $this->onlySafeFields($result),
+                'message' => ($result['status'] ?? null) === 'sem_mudanca'
+                    ? 'Nada mudou: o canal já estava assim.'
+                    : 'Canal atualizado. Vale a partir da próxima vez que a transmissão for ligada.',
+            ];
+        });
+    }
+
+    /**
+     * Mesmo que o servidor mude e passe a devolver a key inteira, ela não
+     * chega ao navegador.
+     */
+    private function onlySafeFields(array $state): array
+    {
+        unset($state['stream_key']);
+
+        return $state;
     }
 
     // ─────────────────────────────────────────────────────────────────────

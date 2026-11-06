@@ -1431,6 +1431,12 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::post('{court}/zerar', [ReplayBroadcastController::class, 'reset'])->name('reset');
             Route::put('{court}/nomes', [ReplayBroadcastController::class, 'names'])->name('names');
             Route::put('{court}/volume', [ReplayBroadcastController::class, 'volume'])->name('volume');
+
+            // Canal do YouTube (stream key e URL RTMP): permissão a mais, porque a key é credencial.
+            Route::middleware('can:' . P::REPLAY_TRANSMISSAO_CANAL)->group(function () {
+                Route::get('{court}/canal', [ReplayBroadcastController::class, 'channel'])->name('channel');
+                Route::put('{court}/canal', [ReplayBroadcastController::class, 'updateChannel'])->name('channel.update');
+            });
         });
 
     /*

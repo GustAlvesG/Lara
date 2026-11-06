@@ -363,6 +363,8 @@ Desde 06/11/2026. Repassam ao servidor do rePET (`RepetClient`); as ações resp
 | POST | `/replay/transmissoes/{court}/zerar` | Replay\Web\BroadcastController@reset | replay.broadcasts.reset |
 | PUT | `/replay/transmissoes/{court}/nomes` | Replay\Web\BroadcastController@names | replay.broadcasts.names |
 | PUT | `/replay/transmissoes/{court}/volume` | Replay\Web\BroadcastController@volume — `nivel` 0–400 | replay.broadcasts.volume |
+| GET | `/replay/transmissoes/{court}/canal` | Replay\Web\BroadcastController@channel — **+ `can:replay.transmissao.canal`**; só os 4 últimos caracteres da key | replay.broadcasts.channel |
+| PUT | `/replay/transmissoes/{court}/canal` | Replay\Web\BroadcastController@updateChannel — **+ `can:replay.transmissao.canal`**; `stream_key` e/ou `rtmp_url` | replay.broadcasts.channel.update |
 
 ---
 

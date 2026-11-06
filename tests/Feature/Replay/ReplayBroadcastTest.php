@@ -234,6 +234,73 @@ class ReplayBroadcastTest extends TestCase
         Http::assertNothingSent();
     }
 
+    // ── Canal do YouTube ─────────────────────────────────────────────────
+
+    private function canal(array $extra = []): array
+    {
+        return $extra + [
+            'quadra_id' => 'loc1-quadra1', 'tem_stream_key' => true, 'stream_key_final' => 'qrst',
+            'rtmp_url' => 'rtmp://a.rtmp.youtube.com/live2', 'rtmp_url_padrao' => true,
+            'rtmp_hosts_permitidos' => ['youtube.com'], 'chave_compartilhada_com' => [],
+            'chave_em_uso_por' => null, 'no_ar' => false,
+        ];
+    }
+
+    public function test_canal_pede_a_permissao_propria(): void
+    {
+        Http::fake();
+
+        $this->actingAs($this->usuario())
+            ->getJson(route('replay.broadcasts.channel', 'loc1-quadra1'))
+            ->assertForbidden();
+
+        $this->actingAs($this->usuario([P::REPLAY_TRANSMISSAO, P::REPLAY_TRANSMISSAO_CANAL]))
+            ->putJson(route('replay.broadcasts.channel.update', 'loc1-quadra1'), ['stream_key' => 'abcd-efgh-ijkl'])
+            ->assertStatus(200);
+
+        Http::assertSentCount(1);
+    }
+
+    public function test_trocar_a_key_manda_so_o_que_veio_e_ela_nao_volta_ao_navegador(): void
+    {
+        Http::fake([self::BASE . '/quadras/loc1-quadra1/youtube' => Http::response(
+            // Mesmo que o servidor devolva a key inteira, ela não passa.
+            $this->canal(['status' => 'atualizada', 'stream_key' => 'abcd-efgh-ijkl-mnop-qrst']),
+        )]);
+
+        $resposta = $this->actingAs($this->usuario([P::REPLAY_TRANSMISSAO, P::REPLAY_TRANSMISSAO_CANAL]))
+            ->putJson(route('replay.broadcasts.channel.update', 'loc1-quadra1'), ['stream_key' => 'abcd-efgh-ijkl-mnop-qrst', 'rtmp_url' => ''])
+            ->assertOk()
+            ->assertJsonPath('state.stream_key_final', 'qrst');
+
+        $this->assertStringNotContainsString('abcd-efgh-ijkl-mnop-qrst', $resposta->getContent());
+        Http::assertSent(fn (HttpRequest $r) => $r->method() === 'PUT' && $r->data() === ['stream_key' => 'abcd-efgh-ijkl-mnop-qrst']);
+    }
+
+    public function test_canal_vazio_ou_url_que_nao_e_rtmp_nem_chega_ao_servidor(): void
+    {
+        Http::fake();
+        $quem = $this->usuario([P::REPLAY_TRANSMISSAO, P::REPLAY_TRANSMISSAO_CANAL]);
+
+        $this->actingAs($quem)->putJson(route('replay.broadcasts.channel.update', 'loc1-quadra1'), [])->assertStatus(422);
+        $this->actingAs($quem)->putJson(route('replay.broadcasts.channel.update', 'loc1-quadra1'), ['rtmp_url' => 'https://youtube.com'])
+            ->assertJsonValidationErrors('rtmp_url');
+        $this->actingAs($quem)->putJson(route('replay.broadcasts.channel.update', 'loc1-quadra1'), ['stream_key' => 'curta'])
+            ->assertJsonValidationErrors('stream_key');
+
+        Http::assertNothingSent();
+    }
+
+    public function test_quadra_no_ar_devolve_a_recusa_do_servidor(): void
+    {
+        Http::fake(['*' => Http::response(['detail' => "'loc1-quadra1' está no ar; encerre a transmissão antes de trocar o destino."], 409)]);
+
+        $this->actingAs($this->usuario([P::REPLAY_TRANSMISSAO, P::REPLAY_TRANSMISSAO_CANAL]))
+            ->putJson(route('replay.broadcasts.channel.update', 'loc1-quadra1'), ['rtmp_url' => 'rtmp://a.rtmp.youtube.com/live2'])
+            ->assertStatus(422)
+            ->assertJsonPath('ok', false);
+    }
+
     // ── Tela e menu ──────────────────────────────────────────────────────
 
     public function test_a_tela_abre_e_a_aba_so_aparece_para_quem_tem_a_permissao(): void
@@ -257,5 +324,7 @@ class ReplayBroadcastTest extends TestCase
     {
         $this->assertTrue(P::exists(P::REPLAY_TRANSMISSAO));
         $this->assertSame('RePET', P::group(P::REPLAY_TRANSMISSAO));
+        $this->assertTrue(P::exists(P::REPLAY_TRANSMISSAO_CANAL));
+        $this->assertSame('RePET', P::group(P::REPLAY_TRANSMISSAO_CANAL));
     }
 }

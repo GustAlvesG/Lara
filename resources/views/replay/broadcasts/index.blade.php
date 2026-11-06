@@ -16,6 +16,7 @@
     @php
         $config = [
             'enabled' => $enabled,
+            'canManageChannel' => $canManageChannel ?? false,
             'base' => route('replay.broadcasts.index'),
             'statusUrl' => route('replay.broadcasts.status'),
         ];
@@ -27,6 +28,8 @@
 
             return {
                 enabled: config.enabled,
+                canManageChannel: config.canManageChannel,
+                channels: {},
                 quadras: [],
                 emAr: 0,
                 limite: 2,
@@ -67,6 +70,9 @@
                         if (this.busy[q.quadra_id]) {
                             const atual = this.quadras.find(x => x.quadra_id === q.quadra_id);
                             if (atual) Object.assign(q, atual);
+                        }
+                        if (! this.channels[q.quadra_id]) {
+                            this.channels[q.quadra_id] = { open: false, loading: false, data: null, key: '', url: '', msg: null };
                         }
                         if (! this.forms[q.quadra_id]) {
                             this.forms[q.quadra_id] = {
@@ -141,6 +147,50 @@
                     if (! Object.keys(data).length) { this.notice[q.quadra_id] = { ok: false, text: 'Escreva ao menos um nome.' }; return; }
                     this.act(q, 'PUT', 'nomes', data);
                 },
+
+                // ── Canal do YouTube (stream key e URL RTMP) ──
+                async toggleChannel(q) {
+                    const c = this.channels[q.quadra_id] ||= { open: false, loading: false, data: null, key: '', url: '', msg: null };
+                    c.open = ! c.open;
+                    if (! c.open) { c.key = ''; return; }
+                    c.loading = true; c.msg = null;
+                    try {
+                        const r = await fetch(this.url(q, 'canal'), { headers: { Accept: 'application/json' } });
+                        const body = await r.json().catch(() => ({}));
+                        if (body.ok) c.data = body.state; else c.msg = { ok: false, text: body.message || 'Não foi possível ler o canal.' };
+                    } catch (e) {
+                        c.msg = { ok: false, text: 'Sem resposta ao ler o canal.' };
+                    } finally { c.loading = false; }
+                },
+
+                async saveChannel(q) {
+                    const c = this.channels[q.quadra_id];
+                    const data = {};
+                    if (c.key.trim()) data.stream_key = c.key.trim();
+                    if (c.url.trim()) data.rtmp_url = c.url.trim();
+                    if (! Object.keys(data).length) { c.msg = { ok: false, text: 'Preencha a nova stream key, a nova URL ou as duas.' }; return; }
+                    if (! confirm('Trocar o canal do YouTube de ' + q.nome + '? A próxima transmissão desta quadra vai para o novo destino.')) return;
+                    c.loading = true; c.msg = null;
+                    try {
+                        const r = await fetch(this.url(q, 'canal'), {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                            body: JSON.stringify(data),
+                        });
+                        const body = await r.json().catch(() => ({}));
+                        if (body.errors) c.msg = { ok: false, text: Object.values(body.errors).flat().join(' ') };
+                        else if (! body.ok) c.msg = { ok: false, text: body.message || 'Não foi possível trocar o canal.' };
+                        else { c.data = body.state; c.msg = { ok: true, text: body.message }; c.url = ''; }
+                    } catch (e) {
+                        c.msg = { ok: false, text: 'Sem resposta. Abra o canal de novo para conferir antes de repetir.' };
+                    } finally {
+                        c.key = ''; // a key não fica na tela depois do envio
+                        c.loading = false;
+                        this.refresh();
+                    }
+                },
+
+                noAr(q) { return q.modo === 'placar' || q.modo === 'direta' || q.modo === 'conflito'; },
 
                 tempo(s) {
                     if (s === null || s === undefined) return '';
@@ -367,6 +417,61 @@
                                         <p class="mt-1 text-xs text-ink-3">100% é o som original e 0% é mudo. O microfone já chega alto: acima de 150% o som costuma estourar.</p>
                                     </div>
                                 </div>
+
+                                {{-- Canal do YouTube (permissão replay.transmissao.canal) --}}
+                                <template x-if="canManageChannel">
+                                    <div class="flex flex-col gap-3">
+                                        <button type="button" @click="toggleChannel(q)" class="self-start text-sm font-medium text-grena-ink hover:underline"
+                                            :aria-expanded="channels[q.quadra_id]?.open ? 'true' : 'false'">
+                                            Canal do YouTube (stream key e URL)
+                                        </button>
+
+                                        <div x-show="channels[q.quadra_id]?.open" x-cloak class="flex flex-col gap-3 rounded-xl border border-line p-4">
+                                            <p x-show="channels[q.quadra_id]?.loading" class="text-sm text-ink-2">Consultando…</p>
+
+                                            <template x-if="channels[q.quadra_id]?.data">
+                                                <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                                                    <dt class="text-ink-3">Stream key</dt>
+                                                    <dd class="font-mono text-ink" x-text="channels[q.quadra_id].data.tem_stream_key ? '••••••••' + (channels[q.quadra_id].data.stream_key_final || '') : 'não cadastrada'"></dd>
+                                                    <dt class="text-ink-3">URL RTMP</dt>
+                                                    <dd class="break-all font-mono text-ink">
+                                                        <span x-text="channels[q.quadra_id].data.rtmp_url"></span>
+                                                        <span class="font-sans text-xs text-ink-3" x-text="channels[q.quadra_id].data.rtmp_url_padrao ? '(padrão do servidor)' : '(própria da quadra)'"></span>
+                                                    </dd>
+                                                    <dt class="text-ink-3">Hosts aceitos</dt>
+                                                    <dd class="text-ink-2" x-text="(channels[q.quadra_id].data.rtmp_hosts_permitidos || []).join(', ')"></dd>
+                                                </dl>
+                                            </template>
+
+                                            <template x-if="noAr(q)">
+                                                <p class="rounded-lg bg-warn-soft p-3 text-xs text-ink">A quadra está no ar. Desligue a transmissão antes de trocar o canal.</p>
+                                            </template>
+
+                                            <div class="grid grid-cols-1 gap-2">
+                                                <label class="text-xs font-bold uppercase tracking-wider text-ink-3">Nova stream key
+                                                    <input type="password" autocomplete="off" spellcheck="false" maxlength="128" x-model="channels[q.quadra_id].key"
+                                                        placeholder="Deixe em branco para manter" :disabled="noAr(q)"
+                                                        class="mt-1 block w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono text-sm font-normal normal-case tracking-normal text-ink disabled:opacity-50">
+                                                </label>
+                                                <label class="text-xs font-bold uppercase tracking-wider text-ink-3">Nova URL RTMP
+                                                    <input type="text" autocomplete="off" spellcheck="false" maxlength="300" x-model="channels[q.quadra_id].url"
+                                                        placeholder="rtmp://a.rtmp.youtube.com/live2 (em branco mantém)" :disabled="noAr(q)"
+                                                        class="mt-1 block w-full rounded-lg border border-line bg-surface px-3 py-2 font-mono text-sm font-normal normal-case tracking-normal text-ink disabled:opacity-50">
+                                                </label>
+                                            </div>
+                                            <p class="text-xs text-ink-3">A stream key fica no YouTube Studio, em "Transmitir ao vivo". O Lara não guarda a chave e nunca a mostra inteira.</p>
+
+                                            <p x-show="channels[q.quadra_id]?.msg" x-cloak class="rounded-lg p-3 text-sm"
+                                               :class="channels[q.quadra_id]?.msg?.ok ? 'bg-ok-soft text-ok' : 'bg-danger-soft text-grena-ink'"
+                                               x-text="channels[q.quadra_id]?.msg?.text"></p>
+
+                                            <button type="button" @click="saveChannel(q)" :disabled="noAr(q) || channels[q.quadra_id]?.loading"
+                                                class="inline-flex h-10 items-center self-start rounded-full bg-grena px-4 text-sm font-bold text-white transition hover:bg-grena-hover disabled:cursor-not-allowed disabled:opacity-50">
+                                                Trocar canal
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
                             </section>
                         </template>
                     </div>

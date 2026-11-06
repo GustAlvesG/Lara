@@ -539,6 +539,7 @@ Cliente da API do servidor do rePET para a transmissão ao vivo (aba **Transmiss
 | `startBroadcast` / `stopBroadcast` | Transmissão com placar (`/broadcast/{q}/start\|stop`); ligar usa o timeout longo (30 s). |
 | `point` / `set` / `putScore` / `resetScore` / `names` / `volume` | Placar, nomes e volume (`/broadcast/{q}/...`). |
 | `startLive` / `stopLive` | Live direta pela câmera, sem placar (`/live/{q}`). |
+| `youtubeConfig` / `updateYoutube` | Canal do YouTube da quadra (`GET`/`PUT /quadras/{q}/youtube`): key mascarada (4 últimos caracteres), URL RTMP, hosts aceitos; troca de key e/ou URL. A rota que devolve a key inteira não é usada. |
 
 Sem retry nunca (ponto, set e volume em passo não são idempotentes). Erro vira
 `RepetUnavailable` com a mensagem para a tela (o `detail` do servidor; 401 vira aviso de chave;

@@ -19,6 +19,7 @@ Todo vídeo é apagado automaticamente 7 dias depois da gravação, sem exceçã
 |---|---|
 | Usar as quatro telas do RePET (configuração, layouts, câmeras e vídeos) | RePET › Câmeras, layouts de logomarca e vídeos das quadras |
 | Ligar e desligar a transmissão ao vivo e operar o placar (tela Transmissões) | RePET › Transmissões ao vivo no YouTube: ligar, desligar e controlar o placar |
+| Trocar o canal do YouTube de uma quadra (stream key e URL), na tela Transmissões | RePET › Transmissões: trocar o canal do YouTube da quadra (stream key e URL RTMP) — junto com a de cima |
 
 A primeira permissão cobre as quatro telas: quem a tem vê e altera tudo nelas. A tela **Transmissões** depende só da segunda, que pode ser dada a quem opera o placar sem dar acesso às câmeras. Ela é liberada para o setor na tela **Setores** (menu da conta, no canto superior direito), que fica com a TI e a Gerência; o coordenador do setor pede a liberação e coloca as pessoas da equipe no setor pela tela **Meu setor**. A TI já enxerga o módulo pelo acesso total; o Marketing precisa recebê-la. Sem essa permissão, o grupo RePET não aparece no menu.
 
@@ -119,6 +120,18 @@ Com a quadra **No ar com placar**, o cartão mostra o placar das duas duplas, co
 O placar aparece no vídeo em menos de 1 segundo. Enquanto um clique está sendo enviado, os botões da quadra ficam travados: clique uma vez e espere o número mudar.
 
 Em **Nomes, correção do placar e volume** você troca os nomes das duplas (**Trocar nomes**), grava o placar exato (**Gravar placar**; campo deixado em branco não muda), **Zerar placar** e ajusta o volume do som da câmera (**Aplicar**; 100% é o som original e 0% é mudo). Isso também pode ser feito antes de ligar, em **Preparar placar e volume antes de ligar**. Nesse caso, desmarque **Jogo novo** ao ligar, senão o placar e o volume voltam ao padrão.
+
+## Como trocar o canal do YouTube de uma quadra
+<!-- telas: replay.broadcasts.index -->
+
+Cada quadra transmite para um canal do YouTube, definido pela **stream key** (a chave da transmissão, que fica no YouTube Studio, em "Transmitir ao vivo") e pela **URL RTMP**. Só quem tem a permissão de trocar o canal vê esta opção.
+
+1. Em **RePET › Transmissões**, a quadra precisa estar **Fora do ar**. Se estiver no ar, clique em **Desligar** antes.
+2. No cartão da quadra, clique em **Canal do YouTube (stream key e URL)**. Aparecem a stream key atual, só com os 4 últimos caracteres, e a URL em uso, com "(padrão do servidor)" ou "(própria da quadra)".
+3. Cole a nova chave em **Nova stream key** e/ou a nova URL em **Nova URL RTMP**. Campo deixado em branco não muda.
+4. Clique em **Trocar canal** e confirme.
+
+A troca vale a partir da próxima vez que a transmissão da quadra for ligada. O Lara não guarda a chave e nunca a mostra inteira: depois de enviar, o campo é apagado. A URL precisa começar com `rtmp://` e ser de um dos endereços listados em **Hosts aceitos**.
 
 ## Dúvidas comuns
 

@@ -28,3 +28,4 @@ O "guia do usuário" de cada módulo mora em `docs/guias/<modulo>.md` (desde 28/
 
 
 O módulo RePET também chama aplicação externa desde 06/11/2026: a aba Transmissões usa a API do servidor do rePET (`/status`, `/broadcast/*`, `/live/*`, Bearer `REPET_API_TOKEN`) pelo `App\Services\Replay\RepetClient`. O token nunca vai para o repositório. Ligar transmissão publica no YouTube: teste sempre com `Http::fake` e nunca chame start/live/replay no servidor real sem autorização explícita. Ponto, set e volume em passo não são idempotentes: não coloque retry. Mudou o uso dessa API, atualize `docs/funcionalidades/replay.md` (seção Transmissões).
+Desde 06/11/2026 a aba Transmissões também troca o canal do YouTube da quadra (`GET/PUT /quadras/{q}/youtube`, permissão `replay.transmissao.canal`). A stream key é segredo: nunca a devolva ao navegador, nunca a registre em log e não use a rota do rePET que lê a key inteira; nunca troque a key do servidor real "para testar".

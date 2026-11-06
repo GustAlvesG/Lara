@@ -48,6 +48,9 @@ respondem JSON.
 - `quadra_id` ≠ nome da quadra no servidor (ex.: `loc1-quadra1` é a "Quadra 2"); mostre o `nome`.
 - Ligar/desligar publica no YouTube: em teste, sempre `Http::fake` + `Http::preventStrayRequests()`.
 - Não há vínculo entre `quadra_id` do rePET e `places`/`replay_cameras` do Lara (ainda).
+- Canal do YouTube (stream key/URL RTMP): rotas `replay.broadcasts.channel[.update]`, permissão a
+  mais `P::REPLAY_TRANSMISSAO_CANAL`, servidor `GET/PUT /quadras/{q}/youtube`. A key é segredo:
+  nunca devolva ao navegador, nunca logue, não use a rota que lê a key inteira.
 
 ## Onde mora o arquivo
 

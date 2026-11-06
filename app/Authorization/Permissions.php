@@ -155,6 +155,9 @@ final class Permissions
     // desligar, placar, nomes e volume. Separada da `replay` porque publica
     // vídeo para o público e quem opera o placar não configura câmera.
     public const REPLAY_TRANSMISSAO = 'replay.transmissao';
+    // Canal do YouTube de cada quadra (stream key e URL RTMP). Separada: a
+    // stream key é credencial — quem opera o placar não troca o canal.
+    public const REPLAY_TRANSMISSAO_CANAL = 'replay.transmissao.canal';
 
     // Cadastro de funcionários (RH): criar, editar, desligar, excluir, férias
     // e afastamentos e a importação por planilha. É o cadastro que autentica
@@ -253,6 +256,7 @@ final class Permissions
 
         self::REPLAY => ['RePET', 'Câmeras, layouts de logomarca e vídeos das quadras'],
         self::REPLAY_TRANSMISSAO => ['RePET', 'Transmissões ao vivo no YouTube: ligar, desligar e controlar o placar'],
+        self::REPLAY_TRANSMISSAO_CANAL => ['RePET', 'Transmissões: trocar o canal do YouTube da quadra (stream key e URL RTMP)'],
 
         self::FUNCIONARIOS_GERENCIAR => ['Funcionários', 'Cadastro de funcionários, férias, afastamentos e importação por planilha'],
 

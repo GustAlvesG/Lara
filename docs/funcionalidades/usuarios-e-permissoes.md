@@ -52,6 +52,7 @@ Setores. "Secretaria" é o setor **Atendimento**; "Financeiro" é a
 | Reservas › Acender a luz da quadra pela agenda | `reservas.luz` | nasce sem setor (05/11/2026) — dar a quem atende o balcão das quadras |
 | RePET (câmeras, layouts e vídeos das quadras) | `replay` | TI (acesso total); Marketing recebe na tela de Setores |
 | RePET › Transmissões (live no YouTube: ligar, desligar, placar, nomes, volume) | `replay.transmissao` | nasce sem setor (06/11/2026) — dar a quem opera o placar dos jogos transmitidos |
+| RePET › Transmissões › Canal do YouTube (stream key e URL RTMP da quadra) | `replay.transmissao.canal` | nasce sem setor (06/11/2026) — só a quem administra o canal (TI/Marketing). Usa junto com `replay.transmissao` |
 | Funcionários (cadastro, planilha, férias, afastamentos, rescisão) | `funcionarios.gerenciar` | nasce sem setor (desde 20/10/2026) — dar ao RH na tela de Setores |
 | Disparo de E-mails (campanhas, listas, envio e "Não enviar para") | `disparo-emails` | nasce sem setor (29/10/2026) — dar a quem faz as campanhas (Marketing, Comunicação) |
 | Banco de Horas (importação do espelho de ponto) | `banco-horas.admin` | RH |
