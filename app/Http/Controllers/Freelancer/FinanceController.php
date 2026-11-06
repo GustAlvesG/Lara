@@ -17,26 +17,14 @@ use App\Services\FreelancerService as FreelancerServiceManager;
  * (`index`) e o pagamento acontece dentro de um deles (`batch`). Duas telas de
  * escape garantem que nenhum contrato pagável fique invisível: `orphans`, para
  * o que não tem lote, e `all`, a lista plana de sempre.
- *
- * O botão de pagar tem dois comportamentos, decididos por `sicoob.enabled`:
- *
- *   desligado → marcação manual, como sempre foi. O dinheiro sai por fora.
- *   ligado    → enfileira um Pix de verdade. O contrato NÃO fica pago no
- *               clique: fica "em processamento", e só recebe a baixa quando o
- *               banco confirmar (ver FreelancerService::markAsPaidFromPix).
  */
 class FinanceController extends Controller
 {
-    /**
-     * Relações que a tabela do financeiro lê. `latestPixPayment` é obrigatória:
-     * sem ela `hasPixInProgress()` responde `false` por falta da relação e a
-     * tela volta a oferecer o botão de pagar para um Pix em andamento.
-     */
+    /** Relações que a tabela do financeiro lê. */
     private const TABLE_RELATIONS = [
         'freelancer:id,name,cpf,pix_key',
         'functionFreelancer',
         'paidBy',
-        'latestPixPayment',
     ];
 
     public function __construct(private FreelancerServiceManager $freelancerService)
@@ -68,8 +56,6 @@ class FinanceController extends Controller
             'pendingTotal' => $batches->sum(fn($b) => (float) $b->payable_total - (float) $b->paid_total),
             'paidTotal' => $batches->sum(fn($b) => (float) $b->paid_total),
             'orphanCount' => $this->orphanQuery()->count(),
-            'pixEnabled' => (bool) config('sicoob.enabled'),
-            'pixAmbiente' => config('sicoob.environment'),
         ]);
     }
 
@@ -85,8 +71,6 @@ class FinanceController extends Controller
             'services' => $services,
             'pendingTotal' => $services->where('paid', false)->sum('price'),
             'paidTotal' => $services->where('paid', true)->sum('price'),
-            'pixEnabled' => (bool) config('sicoob.enabled'),
-            'pixAmbiente' => config('sicoob.environment'),
         ]);
     }
 
@@ -135,8 +119,6 @@ class FinanceController extends Controller
             'emptyText' => 'Nenhum contrato solto — todos os pagáveis estão em lotes.',
             'pendingTotal' => $services->where('paid', false)->sum('price'),
             'paidTotal' => $services->where('paid', true)->sum('price'),
-            'pixEnabled' => (bool) config('sicoob.enabled'),
-            'pixAmbiente' => config('sicoob.environment'),
         ]);
     }
 
@@ -152,8 +134,6 @@ class FinanceController extends Controller
             'emptyText' => 'Nenhum contrato aprovado aguardando pagamento.',
             'pendingTotal' => $services->where('paid', false)->sum('price'),
             'paidTotal' => $services->where('paid', true)->sum('price'),
-            'pixEnabled' => (bool) config('sicoob.enabled'),
-            'pixAmbiente' => config('sicoob.environment'),
         ]);
     }
 
@@ -170,43 +150,10 @@ class FinanceController extends Controller
             return $redirect->with('error', 'Selecione ao menos um contrato para dar baixa.');
         }
 
-        return config('sicoob.enabled')
-            ? $this->payWithPix($ids, $request, $redirect)
-            : $this->payManually($ids, $request, $redirect);
+        return $this->payManually($ids, $request, $redirect);
     }
 
-    /**
-     * Fluxo com Pix automático: o clique só enfileira. Nenhuma mensagem aqui
-     * afirma que o pagamento foi feito — a tela não pode prometer o que ainda
-     * depende do banco.
-     */
-    private function payWithPix(array $ids, PayFreelancerServicesRequest $request, $redirect)
-    {
-        $resultado = $this->freelancerService->requestPixForMany($ids, $request->user());
-
-        if ($resultado['queued'] === 0) {
-            return $redirect
-                ->with('error', 'Nenhum Pix foi enviado.')
-                ->with('warning', $resultado['problems']
-                    ? implode(' · ', $resultado['problems'])
-                    : 'Os contratos selecionados já foram pagos ou não estão aptos.');
-        }
-
-        $redirect->with('success', $resultado['queued'] === 1
-            ? 'Pix enviado para processamento. A baixa é registrada quando o banco confirmar.'
-            : "{$resultado['queued']} Pix enviados para processamento. A baixa de cada contrato é registrada quando o banco confirmar.");
-
-        if ($resultado['problems']) {
-            $redirect->with('warning', implode(' · ', $resultado['problems']));
-        } elseif ($resultado['skipped'] > 0) {
-            $redirect->with('warning', $resultado['skipped']
-                . ' contrato(s) selecionado(s) foram ignorados por já estarem pagos ou não estarem aptos.');
-        }
-
-        return $redirect;
-    }
-
-    /** Comportamento original: baixa manual, sem tocar no banco. */
+    /** Baixa manual: o dinheiro sai por fora e aqui só se registra a baixa. */
     private function payManually(array $ids, PayFreelancerServicesRequest $request, $redirect)
     {
         $paid = $this->freelancerService->markManyAsPaid($ids, $request->user());

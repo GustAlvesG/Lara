@@ -17,7 +17,6 @@
         'awaiting_manager'    => 'bg-warn-soft text-warn',
         'awaiting_director'   => 'bg-warn-soft text-warn',
         'awaiting_payment'    => 'bg-grena-tint text-grena-ink',
-        'paying'              => 'bg-grena-tint text-grena-ink',
         'partially_paid'      => 'bg-grena-tint text-grena-ink',
         'paid'                => 'bg-ok-soft text-ok',
         'manager_rejected'    => 'bg-danger-soft text-grena-ink',

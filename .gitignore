@@ -23,8 +23,7 @@ yarn-error.log
 # comentários — sem o arquivo no repositório, a referência não resolve.
 !docs/sql/*.sql
 
-# Certificados ICP Brasil da integração Sicoob (mTLS). Vazar o par
-# certificado+chave é entregar a capacidade de MOVER DINHEIRO da conta.
+# Certificados e chaves privadas nunca vão para o repositório.
 storage/certificates
 *.pfx
 *.p12

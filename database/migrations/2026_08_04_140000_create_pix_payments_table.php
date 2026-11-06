@@ -66,7 +66,7 @@ return new class extends Migration
              */
             $table->string('status', 16)->default('pending');
 
-            // Estado cru devolvido pelo Sicoob, sem tradução: EM_PROCESSAMENTO,
+            // Estado cru devolvido pelo banco, sem tradução: EM_PROCESSAMENTO,
             // FINALIZADO, REJEITADO, NÃO_REALIZADO.
             $table->string('bank_state', 20)->nullable();
             $table->text('rejection_detail')->nullable();

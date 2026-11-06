@@ -14,27 +14,6 @@ do WhatsApp.
 Disparado por `WhatsAppController@handleWebhook`. Requer um worker de fila ativo
 (`php artisan queue:work`).
 
-### SendFreelancerPixPayment
-
-`implements ShouldQueue` — **envia dinheiro**. Executa a tentativa de Pix de um contrato de
-freelancer. Guia completo: [Pix automático (Sicoob)](funcionalidades/pix-sicoob.md).
-
-| Método | Assinatura | Descrição |
-|--------|-----------|-----------|
-| `__construct` | `__construct(int $pixPaymentId)` | Recebe o id da linha em `pix_payments`. |
-| `handle` | `handle(SicoobPixPagamentoService $pix, FreelancerService $freelancers): void` | Recusa pagamentos fora de `pending`/`initiated` (guarda contra `queue:retry` manual); chama `enviar()`; dá baixa no contrato **apenas** se o retorno for `FINALIZADO`. |
-| `failed` | `failed(?Throwable $e): void` | Log `critical`. Não tenta consertar estado — a verdade sobre o dinheiro está em `pix_payments`. |
-
-> **`tries = 1`, e não deve ser aumentado.** Reenviar uma confirmação de Pix transfere de
-> novo, e o caso em que o retry parece mais útil (timeout) é justamente aquele em que não se
-> sabe se o pagamento foi processado. Quem fecha o ciclo é o comando
-> `sicoob:pix-reconciliar`, que só consulta.
-
-`timeout = 180` — folga sobre o timeout HTTP de 60s da confirmação: o worker não pode matar o
-processo no meio de uma confirmação.
-
-Disparado por `FreelancerService::requestPixForMany()` (botão "Dar baixa" do financeiro).
-
 ### SendReplayVideosMail
 
 `implements ShouldQueue` — avisa o sócio que os vídeos da reserva dele estão prontos.
@@ -91,40 +70,6 @@ campanhas agendadas cuja hora chegou e manda o próximo lote das em andamento
 (`CampaignSender::run`), até `EMAIL_CAMPAIGNS_PER_MINUTE` e-mails em no máximo ~50 s. **Não usa a
 fila** de propósito: o worker é um só e atende o bot do WhatsApp. Ver
 [disparo-emails.md](funcionalidades/disparo-emails.md).
-
-### `sicoob:pix-reconciliar`
-
-`app/Console/Commands/ReconcilePixPayments.php` — agendado a cada minuto
-(`routes/console.php`, com `withoutOverlapping`).
-
-Consulta no Sicoob o desfecho dos pagamentos em `initiated`, `sent` e `unknown`, atualiza a
-linha e dá baixa nos contratos que finalizaram. **Nunca envia pagamento** — só `GET`, e é por
-isso que pode rodar de minuto em minuto. É a contrapartida obrigatória de o Job não ter retry.
-
-Também libera **tentativas órfãs**: linhas em `pending` sem `end_to_end_id` há mais de 30
-minutos (job perdido entre o commit e a fila) viram `failed`, destravando o contrato. Só esse
-estado permite afirmar que nada saiu — sem `end_to_end_id`, a confirmação nunca pôde ter sido
-enviada.
-
-Um 404 na consulta é lido conforme o estado: em `initiated` (nunca confirmamos) vira `failed`;
-em `sent`/`unknown` **não** conclui nada e o caso segue aberto.
-
-### `sicoob:testar`
-
-`app/Console/Commands/TestSicoobConnection.php` — pré-checagem manual, não agendada.
-
-```bash
-sudo -u www-data php artisan sicoob:testar --chave=<chave pix>
-```
-
-Confere configuração, leitura dos certificados, token (mTLS + escopos), saldo e consulta da
-chave no DICT, apontando em qual etapa quebrou. **Não efetiva pagamento** — a iniciação DICT
-só consulta e reserva um identificador. Avisa quando a resposta veio do mock do sandbox.
-
-Rode como o usuário do PHP: testar como `root` pode passar e mascarar um problema de permissão
-que só apareceria no worker, na hora do primeiro pagamento.
-
----
 
 ## 10.2. Listeners (`app/Listeners/`)
 

@@ -110,10 +110,8 @@ deletes, scopes globais, etc.).
 - **Chave PIX do contrato:** `pix_key` é a **cópia congelada** na assinatura do freelancer — o
   documento assinado não pode passar a citar outra chave porque o cadastro mudou. `pixKey()` cai no
   cadastro quando a cópia não existe (contratos antigos e assinaturas pela API);
-  `pixKeyDivergesFromFreelancer()` é o aviso de que o Pix sairá para chave diferente da do documento.
-- **Relacionamentos:** `freelancer()` belongsTo Freelancer · `functionFreelancer()` belongsTo FunctionFreelancer · `status()` belongsTo Status · `pixPayments()` hasMany PixPayment · `latestPixPayment()` hasOne PixPayment (`latestOfMany`)
-- **Estado do Pix:** `hasPixInProgress()` e `canRequestPix()` — leitura da tela. Quem decide de
-  fato é `FreelancerService::pixBlockReason()` no servidor, com lock.
+  `pixKeyDivergesFromFreelancer()` é o aviso de que o pagamento sairá para chave diferente da do documento.
+- **Relacionamentos:** `freelancer()` belongsTo Freelancer · `functionFreelancer()` belongsTo FunctionFreelancer · `status()` belongsTo Status
 - **Liberação para a coordenação:** `releasesAt()` / `hasBeenReleased()` / `releaseBlockReason()` e
   o escopo `released()` (com `lastReleasedDate()`) — o contrato só é assinado pelo coordenador e
   entra em lote às **08h do dia seguinte ao turno** (`RELEASE_HOUR`), porque até lá ainda cabe
@@ -133,33 +131,6 @@ deletes, scopes globais, etc.).
   conferiu no tablet ao assinar — é ela que o contrato cita (`pixKey()`, com queda para o cadastro
   nos contratos antigos). `pixKeyDivergesFromFreelancer()` acusa o cadastro alterado depois da
   assinatura. Ver [Freelancers](funcionalidades/freelancers.md).
-
-### PixPayment
-- **Tabela:** `pix_payments` — **trilha de auditoria de dinheiro real.** Uma linha por
-  tentativa, nunca sobrescrita nem apagada. Ver [Pix automático (Sicoob)](funcionalidades/pix-sicoob.md).
-- **`$fillable`:** `freelancer_service_id`, `freelancer_id`, `idempotency_key`, `end_to_end_id`, `pix_key`, `payee_document`, `payee_name`, `payee_key_type`, `amount`, `description`, `status`, `bank_state`, `rejection_detail`, `request_payload`, `response_payload`, `environment`, `requested_by`, `initiated_at`, `confirmed_at`, `finalized_at`, `last_checked_at`
-- **`$casts`:** `amount` → `decimal:2` · `request_payload`/`response_payload` → `array` · os quatro timestamps → `datetime`
-- **Relacionamentos:** `freelancerService()` belongsTo FreelancerService · `freelancer()` belongsTo Freelancer · `requestedBy()` belongsTo User
-- **`status`** — responde "o dinheiro saiu?":
-
-  | Valor | O dinheiro saiu? | Pode reenviar? |
-  |-------|------------------|----------------|
-  | `pending` | Não | — |
-  | `initiated` | Não (só reservou o `endToEndId`) | — |
-  | `sent` | Está saindo | Não |
-  | `finalized` | **Sim** | Não |
-  | `rejected` | Não — o banco recusou | **Sim** |
-  | `failed` | Não — parou antes de confirmar | **Sim** |
-  | `unknown` | **Não sabemos** | **NUNCA** |
-
-- **Métodos:** `canBeRetried()` (só `failed`/`rejected`) · `needsManualCheck()` (`unknown`) ·
-  `isPending()` · `isFinalized()` · `statusLabel()`
-- **Escopos:** `blocking()` (impedem novo envio para o contrato) · `open()` (a reconciliação precisa resolver)
-- **Índices:** `end_to_end_id` e `idempotency_key` são **únicos** — é o índice único do
-  `end_to_end_id` que impede duas linhas reivindicarem a mesma transação no SPI.
-- **Sem FK para `users`** em `requested_by`: o model User fixa a conexão `mysql`.
-
----
 
 ## Banco de horas
 

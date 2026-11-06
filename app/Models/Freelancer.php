@@ -68,7 +68,7 @@ class Freelancer extends Model
     /**
      * Tipos que o freelancer pode escolher ao corrigir a chave no tablet. CNPJ
      * fica de fora: o contrato é de pessoa física, e o titular da chave tem de
-     * ser o próprio freelancer (é o que o Sicoob confere antes de pagar).
+     * ser o próprio freelancer.
      *
      * @var array<int, string>
      */

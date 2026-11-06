@@ -332,7 +332,7 @@ A tela **Freelancers › Acompanhamento** responde à pergunta "e o meu pagament
 
 **O que a tela mostra:**
 
-- **Resumo por etapa** — um cartão por fila, com a quantidade e o valor parado: Aguardando assinaturas, Aguardando o fim do dia, Aguardando entrar em lote, Em lote (rascunho), Aguardando gerência, Aguardando diretoria, Aguardando pagamento, Pagamento em processamento, Pago.
+- **Resumo por etapa** — um cartão por fila, com a quantidade e o valor parado: Aguardando assinaturas, Aguardando o fim do dia, Aguardando entrar em lote, Em lote (rascunho), Aguardando gerência, Aguardando diretoria, Aguardando pagamento, Pago.
 - **Lotes** — cada lote com a linha do tempo (assinaturas → gerência → diretoria → pagamento), marcando o que já foi feito, a etapa atual e as recusas. Abrindo o lote, aparece a etapa de cada contrato.
 - **Ainda fora de lote** — contratos esperando assinatura ou esperando o coordenador montar o lote. É onde um contrato costuma ficar esquecido.
 
@@ -351,8 +351,6 @@ A tela **Freelancers › Financeiro** abre pela lista de **lotes aprovados pela 
 4. Para vários, marque as caixas (o total selecionado aparece) e use **Dar baixa nos selecionados** na barra do rodapé. **Selecionar o lote inteiro** marca todos os pendentes; a confirmação continua sendo o último passo.
 
 A baixa é **definitiva** e fica registrada com o seu nome; não há desfazer pelo painel.
-
-⚠️ **Atenção: com o Pix automático ligado, o botão vira "Pagar via Pix" e transfere dinheiro de verdade** da conta do clube para a chave do freelancer. A tela mostra o aviso "Pix automático ativo". Nesse modo o contrato fica **em processamento** e só vira **Pago** quando o banco confirma. Não clique duas vezes. Sai um Pix por contrato.
 
 Outras opções: **Imprimir relação** (relação do lote em papel, com as três aprovações), **Tabela reduzida** (só pendentes, formato folha de pagamento), **Ver todos os contratos** e o aviso de **contrato(s) sem lote**, quando houver.
 
@@ -412,11 +410,6 @@ A aprovação da Gerência fica gravada mesmo assim, e a tela avisa "O e-mail pa
 <!-- telas: freelancer-services.index -->
 
 Confirme com o diretor o código do **lote certo** (o número do lote está no e-mail). Por segurança, a mensagem não diz qual dos dois códigos falhou, e há um limite de tentativas por minuto. O código não aparece em lugar nenhum do Lara — só no e-mail do diretor.
-
-### Cliquei em Dar baixa e o contrato ficou "em processamento"
-<!-- telas: freelancer-services.finance -->
-
-Isso acontece quando o **Pix automático** está ligado: o Lara enviou o Pix e espera a confirmação do banco para marcar **Pago**. Não clique de novo (o sistema recusa um segundo envio). Se aparecer **Rejeitado** ou **Falhou**, nada foi transferido e dá para tentar de novo. Se aparecer **Conferir no banco**, a resposta do banco não chegou e o Pix pode ter sido feito: **não refaça a baixa** e avise a TI.
 
 ### Por que o total do lote no Financeiro é menor que o aprovado?
 <!-- telas: freelancer-services.finance -->

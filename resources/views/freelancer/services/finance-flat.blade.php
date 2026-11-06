@@ -23,7 +23,6 @@
             <p class="text-ink-2 font-medium">{{ $subtitulo }}</p>
         </div>
 
-        @include('freelancer.services.partials.finance-pix-warning')
 
         @include('freelancer.services.partials.tabs', ['activeTab' => 'freelancer-services.finance'])
 

@@ -21,7 +21,7 @@ use Tests\TestCase;
  * O outro lado da regra: nada de pagável pode ficar invisível por não estar num
  * lote. Daí a consulta de avulsos.
  *
- * Como em FreelancerPixOnPaymentTest, nada aqui autentica ninguém nem passa
+ * Nada aqui autentica ninguém nem passa
  * pela rota HTTP: o model User fixa a conexão `mysql` e tocá-lo levaria a suíte
  * para fora do SQLite.
  */
@@ -34,8 +34,6 @@ class FreelancerFinanceByBatchTest extends TestCase
         parent::setUp();
 
         $this->createFreelancerPixSchema();
-
-        config(['sicoob.enabled' => false]);
     }
 
     /* ---------------------------------------------------------------------

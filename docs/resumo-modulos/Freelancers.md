@@ -1,7 +1,7 @@
 # Freelancers — resumo para quem vai mexer
 
 Documentação completa (regras, porquês, API, telas): [docs/funcionalidades/freelancers.md](../funcionalidades/freelancers.md).
-Pix automático: [docs/funcionalidades/pix-sicoob.md](../funcionalidades/pix-sicoob.md). Portaria:
+Portaria:
 [docs/company-access-control.md](../company-access-control.md#freelancer).
 
 ## Em uma frase
@@ -9,7 +9,7 @@ Pix automático: [docs/funcionalidades/pix-sicoob.md](../funcionalidades/pix-sic
 Cadastro de **freelancers**, das **funções** (preço por bloco de 15 min) e dos **contratos** de um dia
 (`freelancer_services`), que o freelancer assina num **tablet** (`/kiosk`, login matrícula + PIN), a
 coordenação do Comercial valida, entram em **lote**, passam pela **gerência** (web) e pela **diretoria**
-(código ditado por e-mail), e o **financeiro** paga (baixa manual ou Pix Sicoob). O contrato também
+(código ditado por e-mail), e o **financeiro** dá a baixa manual do pagamento. O contrato também
 **abre a portaria** e decide o **jantar**.
 
 > **Não é o módulo Assinaturas.** O `/kiosk` daqui não tem QR, manifesto nem `SignatureStateMachine`;
@@ -73,7 +73,7 @@ registro (painel, massa, planilha, tablet, bot)
   → lote (rascunho → sent) → gerência aprova/recusa item a item
   → e-mail à diretoria com 2 códigos (e evento/local + descrição de cada contrato) → gerência digita o ditado
      (redação 2: a imagem do diretor entra no documento)
-  → financeiro: baixa manual ou Pix Sicoob → freelancers:archive manda o PDF ao FTP
+  → financeiro: baixa manual → freelancers:archive manda o PDF ao FTP
 ```
 
 Saídas: **cancelado** (sem nenhuma assinatura, coordenador, painel), **falta** (`cancel_reason = no_show`,
@@ -122,8 +122,9 @@ Não há máquina de estados central: o estado é **derivado** das colunas (`*_s
 - **E-mails síncronos** (diretoria, código semanal): falha de SMTP aparece na hora; não enfileire.
 - **Traço do freelancer/coordenador** fica no disco `public` mas é servido por rota (`signature/{party}`);
   não existe `storage:link` neste projeto.
-- **Financeiro:** estado do lote é derivado (nunca grave espelho); com `SICOOB_PIX_ENABLED` o botão vira
-  Pix de verdade e a baixa só entra quando o banco confirma.
+- **Financeiro:** estado do lote é derivado (nunca grave espelho); a baixa é só manual — o dinheiro sai
+  por fora do Lara. A tabela `pix_payments` ficou no banco sem uso (resto do Pix automático removido em
+  06/11/2026); não a apague por migration sem decisão explícita.
 - **Filtro de falhas (`issue`) e sua paginação são em memória** (`ServiceController::onlyWithIssue()`), de propósito.
 - **Menu/layout:** use Gate, nunca método de model que consulta banco (testes com `User` mockado).
 
@@ -143,7 +144,6 @@ Não há máquina de estados central: o estado é **derivado** das colunas (`*_s
 | `app/Http/Controllers/{FreelancerController,FreelancerServiceController,FunctionFreelancerController}` | API do bot do Telegram |
 | `app/Imports/*` | Planilhas tudo-ou-nada (`SpreadsheetImport`, `FreelancerImport`, `FreelancerServiceImport`, `ImportValues`) |
 | `app/Http/Requests/Concerns/ValidatesServiceSchedule.php` | Horários e `pricingRules()` — compartilhado por todas as entradas |
-| `app/Jobs/SendFreelancerPixPayment.php`, `Services/Sicoob/*`, `Console/Commands/ReconcilePixPayments.php` | Pix (desligado; ver memória/entitlement) |
 | Views | `resources/views/freelancer/` (`freelancers`, `functions`, `services`, `batches`, `validation`, `director`), `resources/views/kiosk/index.blade.php`, `emails/freelancer/` |
 | `config/freelancers.php` | Arquivo FTP e código do limite semanal. Variáveis no `.env.example` |
 

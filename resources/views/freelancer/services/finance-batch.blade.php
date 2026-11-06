@@ -44,7 +44,6 @@
             </div>
         </div>
 
-        @include('freelancer.services.partials.finance-pix-warning')
 
         @include('freelancer.services.partials.tabs', ['activeTab' => 'freelancer-services.finance'])
 

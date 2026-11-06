@@ -55,11 +55,6 @@ Schedule::command('poli:bot-reconciliar')->everyTenMinutes()->withoutOverlapping
 // Conversa aberta sem atendente em duas verificações seguidas vai para a Secretaria.
 Schedule::command('poli:bot-sem-atendente')->everyThreeMinutes()->withoutOverlapping();
 
-// Confere no Sicoob o desfecho dos Pix em processamento e dá a baixa dos que
-// finalizaram. Só CONSULTA — nunca envia —, por isso pode rodar a cada minuto.
-// É o que fecha o ciclo do Job, que de propósito não tem retry.
-Schedule::command('sicoob:pix-reconciliar')->everyMinute()->withoutOverlapping();
-
 // Disparo de E-mails: o próximo lote das campanhas em andamento (até
 // EMAIL_CAMPAIGNS_PER_MINUTE). Em segundo plano para não atrasar os outros
 // comandos do minuto; o withoutOverlapping garante uma rodada por vez — o

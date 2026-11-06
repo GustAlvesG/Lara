@@ -22,7 +22,6 @@ rotas).
 | [Front-end dos espaços sociais (Next.js)](../reservas-sociais-prompt-site-locacao.md) | Contrato da API `/api/social/*` e o prompt para o agente do site de locação (um prompt só, com mesas, horário, contato, reserva do balcão e baixa manual). |
 | [Sócios](socios.md) | Login, registro, foto e autenticação JWT (integração MultiClubes). |
 | [Freelancers](freelancers.md) | Cadastro de freelancers, funções e serviços prestados. |
-| [Pix automático (Sicoob)](pix-sicoob.md) | **Movimenta dinheiro real:** o "Dar baixa" do financeiro transfere o valor do contrato via Pix. |
 | [Funcionários](funcionarios.md) | Cadastro do RH (CRUD e planilha .xlsx) com matrícula, CPF e setor; férias, afastamentos e rescisão bloqueiam. Autentica o pedido de carro de aplicativo e o motorista da frota; o setor do funcionário coloca o usuário de mesma matrícula no setor. |
 | [Funcionários — ajuste da portaria](../funcionarios-prompt-portaria.md) | Prompt de **mudança** (20/10/2026) para a aplicação da guarita: `funcionario_bloqueado` no carro de aplicativo e `driver_blocked`/`driver_not_employee` na frota. |
 | [App da guarita — prompt geral](../externos-prompt-portaria-geral.md) | Prompt **consolidado** (28/10/2026) para o app da guarita (Lara Externos): liberação pontual, ingresso (mesa, cortesia, passaporte), fila do Uber pelo id, funcionário bloqueado e frota, com a ordem "levante o que já existe, implemente o que falta". Mudou a API da portaria, atualize este arquivo. |

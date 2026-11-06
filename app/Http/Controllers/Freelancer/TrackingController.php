@@ -126,9 +126,6 @@ class TrackingController extends Controller
                 'services' => fn($q) => $q->orderBy('start_date')->orderBy('start_time'),
                 'services.freelancer:id,name,cpf',
                 'services.functionFreelancer',
-                // Sem ela, `hasPixInProgress()` responde false por falta da
-                // relação e um Pix em andamento apareceria como "a pagar".
-                'services.latestPixPayment',
             ])
             ->orderByDesc('id')
             ->limit(self::BATCH_LIMIT)

@@ -14,9 +14,9 @@ use Illuminate\Support\Facades\Schema;
  * algumas migrations do módulo usam sintaxe de MySQL e chaves para `users` —
  * tabela cuja model fixa a conexão `mysql` e que não existe no SQLite da suíte.
  *
- * As colunas aqui espelham o que os models leem. A migration de `pix_payments`
- * é a de verdade, aplicada a partir do arquivo — ela é parte do que está sendo
- * testado, e uma cópia dela aqui deixaria de acusar uma divergência.
+ * As colunas aqui espelham o que os models leem. Algumas migrations são as de
+ * verdade, aplicadas a partir do arquivo — elas são parte do que está sendo
+ * testado, e uma cópia delas aqui deixaria de acusar uma divergência.
  */
 trait CreatesFreelancerPixSchema
 {
@@ -38,8 +38,8 @@ trait CreatesFreelancerPixSchema
             $table->timestamps();
         });
 
-        // Foto de identificação — migration de verdade, pelo mesmo motivo das
-        // de `pix_payments` e do jantar, mais abaixo.
+        // Foto de identificação — migration de verdade, pelo mesmo motivo da
+        // do jantar, mais abaixo.
         (require base_path('database/migrations/2026_09_11_120000_add_image_to_freelancers_table.php'))->up();
 
         Schema::create('function_freelancers', function (Blueprint $table) {
@@ -123,11 +123,9 @@ trait CreatesFreelancerPixSchema
             $table->timestamps();
         });
 
-        (require base_path('database/migrations/2026_08_04_140000_create_pix_payments_table.php'))->up();
-
         // As colunas do jantar vêm da migration DE VERDADE, e não copiadas
-        // acima, pelo mesmo motivo de `pix_payments`: é ela que a API da cozinha
-        // consulta, e uma cópia aqui deixaria de acusar uma divergência.
+        // acima: é ela que a API da cozinha consulta, e uma cópia aqui
+        // deixaria de acusar uma divergência.
         (require base_path('database/migrations/2026_08_28_160000_add_dinner_to_freelancer_services_table.php'))->up();
 
         // A redação congelada decide quem assina pelo CONTRATANTE — e, com

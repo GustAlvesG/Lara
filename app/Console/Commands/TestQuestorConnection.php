@@ -16,7 +16,7 @@ use Throwable;
  * chama o mesmo serviço da tela, que nesta versão monta o `UPDATE` e conta as
  * linhas que ele pegaria, sem executá-lo.
  *
- * Existe pelo mesmo motivo do `sicoob:testar`: a conferência se repete a cada
+ * Existe porque a conferência se repete a cada
  * troca de servidor, de senha ou de escopo, e fazê-la pelo Tinker não deixa
  * rastro do que foi verificado.
  */

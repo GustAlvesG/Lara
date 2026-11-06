@@ -5,7 +5,6 @@
 
     Espera:
       $services   contratos já filtrados por awaitingFinance()
-      $pixEnabled bool
       $batch      lote (opcional): quando presente, a baixa volta para ele e o
                   botão "Pagar o lote inteiro" aparece
       $emptyText  texto do estado vazio (opcional)
@@ -16,10 +15,7 @@
 
     // Só os pendentes entram na seleção em massa (e são os únicos exibidos no
     // modo reduzido). Ids como string para casar com o value do checkbox.
-    //
-    // Com o Pix ligado, contrato que já tem transferência em andamento sai da
-    // seleção: marcar "todos" não pode virar um segundo envio.
-    $selectable = $services->filter(fn($service) => $pixEnabled ? $service->canRequestPix() : $service->canBePaid());
+    $selectable = $services->filter(fn($service) => $service->canBePaid());
 
     $pendingIds = $selectable->pluck('id')->map(fn($id) => (string) $id)->values();
     $pendingValues = $selectable->pluck('price', 'id')->map(fn($price) => (float) $price);
@@ -82,9 +78,7 @@
 
     <form method="POST" action="{{ route('freelancer-services.pay') }}"
           @submit="if (!$event.submitter?.name
-                       && !confirm(@js($pixEnabled
-                           ? 'ENVIAR PIX para os contratos selecionados? O dinheiro sai da conta do clube. A ação fica registrada com seu usuário.'
-                           : 'Confirmar a baixa de pagamento dos contratos selecionados? A ação fica registrada com seu usuário.')
+                       && !confirm(@js('Confirmar a baixa de pagamento dos contratos selecionados? A ação fica registrada com seu usuário.')
                            + '\n\n' + selected.length + ' contrato(s) · ' + formatMoney(selectedTotal))) {
                        $event.preventDefault();
                    }">
@@ -131,8 +125,7 @@
                             @foreach($services as $service)
                             @php
                                 $paid = $service->isPaid();
-                                $pix = $service->latestPixPayment;
-                                $selecionavel = $pixEnabled ? $service->canRequestPix() : $service->canBePaid();
+                                $selecionavel = $service->canBePaid();
                             @endphp
                             {{-- No modo reduzido a lista vira folha de pagamento: só o que falta pagar. --}}
                             <tr data-search="" class="hover:bg-subtle transition" @if($paid) x-bind:class="compact ? 'hidden' : ''" @endif>
@@ -184,7 +177,7 @@
                                         </button>
                                     @endif
                                     {{-- O contrato assinado guarda a chave que o freelancer conferiu. Se o
-                                         cadastro mudou depois, o Pix sai para a chave de cima e o documento
+                                         cadastro mudou depois, o pagamento sai para a chave de cima e o documento
                                          cita outra — quem paga tem de ver isso antes de clicar. --}}
                                     @if($service->pixKeyDivergesFromFreelancer())
                                         <span class="block mt-1 text-xs font-semibold text-warn"
@@ -203,28 +196,6 @@
                                                 · {{ $service->paidBy->name }}
                                             @endif
                                         </p>
-                                        @if($pix?->end_to_end_id)
-                                            <p class="mt-0.5 text-[10px] font-mono text-ink-3" title="Identificador fim a fim da transação no Pix">
-                                                {{ $pix->end_to_end_id }}
-                                            </p>
-                                        @endif
-                                    {{-- Estados do Pix. A distinção que a tela precisa passar é entre
-                                         "não saiu" (rejeitado/falhou, pode refazer) e "não sabemos"
-                                         (conferir no banco, NÃO refazer). --}}
-                                    @elseif($pix && $pix->status === \App\Models\PixPayment::STATUS_UNKNOWN)
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-danger-soft text-danger">Conferir no banco</span>
-                                        <p class="mt-1 max-w-[18rem] text-xs text-danger">
-                                            A resposta do banco não chegou e o Pix pode ter sido feito. Não refaça a baixa — avise a TI.
-                                        </p>
-                                    @elseif($pix && $pix->isPending())
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-grena-tint text-grena-ink">{{ $pix->statusLabel() }}</span>
-                                        <p class="mt-1 text-xs text-ink-2">Pix enviado {{ $pix->created_at?->format('d/m/Y H:i') }}</p>
-                                    @elseif($pix && in_array($pix->status, [\App\Models\PixPayment::STATUS_REJECTED, \App\Models\PixPayment::STATUS_FAILED], true))
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-danger-soft text-danger">{{ $pix->statusLabel() }}</span>
-                                        <p class="mt-1 max-w-[18rem] text-xs text-danger">
-                                            {{ $pix->rejection_detail ?: 'O banco não concluiu a transferência.' }}
-                                            <span class="text-ink-2">Nada foi transferido; pode tentar de novo.</span>
-                                        </p>
                                     @else
                                         <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-warn-soft text-warn">Pendente</span>
                                     @endif
@@ -235,19 +206,11 @@
                                        class="text-grena-ink hover:underline font-medium text-xs">Ver</a>
                                     @endcan
                                     @if($selecionavel)
-                                        {{-- A confirmação muda de texto quando o clique move dinheiro:
-                                             ela precisa dizer o valor e para quem vai. --}}
                                         <button type="submit" name="only" value="{{ $service->id }}"
-                                                onclick="return confirm(@js($pixEnabled
-                                                    ? 'ENVIAR PIX de R$ ' . number_format((float) $service->price, 2, ',', '.')
-                                                      . ' para ' . $service->freelancer->name . ' (chave ' . $service->freelancer->pix_key . ')?'
-                                                      . "\n\n" . 'O dinheiro sai da conta do clube. A ação fica registrada com seu usuário.'
-                                                    : 'Confirmar a baixa de pagamento deste contrato? A ação fica registrada com seu usuário.'))"
+                                                onclick="return confirm(@js('Confirmar a baixa de pagamento deste contrato? A ação fica registrada com seu usuário.'))"
                                                 class="inline-flex items-center px-3 py-1.5 bg-ok text-white dark:text-canvas rounded-lg text-xs font-bold hover:bg-ok transition">
-                                            {{ $pixEnabled ? 'Pagar via Pix' : 'Dar baixa' }}
+                                            Dar baixa
                                         </button>
-                                    @elseif($pixEnabled && $service->hasPixInProgress() && !$paid)
-                                        <span class="text-xs text-ink-3">Pix em andamento</span>
                                     @endif
                                 </td>
                             </tr>
@@ -268,9 +231,6 @@
                     <p class="text-xs text-ink-2">
                         {{ $pendingIds->count() }} contrato(s) pendente(s) ·
                         R$ {{ number_format($pendingTotal, 2, ',', '.') }}
-                        @if($pixEnabled)
-                            · sai um Pix por contrato
-                        @endif
                     </p>
                 </div>
                 <button type="button" @click="selectAll()"
@@ -290,7 +250,7 @@
                 </span>
                 <button type="submit"
                         class="px-4 py-2 bg-ok rounded-lg text-sm font-bold hover:bg-ok transition">
-                    {{ $pixEnabled ? 'Pagar via Pix os selecionados' : 'Dar baixa nos selecionados' }}
+                    Dar baixa nos selecionados
                 </button>
                 <button type="button" @click="selected = []"
                         class="text-sm text-ink-3 hover:text-white transition">Limpar</button>
