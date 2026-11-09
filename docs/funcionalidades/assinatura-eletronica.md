@@ -520,7 +520,9 @@ dos eventos, pareamento do tablet, histórico). Documentação completa:
 
 Diretores do clube assinam documentos sem passar pelo atendente: no tablet do balcão, em
 **Assinatura da Diretoria**, entram com a **matrícula e o PIN do Lara** e veem todos os documentos
-pendentes da assinatura deles.
+pendentes da assinatura deles. Desde 09/11/2026 o diretor também assina **a distância, pelo link
+remoto** (ver [Assinatura remota](#assinatura-remota-link-por-e-mail)); o QR do atendente continua
+fora.
 
 ### Áreas, titular e substitutos
 
@@ -567,7 +569,13 @@ Regras em `App\Services\Signature\Directors\DirectorAreaService`.
   e-mail de aviso, não recebe convite gov.br para o diretor e não entra no filtro "Aguardando diretoria"
   do painel. O aviso sai quando o último de fora assina (`NotifySignatureDirector::forReleased`, chamado no
   congelamento e na captura). Regra em `SignatureDocument::pendingNonDirectors()`/`releasedToDirectors()`
-  e `scopeReleasedToDirectors`. O cartão do diretor, no painel, diz de quem o documento espera.
+  e `scopeReleasedToDirectors`. O cartão do diretor, no painel, diz de quem o documento espera. Vale
+  também para o link remoto do diretor (`releaseBlockReason`).
+- **Só no módulo Assinaturas** (decisão do usuário, 09/11/2026). Documento de **contrato** (módulo
+  Contratos, `SignatureDocument::isContract()`) não tem ordem: o diretor assina antes ou depois dos
+  demais. `pendingNonDirectors()` volta vazio e `scopeReleasedToDirectors` deixa passar quem tem
+  `contract`; por isso o aviso por e-mail sai no congelamento, o documento entra na lista do tablet e
+  no filtro "Aguardando diretoria" já de saída, e o convite gov.br do diretor não espera ninguém.
 
 ### No tablet
 
@@ -582,7 +590,9 @@ regras em `DirectorKioskService`):
    `SIGNATURE_DIRECTOR_SESSION_MINUTES` (10) renovado a cada uso. Cada passo reconfere usuário
    ativo e do setor.
 2. **Lista** — signatários pendentes do diretor em documentos aguardando assinatura, no prazo,
-   **fora do gov.br** e que **já chegaram à diretoria** (nenhum signatário de fora dela pendente). Sem toque por `SIGNATURE_DIRECTOR_IDLE_SECONDS` (90 s), o tablet sai sozinho.
+   **fora do gov.br** e que **já chegaram à diretoria** (nenhum signatário de fora dela pendente; contrato
+   sempre chega). Cada documento diz **quem já assinou**, pelo nome e com dia e hora, e **quem falta**
+   (`others[].signed_at`, 09/11/2026). Sem toque por `SIGNATURE_DIRECTOR_IDLE_SECONDS` (90 s), o tablet sai sozinho.
 3. **Abrir** — emite e consome a liberação no servidor (`issue` + `consumeIssued`, como o Termo de
    Menores) e devolve o `lara_sign` de sempre. A identidade fica confirmada pelo PIN:
    `signature_requests.identity_method = matricula_pin` e evento `identity_confirmed` com
@@ -625,9 +635,10 @@ Matrícula e PIN do Lara".
 **Diretor não recebe QR do atendente** (decisão do usuário, 21/10/2026): `SignatureSigner::releaseBlockReason`
 recusa a liberação de um signatário-diretor, salvo a emitida pela entrada dele
 (`signature_requests.identity_method = matricula_pin`, gravado já na emissão por
-`SignatureRequestService::issue(..., $identityMethod)`); a mesma conferência vale na leitura e em cada
-requisição do tablet (`EnsureSignatureKioskSession`). O painel não oferece QR para o diretor e diz
-que ele assina em "Assinatura da Diretoria".
+`SignatureRequestService::issue(..., $identityMethod)`) **ou pelo link remoto** (`identity_method = link_email`,
+segundo parâmetro `$remote`, desde 09/11/2026); a mesma conferência vale na leitura e em cada
+requisição do tablet (`EnsureSignatureKioskSession`) e da API remota (`EnsureSignatureRemoteSession`). O
+painel não oferece QR para o diretor e diz que ele assina em "Assinatura da Diretoria" ou pelo link.
 
 ### Pelo gov.br
 
@@ -646,7 +657,10 @@ dedo ou o mouse e tira uma foto. O PDF final é montado do mesmo jeito que o do 
 
 Decisões do usuário (21/10/2026): o link mais o **CPF completo**, com 5 tentativas; validade de
 **72 horas**; **qualquer documento** pode ir pelo link (sem opção no modelo); **foto sempre
-obrigatória**. Diretoria e Termo de Menores ficam fora.
+obrigatória**. O Termo de Menores fica fora. A Diretoria ficava fora até 09/11/2026; desde então o
+diretor também recebe o link (decisão do usuário), com as mesmas regras de qualquer pessoa: CPF
+completo e foto. No módulo Assinaturas, o link do diretor espera quem é de fora da diretoria (ver
+[Assinatura Diretoria](#assinatura-diretoria)); nos Contratos, não.
 
 ### O Lara continua fechado
 
@@ -663,7 +677,7 @@ fica "não registrado".
 ### Na tela do documento
 
 O cartão **Assinatura remota** fica abaixo da liberação no tablet e só aparece com
-`SIGNATURE_REMOTE_SITE_URL` preenchido. Ele lista cada signatário pendente, menos o diretor, com
+`SIGNATURE_REMOTE_SITE_URL` preenchido. Ele lista cada signatário pendente, diretor inclusive, com
 o e-mail do cadastro já preenchido (pode ser corrigido; o informado passa a ser o do signatário,
 como no convite do gov.br) e o botão **Enviar link**. O cartão mostra também o estado do último
 link: para quem foi, por quem, até quando vale, quantas vezes foi aberto e quantas vezes o CPF
@@ -679,8 +693,10 @@ errou. O botão **Revogar link** está ali também.
 - O e-mail sai **na hora, dentro da transação**: SMTP fora do ar → nada fica registrado.
 - O prazo do documento (24 h do balcão) é **estendido até o fim do link**, se for menor. Um
   prazo maior (gov.br, diretoria) fica como está.
-- Recusas: site não configurado, diretor, Termo de Menores, documento fora de "aguardando",
-  preparado para o gov.br, signatário que já respondeu, CPF inválido no cadastro.
+- Recusas: site não configurado, Termo de Menores, documento fora de "aguardando",
+  preparado para o gov.br, signatário que já respondeu, CPF inválido no cadastro e, no módulo
+  Assinaturas, diretor com alguém de fora da diretoria ainda por assinar (o cartão dele mostra o motivo
+  no lugar do formulário).
 
 ### Na API
 
@@ -688,8 +704,8 @@ errou. O botão **Revogar link** está ali também.
 |---|---|---|
 | `POST /api/assinatura/remota/link` `{token}` | não | Página de entrada: título, nome, até quando vale, exigências. Não abre sessão |
 | `POST /api/assinatura/remota/abrir` `{token}` | não | Abre a sessão e devolve `session_token` + o estado (o mesmo do tablet) |
-| `GET /sessao` | sim | Estado da sessão (contagem, perguntas, regras) |
-| `GET /pdf` | sim | O PDF original que a pessoa lê, os mesmos bytes do hash |
+| `GET /sessao` | sim | Estado da sessão (contagem, perguntas, regras, `signers`: quem assina e quem já assinou) |
+| `GET /pdf` | sim | O PDF que a pessoa lê: o original (os bytes do hash) enquanto ninguém assinou; depois, o mesmo documento com as assinaturas já feitas (ver [Ciência de quem já assinou](#ciência-de-quem-já-assinou)) |
 | `POST /respostas` `{answers}` | sim | Perguntas a quem assina, antes da leitura |
 | `POST /visualizado` | sim | Tempo de leitura e rolagem até o fim |
 | `POST /identidade` `{cpf}` | sim | CPF completo; devolve `attempts_left` quando erra |
@@ -764,6 +780,49 @@ Tablet), com o IP de quem assinou.
 | `signature/documents/partials/remote.blade.php` | O cartão na tela do documento |
 
 Migration `2026_10_21_120000_create_signature_remote_links`. Testes: `SignatureRemoteLinkTest`.
+
+## Ciência de quem já assinou
+
+Decisão do usuário (09/11/2026): **todos têm ciência de quem já assinou**, e a assinatura de quem
+assinou aparece no documento que o próximo lê. Vale no tablet do balcão, na Assinatura da Diretoria
+(avulsa e em lote) e no link remoto. O gov.br fica de fora: o PDF de lá é outro arquivo, assinado
+fora do Lara.
+
+**Na tela.** O estado da sessão (`RespondsWithKioskSession::sessionPayload`, o mesmo do tablet e da API
+remota) e cada documento do lote da diretoria trazem `signers`, de
+`SignatureDocument::readerSigners($signatarioAtual)`:
+
+```json
+"signers": [
+  {"name": "Maria de Souza", "role": "Contratante", "me": false, "signed": true,
+   "signed_at": "2026-11-09T10:12:00-03:00", "status": "Assinado"},
+  {"name": "João da Silva", "role": "Testemunha", "me": true, "signed": false,
+   "signed_at": null, "status": "Pendente"}
+]
+```
+
+Só nome, qualidade em que assina e situação, o que já sai impresso no documento. Nada de CPF,
+e-mail, telefone ou foto. O tablet mostra, acima do PDF, "N de M já assinaram" e um selo por pessoa
+(verde para quem assinou, com dia e hora; "você" para quem está com o tablet). Com um signatário só,
+não mostra nada. A lista do diretor diz "já assinaram: Maria (09/11 10:12) · falta: João".
+
+**No documento.** `SignatureDocumentRenderer::readingPdf()` é o PDF servido para leitura
+(`quiosque.pdf`, `quiosque.diretoria.batch.pdf` e `GET /api/assinatura/remota/pdf`):
+
+- ninguém assinou: o **original**, byte a byte, o do `original_sha256`;
+- alguém assinou: o mesmo documento montado de novo em `MODE_PROGRESS`, com traço, visto e "Assinado
+  eletronicamente em…" **só de quem já assinou**. O pendente segue em branco. Sem manifesto, com a
+  linha de validação do original. Documento de modelo (dompdf, `signature-area`) e PDF enviado pronto
+  (`SignaturePdfStamper`, ponto marcado e folha de assinaturas) seguem a mesma regra;
+- **não é gravado** (a assinatura da pessoa não fica em outro arquivo além da evidência e do PDF final)
+  e não tem hash próprio. Depois da primeira assinatura o texto não muda mais: o que a pessoa lê é o
+  texto do hash com as assinaturas por cima. O manifesto diz isso ao lado do hash;
+- se a montagem falhar, sai o original (e o erro vai para o log): quem assina ainda precisa ler;
+- `pdf_version` não muda quando outro assina: o tablet usa a troca de versão para dizer "o atendente
+  corrigiu uma das suas respostas", e assinatura de outro não é correção.
+
+Testes: `SignatureRemoteLinkTest::test_segundo_signatario_ve_quem_ja_assinou_e_a_assinatura_no_documento`
+e `SignatureDirectorTest::test_no_contrato_o_diretor_nao_espera_quem_e_de_fora_da_diretoria`.
 
 ## Página pública de validação
 
@@ -1603,7 +1662,7 @@ Um QR por pessoa, em qualquer ordem. Quem assina
 pelo clube assina no tablet, como qualquer signatário — não há assinatura pré-cadastrada neste
 módulo. Quando quem assina pelo clube é um **diretor**, a parte pode ser ligada a uma área da
 diretoria ("Assinada pela diretoria"): o documento já nasce com o titular da área escolhido, e o
-diretor assina só no tablet, com matrícula e PIN (sem QR) — ver [Assinatura Diretoria](#assinatura-diretoria).
+diretor assina no tablet, com matrícula e PIN (sem QR), ou pelo link remoto — ver [Assinatura Diretoria](#assinatura-diretoria).
 
 ### Visto em todas as páginas
 
@@ -1910,8 +1969,9 @@ prazo do documento estendido, trilha sem o token), site não configurado, SMTP f
 próprio e origem da API, fluxo completo (CPF completo mesmo em modelo de quatro dígitos, foto
 obrigatória mesmo em modelo sem foto, IP de quem assina na evidência, link usado), tentativas
 somadas entre aberturas até o bloqueio, link substituído, vencido e inválido, revogação derrubando
-a sessão, sessão remota que não abre o tablet, recusa, gov.br revogando o link, diretor fora, o
-manifesto e o cartão do painel; e os anexos pelo link (obrigatório travando a assinatura até o envio,
+a sessão, sessão remota que não abre o tablet, recusa, gov.br revogando o link, diretor assinando
+pelo link (e esperando quem é de fora da diretoria), o segundo signatário vendo quem já assinou e a
+assinatura dele no PDF de leitura, o manifesto e o cartão do painel; e os anexos pelo link (obrigatório travando a assinatura até o envio,
 trilha com o IP de quem assina, troca do próprio anexo sem poder apagar o do atendente, CPF antes,
 item não pedido e tipo pelo conteúdo).
 

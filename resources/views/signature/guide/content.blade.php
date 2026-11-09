@@ -1065,8 +1065,10 @@
             é desconectado.</li>
         <li>Se você <b>preparar o documento para o gov.br</b>, os links enviados param de valer: aquele documento passa
             a ser assinado só pelo gov.br.</li>
-        <li><b>Diretor</b> não recebe link (assina no tablet, seção 12), e o <b>Termo de Menores</b> é assinado no tablet
-            do evento.</li>
+        <li>O <b>diretor</b> também pode receber o link (desde 09/11/2026), com CPF completo e foto. Num documento com
+            outros signatários, o link dele só sai depois que eles assinarem (nos contratos, a qualquer hora). O
+            <b>Termo de Menores</b> é assinado no tablet do evento.</li>
+        <li>Quem assina pelo link vê quem já assinou, e no documento que lê já aparece a assinatura dessas pessoas.</li>
         <li>O manifesto do PDF assinado diz que foi <b>assinatura remota</b>, para qual e-mail o link foi, quem enviou e
             de qual endereço de internet a pessoa assinou.</li>
         <li>O quadro só aparece quando o site está configurado no servidor. Não apareceu? Fale com a TI.</li>
@@ -1195,7 +1197,7 @@
         <li>A pessoa escolhida é a que assina: o nome e o CPF dela vão impressos no documento. Se ela não puder
             assinar, <b>cancele e emita de novo</b> com quem a substitui.</li>
         <li>O documento ganha <b>7 dias</b> de prazo ao congelar. Se ele tem outros signatários (o sócio, por exemplo),
-            <b>só vai para a diretoria depois que eles assinarem</b>: até lá não aparece no tablet do diretor, e o
+            <b>só vai para a diretoria depois que eles assinarem</b> (nos contratos não há essa ordem): até lá não aparece no tablet do diretor, e o
             <b>e-mail de aviso</b> (sem link) sai quando o último deles assina. Sem outros signatários, o aviso sai
             no congelamento. A lista <span class="menu">Documentos</span> tem o filtro <b>Aguardando diretoria</b> (só
             os que já chegaram à diretoria).</li>
@@ -1235,9 +1237,11 @@
     <h3>O que vale saber</h3>
     <ul>
         <li>Errar o PIN cinco vezes trava a matrícula por 15 minutos.</li>
-        <li>O diretor <b>não</b> assina pelo QR Code do atendente: só pela entrada com matrícula e PIN — o painel nem
-            oferece o QR para ele. A outra forma é o <b>gov.br</b>: documento preparado para o gov.br sai da lista do
-            tablet e segue a seção 9.</li>
+        <li>O diretor <b>não</b> assina pelo QR Code do atendente: no tablet, só pela entrada com matrícula e PIN — o painel
+            nem oferece o QR para ele. A distância, ele assina pelo <b>link por e-mail</b> (seção 10) ou pelo <b>gov.br</b>:
+            documento preparado para o gov.br sai da lista do tablet e segue a seção 9.</li>
+        <li>Na lista, cada documento diz quem já assinou e quem falta; aberto, o documento já mostra a assinatura de
+            quem assinou antes.</li>
         <li>O comprovante do PDF assinado registra que o próprio diretor abriu o documento no tablet, com a
             matrícula e o PIN.</li>
     </ul>
@@ -1267,7 +1271,7 @@
             <b>documento de assinatura é gerado em rascunho</b>, em <span class="menu">Contratos → Assinaturas</span>
             (também em <span class="menu">Assinaturas → Documentos</span>, filtro Contratos).
             Confira os signatários e os anexos e congele: daí em diante é a assinatura de sempre (balcão, link ou
-            gov.br; diretores no tablet, depois de quem é de fora da diretoria).</li>
+            gov.br; diretores no tablet ou pelo link, sem esperar quem é de fora da diretoria).</li>
     </ol>
 
     <h3>Validar pelo tablet do balcão (Gerência)</h3>

@@ -581,13 +581,116 @@ class SignatureRemoteLinkTest extends TestCase
             ->assertJsonPath('reason', 'link_revoked');
     }
 
-    public function test_diretor_nao_recebe_link(): void
+    /** Desde 09/11/2026 o diretor também assina por link — pelo QR do atendente, continua não. */
+    public function test_diretor_recebe_link_e_assina_a_distancia(): void
     {
         $documento = $this->documentoCongelado();
         $signatario = $documento->signers()->first();
-        $signatario->forceFill(['user_id' => 7, 'director_area_id' => 1])->save();
+        $signatario->forceFill(['user_id' => 7, 'director_area_id' => 1, 'director_area_name' => 'Diretoria Financeira'])->save();
 
-        $this->assertStringContainsString('Diretor', (string) app(RemoteSignatureService::class)->blockReason($signatario->fresh()));
+        $this->assertNull(app(RemoteSignatureService::class)->blockReason($signatario->fresh()));
+        $this->assertStringContainsString('QR Code', (string) $signatario->fresh()->releaseBlockReason());
+
+        $sessao = $this->abre($this->enviaLink($documento));
+
+        $this->site($sessao)->postJson(route('api.assinatura-remota.identity'), ['cpf' => '12345678909'])->assertOk();
+        $this->site($sessao)->postJson(route('api.assinatura-remota.sign'), $this->assinatura())->assertOk();
+
+        $this->assertSame(SignatureSigner::STATUS_SIGNED, $signatario->fresh()->status);
+    }
+
+    /** No módulo Assinaturas, o link do diretor espera quem é de fora da diretoria. */
+    public function test_link_do_diretor_espera_quem_e_de_fora_da_diretoria(): void
+    {
+        $documento = $this->documentoComDoisSignatarios();
+        $joao = $documento->signers()->where('name', 'João da Silva')->sole();
+        $joao->forceFill(['user_id' => 7, 'director_area_id' => 1, 'director_area_name' => 'Diretoria Financeira'])->save();
+
+        $this->assertStringContainsString(
+            'depois da assinatura de Maria de Souza',
+            (string) app(RemoteSignatureService::class)->blockReason($joao->fresh()),
+        );
+    }
+
+    /** Documento congelado com Maria e João, nesta ordem. */
+    private function documentoComDoisSignatarios(): SignatureDocument
+    {
+        $documento = $this->criaDocumentoDeAssinatura(
+            ['template' => $this->criaModeloDeAssinatura(['requires_photo' => false])],
+            ['email' => 'maria@example.com'],
+        );
+
+        SignatureSigner::create([
+            'signature_document_id' => $documento->id,
+            'name' => 'João da Silva',
+            'cpf' => '52998224725',
+            'email' => 'joao@example.com',
+            'position' => 2,
+        ]);
+
+        return app(SignatureDocumentService::class)->freeze($documento->fresh());
+    }
+
+    /** Envia o link de um signatário qualquer e devolve o token. */
+    private function enviaLinkPara(SignatureDocument $documento, SignatureSigner $signatario): string
+    {
+        $this->actingAs($this->usuarioComPermissoes(['assinatura.documentos']))
+            ->post(route('signature-documents.remote-link.store', [$documento, $signatario]), ['email' => $signatario->email])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $mail = Mail::sent(SignatureRemoteLinkMail::class)->last();
+        preg_match('#/assinar/([A-Za-z0-9]{64})#', $mail->render(), $m);
+
+        return $m[1];
+    }
+
+    /**
+     * Quem assina depois tem ciência de quem já assinou (09/11/2026): a lista
+     * de signatários na sessão e, no PDF que lê, a assinatura de quem assinou.
+     */
+    public function test_segundo_signatario_ve_quem_ja_assinou_e_a_assinatura_no_documento(): void
+    {
+        $documento = $this->documentoComDoisSignatarios();
+        [$maria, $joao] = $documento->signers()->get()->all();
+
+        $sessao = $this->abre($this->enviaLinkPara($documento, $maria));
+
+        // Antes de alguém assinar: o PDF de leitura é o original, byte a byte.
+        $this->site($sessao)->postJson(route('api.assinatura-remota.identity'), ['cpf' => '12345678909'])->assertOk();
+        $original = Storage::disk(config('signature.disk'))->get($documento->fresh()->original_path);
+        $this->assertSame($original, $this->site($sessao)->get(route('api.assinatura-remota.pdf'))->assertOk()->getContent());
+
+        $this->site($sessao)->getJson(route('api.assinatura-remota.session'))
+            ->assertJsonPath('signers.0.name', 'Maria de Souza')
+            ->assertJsonPath('signers.0.me', true)
+            ->assertJsonPath('signers.0.signed', false)
+            ->assertJsonPath('signers.1.name', 'João da Silva')
+            ->assertJsonPath('signers.1.me', false)
+            ->assertJsonMissingPath('signers.0.cpf');
+
+        $this->site($sessao)->postJson(route('api.assinatura-remota.sign'), $this->assinatura())->assertOk();
+
+        $sessaoJoao = $this->abre($this->enviaLinkPara($documento->fresh(), $joao->fresh()));
+        $this->site($sessaoJoao)->postJson(route('api.assinatura-remota.identity'), ['cpf' => '52998224725'])->assertOk();
+
+        $this->site($sessaoJoao)->getJson(route('api.assinatura-remota.session'))
+            ->assertJsonPath('signers.0.name', 'Maria de Souza')
+            ->assertJsonPath('signers.0.signed', true)
+            ->assertJsonPath('signers.0.me', false)
+            ->assertJsonPath('signers.1.me', true)
+            ->assertJsonPath('signers.1.signed', false);
+
+        // O PDF que João lê já não é o original: traz a assinatura de Maria.
+        $pdf = $this->site($sessaoJoao)->get(route('api.assinatura-remota.pdf'))->assertOk();
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+        $this->assertNotSame($original, $pdf->getContent());
+
+        $html = app(SignatureDocumentRenderer::class)->html($documento->fresh(['template', 'signers']), SignatureDocumentRenderer::MODE_PROGRESS);
+        $this->assertSame(1, substr_count($html, 'class="sig-img"'));
+        $this->assertSame(1, substr_count($html, 'Assinado eletronicamente em'));
+        // Sem manifesto: ele é só do PDF final.
+        $this->assertStringNotContainsString('Impressão digital do documento original', $html);
     }
 
     public function test_manifesto_diz_que_foi_assinatura_remota(): void

@@ -191,7 +191,10 @@
             preencheSelects(linha);
             linha.querySelectorAll('textarea[data-autogrow]').forEach(cresce);
             renumera();
-            var foco = linha.querySelector('input[type="text"], .ct-rich');
+            // Variável nova: começa pelo nome, no "Nome e tipo" já aberto (09/11/2026).
+            var foco = tipo === 'variable'
+                ? linha.querySelector('[data-var-label]')
+                : linha.querySelector('input[type="text"], .ct-rich');
             if (foco) foco.focus();
             marca(true);
             return;
@@ -312,6 +315,7 @@
         if (tipoVar) {
             tipoVar.dataset.touched = '1';
             delete tipoVar.closest('[data-row="variable"]').dataset.auto;
+            aplicaTipo(tipoVar.closest('[data-row="variable"]'));
         }
 
         var ins = e.target.closest('select[data-insert]');
@@ -429,7 +433,11 @@
         if (linhaVar) {
             // Mexeu: deixa de ser a variável criada sozinha do [[marcador]] (não some mais).
             delete linhaVar.dataset.auto;
-            if (e.target.matches('[data-var-label]')) palpiteDoTipo(linhaVar);
+            if (e.target.matches('[data-var-label]')) {
+                palpiteDoTipo(linhaVar);
+                var titulo = linhaVar.querySelector('[data-var-title]');
+                if (titulo) titulo.textContent = e.target.value.trim() || 'Nova variável';
+            }
             if (e.target.matches('[data-var-value]')) desenhaFaltaPreencher();
         }
 
@@ -723,7 +731,55 @@
     function palpiteDoTipo(linha) {
         var tipo = linha.querySelector('[data-var-type]');
         if (tipo.dataset.touched) return;
+        var antes = tipo.value;
         tipo.value = adivinhaTipo(linha.querySelector('[data-var-label]').value);
+        if (tipo.value !== antes) aplicaTipo(linha);
+    }
+
+    /*
+     * O campo do preenchimento acompanha o tipo (09/11/2026, ContractVariables::INPUTS):
+     * calendário para data, "R$" ou "%" ao lado, o teclado do celular e o exemplo.
+     * A data troca de formato junto (28/09/2026 <-> 2026-09-28): o calendário só
+     * entende o segundo, e o servidor guarda o primeiro. Na edição do modelo o
+     * campo é oculto (o modelo não tem preenchimento) e fica como está.
+     */
+    function aplicaTipo(linha) {
+        var campo = linha.querySelector('[data-var-value]');
+        var tipo = linha.querySelector('[data-var-type]');
+        if (!campo || !tipo || campo.type === 'hidden') return;
+        var conf = (CT.inputs || {})[tipo.value] || (CT.inputs || {}).text;
+        if (!conf) return;
+
+        var valor = campo.value.trim();
+        if (conf.input === 'date') {
+            var br = valor.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (br) valor = br[3] + '-' + ('0' + br[2]).slice(-2) + '-' + ('0' + br[1]).slice(-2);
+        } else if (campo.type === 'date') {
+            var iso = valor.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (iso) valor = iso[3] + '/' + iso[2] + '/' + iso[1];
+        }
+
+        campo.type = conf.input;
+        campo.inputMode = conf.inputmode;
+        campo.placeholder = conf.placeholder;
+        campo.value = valor;
+
+        var prefixo = linha.querySelector('[data-var-prefix]');
+        var sufixo = linha.querySelector('[data-var-suffix]');
+        if (prefixo) {
+            prefixo.textContent = conf.prefix;
+            prefixo.classList.toggle('hidden', !conf.prefix);
+        }
+        if (sufixo) {
+            sufixo.textContent = conf.suffix;
+            sufixo.classList.toggle('hidden', !conf.suffix);
+        }
+        campo.classList.toggle('rounded-l-none', !!conf.prefix);
+        campo.classList.toggle('rounded-r-none', !!conf.suffix);
+
+        var dica = linha.querySelector('[data-var-hint]');
+        if (dica) dica.textContent = conf.hint;
+        desenhaFaltaPreencher();
     }
 
     // Variável nova (comum, ou do [[marcador]]). Se o nome já existe, vai para ela.
@@ -740,8 +796,14 @@
         var linha = molde('tpl-variable', { '__K__': chave() });
         document.querySelector('[data-list="variable"]').appendChild(linha);
         linha.querySelector('[data-var-label]').value = nome;
+        var titulo = linha.querySelector('[data-var-title]');
+        if (titulo) titulo.textContent = nome || 'Nova variável';
+        // Já tem nome: o "Nome e tipo" fica recolhido, e só o preenchimento aparece.
+        var ajustes = linha.querySelector('[data-var-settings]');
+        if (ajustes && nome) ajustes.open = false;
         var campoTipo = linha.querySelector('[data-var-type]');
         campoTipo.value = tipo || adivinhaTipo(nome);
+        aplicaTipo(linha);
         if (opcoes.chave) {
             linha.querySelector('[data-var-key]').value = opcoes.chave;
             var token = linha.querySelector('[data-var-token]');

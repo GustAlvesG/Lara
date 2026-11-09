@@ -324,12 +324,14 @@ class ContractContent
             $usadas[$chave] = true;
 
             $tipo = (string) ($variavel['type'] ?? '');
+            $tipo = ContractVariables::exists($tipo) ? $tipo : ContractVariables::TEXT;
 
             $saida[] = [
                 'key' => $chave,
                 'label' => $rotulo !== '' ? $rotulo : $chave,
-                'type' => ContractVariables::exists($tipo) ? $tipo : ContractVariables::TEXT,
-                'value' => self::line($variavel['value'] ?? '', 500),
+                'type' => $tipo,
+                // O calendário manda 2026-09-28; guarda-se 28/09/2026, como sempre (09/11/2026).
+                'value' => ContractVariables::storedValue($tipo, self::line($variavel['value'] ?? '', 500)),
             ];
         }
 

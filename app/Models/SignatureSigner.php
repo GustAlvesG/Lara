@@ -277,10 +277,14 @@ class SignatureSigner extends Model
      * Por que este signatário não pode receber um QR agora. null = pode.
      *
      * `$directorLogin`: a liberação vem da entrada do próprio diretor no
-     * tablet (matrícula + PIN). Diretor só assina por ela — nunca pelo QR do
-     * atendente (decisão do usuário, 21/10/2026).
+     * tablet (matrícula + PIN). No tablet, diretor só assina por ela — nunca
+     * pelo QR do atendente (decisão do usuário, 21/10/2026).
+     *
+     * `$remote`: a liberação vem do link por e-mail. Desde 09/11/2026 o
+     * diretor também assina por link (decisão do usuário): a conferência é o
+     * CPF completo e a foto, como para qualquer pessoa a distância.
      */
-    public function releaseBlockReason(bool $directorLogin = false): ?string
+    public function releaseBlockReason(bool $directorLogin = false, bool $remote = false): ?string
     {
         if ($this->status === self::STATUS_SIGNED) {
             return 'Este signatário já assinou.';
@@ -311,12 +315,13 @@ class SignatureSigner extends Model
             return 'Este documento está sendo assinado pelo gov.br: a assinatura não é liberada no tablet.';
         }
 
-        if ($this->isDirector() && !$directorLogin) {
-            return 'Diretor assina só no tablet, em "Assinatura da Diretoria", com a matrícula e o PIN do Lara — não pelo QR Code.';
+        if ($this->isDirector() && !$directorLogin && !$remote) {
+            return 'Diretor não assina pelo QR Code: assina no tablet, em "Assinatura da Diretoria", com a matrícula e o PIN do Lara, ou pelo link enviado por e-mail.';
         }
 
         // O documento só chega à diretoria depois de quem é de fora dela
-        // (decisão do usuário, 26/10/2026).
+        // (decisão do usuário, 26/10/2026) — só no módulo Assinaturas: nos
+        // Contratos não há essa ordem (09/11/2026, ver pendingNonDirectors).
         if ($this->isDirector() && ($faltam = $document->pendingNonDirectors())->isNotEmpty()) {
             return 'Este documento vai para a diretoria depois da assinatura de '
                 . $faltam->pluck('name')->join(', ', ' e ') . '.';

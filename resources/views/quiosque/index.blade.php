@@ -176,6 +176,12 @@
   .doc-scroll{flex:1 1 auto;overflow-y:auto;background:var(--surface-3);padding:16px;-webkit-overflow-scrolling:touch;}
   .doc-page{display:block;margin:0 auto 14px;background:#fff;box-shadow:var(--shadow);max-width:100%;}
   .doc-status{font-size:13px;color:var(--ink-2);padding:0 22px 10px;}
+  /* Quem assina este documento e quem já assinou (09/11/2026). */
+  .signatarios{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+  .signatarios.hidden{display:none;}
+  .signatario{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;line-height:1.3;padding:6px 12px;border-radius:999px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--ink-2);}
+  .signatario.ok{background:var(--success-tint);color:var(--success);border-color:transparent;}
+  .signatario.eu{border-color:var(--brand);color:var(--brand);font-weight:700;}
 
   /* Formulário: as perguntas que o modelo faz a quem assina */
   .q{margin-bottom:24px;}
@@ -351,6 +357,8 @@
       <div class="pad" style="padding-bottom:10px;">
         <h2 id="docTitulo">Documento</h2>
         <p class="lead" style="margin-bottom:0;">Leia o documento até o fim para continuar.</p>
+        <!-- Todos os signatários e quem já assinou: a assinatura de quem assinou também aparece no documento. -->
+        <div class="signatarios hidden" id="docSignatarios" aria-label="Signatários deste documento"></div>
       </div>
       <div class="doc-scroll" id="docScroll"></div>
       <div class="doc-status" id="docStatus">Carregando o documento…</div>
@@ -934,6 +942,51 @@
    | Atendimento
    |---------------------------------------------------------------------*/
 
+  /*
+   * Quem assina o documento e quem já assinou (decisão do usuário,
+   * 09/11/2026). Só com mais de um signatário: sozinho, não há "demais".
+   */
+  function mostraSignatarios(lista) {
+    var caixa = $('#docSignatarios');
+    caixa.textContent = '';
+
+    if (lista.length < 2) {
+      caixa.classList.add('hidden');
+      return;
+    }
+
+    var assinaram = lista.filter(function (s) { return s.signed; }).length;
+    var titulo = document.createElement('span');
+    titulo.className = 'signatario';
+    titulo.style.border = '0';
+    titulo.style.background = 'transparent';
+    titulo.style.paddingLeft = '0';
+    titulo.textContent = assinaram + ' de ' + lista.length + ' já assinaram:';
+    caixa.appendChild(titulo);
+
+    lista.forEach(function (s) {
+      var item = document.createElement('span');
+      item.className = 'signatario' + (s.signed ? ' ok' : '') + (s.me ? ' eu' : '');
+
+      var texto = (s.signed ? '✓ ' : '') + s.name + (s.role ? ' (' + s.role + ')' : '');
+
+      if (s.me) {
+        texto += ' — você';
+      } else if (s.signed && s.signed_at) {
+        texto += ' — assinou em ' + new Date(s.signed_at).toLocaleString('pt-BR', {
+          timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+        });
+      } else if (!s.signed) {
+        texto += ' — ' + (s.status || 'pendente').toLowerCase();
+      }
+
+      item.textContent = texto;
+      caixa.appendChild(item);
+    });
+
+    caixa.classList.remove('hidden');
+  }
+
   function abreAtendimento(dados) {
     S = estadoLimpo();
     S.documentoId = dados.document.id;
@@ -959,6 +1012,8 @@
     // A via por e-mail só é oferecida a quem tem e-mail cadastrado. O tablet
     // sabe SE existe, nunca QUAL é.
     $('#viaBox').classList.toggle('hidden', !S.signatario.has_email);
+
+    mostraSignatarios(dados.signers || []);
 
     // Termo de Menores: a via vai sempre que há e-mail (o do cadastro ou o
     // digitado no início) — sem caixa para marcar.

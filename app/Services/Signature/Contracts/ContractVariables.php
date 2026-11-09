@@ -90,6 +90,66 @@ class ContractVariables
         ['label' => 'Local da prestação do serviço', 'type' => self::TEXT],
     ];
 
+    /**
+     * O campo de preenchimento de cada tipo (decisão do usuário, 09/11/2026):
+     * a pessoa vê um campo só, o do preenchimento, e ele muda com o tipo —
+     * calendário para data, teclado numérico com "R$" ou "%" ao lado para
+     * quantia e percentual. O editor (JavaScript) recebe este mesmo mapa e
+     * troca o campo quando o tipo muda. Quem confere continua sendo format().
+     *
+     * `input`: o type do <input>; `inputmode`: o teclado do celular.
+     *
+     * @var array<string, array{input: string, inputmode: string, placeholder: string, prefix: string, suffix: string, hint: string}>
+     */
+    public const INPUTS = [
+        self::TEXT => ['input' => 'text', 'inputmode' => 'text', 'placeholder' => 'Escreva como deve sair no contrato', 'prefix' => '', 'suffix' => '', 'hint' => 'Sai no contrato do jeito que você escrever.'],
+        self::MONEY => ['input' => 'text', 'inputmode' => 'decimal', 'placeholder' => '8.900,00', 'prefix' => 'R$', 'suffix' => '', 'hint' => 'Só o número. Sai com o extenso: R$ 8.900,00 (oito mil e novecentos reais).'],
+        self::NUMBER => ['input' => 'text', 'inputmode' => 'decimal', 'placeholder' => '12', 'prefix' => '', 'suffix' => '', 'hint' => 'Só o número. Sai com o extenso: 12 (doze).'],
+        self::PERCENT => ['input' => 'text', 'inputmode' => 'decimal', 'placeholder' => '10', 'prefix' => '', 'suffix' => '%', 'hint' => 'Só o número. Sai com o extenso: 10% (dez por cento).'],
+        self::DATE => ['input' => 'date', 'inputmode' => 'numeric', 'placeholder' => '', 'prefix' => '', 'suffix' => '', 'hint' => 'Sai assim: 28/09/2026.'],
+        self::DATE_LONG => ['input' => 'date', 'inputmode' => 'numeric', 'placeholder' => '', 'prefix' => '', 'suffix' => '', 'hint' => 'Sai por extenso: 28 de setembro de 2026.'],
+        self::CPF => ['input' => 'text', 'inputmode' => 'numeric', 'placeholder' => '000.000.000-00', 'prefix' => '', 'suffix' => '', 'hint' => 'O CPF é conferido e sai com pontos e traço.'],
+        self::CNPJ => ['input' => 'text', 'inputmode' => 'text', 'placeholder' => '00.000.000/0000-00', 'prefix' => '', 'suffix' => '', 'hint' => 'O CNPJ é conferido e sai com pontos, barra e traço.'],
+    ];
+
+    /** O campo de preenchimento do tipo — ver INPUTS. */
+    public static function input(?string $type): array
+    {
+        return self::INPUTS[self::exists($type) ? $type : self::TEXT];
+    }
+
+    /**
+     * O preenchimento como vai para o campo da tela: a data guardada como
+     * 28/09/2026 vira 2026-09-28, o formato do calendário (<input type=date>).
+     * O resto vai como está.
+     */
+    public static function inputValue(?string $type, mixed $value): string
+    {
+        $texto = trim((string) $value);
+
+        if (in_array($type, [self::DATE, self::DATE_LONG], true)
+            && preg_match('#^(\d{1,2})/(\d{1,2})/(\d{4})$#', $texto, $m)) {
+            return sprintf('%04d-%02d-%02d', (int) $m[3], (int) $m[2], (int) $m[1]);
+        }
+
+        return $texto;
+    }
+
+    /**
+     * O preenchimento como fica guardado: o calendário manda 2026-09-28, e a
+     * data fica 28/09/2026, como sempre foi (é o que aparece no histórico de
+     * revisões e no "o que mudou").
+     */
+    public static function storedValue(?string $type, string $value): string
+    {
+        if (in_array($type, [self::DATE, self::DATE_LONG], true)
+            && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $m)) {
+            return $m[3] . '/' . $m[2] . '/' . $m[1];
+        }
+
+        return $value;
+    }
+
     public static function exists(?string $type): bool
     {
         return $type !== null && isset(self::LABELS[$type]);

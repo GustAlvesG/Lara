@@ -181,9 +181,11 @@
                         </div>
                     </div>
                     <p class="text-xs text-ink-3">
-                        O que muda de um contrato para outro — prazo, datas, percentuais, quantias: preencha uma vez e use no texto
-                        pelo "Inserir variável". Ou escreva direto na cláusula entre colchetes duplos, como <code class="font-mono">[[Prazo de vigência]]</code>:
-                        a variável aparece aqui sozinha, com o tipo pelo nome. Números, percentuais e quantias em reais saem com o extenso.
+                        O que muda de um contrato para outro — prazo, datas, percentuais, quantias. Em cada variável, preencha só
+                        o campo de baixo do nome: é o que entra no texto. Data se escolhe no calendário; quantia e percentual, só o número
+                        (saem com o extenso). Para mudar o nome ou o tipo, abra <b>Nome e tipo da variável</b>.
+                        Use no texto pelo "Inserir variável", ou escreva direto na cláusula entre colchetes duplos, como
+                        <code class="font-mono">[[Prazo de vigência]]</code>: a variável aparece aqui sozinha, com o tipo pelo nome.
                         Os dados das partes e do clube já são variáveis prontas.
                     </p>
                     {{-- Preenchido pelo editor: as variáveis ainda sem preenchimento, com atalho para cada uma. --}}
@@ -346,6 +348,8 @@
             'revision' => (int) $contract->content_revision,
             // Palpite do tipo pelo nome e as variáveis comuns (ContractVariables::GUESS/COMMON).
             'guess' => \App\Services\Signature\Contracts\ContractVariables::GUESS,
+            // O campo do preenchimento de cada tipo (09/11/2026).
+            'inputs' => \App\Services\Signature\Contracts\ContractVariables::INPUTS,
             'common' => $commonVariables,
             'usage' => (object) $variableUsage,
             'urls' => [

@@ -40,7 +40,7 @@ O que O Lara faz por você:
 
 - **Numeração automática**: CLÁUSULA PRIMEIRA, 1.1, 1.1.1 não se digitam. Use "Subitem →" para o 1.1.1.
 - **Remissão**: para citar outra cláusula, use **Inserir remissão**; o número acompanha se a ordem mudar.
-- **Variáveis**: o que muda de um contrato para outro (prazo, datas, percentuais, quantias) se preenche uma vez no campo **Preenchimento** e entra no texto com **Inserir variável**. Números, percentuais e quantias em reais saem com o extenso. Atalhos:
+- **Variáveis**: o que muda de um contrato para outro (prazo, datas, percentuais, quantias) se preenche uma vez e entra no texto com **Inserir variável**. Cada variável mostra o nome dela e, embaixo, **um campo só**: é ali que vai o que entra no contrato. O campo muda com o tipo: data se escolhe no **calendário**; quantia em reais tem **R$** ao lado e percentual tem **%** — digite só o número, e ele sai com o extenso. Embaixo do campo aparece como vai sair no texto. Para mudar o **nome** ou o **tipo**, ou remover a variável, clique em **Nome e tipo da variável** (fica recolhido; numa variável nova, já vem aberto para você dar o nome). Atalhos:
   - **Variável comum…** traz pronta uma das mais usadas (valor global, valor mensal, número de parcelas, dia do vencimento, prazo de vigência, datas de início e término, multa, índice de reajuste, forma de pagamento, local).
   - Escreva direto na cláusula entre colchetes duplos, como `[[Prazo de vigência]]`: a variável aparece sozinha no passo **Variáveis**, já com o tipo. Se você apagar o marcador sem ter preenchido, ela some.
   - O **Tipo** é escolhido pelo nome enquanto você não troca: "Valor…" vira quantia em reais, "Data…" vira data por extenso, "Prazo…", "Dias", "Parcelas" viram número, "percentual" vira percentual.
@@ -95,7 +95,7 @@ Em **Contratos › Assinaturas** ficam os documentos de assinatura dos contratos
 
 1. Abra o documento (ele nasce em **Rascunho**). Confira signatários e anexos e clique em **Congelar** quando estiver tudo certo.
 2. Para quem está no balcão, gere o **QR Code** do signatário e a pessoa assina no tablet. Para quem não pode vir, use o **link por e-mail** (assinatura remota) ou a aba **Assinatura gov.br**.
-3. O presidente e os diretores assinam no tablet com matrícula e PIN, depois de quem é de fora da diretoria.
+3. O presidente e os diretores assinam no tablet com matrícula e PIN, ou a distância pelo **link por e-mail**. No contrato não há ordem: o presidente e os diretores podem assinar antes ou depois da contratada e das testemunhas (desde 09/11/2026). Quem vai assinar vê quem já assinou, com dia e hora, e no documento que lê já aparece a assinatura de quem assinou antes.
    Se o presidente ou a contratada **recusar**, o contrato volta para quem redigiu (veja "Recusado na assinatura", abaixo).
 4. Assinado por todos, o documento fica **Finalizado** e a via vai por e-mail. Contrato não passa pela revisão interna: a Gerência já validou o texto.
 
@@ -193,7 +193,7 @@ Outra pessoa (ou você em outra aba) gravou o mesmo contrato enquanto você edit
 ### A variável apareceu sozinha no passo Variáveis
 <!-- telas: contracts.index -->
 
-Você escreveu um marcador entre colchetes duplos (como `[[Prazo de vigência]]`) numa cláusula, e ainda não havia variável com esse nome: O Lara criou. Preencha o **Preenchimento** e confira o **Tipo**. Se foi sem querer, apague o marcador do texto: sem preenchimento, a variável some sozinha.
+Você escreveu um marcador entre colchetes duplos (como `[[Prazo de vigência]]`) numa cláusula, e ainda não havia variável com esse nome: O Lara criou. Preencha o campo embaixo do nome dela e, se precisar, confira o tipo em **Nome e tipo da variável**. Se foi sem querer, apague o marcador do texto: sem preenchimento, a variável some sozinha.
 
 ### O presidente não vê o menu Contratos
 <!-- telas: contracts.index -->

@@ -198,11 +198,16 @@
       texto.textContent = doc.title;
 
       var detalhe = document.createElement('small');
-      var assinaram = doc.others.filter(function (o) { return o.signed; }).length;
+      // Quem já assinou, pelo nome, e quem falta (09/11/2026).
+      var jaAssinaram = doc.others.filter(function (o) { return o.signed; });
+      var faltam = doc.others.filter(function (o) { return !o.signed; });
       detalhe.textContent = doc.area
         + ' · gerado por ' + (doc.created_by || 'não registrado')
         + (doc.expires_at ? ' · até ' + doc.expires_at : '')
-        + (doc.others.length ? ' · ' + assinaram + ' de ' + doc.others.length + ' outro(s) já assinaram' : '')
+        + (jaAssinaram.length
+          ? ' · já assinaram: ' + jaAssinaram.map(function (o) { return o.name + (o.signed_at ? ' (' + o.signed_at + ')' : ''); }).join(', ')
+          : '')
+        + (faltam.length ? ' · falta: ' + faltam.map(function (o) { return o.name; }).join(', ') : '')
         + (doc.batch ? '' : ' · tem perguntas: assine sozinho');
       texto.appendChild(detalhe);
 
@@ -396,6 +401,7 @@
     S.lote.idx = i;
     S.pdfUrl = doc.pdf_url;
     $('#docTitulo').textContent = 'Documento ' + (i + 1) + ' de ' + S.lote.docs.length + ': ' + doc.title;
+    mostraSignatarios(doc.signers || []);
 
     mostra('tela-documento');
     carregaPdf();

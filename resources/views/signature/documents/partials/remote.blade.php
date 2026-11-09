@@ -3,14 +3,16 @@
      * Assinatura remota: o link por e-mail que abre a tela de quem assina no
      * site do clube, sem login. Ver RemoteSignatureService.
      *
-     * Um cartão por signatário pendente (diretor fora: assina só no tablet).
+     * Um cartão por signatário pendente, diretor inclusive (09/11/2026). No
+     * módulo Assinaturas, o diretor espera quem é de fora da diretoria: o
+     * cartão dele mostra o motivo (releaseBlockReason) em vez do formulário.
      * O e-mail vem preenchido com o do cadastro e pode ser corrigido — o
      * informado passa a ser o do signatário, como no convite do gov.br.
      */
     $remote = app(\App\Services\Signature\RemoteSignatureService::class);
     $emAberto = $document->status === \App\Models\SignatureDocument::STATUS_AWAITING_SIGNATURE && !$document->isGovbr();
     $candidatos = $emAberto
-        ? $document->signers->where('status', \App\Models\SignatureSigner::STATUS_PENDING)->reject(fn($s) => $s->isDirector())->values()
+        ? $document->signers->where('status', \App\Models\SignatureSigner::STATUS_PENDING)->values()
         : collect();
 @endphp
 

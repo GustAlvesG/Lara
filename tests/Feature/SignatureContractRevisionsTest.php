@@ -169,11 +169,61 @@ class SignatureContractRevisionsTest extends TestCase
 
         $this->actingAs($compradora)->get(route('contracts.edit', $contrato))
             ->assertOk()
-            ->assertSee('Preenchimento')
+            ->assertSee('Nome e tipo da variável')
             ->assertSee('Variável comum…')
             ->assertSee('data-side-tab="previa"', false)
             ->assertSee('data-side-tab="conferencia"', false)
             ->assertSee('Usada em: Cláusula 2.');
+    }
+
+    /**
+     * 09/11/2026: à vista só o preenchimento, com o nome da variável como rótulo; nome
+     * e tipo recolhidos em "Nome e tipo da variável". O campo segue o tipo: calendário
+     * para data (a guardada como 10/11/2026 vai como 2026-11-10), "R$" e "%" ao lado.
+     */
+    public function test_variavel_mostra_so_o_preenchimento_e_o_campo_segue_o_tipo(): void
+    {
+        $contrato = $this->contrato(['variables' => [
+            ['label' => 'Valor global', 'type' => 'money', 'value' => '8.900,00'],
+            ['label' => 'Multa', 'type' => 'percent', 'value' => '10'],
+            ['label' => 'Data de início', 'type' => 'date_long', 'value' => '10/11/2026'],
+        ]]);
+
+        $html = $this->actingAs($this->usuario([$this->compras->id]))
+            ->get(route('contracts.edit', $contrato))
+            ->assertOk()
+            ->assertSee('<span data-var-title>Valor global</span>', false)
+            ->assertSee('data-var-prefix>R$</span>', false)
+            ->assertSee('data-var-suffix>%</span>', false)
+            ->assertSee('value="2026-11-10"', false)
+            ->assertSee('Sai por extenso: 28 de setembro de 2026.')
+            ->getContent();
+
+        // Variáveis salvas: o "Nome e tipo" vem fechado; o campo de data é o calendário.
+        // (o único aberto é o da linha modelo, a variável nova, conferida abaixo).
+        $this->assertSame(1, preg_match_all('/<details[^>]*data-var-settings[^>]*\bopen\b/', $html));
+        $this->assertMatchesRegularExpression('/<input type="date"[^>]*value="2026-11-10"/', $html);
+        // A linha modelo (variável nova, sem nome) abre com o "Nome e tipo" aberto.
+        $this->assertMatchesRegularExpression('/<template id="tpl-variable">.*?<details[^>]*data-var-settings[^>]*\bopen\b/s', $html);
+    }
+
+    /** O calendário manda 2026-11-10; o contrato guarda 10/11/2026, como sempre. */
+    public function test_data_do_calendario_e_guardada_no_formato_de_sempre(): void
+    {
+        $contrato = $this->contrato();
+        $input = $this->conteudoCompleto();
+        $input['variables'][] = ['key' => '', 'label' => 'Data de início', 'type' => 'date_long', 'value' => '2026-11-10'];
+
+        $this->actingAs($this->usuario([$this->compras->id]))
+            ->putJson(route('contracts.autosave', $contrato), $input + ['revision' => 0])
+            ->assertOk();
+
+        $data = collect($contrato->fresh()->content['variables'])->firstWhere('label', 'Data de início');
+        $this->assertSame('10/11/2026', $data['value']);
+        $this->assertSame(['10/11/2026', null], [ContractVariables::storedValue('date', '2026-11-10'), null]);
+        $this->assertSame('2026-11-10', ContractVariables::inputValue('date_long', '10/11/2026'));
+        // Texto não muda de formato.
+        $this->assertSame('2026-11-10', ContractVariables::storedValue('text', '2026-11-10'));
     }
 
     // ---------------------------------------------------- salvar automático

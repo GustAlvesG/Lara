@@ -16,7 +16,6 @@ use App\Services\Signature\SignatureRequestService;
 use App\Services\Signature\SignatureSigningDataService;
 use App\Services\Signature\SignatureStateMachine;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * O tablet do balcão. Rota pública, sem sessão web e sem menu.
@@ -177,14 +176,14 @@ class QuiosqueController extends Controller
     public function pdf(Request $request, SignatureDocument $signatureDocument)
     {
         // A sessão já foi conferida pelo middleware, inclusive a de que este
-        // documento é o dela. Aqui só resta entregar os bytes.
-        abort_if(!$signatureDocument->original_path, 404);
+        // documento é o dela. Aqui só resta entregar os bytes: o original, ou,
+        // se alguém já assinou, o documento com as assinaturas dos demais
+        // (09/11/2026 — ver SignatureDocumentRenderer::readingPdf).
+        $bytes = app(\App\Services\Signature\SignatureDocumentRenderer::class)->readingPdf($signatureDocument);
 
-        $disk = Storage::disk(config('signature.disk'));
+        abort_if($bytes === null, 404);
 
-        abort_if(!$disk->exists($signatureDocument->original_path), 404);
-
-        return $disk->response($signatureDocument->original_path, null, [
+        return response($bytes, 200, [
             'Content-Type' => 'application/pdf',
             'Cache-Control' => 'private, max-age=0, no-store',
         ]);

@@ -66,6 +66,9 @@
             É o hash do arquivo exibido no tablet, calculado no momento do congelamento — antes de qualquer
             assinatura. Confira-o na página de validação.
         @endif
+        {{-- Desde 09/11/2026 quem assina depois de outro lê este mesmo texto com as assinaturas já feitas (SignatureDocumentRenderer::readingPdf). --}}
+        Quem assinou depois de outro signatário leu este mesmo documento com as assinaturas já feitas impressas;
+        o texto é o deste hash.
         {{-- Um arquivo não pode trazer o próprio hash: qualquer texto a mais muda o hash. Sem este aviso, quem
              compara com o hash mostrado por um validador (ex.: validar.iti.gov.br) acha que o documento foi alterado. --}}
         <br><b>Não é o hash deste PDF assinado:</b> este arquivo, com as assinaturas e este manifesto{{ config('signature.pades.enabled') ? ' e o lacre' : '' }},

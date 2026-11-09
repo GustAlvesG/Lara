@@ -66,9 +66,8 @@ class RemoteSignatureService
             return 'A assinatura remota não está configurada: falta o endereço do site (SIGNATURE_REMOTE_SITE_URL).';
         }
 
-        if ($signer->isDirector()) {
-            return 'Diretor assina no tablet, em "Assinatura da Diretoria", com a matrícula e o PIN do Lara — não por link.';
-        }
+        // Diretor também assina por link desde 09/11/2026 (decisão do usuário).
+        // A ordem da diretoria, no módulo Assinaturas, vem de releaseBlockReason.
 
         $document = $signer->document;
 
@@ -76,7 +75,7 @@ class RemoteSignatureService
             return 'O Termo de Menores é assinado no tablet do evento, não por link.';
         }
 
-        if ($motivo = $signer->releaseBlockReason()) {
+        if ($motivo = $signer->releaseBlockReason(false, true)) {
             return $motivo;
         }
 
@@ -247,7 +246,7 @@ class RemoteSignatureService
         throw_if($link->isExpired(), SignatureRemoteLinkException::expired());
 
         // Já assinou pelo tablet, documento cancelado, preparado para o gov.br…
-        if ($motivo = $link->signer->releaseBlockReason()) {
+        if ($motivo = $link->signer->releaseBlockReason(false, true)) {
             throw SignatureRemoteLinkException::unavailable(
                 $link->signer->status === SignatureSigner::STATUS_SIGNED
                     ? 'Você já assinou este documento.'

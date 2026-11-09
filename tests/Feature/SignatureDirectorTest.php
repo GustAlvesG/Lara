@@ -489,6 +489,39 @@ class SignatureDirectorTest extends TestCase
         $this->assertSame([$diretor->id], array_column($this->entra()->json('documents'), 'signer_id'));
     }
 
+    /**
+     * A ordem da diretoria é só do módulo Assinaturas: no documento de um
+     * CONTRATO o diretor assina quando quiser (decisão do usuário, 09/11/2026).
+     */
+    public function test_no_contrato_o_diretor_nao_espera_quem_e_de_fora_da_diretoria(): void
+    {
+        $ana = $this->diretor('Ana Diretora', '777', '12345678909');
+        $documento = $this->documentoComDiretor($this->areaCom($ana), $ana, comSocia: true);
+        $diretor = $documento->signers()->whereNotNull('director_area_id')->sole();
+
+        \Illuminate\Support\Facades\DB::table('signature_contracts')->insert([
+            'title' => 'Contrato de prestação de serviços',
+            'signature_document_id' => $documento->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->assertTrue($documento->fresh()->pendingNonDirectors()->isEmpty());
+        $this->assertNull($diretor->fresh()->releaseBlockReason(true));
+        $this->assertTrue(SignatureDocument::whereKey($documento->id)->releasedToDirectors()->exists());
+
+        // Na lista do tablet e aberto antes de Maria assinar.
+        $lista = $this->entra()->assertOk()->json('documents');
+        $this->assertSame([$diretor->id], array_column($lista, 'signer_id'));
+        $this->assertSame([['name' => 'Maria de Souza', 'signed' => false, 'signed_at' => null]], $lista[0]['others']);
+
+        $this->withCredentials()->withCookie(DirectorKioskService::COOKIE, $this->cookieDoDiretor($this->entra()))
+            ->postJson(route('quiosque.diretoria.open', $diretor->id))
+            ->assertOk()
+            ->assertJsonPath('signers.0.name', 'Maria de Souza')
+            ->assertJsonPath('signers.1.me', true);
+    }
+
     /* ------------------------------------------------------------------
      | Assinatura em lote e acompanhamento (26/10/2026)
      |------------------------------------------------------------------*/

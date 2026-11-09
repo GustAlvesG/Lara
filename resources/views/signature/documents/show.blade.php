@@ -319,10 +319,10 @@
                                 </div>
 
                                 @if($signer->isDirector() && $signer->status === \App\Models\SignatureSigner::STATUS_PENDING)
-                                    {{-- Assinatura Diretoria: o diretor abre o documento no tablet com matrícula e PIN; o QR continua possível no balcão. --}}
+                                    {{-- Assinatura Diretoria: o diretor abre o documento no tablet com matrícula e PIN; a distância, pelo link remoto (09/11/2026). --}}
                                     <div class="mt-2 rounded-lg bg-subtle px-3 py-2 text-[11px] text-ink-2" data-signer-director>
-                                        Diretor: assina só no tablet, em <b>Assinatura da Diretoria</b>, com a matrícula e o PIN do
-                                        Lara — sem QR (ou pelo gov.br, se o documento for preparado para lá).
+                                        Diretor: assina no tablet, em <b>Assinatura da Diretoria</b>, com a matrícula e o PIN do
+                                        Lara — sem QR —, pelo link de <b>Assinatura remota</b> ou pelo gov.br, se o documento for preparado para lá.
                                         @if(($faltamAntes = $document->pendingNonDirectors())->isNotEmpty())
                                             {{-- O documento só chega à diretoria depois de quem é de fora dela. --}}
                                             <span class="block mt-1 font-bold" data-signer-director-waiting>

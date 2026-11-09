@@ -36,7 +36,7 @@ class EnsureSignatureRemoteSession
             return $this->deny(419, 'A sessão terminou. Abra de novo o link do e-mail.');
         }
 
-        if ($motivo = $solicitacao->signer->releaseBlockReason()) {
+        if ($motivo = $solicitacao->signer->releaseBlockReason(false, true)) {
             return $this->deny(409, $motivo);
         }
 

@@ -191,7 +191,7 @@ Situações do balcão:
 - O tablet não lê o QR (câmera com problema): se aparecer na sua tela "Sem câmera no tablet? Dite este código", dite o código de 8 caracteres; no tablet, a pessoa toca em **Digitar código**.
 - O tablet do balcão fica sempre aberto na tela de assinatura e não precisa de login.
 
-Diretor não assina pelo QR Code: ele entra no tablet com matrícula e PIN (veja "Como o diretor assina no tablet").
+Diretor não assina pelo QR Code: ele entra no tablet com matrícula e PIN (veja "Como o diretor assina no tablet") ou assina a distância pelo link enviado por e-mail.
 
 ## Conferir as respostas da pessoa antes da assinatura
 <!-- telas: signature-documents.index -->
@@ -214,7 +214,7 @@ Conhecer as telas ajuda a orientar quem está assinando no tablet do balcão. Al
 
 1. **Leitura do QR**: a pessoa aponta a câmera para o código na tela do atendente.
 2. **Perguntas** (se houver): "Antes de ler, responda". Depois, **Continuar**.
-3. **Documento**: rola o texto até o fim; só então o botão vira **Li o documento**.
+3. **Documento**: rola o texto até o fim; só então o botão vira **Li o documento**. Quando há mais de uma pessoa assinando, acima do documento aparece quem assina e quem já assinou ("1 de 2 já assinaram"), com dia e hora, e no próprio documento já aparece a assinatura de quem assinou antes.
 4. **Identidade**: digita os quatro primeiros dígitos do CPF, o CPF completo ou o código que chegou no e-mail (se não chegar, **Reenviar código**, depois de um minuto). São cinco tentativas.
 5. **Aceite**: marca "Li e concordo" e, quando o modelo pede foto, também a autorização de imagem. Pode pedir a via por e-mail. Se houve perguntas, o botão só libera depois que o atendente aprova as respostas ("Aguardando o atendente conferir as suas respostas").
 6. **Assinatura**: com o dedo ou a caneta. **Limpar** apaga e deixa refazer.
@@ -272,7 +272,9 @@ O que vale saber:
 - A foto é sempre obrigatória no link. Sem câmera, a pessoa não conclui.
 - **Enviar novo link** faz o anterior parar de valer: use quando a pessoa perdeu o link, ele venceu ou foi bloqueado. **Revogar link** faz parar de abrir na hora.
 - Preparar o documento para o gov.br cancela os links enviados.
-- Diretor e Termo de Menores não usam link.
+- O diretor também pode receber o link (desde 09/11/2026), com as mesmas regras: CPF completo e foto. Num documento de Assinaturas com outros signatários, o link do diretor só sai depois que eles assinarem; num contrato, sai a qualquer hora.
+- Quem assina pelo link também vê quem já assinou e a assinatura dessas pessoas no documento.
+- O Termo de Menores não usa link.
 - Se o quadro **Assinatura remota** não aparece, a assinatura remota não está configurada: fale com a TI.
 
 ## Assinatura pelo gov.br
@@ -420,17 +422,17 @@ O que acontece depois:
 
 - A pessoa escolhida é a que assina: o nome e o CPF dela vão impressos. Se ela não puder assinar, cancele e emita de novo com quem a substitui.
 - O documento ganha 7 dias de prazo ao congelar.
-- Se há outros signatários (o sócio, um fornecedor), o documento só vai para a diretoria **depois que eles assinarem**. Até lá não aparece no tablet do diretor, e o cartão dele no documento diz "Vai para a diretoria depois da assinatura de…".
+- Se há outros signatários (o sócio, um fornecedor), o documento só vai para a diretoria **depois que eles assinarem**. Até lá não aparece no tablet do diretor, o link remoto do diretor não sai, e o cartão dele no documento diz "Vai para a diretoria depois da assinatura de…". Essa ordem vale só para os documentos do módulo Assinaturas: nos **contratos** (módulo Contratos), o diretor assina quando quiser, antes ou depois dos demais.
 - Quando chega a vez da diretoria, o diretor recebe um e-mail de aviso, sem link.
 - A lista **Documentos** tem o filtro **Aguardando diretoria**, só com os que já chegaram à diretoria.
-- O diretor não assina por QR Code nem por link remoto. A outra forma é o gov.br: documento preparado para o gov.br sai da lista do tablet do diretor.
+- O diretor não assina por QR Code. Além do tablet, ele pode assinar a distância pelo **link remoto** (quadro **Assinatura remota**, na página do documento) ou pelo gov.br. Documento preparado para o gov.br sai da lista do tablet do diretor.
 
 ## Como o diretor assina no tablet
 
 O diretor assina sem passar pelo atendente, no tablet do balcão:
 
 1. Na tela de espera do tablet, toque em **Assinatura da Diretoria** e entre com a **matrícula** e o **PIN** d'O Lara. Sem PIN? Cadastre no seu **Perfil**, n'O Lara.
-2. Aparece a lista dos documentos que esperam a sua assinatura. Toque num deles, leia até o fim, aceite, assine, faça o visto (se o documento pedir) e tire a foto. Para o diretor, a foto é sempre obrigatória. Não há conferência de CPF: o PIN já identifica.
+2. Aparece a lista dos documentos que esperam a sua assinatura. Cada um diz quem já assinou (com dia e hora) e quem ainda falta. Toque num deles, leia até o fim, aceite, assine, faça o visto (se o documento pedir) e tire a foto. Para o diretor, a foto é sempre obrigatória. Não há conferência de CPF: o PIN já identifica.
 3. Para assinar vários de uma vez, marque a caixa de cada documento (ou **Marcar todos**) e toque em **Assinar selecionados**. O tablet pergunta **"Deseja ver cada documento individualmente?"**: em **Sim, ver um por um**, mostra um documento de cada vez para leitura (role até o fim de cada um); em **Não, assinar**, pula direto para o aceite. Depois, um aceite, uma assinatura e uma foto valem para todos. Quando você escolhe não ver, o registro de cada documento diz que a leitura individual foi dispensada. Documento com perguntas a responder não entra no lote: assine sozinho.
 4. A aba **Já assinados** mostra o que você assinou nos últimos 90 dias e em que pé está (quem ainda falta, ou "Concluído").
 5. Toque em **Sair** ao terminar. Se esquecer, o tablet sai sozinho depois de um tempo parado.
@@ -482,7 +484,7 @@ O CPF digitado não bate com o do documento. São cinco tentativas. Se o CPF do 
 ### O botão "Liberar para assinatura" não libera
 <!-- telas: signature-documents.index -->
 
-A tela diz o motivo: "Congele o documento antes de liberar a assinatura."; "Este documento está sendo assinado pelo gov.br: a assinatura não é liberada no tablet."; "Diretor assina só no tablet, em 'Assinatura da Diretoria'…" (diretor não usa QR); ou "Este documento vai para a diretoria depois da assinatura de…".
+A tela diz o motivo: "Congele o documento antes de liberar a assinatura."; "Este documento está sendo assinado pelo gov.br: a assinatura não é liberada no tablet."; "Diretor não assina pelo QR Code…" (o diretor assina no tablet, em **Assinatura da Diretoria**, ou pelo link remoto); ou "Este documento vai para a diretoria depois da assinatura de…".
 
 ### O tablet mostrou "Falha na comunicação com o servidor (código …)"
 
@@ -511,7 +513,7 @@ O convite do gov.br ou o link remoto não saíram. Confira o e-mail digitado e t
 ### O quadro "Assinatura remota" não aparece, ou não deixa enviar
 <!-- telas: signature-documents.index -->
 
-O quadro só aparece com o documento em **Aguardando assinatura** e fora do gov.br. Diretor e Termo de Menores não usam link. Se o quadro não existe em nenhum documento, a assinatura remota não está configurada: fale com a TI.
+O quadro só aparece com o documento em **Aguardando assinatura** e fora do gov.br. O Termo de Menores não usa link. No cartão do diretor, em vez do botão, pode aparecer "Este documento vai para a diretoria depois da assinatura de…": o link dele sai quando os demais assinarem (só nos documentos de Assinaturas; nos contratos, não há essa espera). Se o quadro não existe em nenhum documento, a assinatura remota não está configurada: fale com a TI.
 
 ### O link remoto foi bloqueado ou venceu
 <!-- telas: signature-documents.index -->
@@ -550,4 +552,4 @@ Na área: ele precisa ser do setor Diretoria, estar ativo e ter matrícula. No d
 
 ### O diretor não vê o documento na lista do tablet
 
-Ou ainda falta a assinatura de quem é de fora da diretoria (o documento só chega depois), ou o documento foi preparado para o gov.br, ou o prazo de 7 dias venceu. O documento só aparece para a pessoa escolhida (titular ou substituto) ao criar.
+Ou ainda falta a assinatura de quem é de fora da diretoria (o documento só chega depois; nos contratos não há essa espera), ou o documento foi preparado para o gov.br, ou o prazo de 7 dias venceu. O documento só aparece para a pessoa escolhida (titular ou substituto) ao criar.

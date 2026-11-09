@@ -256,6 +256,17 @@ Pedidos do usuário depois de apresentar o módulo. Decisões dele entre parênt
 - **Chave estável**: a linha nova recebe a chave do servidor (prévia ou salvar automático) quando o nome para de
   mudar (`guardaChaves`, pula a linha com foco) — renomear depois não quebra o `[[marcador]]`.
 - "Usada em …" / "Ainda não usada no texto" em cada variável e o quadro **Falta preencher**.
+- **Um campo só à vista (decisão do usuário, 09/11/2026)**: as pessoas escreviam o preenchimento no nome. A linha
+  (`partials/variable.blade.php`, fora do modelo) mostra o nome como rótulo (`data-var-title`) e o campo do
+  preenchimento; nome, tipo e Remover ficam num `<details data-var-settings>` ("Nome e tipo da variável"),
+  aberto só na variável nova sem nome. O botão "+ Variável" põe o foco no nome; "Variável comum" e o
+  `[[marcador]]` criam a linha já recolhida.
+- **Campo pelo tipo**: `ContractVariables::INPUTS` (type do `<input>`, `inputmode`, exemplo, prefixo `R$`, sufixo `%`,
+  dica de como sai) vai para a tela e para o editor (`CT.inputs`); `aplicaTipo()` troca o campo quando o tipo muda
+  (à mão ou pelo palpite do nome). Data usa `<input type="date">`: a tela recebe `inputValue()` (28/09/2026 →
+  2026-09-28) e `ContractContent::normalize` guarda com `storedValue()` (2026-09-28 → 28/09/2026), o formato de
+  sempre (histórico e "o que mudou"). Quem confere o preenchimento continua sendo `ContractVariables::format()`.
+  Na edição do modelo nada disso aparece: o modelo não tem preenchimento, e o nome segue à vista.
 
 ### Salvar automático (formulário inteiro; também no tablet da Gerência)
 - `signature_contracts.content_revision` (sobe a cada gravação do texto), `content_saved_by_name`,
@@ -512,8 +523,11 @@ de fora sem e-mail (não recebe o link remoto).
   fiadores e testemunhas. Diretor passa por `DirectorAreaService::signerData`; mandato encerrado vira
   aviso e fica de fora — o `freeze` recusa até alguém ser escolhido para a parte.
 - Anexos do contrato são copiados com `SignatureAttachmentService::store` (sem chave, com o rótulo).
-- Daí em diante é o circuito de sempre (balcão, link remoto, gov.br, Assinatura Diretoria — o diretor
-  espera quem é de fora da diretoria).
+- Daí em diante é o circuito de sempre (balcão, link remoto, gov.br, Assinatura Diretoria). **Sem ordem**
+  (decisão do usuário, 09/11/2026): no contrato o presidente e os diretores **não** esperam quem é de fora da
+  diretoria; a regra da ordem é só do módulo Assinaturas (`SignatureDocument::pendingNonDirectors()` volta vazio
+  para documento com `contract`). O diretor também assina pelo link remoto, e todo signatário vê quem já assinou
+  e a assinatura dessas pessoas no PDF que lê (ver "Ciência de quem já assinou" em `assinatura-eletronica.md`).
 
 ## Reaproveitamento
 

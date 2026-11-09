@@ -63,6 +63,7 @@ class EnsureSignatureKioskSession
          */
         if ($motivo = $signatario->releaseBlockReason(
             $solicitacao->identity_method === \App\Models\SignatureRequest::IDENTITY_METHOD_DIRECTOR_PIN,
+            $solicitacao->isRemote(),
         )) {
             return $this->deny($request, 409, $motivo);
         }

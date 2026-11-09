@@ -64,6 +64,8 @@ trait RespondsWithKioskSession
                  */
                 'has_email' => $signatario->email !== null && $signatario->email !== '',
             ],
+            // Todos os signatários e quem já assinou (09/11/2026).
+            'signers' => $documento->readerSigners($signatario->id),
             'rules' => [
                 // No link remoto, sempre o CPF completo (SignatureCaptureService).
                 'identity_check' => $solicitacao->isRemote()

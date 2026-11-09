@@ -106,6 +106,8 @@ class SignaturePdfStamper
         }
 
         $final = $mode === SignatureDocumentRenderer::MODE_FINAL;
+        // Final ou em andamento: traço e visto de quem já assinou.
+        $comAssinaturas = SignatureDocumentRenderer::showsSignatures($mode);
         $signers = $document->signers()->with('evidence')->get()->values();
         $comVisto = $document->requiresInitials();
 
@@ -128,10 +130,10 @@ class SignaturePdfStamper
                 $this->validationLine($pdf, $document, $final, $tamanho['width'], $tamanho['height']);
 
                 if ($comVisto) {
-                    $this->initials($pdf, $signers, $final, $tamanho['width'], $tamanho['height']);
+                    $this->initials($pdf, $signers, $comAssinaturas, $tamanho['width'], $tamanho['height']);
                 }
 
-                if ($final) {
+                if ($comAssinaturas) {
                     foreach ($signers as $signer) {
                         if (($signer->signature_position['page'] ?? null) === $n) {
                             $this->positionedSignature($pdf, $signer, $tamanho['width'], $tamanho['height']);
@@ -149,7 +151,7 @@ class SignaturePdfStamper
             })->values();
 
             if ($semLugar->isNotEmpty()) {
-                $this->signatureSheet($pdf, $document, $semLugar, $final);
+                $this->signatureSheet($pdf, $document, $semLugar, $final, $comAssinaturas);
             }
 
             if ($manifest !== null) {
@@ -258,8 +260,13 @@ class SignaturePdfStamper
      *
      * @param  Collection<int, SignatureSigner>  $signers
      */
-    private function signatureSheet(Fpdi $pdf, SignatureDocument $document, Collection $signers, bool $final): void
-    {
+    private function signatureSheet(
+        Fpdi $pdf,
+        SignatureDocument $document,
+        Collection $signers,
+        bool $final,
+        bool $comAssinaturas = false,
+    ): void {
         $novaPagina = function () use ($pdf, $document, $final) {
             $pdf->AddPage('P', [210, 297]);
 
@@ -288,7 +295,7 @@ class SignaturePdfStamper
                 $y = 50.0;
             }
 
-            if ($final && ($imagem = $this->image($signer->evidence?->signature_path))) {
+            if ($comAssinaturas && ($imagem = $this->image($signer->evidence?->signature_path))) {
                 $this->fit($pdf, $imagem, 20, $y, 80, 24, 'bottom', 'left');
             }
 
@@ -306,7 +313,12 @@ class SignaturePdfStamper
             $pdf->SetTextColor(110, 100, 100);
             $pdf->Text(20, $base + 9.5, $this->t($signer->documentCapacityLabel() . ' — CPF ' . $signer->maskedCpf()));
 
-            if ($final) {
+            if ($comAssinaturas && !$final && $signer->signed_at) {
+                // Em andamento: só quem já assinou ganha a linha; o pendente fica em branco.
+                $pdf->Text(20, $base + 14, $this->t(
+                    'Assinado eletronicamente em ' . $signer->signed_at->format('d/m/Y \à\s H:i') . ' (horário do servidor).',
+                ));
+            } elseif ($final) {
                 $pdf->Text(20, $base + 14, $this->t($signer->signed_at
                     ? 'Assinado eletronicamente em ' . $signer->signed_at->format('d/m/Y \à\s H:i') . ' (horário do servidor).'
                     : $signer->statusLabel() . '.'));

@@ -36,6 +36,20 @@ class SignatureDocumentRenderer
     public const MODE_FINAL = 'final';
 
     /**
+     * O documento EM ANDAMENTO (09/11/2026): o original, com o traço, o visto
+     * e a data de quem já assinou. É o que o próximo signatário lê, para saber
+     * quem já assinou. Não tem manifesto, não é gravado e não tem hash próprio:
+     * a prova do conteúdo continua sendo o `original_sha256`. Ver readingPdf().
+     */
+    public const MODE_PROGRESS = 'progress';
+
+    /** Os modos que imprimem o traço e o visto de quem já assinou. */
+    public static function showsSignatures(string $mode): bool
+    {
+        return $mode === self::MODE_FINAL || $mode === self::MODE_PROGRESS;
+    }
+
+    /**
      * Tags que um modelo de documento pode usar além da allow-list padrão do
      * HtmlSanitizer: título e lista numerada são a estrutura de um termo, e
      * "desembrulhar" um `<ol>` viraria cláusula em parágrafo corrido.
@@ -256,7 +270,7 @@ class SignatureDocumentRenderer
     private function placeSignatures(string $corpo, SignatureDocument $document, string $mode): string
     {
         $generico = $document->effectiveTemplate()->signature_placeholder ?: '[[assinatura]]';
-        $imagens = $mode === self::MODE_FINAL ? $this->signatureImages($document) : [];
+        $imagens = self::showsSignatures($mode) ? $this->signatureImages($document) : [];
 
         // '' é o grupo de quem vai para o marcador genérico.
         $grupos = $document->signers()->get()->groupBy(
@@ -390,6 +404,43 @@ class SignatureDocumentRenderer
         return $this->newPdf($this->govbrReportHtml($document, $finalSha256))->output();
     }
 
+    /**
+     * O PDF que quem vai assinar LÊ — no tablet, na Assinatura da Diretoria e
+     * no link remoto (decisão do usuário, 09/11/2026: todos têm ciência de
+     * quem já assinou, com o desenho da assinatura no documento).
+     *
+     * Ninguém assinou: o arquivo original, byte a byte — o do hash. Alguém já
+     * assinou: o mesmo documento montado de novo em MODE_PROGRESS, com o traço,
+     * o visto e a data de quem assinou. O texto é o mesmo (depois da primeira
+     * assinatura ele não muda mais); o que se acrescenta é só o que os outros
+     * assinaram. Não é gravado: a assinatura de uma pessoa não fica em outro
+     * arquivo além da evidência e do PDF final.
+     *
+     * Se a montagem falhar, sai o original: quem assina ainda precisa ler.
+     */
+    public function readingPdf(SignatureDocument $document): ?string
+    {
+        $disk = Storage::disk(config('signature.disk'));
+
+        if (!$document->original_path || !$disk->exists($document->original_path)) {
+            return null;
+        }
+
+        $alguemAssinou = $document->signers()
+            ->where('status', \App\Models\SignatureSigner::STATUS_SIGNED)
+            ->exists();
+
+        if ($alguemAssinou && !$document->isGovbr()) {
+            try {
+                return $this->pdf($document, self::MODE_PROGRESS);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
+
+        return (string) $disk->get($document->original_path);
+    }
+
     /** Os bytes do PDF. */
     public function pdf(SignatureDocument $document, string $mode = self::MODE_ORIGINAL): string
     {
@@ -492,7 +543,7 @@ class SignatureDocumentRenderer
             return;
         }
 
-        $vistos = $mode === self::MODE_FINAL ? $this->initialsFiles($signers, $temporarios) : [];
+        $vistos = self::showsSignatures($mode) ? $this->initialsFiles($signers, $temporarios) : [];
         $caixas = $signers->count() + ($gerencia !== null ? 1 : 0);
         // Contrato: a caixa leva o nome (em maiúsculas), não o papel.
         $ehContrato = $this->contractCaptions($document) !== null;

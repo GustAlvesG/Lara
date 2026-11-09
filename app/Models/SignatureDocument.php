@@ -772,10 +772,18 @@ class SignatureDocument extends Model
      * não sai e o convite gov.br ao diretor fica travado (decisão do usuário,
      * 26/10/2026). Contrapartida em consulta: `scopeReleasedToDirectors`.
      *
+     * A regra é do módulo Assinaturas. Documento de CONTRATO (módulo
+     * Contratos) não tem ordem: o diretor assina quando quiser, antes ou
+     * depois dos demais (decisão do usuário, 09/11/2026) — aqui volta vazio.
+     *
      * @return \Illuminate\Support\Collection<int, SignatureSigner>
      */
     public function pendingNonDirectors(): \Illuminate\Support\Collection
     {
+        if ($this->isContract()) {
+            return collect();
+        }
+
         $signers = $this->relationLoaded('signers') ? $this->signers : $this->signers()->get();
 
         return $signers
@@ -792,12 +800,40 @@ class SignatureDocument extends Model
     /**
      * Mesma regra de `releasedToDirectors`, em consulta. "De fora da diretoria"
      * é sem área ou sem usuário — o inverso de `SignatureSigner::isDirector`.
+     * Documento de contrato sempre passa (não tem ordem, 09/11/2026).
      */
     public function scopeReleasedToDirectors($query)
     {
-        return $query->whereDoesntHave('signers', fn($s) => $s
-            ->where('status', SignatureSigner::STATUS_PENDING)
-            ->where(fn($q) => $q->whereNull('director_area_id')->orWhereNull('user_id')));
+        return $query->where(fn($q) => $q
+            ->whereHas('contract')
+            ->orWhereDoesntHave('signers', fn($s) => $s
+                ->where('status', SignatureSigner::STATUS_PENDING)
+                ->where(fn($q) => $q->whereNull('director_area_id')->orWhereNull('user_id'))));
+    }
+
+    /**
+     * Os signatários como vão para a tela de QUEM VAI ASSINAR — tablet,
+     * Assinatura da Diretoria (um a um e lote) e link remoto. Decisão do
+     * usuário, 09/11/2026: todos têm ciência de quem já assinou.
+     *
+     * Nome, qualidade em que assina e a situação — o que já sai impresso no
+     * documento. Nada de CPF, e-mail, telefone ou foto.
+     *
+     * @return array<int, array{name: string, role: string, me: bool, signed: bool, signed_at: ?string, status: string}>
+     */
+    public function readerSigners(?int $currentSignerId = null): array
+    {
+        return $this->signers()->get()
+            ->map(fn(SignatureSigner $s) => [
+                'name' => $s->name,
+                'role' => $s->capacityLabel(),
+                'me' => $s->id === $currentSignerId,
+                'signed' => $s->status === SignatureSigner::STATUS_SIGNED,
+                'signed_at' => $s->signed_at?->toIso8601String(),
+                'status' => $s->statusLabel(),
+            ])
+            ->values()
+            ->all();
     }
 
     /**

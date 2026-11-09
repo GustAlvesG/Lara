@@ -249,6 +249,8 @@ class DirectorKioskService
                 ->map(fn(SignatureSigner $o) => [
                     'name' => $o->name,
                     'signed' => $o->status === SignatureSigner::STATUS_SIGNED,
+                    // Para a lista dizer QUEM já assinou, e não só quantos (09/11/2026).
+                    'signed_at' => $o->signed_at?->format('d/m H:i'),
                 ])
                 ->values()
                 ->all(),
@@ -380,6 +382,8 @@ class DirectorKioskService
                 // O hash muda se a data automática refez o arquivo.
                 'pdf_url' => route('quiosque.diretoria.batch.pdf', $id) . '?v=' . substr((string) $documento->original_sha256, 0, 12),
                 'requires_initials' => $documento->requiresInitials(),
+                // Quem mais assina e quem já assinou (09/11/2026).
+                'signers' => $documento->readerSigners($id),
             ];
         })->values()->all();
 

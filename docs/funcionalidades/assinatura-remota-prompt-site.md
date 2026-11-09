@@ -178,6 +178,10 @@ derruba a sessão anterior.
     ]
   },
   "signer": { "name": "Maria de Souza", "role": "Contratante", "has_email": true },
+  "signers": [
+    { "name": "Maria de Souza", "role": "Contratante", "me": true, "signed": false, "signed_at": null, "status": "Pendente" },
+    { "name": "João da Silva", "role": "Testemunha", "me": false, "signed": true, "signed_at": "2026-10-21T14:55:10-03:00", "status": "Assinado" }
+  ],
   "rules": { "identity_check": "full", "requires_photo": true, "requires_initials": false, "identity_confirmed": false },
   "session": { "remaining_seconds": 1800, "warning_seconds": 60 },
   "server_time": "2026-10-21T15:10:02-03:00",
@@ -188,6 +192,8 @@ derruba a sessão anterior.
 ```
 
 `form` é `null` quando não há perguntas (ou quando alguém já assinou e o texto não muda mais).
+`signers` (desde 09/11/2026): todos os signatários do documento, na ordem do documento, com quem já
+assinou. `me` é quem está com o link. Só nome, qualidade e situação, sem CPF nem contato.
 `attachments` é `null` até o CPF ser confirmado; depois, vem como em `GET /anexos`.
 
 ### Rotas com sessão (`X-Signature-Session`)
@@ -200,7 +206,7 @@ derruba a sessão anterior.
 | `GET /api/assinatura/remota/anexos` | — | A lista de anexos (abaixo) |
 | `POST /api/assinatura/remota/anexos` | **multipart**: `file` + `key` | 201 com a lista atualizada |
 | `DELETE /api/assinatura/remota/anexos/{id}` | — | A lista atualizada |
-| `GET /api/assinatura/remota/pdf` | — | `application/pdf` (os bytes que a pessoa assina) |
+| `GET /api/assinatura/remota/pdf` | — | `application/pdf`: o documento que a pessoa lê. Enquanto ninguém assinou, os bytes originais; depois, o mesmo texto com a assinatura de quem já assinou impressa (desde 09/11/2026) |
 | `POST /api/assinatura/remota/visualizado` | `{ "read_seconds": 95, "scrolled_to_end": true }` | `{ "ok": true }` |
 | `POST /api/assinatura/remota/assinar` | ver abaixo | `{ ok, message, signed_at, validation_code }` |
 | `POST /api/assinatura/remota/recusar` | `{ "reason": "texto opcional, até 255" }` | `{ ok, message }` |
@@ -291,6 +297,9 @@ A ordem é esta, e é a do Lara. O CPF vem **antes** do documento, de propósito
    "obrigatório"/"opcional", o que já foi enviado e o botão de enviar/trocar. **Continuar** só com
    `missing_required` vazia.
 5. **Leitura**: o PDF (via `pdf`, repassado pelo Next) em PDF.js, página a página, largura do celular.
+   Com mais de um item em `signers`, mostre acima do PDF quem assina e quem já assinou ("1 de 2 já
+   assinaram", um item por pessoa: nome, `role`, "assinou em <data>" para `signed`, "você" para `me`).
+   O PDF já traz a assinatura de quem assinou antes: busque-o sempre na hora de mostrar, sem cache.
    Conte o tempo com o documento na tela e se rolou até o fim. Ao sair da leitura, `visualizado`.
    Botão **Recusar** visível em qualquer etapa a partir daqui (com motivo opcional e confirmação:
    recusar encerra o documento para todos).

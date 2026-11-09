@@ -76,7 +76,7 @@ class SignatureRequestService
         $doDiretor = $identityMethod === SignatureRequest::IDENTITY_METHOD_DIRECTOR_PIN;
         $remota = $identityMethod === SignatureRequest::IDENTITY_METHOD_REMOTE_LINK;
 
-        if ($motivo = $signer->releaseBlockReason($doDiretor)) {
+        if ($motivo = $signer->releaseBlockReason($doDiretor, $remota)) {
             throw new SignatureDocumentLockedException($motivo);
         }
 
@@ -324,7 +324,10 @@ class SignatureRequestService
 
         // O documento pode ter sido cancelado entre a geração do QR e a
         // leitura — a tela do atendente e o tablet são dois aparelhos.
-        if ($motivo = $signer?->releaseBlockReason($request->identity_method === SignatureRequest::IDENTITY_METHOD_DIRECTOR_PIN)) {
+        if ($motivo = $signer?->releaseBlockReason(
+            $request->identity_method === SignatureRequest::IDENTITY_METHOD_DIRECTOR_PIN,
+            $request->isRemote(),
+        )) {
             throw new SignatureSessionException($motivo, 409);
         }
 

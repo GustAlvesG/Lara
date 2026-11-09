@@ -22,7 +22,6 @@ use App\Services\Signature\SignatureSigningDataService;
 use App\Services\Signature\SignatureStateMachine;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * A API da assinatura remota, consumida pelo SERVIDOR do site externo
@@ -106,14 +105,15 @@ class RemoteSignatureApiController extends Controller
 
         $documento = $this->current($request)->signer->document;
 
-        abort_if(!$documento->original_path, 404);
+        // O original, ou, se alguém já assinou, o documento com as assinaturas
+        // dos demais (09/11/2026 — ver SignatureDocumentRenderer::readingPdf).
+        $bytes = app(\App\Services\Signature\SignatureDocumentRenderer::class)->readingPdf($documento);
 
-        $disk = Storage::disk(config('signature.disk'));
+        abort_if($bytes === null, 404);
 
-        abort_if(!$disk->exists($documento->original_path), 404);
-
-        return $disk->response($documento->original_path, 'documento-' . $documento->validation_code . '.pdf', [
+        return response($bytes, 200, [
             'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="documento-' . $documento->validation_code . '.pdf"',
             'Cache-Control' => 'private, max-age=0, no-store',
         ]);
     }

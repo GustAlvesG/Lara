@@ -129,12 +129,14 @@ class DirectorKioskController extends Controller
 
         abort_if(!$solicitacao, 404);
 
-        $documento = $solicitacao->signer->document;
-        $disk = \Illuminate\Support\Facades\Storage::disk(config('signature.disk'));
+        // O original, ou, se alguém já assinou, com as assinaturas dos demais
+        // (09/11/2026 — ver SignatureDocumentRenderer::readingPdf).
+        $bytes = app(\App\Services\Signature\SignatureDocumentRenderer::class)
+            ->readingPdf($solicitacao->signer->document);
 
-        abort_if(!$documento->original_path || !$disk->exists($documento->original_path), 404);
+        abort_if($bytes === null, 404);
 
-        return $disk->response($documento->original_path, null, [
+        return response($bytes, 200, [
             'Content-Type' => 'application/pdf',
             'Cache-Control' => 'private, max-age=0, no-store',
         ]);

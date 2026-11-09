@@ -8,7 +8,9 @@ Módulo próprio no menu desde 04/11/2026 (antes era Assinaturas → Contratos).
 
 O setor redige o contrato em cláusulas, a Gerência valida (no computador ou no tablet do balcão) e, aprovado,
 o contrato vira um documento de assinatura **em rascunho** do motor de Assinaturas, assinado na aba
-**Contratos › Assinaturas** com o mesmo processo (tablet, link remoto, gov.br, diretoria).
+**Contratos › Assinaturas** com o mesmo processo (tablet, link remoto, gov.br, diretoria). Diferença (09/11/2026): no
+contrato a diretoria **não** espera quem é de fora dela — o diretor assina antes ou depois (`SignatureDocument::pendingNonDirectors()`
+volta vazio para documento com `contract`).
 
 ## Separação de Assinaturas (04/11/2026)
 
@@ -86,7 +88,9 @@ Detalhes em [contratos.md › Cabeçalho fixo e aditivos](../funcionalidades/con
 
 Detalhes em [contratos.md › Revisões da apresentação](../funcionalidades/contratos.md#revisões-da-apresentação-05112026).
 
-- **Variáveis:** campo "Preenchimento" (não "Valor"); `ContractVariables::GUESS`/`guessType()` (tipo pelo nome,
+- **Variáveis:** desde 09/11/2026 só o campo do preenchimento à vista, com o nome como rótulo; nome/tipo/Remover em
+  `<details data-var-settings>`; o campo segue o tipo (`ContractVariables::INPUTS`, `aplicaTipo()` no editor; data no
+  calendário, guardada como dd/mm/aaaa por `storedValue()`). Antes: campo "Preenchimento" (não "Valor"); `ContractVariables::GUESS`/`guessType()` (tipo pelo nome,
   mesmas regex no editor) e `COMMON` (variáveis comuns); `ContractRenderer::variableUsage()` (onde é usada +
   `[[marcador]]` sem variável, que o editor cria sozinho).
 - **Salvar automático:** `content_revision` + `ContractService::save(..., $expectedRevision, $force)` →

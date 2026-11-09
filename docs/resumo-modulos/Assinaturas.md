@@ -499,10 +499,13 @@ pendentes dele. Doc completa: seção "Assinatura Diretoria" de `docs/funcionali
   matricula_pin` (o manifesto imprime "Matrícula e PIN do Lara" e "aberto pelo próprio diretor"). JS em
   `quiosque/partials/diretoria-telas` + `diretoria-js` (só no modo balcão; gancho `diretoriaDepoisDoAtendimento`
   em `encerraAtendimento`, `diretoriaAtiva()` nos textos).
-- **Sem QR para diretor** (21/10/2026): `SignatureSigner::releaseBlockReason($directorLogin)` recusa liberar diretor
+- **Sem QR para diretor** (21/10/2026): `SignatureSigner::releaseBlockReason($directorLogin, $remote)` recusa liberar diretor
   pelo atendente; só a liberação com `identity_method = matricula_pin` (gravado na emissão:
-  `SignatureRequestService::issue(..., $identityMethod)`) passa — na emissão, na leitura (`open`) e no middleware
-  `EnsureSignatureKioskSession`. `partials/release` tira o diretor da lista "Quem vai assinar agora".
+  `SignatureRequestService::issue(..., $identityMethod)`) ou, desde 09/11/2026, `link_email` (link remoto) passa — na
+  emissão, na leitura (`open`) e nos middlewares `EnsureSignatureKioskSession` e `EnsureSignatureRemoteSession`.
+  `partials/release` tira o diretor da lista "Quem vai assinar agora"; `partials/remote` inclui o diretor.
+- **Diretor por link (09/11/2026):** `RemoteSignatureService::blockReason` não barra mais o diretor. CPF completo e foto,
+  como qualquer pessoa. A ordem da diretoria (abaixo) vale também para o link.
 - **gov.br:** documento preparado sai da lista; o diretor assina pelo mecanismo do gov.br (CPF dele).
 - **Diretoria depois de quem é de fora dela (26/10/2026):** com signatário não-diretor pendente, o documento NÃO chegou
   à diretoria — fora da lista do tablet (`pending` usa `SignatureDocument::scopeReleasedToDirectors`), não abre
@@ -511,6 +514,12 @@ pendentes dele. Doc completa: seção "Assinatura Diretoria" de `docs/funcionali
   `SignatureDocument::pendingNonDirectors()` / `releasedToDirectors()`. O aviso: `NotifySignatureDirector::forReleased`
   (no `freeze` e no fim de cada `capture` de não-diretor que não fechou o documento); o job também confere e sai
   sem marcar nada se ainda falta alguém. Painel: o cartão do diretor diz "Vai para a diretoria depois da assinatura de…".
+  **Só no módulo Assinaturas** (09/11/2026): documento de contrato (`isContract()`) não tem ordem —
+  `pendingNonDirectors()` volta vazio e `scopeReleasedToDirectors` deixa passar quem tem `contract`.
+- **Ciência de quem já assinou (09/11/2026):** a sessão (tablet, diretoria, API remota) e o lote trazem `signers`
+  (`SignatureDocument::readerSigners`: nome, papel, `me`, `signed`, `signed_at`, `status` — sem CPF/contato). O PDF de
+  leitura sai de `SignatureDocumentRenderer::readingPdf()`: o original enquanto ninguém assinou; depois, `MODE_PROGRESS`
+  (traço, visto e data só de quem assinou, sem manifesto, não gravado). `pdf_version` não muda com assinatura de outro.
 - **Assinatura em lote (26/10/2026):** na lista o diretor marca vários (só os sem perguntas a responder —
   `DirectorKioskService::batchable`; o visto não impede) e toca "Assinar selecionados": lê um por um ("Documento 1 de N"),
   um aceite, um traço, um visto (se algum pedir), uma foto, e o servidor grava **uma captura por documento** (mesmo
