@@ -12,6 +12,7 @@ use App\Models\Freelancer;
 use App\Models\FunctionFreelancer;
 use App\Models\FreelancerService as FreelancerServiceModel;
 use App\Models\User;
+use App\Support\Cpf;
 
 class FreelancerService
 {
@@ -30,7 +31,9 @@ class FreelancerService
 
     public function get($cpf)
     {
-        return Freelancer::where('cpf', $cpf)->first();
+        // Com e sem máscara: o bot do Lara Externos manda só dígitos, e há
+        // freelancer antigo gravado como 123.456.789-00.
+        return Freelancer::whereIn('cpf', Cpf::variants($cpf))->first();
     }
 
     public function updateFreelancer(Freelancer $freelancer, $data)

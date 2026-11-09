@@ -22,6 +22,40 @@ class Cpf
         return preg_replace('/\D/', '', (string) $cpf) ?? '';
     }
 
+    /**
+     * As formas em que o mesmo CPF pode estar gravado, para busca EXATA
+     * (`whereIn`): como foi digitado, só dígitos e com máscara 123.456.789-00.
+     *
+     * Existe porque cadastros antigos (prestadores de 06/2026, freelancers)
+     * ficaram com máscara e a busca só por dígitos não os achava — a pessoa
+     * existia e a portaria dizia que não.
+     *
+     * @return list<string>
+     */
+    public static function variants(?string $cpf): array
+    {
+        $raw = trim((string) $cpf);
+        $digits = self::digits($raw);
+
+        return array_values(array_unique(array_filter(
+            [$raw, $digits, self::format($digits)],
+            fn (string $v) => $v !== ''
+        )));
+    }
+
+    /**
+     * Expressão SQL que tira a pontuação de uma coluna, para busca PARCIAL
+     * (`whereRaw(Cpf::digitsSql('tabela.coluna') . ' like ?', ["%{$digits}%"])`)
+     * casar com o CPF gravado com ou sem máscara. Funciona em MySQL e SQLite.
+     *
+     * `$column` entra cru no SQL: passe só nome de coluna escrito no código,
+     * nunca algo vindo da requisição.
+     */
+    public static function digitsSql(string $column): string
+    {
+        return "REPLACE(REPLACE(REPLACE(REPLACE({$column}, '.', ''), '-', ''), ' ', ''), '/', '')";
+    }
+
     /** Onze dígitos com os dois verificadores certos (e não todos iguais). */
     public static function isValid(?string $cpf): bool
     {

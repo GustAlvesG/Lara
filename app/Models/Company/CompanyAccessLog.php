@@ -111,11 +111,19 @@ class CompanyAccessLog extends Model
 
         $like = '%' . $term . '%';
 
-        return $query->where(function ($q) use ($like) {
+        // Termo com cara de CPF (só dígitos e pontuação): casa também com o
+        // que foi gravado no outro formato, com ou sem máscara.
+        $digits = preg_match('/^[\d.\-\s]+$/', $term) ? \App\Support\Cpf::digits($term) : '';
+        $digitsLike = '%' . $digits . '%';
+
+        return $query->where(function ($q) use ($like, $digits, $digitsLike) {
             $q->where('target', 'like', $like)
+                ->when($digits !== '', fn ($q) => $q->orWhereRaw(\App\Support\Cpf::digitsSql('company_access_logs.target') . ' like ?', [$digitsLike]))
                 ->orWhere('obs', 'like', $like)
                 ->orWhere('reason', 'like', $like)
-                ->orWhereHas('worker', fn ($w) => $w->where('name', 'like', $like)->orWhere('document', 'like', $like))
+                ->orWhereHas('worker', fn ($w) => $w->where('name', 'like', $like)
+                    ->orWhere('document', 'like', $like)
+                    ->when($digits !== '', fn ($w) => $w->orWhereRaw(\App\Support\Cpf::digitsSql('company_workers.document') . ' like ?', [$digitsLike])))
                 ->orWhereHas('company', fn ($c) => $c->where('name', 'like', $like))
                 ->orWhereHas('uberRequest', fn ($u) => $u->where('requester_name', 'like', $like)
                     ->orWhere('vehicle_plate', 'like', $like)

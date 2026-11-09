@@ -203,12 +203,12 @@ A tela se atualiza sozinha a cada 30 segundos (desmarque **Atualizar sozinho** p
 ### Por que o terceirizado foi barrado na portaria?
 <!-- telas: company.access.logs -->
 
-Abra **Externos › Histórico** e procure pelo CPF ou nome. Se o motivo for "Bloqueado pelas regras", a empresa (ou o funcionário) não tem uma regra de **Inclusão** valendo naquele dia e horário, ou tem uma regra de **Exclusão** valendo. Confira em **Externos › Empresas**, no perfil da empresa, a aba **Regras de Acesso** (sub-aba **Vigentes**): a data de término pode ter passado, o dia da semana pode estar desmarcado ou o horário pode não cobrir a chegada. Lembre: se o funcionário tem **regra individual**, só ela vale — as regras da empresa não se aplicam a ele.
+Abra **Externos › Histórico** e procure pelo CPF (com ou sem pontos) ou pelo nome. Se o motivo for "Bloqueado pelas regras", a empresa (ou o funcionário) não tem uma regra de **Inclusão** valendo naquele dia e horário, ou tem uma regra de **Exclusão** valendo. Confira em **Externos › Empresas**, no perfil da empresa, a aba **Regras de Acesso** (sub-aba **Vigentes**): a data de término pode ter passado, o dia da semana pode estar desmarcado ou o horário pode não cobrir a chegada. Lembre: se o funcionário tem **regra individual**, só ela vale — as regras da empresa não se aplicam a ele.
 
 ### O Monitor diz "CPF não encontrado como terceirizado, freelancer, liberação pontual de hoje nem ingresso de evento com entrada aberta"
 <!-- telas: company.access.monitor -->
 
-O CPF não está em nenhum cadastro que dê acesso agora. Verifique se o funcionário da empresa foi cadastrado **com o CPF** (sem CPF, só se acha pelo nome da empresa), se a liberação pontual foi criada hoje ou se o ingresso é de um evento com a entrada aberta. Para um caso urgente, use o botão **Criar liberação pontual** que aparece no resultado (requer a permissão de Liberação Pontual).
+O CPF não está em nenhum cadastro que dê acesso agora. Tanto faz digitar com ou sem pontos: o Lara acha o cadastro nos dois formatos. Verifique se o funcionário da empresa foi cadastrado **com o CPF** (sem CPF, só se acha pelo nome da empresa), se a liberação pontual foi criada hoje ou se o ingresso é de um evento com a entrada aberta. Para um caso urgente, use o botão **Criar liberação pontual** que aparece no resultado (requer a permissão de Liberação Pontual).
 
 ### O Monitor diz "Empresa não encontrada no sistema."
 <!-- telas: company.access.monitor -->

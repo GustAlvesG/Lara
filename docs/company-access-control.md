@@ -229,6 +229,8 @@ Campo: 123.456.789-09
 Resultado: João Silva — ✓ Permitido
 ```
 
+**Com ou sem máscara, nos dois sentidos (desde 09/11/2026).** O CPF digitado é procurado como veio, só nos dígitos (`06213468706`) e com máscara (`062.134.687-06`), via `App\Support\Cpf::variants()`. Isso vale para terceirizado, freelancer, liberação pontual, a API do Lara Externos (`GET /api/telegram/freelancer/freelancer/{cpf}`) e o tablet dos freelancers. Buscas parciais (lista de prestadores, lista de freelancers, filtro de serviços, Histórico) comparam a coluna sem pontuação (`Cpf::digitsSql()`). O motivo: prestadores cadastrados em 06/2026, antes da normalização do cadastro, ficaram gravados com máscara, e a portaria não os achava ao digitar só os números.
+
 O mesmo CPF também é procurado entre os **freelancers** — ver [Freelancer](#freelancer) logo abaixo. As duas buscas são somadas: se o CPF responder pelos dois cadastros, as duas linhas aparecem no resultado, cada uma com seu próprio status e seu próprio botão de registro.
 
 #### Freelancer

@@ -79,7 +79,7 @@ Na tela **Novo freelancer**, abra o bloco **Importar por planilha**, clique em *
 ## Editar ou excluir um freelancer
 <!-- telas: freelancers.index -->
 
-Na tela **Freelancers › Freelancers**, use a busca (nome, CPF, PIX ou função) e clique no nome ou no lápis do cartão.
+Na tela **Freelancers › Freelancers**, use a busca (nome, CPF com ou sem pontos, PIX ou função) e clique no nome ou no lápis do cartão.
 
 - Corrija os dados e clique em **Salvar Alterações**.
 - Se o cadastro estiver incompleto, um aviso no topo diz exatamente o que falta ("Cadastro incompleto — geração de contrato bloqueada").

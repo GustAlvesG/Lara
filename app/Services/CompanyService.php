@@ -21,6 +21,7 @@ use App\Exceptions\TicketException;
 use App\Models\Ticket\Ticket;
 use App\Services\Ticket\TicketCheckinService;
 use Illuminate\Support\Facades\Schema;
+use App\Support\Cpf;
 
 
 class CompanyService
@@ -246,10 +247,9 @@ class CompanyService
         }
 
         if ($this->isValidCPF($target)) {
-            $normalized = preg_replace('/\D/', '', $target);
+            // Com e sem máscara: há prestador antigo gravado como 123.456.789-00.
             $matchedWorkers = CompanyWorker::with('company')
-                ->where('document', $normalized)
-                ->orWhere('document', $target)
+                ->whereIn('document', Cpf::variants($target))
                 ->get();
 
             // O mesmo CPF pode responder por dois cadastros diferentes:
@@ -838,11 +838,7 @@ class CompanyService
      */
     private function freelancerAccessEntries(string $cpf): array
     {
-        $normalized = preg_replace('/\D/', '', $cpf);
-
-        $freelancers = Freelancer::where(function ($q) use ($normalized, $cpf) {
-            $q->where('cpf', $normalized)->orWhere('cpf', $cpf);
-        })->get();
+        $freelancers = Freelancer::whereIn('cpf', Cpf::variants($cpf))->get();
 
         return $freelancers->map(fn(Freelancer $freelancer) => $this->freelancerAccessEntry($freelancer))
             ->values()

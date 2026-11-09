@@ -39,6 +39,11 @@ O `target` digitado decide o tipo (`registerAccess` / `validateTryToAccess`):
 | placa de pedido de Uber | `validateUberAccess` (pedido `aguardando_acesso` e dentro de `expires_at`) |
 | texto | nome de empresa → todos os prestadores, um botão de registro por pessoa |
 
+- **CPF com e sem máscara (09/11/2026):** toda busca por CPF casa os dois formatos. A busca exata
+  usa `whereIn(coluna, Cpf::variants($cpf))` e a parcial usa
+  `whereRaw(Cpf::digitsSql('tabela.coluna') . ' like ?')`. Há prestadores antigos gravados como
+  `123.456.789-00`, e o cadastro novo grava só dígitos. Busca nova por CPF segue a mesma regra.
+  Teste: `tests/Feature/CpfMaskedSearchTest.php`.
 - **Terceirizado:** regras do prestador, se houver, **substituem** as da empresa
   (`validateRulesForAccess`). Precisa de alguma `include` ativa e nenhuma `exclude` ativa.
 - **Freelancer:** sem regra; vale contrato com janela de **30 min antes do início até o fim**

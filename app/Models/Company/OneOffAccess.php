@@ -63,7 +63,8 @@ class OneOffAccess extends Model
 
     public function scopeForCpf(Builder $query, string $cpf): Builder
     {
-        return $query->where('cpf', preg_replace('/\D/', '', $cpf));
+        // Com e sem máscara, como nas outras buscas da portaria.
+        return $query->whereIn('cpf', \App\Support\Cpf::variants($cpf));
     }
 
     public function scopeOnDate(Builder $query, $date): Builder

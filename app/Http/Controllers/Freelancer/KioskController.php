@@ -27,6 +27,7 @@ use App\Services\MultiVendasSalesReport;
 use App\Services\WeeklyLimitCodeService;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
+use App\Support\Cpf;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
@@ -182,7 +183,7 @@ class KioskController extends Controller
     {
         $this->operatorModeOrFail();
 
-        $freelancer = Freelancer::where('cpf', $cpf)->first();
+        $freelancer = Freelancer::whereIn('cpf', Cpf::variants($cpf))->first();
 
         if (!$freelancer) {
             return response()->json(['found' => false], 404);

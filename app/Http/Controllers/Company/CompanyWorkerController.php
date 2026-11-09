@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCompanyWorkerRequest;
 use App\Http\Requests\UpdateCompanyWorkerRequest;
 use App\Services\CompanyService;
+use App\Support\Cpf;
 use Illuminate\Http\Request;
 
 class CompanyWorkerController extends Controller
@@ -32,9 +33,9 @@ class CompanyWorkerController extends Controller
             ->where(function ($query) use ($q, $normalized) {
                 // Funcionário por nome
                 $query->where('name', 'like', "%{$q}%");
-                // Funcionário por CPF (somente dígitos)
+                // Funcionário por CPF, gravado com ou sem máscara
                 if ($normalized) {
-                    $query->orWhere('document', 'like', "%{$normalized}%");
+                    $query->orWhereRaw(Cpf::digitsSql('company_workers.document') . ' like ?', ["%{$normalized}%"]);
                 }
                 // Funcionários de empresas cujo nome casa com a busca
                 $query->orWhereHas('company', function ($c) use ($q) {

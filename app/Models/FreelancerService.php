@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Support\Cpf;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -2064,7 +2065,8 @@ class FreelancerService extends Model
                     $f->where('name', 'like', $like);
 
                     if ($digits !== '') {
-                        $f->orWhere('cpf', 'like', '%' . $digits . '%');
+                        // Com ou sem máscara no cadastro.
+                        $f->orWhereRaw(Cpf::digitsSql('freelancers.cpf') . ' like ?', ['%' . $digits . '%']);
                     }
                 });
         });

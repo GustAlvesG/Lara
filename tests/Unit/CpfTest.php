@@ -72,6 +72,22 @@ class CpfTest extends TestCase
         $this->assertTrue(Cpf::matches(null, '12345678909', 'none'));
     }
 
+    /** Busca exata: o CPF em qualquer formato gera as duas formas gravadas. */
+    public function test_variantes_trazem_digitos_e_mascara(): void
+    {
+        $this->assertSame(['12345678909', '123.456.789-09'], Cpf::variants('12345678909'));
+        $this->assertSame(['123.456.789-09', '12345678909'], Cpf::variants(' 123.456.789-09 '));
+        $this->assertSame([], Cpf::variants(null));
+    }
+
+    public function test_expressao_sql_tira_a_pontuacao_da_coluna(): void
+    {
+        $this->assertSame(
+            "REPLACE(REPLACE(REPLACE(REPLACE(t.cpf, '.', ''), '-', ''), ' ', ''), '/', '')",
+            Cpf::digitsSql('t.cpf')
+        );
+    }
+
     /** Cadastro sem CPF não vira conferência que passa por vacuidade. */
     public function test_cadastro_sem_cpf_nao_confirma_identidade(): void
     {

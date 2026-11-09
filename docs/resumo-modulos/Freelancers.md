@@ -127,6 +127,10 @@ Não há máquina de estados central: o estado é **derivado** das colunas (`*_s
   06/11/2026); não a apague por migration sem decisão explícita.
 - **Filtro de falhas (`issue`) e sua paginação são em memória** (`ServiceController::onlyWithIssue()`), de propósito.
 - **Menu/layout:** use Gate, nunca método de model que consulta banco (testes com `User` mockado).
+- **CPF com e sem máscara (09/11/2026):** a API do bot (`FreelancerService::get`), o tablet
+  (`KioskController::findFreelancer`), a portaria e as buscas das listas acham o freelancer com o CPF
+  gravado ou digitado em qualquer formato (`App\Support\Cpf::variants()` / `digitsSql()`). Há cadastro
+  antigo com máscara. Busca nova por CPF segue a mesma regra.
 
 ## Peças
 

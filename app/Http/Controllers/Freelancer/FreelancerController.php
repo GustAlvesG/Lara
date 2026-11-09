@@ -11,6 +11,7 @@ use App\Imports\FreelancerImport;
 use App\Models\Freelancer;
 use App\Models\FreelancerService;
 use App\Services\FreelancerService as FreelancerServiceManager;
+use App\Support\Cpf;
 use Illuminate\Http\Request;
 
 class FreelancerController extends Controller
@@ -27,7 +28,12 @@ class FreelancerController extends Controller
             ->with('freelancerServices:id,freelancer_id,start_date,status_id,parent_service_id')
             ->when($search, fn($query) => $query->where(fn($q) => $q
                 ->where('name', 'like', "%{$search}%")
-                ->orWhere('cpf', 'like', "%{$search}%")))
+                ->orWhere('cpf', 'like', "%{$search}%")
+                // CPF gravado com ou sem máscara, digitado com ou sem
+                ->when(Cpf::digits($search) !== '', fn($q) => $q->orWhereRaw(
+                    Cpf::digitsSql('freelancers.cpf') . ' like ?',
+                    ['%' . Cpf::digits($search) . '%']
+                ))))
             ->orderBy('name')
             ->get();
 
