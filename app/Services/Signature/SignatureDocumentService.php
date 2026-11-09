@@ -449,8 +449,9 @@ class SignatureDocumentService
                 'name' => trim((string) ($signer['name'] ?? '')),
                 'cpf' => Cpf::digits($signer['cpf'] ?? ''),
                 'member_id' => $signer['member_id'] ?? null,
-                // Diretor do clube: o vínculo vem do request, resolvido no
-                // servidor a partir do cadastro (ver StoreSignatureDocumentRequest).
+                // Diretor do clube ou usuário do Lara (sem área): o vínculo
+                // vem do request, resolvido no servidor a partir do cadastro
+                // (ver StoreSignatureDocumentRequest).
                 'user_id' => $signer['user_id'] ?? null,
                 'director_area_id' => $signer['director_area_id'] ?? null,
                 'director_area_name' => $signer['director_area_name'] ?? null,

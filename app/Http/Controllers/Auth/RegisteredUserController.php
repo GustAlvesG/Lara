@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\UserContactFields;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -29,17 +30,25 @@ class RegisteredUserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // CPF e telefone obrigatórios na conta nova (09/11/2026): o CPF sai
+        // impresso quando o usuário assina um documento no Lara.
+        UserContactFields::normalize($request);
+
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'matricula' => ['nullable', 'string', 'max:5', 'unique:users,matricula'],
+            'cpf' => UserContactFields::cpfRules(required: true),
+            'phone' => UserContactFields::phoneRules(required: true),
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-        ]);
+        ], [], ['cpf' => 'CPF', 'phone' => 'telefone']);
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'matricula' => $request->input('matricula') ?: null,
+            'cpf' => $request->input('cpf'),
+            'phone' => $request->input('phone'),
             'password' => Hash::make($request->password),
             'status_id' => 1,
         ]);

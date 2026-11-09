@@ -608,6 +608,10 @@
                 Digite o nome, o título ou o CPF em <b>Buscar associado</b> e clique no resultado: nome, CPF, e-mail e
                 telefone são preenchidos. Pelo <b>título</b> aparecem o titular e os dependentes. Quem não é
                 associado é digitado à mão. O <b>e-mail</b> é o que permite à pessoa receber a via assinada.<br>
+                Quem tem <b>usuário no Lara</b> (um funcionário, um gerente): busque em <b>Usuário do Lara</b> pelo nome,
+                matrícula ou e-mail. Os dados vêm do cadastro dele, travados, e ele assina pelo QR ou pelo link como
+                qualquer pessoa. Usuário sem CPF no cadastro não pode ser escolhido. No modelo, uma parte pode já trazer o
+                usuário (<b>Assinada por um usuário do Lara</b>).<br>
                 Para mais gente (uma testemunha, um responsável legal), use <b>+ Acrescentar signatário</b> — até
                 cinco.</td>
         </tr>

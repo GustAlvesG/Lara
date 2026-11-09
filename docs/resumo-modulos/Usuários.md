@@ -28,6 +28,23 @@ onde se responde "por que fulano leva 403".
   (guardam id e nome como retrato), e testes precisam de mock ou de
   `tests/Concerns/SharesSqliteWithUserConnection.php`.
 
+## CPF, e-mail e telefone (09/11/2026)
+
+- Regras únicas em `App\Support\UserContactFields` (`normalize`, `cpfRules`, `phoneRules`, `missing`) e
+  `App\Support\Phone` (dígitos, `isValid` = DDD + 8/9 dígitos, com ou sem 55, `format`). CPF e telefone
+  são gravados **só com dígitos**.
+- **Registro** (`RegisteredUserController`): CPF e telefone **obrigatórios** na conta nova.
+- **Perfil** (`ProfileUpdateRequest`): a pessoa cadastra o CPF **só se não tem**; depois o campo some (vira
+  texto mascarado) e o que chegar é descartado. Corrigir CPF é na tela de Usuários. Telefone e e-mail ela
+  muda à vontade. Aviso "Complete o seu cadastro: falta …" quando falta CPF, e-mail ou telefone.
+- **Usuários** (`UserController`): campo **Telefone** (opcional) ao lado do CPF. **Meu setor**
+  (`MySectorController::createUser`): CPF agora validado (sem a regra de único: a duplicata é achada pelo
+  `findExisting`) e telefone opcional.
+- Por quê: o CPF e o contato saem do cadastro quando o usuário assina um documento (Diretoria ou o
+  signatário "usuário do Lara", ver [Assinaturas](Assinaturas.md)); o telefone é o do aviso de WhatsApp.
+- Telefone antigo fora do padrão aparece como está no formulário e é recusado ao salvar: corrija junto.
+- Teste: `tests/Feature/UserContactFieldsTest.php` (e `UserCpfTest`).
+
 ## Regras que costumam pegar
 
 - Setores e permissões individuais mudam **só** pelo `AccessManager`

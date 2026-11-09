@@ -306,6 +306,12 @@
                                         <div class="text-xs text-ink-2">
                                             {{ $signer->capacityLabel() }} · CPF {{ $signer->maskedCpf() }}
                                         </div>
+                                        @if($signer->isLaraUser())
+                                            {{-- 09/11/2026: dados do cadastro do usuário; assina pelo QR ou pelo link, como qualquer pessoa. --}}
+                                            <div class="mt-1 inline-block rounded-full bg-subtle px-2 py-0.5 text-[11px] font-bold text-ink-2" data-signer-lara-user-badge>
+                                                Usuário do Lara
+                                            </div>
+                                        @endif
                                     </div>
                                     <span @class([
                                             'text-[11px] font-bold whitespace-nowrap',

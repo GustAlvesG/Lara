@@ -6,6 +6,8 @@ use App\Models\SignatureSigner;
 use App\Models\SignatureTemplate;
 use App\Services\Signature\Directors\DirectorAreaService;
 use App\Services\Signature\Directors\DirectorException;
+use App\Services\Signature\LaraUserSignerException;
+use App\Services\Signature\LaraUserSignerService;
 use App\Services\Signature\SignatureFieldTypes;
 use App\Support\Cpf;
 use Illuminate\Foundation\Http\FormRequest;
@@ -40,6 +42,13 @@ class StoreSignatureDocumentRequest extends FormRequest
      * @var array<int|string, string>
      */
     private array $directorErrors = [];
+
+    /**
+     * Usuário do Lara escolhido que não pôde ser resolvido: índice => motivo.
+     *
+     * @var array<int|string, string>
+     */
+    private array $laraUserErrors = [];
 
     public function authorize(): bool
     {
@@ -94,6 +103,10 @@ class StoreSignatureDocumentRequest extends FormRequest
         $validator->after(function ($validator) {
             foreach ($this->directorErrors as $i => $mensagem) {
                 $validator->errors()->add('signers.' . $i . '.director', $mensagem);
+            }
+
+            foreach ($this->laraUserErrors as $i => $mensagem) {
+                $validator->errors()->add('signers.' . $i . '.lara_user', $mensagem);
             }
 
             // Na correção o modelo é o do documento: ele não muda depois de criado.
@@ -155,13 +168,18 @@ class StoreSignatureDocumentRequest extends FormRequest
      * no servidor — o que o formulário mande nesses campos é descartado, e
      * `user_id`/`director_*` que chegarem soltos (sem escolha válida) também:
      * só o servidor diz quem é diretor.
+     *
+     * Usuário do Lara (09/11/2026) chega como `lara_user` = id do usuário, e
+     * vale o mesmo: dados do cadastro, resolvidos aqui. Com diretor escolhido
+     * na mesma linha, vale o diretor.
      */
     protected function prepareForValidation(): void
     {
         $diretoria = app(DirectorAreaService::class);
+        $usuarios = app(LaraUserSignerService::class);
 
         $signers = collect($this->input('signers', []))
-            ->map(function ($signer, $i) use ($diretoria) {
+            ->map(function ($signer, $i) use ($diretoria, $usuarios) {
                 $signer = is_array($signer) ? $signer : [];
 
                 unset($signer['user_id'], $signer['director_area_id'], $signer['director_area_name'], $signer['director_role']);
@@ -169,10 +187,29 @@ class StoreSignatureDocumentRequest extends FormRequest
                 $signer['cpf'] = Cpf::digits($signer['cpf'] ?? '');
 
                 $escolha = trim((string) ($signer['director'] ?? ''));
+                $usuario = trim((string) ($signer['lara_user'] ?? ''));
+
+                if ($escolha === '' && $usuario !== '') {
+                    if (!ctype_digit($usuario)) {
+                        $this->laraUserErrors[$i] = 'Escolha o usuário do Lara de novo.';
+
+                        return $signer;
+                    }
+
+                    try {
+                        return array_merge($signer, $usuarios->signerData((int) $usuario));
+                    } catch (LaraUserSignerException $e) {
+                        $this->laraUserErrors[$i] = $e->getMessage();
+
+                        return $signer;
+                    }
+                }
 
                 if ($escolha === '') {
                     return $signer;
                 }
+
+                unset($signer['lara_user']);
 
                 [$area, $usuario] = array_pad(explode(':', $escolha, 2), 2, null);
 
@@ -228,6 +265,8 @@ class StoreSignatureDocumentRequest extends FormRequest
             // Diretor do clube: a escolha ("área:usuário") e o que o servidor
             // resolveu a partir dela em prepareForValidation.
             'signers.*.director' => ['nullable', 'string', 'max:40'],
+            // Usuário do Lara (09/11/2026): o id escolhido; os dados saem do cadastro.
+            'signers.*.lara_user' => ['nullable', 'string', 'max:20'],
             'signers.*.user_id' => ['nullable', 'integer'],
             'signers.*.director_area_id' => ['nullable', 'integer'],
             'signers.*.director_area_name' => ['nullable', 'string', 'max:120'],
@@ -257,6 +296,7 @@ class StoreSignatureDocumentRequest extends FormRequest
             'signers.*.name' => 'nome do signatário',
             'signers.*.cpf' => 'CPF do signatário',
             'signers.*.director' => 'diretor',
+            'signers.*.lara_user' => 'usuário do Lara',
         ];
     }
 }

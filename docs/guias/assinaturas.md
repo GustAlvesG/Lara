@@ -1,6 +1,6 @@
 ---
 modulo: Assinaturas
-palavras: assinatura, assinar, assinatura eletrônica, tablet, balcão, QR Code, termo, contrato, documento, PDF assinado, modelo, Word, docx, gov.br, link por e-mail, assinatura remota, revisão, termo de menores, pulseira, diretoria, diretor, PIN, Gerência, cláusula, anexo, via
+palavras: assinatura, assinar, assinatura eletrônica, tablet, balcão, QR Code, termo, contrato, documento, PDF assinado, modelo, Word, docx, gov.br, link por e-mail, assinatura remota, revisão, termo de menores, pulseira, diretoria, diretor, usuário do Lara, funcionário assina, PIN, Gerência, cláusula, anexo, via
 ---
 
 # Assinaturas — guia de uso
@@ -9,7 +9,7 @@ O módulo Assinaturas d'O Lara colhe a assinatura eletrônica de sócios, fornec
 
 O trabalho se divide em duas partes. Os **modelos** (o texto-padrão de cada tipo de documento) são cadastrados uma vez, a partir de um arquivo do Word. Os **documentos** são um modelo preenchido para uma pessoa, e são eles que vão para assinatura. Depois de assinado, o documento vira um PDF com o comprovante (manifesto) e um código de validação.
 
-O módulo também tem o Termo de Menores (autorização de entrada de menor em evento, assinada pelo próprio sócio num tablet de autoatendimento) e a assinatura da Diretoria (o diretor entra no tablet com matrícula e PIN). Os contratos redigidos em cláusulas têm módulo próprio no menu desde 04/11/2026, **Contratos**, com guia próprio; a assinatura deles segue o mesmo processo descrito aqui.
+O módulo também tem o Termo de Menores (autorização de entrada de menor em evento, assinada pelo próprio sócio num tablet de autoatendimento) e a assinatura da Diretoria (o diretor entra no tablet com matrícula e PIN). Quem tem usuário n'O Lara pode ser escolhido como signatário pelo cadastro, sem digitar os dados. Os contratos redigidos em cláusulas têm módulo próprio no menu desde 04/11/2026, **Contratos**, com guia próprio; a assinatura deles segue o mesmo processo descrito aqui.
 
 Há um guia ilustrado completo dentro d'O Lara, em **Assinaturas › Guia**, que também pode ser baixado em PDF.
 
@@ -427,6 +427,19 @@ O que acontece depois:
 - A lista **Documentos** tem o filtro **Aguardando diretoria**, só com os que já chegaram à diretoria.
 - O diretor não assina por QR Code. Além do tablet, ele pode assinar a distância pelo **link remoto** (quadro **Assinatura remota**, na página do documento) ou pelo gov.br. Documento preparado para o gov.br sai da lista do tablet do diretor.
 
+## Mandar um documento para um usuário do Lara assinar
+<!-- telas: signature-documents.index -->
+
+Quando quem assina tem usuário n'O Lara (um funcionário, um gerente, alguém do RH), não é preciso digitar os dados dele. Em **Assinaturas › Documentos › Novo documento**, no passo **Signatários**, use o campo **Usuário do Lara**: digite parte do nome, a matrícula ou o e-mail e escolha a pessoa na lista. Nome, CPF, e-mail e telefone vêm do cadastro dela e ficam travados no formulário. Para desfazer, clique em **Tirar usuário**.
+
+- Só aparecem usuários **ativos**. Quem está **sem CPF** no cadastro aparece na lista, mas não pode ser escolhido: peça para a pessoa cadastrar o CPF no **Perfil** dela (ou corrija em **Usuários**).
+- O usuário do Lara assina **como qualquer pessoa**: pelo QR Code no tablet do balcão (com a conferência de identidade do modelo) ou pelo **link remoto** por e-mail. Não há entrada por matrícula e PIN, que é só da diretoria.
+- Se o documento também tem diretor, a diretoria só recebe **depois** que o usuário do Lara assinar, como acontece com qualquer signatário de fora da diretoria.
+- Na página do documento, o cartão da pessoa mostra a marca **Usuário do Lara**.
+- Numa mesma linha, ou é diretor, ou é usuário do Lara: escolher um desfaz o outro.
+
+**No modelo:** em **Quem assina**, cada parte tem **Assinada por um usuário do Lara**. Busque e escolha a pessoa: todo documento desse modelo já nasce com ela naquela parte, e o atendente pode trocar. Uma parte não pode ser da diretoria e de um usuário ao mesmo tempo.
+
 ## Como o diretor assina no tablet
 
 O diretor assina sem passar pelo atendente, no tablet do balcão:
@@ -544,6 +557,11 @@ A lista **Assinaturas › Revisão** mostra o motivo: "Disponível para revisão
 <!-- telas: minor-terms.index -->
 
 Não há termo vigente na data, ou ele foi desativado. Confira em **Assinaturas › Termo de Menores › Termos dos eventos** o período do termo. Se o tablet pede pareamento, gere um novo QR na aba **Tablet**: o pareamento vale 12 horas.
+
+### O usuário do Lara aparece "sem CPF válido" e não dá para escolher
+<!-- telas: signature-documents.index -->
+
+O documento imprime o CPF de quem assina, e ele sai do cadastro do usuário. Peça para a pessoa abrir o **Perfil** e preencher o **CPF**, ou peça a quem administra os usuários para preencher em **Usuários** (também vale o CPF do cadastro de funcionário com a mesma matrícula). Depois, busque de novo. Usuário inativo não aparece na busca.
 
 ### O diretor não aparece para escolher
 <!-- telas: signature-directors.index, signature-documents.index -->

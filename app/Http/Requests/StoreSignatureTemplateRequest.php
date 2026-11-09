@@ -78,6 +78,30 @@ class StoreSignatureTemplateRequest extends FormRequest
             'parties.*.label' => ['required', 'string', 'max:120'],
             // Assinatura Diretoria: a área cujo titular já vem escolhido para a parte.
             'parties.*.director_area_id' => ['nullable', 'integer', 'exists:signature_director_areas,id'],
+            // Usuário do Lara (09/11/2026) que já vem escolhido para a parte.
+            // Conferido pelo model (a conexão do User não é a do validador):
+            // existe, ativo, com CPF válido; e não junto com uma área.
+            'parties.*.lara_user_id' => ['nullable', 'integer', function ($attribute, $value, $fail) {
+                $indice = explode('.', $attribute)[1] ?? null;
+
+                if (filled($this->input('parties.' . $indice . '.director_area_id'))) {
+                    $fail('A parte é da diretoria ou de um usuário do Lara, não das duas.');
+
+                    return;
+                }
+
+                $usuario = \App\Models\User::find((int) $value);
+
+                if (!$usuario) {
+                    $fail('O usuário do Lara escolhido para a parte não foi encontrado.');
+
+                    return;
+                }
+
+                if ($motivo = app(\App\Services\Signature\LaraUserSignerService::class)->ineligibilityReason($usuario)) {
+                    $fail($motivo);
+                }
+            }],
 
             // Anexos que todo documento deste modelo pede (identidade,
             // comprovante). A chave sai do rótulo — ver SignatureAttachmentService.

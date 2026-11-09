@@ -256,7 +256,11 @@ class SignatureTemplate extends Model
      * `director_area_id`: a parte é assinada por uma área da diretoria, e o
      * documento já nasce com o titular dela escolhido (Assinatura Diretoria).
      *
-     * @return array<int, array{key: string, label: string, director_area_id: ?int}>
+     * `lara_user_id` (09/11/2026): a parte é assinada por um usuário do Lara, e
+     * o documento já nasce com ele escolhido (o atendente pode trocar). Uma
+     * parte não traz os dois: a área da diretoria vale primeiro.
+     *
+     * @return array<int, array{key: string, label: string, director_area_id: ?int, lara_user_id: ?int}>
      */
     public function declaredParties(): array
     {
@@ -265,6 +269,7 @@ class SignatureTemplate extends Model
                 'key' => (string) ($p['key'] ?? ''),
                 'label' => (string) ($p['label'] ?? ($p['key'] ?? '')),
                 'director_area_id' => !empty($p['director_area_id']) ? (int) $p['director_area_id'] : null,
+                'lara_user_id' => empty($p['director_area_id']) && !empty($p['lara_user_id']) ? (int) $p['lara_user_id'] : null,
             ])
             ->filter(fn($p) => $p['key'] !== '')
             ->values()

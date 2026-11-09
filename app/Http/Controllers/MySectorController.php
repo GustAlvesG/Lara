@@ -91,13 +91,22 @@ class MySectorController extends Controller
     {
         $this->authorizeCoordinator($request->user(), $sector);
 
+        // CPF e telefone com as regras do cadastro (09/11/2026), sem a de CPF
+        // único: a pessoa repetida é achada abaixo e oferecida para o setor.
+        \App\Support\UserContactFields::normalize($request);
+
         $data = $request->validate([
             'name'      => 'required|string|max:255',
             'email'     => 'required|string|email|max:255',
             'matricula' => 'nullable|string|max:5',
-            'cpf'       => 'nullable|string|max:14',
+            'cpf'       => ['nullable', 'digits:11', function ($attribute, $value, $fail) {
+                if (!\App\Support\Cpf::isValid($value)) {
+                    $fail('CPF inválido.');
+                }
+            }],
+            'phone'     => \App\Support\UserContactFields::phoneRules(),
             'password'  => 'required|string|min:8|confirmed',
-        ]);
+        ], [], ['cpf' => 'CPF', 'phone' => 'telefone']);
 
         // Antes de criar, procura a pessoa: cadastro em dobro é o erro mais
         // provável de quem cadastra pela primeira vez. Achou? A tela oferece
@@ -119,6 +128,7 @@ class MySectorController extends Controller
             'email'     => $data['email'],
             'matricula' => ($data['matricula'] ?? null) ?: null,
             'cpf'       => $this->digits($data['cpf'] ?? null) ?: null,
+            'phone'     => ($data['phone'] ?? null) ?: null,
             'password'  => Hash::make($data['password']),
             'status_id' => 1,
         ]);

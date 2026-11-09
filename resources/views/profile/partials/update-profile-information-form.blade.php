@@ -13,6 +13,16 @@
         @csrf
     </form>
 
+    @php($faltam = \App\Support\UserContactFields::missing($user))
+
+    @if($faltam)
+        {{-- 09/11/2026: o CPF e o contato saem do cadastro quando a pessoa assina um documento no Lara. --}}
+        <div class="mt-4 rounded-xl bg-warn-soft p-4 text-sm text-ink" data-profile-missing>
+            Complete o seu cadastro: falta {{ collect($faltam)->join(', ', ' e ') }}. Eles são usados quando você
+            assina um documento no Lara e para os avisos que o sistema manda a você.
+        </div>
+    @endif
+
     <form method="post" action="{{ route('profile.update') }}" class="mt-6 space-y-6">
         @csrf
         @method('patch')
@@ -52,6 +62,27 @@
                     @endif
                 </div>
             @endif
+        </div>
+
+        <div>
+            <x-input-label for="cpf" value="CPF" />
+            @if(blank($user->cpf))
+                <x-text-input id="cpf" name="cpf" type="text" inputmode="numeric" maxlength="14" class="mt-1 block w-full"
+                              :value="old('cpf')" placeholder="000.000.000-00" autocomplete="off" />
+                <p class="mt-1 text-xs text-ink-2">Depois de salvo, só a tela de Usuários altera o CPF: ele sai impresso nos documentos que você assina.</p>
+            @else
+                <p id="cpf" class="mt-1 font-mono text-sm text-ink" data-profile-cpf>{{ \App\Support\Cpf::mask($user->cpf) }}</p>
+                <p class="mt-1 text-xs text-ink-2">Para corrigir o CPF, fale com quem administra os usuários do Lara.</p>
+            @endif
+            <x-input-error class="mt-2" :messages="$errors->get('cpf')" />
+        </div>
+
+        <div>
+            <x-input-label for="phone" value="Telefone" />
+            <x-text-input id="phone" name="phone" type="tel" maxlength="20" class="mt-1 block w-full"
+                          :value="old('phone', $user->phone ? \App\Support\Phone::format($user->phone) : '')"
+                          placeholder="(11) 98765-4321" autocomplete="tel" />
+            <x-input-error class="mt-2" :messages="$errors->get('phone')" />
         </div>
 
         <div class="flex items-center gap-4">

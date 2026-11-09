@@ -1765,6 +1765,10 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         Route::get('/novo', [SignatureDocumentController::class, 'create'])->name('create');
         Route::get('/associados', [SignatureDocumentController::class, 'members'])
             ->middleware('throttle:60,1')->name('members');
+        // Signatário "usuário do Lara" (09/11/2026): busca de usuários ativos,
+        // para o documento e para a parte do modelo.
+        Route::get('/usuarios', [SignatureDocumentController::class, 'laraUsers'])
+            ->middleware('throttle:60,1')->name('lara-users');
         Route::post('/', [SignatureDocumentController::class, 'store'])->name('store');
 
         // Documento PRONTO, em PDF: aproveitado na íntegra, sem modelo.

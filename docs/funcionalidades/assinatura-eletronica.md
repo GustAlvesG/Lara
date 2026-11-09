@@ -647,6 +647,51 @@ Documento preparado para o gov.br sai da lista do tablet: o diretor assina pelo 
 
 Migration `2026_10_20_120100_create_signature_director_areas`. Testes: `SignatureDirectorTest`.
 
+## Signatário "usuário do Lara" (09/11/2026)
+
+O atendente escolhe um **usuário do Lara** como signatário, no documento ou já na parte do modelo. Nome, CPF,
+e-mail e telefone saem do cadastro do usuário, nunca do formulário — o mesmo princípio do diretor.
+
+**Decisões do usuário:**
+
+- Assina **como qualquer signatário**: QR do balcão (com a conferência de identidade do modelo) ou link
+  remoto. Sem a entrada por matrícula e PIN (isso é só da Diretoria) e sem foto obrigatória além da regra
+  do modelo (no link, a foto já é sempre obrigatória).
+- Pode ser escolhido **qualquer usuário ativo com CPF válido** (do usuário ou do funcionário de mesma
+  matrícula — `DirectorAreaService::cpfOf`). Matrícula não é exigida.
+- Na ordem da diretoria, conta como **de fora dela**: com usuário do Lara pendente, o documento não chega à
+  diretoria (`pendingNonDirectors()`, que já considera todo signatário que não é diretor).
+- A **parte do modelo pode fixar um usuário** (`lara_user_id`); o documento nasce com ele, e o atendente
+  pode trocar.
+
+**Como funciona:**
+
+- `App\Services\Signature\LaraUserSignerService`: `ineligibilityReason` (inativo, sem CPF), `search`
+  (ativos por nome, matrícula ou e-mail, até 10, CPF mascarado, `blocked` com o motivo), `optionsFor`
+  (os já escolhidos, para o formulário nascer certo), `signerData` (o que é gravado; lança
+  `LaraUserSignerException`) e `names`.
+- Busca: `GET assinatura/documentos/usuarios` → `signature-documents.lara-users` (throttle 60/min), para
+  quem cria documento **ou** tem `assinatura.modelos`. Nenhuma permissão nova.
+- Documento: `signers[i][lara_user]` = id. `StoreSignatureDocumentRequest::prepareForValidation` resolve no
+  servidor (erro em `signers.i.lara_user`); com diretor escolhido na mesma linha, vale o diretor.
+  `user_id` solto continua descartado.
+- No signatário, **`user_id` sem `director_area_id`** = usuário do Lara (`SignatureSigner::isLaraUser()`).
+  Sem coluna nova, sem migration: até aqui só o diretor gravava `user_id`. `isDirector()` não muda, então
+  QR, link, manifesto, PDF e trilha seguem o caminho de qualquer signatário. A tela do documento mostra a
+  marca "Usuário do Lara".
+- Modelo: `parties[i][lara_user_id]` (JSON `parties`, versionado com o modelo). Validado em
+  `StoreSignatureTemplateRequest` (existe, ativo, CPF; não junto com `director_area_id`).
+  `SignatureTemplate::declaredParties()` devolve `lara_user_id` (nulo quando a parte tem área). O
+  `LinkedTemplateComposer` leva a chave junto (copia a parte inteira).
+- Telas: bloco **Usuário do Lara** em `documents/partials/signer-row` (e a linha montada pelo JS de
+  `documents/partials/form`), com busca, "Tirar usuário" e os campos travados como no diretor; na parte do
+  modelo, **Assinada por um usuário do Lara** (`templates/partials/form`); `templates/show` mostra o nome.
+- Não muda a API do site (link remoto): nenhum prompt novo.
+- Contratos (editor de cláusulas) não ganharam o tipo: lá a fonte do signatário segue "Diretor do clube" ou
+  pessoa digitada.
+
+Testes: `SignatureLaraUserSignerTest`.
+
 ## Assinatura remota (link por e-mail)
 
 Para quem não vem ao balcão e não quer usar o gov.br. O atendente envia, pela tela do documento, um

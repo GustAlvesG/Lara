@@ -23,6 +23,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * criação. Ele assina no tablet entrando com matrícula e PIN (a lista dos
  * documentos dele), ou pelo gov.br como qualquer signatário.
  *
+ * Usuário do Lara (09/11/2026): `user_id` SEM `director_area_id`
+ * (`isLaraUser()`). Os dados vieram do cadastro do usuário; ele assina pelo
+ * QR ou pelo link, como qualquer signatário.
+ *
  * @property int $id
  * @property string $cpf dígitos, sem máscara
  * @property string $status
@@ -231,6 +235,17 @@ class SignatureSigner extends Model
     public function isDirector(): bool
     {
         return $this->director_area_id !== null && $this->user_id !== null;
+    }
+
+    /**
+     * Usuário do Lara escolhido como signatário (09/11/2026): `user_id` sem
+     * área da diretoria. Nome, CPF e contato vieram do cadastro do Lara; ele
+     * assina como qualquer signatário (QR do balcão ou link remoto) e, na
+     * ordem, é "de fora da diretoria". Ver LaraUserSignerService.
+     */
+    public function isLaraUser(): bool
+    {
+        return $this->user_id !== null && $this->director_area_id === null;
     }
 
     /**

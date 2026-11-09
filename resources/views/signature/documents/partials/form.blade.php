@@ -34,6 +34,8 @@
             'role' => \App\Models\SignatureSigner::ROLE_SIGNER,
             'party' => $parte['key'],
             'director' => $titularDaArea($parte['director_area_id'] ?? null),
+            // Parte com usuário do Lara (09/11/2026): já nasce com ele.
+            'lara_user' => (string) ($parte['lara_user_id'] ?? ''),
         ], $partes)
         : [['role' => \App\Models\SignatureSigner::ROLE_SIGNER]];
 
@@ -46,7 +48,12 @@
         'role' => $s->role,
         'party' => $s->party,
         'director' => $s->isDirector() ? $s->director_area_id . ':' . $s->user_id : '',
+        'lara_user' => $s->isLaraUser() ? (string) $s->user_id : '',
     ])->all() ?? $linhasIniciais);
+
+    // Os usuários do Lara já escolhidos, com os dados do cadastro (CPF mascarado).
+    $usuariosDoLara = app(\App\Services\Signature\LaraUserSignerService::class)
+        ->optionsFor(array_column($signers, 'lara_user'));
 
     // Depois de um envio recusado vale o que o atendente digitou, cru; fora
     // disso, o valor guardado, na forma de formulário do tipo de cada campo.
@@ -98,6 +105,8 @@
                 Para um diretor do clube, use <b>Diretor do clube</b>: os dados vêm do cadastro do Lara, e ele assina no
                 tablet com a matrícula e o PIN dele, sem QR.
             @endif
+            Para alguém que tem usuário no Lara, use <b>Usuário do Lara</b>: nome, CPF e contato vêm do cadastro dele,
+            e ele assina como qualquer pessoa, pelo QR ou pelo link.
             @if($partes)
                 Este modelo tem partes ({{ collect($partes)->pluck('label')->join(', ') }}): cada uma precisa de
                 ao menos um signatário para o documento ser congelado.
@@ -106,7 +115,7 @@
 
         <div id="signers" class="space-y-4">
             @foreach($signers as $i => $signer)
-                @include('signature.documents.partials.signer-row', ['i' => $i, 'n' => $loop->iteration, 'signer' => $signer, 'partes' => $partes])
+                @include('signature.documents.partials.signer-row', ['i' => $i, 'n' => $loop->iteration, 'signer' => $signer, 'partes' => $partes, 'usuariosDoLara' => $usuariosDoLara])
             @endforeach
         </div>
         @error('signers')<p class="mt-2 text-xs text-danger">{{ $message }}</p>@enderror
@@ -238,20 +247,64 @@
         return caixa;
     }
 
+    // "Usuário do Lara" da linha nova — o mesmo bloco que o Blade monta em signer-row.
+    function caixaDeUsuario(i) {
+        var caixa = document.createElement('div');
+        caixa.setAttribute('data-signer-lara-user-box', '');
+        caixa.innerHTML =
+            '<label class="block text-xs font-bold text-ink-2 mb-1">Usuário do Lara</label>' +
+            '<input type="hidden" name="signers[' + i + '][lara_user]" data-signer-lara-user>' +
+            '<div class="flex flex-wrap items-center gap-2">' +
+            '<span class="text-sm text-ink" data-signer-lara-user-chosen>Nenhum — não é usuário do Lara</span>' +
+            '<button type="button" class="text-xs text-danger hover:underline" data-signer-lara-user-clear hidden>Tirar usuário</button>' +
+            '<input type="text" placeholder="Buscar usuário do Lara por nome, matrícula ou e-mail" data-lara-user-search ' +
+            'class="flex-1 min-w-[16rem] rounded-lg border-line-strong text-xs">' +
+            '<span class="text-xs text-ink-3" data-lara-user-hint></span></div>' +
+            '<div class="hidden mt-1 rounded-lg border border-line divide-y divide-line" data-lara-user-results></div>';
+
+        return caixa;
+    }
+
     /*
-     * Diretor escolhido: nome, CPF e contato vêm do cadastro do Lara (o
-     * servidor os regrava de lá). Os campos ficam só para leitura e a busca de
-     * associado some; desfeita a escolha, voltam a ser digitáveis.
+     * De onde vêm os dados da linha: o diretor escolhido ou o usuário do Lara
+     * escolhido (09/11/2026) — os dois do cadastro do Lara, que o servidor
+     * regrava. null = digitado à mão ou pela busca de associado.
      */
-    function aplicaDiretor(linha) {
+    function fonteDoCadastro(linha) {
         var select = linha.querySelector('[data-signer-director]');
 
-        if (!select) {
-            return;
+        if (select && select.value) {
+            return select.options[select.selectedIndex];
         }
 
-        var opcao = select.options[select.selectedIndex];
-        var escolhido = !!select.value;
+        var usuario = linha.querySelector('[data-signer-lara-user]');
+
+        return usuario && usuario.value ? usuario : null;
+    }
+
+    /*
+     * Diretor ou usuário do Lara escolhido: nome, CPF e contato vêm do
+     * cadastro do Lara (o servidor os regrava de lá). Os campos ficam só para
+     * leitura e a busca de associado some; desfeita a escolha, voltam a ser
+     * digitáveis.
+     */
+    function aplicaDiretor(linha) {
+        var opcao = fonteDoCadastro(linha);
+        var escolhido = !!opcao;
+        var select = linha.querySelector('[data-signer-director]');
+        var usuario = linha.querySelector('[data-signer-lara-user]');
+
+        if (usuario) {
+            var comDiretor = !!(select && select.value);
+            var caixaUsuario = linha.querySelector('[data-signer-lara-user-box]');
+
+            caixaUsuario.hidden = comDiretor;
+            caixaUsuario.querySelector('[data-signer-lara-user-clear]').hidden = !usuario.value;
+
+            if (!usuario.value) {
+                caixaUsuario.querySelector('[data-signer-lara-user-chosen]').textContent = 'Nenhum — não é usuário do Lara';
+            }
+        }
 
         ['name', 'cpf', 'email', 'phone'].forEach(function (campo) {
             var input = linha.querySelector('[data-signer-' + campo + ']');
@@ -355,6 +408,9 @@
             div.insertBefore(seletorDeDiretor(i), div.children[partes.length ? 2 : 1]);
         }
 
+        // Usuário do Lara logo antes de nome/CPF (09/11/2026).
+        div.insertBefore(caixaDeUsuario(i), div.querySelector('[data-signer-name]').closest('.grid'));
+
         return div;
     }
 
@@ -364,6 +420,101 @@
             atualizaFontes();
         });
     }
+
+    /*
+     * Usuário do Lara (09/11/2026): busca de usuários ativos, escolha e
+     * "Tirar usuário". Escolher um usuário desfaz o diretor da linha, e
+     * vice-versa (ver o `change` abaixo).
+     */
+    var buscaUsuariosUrl = @json(route('signature-documents.lara-users'));
+    var esperaUsuarios = new WeakMap();
+
+    function escolheUsuario(linha, u) {
+        var usuario = linha.querySelector('[data-signer-lara-user]');
+        var select = linha.querySelector('[data-signer-director]');
+
+        usuario.value = u ? u.user_id : '';
+        ['name', 'email', 'phone'].forEach(function (c) { usuario.setAttribute('data-' + c, u ? (u[c] || '') : ''); });
+        usuario.setAttribute('data-cpf', u ? (u.cpf_masked || '') : '');
+
+        if (u) {
+            linha.querySelector('[data-signer-lara-user-chosen]').textContent = u.name;
+
+            if (select) {
+                select.value = '';
+            }
+
+            var membro = linha.querySelector('[data-signer-member]');
+
+            if (membro) {
+                membro.value = '';
+            }
+        }
+
+        aplicaDiretor(linha);
+        atualizaFontes();
+    }
+
+    container.addEventListener('input', function (event) {
+        var campo = event.target;
+
+        if (!campo.matches('[data-lara-user-search]')) {
+            return;
+        }
+
+        var linha = campo.closest('[data-signer-row]');
+        var resultados = linha.querySelector('[data-lara-user-results]');
+        var dica = linha.querySelector('[data-lara-user-hint]');
+        var termo = campo.value.trim();
+
+        clearTimeout(esperaUsuarios.get(campo));
+
+        if (termo.length < 2) {
+            resultados.classList.add('hidden');
+            resultados.innerHTML = '';
+            dica.textContent = '';
+            return;
+        }
+
+        esperaUsuarios.set(campo, setTimeout(function () {
+            dica.textContent = 'buscando…';
+
+            fetch(buscaUsuariosUrl + '?q=' + encodeURIComponent(termo), {
+                headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+            })
+                .then(function (r) { return r.ok ? r.json() : []; })
+                .then(function (usuarios) {
+                    dica.textContent = usuarios.length ? '' : 'nenhum usuário';
+                    resultados.innerHTML = '';
+
+                    usuarios.forEach(function (u) {
+                        var item = document.createElement('button');
+                        item.type = 'button';
+                        item.className = 'w-full text-left px-3 py-2 text-xs hover:bg-subtle disabled:opacity-50';
+                        item.disabled = !!u.blocked;
+                        item.textContent = u.name + (u.matricula ? ' · matrícula ' + u.matricula : '')
+                            + (u.cpf_masked ? ' — ' + u.cpf_masked : '') + (u.blocked ? ' (' + u.blocked + ')' : '');
+
+                        item.addEventListener('click', function () {
+                            escolheUsuario(linha, u);
+                            resultados.classList.add('hidden');
+                            campo.value = '';
+                        });
+
+                        resultados.appendChild(item);
+                    });
+
+                    resultados.classList.toggle('hidden', usuarios.length === 0);
+                })
+                .catch(function () { dica.textContent = 'falha na busca'; });
+        }, 350));
+    });
+
+    container.addEventListener('click', function (event) {
+        if (event.target.matches('[data-signer-lara-user-clear]')) {
+            escolheUsuario(event.target.closest('[data-signer-row]'), null);
+        }
+    });
 
     container.addEventListener('click', function (event) {
         if (event.target.matches('[data-remove-signer]')) {
@@ -632,7 +783,15 @@
     container.addEventListener('input', atualizaFontes);
     container.addEventListener('change', function (event) {
         if (event.target.matches('[data-signer-director]')) {
-            aplicaDiretor(event.target.closest('[data-signer-row]'));
+            var linhaDoDiretor = event.target.closest('[data-signer-row]');
+            var usuarioDaLinha = linhaDoDiretor.querySelector('[data-signer-lara-user]');
+
+            // Diretor escolhido desfaz o usuário do Lara da linha.
+            if (event.target.value && usuarioDaLinha && usuarioDaLinha.value) {
+                usuarioDaLinha.value = '';
+            }
+
+            aplicaDiretor(linhaDoDiretor);
         }
 
         atualizaFontes();

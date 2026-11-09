@@ -77,8 +77,15 @@
                         <div>
                             <label for="cpf" class="block text-sm font-bold text-ink mb-1">CPF</label>
                             <input type="text" name="cpf" id="cpf" value="{{ old('cpf', $user->cpf ? \App\Support\Cpf::format($user->cpf) : '') }}" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" class="{{ $inputClass }}">
-                            <p class="mt-1 text-xs text-ink-2">Obrigatório para diretor assinar documentos (Assinaturas → Diretoria). Em branco, vale o do cadastro de funcionário.</p>
+                            <p class="mt-1 text-xs text-ink-2">Obrigatório para o usuário assinar documentos no Lara (diretor ou signatário "usuário do Lara"). Em branco, vale o do cadastro de funcionário.</p>
                             @error('cpf')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
+                        </div>
+
+                        <div>
+                            <label for="phone" class="block text-sm font-bold text-ink mb-1">Telefone</label>
+                            <input type="tel" name="phone" id="phone" value="{{ old('phone', $user->phone ? \App\Support\Phone::format($user->phone) : '') }}" maxlength="20" placeholder="(11) 98765-4321" class="{{ $inputClass }}">
+                            <p class="mt-1 text-xs text-ink-2">Para os avisos por WhatsApp e o contato quando ele assina um documento.</p>
+                            @error('phone')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
                         </div>
 
                         <div>

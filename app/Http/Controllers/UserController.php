@@ -9,7 +9,7 @@ use App\Models\AccessAuditLog;
 use App\Models\Sector;
 use App\Models\User;
 use App\Services\Employees\EmployeeSectorSync;
-use App\Support\Cpf;
+use App\Support\UserContactFields;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -49,13 +49,14 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
-        $this->normalizeCpf($request);
+        UserContactFields::normalize($request);
 
         $data = $request->validate([
             'name'       => 'required|string|max:255',
             'email'      => 'required|string|email|max:255|unique:users,email',
             'matricula'  => 'nullable|string|max:5|unique:users,matricula',
-            'cpf'        => $this->cpfRules(),
+            'cpf'        => UserContactFields::cpfRules(),
+            'phone'      => UserContactFields::phoneRules(),
             'password'   => 'required|string|min:8|confirmed',
             'pin'        => 'nullable|digits:6',
             'status'     => 'nullable|in:1,2',
@@ -68,6 +69,7 @@ class UserController extends Controller
             'email'     => $data['email'],
             'matricula' => ($data['matricula'] ?? null) ?: null,
             'cpf'       => ($data['cpf'] ?? null) ?: null,
+            'phone'     => ($data['phone'] ?? null) ?: null,
             'password'  => Hash::make($data['password']),
             // Cast 'hashed' no model aplica o hash automaticamente.
             'pin'       => $request->filled('pin') ? $data['pin'] : null,
@@ -112,13 +114,14 @@ class UserController extends Controller
     {
         $user = $id;
 
-        $this->normalizeCpf($request);
+        UserContactFields::normalize($request);
 
         $request->validate([
             'name'      => 'required|string|max:255',
             'email'     => 'required|string|email|max:255|unique:users,email,' . $user->id,
             'matricula' => 'nullable|string|max:5|unique:users,matricula,' . $user->id,
-            'cpf'       => $this->cpfRules($user),
+            'cpf'       => UserContactFields::cpfRules($user),
+            'phone'     => UserContactFields::phoneRules(),
             'status'    => 'required|in:1,2',
             'password'  => 'nullable|string|min:8|confirmed',
             'pin'       => 'nullable|digits:6',
@@ -128,6 +131,7 @@ class UserController extends Controller
         $user->email     = $request->input('email');
         $user->matricula = $request->input('matricula') ?: null;
         $user->cpf       = $request->input('cpf') ?: null;
+        $user->phone     = $request->input('phone') ?: null;
         $user->status_id = $request->input('status');
 
         if ($request->filled('password')) {
@@ -149,31 +153,9 @@ class UserController extends Controller
             ->with('success', trim('Dados de "' . $user->name . '" atualizados. ' . $joined));
     }
 
-    /**
-     * CPF do usuário, gravado só com dígitos. É o que a Assinatura Diretoria
-     * imprime no documento do diretor (e o que o gov.br confere); sem ele, vale
-     * o CPF do cadastro de funcionário pela matrícula.
-     */
-    private function normalizeCpf(Request $request): void
-    {
-        if ($request->has('cpf')) {
-            $request->merge(['cpf' => Cpf::digits($request->input('cpf')) ?: null]);
-        }
-    }
-
-    private function cpfRules(?User $user = null): array
-    {
-        return [
-            'nullable',
-            'digits:11',
-            Rule::unique('users', 'cpf')->ignore($user?->id),
-            function ($attribute, $value, $fail) {
-                if (!Cpf::isValid($value)) {
-                    $fail('CPF inválido.');
-                }
-            },
-        ];
-    }
+    // CPF e telefone: regras e normalização em App\Support\UserContactFields
+    // (as mesmas do registro e do perfil). O CPF é o que a assinatura de um
+    // usuário imprime no documento; sem ele, vale o do cadastro de funcionário.
 
     /** Setores do usuário: sectors[sector_id] = coordinator | collaborator | '' (fora). */
     public function updateSectors(Request $request, User $id)

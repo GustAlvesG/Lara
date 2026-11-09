@@ -20,6 +20,18 @@
             </div>
 
             <div class="mb-4">
+                <label for="cpf" class="{{ $label }}">CPF</label>
+                <input type="text" id="cpf" name="cpf" required inputmode="numeric" maxlength="14" autocomplete="off" value="{{ old('cpf') }}"
+                       placeholder="000.000.000-00" class="{{ $input }} font-mono">
+            </div>
+
+            <div class="mb-4">
+                <label for="phone" class="{{ $label }}">Telefone</label>
+                <input type="tel" id="phone" name="phone" required maxlength="20" autocomplete="tel" value="{{ old('phone') }}"
+                       placeholder="(11) 98765-4321" class="{{ $input }}">
+            </div>
+
+            <div class="mb-4">
                 <label for="matricula" class="{{ $label }}">Matrícula</label>
                 <input type="text" id="matricula" name="matricula" maxlength="5" autocomplete="off" value="{{ old('matricula') }}"
                        placeholder="Ex: 00123" class="{{ $input }} font-mono">

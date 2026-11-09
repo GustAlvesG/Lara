@@ -354,6 +354,9 @@ class TemplateController extends Controller
                 // Parte assinada por uma área da diretoria: o documento já
                 // nasce com o titular dela (Assinatura Diretoria).
                 'director_area_id' => !empty($parte['director_area_id']) ? (int) $parte['director_area_id'] : null,
+                // Parte assinada por um usuário do Lara (09/11/2026): o
+                // documento já nasce com ele. A área da diretoria vale primeiro.
+                'lara_user_id' => empty($parte['director_area_id']) && !empty($parte['lara_user_id']) ? (int) $parte['lara_user_id'] : null,
             ], fn($v) => $v !== null);
         }
 

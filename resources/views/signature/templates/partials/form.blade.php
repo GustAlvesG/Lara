@@ -24,6 +24,14 @@
     $template = $template ?? null;
     $variaveis = array_values(old('variables', $template?->variables ?? []));
     $partes = array_values(old('parties', $template?->parties ?? []));
+
+    // Parte com usuário do Lara (09/11/2026): o nome dele vai junto, só para a
+    // tela mostrar quem é — o que se grava é o id.
+    $nomesDosUsuarios = app(\App\Services\Signature\LaraUserSignerService::class)
+        ->names(array_column($partes, 'lara_user_id'));
+    $partes = array_map(fn($p) => is_array($p) ? $p + [
+        'lara_user_name' => $nomesDosUsuarios[(int) ($p['lara_user_id'] ?? 0)] ?? '',
+    ] : $p, $partes);
     // Modelos exigidos junto, com campos e partes de cada um (TemplateController::linksForForm).
     $vinculosIniciais = $vinculos ?? [];
 @endphp
@@ -228,7 +236,8 @@
             <code class="font-mono">[[assinatura: Contratado]]</code> onde cada uma assina — em linhas
             seguidas ou numa tabela, elas saem lado a lado. O nome da parte é impresso sob o nome de quem
             assina. Em <b>Assinada pela diretoria</b>, a parte já vem, no documento, com o titular da área escolhido
-            (Assinaturas → Diretoria). Documento de uma pessoa só não precisa disto: basta
+            (Assinaturas → Diretoria); em <b>Assinada por um usuário do Lara</b>, com o usuário escolhido (ele assina
+            pelo QR ou pelo link, como qualquer pessoa). Documento de uma pessoa só não precisa disto: basta
             <code class="font-mono">[[assinatura]]</code>.
         </p>
 
@@ -268,6 +277,20 @@
                 </div>
                 <div class="md:col-span-2">
                     <button type="button" class="text-xs text-danger hover:underline pb-2" data-remove-party>Remover parte</button>
+                </div>
+                {{-- Usuário do Lara (09/11/2026): a parte já nasce, no documento, com este usuário; o atendente pode trocar. --}}
+                <div class="md:col-span-12" data-party-lara-user>
+                    <label class="block text-xs font-bold text-ink-2 mb-1">Assinada por um usuário do Lara</label>
+                    <input type="hidden" data-field="lara_user_id">
+                    <input type="hidden" data-field="lara_user_name">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-sm text-ink" data-party-lara-user-chosen></span>
+                        <button type="button" class="text-xs text-danger hover:underline" data-party-lara-user-clear hidden>Tirar usuário</button>
+                        <input type="text" placeholder="Buscar usuário por nome, matrícula ou e-mail" data-party-lara-user-search
+                               class="flex-1 min-w-[16rem] rounded-lg border-line-strong text-xs">
+                        <span class="text-xs text-ink-3" data-party-lara-user-hint></span>
+                    </div>
+                    <div class="hidden mt-1 rounded-lg border border-line divide-y divide-line" data-party-lara-user-results></div>
                 </div>
             </div>
         </template>
@@ -439,15 +462,116 @@
             el.value = (parte && parte[el.dataset.field]) || '';
         });
 
+        mostraUsuarioDaParte(row);
+
         return row;
     }
+
+    /*
+     * Usuário do Lara na parte (09/11/2026): busca, escolha e "tirar". Grava-se
+     * só o id; o nome é para a tela. Com área da diretoria escolhida, o
+     * usuário não vale (o servidor recusa os dois juntos) e a caixa some.
+     */
+    var buscaUsuariosUrl = @json(route('signature-documents.lara-users'));
+
+    function mostraUsuarioDaParte(row) {
+        var caixa = row.querySelector('[data-party-lara-user]');
+        var id = row.querySelector('[data-field="lara_user_id"]').value;
+        var nome = row.querySelector('[data-field="lara_user_name"]').value;
+        var area = row.querySelector('[data-field="director_area_id"]').value;
+
+        caixa.hidden = !!area;
+        row.querySelector('[data-party-lara-user-chosen]').textContent = id ? (nome || 'Usuário #' + id) : 'Nenhum';
+        row.querySelector('[data-party-lara-user-clear]').hidden = !id;
+    }
+
+    function escolheUsuarioDaParte(row, id, nome) {
+        row.querySelector('[data-field="lara_user_id"]').value = id || '';
+        row.querySelector('[data-field="lara_user_name"]').value = nome || '';
+        mostraUsuarioDaParte(row);
+    }
+
+    var esperaBusca = new WeakMap();
+
+    caixaPartes.addEventListener('click', function (e) {
+        if (e.target.matches('[data-party-lara-user-clear]')) {
+            escolheUsuarioDaParte(e.target.closest('[data-party-row]'), '', '');
+        }
+    });
+
+    caixaPartes.addEventListener('change', function (e) {
+        if (e.target.matches('[data-field="director_area_id"]')) {
+            var row = e.target.closest('[data-party-row]');
+
+            if (e.target.value) {
+                escolheUsuarioDaParte(row, '', '');
+            }
+
+            mostraUsuarioDaParte(row);
+        }
+    });
+
+    caixaPartes.addEventListener('input', function (e) {
+        var campo = e.target;
+
+        if (!campo.matches('[data-party-lara-user-search]')) {
+            return;
+        }
+
+        var row = campo.closest('[data-party-row]');
+        var resultados = row.querySelector('[data-party-lara-user-results]');
+        var dica = row.querySelector('[data-party-lara-user-hint]');
+        var termo = campo.value.trim();
+
+        clearTimeout(esperaBusca.get(campo));
+
+        if (termo.length < 2) {
+            resultados.classList.add('hidden');
+            resultados.innerHTML = '';
+            dica.textContent = '';
+            return;
+        }
+
+        esperaBusca.set(campo, setTimeout(function () {
+            dica.textContent = 'buscando…';
+
+            fetch(buscaUsuariosUrl + '?q=' + encodeURIComponent(termo), { headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.ok ? r.json() : []; })
+                .then(function (usuarios) {
+                    dica.textContent = usuarios.length ? '' : 'nenhum usuário';
+                    resultados.innerHTML = '';
+
+                    usuarios.forEach(function (u) {
+                        var item = document.createElement('button');
+                        item.type = 'button';
+                        item.className = 'w-full text-left px-3 py-2 text-xs hover:bg-subtle disabled:opacity-50';
+                        item.disabled = !!u.blocked;
+                        item.textContent = u.name + (u.matricula ? ' · matrícula ' + u.matricula : '')
+                            + (u.blocked ? ' — ' + u.blocked : '');
+
+                        item.addEventListener('click', function () {
+                            escolheUsuarioDaParte(row, u.user_id, u.name);
+                            resultados.classList.add('hidden');
+                            campo.value = '';
+                        });
+
+                        resultados.appendChild(item);
+                    });
+
+                    resultados.classList.toggle('hidden', usuarios.length === 0);
+                })
+                .catch(function () { dica.textContent = 'falha na busca'; });
+        }, 350));
+    });
 
     function listaDePartes() {
         return Array.prototype.map.call(caixaPartes.querySelectorAll('[data-party-row]'), function (row) {
             return {
                 key: row.querySelector('[data-field="key"]').value.trim(),
                 label: row.querySelector('[data-field="label"]').value.trim(),
-                director_area_id: row.querySelector('[data-field="director_area_id"]').value
+                director_area_id: row.querySelector('[data-field="director_area_id"]').value,
+                lara_user_id: row.querySelector('[data-field="lara_user_id"]').value,
+                lara_user_name: row.querySelector('[data-field="lara_user_name"]').value
             };
         });
     }

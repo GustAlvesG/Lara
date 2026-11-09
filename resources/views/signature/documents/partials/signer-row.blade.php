@@ -54,6 +54,27 @@
         </div>
     @endif
 
+    @php
+        // Usuário do Lara (09/11/2026): o escolhido e os dados dele, do cadastro (LaraUserSignerService::optionsFor).
+        $usuarioId = (string) ($signer['lara_user'] ?? '');
+        $usuario = $usuarioId !== '' ? (($usuariosDoLara ?? [])[(int) $usuarioId] ?? null) : null;
+    @endphp
+    <div data-signer-lara-user-box>
+        <label class="block text-xs font-bold text-ink-2 mb-1">Usuário do Lara</label>
+        <input type="hidden" name="signers[{{ $i }}][lara_user]" value="{{ $usuarioId }}" data-signer-lara-user
+               data-name="{{ $usuario['name'] ?? '' }}" data-cpf="{{ $usuario['cpf_masked'] ?? '' }}"
+               data-email="{{ $usuario['email'] ?? '' }}" data-phone="{{ $usuario['phone'] ?? '' }}">
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm text-ink" data-signer-lara-user-chosen>{{ $usuario ? $usuario['name'] . ($usuario['blocked'] ? ' (' . $usuario['blocked'] . ')' : '') : ($usuarioId !== '' ? 'Usuário #' . $usuarioId : 'Nenhum — não é usuário do Lara') }}</span>
+            <button type="button" class="text-xs text-danger hover:underline" data-signer-lara-user-clear @if($usuarioId === '') hidden @endif>Tirar usuário</button>
+            <input type="text" placeholder="Buscar usuário do Lara por nome, matrícula ou e-mail" data-lara-user-search
+                   class="flex-1 min-w-[16rem] rounded-lg border-line-strong text-xs">
+            <span class="text-xs text-ink-3" data-lara-user-hint></span>
+        </div>
+        <div class="hidden mt-1 rounded-lg border border-line divide-y divide-line" data-lara-user-results></div>
+        @error('signers.' . $i . '.lara_user')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
+    </div>
+
     <div class="grid grid-cols-1 md:grid-cols-12 gap-3">
         <div class="md:col-span-5">
             <label class="block text-xs font-bold text-ink-2 mb-1">Nome</label>

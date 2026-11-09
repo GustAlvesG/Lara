@@ -69,9 +69,12 @@
                                 @php
                                     // Parte assinada por uma área da diretoria: o nome da área entre parênteses.
                                     $areasDasPartes = \App\Models\SignatureDirectorArea::whereIn('id', collect($template->declaredParties())->pluck('director_area_id')->filter())->pluck('name', 'id');
+                                    // Parte com usuário do Lara (09/11/2026): o nome dele entre parênteses.
+                                    $usuariosDasPartes = app(\App\Services\Signature\LaraUserSignerService::class)->names(collect($template->declaredParties())->pluck('lara_user_id'));
                                 @endphp
                                 {{ collect($template->declaredParties())
-                                    ->map(fn($p) => $p['label'] . ($p['director_area_id'] && isset($areasDasPartes[$p['director_area_id']]) ? ' (' . $areasDasPartes[$p['director_area_id']] . ')' : ''))
+                                    ->map(fn($p) => $p['label'] . ($p['director_area_id'] && isset($areasDasPartes[$p['director_area_id']]) ? ' (' . $areasDasPartes[$p['director_area_id']] . ')' : '')
+                                        . ($p['lara_user_id'] && isset($usuariosDasPartes[$p['lara_user_id']]) ? ' (' . $usuariosDasPartes[$p['lara_user_id']] . ')' : ''))
                                     ->join(', ') ?: 'Sem partes — todos no mesmo lugar' }}
                             </dd>
                         </div>

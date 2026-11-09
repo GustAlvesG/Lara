@@ -1,13 +1,13 @@
 ---
 modulo: Conta
-palavras: conta, perfil, senha, trocar senha, mudar senha, PIN, PIN de assinatura, e-mail, matrícula, documentação, guia, meu setor, equipe, coordenador, colaborador, usuário, novo usuário, setor, permissão, acesso, liberar acesso, menu, não aparece, acesso total
+palavras: conta, perfil, senha, trocar senha, mudar senha, PIN, PIN de assinatura, e-mail, matrícula, CPF, telefone, celular, completar cadastro, registro, criar conta, documentação, guia, meu setor, equipe, coordenador, colaborador, usuário, novo usuário, setor, permissão, acesso, liberar acesso, menu, não aparece, acesso total
 ---
 
 # Conta — guia de uso
 
 O menu da conta fica no canto superior direito do Lara: clique no círculo com as suas iniciais. Ali estão os atalhos **Perfil**, **Documentação**, **Meu setor** (só para coordenadores), **Usuários** e **Setores** (só para quem administra os acessos), além de **Sair**.
 
-No **Perfil** cada pessoa cuida dos próprios dados: nome, e-mail, matrícula, senha e PIN de assinatura. Na **Documentação** ficam os guias de uso dos módulos.
+No **Perfil** cada pessoa cuida dos próprios dados: nome, e-mail, matrícula, CPF (só enquanto não tem), telefone, senha e PIN de assinatura. Na **Documentação** ficam os guias de uso dos módulos.
 
 O que cada pessoa enxerga no Lara depende dos **setores** em que ela está. Cada setor recebe permissões (uma por tela ou ação), e quem entra no setor passa a ter tudo o que ele alcança. Três setores têm **acesso total**: Gerência, Diretoria e TI. Além disso, uma pessoa pode receber **permissões individuais**. O coordenador cuida de quem está na equipe dele em **Meu setor**; a TI e a Gerência definem o que cada setor alcança em **Setores** e cuidam das contas em **Usuários**.
 
@@ -47,6 +47,21 @@ Clique nas suas iniciais, no canto superior direito, e escolha **Perfil**. No qu
 
 Clique em **Salvar**. Se aparecer erro dizendo que o e-mail ou a matrícula já estão em uso, é porque outra conta já tem esse dado: fale com a TI, pode haver uma conta duplicada.
 
+## Como cadastrar meu CPF e telefone
+<!-- telas: profile.edit -->
+
+Se falta CPF, e-mail ou telefone na sua conta, o **Perfil** mostra o aviso "Complete o seu cadastro: falta …". Esses dados são usados quando você assina um documento n'O Lara (o nome e o CPF saem impressos) e nos avisos que o sistema manda a você.
+
+1. Clique nas suas iniciais, no canto superior direito, e escolha **Perfil**.
+2. No quadro **Informação do Perfil**, preencha **CPF** (com ou sem pontos) e **Telefone**, com o DDD, por exemplo (11) 98765-4321.
+3. Clique em **Salvar**.
+
+O CPF só pode ser cadastrado uma vez pelo Perfil: depois de salvo, ele aparece mascarado e não dá mais para mudar ali. Se está errado, peça a quem administra os usuários para corrigir na tela **Usuários**. O telefone e o e-mail você troca quando quiser.
+
+## Como criar a minha conta (registro)
+
+Na tela de entrada, quem ainda não tem conta usa **Registrar**. Preencha **Nome completo**, **E-mail**, **CPF**, **Telefone** (com DDD), **Matrícula** (se tiver) e a senha duas vezes, e clique em **Registrar**. CPF e telefone são obrigatórios. A conta nasce sem setor: você só enxerga o que é de todo mundo logado até um coordenador ou a TI colocar você num setor.
+
 ## Como cadastrar ou trocar meu PIN de assinatura
 <!-- telas: profile.edit -->
 
@@ -85,7 +100,7 @@ O coordenador **não muda o que o setor alcança**: liberar uma tela nova para o
 Coordenadores criam contas pela tela **Meu setor** (clique nas suas iniciais, no canto superior direito). No quadro **Cadastrar pessoa nova**:
 
 1. Preencha **Nome completo** e **E-mail**.
-2. Preencha **Matrícula** e **CPF**, se tiver (recomendado: a matrícula liga a conta ao cadastro de funcionário e ao Banco de Horas).
+2. Preencha **Matrícula**, **CPF** e **Telefone**, se tiver (recomendado: a matrícula liga a conta ao cadastro de funcionário e ao Banco de Horas, e o CPF é preciso para a pessoa assinar documentos n'O Lara). CPF inválido ou telefone sem DDD são recusados.
 3. Defina a **Senha inicial** e repita em **Confirmar senha**.
 4. Clique em **Cadastrar e colocar no setor**.
 
@@ -98,7 +113,7 @@ Se já existir uma conta com o mesmo e-mail, matrícula ou CPF, O Lara não cria
 
 Clique nas suas iniciais, no canto superior direito, e escolha **Usuários**. Clique em **Novo usuário**.
 
-1. Em **Dados Pessoais**: **Nome Completo**, **Endereço de E-mail**, **Matrícula** (até 5 caracteres) e **CPF** (obrigatório para diretor assinar documentos; opcional para os demais).
+1. Em **Dados Pessoais**: **Nome Completo**, **Endereço de E-mail**, **Matrícula** (até 5 caracteres), **CPF** (obrigatório para a pessoa assinar documentos n'O Lara, como diretor ou como "usuário do Lara"; opcional para os demais) e **Telefone** (com DDD; é para onde vão os avisos por WhatsApp).
 2. Em **Setores**, escolha para cada setor **Fora do setor**, **Colaborador** ou **Coordenador**. Sem setor, a pessoa só enxerga o que é de todo mundo logado.
 3. Em **Senha de Acesso**, defina a **Senha** inicial (mínimo de 8 caracteres) e **Confirmar Senha**.
 4. Se for preciso, preencha o **PIN (6 dígitos)** do tablet de contratos.
@@ -111,7 +126,7 @@ O Lara abre a edição da pessoa para conferir o **Acesso efetivo**. Se a matrí
 
 Clique nas suas iniciais, escolha **Usuários** e clique em **Editar** na pessoa (a busca procura por nome, e-mail, matrícula ou setor). A tela tem três blocos, cada um com seu botão:
 
-- **Dados da conta**: nome, e-mail, matrícula, CPF, **Estado da Conta**, **PIN de assinatura** e **Nova Senha**. Senha e PIN em branco mantêm os atuais. Clique em **Salvar dados**. É aqui que a TI define uma senha nova para quem esqueceu a sua.
+- **Dados da conta**: nome, e-mail, matrícula, CPF, telefone, **Estado da Conta**, **PIN de assinatura** e **Nova Senha**. Senha e PIN em branco mantêm os atuais. Clique em **Salvar dados**. É aqui que a TI define uma senha nova para quem esqueceu a sua.
 - **Setores**: para cada setor, **Fora do setor**, **Colaborador** ou **Coordenador**. Coordenar dá, além do que o setor alcança, as permissões marcadas como "só coordenadores" e os cargos (aprovar lote, validar contrato…). Clique em **Salvar setores**.
 - **Permissões individuais**: para dar a uma pessoa algo que o setor dela não dá. Marque e clique em **Salvar permissões**. Elas se somam às do setor.
 

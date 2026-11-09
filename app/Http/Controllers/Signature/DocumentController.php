@@ -462,6 +462,19 @@ class DocumentController extends Controller
      * vem do MultiClubes e entra na frente; quem dela também está na tabela
      * local aparece uma vez só, com o `id` local.
      */
+    public function laraUsers(Request $request, \App\Services\Signature\LaraUserSignerService $users)
+    {
+        // Quem cria documento escolhe o signatário; quem mantém modelos põe o
+        // usuário na parte. CPF só mascarado; cada opção diz se pode ser escolhida.
+        abort_unless(
+            $request->user()->can('create', SignatureDocument::class)
+                || $request->user()->can(\App\Authorization\Permissions::ASSINATURA_MODELOS),
+            403,
+        );
+
+        return response()->json($users->search((string) $request->query('q', '')));
+    }
+
     public function members(Request $request, SignatureMemberDirectory $directory)
     {
         $this->authorize('create', SignatureDocument::class);

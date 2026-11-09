@@ -93,7 +93,7 @@ signatário:  pending → signed | refused | canceled | expired
 ```
 
 1. **Rascunho** (`SignatureDocumentService`): modelo + signatários (busca local em `members` e, por título,
-   no MultiClubes via `SignatureMemberDirectory`) + dados dos campos. Ou **PDF pronto** (upload), cujas regras
+   no MultiClubes via `SignatureMemberDirectory`; diretor; ou usuário do Lara — ver a seção dele) + dados dos campos. Ou **PDF pronto** (upload), cujas regras
    moram num modelo `single_use` criado junto.
 2. **Congelar**: `body_snapshot` + PDF original + `original_sha256` + código de validação +
    `signature_layout_id`. Depois disso **nada se edita**; corrige-se cancelando e emitindo outro.
@@ -541,6 +541,24 @@ pendentes dele. Doc completa: seção "Assinatura Diretoria" de `docs/funcionali
 - Config: `SIGNATURE_DIRECTOR_TTL_DAYS`, `SIGNATURE_DIRECTOR_SESSION_MINUTES`, `SIGNATURE_DIRECTOR_MAX_LOGIN_ATTEMPTS`,
   `SIGNATURE_DIRECTOR_IDLE_SECONDS` (inatividade da lista no tablet; vai à tela como `CFG.diretoria.ociosoSegundos`).
 - Testes: `SignatureDirectorTest` (usuários reais com `SharesSqliteWithUserConnection` + `MigratesAccessSchema`).
+
+## Signatário "usuário do Lara" (09/11/2026)
+
+Doc completa: seção de mesmo nome em `assinatura-eletronica.md`.
+
+- **Decisões do usuário:** dados do cadastro do usuário (nunca do formulário); assina **pelo QR ou pelo link,
+  como qualquer pessoa** (sem matrícula + PIN); qualquer usuário **ativo com CPF válido**; conta como **de fora
+  da diretoria** (a diretoria espera por ele); a parte do modelo pode **fixar um usuário**.
+- `LaraUserSignerService` (`search`, `optionsFor`, `signerData`, `ineligibilityReason`, `names`); rota
+  `signature-documents.lara-users` (`GET assinatura/documentos/usuarios`, documentos **ou** `assinatura.modelos`).
+- Documento: `signers[i][lara_user]`, resolvido em `StoreSignatureDocumentRequest::prepareForValidation`
+  (diretor na mesma linha vence). Marca no signatário: **`user_id` sem `director_area_id`** →
+  `SignatureSigner::isLaraUser()`. Sem migration. Não use `user_id !== null` como "é diretor": use `isDirector()`.
+- Modelo: `parties[i][lara_user_id]`, validado em `StoreSignatureTemplateRequest`; `declaredParties()` devolve a chave.
+- Telas: bloco "Usuário do Lara" em `signer-row` + JS do `form` (mesma trava de campos do diretor); parte do
+  modelo com busca. Contratos não têm o tipo. API do site intocada.
+- Teste: `SignatureLaraUserSignerTest`. O CPF/telefone do usuário são cadastrados no registro, no Perfil e em
+  Usuários — ver [Usuários](Usu%C3%A1rios.md).
 
 ## Assinatura remota (21/10/2026)
 

@@ -109,8 +109,13 @@
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-ink mb-1">CPF</label>
-                        <input type="text" name="cpf" value="{{ old('cpf') }}" maxlength="14" class="{{ $inputClass }}">
+                        <input type="text" name="cpf" value="{{ old('cpf') }}" maxlength="14" inputmode="numeric" placeholder="000.000.000-00" class="{{ $inputClass }}">
                         @error('cpf')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-ink mb-1">Telefone</label>
+                        <input type="tel" name="phone" value="{{ old('phone') }}" maxlength="20" placeholder="(11) 98765-4321" class="{{ $inputClass }}">
+                        @error('phone')<p class="mt-1 text-xs text-danger">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-ink mb-1">Senha inicial</label>
