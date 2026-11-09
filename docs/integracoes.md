@@ -60,6 +60,11 @@ Base externa para sócios, acessos físicos e visitantes. Duas conexões em `con
   `dbo.Titles` (título ativo e endereço) e `dbo.Members` (nome, nascimento, CPF, RG, e-mail das pessoas
   ativas do título). Fora do ar, o tablet diz que o cadastro não respondeu — não "título não
   encontrado". Ver [Termo de Menores](funcionalidades/termo-de-menores.md).
+- **Disparo de E-mails** (`App\Services\MultiClubes\MemberMailingDirectory`, desde 09/11/2026): só
+  leitura de `dbo.Titles`, `dbo.TitleTypes`, `dbo.Members` e `dbo.Parentages` para montar a lista de
+  destinatários de uma campanha (tipo de título, situação do título e do sócio, idade, sexo, titular ou
+  dependente). E-mail de `dbo.Members.Email`. Ver
+  [Disparo de E-mails](funcionalidades/disparo-emails.md#lista-a-partir-dos-sócios-do-multiclubes).
 
 ### Questor — ERP de compras (`questor_sqlsrv`)
 

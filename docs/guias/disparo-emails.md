@@ -1,6 +1,6 @@
 ---
 modulo: Disparo de E-mails
-palavras: e-mail, email, disparo, disparar, campanha, newsletter, e-mail marketing, mala direta, lista de e-mails, enviar e-mail em massa, mandar e-mail para todos, comunicado, convite, planilha, csv, xlsx, html, modelo de e-mail, imagem no e-mail, variável, nome do sócio, teste, agendar, pausar, cancelar, descadastrar, cancelar inscrição, não enviar, spam, remetente, falhou
+palavras: e-mail, email, disparo, sócios, associados, multiclubes, titular, dependente, tipo de título, idade, sexo, disparar, campanha, newsletter, e-mail marketing, mala direta, lista de e-mails, enviar e-mail em massa, mandar e-mail para todos, comunicado, convite, planilha, csv, xlsx, html, modelo de e-mail, imagem no e-mail, variável, nome do sócio, teste, agendar, pausar, cancelar, descadastrar, cancelar inscrição, não enviar, spam, remetente, falhou
 ---
 
 # Disparo de E-mails — guia de uso
@@ -14,6 +14,7 @@ O envio é feito **pelo servidor do Lara, aos poucos** (por padrão, até 120 e-
 | Para | Permissão (como aparece na tela Setores) |
 |---|---|
 | Criar e editar campanhas, importar listas, mandar teste, enviar, pausar, cancelar e manter o **Não enviar para** | Disparo de E-mails › Criar campanhas, importar listas de destinatários, enviar e manter o "Não enviar para" |
+| Montar a lista com os **sócios do MultiClubes** (por tipo de título, situação, idade, sexo, titular ou dependente) | Disparo de E-mails › Importar a lista de sócios do MultiClubes (filtros por tipo de título, situação, idade, sexo, titular/dependente) |
 
 Quem libera é a TI ou a Gerência, na tela **Setores** (ou só para uma pessoa, na tela **Usuários**); o coordenador do setor pede a liberação e coloca a equipe no setor pela tela **Meu setor**. Sem a permissão, o item **Disparo de E-mails** não aparece no menu.
 
@@ -86,6 +87,27 @@ Na tela da campanha, bloco **Destinatários**, use **Importar lista (.csv ou .xl
 3. A tela mostra quantos entraram. **E-mails inválidos ficam de fora** e aparecem listados em vermelho com o número da linha; **repetidos** são ignorados. O resto entra normalmente: não precisa corrigir tudo para seguir.
 
 Se a campanha já tem lista, escolha **Acrescentar à lista atual** (para juntar várias planilhas) ou **Substituir a lista atual**. Uma célula com dois e-mails ("ana@x.com; beto@x.com") vira dois destinatários. O limite é de 50.000 destinatários por campanha. Para recomeçar, use **Apagar lista** (só em rascunho).
+
+## Importar os sócios do MultiClubes
+<!-- telas: email-campaigns.index -->
+
+Para mandar aos associados não precisa de planilha: o Lara busca os sócios direto no **MultiClubes**. Na tela da campanha, bloco **Destinatários**, abaixo da importação por planilha, clique em **Escolher sócios** (no bloco **Importar sócios do MultiClubes**) e escolha os filtros:
+
+- **Tipo de título**: marque os tipos (Efetivo, Proprietário…). Use **Buscar tipo** para achar mais rápido. **Nenhum marcado** = todos os tipos de sócio, **sem os especiais** (funcionários, escolinha não sócio, terceirizados, academia…), que aparecem com o selo **especial** e só entram se você marcar.
+- **Situação do título** e **Situação do sócio**: já vêm em **Ativo**. Marque outras (ex.: **Bloqueado**, para cobrar quem está em atraso). Nenhuma marcada = qualquer situação.
+- **Titular ou dependente**: **Todos**, **Só titulares** ou **Só dependentes**.
+- **Sexo**: **Todos**, **Masculino** ou **Feminino**.
+- **Idade**: **de** e **até** quantos anos completos, hoje. "Até 17" pega quem ainda não fez 18; em branco, sem limite.
+
+Clique em **Contar** para ver quantos sócios os filtros pegam, quantos têm e-mail e quantos **e-mails diferentes** vão entrar. Depois clique em **Importar sócios** e confirme.
+
+- **Sócio sem e-mail no MultiClubes fica de fora** (a mensagem diz quantos). Para ele receber, o e-mail precisa ser cadastrado no MultiClubes.
+- Quando **titular e dependente têm o mesmo e-mail**, a pessoa recebe **um e-mail só**, com o nome do titular.
+- E-mail cadastrado errado no MultiClubes aparece em vermelho, com o título e o nome do sócio.
+- A lista vem com as variáveis `{{nome}}`, `{{primeiro_nome}}`, `{{titulo}}`, `{{tipo_titulo}}`, `{{vinculo}}` (Titular ou Dependente), `{{parentesco}}`, `{{idade}}` e `{{sexo}}`. O nome vem como está no cadastro (o nome social, quando houver), com só as iniciais maiúsculas.
+- Vale o mesmo da planilha: **Acrescentar** ou **Substituir** a lista atual, e quem está em **Não enviar para** não recebe.
+
+A lista é uma foto do MultiClubes na hora da importação: se o cadastro mudar depois, importe de novo (com **Substituir**, em rascunho). Se o MultiClubes não responder, aparece um aviso; tente de novo em instantes ou use a planilha.
 
 ## Mandar um e-mail de teste
 <!-- telas: email-campaigns.index -->
@@ -169,6 +191,16 @@ Há dois motivos: a lista ainda não foi importada (não há ninguém **Na fila*
 <!-- telas: email-campaigns.index -->
 
 Dê à coluna dos endereços o cabeçalho **E-mail** e importe de novo. Se a planilha tiver só os e-mails, apague a linha de cabeçalho e deixe um e-mail por linha. Baixe o modelo .xlsx do bloco de importação para conferir o formato.
+
+### Não aparece o bloco "Importar sócios do MultiClubes"
+<!-- telas: email-campaigns.index -->
+
+Falta a permissão **Disparo de E-mails › Importar a lista de sócios do MultiClubes**, que é separada da de campanhas porque dá acesso aos e-mails de todo o quadro social. Peça à TI ou à Gerência. O bloco também some quando a campanha já está enviando, concluída ou cancelada (a lista só muda em rascunho ou pausada).
+
+### Muitos sócios ficaram de fora por falta de e-mail
+<!-- telas: email-campaigns.index -->
+
+Dependentes, principalmente crianças, costumam não ter e-mail no MultiClubes. Para falar com as famílias, filtre **Só titulares**; para mandar ao dependente, o e-mail dele precisa estar no cadastro do MultiClubes.
 
 ### Os acentos da planilha saíram errados
 <!-- telas: email-campaigns.index -->

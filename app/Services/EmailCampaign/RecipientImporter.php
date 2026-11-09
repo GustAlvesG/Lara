@@ -38,15 +38,7 @@ final class RecipientImporter
      */
     public function import(EmailCampaign $campaign, string $path, string $extension, string $originalName, bool $replace): array
     {
-        if (! $campaign->isEditable()) {
-            throw new EmailCampaignException('A lista só muda com a campanha em rascunho ou pausada.');
-        }
-
-        // Pausada, parte da lista já recebeu: trocar a lista apagaria esse
-        // histórico e mandaria de novo para quem voltasse no arquivo novo.
-        if ($replace && $campaign->status !== EmailCampaign::STATUS_DRAFT) {
-            throw new EmailCampaignException('Com a campanha pausada, a lista só pode ser acrescentada, não substituída.');
-        }
+        $this->assertCanChange($campaign, $replace);
 
         $list = $this->reader->read($path, $extension);
 
@@ -54,7 +46,25 @@ final class RecipientImporter
             throw new SpreadsheetImportException('A lista não tem nenhuma linha preenchida.');
         }
 
-        return DB::transaction(function () use ($campaign, $list, $originalName, $replace) {
+        return $this->importList($campaign, $list, $originalName, $replace);
+    }
+
+    /**
+     * Grava uma lista já lida — do arquivo ou do MultiClubes
+     * ({@see MultiClubesRecipientSource}). Cada linha traz `data` (`email`,
+     * `nome` e as outras colunas pelo slug) e `line` ou `label` (como a
+     * linha aparece nas recusas).
+     *
+     * @param  array{columns: array<string, string>, rows: list<array{data: array<string, string>, line?: int, label?: string}>}  $list
+     * @return array{added: int, duplicates: int, invalid: int, over_limit: int, samples: list<string>, total: int}
+     *
+     * @throws EmailCampaignException
+     */
+    public function importList(EmailCampaign $campaign, array $list, string $listName, bool $replace): array
+    {
+        $this->assertCanChange($campaign, $replace);
+
+        return DB::transaction(function () use ($campaign, $list, $listName, $replace) {
             if ($replace) {
                 $campaign->recipients()->delete();
             }
@@ -70,7 +80,7 @@ final class RecipientImporter
                 $addresses = preg_split('/[\s;,]+/', mb_strtolower($data['email'] ?? ''), -1, PREG_SPLIT_NO_EMPTY);
 
                 if ($addresses === []) {
-                    $this->reject($summary, $row['line'], 'sem e-mail');
+                    $this->reject($summary, $this->where($row), 'sem e-mail');
 
                     continue;
                 }
@@ -80,7 +90,7 @@ final class RecipientImporter
 
                 foreach ($addresses as $address) {
                     if (! $this->valid($address)) {
-                        $this->reject($summary, $row['line'], '"' . Str::limit($address, 80) . '" não é um e-mail válido');
+                        $this->reject($summary, $this->where($row), '"' . Str::limit($address, 80) . '" não é um e-mail válido');
 
                         continue;
                     }
@@ -123,12 +133,31 @@ final class RecipientImporter
             $campaign->forceFill([
                 'columns' => $replace ? $columns : ($campaign->columns ?? []) + $columns,
                 'list_name' => $replace || ! $campaign->list_name
-                    ? $originalName
-                    : Str::limit($campaign->list_name . ', ' . $originalName, 250),
+                    ? Str::limit($listName, 250)
+                    : Str::limit($campaign->list_name . ', ' . $listName, 250),
             ])->save();
 
             return $summary + ['total' => $campaign->recipients()->count()];
         });
+    }
+
+    /** @throws EmailCampaignException */
+    private function assertCanChange(EmailCampaign $campaign, bool $replace): void
+    {
+        if (! $campaign->isEditable()) {
+            throw new EmailCampaignException('A lista só muda com a campanha em rascunho ou pausada.');
+        }
+
+        // Pausada, parte da lista já recebeu: trocar a lista apagaria esse
+        // histórico e mandaria de novo para quem voltasse no arquivo novo.
+        if ($replace && $campaign->status !== EmailCampaign::STATUS_DRAFT) {
+            throw new EmailCampaignException('Com a campanha pausada, a lista só pode ser acrescentada, não substituída.');
+        }
+    }
+
+    private function where(array $row): string
+    {
+        return $row['label'] ?? 'Linha ' . ($row['line'] ?? '?');
     }
 
     /**
@@ -148,12 +177,12 @@ final class RecipientImporter
         $buffer = [];
     }
 
-    private function reject(array &$summary, int $line, string $reason): void
+    private function reject(array &$summary, string $where, string $reason): void
     {
         $summary['invalid']++;
 
         if (count($summary['samples']) < self::SAMPLE_LIMIT) {
-            $summary['samples'][] = "Linha {$line}: {$reason}";
+            $summary['samples'][] = "{$where}: {$reason}";
         }
     }
 

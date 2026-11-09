@@ -312,7 +312,8 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 - **Sem `RefreshDatabase`.** Antes de rodar, confira o isolamento SQLite do `phpunit.xml`. Rode só o módulo:
   `php -d memory_limit=1G vendor/bin/phpunit --filter '/^(?!.*SignatureContractAiReviewTest).*Signature/'`
   e o `SignatureContractAiReviewTest` à parte — o `ContractAiReviewer` chama `set_time_limit(120)`, e o
-  processo inteiro morre 120 s depois ("Maximum execution time").
+  processo inteiro morre 120 s depois ("Maximum execution time"). O `SignatureContractKioskTest` também
+  passa pelo revisor (09/11/2026): exclua-o do filtro e rode à parte.
 
 ## Ao adicionar algo
 

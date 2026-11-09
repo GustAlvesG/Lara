@@ -7,7 +7,8 @@ Documentação completa: [docs/funcionalidades/disparo-emails.md](../funcionalid
 Campanhas de e-mail (`/disparo-emails`, rotas `email-campaigns.*` e `email-suppressions.*`,
 permissão `disparo-emails`): lista importada de `.csv`/`.xlsx`, editor visual para quem não sabe
 HTML (ou o código à mão), prévia, variáveis por coluna, teste, envio agora ou agendado — **mandado pelo scheduler**
-(`email-campaigns:send`, a cada minuto), nunca pela tela nem pela fila.
+(`email-campaigns:send`, a cada minuto), nunca pela tela nem pela fila. A lista também pode vir
+dos **sócios do MultiClubes** (permissão `disparo-emails.multiclubes`, desde 09/11/2026).
 
 ## Regras que costumam pegar
 
@@ -44,6 +45,13 @@ HTML (ou o código à mão), prévia, variáveis por coluna, teste, envio agora 
   (`import_rejected`). Upload validado por `extensions:` (não `mimes:`), porque CSV real chega com
   MIME variado.
 - `created_by` sem FK: `users` está na conexão `mysql`.
+- **Lista do MultiClubes** (`MultiClubesRecipientController` → `MultiClubesRecipientSource` →
+  `MemberMailingDirectory`): só `SELECT` no `mc_sqlsrv`, nunca escreva lá. Entra pelo mesmo
+  `RecipientImporter::importList()` da planilha — regra nova de lista vale para as duas fontes.
+  Filtros em `MemberMailingFilter` (códigos de status/sexo do MultiClubes; idade vira faixa de
+  `BirthDate`, não `DATEDIFF`). Tipos vazios = todos menos `TitleMemberLookup::EXCLUDED_TITLE_TYPES`.
+  Sem e-mail é contado, não recusado. A tela não consulta o MultiClubes ao abrir (tipos e contagem
+  por JSON sob demanda); nos testes o diretório é trocado por um de mentira.
 
 ## Configuração
 
@@ -53,12 +61,14 @@ verificado no SMTP), `mailer` (outro mailer de `config/mail.php`), `max_attempts
 
 ## Integrações
 
-Só o SMTP. Nenhum sistema externo consome API deste módulo — não há prompt para outro agent.
+SMTP e o MultiClubes (leitura direta no SQL Server, para a lista de sócios). Nenhum sistema externo
+consome API deste módulo — não há prompt para outro agent.
 
 ## Testes
 
 `tests/Feature/EmailCampaigns/` (o `EmailComposerTest` não usa banco) com o trait `CreatesEmailCampaignSchema` (acesso + layout + a
-migration real do módulo, `SharesSqliteWithUserConnection`). O `EmailCampaignSenderTest` registra
+migration real do módulo, `SharesSqliteWithUserConnection`). O `EmailCampaignMultiClubesTest` troca o `MemberMailingDirectory` por um de mentira e o
+`tests/Unit/MultiClubes/MemberMailingFilterTest` confere o SQL e a faixa de idade sem banco. O `EmailCampaignSenderTest` registra
 um transporte Symfony de mentira (`Mail::extend`) como mailer da campanha: simula 5xx, 4xx e
 servidor fora, e confere o e-mail como sai (cabeçalhos, `cid:`). Rode com
 `php -d memory_limit=1G vendor/bin/phpunit tests/Feature/EmailCampaigns`.

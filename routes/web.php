@@ -51,6 +51,7 @@ use App\Http\Controllers\DocumentationController;
 use App\Http\Controllers\EmailController;
 use App\Http\Controllers\EmailCampaign\EmailCampaignController;
 use App\Http\Controllers\EmailCampaign\EmailSuppressionController;
+use App\Http\Controllers\EmailCampaign\MultiClubesRecipientController;
 
 use App\Http\Controllers\AvisoController;
 use App\Http\Controllers\NotificationController;
@@ -710,6 +711,15 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::post('/', 'store')->name('store');
             Route::delete('/{suppression}', 'destroy')->name('destroy')->whereNumber('suppression');
         });
+
+        // Lista a partir dos sócios do MultiClubes (somente leitura no MC).
+        // Permissão à parte: expõe os e-mails de todo o quadro social.
+        Route::name('email-campaigns.multiclubes.')->middleware('can:' . P::DISPARO_EMAILS_MULTICLUBES)
+            ->controller(MultiClubesRecipientController::class)->group(function () {
+                Route::get('/multiclubes/tipos', 'titleTypes')->name('types');
+                Route::post('/multiclubes/contar', 'count')->name('count');
+                Route::post('/{campaign}/multiclubes', 'import')->name('import')->whereNumber('campaign');
+            });
 
         Route::name('email-campaigns.')->controller(EmailCampaignController::class)->group(function () {
             Route::get('/', 'index')->name('index');

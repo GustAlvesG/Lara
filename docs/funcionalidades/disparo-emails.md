@@ -21,6 +21,10 @@ importar listas de destinatários, enviar e manter o "Não enviar para"*). Nasce
 tela de Setores a quem faz as campanhas. Os setores de acesso total (Gerência, Diretoria, TI) já
 a alcançam.
 
+Montar a lista com os sócios do MultiClubes pede, além dela, **`disparo-emails.multiclubes`**
+(*Importar a lista de sócios do MultiClubes…*, desde 09/11/2026). É separada porque expõe os
+e-mails de todo o quadro social. Também nasce sem setor.
+
 ## Telas
 
 | Tela | Rota | O que faz |
@@ -75,6 +79,53 @@ histórico e mandaria de novo para quem voltasse no arquivo novo.
 - E-mails gravados **em minúsculas**; único por campanha (índice `ecr_campaign_email_unique`).
 - **Acrescentar** ou **Substituir** a lista atual (substituir só em rascunho). Modelo para baixar
   em `.csv` e `.xlsx` (`email-campaigns.list-template`).
+
+## Lista a partir dos sócios do MultiClubes
+
+Desde 09/11/2026. Na tela da campanha, bloco **Importar sócios do MultiClubes** (só com
+`disparo-emails.multiclubes` e campanha em rascunho ou pausada). A lista do MultiClubes passa pelo
+**mesmo `RecipientImporter::importList()`** da planilha: e-mail inválido volta como recusa, repetido é
+ignorado, vale o teto por campanha, o acrescentar/substituir e o "Não enviar para" no envio.
+
+**Somente leitura** no MultiClubes (`mc_sqlsrv`): só `SELECT`, parâmetros ligados. A tela da campanha
+**não consulta o MultiClubes ao abrir**: os tipos de título e a contagem vêm por rotas JSON sob demanda;
+fora do ar, essas rotas dão 503 com aviso e a importação volta com erro — a planilha continua valendo.
+
+### Filtros (`App\Services\MultiClubes\MemberMailingFilter`, validados por `MemberMailingRequest`)
+
+| Campo | Coluna | Valores | Vazio |
+|---|---|---|---|
+| `tipos[]` | `Titles.TitleType` | ids de `dbo.TitleTypes` | todos, **menos** `TitleMemberLookup::EXCLUDED_TITLE_TYPES` (funcionários, escolinha não sócio, terceirizados…); os especiais só entram marcados |
+| `situacao_titulo[]` | `Titles.Status` | 0 Ativo · 1 Bloqueado · 2 Cancelado · 3 Transferido · 4 Vencido | qualquer (a tela abre com Ativo) |
+| `situacao_socio[]` | `Members.Status` | 0 Ativo · 1 Desativado · 2 Excluído · 3 Vencido | qualquer (a tela abre com Ativo) |
+| `vinculo` | `Members.Titular` | `todos` · `titular` (1) · `dependente` (0) | obrigatório |
+| `sexo` | `Members.Sex` | 0 Masculino · 1 Feminino | os dois |
+| `idade_min`, `idade_max` | `Members.BirthDate` | 0–130, anos completos hoje | sem limite |
+
+Os códigos não têm tabela de domínio no MultiClubes; foram conferidos com `GROUP BY` na base em
+09/11/2026 (título 0–3, sócio 0–2, sexo 0/1 em uso). **A idade vira faixa de nascimento**:
+"N ou mais" ⇔ `BirthDate < (hoje − N anos) + 1 dia`; "até M" ⇔ `BirthDate >= (hoje − (M+1) anos) + 1 dia`
+(`subYearsNoOverflow`). Dá a mesma conta do `dbo.GetYearDiff`, sem função por linha. Sem data de
+nascimento, quem filtra por idade fica de fora. Há um clube só em `dbo.Clubs`; não há filtro de clube.
+
+### A lista (`MemberMailingDirectory` → `MultiClubesRecipientSource`)
+
+- **E-mail**: `dbo.Members.Email` (o mesmo de torneios e ingressos). Sócio **sem e-mail não vira recusa**
+  (seriam milhares): é contado e avisado ("N sócio(s) sem e-mail no MultiClubes ficaram de fora").
+- **Ordem**: título, titular primeiro. Titular e dependente com o **mesmo e-mail** → fica o primeiro (o
+  titular) e o outro conta como repetido.
+- **Nome**: social quando houver (`COALESCE(NULLIF(SocialName, ''), Name)`), e o nome em maiúsculas vira
+  nome próprio ("JOÃO DA SILVA" → "João da Silva"; `MultiClubesRecipientSource::properName`), porque vai
+  na saudação. Nome já misto fica como está.
+- **Colunas/variáveis**: `titulo` (`Titles.Code`), `tipo_titulo`, `vinculo` (Titular/Dependente),
+  `parentesco` (`Parentages.Description`; "Titular" para o titular), `idade` (anos completos na
+  importação) e `sexo`. Recusa de e-mail inválido aparece como "Título 001234 (Nome): …".
+- **Nome da lista** (`list_name`): o resumo dos filtros (`MemberMailingFilter::describe`), ex.
+  "MultiClubes: EFETIVO; título ativo; sócio ativo; só titulares; 18 anos ou mais".
+- A lista é uma **foto** na hora da importação; não sincroniza depois.
+
+Números de referência (09/11/2026, filtro padrão): 10.255 sócios, 6.513 com e-mail, 5.856 e-mails
+diferentes; a consulta completa leva ~0,6 s.
 
 ## O conteúdo
 
@@ -220,18 +271,26 @@ Migrations: `2026_10_30_110000_create_email_campaign_tables.php` e `2026_10_30_1
 
 ## Integrações
 
-Nenhuma aplicação externa: o módulo só usa o servidor SMTP (`config/mail.php`). Não há prompt
-para outro agent.
+- Servidor SMTP (`config/mail.php`).
+- **MultiClubes** (SQL Server, `mc_sqlsrv`), **somente leitura**, para a lista de sócios (seção acima).
+
+Nenhuma aplicação externa consome API deste módulo, e o MultiClubes é lido direto no banco: não há
+prompt para outro agent.
 
 ## Referência técnica
 
 - Rotas: [rotas.md](../rotas.md#disparo-de-e-mails-email-campaigns-email-suppressions-candisparo-emails)
-- Controllers: `EmailCampaign\EmailCampaignController`, `EmailCampaign\EmailSuppressionController`
+- Controllers: `EmailCampaign\EmailCampaignController`, `EmailCampaign\EmailSuppressionController`,
+  `EmailCampaign\MultiClubesRecipientController` (lista do MultiClubes) · Request `MemberMailingRequest`
+- MultiClubes (`app/Services/MultiClubes/`): `MemberMailingFilter`, `MemberMailingDirectory`; e
+  `EmailCampaign\MultiClubesRecipientSource`
 - Services (`app/Services/EmailCampaign/`): `RecipientListReader`, `RecipientImporter`,
   `EmailComposer`, `CampaignRenderer`, `CampaignSender`, `EmailCampaignService`, `CampaignImageStore`
 - Models (`app/Models/EmailCampaign/`): `EmailCampaign`, `EmailCampaignRecipient`,
   `EmailSuppression`
 - Mail: `App\Mail\EmailCampaignMail` · Comando: `email-campaigns:send` (`SendEmailCampaigns`)
-- Testes: `tests/Feature/EmailCampaigns/EmailCampaignPanelTest.php`, `EmailComposerTest.php` e
-  `EmailCampaignSenderTest.php` (transporte SMTP de mentira registrado como mailer)
+- Testes: `tests/Feature/EmailCampaigns/EmailCampaignPanelTest.php`, `EmailComposerTest.php`,
+  `EmailCampaignSenderTest.php` (transporte SMTP de mentira registrado como mailer),
+  `EmailCampaignMultiClubesTest.php` (MultiClubes de mentira) e
+  `tests/Unit/MultiClubes/MemberMailingFilterTest.php` (SQL e faixa de idade, sem banco)
 - Guia do usuário: [docs/guias/disparo-emails.md](../guias/disparo-emails.md)

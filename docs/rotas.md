@@ -314,6 +314,9 @@ Guia: [Disparo de E-mails](funcionalidades/disparo-emails.md). A tela só muda a
 | POST | `/disparo-emails/{campaign}/destinatarios` | …@importRecipients (`list`, `mode=append` ou `replace`) | email-campaigns.recipients.import |
 | DELETE | `/disparo-emails/{campaign}/destinatarios` | …@clearRecipients (só rascunho) | email-campaigns.recipients.clear |
 | GET | `/disparo-emails/{campaign}/destinatarios/exportar` | …@exportRecipients (CSV) | email-campaigns.recipients.export |
+| GET | `/disparo-emails/multiclubes/tipos` | EmailCampaign\MultiClubesRecipientController@titleTypes → JSON `{types}` (`can:disparo-emails.multiclubes`) | email-campaigns.multiclubes.types |
+| POST | `/disparo-emails/multiclubes/contar` | …@count → JSON `{members, with_email, distinct_emails}` (filtros do `MemberMailingRequest`) | email-campaigns.multiclubes.count |
+| POST | `/disparo-emails/{campaign}/multiclubes` | …@import (filtros + `mode=append` ou `replace`) | email-campaigns.multiclubes.import |
 | GET | `/disparo-emails/nao-enviar` | EmailCampaign\EmailSuppressionController@index | email-suppressions.index |
 | POST | `/disparo-emails/nao-enviar` | …@store (vários de uma vez) | email-suppressions.store |
 | DELETE | `/disparo-emails/nao-enviar/{suppression}` | …@destroy | email-suppressions.destroy |

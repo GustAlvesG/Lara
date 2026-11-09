@@ -169,6 +169,11 @@ final class Permissions
     // lista, enviar e o "Não enviar para". Nasce sem setor.
     public const DISPARO_EMAILS = 'disparo-emails';
 
+    // Disparo de E-mails (09/11/2026): montar a lista com os sócios do
+    // MultiClubes (por tipo de título, situação, idade, sexo, titular ou
+    // dependente). À parte porque expõe os e-mails de todo o quadro social.
+    public const DISPARO_EMAILS_MULTICLUBES = 'disparo-emails.multiclubes';
+
     public const BANCO_HORAS_ADMIN = 'banco-horas.admin';
     public const TELEGRAM_LOGIN = 'telegram.login';
     public const SOCIOS_CONSULTA = 'socios.consulta';
@@ -261,6 +266,7 @@ final class Permissions
         self::FUNCIONARIOS_GERENCIAR => ['Funcionários', 'Cadastro de funcionários, férias, afastamentos e importação por planilha'],
 
         self::DISPARO_EMAILS => ['Disparo de E-mails', 'Criar campanhas, importar listas de destinatários, enviar e manter o "Não enviar para"'],
+        self::DISPARO_EMAILS_MULTICLUBES => ['Disparo de E-mails', 'Importar a lista de sócios do MultiClubes (filtros por tipo de título, situação, idade, sexo, titular/dependente)'],
 
         self::BANCO_HORAS_ADMIN => ['Banco de Horas', 'Importar espelho de ponto'],
 

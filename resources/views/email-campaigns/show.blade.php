@@ -231,6 +231,10 @@
                             <p class="{{ $hint }}">Com a campanha pausada, a lista só pode ser acrescentada: quem já recebeu não recebe de novo.</p>
                         @endif
                     </form>
+
+                    @can(\App\Authorization\Permissions::DISPARO_EMAILS_MULTICLUBES)
+                        @include('email-campaigns.partials.multiclubes-import')
+                    @endcan
                 @endif
 
                 @if ($rejected)
