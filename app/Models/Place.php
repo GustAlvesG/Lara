@@ -113,6 +113,12 @@ class Place extends Model
             ->all();
     }
 
+    /** Galeria de fotos do espaço social (carrossel do site), em ordem. */
+    public function photos()
+    {
+        return $this->hasMany(\App\Models\Social\PlacePhoto::class)->orderBy('position')->orderBy('id');
+    }
+
     public function isSocial(): bool
     {
         return (bool) $this->group?->isSocial();

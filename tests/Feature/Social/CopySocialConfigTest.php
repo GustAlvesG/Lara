@@ -195,6 +195,56 @@ class CopySocialConfigTest extends TestCase
         $this->assertSame(0, DB::connection('destino')->table('social_beverages')->count());
     }
 
+    public function test_copia_a_galeria_de_fotos_sem_duplicar(): void
+    {
+        $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'lara-copia-galeria-' . uniqid();
+        File::ensureDirectoryExists($root . '/galeria/37');
+        file_put_contents($root . '/galeria/37/a.jpg', 'x');
+        file_put_contents($root . '/galeria/37/a-thumb.jpg', 'x');
+        config(['social_bookings.gallery_root' => $root]);
+
+        foreach (['origem', 'destino'] as $name) {
+            DB::connection($name)->getSchemaBuilder()->create('place_photos', function (Blueprint $t) {
+                $t->id();
+                $t->unsignedBigInteger('place_id');
+                $t->string('file');
+                $t->string('thumb');
+                $t->unsignedSmallInteger('width');
+                $t->unsignedSmallInteger('height');
+                $t->string('caption', 120)->nullable();
+                $t->unsignedInteger('position')->default(0);
+                $t->boolean('active')->default(true);
+                $t->unsignedBigInteger('created_by')->nullable();
+                $t->timestamps();
+            });
+        }
+        DB::connection('origem')->table('place_photos')->insert([
+            ['place_id' => 37, 'file' => 'galeria/37/a.jpg', 'thumb' => 'galeria/37/a-thumb.jpg', 'width' => 1920, 'height' => 1280, 'caption' => 'Vista', 'position' => 1, 'active' => 1, 'created_by' => 4],
+            ['place_id' => 37, 'file' => 'galeria/37/b.jpg', 'thumb' => 'galeria/37/b-thumb.jpg', 'width' => 1920, 'height' => 1280, 'caption' => null, 'position' => 2, 'active' => 0, 'created_by' => 4],
+        ]);
+
+        try {
+            $this->copy()
+                ->expectsOutputToContain('Foto não encontrada neste servidor: public/images/galeria/37/b.jpg')
+                ->assertSuccessful();
+
+            DB::connection('origem')->table('place_photos')->where('file', 'galeria/37/a.jpg')->update(['caption' => 'Vista do lago']);
+            $this->copy()->assertSuccessful();
+
+            $db = DB::connection('destino');
+            $target = $db->table('places')->where('name', 'Churrasqueira 21')->value('id');
+            $photos = $db->table('place_photos')->orderBy('position')->get();
+            $this->assertCount(2, $photos);
+            $this->assertSame([(int) $target, (int) $target], $photos->pluck('place_id')->map(fn ($id) => (int) $id)->all());
+            $this->assertSame('Vista do lago', $photos[0]->caption);
+            $this->assertSame('galeria/37/a.jpg', $photos[0]->file, 'o arquivo vai como está');
+            $this->assertNull($photos[0]->created_by, 'usuário é do outro banco');
+            $this->assertSame(0, (int) $photos[1]->active);
+        } finally {
+            File::deleteDirectory($root);
+        }
+    }
+
     public function test_mesmo_banco_e_recusado(): void
     {
         $this->artisan('social:copy-config', ['--from' => 'origem', '--to' => 'origem', '--force' => true])->assertFailed();

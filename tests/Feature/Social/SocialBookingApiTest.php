@@ -109,7 +109,20 @@ class SocialBookingApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('places.0.max_guests', 30)
             ->assertJsonPath('places.0.extra_guest_price', 15)
-            ->assertJsonPath('places.0.capacity', 70);
+            ->assertJsonPath('places.0.capacity', 70)
+            ->assertJsonPath('places.0.photos', []);
+
+        // Galeria (10/11/2026): só as fotos visíveis, em ordem, com o caminho do arquivo estático.
+        \App\Models\Social\PlacePhoto::create(['place_id' => $this->place->id, 'file' => 'galeria/1/b.jpg', 'thumb' => 'galeria/1/b-thumb.jpg', 'width' => 1920, 'height' => 1280, 'position' => 2, 'caption' => 'Cozinha']);
+        \App\Models\Social\PlacePhoto::create(['place_id' => $this->place->id, 'file' => 'galeria/1/a.jpg', 'thumb' => 'galeria/1/a-thumb.jpg', 'width' => 1920, 'height' => 1280, 'position' => 1]);
+        \App\Models\Social\PlacePhoto::create(['place_id' => $this->place->id, 'file' => 'galeria/1/x.jpg', 'thumb' => 'galeria/1/x-thumb.jpg', 'width' => 1, 'height' => 1, 'position' => 3, 'active' => false]);
+
+        $this->withHeaders($this->headers())->getJson("/api/social/groups/{$this->group->id}/places")
+            ->assertOk()
+            ->assertJsonCount(2, 'places.0.photos')
+            ->assertJsonPath('places.0.photos.0.path', 'images/galeria/1/a.jpg')
+            ->assertJsonPath('places.0.photos.1.thumb_path', 'images/galeria/1/b-thumb.jpg')
+            ->assertJsonPath('places.0.photos.1.caption', 'Cozinha');
 
         $names = collect($this->withHeaders($this->headers())->getJson('/api/places/group')->assertOk()->json())->pluck('name');
         $this->assertSame(['Tênis'], $names->values()->all());

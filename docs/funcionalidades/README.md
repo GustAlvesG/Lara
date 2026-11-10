@@ -14,6 +14,7 @@ rotas).
 |------|-----------|
 | [Guias do usuário](guias-do-usuario.md) | **Um guia por módulo, para quem usa as telas** (`docs/guias/`): formato, quando atualizar e como o HAL (IA) busca neles. Os guias aparecem na tela Documentação, em "Guias do usuário". |
 | [Sistema de Informações](informacoes.md) | Catálogo versionado de atividades/serviços do clube, com histórico de alterações. |
+| [Fila de Espera das modalidades](fila-de-espera.md) | InfoClube › Fila de Espera: não sócios por turma (sem vínculo com o MultiClubes), CPF obrigatório, várias filas por pessoa, ordem de chegada, ligações registradas sem mudar a posição, saída e reativação. [Guia](../guias/infoclube.md). |
 | [Placas de Carro / Estacionamento](estacionamento-placas.md) | Busca de veículos por placa e identificação do condutor provável. |
 | [Agendamento de Espaços](agendamento.md) | Reserva de quadras/salões pelo sócio: horários, colisão, limite e pagamento. |
 | [Espaços e Grupos (admin)](espacos-e-grupos.md) | Cadastro de grupos, espaços e regras de disponibilidade. |

@@ -69,7 +69,9 @@ class SocialBookingApiController extends Controller
             return response()->json(['message' => 'Grupo não encontrado.', 'reason' => SocialBookingException::PLACE_NOT_SOCIAL], 404);
         }
 
-        $places = $group->places()->where('status_id', 1)->get()->map(fn (Place $place) => $this->presentPlace($place));
+        $places = $group->places()->where('status_id', 1)
+            ->with(['photos' => fn ($q) => $q->where('active', true)])
+            ->get()->map(fn (Place $place) => $this->presentPlace($place));
 
         return response()->json(['group' => ['id' => $group->id, 'name' => $group->name, 'rules' => $group->social_rules], 'places' => $places]);
     }
@@ -379,6 +381,10 @@ class SocialBookingApiController extends Controller
             'event_duration_hours' => $place->event_duration_hours,
             'event_earliest_start' => $place->event_earliest_start ? substr($place->event_earliest_start, 0, 5) : null,
             'event_latest_start' => $place->event_latest_start ? substr($place->event_latest_start, 0, 5) : null,
+            // Galeria (carrossel), desde 10/11/2026: só as fotos visíveis, em ordem.
+            'photos' => $place->relationLoaded('photos')
+                ? $place->photos->map(fn ($photo) => $photo->toApi())->values()
+                : [],
         ];
     }
 

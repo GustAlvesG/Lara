@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\Social\PlacePhotoService;
 use Illuminate\Console\Command;
 use Illuminate\Database\Connection;
 use Illuminate\Support\Carbon;
@@ -25,6 +26,9 @@ use Illuminate\Support\Facades\DB;
  *   grupo; se não achar no destino, avisa e pula.
  * - Imagens vão como estão (nome do arquivo ou link). O arquivo precisa estar
  *   em `public/images` do servidor de destino — o comando avisa o que falta.
+ * - Galeria de fotos (`place_photos`, desde 10/11/2026): casa pelo espaço e
+ *   pelo arquivo; legenda, ordem e visibilidade são atualizadas. Os arquivos
+ *   (`public/images/galeria/…`) também precisam estar no destino.
  * - `--dry-run` só lê os dois bancos e mostra o que faria: não escreve nada
  *   no destino (nem transação desfeita, que no MySQL ainda avançaria os ids).
  *
@@ -94,6 +98,7 @@ class CopySocialConfig extends Command
             $placeMap = $this->copyPlaces($groupMap);
             $this->copyConflicts($placeMap);
             $this->copyCatalog();
+            $this->copyPhotos($placeMap);
             $this->checkImages();
         } catch (\Throwable $e) {
             if (! $dryRun) {
@@ -261,6 +266,37 @@ class CopySocialConfig extends Command
         foreach ($items as $item) {
             $existing = $this->to->table('social_beverages')->where('name', $item->name)->where('category', $item->category)->whereNull('deleted_at')->first();
             $this->upsert('social_beverages', $existing, $this->columns('social_beverages', $item), $item->category === 'mobiliario' ? 'Mobiliário' : 'Bebida', $item->name);
+        }
+    }
+
+    /** Galeria dos espaços copiados: casa pelo espaço de destino e pelo arquivo. */
+    private function copyPhotos(array $placeMap): void
+    {
+        if (! $this->from->getSchemaBuilder()->hasTable('place_photos') || ! $this->to->getSchemaBuilder()->hasTable('place_photos')) {
+            $this->warnings[] = 'Galeria de fotos não copiada: a tabela place_photos não existe em um dos bancos (rode as migrations).';
+
+            return;
+        }
+
+        $photos = $this->from->table('place_photos')->whereIn('place_id', array_keys($placeMap))->orderBy('place_id')->orderBy('position')->get();
+
+        foreach ($photos as $photo) {
+            $data = $this->columns('place_photos', $photo);
+            $data['place_id'] = $placeMap[$photo->place_id];
+            // Quem enviou é usuário do outro banco.
+            $data['created_by'] = null;
+
+            $existing = $data['place_id'] > 0
+                ? $this->to->table('place_photos')->where('place_id', $data['place_id'])->where('file', $photo->file)->first()
+                : null;
+
+            $this->upsert('place_photos', $existing, $data, 'Foto', $this->placeName($photo->place_id) . ' #' . $photo->position);
+
+            foreach ([$photo->file, $photo->thumb] as $file) {
+                if (! is_file(app(PlacePhotoService::class)->absolute($file))) {
+                    $this->warnings[] = "Foto não encontrada neste servidor: public/images/{$file} (copie a pasta public/images/galeria da origem).";
+                }
+            }
         }
     }
 

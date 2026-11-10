@@ -1,14 +1,15 @@
 ---
 modulo: InfoClube
-palavras: informação, informações, atividade, serviço, aula, horário de aula, preço, responsável, aviso, avisos, comunicado, recado, lembrete, leitura obrigatória, ciência, confirmar leitura, quem leu, expiração, visibilidade, setor, grupo, mural, tags, histórico de versões
+palavras: informação, informações, atividade, serviço, aula, horário de aula, preço, responsável, aviso, avisos, comunicado, recado, lembrete, leitura obrigatória, ciência, confirmar leitura, quem leu, expiração, visibilidade, setor, grupo, mural, tags, histórico de versões, fila de espera, lista de espera, não sócio, turma, vaga, modalidade, matrícula, turma lotada, ligar, ligação
 ---
 
 # InfoClube — guia de uso
 
-O InfoClube é o mural interno do clube no Lara. Ele tem duas telas:
+O InfoClube é o mural interno do clube no Lara. Ele tem três telas:
 
 - **Informações** — o catálogo das atividades, serviços e ofertas do clube (aulas, escolinhas, serviços), com descrição, preços para sócio e não sócio, dias e horários, responsáveis, vagas e local. Cada edição guarda a versão anterior no histórico.
 - **Avisos** — comunicados para a equipe, com escolha de quem vê (todos, o setor, um grupo de pessoas ou só você), lembretes, data de expiração e, para coordenadores, **leitura obrigatória**.
+- **Fila de Espera** — a lista de espera dos **não sócios** nas turmas lotadas das modalidades. A fila dos sócios continua no MultiClubes. Só aparece para quem tem a permissão.
 
 Todo funcionário logado lê as informações e os avisos que são para ele. Criar e editar informações pede permissão; avisos qualquer pessoa logada pode publicar.
 
@@ -23,8 +24,9 @@ O HAL, o assistente de IA do chat, também consulta as informações e os avisos
 | Ler os avisos dirigidos a você | Nenhuma: todo usuário logado |
 | Publicar, editar e remover avisos | Nenhuma: todo usuário logado |
 | Marcar um aviso como leitura obrigatória | Não é permissão: só quem é coordenador de algum setor vê a opção |
+| Usar a Fila de Espera (turmas, incluir pessoas, registrar ligações, tirar da fila) | InfoClube › Fila de espera das modalidades (não sócios): turmas, inclusão, ligações e saída da fila |
 
-A permissão de informações é liberada pela TI ou pela Gerência, na tela **Setores**; o coordenador do setor pede a liberação e coloca a equipe no setor pela tela **Meu setor**. Coordenador é quem está cadastrado com o papel de coordenador num setor, também na tela Setores. Gerência, Diretoria e TI (acesso total) enxergam todos os avisos do sistema na lista.
+As permissões de informações e da fila de espera são liberadas pela TI ou pela Gerência, na tela **Setores**; o coordenador do setor pede a liberação e coloca a equipe no setor pela tela **Meu setor**. Coordenador é quem está cadastrado com o papel de coordenador num setor, também na tela Setores. Gerência, Diretoria e TI (acesso total) enxergam todos os avisos do sistema na lista.
 
 ## Encontrar uma informação
 <!-- telas: information.index -->
@@ -204,6 +206,78 @@ Para remover: use o lixo do cartão ou **Remover aviso** na edição e confirme.
 
 Os botões de editar e remover aparecem para qualquer usuário logado que vê o aviso, não só para quem o criou. Combine no setor quem pode mexer nos avisos dos outros.
 
+## Fila de Espera: como funciona
+<!-- telas: waitlist.index -->
+
+A tela **InfoClube › Fila de Espera** guarda quem **não é sócio** e quer vaga numa turma lotada (natação, tênis, ballet…). Cada turma tem a sua fila, na **ordem de chegada**.
+
+- **Só não sócios.** O sócio entra na fila pelo MultiClubes, como sempre. O Lara não consulta o MultiClubes.
+- **O sócio tem prioridade.** Antes de ligar para um não sócio, confira no MultiClubes se há sócio esperando na mesma turma. A tela da fila da turma lembra disso numa faixa de aviso, acima da lista.
+- **Uma pessoa pode estar em várias filas** ao mesmo tempo (por exemplo, natação e tênis), uma vez em cada turma. O **CPF** identifica a pessoa e é obrigatório, inclusive para criança.
+- **A posição não muda** por ligação sem resposta. Só sai da fila quem a secretaria tirar.
+
+No alto da tela há duas listas: **Turmas** (cada turma com quantos aguardam e desde quando o primeiro espera) e **Pessoas** (busca por nome, CPF ou telefone).
+
+## Cadastrar uma turma na Fila de Espera
+<!-- telas: waitlist.index -->
+
+Em **InfoClube › Fila de Espera**, clique em **Nova turma**.
+
+1. **Modalidade** (obrigatória): ex. "Natação". O campo sugere as modalidades já usadas; escolha uma delas para não criar "Natação" e "natacao" separadas.
+2. **Turma** (obrigatória): ex. "Infantil ter/qui 9h". Dias, horário e faixa etária no nome ajudam a escolher a turma certa.
+3. **Observação** (opcional): professor, local, idade mínima.
+4. **Turma ativa**: marcada, a turma recebe gente nova.
+
+Clique em **Cadastrar turma**. Não pode haver duas turmas com o mesmo nome na mesma modalidade.
+
+Para mudar, abra a turma e clique em **Editar turma**. Para parar de receber gente, desmarque **Turma ativa**: a fila continua visível. **Excluir** só funciona para turma que nunca teve ninguém na fila; a que já teve guarda o histórico.
+
+## Incluir uma pessoa na Fila de Espera
+<!-- telas: waitlist.index -->
+
+Em **InfoClube › Fila de Espera**, clique em **Incluir pessoa**.
+
+1. Digite o **CPF** da pessoa e clique em **Continuar**.
+   - Se ela **já tem cadastro**, o Lara abre a ficha dela. Use **Incluir em outras turmas** lá.
+   - Se não tem, aparece o formulário.
+2. Preencha **Nome completo** e **Telefone** (obrigatórios). Os demais são opcionais: data de nascimento, outro telefone, e-mail, **responsável** e telefone do responsável (para menor) e observação (ex.: melhor horário para ligar).
+3. Em **Turmas**, marque as turmas em que a pessoa entra na fila. Ela entra **no fim de cada fila**, com a data de hoje.
+4. Clique em **Incluir na fila**.
+
+Para colocar alguém que já está cadastrado em mais uma turma, abra a ficha (lista **Pessoas** ou pela fila da turma), marque as turmas em **Incluir em outras turmas** e clique em **Incluir na fila**.
+
+## Chamar o próximo da fila e registrar a ligação
+<!-- telas: waitlist.index -->
+
+Quando abrir vaga numa turma:
+
+1. Confira no **MultiClubes** se há **sócio** na fila dessa turma. Se houver, a vaga é dele.
+2. Em **InfoClube › Fila de Espera**, abra a turma. O primeiro da lista (**1º**) é o próximo. A tabela mostra idade, telefone, desde quando espera e a última ligação.
+3. Clique no nome (ou no lápis) para abrir a ficha da pessoa, já no cartão daquela turma.
+4. Ligue. Em **Resultado da ligação**, escolha o que aconteceu, escreva uma observação se quiser e clique em **Registrar ligação**.
+
+Resultados possíveis: **Não atendeu**, **Deixou recado**, **Pediu para ligar depois**, **Não quer a vaga agora (continua na fila)**, **Aceitou a vaga** e **Telefone errado**. Nenhum deles muda a posição nem tira a pessoa da fila. Cada ligação fica no cartão, com data, hora e quem ligou.
+
+Se ninguém atender, você pode ligar para o seguinte e voltar ao primeiro depois: ele continua em 1º.
+
+## Tirar uma pessoa da fila (matriculou ou desistiu)
+<!-- telas: waitlist.index -->
+
+Na ficha da pessoa, no cartão da turma, abra **Tirar da fila (matriculou, desistiu ou remover)**:
+
+1. Escolha a **Situação**: **Matriculado** (fez a matrícula), **Desistiu** (não quer mais) ou **Removido** (por outro motivo, que precisa ser escrito).
+2. Escreva o **Motivo / observação** (obrigatório só em Removido).
+3. Clique em **Confirmar** e confirme a pergunta.
+
+A matrícula em si continua sendo feita no MultiClubes; aqui só se registra que a pessoa saiu da fila. Se ela estiver em outras filas, o aviso verde lista quais: pergunte se ainda quer essas vagas e, se não, tire dela também.
+
+Quem saiu aparece na ficha em **Saiu da fila** e, na turma, na aba **Saíram da fila**, com a situação, as datas, quem tirou e o motivo.
+
+## Devolver uma pessoa à fila (reativar)
+<!-- telas: waitlist.index -->
+
+Tirou por engano? Na ficha da pessoa, em **Saiu da fila**, clique em **Reativar** na turma e confirme. A pessoa volta para a **mesma posição** de antes, porque a data de entrada não muda.
+
 ## Dúvidas comuns
 
 ### Por que não aparece o botão "Nova informação" ou "Editar"?
@@ -255,6 +329,36 @@ Hoje, os lembretes agendados e a notificação do dia da expiração são enviad
 <!-- telas: avisos.index -->
 
 Só coordenadores de setor podem exigir leitura. Se você coordena a equipe e a opção não aparece, peça à TI para conferir o seu papel de coordenador na tela Setores.
+
+### Não aparece a aba "Fila de Espera"
+<!-- telas: waitlist.index -->
+
+A Fila de Espera pede a permissão "Fila de espera das modalidades (não sócios)", do grupo InfoClube, porque guarda CPF e telefone. Fale com o coordenador do seu setor: ele coloca você num setor que já tem a permissão (tela **Meu setor**) ou pede à TI ou à Gerência que a liberem (tela **Setores**).
+
+### Posso colocar um sócio na Fila de Espera do Lara?
+<!-- telas: waitlist.index -->
+
+Não. A Fila de Espera do Lara é só de não sócios. Sócio entra na fila pelo MultiClubes, que também tem prioridade: confira lá antes de chamar um não sócio.
+
+### "Já existe uma pessoa na fila de espera com este CPF."
+<!-- telas: waitlist.index -->
+
+A pessoa já tem cadastro. Use **Incluir pessoa**, digite o CPF e clique em **Continuar**: o Lara abre a ficha dela, e lá você a coloca em outras turmas em **Incluir em outras turmas**. Se o CPF foi digitado errado em outro cadastro, corrija em **Editar cadastro** na ficha.
+
+### A pessoa precisa mudar de turma. Ela perde a posição?
+<!-- telas: waitlist.index -->
+
+Não existe troca: cada turma tem a própria fila. Inclua a pessoa na turma nova (ela entra no fim dessa fila, com a data de hoje) e, se ela não quiser mais a antiga, tire-a da fila antiga com **Desistiu**. Ela pode também continuar nas duas.
+
+### "Turma inativa não recebe gente nova"
+<!-- telas: waitlist.index -->
+
+A turma foi desativada. Se ela voltou a ter fila, abra a turma, clique em **Editar turma**, marque **Turma ativa** e salve.
+
+### Não consigo excluir uma turma
+<!-- telas: waitlist.index -->
+
+Turma que já teve alguém na fila guarda esse histórico e não se exclui. Desmarque **Turma ativa** em **Editar turma**: ela para de receber gente nova.
 
 ### O Lara me levou para uma tela de aviso e não sai dela
 Essa é a tela de **Aviso de leitura obrigatória**. Marque **Li e estou ciente deste aviso.** e clique em **Confirmar leitura**. Se aparecer "Marque que leu o aviso para continuar.", faltou marcar a caixa. Havendo mais de um aviso pendente, eles aparecem em sequência.

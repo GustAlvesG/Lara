@@ -30,6 +30,8 @@ trait CreatesSocialBookingSchema
         '2026_10_16_100000_add_furniture_duration_and_contact_to_social_bookings.php',
         // Baixa manual de pagamento (quadras e espaços sociais).
         '2026_10_19_100000_add_manual_fields_to_schedule_payments.php',
+        // Galeria de fotos dos espaços (carrossel do site).
+        '2026_11_10_100000_create_place_photos_table.php',
     ];
 
     /**

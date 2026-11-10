@@ -31,6 +31,11 @@ namespace App\Authorization;
 final class Permissions
 {
     public const INFOCLUBE_EDITAR = 'infoclube.editar';
+    // Fila de espera das modalidades (10/11/2026): só NÃO sócios, sem vínculo
+    // com o MultiClubes (a fila dos sócios é de lá). Uma permissão cobre as
+    // turmas, a inclusão, as ligações e a saída da fila. À parte da leitura
+    // do InfoClube porque guarda dados pessoais (CPF, telefone, nascimento).
+    public const INFOCLUBE_FILA_ESPERA = 'infoclube.fila-espera';
 
     public const SIV_BUSCA = 'siv.busca';
     public const SIV_PLACAS_DIRETORIA = 'siv.placas-diretoria';
@@ -188,6 +193,7 @@ final class Permissions
      */
     private const CATALOG = [
         self::INFOCLUBE_EDITAR => ['InfoClube', 'Criar, editar e excluir informações'],
+        self::INFOCLUBE_FILA_ESPERA => ['InfoClube', 'Fila de espera das modalidades (não sócios): turmas, inclusão, ligações e saída da fila'],
 
         self::SIV_BUSCA => ['SIV', 'Busca de placas'],
         self::SIV_PLACAS_DIRETORIA => ['SIV', 'Placas da diretoria'],

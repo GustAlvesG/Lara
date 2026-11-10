@@ -336,6 +336,23 @@ Em **Reservas › Locais e Grupos**, abra o grupo e use **Novo local**, ou **Edi
 
 Clique em **Enviar** (novo) ou **Atualizar** (edição). Espaço social não tem interruptor de luz: a reserva ocupa o dia inteiro e deixaria a luz acesa 24 horas.
 
+## Montar a galeria de fotos de um espaço social (carrossel do site)
+<!-- telas: place-group.index -->
+
+O site mostra, na página de cada churrasqueira ou salão, um carrossel com a capa e as fotos da galeria — também para quem ainda não entrou no site.
+
+1. Em **Reservas › Locais e Grupos**, abra o grupo social e clique em **Editar** no espaço.
+2. Desça até **Galeria de fotos (site)**, abaixo do formulário.
+3. Em **Adicionar fotos**, escolha uma ou várias fotos (JPG, PNG ou WEBP, até 15 MB cada) e clique em **Enviar**. O Lara reduz e otimiza cada foto para o site; elas entram no fim da galeria.
+4. Em cada foto:
+   - **↑ / ↓** muda a ordem do carrossel;
+   - escreva a **Legenda** (opcional) e clique em **Salvar**;
+   - desmarque **Mostrar no site** e clique em **Salvar** para esconder a foto sem apagar (ela aparece como **Escondida**);
+   - **Usar como capa** troca a imagem principal do espaço por essa foto;
+   - a lixeira exclui a foto.
+
+Cada espaço aceita até 20 fotos (contando as escondidas). Se uma das fotos do envio for recusada (não é imagem ou passa de 15 MB), nenhuma daquele envio é gravada: tire a foto com problema e envie de novo. Só quadra não tem galeria: a seção aparece apenas em espaço social.
+
 ## Bloquear ou liberar horários com regras de locação
 <!-- telas: place-group.index -->
 

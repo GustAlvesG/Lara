@@ -44,6 +44,8 @@ final class Navigation
                 'children' => [
                     ['route' => 'information.index', 'label' => 'Informações', 'active' => 'information.*'],
                     ['route' => 'avisos.index', 'label' => 'Avisos', 'active' => 'avisos.*'],
+                    // Fila de espera de não sócios nas turmas das modalidades.
+                    ['route' => 'waitlist.index', 'label' => 'Fila de Espera', 'permission' => P::INFOCLUBE_FILA_ESPERA, 'active' => 'waitlist.*'],
                 ],
             ],
             ['label' => 'SIV', 'area' => 'portaria', 'glyph' => 'car',

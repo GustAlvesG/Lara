@@ -476,6 +476,8 @@ class PlaceGroupController extends Controller
             'contactors' => Contactor::orderBy('name')->get(),
             'conflictOptions' => Place::with('group')->where('id', '!=', $place->id)->get(),
             'selectedConflicts' => Place::conflictingPlaceIds($place->id),
+            // Galeria de fotos (carrossel do site): só espaço social.
+            'photos' => $place->photos()->get(),
         ]);
     }
 

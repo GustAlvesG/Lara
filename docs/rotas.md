@@ -73,6 +73,11 @@ Todas, salvo `/`, `/members` e `/dashboard`, estão sob o middleware `auth`.
 | GET | `/place-group/place/{place_id}/edit` | PlaceGroupController@editPlace | place-group.editPlace | auth |
 | PUT | `/place-group/place/{place_id}` | PlaceGroupController@updatePlace | place-group.updatePlace | auth |
 | DELETE | `/place-group/place/{place_id}` | PlaceGroupController@destroyPlace | place-group.destroyPlace | auth |
+| POST | `/place-group/place/{place_id}/photos` | Social\PlacePhotoController@store | place-group.photos.store | auth, can:reservas.configurar (galeria do espaço social; várias fotos em `photos[]`) |
+| PUT | `/place-group/place/photos/{photo}` | Social\PlacePhotoController@update | place-group.photos.update | auth, can:reservas.configurar (legenda e "Mostrar no site") |
+| POST | `/place-group/place/photos/{photo}/move` | Social\PlacePhotoController@move | place-group.photos.move | auth, can:reservas.configurar (`direction` = `up` ou `down`) |
+| POST | `/place-group/place/photos/{photo}/cover` | Social\PlacePhotoController@cover | place-group.photos.cover | auth, can:reservas.configurar (cópia da foto vira `places.image`) |
+| DELETE | `/place-group/place/photos/{photo}` | Social\PlacePhotoController@destroy | place-group.photos.destroy | auth, can:reservas.configurar (apaga também os arquivos) |
 | GET | `/schedule` | ScheduleController@index | schedule.index | auth |
 | POST | `/schedule/filter` | ScheduleController@indexFilter | schedule.index.filter | auth |
 | GET | `/schedule/create` | ScheduleController@create | schedule.create | auth |
@@ -273,6 +278,31 @@ Guia: [Ingressos](funcionalidades/ingressos.md). Tipo, lote e cupom presos ao ev
 | GET | `/ingressos/financeiro` | Ticket\TicketFinanceController@index | tickets.finance.index | ingressos.financeiro |
 | GET | `/ingressos/{event}/financeiro` | Ticket\TicketFinanceController@show | tickets.finance.show | ingressos.financeiro |
 | GET | `/ingressos/{event}/financeiro/csv` | Ticket\TicketFinanceController@csv | tickets.finance.csv | ingressos.financeiro |
+
+### InfoClube › Fila de Espera (`waitlist.*`, `can:infoclube.fila-espera`)
+
+Desde 10/11/2026. Não sócios nas turmas das modalidades, sem vínculo com o MultiClubes — ver
+[Fila de Espera](funcionalidades/fila-de-espera.md). Todas com `auth, avisos_obrigatorios,
+can:infoclube.fila-espera`.
+
+| Método | URI | Ação | Nome |
+|---|---|---|---|
+| GET | `/fila-espera` | Waitlist\WaitlistClassController@index | waitlist.index |
+| GET | `/fila-espera/turmas/nova` | Waitlist\WaitlistClassController@create | waitlist.classes.create |
+| POST | `/fila-espera/turmas` | Waitlist\WaitlistClassController@store | waitlist.classes.store |
+| GET | `/fila-espera/turmas/{waitlistClass}` | Waitlist\WaitlistClassController@show | waitlist.classes.show |
+| GET | `/fila-espera/turmas/{waitlistClass}/editar` | Waitlist\WaitlistClassController@edit | waitlist.classes.edit |
+| PUT | `/fila-espera/turmas/{waitlistClass}` | Waitlist\WaitlistClassController@update | waitlist.classes.update |
+| DELETE | `/fila-espera/turmas/{waitlistClass}` | Waitlist\WaitlistClassController@destroy | waitlist.classes.destroy |
+| GET | `/fila-espera/pessoas` | Waitlist\WaitlistPersonController@index | waitlist.people.index |
+| GET | `/fila-espera/pessoas/nova` | Waitlist\WaitlistPersonController@create | waitlist.people.create |
+| POST | `/fila-espera/pessoas` | Waitlist\WaitlistPersonController@store | waitlist.people.store |
+| GET | `/fila-espera/pessoas/{person}` | Waitlist\WaitlistPersonController@show | waitlist.people.show |
+| PUT | `/fila-espera/pessoas/{person}` | Waitlist\WaitlistPersonController@update | waitlist.people.update |
+| POST | `/fila-espera/pessoas/{person}/filas` | Waitlist\WaitlistPersonController@enroll | waitlist.people.enroll |
+| POST | `/fila-espera/inscricoes/{entry}/ligacoes` | Waitlist\WaitlistEntryController@contact | waitlist.entries.contact |
+| POST | `/fila-espera/inscricoes/{entry}/encerrar` | Waitlist\WaitlistEntryController@close | waitlist.entries.close |
+| POST | `/fila-espera/inscricoes/{entry}/reativar` | Waitlist\WaitlistEntryController@reopen | waitlist.entries.reopen |
 
 ### Contas do site (`site-accounts.*`, `can:reservas.contas-site`)
 
@@ -500,6 +530,15 @@ Contrato completo em [torneios.md](funcionalidades/torneios.md#api-do-site-apito
 | GET | `/api/tournaments/{id}/staff/matches` | Api\TournamentStaffApiController@matches | T + header `Tournament-Code` (throttle 60/min) |
 | PUT | `/api/tournaments/{id}/staff/matches/{matchId}/result` | Api\TournamentStaffApiController@record | T + header `Tournament-Code` (throttle 60/min) |
 
+### Espaços sociais — vitrine do site (`api.social-showcase.*`)
+
+Sem login do sócio (só T), para o carrossel do site. Contrato em [espacos-sociais.md](funcionalidades/espacos-sociais.md#galeria-de-fotos-carrossel-do-site).
+
+| Método | URI | Ação | Auth |
+|--------|-----|------|------|
+| GET | `/api/social-showcase` | Api\SocialShowcaseApiController@index | T (throttle 120/min) |
+| GET | `/api/social-showcase/places/{id}` | Api\SocialShowcaseApiController@show | T (throttle 120/min) |
+
 ### Ingressos — site de locação (`api.tickets.*`)
 
 Contrato completo em [ingressos.md](funcionalidades/ingressos.md#api-do-site-apiticketapicontroller). T = `api_token`, L = `login_token`, G = header `Ticket-Order-Token` (pedido do não sócio).
@@ -553,7 +592,7 @@ Contrato completo em [ingressos.md](funcionalidades/ingressos.md#api-do-site-api
 | POST | `/api/lighting/places/{place}/activate` | Api\MemberLightingController@activate | acende a luz; `throttle:20,1` |
 | POST | `/api/lighting/release` | Api\MemberLightingController@release | devolve a quadra; `throttle:20,1` |
 | GET | `/api/social/groups` | Api\SocialBookingApiController@groups | grupos de categoria `social` |
-| GET | `/api/social/groups/{group}/places` | Api\SocialBookingApiController@places | espaços ativos do grupo social |
+| GET | `/api/social/groups/{group}/places` | Api\SocialBookingApiController@places | espaços ativos do grupo social (com `photos`, a galeria visível, desde 10/11/2026) |
 | GET | `/api/social/availability` | Api\SocialBookingApiController@availability | `?place_id&month=YYYY-MM` → status de cada dia |
 | GET | `/api/social/beverages` | Api\SocialBookingApiController@beverages | bebidas ativas |
 | GET | `/api/social/furniture` | Api\SocialBookingApiController@furniture | mobiliário ativo (mesas, cadeiras, jogos) |
@@ -599,6 +638,6 @@ Contrato completo em [ingressos.md](funcionalidades/ingressos.md#api-do-site-api
 | `ingressos:expirar-pedidos` | Expira pedido de ingresso pendente com o prazo de pagamento (`TICKETS_HOLD_MINUTES`) vencido. | a cada minuto |
 | `email-campaigns:send [--limit=] [--seconds=50]` | Disparo de E-mails: promove as agendadas cuja hora chegou e manda o próximo lote das campanhas em andamento (até `EMAIL_CAMPAIGNS_PER_MINUTE`). `withoutOverlapping` + `runInBackground`. | a cada minuto |
 | `ingressos:dados-teste` | Gera ou limpa (`--so-limpar`) eventos `[TESTE]` de Ingressos em homologação; recusa produção. | manual |
-| `social:copy-config --from=lara_hml --to=lara [--dry-run] [--force]` | Copia a configuração dos espaços sociais (grupos, dias, espaços, conflitos, catálogo) de um banco para outro, casando pelo nome; não apaga nem copia reservas. | manual |
+| `social:copy-config --from=lara_hml --to=lara [--dry-run] [--force]` | Copia a configuração dos espaços sociais (grupos, dias, espaços, conflitos, catálogo, galeria de fotos) de um banco para outro, casando pelo nome; não apaga nem copia reservas. | manual |
 
 > Não há comandos de console customizados (`app/Console/Commands/` não contém classes próprias).

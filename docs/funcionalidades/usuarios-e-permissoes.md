@@ -20,6 +20,7 @@ Setores. "Secretaria" é o setor **Atendimento**; "Financeiro" é a
 |------|-----------|---------|
 | InfoClube › Informações e Avisos | — (todo mundo logado) | — |
 | InfoClube › criar/editar/excluir informação | `infoclube.editar` | Atendimento |
+| InfoClube › Fila de Espera (não sócios: turmas, inclusão, ligações, saída da fila) | `infoclube.fila-espera` | nasce sem setor (desde 10/11/2026) — dar na tela de Setores |
 | SIV › Busca | `siv.busca` | Atendimento, Portaria |
 | SIV › Placas Diretoria | `siv.placas-diretoria` | Atendimento |
 | SIV › Frota, Viagens, Veículos | `siv.frota`, `siv.viagens`, `siv.veiculos` | Atendimento, Portaria, Manutenção |

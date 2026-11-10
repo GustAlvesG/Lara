@@ -6,10 +6,11 @@ A tabela de permissões Spatie (`view information`, `create information`…) que
 
 ## Em uma frase
 
-Mural interno do clube com duas abas: **Informações** (catálogo versionado de atividades,
-serviços e ofertas — `information.*`) e **Avisos** (comunicados com privacidade, lembretes e
-leitura obrigatória — `avisos.*`). Ler é de todo mundo logado; escrever informação exige
-`infoclube.editar`.
+Mural interno do clube com três abas: **Informações** (catálogo versionado de atividades,
+serviços e ofertas — `information.*`), **Avisos** (comunicados com privacidade, lembretes e
+leitura obrigatória — `avisos.*`) e **Fila de Espera** (não sócios nas turmas das modalidades —
+`waitlist.*`, desde 10/11/2026). Ler informações e avisos é de todo mundo logado; escrever
+informação exige `infoclube.editar`; a Fila de Espera inteira exige `infoclube.fila-espera`.
 
 ## Informações
 
@@ -61,6 +62,26 @@ leitura obrigatória — `avisos.*`). Ler é de todo mundo logado; escrever info
   tag 2, conteúdo 1. Contrato em [lara-ia-consultas.md](../funcionalidades/lara-ia-consultas.md).
   Mexeu na privacidade do aviso? A busca segue a mesma régua — confira o `AvisoSearchTest`.
 
+## Fila de Espera
+
+Documentação completa: [docs/funcionalidades/fila-de-espera.md](../funcionalidades/fila-de-espera.md).
+
+- **Só não sócios e sem MultiClubes.** A fila dos sócios (e a prioridade deles) fica no
+  MultiClubes; a secretaria confere lá antes de ligar. Não reintroduza consulta ao MC sem o
+  usuário pedir — o que já se sabe das tabelas de lá está no fim do doc.
+- **Modelo** (`App\Models\Waitlist`): `WaitlistClass` (modalidade + nome, únicos juntos;
+  inativa não recebe gente), `WaitlistPerson` (CPF **obrigatório, único, só dígitos** pelo
+  mutator), `WaitlistEntry` (pessoa × turma, `joined_at` é a ordem, `status` `waiting` /
+  `enrolled` / `withdrawn` / `removed`), `WaitlistContact` (ligações).
+- **Regras em `App\Services\Waitlist\WaitlistService`:** incluir sem duplicar a mesma turma
+  (trava a pessoa com `lockForUpdate`), ligação só de quem aguarda e **sem mudar a posição**,
+  removido pede motivo, reativar mantém o `joined_at` (volta à posição original). A posição é
+  calculada (`WaitlistEntry::position()`), não gravada.
+- **Inclusão começa pelo CPF** (`people.create?cpf=`): CPF existente redireciona à ficha.
+- **Ações voltam à ficha** na âncora `#fila-{entry}`; a fila da turma só lista e leva para lá.
+- Turma com histórico não se exclui, só desativa. Pessoa e inscrição nunca são apagadas.
+- Sem API, sem prompt para sistema externo.
+
 ## Peças
 
 | Arquivo | Papel |
@@ -75,11 +96,14 @@ leitura obrigatória — `avisos.*`). Ler é de todo mundo logado; escrever info
 | `app/Http/Middleware/EnsureMandatoryAvisosAcknowledged.php` | Desvio para a leitura obrigatória. |
 | `app/Console/Commands/ProcessAvisoNotifications.php` | Lembretes e expiração (agendado). |
 | `resources/views/information/*`, `resources/views/avisos/*` | Telas (formulário em `information/partials/form.blade.php`). |
+| `app/Http/Controllers/Waitlist/*`, `app/Services/Waitlist/WaitlistService.php`, `app/Models/Waitlist/*` | Fila de Espera: turmas, pessoas, inscrições e as regras. |
+| `resources/views/waitlist/*` | Telas da Fila de Espera. |
 
 ## Testes
 
 - `tests/Feature/Rebrand/InfoClubeScreensTest.php` (telas no layout novo),
   `tests/Feature/InformationSearchTest.php` e `tests/Feature/AvisoSearchTest.php` (APIs),
+  `tests/Feature/Waitlist/WaitlistModuleTest.php` (Fila de Espera),
   `tests/Feature/MandatoryAvisoReadingTest.php`
   e `tests/Unit/MandatoryAvisoInterceptionTest.php` (leitura obrigatória).
 - Confira o isolamento SQLite do `phpunit.xml` antes de rodar e rode só os arquivos do módulo.

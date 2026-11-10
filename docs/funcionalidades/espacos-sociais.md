@@ -34,7 +34,7 @@ e, se o sócio já pagou, a baixa — ver [Reserva completa no balcão](#reserva
 | Quem decide | Contrato ok, aprovar com desconto, recusar, cancelar | `reservas.sociais.aprovar` |
 | Quem estorna | Valor devolvido no cancelamento de reserva paga | `reservas.pagamentos.estornar` (a mesma do estorno das quadras) |
 | Quem dá baixa | Marcar como paga a reserva recebida fora da plataforma | `reservas.pagamentos.baixa-manual` (a mesma das quadras) |
-| Quem configura | Grupos, espaços, conflitos e catálogo de bebidas e mobiliário | `reservas.configurar` |
+| Quem configura | Grupos, espaços, conflitos, catálogo de bebidas e mobiliário e galeria de fotos | `reservas.configurar` |
 | Sócio | Pré-reserva, convidados, pagamento e desistência (antes de pagar) pelo app | JWT do app |
 
 As permissões nascem sem setor: dê a cada setor na tela de **Setores**.
@@ -100,6 +100,12 @@ Mesas e cadeiras), unidade, **Código MV** (digitado à mão, para quem lança a
 
 O total do evento é a base do espaço + o mobiliário contratado. Mudar o preço, o que a unidade
 traz ou desativar não altera reservas já feitas: cada reserva guarda a cópia do item e da base.
+
+### 5. Galeria de fotos (carrossel do site)
+
+Desde 10/11/2026. Na edição de um espaço social (Locais e Grupos › grupo › **Editar** no
+espaço), abaixo do formulário, fica a seção **Galeria de fotos (site)** — ver
+[Galeria de fotos](#galeria-de-fotos-carrossel-do-site).
 
 ### Exemplo: os espaços do clube (outubro/2026)
 
@@ -214,6 +220,76 @@ aprovação (com desconto e motivo, se houver), tudo em nome do sócio escolhido
   cancelada (se não usada), quem entrou ganha uma.
 - A liberação vale **uma entrada** no dia do evento, como toda liberação pontual.
 
+## Galeria de fotos (carrossel do site)
+
+O site mostra, na página de cada espaço, um **carrossel** com a capa e as fotos da galeria —
+também para quem ainda não entrou no site, pela vitrine pública.
+
+### No painel
+
+Permissão `reservas.configurar` (a mesma do cadastro do espaço). Só espaço de grupo **Social**.
+
+| Ação | O que faz |
+|---|---|
+| **Adicionar fotos** | Várias de uma vez; JPG, PNG ou WEBP, até 15 MB cada. Entram no fim da galeria. |
+| **Legenda** + **Mostrar no site** → Salvar | Legenda opcional (até 120 caracteres). Desmarcado, a foto fica **Escondida**: continua no painel e sai do site. |
+| **↑ / ↓** | Muda a ordem do carrossel. |
+| **Usar como capa** | Uma cópia da foto vira a imagem do espaço (a capa). Excluir a foto depois não apaga a capa. |
+| Lixeira | Exclui a foto e os arquivos dela. |
+
+Limite de **20 fotos por espaço** (contando as escondidas). O envio é tudo ou nada: se uma das
+fotos for recusada (não é imagem, grande demais), nenhuma do envio é gravada.
+
+### Como as fotos são guardadas
+
+- Cada foto é **reprocessada** no envio (GD): girada pela orientação da câmera, reduzida a no
+  máximo **1920 px** no lado maior e regravada em **JPEG** (PNG transparente fica com fundo
+  branco), mais uma **miniatura de 480 px**. Foto de celular com 5–10 MB sai com algumas
+  centenas de KB. O reprocessamento também descarta os metadados da câmera (que podem trazer GPS).
+- Os arquivos ficam em `public/images/galeria/{id do espaço}/` — **arquivo estático**, que o
+  servidor web entrega direto, **sem rota do Lara**. O nome é aleatório e nunca muda: foto nova é
+  arquivo novo.
+- Tabela `place_photos`: `place_id`, `file`, `thumb` (caminhos dentro de `public/images`),
+  `width`, `height`, `caption`, `position`, `active`, `created_by`.
+- Só upload: link externo (imgur, postimg) não entra na galeria. A **capa** continua aceitando
+  arquivo ou link.
+
+### Como o site recebe
+
+O navegador de quem visita o site **não alcança o Lara**. Por isso a API devolve o **caminho do
+arquivo**, e é o **servidor do Next.js** que busca o arquivo no Lara e o serve no domínio do site
+(proxy com cache). O Lara nunca entrega imagem por rota PHP.
+
+- `GET /api/social-showcase` — vitrine, **só `api_token`** (sem login do sócio): grupos sociais
+  que têm espaço ativo → espaços ativos → fotos visíveis, em ordem.
+- `GET /api/social-showcase/places/{id}` — um espaço (404 se não for social e ativo).
+- `GET /api/social/groups/{group}/places` (com login) — cada espaço ganhou o campo `photos`.
+
+Foto:
+
+```json
+{
+  "id": 41,
+  "path": "images/galeria/12/Xk3…a9.jpg",
+  "thumb_path": "images/galeria/12/Xk3…a9-thumb.jpg",
+  "url": "https://<host por onde a chamada chegou>/images/galeria/12/Xk3…a9.jpg",
+  "thumb_url": "https://<host>/images/galeria/12/Xk3…a9-thumb.jpg",
+  "width": 1920,
+  "height": 1280,
+  "caption": "Vista da piscina"
+}
+```
+
+Capa na vitrine: `"cover": {"path": "images/abc.jpg", "url": "…", "remote": false}`. Capa que é
+link externo vem `{"path": null, "url": "https://i.imgur.com/…", "remote": true}` — essa o
+navegador abre direto. Sem capa, `null`.
+
+Na vitrine, cada espaço traz `id`, `name`, `description`, `amenities`, `capacity`, `price`,
+`cover` e `photos`; cada grupo, `id`, `name`, `cover` (a imagem horizontal, senão a vertical) e
+`places`. Regras de reserva, convidados e calendário seguem só na API com login.
+
+Prompt para o agent do site: [docs/prompts/NextJS/galeria-espacos-sociais-prompt.md](../prompts/NextJS/galeria-espacos-sociais-prompt.md).
+
 ## Levar a configuração da homologação para a produção
 
 Grupos, espaços e catálogo cadastrados em homologação não precisam ser refeitos à mão:
@@ -237,6 +313,10 @@ php artisan social:copy-config --from=lara_hml --to=lara             # pede conf
 - Imagem que é arquivo precisa estar em `public/images` do servidor de destino (as enviadas pelo
   painel ficam no repositório e chegam pelo deploy); o comando lista as que faltam. Link
   externo vai como está.
+- **Galeria de fotos** (desde 10/11/2026): as linhas de `place_photos` dos espaços copiados vão
+  junto, casando pelo espaço e pelo arquivo (legenda, ordem e "Mostrar no site" são atualizadas;
+  quem enviou não vai, é usuário do outro banco). Os arquivos de `public/images/galeria/` também
+  precisam estar no destino — o comando lista cada foto que falta.
 - `--from`/`--to` são bancos no mesmo servidor e usuário da conexão `mysql` (ou o nome de uma
   conexão configurada). Os dias da semana precisam ter os mesmos ids nos dois bancos.
 
@@ -275,6 +355,8 @@ houve).
 
 ## Integrações
 
+- **Vitrine do site (Next.js)**: `GET /api/social-showcase*` (só `api_token`), com a galeria de
+  fotos — ver [Galeria de fotos](#galeria-de-fotos-carrossel-do-site).
 - **App de locação (Next.js)**: API `/api/social/*` — contrato e prompt em
   [reservas-sociais-prompt-site-locacao.md](../reservas-sociais-prompt-site-locacao.md) (um
   prompt só, com tudo até 19/10/2026: mesas, horário, contato, reserva do balcão e baixa manual).
@@ -295,6 +377,11 @@ houve).
 - Controllers: `Social\SocialBookingController`, `Social\SocialBeverageController`,
   `Api\SocialBookingApiController`; pagamento em `SchedulePaymentController::store` (site) e
   `storeManual` (baixa manual, rota `payment.manual`).
+- Galeria: `App\Services\Social\PlacePhotoService` (GD, arquivos, ordem, capa),
+  `App\Models\Social\PlacePhoto` (`toApi()`), `Social\PlacePhotoController` (painel),
+  `Api\SocialShowcaseApiController` (vitrine); tela em
+  `resources/views/location/place/partials/gallery.blade.php`; config
+  `social_bookings.gallery_root` (vazio = `public/images`; só os testes mudam).
 - Comandos: `social:expire-bookings`, `social:contact-reminders`, `social:copy-config` (manual).
-- Testes: `tests/Feature/Social/*`, `tests/Feature/Payments/ManualPaymentTest.php`,
+- Testes: `tests/Feature/Social/*` (galeria em `PlacePhotoGalleryTest`), `tests/Feature/Payments/ManualPaymentTest.php`,
   `tests/Feature/Rebrand/EspacosSociaisScreensTest.php`, `tests/Unit/BusinessDaysTest.php`.

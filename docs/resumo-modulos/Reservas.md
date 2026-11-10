@@ -24,6 +24,7 @@ acende a luz (Home Assistant) e é o que vincula os clipes do RePET.
 | Espaços Sociais | `social-booking.index/create/store/show/details/guests/guests.pdf/contract.download/availability` | `reservas.sociais` |
 | Espaços Sociais — decidir | `social-booking.contract/approve/refuse/cancel` (estornar pede também `reservas.pagamentos.estornar`) | `reservas.sociais.aprovar` |
 | Bebidas dos espaços sociais (botão na lista) | `social-booking.beverages.*` | `reservas.configurar` |
+| Galeria de fotos do espaço social (na edição do espaço, desde 10/11/2026) | `place-group.photos.*` | `reservas.configurar` |
 | Locais e Grupos (aba desde 14/10/2026; também pelo botão Configurações da agenda) | `place-group.*`, `schedule-rules.store` | `reservas.configurar` |
 | Contas do site (desde 23/10/2026: senha provisória, e-mail, cadastro manual, duplicadas — ver [Contas do site](Contas%20do%20site.md)) | `site-accounts.*` | `reservas.contas-site` |
 | Luz da quadra na agenda (desde 05/11/2026; faixa no cartão da quadra com contator) | `schedule.lights.store` (`ScheduleLightingController`) | `reservas.luz` (+ `reservas.agendamentos` do grupo) |
@@ -87,6 +88,29 @@ Guia completo: [espacos-sociais.md](../funcionalidades/espacos-sociais.md). Pont
   `reservas.sociais.aprovar`) e `paid_now` (pede também `reservas.pagamentos.baixa-manual`).
 - API: `origin` (`site` | `secretaria`, por `created_by_user`) e `payment` (null ou
   `{paid_amount, paid_at, method, method_label, manual, refunded_amount}`).
+
+## Galeria de fotos dos espaços sociais (desde 10/11/2026)
+
+Carrossel do site. Guia: [espacos-sociais.md › Galeria](../funcionalidades/espacos-sociais.md#galeria-de-fotos-carrossel-do-site).
+
+- **O navegador de quem visita o site não alcança o Lara.** A foto é **arquivo estático** em
+  `public/images/galeria/{place_id}/` (o Apache entrega, sem rota PHP); a API devolve `path`
+  relativo e o **servidor do Next.js** busca e serve no domínio dele. Não crie rota do Lara que
+  entregue imagem.
+- `place_photos` (`file`, `thumb`, `width`, `height`, `caption`, `position`, `active`);
+  `Place::photos()` já vem em ordem. Formato da API num lugar só: `PlacePhoto::toApi()`.
+- `PlacePhotoService` (GD, sem dependência nova): gira pelo EXIF, reduz a 1920 px + miniatura de
+  480 px, sempre JPEG, nome aleatório (nunca sobrescreve: cache eterno no site). Envio tudo ou
+  nada; 20 fotos por espaço; só espaço social; só upload (link não entra na galeria). "Usar como
+  capa" grava uma **cópia** em `public/images` e põe em `places.image`. Recusas são
+  `ValidationException` em `photos`. Sobe `memory_limit` para 512M durante o processamento.
+- Raiz configurável `social_bookings.gallery_root` (vazio = `public/images`) — os testes apontam
+  para uma pasta temporária; não grave foto de teste no `public/`.
+- API: `GET /api/social-showcase` e `/api/social-showcase/places/{id}` (`SocialShowcaseApiController`,
+  **só `api_token`**, vitrine sem login); `photos` também em `GET /api/social/groups/{group}/places`.
+- `social:copy-config` copia as linhas (casa por espaço + `file`) e avisa os arquivos que faltam.
+- Testes: `tests/Feature/Social/PlacePhotoGalleryTest.php`, `CopySocialConfigTest`,
+  `SocialBookingApiTest`, `EspacosSociaisScreensTest::test_galeria_de_fotos_na_edicao_do_espaco`.
 
 ## Copiar a configuração social entre bancos
 
@@ -177,6 +201,7 @@ antigas com `str_contains(..., 'http')` continuam certas. Na API da iluminação
 | `/api/places*`, `/api/place/{id}` | Grupos e espaços para o app. |
 | `/api/schedule*` | Criar, listar por espaço/sócio, mudar status, excluir pendente. |
 | `/api/social/*` | Espaços sociais: grupos, espaços, calendário, bebidas, limites, pré-reserva, convidados, desistência (`Api\SocialBookingApiController`, exige `login_token`). |
+| `/api/social-showcase*` | Vitrine dos espaços sociais com a galeria de fotos, sem login (`Api\SocialShowcaseApiController`, só `api_token`). |
 | `POST /api/schedule/payment` | Pagamento (`SchedulePaymentController::store`) — confirma e manda o e-mail. |
 | `GET /api/schedule/generate-pdf` | PDF da agenda do dia. |
 | `/api/login`, `/api/register`, `/api/check-member`… | Sócio (`MemberAuthController`); JWT no header `Session`, vence no fim do dia. |

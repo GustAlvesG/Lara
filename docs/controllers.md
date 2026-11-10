@@ -79,6 +79,14 @@ indicados como _stub_.
 
 `app/Http/Controllers/Social/SocialBeverageController.php` — catálogo de bebidas (nome, unidade, Código MV, preço, ativo). `index`/`store`/`update`/`destroy` em `/social-bookings/bebidas`.
 
+## Social\PlacePhotoController
+
+`app/Http/Controllers/Social/PlacePhotoController.php` — galeria de fotos do espaço social, na tela de edição do espaço (`can:reservas.configurar`). `store` (várias fotos em `photos[]`), `update` (legenda e visibilidade), `move` (`up`/`down`), `cover` (cópia da foto vira a capa `places.image`) e `destroy` (apaga os arquivos). Regras e GD em `App\Services\Social\PlacePhotoService`. Volta para `place-group.editPlace#galeria`.
+
+## Api\SocialShowcaseApiController
+
+`app/Http/Controllers/Api/SocialShowcaseApiController.php` — vitrine pública dos espaços sociais (só T): `index` (`/api/social-showcase`, grupos → espaços ativos → fotos visíveis) e `show` (`/api/social-showcase/places/{id}`, 404 se não for social ativo). Imagens com `path` relativo (arquivo estático) para o servidor do site buscar.
+
 ## Api\SocialBookingApiController
 
 `app/Http/Controllers/Api/SocialBookingApiController.php` — `/api/social/*` para o app de locação (T + L). O sócio sai do JWT; reserva alheia = 404; recusas como `{message, reason}`. Contrato em [reservas-sociais-prompt-site-locacao.md](reservas-sociais-prompt-site-locacao.md).
@@ -426,6 +434,20 @@ versionamento (toda alteração cria uma nova linha em `data_infos`) e permissõ
 > Métodos auxiliares: `concatenateArrayValues($array, $delimiter = ';')` e
 > `explode_fields($info)` (privado) tratam a serialização dos campos compostos.
 > `show`/`edit`/`history` retornam 404 se a `Information` pai estiver soft-deleted.
+
+---
+
+## Waitlist  (`app/Http/Controllers/Waitlist/`)
+
+InfoClube › [Fila de Espera](funcionalidades/fila-de-espera.md) (10/11/2026): não sócios nas
+turmas das modalidades, sem vínculo com o MultiClubes. Rotas `waitlist.*` sob `/fila-espera`,
+todas com `can:infoclube.fila-espera`. As regras ficam em `App\Services\Waitlist\WaitlistService`.
+
+| Controller | Métodos | O que faz |
+|---|---|---|
+| `WaitlistClassController` | `index`, `create`, `store`, `show`, `edit`, `update`, `destroy` | Lista de turmas (contagem de quem aguarda, primeiro da fila, filtro ativas/inativas/todas), cadastro (`WaitlistClassRequest`), fila da turma (aguardando em ordem ou `?situacao=encerrados`). Excluir só turma sem histórico. |
+| `WaitlistPersonController` | `index`, `create`, `store`, `show`, `update`, `enroll` | Pessoas (busca por nome, CPF, telefone), inclusão pelo CPF (CPF existente redireciona à ficha), cadastro (`WaitlistPersonRequest`), ficha, inclusão em outras turmas. |
+| `WaitlistEntryController` | `contact`, `close`, `reopen` | Registrar ligação, tirar da fila (matriculado, desistiu, removido com motivo) e reativar; voltam à ficha em `#fila-{id}`. |
 
 ---
 

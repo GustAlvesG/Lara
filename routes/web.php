@@ -8,6 +8,9 @@ use App\Http\Controllers\MemberController;
 use App\Http\Controllers\SiteAccountController;
 use App\Http\Controllers\AccessController;
 use App\Http\Controllers\InformationController;
+use App\Http\Controllers\Waitlist\WaitlistClassController;
+use App\Http\Controllers\Waitlist\WaitlistEntryController;
+use App\Http\Controllers\Waitlist\WaitlistPersonController;
 use App\Http\Controllers\Company\CompanyController;
 use App\Http\Controllers\Company\CompanyWorkerController as WorkerController;
 use App\Http\Controllers\Company\CompanyAccessRulesController as CompanyRulesController;
@@ -34,6 +37,7 @@ use App\Http\Controllers\Tournament\TournamentTeamController;
 
 use App\Http\Controllers\PlaceGroupController;
 use App\Http\Controllers\PlaceController;
+use App\Http\Controllers\Social\PlacePhotoController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\ScheduleLightingController;
 use App\Http\Controllers\SchedulePaymentController;
@@ -461,6 +465,31 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
     Route::get('/information/{information}', [InformationController::class, 'show'])->name('information.show');
     Route::get('/information/{id}/history', [InformationController::class, 'history'])->name('information.history');
 
+    // InfoClube › Fila de Espera (10/11/2026): não sócios nas turmas das
+    // modalidades, sem vínculo com o MultiClubes. Uma permissão para tudo.
+    // `turmas/nova` e `pessoas/nova` antes dos `{…}` para não casarem como id.
+    Route::prefix('fila-espera')->name('waitlist.')->middleware('can:' . P::INFOCLUBE_FILA_ESPERA)->group(function () {
+        Route::get('/', [WaitlistClassController::class, 'index'])->name('index');
+
+        Route::get('/turmas/nova', [WaitlistClassController::class, 'create'])->name('classes.create');
+        Route::post('/turmas', [WaitlistClassController::class, 'store'])->name('classes.store');
+        Route::get('/turmas/{waitlistClass}', [WaitlistClassController::class, 'show'])->name('classes.show');
+        Route::get('/turmas/{waitlistClass}/editar', [WaitlistClassController::class, 'edit'])->name('classes.edit');
+        Route::put('/turmas/{waitlistClass}', [WaitlistClassController::class, 'update'])->name('classes.update');
+        Route::delete('/turmas/{waitlistClass}', [WaitlistClassController::class, 'destroy'])->name('classes.destroy');
+
+        Route::get('/pessoas', [WaitlistPersonController::class, 'index'])->name('people.index');
+        Route::get('/pessoas/nova', [WaitlistPersonController::class, 'create'])->name('people.create');
+        Route::post('/pessoas', [WaitlistPersonController::class, 'store'])->name('people.store');
+        Route::get('/pessoas/{person}', [WaitlistPersonController::class, 'show'])->name('people.show');
+        Route::put('/pessoas/{person}', [WaitlistPersonController::class, 'update'])->name('people.update');
+        Route::post('/pessoas/{person}/filas', [WaitlistPersonController::class, 'enroll'])->name('people.enroll');
+
+        Route::post('/inscricoes/{entry}/ligacoes', [WaitlistEntryController::class, 'contact'])->name('entries.contact');
+        Route::post('/inscricoes/{entry}/encerrar', [WaitlistEntryController::class, 'close'])->name('entries.close');
+        Route::post('/inscricoes/{entry}/reativar', [WaitlistEntryController::class, 'reopen'])->name('entries.reopen');
+    });
+
     // Externos. Empresas (com prestadores e regras) e o Monitor de Acesso são
     // de todo mundo logado; Liberação Pontual, Histórico e Carros de
     // Aplicativo têm permissão própria.
@@ -565,6 +594,14 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::get('/place/{place_id}/edit', [PlaceGroupController::class, 'editPlace'])->name('place-group.editPlace');
             Route::put('/place/{place_id}', [PlaceGroupController::class, 'updatePlace'])->name('place-group.updatePlace');
             Route::delete('/place/{place_id}', [PlaceGroupController::class, 'destroyPlace'])->name('place-group.destroyPlace');
+
+            // Galeria de fotos do espaço social (carrossel do site). As fotos
+            // são arquivo estático em public/images/galeria — sem rota de leitura.
+            Route::post('/place/{place_id}/photos', [PlacePhotoController::class, 'store'])->whereNumber('place_id')->name('place-group.photos.store');
+            Route::put('/place/photos/{photo}', [PlacePhotoController::class, 'update'])->whereNumber('photo')->name('place-group.photos.update');
+            Route::post('/place/photos/{photo}/move', [PlacePhotoController::class, 'move'])->whereNumber('photo')->name('place-group.photos.move');
+            Route::post('/place/photos/{photo}/cover', [PlacePhotoController::class, 'cover'])->whereNumber('photo')->name('place-group.photos.cover');
+            Route::delete('/place/photos/{photo}', [PlacePhotoController::class, 'destroy'])->whereNumber('photo')->name('place-group.photos.destroy');
         });
     });
 

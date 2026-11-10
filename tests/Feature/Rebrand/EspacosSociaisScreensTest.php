@@ -368,6 +368,11 @@ class EspacosSociaisScreensTest extends TestCase
             'social-booking.cancel' => P::RESERVAS_SOCIAIS_APROVAR,
             'social-booking.beverages.index' => P::RESERVAS_CONFIGURAR,
             'social-booking.beverages.store' => P::RESERVAS_CONFIGURAR,
+            'place-group.photos.store' => P::RESERVAS_CONFIGURAR,
+            'place-group.photos.update' => P::RESERVAS_CONFIGURAR,
+            'place-group.photos.move' => P::RESERVAS_CONFIGURAR,
+            'place-group.photos.cover' => P::RESERVAS_CONFIGURAR,
+            'place-group.photos.destroy' => P::RESERVAS_CONFIGURAR,
         ];
 
         foreach ($expected as $name => $permission) {
@@ -379,5 +384,42 @@ class EspacosSociaisScreensTest extends TestCase
         foreach (['api.social.bookings.store', 'api.social.bookings.show', 'api.social.limits'] as $name) {
             $this->assertContains('login_token', Route::getRoutes()->getByName($name)->gatherMiddleware(), $name);
         }
+
+        // Vitrine dos espaços (galeria): só o token da aplicação, sem login do sócio.
+        foreach (['api.social-showcase.index', 'api.social-showcase.show'] as $name) {
+            $middleware = Route::getRoutes()->getByName($name)->gatherMiddleware();
+            $this->assertContains('api_token', $middleware, $name);
+            $this->assertNotContains('login_token', $middleware, $name);
+        }
+    }
+
+    public function test_galeria_de_fotos_na_edicao_do_espaco(): void
+    {
+        $this->actingAs($this->secretaria());
+        $this->requisicaoEm('place-group.editPlace', ['place_id' => 12]);
+
+        $place = new Place(['name' => 'Churrasqueira 21']);
+        $place->id = 12;
+
+        $vazia = (string) $this->view('location.place.partials.gallery', ['place' => $place, 'photos' => collect()]);
+        $this->assertStringContainsString('Galeria de fotos (site)', $vazia);
+        $this->assertStringContainsString('0 de 20', $vazia);
+        $this->assertStringContainsString('name="photos[]"', $vazia);
+        $this->assertStringContainsString('O site mostra só a capa', $vazia);
+
+        $fotos = collect([1, 2])->map(function ($i) {
+            $photo = new \App\Models\Social\PlacePhoto(['place_id' => 12, 'file' => "galeria/12/f{$i}.jpg", 'thumb' => "galeria/12/f{$i}-thumb.jpg", 'width' => 1920, 'height' => 1280, 'position' => $i, 'active' => $i === 1, 'caption' => $i === 1 ? 'Vista do lago' : null]);
+            $photo->id = 40 + $i;
+
+            return $photo;
+        });
+
+        $html = (string) $this->view('location.place.partials.gallery', ['place' => $place, 'photos' => $fotos]);
+        $this->assertStringContainsString('2 de 20', $html);
+        $this->assertStringContainsString('images/galeria/12/f1-thumb.jpg', $html);
+        $this->assertStringContainsString('value="Vista do lago"', $html);
+        $this->assertStringContainsString('Escondida', $html);
+        $this->assertStringContainsString(route('place-group.photos.cover', 41), $html);
+        $this->assertStringContainsString(route('place-group.photos.destroy', 42), $html);
     }
 }

@@ -38,6 +38,7 @@ use App\Http\Controllers\GuideSearchController;
 use App\Http\Controllers\Api\PurchaseApprovalController;
 use App\Http\Controllers\Api\MemberLightingController;
 use App\Http\Controllers\Api\SocialBookingApiController;
+use App\Http\Controllers\Api\SocialShowcaseApiController;
 use App\Http\Controllers\Api\RemoteSignatureApiController;
 use App\Http\Controllers\Api\TicketApiController;
 use App\Http\Controllers\Api\TicketGuestAccessController;
@@ -420,6 +421,15 @@ Route::middleware('api_token')->group(function () {
     Route::get('/tournaments', [TournamentApiController::class, 'index'])->name('api.tournaments.index');
     Route::get('/tournaments/{id}', [TournamentApiController::class, 'show'])->whereNumber('id')->name('api.tournaments.show');
     Route::get('/tournaments/{id}/categories/{categoryId}/bracket', [TournamentApiController::class, 'bracket'])->whereNumber(['id', 'categoryId'])->name('api.tournaments.bracket');
+
+    /*
+    | Espaços sociais — vitrine sem login (só o `api_token`): nome, descrição,
+    | capa e galeria de fotos para o carrossel do site. A reserva continua no
+    | grupo `login_token` (/api/social/*). As fotos são arquivo estático em
+    | public/images/galeria: o servidor do site busca e serve no domínio dele.
+    */
+    Route::get('/social-showcase', [SocialShowcaseApiController::class, 'index'])->middleware('throttle:120,1')->name('api.social-showcase.index');
+    Route::get('/social-showcase/places/{id}', [SocialShowcaseApiController::class, 'show'])->whereNumber('id')->middleware('throttle:120,1')->name('api.social-showcase.show');
 
     // Equipe do clube lançando resultado pelo site: código de lançamento do
     // torneio (header `Tournament-Code`), gerado no Lara.

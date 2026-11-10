@@ -34,6 +34,12 @@
                             </x-slot>
                         </x-crud.create>
                     </div>
+
+                    @if ($place->group?->isSocial())
+                        <div class="mt-6">
+                            @include('location.place.partials.gallery', ['place' => $place, 'photos' => $photos ?? collect()])
+                        </div>
+                    @endif
                 </div>
             </div>
           
