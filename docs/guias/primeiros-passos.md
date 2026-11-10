@@ -13,30 +13,66 @@ mais usa, onde chegam as notificações e como pedir ajuda ao HAL, o assistente 
 
 ## Entrar no Lara
 
-Na tela de entrada, escolha como vai se identificar: **Matrícula** (padrão) ou **E-mail**. Digite
-a senha e clique em **Entrar**.
+Na página inicial do Lara (a da foto da sede do clube), clique em **Entrar no Lara** ou em
+**Entrar**, no alto. Na tela de entrada, escolha como vai se identificar: **Matrícula** (padrão)
+ou **E-mail**. Digite a senha e clique em **Entrar**.
 
-- Ainda não tem acesso? Clique em **Registre-se** e preencha **Nome completo**, **E-mail**,
-  **Matrícula**, **Senha** e **Confirmar senha**. A conta nasce sem módulos: peça ao coordenador
-  do seu setor que coloque você no setor (pela tela Meu setor).
+- O olho no fim do campo de senha mostra o que você digitou; clique de novo para esconder. Se o
+  Caps Lock estiver ligado, aparece o aviso **Caps Lock ligado** embaixo do campo.
+- Ainda não tem acesso? Clique em **Registre-se** (ou em **Criar conta**, na página inicial) e
+  preencha **Nome completo**, **E-mail**, **CPF**, **Telefone**, **Senha** (pelo menos 8
+  caracteres) e **Confirmar senha**. A **Matrícula** é opcional: com ela você também pode entrar
+  pela matrícula. O CPF vai impresso nos documentos que você assinar no Lara. Clique em
+  **Criar conta**. Se algo estiver errado, a mensagem aparece embaixo do próprio campo.
+- A conta nasce sem módulos: peça ao coordenador do seu setor que coloque você no setor (pela
+  tela Meu setor).
 - Esqueceu a senha? A tela de entrada não tem "esqueci minha senha": peça à TI uma senha nova.
 - Errou a senha várias vezes seguidas? O Lara bloqueia novas tentativas por alguns segundos e diz
   quanto tempo esperar.
 - Para trocar a senha depois de entrar, use **Perfil** (veja o guia da Conta).
 
+## A tela inicial (Dashboard)
+<!-- telas: dashboard -->
+
+Depois de entrar, O Lara abre o **Dashboard**:
+
+- **No alto**, sobre a foto do clube, a data, o seu nome e o seu último acesso, e os números de
+  hoje no clube: veículos na portaria e reservas para hoje (só para quem tem acesso ao SIV e às
+  Reservas) e os acessos de externos liberados e negados.
+- **Avisos novos** — os avisos que você ainda não abriu, o mais recente em destaque. Clique para
+  ler; **Ver todos** leva à lista de Avisos. Sem aviso novo, o bloco não aparece.
+- **Um painel por módulo**, na cor dele: Reservas (reservas futuras, receita do mês e as próximas
+  reservas), SIV (placas da diretoria e quantas vencem em 30 dias), Externos (empresas e
+  funcionários) e InfoClube (informações ativas). O link no canto do painel abre o módulo. Você
+  só vê os painéis dos módulos que o seu setor usa.
+- **Home Assistant** — quem tem acesso liga e desliga os interruptores ali mesmo, até o fim do
+  dia, e pode voltar ao automático.
+
+Os números do clube são atualizados a cada minuto.
+
 ## Achar uma tela: o botão Módulos
 
-No alto de toda tela fica a barra do Lara. O botão **Módulos** abre o painel com três abas:
+No alto de toda tela fica a barra do Lara, uma faixa flutuante que se solta das bordas. Ela muda
+de cor conforme o módulo aberto: ao lado do botão Módulos, o selo colorido "você está em" mostra o
+módulo e a página atuais (por exemplo, **SIV / Veículos**), e um traço na base da barra acende na
+mesma cor.
 
-- **Todos os módulos** — os módulos que você pode abrir, cada um na cor dele. Clique para entrar.
-- **Favoritos** — as telas que você marcou com a estrela.
-- **Recentes** — as últimas telas que você abriu.
+O botão **Módulos** abre o painel com todos os módulos que você pode abrir, de uma vez, cada um
+na cor dele. Os módulos aparecem fechados:
 
-Ao entrar num módulo, a capa colorida no topo mostra o nome dele e as páginas irmãs como abas
-(por exemplo, em SIV: Busca, Frota, Viagens…). Ao lado do logo, "você está em" mostra o módulo e
-a página atuais.
+- clique no **nome** do módulo para abrir direto a primeira aba dele;
+- clique no **número com a seta**, ao lado do nome, para abrir o módulo e escolher outra aba (por
+  exemplo, em SIV: Busca, Frota, Veículos). Clique de novo para fechar. Só um módulo fica aberto
+  por vez.
 
-No celular, a navegação fica embaixo: **Início**, **Favoritos**, **Módulos** e **Buscar**.
+O módulo em que você está tem um contorno na cor dele, e a página atual aparece marcada. Na coluna
+da direita ficam os seus **Favoritos** e os **Recentes**. Fecha pelo X, pelo Esc ou clicando fora.
+
+Ao entrar num módulo, a capa colorida no topo mostra o nome dele e as páginas irmãs como abas.
+
+No celular, a navegação fica numa barra flutuante embaixo: **Início**, **Favoritos**,
+**Módulos** (o botão grená do meio), **Recentes** e **Buscar**. O painel de Módulos sobe de baixo,
+com abas para Módulos, Favoritos e Recentes.
 
 ## Buscar uma tela pelo nome (Ctrl K)
 
@@ -52,7 +88,8 @@ você, é questão de permissão (veja "Por que não vejo um módulo no menu?").
 Em qualquer tela de um módulo, clique em **Favoritar** (a estrela na capa colorida, no topo). A
 tela passa a aparecer:
 
-- na faixa **Favoritos**, logo abaixo da barra de cima;
+- na faixa **Favoritos**, logo abaixo da barra de cima (a faixa se recolhe quando você desce a
+  página e volta quando você sobe);
 - na aba **Favoritos** do painel de Módulos.
 
 Clique de novo (agora **Favorito**) para tirar. Os favoritos ficam guardados na sua conta: valem
@@ -100,6 +137,17 @@ IA: em caso de dúvida, confirme com o setor responsável. Detalhes no guia do H
 
 Clique nas suas iniciais, no canto superior direito, e escolha **Claro**, **Escuro** ou
 **Sistema** (segue o que o computador ou celular estiver usando). A escolha fica neste navegador.
+
+## Ler uma tabela (listas com colunas)
+
+- **No computador**, quando a tabela tem mais colunas do que cabem, a borda direita fica
+  esmaecida: arraste para o lado (ou use Shift + rodinha do mouse) para ver as outras. A primeira
+  coluna (o nome) fica parada, para você não perder de vista de quem é a linha.
+- **No celular**, cada linha aparece como um cartão: o nome em cima e, embaixo, cada coluna com o
+  título dela ao lado do valor. Os botões da linha (editar, abrir, excluir) ficam no pé do cartão.
+- **Clique em qualquer ponto da linha** (ou do cartão, no celular) para abrir o registro, quando a
+  mão aparecer: faz o mesmo que clicar no código ou no nome. Excluir, cancelar e outros botões
+  que mudam alguma coisa continuam só no próprio botão. Com Ctrl apertado, abre em outra aba.
 
 ## Ler a documentação
 

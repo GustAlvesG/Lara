@@ -40,6 +40,12 @@ informação exige `infoclube.editar`; a Fila de Espera inteira exige `infoclube
 - **API:** `GET /api/information/search?q=` (`InformationSearchController`, grupo `api_token`)
   ranqueia por peso (nome 3, tag/categoria 2, descrição 1), só na versão vigente.
 
+- **Tela da lista (10/11/2026):** atalhos pelas 10 tags mais usadas nas versões vigentes
+  (`InformationController::popularTags()`, uma consulta agrupada; cada atalho é `?q=tag`), e o
+  cartão inteiro clicável pelo link do título (`after:inset-0`), com o WhatsApp por cima (`z-10`)
+  — não aninhe link dentro de link. O detalhe (`partials/details`, também usado no histórico)
+  tem a ficha à direita com o primeiro preço de sócio em destaque.
+
 ## Avisos
 
 - `Aviso` com privacidade `publico`, `setor` (quem divide setor com o criador), `pessoa`
@@ -62,6 +68,10 @@ informação exige `infoclube.editar`; a Fila de Espera inteira exige `infoclube
   tag 2, conteúdo 1. Contrato em [lara-ia-consultas.md](../funcionalidades/lara-ia-consultas.md).
   Mexeu na privacidade do aviso? A busca segue a mesma régua — confira o `AvisoSearchTest`.
 
+- **Tela da lista (10/11/2026):** o aviso ativo mais recente ganha o cartão largo (`featured`,
+  fora da busca); o cartão abre pelo título (`after:inset-0`), e tags, editar e remover ficam
+  por cima (`z-10`).
+
 ## Fila de Espera
 
 Documentação completa: [docs/funcionalidades/fila-de-espera.md](../funcionalidades/fila-de-espera.md).
@@ -81,6 +91,8 @@ Documentação completa: [docs/funcionalidades/fila-de-espera.md](../funcionalid
 - **Ações voltam à ficha** na âncora `#fila-{entry}`; a fila da turma só lista e leva para lá.
 - Turma com histórico não se exclui, só desativa. Pessoa e inscrição nunca são apagadas.
 - Sem API, sem prompt para sistema externo.
+- **Lista de turmas em cartões** (10/11/2026), não tabela: quem aguarda em destaque; o cartão
+  abre a fila e o lápis edita a turma.
 
 ## Peças
 

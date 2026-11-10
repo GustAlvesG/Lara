@@ -101,6 +101,16 @@ class InfoClubeScreensTest extends TestCase
         $this->assertStringNotContainsString(route('information.create'), $html);
     }
 
+    /** Atalhos pelas tags mais usadas (10/11/2026); a tag buscada fica marcada. */
+    public function test_atalhos_por_tag_marcam_a_tag_buscada(): void
+    {
+        $html = $this->tela($this->usuario(UserAccess::none()), 'information.index', [], 'information.index',
+            $this->informacoes([$this->info(1, [], ['danca'])], 'danca') + ['popularTags' => collect(['danca', 'natacao'])], ['q' => 'danca']);
+
+        $this->assertMatchesRegularExpression('#q=danca"[^>]*aria-current="page"\s*>\#danca#', $html);
+        $this->assertStringContainsString(route('information.index', ['q' => 'natacao']), $html);
+    }
+
     public function test_quem_edita_ve_o_botao_de_nova_informacao(): void
     {
         $html = $this->tela($this->usuario(new UserAccess([P::INFOCLUBE_EDITAR])), 'information.index', [], 'information.index',

@@ -84,7 +84,7 @@ do portal alcança a porta 3000) e ele não exige token.
 
 O chat não tem mais tela própria. É um **balão no canto inferior direito**, em toda tela do
 sistema, para quem tem a permissão `lara`; ele abre um **painel lateral** à direita (no celular,
-a tela inteira, e o balão fica acima da barra de baixo). Fecha pelo X ou pelo Esc.
+a tela inteira, e o balão fica acima da doca flutuante de baixo). Fecha pelo X ou pelo Esc.
 
 - `GET /lara` (o item do menu, a busca Ctrl+K e links antigos) não mostra tela: volta para a
   página de onde a pessoa veio — ou o início — com o balão já aberto.

@@ -138,6 +138,14 @@ class ShellTest extends TestCase
         // Painel: só as áreas que sobram para a pessoa.
         $this->assertStringContainsString(route('parking.search'), $html);
         $this->assertStringNotContainsString(route('freelancers.index'), $html);
+        // Desde 10/11/2026 o painel leva direto às páginas de cada módulo.
+        $this->assertStringContainsString('href="' . route('fleet.vehicles') . '" :aria-current="currentKey === \'fleet.vehicles\'', $html);
+        $this->assertStringContainsString('aria-label="Fechar Módulos"', $html);
+        // Módulos fechados (11/11/2026): o nome leva à primeira aba e o botão abre as outras.
+        $this->assertStringContainsString('openMod: null,', $html);
+        // As abas abrem sobrepostas aos módulos de baixo, sem empurrá-los.
+        $this->assertStringContainsString("toggleMod('siv', \$el, ", $html);
+        $this->assertStringContainsString('aria-controls="mod-siv"', $html);
 
         // Conta: tema.
         foreach (['Claro', 'Escuro', 'Sistema'] as $opcao) {
@@ -147,6 +155,10 @@ class ShellTest extends TestCase
 
         // Um documento cai na aba Documentação, na capa da Conta.
         $this->assertStringContainsString('aria-label="Páginas de Conta"', $html);
+
+        // Tabelas (11/11/2026): o desenho único e o cartão do celular valem
+        // dentro deste <main> (app.css + resources/js/tables.js).
+        $this->assertStringContainsString('<main class="lara-tables">', $html);
     }
 
     public function test_capa_da_area_entra_sozinha_com_as_abas_e_a_estrela(): void

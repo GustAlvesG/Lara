@@ -1,7 +1,8 @@
 @props(['contactor', 'state'])
 
 {{-- $state: App\Services\HomeAssistant\ContactorState, o mesmo cálculo que o Home Assistant recebe --}}
-<div class="flex items-center justify-between gap-3 rounded-card bg-surface p-4 shadow-card {{ $state->on ? 'ring-2 ring-ok/40' : '' }}">
+{{-- Dentro do painel do Dashboard: fundo sutil, sem sombra (sem cartão sobre cartão). --}}
+<div class="flex items-center justify-between gap-3 rounded-2xl bg-subtle p-4 {{ $state->on ? 'ring-2 ring-ok/40' : '' }}">
 
     <div class="flex min-w-0 items-center gap-3">
         <span class="grid h-10 w-10 shrink-0 place-items-center rounded-2xl {{ $state->on ? 'bg-ok-soft text-ok' : 'bg-subtle text-ink-3' }}">

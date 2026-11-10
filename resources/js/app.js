@@ -1,5 +1,7 @@
 import 'bootstrap';
 
+import './tables';
+
 import Alpine from 'alpinejs';
 
 window.Alpine = Alpine;

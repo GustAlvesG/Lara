@@ -31,7 +31,7 @@
 --}}
 @php
     $inputId = $id ?? 'busca-' . $name;
-    $inputClass = 'h-11 w-full rounded-full border border-line-strong bg-surface pl-10 pr-4 text-ink placeholder:text-ink-3 shadow-none transition focus:border-grena focus:ring-4 focus:ring-grena-tint';
+    $inputClass = 'h-12 w-full rounded-full border border-transparent bg-surface pl-11 pr-4 text-[15px] text-ink placeholder:text-ink-3 shadow-card ring-1 ring-line transition hover:ring-line-strong focus:border-grena focus:ring-4 focus:ring-grena-tint';
 @endphp
 
 @if ($mode === 'client')
@@ -74,7 +74,7 @@
     <div {{ $attributes->merge(['class' => 'flex w-full max-w-xl flex-col gap-1.5']) }} x-data="laraSearch(@js($target))" role="search">
         <label for="{{ $inputId }}" class="sr-only">{{ $label }}</label>
         <div class="relative">
-            <x-icon name="search" class="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-3" />
+            <x-icon name="search" class="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-3" />
             <input type="search" id="{{ $inputId }}" x-model="q" x-on:input="filter()" placeholder="{{ $placeholder }}" autocomplete="off" class="{{ $inputClass }}">
         </div>
         <p class="px-1 text-[13px] text-ink-3" x-show="count !== null" x-cloak aria-live="polite">
@@ -101,13 +101,13 @@
 
         <label for="{{ $inputId }}" class="sr-only">{{ $label }}</label>
         <div class="relative min-w-[14rem] flex-1">
-            <x-icon name="search" class="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-3" />
+            <x-icon name="search" class="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-3" />
             <input type="search" id="{{ $inputId }}" name="{{ $name }}" value="{{ is_scalar($value) ? $value : '' }}" placeholder="{{ $placeholder }}" autocomplete="off" class="{{ $inputClass }}">
         </div>
         @isset($controls)
             {{ $controls }}
         @endisset
-        <x-primary-button>Buscar</x-primary-button>
+        <x-primary-button class="h-12 px-5">Buscar</x-primary-button>
         @if ($filtered)
             <a href="{{ $clearUrl }}" class="whitespace-nowrap px-1 text-sm font-bold text-grena-ink hover:underline">Limpar</a>
         @endif

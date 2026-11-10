@@ -26,7 +26,7 @@ Sem essa permissão, o balão não aparece e o item **HAL (IA)** não está no m
 
 Há três jeitos de abrir o chat:
 
-1. Clicar no **robozinho que acena**, no canto inferior direito de qualquer tela. No celular, ele fica logo acima da barra de baixo. Quando chega uma resposta com o painel fechado, aparece um pontinho grená no alto dele.
+1. Clicar no **robozinho que acena**, no canto inferior direito de qualquer tela. No celular, ele fica logo acima da barra flutuante de baixo. Quando chega uma resposta com o painel fechado, aparece um pontinho grená no alto dele.
 2. Clicar em **HAL (IA)** no menu.
 3. Procurar "HAL" na busca rápida (Ctrl+K).
 

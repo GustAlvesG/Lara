@@ -65,7 +65,35 @@ class InformationController extends Controller
             $info->prices = $this->pricePackages($info);
         }
 
-        return View('information.index', compact('infos', 'search'));
+        $popularTags = $this->popularTags();
+
+        return View('information.index', compact('infos', 'search', 'popularTags'));
+    }
+
+    /**
+     * As tags mais usadas nas versões vigentes, para os atalhos de filtro no
+     * topo da lista (10/11/2026). Uma consulta agrupada, contada no banco.
+     *
+     * @return \Illuminate\Support\Collection<int, string>
+     */
+    private function popularTags(int $limit = 10)
+    {
+        return Tag::query()
+            ->join('data_info_tag', 'data_info_tag.tag_id', '=', 'tags.id')
+            ->whereIn('data_info_tag.data_info_id', function ($sub) {
+                // Mesma régua da lista: versão vigente de informação não excluída.
+                $sub->from('data_infos')
+                    ->selectRaw('MAX(data_infos.id)')
+                    ->join('information', 'information.id', '=', 'data_infos.information_id')
+                    ->whereNull('data_infos.deleted_at')
+                    ->whereNull('information.deleted_at')
+                    ->groupBy('data_infos.information_id');
+            })
+            ->groupBy('tags.id', 'tags.name')
+            ->orderByRaw('COUNT(*) DESC')
+            ->orderBy('tags.name')
+            ->limit($limit)
+            ->pluck('tags.name');
     }
 
     /**

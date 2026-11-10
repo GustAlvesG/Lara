@@ -11,14 +11,14 @@
     <div class="flex min-w-0 items-center gap-3">
         @if ($back)
             <a href="{{ $back }}" aria-label="Voltar"
-                class="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line-strong bg-surface text-ink-2 transition hover:text-ink">
-                <x-icon name="arrow-right" class="h-4 w-4 rotate-180" />
+                class="group grid h-11 w-11 shrink-0 place-items-center rounded-full bg-surface text-ink-2 shadow-card ring-1 ring-line transition hover:text-ink hover:ring-line-strong focus:outline-none focus-visible:ring-4 focus-visible:ring-grena-tint">
+                <x-icon name="arrow-right" class="h-[18px] w-[18px] rotate-180 transition group-hover:-translate-x-0.5 motion-reduce:transform-none" />
             </a>
         @endif
         <div class="min-w-0">
-            <h2 class="font-display text-xl font-semibold leading-tight tracking-tight text-ink sm:text-[22px]">{{ $title }}</h2>
+            <h2 class="font-display text-[22px] font-semibold leading-tight tracking-tight text-ink sm:text-[26px]">{{ $title }}</h2>
             @if (trim($slot) !== '')
-                <div class="mt-1 text-sm text-ink-2">{{ $slot }}</div>
+                <div class="mt-1.5 max-w-3xl text-[15px] leading-relaxed text-ink-2">{{ $slot }}</div>
             @endif
         </div>
     </div>

@@ -210,6 +210,34 @@ class PainelContaScreensTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('#\b(?:bg|text|border)-(?:gray|indigo|red)-\d{2,3}\b#', $html);
     }
 
+    /** Entrar e criar conta (10/11/2026): foto do clube ao lado, senha com "mostrar", erro em cada campo. */
+    public function test_entrar_e_criar_conta_usam_a_tela_dividida_com_foto_do_clube(): void
+    {
+        $this->requisicaoEm('login');
+        $html = (string) $this->view('auth.login');
+
+        $this->assertStringContainsString('images/auth/sede-social.jpg', $html);
+        $this->assertStringContainsString('data-password-toggle aria-controls="password"', $html);
+        $this->assertStringContainsString('Esqueceu a senha? Peça uma nova à TI.', $html);
+        $this->assertStringContainsString('href="' . route('register') . '"', $html);
+        $this->assertFileExists(public_path('images/auth/sede-social.jpg'));
+
+        $this->requisicaoEm('register');
+        $html = (string) $this->withViewErrors(['cpf' => 'CPF inválido.'])->view('auth.register');
+
+        $this->assertStringContainsString('images/auth/arena-areia.jpg', $html);
+        // O erro fica embaixo do próprio campo e toma o lugar da dica.
+        $this->assertStringContainsString('aria-invalid="true" aria-describedby="cpf-error"', $html);
+        $this->assertStringContainsString('<p id="cpf-error"', $html);
+        $this->assertStringNotContainsString('id="cpf-hint"', $html);
+        $this->assertStringContainsString('id="matricula-hint"', $html);
+        $this->assertStringContainsString('data-mask="phone"', $html);
+        $this->assertStringContainsString('data-password-toggle aria-controls="password_confirmation"', $html);
+        $this->assertStringContainsString('href="' . route('login') . '"', $html);
+        $this->assertFileExists(public_path('images/auth/arena-areia.jpg'));
+        $this->assertDoesNotMatchRegularExpression('#\b(?:bg|text|border)-(?:gray|indigo|red)-\d{2,3}\b#', $html);
+    }
+
     public function test_demais_telas_de_entrada_usam_o_mesmo_cartao(): void
     {
         foreach (['register', 'forgot-password', 'verify-email', 'confirm-password', 'reset-password'] as $tela) {
@@ -226,6 +254,14 @@ class PainelContaScreensTest extends TestCase
         $this->assertStringContainsString('O sistema do Clube, feito pelo Clube.', $html);
         $this->assertStringContainsString('href="' . route('login') . '"', $html);
         $this->assertStringContainsString('href="' . route('register') . '"', $html);
+        // A sede do clube na primeira tela, como nas telas de entrar e criar conta.
+        $this->assertStringContainsString('images/auth/sede-social.jpg', $html);
+        $this->assertStringContainsString('auth-photo-img', $html);
+        // Os módulos do menu, com a contagem tirada da própria lista.
+        $this->assertMatchesRegularExpression('#\d+ módulos, cada um na sua cor\.#u', $html);
+        foreach (['Ingressos', 'Torneios', 'Contratos', 'RePET', 'HAL (IA)'] as $modulo) {
+            $this->assertStringContainsString($modulo, $html);
+        }
         // As áreas aparecem nas suas cores.
         $this->assertStringContainsString('--c: var(--a-portaria)', $html);
         $this->assertStringContainsString('--c: var(--a-reservas)', $html);

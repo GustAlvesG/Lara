@@ -7,7 +7,7 @@
     Para a busca na própria página (x-search-bar mode="client"), passe
     `data-search="texto que a busca deve achar"`.
 --}}
-<article {{ $attributes->merge(['class' => 'flex min-w-0 flex-col overflow-hidden rounded-card bg-surface shadow-card']) }}>
+<article {{ $attributes->merge(['class' => 'flex min-w-0 flex-col overflow-hidden rounded-card bg-surface shadow-card' . ($href ? ' transition duration-200 hover:-translate-y-0.5 hover:shadow-pop motion-reduce:hover:translate-y-0' : '')]) }}>
     @isset($media)
         @if ($href)
             <a href="{{ $href }}" class="block focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-grena-tint" tabindex="-1">{{ $media }}</a>

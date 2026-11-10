@@ -1,7 +1,7 @@
 @php
     $tab = request('tab') === 'todos' ? 'todos' : 'ativos';
-    $tabClasses = 'inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[13px] font-bold text-ink-2 transition aria-selected:bg-surface aria-selected:text-ink aria-selected:shadow-card';
-    $grid = 'grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3';
+    $tabClasses = 'inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-[13px] font-bold text-ink-2 transition aria-selected:bg-surface aria-selected:text-ink aria-selected:shadow-card';
+    $grid = 'grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3';
 @endphp
 
 <x-app-layout :bootstrap-grid="false">
@@ -10,7 +10,7 @@
             @if ($search)
                 {{ $todos->count() }} {{ $todos->count() === 1 ? 'resultado' : 'resultados' }} para “{{ $search }}”
             @else
-                {{ $avisos->count() }} {{ $avisos->count() === 1 ? 'aviso ativo' : 'avisos ativos' }}
+                {{ $avisos->count() }} {{ $avisos->count() === 1 ? 'aviso ativo' : 'avisos ativos' }} para você: comunicados do clube, do seu setor e os seus.
             @endif
 
             @auth
@@ -51,9 +51,10 @@
                     @endif
                 </x-empty-state>
             @else
+                {{-- O aviso ativo mais recente ganha o destaque largo (fora da busca). --}}
                 <div class="{{ $grid }}">
                     @foreach ($avisos as $aviso)
-                        @include('avisos.partials.card', ['aviso' => $aviso])
+                        @include('avisos.partials.card', ['aviso' => $aviso, 'featured' => $loop->first && ! $search])
                     @endforeach
                 </div>
             @endif

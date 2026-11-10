@@ -353,6 +353,13 @@ final class Navigation
             'area' => $link['area'],
             'url' => route($link['route']),
             'pages' => count($link['children'] ?? [1]),
+            // As páginas do módulo, para o painel de Módulos levar direto a
+            // qualquer uma (10/11/2026). Item solto do menu: lista vazia.
+            'children' => array_map(fn ($child) => [
+                'key' => $child['route'],
+                'label' => __($child['label']),
+                'url' => route($child['route']),
+            ], $link['children'] ?? []),
         ], $links);
 
         // Índice plano: alimenta a busca (Ctrl+K), os favoritos e os recentes,

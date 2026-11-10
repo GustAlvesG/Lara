@@ -6,6 +6,7 @@
     'initials' => null,
     'logo' => false,
     'ratio' => 'wide',
+    'zoom' => false,
 ])
 
 {{--
@@ -16,6 +17,9 @@
 
     `initials` desenha um círculo (pessoa); com `logo`, um retângulo
     (empresa). Sobreposições (data, setor) vão no slot, com x-media-tag.
+
+    `zoom`: a foto aproxima 3% quando o cartão em volta (classe `group`) recebe
+    o ponteiro — para cartões que são link.
 --}}
 @php
     $ratios = [
@@ -41,7 +45,7 @@
     @endif
 
     @if ($src)
-        <img src="{{ $src }}" alt="{{ $alt }}" loading="lazy" class="absolute inset-0 h-full w-full object-cover" onerror="this.remove()">
+        <img src="{{ $src }}" alt="{{ $alt }}" loading="lazy" class="absolute inset-0 h-full w-full object-cover{{ $zoom ? ' transition duration-500 ease-out group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100' : '' }}" onerror="this.remove()">
     @endif
 
     {{ $slot }}

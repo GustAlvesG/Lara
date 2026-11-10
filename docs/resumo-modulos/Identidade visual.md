@@ -168,12 +168,59 @@ nos dois temas em `app.css`, a chave em `AreaColor::AREAS` e em `AREAS` do `tail
   página inicial): carregue `@include('partials.theme-script')` e `@vite(...)`; se não puder usar o
   CSS do painel (quiosque, `signature/validate`), copie os valores da paleta para variáveis CSS
   locais, com o grená como `--brand`.
+- **Telas de fora do painel** (desde 10/11/2026): a página inicial (`welcome`), **Entrar** e
+  **Criar conta** usam fotos reais do clube de `public/images/auth/` (cópias recortadas sem a marca
+  d'água e comprimidas — não aponte para uploads de `public/images/`, que podem ser apagados pelo
+  sistema) e o movimento de `partials/entrada-estilos` (`auth-photo-img`, `auth-enter`,
+  `auth-tagline`, `auth-submit`, `auth-link`; tudo para com "reduzir movimento"). A lista de
+  módulos da página inicial acompanha o menu (`App\View\Navigation`): módulo novo no menu entra
+  lá também. As telas de senha (esqueci, redefinir, confirmar, verificar e-mail) seguem no
+  `x-guest-layout` com o cartão.
 - **Aviso com confirmação** (desde 23/10/2026): regra que não deve recusar, só avisar, lança
   `App\Exceptions\ConfirmationRequired::unless($force, $avisos)` no serviço. A exceção volta à
   tela de origem e o `partials.alerts` mostra o quadro "Atenção: confira antes de seguir" com
   *Confirmar mesmo assim* (reenvia o mesmo formulário, inclusive `PUT`/`DELETE` e campos em
   lista, com `force=1`) e *Não fazer*. O controller só repassa `$request->boolean('force')`.
   Usado nos Torneios; serve a qualquer tela que inclua os alertas.
+
+## Visual de 11/11/2026 (todos os módulos)
+
+Junto com a barra "ilha", os componentes de uso geral foram refeitos — por isso toda tela de todo
+módulo mudou junto, sem mexer na lógica de nenhuma:
+
+- **Capa do módulo** (`x-area-cover`): cartão arredondado (28px) na cor da área, alinhado à
+  largura da página (1200px), símbolo grande como marca d'água, título em Unbounded 32px e as abas
+  numa barra de pílulas (a ativa em `bg-surface`). Entra uma vez ao abrir (`auth-enter`).
+- **Movimento**: `partials/entrada-estilos` agora vem no `layouts/app` (toda tela). Botões
+  (`x-primary-button(-a)`, `x-secondary-button(-a)`, `x-danger-button`, `x-green-button`) sobem
+  1px no hover e afundam no clique; `x-card` com `href` sobe 2px. Tudo para com "reduzir movimento".
+- **Título da tela** (`x-page-title`): título 26px, apoio 15px, voltar com 44px.
+- **Busca** (`x-search-bar`): campo de 48px em pílula com sombra; botão Buscar da mesma altura.
+- **Lista vazia** (`x-empty-state`): centrada, símbolo num círculo grená claro.
+- **Miolo** (`x-page`): respiro maior (`gap-5`, `pt-8` no sm+).
+- **Tabelas** (sem componente: camada única, bloco "Tabelas" no fim de `resources/css/app.css` +
+  `resources/js/tables.js`). Vale para toda `<table>` com `w-full`, `min-w-full`, `text-sm`,
+  `text-xs` ou `text-left` dentro do `<main class="lara-tables">` do `layouts/app` — e ganha das
+  classes de cada tela (padding, bordas, cinza antigo), mas não mexe em alinhamento, cor e fonte
+  das células. Cabeçalho em versalete miúdo sobre `--canvas`, linhas de 14px×16px, fio grená na
+  borda da linha sob o mouse, `tfoot` em negrito, números tabulares; `text-xs` é a versão justa.
+  **Todas as colunas à vista:** no celular (< 640px) cada linha vira um cartão "rótulo: valor"
+  (1ª coluna = título do cartão, coluna "Ações"/sem título = pé do cartão); na tela larga, tabela
+  maior que o espaço rola de lado com a 1ª coluna presa e a borda direita esmaecida enquanto houver
+  colunas. Tabela fora de contêiner que rola ganha um (`.lara-table-scroll`), e item de grade/flex
+  com tabela ganha `min-width: 0` — antes, colunas sumiam cortadas pelo `overflow-hidden` do cartão.
+  Só vira cartão a tabela simples (uma linha de cabeçalho sem colspan, sem rowspan, linha com uma
+  célula por coluna ou uma célula só); `data-table="scroll"` impede. E-mails, PDFs e impressões
+  não usam o layout e ficam como estão.
+  **Linha clicável** (11/11/2026): clicar em qualquer ponto da linha faz o mesmo que o 1º link
+  dela (ID, nome) ou, sem link, o 1º botão (`data-row-link`, cursor de mão). Nunca usa botão que
+  envia formulário, desabilitado, de `DELETE` ou com texto de excluir/cancelar/remover/recusar etc.;
+  nem `mailto:`, `tel:`, WhatsApp ou `#`. Linha com campo (edição em lote) ou com `@click`
+  próprio fica de fora. Clique em link, botão ou campo segue normal; texto selecionado não navega;
+  Ctrl/⌘ ou botão do meio abre o link em outra aba. Para a linha ser clicável, basta ela ter o link.
+
+Tela nova: use esses componentes e ela já nasce no visual. Classe nova do Tailwind só existe depois
+do `npm run build`.
 
 ## Componentes (`resources/views/components`)
 
@@ -183,7 +230,7 @@ nos dois temas em `app.css`, a chave em `AreaColor::AREAS` e em `AREAS` do `tail
 | `x-page-title` | Título, apoio (slot) e ações (`actions`) | `title`, `back` (URL da seta) |
 | `x-search-bar` | Busca de lista | `mode` (`server`/`client`), `name` (`q`), `target`, `filters`, slot `controls` |
 | `x-card` | Cartão de lista | `href`; slots `media` e `footer`; `data-search` para a busca na página |
-| `x-media` | Imagem com substituto na cor do módulo | `src`, `alt`, `area`, `icon`, `initials`, `logo`, `ratio` (`wide`/`video`/`short`/`sq`) |
+| `x-media` | Imagem com substituto na cor do módulo | `src`, `alt`, `area`, `icon`, `initials`, `logo`, `ratio` (`wide`/`video`/`short`/`sq`), `zoom` (foto aproxima 3% no hover do `group` em volta) |
 | `x-media-tag` | Etiqueta sobre a imagem | `side` |
 | `x-pill` | Selo de estado | `kind` (`ok`/`warn`/`danger`/`info`/`off`), `icon` |
 | `x-empty-state` | Lista vazia ou busca sem resultado | `icon` |
@@ -195,13 +242,15 @@ nos dois temas em `app.css`, a chave em `AreaColor::AREAS` e em `AREAS` do `tail
 | `x-danger-button` | Destrutivo, contorno vermelho | `size` |
 | `x-green-button` | Confirmação positiva (liberar, aprovar) | `size` |
 | `x-text-input`, `x-select-input`, `x-input-label`, `x-input-error` | Formulário | — |
-| `x-auth-card` | Cartão das telas de entrada (login, senha) | `title`, `lead` |
-| `x-dashboard.section` / `.stat-card` / `.ha-switch` / `.shortcut` | Painel inicial | `area`, `glyph`, `tone` |
+| `x-auth-card` | Cabeçalho + formulário das telas de entrada. `variant="card"` (padrão): cartão com logo, telas de senha. `variant="flush"`: sem caixa, dentro do `x-auth-layout` | `title`, `lead`, `eyebrow`, `variant` |
+| `x-auth-layout` | Casca de **Entrar** e **Criar conta** (desde 10/11/2026): foto do clube à esquerda (faixa curta no celular), formulário à direita | `title`, `photo`, `photo-alt`, `photo-position`, `tagline` |
+| `x-password-input` | Campo de senha com mostrar/ocultar e aviso de Caps Lock (script no `x-auth-layout`) | `id`, `autocomplete`, `invalid`, `describedby` |
+| `x-dashboard.panel` / `.metric` / `.ha-switch` | Painel inicial (desde 10/11/2026; `section`, `stat-card` e `shortcut` saíram) | `area`, `glyph`, `href`, `tone` |
 
 Ícones (`x-icon name=`): `search plus check clock x grid list home car calendar users user
 trophy chat info bag card bell star history doc image pencil trash eye download arrow-right
 chevron-down moon sun tag filter monitor logout menu lock globe user-plus sliders bolt bulb ban
-money shield mail key`. Nome desconhecido desenha um círculo, sem quebrar. Ícone novo: acrescente
+money shield mail key eye-off`. Nome desconhecido desenha um círculo, sem quebrar. Ícone novo: acrescente
 o path em `icon.blade.php` (traço 2, estilo Heroicons).
 
 ## Busca: qual modo usar

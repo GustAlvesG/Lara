@@ -15,6 +15,9 @@
             .aviso-content i, .aviso-content em { font-style: italic; }
             .aviso-content u { text-decoration: underline; }
             .aviso-content a { color: rgb(var(--grena-ink)); text-decoration: underline; }
+            .aviso-content p + p, .aviso-content ul, .aviso-content ol { margin-top: .9em; }
+            .aviso-content ul { list-style: disc; padding-left: 1.25em; }
+            .aviso-content ol { list-style: decimal; padding-left: 1.25em; }
         </style>
     </x-slot>
 
@@ -33,10 +36,10 @@
 
         <article class="overflow-hidden rounded-card bg-surface shadow-card">
             @if ($aviso->image)
-                <x-media :src="asset('images/avisos/' . $aviso->image)" :alt="$aviso->title" area="info" icon="bell" ratio="short" />
+                <x-media :src="asset('images/avisos/' . $aviso->image)" :alt="$aviso->title" area="info" icon="bell" ratio="video" />
             @endif
 
-            <div class="flex flex-col gap-4 p-5 sm:p-6">
+            <div class="flex flex-col gap-5 p-5 sm:p-8">
                 <div class="flex flex-wrap gap-1.5">
                     <x-pill kind="info" :icon="false">{{ $privacyLabels[$aviso->privacy] ?? $privacyLabels['setor'] }}</x-pill>
                     @if ($aviso->mandatory)
@@ -60,7 +63,7 @@
                 @endif
 
                 @if ($aviso->content)
-                    <div class="aviso-content max-w-none text-[15px] leading-relaxed text-ink">
+                    <div class="aviso-content max-w-[68ch] text-base leading-[1.75] text-ink sm:text-[17px]">
                         {!! $aviso->content !!}
                     </div>
                 @endif

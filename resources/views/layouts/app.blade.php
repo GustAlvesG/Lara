@@ -25,6 +25,9 @@
         {{-- @vite(['resources/sass/app.scss', 'resources/js/app.js']) --}}
 
         <style>[x-cloak]{display:none!important;}</style>
+        {{-- Entrada da capa, passo dos botões e sublinhado dos links: o mesmo
+             movimento das telas de entrar e da página inicial. --}}
+        @include('partials.entrada-estilos')
         {{ $css ?? '' }}
     </head>
     <body class="font-sans antialiased">
@@ -464,7 +467,7 @@
                 @endif
 
                 <!-- Page Content -->
-                <main>
+                <main class="lara-tables">
                     {{ $slot }}
                 </main>
 

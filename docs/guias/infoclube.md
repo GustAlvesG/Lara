@@ -34,8 +34,9 @@ As permissões de informações e da fila de espera são liberadas pela TI ou pe
 A tela **InfoClube › Informações** mostra as informações em cartões, 12 por página. O título informa quantas estão publicadas.
 
 - **Buscar:** digite na barra "Buscar por nome, tag, responsável, local…". A busca procura no nome, na descrição, no responsável, no status, na localização e nas tags, em todas as páginas.
-- Cada cartão mostra a imagem (ou as iniciais do nome), o nome, as tags, um trecho da descrição, vagas, status e local, e no rodapé o **primeiro responsável** (com link de WhatsApp) e o **primeiro preço** de sócio.
-- Clique no cartão para ver tudo: preços ("Título — R$ X (Sócio) | R$ Y (Não Sócio)"), dias e horários, todos os responsáveis, taxa de matrícula, vagas e local, além de quando e por quem a versão foi criada.
+- **Filtrar por tag:** abaixo da busca ficam as tags mais usadas. Clique numa (por exemplo **#natação**) para ver só as informações com ela; **Todas** volta à lista completa. A tag escolhida fica destacada.
+- Cada cartão mostra a imagem (ou as iniciais do nome), até três tags (com "+N" quando há mais), o nome, um trecho da descrição, local e vagas, e no rodapé o **primeiro preço** de sócio e o botão verde do **primeiro responsável**, que abre o WhatsApp.
+- Clique em qualquer parte do cartão para ver tudo. Na tela da informação, à direita, fica a ficha: o preço de sócio em destaque (e o de não sócio logo abaixo), **Todos os valores** quando há mais de um pacote, status, vagas, local e taxa de matrícula, **Dias e horários** e os **Responsáveis** com o WhatsApp de cada um. À esquerda, a foto, as tags (clique numa para buscar por ela) e a descrição completa. No alto, quando e por quem a versão foi criada.
 
 Quando a busca não acha nada, a tela mostra "Nenhuma informação corresponde a …" e oferece limpar a busca.
 
@@ -147,7 +148,8 @@ No formulário do aviso (**InfoClube › Avisos › Novo aviso** ou **Editar**):
 
 Na lista **InfoClube › Avisos**:
 
-- a aba **Ativos** mostra os avisos válidos; os vencidos ficam recolhidos em **Expirados (N)**, logo abaixo;
+- a aba **Ativos** mostra os avisos válidos, o mais recente em destaque (cartão largo, com a foto ao lado); os vencidos ficam recolhidos em **Expirados (N)**, logo abaixo;
+- clique em qualquer parte do cartão para abrir o aviso; as tags, o lápis (editar) e o lixo (remover) continuam funcionando no próprio cartão;
 - a aba **Todos** mostra ativos e expirados juntos;
 - o selo **Expira em breve** aparece quando faltam 3 dias ou menos;
 - o selo de lembretes mostra quantos o aviso tem.
@@ -216,7 +218,7 @@ A tela **InfoClube › Fila de Espera** guarda quem **não é sócio** e quer va
 - **Uma pessoa pode estar em várias filas** ao mesmo tempo (por exemplo, natação e tênis), uma vez em cada turma. O **CPF** identifica a pessoa e é obrigatório, inclusive para criança.
 - **A posição não muda** por ligação sem resposta. Só sai da fila quem a secretaria tirar.
 
-No alto da tela há duas listas: **Turmas** (cada turma com quantos aguardam e desde quando o primeiro espera) e **Pessoas** (busca por nome, CPF ou telefone).
+No alto da tela há duas listas: **Turmas** e **Pessoas** (busca por nome, CPF ou telefone). Em **Turmas**, cada turma é um cartão com a modalidade, o nome, se está ativa, **quantas pessoas aguardam** (o número grande) e desde quando o primeiro da fila espera. Clique no cartão para abrir a fila da turma; o lápis edita a turma.
 
 ## Cadastrar uma turma na Fila de Espera
 <!-- telas: waitlist.index -->

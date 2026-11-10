@@ -52,9 +52,18 @@ sempre um destino do menu.
 
 ## Navegação por Módulos
 
-É a única navegação do sistema (`partials/navigation-areas.blade.php`): barra no alto com o botão
-Módulos, "você está em", busca, sino e conta; abaixo, favoritos e recentes; no celular, uma barra
-de abas embaixo (Início, Favoritos, Módulos, Buscar).
+É a única navegação do sistema (`partials/navigation-areas.blade.php`). Desde 10/11/2026 é uma
+**ilha**: barra flutuante e translúcida (sticky, solta das bordas) com logo, botão Módulos, "você
+está em", busca, sino e conta. A ilha toma a cor do módulo aberto: o "você está em" é um chip em
+`--c`/`--ci` da área e um traço na base acende em `--ci` (fora de módulo, a cor do início).
+
+Abaixo da ilha, a **doca** de favoritos e recentes. Ela recolhe quando a página desce mais de 80 px
+e volta ao subir (`laraNavBar`, no próprio partial); recolhida, fica `inert` (fora do Tab). O
+`laraNavBar` também grava a altura real da barra em `--split-top`, usado pelas colunas presas das
+telas de duas colunas — o valor de `app.css` (8.5rem) é só o de partida.
+
+No celular, uma doca flutuante embaixo (Início, Favoritos, Módulos no centro, Recentes, Buscar);
+`.nav-tabbar-pad` e `--lara-balao-bottom` (`app.css`) reservam o espaço dela.
 
 Os menus **Lateral** e **Superior** de antes do rebrand, que eram opção no menu da conta, foram
 **removidos em 28/10/2026**, junto com o sino flutuante que eles usavam. A chave `laraNavMode` que
@@ -63,24 +72,34 @@ ficou no navegador de quem os usava é simplesmente ignorada.
 ## Balão do HAL (IA)
 
 Quem tem a permissão `lara` vê um balão no canto inferior direito de toda tela. Ele abre o chat
-num painel lateral (no celular, em tela cheia, com o balão acima da barra de baixo). Detalhes em
+num painel lateral (no celular, em tela cheia, com o balão acima da doca de baixo). Detalhes em
 [lara-ia.md](lara-ia.md). Como o layout roda em toda tela, o balão não carrega nada na
 renderização: a conversa e o estado da IA só são pedidos quando o painel abre.
 
 ## Painel de Módulos
 
-Abre pelo botão **Módulos** (ou pela barra de baixo, no celular) e tem três abas: **Todos os
-módulos**, **Favoritos** e **Recentes**.
+Abre pelo botão **Módulos** (ou pela doca de baixo, no celular). Desde 10/11/2026:
 
-- As abas ficam sempre à vista e não têm rolagem própria. Elas dividem a largura do painel em
-  três; em tela estreita, o rótulo da primeira encurta para "Módulos".
-- O rodapé (dica do `Ctrl K` e "Organizar") também é fixo.
-- Só a lista do meio rola, e só quando não cabe na altura da tela. Os blocos dos módulos são
-  compactos (símbolo ao lado do nome) justamente para caberem sem rolagem na maioria das telas.
-- A ordem dos módulos é a que a pessoa definiu em **Organizar**.
+- **Todos os módulos de uma vez, fechados** (desde 11/11/2026, pedido do usuário: ninguém deve
+  precisar rolar para achar um módulo). Cada módulo é uma faixa compacta na cor dele: o **nome**
+  abre a primeira aba; o botão ao lado (número de páginas + seta) **abre** a lista das abas
+  (`groups[].children` de `App\View\Navigation::build`), um módulo por vez (`openMod`). A página
+  atual fica marcada (`aria-current`) e o módulo atual ganha um contorno na cor dele. A lista de
+  abas abre **sobreposta** (absoluta, sobre os módulos de baixo, sem empurrar a grade); perto do fim
+  do painel, sem espaço embaixo, abre para cima (`openUp`, calculado no `toggleMod`). Clicar no
+  vão entre os módulos fecha. Esc fecha
+  primeiro o módulo aberto, depois o painel. Item solto do menu (Home Assistant) não tem botão.
+  Grade: 2 colunas no celular e no md, 3 no lg, 4 no xl.
+- **Tela larga (md+):** módulos à esquerda, **Favoritos** e **Recentes** numa coluna à direita,
+  tudo ao mesmo tempo. **Celular:** folha que sobe de baixo, com abas Módulos / Favoritos /
+  Recentes (`launcherTab`; as classes `md:!grid`/`md:!flex`/`md:!block` vencem o `x-show` na tela
+  larga).
+- Cabeçalho (título, abas, Fechar) e rodapé (dica do `Ctrl K` e **Organizar menu**) fixos; só o
+  miolo rola. Ao abrir, o foco vai para o Fechar; Esc e clique fora fecham.
+- A ordem dos módulos é a que a pessoa definiu em **Organizar** (`order` do grid via `navRank`).
 
 Ao acrescentar um módulo ao menu, confira o painel numa tela baixa (notebook de 768 px de
-altura): a lista pode rolar, as abas não.
+altura): o miolo pode rolar, cabeçalho e rodapé não.
 
 ## Favoritos e ordem do menu
 

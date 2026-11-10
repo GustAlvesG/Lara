@@ -105,9 +105,10 @@
 }
 
 @layer components {
-    /* Altura do balão do HAL: no celular, acima da barra de baixo (62px). */
+    /* Altura do balão do HAL: no celular, acima da doca flutuante (60px +
+       12px de margem, desde 10/11/2026). */
     :root {
-        --lara-balao-bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+        --lara-balao-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
     }
 
     @media (min-width: 640px) {
@@ -116,10 +117,10 @@
         }
     }
 
-    /* A barra de baixo do celular cobre o fim da página. */
+    /* A doca flutuante do celular cobre o fim da página. */
     @media (max-width: 639px) {
         .nav-tabbar-pad {
-            padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+            padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
         }
     }
 
@@ -131,8 +132,10 @@
      | coluna. Abaixo do ponto, tudo empilha e a página rola como sempre.
      | O padding/margem negativos deixam a sombra dos cartões aparecer.
      */
+    /* Valor de partida: a barra (ilha + doca) recalcula ao abrir e ao
+       recolher a doca — ver partials/navigation-areas (laraNavBar). */
     :root {
-        --split-top: 7.25rem;
+        --split-top: 8.5rem;
     }
 
     @media (min-width: 1024px) {
@@ -211,5 +214,232 @@
     input:disabled, select:disabled, textarea:disabled {
         background-color: rgb(var(--subtle));
         color: rgb(var(--ink-3));
+    }
+}
+
+/*
+ | Tabelas (rebrand de 11/11/2026, pedido do usuário: "todas as tabelas mais
+ | bonitas e todas as colunas exibidas").
+ |
+ | Vale para toda tabela de tela dentro do <main class="lara-tables"> do
+ | layouts/app que use as classes de sempre (w-full, min-w-full, text-sm,
+ | text-xs, text-left). Fica fora de @layer de propósito: a especificidade
+ | (classe + elemento + classe) ganha dos px-/py-/divide-/gray- espalhados
+ | pelas telas, então todas ficam iguais sem editar uma por uma. Alinhamento,
+ | cor e fonte de cada célula continuam os da tela.
+ |
+ | O script resources/js/tables.js completa:
+ |   - celular (< 640px): cada linha vira um cartão "rótulo: valor"
+ |     (data-stack, data-label), e nenhuma coluna fica escondida à direita;
+ |   - tela larga: se a tabela não cabe, a 1ª coluna fica presa e a borda
+ |     direita esmaece enquanto houver colunas para ver (data-scroll).
+ | Tabela que não deve virar cartão: data-table="scroll".
+ */
+.lara-tables :is(.grid, .flex) > :has(table) {
+    min-width: 0;
+}
+
+.lara-table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.lara-tables table:is(.w-full, .min-w-full, .text-sm, .text-xs, .text-left) {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.lara-tables table:is(.w-full, .min-w-full, .text-sm, .text-xs, .text-left) thead th {
+    padding: 12px 16px;
+    background-color: rgb(var(--canvas));
+    border-bottom: 1px solid rgb(var(--line));
+    color: rgb(var(--ink-3));
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    line-height: 1.3;
+    text-transform: uppercase;
+    white-space: nowrap;
+    vertical-align: bottom;
+}
+
+.lara-tables table:is(.w-full, .min-w-full, .text-sm, .text-xs, .text-left) :is(thead, tbody, tfoot, tr) {
+    border-color: rgb(var(--line));
+}
+
+.lara-tables table:is(.w-full, .min-w-full, .text-sm, .text-xs, .text-left) :is(tbody, tfoot) :is(td, th) {
+    padding: 14px 16px;
+    border-top: 1px solid rgb(var(--line));
+    vertical-align: middle;
+}
+
+.lara-tables table:is(.w-full, .min-w-full, .text-sm, .text-xs, .text-left) tbody:first-of-type tr:first-child > :is(td, th) {
+    border-top-width: 0;
+}
+
+/* Tabela miúda (súmula, valores do InfoClube): o mesmo desenho, mais junto. */
+.lara-tables table.text-xs thead th {
+    padding: 9px 12px;
+    font-size: 10.5px;
+}
+
+.lara-tables table.text-xs :is(tbody, tfoot) :is(td, th) {
+    padding: 8px 12px;
+}
+
+/* Linha: realce suave e um fio grená na borda ao passar o mouse. */
+.lara-tables table:is(.w-full, .min-w-full, .text-sm, .text-xs, .text-left) tbody tr {
+    transition: background-color .15s ease;
+}
+
+.lara-tables table:is(.w-full, .min-w-full, .text-sm, .text-xs, .text-left) tbody tr:hover {
+    background-color: rgb(var(--subtle) / .55);
+}
+
+.lara-tables table:is(.w-full, .min-w-full, .text-sm, .text-xs, .text-left) tbody tr:hover > :is(td, th):first-child {
+    box-shadow: inset 3px 0 0 rgb(var(--grena));
+}
+
+/* Linha clicável (tables.js, data-row-link): a mão em toda a linha. */
+.lara-tables table:is(.w-full, .min-w-full, .text-sm, .text-xs, .text-left) tbody tr[data-row-link] {
+    cursor: pointer;
+}
+
+.lara-tables table:is(.w-full, .min-w-full, .text-sm, .text-xs, .text-left) tfoot :is(td, th) {
+    background-color: rgb(var(--canvas));
+    border-top: 1px solid rgb(var(--line-strong));
+    color: rgb(var(--ink));
+    font-weight: 700;
+}
+
+/* Telas antigas (cinza fixo do Tailwind): voltam aos tokens, e o tema escuro
+   deixa de ter linha branca. */
+.lara-tables table:is(.w-full, .min-w-full, .text-sm, .text-xs, .text-left) :is(thead, tr):is(.bg-white, [class*="bg-gray-"]) {
+    background-color: transparent;
+}
+
+.lara-tables table:is(.w-full, .min-w-full, .text-sm, .text-xs, .text-left) [class*="text-gray-"] {
+    color: rgb(var(--ink-2));
+}
+
+/* Tela larga, tabela maior que o espaço: 1ª coluna presa e borda direita
+   esmaecida enquanto houver colunas à direita. */
+@media (min-width: 640px) {
+    :is([data-scroll="start"], [data-scroll="mid"]) {
+        -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+        mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+    }
+
+    :is([data-scroll="start"], [data-scroll="mid"], [data-scroll="end"]) > table :is(td, th):first-child:not([colspan]) {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        background-color: rgb(var(--surface));
+    }
+
+    :is([data-scroll="start"], [data-scroll="mid"], [data-scroll="end"]) > table thead th:first-child {
+        z-index: 2;
+        background-color: rgb(var(--canvas));
+    }
+
+    :is([data-scroll="start"], [data-scroll="mid"], [data-scroll="end"]) > table tbody tr:hover > td:first-child {
+        background-color: color-mix(in srgb, rgb(var(--subtle)) 55%, rgb(var(--surface)));
+    }
+
+    :is([data-scroll="mid"], [data-scroll="end"]) > table :is(td, th):first-child:not([colspan]) {
+        box-shadow: 10px 0 14px -12px rgb(0 0 0 / .45);
+    }
+}
+
+/* Celular: cada linha vira um cartão com todas as colunas, "rótulo: valor". */
+@media screen and (max-width: 639px) {
+    .lara-tables table[data-stack] {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .lara-tables table[data-stack] thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+
+    .lara-tables table[data-stack],
+    .lara-tables table[data-stack] :is(tbody, tfoot),
+    .lara-tables table[data-stack] tr:not([hidden]):not(.hidden) {
+        display: block;
+    }
+
+    .lara-tables table[data-stack] :is(tbody, tfoot) tr:not([hidden]):not(.hidden) {
+        padding: 14px 16px;
+        border-top: 1px solid rgb(var(--line));
+    }
+
+    .lara-tables table[data-stack] tbody:first-of-type tr:first-child {
+        border-top-width: 0;
+    }
+
+    .lara-tables table[data-stack] tbody tr:hover > :is(td, th):first-child {
+        box-shadow: none;
+    }
+
+    .lara-tables table[data-stack] :is(tbody, tfoot) :is(td, th):not([hidden]):not(.hidden) {
+        display: grid;
+        grid-template-columns: minmax(6.5rem, 38%) minmax(0, 1fr);
+        align-items: start;
+        gap: 12px;
+        padding: 5px 0;
+        border: 0;
+        background: none;
+        text-align: left;
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .lara-tables table[data-stack] :is(tbody, tfoot) :is(td, th)::before {
+        content: attr(data-label);
+        padding-top: 2px;
+        color: rgb(var(--ink-3));
+        font-family: inherit;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: .06em;
+        line-height: 1.35;
+        text-transform: uppercase;
+    }
+
+    .lara-tables table[data-stack] :is(tbody, tfoot) :is(td, th):is([data-label=""], [data-title], [colspan], :not([data-label])):not([hidden]):not(.hidden) {
+        display: block;
+    }
+
+    .lara-tables table[data-stack] :is(tbody, tfoot) :is(td, th):is([data-label=""], [data-title], [colspan], :not([data-label]))::before {
+        content: none;
+    }
+
+    /* A 1ª coluna (nome, título) é o título do cartão. */
+    .lara-tables table[data-stack] td[data-title]:not([hidden]):not(.hidden) {
+        padding: 0 0 8px;
+        color: rgb(var(--ink));
+        font-size: 15px;
+        font-weight: 600;
+    }
+
+    /* Ações no pé do cartão, à direita. */
+    .lara-tables table[data-stack] td[data-actions]:not([hidden]):not(.hidden) {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 8px;
+        padding-top: 10px;
+        border-top: 1px dashed rgb(var(--line));
+    }
+
+    .lara-tables table[data-stack] td[colspan] {
+        text-align: center;
     }
 }
