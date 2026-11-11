@@ -19,7 +19,7 @@
 <x-app-layout :bootstrap-grid="false">
     <x-page narrow>
         <x-page-title title="Novo contrato" :back="route('contracts.index')">
-            Primeiro o contrato e o contratado; depois as variáveis, as cláusulas e quem assina.
+            Primeiro o contrato e o contratado; depois as variáveis, as cláusulas e quem assina. Campos com <span class="font-bold text-danger">*</span> são obrigatórios.
         </x-page-title>
 
         @include('partials.alerts')
@@ -31,17 +31,33 @@
             </x-empty-state>
         @else
             @php $tipoInicial = old('kind') === 'addendum' ? 'addendum' : 'contract'; @endphp
-            <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Contrato ou aditivo">
-                @foreach(['contract' => 'Contrato novo', 'addendum' => 'Aditivo de contrato assinado'] as $valor => $rotulo)
-                    <label class="cursor-pointer">
+            {{-- O que redigir: cartões com o que cada opção faz (UX, 11/11/2026). --}}
+            @php
+                $opcoesNovo = [
+                    'contract' => ['Contrato novo', 'Do zero ou de um modelo da Biblioteca. Você informa o contratado e segue para as cláusulas.', 'doc'],
+                    'addendum' => ['Aditivo de contrato assinado', 'Parte de um contrato já assinado: partes, CNPJ e variáveis vêm prontos dele.', 'plus'],
+                ];
+            @endphp
+            <fieldset class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <legend class="mb-2 text-sm font-bold text-ink">O que você vai redigir?</legend>
+                @foreach($opcoesNovo as $valor => [$rotulo, $explica, $glyph])
+                    <label class="group cursor-pointer">
                         <input type="radio" name="tipo_novo" value="{{ $valor }}" class="peer sr-only" data-new-kind @checked($tipoInicial === $valor)>
-                        <span class="inline-block rounded-full bg-subtle px-4 py-2 text-sm font-bold text-ink peer-checked:bg-grena peer-checked:text-white">{{ $rotulo }}</span>
+                        <span class="flex h-full items-start gap-3 rounded-card border-2 border-line bg-surface p-4 shadow-card transition group-hover:border-line-strong peer-checked:border-[rgb(var(--pen-ink))] peer-checked:bg-[rgb(var(--pen-ink)/.05)] peer-focus-visible:ring-4 peer-focus-visible:ring-grena-tint dark:peer-checked:border-[rgb(var(--pen-glow))]">
+                            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[rgb(var(--pen-ink))] text-white">
+                                <x-icon :name="$glyph" class="h-5 w-5" />
+                            </span>
+                            <span class="min-w-0">
+                                <span class="block font-display text-base font-semibold tracking-tight text-ink">{{ $rotulo }}</span>
+                                <span class="mt-0.5 block text-sm text-ink-2">{{ $explica }}</span>
+                            </span>
+                        </span>
                     </label>
                 @endforeach
-            </div>
+            </fieldset>
 
             {{-- Aditivo: escolhe o contrato assinado; partes, variáveis e o signatário da contratada vêm dele. --}}
-            <form method="POST" action="{{ route('contracts.store') }}" @class(['space-y-5', 'hidden' => $tipoInicial !== 'addendum']) data-addendum-create>
+            <form method="POST" action="{{ route('contracts.store') }}" @class(['lara-form space-y-5', 'hidden' => $tipoInicial !== 'addendum']) data-addendum-create>
                 @csrf
                 <input type="hidden" name="kind" value="addendum">
                 <section class="{{ $card }}">
@@ -78,7 +94,7 @@
                 </section>
             </form>
 
-            <form method="POST" action="{{ route('contracts.store') }}" @class(['space-y-5', 'hidden' => $tipoInicial === 'addendum']) data-contract-create>
+            <form method="POST" action="{{ route('contracts.store') }}" @class(['lara-form space-y-5', 'hidden' => $tipoInicial === 'addendum']) data-contract-create>
                 @csrf
 
                 {{-- 1. Contrato --}}
@@ -117,17 +133,21 @@
 
                 {{-- 2. Contratado --}}
                 <section class="{{ $card }}" data-step="Contratado" data-step-keys="party">
-                    <div class="rounded-xl bg-subtle p-3">
-                        <label for="party_search" class="mb-1 block text-xs font-bold text-ink-2">Buscar nos Prestadores (Contratos → Prestadores)</label>
-                        <input type="search" id="party_search" data-member-search data-party-search class="{{ $field }}" placeholder="Nome, CNPJ ou CPF">
-                        <div data-party-results class="mt-2 space-y-1"></div>
+                    <div class="rounded-2xl border border-dashed border-line-strong bg-subtle/60 p-4">
+                        <label for="party_search" class="mb-1 block text-sm font-bold text-ink">Já contratou antes? Busque nos Prestadores</label>
+                        <p class="mb-2 text-xs text-ink-3">Achando, os campos abaixo se preenchem sozinhos. Senão, preencha: ao criar, o contratado fica guardado.</p>
+                        <div class="relative">
+                            <x-icon name="search" class="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-3" />
+                            <input type="search" id="party_search" data-member-search data-party-search class="{{ $field }} pl-10" placeholder="Nome, CNPJ ou CPF" autocomplete="off">
+                        </div>
+                        <div data-party-results class="mt-2 grid gap-1.5" aria-live="polite"></div>
                     </div>
 
-                    <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Tipo do contratado">
+                    <div class="inline-flex w-fit gap-1 rounded-full bg-subtle p-1" role="radiogroup" aria-label="Tipo do contratado">
                         @foreach(['pj' => 'Empresa (CNPJ)', 'pf' => 'Pessoa física (CPF)'] as $valor => $rotulo)
                             <label class="cursor-pointer">
                                 <input type="radio" name="party[kind]" value="{{ $valor }}" class="peer sr-only" data-party-kind @checked($tipo === $valor)>
-                                <span class="inline-block rounded-full bg-subtle px-4 py-2 text-sm font-bold text-ink peer-checked:bg-grena peer-checked:text-white">{{ $rotulo }}</span>
+                                <span class="inline-flex h-10 items-center rounded-full px-4 text-sm font-bold text-ink-2 transition peer-checked:bg-surface peer-checked:text-ink peer-checked:shadow-card peer-focus-visible:ring-4 peer-focus-visible:ring-grena-tint">{{ $rotulo }}</span>
                             </label>
                         @endforeach
                     </div>
@@ -267,8 +287,10 @@
                             lista = res;
                             caixa.innerHTML = res.length
                                 ? res.map(function (p, i) {
-                                    return '<button type="button" class="block w-full rounded-lg bg-surface px-3 py-1.5 text-left text-sm hover:bg-line" data-party-pick="' + i + '">'
-                                        + escapa(p.name) + ' <span class="text-xs text-ink-3">' + escapa(p.document) + '</span></button>';
+                                    return '<button type="button" class="flex w-full items-center justify-between gap-3 rounded-xl bg-surface px-4 py-2.5 text-left text-sm shadow-card ring-1 ring-line transition hover:ring-line-strong focus:outline-none focus-visible:ring-4 focus-visible:ring-grena-tint" data-party-pick="' + i + '">'
+                                        + '<span class="min-w-0"><span class="block truncate font-semibold text-ink">' + escapa(p.name) + '</span>'
+                                        + '<span class="block font-mono text-xs text-ink-3">' + escapa(p.document) + '</span></span>'
+                                        + '<span class="shrink-0 text-xs font-bold text-grena-ink">Usar</span></button>';
                                 }).join('')
                                 : '<p class="px-1 text-xs text-ink-3">Nada no cadastro. Preencha abaixo: ao criar, fica guardado.</p>';
                         });

@@ -86,7 +86,7 @@ O chat não tem mais tela própria. É um **balão no canto inferior direito**, 
 sistema, para quem tem a permissão `lara`; ele abre um **painel lateral** à direita (no celular,
 a tela inteira, e o balão fica acima da doca flutuante de baixo). Fecha pelo X ou pelo Esc.
 
-- `GET /lara` (o item do menu, a busca Ctrl+K e links antigos) não mostra tela: volta para a
+- `GET /lara` (a busca Ctrl+K, os favoritos e links antigos; fora do painel de Módulos desde 11/11/2026) não mostra tela: volta para a
   página de onde a pessoa veio — ou o início — com o balão já aberto.
 - **Nada é carregado com a página.** O layout roda em toda tela, então o health check da VM e o
   histórico só são pedidos quando o painel abre, por `GET /lara/conversa`, que devolve

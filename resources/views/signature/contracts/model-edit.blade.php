@@ -38,7 +38,7 @@
         @include('partials.alerts')
 
         <div class="ct-layout split-xl grid grid-cols-1 gap-6 xl:grid-cols-12" data-layout>
-            <form id="ctForm" method="POST" action="{{ route('contract-library.models.update', $model) }}" class="split-pane min-w-0 space-y-6 xl:col-span-7"
+            <form id="ctForm" method="POST" action="{{ route('contract-library.models.update', $model) }}" class="lara-form split-pane min-w-0 space-y-6 xl:col-span-7"
                   data-steps-free data-step-start="{{ max(0, min(3, (int) request('passo', 0))) }}">
                 @csrf
                 @method('PUT')

@@ -19,6 +19,21 @@
 
         @include('partials.alerts')
 
+        {{-- Faixa do módulo (identidade do Disparo de E-mails, 11/11/2026). --}}
+        @php
+            $C = \App\Models\EmailCampaign\EmailCampaign::class;
+            $situacaoAtual = $filters['status'] ?? '';
+            $heroStats = [
+                ['label' => $situacaoAtual ? 'Nesta situação' : 'Campanhas na lista', 'value' => $campaigns->total()],
+                ['label' => 'Enviando agora (nesta página)', 'value' => $campaigns->getCollection()->where('status', $C::STATUS_SENDING)->count(), 'tone' => 'ok'],
+                ['label' => 'Agendadas', 'value' => null, 'href' => route('email-campaigns.index', ['status' => $C::STATUS_SCHEDULED]), 'current' => $situacaoAtual === $C::STATUS_SCHEDULED],
+                ['label' => 'Rascunhos', 'value' => null, 'href' => route('email-campaigns.index', ['status' => $C::STATUS_DRAFT]), 'current' => $situacaoAtual === $C::STATUS_DRAFT],
+            ];
+        @endphp
+        <x-mod-hero variant="mail" eyebrow="Disparo de E-mails" title="Um e-mail, a lista inteira" :stats="$heroStats" label="Resumo das campanhas">
+            Monte, importe a lista e envie. O servidor manda no seu ritmo: pode fechar a tela depois de começar.
+        </x-mod-hero>
+
         <x-search-bar placeholder="Buscar por nome ou assunto" :filters="['status']">
             <x-slot:controls>
                 <select name="status" class="{{ $selectClass }}" aria-label="Situação">

@@ -78,7 +78,9 @@
     class="pointer-events-none sticky z-40 px-2 pt-2 sm:px-4 sm:pt-3" style="top: env(safe-area-inset-top, 0px); {{ $areaStyle }}">
 
     {{-- ============================== Ilha ============================== --}}
-    <div class="pointer-events-auto relative mx-auto flex h-[60px] max-w-[1680px] items-center gap-1.5 rounded-[22px] border border-surface/60 bg-surface/75 pl-2 pr-1.5 shadow-[0_14px_34px_-20px_rgb(var(--ink)/.55)] ring-1 ring-line/70 backdrop-blur-2xl backdrop-saturate-[1.8] sm:gap-2 sm:pl-2.5 sm:pr-2">
+    {{-- z-10: o backdrop-blur faz da ilha e da doca camadas próprias; sem ele
+         a doca (que vem depois) tampa o menu da conta e o do sino. --}}
+    <div class="pointer-events-auto relative z-10 mx-auto flex h-[60px] max-w-[1680px] items-center gap-1.5 rounded-[22px] border border-surface/60 bg-surface/75 pl-2 pr-1.5 shadow-[0_14px_34px_-20px_rgb(var(--ink)/.55)] ring-1 ring-line/70 backdrop-blur-2xl backdrop-saturate-[1.8] sm:gap-2 sm:pl-2.5 sm:pr-2">
 
         <a href="{{ route('dashboard') }}" class="flex shrink-0 items-center gap-1.5 rounded-2xl pr-1 no-underline {{ $focus }}" aria-label="LARA, ir para o início">
             <img src="{{ asset('images/logo_girante.gif') }}" alt="" class="h-[44px] w-auto">

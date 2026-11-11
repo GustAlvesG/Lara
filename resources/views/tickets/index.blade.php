@@ -23,6 +23,21 @@
 
         @include('partials.alerts')
 
+        {{-- Faixa do módulo (identidade de Ingressos, 11/11/2026). --}}
+        @php
+            $heroStats = [
+                ['label' => request('status') ? 'Nesta situação' : 'Eventos na lista', 'value' => $events->total()],
+                ['label' => 'Vendas abertas (nesta página)', 'value' => $events->getCollection()->filter(fn ($e) => $e->salesOpen())->count(), 'tone' => 'ok'],
+                ['label' => 'Publicados', 'value' => null, 'href' => route('tickets.index', ['status' => 'published']), 'current' => request('status') === 'published'],
+            ];
+            if (\Illuminate\Support\Facades\Route::has('tickets.checkin.index') && auth()->user()?->can(\App\Authorization\Permissions::INGRESSOS_CHECKIN)) {
+                $heroStats[] = ['label' => 'Check-in', 'value' => null, 'href' => route('tickets.checkin.index')];
+            }
+        @endphp
+        <x-mod-hero variant="tix" eyebrow="Ingressos" title="Vendido no site, conferido na porta" :stats="$heroStats" label="Resumo dos ingressos">
+            Tipos, lotes e preços de sócio e não sócio; o check-in é aqui ou no Monitor de Acesso da portaria.
+        </x-mod-hero>
+
         <x-search-bar :filters="['status']" placeholder="Nome do evento">
             <x-slot:controls>
                 <label for="filtro-situacao" class="sr-only">Situação</label>

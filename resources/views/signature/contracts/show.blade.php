@@ -58,6 +58,74 @@
 
         @include('partials.alerts')
 
+        {{--
+            Andamento do contrato (exibição, 11/11/2026): a fase de agora no
+            caminho rascunho → Gerência → aprovado → assinaturas → assinado, e
+            quem ainda falta assinar, antes de qualquer detalhe.
+        --}}
+        @php
+            $progresso = $contract->signingProgress();
+            $fasesCt = ['Rascunho', 'Validação da Gerência', 'Aprovado', 'Em assinatura', 'Assinado'];
+            $faseCt = match (true) {
+                $contract->status === C::STATUS_APPROVED && $contract->isSigned() => 4,
+                $contract->status === C::STATUS_APPROVED && $progresso && $progresso['signed'] > 0 => 3,
+                $contract->status === C::STATUS_APPROVED && $documento => 3,
+                $contract->status === C::STATUS_APPROVED => 2,
+                $contract->status === C::STATUS_IN_REVIEW => 1,
+                default => 0,
+            };
+            $cancelado = $contract->status === C::STATUS_CANCELED;
+        @endphp
+        <section class="mod-band mod-band--pen rounded-[28px] shadow-card" aria-label="Andamento do contrato">
+            <div class="auth-enter flex flex-col gap-7 p-6 sm:p-8">
+                <div class="flex flex-wrap items-end justify-between gap-6">
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold uppercase tracking-[0.18em] text-white/60">
+                            {{ $contract->isAddendum() ? 'Aditivo' : 'Contrato' }}{{ $contract->counterpartyName() ? ' · ' . $contract->counterpartyName() : '' }}
+                        </p>
+                        <p class="mt-2 font-display text-[26px] font-semibold leading-tight tracking-tight sm:text-[32px]">
+                            {{ $progresso && $contract->status === C::STATUS_APPROVED ? $progresso['label'] : $contract->statusLabel() }}
+                        </p>
+                        @if($contract->status === C::STATUS_RETURNED)
+                            <p class="mt-1 text-sm text-white/75">Devolvido pela Gerência: veja as observações e ajuste o texto.</p>
+                        @endif
+                    </div>
+                    @if($progresso && $progresso['total'] > 0)
+                        <div class="w-full max-w-xs">
+                            <p class="font-mono text-[34px] font-semibold leading-none">{{ $progresso['signed'] }}<span class="text-white/50">/{{ $progresso['total'] }}</span></p>
+                            <p class="mt-1 text-sm text-white/70">assinaturas</p>
+                            <div class="mt-3 h-2 overflow-hidden rounded-full bg-white/15" role="meter" aria-label="Assinaturas colhidas" aria-valuemin="0" aria-valuemax="{{ $progresso['total'] }}" aria-valuenow="{{ $progresso['signed'] }}">
+                                <div class="h-full rounded-full bg-[rgb(var(--pen-glow))]" style="width: {{ $progresso['signed'] / $progresso['total'] * 100 }}%"></div>
+                            </div>
+                            @if($progresso['refused'])
+                                <p class="mt-2 text-xs font-bold text-[rgb(252_165_165)]">Recusado por {{ $progresso['refused'] }}</p>
+                            @elseif($progresso['pending'])
+                                <p class="mt-2 text-xs text-white/70">Falta: {{ implode(', ', $progresso['pending']) }}</p>
+                            @endif
+                        </div>
+                    @endif
+                </div>
+
+                <ol class="grid grid-cols-2 gap-3 sm:grid-cols-5" aria-label="Fases do contrato">
+                    @foreach($fasesCt as $i => $nomeFase)
+                        @php
+                            $est = $cancelado && $i === $faseCt ? 'parou' : ($i < $faseCt || ($i === $faseCt && $i === 4) ? 'feito' : ($i === $faseCt ? 'atual' : 'depois'));
+                        @endphp
+                        <li class="flex items-center gap-2.5" @if($i === $faseCt) aria-current="step" @endif>
+                            <span @class([
+                                'grid h-8 w-8 shrink-0 place-items-center rounded-full font-mono text-xs font-bold',
+                                'bg-[rgb(134_239_172)] text-[rgb(var(--pen-ink))]' => $est === 'feito',
+                                'bg-white text-[rgb(var(--pen-ink))] ring-4 ring-white/25' => $est === 'atual',
+                                'bg-[rgb(252_165_165)] text-[rgb(var(--pen-ink))]' => $est === 'parou',
+                                'bg-white/10 text-white/60' => $est === 'depois',
+                            ]) aria-hidden="true">{{ $est === 'feito' ? '✓' : ($est === 'parou' ? '✕' : $i + 1) }}</span>
+                            <span class="text-sm font-semibold {{ $est === 'depois' ? 'text-white/55' : 'text-white' }}">{{ $nomeFase }}</span>
+                        </li>
+                    @endforeach
+                </ol>
+            </div>
+        </section>
+
         @if($contract->isArchived())
             <div class="rounded-card bg-subtle px-5 py-3 text-sm text-ink-2">
                 <b class="text-ink">Arquivado</b> em {{ $contract->archived_at->format('d/m/Y H:i') }} por {{ $contract->archived_by_name ?? '—' }}:

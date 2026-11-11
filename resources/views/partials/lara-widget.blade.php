@@ -37,6 +37,24 @@
         'aba' => $navCurrent['key'] ?? null,
     ];
 
+    // O mesmo lugar, legível, no cabeçalho do painel ("Nesta tela: SIV ›
+    // Busca"): a pessoa vê que o HAL sabe de onde ela pergunta.
+    $laraOnde = null;
+    if (isset($navCurrent['group']['label'], $navCurrent['label'])) {
+        $laraGrupo = __($navCurrent['group']['label']);
+        $laraOnde = $laraGrupo === $navCurrent['label'] ? $laraGrupo : $laraGrupo . ' › ' . $navCurrent['label'];
+    }
+
+    $laraNome = \Illuminate\Support\Str::before(trim((string) (auth()->user()?->name ?? '')), ' ');
+
+    // Atalhos do início da conversa. O primeiro só faz sentido dentro de um módulo.
+    $laraSugestoes = array_values(array_filter([
+        $laraOnde ? 'Como faço o que preciso nesta tela?' : null,
+        'O que significa o status que aparece aqui?',
+        'Qual o horário de funcionamento da academia?',
+        'O que diz o estatuto sobre dependentes?',
+    ]));
+
     // Erro que esta tela está mostrando, para o "Verificar com o HAL". A
     // página de erro (errors/pagina) passa o dela; o resto vem do retorno da
     // ação. O servidor filtra o texto ao receber (App\Services\Lara\ScreenError).
@@ -281,6 +299,22 @@
                 }
             },
 
+            // Sugestão do início: pergunta direto, como se tivesse digitado.
+            async sugerir(texto) {
+                if (this.pensando || !this.disponivel) return;
+                await this.perguntar(texto, { mensagem: texto, contexto: opcoes.contexto });
+            },
+
+            // Copiar uma resposta (para colar num e-mail, num aviso…).
+            copiado: null,
+            async copiar(i) {
+                try {
+                    await navigator.clipboard.writeText(this.mensagens[i].conteudo);
+                    this.copiado = i;
+                    setTimeout(() => { if (this.copiado === i) this.copiado = null; }, 1600);
+                } catch (e) {}
+            },
+
             async novaConversa() {
                 if (this.pensando) return;
                 this.erro = null;
@@ -388,7 +422,9 @@
     </button>
 
     {{-- Painel lateral. Sem fundo escurecido: a página continua à vista para
-         quem pergunta sobre o que está vendo. No celular ocupa a tela. --}}
+         quem pergunta sobre o que está vendo. No celular ocupa a tela.
+         Visual de 11/11/2026: cabeçalho escuro do HAL (hal-band), conversa em
+         fundo pontilhado, respostas em cartão e sugestões no início. --}}
     <aside x-show="aberto" x-cloak role="dialog" aria-label="HAL, assistente de IA"
         x-transition:enter="transition ease-out duration-200"
         x-transition:enter-start="translate-x-full opacity-0"
@@ -396,97 +432,144 @@
         x-transition:leave="transition ease-in duration-150"
         x-transition:leave-start="translate-x-0 opacity-100"
         x-transition:leave-end="translate-x-full opacity-0"
-        class="fixed inset-0 z-[60] flex flex-col bg-surface text-ink shadow-pop sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[420px] sm:border-l sm:border-line"
-        style="padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px)">
+        class="fixed inset-0 z-[60] flex flex-col bg-surface text-ink shadow-pop sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[440px] sm:border-l sm:border-line"
+        style="padding-bottom: env(safe-area-inset-bottom, 0px)">
 
-        <header class="flex h-[62px] shrink-0 items-center gap-2.5 border-b border-line px-4">
-            <img src="{{ $laraCabeca }}" alt="" width="36" height="36" class="h-9 w-9 shrink-0 rounded-full bg-grena-tint">
-
-            <div class="min-w-0 flex-1 leading-tight">
-                <b class="block text-[15px] font-bold">HAL</b>
-                <span class="flex items-center gap-1.5 text-xs text-ink-3">
-                    <template x-if="carregado && disponivel">
-                        <span class="flex items-center gap-1.5"><span class="h-1.5 w-1.5 rounded-full bg-ok"></span>Disponível</span>
-                    </template>
-                    <template x-if="!carregado || !disponivel">
-                        <span>Assistente do clube</span>
-                    </template>
+        <header class="hal-band shrink-0 px-4 pb-3.5" style="padding-top: calc(env(safe-area-inset-top, 0px) + 14px)">
+            <div class="flex items-center gap-3">
+                <span class="hal-ring grid h-11 w-11 shrink-0 place-items-center" :data-off="carregado && !disponivel ? '' : null">
+                    <img src="{{ $laraCabeca }}" alt="" width="40" height="40" class="h-10 w-10 rounded-full">
                 </span>
+
+                <div class="min-w-0 flex-1 leading-tight">
+                    <b class="block font-display text-[17px] font-semibold tracking-tight">HAL</b>
+                    <span class="mt-0.5 flex items-center gap-1.5 text-xs text-white/70">
+                        <span class="h-1.5 w-1.5 rounded-full"
+                            :class="!carregado ? 'bg-white/40' : (disponivel ? 'bg-emerald-400' : (configurado ? 'bg-amber-300' : 'bg-white/40'))"></span>
+                        <span x-text="!carregado ? 'Conectando…' : (disponivel ? 'No ar · assistente do clube' : (configurado ? 'Fora do ar agora' : 'Desativado'))">Assistente do clube</span>
+                    </span>
+                </div>
+
+                <button type="button" @click="novaConversa()" :disabled="pensando || !mensagens.length" title="Começar uma conversa nova"
+                    class="flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold text-white/85 transition hover:border-white/35 hover:bg-white/10 hover:text-white active:scale-[.97] disabled:pointer-events-none disabled:opacity-35">
+                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
+                    </svg>
+                    Nova conversa
+                </button>
+                <button type="button" @click="fechar()" aria-label="Fechar o HAL"
+                    class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white/75 transition hover:bg-white/10 hover:text-white active:scale-95">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                </button>
             </div>
-            <button type="button" @click="novaConversa()" :disabled="pensando || !mensagens.length"
-                class="rounded-full px-3 py-1.5 text-xs font-bold text-ink-2 transition hover:bg-subtle hover:text-ink disabled:opacity-40">
-                Nova conversa
-            </button>
-            <button type="button" @click="fechar()" aria-label="Fechar o HAL"
-                class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-2 transition hover:bg-subtle hover:text-ink">
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-            </button>
+
+            @if ($laraOnde)
+                {{-- O HAL recebe a rota (contexto); aqui a pessoa vê qual. --}}
+                <p class="mt-3 flex items-center gap-2 truncate rounded-lg bg-white/[.07] px-2.5 py-1.5 text-xs text-white/75">
+                    <svg class="h-3.5 w-3.5 shrink-0 text-white/50" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                    </svg>
+                    <span class="truncate">Nesta tela: <b class="font-semibold text-white">{{ $laraOnde }}</b></span>
+                </p>
+            @endif
         </header>
 
         <template x-if="carregado && !disponivel">
-            <div class="mx-4 mt-3 rounded-xl bg-warn-soft px-3 py-2 text-xs leading-relaxed text-warn"
+            <div class="flex shrink-0 gap-2 border-b border-line bg-warn-soft px-4 py-2.5 text-xs leading-relaxed text-warn"
                 x-text="configurado
                     ? 'O HAL não está respondendo agora — o servidor dele pode estar reiniciando. Tente em instantes; se continuar, avise a TI.'
                     : 'O HAL está desativado no momento. Fale com a TI se precisar dele agora.'"></div>
         </template>
 
         {{-- Conversa --}}
-        <div class="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4" x-ref="conversa">
+        <div class="hal-thread min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-5" x-ref="conversa" aria-live="polite">
             <template x-if="!carregado">
-                <p class="py-10 text-center text-sm text-ink-3">Carregando…</p>
-            </template>
-
-            <template x-if="carregado && mensagens.length === 0 && !pensando">
-                <div class="flex h-full flex-col items-center justify-center px-6 text-center">
-                    {{-- Só baixa quando a conversa está vazia (x-if). --}}
-                    <picture>
-                        <source srcset="{{ $laraRoboParado }}" media="(prefers-reduced-motion: reduce)">
-                        <img src="{{ $laraRoboGrande }}" alt="" width="113" height="160" class="mb-3 h-40 w-auto">
-                    </picture>
-                    <p class="font-display text-base font-bold text-ink">Olá! Eu sou o HAL.</p>
-                    <p class="mt-1 text-sm text-ink-2">Pergunte sobre o estatuto, as atividades, os avisos do clube ou como usar O Lara.</p>
-                    <p class="mt-0.5 text-xs text-ink-3">Ex.: “qual o horário da academia?” ou “como faço isso nesta tela?”</p>
+                <div class="space-y-4 pt-2" aria-label="Carregando a conversa">
+                    <div class="ml-auto h-9 w-2/5 animate-pulse rounded-2xl bg-line"></div>
+                    <div class="h-20 w-4/5 animate-pulse rounded-2xl bg-line"></div>
+                    <div class="ml-auto h-9 w-1/2 animate-pulse rounded-2xl bg-line"></div>
                 </div>
             </template>
 
-            {{-- Balão só para quem pergunta; a resposta do HAL é longa e lê
-                 melhor como texto corrido. --}}
+            <template x-if="carregado && mensagens.length === 0 && !pensando">
+                <div class="flex min-h-full flex-col justify-center pb-2">
+                    <div class="flex items-end gap-4">
+                        {{-- Só baixa quando a conversa está vazia (x-if). --}}
+                        <picture class="shrink-0">
+                            <source srcset="{{ $laraRoboParado }}" media="(prefers-reduced-motion: reduce)">
+                            <img src="{{ $laraRoboGrande }}" alt="" width="85" height="120" class="h-[120px] w-auto">
+                        </picture>
+                        <div class="pb-2">
+                            <p class="font-display text-[22px] font-semibold leading-tight tracking-tight text-ink">
+                                Olá{{ $laraNome !== '' ? ', ' . $laraNome : '' }}.<br>Eu sou o HAL.
+                            </p>
+                            <p class="mt-1.5 text-sm leading-relaxed text-ink-2">Pergunto e respondo sobre o estatuto, as atividades, os avisos do clube e o uso do Lara.</p>
+                        </div>
+                    </div>
+
+                    <p class="mb-2 mt-7 text-[11px] font-semibold uppercase tracking-[.08em] text-ink-3">Comece por aqui</p>
+                    <ul class="grid gap-2">
+                        @foreach ($laraSugestoes as $sugestao)
+                            <li>
+                                <button type="button" @click="sugerir(@js($sugestao))" :disabled="pensando || !disponivel"
+                                    class="hal-chip flex w-full items-center justify-between gap-3 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-left text-sm text-ink shadow-card disabled:cursor-not-allowed disabled:opacity-50">
+                                    <span>{{ $sugestao }}</span>
+                                    <svg class="h-4 w-4 shrink-0 text-grena" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                                    </svg>
+                                </button>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            </template>
+
             <template x-for="(m, i) in mensagens" :key="i">
                 <div class="group">
                     <template x-if="m.role === 'user'">
-                        <div class="flex justify-end">
+                        <div class="flex justify-end pl-10">
                             {{-- x-text, nunca x-html: o conteúdo vem de um modelo de
                                  linguagem e não pode virar HTML executável na tela. --}}
-                            <div class="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-grena px-3.5 py-2 text-sm leading-relaxed text-white"
+                            <div class="whitespace-pre-wrap break-words rounded-2xl rounded-br-md bg-grena px-3.5 py-2 text-sm leading-relaxed text-white shadow-card"
                                 x-text="m.conteudo"></div>
                         </div>
                     </template>
 
                     <template x-if="m.role !== 'user'">
-                        <div class="flex gap-2.5">
-                            <img src="{{ $laraCabeca }}" alt="" width="24" height="24" class="mt-0.5 h-6 w-6 shrink-0 rounded-full bg-grena-tint">
-                            <div class="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-ink"
-                                x-text="m.conteudo"></div>
+                        <div class="flex gap-2.5 pr-2">
+                            <img src="{{ $laraCabeca }}" alt="" width="28" height="28" class="mt-0.5 h-7 w-7 shrink-0 rounded-full bg-grena-tint">
+                            <div class="hal-answer min-w-0 flex-1 px-3.5 py-2.5">
+                                <div class="whitespace-pre-wrap break-words text-sm leading-relaxed text-ink" x-text="m.conteudo"></div>
+                            </div>
                         </div>
                     </template>
 
-                    <div class="mt-1 text-[10px] text-ink-3 opacity-0 transition-opacity group-hover:opacity-100"
-                        :class="m.role === 'user' ? 'text-right' : 'pl-[2.125rem]'"
-                        x-text="m.horario"></div>
+                    <div class="mt-1 flex items-center gap-2 text-[11px] text-ink-3"
+                        :class="m.role === 'user' ? 'justify-end' : 'pl-[2.375rem]'">
+                        <span x-text="m.horario"></span>
+                        <template x-if="m.role !== 'user'">
+                            <button type="button" @click="copiar(i)"
+                                class="rounded px-1 font-semibold text-ink-3 opacity-0 transition hover:text-grena focus-visible:opacity-100 group-hover:opacity-100"
+                                :class="copiado === i ? 'opacity-100 text-ok' : ''"
+                                x-text="copiado === i ? 'Copiado' : 'Copiar'"></button>
+                        </template>
+                    </div>
                 </div>
             </template>
 
             <template x-if="pensando">
                 <div class="flex items-center gap-2.5">
-                    <img src="{{ $laraCabeca }}" alt="" width="24" height="24" class="h-6 w-6 shrink-0 rounded-full bg-grena-tint">
-                    <span class="flex items-center gap-1.5">
-                        <span class="flex gap-1">
-                            <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3" style="animation-delay:0ms"></span>
-                            <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3" style="animation-delay:150ms"></span>
-                            <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-ink-3" style="animation-delay:300ms"></span>
+                    <img src="{{ $laraCabeca }}" alt="" width="28" height="28" class="h-7 w-7 shrink-0 rounded-full bg-grena-tint">
+                    <span class="hal-answer flex items-center gap-2.5 px-3.5 py-2.5">
+                        <span class="hal-typing flex gap-1" aria-hidden="true">
+                            <span class="h-1.5 w-1.5 rounded-full bg-grena"></span>
+                            <span class="h-1.5 w-1.5 rounded-full bg-grena"></span>
+                            <span class="h-1.5 w-1.5 rounded-full bg-grena"></span>
                         </span>
+                        <span class="text-xs text-ink-3">Pensando</span>
                         {{-- Só depois de alguns segundos: numa resposta rápida
                              viraria cronômetro; numa demorada, mostra que não travou. --}}
                         <span x-show="segundos >= 5" x-cloak class="text-xs tabular-nums text-ink-3" x-text="segundos + 's'"></span>
@@ -496,9 +579,9 @@
         </div>
 
         {{-- Envio --}}
-        <div class="shrink-0 border-t border-line px-3 py-2.5">
+        <div class="shrink-0 border-t border-line bg-surface px-3 pb-2.5 pt-3">
             <template x-if="erro">
-                <div class="mb-2 rounded-xl bg-danger-soft px-3 py-1.5 text-xs text-danger" x-text="erro"></div>
+                <div class="mb-2 rounded-xl bg-danger-soft px-3 py-1.5 text-xs text-danger" role="alert" x-text="erro"></div>
             </template>
 
             <template x-if="erroTela">
@@ -511,23 +594,31 @@
                 </div>
             </template>
 
-            <form @submit.prevent="enviar()" class="flex items-end gap-2">
-                <textarea x-model="pergunta" x-ref="entrada" rows="1" maxlength="{{ $laraMaxChars }}"
+            <form @submit.prevent="enviar()"
+                class="hal-compose flex items-end gap-2 rounded-2xl border border-line bg-canvas p-1.5 pl-3 transition">
+                <label for="hal-pergunta" class="sr-only">Sua pergunta para o HAL</label>
+                <textarea id="hal-pergunta" x-model="pergunta" x-ref="entrada" rows="1" maxlength="{{ $laraMaxChars }}"
                     :disabled="pensando || !disponivel"
                     @keydown.enter="if (!$event.shiftKey) { $event.preventDefault(); enviar(); }"
                     @input="ajustarAltura()"
-                    placeholder="Escreva sua pergunta…"
-                    class="max-h-28 flex-1 resize-none rounded-xl border-line bg-canvas py-2 text-sm text-ink placeholder:text-ink-3 focus:border-grena focus:ring-grena disabled:opacity-60"></textarea>
+                    :placeholder="pensando ? 'O HAL está respondendo…' : 'Pergunte ao HAL…'"
+                    class="max-h-28 flex-1 resize-none border-0 bg-transparent px-0 py-1.5 text-sm text-ink placeholder:text-ink-3 focus:ring-0 disabled:opacity-60"></textarea>
 
                 <button type="submit" :disabled="pensando || !disponivel || pergunta.trim().length < 2" title="Enviar" aria-label="Enviar"
-                    class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-grena text-white transition hover:bg-grena-hover disabled:cursor-not-allowed disabled:opacity-40">
+                    class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-grena text-white transition hover:bg-grena-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-35">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6 12 3.27 4.36a.5.5 0 0 1 .68-.62l16.5 7.8a.5.5 0 0 1 0 .92l-16.5 7.8a.5.5 0 0 1-.68-.62L6 12Zm0 0h6"/>
                     </svg>
                 </button>
             </form>
 
-            <p class="mt-1.5 px-0.5 text-[11px] text-ink-3">Respostas geradas por IA — em caso de dúvida, confirme com o setor.</p>
+            <div class="mt-1.5 flex items-center justify-between gap-3 px-1 text-[11px] text-ink-3">
+                <span>Respostas de IA: na dúvida, confirme com o setor.</span>
+                <span class="hidden shrink-0 sm:inline" x-show="pergunta.length < {{ (int) ($laraMaxChars * 0.8) }}">Enter envia · Shift+Enter quebra linha</span>
+                <span class="shrink-0 tabular-nums" x-show="pergunta.length >= {{ (int) ($laraMaxChars * 0.8) }}" x-cloak
+                    :class="pergunta.length >= {{ $laraMaxChars }} ? 'text-danger' : ''"
+                    x-text="pergunta.length + '/' + {{ $laraMaxChars }}"></span>
+            </div>
         </div>
     </aside>
 </div>

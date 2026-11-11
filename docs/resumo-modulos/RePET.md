@@ -8,6 +8,16 @@ a API é contrato com o sistema de captura e com o site de locação.
 Documentação completa (regras, e-mail, retenção): [docs/funcionalidades/replay.md](../funcionalidades/replay.md).
 Contrato da API: [docs/replay-api.md](../replay-api.md).
 
+
+## Visual (11/11/2026)
+
+Configuração de Vídeo, Câmeras, Layouts de Logomarca e Vídeos saíram da paleta cinza fixa
+(`bg-white dark:bg-gray-800`, `text-gray-*`, `emerald`/`red`/`amber` fixos) para os tokens do sistema
+(`bg-surface`, `text-ink`, `border-line`, `ok`/`warn`/`danger`, ação em `grena`), sem o slot
+`header` nem o `<h1>` duplicado (a capa dá o nome do módulo). A primeira aba abre com a faixa do
+módulo (`x-mod-hero variant="rec"`: esportes e atalhos para Câmeras, Vídeos e Transmissões). Tela
+nova do RePET: use os tokens, nunca cinza fixo — no tema escuro o cinza vira bloco branco.
+
 ## Em uma frase
 
 Câmera + botão em cada quadra: um sistema **externo** grava os últimos segundos, corta, queima as

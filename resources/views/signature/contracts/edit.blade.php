@@ -93,7 +93,7 @@
         <div class="ct-layout split-xl grid grid-cols-1 gap-6 xl:grid-cols-12" data-layout>
             {{-- Em passos livres, como o documento comum (04/11/2026): Contratado → Variáveis → Cláusulas → Quem assina.
                  Grava de qualquer passo e volta no mesmo (`passo`). --}}
-            <form id="ctForm" method="POST" action="{{ route('contracts.update', $contract) }}" class="split-pane min-w-0 space-y-6 xl:col-span-7"
+            <form id="ctForm" method="POST" action="{{ route('contracts.update', $contract) }}" class="lara-form split-pane min-w-0 space-y-6 xl:col-span-7"
                   data-steps-free data-step-start="{{ max(0, min(3, (int) request('passo', 0))) }}">
                 @csrf
                 @method('PUT')

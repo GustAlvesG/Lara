@@ -4,6 +4,29 @@ Documentação completa: [agendamento.md](../funcionalidades/agendamento.md) (gr
 colisão, preço proporcional, e-mails), [espacos-e-grupos.md](../funcionalidades/espacos-e-grupos.md)
 (cadastro base) e [socios.md](../funcionalidades/socios.md) (login do sócio, JWT).
 
+
+## Identidade visual (11/11/2026)
+
+Reservas tem desenho próprio, na mesma pegada do SIV (pedido do usuário). A ideia é a quadra.
+Peças em `resources/css/app.css` (bloco "Reservas", tokens `--res-court`/`--res-clay`, escuros
+nos dois temas, texto sempre branco):
+
+- `res-court`: faixa verde com as linhas da quadra (contorno, meio e círculo, em `::before`/`::after`
+  com `z-index: -1` — o conteúdo não precisa de nada). Na agenda leva a foto da arena de areia do
+  clube (`public/images/auth/arena-areia.jpg`, `res-court-photo`, só no lg+).
+- Agenda (`location/partials/header`): o dia em letra grande, troca de dia, PDF do dia e
+  Configurações dentro da faixa, a **ocupação do dia** somando todos os locais (mesma regra de
+  estado do `time-card`: bloqueado, confirmado `status 1`, pendente, passado, livre; ocupação =
+  reservados ÷ reserváveis, sem bloqueados e passados) e atalhos `#mod-<slug>` para as
+  modalidades. Cada local ganha a `res-strip` (uma casa por horário, `data-s` = estado).
+- Gestão da reserva (`location/schedule/show`, refeita no `x-page`): o "ingresso" (`res-ticket`,
+  recortes laterais por máscara em `--cut`, picote `res-perforation`, carimbo `res-stamp`),
+  auditoria em linha do tempo e os painéis de vinculados, cancelamento e baixa manual — campos,
+  nomes e regras iguais aos de antes.
+- Espaços Sociais: a fila (contato atrasado, aguardando contato, em análise, aguardando
+  pagamento) virou números grandes na faixa, cada um filtrando a lista.
+- Todos os Agendamentos, Pagamentos, Contas do site e Locais e Grupos ficam com o padrão do sistema.
+
 ## Em uma frase
 
 O sócio reserva quadras (por horário) e **espaços sociais** (o dia inteiro, com aprovação) pelo **app/site de locação** (Next.js, API com `api_token` +

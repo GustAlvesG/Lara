@@ -1,9 +1,27 @@
 @php
     $accessCount = count($data);
     $searchedDate = $datetime ? date('d/m/Y', strtotime($datetime)) : date('d/m/Y');
-    $panel = 'rounded-card bg-surface p-5 shadow-card';
-    $eyebrow = 'text-xs font-bold uppercase tracking-[0.08em] text-ink-3';
     $appCarRequests = collect($appCarRequests ?? []);
+
+    // Cor lida pela câmera → amostra (é a pintura do carro, não cor da tela).
+    $colorName = isset($car['color']) ? mb_strtolower(trim($car['color'])) : null;
+    $swatch = [
+        'branco' => '#f4f4f2', 'branca' => '#f4f4f2', 'preto' => '#1b1b1d', 'preta' => '#1b1b1d',
+        'prata' => '#c4c8cc', 'cinza' => '#7d8288', 'vermelho' => '#b3261e', 'vermelha' => '#b3261e',
+        'azul' => '#1f4e9c', 'verde' => '#2f6b3a', 'amarelo' => '#e2b007', 'amarela' => '#e2b007',
+        'marrom' => '#6b4423', 'bege' => '#d8c7a3', 'laranja' => '#e06a1b', 'vinho' => '#6a1b2c',
+        'dourado' => '#c9a227', 'dourada' => '#c9a227', 'rosa' => '#d77a9b', 'roxo' => '#5b3a7a',
+    ][$colorName] ?? null;
+
+    // Linha do dia: cada passagem no seu horário, de 0h a 24h. entry_date vem
+    // "H:i:s d/m/Y"; a posição é o minuto do dia.
+    $passes = [];
+    foreach ($data as $i => $log) {
+        $time = explode(' ', $log['entry_date'])[0] ?? '';
+        if (preg_match('/^(\d{1,2}):(\d{2})/', $time, $m)) {
+            $passes[] = ['n' => $i + 1, 'time' => $time, 'left' => round(((int) $m[1] * 60 + (int) $m[2]) / 1440 * 100, 2)];
+        }
+    }
 @endphp
 
 <x-app-layout :bootstrap-grid="false">
@@ -22,21 +40,51 @@
             @include('parking.partials.form')
         </div>
 
-        {{-- Resumo --}}
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div class="{{ $panel }}">
-                <p class="{{ $eyebrow }}">Placa</p>
-                <div class="mt-2"><x-plate :plate="$car['plate']" size="lg" /></div>
+        {{-- Placa consultada (identidade do SIV, 11/11/2026): a placa grande no
+             visor, a cor, quantas passagens e a linha do dia. --}}
+        <section class="siv-night relative isolate overflow-hidden rounded-[28px] shadow-card" aria-label="Placa consultada">
+            <div class="auth-enter flex flex-col gap-8 p-6 sm:p-10">
+                <div class="flex flex-wrap items-end justify-between gap-8">
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold uppercase tracking-[0.18em] text-white/60">Placa consultada · {{ $searchedDate }}</p>
+                        <div class="siv-viewfinder mt-3 inline-block">
+                            <x-plate :plate="$car['plate']" size="xl" />
+                        </div>
+                    </div>
+
+                    <dl class="grid grid-cols-2 gap-x-10 gap-y-4">
+                        <div>
+                            <dt class="text-xs font-bold uppercase tracking-[0.14em] text-white/60">Cor</dt>
+                            <dd class="mt-2 flex items-center gap-2.5 font-display text-2xl font-semibold">
+                                @if ($swatch)
+                                    <span class="h-6 w-6 shrink-0 rounded-full ring-2 ring-white/40" style="background-color: {{ $swatch }}" aria-hidden="true"></span>
+                                @endif
+                                {{ isset($car['color']) ? strtoupper($car['color']) : '—' }}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs font-bold uppercase tracking-[0.14em] text-white/60">Acessos no dia</dt>
+                            <dd class="mt-2 font-mono text-[32px] font-semibold leading-none">{{ $accessCount }}</dd>
+                        </div>
+                    </dl>
+                </div>
+
+                @if ($passes)
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-[0.14em] text-white/60">Passagens no dia</p>
+                        <div class="siv-rail mt-2">
+                            @foreach ($passes as $pass)
+                                <a href="#acesso-{{ $pass['n'] }}" class="siv-dot" style="left: {{ $pass['left'] }}%"
+                                   title="{{ $pass['time'] }}" aria-label="Ir para o acesso das {{ $pass['time'] }}"></a>
+                            @endforeach
+                        </div>
+                        <div class="flex justify-between font-mono text-[11px] text-white/50" aria-hidden="true">
+                            <span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>24h</span>
+                        </div>
+                    </div>
+                @endif
             </div>
-            <div class="{{ $panel }}">
-                <p class="{{ $eyebrow }}">Cor</p>
-                <p class="mt-2 font-display text-2xl font-semibold text-ink">{{ isset($car['color']) ? strtoupper($car['color']) : '—' }}</p>
-            </div>
-            <div class="{{ $panel }}">
-                <p class="{{ $eyebrow }}">Acessos no dia</p>
-                <p class="mt-2 font-mono text-2xl font-semibold text-ink">{{ $accessCount }}</p>
-            </div>
-        </div>
+        </section>
 
         @if ($accessCount === 0)
             <x-empty-state icon="car">
@@ -182,9 +230,9 @@
                         <x-search-bar mode="client" target="#historico-acessos" placeholder="Filtrar por horário, nome, matrícula, empresa ou telefone" />
                     @endif
 
-                    <div id="historico-acessos" class="flex flex-col gap-4">
+                    <div id="historico-acessos" class="flex flex-col gap-5">
                         @foreach ($data as $log)
-                            @include('parking.partials.dataItemAccess', ['log' => $log])
+                            @include('parking.partials.dataItemAccess', ['log' => $log, 'n' => $loop->iteration])
                         @endforeach
                     </div>
                 </div>

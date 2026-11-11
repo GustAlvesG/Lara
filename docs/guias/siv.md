@@ -26,18 +26,19 @@ Quem libera é a TI ou a Gerência, na tela **Setores** (ou só para uma pessoa,
 ## Descobrir quem estava num carro pela placa
 <!-- telas: parking.search -->
 
-Na tela **SIV › Busca** ("Identificação de veículos"), o alto mostra os números do dia: **Veículos registrados hoje**, **Placas identificadas** e **Sem placa identificada**.
+Na tela **SIV › Busca** ("Identificação de veículos"), a faixa escura traz a pergunta **Qual placa você procura?** e, ao lado, o quadro **Hoje na cancela**: os veículos registrados pelas câmeras hoje, as **Placas identificadas** (com o percentual e uma barra) e as **Sem placa identificada**.
 
-1. Em **Placa do veículo**, digite a placa (a tela coloca em maiúsculas e tira hífen e espaço).
+1. Digite a placa **dentro da placa desenhada** (a tela coloca em maiúsculas e tira hífen e espaço).
 2. Em **Data do acesso**, escolha o dia (vem com hoje).
-3. Clique em **Buscar**.
+3. Clique em **Buscar acessos**.
 
 A tela **Dados do acesso** mostra:
 
-- **Placa**, **Cor** e **Acessos no dia**.
+- No alto, a **placa** em tamanho grande, a **Cor** (com uma bolinha da cor do carro, quando a câmera informa uma cor conhecida) e os **Acessos no dia**.
+- **Passagens no dia**: uma linha de 0h a 24h com um ponto em cada passagem. Clique num ponto para descer direto até aquele registro.
 - **Pedidos de carro de aplicativo**: aparece quando houve pedido pelo WhatsApp para essa placa no dia, com quem pediu, matrícula/CPF, situação, hora do pedido, hora em que a entrada foi liberada, local no clube, WhatsApp, a conferência do sócio e o link **Abrir print da corrida**. Aparece mesmo que a câmera não tenha lido o carro. Quem tem a permissão de Carros de aplicativo vê o atalho **Ver em Carros de aplicativo**.
 - **Condutores mais prováveis**: até três pessoas, com telefone e percentual, calculados sobre os **10 acessos mais recentes** da placa (de qualquer dia). Entram sócios e externos liberados; passageiro de carro de aplicativo não entra.
-- **Histórico de acessos**: cada passagem do dia, com horário, foto do carro (clique em **Ampliar**) e a tabela **Tipo · Nome · Vínculo · Telefone · Horário** das pessoas ligadas àquela passagem: Associado (com a matrícula), Terceirizado (com a empresa), Freelancer, Liberação pontual ou Carro de aplicativo.
+- **Histórico de acessos**: cada passagem do dia numa linha do tempo (o horário fica à esquerda, no computador), com foto do carro (clique em **Ampliar**) e a tabela **Tipo · Nome · Vínculo · Telefone · Horário** das pessoas ligadas àquela passagem: Associado (com a matrícula), Terceirizado (com a empresa), Freelancer, Liberação pontual ou Carro de aplicativo.
 
 Use o filtro do histórico para procurar por horário, nome, matrícula, empresa ou telefone. **Nova busca** reabre o formulário sem sair da tela.
 
@@ -66,12 +67,12 @@ Os **veículos ativos da frota** com placa cadastrada abrem a cancela automatica
 
 ### Abrir a cancela pela tela (Push manual)
 
-No quadro **Push manual** da mesma tela, informe o **Tempo aberto (seg)** e clique em **Abrir cancela**. O comando vai direto ao equipamento da cancela, sem depender da leitura da placa; o tempo escolhido recebe 5 segundos extras de segurança. A mensagem "Comando enviado ao dispositivo." confirma o envio (a tela não tem como confirmar que a cancela abriu). O comando só chega ao equipamento a partir de um computador na rede do clube.
+No quadro escuro **Cancela da portaria** (Push manual), no alto da mesma tela, informe o **Tempo aberto (seg)** e clique em **Abrir cancela**. O comando vai direto ao equipamento da cancela, sem depender da leitura da placa; o tempo escolhido recebe 5 segundos extras de segurança. A mensagem "Comando enviado ao dispositivo." confirma o envio (a tela não tem como confirmar que a cancela abriu). O comando só chega ao equipamento a partir de um computador na rede do clube.
 
 ## Registrar a saída de um veículo da frota
 <!-- telas: fleet.index -->
 
-Na tela **SIV › Frota** há um cartão para cada veículo ativo, com o selo **No Clube**, **Em rota** ou **Aguardando baixa**. No alto, os números: **Em rota agora**, **Aguardando baixa**, **Saídas hoje**, **Km hoje** e **Km no mês**.
+Na tela **SIV › Frota** há um cartão para cada veículo ativo, com a placa, a quilometragem atual no formato de hodômetro e o selo **No Clube**, **Em rota** ou **Aguardando baixa** — a faixa colorida no topo do cartão repete a situação (verde no clube, amarela em rota, vermelha aguardando baixa). No alto, na faixa escura, os números: **Em rota agora**, **Aguardando baixa**, **Saídas hoje**, **Km hoje** e **Km no mês**.
 
 No cartão de um veículo **No Clube**:
 

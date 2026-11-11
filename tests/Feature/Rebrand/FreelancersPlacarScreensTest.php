@@ -32,7 +32,7 @@ class FreelancersPlacarScreensTest extends TestCase
 
     private function miolo(string $html): string
     {
-        $inicio = strpos($html, '<main>');
+        $inicio = strpos($html, '<main');
         $fim = strpos($html, '<footer');
 
         return substr($html, (int) $inicio, $fim === false ? null : $fim - (int) $inicio);

@@ -31,6 +31,21 @@
 
         @include('partials.alerts')
 
+        {{-- Faixa do módulo (identidade de Compras, 11/11/2026). Situação contada
+             na página; cada atalho filtra a lista. --}}
+        @php
+            $situacaoAtual = request('status');
+            $heroStats = [
+                ['label' => $situacaoAtual ? 'Nesta situação' : 'Mapas na lista', 'value' => $mapas->total()],
+                ['label' => 'Em cotação', 'value' => null, 'href' => route('cotacao.mapas.index', ['status' => 'em_cotacao']), 'current' => $situacaoAtual === 'em_cotacao'],
+                ['label' => 'Rascunhos', 'value' => null, 'href' => route('cotacao.mapas.index', ['status' => 'rascunho']), 'current' => $situacaoAtual === 'rascunho'],
+                ['label' => 'Fechados', 'value' => null, 'href' => route('cotacao.mapas.index', ['status' => 'fechado']), 'current' => $situacaoAtual === 'fechado'],
+            ];
+        @endphp
+        <x-mod-hero variant="buy" eyebrow="Compras" title="Três preços antes de cada compra" :stats="$heroStats" label="Resumo das cotações">
+            O mapa compara os fornecedores item a item e marca o melhor preço de cada um.
+        </x-mod-hero>
+
         @unless ($config['enabled'])
             <div class="rounded-2xl bg-warn-soft p-4" role="status">
                 <p class="font-bold text-warn">Integração com o Questor desligada</p>

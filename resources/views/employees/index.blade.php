@@ -20,6 +20,19 @@
 
         @include('partials.alerts')
 
+        {{-- Faixa do módulo (identidade de Funcionários, 11/11/2026). Cada
+             situação é um atalho do filtro que a tela já tem. --}}
+        @php
+            $situacaoAtual = $filters['situation'] ?? '';
+            $heroStats = [['label' => $situacaoAtual !== '' ? 'Nesta situação' : 'Funcionários na lista', 'value' => $employees->total()]];
+            foreach (['eligible' => 'Aptos', 'absent' => 'Férias ou afastados', 'terminated' => 'Desligados'] as $valor => $rotulo) {
+                $heroStats[] = ['label' => $rotulo, 'value' => null, 'href' => route('employees.index', ['situation' => $valor]), 'current' => $situacaoAtual === $valor];
+            }
+        @endphp
+        <x-mod-hero variant="staff" badge-label="Funcionário" eyebrow="Funcionários" title="Quem é do clube, num cadastro só" :stats="$heroStats" label="Resumo dos funcionários">
+            É por aqui que a portaria reconhece o funcionário no carro de aplicativo e na frota.
+        </x-mod-hero>
+
         <x-search-bar placeholder="Buscar por nome, matrícula ou CPF" :filters="['sector_id', 'situation']">
             <x-slot:controls>
                 <select name="sector_id" class="{{ $selectClass }}" aria-label="Setor">

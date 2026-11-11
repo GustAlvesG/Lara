@@ -23,6 +23,19 @@
 
         @include('partials.alerts')
 
+        {{-- Faixa do módulo (identidade de Torneios, 11/11/2026). --}}
+        @php
+            $heroStats = [
+                ['label' => request('status') ? 'Nesta situação' : 'Torneios na lista', 'value' => $tournaments->total()],
+                ['label' => 'Inscrições abertas (nesta página)', 'value' => $tournaments->getCollection()->filter(fn ($t) => $t->registrationOpen())->count(), 'tone' => 'ok'],
+                ['label' => 'Publicados', 'value' => null, 'href' => route('tournaments.index', ['status' => 'published']), 'current' => request('status') === 'published'],
+                ['label' => 'Rascunhos', 'value' => null, 'href' => route('tournaments.index', ['status' => 'draft']), 'current' => request('status') === 'draft'],
+            ];
+        @endphp
+        <x-mod-hero variant="score" motif="bracket" eyebrow="Torneios" title="Inscrição no site, chave aqui" :stats="$heroStats" label="Resumo dos torneios">
+            O atleta se inscreve e paga pelo site de locação; categorias, chaves e financeiro ficam no Lara.
+        </x-mod-hero>
+
         <x-search-bar :filters="['status']" placeholder="Nome do torneio">
             <x-slot:controls>
                 <label for="filtro-situacao" class="sr-only">Situação</label>

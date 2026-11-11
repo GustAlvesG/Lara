@@ -57,6 +57,10 @@ class SivScreensTest extends TestCase
         $this->assertStringContainsString('action="' . route('parking.show') . '"', $html);
         $this->assertStringContainsString('name="plate"', $html);
         $this->assertStringContainsString('(90%)', $html);
+        // Identidade do SIV (11/11/2026): faixa da câmera, a placa como campo e os números ao lado.
+        $this->assertStringContainsString('siv-night', $html);
+        $this->assertStringContainsString('siv-plate-input', $html);
+        $this->assertStringContainsString('aria-label="Hoje na cancela"', $html);
         $this->assertStringContainsString(route('parking-authorizations.index'), $html);
         $this->assertStringContainsString('aria-label="Páginas de SIV"', $html);
         $this->assertStringNotContainsString('[#A00001]', $html, 'O vermelho fixo saiu da tela; no logo o carmim fica.');
@@ -89,6 +93,9 @@ class SivScreensTest extends TestCase
         $this->assertStringContainsString('data-search="10:00:12 01/10/2026"', $html);
         $this->assertStringContainsString('Nenhum condutor associado a este acesso.', $html);
         $this->assertStringContainsString('2 registros', $html);
+        // Linha do dia: um ponto por passagem, que leva ao registro.
+        $this->assertStringContainsString('href="#acesso-1" class="siv-dot" style="left: 41.67%"', $html);
+        $this->assertStringContainsString('id="acesso-2"', $html);
         // A foto da câmera voltou à Busca: a que veio do FTP abre em tamanho cheio.
         $this->assertStringContainsString('src="' . asset('storage/img_car/RKT4F21/20261001100012.jpg') . '"', $html);
         $this->assertSame(1, substr_count($html, '>Ampliar<'));
@@ -172,6 +179,7 @@ class SivScreensTest extends TestCase
         $this->assertStringContainsString('Strada', $html);
         $this->assertStringContainsString('FUN1A23', $html);
         $this->assertStringContainsString('sem placa cadastrada', $html);
+        $this->assertStringContainsString('class="siv-odo" role="img" aria-label="15.230 km"', $html);
         $this->assertStringContainsString('Aguardando baixa', $html);
         $this->assertStringContainsString('No Clube', $html);
         $this->assertStringContainsString('action="' . route('fleet.return') . '"', $html);

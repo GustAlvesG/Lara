@@ -55,6 +55,39 @@
 
         --plate-band: 138 21 56;
 
+        /* SIV: a "noite da câmera" (faixa escura nos dois temas) e o brilho
+           do leitor de placas. Ver o bloco "SIV" no fim do arquivo. */
+        --siv-night: 9 34 58;
+        --siv-glow: 120 200 255;
+
+        /* Reservas: o verde da quadra (faixa escura nos dois temas) e o
+           saibro da arena. Ver o bloco "Reservas" no fim do arquivo. */
+        --res-court: 16 74 50;
+        --res-clay: 232 146 92;
+
+        /* Externos (crachá), Freelancers (cartão de ponto), Assinaturas e
+           Contratos (tinta de caneta sobre papel): faixas escuras nos dois
+           temas. Ver os blocos de cada módulo no fim do arquivo. */
+        --ext-deep: 27 32 42;
+        --ext-badge: 251 191 36;
+        --freela-deep: 84 39 14;
+        --freela-glow: 255 186 120;
+        --pen-ink: 21 38 82;
+        --pen-glow: 147 180 255;
+
+        /* Segunda leva das faixas (11/11/2026): Compras (cupom), Carteirinhas,
+           Placar e Torneios, Ingressos, RePET, Home Assistant, Bot WhatsApp e
+           HAL, Disparo de E-mails e Funcionários. Iguais nos dois temas. */
+        --buy-deep: 54 45 26;
+        --card-deep: 24 38 66;
+        --score-deep: 20 42 20;
+        --tix-deep: 92 18 44;
+        --rec-deep: 22 22 27;
+        --ha-deep: 50 38 12;
+        --chat-deep: 10 54 46;
+        --mail-deep: 12 46 60;
+        --staff-deep: 52 36 24;
+
         --shadow-card: 0 1px 2px rgb(30 18 21 / .05), 0 6px 20px -12px rgb(30 18 21 / .22);
         --shadow-pop: 0 28px 56px -24px rgb(30 18 21 / .45);
 
@@ -96,6 +129,19 @@
         --a-inicio: 59 21 34;       --a-inicio-ink: 242 140 168;
 
         --plate-band: 158 27 66;
+
+        --siv-night: 8 26 45;
+        --siv-glow: 130 206 255;
+
+        --res-court: 12 56 38;
+        --res-clay: 236 156 104;
+
+        --ext-deep: 22 26 35;
+        --ext-badge: 251 191 36;
+        --freela-deep: 66 30 10;
+        --freela-glow: 255 186 120;
+        --pen-ink: 16 29 64;
+        --pen-glow: 147 180 255;
 
         --shadow-card: 0 1px 2px rgb(0 0 0 / .3), 0 6px 20px -12px rgb(0 0 0 / .7);
         --shadow-pop: 0 28px 56px -24px rgb(0 0 0 / .85);
@@ -442,4 +488,741 @@
     .lara-tables table[data-stack] td[colspan] {
         text-align: center;
     }
+}
+
+/*
+ | SIV (identidade própria desde 11/11/2026, pedido do usuário: "um brand
+ | maior no SIV"). A ideia é a leitura da placa: faixa escura de câmera
+ | (`siv-night`, escura nos dois temas, texto sempre branco), a placa Mercosul
+ | gigante como campo de busca, o visor de câmera em volta (`siv-viewfinder`),
+ | uma linha de leitura que passa uma vez ao abrir (`siv-scan`), a linha do
+ | dia com as passagens (`siv-rail`/`siv-dot`) e o hodômetro da frota
+ | (`siv-odo`). Tudo para com "reduzir movimento".
+ */
+.siv-night {
+    background-color: rgb(var(--siv-night));
+    background-image:
+        radial-gradient(120% 90% at 85% 0%, rgb(var(--siv-glow) / .18), transparent 60%),
+        linear-gradient(rgb(255 255 255 / .045) 1px, transparent 1px),
+        linear-gradient(90deg, rgb(255 255 255 / .045) 1px, transparent 1px);
+    background-size: auto, 32px 32px, 32px 32px;
+    color: #fff;
+}
+
+/* Visor da câmera: quatro cantos em volta da placa. */
+.siv-viewfinder {
+    --vf: rgb(var(--siv-glow) / .9);
+    padding: 16px;
+    background:
+        linear-gradient(var(--vf) 0 0) top left / 24px 3px no-repeat,
+        linear-gradient(var(--vf) 0 0) top left / 3px 24px no-repeat,
+        linear-gradient(var(--vf) 0 0) top right / 24px 3px no-repeat,
+        linear-gradient(var(--vf) 0 0) top right / 3px 24px no-repeat,
+        linear-gradient(var(--vf) 0 0) bottom left / 24px 3px no-repeat,
+        linear-gradient(var(--vf) 0 0) bottom left / 3px 24px no-repeat,
+        linear-gradient(var(--vf) 0 0) bottom right / 24px 3px no-repeat,
+        linear-gradient(var(--vf) 0 0) bottom right / 3px 24px no-repeat;
+}
+
+/* A placa que é o campo de busca. */
+.siv-plate-input {
+    box-shadow: 0 18px 40px -18px rgb(0 0 0 / .7);
+    transition: box-shadow .2s ease, transform .2s ease;
+}
+
+.siv-plate-input:focus-within {
+    box-shadow: 0 0 0 4px rgb(var(--siv-glow) / .55), 0 18px 40px -18px rgb(0 0 0 / .7);
+}
+
+.siv-plate-input input:focus {
+    box-shadow: none;
+    outline: none;
+}
+
+.siv-scan {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 2px;
+    pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(90deg, transparent, rgb(var(--siv-glow)), transparent);
+    box-shadow: 0 0 14px 2px rgb(var(--siv-glow) / .7);
+    animation: siv-scan 1.5s ease-in-out .35s 1 both;
+}
+
+.siv-plate-input:focus-within .siv-scan {
+    animation: siv-scan-focus 1.3s ease-in-out 1 both;
+}
+
+@keyframes siv-scan {
+    0% { top: 0; opacity: 0; }
+    15% { opacity: 1; }
+    85% { opacity: 1; }
+    100% { top: calc(100% - 2px); opacity: 0; }
+}
+
+@keyframes siv-scan-focus {
+    0% { top: 0; opacity: 0; }
+    15% { opacity: 1; }
+    85% { opacity: 1; }
+    100% { top: calc(100% - 2px); opacity: 0; }
+}
+
+/* Linha do dia: 0h a 24h, um ponto por passagem (leva ao registro). */
+.siv-rail {
+    position: relative;
+    height: 44px;
+}
+
+.siv-rail::before {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 2px;
+    border-radius: 2px;
+    background: rgb(255 255 255 / .18);
+}
+
+.siv-dot {
+    position: absolute;
+    top: 50%;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    transform: translate(-50%, -50%);
+}
+
+.siv-dot::after {
+    content: "";
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: rgb(var(--siv-glow));
+    box-shadow: 0 0 0 4px rgb(var(--siv-glow) / .22), 0 0 14px rgb(var(--siv-glow) / .8);
+    transition: transform .15s ease;
+}
+
+.siv-dot:hover::after,
+.siv-dot:focus-visible::after {
+    transform: scale(1.35);
+}
+
+.siv-dot:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+/* Hodômetro: cada dígito numa casa, como no painel do carro. */
+.siv-odo {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-family: theme('fontFamily.mono');
+    font-variant-numeric: tabular-nums;
+}
+
+.siv-odo > span {
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.25em;
+    padding: 3px 0;
+    border-radius: 5px;
+    background: rgb(var(--siv-night));
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.siv-odo > i {
+    margin-left: 4px;
+    color: rgb(var(--ink-3));
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .siv-scan,
+    .siv-plate-input:focus-within .siv-scan {
+        animation: none;
+    }
+
+    .siv-dot::after {
+        transition: none;
+    }
+}
+
+/*
+ | Reservas (identidade própria desde 11/11/2026, na mesma pegada do SIV,
+ | pedido do usuário). A ideia é a quadra: faixa verde com as linhas da
+ | quadra desenhadas (`res-court`, escura nos dois temas, texto sempre
+ | branco), a foto da arena de areia do clube na agenda, a faixa de
+ | ocupação de cada local (`res-strip`) e o "ingresso" da reserva
+ | (`res-ticket`, com o picote).
+ */
+.res-court {
+    position: relative;
+    isolation: isolate;
+    background-color: rgb(var(--res-court));
+    background-image: radial-gradient(110% 90% at 100% 0%, rgb(255 255 255 / .10), transparent 55%);
+    color: #fff;
+}
+
+/* As linhas da quadra: o contorno, a linha do meio e o círculo central. */
+.res-court::before {
+    content: "";
+    position: absolute;
+    inset: 14px;
+    z-index: -1;
+    border: 2px solid rgb(255 255 255 / .14);
+    border-radius: 18px;
+    background: linear-gradient(rgb(255 255 255 / .14), rgb(255 255 255 / .14)) center / 2px 100% no-repeat;
+    pointer-events: none;
+}
+
+.res-court::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    z-index: -1;
+    width: 132px;
+    height: 132px;
+    border: 2px solid rgb(255 255 255 / .14);
+    border-radius: 999px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+/* Foto da arena à direita, fundindo no verde (só na tela larga). */
+.res-court-photo {
+    position: absolute;
+    inset: 0 0 0 auto;
+    z-index: -1;
+    width: 46%;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 45%);
+    mask-image: linear-gradient(to right, transparent, #000 45%);
+    opacity: .55;
+}
+
+.res-court-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Ocupação do dia: uma casa por horário, na cor do estado. */
+.res-strip {
+    display: flex;
+    gap: 3px;
+    height: 10px;
+}
+
+.res-strip > span {
+    flex: 1 1 0;
+    min-width: 4px;
+    border-radius: 3px;
+    background: rgb(var(--line));
+}
+
+.res-strip > [data-s="ok"] { background: rgb(var(--ok)); }
+.res-strip > [data-s="warn"] { background: rgb(var(--warn)); }
+.res-strip > [data-s="lock"] { background: rgb(var(--ink-3)); }
+.res-strip > [data-s="past"] { background: rgb(var(--subtle)); }
+
+/* Na faixa verde, a mesma barra em tons claros. */
+.res-court .res-strip > span { background: rgb(255 255 255 / .18); }
+.res-court .res-strip > [data-s="ok"] { background: rgb(134 239 172); }
+.res-court .res-strip > [data-s="warn"] { background: rgb(var(--res-clay)); }
+.res-court .res-strip > [data-s="lock"] { background: rgb(255 255 255 / .45); }
+
+/* Ingresso da reserva: picote tracejado e os dois recortes laterais. */
+.res-ticket {
+    --notch: 14px;
+    -webkit-mask:
+        radial-gradient(circle var(--notch) at 0 var(--cut, 62%), transparent 98%, #000) left / 51% 100% no-repeat,
+        radial-gradient(circle var(--notch) at 100% var(--cut, 62%), transparent 98%, #000) right / 51% 100% no-repeat;
+    mask:
+        radial-gradient(circle var(--notch) at 0 var(--cut, 62%), transparent 98%, #000) left / 51% 100% no-repeat,
+        radial-gradient(circle var(--notch) at 100% var(--cut, 62%), transparent 98%, #000) right / 51% 100% no-repeat;
+}
+
+.res-perforation {
+    height: 0;
+    margin-inline: 18px;
+    border-top: 2px dashed rgb(255 255 255 / .28);
+}
+
+/* Carimbo do estado no ingresso. */
+.res-stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 2px solid currentColor;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    transform: rotate(-4deg);
+}
+
+/*
+ | Formulário em passos (11/11/2026, UX do preenchimento em Contratos e
+ | Assinaturas): desenho da trilha, do selo e da linha de botões que o
+ | script de signature/documents/partials/steps monta.
+ */
+.lara-stepper {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 18px;
+    border-radius: 20px;
+    background: rgb(var(--surface));
+    box-shadow: var(--shadow-card);
+    scroll-margin-top: calc(var(--split-top) + 8px);
+}
+
+.lara-stepper-count {
+    color: rgb(var(--ink-2));
+    font-size: 13px;
+}
+
+.lara-stepper-count b,
+.lara-stepper-count span {
+    color: rgb(var(--ink));
+    font-weight: 700;
+}
+
+.lara-stepper ol {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 4px;
+}
+
+.lara-stepper li button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 4px 14px 4px 4px;
+    border-radius: 999px;
+    color: rgb(var(--ink-2));
+    font-size: 14px;
+    font-weight: 700;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.lara-stepper li button:hover {
+    background: rgb(var(--subtle));
+    color: rgb(var(--ink));
+}
+
+.lara-stepper li button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 4px rgb(var(--grena-tint));
+}
+
+.lara-stepper-dot {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: rgb(var(--subtle));
+    color: rgb(var(--ink-2));
+    font-family: theme('fontFamily.mono');
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.lara-stepper [data-state="current"] {
+    background: rgb(var(--grena-tint));
+    color: rgb(var(--grena-ink));
+}
+
+.lara-stepper [data-state="current"] .lara-stepper-dot {
+    background: rgb(var(--grena));
+    color: #fff;
+}
+
+.lara-stepper [data-state="done"] .lara-stepper-dot {
+    background: rgb(var(--ok));
+    color: #fff;
+}
+
+.lara-stepper [data-state="error"] {
+    color: rgb(var(--danger));
+}
+
+.lara-stepper [data-state="error"] .lara-stepper-dot {
+    background: rgb(var(--danger));
+    color: #fff;
+}
+
+.lara-stepper [data-state="locked"] {
+    color: rgb(var(--ink-3));
+}
+
+.lara-stepper-bar {
+    height: 4px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgb(var(--subtle));
+}
+
+.lara-stepper-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: rgb(var(--grena));
+    transition: width .3s ease;
+}
+
+.lara-step-tag {
+    margin-bottom: 4px;
+    color: rgb(var(--ink-3));
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+/* A linha de botões fica presa no pé da tela enquanto se preenche. */
+.lara-step-actions {
+    position: sticky;
+    bottom: 12px;
+    z-index: 20;
+    align-items: center;
+    padding: 10px;
+    border-radius: 999px;
+    background: rgb(var(--surface) / .88);
+    box-shadow: var(--shadow-pop);
+    -webkit-backdrop-filter: blur(16px) saturate(1.6);
+    backdrop-filter: blur(16px) saturate(1.6);
+}
+
+@media (max-width: 639px) {
+    .lara-step-actions {
+        bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+        border-radius: 24px;
+    }
+}
+
+.lara-step-back,
+.lara-step-next {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 22px;
+    border-radius: 999px;
+    font-weight: 700;
+    transition: background-color .15s ease, transform .15s ease;
+}
+
+.lara-step-back {
+    color: rgb(var(--ink-2));
+}
+
+.lara-step-back:hover {
+    background: rgb(var(--subtle));
+    color: rgb(var(--ink));
+}
+
+.lara-step-next {
+    background: rgb(var(--grena));
+    color: #fff;
+}
+
+.lara-step-next:hover {
+    background: rgb(var(--grena-hover));
+    transform: translateY(-1px);
+}
+
+.lara-step-next:active {
+    transform: scale(.98);
+}
+
+/*
+ | Faixas dos módulos (11/11/2026, mesma pegada do SIV e de Reservas):
+ | Externos = o crachá (grafite, cordão âmbar), Freelancers = o cartão de
+ | ponto (laranja queimado), Assinaturas e Contratos = tinta de caneta sobre
+ | papel (azul-tinta, assinatura que se desenha uma vez). Escuras nos dois
+ | temas, texto sempre branco.
+ */
+.mod-band {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    color: #fff;
+    background-image:
+        radial-gradient(120% 90% at 100% 0%, rgb(255 255 255 / .10), transparent 58%),
+        linear-gradient(rgb(255 255 255 / .04) 1px, transparent 1px),
+        linear-gradient(90deg, rgb(255 255 255 / .04) 1px, transparent 1px);
+    background-size: auto, 28px 28px, 28px 28px;
+}
+
+.mod-band--ext { background-color: rgb(var(--ext-deep)); }
+.mod-band--freela { background-color: rgb(var(--freela-deep)); }
+.mod-band--pen { background-color: rgb(var(--pen-ink)); }
+
+/* Faixa do cartão de ponto: as linhas horizontais do cartão. */
+.mod-band--freela {
+    background-image:
+        radial-gradient(120% 90% at 100% 0%, rgb(255 255 255 / .10), transparent 58%),
+        repeating-linear-gradient(to bottom, transparent 0 31px, rgb(255 255 255 / .06) 31px 32px);
+    background-size: auto, auto;
+}
+
+/* Papel pautado da faixa de Assinaturas e Contratos. */
+.mod-band--pen {
+    background-image:
+        radial-gradient(120% 90% at 100% 0%, rgb(var(--pen-glow) / .16), transparent 58%),
+        repeating-linear-gradient(to bottom, transparent 0 27px, rgb(255 255 255 / .05) 27px 28px);
+    background-size: auto, auto;
+}
+
+/* O crachá (Externos): cordão, furo e o cartão. */
+.ext-badge {
+    position: relative;
+    width: 168px;
+    padding: 30px 16px 16px;
+    border-radius: 18px;
+    background: #fff;
+    color: #1b2030;
+    box-shadow: 0 24px 48px -20px rgb(0 0 0 / .7);
+}
+
+.ext-badge::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -64px;
+    width: 18px;
+    height: 74px;
+    border-radius: 4px;
+    background: rgb(var(--ext-badge));
+    transform: translateX(-50%);
+}
+
+.ext-badge::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 12px;
+    width: 34px;
+    height: 7px;
+    border-radius: 999px;
+    background: rgb(var(--ext-deep));
+    transform: translateX(-50%);
+}
+
+/* A assinatura que se desenha uma vez ao abrir. */
+.pen-stroke path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 600;
+    stroke-dashoffset: 600;
+    animation: pen-draw 1.8s ease-out .3s forwards;
+}
+
+@keyframes pen-draw {
+    to { stroke-dashoffset: 0; }
+}
+
+/* Linha do tempo de quem assina (Assinaturas e Contratos). */
+.sign-flow {
+    display: flex;
+    flex-direction: column;
+}
+
+.sign-flow > li {
+    position: relative;
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 14px;
+    padding-bottom: 18px;
+}
+
+.sign-flow > li::before {
+    content: "";
+    position: absolute;
+    left: 17px;
+    top: 36px;
+    bottom: 0;
+    width: 2px;
+    background: rgb(var(--line));
+}
+
+.sign-flow > li:last-child {
+    padding-bottom: 0;
+}
+
+.sign-flow > li:last-child::before {
+    display: none;
+}
+
+.sign-flow > li[data-done]::before {
+    background: rgb(var(--ok));
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pen-stroke path {
+        animation: none;
+        stroke-dashoffset: 0;
+    }
+
+    .lara-stepper-bar > span,
+    .lara-step-next {
+        transition: none;
+    }
+
+    .lara-step-next:hover,
+    .lara-step-next:active {
+        transform: none;
+    }
+}
+
+/*
+ | Formulários de Contratos e Assinaturas (11/11/2026, UX do preenchimento):
+ | `lara-form` no <form> põe o asterisco nos rótulos de campo obrigatório e
+ | pinta de vermelho o campo recusado pelo navegador depois que a pessoa
+ | mexeu nele (:user-invalid), sem acusar nada antes da primeira digitação.
+ */
+.lara-form label:has(+ :is(input, select, textarea):required)::after,
+.lara-form label:has(+ div > :is(input, select, textarea):required)::after {
+    content: " *";
+    color: rgb(var(--danger));
+    font-weight: 700;
+}
+
+.lara-form :is(input, select, textarea):user-invalid {
+    border-color: rgb(var(--danger));
+    box-shadow: 0 0 0 4px rgb(var(--danger-soft));
+}
+
+/* Segunda leva das faixas de módulo (11/11/2026): as cores e dois detalhes. */
+.mod-band--buy { background-color: rgb(var(--buy-deep)); }
+.mod-band--card { background-color: rgb(var(--card-deep)); }
+.mod-band--score { background-color: rgb(var(--score-deep)); }
+.mod-band--tix { background-color: rgb(var(--tix-deep)); }
+.mod-band--rec { background-color: rgb(var(--rec-deep)); }
+.mod-band--ha { background-color: rgb(var(--ha-deep)); }
+.mod-band--chat { background-color: rgb(var(--chat-deep)); }
+.mod-band--mail { background-color: rgb(var(--mail-deep)); }
+.mod-band--staff { background-color: rgb(var(--staff-deep)); }
+
+/* O cupom de Compras: borda de baixo serrilhada. */
+.mod-receipt {
+    border-radius: 14px 14px 0 0;
+    -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 16px 100%;
+    mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 16px 100%;
+}
+
+/* O REC do RePET pisca três vezes ao abrir e fica aceso. */
+.mod-rec-dot {
+    animation: mod-rec 1s ease-in-out .4s 3;
+}
+
+@keyframes mod-rec {
+    50% { opacity: .2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mod-rec-dot { animation: none; }
+}
+
+/* ---------- HAL (IA): o painel do chat (11/11/2026) ----------
+   Cabeçalho sempre escuro (nos dois temas), grená profundo com o brilho do
+   anel do robô e linhas finas de visor. O anel "respira" enquanto o HAL está
+   no ar; fora do ar fica cinza e parado. */
+:root {
+    --hal-deep: 40 9 20;
+    --hal-glow: 232 74 110;
+}
+
+.hal-band {
+    position: relative;
+    isolation: isolate;
+    background-color: rgb(var(--hal-deep));
+    background-image:
+        radial-gradient(85% 160% at 0% 0%, rgb(var(--hal-glow) / .30), transparent 62%),
+        repeating-linear-gradient(to bottom, transparent 0 3px, rgb(255 255 255 / .035) 3px 4px);
+    color: #fff;
+}
+
+.hal-ring {
+    border-radius: 9999px;
+    background: rgb(255 255 255 / .08);
+    box-shadow: 0 0 0 2px rgb(var(--hal-glow) / .6), 0 0 18px rgb(var(--hal-glow) / .45);
+    animation: hal-breathe 3.2s ease-in-out infinite;
+}
+
+.hal-ring[data-off] {
+    animation: none;
+    box-shadow: 0 0 0 2px rgb(255 255 255 / .18);
+    filter: grayscale(.7);
+}
+
+@keyframes hal-breathe {
+    50% { box-shadow: 0 0 0 2px rgb(var(--hal-glow) / .35), 0 0 6px rgb(var(--hal-glow) / .18); }
+}
+
+/* Conversa: fundo levemente pontilhado, para separar do cabeçalho e do envio. */
+.hal-thread {
+    background-color: rgb(var(--canvas));
+    background-image: radial-gradient(rgb(var(--line)) 1px, transparent 1.2px);
+    background-size: 18px 18px;
+}
+
+.hal-answer {
+    border-radius: 4px 16px 16px 16px;
+    background: rgb(var(--surface));
+    box-shadow: 0 0 0 1px rgb(var(--line)), 0 1px 2px rgb(0 0 0 / .04);
+}
+
+/* Sugestões do início: sobem 2px no hover e ganham o contorno grená. */
+.hal-chip {
+    transition: transform .15s ease, border-color .15s ease, background-color .15s ease;
+}
+
+.hal-chip:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: rgb(var(--grena));
+}
+
+.hal-chip:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.hal-compose:focus-within {
+    border-color: rgb(var(--grena));
+    box-shadow: 0 0 0 3px rgb(var(--grena) / .14);
+}
+
+.hal-typing span {
+    animation: hal-typing 1.2s ease-in-out infinite;
+}
+
+.hal-typing span:nth-child(2) { animation-delay: .15s; }
+.hal-typing span:nth-child(3) { animation-delay: .3s; }
+
+@keyframes hal-typing {
+    0%, 60%, 100% { transform: translateY(0); opacity: .45; }
+    30% { transform: translateY(-4px); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hal-ring, .hal-typing span { animation: none; }
+    .hal-chip:hover:not(:disabled) { transform: none; }
 }

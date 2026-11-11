@@ -17,23 +17,27 @@
         @include('partials.alerts')
 
         {{-- Push manual --}}
-        <section class="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card sm:flex-row sm:items-end sm:justify-between">
-            <div class="flex items-start gap-3">
-                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style="{{ \App\View\AreaColor::style('portaria') }}">
-                    <x-icon name="arrow-right" class="h-5 w-5" />
-                </span>
-                <div>
-                    <h3 class="font-display text-lg font-semibold tracking-tight text-ink">Push manual</h3>
-                    <p class="text-sm text-ink-2">Abre a cancela diretamente, sem depender da leitura da placa. Tempo selecionado + 5 segundos de segurança.</p>
+        {{-- Painel da cancela (identidade do SIV, 11/11/2026): faixa da câmera
+             e um botão grande, que é o que a portaria procura com pressa. --}}
+        <section class="siv-night relative isolate overflow-hidden rounded-[28px] shadow-card" aria-labelledby="cancela-titulo">
+            <div class="auth-enter flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+                <div class="min-w-0 max-w-xl">
+                    <p class="text-xs font-bold uppercase tracking-[0.18em] text-white/60">Push manual</p>
+                    <h3 id="cancela-titulo" class="mt-2 font-display text-[24px] font-semibold leading-tight tracking-tight sm:text-[28px]">Cancela da portaria</h3>
+                    <p class="mt-2 text-sm text-white/70">Abre a cancela diretamente, sem depender da leitura da placa. Tempo selecionado + 5 segundos de segurança.</p>
                     <p id="manual-push-feedback" class="mt-2 hidden text-sm" aria-live="polite"></p>
                 </div>
-            </div>
-            <div class="flex items-end gap-3">
-                <div>
-                    <label for="manual-push-seconds" class="mb-1 block text-xs font-bold text-ink-2">Tempo aberto (seg)</label>
-                    <x-text-input type="number" id="manual-push-seconds" min="0.1" step="0.1" value="2" class="w-28 font-mono" />
+                <div class="flex items-end gap-4">
+                    <div>
+                        <label for="manual-push-seconds" class="mb-1.5 block text-xs font-bold text-white/70">Tempo aberto (seg)</label>
+                        <input type="number" id="manual-push-seconds" min="0.1" step="0.1" value="2"
+                               class="h-12 w-28 rounded-xl border-white/20 bg-white/10 px-4 font-mono text-lg text-white shadow-none focus:border-white focus:bg-white/15 focus:ring-4 focus:ring-white/20">
+                    </div>
+                    <button type="button" id="manual-push-btn"
+                            class="inline-flex h-14 items-center gap-2.5 rounded-full bg-white px-7 text-base font-bold text-[rgb(var(--siv-night))] shadow-pop transition hover:-translate-y-px hover:bg-white/90 active:translate-y-0 active:scale-[.98] disabled:cursor-wait disabled:opacity-60 motion-reduce:transform-none">
+                        <x-icon name="arrow-right" class="h-5 w-5" /> Abrir cancela
+                    </button>
                 </div>
-                <x-primary-button type="button" id="manual-push-btn"><x-icon name="arrow-right" /> Abrir cancela</x-primary-button>
             </div>
         </section>
 
@@ -128,12 +132,12 @@
                     const seconds = parseFloat(secondsInput.value);
 
                     if (!seconds || seconds <= 0) {
-                        say('Informe um tempo válido em segundos.', 'text-danger');
+                        say('Informe um tempo válido em segundos.', 'text-red-300');
                         return;
                     }
 
                     btn.disabled = true;
-                    say('Enviando...', 'text-ink-3');
+                    say('Enviando...', 'text-white/70');
 
                     // O dispositivo não responde a preflight CORS, então usamos
                     // modo 'no-cors' com Content-Type simples (sem application/json)
@@ -151,11 +155,11 @@
                         })
                     })
                         .then(function () {
-                            say('Comando enviado ao dispositivo.', 'text-ok');
+                            say('Comando enviado ao dispositivo.', 'text-emerald-300');
                         })
                         .catch(function (error) {
                             console.error(error);
-                            say('Falha ao acionar a cancela. Verifique a conexão com o dispositivo.', 'text-danger');
+                            say('Falha ao acionar a cancela. Verifique a conexão com o dispositivo.', 'text-red-300');
                         })
                         .finally(function () {
                             btn.disabled = false;

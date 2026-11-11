@@ -22,6 +22,22 @@
 
         @include('partials.alerts')
 
+        {{-- Faixa do módulo (identidade do Bot WhatsApp, 11/11/2026). --}}
+        @php
+            $fluxosLista = collect($fluxos);
+            $heroStats = [
+                ['label' => 'Fluxos', 'value' => $fluxosLista->count()],
+                ['label' => 'Ativos', 'value' => $fluxosLista->filter(fn ($f) => $f['erros'] === [] && $f['model']->active)->count(), 'tone' => 'ok'],
+                ['label' => 'Com problemas', 'value' => $fluxosLista->filter(fn ($f) => $f['erros'] !== [])->count(), 'tone' => $fluxosLista->contains(fn ($f) => $f['erros'] !== []) ? 'danger' : null],
+            ];
+            if (auth()->user()?->can(\App\Authorization\Permissions::BOT_WHATSAPP_OCORRENCIAS)) {
+                $heroStats[] = ['label' => 'Transferências e encerramentos', 'value' => null, 'href' => route('poli-bot.events.index')];
+            }
+        @endphp
+        <x-mod-hero variant="chat" eyebrow="Bot WhatsApp" title="A conversa que atende antes da secretaria" :stats="$heroStats" label="Resumo do Bot WhatsApp">
+            Cada fluxo diz o que o bot pergunta, como confere a resposta e quando passa para uma pessoa.
+        </x-mod-hero>
+
         @if ($errors->any())
             <div class="rounded-2xl bg-danger-soft p-4 text-sm text-danger" role="alert">
                 @foreach ($errors->all() as $erro) <p>{{ $erro }}</p> @endforeach

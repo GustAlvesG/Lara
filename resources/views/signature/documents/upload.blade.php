@@ -17,7 +17,7 @@
 
         @include('partials.alerts')
 
-        <form action="{{ route('signature-documents.upload.store') }}" method="POST" enctype="multipart/form-data">
+        <form action="{{ route('signature-documents.upload.store') }}" method="POST" enctype="multipart/form-data" class="lara-form">
             @csrf
 
             <div class="bg-surface rounded-card shadow-card p-6 space-y-5 mb-6"

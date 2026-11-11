@@ -160,7 +160,7 @@ O mesmo papel timbrado sai no **Word dos contratos** (botão **Word** na tela do
 ## Emitir um documento para assinatura no balcão
 <!-- telas: signature-documents.index -->
 
-Em **Assinaturas › Documentos**, clique em **Novo documento** e escolha o modelo. O formulário vai em passos: **1. Documento**, **2. Signatários**, **3. Dados do documento**, **4. Anexos**. Use **Continuar** e **Voltar**, ou clique no nome do passo, no alto.
+Em **Assinaturas › Documentos**, clique em **Novo documento** e escolha o modelo nos cartões (com muitos modelos, há uma busca pelo nome); **Enviar documento pronto (PDF)** é o cartão tracejado do alto. O modelo escolhido fica num cartão acima do formulário, com **Trocar modelo**. O formulário vai em passos: **1. Documento**, **2. Signatários**, **3. Dados do documento**, **4. Anexos**. Use **Continuar** e **Voltar**, ou clique no nome do passo, no alto. Em todo formulário em passos, a trilha no alto mostra **Passo N de M**, o nome de cada passo e uma barra; o passo já preenchido ganha **✓**, o que voltou com erro ganha **!**. Os botões **Voltar** e **Continuar: <próximo passo>** ficam presos no pé da tela, e campo obrigatório tem **\***: se ficar vazio ou errado depois de você mexer nele, a borda fica vermelha.
 
 1. **Documento**: confira o título.
 2. **Signatários**: cada pessoa tem um cartão. Se o modelo tem partes, comece por **Assina como**. Digite o nome, o título ou o CPF em **Buscar associado** e clique no resultado: nome, CPF, e-mail e telefone são preenchidos. Pelo título aparecem o titular e os dependentes. Quem não é associado é digitado à mão. Para uma testemunha ou responsável legal, use **+ Acrescentar signatário** (até cinco). Para diretor, use **Diretor do clube**.

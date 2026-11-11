@@ -94,11 +94,13 @@ class EspacosSociaisScreensTest extends TestCase
             'overdueContact' => 1,
         ]);
 
-        $this->assertStringContainsString('1 com contato atrasado', $html);
-        $this->assertStringContainsString('2 aguardando contato', $html);
-
-        $this->assertStringContainsString('3 em análise', $html);
-        $this->assertStringContainsString('1 aguardando pagamento', $html);
+        // A fila em números grandes na faixa da quadra (11/11/2026); cada um filtra a lista.
+        $fila = fn (int $n, string $texto) => '#>' . $n . '</span>\s*<span[^>]*>' . preg_quote($texto, '#') . ' #';
+        $this->assertMatchesRegularExpression($fila(1, 'com contato atrasado'), $html);
+        $this->assertMatchesRegularExpression($fila(2, 'aguardando contato'), $html);
+        $this->assertMatchesRegularExpression($fila(3, 'em análise'), $html);
+        $this->assertMatchesRegularExpression($fila(1, 'aguardando pagamento'), $html);
+        $this->assertStringContainsString('aria-label="Fila dos espaços sociais"', $html);
         $this->assertStringContainsString('Em análise', $html);
         $this->assertStringContainsString('R$ 440,00', $html);
         $this->assertStringContainsString(route('social-booking.beverages.index'), $html);

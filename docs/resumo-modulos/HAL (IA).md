@@ -8,6 +8,24 @@ Documentação completa (timeouts, Apache, rollout, consultas de qualidade):
 Não confundir: **O Lara** é o sistema; **o HAL** (IA) é o agente do estatuto que este módulo
 consulta. O usuário "O Lara" da Poli é do [Bot WhatsApp](Bot%20WhatsApp.md), outro módulo.
 
+
+## Painel e menu (11/11/2026)
+
+- **Fora do painel de Módulos.** O item `lara.index` continua em `App\View\Navigation::links()`
+  com `'panel' => false`: sai de `groups` (painel de Módulos e Organizar menu) e fica no `index`
+  (busca Ctrl+K, favoritos, recentes) e em `destinations()` (os `<!-- telas: lara.index -->` dos
+  guias). `/lara` segue só redirecionando com o balão aberto. Teste:
+  `NavigationMenuTest::test_hal_fica_fora_do_painel_de_modulos_mas_na_busca`.
+- **Visual do painel** (`partials/lara-widget.blade.php`, CSS `hal-*` no fim do `app.css`):
+  cabeçalho sempre escuro (`hal-band`, tokens `--hal-deep`/`--hal-glow`), anel do robô que
+  respira no ar e fica cinza fora do ar (`hal-ring[data-off]`), estado em texto (Conectando / No ar
+  / Fora do ar agora / Desativado), "Nesta tela: módulo › página" (de `$navCurrent`, só exibição;
+  o contexto enviado continua sendo só nomes de rota), conversa em fundo pontilhado
+  (`hal-thread`) com respostas em cartão (`hal-answer`), esqueleto ao carregar, sugestões no
+  início (`sugerir()` pergunta direto; a primeira só dentro de um módulo), "Copiar" em cada
+  resposta (`copiar(i)`), campo `hal-compose` com contador perto do `max_input_chars`.
+  Respostas continuam com `x-text`, nunca `x-html`.
+
 ## Em uma frase
 
 Chat interno (rotas `lara.*`, permissão `lara`) que repassa a pergunta do funcionário, por HTTP

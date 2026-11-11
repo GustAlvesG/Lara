@@ -42,6 +42,21 @@
 
         @include('partials.alerts')
 
+        {{-- Faixa do módulo (identidade de Assinaturas, 11/11/2026): o total da
+             lista e atalhos para as situações que pedem ação. --}}
+        @php
+            $atalho = fn (string $valor) => url()->current() . '?' . http_build_query(['status' => $valor]);
+            $heroStats = [
+                ['label' => $status ? 'Nesta situação' : 'Nesta lista', 'value' => $documents->total()],
+                ['label' => 'Aguardando assinatura', 'value' => null, 'href' => $atalho(Doc::STATUS_AWAITING_SIGNATURE), 'current' => $status === Doc::STATUS_AWAITING_SIGNATURE],
+                ['label' => 'Aguardando revisão', 'value' => null, 'href' => $atalho(Doc::FILTER_AWAITING_REVIEW), 'current' => $status === Doc::FILTER_AWAITING_REVIEW],
+                ['label' => 'Aguardando diretoria', 'value' => null, 'href' => $atalho('diretoria'), 'current' => $status === 'diretoria'],
+            ];
+        @endphp
+        <x-mod-hero variant="pen" :eyebrow="$contractsTab ? 'Contratos' : 'Assinaturas'" :title="$contractsTab ? 'Contratos colhendo assinaturas' : 'Assinado no balcão, guardado com prova'" :stats="$heroStats" label="Resumo dos documentos">
+            Tablet do balcão, link por e-mail ou gov.br: cada assinatura fica registrada com a trilha de auditoria.
+        </x-mod-hero>
+
         <x-search-bar :filters="['status', 'modelo', 'de', 'ate', 'meus', 'arquivados']" placeholder="Título, modelo, signatário, e-mail, CPF, código, nº do contrato, contratada ou CNPJ">
             <x-slot:controls>
                 <label for="status" class="sr-only">Situação</label>

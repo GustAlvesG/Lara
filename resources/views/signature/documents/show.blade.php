@@ -5,27 +5,88 @@
 
         @include('partials.alerts')
 
+        {{--
+            Andamento do documento (exibição, 11/11/2026): em que fase ele está
+            (rascunho → liberado → assinado → finalizado) e quantos já assinaram,
+            antes de qualquer detalhe. Recusado, cancelado ou vencido marcam a
+            fase em que pararam.
+        --}}
+        @php
+            $D = \App\Models\SignatureDocument::class;
+            $S = \App\Models\SignatureSigner::class;
+            $fases = ['Rascunho', 'Liberado para assinar', 'Assinado', 'Finalizado'];
+            $parou = in_array($document->status, [$D::STATUS_REFUSED, $D::STATUS_CANCELED, $D::STATUS_EXPIRED], true);
+            $fase = match (true) {
+                $document->status === $D::STATUS_FINALIZED => $document->awaitsReview() ? 2 : 3,
+                $document->status === $D::STATUS_SIGNED => 2,
+                $document->status === $D::STATUS_AWAITING_SIGNATURE => 1,
+                $parou => $document->isFrozen() ? 1 : 0,
+                default => 0,
+            };
+            $totalSign = $document->signers->count();
+            $assinaram = $document->signers->where('status', $S::STATUS_SIGNED)->count();
+        @endphp
+        <section class="mod-band mod-band--pen rounded-[28px] shadow-card" aria-label="Andamento do documento">
+            <div class="auth-enter flex flex-col gap-7 p-6 sm:p-8">
+                <div class="flex flex-wrap items-end justify-between gap-6">
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold uppercase tracking-[0.18em] text-white/60">
+                            {{ $document->template?->name ?? 'Documento enviado pronto' }}{{ $document->validation_code ? ' · ' . $document->validation_code : '' }}
+                        </p>
+                        <p class="mt-2 font-display text-[26px] font-semibold leading-tight tracking-tight sm:text-[32px]">{{ $document->statusLabel() }}</p>
+                    </div>
+                    @if($totalSign)
+                        <div class="w-full max-w-xs">
+                            <p class="font-mono text-[34px] font-semibold leading-none">{{ $assinaram }}<span class="text-white/50">/{{ $totalSign }}</span></p>
+                            <p class="mt-1 text-sm text-white/70">{{ $totalSign === 1 ? 'assinatura' : 'assinaturas' }}</p>
+                            <div class="mt-3 h-2 overflow-hidden rounded-full bg-white/15" role="meter" aria-label="Assinaturas colhidas" aria-valuemin="0" aria-valuemax="{{ $totalSign }}" aria-valuenow="{{ $assinaram }}">
+                                <div class="h-full rounded-full bg-[rgb(var(--pen-glow))]" style="width: {{ $assinaram / $totalSign * 100 }}%"></div>
+                            </div>
+                        </div>
+                    @endif
+                </div>
+
+                <ol class="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Fases do documento">
+                    @foreach($fases as $i => $nomeFase)
+                        @php
+                            $estadoFase = $parou && $i === $fase ? 'parou' : ($i < $fase || ($i === $fase && $i === 3) ? 'feito' : ($i === $fase ? 'atual' : 'depois'));
+                        @endphp
+                        <li class="flex items-center gap-2.5" @if($i === $fase) aria-current="step" @endif>
+                            <span @class([
+                                'grid h-8 w-8 shrink-0 place-items-center rounded-full font-mono text-xs font-bold',
+                                'bg-[rgb(134_239_172)] text-[rgb(var(--pen-ink))]' => $estadoFase === 'feito',
+                                'bg-white text-[rgb(var(--pen-ink))] ring-4 ring-white/25' => $estadoFase === 'atual',
+                                'bg-[rgb(252_165_165)] text-[rgb(var(--pen-ink))]' => $estadoFase === 'parou',
+                                'bg-white/10 text-white/60' => $estadoFase === 'depois',
+                            ]) aria-hidden="true">{{ $estadoFase === 'feito' ? '✓' : ($estadoFase === 'parou' ? '✕' : $i + 1) }}</span>
+                            <span class="text-sm font-semibold {{ $estadoFase === 'depois' ? 'text-white/55' : 'text-white' }}">{{ $nomeFase }}</span>
+                        </li>
+                    @endforeach
+                </ol>
+            </div>
+        </section>
+
         <div class="flex flex-wrap items-center justify-between gap-3">
             <span></span>
 
             <div class="flex flex-wrap gap-3">
                 @if($document->isUploaded())
                     <a href="{{ \App\Support\DocumentRoutes::route('pdf', [$document, 'versao' => 'enviado']) }}" target="_blank"
-                       class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
+                       class="inline-flex h-11 items-center rounded-full border border-line-strong bg-surface px-5 text-sm font-bold text-ink no-underline transition hover:-translate-y-px hover:bg-subtle active:translate-y-0 active:scale-[.98] motion-reduce:transform-none">
                         PDF enviado
                     </a>
                 @endif
 
                 @if($document->original_path)
                     <a href="{{ \App\Support\DocumentRoutes::route('pdf', $document) }}" target="_blank"
-                       class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
+                       class="inline-flex h-11 items-center rounded-full border border-line-strong bg-surface px-5 text-sm font-bold text-ink no-underline transition hover:-translate-y-px hover:bg-subtle active:translate-y-0 active:scale-[.98] motion-reduce:transform-none">
                         PDF original
                     </a>
                 @endif
 
                 @if($document->final_path)
                     <a href="{{ \App\Support\DocumentRoutes::route('pdf', [$document, 'versao' => 'final']) }}" target="_blank"
-                       class="px-5 py-2.5 rounded-full font-bold text-sm bg-ok text-white dark:text-canvas hover:bg-ok/90 transition">
+                       class="inline-flex h-11 items-center gap-2 rounded-full bg-ok px-5 text-sm font-bold text-white no-underline transition hover:-translate-y-px hover:opacity-90 active:translate-y-0 active:scale-[.98] dark:text-canvas motion-reduce:transform-none">
                         PDF assinado
                     </a>
                 @endif
@@ -33,21 +94,21 @@
                 @if($document->report_path)
                     {{-- Assinado pelo gov.br: o manifesto é este PDF à parte — ver FinalizeSignatureDocument. --}}
                     <a href="{{ \App\Support\DocumentRoutes::route('pdf', [$document, 'versao' => 'relatorio']) }}" target="_blank"
-                       class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
+                       class="inline-flex h-11 items-center rounded-full border border-line-strong bg-surface px-5 text-sm font-bold text-ink no-underline transition hover:-translate-y-px hover:bg-subtle active:translate-y-0 active:scale-[.98] motion-reduce:transform-none">
                         Relatório gov.br
                     </a>
                 @endif
 
                 @can('update', $document)
                     <a href="{{ \App\Support\DocumentRoutes::route('edit', $document) }}"
-                       class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
+                       class="inline-flex h-11 items-center rounded-full border border-line-strong bg-surface px-5 text-sm font-bold text-ink no-underline transition hover:-translate-y-px hover:bg-subtle active:translate-y-0 active:scale-[.98] motion-reduce:transform-none">
                         Editar
                     </a>
 
                     <form method="POST" action="{{ \App\Support\DocumentRoutes::route('freeze', $document) }}"
                           onsubmit="return confirm('Congelar o documento? Depois disso o texto e os dados não mudam mais — para corrigir algo será preciso cancelar e emitir outro.')">
                         @csrf
-                        <button type="submit" class="px-5 py-2.5 bg-grena text-white rounded-full font-bold text-sm hover:bg-grena-hover transition">
+                        <button type="submit" class="inline-flex h-11 items-center rounded-full bg-grena px-5 text-sm font-bold text-white transition hover:-translate-y-px hover:bg-grena-hover active:translate-y-0 active:scale-[.98] motion-reduce:transform-none">
                             Congelar e liberar
                         </button>
                     </form>
@@ -59,7 +120,7 @@
                               onsubmit="return confirm('Cancelar este documento? A sessão aberta no tablet será encerrada.')">
                             @csrf
                             <input type="hidden" name="reason" value="Cancelado pelo atendente">
-                            <button type="submit" class="px-5 py-2.5 rounded-full font-bold text-sm text-danger hover:bg-danger-soft transition">
+                            <button type="submit" class="inline-flex h-11 items-center rounded-full px-5 text-sm font-bold text-danger transition hover:bg-danger-soft">
                                 Cancelar
                             </button>
                         </form>
@@ -72,7 +133,7 @@
                         <form method="POST" action="{{ \App\Support\DocumentRoutes::route('unhide', $document) }}">
                             @csrf
                             @method('DELETE')
-                            <button type="submit" class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
+                            <button type="submit" class="inline-flex h-11 items-center rounded-full border border-line-strong bg-surface px-5 text-sm font-bold text-ink no-underline transition hover:-translate-y-px hover:bg-subtle active:translate-y-0 active:scale-[.98] motion-reduce:transform-none">
                                 Desarquivar
                             </button>
                         </form>
@@ -80,7 +141,7 @@
                         <form method="POST" action="{{ \App\Support\DocumentRoutes::route('hide', $document) }}"
                               onsubmit="return confirm('Arquivar este documento? Ele sai da lista de documentos (fica no filtro &quot;Arquivados&quot;). Nada mais muda: a situação continua a mesma.')">
                             @csrf
-                            <button type="submit" class="px-5 py-2.5 rounded-full font-bold text-sm bg-subtle text-ink hover:bg-line transition">
+                            <button type="submit" class="inline-flex h-11 items-center rounded-full border border-line-strong bg-surface px-5 text-sm font-bold text-ink no-underline transition hover:-translate-y-px hover:bg-subtle active:translate-y-0 active:scale-[.98] motion-reduce:transform-none">
                                 Arquivar
                             </button>
                         </form>
@@ -294,12 +355,22 @@
             <div class="split-pane space-y-6">
                 <div class="bg-surface rounded-card shadow-card p-6"
                      data-signers-box>
-                    <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider mb-4">Signatários</h3>
+                    <h3 class="mb-4 font-display text-lg font-semibold tracking-tight text-ink">Quem assina</h3>
 
-                    <ol class="space-y-4">
+                    <ol class="sign-flow">
                         @foreach($document->signers as $signer)
-                            <li class="rounded-xl border border-line p-4"
-                                data-signer-card="{{ $signer->id }}">
+                            @php
+                                $assinou = $signer->status === \App\Models\SignatureSigner::STATUS_SIGNED;
+                                $recusou = in_array($signer->status, [\App\Models\SignatureSigner::STATUS_REFUSED, \App\Models\SignatureSigner::STATUS_CANCELED, \App\Models\SignatureSigner::STATUS_EXPIRED], true);
+                            @endphp
+                            <li data-signer-card="{{ $signer->id }}" @if($assinou) data-done @endif>
+                                <span @class([
+                                    'relative z-[1] grid h-9 w-9 place-items-center rounded-full font-mono text-sm font-bold ring-4 ring-surface',
+                                    'bg-ok text-white dark:text-canvas' => $assinou,
+                                    'bg-danger text-white dark:text-canvas' => $recusou,
+                                    'bg-subtle text-ink-2' => ! $assinou && ! $recusou,
+                                ]) aria-hidden="true">{{ $assinou ? '✓' : ($recusou ? '✕' : $loop->iteration) }}</span>
+                                <div class="min-w-0 rounded-xl border border-line p-4">
                                 <div class="flex items-start justify-between gap-2">
                                     <div>
                                         <div class="font-semibold text-ink text-sm">{{ $signer->name }}</div>
@@ -400,6 +471,7 @@
                                         @endcan
                                     </div>
                                 @endif
+                                </div>
                             </li>
                         @endforeach
                     </ol>

@@ -19,18 +19,21 @@ O chat é liberado por permissão. Quem libera é a TI ou a Gerência, na tela *
 |---|---|
 | Ver o balão e conversar com o HAL | Chat com o HAL (grupo **HAL (IA)**) |
 
-Sem essa permissão, o balão não aparece e o item **HAL (IA)** não está no menu. A liberação é feita aos poucos, por setor. A permissão só dá acesso ao chat: o que o HAL responde sobre avisos continua seguindo o que foi dirigido a você, e ele não abre para você nenhuma tela que a sua permissão não abra.
+Sem essa permissão, o balão não aparece e o HAL não aparece na busca rápida. A liberação é feita aos poucos, por setor. A permissão só dá acesso ao chat: o que o HAL responde sobre avisos continua seguindo o que foi dirigido a você, e ele não abre para você nenhuma tela que a sua permissão não abra.
 
 ## Abrir o chat com o HAL
 <!-- telas: lara.index -->
 
-Há três jeitos de abrir o chat:
+Há dois jeitos de abrir o chat:
 
 1. Clicar no **robozinho que acena**, no canto inferior direito de qualquer tela. No celular, ele fica logo acima da barra flutuante de baixo. Quando chega uma resposta com o painel fechado, aparece um pontinho grená no alto dele.
-2. Clicar em **HAL (IA)** no menu.
-3. Procurar "HAL" na busca rápida (Ctrl+K).
+2. Procurar "HAL" na busca rápida (Ctrl+K). Também dá para favoritar.
 
-Em todos os casos, você continua na tela onde estava e o painel do HAL se abre à direita (no celular, ocupa a tela inteira). No topo do painel aparece "HAL" e, quando ele está pronto, "Disponível".
+Desde 11/11/2026 o HAL não aparece mais no painel do botão **Módulos**: ele não é um módulo, é o assistente de toda tela.
+
+Em todos os casos, você continua na tela onde estava e o painel do HAL se abre à direita (no celular, ocupa a tela inteira). No topo, na faixa escura, aparece "HAL" e o estado dele: **No ar** (pontinho verde), **Fora do ar agora** (amarelo) ou **Desativado**. Logo abaixo, **Nesta tela:** mostra o módulo e a página em que você está, que é o que o HAL sabe sobre onde você pergunta.
+
+Com a conversa vazia, o painel mostra sugestões em **Comece por aqui** (por exemplo, "Como faço o que preciso nesta tela?"). Clique numa para perguntar direto.
 
 Para fechar, clique no **X** no canto do painel ou aperte **Esc**. O painel acompanha você: se ficar aberto e você trocar de tela, ele continua aberto na tela seguinte, com a mesma conversa.
 
@@ -41,9 +44,9 @@ Se uma resposta chegar com o painel fechado, aparece um pontinho grená no alto 
 
 Com o painel do HAL aberto (o robozinho no canto inferior direito):
 
-1. Escreva a pergunta no campo **Escreva sua pergunta…**, no pé do painel.
+1. Escreva a pergunta no campo **Pergunte ao HAL…**, no pé do painel. Perto do limite de tamanho, aparece um contador de caracteres.
 2. Aperte **Enter** ou clique no botão de enviar (a setinha). Para pular linha sem enviar, use **Shift + Enter**.
-3. Aguarde: aparecem três pontinhos enquanto ele pensa. Depois de 5 segundos, aparece um contador. A resposta pode levar até cerca de 30 segundos.
+3. Aguarde: aparecem três pontinhos e **Pensando** enquanto ele trabalha. Depois de 5 segundos, aparece um contador. A resposta pode levar até cerca de 30 segundos.
 
 Dicas para uma boa resposta:
 
@@ -99,7 +102,7 @@ Se a informação estiver desatualizada no InfoClube ou num aviso, a resposta ta
 
 ## Quando confiar na resposta do HAL
 
-Toda resposta do HAL é gerada por inteligência artificial, e o próprio painel avisa no rodapé: "Respostas geradas por IA — em caso de dúvida, confirme com o setor."
+Toda resposta do HAL é gerada por inteligência artificial, e o próprio painel avisa no rodapé: "Respostas de IA: na dúvida, confirme com o setor." Para levar uma resposta para outro lugar (um e-mail, um aviso), passe o mouse sobre ela e clique em **Copiar**, embaixo da resposta.
 
 Na prática:
 

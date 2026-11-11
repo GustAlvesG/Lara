@@ -4,6 +4,36 @@ Documentação completa (regras, garantias, configuração, modo sem HTTPS): [do
 Guia do usuário: dentro do sistema, em **Assinaturas → Guia** (`resources/views/signature/guide/content.blade.php`
 gera a página e o PDF — mudou o fluxo, mude o guia).
 
+
+## Identidade visual (11/11/2026)
+
+Pedido do usuário: Externos, Freelancers, Assinaturas e Contratos na mesma pegada do SIV e de
+Reservas. Peças compartilhadas:
+
+- `x-mod-hero` (`resources/views/components/mod-hero.blade.php`): faixa escura (`mod-band`, tokens
+  `--ext-deep`/`--ext-badge`, `--freela-deep`/`--freela-glow`, `--pen-ink`/`--pen-glow` em
+  `app.css`) com título, texto e números (`stats`: label, value, href, tone, current; `value` nulo
+  vira um atalho com seta). À direita, no lg+, o objeto do módulo: o crachá (`ext`), o cartão de
+  ponto (`freela`) ou a folha com a assinatura que se desenha uma vez (`pen`, `pen-stroke`).
+  Os números são os que a tela já tem — o componente não consulta nada.
+- Formulário em passos (`signature/documents/partials/steps`, usado por documento, contrato,
+  modelo de contrato e editor): trilha `lara-stepper` (Passo N de M, ✓ feito, ! erro do servidor
+  — some ao mexer no passo —, barra), selo `lara-step-tag` em cada cartão, botões presos no pé
+  (`lara-step-actions`, acima da doca no celular) com "Continuar: <próximo>", foco no 1º campo do
+  passo. Mesmas regras de antes (não avança com campo inválido, Enter avança, abre no passo com
+  erro, `data-step-start`, `data-steps-free`, `data-step-current`).
+- `lara-form` no <form>: asterisco em rótulo de campo `required` (rótulo seguido do campo, ou de
+  um div com o campo) e borda vermelha em `:user-invalid`.
+
+Em Assinaturas: a lista abre com a faixa (total da lista e atalhos para Aguardando assinatura,
+Aguardando revisão e Aguardando diretoria — sem contagem, a tela não conta por situação). Novo
+documento: modelos em cartões (busca com mais de 6), PDF pronto em cartão tracejado, modelo
+escolhido em cartão com "Trocar modelo". A tela do documento abre com a faixa de andamento (fase
+Rascunho → Liberado → Assinado → Finalizado, "Assinado*" em revisão fica em Assinado; recusado,
+cancelado e vencido marcam ✕ na fase em que pararam; N/M assinaturas) e "Quem assina" virou linha
+do tempo (`sign-flow`: ordem, ✓ assinou, ✕ recusou/cancelou/venceu). `data-signer-card`,
+`data-signer-status` e `data-signer-live` continuam no `<li>` (o acompanhamento ao vivo usa).
+
 ## Em uma frase
 
 Assinatura eletrônica **avançada** (Lei 14.063/2020, sem ICP-Brasil) num **tablet do balcão**: o atendente

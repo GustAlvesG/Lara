@@ -41,6 +41,17 @@
 
         @include('partials.alerts')
 
+        {{-- Faixa do módulo (identidade de Carteirinhas, 11/11/2026). Fora da impressão. --}}
+        @php
+            $heroStats = [['label' => 'Modelos de cartão', 'value' => $templates->count()]];
+            if (auth()->user()?->can(\App\Authorization\Permissions::CARTEIRINHAS)) {
+                $heroStats[] = ['label' => 'Modelos', 'value' => null, 'href' => route('card-templates.index')];
+            }
+        @endphp
+        <x-mod-hero variant="card" eyebrow="Carteirinhas" title="O cartão do sócio, impresso na hora" :stats="$heroStats" label="Resumo das carteirinhas" class="print:hidden">
+            Escolha o modelo, preencha, tire a foto e mande para a impressora de PVC.
+        </x-mod-hero>
+
         @if($templates->isEmpty())
             <x-empty-state icon="card">
                 Nenhum modelo de carteirinha ativo.

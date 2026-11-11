@@ -14,6 +14,21 @@
 
         @include('partials.alerts')
 
+        {{-- Faixa do módulo (identidade de Freelancers, 11/11/2026). Os números
+             saem da própria lista (vem inteira). --}}
+        @php
+            $excesso = $freelancers->filter(fn ($f) => $f->exceeds_weekly_limit)->count();
+            $incompletos = $freelancers->reject(fn ($f) => $f->hasCompleteContractData())->count();
+            $heroStats = [
+                ['label' => 'Freelancers cadastrados', 'value' => $freelancers->count()],
+                ['label' => 'Com excesso de serviços', 'value' => $excesso, 'tone' => $excesso ? 'warn' : null],
+                ['label' => 'Cadastro incompleto', 'value' => $incompletos, 'tone' => $incompletos ? 'danger' : null],
+            ];
+        @endphp
+        <x-mod-hero variant="freela" eyebrow="Freelancers" title="Quem trabalha nos eventos do clube" label="Resumo dos freelancers" :stats="$heroStats">
+            Cadastro, funções e quantos serviços cada um fez. Cadastro incompleto não entra em contrato.
+        </x-mod-hero>
+
         @if($freelancers->isEmpty())
             <x-empty-state icon="user">
                 Nenhum freelancer encontrado.

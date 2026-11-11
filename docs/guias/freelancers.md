@@ -13,6 +13,14 @@ O contrato também é o que libera a entrada do freelancer na portaria e o que d
 
 Quem usa: a Secretaria e o Comercial (cadastro e contratos), a coordenação do Comercial (validação e lotes), a Gerência (aprovação), o Financeiro (pagamento) e quem atende o freelancer no tablet.
 
+
+## Os números do alto (Freelancers e Serviços / Contratos)
+<!-- telas: freelancers.index -->
+
+Desde 11/11/2026, clicar em **Freelancers** no botão **Módulos** abre direto em **Serviços / Contratos** (é a primeira aba do módulo). O cadastro de pessoas continua na aba **Freelancers**.
+
+Em **Freelancers › Freelancers**, a faixa laranja do alto mostra quantos freelancers estão cadastrados, quantos estão **com excesso de serviços** (mais serviços que o limite numa janela de 7 dias) e quantos estão com **cadastro incompleto** (esses não entram em contrato até completar). Em **Freelancers › Serviços / Contratos**, a mesma faixa mostra quantos serviços há na lista (ou na busca) e quantos, nesta página, passam do limite semanal. **Em massa** e **Novo serviço** ficam no alto, à direita.
+
 ## Quem faz o quê
 
 Cada tela pede uma permissão do grupo **Freelancers**. Quem libera é a TI ou a Gerência, na tela **Setores** (ou só para uma pessoa, na tela **Usuários**); o coordenador do setor pede a liberação e coloca a equipe no setor pela tela **Meu setor**.

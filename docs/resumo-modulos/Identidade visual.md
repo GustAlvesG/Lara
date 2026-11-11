@@ -198,6 +198,18 @@ módulo mudou junto, sem mexer na lógica de nenhuma:
 - **Busca** (`x-search-bar`): campo de 48px em pílula com sombra; botão Buscar da mesma altura.
 - **Lista vazia** (`x-empty-state`): centrada, símbolo num círculo grená claro.
 - **Miolo** (`x-page`): respiro maior (`gap-5`, `pt-8` no sm+).
+- **Faixa do módulo** (`x-mod-hero`, 11/11/2026): no alto da tela inicial de cada módulo, escura
+  nos dois temas, com números que a tela já tem (com `href`, viram atalho; `value` nulo = atalho com
+  seta) e, no lg+, o objeto do módulo. `variant` dá a cor, `motif` o objeto (padrão do variant):
+  `ext` crachá (Externos), `staff` crachá "Funcionário" (Funcionários), `freela` cartão de ponto
+  (Freelancers), `pen` assinatura (Assinaturas, Contratos), `buy` cupom de cotação (Compras),
+  `card` cartão do sócio com o logo (Carteirinhas), `score` painel de LED (Placar) ou `motif=bracket`
+  chave (Torneios), `tix` ingresso (Ingressos), `rec` vídeo gravando (RePET), `ha` lâmpada (Home
+  Assistant), `chat` conversa (Bot WhatsApp), `mail` envelope (Disparo de E-mails). SIV e Reservas
+  têm faixa própria (`siv-night`, `res-court`). HAL fica sem faixa: não tem tela, é o painel do
+  balão, com cabeçalho escuro próprio (`hal-band`, 11/11/2026) e fora do painel de Módulos.
+- **Camadas da barra de cima:** a ilha leva `z-10` porque o `backdrop-blur` faz da ilha e da doca
+  (Favoritos/Recentes) camadas próprias; sem isso a doca tampa o menu da conta e o do sino.
 - **Tabelas** (sem componente: camada única, bloco "Tabelas" no fim de `resources/css/app.css` +
   `resources/js/tables.js`). Vale para toda `<table>` com `w-full`, `min-w-full`, `text-sm`,
   `text-xs` ou `text-left` dentro do `<main class="lara-tables">` do `layouts/app` — e ganha das

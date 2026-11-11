@@ -29,12 +29,27 @@
     $pillKinds = ['associado' => 'off', 'aplicativo' => 'info'];
 @endphp
 
-<div class="overflow-hidden rounded-2xl border border-line" data-search="{{ $logTime }} {{ $logDate }}">
+{{-- Um ponto da linha do tempo (identidade do SIV, 11/11/2026): o horário à
+     esquerda, no trilho, e o cartão do acesso à direita. O id casa com os
+     pontos da linha do dia no topo da tela. --}}
+<article id="acesso-{{ $n ?? 1 }}" data-search="{{ $logTime }} {{ $logDate }}"
+         class="relative grid scroll-mt-40 grid-cols-[20px_minmax(0,1fr)] gap-x-3 sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-x-5">
+    <div class="relative">
+        <span class="absolute bottom-[-20px] left-[9px] top-5 w-0.5 bg-line sm:left-auto sm:right-[-11px]" aria-hidden="true"></span>
+        <span class="absolute left-[3px] top-2 h-3.5 w-3.5 rounded-full ring-4 ring-surface sm:left-auto sm:right-[-17px]" style="background-color: rgb(var(--siv-night))" aria-hidden="true"></span>
+        <p class="hidden pt-0.5 text-right sm:block">
+            <span class="block font-mono text-lg font-semibold leading-tight text-ink">{{ $logTime }}</span>
+            <span class="block font-mono text-xs text-ink-3">{{ $logDate }}</span>
+        </p>
+    </div>
+
+    <div class="overflow-hidden rounded-2xl border border-line bg-surface">
     <div class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-subtle px-4 py-3">
-        <span class="inline-flex items-center gap-1.5 font-mono text-sm font-semibold text-ink">
+        <span class="inline-flex items-center gap-1.5 font-mono text-sm font-semibold text-ink sm:hidden">
             <x-icon name="clock" class="h-4 w-4 text-grena-ink" />{{ $logTime }}
         </span>
-        <span class="font-mono text-sm text-ink-2">{{ $logDate }}</span>
+        <span class="font-mono text-sm text-ink-2 sm:hidden">{{ $logDate }}</span>
+        <span class="hidden text-xs font-bold uppercase tracking-[0.12em] text-ink-3 sm:inline">Passagem {{ $n ?? 1 }}</span>
         <span class="ml-auto">
             <x-pill :kind="$driverCount ? 'ok' : 'off'" :icon="false">{{ $driverCount }} {{ $driverCount === 1 ? 'condutor' : 'condutores' }}</x-pill>
         </span>
@@ -103,4 +118,5 @@
         @endif
         </div>
     </div>
-</div>
+    </div>
+</article>

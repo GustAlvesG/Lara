@@ -32,15 +32,17 @@ Quem recebe o aviso no sino quando chega uma pré-reserva de espaço social pelo
 ## Como ler a agenda do dia
 <!-- telas: schedule.index -->
 
-A tela **Reservas › Novo Agendamento** mostra a agenda de um dia, agrupada por modalidade (cada grupo de locais). Cada local aparece num cartão com o preço por horário e os horários do dia.
+A tela **Reservas › Novo Agendamento** mostra a agenda de um dia, agrupada por modalidade (cada grupo de locais). No alto, a faixa verde da quadra traz o dia em letra grande e a **ocupação do dia**, somando todos os locais: o percentual dos horários já reservados, quantos estão **Confirmados**, **Pendentes**, **Livres** e **Bloqueados**, e uma barra (verde = confirmados, laranja = pendentes). Quando há mais de uma modalidade, os botões com o nome de cada uma levam direto a ela.
 
-- **Trocar o dia:** use as setas ao lado da data (dia anterior e próximo dia) ou clique na data e escolha no calendário.
+Cada local aparece num cartão com o preço por horário, a faixa **Ocupação do dia** (uma casinha por horário, na ordem do dia: verde confirmado, amarelo pendente, cinza-escuro bloqueado, claro livre; ao lado, "N/M reservados") e os horários do dia.
+
+- **Trocar o dia:** use as setas ao lado da data, na faixa verde (dia anterior e próximo dia), ou clique na data e escolha no calendário.
 - **Buscar:** a barra de busca filtra por local, modalidade ou nome do sócio já agendado.
 - **Cores e textos dos horários:** **Livre** (borda tracejada), **Selecionado** (grená), **Confirmado** (verde, com o nome do sócio), **Pendente** (amarelo, com o tempo que está esperando o pagamento), **Bloqueado** (cadeado, com o nome da regra que bloqueou) e **Já passou**.
 - Horário que já começou e ainda pode ser vendido aparece com "Em andamento · resta N min" e o valor proporcional.
 - Clicar num horário ocupado abre os detalhes daquele agendamento.
-- **PDF do dia:** o botão gera o relatório de ocupação do dia (horário, estado e sócio de cada local) para imprimir.
-- **Configurações:** leva a Locais e Grupos (só para quem tem a permissão de configurar).
+- **PDF do dia** (na faixa verde): o botão gera o relatório de ocupação do dia (horário, estado e sócio de cada local) para imprimir.
+- **Configurações** (na faixa verde): leva a Locais e Grupos (só para quem tem a permissão de configurar).
 
 Local com o selo "Indisponível nesta data" não tem horário à venda naquele dia. Veja os motivos em Dúvidas comuns.
 
@@ -53,7 +55,7 @@ Nas quadras com luz ligada ao sistema, quem tem a permissão vê também a faixa
 
 Na tela **Reservas › Novo Agendamento**:
 
-1. Escolha o dia nas setas ou no calendário do topo.
+1. Escolha o dia nas setas ou no calendário da faixa verde, no topo.
 2. No cartão do local, clique nos horários **Livres** que o sócio quer. Pode marcar mais de um, mas só de um local por vez (marcar em outro local limpa a seleção).
 3. Abaixo dos horários aparece o campo **Sócio (título ou nome)**. Digite a **matrícula** do sócio (mínimo de 5 caracteres). A lista "Pessoas encontradas" mostra todos da matrícula, com a marcação Titular ou Dependente.
 4. Clique na pessoa certa. Ela aparece como "Sócio selecionado"; o **X** troca o sócio.
@@ -110,14 +112,14 @@ A tela **Reservas › Todos os Agendamentos** lista as reservas em qualquer stat
 - **Buscar sócio:** digite o nome ou o CPF.
 - **Filtros:** status (Todos os status, Confirmado, Pendente, Cancelado…), local (Todos os locais) e período (data inicial e final).
 - Cada linha mostra o número da reserva, o sócio, o local, a data e o horário, o status (Confirmada, Pendente, Cancelada, Expirada) e o valor.
-- **Detalhes** abre a tela **Gestão de Reserva** daquele agendamento.
+- **Detalhes** abre a tela **Gestão da reserva** daquele agendamento.
 
-Na Gestão de Reserva você vê:
+Na Gestão da reserva você vê:
 
-- o sócio, a matrícula e o e-mail de contato;
+- à esquerda, o **ingresso** da reserva: local, dia, horário, valor, o sócio (título e e-mail) e o carimbo do estado (Reserva confirmada, Pagamento pendente, Reserva cancelada);
 - o histórico: **Criado por** (nome do funcionário ou "Via Site"), a última atualização e, se cancelada, quem cancelou, quando e o motivo;
 - os **Agendamentos Vinculados**: o mesmo sócio no mesmo dia, para alterar vários de uma vez;
-- o botão **Ver Pagamento Vinculado**, quando há pagamento (para quem tem a permissão de pagamentos);
+- o botão **Ver pagamento vinculado**, quando há pagamento (para quem tem a permissão de pagamentos);
 - a área de cancelamento e a de baixa manual de pagamento.
 
 Se o agendamento é a ocupação de um espaço social (o dia inteiro), a tela avisa "Reserva de espaço social" e oferece **Abrir reserva social**: tudo dessa reserva é feito pela tela de Espaços Sociais.
@@ -128,11 +130,11 @@ Se o agendamento é a ocupação de um espaço social (o dia inteiro), a tela av
 Abra o agendamento em **Reservas › Todos os Agendamentos › Detalhes** (ou clique no horário ocupado na agenda de Novo Agendamento).
 
 1. Em **Agendamentos Vinculados**, a reserva aberta já vem marcada. Marque também os outros horários do mesmo sócio no mesmo dia, se quiser cancelar todos juntos.
-2. Em **Operação Desejada**, escolha "Cancelar Agendamento(s)".
-3. Preencha o **Motivo do Cancelamento** (obrigatório; vai no e-mail ao sócio).
+2. Em **Alterar a reserva**, no campo **O que deseja fazer?**, escolha "Cancelar agendamento(s)".
+3. Preencha o **Motivo do cancelamento** (obrigatório; vai no e-mail ao sócio).
 4. Marque **Confirmo que desejo cancelar permanentemente**.
-5. Se a reserva foi feita e paga pelo site, aparece **Solicitar estorno do valor pago (Agendamento via Site)**. Marque para devolver o valor no cartão do sócio pela Rede.
-6. Clique em **Salvar Alterações**.
+5. Se a reserva foi feita e paga pelo site, aparece **Solicitar estorno do valor pago (agendamento via site)**. Marque para devolver o valor no cartão do sócio pela Rede.
+6. Clique em **Salvar alterações**.
 
 O horário volta a ficar livre e o sócio recebe o e-mail de cancelamento com o motivo e, se houve estorno, o valor devolvido. Se o estorno falhar, o cancelamento continua valendo e o e-mail não promete devolução.
 
@@ -191,7 +193,7 @@ Churrasqueiras e salões são reservados **pelo dia inteiro** e passam por anál
 5. **Pagamento** — o sócio paga pelo site. Pago, a reserva fica **confirmada** e os convidados não sócios passam a constar na portaria. Pagou fora do site? A equipe dá baixa manual.
 6. Sem pagamento no prazo, a reserva **expira** e a data volta a ficar livre.
 
-Na lista de Espaços Sociais, os atalhos no topo mostram quantas estão "com contato atrasado", "aguardando contato", "em análise" e "aguardando pagamento". Clique num deles para filtrar. Também dá para buscar o sócio por nome ou CPF e filtrar por situação, espaço e período do evento. **Abrir** mostra a reserva.
+Na lista de Espaços Sociais, a faixa verde no topo mostra, em números grandes, quantas estão "com contato atrasado", "aguardando contato", "em análise" e "aguardando pagamento". Clique num deles para filtrar. Também dá para buscar o sócio por nome ou CPF e filtrar por situação, espaço e período do evento. **Abrir** mostra a reserva.
 
 A cada mudança (pré-reserva recebida, aprovada, recusada, confirmada, expirada, cancelada) o sócio recebe um e-mail.
 

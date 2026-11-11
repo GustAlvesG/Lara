@@ -19,20 +19,26 @@
 
         @include('partials.alerts')
 
-        <div class="flex flex-wrap gap-2">
-            <a href="{{ route('social-booking.index', ['contact' => 'overdue']) }}" class="no-underline">
-                <x-pill :kind="$overdueContact ? 'danger' : 'off'">{{ $overdueContact }} com contato atrasado</x-pill>
-            </a>
-            <a href="{{ route('social-booking.index', ['contact' => 'pending']) }}" class="no-underline">
-                <x-pill :kind="$awaitingContact ? 'warn' : 'off'">{{ $awaitingContact }} aguardando contato</x-pill>
-            </a>
-            <a href="{{ route('social-booking.index', ['stage' => 'requested']) }}" class="no-underline">
-                <x-pill kind="info">{{ $pending }} em análise</x-pill>
-            </a>
-            <a href="{{ route('social-booking.index', ['stage' => 'awaiting_payment']) }}" class="no-underline">
-                <x-pill kind="warn">{{ $awaiting }} aguardando pagamento</x-pill>
-            </a>
-        </div>
+        {{-- A fila, na faixa da quadra (identidade de Reservas, 11/11/2026):
+             cada número filtra a lista. --}}
+        @php
+            $queue = [
+                [route('social-booking.index', ['contact' => 'overdue']), $overdueContact, 'com contato atrasado', $overdueContact ? 'rgb(252 165 165)' : null],
+                [route('social-booking.index', ['contact' => 'pending']), $awaitingContact, 'aguardando contato', $awaitingContact ? 'rgb(var(--res-clay))' : null],
+                [route('social-booking.index', ['stage' => 'requested']), $pending, 'em análise', null],
+                [route('social-booking.index', ['stage' => 'awaiting_payment']), $awaiting, 'aguardando pagamento', null],
+            ];
+        @endphp
+        <section class="res-court overflow-hidden rounded-[28px] shadow-card" aria-label="Fila dos espaços sociais">
+            <div class="auth-enter grid grid-cols-2 gap-px bg-white/10 lg:grid-cols-4">
+                @foreach ($queue as [$href, $count, $label, $tone])
+                    <a href="{{ $href }}" class="group flex flex-col gap-2 bg-[rgb(var(--res-court))] px-5 py-5 text-white no-underline transition hover:bg-[rgb(var(--res-court)/.85)] sm:px-6">
+                        <span class="font-mono text-[36px] font-semibold leading-none" @if ($tone) style="color: {{ $tone }}" @endif>{{ $count }}</span>
+                        <span class="text-sm text-white/75 group-hover:text-white">{{ $label }} <span aria-hidden="true">→</span></span>
+                    </a>
+                @endforeach
+            </div>
+        </section>
 
         <x-search-bar name="member" :filters="['stage', 'contact', 'place_id', 'date_from', 'date_to']" placeholder="Sócio: nome ou CPF" label="Buscar sócio">
             <x-slot:controls>

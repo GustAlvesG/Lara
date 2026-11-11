@@ -11,6 +11,12 @@ No Lara ficam o cadastro das empresas e dos seus funcionários, as **regras de a
 
 A guarita usa um aplicativo próprio que consulta as mesmas informações do Lara: tudo o que é cadastrado aqui vale lá, e toda entrada registrada lá aparece no Histórico do Lara.
 
+
+## A tela de Empresas
+<!-- telas: company.index -->
+
+Em **Externos › Empresas**, a faixa escura do alto (com o crachá) mostra quantas empresas estão cadastradas, quantas estão **com acesso liberado agora**, quantas estão **bloqueadas agora** e o total de funcionários. Abaixo, **Buscar empresa ou funcionário** filtra os cartões enquanto você digita e mostra também os funcionários encontrados. Cada empresa tem um cartão com a situação do acesso (Acesso ou Bloqueado) e as listas de funcionários e regras, que abrem ao clicar. **Nova empresa** e **Novo funcionário** ficam no alto, à direita. Todas as empresas aparecem de uma vez, sem páginas.
+
 ## Quem faz o quê
 
 | Para | Permissão (como aparece na tela Setores) |
@@ -26,7 +32,7 @@ Quem libera é a TI ou a Gerência, na tela **Setores** (ou só para uma pessoa,
 ## Cadastrar uma empresa terceirizada
 <!-- telas: company.index -->
 
-Na tela **Externos › Empresas**, clique em **Nova Empresa**. Abre o formulário "Cadastrar Parceiro Terceirizado".
+Na tela **Externos › Empresas**, clique em **Nova empresa**. Abre o formulário "Cadastrar Parceiro Terceirizado".
 
 1. Preencha **Nome da Empresa** (obrigatório).
 2. Preencha **E-mail Corporativo** (obrigatório).
@@ -213,7 +219,7 @@ O CPF não está em nenhum cadastro que dê acesso agora. Tanto faz digitar com 
 ### O Monitor diz "Empresa não encontrada no sistema."
 <!-- telas: company.access.monitor -->
 
-O texto digitado não bate com o nome de nenhuma empresa cadastrada. Tente uma parte menor do nome, ou procure em **Externos › Empresas**. Se a empresa não existe, ela precisa ser cadastrada (botão **Nova Empresa**) e receber uma regra de inclusão.
+O texto digitado não bate com o nome de nenhuma empresa cadastrada. Tente uma parte menor do nome, ou procure em **Externos › Empresas**. Se a empresa não existe, ela precisa ser cadastrada (botão **Nova empresa**) e receber uma regra de inclusão.
 
 ### O freelancer aparece como "Sem serviço registrado para este horário."
 <!-- telas: company.access.monitor -->

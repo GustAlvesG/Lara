@@ -33,7 +33,7 @@ class ReservasScreensTest extends TestCase
 
     private function miolo(string $html): string
     {
-        $inicio = strpos($html, '<main>');
+        $inicio = strpos($html, '<main');
         $fim = strpos($html, '<footer');
 
         return substr($html, (int) $inicio, $fim === false ? null : $fim - (int) $inicio);
@@ -92,6 +92,14 @@ class ReservasScreensTest extends TestCase
         $this->assertStringContainsString('id="agenda"', $html);
         $this->assertStringNotContainsString('placehold.co', $html);
         $this->assertDoesNotMatchRegularExpression('#\b(?:bg|text|border)-(?:gray|indigo|green|yellow)-\d{2,3}\b#', $this->miolo($html));
+
+        // Identidade de Reservas (11/11/2026): a capa da quadra com a ocupação do
+        // dia (2 reservados de 4 reserváveis) e a faixa de ocupação do local.
+        $this->assertStringContainsString('res-court', $html);
+        $this->assertStringContainsString('aria-valuenow="50" aria-label="Ocupação do dia"', $html);
+        $this->assertStringContainsString('2/6 reservados', $html);
+        $this->assertStringContainsString('<span data-s="warn" title="11:00 – 12:00"></span>', $html);
+        $this->assertStringContainsString('onclick="generatePDFTable(', $html);
     }
 
     public function test_lista_de_agendamentos_busca_socio_com_filtros(): void

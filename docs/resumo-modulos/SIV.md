@@ -16,6 +16,30 @@ leitura com quem passou na portaria naquele instante para dizer quem estava no c
 a cancela da diretoria** (lista de placas + frota) e **controla a frota** da empresa (saída e
 retorno com hodômetro).
 
+## Identidade visual (11/11/2026)
+
+O SIV tem desenho próprio, pedido do usuário ("um brand maior"): a leitura da placa. Peças em
+`resources/css/app.css` (bloco "SIV", tokens `--siv-night`/`--siv-glow`, escuros nos dois temas,
+texto sempre branco):
+
+- `siv-night`: a faixa de câmera (azul-noite com grade e brilho). Busca, resultado, Frota (números)
+  e Placas Diretoria (cancela) abrem com ela.
+- Busca (`parking/partials/form`): a própria placa Mercosul é o campo (`siv-plate-input`), dentro
+  do visor (`siv-viewfinder`); a linha de leitura (`siv-scan`) passa uma vez ao abrir e ao focar.
+  Com `$todayParkingCount` presente (só na Busca), o quadro "Hoje na cancela" (`dashTotals`) vai ao
+  lado; no "Nova busca" do resultado, não.
+- Resultado (`parking/show`): `x-plate size="xl"` no visor, amostra da cor do carro (mapa de nomes
+  em português → cor da pintura, só para a bolinha), e a linha do dia (`siv-rail`/`siv-dot`): um
+  ponto por passagem na posição do minuto do dia, com link para `#acesso-N` — o id de cada item do
+  histórico (`dataItemAccess`, agora uma linha do tempo com o horário à esquerda).
+- Frota: faixa de situação no topo do cartão (`--ok`/`--warn`/`--danger`), placa `lg` e o
+  hodômetro em casas (`siv-odo`, com `aria-label` do valor por extenso).
+- Placas Diretoria: o Push manual virou o painel "Cancela da portaria" (ids do script mantidos;
+  as mensagens usam cores claras porque ficam sobre a faixa escura).
+- Viagens e Veículos ficam com a tabela padrão do sistema.
+
+Tudo para com "reduzir movimento".
+
 ## Telas (grupo SIV do menu)
 
 | Aba | Rota | Permissão | Controller |

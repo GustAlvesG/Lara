@@ -91,7 +91,10 @@ final class Navigation
                     ['route' => 'company.uber.requests', 'label' => 'Carros de Aplicativo', 'permission' => P::EXTERNOS_CARROS_APLICATIVO, 'active' => 'company.uber.*'],
                 ],
             ],
-            ['route' => 'lara.index', 'label' => 'HAL (IA)', 'area' => 'lara', 'glyph' => 'chat',
+            // Fora do painel de Módulos desde 11/11/2026 (`panel` false): o HAL
+            // abre pelo balão, em toda tela. Continua aqui para a busca (Ctrl+K),
+            // os favoritos e o `<!-- telas: lara.index -->` dos guias.
+            ['route' => 'lara.index', 'label' => 'HAL (IA)', 'area' => 'lara', 'glyph' => 'chat', 'panel' => false,
                 'icon' => 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8Z',
                 'permission' => P::LARA,
             ],
@@ -155,9 +158,11 @@ final class Navigation
             ['label' => 'Freelancers', 'area' => 'freela', 'glyph' => 'user',
                 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
                 'children' => [
+                    // Serviços / Contratos é a tela inicial do módulo (11/11/2026, pedido
+                    // do usuário): clicar em "Freelancers" no painel de Módulos abre nela.
+                    ['route' => 'freelancer-services.index', 'label' => 'Serviços / Contratos', 'permission' => P::FREELANCERS_SERVICOS_LISTAR],
                     ['route' => 'freelancers.index', 'label' => 'Freelancers', 'permission' => P::FREELANCERS_CADASTRO],
                     ['route' => 'freelancer-functions.index', 'label' => 'Funções', 'permission' => P::FREELANCERS_FUNCOES],
-                    ['route' => 'freelancer-services.index', 'label' => 'Serviços / Contratos', 'permission' => P::FREELANCERS_SERVICOS_LISTAR],
                     ['route' => 'kiosk.index', 'label' => 'Assinatura (Tablet)', 'permission' => P::FREELANCERS_ASSINATURA],
                     ['route' => 'freelancer-services.tracking', 'label' => 'Acompanhamento', 'permission' => P::FREELANCERS_ACOMPANHAMENTO],
                     ['route' => 'freelancer-services.finance', 'label' => 'Financeiro', 'permission' => P::FREELANCERS_FINANCEIRO, 'active' => 'freelancer-services.finance*'],
@@ -360,7 +365,7 @@ final class Navigation
                 'label' => __($child['label']),
                 'url' => route($child['route']),
             ], $link['children'] ?? []),
-        ], $links);
+        ], array_values(array_filter($links, fn ($link) => $link['panel'] ?? true)));
 
         // Índice plano: alimenta a busca (Ctrl+K), os favoritos e os recentes,
         // que precisam de uma lista única de destinos finais. A chave é o nome

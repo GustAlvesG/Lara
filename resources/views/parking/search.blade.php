@@ -12,8 +12,7 @@
             @endcan
         </x-page-title>
 
-        @include('parking.partials.dashTotals')
-
+        {{-- A faixa traz a busca e, ao lado, os números do dia (dashTotals). --}}
         @include('parking.partials.form')
     </x-page>
 </x-app-layout>

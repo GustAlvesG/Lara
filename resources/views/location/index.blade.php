@@ -40,12 +40,12 @@
 
         <div id="agenda" class="flex flex-col gap-10">
             @forelse($modalities as $modalityName => $places)
-            <section class="flex flex-col gap-4">
+            <section id="mod-{{ \Illuminate\Support\Str::slug($modalityName) }}" class="flex scroll-mt-40 flex-col gap-4">
                 @php
                     $group_id = count($places) >= 1 ? $places[0]['group']['id'] : null;
                 @endphp
                 <a href="{{ $group_id ? route('place-group.show', $group_id) : '#' }}" class="group flex items-center gap-3">
-                    <span class="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 font-display text-sm font-semibold tracking-tight" style="{{ \App\View\AreaColor::style('reservas') }}">
+                    <span class="inline-flex items-center gap-2 rounded-full bg-[rgb(var(--res-court))] px-4 py-2 font-display text-base font-semibold tracking-tight text-white">
                         <x-icon name="calendar" class="h-4 w-4" /> {{ $modalityName }}
                     </span>
                     <span class="text-xs font-bold text-ink-3">{{ count($places) }} {{ count($places) === 1 ? 'local' : 'locais' }}</span>
@@ -96,6 +96,32 @@
                                         <p class="font-mono text-lg font-semibold text-ink">R$ {{ number_format($place['price'] ?? 0, 2, ',', '.') }}</p>
                                     </div>
                                 </div>
+
+                                {{-- Ocupação do local no dia: uma casa por horário, na ordem
+                                     (identidade de Reservas, 11/11/2026). --}}
+                                @if($available)
+                                    @php
+                                        $strip = collect($place['time_options'])->map(function ($slot) {
+                                            $state = ($slot['excluded_by_rule'] ?? false) ? 'lock'
+                                                : ((isset($slot['colided_member']) && $slot['colided_member'] !== null)
+                                                    ? (($slot['colided_status_id'] ?? null) == '1' ? 'ok' : 'warn')
+                                                    : ((($slot['past_date'] ?? false) === true) ? 'past' : 'free'));
+                                            return [$state, $slot['start_time'] . ' – ' . $slot['end_time']];
+                                        });
+                                        $stripBusy = $strip->filter(fn ($s) => in_array($s[0], ['ok', 'warn'], true))->count();
+                                    @endphp
+                                    <div>
+                                        <div class="mb-1.5 flex items-baseline justify-between gap-3 text-xs">
+                                            <span class="font-bold uppercase tracking-[0.08em] text-ink-3">Ocupação do dia</span>
+                                            <span class="font-mono font-semibold text-ink-2">{{ $stripBusy }}/{{ $strip->count() }} reservados</span>
+                                        </div>
+                                        <div class="res-strip" aria-hidden="true">
+                                            @foreach($strip as [$state, $range])
+                                                <span data-s="{{ $state }}" title="{{ $range }}"></span>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
 
                                 <div class="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                                     @unless($available)

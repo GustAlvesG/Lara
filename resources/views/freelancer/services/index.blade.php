@@ -38,26 +38,31 @@
          Travada em max-w-7xl, a tabela cortava as últimas colunas. --}}
     <div class="max-w-full mx-auto sm:px-6 lg:px-8">
 
-        <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div class="mb-6 flex flex-col gap-4 pt-2 md:flex-row md:items-end md:justify-between">
             <div>
-                <h1 class="font-display text-2xl font-semibold tracking-tight text-ink">Serviços / Contratos</h1>
-                <p class="text-ink-2 font-medium">Serviços a serem realizados por freelancers e o estado das assinaturas.</p>
+                <h1 class="font-display text-[22px] font-semibold tracking-tight text-ink sm:text-[26px]">Serviços / Contratos</h1>
+                <p class="mt-1.5 text-[15px] text-ink-2">Serviços a serem realizados por freelancers e o estado das assinaturas.</p>
             </div>
 
             @if($canManage)
-            <div class="flex items-center gap-3">
-                <a href="{{ route('freelancer-services.bulk') }}" class="inline-flex items-center px-4 py-3 bg-surface text-ink rounded-xl font-bold shadow-card border border-line hover:bg-subtle transition">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-                    Em massa
-                </a>
-
-                <a href="{{ route('freelancer-services.create') }}" class="inline-flex items-center px-4 py-3 bg-grena text-white rounded-xl font-bold shadow-card hover:bg-grena-hover transition duration-150 transform hover:scale-[1.02]">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Novo Serviço
-                </a>
+            <div class="flex flex-wrap items-center gap-2.5">
+                <x-secondary-button-a href="{{ route('freelancer-services.bulk') }}"><x-icon name="menu" /> Em massa</x-secondary-button-a>
+                <x-primary-button-a href="{{ route('freelancer-services.create') }}"><x-icon name="plus" /> Novo serviço</x-primary-button-a>
             </div>
             @endif
         </div>
+
+        {{-- Faixa do módulo (identidade de Freelancers, 11/11/2026). --}}
+        @php
+            $excessCount = collect($excessFlags ?? [])->filter()->count();
+            $heroStats = [
+                ['label' => $hasFilters ? 'Nesta busca' : 'Serviços na lista', 'value' => $services->total()],
+                ['label' => 'Nesta página, acima do limite semanal', 'value' => $excessCount, 'tone' => $excessCount ? 'warn' : null],
+            ];
+        @endphp
+        <x-mod-hero variant="freela" eyebrow="Freelancers" title="Cada diária com contrato assinado" :stats="$heroStats" label="Resumo dos serviços" class="mb-6">
+            Do serviço lançado ao contrato assinado no tablet, ao lote aprovado e ao pagamento no Financeiro.
+        </x-mod-hero>
 
         @include('freelancer.services.partials.tabs')
 

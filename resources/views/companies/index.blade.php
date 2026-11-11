@@ -1,29 +1,43 @@
-<x-app-layout>
-    <x-slot name="header">
-        <div class="flex justify-between items-center">
-            <div>
-                <h2 class="font-semibold text-xl text-ink leading-tight">
-                    Externos Terceirizados
-                </h2>
-            </div>
+{{--
+    Empresas de Externos (refeita em 11/11/2026, identidade do módulo: o
+    crachá). Faixa com os números do dia, busca que acha empresa e funcionário
+    e um cartão por empresa (acesso agora, regras, funcionários sob demanda).
+    A lista vem inteira: a busca filtra na página (js/information/filter.js).
+--}}
+@php
+    $comAcesso = collect($accessStatuses ?? [])->filter()->count();
+    $heroStats = [
+        ['label' => 'Empresas cadastradas', 'value' => $companies->count()],
+        ['label' => 'Com acesso liberado agora', 'value' => $comAcesso, 'tone' => 'ok'],
+        ['label' => 'Bloqueadas agora', 'value' => $companies->count() - $comAcesso, 'tone' => ($companies->count() - $comAcesso) > 0 ? 'danger' : null],
+        ['label' => 'Funcionários', 'value' => $companies->sum(fn ($c) => $c->workers->count())],
+    ];
+@endphp
+<x-app-layout :bootstrap-grid="false">
+    <x-page>
+        <x-page-title title="Empresas">
+            Terceirizados que entram no clube: cada empresa com as regras de acesso e os funcionários.
+            <x-slot:actions>
+                <x-secondary-button-a href="{{ route('company.worker.quick.create') }}"><x-icon name="user-plus" /> Novo funcionário</x-secondary-button-a>
+                <x-primary-button-a href="{{ route('company.create') }}"><x-icon name="plus" /> Nova empresa</x-primary-button-a>
+            </x-slot:actions>
+        </x-page-title>
 
-            @include('partials.crud.search-create', [
-                'buttonCreateText' => 'Nova Empresa',
-                'routeCreate' => route('company.create'),
-                'buttonSecondaryText' => 'Novo Funcionário',
-                'routeSecondary' => route('company.worker.quick.create'),
-            ])
+        @include('partials.alerts')
+
+        <x-mod-hero variant="ext" eyebrow="Externos" title="Quem entra hoje, e por qual regra" :stats="$heroStats" label="Resumo das empresas">
+            O acesso de cada empresa vem das regras de inclusão e exclusão vigentes agora.
+        </x-mod-hero>
+
+        <div class="relative w-full max-w-xl">
+            <x-icon name="search" class="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-ink-3" />
+            <label for="search-filter-text" class="sr-only">Buscar empresa ou funcionário</label>
+            <input type="search" id="search-filter-text" placeholder="Buscar empresa ou funcionário" autocomplete="off" onkeyup="filterCards()"
+                   class="h-12 w-full rounded-full border border-transparent bg-surface pl-11 pr-4 text-[15px] text-ink shadow-card ring-1 ring-line transition placeholder:text-ink-3 hover:ring-line-strong focus:border-grena focus:ring-4 focus:ring-grena-tint">
         </div>
-    </x-slot>
 
-    <x-slot name="css">
-    </x-slot>
-
-    <div class="py-6">
-        <br>
-        <div class="mx-auto sm:px-6 lg:px-8 space-y-6 page-group">
-            <div class="p-6 sm:p-8 bg-surface shadow-card sm:rounded-lg page" data-limit="5" data-actual="">
-
+        <div>
+            <div>
                 <!-- Empresas -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="elements-container">
                     @foreach ($companies as $company)
@@ -47,7 +61,7 @@
                         @endphp
 
                         <div class="elements" data-company-id="{{ $company->id }}" data-details-url="{{ route('company.access-details', $company->id) }}">
-                            <div class="bg-surface rounded-xl overflow-hidden shadow-pop border border-line h-full flex flex-col transition hover:shadow-pop dark:hover:shadow-none">
+                            <div class="flex h-full flex-col overflow-hidden rounded-card bg-surface shadow-card transition duration-200 hover:-translate-y-0.5 hover:shadow-pop motion-reduce:hover:translate-y-0">
 
                                 <!-- Imagem + título: link para o perfil -->
                                 <a href="{{ route('company.show', $company->id) }}" class="block group">
@@ -55,7 +69,7 @@
 
                                     <div class="px-4 pt-4 pb-1">
                                         <div class="flex items-start justify-between">
-                                            <h3 class="text-xl font-extrabold text-ink leading-tight group-hover:text-grena-ink transition">
+                                            <h3 class="font-display text-lg font-semibold leading-tight tracking-tight text-ink transition group-hover:text-grena-ink">
                                                 {{ $company->name }}
                                             </h3>
 
@@ -167,13 +181,8 @@
 
             </div>
 
-            <div class="flex justify-center sm:px-6 lg:px-8 space-y-6 my-3">
-                <div class="p-6 sm:p-8 bg-surface shadow-card sm:rounded-lg pagination">
-                    @include('partials.navPagination')
-                </div>
-            </div>
         </div>
-    </div>
+    </x-page>
 
     <x-slot name="js">
         <script src="{{ asset('js/information/filter.js') }}"></script>

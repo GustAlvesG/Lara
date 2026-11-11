@@ -4,6 +4,34 @@ Módulo próprio no menu desde 04/11/2026 (antes era Assinaturas → Contratos).
 [docs/funcionalidades/contratos.md](../funcionalidades/contratos.md). Guia do usuário:
 [docs/guias/contratos.md](../guias/contratos.md) (é dele que o HAL (IA) tira as respostas).
 
+
+## Identidade visual (11/11/2026)
+
+Pedido do usuário: Externos, Freelancers, Assinaturas e Contratos na mesma pegada do SIV e de
+Reservas. Peças compartilhadas:
+
+- `x-mod-hero` (`resources/views/components/mod-hero.blade.php`): faixa escura (`mod-band`, tokens
+  `--ext-deep`/`--ext-badge`, `--freela-deep`/`--freela-glow`, `--pen-ink`/`--pen-glow` em
+  `app.css`) com título, texto e números (`stats`: label, value, href, tone, current; `value` nulo
+  vira um atalho com seta). À direita, no lg+, o objeto do módulo: o crachá (`ext`), o cartão de
+  ponto (`freela`) ou a folha com a assinatura que se desenha uma vez (`pen`, `pen-stroke`).
+  Os números são os que a tela já tem — o componente não consulta nada.
+- Formulário em passos (`signature/documents/partials/steps`, usado por documento, contrato,
+  modelo de contrato e editor): trilha `lara-stepper` (Passo N de M, ✓ feito, ! erro do servidor
+  — some ao mexer no passo —, barra), selo `lara-step-tag` em cada cartão, botões presos no pé
+  (`lara-step-actions`, acima da doca no celular) com "Continuar: <próximo>", foco no 1º campo do
+  passo. Mesmas regras de antes (não avança com campo inválido, Enter avança, abre no passo com
+  erro, `data-step-start`, `data-steps-free`, `data-step-current`).
+- `lara-form` no <form>: asterisco em rótulo de campo `required` (rótulo seguido do campo, ou de
+  um div com o campo) e borda vermelha em `:user-invalid`.
+
+Em Contratos: a lista abre com a faixa (Para validar — só Gerência —, Em assinatura, Vencendo em
+60 dias, total da aba; cada número leva à aba). Novo contrato: "O que você vai redigir?" em cartões,
+tipo do contratado em controle segmentado, busca nos Prestadores com resultados em cartão
+("Usar"). A tela do contrato abre com a faixa de andamento: fase (Rascunho → Validação da
+Gerência → Aprovado → Em assinatura → Assinado; cancelado marca ✕), N/M assinaturas
+(`signingProgress`), quem falta ou quem recusou.
+
 ## Em uma frase
 
 O setor redige o contrato em cláusulas, a Gerência valida (no computador ou no tablet do balcão) e, aprovado,

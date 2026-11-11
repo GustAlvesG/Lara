@@ -1,17 +1,17 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+        <h2 class="font-semibold text-xl text-ink leading-tight">
             {{ __('RePET — Editor de Layout') }}
         </h2>
     </x-slot>
 
-<div class="py-12 bg-gray-50 dark:bg-gray-900 min-h-screen">
+<div class="py-12 bg-subtle min-h-screen">
     <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
 
         <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-                <h1 class="text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">{{ $layout->name }}</h1>
-                <p class="text-gray-500 dark:text-gray-400 font-medium">
+                <h1 class="text-3xl font-extrabold text-ink leading-tight">{{ $layout->name }}</h1>
+                <p class="text-ink-2 font-medium">
                     {{ $layout->ownerLabel() }}: {{ $layout->place?->name ?? $layout->group?->name ?? '—' }}
                     · {{ \App\Support\Replay\Orientation::label($layout->orientation) }}
                     · tela de {{ $dimensions['width'] }}×{{ $dimensions['height'] }}
@@ -19,13 +19,13 @@
             </div>
 
             <a href="{{ route('replay.layouts.index') }}"
-               class="text-sm font-bold text-gray-600 dark:text-gray-300 hover:underline">Voltar aos layouts</a>
+               class="text-sm font-bold text-ink-2 hover:underline">Voltar aos layouts</a>
         </div>
 
         @include('partials.alerts')
 
         @unless($ffmpegAvailable)
-            <div class="mb-6 px-6 py-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm">
+            <div class="mb-6 px-6 py-4 rounded-2xl bg-warn-soft border border-warn/40 text-warn text-sm">
                 <strong>ffmpeg não encontrado neste servidor.</strong>
                 GIF animado aqui vai sair parado no vídeo (só o primeiro quadro).
             </div>
@@ -35,13 +35,13 @@
 
             {{-- Tela de composição --}}
             <div class="lg:col-span-2">
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6">
+                <div class="bg-surface rounded-2xl shadow-card border border-line p-6">
                     <div class="flex items-center justify-between mb-4">
-                        <h2 class="text-lg font-bold text-gray-900 dark:text-white">Composição</h2>
+                        <h2 class="text-lg font-bold text-ink">Composição</h2>
                         <div class="flex items-center gap-3">
-                            <span id="replay-status" class="text-xs text-gray-400"></span>
+                            <span id="replay-status" class="text-xs text-ink-3"></span>
                             <button type="button" id="replay-save"
-                                    class="px-5 py-2 bg-emerald-600 text-white rounded-xl font-bold text-sm shadow hover:bg-emerald-700 transition">
+                                    class="px-5 py-2 bg-grena text-white rounded-xl font-bold text-sm shadow hover:bg-grena-hover transition">
                                 Salvar posições
                             </button>
                         </div>
@@ -54,7 +54,7 @@
                         no vídeo.
                     --}}
                     <div id="replay-canvas"
-                         class="relative w-full select-none rounded-xl overflow-hidden border border-gray-300 dark:border-gray-600"
+                         class="relative w-full select-none rounded-xl overflow-hidden border border-line-strong"
                          style="aspect-ratio: {{ $dimensions['width'] }} / {{ $dimensions['height'] }};
                                 background-color: #6b7280;
                                 background-image:
@@ -74,12 +74,12 @@
                                         z-index: {{ $item->z_index }};">
                                 <img src="{{ $item->imageUrl() }}" alt=""
                                      class="w-full h-full object-fill pointer-events-none" draggable="false">
-                                <span class="replay-handle absolute -right-1 -bottom-1 w-4 h-4 rounded-sm bg-emerald-500 border-2 border-white cursor-se-resize"></span>
+                                <span class="replay-handle absolute -right-1 -bottom-1 w-4 h-4 rounded-sm bg-ok border-2 border-white cursor-se-resize"></span>
                             </div>
                         @endforeach
                     </div>
 
-                    <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+                    <p class="mt-3 text-xs text-ink-2">
                         Arraste para posicionar, use o quadrado verde para redimensionar. As medidas são salvas em
                         porcentagem da tela — o layout continua correto se a câmera mudar de resolução.
                     </p>
@@ -89,43 +89,43 @@
             {{-- Painel lateral --}}
             <div class="space-y-6">
 
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6">
-                    <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Nova logomarca</h2>
+                <div class="bg-surface rounded-2xl shadow-card border border-line p-6">
+                    <h2 class="text-lg font-bold text-ink mb-4">Nova logomarca</h2>
 
                     <form action="{{ route('replay.layouts.logos.store', $layout) }}" method="POST" enctype="multipart/form-data" class="space-y-3">
                         @csrf
                         <input type="file" name="logo" accept="image/png,image/gif" required
-                               class="w-full text-sm text-gray-700 dark:text-gray-300">
+                               class="w-full text-sm text-ink-2">
                         <button type="submit"
-                                class="w-full px-4 py-2 bg-gray-800 text-white rounded-xl font-bold text-sm hover:bg-gray-900 transition">
+                                class="w-full px-4 py-2 bg-grena text-white rounded-xl font-bold text-sm hover:bg-grena-hover transition">
                             Enviar
                         </button>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">PNG ou GIF, até 8MB. GIF animado gera também a versão animada do overlay.</p>
+                        <p class="text-xs text-ink-2">PNG ou GIF, até 8MB. GIF animado gera também a versão animada do overlay.</p>
                     </form>
                 </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6">
-                    <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Peça selecionada</h2>
+                <div class="bg-surface rounded-2xl shadow-card border border-line p-6">
+                    <h2 class="text-lg font-bold text-ink mb-4">Peça selecionada</h2>
 
-                    <div id="replay-empty" class="text-sm text-gray-500 dark:text-gray-400">
+                    <div id="replay-empty" class="text-sm text-ink-2">
                         Clique em uma logomarca na composição para ajustar opacidade e ordem.
                     </div>
 
                     <div id="replay-controls" class="space-y-4 hidden">
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                            <label class="block text-xs font-bold text-ink-2 uppercase tracking-wider mb-1">
                                 Opacidade (<span id="replay-opacity-value">100</span>%)
                             </label>
                             <input type="range" id="replay-opacity" min="5" max="100" value="100" class="w-full">
                         </div>
 
                         <div>
-                            <label class="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Ordem (frente/trás)</label>
+                            <label class="block text-xs font-bold text-ink-2 uppercase tracking-wider mb-1">Ordem (frente/trás)</label>
                             <input type="number" id="replay-z" min="0" max="999"
-                                   class="w-24 px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white">
+                                   class="w-24 px-3 py-1.5 text-sm border border-line rounded-lg bg-surface text-ink">
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3 text-xs text-gray-500 dark:text-gray-400">
+                        <div class="grid grid-cols-2 gap-3 text-xs text-ink-2">
                             <div>X: <span id="replay-x">0</span>%</div>
                             <div>Y: <span id="replay-y">0</span>%</div>
                             <div>Largura: <span id="replay-w">0</span>%</div>
@@ -135,52 +135,52 @@
                         <form id="replay-delete-form" method="POST" action="" onsubmit="return confirm('Remover esta logomarca do layout?')">
                             @csrf
                             @method('DELETE')
-                            <button type="submit" class="text-xs text-red-600 dark:text-red-400 hover:underline font-medium">
+                            <button type="submit" class="text-xs text-danger hover:underline font-medium">
                                 Remover logomarca
                             </button>
                         </form>
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6">
-                    <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Overlay publicado</h2>
+                <div class="bg-surface rounded-2xl shadow-card border border-line p-6">
+                    <h2 class="text-lg font-bold text-ink mb-4">Overlay publicado</h2>
 
-                    <div id="replay-overlay-info" class="text-sm text-gray-600 dark:text-gray-300 space-y-2">
+                    <div id="replay-overlay-info" class="text-sm text-ink-2 space-y-2">
                         @if($layout->overlay_path)
                             <p>Gerado em <span id="replay-rendered">{{ $layout->overlay_rendered_at?->format('d/m/Y H:i') }}</span></p>
                             <a id="replay-png-link" href="{{ $layout->overlayUrl() }}" target="_blank"
-                               class="block text-emerald-600 dark:text-emerald-400 hover:underline text-xs font-medium">Abrir PNG</a>
+                               class="block text-ok hover:underline text-xs font-medium">Abrir PNG</a>
                             @if($layout->overlay_animated_path)
                                 <a id="replay-webm-link" href="{{ $layout->animatedOverlayUrl() }}" target="_blank"
-                                   class="block text-blue-600 dark:text-blue-400 hover:underline text-xs font-medium">Abrir WebM (animado)</a>
+                                   class="block text-grena-ink hover:underline text-xs font-medium">Abrir WebM (animado)</a>
                             @endif
                         @else
-                            <p class="text-gray-500 dark:text-gray-400">Ainda sem logomarca — o vídeo sai limpo.</p>
+                            <p class="text-ink-2">Ainda sem logomarca — o vídeo sai limpo.</p>
                         @endif
                     </div>
 
                     <form action="{{ route('replay.layouts.rerender', $layout) }}" method="POST" class="mt-4">
                         @csrf
-                        <button type="submit" class="text-xs text-gray-600 dark:text-gray-300 hover:underline font-medium">
+                        <button type="submit" class="text-xs text-ink-2 hover:underline font-medium">
                             Gerar overlay novamente
                         </button>
                     </form>
                 </div>
 
-                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-6">
-                    <h2 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Dados do layout</h2>
+                <div class="bg-surface rounded-2xl shadow-card border border-line p-6">
+                    <h2 class="text-lg font-bold text-ink mb-4">Dados do layout</h2>
 
                     <form action="{{ route('replay.layouts.update', $layout) }}" method="POST" class="space-y-3">
                         @csrf
                         @method('PUT')
                         <input type="text" name="name" value="{{ $layout->name }}" required maxlength="255"
-                               class="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm">
-                        <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                               class="w-full px-4 py-2 border border-line rounded-lg bg-surface text-ink text-sm">
+                        <label class="flex items-center gap-2 text-sm text-ink-2">
                             <input type="checkbox" name="active" value="1" @checked($layout->active)
-                                   class="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                                   class="rounded border-line-strong text-ok focus:ring-grena-tint">
                             Ativo (layout inativo é ignorado pelas câmeras)
                         </label>
-                        <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-xl font-bold text-sm hover:bg-gray-900 transition">
+                        <button type="submit" class="px-4 py-2 bg-grena text-white rounded-xl font-bold text-sm hover:bg-grena-hover transition">
                             Salvar dados
                         </button>
                     </form>

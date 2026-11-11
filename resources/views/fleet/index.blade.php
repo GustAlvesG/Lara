@@ -44,14 +44,17 @@
 
         {{-- Números do dia. "Aguardando baixa" é o que importa: viagem aberta
              demais quase sempre é retorno que ninguém registrou. --}}
-        <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            @foreach ($stats_cards as [$title, $value, $tone])
-                <div class="rounded-card bg-surface p-4 shadow-card">
-                    <p class="text-xs font-bold uppercase tracking-[0.08em] text-ink-3">{{ $title }}</p>
-                    <p class="mt-1 font-mono text-2xl font-semibold {{ $tone }}">{{ $value }}</p>
-                </div>
-            @endforeach
-        </div>
+        {{-- Faixa da câmera (identidade do SIV, 11/11/2026). --}}
+        <section class="siv-night overflow-hidden rounded-[28px] shadow-card" aria-label="Frota agora">
+            <dl class="auth-enter grid grid-cols-2 gap-px bg-white/10 lg:grid-cols-5">
+                @foreach ($stats_cards as [$title, $value, $tone])
+                    <div class="flex flex-col-reverse gap-2 bg-[rgb(var(--siv-night))] px-5 py-5 sm:px-6 {{ $loop->first ? 'col-span-2 lg:col-span-1' : '' }}">
+                        <dt class="text-xs font-bold uppercase tracking-[0.14em] text-white/60">{{ $title }}</dt>
+                        <dd class="font-mono text-[34px] font-semibold leading-none {{ $tone === 'text-danger' ? 'text-red-300' : ($tone === 'text-grena-ink' ? 'text-[rgb(var(--siv-glow))]' : 'text-white') }}">{{ $value }}</dd>
+                    </div>
+                @endforeach
+            </dl>
+        </section>
 
         @if ($vehicles->isEmpty())
             <x-empty-state icon="car">
@@ -71,23 +74,31 @@
                         $search = implode(' ', array_filter([$vehicle->name, $vehicle->plate, $trip?->driver_name, $trip?->destination, $trip ? 'em rota' : 'no clube']));
                     @endphp
 
+                    @php
+                        // Faixa de situação no topo do cartão: no clube, em rota, atrasado.
+                        $statusTone = $trip ? ($overdue ? 'danger' : 'warn') : 'ok';
+                    @endphp
                     <article data-search="{{ $search }}"
-                             class="flex flex-col gap-4 rounded-card bg-surface p-5 shadow-card {{ $overdue ? 'ring-2 ring-danger/50' : '' }}">
+                             class="relative flex flex-col gap-4 overflow-hidden rounded-card bg-surface p-5 pt-6 shadow-card {{ $overdue ? 'ring-2 ring-danger/50' : '' }}">
+                        <span class="absolute inset-x-0 top-0 h-1.5" style="background-color: rgb(var(--{{ $statusTone }}))" aria-hidden="true"></span>
                         <div class="flex items-start justify-between gap-3">
-                            <div class="flex min-w-0 items-center gap-3">
-                                <span class="grid h-11 w-11 shrink-0 place-items-center rounded-2xl" style="{{ \App\View\AreaColor::style('portaria') }}">
-                                    <x-icon name="car" class="h-5 w-5" />
-                                </span>
+                            <div class="flex min-w-0 items-center gap-4">
+                                @if ($vehicle->plate)
+                                    <x-plate :plate="$vehicle->plate" size="lg" class="shrink-0" />
+                                @else
+                                    <span class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl" style="{{ \App\View\AreaColor::style('portaria') }}">
+                                        <x-icon name="car" class="h-6 w-6" />
+                                    </span>
+                                @endif
                                 <div class="min-w-0">
-                                    <h3 class="truncate text-[15.5px] font-bold text-ink">{{ $vehicle->name }}</h3>
-                                    <p class="flex flex-wrap items-center gap-2 text-xs text-ink-2">
-                                        @if ($vehicle->plate)
-                                            <x-plate :plate="$vehicle->plate" size="sm" />
-                                        @else
+                                    <h3 class="truncate font-display text-lg font-semibold tracking-tight text-ink">{{ $vehicle->name }}</h3>
+                                    <p class="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-2">
+                                        @unless ($vehicle->plate)
                                             sem placa cadastrada
-                                        @endif
+                                        @endunless
                                         @if ($vehicle->current_odometer !== null)
-                                            <span class="font-mono">{{ number_format($vehicle->current_odometer, 0, ',', '.') }} km</span>
+                                            @php $odo = str_pad((string) (int) $vehicle->current_odometer, 6, '0', STR_PAD_LEFT); @endphp
+                                            <span class="siv-odo" role="img" aria-label="{{ number_format($vehicle->current_odometer, 0, ',', '.') }} km">@foreach (str_split($odo) as $digit)<span aria-hidden="true">{{ $digit }}</span>@endforeach<i aria-hidden="true">km</i></span>
                                         @endif
                                     </p>
                                 </div>

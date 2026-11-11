@@ -41,7 +41,7 @@ class ExternosScreensTest extends TestCase
     /** O miolo da tela, sem o layout (menus de antes ainda têm paleta antiga). */
     private function miolo(string $html): string
     {
-        $inicio = strpos($html, '<main>');
+        $inicio = strpos($html, '<main');
         $fim = strpos($html, '<footer');
 
         return substr($html, (int) $inicio, $fim === false ? null : $fim - (int) $inicio);

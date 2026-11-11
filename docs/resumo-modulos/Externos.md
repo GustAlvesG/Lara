@@ -6,6 +6,33 @@ regras, liberação pontual, API de registro) e
 O pedido de carro de aplicativo pelo WhatsApp está em
 [bot-whatsapp.md](../funcionalidades/bot-whatsapp.md) e no [resumo do Bot WhatsApp](Bot%20WhatsApp.md).
 
+
+## Identidade visual (11/11/2026)
+
+Pedido do usuário: Externos, Freelancers, Assinaturas e Contratos na mesma pegada do SIV e de
+Reservas. Peças compartilhadas:
+
+- `x-mod-hero` (`resources/views/components/mod-hero.blade.php`): faixa escura (`mod-band`, tokens
+  `--ext-deep`/`--ext-badge`, `--freela-deep`/`--freela-glow`, `--pen-ink`/`--pen-glow` em
+  `app.css`) com título, texto e números (`stats`: label, value, href, tone, current; `value` nulo
+  vira um atalho com seta). À direita, no lg+, o objeto do módulo: o crachá (`ext`), o cartão de
+  ponto (`freela`) ou a folha com a assinatura que se desenha uma vez (`pen`, `pen-stroke`).
+  Os números são os que a tela já tem — o componente não consulta nada.
+- Formulário em passos (`signature/documents/partials/steps`, usado por documento, contrato,
+  modelo de contrato e editor): trilha `lara-stepper` (Passo N de M, ✓ feito, ! erro do servidor
+  — some ao mexer no passo —, barra), selo `lara-step-tag` em cada cartão, botões presos no pé
+  (`lara-step-actions`, acima da doca no celular) com "Continuar: <próximo>", foco no 1º campo do
+  passo. Mesmas regras de antes (não avança com campo inválido, Enter avança, abre no passo com
+  erro, `data-step-start`, `data-steps-free`, `data-step-current`).
+- `lara-form` no <form>: asterisco em rótulo de campo `required` (rótulo seguido do campo, ou de
+  um div com o campo) e borda vermelha em `:user-invalid`.
+
+Em Externos: Empresas saiu do layout antigo (slot header, `partials.crud.search-create` e a
+paginação `navPagination`, que não tinha script e não fazia nada) para `x-page`: título com Nova
+empresa / Novo funcionário, faixa do crachá (empresas, com acesso agora — `accessStatuses` —,
+bloqueadas agora, funcionários), busca `#search-filter-text` (o mesmo `js/information/filter.js`
+e a busca de funcionários) e os cartões de sempre, com sombra de cartão e subida no hover.
+
 ## Em uma frase
 
 Quem **não é sócio** e entra no clube: terceirizados de empresas parceiras (regras de dia e

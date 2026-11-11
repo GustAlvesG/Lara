@@ -138,6 +138,10 @@ IA: em caso de dúvida, confirme com o setor responsável. Detalhes no guia do H
 Clique nas suas iniciais, no canto superior direito, e escolha **Claro**, **Escuro** ou
 **Sistema** (segue o que o computador ou celular estiver usando). A escolha fica neste navegador.
 
+## A faixa no alto de cada módulo
+
+A primeira tela de cada módulo abre com uma faixa escura, na cor do módulo, com os números do momento (por exemplo, quantos contratos esperam validação ou quantas luzes estão ligadas). Número com seta (→) é um atalho: clique para abrir a lista já filtrada ou a aba correspondente.
+
 ## Ler uma tabela (listas com colunas)
 
 - **No computador**, quando a tabela tem mais colunas do que cabem, a borda direita fica

@@ -9,6 +9,19 @@
 
         @include('partials.alerts')
 
+        {{-- Faixa do módulo (identidade do Placar Clube, 11/11/2026). --}}
+        @php
+            $heroStats = [['label' => 'Equipes na lista', 'value' => $equipes->total()]];
+            foreach ([['placar.jogos.index', 'Jogos'], ['placar.competicoes.index', 'Competições'], ['placar.scout.jogos', 'Súmulas (Scout)']] as [$rota, $rotulo]) {
+                if (\Illuminate\Support\Facades\Route::has($rota)) {
+                    $heroStats[] = ['label' => $rotulo, 'value' => null, 'href' => route($rota)];
+                }
+            }
+        @endphp
+        <x-mod-hero variant="score" eyebrow="Placar Clube" title="Do cadastro da equipe ao placar no telão" :stats="$heroStats" label="Resumo do Placar">
+            Equipes, times, jogadores e competições; os jogos aparecem no placar e na súmula do scout.
+        </x-mod-hero>
+
         <x-search-bar name="busca" placeholder="Buscar equipe" :filters="['criado_em_campo']">
             <x-slot:controls>
                 <label class="flex items-center gap-2 text-sm text-ink-2">

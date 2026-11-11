@@ -35,6 +35,21 @@
 
         @include('partials.alerts')
 
+        {{-- Faixa do módulo (identidade de Contratos, 11/11/2026): os números das
+             abas, cada um levando a ela. --}}
+        @php
+            $heroStats = [];
+            if ($gerencia) {
+                $heroStats[] = ['label' => 'Para validar', 'value' => $aguardando, 'href' => route('contracts.index', ['aba' => 'validar']), 'tone' => $aguardando > 0 ? 'warn' : null, 'current' => $aba === 'validar'];
+            }
+            $heroStats[] = ['label' => 'Em assinatura', 'value' => $emAssinatura, 'href' => route('contracts.index', ['aba' => 'assinatura']), 'current' => $aba === 'assinatura'];
+            $heroStats[] = ['label' => 'Vencendo em 60 dias', 'value' => $vencendo, 'href' => route('contracts.index', ['aba' => 'vencendo']), 'tone' => $vencendo > 0 ? 'danger' : null, 'current' => $aba === 'vencendo'];
+            $heroStats[] = ['label' => $aba === 'todos' ? 'Nesta lista' : 'Nesta aba', 'value' => $contracts->total()];
+        @endphp
+        <x-mod-hero variant="pen" eyebrow="Contratos" title="Do rascunho à assinatura" :stats="$heroStats" label="Resumo dos contratos">
+            Redija, a Gerência valida e o documento segue para assinatura — tudo no mesmo lugar.
+        </x-mod-hero>
+
         <div class="flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-subtle p-1" role="tablist" aria-label="Contratos">
             <a href="{{ route('contracts.index') }}" role="tab" aria-selected="{{ $aba === 'todos' ? 'true' : 'false' }}" class="{{ $tab }}">Todos</a>
             @if($gerencia)

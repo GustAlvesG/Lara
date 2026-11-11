@@ -55,6 +55,20 @@
                 </div>
             @endif
 
+            {{-- Faixa do módulo (identidade do Home Assistant, 11/11/2026): os
+                 números que antes ficavam no pé do Resumo. --}}
+            @php
+                $heroStats = [
+                    ['label' => 'Ligados agora', 'value' => $onCount . ' / ' . $contactors->count(), 'tone' => 'warn'],
+                    ['label' => 'Em modo manual', 'value' => $manualCount],
+                    ['label' => 'Agendamentos ativos', 'value' => $activeOverrides->count()],
+                    ['label' => 'Valendo agora', 'value' => count($inEffectIds)],
+                ];
+            @endphp
+            <x-mod-hero variant="ha" eyebrow="Home Assistant" title="As luzes do clube, no horário certo" :stats="$heroStats" label="Resumo da iluminação">
+                Reservas acendem as quadras sozinhas; agendamentos e o controle manual ajustam o resto.
+            </x-mod-hero>
+
             {{-- ══════════════ Resumo ══════════════ --}}
             <section class="overflow-hidden rounded-card bg-surface shadow-card">
                 <div class="p-5 sm:p-6 flex flex-wrap items-start justify-between gap-4">
@@ -80,26 +94,6 @@
                         <svg class="w-3.5 h-3.5 transition-transform" :class="help && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
                 </div>
-
-                {{-- Números --}}
-                <dl class="grid grid-cols-2 lg:grid-cols-4 border-t border-line divide-x divide-y lg:divide-y-0 divide-line">
-                    <div class="p-4 sm:px-6">
-                        <dt class="text-xs font-semibold uppercase tracking-wider text-ink-3">Ligados agora</dt>
-                        <dd class="mt-1 text-2xl font-extrabold text-ok">{{ $onCount }}<span class="text-sm font-semibold text-ink-3"> / {{ $contactors->count() }}</span></dd>
-                    </div>
-                    <div class="p-4 sm:px-6">
-                        <dt class="text-xs font-semibold uppercase tracking-wider text-ink-3">Em modo manual</dt>
-                        <dd class="mt-1 text-2xl font-extrabold {{ $manualCount ? 'text-ink' : 'text-ink' }}">{{ $manualCount }}</dd>
-                    </div>
-                    <div class="p-4 sm:px-6">
-                        <dt class="text-xs font-semibold uppercase tracking-wider text-ink-3">Agendamentos ativos</dt>
-                        <dd class="mt-1 text-2xl font-extrabold text-ink">{{ $activeOverrides->count() }}</dd>
-                    </div>
-                    <div class="p-4 sm:px-6">
-                        <dt class="text-xs font-semibold uppercase tracking-wider text-ink-3">Valendo agora</dt>
-                        <dd class="mt-1 text-2xl font-extrabold text-grena-ink">{{ count($inEffectIds) }}</dd>
-                    </div>
-                </dl>
 
                 {{-- Como funciona --}}
                 <div x-show="help" x-cloak x-transition class="border-t border-line bg-subtle p-5 sm:p-6">

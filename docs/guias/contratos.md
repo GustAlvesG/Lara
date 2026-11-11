@@ -26,11 +26,11 @@ Validar contratos não é uma permissão: é ser do setor **Gerência**, que vê
 ## Redigir um contrato e enviar à Gerência
 <!-- telas: contracts.index -->
 
-1. Em **Contratos › Contratos**, clique em **Novo contrato**. A tela tem dois passos, como a de um documento comum:
+1. Em **Contratos › Contratos**, clique em **Novo contrato**. No alto, escolha **O que você vai redigir?**: o cartão **Contrato novo** ou **Aditivo de contrato assinado**. O contrato novo tem dois passos, como a de um documento comum:
    - **1. Contrato**: o **Setor** (só esse setor e a Gerência veem o contrato), o modelo do setor (se quiser) e o título.
-   - **2. Contratado**: **Buscar nos Prestadores** traz quem já está cadastrado; ou escolha **Empresa (CNPJ)** ou **Pessoa física (CPF)** e preencha nome, documento, endereço, e-mail e, na empresa, quem assina por ela (nome e CPF). Clique em **Criar e ir para as cláusulas**.
+   - **2. Contratado**: em **Já contratou antes? Busque nos Prestadores**, digite nome, CNPJ ou CPF e clique em **Usar** no resultado: os campos se preenchem; ou escolha **Empresa (CNPJ)** ou **Pessoa física (CPF)** e preencha nome, documento, endereço, e-mail e, na empresa, quem assina por ela (nome e CPF). Clique em **Criar e ir para as cláusulas**.
    O contratado já entra no contrato, fica guardado em **Prestadores** e já aparece em **Quem assina** (na empresa, o representante; na pessoa física, a própria pessoa). O termo do modelo (CONTRATADA, LOCATÁRIO, ANUNCIANTE…) é mantido.
-2. O editor abre em passos: **Contratado** (título, CNPJ do clube, contratada e fiadores), **Variáveis**, **Cláusulas** (considerandos e cláusulas) e **Quem assina**. Ele abre direto em **Variáveis**. Os botões no alto e **Voltar**/**Continuar** levam a qualquer passo. O contrato **se salva sozinho** enquanto você digita (o rodapé mostra "Salvo automaticamente às 14:32"); **Salvar** continua lá e volta no mesmo passo. Ao lado ficam três abas: **Prévia** (o contrato como vai ficar; ao digitar numa cláusula, a prévia rola até ela e a destaca), **Conferência** (o que falta corrigir; o número na aba é a quantidade de problemas) e **Claude** (a revisão automática). Na tela larga, o editor e a coluna ao lado rolam cada um por si.
+2. O editor abre em passos: **Contratado** (título, CNPJ do clube, contratada e fiadores), **Variáveis**, **Cláusulas** (considerandos e cláusulas) e **Quem assina**. Ele abre direto em **Variáveis**. Os botões no alto e **Voltar**/**Continuar** levam a qualquer passo. Em todo formulário em passos, a trilha no alto mostra **Passo N de M**, o nome de cada passo e uma barra; o passo já preenchido ganha **✓**, o que voltou com erro ganha **!**. Os botões **Voltar** e **Continuar: <próximo passo>** ficam presos no pé da tela, e campo obrigatório tem **\***: se ficar vazio ou errado depois de você mexer nele, a borda fica vermelha. O contrato **se salva sozinho** enquanto você digita (o rodapé mostra "Salvo automaticamente às 14:32"); **Salvar** continua lá e volta no mesmo passo. Ao lado ficam três abas: **Prévia** (o contrato como vai ficar; ao digitar numa cláusula, a prévia rola até ela e a destaca), **Conferência** (o que falta corrigir; o número na aba é a quantidade de problemas) e **Claude** (a revisão automática). Na tela larga, o editor e a coluna ao lado rolam cada um por si.
 3. Clique em **Salvar e enviar à Gerência**. O coordenador da Gerência recebe um e-mail.
 
 O que O Lara faz por você:
@@ -107,7 +107,7 @@ A lista tem a mesma busca e os mesmos filtros de Assinaturas (situação, perío
 Não é preciso ir até Assinaturas para saber como está a assinatura de um contrato:
 
 - Na lista de **Contratos › Contratos**, a aba **Em assinatura** mostra os contratos aprovados que estão colhendo assinaturas. A coluna **Assinatura** (em todas as abas) mostra a situação do documento, quantos já assinaram (por exemplo **2/4**) e quem falta.
-- Na tela do contrato, o cartão **Assinatura** traz o documento, a barra de andamento ("2 de 4 assinaram") e cada signatário com a situação (Pendente, Assinou com a data, Recusou).
+- Na tela do contrato, a faixa azul do alto mostra a fase (**Rascunho**, **Validação da Gerência**, **Aprovado**, **Em assinatura**, **Assinado**), quantos já assinaram (ex.: **2/4**, com barra) e quem falta. O cartão **Assinatura** traz o documento, a barra de andamento ("2 de 4 assinaram") e cada signatário com a situação (Pendente, Assinou com a data, Recusou).
 
 ## Recusado na assinatura (presidente ou contratada)
 <!-- telas: contracts.index -->

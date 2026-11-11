@@ -11,6 +11,8 @@
         'sm' => ['min-w-[72px] rounded border', 'text-[5px] py-px', 'text-[11px] px-1.5 pt-0.5 pb-1'],
         'md' => ['min-w-[84px] rounded-md border-[1.5px]', 'text-[5.5px] py-0.5', 'text-xs px-2 pt-[3px] pb-1'],
         'lg' => ['min-w-[120px] rounded-lg border-2', 'text-[7.5px] py-[3px]', 'text-lg px-2.5 pt-1 pb-1.5'],
+        // Destaque do SIV (resultado da busca), desde 11/11/2026.
+        'xl' => ['min-w-[220px] rounded-xl border-[3px] shadow-pop sm:min-w-[280px]', 'text-[9px] py-1 sm:text-[10px]', 'text-[38px] px-4 pt-1.5 pb-2 sm:text-[48px]'],
     ];
     [$box, $band, $digits] = $sizes[$size] ?? $sizes['md'];
 @endphp

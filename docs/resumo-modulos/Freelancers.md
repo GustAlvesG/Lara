@@ -4,6 +4,41 @@ Documentação completa (regras, porquês, API, telas): [docs/funcionalidades/fr
 Portaria:
 [docs/company-access-control.md](../company-access-control.md#freelancer).
 
+
+
+## Tela inicial (11/11/2026)
+
+Pedido do usuário: a primeira aba do módulo (a que abre ao clicar no nome dele no painel de Módulos e
+na capa) é **Serviços / Contratos** (`freelancer-services.index`), e não mais o cadastro
+(`freelancers.index`). É só a ordem dos `children` do grupo em `App\View\Navigation::links()`;
+rotas e permissões não mudaram. Quem não tem a lista de serviços continua caindo na primeira aba que
+pode abrir.
+
+## Identidade visual (11/11/2026)
+
+Pedido do usuário: Externos, Freelancers, Assinaturas e Contratos na mesma pegada do SIV e de
+Reservas. Peças compartilhadas:
+
+- `x-mod-hero` (`resources/views/components/mod-hero.blade.php`): faixa escura (`mod-band`, tokens
+  `--ext-deep`/`--ext-badge`, `--freela-deep`/`--freela-glow`, `--pen-ink`/`--pen-glow` em
+  `app.css`) com título, texto e números (`stats`: label, value, href, tone, current; `value` nulo
+  vira um atalho com seta). À direita, no lg+, o objeto do módulo: o crachá (`ext`), o cartão de
+  ponto (`freela`) ou a folha com a assinatura que se desenha uma vez (`pen`, `pen-stroke`).
+  Os números são os que a tela já tem — o componente não consulta nada.
+- Formulário em passos (`signature/documents/partials/steps`, usado por documento, contrato,
+  modelo de contrato e editor): trilha `lara-stepper` (Passo N de M, ✓ feito, ! erro do servidor
+  — some ao mexer no passo —, barra), selo `lara-step-tag` em cada cartão, botões presos no pé
+  (`lara-step-actions`, acima da doca no celular) com "Continuar: <próximo>", foco no 1º campo do
+  passo. Mesmas regras de antes (não avança com campo inválido, Enter avança, abre no passo com
+  erro, `data-step-start`, `data-steps-free`, `data-step-current`).
+- `lara-form` no <form>: asterisco em rótulo de campo `required` (rótulo seguido do campo, ou de
+  um div com o campo) e borda vermelha em `:user-invalid`.
+
+Em Freelancers: a lista de freelancers abre com a faixa do cartão de ponto (cadastrados, com
+excesso de serviços, cadastro incompleto — contados da própria lista); Serviços / Contratos troca o
+cabeçalho antigo por título + botões do padrão e a faixa (serviços na lista/busca e, nesta página,
+acima do limite semanal — `excessFlags` só cobre a página quando não há filtro de problema).
+
 ## Em uma frase
 
 Cadastro de **freelancers**, das **funções** (preço por bloco de 15 min) e dos **contratos** de um dia

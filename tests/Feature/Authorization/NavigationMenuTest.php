@@ -113,6 +113,16 @@ class NavigationMenuTest extends TestCase
         $this->assertStringContainsString(route('lara.index'), $html);
     }
 
+    public function test_hal_fica_fora_do_painel_de_modulos_mas_na_busca(): void
+    {
+        // Desde 11/11/2026 o HAL abre só pelo balão: não é um módulo do painel,
+        // mas continua na busca (Ctrl+K) e nos favoritos.
+        $nav = \App\View\Navigation::build($this->usuario(new UserAccess([], ['TI'])), request());
+
+        $this->assertNotContains('hal-ia', array_column($nav['groups'], 'key'));
+        $this->assertContains('lara.index', array_column($nav['index'], 'key'));
+    }
+
     public function test_coordenador_ve_meu_setor(): void
     {
         $html = $this->menuDe($this->usuario(UserAccess::none(), coordenador: true));
