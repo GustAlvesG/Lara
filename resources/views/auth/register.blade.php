@@ -15,9 +15,6 @@
 @endphp
 <x-auth-layout
     title="Criar conta"
-    photo="images/auth/arena-areia.jpg"
-    photo-alt="Bola de vôlei na areia da arena do Clube dos Funcionários"
-    photo-position="50% 55%"
     tagline="Da portaria às reservas, cada módulo no seu lugar."
 >
     <x-auth-card variant="flush" eyebrow="Acesso dos funcionários" title="Crie sua conta"

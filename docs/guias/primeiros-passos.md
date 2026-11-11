@@ -13,7 +13,8 @@ mais usa, onde chegam as notificações e como pedir ajuda ao HAL, o assistente 
 
 ## Entrar no Lara
 
-Na página inicial do Lara (a da foto da sede do clube), clique em **Entrar no Lara** ou em
+Na página inicial do Lara (a da foto do clube: a cada vez que a página abre, aparece uma de quatro
+fotos — a piscina com a torre de saltos, a fachada da sede ou o clube visto de cima), clique em **Entrar no Lara** ou em
 **Entrar**, no alto. Na tela de entrada, escolha como vai se identificar: **Matrícula** (padrão)
 ou **E-mail**. Digite a senha e clique em **Entrar**.
 
@@ -36,7 +37,7 @@ ou **E-mail**. Digite a senha e clique em **Entrar**.
 
 Depois de entrar, O Lara abre o **Dashboard**:
 
-- **No alto**, sobre a foto do clube, a data, o seu nome e o seu último acesso, e os números de
+- **No alto**, sobre uma foto do clube (muda a cada vez que a tela abre), a data, o seu nome e o seu último acesso, e os números de
   hoje no clube: veículos na portaria e reservas para hoje (só para quem tem acesso ao SIV e às
   Reservas) e os acessos de externos liberados e negados.
 - **Avisos novos** — os avisos que você ainda não abriu, o mais recente em destaque. Clique para

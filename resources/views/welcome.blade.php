@@ -30,7 +30,8 @@
         ['info', 'mail', 'Disparo de E-mails', 'Campanhas de e-mail para listas e sócios.'],
     ];
     $count = count($modules);
-    $photo = 'images/auth/sede-social.jpg';
+    // Uma das fotos do clube, sorteada a cada abertura (App\View\ClubPhotos).
+    $photo = \App\View\ClubPhotos::random();
 @endphp
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -46,7 +47,7 @@
         @include('partials.theme-script')
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700|unbounded:500,600,700&display=swap" rel="stylesheet" />
-        <link rel="preload" as="image" href="{{ asset($photo) }}">
+        <link rel="preload" as="image" href="{{ asset($photo['src']) }}">
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @include('partials.entrada-estilos')
     </head>
@@ -57,8 +58,9 @@
 
         {{-- Primeira tela: a sede do clube, o que é o Lara e o caminho para entrar. --}}
         <section class="relative isolate flex min-h-[100svh] flex-col overflow-hidden bg-ink text-white" aria-labelledby="titulo">
-            <img src="{{ asset($photo) }}" alt="Área coberta da sede social do Clube dos Funcionários à noite, com mesas de madeira e sócios conversando"
-                 class="auth-photo-img absolute inset-0 -z-10 h-full w-full object-cover" style="object-position: 55% 50%"
+            <img src="{{ asset($photo['src']) }}" alt="{{ $photo['alt'] }}"
+                 class="auth-photo-img auth-photo-drift absolute inset-0 -z-10 h-full w-full object-cover" style="{{ \App\View\ClubPhotos::style($photo) }}"
+                 data-club-photo="{{ $photo['key'] }}"
                  fetchpriority="high" decoding="async">
             <div class="absolute inset-0 -z-10 bg-gradient-to-t from-black/85 via-black/35 to-black/45" aria-hidden="true"></div>
 

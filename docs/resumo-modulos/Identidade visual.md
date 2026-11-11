@@ -211,6 +211,14 @@ módulo mudou junto, sem mexer na lógica de nenhuma:
 - **Tablet dos freelancers** (`/kiosk`, 11/11/2026): página fora do layout, com CSS próprio
   (`resources/css/kiosk.css`) nos valores do Lara e a faixa do cartão de ponto (`.k-band`) na
   entrada, na barra de cima, no cartão do freelancer, na soma do lote e na cabeça dos recibos.
+- **Fotos da entrada** (`/`, entrar, criar conta e a faixa de boas-vindas do Dashboard, 11/11/2026): `App\View\ClubPhotos` sorteia, no
+  servidor, uma de quatro fotos do clube a cada abertura (piscina, sede, aérea das quadras, aérea da
+  mata), em `public/images/auth/clube-*.jpg` (recortadas sem a data da câmera, ~2000px, 300–700 KB).
+  Cada foto tem enquadramento (`position`) e direção de movimento (`drift`); a classe
+  `auth-photo-drift` (em `partials/entrada-estilos`) faz o movimento lento de ida e volta (24s,
+  escala 1.12 → 1.06 com deslize), parado com "reduzir movimento". `x-auth-layout` ainda aceita
+  `photo` fixa; sem ela, sorteia. `arena-areia.jpg` segue na capa de Reservas; `sede-social.jpg`
+  ficou sem uso nas telas. Foto nova: arquivo em `public/images/auth/` + uma linha em `ClubPhotos::ALL`.
 - **Tablets de assinatura** (`/assinatura/kiosk`, `/menores` e `/gerencia`, 11/11/2026): CSS próprio
   (`resources/css/quiosque.css` e `quiosque-gerencia.css`) nos valores do Lara e a faixa da caneta
   (`.q-band`, a de Contratos/Assinaturas) na barra de cima e na entrada.

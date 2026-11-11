@@ -33,8 +33,12 @@
 
         {{-- ========================== Boas-vindas =========================== --}}
         <section class="relative isolate overflow-hidden rounded-card bg-ink text-white shadow-card" aria-labelledby="ola">
-            <img src="{{ asset('images/auth/sede-social.jpg') }}" alt=""
-                 class="auth-photo-img absolute inset-0 -z-10 h-full w-full object-cover" style="object-position: 60% 45%" decoding="async">
+            {{-- Uma das fotos do clube, sorteada a cada abertura, com o movimento lento
+                 das telas de entrada (App\View\ClubPhotos, 11/11/2026). Decorativa: alt vazio. --}}
+            @php $clubPhoto = \App\View\ClubPhotos::random(); @endphp
+            <img src="{{ asset($clubPhoto['src']) }}" alt=""
+                 class="auth-photo-img auth-photo-drift absolute inset-0 -z-10 h-full w-full object-cover"
+                 style="{{ \App\View\ClubPhotos::style($clubPhoto) }}" data-club-photo="{{ $clubPhoto['key'] }}" decoding="async">
             <div class="absolute inset-0 -z-10 bg-gradient-to-r from-black/85 via-black/60 to-black/25" aria-hidden="true"></div>
 
             <div class="auth-enter flex flex-col gap-8 p-6 sm:p-8 lg:flex-row lg:items-end lg:justify-between lg:gap-10 lg:p-10">

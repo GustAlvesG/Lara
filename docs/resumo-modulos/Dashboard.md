@@ -34,7 +34,7 @@ bloco por módulo, cada bloco só para quem tem a permissão dele. Sem permissã
 | Arquivo | Papel |
 |---|---|
 | `app/Http/Controllers/DashboardController.php` | Monta os blocos; `numbers()` é o cache. |
-| `resources/views/dashboard.blade.php` | A tela (refeita em 10/11/2026): faixa de boas-vindas com a foto do clube (`public/images/auth/sede-social.jpg`) e os números **de hoje** ("Hoje no clube"), avisos novos com o primeiro em destaque, painéis dos módulos em grade (Reservas maior, à esquerda) e o Home Assistant. |
+| `resources/views/dashboard.blade.php` | A tela (refeita em 10/11/2026): faixa de boas-vindas com uma foto do clube sorteada a cada abertura (`App\View\ClubPhotos`, as mesmas quatro das telas de entrada, com o movimento lento `auth-photo-drift`, desde 11/11/2026) e os números **de hoje** ("Hoje no clube"), avisos novos com o primeiro em destaque, painéis dos módulos em grade (Reservas maior, à esquerda) e o Home Assistant. |
 | `resources/views/components/dashboard/*` | `panel` (faixa na cor da área + conteúdo), `metric` (número grande + rótulo, `tone` para estado), `ha-switch` (interruptor diz o estado em texto). `section`, `stat-card` e `shortcut` saíram em 10/11/2026. |
 
 Os números do dia ficam só na faixa de boas-vindas (veículos hoje, reservas hoje, externos

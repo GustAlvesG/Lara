@@ -54,6 +54,8 @@ class PainelContaScreensTest extends TestCase
         // Primeiro nome, sem título duplicado nem faixa vermelha de boas-vindas.
         $this->assertStringContainsString('Olá, Marina', $html);
         $this->assertStringNotContainsString('from-red-800', $html);
+        // A faixa de boas-vindas sorteia uma das fotos do clube, como a entrada (11/11/2026).
+        $this->assertUmaFotoDoClube($html);
         // Cada bloco na cor do seu módulo.
         $this->assertStringContainsString('--c: var(--a-portaria)', $html);
         $this->assertStringContainsString('--c: var(--a-reservas)', $html);
@@ -216,16 +218,15 @@ class PainelContaScreensTest extends TestCase
         $this->requisicaoEm('login');
         $html = (string) $this->view('auth.login');
 
-        $this->assertStringContainsString('images/auth/sede-social.jpg', $html);
+        $this->assertUmaFotoDoClube($html);
         $this->assertStringContainsString('data-password-toggle aria-controls="password"', $html);
         $this->assertStringContainsString('Esqueceu a senha? Peça uma nova à TI.', $html);
         $this->assertStringContainsString('href="' . route('register') . '"', $html);
-        $this->assertFileExists(public_path('images/auth/sede-social.jpg'));
 
         $this->requisicaoEm('register');
         $html = (string) $this->withViewErrors(['cpf' => 'CPF inválido.'])->view('auth.register');
 
-        $this->assertStringContainsString('images/auth/arena-areia.jpg', $html);
+        $this->assertUmaFotoDoClube($html);
         // O erro fica embaixo do próprio campo e toma o lugar da dica.
         $this->assertStringContainsString('aria-invalid="true" aria-describedby="cpf-error"', $html);
         $this->assertStringContainsString('<p id="cpf-error"', $html);
@@ -234,8 +235,33 @@ class PainelContaScreensTest extends TestCase
         $this->assertStringContainsString('data-mask="phone"', $html);
         $this->assertStringContainsString('data-password-toggle aria-controls="password_confirmation"', $html);
         $this->assertStringContainsString('href="' . route('login') . '"', $html);
-        $this->assertFileExists(public_path('images/auth/arena-areia.jpg'));
         $this->assertDoesNotMatchRegularExpression('#\b(?:bg|text|border)-(?:gray|indigo|red)-\d{2,3}\b#', $html);
+    }
+
+    /** Exatamente uma das fotos do sorteio, com o movimento lento e o enquadramento dela. */
+    private function assertUmaFotoDoClube(string $html): void
+    {
+        $achadas = array_filter(\App\View\ClubPhotos::ALL, fn ($foto) => str_contains($html, $foto['src']));
+
+        $this->assertCount(1, $achadas, 'A faixa deveria mostrar uma (e só uma) das fotos do clube.');
+        $this->assertStringContainsString('auth-photo-drift', $html);
+        $this->assertStringContainsString('--drift-x:', $html);
+    }
+
+    /** As quatro fotos existem e o sorteio passa por todas (11/11/2026). */
+    public function test_fotos_da_entrada_sao_sorteadas_entre_as_quatro(): void
+    {
+        foreach (\App\View\ClubPhotos::ALL as $foto) {
+            $this->assertFileExists(public_path($foto['src']));
+            $this->assertNotSame('', $foto['alt']);
+        }
+
+        $vistas = [];
+        for ($i = 0; $i < 200 && count($vistas) < count(\App\View\ClubPhotos::ALL); $i++) {
+            $vistas[\App\View\ClubPhotos::random()['key']] = true;
+        }
+
+        $this->assertCount(count(\App\View\ClubPhotos::ALL), $vistas, 'Em 200 sorteios, alguma foto nunca apareceu.');
     }
 
     public function test_demais_telas_de_entrada_usam_o_mesmo_cartao(): void
@@ -254,8 +280,8 @@ class PainelContaScreensTest extends TestCase
         $this->assertStringContainsString('O sistema do Clube, feito pelo Clube.', $html);
         $this->assertStringContainsString('href="' . route('login') . '"', $html);
         $this->assertStringContainsString('href="' . route('register') . '"', $html);
-        // A sede do clube na primeira tela, como nas telas de entrar e criar conta.
-        $this->assertStringContainsString('images/auth/sede-social.jpg', $html);
+        // Uma foto do clube sorteada na primeira tela, como nas telas de entrar e criar conta.
+        $this->assertUmaFotoDoClube($html);
         $this->assertStringContainsString('auth-photo-img', $html);
         // Os módulos do menu, com a contagem tirada da própria lista.
         $this->assertMatchesRegularExpression('#\d+ módulos, cada um na sua cor\.#u', $html);

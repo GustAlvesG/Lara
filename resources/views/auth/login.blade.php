@@ -8,9 +8,6 @@
 @endphp
 <x-auth-layout
     title="Entrar"
-    photo="images/auth/sede-social.jpg"
-    photo-alt="Área coberta da sede social do Clube dos Funcionários à noite, com mesas de madeira e sócios conversando"
-    photo-position="55% 50%"
     tagline="O sistema do Clube, feito pelo Clube."
 >
     <x-auth-card variant="flush" eyebrow="Acesso dos funcionários" title="Entrar no Lara"

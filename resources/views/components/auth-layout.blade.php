@@ -1,10 +1,17 @@
 @props([
     'title',
-    'photo',
-    'photoAlt',
+    // Sem foto informada, sorteia uma das fotos do clube a cada abertura
+    // (App\View\ClubPhotos, 11/11/2026). Entrar e criar conta usam o sorteio.
+    'photo' => null,
+    'photoAlt' => null,
     'photoPosition' => 'center',
     'tagline' => null,
 ])
+@php
+    $foto = $photo
+        ? ['src' => $photo, 'alt' => $photoAlt ?? '', 'position' => $photoPosition, 'drift' => ['0%', '0%']]
+        : \App\View\ClubPhotos::random();
+@endphp
 
 {{--
     Casca das telas de entrar e de criar conta (10/11/2026): foto real do
@@ -30,7 +37,7 @@
     @include('partials.theme-script')
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700|unbounded:500,600,700&display=swap" rel="stylesheet" />
-    <link rel="preload" as="image" href="{{ asset($photo) }}">
+    <link rel="preload" as="image" href="{{ asset($foto['src']) }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     @include('partials.entrada-estilos')
@@ -46,9 +53,10 @@
 
         {{-- Foto do clube. A camada escura garante a leitura do logo e da frase. --}}
         <aside class="relative isolate h-44 overflow-hidden bg-ink sm:h-60 lg:sticky lg:top-0 lg:h-screen">
-            <img src="{{ asset($photo) }}" alt="{{ $photoAlt }}"
-                 class="auth-photo-img absolute inset-0 -z-10 h-full w-full object-cover"
-                 style="object-position: {{ $photoPosition }}"
+            <img src="{{ asset($foto['src']) }}" alt="{{ $foto['alt'] }}"
+                 class="auth-photo-img auth-photo-drift absolute inset-0 -z-10 h-full w-full object-cover"
+                 style="{{ \App\View\ClubPhotos::style($foto) }}"
+                 data-club-photo="{{ $foto['key'] ?? 'fixa' }}"
                  fetchpriority="high" decoding="async">
             <div class="absolute inset-0 -z-10 bg-gradient-to-t from-black/80 via-black/25 to-black/35" aria-hidden="true"></div>
 
