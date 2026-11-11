@@ -13,6 +13,9 @@ export default defineConfig({
                 'resources/js/kiosk.js',
                 // Tablet de assinatura (/assinatura/kiosk): só o CSS; o JS fica no Blade.
                 'resources/css/quiosque.css',
+                // Tablet da Gerência (/assinatura/kiosk/gerencia).
+                'resources/css/quiosque-gerencia.css',
+                'resources/js/quiosque-gerencia.js',
             ],
             refresh: true,
         }),

@@ -211,6 +211,12 @@ módulo mudou junto, sem mexer na lógica de nenhuma:
 - **Tablet dos freelancers** (`/kiosk`, 11/11/2026): página fora do layout, com CSS próprio
   (`resources/css/kiosk.css`) nos valores do Lara e a faixa do cartão de ponto (`.k-band`) na
   entrada, na barra de cima, no cartão do freelancer, na soma do lote e na cabeça dos recibos.
+- **Tablets de assinatura** (`/assinatura/kiosk`, `/menores` e `/gerencia`, 11/11/2026): CSS próprio
+  (`resources/css/quiosque.css` e `quiosque-gerencia.css`) nos valores do Lara e a faixa da caneta
+  (`.q-band`, a de Contratos/Assinaturas) na barra de cima e na entrada.
+- **Tablets em pé e deitados:** os quatro tablets (`/kiosk` e os três de assinatura) têm o desenho base
+  em pé e um bloco `@media (orientation: landscape) and (min-width: 880px)` que põe teclado ao lado do
+  texto, faixa ao lado do formulário e listas em duas colunas; `max-height: 620px` compacta.
 - **Camadas da barra de cima:** a ilha leva `z-10` porque o `backdrop-blur` faz da ilha e da doca
   (Favoritos/Recentes) camadas próprias; sem isso a doca tampa o menu da conta e o do sino.
 - **Tabelas** (sem componente: camada única, bloco "Tabelas" no fim de `resources/css/app.css` +

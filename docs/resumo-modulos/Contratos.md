@@ -185,7 +185,11 @@ Guia do usuário: [docs/guias/contratos.md](../guias/contratos.md) (e a seção 
 - Migration `2026_10_29_100000`. Config `signature.contracts.*` / `SIGNATURE_CONTRACT_*`. Testes:
   `SignatureContractTest`, `Unit\NumeroPorExtensoTest`, esquema `CreatesContractSchema`.
 - **Validação no tablet do balcão** (decisão do usuário): botão "Validação de contratos (Gerência)" na espera do
-  quiosque (`CFG.gerencia`, só no balcão) → página própria `/assinatura/kiosk/gerencia` (`quiosque/gerencia.blade.php`).
+  quiosque (`CFG.gerencia`, só no balcão) → página própria `/assinatura/kiosk/gerencia` (`quiosque/gerencia.blade.php`). Desde 11/11/2026: CSS
+  `resources/css/quiosque-gerencia.css` e JS `resources/js/quiosque-gerencia.js` (Vite; URLs, ociosidade e
+  mínimo de pontos do visto chegam por `window.GERENCIA`), faixa da caneta (`.q-band`), em pé e deitado
+  (deitado: entrada com a faixa ao lado, lista em duas colunas, folhas como diálogos no centro).
+  `tests/Feature/SignatureKioskPageTest.php` confere que todo `$('#id')` do JS existe na página.
   Matrícula + PIN, cookie `lara_management`, `ContractKioskService` (desenho do `DirectorKioskService`: hash no cache,
   limite por matrícula, setor Gerência reconferido a cada chamada). Lê, comenta tocando na cláusula, aprova/devolve
   pelo `ContractService`; desde 04/11/2026 também edita o texto (`update`) e pede a revisão do Claude (`ai-review`). Rotas `quiosque.gerencia.*`. Testes: `SignatureContractKioskTest`.

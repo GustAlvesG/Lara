@@ -82,7 +82,7 @@ Aprovado, o contrato ganha o número (por exemplo **CTL - 12/26**, uma sequênci
 ## Validar pelo tablet do balcão (Gerência)
 <!-- telas: contracts.index -->
 
-1. Na tela de espera do tablet, toque em **Validação de contratos (Gerência)** e entre com a matrícula e o PIN d'O Lara.
+1. Na tela de espera do tablet, toque em **Validação de contratos (Gerência)** e entre com a matrícula e o PIN d'O Lara. A tela funciona em pé ou deitada: deitada, a lista fica em duas colunas e as janelas (comentar, devolver, aprovar, revisão do Claude, editar) abrem no centro.
 2. Toque num contrato. Para comentar uma cláusula, toque nela e escreva.
 3. **Revisão do Claude**: mostra a última revisão (com o aviso se o texto mudou depois), a **revisão jurídica** (risco, fraquezas e, em risco alto, o aviso para procurar um jurídico especializado; o botão avisa "risco jurídico alto") e os apontamentos. **Levar para a observação** copia o apontamento para a cláusula (ou para a observação geral da devolução). Para pedir uma análise, marque os trechos sensíveis que podem ir, anexe trechos de referência se quiser (**+ Outro trecho**) e toque em **Analisar com o Claude**.
 4. **Editar texto**: ajuste o título do contrato e, em cada cláusula, o título e os itens. A barra no alto tem negrito, itálico e sublinhado; cada item pode virar **Subitem**, ser tirado (**Tirar**) e a cláusula pode ganhar **+ Item**. O texto se salva sozinho enquanto você digita (aparece "Salvo automaticamente às…"); **Salvar texto** grava e fecha. Partes, variáveis, considerandos e signatários só se ajustam no computador. As observações já escritas continuam.

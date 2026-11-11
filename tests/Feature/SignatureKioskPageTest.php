@@ -51,6 +51,27 @@ class SignatureKioskPageTest extends TestCase
         $this->confereIds($html, $this->idsDoJs('nucleo', 'menores', 'inicio'));
     }
 
+    public function test_gerencia_tem_todo_id_que_o_js_procura_e_os_dados_do_servidor(): void
+    {
+        $html = $this->withoutVite()->get(route('quiosque.gerencia.index'))->assertOk()->getContent();
+        $js = file_get_contents(resource_path('js/quiosque-gerencia.js'));
+
+        preg_match_all("/\\\$\\('#([A-Za-z][\\w-]*)/", $js, $m);
+        $ids = array_values(array_unique($m[1]));
+        $this->assertGreaterThan(30, count($ids));
+
+        foreach ($ids as $id) {
+            $this->assertStringContainsString('id="' . $id . '"', $html, "#{$id} é usado no JS da Gerência e não está na página");
+        }
+
+        // O que antes era Blade dentro do script chega por window.GERENCIA.
+        $this->assertStringContainsString('window.GERENCIA', $html);
+        $this->assertStringContainsString('urls: {', $html);
+        $this->assertStringContainsString('ociosoSegundos: ', $html);
+        $this->assertStringContainsString('class="g-hero q-band"', $html);
+        $this->assertStringNotContainsString('{{', $html);
+    }
+
     public function test_esqueleto_e_identidade(): void
     {
         $html = $this->withoutVite()->get(route('quiosque.index'))->assertOk()->getContent();

@@ -370,7 +370,7 @@ comenta e decide**. Desde 04/11/2026 (pedido do usuário), também se **pede a r
 **edita o texto** (abaixo).
 
 - **Entrada:** botão "Validação de contratos (Gerência)" na tela de espera do quiosque (só no balcão, não no
-  Termo de Menores) → página própria `/assinatura/kiosk/gerencia` (`resources/views/quiosque/gerencia.blade.php`),
+  Termo de Menores) → página própria `/assinatura/kiosk/gerencia` (`resources/views/quiosque/gerencia.blade.php`; desde 11/11/2026 CSS em `resources/css/quiosque-gerencia.css` e JS em `resources/js/quiosque-gerencia.js`, pelo Vite, com os dados do servidor em `window.GERENCIA`),
   fora da tela de assinatura.
 - **Sessão:** `ContractKioskService` — cookie `lara_management` (httpOnly, SameSite=Strict, caminho do
   quiosque), só o hash no cache, `SIGNATURE_CONTRACT_KIOSK_SESSION_MINUTES` (padrão 20) renovados a cada uso;

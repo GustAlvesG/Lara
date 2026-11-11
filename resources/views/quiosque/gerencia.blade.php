@@ -12,125 +12,51 @@
 
     O tablet não guarda nada: as observações em andamento ficam só na
     memória da página, e a entrada cai sozinha depois de um tempo parado.
+
+    Desde 11/11/2026: visual em resources/css/quiosque-gerencia.css (faixa da
+    caneta, em pé e deitado) e comportamento em resources/js/quiosque-gerencia.js,
+    ambos pelo Vite. Os ids daqui são lidos pelo JS: renomear exige renomear lá.
 --}}
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#152652">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <meta name="robots" content="noindex, nofollow">
   <title>Validação de contratos — Gerência</title>
   <link rel="preconnect" href="https://fonts.bunny.net">
-  <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800|unbounded:500,600,700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800|unbounded:500,600,700|jetbrains-mono:500,600&display=swap" rel="stylesheet" />
   @include('signature.contracts.partials.styles')
-  <style>
-  /* A paleta do quiosque (resources/css/quiosque.css). */
-  :root{
-    --bg:#f5f3f3; --surface:#ffffff; --surface-2:#faf8f8; --surface-3:#eeeaea;
-    --border:#e3ddde; --border-strong:#d0c7c9;
-    --ink:#1e1215; --ink-2:#5a4a4e; --ink-3:#8c7c80;
-    --brand:#8a1538; --brand-strong:#6f0f2c; --brand-tint:#f6e3e9; --on-brand:#fff;
-    --success:#147a45; --success-tint:#ddf3e6;
-    --warning:#935700; --warning-tint:#fbefd8;
-    --danger:#c22b2b; --danger-tint:#fce4e4;
-    --shadow: 0 1px 2px rgba(31,24,25,.04), 0 8px 24px -12px rgba(31,24,25,.18);
-    --shadow-lg: 0 24px 60px -24px rgba(31,24,25,.45);
-    --r:18px; --tap:64px;
-    --sans: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    --display: "Unbounded", var(--sans);
-  }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  html,body{margin:0;padding:0;height:100%;overscroll-behavior:none;}
-  body{font-family:var(--sans);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;}
-  button,input,textarea{font-family:inherit;}
-  .app{display:flex;flex-direction:column;height:100dvh;max-width:900px;margin:0 auto;background:var(--surface);box-shadow:var(--shadow-lg);overflow:hidden;}
-  .topbar{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);}
-  .brand-dot{width:40px;height:40px;border-radius:12px;background:var(--brand);color:var(--on-brand);display:grid;place-items:center;font-weight:800;}
-  .who{flex:1 1 auto;min-width:0;}
-  .who b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .who span{font-size:12.5px;color:var(--ink-2);}
-  .screen{flex:1 1 auto;display:none;flex-direction:column;min-height:0;}
-  .screen.on{display:flex;}
-  .scroll{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:18px;}
-  .foot{flex:0 0 auto;display:flex;gap:12px;padding:14px 18px calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--border);background:var(--surface);}
-  h1,h2{font-family:var(--display);font-weight:600;letter-spacing:-.01em;margin:0 0 8px;}
-  h1{font-size:22px;} h2{font-size:17px;}
-  .lead{font-size:16px;color:var(--ink-2);line-height:1.5;margin:0 0 16px;}
-  .btn{flex:1 1 auto;min-height:var(--tap);border:none;border-radius:var(--r);font-size:17px;font-weight:800;cursor:pointer;padding:0 18px;}
-  .btn:active{transform:scale(.985);}
-  .btn[disabled]{opacity:.4;cursor:not-allowed;}
-  .btn-primary{background:var(--brand);color:var(--on-brand);}
-  .btn-ok{background:var(--success);color:#fff;}
-  .btn-ghost{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--border-strong);flex:0 0 auto;}
-  .btn-small{min-height:44px;font-size:14px;border-radius:999px;flex:0 0 auto;}
-  .field{width:100%;min-height:60px;border-radius:var(--r);border:2px solid var(--border-strong);background:var(--surface-2);font-size:20px;padding:12px 16px;color:var(--ink);}
-  .field:focus{outline:none;border-color:var(--brand);}
-  textarea.field{min-height:140px;font-size:17px;line-height:1.45;resize:vertical;}
-  label.lbl{display:block;font-weight:700;margin:14px 0 8px;}
-  .err{color:var(--danger);font-weight:600;font-size:15px;margin-top:12px;}
-  .hidden{display:none !important;}
-  .center{max-width:420px;margin:0 auto;padding-top:8vh;}
-  .card{display:block;width:100%;text-align:left;border:1px solid var(--border-strong);background:var(--surface-2);border-radius:var(--r);padding:16px 18px;margin-bottom:12px;cursor:pointer;color:var(--ink);font-size:15px;}
-  .card:active{background:var(--surface-3);}
-  .card b{display:block;font-size:17px;margin-bottom:4px;}
-  .meta{font-size:13.5px;color:var(--ink-2);}
-  .tag{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;margin-right:6px;background:var(--brand-tint);color:var(--brand-strong);}
-  .tag.warn{background:var(--warning-tint);color:var(--warning);}
-  .box{border-radius:var(--r);padding:14px 16px;margin-bottom:14px;font-size:15px;line-height:1.5;}
-  .box.warn{background:var(--warning-tint);}
-  .box.danger{background:var(--danger-tint);}
-  .box.soft{background:var(--surface-2);border:1px solid var(--border);}
-  details.box summary{font-weight:700;cursor:pointer;min-height:32px;}
-  .ct-paper{padding:20px 18px;border:1px solid var(--border);}
-  .ct-paper .ct-clause{position:relative;padding:4px 8px 8px;margin:0 -8px;cursor:pointer;}
-  .ct-paper .ct-clause:active{background:#faf3f5;}
-  .ct-paper .ct-clause.commented{background:var(--warning-tint);box-shadow:inset 4px 0 0 var(--warning);}
-  .ct-paper .ct-clause h3::after{content:"Tocar para comentar";float:right;font-size:11px;font-weight:600;color:var(--ink-3);}
-  .ct-paper .ct-clause.commented h3::after{content:"Com observação";color:var(--warning);}
-  .sheet-bg{position:fixed;inset:0;background:rgba(30,18,21,.45);display:none;z-index:20;}
-  .sheet-bg.on{display:block;}
-  .sheet{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:min(900px,100%);max-height:88dvh;overflow-y:auto;background:var(--surface);border-radius:24px 24px 0 0;padding:22px 20px calc(18px + env(safe-area-inset-bottom,0px));z-index:21;display:none;}
-  .sheet.on{display:block;}
-  .row{display:flex;gap:12px;margin-top:16px;}
-  .toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:14px 20px;border-radius:14px;font-weight:700;z-index:30;display:none;max-width:90%;text-align:center;}
-  .toast.on{display:block;}
-  ul.plain{margin:6px 0 0;padding-left:20px;}
-  .tools{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 14px;}
-  .pill{display:inline-block;font-size:12.5px;font-weight:800;border-radius:999px;padding:4px 12px;background:var(--surface-3);color:var(--ink-2);}
-  .pill.ok{background:var(--success-tint);color:var(--success);}
-  .pill.warn{background:var(--warning-tint);color:var(--warning);}
-  .pill.danger{background:var(--danger-tint);color:var(--danger);}
-  .achado{border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:10px;font-size:15px;line-height:1.45;}
-  .achado .meta{margin-bottom:4px;}
-  .linkbtn{background:none;border:none;color:var(--brand);font-weight:800;font-size:14px;padding:8px 0 0;cursor:pointer;}
-  .check{display:flex;gap:10px;align-items:flex-start;font-size:15px;padding:6px 0;}
-  .check input{width:22px;height:22px;margin-top:2px;}
-  .ed-clausula{border:1px solid var(--border-strong);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;}
-  .ed-item{display:flex;gap:8px;align-items:flex-start;margin-top:10px;}
-  .ed-item.n2{padding-left:28px;}
-  .ed-texto{flex:1 1 auto;min-height:56px;border-radius:12px;border:2px solid var(--border-strong);background:var(--surface-2);font-size:16px;line-height:1.5;padding:10px 12px;}
-  .ed-texto:focus{outline:none;border-color:var(--brand);background:#fff;}
-  .ed-texto p{margin:0 0 6px;}
-  .ed-lado{display:flex;flex-direction:column;gap:6px;flex:0 0 auto;}
-  .ed-lado select,.ed-lado button{min-height:40px;border-radius:10px;border:1px solid var(--border-strong);background:var(--surface);font-size:13px;font-weight:700;padding:0 8px;}
-  .ed-barra{position:sticky;top:-22px;z-index:2;display:flex;gap:8px;padding:8px 0;background:var(--surface);}
-  .ed-barra button{min-width:52px;min-height:44px;border-radius:10px;border:1px solid var(--border-strong);background:var(--surface-2);font-size:17px;}
-  .field.small{min-height:48px;font-size:16px;}
-  </style>
+  <script>window.GERENCIA = {
+    urls: @json($urls),
+    ociosoSegundos: {{ (int) $idleSeconds }},
+    // O visto precisa de um mínimo de pontos (a mesma régua do servidor).
+    minPontosVisto: {{ (int) config('signature.evidence.min_initials_points', 8) }},
+  };</script>
+  @vite(['resources/css/quiosque-gerencia.css', 'resources/js/quiosque-gerencia.js'])
 </head>
 <body>
 <div class="app">
-  <div class="topbar">
-    <div class="brand-dot">CF</div>
+  <div class="topbar q-band">
+    <div class="brand-logo"><img src="{{ asset('images/logo.png') }}" alt=""></div>
     <div class="who"><b id="quem">Validação de contratos</b><span id="sub">Gerência</span></div>
     <button type="button" class="btn btn-ghost btn-small" id="btnSair" style="display:none;">Sair</button>
   </div>
 
   {{-- 1. Entrada --}}
   <section class="screen on" id="tela-entrar">
-    <div class="scroll"><div class="center">
+    <div class="g-login">
+    <div class="g-hero q-band">
+      <div class="brand-logo"><img src="{{ asset('images/logo.png') }}" alt="CFCSN"></div>
+      <p class="eyebrow">O Lara · Contratos</p>
       <h1>Validação de contratos</h1>
+      <p>Leia o contrato, comente cláusula por cláusula e aprove ou devolva para ajustes.</p>
+      <svg class="pen" viewBox="0 0 180 22" fill="none" aria-hidden="true"><path d="M2 15c14-10 22-12 26-6s-6 10 2 9 14-14 22-11-2 11 6 10 16-12 26-9 4 8 14 6 20-7 28-6 14 4 22 2 18-5 28-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+    </div>
+    <div class="scroll"><div class="center">
+      <h2>Entrar</h2>
       <p class="lead">Gerência: entre com a sua matrícula e o PIN do Lara.</p>
       <form id="formEntrar" autocomplete="off">
         <label class="lbl" for="matricula">Matrícula</label>
@@ -139,11 +65,12 @@
         <input class="field" id="pin" type="password" inputmode="numeric" maxlength="20" required>
         <div class="err" id="erroEntrar"></div>
         <div class="row">
-          <a class="btn btn-ghost" href="{{ $urls['kiosk'] }}" style="display:grid;place-items:center;text-decoration:none;">Voltar</a>
+          <a class="btn btn-ghost" href="{{ $urls['kiosk'] }}">Voltar</a>
           <button type="submit" class="btn btn-primary" id="btnEntrar">Entrar</button>
         </div>
       </form>
     </div></div>
+    </div>
   </section>
 
   {{-- 2. Lista --}}
@@ -161,9 +88,9 @@
   {{-- 3. Contrato --}}
   <section class="screen" id="tela-contrato">
     <div class="scroll" id="contratoScroll">
-      <button type="button" class="btn btn-ghost btn-small" id="btnVoltar" style="margin-bottom:14px;">← Lista</button>
+      <button type="button" class="btn btn-ghost btn-small back" id="btnVoltar">← Lista</button>
       <h1 id="cTitulo"></h1>
-      <p class="meta" id="cMeta" style="margin:0 0 14px;"></p>
+      <p class="meta c-meta" id="cMeta"></p>
       <div class="tools">
         <button type="button" class="btn btn-ghost btn-small" id="btnIA" style="display:none;">Revisão do Claude</button>
         <button type="button" class="btn btn-ghost btn-small" id="btnEditar">Editar texto</button>
@@ -262,564 +189,5 @@
 
 <div class="toast" id="toast"></div>
 
-<script>
-(function () {
-  var URLS = @json($urls);
-  var OCIOSO = {{ (int) $idleSeconds }} * 1000;
-  var csrf = document.querySelector('meta[name="csrf-token"]').content;
-  var $ = function (s) { return document.querySelector(s); };
-
-  var atual = null;        // contrato aberto
-  var obs = {};            // uid da cláusula => observação (só na memória)
-  var clausulas = {};      // uid => rótulo
-  var batimento = null;
-  var parado = null;
-
-  function esc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : String(t); return d.innerHTML; }
-
-  function tela(id) {
-    document.querySelectorAll('.screen').forEach(function (s) { s.classList.toggle('on', s.id === id); });
-    $('#btnSair').style.display = id === 'tela-entrar' ? 'none' : '';
-  }
-
-  function api(url, metodo, corpo) {
-    return fetch(url, {
-      method: metodo || 'GET',
-      credentials: 'same-origin',
-      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
-      body: corpo ? JSON.stringify(corpo) : undefined
-    }).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (j) {
-        if (r.status === 401 && j.ended) { encerra(j.error); throw new Error('ended'); }
-        if (r.status === 419) { location.reload(); throw new Error('csrf'); }
-        if (!r.ok) { var e = new Error(j.error || (j.message) || 'Falha na comunicação com o servidor (código ' + r.status + ').'); e.dados = j; throw e; }
-        return j;
-      });
-    }, function () { throw new Error('Sem resposta do servidor. Confira a rede do tablet.'); });
-  }
-
-  function aviso(texto) {
-    var t = $('#toast');
-    t.textContent = texto;
-    t.classList.add('on');
-    setTimeout(function () { t.classList.remove('on'); }, 3500);
-  }
-
-  function fecharFolhas() {
-    document.querySelectorAll('.sheet, .sheet-bg').forEach(function (el) { el.classList.remove('on'); });
-  }
-  function abrirFolha(id) { fecharFolhas(); $('#fundo').classList.add('on'); $(id).classList.add('on'); }
-
-  // ---- Entrada e saída ----
-  $('#formEntrar').addEventListener('submit', function (e) {
-    e.preventDefault();
-    $('#erroEntrar').textContent = '';
-    $('#btnEntrar').disabled = true;
-    api(URLS.login, 'POST', { matricula: $('#matricula').value, pin: $('#pin').value })
-      .then(function (j) { $('#pin').value = ''; mostraLista(j); comecaBatimento(); })
-      .catch(function (e) { if (e.message !== 'ended') $('#erroEntrar').textContent = e.message; })
-      .then(function () { $('#btnEntrar').disabled = false; });
-  });
-
-  function encerra(mensagem) {
-    clearInterval(batimento);
-    atual = null; obs = {};
-    fecharFolhas();
-    $('#quem').textContent = 'Validação de contratos';
-    $('#sub').textContent = 'Gerência';
-    $('#matricula').value = ''; $('#pin').value = '';
-    $('#erroEntrar').textContent = mensagem || '';
-    tela('tela-entrar');
-  }
-
-  $('#btnSair').addEventListener('click', function () {
-    if (atual && Object.keys(obs).length && !confirm('Sair? As observações ainda não enviadas se perdem.')) return;
-    api(URLS.logout, 'POST').catch(function () {}).then(function () { encerra(''); });
-  });
-
-  function comecaBatimento() {
-    clearInterval(batimento);
-    // Mantém a entrada viva enquanto alguém usa, e atualiza a lista.
-    batimento = setInterval(function () {
-      api(URLS.pending).then(function (j) { if ($('#tela-lista').classList.contains('on')) mostraLista(j); }).catch(function () {});
-    }, 60000);
-  }
-
-  // Parado por muito tempo: a entrada cai (o tablet fica no balcão).
-  function mexeu() {
-    clearTimeout(parado);
-    parado = setTimeout(function () {
-      if (!$('#tela-entrar').classList.contains('on')) {
-        api(URLS.logout, 'POST').catch(function () {}).then(function () { encerra('A entrada foi encerrada por falta de uso.'); });
-      }
-    }, OCIOSO);
-  }
-  ['touchstart', 'click', 'keydown', 'scroll'].forEach(function (ev) { document.addEventListener(ev, mexeu, { passive: true, capture: true }); });
-  mexeu();
-
-  // ---- Lista ----
-  function mostraLista(j) {
-    $('#quem').textContent = j.user.name;
-    $('#sub').textContent = 'Gerência — validação de contratos';
-    var lista = j.contracts || [];
-    $('#listaResumo').textContent = lista.length
-      ? lista.length + (lista.length === 1 ? ' contrato aguardando.' : ' contratos aguardando.') + ' Toque para ler.'
-      : '';
-    $('#lista').innerHTML = lista.length ? lista.map(function (c) {
-      return '<button type="button" class="card" data-abrir="' + c.id + '">'
-        + '<b>' + esc(c.title) + '</b>'
-        + (c.counterparty ? esc(c.counterparty) + '<br>' : '')
-        + '<span class="meta">Setor ' + esc(c.sector || '—') + ' · ' + esc(c.author || '—') + ' · enviado ' + esc(c.submitted_at || '') + '</span><br>'
-        + (c.resubmission ? '<span class="tag warn">Reenvio (versão ' + c.version + ')</span>' : '')
-        + (c.addendum ? '<span class="tag">Aditivo</span>' : '')
-        + '</button>';
-    }).join('') : '<div class="box soft">Nenhum contrato aguardando validação.</div>';
-    tela('tela-lista');
-  }
-
-  $('#btnAtualizar').addEventListener('click', function () { api(URLS.pending).then(mostraLista).catch(function (e) { if (e.message !== 'ended') aviso(e.message); }); });
-
-  $('#lista').addEventListener('click', function (e) {
-    var b = e.target.closest('[data-abrir]');
-    if (b) abre(b.dataset.abrir);
-  });
-
-  // ---- Contrato ----
-  function abre(id) {
-    api(URLS.show.replace('__ID__', id)).then(function (c) {
-      obs = {};
-      mostraContrato(c);
-      $('#contratoScroll').scrollTop = 0;
-      tela('tela-contrato');
-    }).catch(function (e) { if (e.message !== 'ended') { aviso(e.message); api(URLS.pending).then(mostraLista).catch(function () {}); } });
-  }
-
-  // Desenha o contrato. As observações (obs) ficam: são por uid de cláusula,
-  // que editar o texto não muda.
-  function mostraContrato(c) {
-    {
-      atual = c; clausulas = {};
-      c.clauses.forEach(function (cl) { clausulas[cl.uid] = cl.label; });
-      Object.keys(obs).forEach(function (u) { if (!clausulas[u]) delete obs[u]; });
-      $('#cTitulo').textContent = c.title;
-      $('#cMeta').textContent = [c.counterparty, 'Setor ' + (c.sector || '—'), 'por ' + (c.author || '—'), 'versão ' + c.version].filter(Boolean).join(' · ');
-
-      var avisos = '';
-      if (c.note) avisos += '<div class="box soft"><b>Recado de quem enviou:</b><br>' + esc(c.note) + '</div>';
-      if (c.errors.length) {
-        avisos += '<div class="box danger"><b>Não dá para aprovar ainda:</b><ul class="plain">'
-          + c.errors.map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') + '</ul></div>';
-      }
-      if (c.diff) {
-        var linhas = c.diff.fields.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('')
-          + c.diff.removed.map(function (t) { return '<li><del>Cláusula removida: ' + esc(t) + '</del></li>'; }).join('')
-          + c.diff.clauses.map(function (cl) {
-              return '<li><b>Cláusula ' + cl.number + ' – ' + esc(cl.title) + '</b>' + (cl.status === 'added' ? ' (nova)' : '')
-                + cl.items.map(function (it) { return '<div>' + it.html + '</div>'; }).join('') + '</li>';
-            }).join('');
-        avisos += '<details class="box warn ct-diff" open><summary>O que mudou desde a versão ' + c.diff.since + ' (devolvida)</summary><ul class="plain">' + linhas + '</ul></details>';
-      }
-      if (c.attachments.length) {
-        avisos += '<div class="box soft"><b>Anexos</b><ul class="plain">' + c.attachments.map(function (a) {
-          return '<li><a target="_blank" rel="noopener" href="' + URLS.attachment.replace('__ID__', c.id).replace('__ANEXO__', a.id) + '">' + esc(a.label) + '</a></li>';
-        }).join('') + '</ul></div>';
-      }
-      $('#cAvisos').innerHTML = avisos;
-      $('#cTexto').innerHTML = c.html;
-      $('#btnAprovar').disabled = c.errors.length > 0;
-      $('#btnIA').style.display = c.ai && c.ai.enabled ? '' : 'none';
-      if (c.ai && c.ai.review) {
-        $('#btnIA').textContent = 'Revisão do Claude · ' + c.ai.review.verdict
-        + (c.ai.review.legal && c.ai.review.legal.seek_lawyer ? ' · risco jurídico alto' : '')
-        + (c.ai.review.current ? '' : ' (texto mudou)');
-      } else {
-        $('#btnIA').textContent = 'Revisão do Claude';
-      }
-      marcaClausulas();
-    }
-  }
-
-  // ---- Revisão pelo Claude ----
-  var GRAVIDADE = { alta: 'Grave', media: 'Atenção', baixa: 'Detalhe' };
-
-  function trechoExtra(n) {
-    var lim = atual.ai.limits;
-    return '<div class="box soft" data-extra>'
-      + '<input class="field small" data-extra-title maxlength="' + lim.title + '" placeholder="Título (ex.: Proposta comercial)">'
-      + '<textarea class="field" data-extra-text maxlength="' + lim.text + '" placeholder="Cole aqui o trecho" style="margin-top:8px;"></textarea>'
-      + '</div>';
-  }
-
-  function mostraIA() {
-    var ai = atual.ai, r = ai.review, h = '';
-    if (r) {
-      var kind = { ok: 'ok', warn: 'warn', danger: 'danger' }[r.kind] || '';
-      h += '<div class="box soft"><span class="pill ' + kind + '">' + esc(r.verdict) + '</span> '
-        + '<span class="meta">pedida por ' + esc(r.by || '—') + ' em ' + esc(r.at || '') + '</span>'
-        + (r.current ? '' : '<div class="meta" style="color:var(--warning);font-weight:700;">O texto mudou depois desta revisão.</div>')
-        + '<p style="white-space:pre-line;margin:10px 0 0;">' + esc(r.summary) + '</p>'
-        + (r.withheld.length ? '<p class="meta"><b>Não enviados:</b> ' + esc(r.withheld.join('; ')) + '.</p>' : '')
-        + (r.extras.length ? '<p class="meta"><b>Trechos anexados:</b> ' + esc(r.extras.join('; ')) + '.</p>' : '')
-        + '</div>';
-      // Revisão jurídica (04/11/2026): risco, fraquezas e, no risco alto, procurar o jurídico.
-      if (r.legal) {
-        var lk = { ok: 'ok', warn: 'warn', danger: 'danger' }[r.legal.kind] || '';
-        h += '<div class="box ' + (r.legal.seek_lawyer ? 'danger' : 'soft') + '"><b>Revisão jurídica</b> <span class="pill ' + lk + '">' + esc(r.legal.label) + '</span>'
-          + (r.legal.seek_lawyer ? '<p style="margin:10px 0 0;font-weight:800;color:var(--danger);">Procure um jurídico especializado antes de aprovar este contrato.</p>' : '')
-          + (r.legal.summary ? '<p style="white-space:pre-line;margin:10px 0 0;">' + esc(r.legal.summary) + '</p>' : '')
-          + r.legal.weaknesses.map(function (f, i) {
-              return '<div class="achado" style="background:var(--surface);margin-top:10px;">'
-                + (f.clause > 0 ? '<div class="meta"><b>Cláusula ' + f.clause + '</b></div>' : '')
-                + esc(f.point)
-                + (f.suggestion ? '<div class="meta" style="margin-top:4px;"><b>Sugestão:</b> ' + esc(f.suggestion) + '</div>' : '')
-                + '<button type="button" class="linkbtn" data-levar-j="' + i + '">Levar para a observação ' + (f.uid ? 'da cláusula' : 'geral') + '</button>'
-                + '</div>';
-            }).join('')
-          + '<p class="meta">Orientação automática, não é parecer jurídico.</p></div>';
-      }
-      r.findings.forEach(function (a, i) {
-        h += '<div class="achado"><div class="meta"><b>' + esc(GRAVIDADE[a.severity] || a.severity) + '</b>'
-          + (a.clause > 0 ? ' · Cláusula ' + a.clause : '') + (a.where ? ' · ' + esc(a.where) : '') + '</div>'
-          + esc(a.problem)
-          + (a.suggestion ? '<div class="meta" style="margin-top:4px;"><b>Sugestão:</b> ' + esc(a.suggestion) + '</div>' : '')
-          + '<button type="button" class="linkbtn" data-levar="' + i + '">Levar para a observação ' + (a.uid ? 'da cláusula' : 'geral') + '</button>'
-          + '</div>';
-      });
-    } else {
-      h += '<p class="lead">O Claude lê o contrato inteiro e aponta inconsistências (partes, valores por extenso, prazos, remissões, cláusulas contraditórias ou faltando), com sugestão de alteração.</p>';
-    }
-    $('#iaUltima').innerHTML = h;
-
-    $('#iaSensiveis').innerHTML = ai.sensitive.length
-      ? '<div class="box soft"><b>Trechos com dados sensíveis — ficam de fora, a menos que você marque</b>'
-        + ai.sensitive.map(function (t) {
-            return '<label class="check"><input type="checkbox" value="' + esc(t.key) + '" data-incluir><span>' + esc(t.label) + ' <span class="meta">(' + esc(t.reasons) + ')</span></span></label>';
-          }).join('') + '</div>'
-      : '';
-
-    $('#iaExtrasAjuda').textContent = 'Cole um texto de referência (proposta do fornecedor, contrato anterior, orientação): o Claude confere a minuta contra ele. Até '
-      + ai.limits.extras + ' trechos. Esse texto também vai à Anthropic.';
-    $('#iaExtras').innerHTML = trechoExtra(0);
-    $('#iaMaisTrecho').disabled = false;
-    $('#iaErro').textContent = '';
-    $('#iaAnalisar').textContent = r ? (r.current ? 'Analisar de novo' : 'Analisar o texto atual') : 'Analisar com o Claude';
-  }
-
-  $('#btnIA').addEventListener('click', function () { mostraIA(); abrirFolha('#folhaIA'); });
-
-  $('#iaMaisTrecho').addEventListener('click', function () {
-    var n = document.querySelectorAll('#iaExtras [data-extra]').length;
-    if (n >= atual.ai.limits.extras) return;
-    $('#iaExtras').insertAdjacentHTML('beforeend', trechoExtra(n));
-    if (n + 1 >= atual.ai.limits.extras) $('#iaMaisTrecho').disabled = true;
-  });
-
-  $('#iaUltima').addEventListener('click', function (e) {
-    var b = e.target.closest('[data-levar], [data-levar-j]');
-    if (!b) return;
-    var a;
-    if (b.dataset.levarJ !== undefined) {
-      var f = atual.ai.review.legal.weaknesses[+b.dataset.levarJ];
-      a = { uid: f.uid, problem: 'Jurídico: ' + f.point, suggestion: f.suggestion };
-    } else {
-      a = atual.ai.review.findings[+b.dataset.levar];
-    }
-    var texto = a.problem + (a.suggestion ? ' Sugestão: ' + a.suggestion : '');
-    if (a.uid && clausulas[a.uid]) {
-      obs[a.uid] = (obs[a.uid] ? obs[a.uid] + '\n' : '') + texto;
-      marcaClausulas();
-    } else {
-      var nota = $('#fdNota');
-      nota.value = (nota.value.trim() ? nota.value.trim() + '\n' : '') + texto;
-    }
-    b.textContent = 'Levado ✓';
-    b.disabled = true;
-  });
-
-  $('#iaAnalisar').addEventListener('click', function () {
-    var botao = $('#iaAnalisar');
-    var incluir = Array.prototype.map.call(document.querySelectorAll('#iaSensiveis [data-incluir]:checked'), function (el) { return el.value; });
-    var extras = Array.prototype.map.call(document.querySelectorAll('#iaExtras [data-extra]'), function (el) {
-      return { title: el.querySelector('[data-extra-title]').value, text: el.querySelector('[data-extra-text]').value };
-    }).filter(function (x) { return x.text.trim() !== ''; });
-
-    botao.disabled = true;
-    botao.textContent = 'Analisando… até um minuto';
-    $('#iaErro').textContent = '';
-    api(URLS.aiReview.replace('__ID__', atual.id), 'POST', { include: incluir, extras: extras })
-      .then(function (j) {
-        atual.ai = j.ai;
-        mostraContrato(atual);
-        mostraIA();
-        aviso(j.message);
-        $('#folhaIA').scrollTop = 0;
-      })
-      .catch(function (e) { if (e.message !== 'ended') $('#iaErro').textContent = e.message; })
-      .then(function () { botao.disabled = false; if (botao.textContent.indexOf('Analisando') === 0) botao.textContent = 'Analisar com o Claude'; });
-  });
-
-  // ---- Editar o texto ----
-  function itemEd(it) {
-    return '<div class="ed-item' + (it.level === 2 ? ' n2' : '') + '" data-item data-uid="' + esc(it.uid || '') + '">'
-      + '<div class="ed-texto" contenteditable="true">' + (it.html || '') + '</div>'
-      + '<div class="ed-lado">'
-      + '<select data-nivel><option value="1"' + (it.level === 2 ? '' : ' selected') + '>Item</option><option value="2"' + (it.level === 2 ? ' selected' : '') + '>Subitem</option></select>'
-      + '<button type="button" data-tirar>Tirar</button>'
-      + '</div></div>';
-  }
-
-  // Salvar automático do texto (05/11/2026): a revisão que o tablet abriu.
-  var edRevisao = 0;
-  var edEspera = null;
-  var edConflito = false;
-  var edSalvando = false;
-
-  function mostraEditar() {
-    var ed = atual.edit;
-    edRevisao = ed.revision || 0;
-    edConflito = false;
-    $('#edForcar').classList.add('hidden');
-    $('#edEstado').textContent = 'Salvo automaticamente enquanto você digita.';
-    $('#edTitulo').value = ed.title;
-    $('#edClausulas').innerHTML = ed.clauses.map(function (c) {
-      return '<div class="ed-clausula" data-clausula="' + esc(c.uid) + '">'
-        + '<label class="lbl" style="margin-top:0;">Cláusula ' + c.number + '</label>'
-        + '<input class="field small" data-titulo maxlength="200" value="' + esc(c.title) + '" placeholder="Título da cláusula">'
-        + '<div data-itens>' + c.items.map(itemEd).join('') + '</div>'
-        + '<button type="button" class="linkbtn" data-mais-item>+ Item</button>'
-        + '</div>';
-    }).join('');
-    $('#edErro').textContent = '';
-  }
-
-  $('#btnEditar').addEventListener('click', function () { mostraEditar(); abrirFolha('#folhaEditar'); });
-
-  // Os botões de formatação não podem tirar o foco do texto.
-  document.querySelectorAll('.ed-barra [data-cmd]').forEach(function (b) {
-    b.addEventListener('mousedown', function (e) { e.preventDefault(); });
-    b.addEventListener('touchstart', function (e) { e.preventDefault(); document.execCommand(b.dataset.cmd, false, null); }, { passive: false });
-    b.addEventListener('click', function () { document.execCommand(b.dataset.cmd, false, null); });
-  });
-
-  $('#edClausulas').addEventListener('click', function (e) {
-    if (e.target.closest('[data-tirar]')) {
-      var item = e.target.closest('[data-item]');
-      var lista = item.parentNode;
-      if (lista.querySelectorAll('[data-item]').length > 1) item.remove();
-      else aviso('A cláusula precisa de pelo menos um item.');
-      return;
-    }
-    if (e.target.closest('[data-mais-item]')) {
-      var bloco = e.target.closest('[data-clausula]').querySelector('[data-itens]');
-      bloco.insertAdjacentHTML('beforeend', itemEd({ uid: '', level: 1, html: '' }));
-      bloco.lastElementChild.querySelector('.ed-texto').focus();
-    }
-  });
-
-  $('#edClausulas').addEventListener('change', function (e) {
-    if (e.target.matches('[data-nivel]')) e.target.closest('[data-item]').classList.toggle('n2', e.target.value === '2');
-  });
-
-  // Colar: só o texto (o servidor saneia de novo).
-  $('#edClausulas').addEventListener('paste', function (e) {
-    if (!e.target.closest('.ed-texto')) return;
-    e.preventDefault();
-    document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain'));
-  });
-
-  function corpoDoTexto() {
-    return {
-      title: $('#edTitulo').value,
-      clauses: Array.prototype.map.call(document.querySelectorAll('#edClausulas [data-clausula]'), function (c) {
-        return {
-          uid: c.dataset.clausula,
-          title: c.querySelector('[data-titulo]').value,
-          items: Array.prototype.map.call(c.querySelectorAll('[data-item]'), function (it) {
-            return { uid: it.dataset.uid || null, level: +it.querySelector('[data-nivel]').value, html: it.querySelector('.ed-texto').innerHTML };
-          })
-        };
-      })
-    };
-  }
-
-  // Os itens novos ganham uid no servidor: guardar evita uid novo a cada gravação.
-  function guardaUids(edit) {
-    (edit.clauses || []).forEach(function (c) {
-      var bloco = document.querySelector('#edClausulas [data-clausula="' + c.uid + '"]');
-      if (!bloco) return;
-      var itens = bloco.querySelectorAll('[data-item]');
-      (c.items || []).forEach(function (it, i) {
-        if (itens[i] && !itens[i].dataset.uid && it.uid) itens[i].dataset.uid = it.uid;
-      });
-    });
-  }
-
-  // auto: grava e continua na folha; forca: grava por cima depois do aviso de conflito.
-  function salvaTexto(auto, forca) {
-    if (!atual || (edConflito && !forca)) return Promise.resolve();
-    if (edSalvando) {
-      clearTimeout(edEspera);
-      edEspera = setTimeout(function () { salvaTexto(auto, forca); }, 1000);
-      return Promise.resolve();
-    }
-    var corpo = corpoDoTexto();
-    corpo.revision = edRevisao;
-    corpo.auto = auto;
-    if (forca) corpo.force = true;
-    edSalvando = true;
-    $('#edErro').textContent = '';
-    $('#edEstado').textContent = 'Salvando…';
-    return api(URLS.update.replace('__ID__', atual.id), 'POST', corpo)
-      .then(function (j) {
-        edRevisao = j.contract.edit.revision;
-        edConflito = false;
-        $('#edForcar').classList.add('hidden');
-        $('#edEstado').textContent = 'Salvo automaticamente às ' + j.saved_at + '.';
-        if (auto) {
-          guardaUids(j.contract.edit);
-          // A leitura atrás da folha acompanha o texto salvo.
-          mostraContrato(j.contract);
-          edPendente = false;
-        } else {
-          fecharFolhas();
-          mostraContrato(j.contract);
-          aviso(j.message);
-        }
-      })
-      .catch(function (e) {
-        if (e.message === 'ended') return;
-        $('#edErro').textContent = e.message;
-        $('#edEstado').textContent = 'Não salvo.';
-        if (e.dados && e.dados.conflict) {
-          edConflito = true;
-          $('#edForcar').classList.remove('hidden');
-        }
-      })
-      .then(function () { edSalvando = false; });
-  }
-
-  var edPendente = false;
-  $('#folhaEditar').addEventListener('input', function () {
-    if (edConflito) return;
-    edPendente = true;
-    $('#edEstado').textContent = 'Alterações ainda não salvas…';
-    clearTimeout(edEspera);
-    edEspera = setTimeout(function () { salvaTexto(true, false); }, 3000);
-  });
-
-  // Fechar a folha com algo por salvar: grava antes (o tablet não pergunta).
-  $('#folhaEditar [data-fechar]').addEventListener('click', function () {
-    if (!edPendente || edConflito) return;
-    clearTimeout(edEspera);
-    salvaTexto(true, false);
-  });
-
-  $('#edForcar').addEventListener('click', function () {
-    if (!confirm('Gravar o seu texto por cima do que a outra pessoa salvou?')) return;
-    salvaTexto(true, true);
-  });
-
-  $('#edSalvar').addEventListener('click', function () {
-    var botao = $('#edSalvar');
-    clearTimeout(edEspera);
-    botao.disabled = true;
-    salvaTexto(false, false).then(function () { botao.disabled = false; });
-  });
-
-  $('#btnVoltar').addEventListener('click', function () {
-    if (Object.keys(obs).length && !confirm('Voltar à lista? As observações ainda não enviadas se perdem.')) return;
-    atual = null; obs = {};
-    api(URLS.pending).then(mostraLista).catch(function () {});
-  });
-
-  // Tocar numa cláusula abre a observação dela.
-  var uidAberto = null;
-  $('#cTexto').addEventListener('click', function (e) {
-    if (e.target.closest('a')) return;
-    var sec = e.target.closest('[data-clause]');
-    if (!sec) return;
-    uidAberto = sec.dataset.clause;
-    $('#fcTitulo').textContent = clausulas[uidAberto] || 'Cláusula';
-    $('#fcTexto').value = obs[uidAberto] || '';
-    abrirFolha('#folhaClausula');
-    setTimeout(function () { $('#fcTexto').focus(); }, 50);
-  });
-
-  function marcaClausulas() {
-    document.querySelectorAll('#cTexto [data-clause]').forEach(function (sec) {
-      sec.classList.toggle('commented', !!obs[sec.dataset.clause]);
-    });
-  }
-
-  $('#fcSalvar').addEventListener('click', function () {
-    var t = $('#fcTexto').value.trim();
-    if (t) obs[uidAberto] = t; else delete obs[uidAberto];
-    marcaClausulas(); fecharFolhas();
-  });
-  $('#fcApagar').addEventListener('click', function () { delete obs[uidAberto]; marcaClausulas(); fecharFolhas(); });
-
-  document.querySelectorAll('[data-fechar]').forEach(function (b) { b.addEventListener('click', fecharFolhas); });
-  $('#fundo').addEventListener('click', fecharFolhas);
-
-  // ---- Decidir ----
-  $('#btnDevolver').addEventListener('click', function () {
-    var uids = Object.keys(obs);
-    $('#fdResumo').innerHTML = uids.length
-      ? '<div class="box warn"><b>' + uids.length + (uids.length === 1 ? ' observação' : ' observações') + ' nas cláusulas:</b><ul class="plain">'
-        + uids.map(function (u) { return '<li><b>' + esc(clausulas[u]) + ':</b> ' + esc(obs[u]) + '</li>'; }).join('') + '</ul></div>'
-      : '<p class="meta">Nenhuma observação em cláusula. Para comentar uma cláusula, toque nela no texto.</p>';
-    $('#fdErro').textContent = '';
-    abrirFolha('#folhaDevolver');
-  });
-
-  $('#fdConfirmar').addEventListener('click', function () {
-    var nota = $('#fdNota').value.trim();
-    if (!nota && !Object.keys(obs).length) { $('#fdErro').textContent = 'Escreva uma observação geral ou comente uma cláusula.'; return; }
-    decide('return', nota, $('#fdConfirmar'), $('#fdErro'));
-  });
-
-  $('#btnAprovar').addEventListener('click', function () {
-    $('#faAviso').innerHTML = Object.keys(obs).length
-      ? '<div class="box warn">Você comentou ' + Object.keys(obs).length + ' cláusula(s). Aprovando, essas observações não são enviadas — para pedir mudança, use Devolver.</div>'
-      : '';
-    $('#faErro').textContent = '';
-    window.laraInitialsPad($('#faVisto')).clear();
-    abrirFolha('#folhaAprovar');
-  });
-
-  $('#faConfirmar').addEventListener('click', function () {
-    var visto = window.laraInitialsPad($('#faVisto'));
-    if (visto.points() < {{ (int) config('signature.evidence.min_initials_points', 8) }}) {
-      $('#faErro').textContent = 'Faça o seu visto no quadro antes de aprovar.';
-      return;
-    }
-    decide('approve', $('#faNota').value.trim(), $('#faConfirmar'), $('#faErro'), { initials: visto.data(), initials_strokes: visto.strokes() });
-  });
-
-  function decide(decisao, nota, botao, erro, extra) {
-    botao.disabled = true;
-    var corpo = { decision: decisao, note: nota || null, comments: decisao === 'return' ? obs : {} };
-    Object.keys(extra || {}).forEach(function (k) { corpo[k] = extra[k]; });
-    api(URLS.decide.replace('__ID__', atual.id), 'POST', corpo)
-      .then(function (j) {
-        fecharFolhas();
-        $('#fdNota').value = ''; $('#faNota').value = '';
-        atual = null; obs = {};
-        aviso(j.message + (j.warnings && j.warnings.length ? ' ' + j.warnings.join(' ') : ''));
-        return api(URLS.pending).then(mostraLista);
-      })
-      .catch(function (e) {
-        if (e.message === 'ended') return;
-        erro.textContent = e.message + (e.dados && e.dados.problems && e.dados.problems.length ? ' ' + e.dados.problems.join(' ') : '');
-      })
-      .then(function () { botao.disabled = false; });
-  }
-
-  // Entrada ainda valendo (recarregou a página): vai direto para a lista.
-  // Sem entrada, a tela de matrícula abre limpa (sem o "a sua entrada terminou").
-  api(URLS.pending).then(function (j) { mostraLista(j); comecaBatimento(); })
-    .catch(function () { $('#erroEntrar').textContent = ''; });
-})();
-</script>
 </body>
 </html>
