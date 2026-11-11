@@ -1,6 +1,6 @@
 {{--
     JavaScript do autoatendimento do Termo de Menores. Incluído DENTRO do IIFE
-    de quiosque/index.blade.php (usa $, api, mostra, erro, abreAtendimento,
+    de quiosque/js/nucleo (usa $, api, mostra, erro, abreAtendimento,
     encerraAtendimento, iniciaLeitor, paraLeitor e o estado S de lá), só no
     modo "menores".
 

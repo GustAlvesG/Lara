@@ -5,6 +5,29 @@ Guia do usuário: dentro do sistema, em **Assinaturas → Guia** (`resources/vie
 gera a página e o PDF — mudou o fluxo, mude o guia).
 
 
+
+## Tablet separado em arquivos, em pé e deitado (11/11/2026)
+
+`resources/views/quiosque/index.blade.php` (era 2.450 linhas) virou o esqueleto:
+
+- `quiosque/telas/` — `balcao` (espera com o leitor, código, formulário, documento, identidade,
+  aceite, traço, foto, conclusão), `menores` e `diretoria` (um ou outro, pelo modo) e `avisos` (os
+  diálogos).
+- `quiosque/js/` — `nucleo` + (`menores` ou `diretoria`) + `inicio` formam UMA IIFE, como antes,
+  em partes. Fica no Blade (e não no Vite, como o `/kiosk` dos freelancers) porque os
+  complementos usam as variáveis do núcleo. Não escreva a diretiva verbatim com arroba dentro de
+  um comentário Blade: ela é lida antes dos comentários e despeja a página como texto.
+- `resources/css/quiosque.css` (Vite) — paleta do rebrand e a faixa da caneta (`.q-band`,
+  `--deep`/`--glow` = `--pen-ink`/`--pen-glow`) na barra de cima e na espera; leitor de QR num
+  visor; área de assinatura pautada.
+- **Em pé e deitado:** o desenho base é em pé; deitado (paisagem ≥ 880px) a espera põe a faixa à
+  esquerda e o leitor à direita, CPF/código ao lado do teclado, câmera entre texto e botão, listas
+  e perguntas em duas colunas. Altura baixa compacta teclas e botões.
+- **Girar com a tela de desenho aberta** refaz o canvas no tamanho novo e pede o desenho de novo
+  (antes o traço saía deformado e fora do dedo); no visto, a assinatura já confirmada fica.
+- `tests/Feature/SignatureKioskPageTest.php` confere, nos dois modos, que todo `$('#id')` do JS
+  existe na página.
+
 ## Identidade visual (11/11/2026)
 
 Pedido do usuário: Externos, Freelancers, Assinaturas e Contratos na mesma pegada do SIV e de
@@ -129,7 +152,7 @@ signatário:  pending → signed | refused | canceled | expired
    `signature_layout_id`. Depois disso **nada se edita**; corrige-se cancelando e emitindo outro.
 3. **Liberar** (`SignatureRequestService`): token de 64 chars, banco guarda só `sha256`, QR `LARA-SIGN:v1:<token>`,
    5 min para ler, 15 min de sessão. Regerar torna o anterior `superseded`. Um QR por signatário, **em qualquer ordem** (o painel tem "Quem vai assinar agora"; `releaseBlockReason` não olha a posição).
-4. **Tablet** (`QuiosqueController` + `resources/views/quiosque/index.blade.php`): formulário de perguntas
+4. **Tablet** (`QuiosqueController` + `resources/views/quiosque/index.blade.php`, separado em `quiosque/telas` e `quiosque/js` desde 11/11/2026): formulário de perguntas
    (se houver) → leitura do PDF → identidade (`Cpf::matches`, 5 tentativas) → aceite (+ autorização de imagem
    se pede foto) → traço (≥ 30 pontos) → visto (se exigido) → foto (botão "Tirar foto" inicia a contagem de 3 s; não é
    automática; depois vem a **prévia**, com "Tirar nova foto" e "Usar esta foto" — só o "Usar" envia). Gravação numa
@@ -471,7 +494,7 @@ Autorização de entrada de menor em evento, assinada pelo **próprio sócio** n
 Doc completa: [docs/funcionalidades/termo-de-menores.md](../funcionalidades/termo-de-menores.md).
 
 - **Tablet:** `/assinatura/kiosk/menores` = a MESMA view `quiosque.index` com `$modo = 'menores'`. Telas
-  novas em `quiosque/partials/menores-telas` + `menores-js` (incluídos dentro do `@verbatim`/IIFE com
+  novas em `quiosque/telas/menores` + `quiosque/js/menores` (incluídos dentro do `@verbatim`/IIFE com
   `@endverbatim … @verbatim`). Ganchos no JS do quiosque, todos atrás de `CFG.menores`: `prefixoEntrada`/
   `rotaEntrada`/`aoEntrar` (no modo menores o QR PAREIA o tablet), `identity_confirmed` pula a identidade,
   via automática, `menoresTelaVerde` no sucesso, `menoresDepoisDoAtendimento` no fim. O balcão não muda.
@@ -528,7 +551,7 @@ pendentes dele. Doc completa: seção "Assinatura Diretoria" de `docs/funcionali
   (hash do cookie `lara_director`), lista = pendentes do diretor, aguardando, no prazo e **sem `govbr_sent_at`**;
   `open` faz `issue` + `consumeIssued`, grava `identity_confirmed_at` e `signature_requests.identity_method =
   matricula_pin` (o manifesto imprime "Matrícula e PIN do Lara" e "aberto pelo próprio diretor"). JS em
-  `quiosque/partials/diretoria-telas` + `diretoria-js` (só no modo balcão; gancho `diretoriaDepoisDoAtendimento`
+  `quiosque/telas/diretoria` + `quiosque/js/diretoria` (só no modo balcão; gancho `diretoriaDepoisDoAtendimento`
   em `encerraAtendimento`, `diretoriaAtiva()` nos textos).
 - **Sem QR para diretor** (21/10/2026): `SignatureSigner::releaseBlockReason($directorLogin, $remote)` recusa liberar diretor
   pelo atendente; só a liberação com `identity_method = matricula_pin` (gravado na emissão:
@@ -563,7 +586,7 @@ pendentes dele. Doc completa: seção "Assinatura Diretoria" de `docs/funcionali
 - **Ler um por um é opcional (05/11/2026):** aberto o lote, a tela `tela-d-lote-ver` pergunta "Deseja ver cada
   documento individualmente?". Sim → leitura de sempre (rolar até o fim de cada um). Não → direto ao aceite;
   `lote/assinar` com `skip_reading: true`, sem `viewed`, e o `signed` de cada documento leva `leitura_dispensada: true`.
-  JS em `quiosque/partials/diretoria-js.blade.php` (`lotePergunta`, `S.lote.dispensou`). Teste
+  JS em `quiosque/js/diretoria.blade.php` (`lotePergunta`, `S.lote.dispensou`). Teste
   `test_lote_assina_sem_ver_cada_documento_e_a_trilha_registra`.
 - **"Já assinados" (26/10/2026):** aba na lista do tablet (`signedPayload`: últimos 90 dias, até 50) com a situação
   (falta quem, gerando via final, concluído, recusado…). Só leitura, sem PDF.

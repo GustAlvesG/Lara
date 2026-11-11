@@ -2049,7 +2049,7 @@ documento sem pergunta, remoto e diretoria de fora, segundo signatário sem conf
 | Middleware | `EnsureSignatureKioskSession` (alias `signature_kiosk`), `EnsureMinorTermDevice` (alias `signature_minor_device`) |
 | Jobs | `FinalizeSignatureDocument`, `SendSignatureCopy` |
 | Comando | `signature:expire`, `signature:archive`, `signature:crl`, `signature:seal-check` |
-| Telas | `resources/views/signature/` (painel, guia e PDF), `resources/views/quiosque/index.blade.php` (tablet, servido em `/assinatura/kiosk`) |
+| Telas | `resources/views/signature/` (painel, guia e PDF), `resources/views/quiosque/index.blade.php` (tablet, servido em `/assinatura/kiosk`: esqueleto; telas em `quiosque/telas/`, JS em `quiosque/js/`, CSS em `resources/css/quiosque.css`) |
 | Policy | `SignatureDocumentPolicy` |
 
 ### Máquina de estados

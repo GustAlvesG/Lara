@@ -1,6 +1,6 @@
 {{--
     Telas da Assinatura da Diretoria, incluídas em quiosque/index.blade.php só
-    no modo balcão. A lógica está em diretoria-js.blade.php.
+    no modo balcão. A lógica está em quiosque/js/diretoria.
 
     Ordem: espera → "Assinatura da Diretoria" → matrícula + PIN → lista dos
     documentos pendentes → [quiosque: leitura, aceite, traço, (visto), foto] →

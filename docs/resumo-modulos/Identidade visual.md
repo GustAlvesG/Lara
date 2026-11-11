@@ -208,6 +208,9 @@ módulo mudou junto, sem mexer na lógica de nenhuma:
   Assistant), `chat` conversa (Bot WhatsApp), `mail` envelope (Disparo de E-mails). SIV e Reservas
   têm faixa própria (`siv-night`, `res-court`). HAL fica sem faixa: não tem tela, é o painel do
   balão, com cabeçalho escuro próprio (`hal-band`, 11/11/2026) e fora do painel de Módulos.
+- **Tablet dos freelancers** (`/kiosk`, 11/11/2026): página fora do layout, com CSS próprio
+  (`resources/css/kiosk.css`) nos valores do Lara e a faixa do cartão de ponto (`.k-band`) na
+  entrada, na barra de cima, no cartão do freelancer, na soma do lote e na cabeça dos recibos.
 - **Camadas da barra de cima:** a ilha leva `z-10` porque o `backdrop-blur` faz da ilha e da doca
   (Favoritos/Recentes) camadas próprias; sem isso a doca tampa o menu da conta e o do sino.
 - **Tabelas** (sem componente: camada única, bloco "Tabelas" no fim de `resources/css/app.css` +

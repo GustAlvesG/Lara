@@ -25,7 +25,7 @@
   <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800|unbounded:500,600,700&display=swap" rel="stylesheet" />
   @include('signature.contracts.partials.styles')
   <style>
-  /* A paleta do quiosque (quiosque/index.blade.php). */
+  /* A paleta do quiosque (resources/css/quiosque.css). */
   :root{
     --bg:#f5f3f3; --surface:#ffffff; --surface-2:#faf8f8; --surface-3:#eeeaea;
     --border:#e3ddde; --border-strong:#d0c7c9;

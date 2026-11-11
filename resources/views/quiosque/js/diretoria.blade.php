@@ -1,6 +1,6 @@
 {{--
-    Lógica da Assinatura da Diretoria no tablet, incluída DENTRO da IIFE do
-    quiosque (usa mostra, api, erro, abreAtendimento, iniciaLeitor e
+    Lógica da Assinatura da Diretoria no tablet, incluída DENTRO da IIFE de
+    quiosque/js/nucleo (usa mostra, api, erro, abreAtendimento, iniciaLeitor e
     paraLeitor de lá). Só no modo balcão. Ver DirectorKioskController.
 
     Ganchos no quiosque, todos atrás de CFG.diretoria:

@@ -207,7 +207,7 @@ Se o freelancer não compareceu, a falta é registrada no tablet (**Contratos do
 ## Atender o freelancer no tablet
 <!-- telas: kiosk.index -->
 
-O menu **Freelancers › Assinatura (Tablet)** abre a tela de toque usada no balcão. Ela tem login próprio: **matrícula** e **PIN de 6 dígitos** de quem está operando. O PIN é definido em **Perfil › PIN de Assinatura** (ou pela TI, na tela Usuários).
+O menu **Freelancers › Assinatura (Tablet)** abre a tela de toque usada no balcão. Desde 11/11/2026 ela tem o visual do Lara: a entrada abre com a faixa marrom-escura do módulo Freelancers e o logo do clube, e a mesma faixa fica no alto durante o atendimento (com o tempo e o número de contratos da sessão) e no cartão do freelancer atendido. As etapas e os botões são os mesmos. Funciona em pé ou deitado: deitado, o teclado fica ao lado do texto e as listas aparecem em duas colunas; se o tablet girar durante a assinatura, o campo é limpo e o freelancer assina de novo. Ela tem login próprio: **matrícula** e **PIN de 6 dígitos** de quem está operando. O PIN é definido em **Perfil › PIN de Assinatura** (ou pela TI, na tela Usuários).
 
 Quem tem os dois papéis escolhe em "O que você vai fazer agora?": **Atender freelancer** ou **Assinar como coordenador**. A sessão de atendimento dura 30 minutos ou 5 contratos; depois é preciso entrar de novo.
 

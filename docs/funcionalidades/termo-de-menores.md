@@ -182,6 +182,6 @@ A maioridade (18) é `minor_terms.adult_age`, sem variável de ambiente.
 | Controllers | `MinorTermKioskController` (tablet), `MinorTermController` (computador); trait `Signature\Concerns\RespondsWithKioskSession` (resposta de sessão e cookie `lara_sign`, comum ao quiosque) |
 | Middleware | `EnsureMinorTermDevice` (alias `signature_minor_device`) |
 | Rotas | `quiosque.menores.*` (público, `/assinatura/kiosk/menores`), `minor-terms.*` (`/assinatura/termo-menores`) |
-| Telas | `resources/views/quiosque/index.blade.php` no modo `menores` + `quiosque/partials/menores-telas` e `menores-js`; `resources/views/signature/minor-terms/` |
+| Telas | `resources/views/quiosque/index.blade.php` no modo `menores` + `quiosque/telas/menores` e `quiosque/js/menores`; `resources/views/signature/minor-terms/` |
 | Seeder | `MinorTermTemplateSeeder` (fora do deploy) |
 | Testes | `SignatureMinorTermKioskTest`, `SignatureMinorTermPanelTest`, `Unit\MinorTermRulesTest` |

@@ -210,7 +210,7 @@ Se a pessoa voltar e mudar uma resposta depois da aprovação, a conferência vo
 
 ## O que a pessoa vê no tablet ao assinar
 
-Conhecer as telas ajuda a orientar quem está assinando no tablet do balcão. Algumas etapas só aparecem se o modelo pedir.
+Conhecer as telas ajuda a orientar quem está assinando no tablet do balcão. Algumas etapas só aparecem se o modelo pedir. O tablet funciona em pé ou deitado: deitado, a espera mostra o leitor de QR ao lado do título, o teclado fica ao lado do CPF e a área de assinatura fica mais larga. Se o tablet girar enquanto a pessoa assina, o espaço da assinatura é refeito e ela assina de novo.
 
 1. **Leitura do QR**: a pessoa aponta a câmera para o código na tela do atendente.
 2. **Perguntas** (se houver): "Antes de ler, responda". Depois, **Continuar**.

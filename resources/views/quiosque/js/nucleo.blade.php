@@ -1,0 +1,1903 @@
+{{--
+    Tablet de assinatura › o JavaScript do atendimento: abre a IIFE que
+    quiosque/js/menores ou quiosque/js/diretoria continuam (eles usam $, api,
+    mostra, erro, abreAtendimento, encerraAtendimento, iniciaLeitor, paraLeitor
+    e o estado S daqui) e que quiosque/js/inicio fecha. Os três arquivos são
+    UM script: estão em partes só para caberem na leitura.
+
+    Fica no Blade, e não no Vite como o /kiosk, justamente por ser uma IIFE só
+    com dois complementos por modo. O bloco abaixo é verbatim: chaves duplas
+    no JS não viram Blade. (Não escreva a diretiva com arroba num comentário
+    Blade: o verbatim é lido antes dos comentários e engole a página.)
+--}}
+@verbatim
+(function () {
+  'use strict';
+
+  var CFG = window.QUIOSQUE;
+  var $ = function (sel) { return document.querySelector(sel); };
+
+  /*
+   * O estado do atendimento vive AQUI, em memória, e é zerado no fim. Nada vai
+   * para localStorage nem IndexedDB: o tablet é compartilhado, e o documento
+   * da pessoa anterior não pode sobreviver a ela.
+   */
+  var S = null;
+
+  function estadoLimpo() {
+    return {
+      documentoId: null,
+      titulo: null,
+      pdfUrl: null,
+      signatario: null,
+      // As perguntas do modelo a quem assina; null quando não há nenhuma.
+      formulario: null,
+      regras: { identity_check: 'partial', requires_photo: true, requires_initials: false },
+      cpfDigitado: '',
+      leitura: { inicio: null, segundos: 0, ateOFim: false },
+      tracos: [],
+      assinaturaPng: null,
+      tracosAssinatura: [],
+      // O visto de todas as páginas: desenhado na mesma tela, depois da
+      // assinatura, quando o modelo exige.
+      modoVisto: false,
+      vistoPng: null,
+      tracosVisto: [],
+      fotoJpeg: null,
+      // Motivo de não haver foto, quando o modelo a exigia. Ver a etapa da foto.
+      semFoto: null,
+      aceitou: false,
+      autorizouImagem: false,
+      querVia: false,
+      // A identidade já passou nesta sessão: voltar ao documento e seguir de
+      // novo não pede o CPF outra vez.
+      identidadeOk: false,
+      // Assinatura em lote da diretoria: { docs, idx, leituras }. Ver diretoria-js.
+      lote: null,
+      // Conferência das respostas pelo atendente (balcão com perguntas):
+      // { required, status, note } do servidor; null quando não há.
+      conferencia: null,
+      // Versão do PDF (início do hash): muda quando o atendente corrige uma
+      // resposta — e a pessoa precisa ler de novo.
+      pdfVersao: null,
+      respondidoEm: null,
+      sessao: { restante: 0, aviso: 60 },
+    };
+  }
+
+  /* ---------------------------------------------------------------------
+   | Telas
+   |---------------------------------------------------------------------*/
+
+  function mostra(id) {
+    document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('on'); });
+    $('#' + id).classList.add('on');
+
+    // O aceite depende da conferência do atendente: confere ao chegar.
+    if (id === 'tela-aceite') {
+      atualizaAceite();
+    }
+  }
+
+  function telaAtual() {
+    var tela = document.querySelector('.screen.on');
+
+    return tela ? tela.id : null;
+  }
+
+  function erro(mensagem, titulo) {
+    $('#erroTitulo').textContent = titulo || 'Não foi possível continuar';
+    $('#erroTexto').textContent = mensagem;
+    $('#sheetErro').classList.add('on');
+  }
+
+  $('#fecharErro').addEventListener('click', function () {
+    $('#sheetErro').classList.remove('on');
+  });
+
+  /* ---------------------------------------------------------------------
+   | Conversa com o servidor
+   |---------------------------------------------------------------------*/
+
+  function rota(nome) {
+    return CFG.rotas[nome].replace('__DOC__', S ? S.documentoId : '');
+  }
+
+  function api(metodo, url, corpo) {
+    return fetch(url, {
+      method: metodo,
+      credentials: 'same-origin',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': CFG.csrf,
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      body: corpo ? JSON.stringify(corpo) : undefined,
+    }).catch(function () {
+      // Nem chegou resposta: rede, Wi-Fi do tablet, servidor fora do ar.
+      throw new Error('Sem resposta do servidor. Confira a conexão do tablet e tente de novo.');
+    }).then(function (resposta) {
+      return resposta.json().catch(function () { return {}; }).then(function (dados) {
+        if (!resposta.ok) {
+          // Sem `error` no corpo, quem respondeu não foi o Lara de propósito
+          // (erro interno, limite do servidor, proxy): o código HTTP na tela é
+          // o que permite ao atendente e à TI achar a causa no log.
+          var falha = new Error(dados.error || ('Falha na comunicação com o servidor (código ' + resposta.status + ').'));
+          falha.status = resposta.status;
+          // Erros por pergunta do formulário (chave do campo => mensagem).
+          falha.campos = dados.errors || null;
+          falha.sessaoEncerrada = !!dados.session_ended || resposta.status === 419;
+          // Autoatendimento do Termo de Menores: atendimento encerrado (volta
+          // ao início) e tablet sem pareamento (volta ao pareamento).
+          falha.recomecar = !!dados.restart;
+          falha.despareado = !!dados.device_unpaired;
+          // Assinatura da Diretoria: a entrada do diretor acabou.
+          falha.diretorEncerrado = !!dados.director_ended;
+          throw falha;
+        }
+
+        return dados;
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------------------
+   | Leitor de QR
+   |---------------------------------------------------------------------*/
+
+  var leitor = null;
+  var cameras = [];
+  var cameraAtual = 0;
+  var lendo = false;
+
+  /**
+   * Há câmera utilizável? Em HTTP comum a resposta é não, porque
+   * `navigator.mediaDevices` simplesmente não existe fora de origem segura.
+   */
+  function temCamera() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  }
+
+  function iniciaLeitor() {
+    /*
+     * O botão do código aparece ANTES de qualquer checagem de câmera: é
+     * justamente quando a câmera falha que ele precisa estar lá. Uma câmera
+     * que existe mas não foca também é um atendimento parado.
+     */
+    $('#abrirCodigo').classList.toggle('hidden', !CFG.codigoManual);
+    $('#abrirDiretoria').classList.toggle('hidden', !CFG.diretoria);
+    $('#abrirGerencia').classList.toggle('hidden', !CFG.gerencia);
+
+    if (typeof Html5Qrcode === 'undefined') {
+      $('#erroLeitor').textContent = 'Leitor de QR indisponível. Verifique a conexão do tablet.';
+      $('#erroLeitor').classList.remove('hidden');
+      return;
+    }
+
+    if (!temCamera()) {
+      /*
+       * getUserMedia só existe em origem segura. É o erro mais provável numa
+       * instalação nova — e, com o modo sem HTTPS ligado, deixa de ser um beco
+       * sem saída: a pessoa digita o código que o atendente dita.
+       */
+      $('#erroLeitor').innerHTML = CFG.codigoManual
+        ? 'A câmera não está disponível neste tablet. Toque em <b>Digitar código</b> e peça o código ao atendente.'
+        : 'A câmera não está disponível. O endereço precisa ser <b>HTTPS</b> '
+          + 'e a permissão de câmera precisa estar concedida ao navegador do tablet.';
+      $('#erroLeitor').classList.remove('hidden');
+      $('#dicaLeitor').textContent = '';
+      return;
+    }
+
+    leitor = leitor || new Html5Qrcode('reader', { verbose: false });
+
+    Html5Qrcode.getCameras().then(function (lista) {
+      cameras = lista || [];
+
+      if (!cameras.length) {
+        throw new Error('Nenhuma câmera encontrada.');
+      }
+
+      $('#trocarCamera').classList.toggle('hidden', cameras.length < 2);
+
+      // Traseira primeiro: é a que fica virada para a tela do atendente.
+      var traseira = cameras.findIndex(function (c) {
+        return /back|rear|traseira|environment/i.test(c.label || '');
+      });
+
+      cameraAtual = traseira >= 0 ? traseira : 0;
+
+      return ligaCamera();
+    }).catch(function (e) {
+      $('#erroLeitor').textContent = 'Não foi possível abrir a câmera: ' + (e.message || e);
+      $('#erroLeitor').classList.remove('hidden');
+    });
+  }
+
+  function ligaCamera() {
+    if (lendo) {
+      return Promise.resolve();
+    }
+
+    lendo = true;
+
+    return leitor.start(
+      cameras[cameraAtual].id,
+      { fps: 10, qrbox: { width: 240, height: 240 } },
+      aoLerQr,
+      function () { /* leituras falhas são o normal enquanto procura */ }
+    );
+  }
+
+  function paraLeitor() {
+    if (!leitor || !lendo) {
+      return Promise.resolve();
+    }
+
+    lendo = false;
+
+    return leitor.stop().catch(function () {});
+  }
+
+  $('#trocarCamera').addEventListener('click', function () {
+    paraLeitor().then(function () {
+      cameraAtual = (cameraAtual + 1) % cameras.length;
+      return ligaCamera();
+    });
+  });
+
+  var processandoQr = false;
+
+  function aoLerQr(texto) {
+    if (processandoQr) {
+      return;
+    }
+
+    /*
+     * O leitor IGNORA o que não for do formato deste sistema. Um QR de
+     * cardápio, de nota fiscal ou de um site qualquer não vira requisição — e,
+     * principalmente, o tablet nunca navega para uma URL que apareceu num QR.
+     */
+    if (texto.indexOf(prefixoEntrada()) !== 0) {
+      $('#dicaLeitor').textContent = CFG.menores
+        ? 'Este código não é de pareamento. Gere o QR em Assinaturas → Termo de Menores → Tablet.'
+        : 'Este código não é de assinatura. Peça o QR ao atendente.';
+      return;
+    }
+
+    processandoQr = true;
+    $('#dicaLeitor').textContent = CFG.menores ? 'Pareando o tablet…' : 'Abrindo o documento…';
+
+    api('POST', rotaEntrada(), { payload: texto })
+      .then(function (dados) {
+        return paraLeitor().then(function () { aoEntrar(dados); });
+      })
+      .catch(function (e) {
+        $('#dicaLeitor').textContent = CFG.menores
+          ? 'Aponte a câmera para o QR de pareamento exibido no computador.'
+          : 'Aponte a câmera para o QR Code exibido pelo atendente.';
+        erro(e.message, 'QR Code não aceito');
+      })
+      .then(function () {
+        // Pausa curta para não reprocessar o mesmo quadro.
+        setTimeout(function () { processandoQr = false; }, 1500);
+      });
+  }
+
+  /*
+   * A porta de entrada da câmera e do código digitado. No balcão, o QR libera
+   * um documento; no Termo de Menores, o QR PAREIA o tablet (o documento é o
+   * próprio tablet que gera, depois).
+   */
+  function prefixoEntrada() {
+    return CFG.menores ? CFG.menores.prefixoPareamento : CFG.prefixoQr;
+  }
+
+  function rotaEntrada() {
+    return CFG.menores ? CFG.menores.rotas.parear : CFG.rotas.consumir;
+  }
+
+  function aoEntrar(dados) {
+    if (CFG.menores) {
+      menoresPareado(dados);
+      return;
+    }
+
+    abreAtendimento(dados);
+  }
+
+  /* ---------------------------------------------------------------------
+   | Entrada por código digitado (tablet sem câmera)
+   |---------------------------------------------------------------------*/
+
+  var codigoDigitado = '';
+
+  /*
+   * O mesmo alfabeto do servidor, sem 0/O e 1/I/L. Escrito aqui porque o
+   * teclado precisa desenhar as teclas — se divergir do servidor, a pessoa
+   * digita um caractere que o código nunca teria.
+   */
+  var ALFABETO_CODIGO = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+
+  (function montaTecladoCodigo() {
+    var alvo = $('#tecladoCodigo');
+
+    ALFABETO_CODIGO.split('').forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'key';
+      b.style.minHeight = '52px';
+      b.style.fontSize = '19px';
+      b.textContent = c;
+      b.dataset.char = c;
+      alvo.appendChild(b);
+    });
+
+    ['apagar', 'limpar'].forEach(function (acao) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'key';
+      b.style.minHeight = '52px';
+      b.textContent = acao === 'apagar' ? '⌫' : 'C';
+      b.dataset.acao = acao;
+      alvo.appendChild(b);
+    });
+
+    alvo.addEventListener('click', function (ev) {
+      var alvoTecla = ev.target;
+
+      if (alvoTecla.dataset.acao === 'limpar') {
+        codigoDigitado = '';
+      } else if (alvoTecla.dataset.acao === 'apagar') {
+        codigoDigitado = codigoDigitado.slice(0, -1);
+      } else if (alvoTecla.dataset.char && codigoDigitado.length < 8) {
+        codigoDigitado += alvoTecla.dataset.char;
+      } else {
+        return;
+      }
+
+      $('#codigoInput').value = codigoDigitado.length > 4
+        ? codigoDigitado.slice(0, 4) + ' ' + codigoDigitado.slice(4)
+        : codigoDigitado;
+
+      $('#erroCodigo').classList.add('hidden');
+      $('#btnCodigo').disabled = codigoDigitado.length !== 8;
+    });
+  })();
+
+  $('#abrirCodigo').addEventListener('click', function () {
+    codigoDigitado = '';
+    $('#codigoInput').value = '';
+    $('#btnCodigo').disabled = true;
+    $('#erroCodigo').classList.add('hidden');
+
+    // A câmera para enquanto a tela do código está aberta: duas coisas
+    // disputando o atendimento produziriam duas sessões.
+    paraLeitor();
+    mostra('tela-codigo');
+  });
+
+  $('#voltarEspera').addEventListener('click', function () {
+    mostra('tela-espera');
+    iniciaLeitor();
+  });
+
+  $('#btnCodigo').addEventListener('click', function () {
+    $('#btnCodigo').disabled = true;
+
+    api('POST', rotaEntrada(), { code: codigoDigitado })
+      .then(function (dados) {
+        aoEntrar(dados);
+      })
+      .catch(function (e) {
+        codigoDigitado = '';
+        $('#codigoInput').value = '';
+        $('#erroCodigo').textContent = e.message;
+        $('#erroCodigo').classList.remove('hidden');
+      });
+  });
+
+  /* ---------------------------------------------------------------------
+   | Atendimento
+   |---------------------------------------------------------------------*/
+
+  /*
+   * Quem assina o documento e quem já assinou (decisão do usuário,
+   * 09/11/2026). Só com mais de um signatário: sozinho, não há "demais".
+   */
+  function mostraSignatarios(lista) {
+    var caixa = $('#docSignatarios');
+    caixa.textContent = '';
+
+    if (lista.length < 2) {
+      caixa.classList.add('hidden');
+      return;
+    }
+
+    var assinaram = lista.filter(function (s) { return s.signed; }).length;
+    var titulo = document.createElement('span');
+    titulo.className = 'signatario';
+    titulo.style.border = '0';
+    titulo.style.background = 'transparent';
+    titulo.style.paddingLeft = '0';
+    titulo.textContent = assinaram + ' de ' + lista.length + ' já assinaram:';
+    caixa.appendChild(titulo);
+
+    lista.forEach(function (s) {
+      var item = document.createElement('span');
+      item.className = 'signatario' + (s.signed ? ' ok' : '') + (s.me ? ' eu' : '');
+
+      var texto = (s.signed ? '✓ ' : '') + s.name + (s.role ? ' (' + s.role + ')' : '');
+
+      if (s.me) {
+        texto += ' — você';
+      } else if (s.signed && s.signed_at) {
+        texto += ' — assinou em ' + new Date(s.signed_at).toLocaleString('pt-BR', {
+          timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+        });
+      } else if (!s.signed) {
+        texto += ' — ' + (s.status || 'pendente').toLowerCase();
+      }
+
+      item.textContent = texto;
+      caixa.appendChild(item);
+    });
+
+    caixa.classList.remove('hidden');
+  }
+
+  function abreAtendimento(dados) {
+    S = estadoLimpo();
+    S.documentoId = dados.document.id;
+    S.titulo = dados.document.title;
+    S.pdfUrl = dados.document.pdf_url;
+    S.signatario = dados.signer;
+    S.regras = dados.rules;
+    S.sessao.restante = dados.session.remaining_seconds;
+    S.sessao.aviso = dados.session.warning_seconds;
+    S.conferencia = dados.answer_check || null;
+    S.pdfVersao = dados.document.pdf_version;
+
+    $('#tituloDoc').textContent = S.titulo;
+    $('#subtituloDoc').textContent = S.signatario.name;
+    $('#docTitulo').textContent = S.titulo;
+    $('#sigNome').textContent = S.signatario.name;
+    $('#relogio').classList.remove('hidden');
+
+    // A foto, o aviso dela e a autorização andam juntos: sem foto, nada a autorizar.
+    $('#avisoFoto').classList.toggle('hidden', !vaiTirarFoto());
+    $('#fotoBox').classList.toggle('hidden', !vaiTirarFoto());
+
+    // A via por e-mail só é oferecida a quem tem e-mail cadastrado. O tablet
+    // sabe SE existe, nunca QUAL é.
+    $('#viaBox').classList.toggle('hidden', !S.signatario.has_email);
+
+    mostraSignatarios(dados.signers || []);
+
+    // Termo de Menores: a via vai sempre que há e-mail (o do cadastro ou o
+    // digitado no início) — sem caixa para marcar.
+    if (CFG.menores) {
+      $('#viaBox').classList.add('hidden');
+      S.querVia = !!S.signatario.has_email;
+    }
+
+    iniciaContagem();
+    iniciaBatimento();
+
+    S.formulario = dados.form || null;
+    $('#btnCorrigir').classList.toggle('hidden', !S.formulario);
+
+    /*
+     * O modelo pergunta algo a quem assina: as perguntas vêm ANTES do
+     * documento. O texto que a pessoa lê depois já tem as respostas dela — e é
+     * o hash desse texto que fica gravado.
+     */
+    if (S.formulario && !S.formulario.answered) {
+      abreFormulario();
+      return;
+    }
+
+    mostra('tela-documento');
+    carregaPdf();
+  }
+
+  /* ---------------------------------------------------------------------
+   | Formulário
+   |---------------------------------------------------------------------*/
+
+  var MASCARAS = {
+    cpf: function (v) {
+      var d = v.replace(/\D/g, '').slice(0, 11);
+
+      return d.replace(/^(\d{3})(\d)/, '$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/\.(\d{3})(\d)/, '.$1-$2');
+    },
+    cep: function (v) {
+      var d = v.replace(/\D/g, '').slice(0, 8);
+
+      return d.replace(/^(\d{5})(\d)/, '$1-$2');
+    },
+    phone: function (v) {
+      var d = v.replace(/\D/g, '').slice(0, 11);
+
+      if (d.length <= 2) { return d.length ? '(' + d : ''; }
+      if (d.length <= 6) { return '(' + d.slice(0, 2) + ') ' + d.slice(2); }
+      if (d.length <= 10) { return '(' + d.slice(0, 2) + ') ' + d.slice(2, 6) + '-' + d.slice(6); }
+
+      return '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7);
+    },
+    // Digitação de caixa registradora: os números entram pela direita, como centavos.
+    money: function (v) {
+      var d = v.replace(/\D/g, '').replace(/^0+/, '').slice(0, 13);
+
+      if (!d) { return ''; }
+
+      while (d.length < 3) { d = '0' + d; }
+
+      return d.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + d.slice(-2);
+    },
+    cnpj: function (v) {
+      return v.toUpperCase().replace(/[^0-9A-Z./-]/g, '').slice(0, 18);
+    },
+  };
+
+  // [type do input, inputmode, exemplo]
+  var CONTROLES = {
+    number: ['text', 'decimal', ''],
+    money: ['text', 'numeric', '0,00'],
+    cpf: ['text', 'numeric', '000.000.000-00'],
+    cnpj: ['text', 'text', '00.000.000/0000-00'],
+    email: ['email', 'email', 'nome@exemplo.com.br'],
+    phone: ['text', 'tel', '(00) 00000-0000'],
+    cep: ['text', 'numeric', '00000-000'],
+    date: ['date', '', ''],
+    date_long: ['date', '', ''],
+    time: ['time', '', ''],
+  };
+
+  function opcoesDe(campo) {
+    if (campo.type === 'yes_no') {
+      return [{ valor: 'sim', rotulo: 'Sim' }, { valor: 'nao', rotulo: 'Não' }];
+    }
+
+    return (campo.options || []).map(function (o) { return { valor: o, rotulo: o }; });
+  }
+
+  /*
+   * As perguntas são montadas por DOM, com textContent: o texto da pergunta e
+   * das opções vem do modelo, e nada dele é interpretado como HTML.
+   */
+  function montaPergunta(campo) {
+    var bloco = document.createElement('div');
+    bloco.className = 'q';
+    bloco.dataset.chave = campo.key;
+    bloco.dataset.tipo = campo.type;
+
+    var titulo = document.createElement('label');
+    titulo.className = 'q-title';
+    titulo.textContent = campo.question;
+
+    if (campo.required) {
+      var asterisco = document.createElement('span');
+      asterisco.className = 'req';
+      asterisco.textContent = ' *';
+      titulo.appendChild(asterisco);
+    }
+
+    bloco.appendChild(titulo);
+
+    if (campo.type === 'radio' || campo.type === 'checkbox' || campo.type === 'yes_no') {
+      var lista = document.createElement('div');
+      lista.className = 'q-opts';
+
+      var marcadas = Array.isArray(campo.value) ? campo.value : [campo.value];
+
+      opcoesDe(campo).forEach(function (opcao) {
+        var item = document.createElement('label');
+        item.className = 'q-opt';
+
+        var controle = document.createElement('input');
+        controle.type = campo.type === 'checkbox' ? 'checkbox' : 'radio';
+        controle.name = 'q_' + campo.key;
+        controle.value = opcao.valor;
+        controle.checked = marcadas.indexOf(opcao.valor) !== -1;
+
+        var texto = document.createElement('span');
+        texto.textContent = opcao.rotulo;
+
+        item.appendChild(controle);
+        item.appendChild(texto);
+        item.classList.toggle('on', controle.checked);
+        lista.appendChild(item);
+      });
+
+      bloco.appendChild(lista);
+    } else if (campo.type === 'textarea') {
+      var area = document.createElement('textarea');
+      area.className = 'q-input';
+      area.maxLength = 5000;
+      area.value = campo.value || '';
+      bloco.appendChild(area);
+    } else {
+      var controleTexto = CONTROLES[campo.type] || ['text', '', ''];
+      var input = document.createElement('input');
+      input.className = 'q-input';
+      input.type = controleTexto[0];
+      input.autocomplete = 'off';
+
+      if (controleTexto[1]) { input.inputMode = controleTexto[1]; }
+      if (controleTexto[2]) { input.placeholder = controleTexto[2]; }
+
+      input.value = campo.value || '';
+      bloco.appendChild(input);
+    }
+
+    var falha = document.createElement('div');
+    falha.className = 'q-err hidden';
+    bloco.appendChild(falha);
+
+    return bloco;
+  }
+
+  function abreFormulario() {
+    var alvo = $('#formCampos');
+    alvo.innerHTML = '';
+
+    S.formulario.fields.forEach(function (campo) {
+      alvo.appendChild(montaPergunta(campo));
+    });
+
+    $('#erroFormulario').classList.add('hidden');
+    $('#avisoConferencia').classList.add('hidden');
+    $('#btnFormulario').disabled = false;
+    $('#formScroll').scrollTop = 0;
+
+    mostra('tela-formulario');
+
+    // O atendente já vê o que está preenchido (numa correção, as respostas anteriores).
+    agendaRascunho();
+  }
+
+  /*
+   * Conferência do atendente: o rascunho vai ao servidor a cada campo, para
+   * aparecer no computador enquanto a pessoa responde. Nada fica no tablet.
+   */
+  var timerRascunho = null;
+
+  function agendaRascunho() {
+    if (!S || !S.conferencia) {
+      return;
+    }
+
+    clearTimeout(timerRascunho);
+    timerRascunho = setTimeout(function () {
+      if (!S || !S.conferencia || telaAtual() !== 'tela-formulario') {
+        return;
+      }
+
+      api('POST', rota('rascunho'), { answers: respostas() })
+        .catch(function () { /* o atendente confere o envio de qualquer forma */ });
+    }, 600);
+  }
+
+  function respostas() {
+    var saida = {};
+
+    document.querySelectorAll('#formCampos .q').forEach(function (bloco) {
+      var tipo = bloco.dataset.tipo;
+      var marcados = Array.prototype.map.call(bloco.querySelectorAll('input:checked'), function (c) { return c.value; });
+
+      if (tipo === 'checkbox') {
+        saida[bloco.dataset.chave] = marcados;
+      } else if (tipo === 'radio' || tipo === 'yes_no') {
+        saida[bloco.dataset.chave] = marcados[0] || '';
+      } else {
+        saida[bloco.dataset.chave] = bloco.querySelector('.q-input').value;
+      }
+    });
+
+    return saida;
+  }
+
+  function limpaErroDa(bloco) {
+    bloco.classList.remove('bad');
+    bloco.querySelector('.q-err').classList.add('hidden');
+  }
+
+  $('#formCampos').addEventListener('input', function (ev) {
+    var bloco = ev.target.closest('.q');
+
+    if (!bloco) {
+      return;
+    }
+
+    var mascara = MASCARAS[bloco.dataset.tipo];
+
+    if (mascara && ev.target.classList.contains('q-input')) {
+      ev.target.value = mascara(ev.target.value);
+    }
+
+    limpaErroDa(bloco);
+    agendaRascunho();
+  });
+
+  $('#formCampos').addEventListener('change', function (ev) {
+    var bloco = ev.target.closest('.q');
+
+    if (!bloco) {
+      return;
+    }
+
+    bloco.querySelectorAll('.q-opt').forEach(function (item) {
+      item.classList.toggle('on', item.querySelector('input').checked);
+    });
+
+    limpaErroDa(bloco);
+    agendaRascunho();
+  });
+
+  $('#btnFormulario').addEventListener('click', function () {
+    $('#btnFormulario').disabled = true;
+    $('#erroFormulario').classList.add('hidden');
+    S.respondidoEm = Date.now();
+
+    api('POST', rota('respostas'), { answers: respostas() })
+      .then(function (dados) {
+        // O documento foi refeito com as respostas: endereço novo do PDF, e o
+        // formulário volta com o que ficou gravado, para uma eventual correção.
+        S.pdfUrl = dados.document.pdf_url;
+        S.formulario = dados.form;
+        S.pdfVersao = dados.document.pdf_version;
+        S.conferencia = dados.answer_check || null;
+        S.respondidoEm = Date.now();
+        clearTimeout(timerRascunho);
+
+        mostra('tela-documento');
+        carregaPdf();
+      })
+      .catch(function (e) {
+        if (trataFalha(e)) {
+          return;
+        }
+
+        $('#btnFormulario').disabled = false;
+
+        var primeiro = null;
+
+        Object.keys(e.campos || {}).forEach(function (chave) {
+          var bloco = document.querySelector('#formCampos .q[data-chave="' + chave + '"]');
+
+          if (!bloco) {
+            return;
+          }
+
+          bloco.classList.add('bad');
+          bloco.querySelector('.q-err').textContent = e.campos[chave];
+          bloco.querySelector('.q-err').classList.remove('hidden');
+          primeiro = primeiro || bloco;
+        });
+
+        if (primeiro) {
+          primeiro.scrollIntoView({ block: 'center' });
+        } else {
+          $('#erroFormulario').textContent = e.message;
+          $('#erroFormulario').classList.remove('hidden');
+        }
+      });
+  });
+
+  // Viu o documento e achou um erro no que respondeu: volta, corrige, e o
+  // documento é refeito. Vale até a assinatura — depois dela o texto não muda.
+  $('#btnCorrigir').addEventListener('click', function () {
+    if (S && S.formulario) {
+      abreFormulario();
+    }
+  });
+
+  /* Volta à estaca zero — e apaga tudo o que era da pessoa atendida. */
+  function encerraAtendimento(opcoes) {
+    opcoes = opcoes || {};
+
+    pararContagem();
+    pararBatimento();
+    desligaCamera();
+    limpaCanvas();
+
+    $('#docScroll').innerHTML = '';
+    // As respostas da pessoa atendida não sobrevivem a ela.
+    $('#formCampos').innerHTML = '';
+    $('#btnCorrigir').classList.add('hidden');
+    $('#btnVoltarDocumento').classList.remove('hidden');
+    // O lote da diretoria esconde a recusa e troca o texto do aceite.
+    document.querySelectorAll('[data-recusar]').forEach(function (b) { b.classList.remove('hidden'); });
+    $('#aceiteTexto').textContent = 'Li e concordo com os termos deste documento.';
+    $('#sucessoVia').style.whiteSpace = '';
+    $('#sheetSair').classList.remove('on');
+    $('#cpfInput').value = '';
+    $('#codigoInput').value = '';
+    $('#erroCodigo').classList.add('hidden');
+    codigoDigitado = '';
+    $('#aceiteCheck').checked = false;
+    $('#aceiteBox').classList.remove('on');
+    $('#viaCheck').checked = false;
+    $('#viaBox').classList.remove('on');
+    $('#viaBox').classList.add('hidden');
+    $('#fotoCheck').checked = false;
+    $('#fotoBox').classList.remove('on');
+    $('#fotoBox').classList.add('hidden');
+    $('#btnAceite').disabled = true;
+    $('#btnIdentidade').disabled = true;
+    $('#btnLido').disabled = true;
+    $('#btnLido').textContent = 'Role até o fim';
+    $('#erroIdentidade').classList.add('hidden');
+    $('#motivoRecusa').value = '';
+    $('#tituloDoc').textContent = 'Assinatura de documentos';
+    $('#subtituloDoc').textContent = CFG.clube;
+    $('#relogio').classList.add('hidden');
+    $('#sheetRecusa').classList.remove('on');
+    $('#sheetInatividade').classList.remove('on');
+
+    S = null;
+
+    if (CFG.menores) {
+      menoresDepoisDoAtendimento(opcoes);
+      return;
+    }
+
+    // Assinatura da Diretoria: com a entrada do diretor valendo, volta à lista dele.
+    if (CFG.diretoria && diretoriaAtiva()) {
+      diretoriaDepoisDoAtendimento(opcoes);
+      return;
+    }
+
+    mostra('tela-espera');
+    $('#dicaLeitor').textContent = 'Procurando o código…';
+
+    if (opcoes.mensagem) {
+      erro(opcoes.mensagem, opcoes.titulo || 'Sessão encerrada');
+    }
+
+    iniciaLeitor();
+  }
+
+  function trataFalha(e) {
+    if (e && e.sessaoEncerrada) {
+      encerraAtendimento({ mensagem: e.message, titulo: 'Sessão encerrada' });
+      return true;
+    }
+
+    return false;
+  }
+
+  /* ---------------------------------------------------------------------
+   | Tempo de sessão e batimento
+   |---------------------------------------------------------------------*/
+
+  var timerContagem = null;
+  var timerBatimento = null;
+
+  function iniciaContagem() {
+    pararContagem();
+
+    timerContagem = setInterval(function () {
+      if (!S) {
+        return;
+      }
+
+      S.sessao.restante--;
+
+      var min = Math.floor(Math.max(0, S.sessao.restante) / 60);
+      var seg = Math.max(0, S.sessao.restante) % 60;
+
+      $('#relogio').textContent = min + ':' + (seg < 10 ? '0' : '') + seg;
+      $('#relogio').classList.toggle('warn', S.sessao.restante <= S.sessao.aviso);
+
+      if (S.sessao.restante === S.sessao.aviso) {
+        $('#textoInatividade').textContent = 'A sessão será encerrada em '
+          + S.sessao.aviso + ' segundos. Toque em continuar para seguir assinando.';
+        $('#sheetInatividade').classList.add('on');
+      }
+
+      if (S.sessao.restante <= 0) {
+        encerraAtendimento({
+          mensagem: CFG.menores
+            ? 'O tempo do atendimento terminou. Recomece pelo número do título.'
+            : (CFG.diretoria && diretoriaAtiva()
+              ? 'O tempo do atendimento terminou. Abra o documento de novo na lista.'
+              : 'O tempo do atendimento terminou. Peça ao atendente que gere um novo QR Code.'),
+          titulo: 'Tempo esgotado',
+        });
+      }
+    }, 1000);
+  }
+
+  function pararContagem() {
+    clearInterval(timerContagem);
+    timerContagem = null;
+  }
+
+  /*
+   * Batimento: pergunta ao servidor se a sessão continua valendo. É o que faz
+   * o cancelamento pelo painel derrubar o tablet sem broadcasting — e também o
+   * que corrige a contagem regressiva, que é do servidor e não do relógio
+   * daqui.
+   */
+  function iniciaBatimento() {
+    pararBatimento();
+
+    timerBatimento = setInterval(function () {
+      if (!S) {
+        return;
+      }
+
+      // Batimento que saiu antes do envio das respostas traz o PDF antigo:
+      // não pode ser lido como correção do atendente.
+      var pedidoEm = Date.now();
+
+      api('GET', CFG.rotas.sessao)
+        .then(function (dados) {
+          S.sessao.restante = dados.session.remaining_seconds;
+
+          if (!S.respondidoEm || pedidoEm > S.respondidoEm) {
+            atualizaConferencia(dados);
+          }
+        })
+        .catch(function (e) {
+          trataFalha(e);
+        });
+    }, 5000);
+  }
+
+  /*
+   * Conferência das respostas, a cada batimento: o atendente aprovou (libera
+   * o aceite), devolveu (volta às perguntas, com o recado) ou corrigiu (o
+   * documento é outro: lê de novo).
+   */
+  function atualizaConferencia(dados) {
+    if (!S || S.lote || !('answer_check' in dados)) {
+      return;
+    }
+
+    var antes = S.conferencia;
+    S.conferencia = dados.answer_check || null;
+    var tela = telaAtual();
+
+    if (S.pdfVersao && dados.document.pdf_version !== S.pdfVersao && tela !== 'tela-formulario') {
+      S.pdfVersao = dados.document.pdf_version;
+      S.pdfUrl = dados.document.pdf_url;
+      S.formulario = dados.form || S.formulario;
+      limpaCanvas();
+      mostra('tela-documento');
+      carregaPdf();
+      erro('O atendente corrigiu uma das suas respostas. Leia o documento de novo antes de assinar.', 'Documento atualizado');
+
+      return;
+    }
+
+    if (S.conferencia && S.conferencia.status === 'returned' && !(antes && antes.status === 'returned')) {
+      S.formulario = dados.form || S.formulario;
+
+      if (S.formulario) {
+        // Já nas perguntas (tocou em "Corrigir respostas"): só o recado, sem
+        // refazer o formulário e perder o que ela está digitando.
+        if (tela !== 'tela-formulario') {
+          limpaCanvas();
+          abreFormulario();
+        }
+
+        $('#avisoConferencia').textContent = 'O atendente pediu uma correção: ' + (S.conferencia.note || '');
+        $('#avisoConferencia').classList.remove('hidden');
+
+        return;
+      }
+    }
+
+    atualizaAceite();
+  }
+
+  function pararBatimento() {
+    clearInterval(timerBatimento);
+    timerBatimento = null;
+  }
+
+  $('#continuarSessao').addEventListener('click', function () {
+    $('#sheetInatividade').classList.remove('on');
+  });
+
+  /* ---------------------------------------------------------------------
+   | Documento (PDF.js)
+   |---------------------------------------------------------------------*/
+
+  function carregaPdf() {
+    var alvo = $('#docScroll');
+    alvo.innerHTML = '';
+    alvo.scrollTop = 0;
+
+    // Cada carga é uma leitura nova: depois de corrigir uma resposta o
+    // documento é outro, e "li até o fim" tem de valer para ele.
+    S.leitura.inicio = Date.now();
+    S.leitura.ateOFim = false;
+    $('#btnLido').disabled = true;
+    $('#btnLido').textContent = 'Role até o fim';
+
+    // Com perguntas, o voltar é "Corrigir respostas"; sem elas, "Voltar".
+    $('#btnCorrigir').classList.toggle('hidden', !S.formulario);
+    $('#btnVoltarDocumento').classList.toggle('hidden', !!S.formulario);
+
+    if (typeof pdfjsLib === 'undefined') {
+      $('#docStatus').textContent = 'Não foi possível carregar o leitor de PDF.';
+      return;
+    }
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    $('#docStatus').textContent = 'Carregando o documento…';
+
+    pdfjsLib.getDocument({ url: S.pdfUrl, withCredentials: true }).promise
+      .then(function (pdf) {
+        var largura = Math.min(alvo.clientWidth - 32, 760);
+        var pendentes = [];
+
+        for (var n = 1; n <= pdf.numPages; n++) {
+          pendentes.push(desenhaPagina(pdf, n, largura, alvo));
+        }
+
+        return Promise.all(pendentes).then(function () {
+          $('#docStatus').textContent = 'Documento com ' + pdf.numPages + ' página(s). Role até o fim.';
+          verificaRolagem();
+        });
+      })
+      .catch(function () {
+        $('#docStatus').textContent = 'Não foi possível abrir o documento. Chame o atendente.';
+      });
+  }
+
+  function desenhaPagina(pdf, numero, largura, alvo) {
+    return pdf.getPage(numero).then(function (pagina) {
+      var base = pagina.getViewport({ scale: 1 });
+      var escala = largura / base.width;
+      var viewport = pagina.getViewport({ scale: escala });
+
+      var canvas = document.createElement('canvas');
+      canvas.className = 'doc-page';
+
+      // Densidade da tela: sem isso o texto sai borrado no tablet.
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(viewport.width * dpr);
+      canvas.height = Math.floor(viewport.height * dpr);
+      canvas.style.width = viewport.width + 'px';
+      canvas.style.height = viewport.height + 'px';
+
+      alvo.appendChild(canvas);
+
+      return pagina.render({
+        canvasContext: canvas.getContext('2d'),
+        viewport: viewport,
+        transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null,
+      }).promise;
+    });
+  }
+
+  function verificaRolagem() {
+    var el = $('#docScroll');
+    var chegouAoFim = el.scrollTop + el.clientHeight >= el.scrollHeight - 24;
+
+    // Documento curto, que cabe inteiro na tela: não há o que rolar.
+    if (el.scrollHeight <= el.clientHeight + 24) {
+      chegouAoFim = true;
+    }
+
+    if (chegouAoFim && S && !S.leitura.ateOFim) {
+      S.leitura.ateOFim = true;
+      $('#btnLido').disabled = false;
+      $('#btnLido').textContent = 'Li o documento';
+    }
+  }
+
+  $('#docScroll').addEventListener('scroll', verificaRolagem);
+
+  $('#btnLido').addEventListener('click', function () {
+    S.leitura.segundos = Math.round((Date.now() - S.leitura.inicio) / 1000);
+
+    // Lote da diretoria: registra este e passa ao próximo documento.
+    if (S.lote) {
+      loteLido();
+      return;
+    }
+
+    api('POST', rota('visualizado'), {
+      read_seconds: S.leitura.segundos,
+      scrolled_to_end: S.leitura.ateOFim,
+    }).catch(function (e) { trataFalha(e); });
+
+    // 'none' no modelo, já conferida antes do documento (o CPF completo do
+    // autoatendimento do Termo de Menores) ou já conferida nesta sessão (a
+    // pessoa voltou ao documento depois da identidade).
+    if (S.regras.identity_check === 'none' || S.regras.identity_confirmed || S.identidadeOk) {
+      mostra('tela-aceite');
+      return;
+    }
+
+    preparaIdentidade();
+    mostra('tela-identidade');
+  });
+
+  /* ---------------------------------------------------------------------
+   | Voltar — sempre há como voltar um passo (26/10/2026)
+   |---------------------------------------------------------------------*/
+
+  // O primeiro passo não tem passo anterior: voltar é sair do documento,
+  // que continua pendente (não é recusa). Confirma antes.
+  function pedeSair() {
+    $('#textoSair').textContent = S && S.lote
+      ? 'Nenhum destes documentos será assinado agora. Eles continuam na sua lista.'
+      : (CFG.menores
+        ? 'O termo não será assinado agora. Você volta ao início.'
+        : (CFG.diretoria && diretoriaAtiva()
+          ? 'O documento não será assinado agora e continua na sua lista.'
+          : 'O documento não será assinado agora. Para recomeçar, o atendente gera um novo QR Code.'));
+    $('#sheetSair').classList.add('on');
+  }
+
+  document.querySelectorAll('[data-sair-documento]').forEach(function (botao) {
+    botao.addEventListener('click', pedeSair);
+  });
+
+  $('#cancelarSair').addEventListener('click', function () {
+    $('#sheetSair').classList.remove('on');
+  });
+
+  $('#confirmarSair').addEventListener('click', function () {
+    $('#sheetSair').classList.remove('on');
+
+    var saida = S && S.lote
+      ? api('POST', CFG.diretoria.rotas.loteCancelar, { signers: S.lote.docs.map(function (d) { return d.signer_id; }) })
+      : api('POST', CFG.rotas.encerrar);
+
+    saida.catch(function () { /* sessão já vencida: nada a encerrar */ }).then(function () {
+      var semMensagem = CFG.menores || (CFG.diretoria && diretoriaAtiva());
+
+      encerraAtendimento(semMensagem ? {} : {
+        mensagem: 'Você saiu do documento sem assinar. Para recomeçar, peça ao atendente um novo QR Code.',
+        titulo: 'Documento não assinado',
+      });
+    });
+  });
+
+  $('#btnVoltarDocumento').addEventListener('click', function () {
+    if (S && S.lote) {
+      loteVoltaDocumento();
+      return;
+    }
+
+    pedeSair();
+  });
+
+  // O documento continua desenhado na tela anterior: voltar é só mostrá-lo.
+  $('#btnVoltarIdentidade').addEventListener('click', function () {
+    mostra('tela-documento');
+  });
+
+  $('#btnVoltarAceite').addEventListener('click', function () {
+    // Lote da diretoria sem ver um por um: volta à pergunta.
+    if (S && S.lote && S.lote.dispensou) {
+      lotePergunta();
+      return;
+    }
+
+    mostra('tela-documento');
+  });
+
+  $('#btnVoltarAssinatura').addEventListener('click', function () {
+    // No visto, voltar é refazer a assinatura; na assinatura, é o aceite.
+    if (S.modoVisto) {
+      abreAssinatura();
+      return;
+    }
+
+    limpaCanvas();
+    mostra('tela-aceite');
+  });
+
+  $('#btnVoltarFoto').addEventListener('click', function () {
+    desligaCamera();
+    S.fotoJpeg = null;
+
+    if (!S.regras.requires_initials) {
+      abreAssinatura();
+      return;
+    }
+
+    // Volta ao visto, guardando a assinatura já confirmada.
+    var png = S.assinaturaPng;
+    var tracos = S.tracosAssinatura;
+
+    mostra('tela-assinatura');
+    S.modoVisto = true;
+    S.vistoPng = null;
+    S.tracosVisto = [];
+    inicioTraco = null;
+    preparaCanvas();
+    S.assinaturaPng = png;
+    S.tracosAssinatura = tracos;
+    rotulaTelaDeDesenho();
+  });
+
+  /* ---------------------------------------------------------------------
+   | Identidade
+   |---------------------------------------------------------------------*/
+
+  // Quantos dígitos a etapa pede: CPF completo, quatro primeiros, ou o código do e-mail.
+  function digitosDaIdentidade() {
+    var modo = S.regras.identity_check;
+
+    return modo === 'full' ? 11 : (modo === 'email' ? 6 : 4);
+  }
+
+  function preparaIdentidade() {
+    var modo = S.regras.identity_check;
+
+    $('#identidadeInstrucao').textContent = modo === 'full'
+      ? 'Digite o seu CPF completo, apenas números.'
+      : (modo === 'email'
+        ? 'Enviando um código para o seu e-mail…'
+        : 'Digite os quatro primeiros dígitos do seu CPF.');
+
+    $('#cpfInput').maxLength = digitosDaIdentidade();
+    S.cpfDigitado = '';
+    $('#cpfInput').value = '';
+    $('#btnIdentidade').disabled = true;
+    $('#btnReenviarCodigo').classList.add('hidden');
+
+    if (modo === 'email') {
+      enviaCodigo();
+    }
+  }
+
+  /*
+   * Conferência por código no e-mail: o servidor manda o código ao e-mail
+   * cadastrado — o endereço nunca vem para a tela. "Reenviar" libera depois
+   * da espera que o servidor informa.
+   */
+  function enviaCodigo() {
+    $('#btnReenviarCodigo').disabled = true;
+    $('#erroIdentidade').classList.add('hidden');
+
+    api('POST', rota('codigoIdentidade'))
+      .then(function (r) {
+        $('#identidadeInstrucao').textContent =
+          'Enviamos um código de 6 números para o seu e-mail cadastrado. Digite-o abaixo.';
+
+        if (r.sends_left > 0) {
+          $('#btnReenviarCodigo').classList.remove('hidden');
+          setTimeout(function () { $('#btnReenviarCodigo').disabled = false; }, (r.resend_seconds || 60) * 1000);
+        } else {
+          $('#btnReenviarCodigo').classList.add('hidden');
+        }
+      })
+      .catch(function (e) {
+        if (trataFalha(e)) {
+          return;
+        }
+
+        $('#identidadeInstrucao').textContent = 'Digite o código enviado para o seu e-mail.';
+        $('#erroIdentidade').textContent = e.message;
+        $('#erroIdentidade').classList.remove('hidden');
+        // Os limites (envios, espera) são do servidor; a tela só deixa tentar de novo.
+        $('#btnReenviarCodigo').classList.remove('hidden');
+        $('#btnReenviarCodigo').disabled = false;
+      });
+  }
+
+  $('#btnReenviarCodigo').addEventListener('click', enviaCodigo);
+
+  (function montaTeclado() {
+    var teclas = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'limpar', '0', 'apagar'];
+    var alvo = $('#teclado');
+
+    teclas.forEach(function (t) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'key';
+      b.textContent = t === 'apagar' ? '⌫' : (t === 'limpar' ? 'C' : t);
+      b.dataset.tecla = t;
+      alvo.appendChild(b);
+    });
+
+    alvo.addEventListener('click', function (ev) {
+      var tecla = ev.target.dataset.tecla;
+
+      if (!tecla || !S) {
+        return;
+      }
+
+      if (tecla === 'limpar') {
+        S.cpfDigitado = '';
+      } else if (tecla === 'apagar') {
+        S.cpfDigitado = S.cpfDigitado.slice(0, -1);
+      } else {
+        var limite = digitosDaIdentidade();
+
+        if (S.cpfDigitado.length < limite) {
+          S.cpfDigitado += tecla;
+        }
+      }
+
+      $('#cpfInput').value = S.cpfDigitado;
+      $('#erroIdentidade').classList.add('hidden');
+
+      $('#btnIdentidade').disabled = S.cpfDigitado.length !== digitosDaIdentidade();
+    });
+  })();
+
+  $('#btnIdentidade').addEventListener('click', function () {
+    $('#btnIdentidade').disabled = true;
+
+    api('POST', rota('identidade'), S.regras.identity_check === 'email'
+      ? { codigo: S.cpfDigitado }
+      : { cpf: S.cpfDigitado })
+      .then(function () {
+        S.identidadeOk = true;
+        mostra('tela-aceite');
+      })
+      .catch(function (e) {
+        if (trataFalha(e)) {
+          return;
+        }
+
+        S.cpfDigitado = '';
+        $('#cpfInput').value = '';
+        $('#erroIdentidade').textContent = e.message;
+        $('#erroIdentidade').classList.remove('hidden');
+      });
+  });
+
+  /* ---------------------------------------------------------------------
+   | Aceite
+   |---------------------------------------------------------------------*/
+
+  /*
+   * Vai haver foto nesta assinatura? O modelo pede e o tablet tem câmera — ou
+   * não tem e o ambiente não permite seguir sem ela (aí a etapa da foto é que
+   * barra). Sem câmera e com a dispensa ligada, não há foto nem o que autorizar.
+   */
+  function vaiTirarFoto() {
+    return !!S && S.regras.requires_photo && !(!temCamera() && CFG.podePularFoto);
+  }
+
+  // "Continuar" pede o aceite dos termos e, havendo foto, a autorização dela.
+  function atualizaAceite() {
+    var aceitou = $('#aceiteCheck').checked;
+    var autorizou = $('#fotoCheck').checked;
+
+    // Balcão com perguntas: a assinatura espera o atendente aprovar as respostas.
+    var aguardando = !!(S && S.conferencia && S.conferencia.status !== 'approved');
+
+    $('#aceiteBox').classList.toggle('on', aceitou);
+    $('#fotoBox').classList.toggle('on', autorizou);
+    $('#aguardaConferencia').classList.toggle('hidden', !aguardando);
+    $('#btnAceite').disabled = !(aceitou && (!vaiTirarFoto() || autorizou)) || aguardando;
+
+    if (S) {
+      S.aceitou = aceitou;
+      S.autorizouImagem = autorizou;
+    }
+  }
+
+  $('#fotoTexto').textContent = CFG.textoAutorizacaoFoto;
+
+  $('#aceiteCheck').addEventListener('change', atualizaAceite);
+  $('#fotoCheck').addEventListener('change', atualizaAceite);
+
+  $('#viaCheck').addEventListener('change', function () {
+    var marcado = $('#viaCheck').checked;
+
+    $('#viaBox').classList.toggle('on', marcado);
+
+    if (S) {
+      S.querVia = marcado;
+    }
+  });
+
+  $('#btnAceite').addEventListener('click', function () {
+    abreAssinatura();
+  });
+
+  /* ---------------------------------------------------------------------
+   | Assinatura
+   |---------------------------------------------------------------------*/
+
+  var ctx = null;
+  var desenhando = false;
+  var tracoAtual = null;
+  var inicioTraco = null;
+
+  // Tamanho da área de desenho quando o canvas foi preparado. Se o tablet
+  // girar (ou a janela mudar) com a tela de desenho aberta, o canvas é refeito
+  // no tamanho novo: o desenho de antes, esticado pelo CSS, sairia deformado e
+  // fora do dedo. Quem assina desenha de novo (11/11/2026).
+  var tamanhoDoDesenho = null;
+
+  window.addEventListener('resize', function () {
+    var tela = document.querySelector('.screen.on');
+    if (!S || !ctx || !tela || tela.id !== 'tela-assinatura') return;
+
+    var caixa = $('#sigPad').getBoundingClientRect();
+    if (!caixa.width || Math.round(caixa.width) + 'x' + Math.round(caixa.height) === tamanhoDoDesenho) return;
+
+    // preparaCanvas zera a assinatura; no visto ela já foi confirmada e fica.
+    var png = S.assinaturaPng;
+    var tracosAssinatura = S.tracosAssinatura;
+    preparaCanvas();
+    if (S.modoVisto) {
+      S.assinaturaPng = png;
+      S.tracosAssinatura = tracosAssinatura;
+    }
+    inicioTraco = null;
+    $('#sigLead').textContent = 'A tela girou: faça o desenho de novo.';
+  });
+
+  function preparaCanvas() {
+    var canvas = $('#sigCanvas');
+    var caixa = $('#sigPad').getBoundingClientRect();
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    canvas.width = Math.floor(caixa.width * dpr);
+    canvas.height = Math.floor(caixa.height * dpr);
+    tamanhoDoDesenho = Math.round(caixa.width) + 'x' + Math.round(caixa.height);
+
+    ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    ctx.lineWidth = 2.6;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#1b1b1b';
+
+    S.tracos = [];
+    S.assinaturaPng = null;
+    $('#btnAssinar').disabled = true;
+  }
+
+  /*
+   * A tela de desenho serve a dois atos, um depois do outro: a assinatura e,
+   * quando o modelo exige, o visto. `modoVisto` diz qual dos dois está na tela.
+   */
+  function rotulaTelaDeDesenho() {
+    var visto = !!(S && S.modoVisto);
+
+    $('#sigTitulo').textContent = visto ? 'Agora faça o seu visto' : 'Assine no espaço abaixo';
+    $('#sigLead').textContent = visto
+      ? 'Sua rubrica será aplicada ao pé de cada página do documento.'
+      : 'Use o dedo ou a caneta do tablet.';
+    $('#sigNome').textContent = visto ? 'Visto' : (S ? S.signatario.name : '');
+    $('#btnAssinar').textContent = visto ? 'Confirmar visto' : 'Confirmar assinatura';
+  }
+
+  // Começa (ou recomeça) pela assinatura. É também para onde se volta quando
+  // o servidor recusa a gravação: assinatura e visto são refeitos juntos.
+  function abreAssinatura() {
+    S.modoVisto = false;
+    S.vistoPng = null;
+    S.tracosVisto = [];
+    S.tracosAssinatura = [];
+    inicioTraco = null;
+
+    mostra('tela-assinatura');
+    preparaCanvas();
+    rotulaTelaDeDesenho();
+  }
+
+  function limpaCanvas() {
+    var canvas = $('#sigCanvas');
+
+    if (ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    if (S) {
+      S.tracos = [];
+
+      // Limpar o visto não apaga a assinatura já confirmada.
+      if (!S.modoVisto) {
+        S.assinaturaPng = null;
+      }
+    }
+
+    $('#btnAssinar').disabled = true;
+  }
+
+  function ponto(ev) {
+    var caixa = $('#sigCanvas').getBoundingClientRect();
+
+    return {
+      x: Math.round((ev.clientX - caixa.left) * 10) / 10,
+      y: Math.round((ev.clientY - caixa.top) * 10) / 10,
+      // Tempo RELATIVO ao início do traço, em milissegundos. Relativo de
+      // propósito: o relógio do tablet não entra na prova, e o que interessa
+      // é o movimento da mão.
+      t: Date.now() - inicioTraco,
+      p: typeof ev.pressure === 'number' ? Math.round(ev.pressure * 100) / 100 : null,
+    };
+  }
+
+  function contaPontos() {
+    return S.tracos.reduce(function (total, traco) { return total + traco.points.length; }, 0);
+  }
+
+  (function ligaCanvas() {
+    var canvas = $('#sigCanvas');
+
+    canvas.addEventListener('pointerdown', function (ev) {
+      if (!ctx) {
+        return;
+      }
+
+      ev.preventDefault();
+      canvas.setPointerCapture(ev.pointerId);
+
+      desenhando = true;
+      inicioTraco = inicioTraco || Date.now();
+      tracoAtual = { points: [] };
+
+      var p = ponto(ev);
+      tracoAtual.points.push(p);
+
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+    });
+
+    canvas.addEventListener('pointermove', function (ev) {
+      if (!desenhando) {
+        return;
+      }
+
+      ev.preventDefault();
+
+      var p = ponto(ev);
+      tracoAtual.points.push(p);
+
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    });
+
+    function encerraTraco() {
+      if (!desenhando) {
+        return;
+      }
+
+      desenhando = false;
+
+      if (tracoAtual && tracoAtual.points.length) {
+        S.tracos.push(tracoAtual);
+      }
+
+      tracoAtual = null;
+
+      // O mínimo do servidor é o mesmo daqui — a config vai para a tela para
+      // que os dois números não divirjam em silêncio.
+      $('#btnAssinar').disabled = contaPontos() < (S.modoVisto ? CFG.minPontosVisto : CFG.minPontos);
+    }
+
+    canvas.addEventListener('pointerup', encerraTraco);
+    canvas.addEventListener('pointercancel', encerraTraco);
+    canvas.addEventListener('pointerleave', encerraTraco);
+  })();
+
+  $('#btnLimpar').addEventListener('click', function () {
+    limpaCanvas();
+    inicioTraco = null;
+  });
+
+  $('#btnAssinar').addEventListener('click', function () {
+    if (S.modoVisto) {
+      S.vistoPng = $('#sigCanvas').toDataURL('image/png');
+      S.tracosVisto = S.tracos;
+    } else {
+      var png = $('#sigCanvas').toDataURL('image/png');
+      var tracos = S.tracos;
+
+      /*
+       * O modelo exige visto: a mesma tela é limpa e pede a rubrica. A
+       * assinatura fica guardada em memória e segue junto, numa requisição só
+       * — o servidor grava as duas ou nenhuma.
+       */
+      if (S.regras.requires_initials) {
+        S.modoVisto = true;
+        inicioTraco = null;
+        preparaCanvas();
+        S.assinaturaPng = png;
+        S.tracosAssinatura = tracos;
+        rotulaTelaDeDesenho();
+        return;
+      }
+
+      S.assinaturaPng = png;
+      S.tracosAssinatura = tracos;
+    }
+
+    if (!S.regras.requires_photo) {
+      envia();
+      return;
+    }
+
+    /*
+     * Modelo pede foto e o aparelho não tem câmera (ambiente sem HTTPS). Com a
+     * flag ligada, a assinatura segue e a AUSÊNCIA é registrada com o motivo —
+     * que vai para a evidência e para o manifesto. Sem a flag, o servidor
+     * recusa, e é ele quem decide: o tablet não tem como se autorizar.
+     */
+    if (!temCamera() && CFG.podePularFoto) {
+      S.semFoto = CFG.motivoSemCamera;
+      envia();
+      return;
+    }
+
+    mostra('tela-foto');
+    iniciaFoto();
+  });
+
+  /* ---------------------------------------------------------------------
+   | Foto
+   |---------------------------------------------------------------------*/
+
+  var streamFoto = null;
+  var timerFoto = null;
+
+  // Volta da prévia para a câmera ao vivo.
+  function modoCamera() {
+    S.fotoJpeg = null;
+    $('#fotoPrevia').classList.add('hidden');
+    $('#fotoPrevia').removeAttribute('src');
+    $('#camVideo').classList.remove('hidden');
+    $('#btnOutraFoto').classList.add('hidden');
+    $('#btnUsarFoto').classList.add('hidden');
+    $('#fotoTitulo').textContent = 'Registro da assinatura';
+    $('#fotoLead').innerHTML = 'Ajeite-se de frente para a câmera e toque em <b>Tirar foto</b>. A foto sai depois de 3 segundos.';
+  }
+
+  function iniciaFoto() {
+    modoCamera();
+    $('#erroFoto').classList.add('hidden');
+    $('#btnFoto').classList.add('hidden');
+    $('#btnFoto').disabled = false;
+    $('#camContagem').classList.add('hidden');
+
+    if (!temCamera()) {
+      $('#erroFoto').textContent = 'Câmera indisponível (é preciso HTTPS). Chame o atendente.';
+      $('#erroFoto').classList.remove('hidden');
+      return;
+    }
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+      .then(function (stream) {
+        streamFoto = stream;
+        var video = $('#camVideo');
+        video.srcObject = stream;
+
+        // Câmera no ar: a pessoa se vê e toca no botão quando estiver pronta.
+        return video.play().then(function () { $('#btnFoto').classList.remove('hidden'); });
+      })
+      .catch(function () {
+        $('#erroFoto').textContent = 'Não foi possível abrir a câmera frontal. Chame o atendente.';
+        $('#erroFoto').classList.remove('hidden');
+      });
+  }
+
+  $('#btnFoto').addEventListener('click', function () {
+    // Um toque só: um segundo toque não pode abrir outra contagem.
+    if (timerFoto || !streamFoto) {
+      return;
+    }
+
+    $('#btnFoto').disabled = true;
+    $('#btnFoto').classList.add('hidden');
+    contagemDaFoto();
+  });
+
+  function contagemDaFoto() {
+    var restante = 3;
+    $('#camContagem').textContent = restante;
+    $('#camContagem').classList.remove('hidden');
+
+    timerFoto = setInterval(function () {
+      restante--;
+      $('#camContagem').textContent = restante > 0 ? restante : '📷';
+
+      if (restante <= 0) {
+        clearInterval(timerFoto);
+        timerFoto = null;
+        capturaFoto();
+      }
+    }, 1000);
+  }
+
+  function capturaFoto() {
+    var video = $('#camVideo');
+    var canvas = document.createElement('canvas');
+
+    // Quadrada e reduzida, como as fotos do cadastro de freelancer: é retrato
+    // de reconhecimento, não fotografia.
+    var lado = Math.min(video.videoWidth || 480, video.videoHeight || 480);
+    canvas.width = 600;
+    canvas.height = 600;
+
+    var ctxFoto = canvas.getContext('2d');
+    ctxFoto.drawImage(
+      video,
+      ((video.videoWidth || lado) - lado) / 2,
+      ((video.videoHeight || lado) - lado) / 2,
+      lado, lado, 0, 0, 600, 600
+    );
+
+    S.fotoJpeg = canvas.toDataURL('image/jpeg', 0.82);
+
+    /*
+     * Prévia antes de usar: a pessoa confere a foto e escolhe entre usá-la ou
+     * tirar outra. A câmera segue ligada por baixo, para a nova foto não
+     * esperar o aparelho abrir de novo.
+     */
+    $('#camContagem').classList.add('hidden');
+    $('#fotoPrevia').src = S.fotoJpeg;
+    $('#fotoPrevia').classList.remove('hidden');
+    $('#camVideo').classList.add('hidden');
+    $('#fotoTitulo').textContent = 'Confira a sua foto';
+    $('#fotoLead').textContent = 'Ficou boa? Use esta foto ou tire uma nova.';
+    $('#btnOutraFoto').classList.remove('hidden');
+    $('#btnUsarFoto').classList.remove('hidden');
+  }
+
+  $('#btnOutraFoto').addEventListener('click', function () {
+    modoCamera();
+    $('#btnFoto').disabled = false;
+    $('#btnFoto').classList.remove('hidden');
+  });
+
+  $('#btnUsarFoto').addEventListener('click', function () {
+    if (!S || !S.fotoJpeg) {
+      return;
+    }
+
+    var foto = S.fotoJpeg;
+
+    desligaCamera();
+    S.fotoJpeg = foto;
+    envia();
+  });
+
+  function desligaCamera() {
+    // Atendimento encerrado no meio da contagem: a foto não sai depois.
+    clearInterval(timerFoto);
+    timerFoto = null;
+
+    if (streamFoto) {
+      streamFoto.getTracks().forEach(function (t) { t.stop(); });
+      streamFoto = null;
+    }
+
+    var video = $('#camVideo');
+
+    if (video) {
+      video.srcObject = null;
+      video.classList.remove('hidden');
+    }
+
+    // A prévia da foto não sobrevive ao atendimento.
+    $('#fotoPrevia').classList.add('hidden');
+    $('#fotoPrevia').removeAttribute('src');
+    $('#btnOutraFoto').classList.add('hidden');
+    $('#btnUsarFoto').classList.add('hidden');
+  }
+
+  /* ---------------------------------------------------------------------
+   | Envio
+   |---------------------------------------------------------------------*/
+
+  function envia() {
+    // Lote da diretoria: uma gravação por documento, numa requisição só.
+    if (S.lote) {
+      loteEnvia();
+      return;
+    }
+
+    $('#sucessoDetalhe').textContent = 'Gravando a assinatura…';
+    mostra('tela-sucesso');
+
+    api('POST', rota('assinar'), {
+      signature: S.assinaturaPng,
+      strokes: S.tracosAssinatura,
+      initials: S.vistoPng,
+      initials_strokes: S.vistoPng ? S.tracosVisto : null,
+      photo: S.fotoJpeg,
+      photo_skipped_reason: S.semFoto,
+      photo_consent: S.autorizouImagem,
+      accepted: true,
+      wants_copy: S.querVia,
+      read_seconds: S.leitura.segundos,
+      scrolled_to_end: S.leitura.ateOFim,
+      viewport: {
+        w: window.innerWidth,
+        h: window.innerHeight,
+        orientation: window.innerWidth > window.innerHeight ? 'landscape' : 'portrait',
+      },
+    })
+      .then(function (dados) {
+        $('#sucessoDetalhe').textContent = 'Assinado em ' + dados.signed_at
+          + (CFG.diretoria && diretoriaAtiva()
+            ? '. Toque em Concluir para voltar aos seus documentos.'
+            : '. Você pode devolver o tablet ao atendente.');
+
+        $('#sucessoVia').textContent = S.querVia
+          ? 'A via assinada será enviada ao seu e-mail cadastrado em alguns instantes.'
+          : 'A via assinada fica disponível com o atendente.';
+
+        pararContagem();
+        pararBatimento();
+
+        // Termo de Menores: a tela verde, que só sai no "Concluir" ou no
+        // "Autorizar outro menor" — é ela que a pessoa mostra na entrada.
+        if (CFG.menores) {
+          menoresTelaVerde(dados);
+          return;
+        }
+
+        // Volta sozinho à tela de espera — o balcão não pode depender de
+        // alguém lembrar de tocar em "concluir".
+        setTimeout(function () {
+          if (S) {
+            encerraAtendimento();
+          }
+        }, 12000);
+      })
+      .catch(function (e) {
+        if (trataFalha(e)) {
+          return;
+        }
+
+        // A assinatura NÃO foi gravada: volta para o traço, em vez de deixar a
+        // pessoa achando que assinou.
+        abreAssinatura();
+        erro(e.message, 'A assinatura não foi registrada');
+      });
+  }
+
+  $('#btnFechar').addEventListener('click', function () {
+    encerraAtendimento();
+  });
+
+  /* ---------------------------------------------------------------------
+   | Recusa
+   |---------------------------------------------------------------------*/
+
+  document.querySelectorAll('[data-recusar]').forEach(function (botao) {
+    botao.addEventListener('click', function () {
+      $('#sheetRecusa').classList.add('on');
+    });
+  });
+
+  $('#cancelarRecusa').addEventListener('click', function () {
+    $('#sheetRecusa').classList.remove('on');
+  });
+
+  $('#confirmarRecusa').addEventListener('click', function () {
+    var motivo = $('#motivoRecusa').value.trim();
+
+    api('POST', rota('recusar'), { reason: motivo || null })
+      .then(function () {
+        encerraAtendimento({
+          mensagem: CFG.menores
+            ? 'O termo não foi assinado. Se quiser, comece de novo.'
+            : (CFG.diretoria && diretoriaAtiva()
+              ? 'A assinatura foi recusada. O documento foi encerrado.'
+              : 'A assinatura foi recusada. Devolva o tablet ao atendente.'),
+          titulo: 'Assinatura recusada',
+        });
+      })
+      .catch(function (e) {
+        if (!trataFalha(e)) {
+          erro(e.message);
+        }
+      });
+  });
+@endverbatim

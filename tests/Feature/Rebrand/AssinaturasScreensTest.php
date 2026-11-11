@@ -67,8 +67,9 @@ class AssinaturasScreensTest extends TestCase
 
     public function test_paginas_proprias_usam_a_paleta_do_rebrand(): void
     {
-        foreach (['quiosque/index', 'signature/validate'] as $view) {
-            $source = file_get_contents(resource_path("views/{$view}.blade.php"));
+        // O CSS do tablet saiu da página para resources/css/quiosque.css (11/11/2026).
+        foreach (['css/quiosque.css', 'views/signature/validate.blade.php'] as $view) {
+            $source = file_get_contents(resource_path($view));
 
             // Ação em grená; o carmim (#A00001) não pinta mais superfície.
             $this->assertStringContainsString('--brand:#8a1538', $source, $view);

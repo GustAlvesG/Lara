@@ -8,6 +8,11 @@ export default defineConfig({
                 'resources/css/app.css',
                 'resources/sass/app.scss',
                 'resources/js/app.js',
+                // Tablet dos freelancers (/kiosk): página própria, fora do layout.
+                'resources/css/kiosk.css',
+                'resources/js/kiosk.js',
+                // Tablet de assinatura (/assinatura/kiosk): só o CSS; o JS fica no Blade.
+                'resources/css/quiosque.css',
             ],
             refresh: true,
         }),

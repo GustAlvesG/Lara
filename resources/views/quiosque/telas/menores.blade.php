@@ -1,7 +1,7 @@
 {{--
     Telas do autoatendimento do Termo de Menores, incluídas em
     quiosque/index.blade.php só no modo "menores". A lógica está em
-    menores-js.blade.php. O pareamento do tablet usa a tela de espera do
+    quiosque/js/menores. O pareamento do tablet usa a tela de espera do
     quiosque (o leitor de QR), com outro texto.
 
     Ordem: início (título) → responsável → CPF → dados que faltam do

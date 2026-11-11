@@ -6,6 +6,34 @@ Portaria:
 
 
 
+
+## Tablet (/kiosk) separado em arquivos (11/11/2026)
+
+A página do tablet era um arquivo só (2.300 linhas: CSS, 23 telas e o JS num `@verbatim`). Agora:
+
+- `resources/views/kiosk/index.blade.php` — esqueleto: `<head>` com `window.KIOSK` (dados do
+  servidor para o JS), barra de cima, `@include` das telas, sucesso e aviso.
+- `resources/views/kiosk/telas/{entrada,coordenacao,atendimento,contrato,assinatura}.blade.php` —
+  as telas, agrupadas pela etapa do fluxo, sem `@verbatim` (um `{{-- --}}` dentro do verbatim
+  aparecia como texto na prévia da comissão; corrigido).
+- `resources/js/kiosk.js` — o mesmo código, como entrada do Vite (`vite.config.js`). Acha tudo por
+  `$('#id')`: renomear um id numa tela exige renomear no JS. `tests/Feature/KioskPageTest.php`
+  confere que todo id procurado pelo JS existe na página.
+- `resources/css/kiosk.css` — visual próprio (a página não usa o layout nem o Tailwind do Lara),
+  com os valores das cores do Lara e a faixa do cartão de ponto (`.k-band`, `--deep`/`--glow` =
+  `--freela-deep`/`--freela-glow`). Fontes do Lara: Figtree, Unbounded nos títulos, JetBrains
+  Mono nos números do visor, no teclado e na chave PIX. Os nomes das variáveis (`--brand`,
+  `--warning`…) e das classes são os que o JS monta; não renomeie sem mexer nos dois.
+
+Mudou o kiosk? `npm run build` (são entradas próprias do Vite).
+
+**Em pé e deitado:** deitado (paisagem ≥ 880px) as telas de teclado viram duas colunas (texto e
+visor | teclado), a entrada põe a faixa ao lado da matrícula, listas e formulários em duas colunas;
+altura baixa compacta. Os passos são mostrados pelo JS com `style.display`, daí o `!important` com
+a guarda `[style*="none"]` no CSS. Girar com o documento aberto refaz o canvas e zera a
+assinatura (antes o canvas era apagado e o botão Confirmar continuava ativo — assinatura em
+branco); trocar o tema não mexe mais no canvas.
+
 ## Tela inicial (11/11/2026)
 
 Pedido do usuário: a primeira aba do módulo (a que abre ao clicar no nome dele no painel de Módulos e
@@ -183,7 +211,7 @@ Não há máquina de estados central: o estado é **derivado** das colunas (`*_s
 | `app/Http/Controllers/{FreelancerController,FreelancerServiceController,FunctionFreelancerController}` | API do bot do Telegram |
 | `app/Imports/*` | Planilhas tudo-ou-nada (`SpreadsheetImport`, `FreelancerImport`, `FreelancerServiceImport`, `ImportValues`) |
 | `app/Http/Requests/Concerns/ValidatesServiceSchedule.php` | Horários e `pricingRules()` — compartilhado por todas as entradas |
-| Views | `resources/views/freelancer/` (`freelancers`, `functions`, `services`, `batches`, `validation`, `director`), `resources/views/kiosk/index.blade.php`, `emails/freelancer/` |
+| Views | `resources/views/freelancer/` (`freelancers`, `functions`, `services`, `batches`, `validation`, `director`), `resources/views/kiosk/index.blade.php` (esqueleto) + `kiosk/telas/*` (entrada, coordenacao, atendimento, contrato, assinatura), `emails/freelancer/` |
 | `config/freelancers.php` | Arquivo FTP e código do limite semanal. Variáveis no `.env.example` |
 
 ## Testes
