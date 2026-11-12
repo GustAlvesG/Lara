@@ -16,9 +16,13 @@ use Illuminate\Support\Facades\Log;
 class PoliMessageParser
 {
     /**
-     * value.type values we handle: CHAT (text) and IMAGE (the print).
+     * value.type values we handle: CHAT and TEXT (text) and IMAGE (the print).
+     *
+     * Desde 12/11/2026, 11:09 (o canal passou a vir com `supports_reactions:
+     * true`), o texto digitado chega como TEXT; CHAT ficou para o toque em
+     * lista (com `interactive`). Sem TEXT aqui, todo texto virava "mídia".
      */
-    private const RELEVANT_TYPES = ['CHAT', 'IMAGE'];
+    private const RELEVANT_TYPES = ['CHAT', 'TEXT', 'IMAGE'];
 
     /**
      * Best-effort fallback keys for media shapes not yet observed, checked
@@ -436,6 +440,7 @@ class PoliMessageParser
     /**
      * Confirmed Poli image shape:
      *   components.attachments[] => { type: "image", media: { url }, mime_type }
+     * e, desde 12/11/2026, { type: "IMAGE", media: { url, mime_type } }.
      * Falls back to best-effort keys for shapes not yet observed.
      */
     private function extractImageUrl(array $components): ?string
@@ -445,8 +450,9 @@ class PoliMessageParser
                 continue;
             }
 
-            $isImage = ($attachment['type'] ?? null) === 'image'
-                || str_starts_with((string) ($attachment['mime_type'] ?? ''), 'image/');
+            $mime = (string) ($attachment['mime_type'] ?? $attachment['media']['mime_type'] ?? '');
+            $isImage = strtolower((string) ($attachment['type'] ?? '')) === 'image'
+                || str_starts_with(strtolower($mime), 'image/');
             $url = $attachment['media']['url'] ?? null;
 
             if ($isImage && is_string($url) && $url !== '') {

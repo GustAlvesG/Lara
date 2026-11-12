@@ -266,6 +266,56 @@ class PoliMessageParserTest extends TestCase
         $this->assertTrue((new PoliMessageParser())->isRelevantEvent($this->realTextPayload()));
     }
 
+    /**
+     * Medido em produção em 12/11/2026: depois das 11:09 o texto digitado
+     * chega como `type: TEXT` (antes era CHAT) e o bot o tratava como mídia.
+     */
+    public function test_texto_no_formato_de_12_11_e_texto(): void
+    {
+        $payload = $this->realTextPayload();
+        $payload['value']['type'] = 'TEXT';
+        $payload['value']['components'] = ['body' => ['text' => '6']];
+        $payload['value']['interactive'] = [];
+
+        $parser = new PoliMessageParser();
+
+        $this->assertTrue($parser->isRelevantEvent($payload));
+        $this->assertFalse($parser->isUnsupportedInbound($payload));
+        $this->assertSame(ParsedPoliMessage::TYPE_TEXT, $parser->parse($payload)->type);
+        $this->assertSame('6', $parser->parse($payload)->text);
+    }
+
+    public function test_imagem_no_formato_de_12_11_e_imagem(): void
+    {
+        $url = 'https://cdn.poli.digital/accounts/acc/messages/8be8e54c.jpg';
+
+        $payload = $this->realTextPayload();
+        $payload['value']['type'] = 'IMAGE';
+        $payload['value']['components'] = [
+            'attachments' => [
+                ['type' => 'IMAGE', 'media' => ['url' => $url, 'mime_type' => 'image/jpeg', 'resource_url' => $url]],
+            ],
+        ];
+
+        $parsed = (new PoliMessageParser())->parse($payload);
+
+        $this->assertSame(ParsedPoliMessage::TYPE_IMAGE, $parsed->type);
+        $this->assertSame($url, $parsed->mediaUrl);
+    }
+
+    public function test_audio_e_tipo_desconhecido_continuam_sem_suporte(): void
+    {
+        $parser = new PoliMessageParser();
+
+        foreach (['PTT', 'UNSUPPORTED', 'STICKER'] as $tipo) {
+            $payload = $this->realTextPayload();
+            $payload['value']['type'] = $tipo;
+
+            $this->assertFalse($parser->isRelevantEvent($payload), $tipo);
+            $this->assertTrue($parser->isUnsupportedInbound($payload), $tipo);
+        }
+    }
+
     public function test_parses_confirmed_real_image_payload(): void
     {
         $url = 'https://cdn.polichat.io/company/52129/media/received/wamid.ABC123.jpeg';

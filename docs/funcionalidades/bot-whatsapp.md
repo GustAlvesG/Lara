@@ -248,6 +248,13 @@ Nos dois, as conversas que continuam no bot da Poli passam pela Lara só em somb
    funcionar, compare por hora as listas enviadas com as respostas que citam mensagem
    (`value.context.message`) em `uber_access_request_messages`. Ao ligar a opção, revise a
    mensagem de correção do passo se ela mandar "tocar" no botão.
+
+   Na mesma virada de 12/11/2026, às 11:09, o webhook mudou o formato da entrada: o texto
+   digitado passou a vir como `value.type = TEXT` (antes `CHAT`; `CHAT` ficou para o toque em
+   lista, com `interactive`), e o anexo de imagem como `type: "IMAGE"` com o `mime_type`
+   dentro de `media`. Até a correção do `PoliMessageParser`, todo texto digitado era tratado
+   como mídia ("Por aqui eu só consigo ler mensagens de texto") e o print do Uber não era
+   reconhecido — nas conversas do O Lara e na escuta do Uber.
 5. Use **Guardar a resposta como** para reaproveitar respostas nos textos seguintes
    (`{placa}`, `{nome}`; `{contato}` é o primeiro nome do WhatsApp).
 6. Salve **inativo** e teste no **Simulador** (▶ Testar este). O simulador nunca envia nada e

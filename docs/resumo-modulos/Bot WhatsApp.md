@@ -60,6 +60,9 @@ encerrada.
 - **Template como texto** (`say.as_text`, desde 12/11/2026): `BotEngine::templateAsText` manda
   `say.text` + opções do passo numeradas + `poli.bot.messages.menu_as_text_hint` como TEXT, no
   lugar do template. Contorno para a Poli entregando LIST sem o botão; o `template_uuid` fica.
+- **Tipos de entrada** (`PoliMessageParser::RELEVANT_TYPES`): texto chega como `TEXT` (desde
+  12/11/2026) ou `CHAT` (toque em lista); imagem como `IMAGE`, anexo com `type` em qualquer caixa
+  e `mime_type` solto ou em `media`. Tipo fora da lista vira "mídia" para o bot.
 - **Transbordo:** `distribute()` do motor (todo transbordo passa por ele) grava
   `bot_sessions.handoff_team_uuid`, tira a foto do time (`TeamAvailability::snapshot` →
   `bot_attendance_events.team_size/online/available/snapshot`; disponível = ONLINE + AVAILABLE) e
