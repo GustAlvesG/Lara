@@ -127,9 +127,9 @@ vencido, **401** (mande para o login).
 
 #### Vitrine (só `api_token`)
 
-`GET /api/tickets/events` — eventos publicados e encerrados.
+`GET /api/tickets/events` — só eventos publicados (desde 12/11/2026 o encerrado não vem mais).
 `GET /api/tickets/events/{id}` — o mesmo, com `rules` (texto livre, quebras de linha).
-Rascunho ou cancelado: 404 `event_not_found`.
+Rascunho, encerrado ou cancelado: 404 `event_not_found`.
 
 ```json
 {
@@ -163,7 +163,8 @@ Rascunho ou cancelado: 404 `event_not_found`.
 ```
 
 - `sales_open: false` → mostre o evento sem botão de compra ("Vendas a partir de…" ou
-  "Vendas encerradas"). `status: "finished"` → evento encerrado.
+  "Vendas encerradas"). A vitrine só traz `status: "published"`; um evento encerrado some da
+  lista e o detalhe dele dá 404 — o pedido antigo continua em "meus ingressos" (o `event` vem no pedido).
 - `capacity_left: null` = sem lotação; número = lugares que ainda cabem no evento.
 - `remaining` baixo pode virar um selo "últimos ingressos". **[v5]** `remaining: null` = lote
   **sem limite** de ingressos: não mostre contagem nem selo.

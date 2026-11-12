@@ -1,4 +1,5 @@
-{{-- Ingressos › Eventos: lista com busca pelo nome e filtro de situação. --}}
+{{-- Ingressos › Eventos: lista com busca pelo nome e filtro de situação.
+     Sem filtro: publicados e depois rascunhos; encerrados/cancelados só pelo filtro. --}}
 @php
     use App\Models\Ticket\TicketEvent;
 
@@ -42,7 +43,8 @@
             <x-slot:controls>
                 <label for="filtro-situacao" class="sr-only">Situação</label>
                 <select id="filtro-situacao" name="status" class="{{ $field }} w-full sm:w-52">
-                    <option value="">Todas as situações</option>
+                    <option value="">Publicados e rascunhos</option>
+                    <option value="all" @selected(request('status') === 'all')>Todas as situações</option>
                     @foreach (TicketEvent::STATUS_LABELS as $value => $label)
                         <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
                     @endforeach
@@ -62,6 +64,7 @@
                                 <th class="{{ $th }}">Quando</th>
                                 <th class="{{ $th }}">Vendas</th>
                                 <th class="{{ $th }}">Vendidos</th>
+                                <th class="{{ $th }}">Cortesias</th>
                                 <th class="{{ $th }} text-center">Situação</th>
                             </tr>
                         </thead>
@@ -77,7 +80,13 @@
                                         {{ $event->sales_starts_at->format('d/m H:i') }} a {{ $event->sales_ends_at->format('d/m H:i') }}
                                         @if ($event->salesOpen())<x-pill kind="ok">abertas</x-pill>@endif
                                     </td>
-                                    <td class="px-5 py-3.5 font-mono text-ink-2">{{ $event->sold_count }}@if ($event->capacity) / {{ $event->capacity }}@endif</td>
+                                    <td class="px-5 py-3.5 font-mono text-ink-2">
+                                        {{ $event->sold_count }}
+                                        @if ($event->capacity)
+                                            <p class="font-sans text-xs text-ink-3">{{ $event->sold_count + $event->courtesy_count }} de {{ $event->capacity }} ocupados</p>
+                                        @endif
+                                    </td>
+                                    <td class="px-5 py-3.5 font-mono text-ink-2">{{ $event->courtesy_count }}</td>
                                     <td class="px-5 py-3.5 text-center"><x-pill :kind="$kind($event->status)">{{ TicketEvent::STATUS_LABELS[$event->status] ?? $event->status }}</x-pill></td>
                                 </tr>
                             @endforeach

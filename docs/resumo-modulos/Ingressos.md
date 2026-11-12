@@ -65,6 +65,12 @@ F14 = histórico; F15 = caixa; F16 = térmica e cortesia sem CPF; F17 = mesa cat
 
 ## Regras que costumam pegar
 
+- **Site só vê `published`** (`TicketEvent::VISIBLE`, desde 12/11/2026): encerrado some da
+  vitrine e dá 404 no detalhe. A lista do painel, sem filtro, mostra `TicketEvent::MAIN_LIST`
+  (publicados e depois rascunhos); encerrados e cancelados só pelo filtro (`status=all` = todas).
+  Na lista, `sold_count` (pedido sem `courtesy`) e `courtesy_count` saem separados; a lotação
+  ocupada é a soma dos dois.
+
 - **Ocupa lugar** = pago (`valid`, `used`) + pendente de pedido **dentro do prazo**
   (`Ticket::occupying`). O pendente vencido não ocupa mesmo antes de o comando expirar; não
   dependa do status gravado para contar estoque. Os usos do cupom seguem a mesma regra.

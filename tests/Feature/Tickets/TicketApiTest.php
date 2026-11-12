@@ -81,6 +81,20 @@ class TicketApiTest extends TestCase
             ->assertJsonPath('reason', TicketException::EVENT_NOT_FOUND);
     }
 
+    public function test_vitrine_nao_mostra_evento_encerrado(): void
+    {
+        $finished = $this->ticketEvent(['title' => 'Festa que passou', 'status' => TicketEvent::STATUS_FINISHED]);
+
+        $this->withHeaders($this->appHeaders())->getJson('/api/tickets/events')
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonMissing(['title' => 'Festa que passou']);
+
+        $this->withHeaders($this->appHeaders())->getJson("/api/tickets/events/{$finished->id}")
+            ->assertNotFound()
+            ->assertJsonPath('reason', TicketException::EVENT_NOT_FOUND);
+    }
+
     public function test_sem_api_token_nao_responde(): void
     {
         $this->getJson('/api/tickets/events')->assertUnauthorized();

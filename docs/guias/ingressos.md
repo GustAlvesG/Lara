@@ -136,11 +136,15 @@ Na tela do evento (**Ingressos › Eventos**, clique no evento), o quadro **Situ
 
 - **Publicar no site**: coloca o evento à venda. Exige ao menos um tipo de ingresso ativo com lote ativo.
 - **Voltar para rascunho**: tira do site sem encerrar.
-- **Encerrar evento**: quando ele acabar. Sai da venda; quem comprou continua vendo os ingressos.
+- **Encerrar evento**: quando ele acabar. Sai do site (só eventos publicados aparecem lá); quem comprou continua vendo os ingressos em "Meus ingressos".
 - **Cancelar evento**: o Lara avisa se há ingressos pagos. **Cancelar o evento não devolve o dinheiro sozinho**: cancele os ingressos em **Pedidos**, com ou sem estorno.
 - Outras mudanças fora do caminho normal (reabrir um encerrado, por exemplo) ficam na lista ao lado do botão **Mudar**, e o Lara pede confirmação.
 
 A tela também mostra o período de **Vendas** (abertas ou fechadas agora), quantos ingressos por pedido, a **Lotação** livre e quantos pedidos estão aguardando pagamento.
+
+### Onde foram parar os eventos encerrados e cancelados?
+
+A lista **Ingressos › Eventos** mostra, de cara, só os eventos **publicados** e, abaixo deles, os **rascunhos**. As colunas **Vendidos** e **Cortesias** são contadas separadas (ingressos pagos ou já usados); quando o evento tem lotação, abaixo dos vendidos aparece quantos lugares estão ocupados somando os dois. Encerrados e cancelados continuam no Lara: escolha **Encerrado** ou **Cancelado** na caixa de situação ao lado da busca, ou **Todas as situações** para ver tudo junto.
 
 Só quem tem a permissão "Eventos, tipos de ingresso e lotes" vê esses botões e o **Editar** do evento.
 

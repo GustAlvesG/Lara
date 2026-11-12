@@ -385,6 +385,12 @@ Ingresso: pending ──► valid ──(check-in)──► used
 Evento:   draft ──► published ──► finished      (cancelled a partir de qualquer um)
 ```
 
+Desde 12/11/2026: o site só vê o evento `published` (`TicketEvent::VISIBLE`); encerrado,
+rascunho e cancelado dão 404 `event_not_found` na vitrine, no mapa, no cupom e no pedido
+(os pedidos já feitos seguem em "meus ingressos"). No painel, a lista sem filtro mostra
+`TicketEvent::MAIN_LIST` — publicados primeiro, depois rascunhos; encerrados e cancelados
+saem pelo filtro de situação (`status=all` = todas).
+
 ## Modelagem
 
 Migrations `2026_10_27_100000_create_ticket_tables` (as 7 tabelas),
@@ -536,7 +542,7 @@ regra: `{message, reason, context?}` (`App\Exceptions\TicketException`).
 
 | Método | Rota | | O que faz |
 |---|---|---|---|
-| GET | `/api/tickets/events` | | Publicados e encerrados, com tipos ativos, lote vigente (`price_member`, `price_non_member`, `members_only`, `remaining` — `null` = lote sem limite), `next_lot`, `capacity_left`, `sales_open`; `multi_day` e `days` (`id`, `name`, `label`, `starts_at`, `ends_at`, `capacity_left`); no tipo, `validity` (`event`/`day`/`passport`) e `day_id`. |
+| GET | `/api/tickets/events` | | Só publicados (desde 12/11/2026; antes também os encerrados), com tipos ativos, lote vigente (`price_member`, `price_non_member`, `members_only`, `remaining` — `null` = lote sem limite), `next_lot`, `capacity_left`, `sales_open`; `multi_day` e `days` (`id`, `name`, `label`, `starts_at`, `ends_at`, `capacity_left`); no tipo, `validity` (`event`/`day`/`passport`) e `day_id`. |
 | GET | `/api/tickets/events/{id}` | | O mesmo, com `rules`. Rascunho e cancelado: 404 `event_not_found`. Desde 28/10/2026, no evento `has_map` e `maps` (`id`, `name`); no tipo `kind` (`entry`/`seat`), `map_id`, `seat_category`, `seats_free`. |
 | GET | `/api/tickets/events/{id}/maps/{mapId}` | | Lugar marcado: o mapa (`width`, `height`, `background_url`, `areas`), os tipos que vendem os lugares no dia (com o lote) e cada lugar (`id`, `label`, `category`, `shape`, `x`, `y`, `w`, `h`, `places`, `status` `free`/`held`/`sold`/`unavailable`, `type_id`), `refresh_after`. `?day_id=` obrigatório no evento de vários dias (`day_required`); mapa que nenhum tipo ativo usa: 404 `map_not_found`. 120/min. |
 | POST | `/api/tickets/events/{id}/coupon-check` | | `{code, buyer_kind: member\|guest}` → o cupom (`kind`, `value`, `label`, `audience`, `type_ids`, `ends_at`); só informa. 20/min. |

@@ -44,8 +44,11 @@ class TicketEvent extends Model
         self::STATUS_CANCELLED => 'Cancelado',
     ];
 
-    /** O que o site mostra. */
-    public const VISIBLE = [self::STATUS_PUBLISHED, self::STATUS_FINISHED];
+    /** O que o site mostra: só o publicado (desde 12/11/2026 o encerrado sai do site). */
+    public const VISIBLE = [self::STATUS_PUBLISHED];
+
+    /** A lista principal do painel (sem filtro): publicados e, depois, rascunhos. */
+    public const MAIN_LIST = [self::STATUS_PUBLISHED, self::STATUS_DRAFT];
 
     protected $fillable = [
         'title',

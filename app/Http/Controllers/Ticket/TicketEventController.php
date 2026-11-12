@@ -27,14 +27,30 @@ class TicketEventController extends Controller
     {
     }
 
+    /**
+     * Sem filtro de situação, a lista mostra só os publicados e, depois deles,
+     * os rascunhos (12/11/2026). Encerrados e cancelados saem pelo filtro
+     * (a situação, ou "Todas as situações" = `status=all`).
+     */
     public function index(Request $request): View
     {
+        $status = (string) $request->input('status', '');
+
+        // Vendidos e cortesias contados à parte (12/11/2026): a cortesia é marcada no pedido.
         $events = TicketEvent::withCount([
-            'tickets as sold_count' => fn ($q) => $q->whereIn('status', Ticket::SOLD),
+            'tickets as sold_count' => fn ($q) => $q->whereIn('status', Ticket::SOLD)
+                ->whereHas('order', fn ($o) => $o->where('courtesy', false)),
+            'tickets as courtesy_count' => fn ($q) => $q->whereIn('status', Ticket::SOLD)
+                ->whereHas('order', fn ($o) => $o->where('courtesy', true)),
             'types',
         ])
             ->when($request->filled('q'), fn ($q) => $q->where('title', 'like', '%' . $request->input('q') . '%'))
-            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
+            ->when(
+                $status === '',
+                fn ($q) => $q->whereIn('status', TicketEvent::MAIN_LIST)
+                    ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', [TicketEvent::STATUS_PUBLISHED]),
+                fn ($q) => $q->when($status !== 'all', fn ($q) => $q->where('status', $status)),
+            )
             ->orderByDesc('starts_at')
             ->paginate(20)
             ->withQueryString();

@@ -77,6 +77,48 @@ class TicketPanelTest extends TestCase
         $this->actingAs($this->staff)->get(route('tickets.index'))->assertOk()->assertSee('Festa Junina');
     }
 
+    public function test_lista_principal_mostra_publicados_e_depois_rascunhos(): void
+    {
+        $this->ticketEvent(['title' => 'Evento Rascunho', 'status' => TicketEvent::STATUS_DRAFT, 'starts_at' => now()->addDays(40), 'ends_at' => now()->addDays(40)->addHours(4)]);
+        $this->ticketEvent(['title' => 'Evento Publicado', 'status' => TicketEvent::STATUS_PUBLISHED]);
+        $this->ticketEvent(['title' => 'Evento Encerrado', 'status' => TicketEvent::STATUS_FINISHED]);
+        $this->ticketEvent(['title' => 'Evento Cancelado', 'status' => TicketEvent::STATUS_CANCELLED]);
+
+        // Publicado antes do rascunho, mesmo o rascunho começando depois.
+        $this->actingAs($this->staff)->get(route('tickets.index'))->assertOk()
+            ->assertSeeInOrder(['Evento Publicado', 'Evento Rascunho'])
+            ->assertDontSee('Evento Encerrado')
+            ->assertDontSee('Evento Cancelado');
+
+        $this->actingAs($this->staff)->get(route('tickets.index', ['status' => TicketEvent::STATUS_FINISHED]))->assertOk()
+            ->assertSee('Evento Encerrado')->assertDontSee('Evento Publicado');
+
+        $this->actingAs($this->staff)->get(route('tickets.index', ['status' => 'all']))->assertOk()
+            ->assertSee('Evento Encerrado')->assertSee('Evento Cancelado')->assertSee('Evento Rascunho');
+    }
+
+    public function test_lista_conta_vendidos_e_cortesias_separados(): void
+    {
+        $event = $this->ticketEvent(['capacity' => 100]);
+        $type = $this->ticketType($event);
+        $this->ticketLot($type, ['quantity' => 10]);
+        $orders = app(TicketOrderService::class);
+
+        // Duas vendas pagas (baixa manual) e uma cortesia.
+        $sale = $orders->create($event, TicketBuyer::guest(self::GUEST_CPFS[0], 'Carla', 'c@x.local', null), [$this->holder($type->id, 0), $this->holder($type->id, 1)]);
+        $orders->recordManual($sale, ['payment_method' => 'manual_pix'], $this->staff);
+        $orders->create($event, TicketBuyer::guest(self::GUEST_CPFS[2], 'Bia', 'b@x.local', null), [$this->holder($type->id, 2)], $this->staff, force: true, courtesy: true);
+
+        $this->actingAs($this->staff)->get(route('tickets.index'))->assertOk()
+            ->assertViewHas('events', function ($events) {
+                $row = $events->getCollection()->sole();
+
+                return $row->sold_count === 2 && $row->courtesy_count === 1;
+            })
+            ->assertSee('Cortesias')
+            ->assertSee('3 de 100 ocupados');
+    }
+
     public function test_tipo_ou_lote_com_ingresso_nao_apaga_e_quantidade_abaixo_do_ocupado_pede_confirmacao(): void
     {
         $event = $this->ticketEvent();
