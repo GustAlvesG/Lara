@@ -1,6 +1,7 @@
 {{-- Uma conta do site: diagnóstico (outras contas do CPF, MultiClubes,
      diferenças), corrigir e-mail/telefone, trazer do MultiClubes, senha
-     provisória, desativar duplicada, histórico. --}}
+     provisória, perfil no site (usuário / administrador dos dashboards),
+     desativar duplicada, histórico. --}}
 @php
     use App\Models\MemberAccountLog as Log;
     use App\Support\Cpf;
@@ -107,6 +108,35 @@
             </section>
         </div>
 
+        {{-- Perfil no site: o administrador abre os dashboards do site (/painel). --}}
+        @php $role = $member->site_role ?: \App\Models\Member::ROLE_USER; @endphp
+        <section class="flex flex-col gap-3 rounded-card bg-surface p-5 shadow-card">
+            <h2 class="font-display text-lg font-semibold tracking-tight text-ink">
+                Perfil no site
+                @if ($role === \App\Models\Member::ROLE_ADMIN)<x-pill kind="info">administrador</x-pill>@endif
+            </h2>
+            <p class="text-sm text-ink-2">
+                <strong>Usuário</strong> é o sócio comum. <strong>Administrador</strong> também abre os dashboards do site (vendas de ingressos), com o mesmo CPF e senha. A troca vale na hora, inclusive para quem já está logado.
+            </p>
+            @can(\App\Authorization\Permissions::RESERVAS_CONTAS_SITE_PERFIL)
+                <form method="POST" action="{{ route('site-accounts.role', $member->id) }}" class="flex flex-wrap items-end gap-3"
+                      onsubmit="return this.site_role.value !== 'administrador' || confirm('Tornar esta conta administradora? Ela passa a ver os números de vendas no site.')">
+                    @csrf @method('PUT')
+                    <div class="w-56">
+                        <x-input-label for="site_role" value="Perfil" />
+                        <x-select-input id="site_role" name="site_role" class="mt-1">
+                            @foreach (\App\Models\Member::ROLE_LABELS as $value => $label)
+                                <option value="{{ $value }}" @selected($role === $value)>{{ $label }}</option>
+                            @endforeach
+                        </x-select-input>
+                    </div>
+                    <x-secondary-button type="submit">Salvar perfil</x-secondary-button>
+                </form>
+            @else
+                <p class="text-sm text-ink">Perfil atual: <strong>{{ \App\Models\Member::ROLE_LABELS[$role] ?? $role }}</strong>. Trocar o perfil pede a permissão "Contas do site: definir o perfil do sócio no site".</p>
+            @endcan
+        </section>
+
         @if ($diagnosis['siblings']->count() > 1)
             <section class="flex flex-col gap-3 rounded-card bg-surface p-5 shadow-card">
                 <h2 class="font-display text-lg font-semibold tracking-tight text-ink">Contas com este CPF</h2>
@@ -161,6 +191,9 @@
                         <li>
                             <span class="font-mono text-xs text-ink-3">{{ $log->created_at?->format('d/m/Y H:i') }}</span>
                             {{ $log->user?->name ?? '—' }} {{ Log::ACTION_LABELS[$log->action] ?? $log->action }}
+                            @if ($log->action === Log::ACTION_ROLE)
+                                <span class="text-ink-3">({{ \App\Models\Member::ROLE_LABELS[data_get($log->details, 'before')] ?? data_get($log->details, 'before') }} → {{ \App\Models\Member::ROLE_LABELS[data_get($log->details, 'after')] ?? data_get($log->details, 'after') }})</span>
+                            @endif
                             @if (data_get($log->details, 'reason')) <span class="text-ink-3">— {{ data_get($log->details, 'reason') }}</span>@endif
                             @if (data_get($log->details, 'after.email') !== null && data_get($log->details, 'after.email') !== data_get($log->details, 'before.email'))
                                 <span class="text-ink-3">(e-mail: {{ data_get($log->details, 'before.email') ?: '—' }} → {{ data_get($log->details, 'after.email') }})</span>

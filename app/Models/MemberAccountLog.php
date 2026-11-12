@@ -20,9 +20,13 @@ class MemberAccountLog extends Model
     public const ACTION_CREATED = 'created';
     public const ACTION_DEACTIVATED = 'deactivated';
     public const ACTION_RESTORED = 'restored';
+    // Perfil no site (usuário / administrador dos dashboards). `details`
+    // guarda {before, after}.
+    public const ACTION_ROLE = 'site_role';
 
     /** @var array<string, string> */
     public const ACTION_LABELS = [
+        self::ACTION_ROLE => 'trocou o perfil no site',
         self::ACTION_UPDATED => 'corrigiu dados',
         self::ACTION_PULLED => 'trouxe dados do MultiClubes',
         self::ACTION_PASSWORD => 'gerou senha provisória',

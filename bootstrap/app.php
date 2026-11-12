@@ -21,6 +21,9 @@ return Application::configure(basePath: dirname(__DIR__))
             // escopo próprio — não confunde com o token de sócio.
             'approval_token' => \App\Http\Middleware\ApprovalToken::class,
             'login_token' => \App\Http\Middleware\JwtMiddleware::class,
+            // Dashboards do site: sócio com perfil `administrador` (depois
+            // do `login_token`; o perfil é lido do banco a cada requisição).
+            'member_admin' => \App\Http\Middleware\EnsureMemberSiteAdmin::class,
             // Sessão do tablet de assinatura: cookie próprio (`lara_sign`),
             // vinculado a UM documento pela leitura do QR. Não é a sessão web.
             'signature_kiosk' => \App\Http\Middleware\EnsureSignatureKioskSession::class,

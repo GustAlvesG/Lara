@@ -45,6 +45,7 @@ class SiteAccountTest extends TestCase
             $table->string('login_token', 80)->nullable();
         });
         (require database_path('migrations/2026_10_23_120000_create_member_account_logs_table.php'))->up();
+        (require database_path('migrations/2026_11_12_100000_add_site_role_to_members.php'))->up();
         $this->fakeIntegrations();
 
         $this->staff = $this->makeUser('Pessoa da Recepção');
@@ -169,6 +170,61 @@ class SiteAccountTest extends TestCase
 
         $this->actingAs($other)->get(route('site-accounts.index'))->assertForbidden();
         $this->actingAs($other)->post(route('site-accounts.password', $member->id))->assertForbidden();
+    }
+
+    public function test_perfil_no_site_com_historico_e_filtro(): void
+    {
+        $member = $this->account();
+        $this->assertSame(Member::ROLE_USER, $member->site_role);
+
+        $this->actingAs($this->staff)->get(route('site-accounts.show', $member->id))
+            ->assertOk()->assertSee('Perfil no site')->assertSee('Salvar perfil');
+
+        $this->actingAs($this->staff)->put(route('site-accounts.role', $member->id), ['site_role' => Member::ROLE_ADMIN])
+            ->assertRedirect(route('site-accounts.show', $member->id));
+        $this->assertTrue($member->fresh()->isSiteAdmin());
+
+        $log = MemberAccountLog::sole();
+        $this->assertSame(MemberAccountLog::ACTION_ROLE, $log->action);
+        $this->assertSame(['before' => Member::ROLE_USER, 'after' => Member::ROLE_ADMIN], $log->details);
+
+        // A mesma escolha de novo não gera histórico; valor fora da lista é recusado.
+        $this->actingAs($this->staff)->put(route('site-accounts.role', $member->id), ['site_role' => Member::ROLE_ADMIN]);
+        $this->actingAs($this->staff)->put(route('site-accounts.role', $member->id), ['site_role' => 'dono'])->assertSessionHasErrors('site_role');
+        $this->assertSame(1, MemberAccountLog::count());
+
+        // Filtro e selo na lista.
+        $this->account(['cpf' => '86288366757', 'name' => 'Bruno Comum']);
+        $this->actingAs($this->staff)->get(route('site-accounts.index', ['administradores' => 1]))
+            ->assertOk()->assertSee('Ana Souza')->assertDontSee('Bruno Comum')->assertSee('administrador');
+        $this->actingAs($this->staff)->get(route('site-accounts.show', $member->id))->assertSee('trocou o perfil no site');
+    }
+
+    public function test_conta_desativada_nao_vira_administradora(): void
+    {
+        $member = $this->account(['deleted_at' => now()]);
+
+        $this->actingAs($this->staff)->put(route('site-accounts.role', $member->id), ['site_role' => Member::ROLE_ADMIN])
+            ->assertSessionHasErrors('site_role');
+        $this->assertSame(Member::ROLE_USER, $member->fresh()->site_role);
+    }
+
+    public function test_quem_so_cuida_das_contas_nao_troca_o_perfil(): void
+    {
+        $member = $this->account();
+        $reception = $this->makeUser('Só Contas');
+        $sectorId = DB::table('sectors')->insertGetId(['name' => 'Recepção Contas', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('sector_permission')->insert([
+            'sector_id' => $sectorId,
+            'permission_id' => DB::table('permissions')->where('name', \App\Authorization\Permissions::RESERVAS_CONTAS_SITE)->value('id'),
+            'coordinators_only' => false,
+        ]);
+        $this->joinSector($reception, 'Recepção Contas');
+
+        $this->actingAs($reception)->get(route('site-accounts.show', $member->id))
+            ->assertOk()->assertSee('Perfil no site')->assertDontSee('Salvar perfil');
+        $this->actingAs($reception)->put(route('site-accounts.role', $member->id), ['site_role' => Member::ROLE_ADMIN])->assertForbidden();
+        $this->assertSame(Member::ROLE_USER, $member->fresh()->site_role);
     }
 
     public function test_senha_gerada_e_a_do_site(): void

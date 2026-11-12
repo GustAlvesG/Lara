@@ -30,7 +30,14 @@ MultiClubes), cadastro manual e conta duplicada por CPF. Permissão `reservas.co
   `Member::where('cpf')->first()`; duplicada se resolve desativando, nunca apagando (há
   reservas e inscrições ligadas).
 - A senha provisória e o código nunca vão para o histórico nem para log.
-- Não muda a API do site: não há prompt para o agente do Next.js.
+- **Perfil no site** (12/11/2026): `members.site_role` = `usuario` | `administrador`. O
+  administrador abre os dashboards do site (`/api/dashboard/*`, middleware `member_admin`,
+  ver [dashboards-site.md](../funcionalidades/dashboards-site.md)). Trocar pede a permissão
+  própria `reservas.contas-site.perfil`. O perfil **nunca** vai no token: é relido do banco
+  a cada requisição. Tabela `members` de teste sem a coluna? Rode a migration
+  `2026_11_12_100000_add_site_role_to_members` no setup.
+- O perfil aparece na resposta do `POST /api/login` (`user.site_role`). Mudou a régua do
+  perfil ou dos dashboards, gere o prompt para o agente do Next.js.
 
 ## Testes
 

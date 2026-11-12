@@ -513,6 +513,10 @@ A lista (`/ingressos/financeiro`) mostra os eventos do ano (`?ano=`), menos os r
 O CSV traz também **Vendido por** (quem emitiu no Lara; "Site") e **Recebido por** (quem
 registrou a baixa manual).
 
+Os mesmos números, sem dado pessoal, também vão para os **dashboards do site** (12/11/2026),
+só para o sócio com perfil administrador: `TicketDashboardService` e `/api/dashboard/tickets/*`.
+Ver [dashboards-site.md](dashboards-site.md).
+
 ## Relatório de caixa (`TicketCashService`, desde 28/10/2026)
 
 O que cada pessoa recebeu **no balcão**, por **dia** e **forma de pagamento**, juntando todos

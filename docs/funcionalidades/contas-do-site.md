@@ -12,17 +12,25 @@ locação** (o site das reservas de quadra, espaços sociais e torneios):
 Pedida em 23/10/2026 (começou como "F9" do plano dos torneios, mas não é ligada a eles).
 Não muda a API do site: a pessoa continua entrando e trocando a senha pelo site.
 
+Desde 12/11/2026 a tela também define o **perfil no site** da conta (Usuário ou
+Administrador). O administrador abre os **dashboards do site** — ver
+[dashboards-site.md](dashboards-site.md).
+
 ## Para quem
 
 Permissão **`reservas.contas-site`** (grupo Reservas). Nasce sem setor: dê na tela de
 Setores a quem atende os sócios (recepção, secretaria, Esporte).
 
+Trocar o perfil no site pede, além dela, **`reservas.contas-site.perfil`** (12/11/2026):
+o administrador vê os números financeiros dos ingressos no site, então quem só corrige conta
+não promove ninguém. Também nasce sem setor.
+
 ## Telas
 
 ### Lista (`/contas-site`)
 
-Busca por CPF, matrícula, nome ou e-mail; **Só duplicadas**. Selos: *desativada*, *CPF
-duplicado*, *sem e-mail*. Um aviso no topo conta os CPFs com mais de uma conta ativa.
+Busca por CPF, matrícula, nome ou e-mail; **Só duplicadas**; **Só administradores**
+(`?administradores=1`). Selos: *administrador*, *desativada*, *CPF duplicado*, *sem e-mail*. Um aviso no topo conta os CPFs com mais de uma conta ativa.
 
 **Cadastrar conta para um sócio**: CPF + matrícula. Precisa ser sócio de título ativo no
 MultiClubes; nome, nascimento, código de barras, e-mail e telefone vêm de lá. O Lara gera uma
@@ -44,6 +52,12 @@ existente.
   confundem (0/o, 1/l/i). Aparece **uma vez**; passe para a pessoa depois de confirmar quem
   é. Ela entra com o CPF e essa senha e troca no site ("Alterar senha"). A senha anterior
   deixa de valer.
+- **Perfil no site** (12/11/2026): **Usuário** (padrão) ou **Administrador**. Com
+  `reservas.contas-site.perfil` aparece o seletor e **Salvar perfil** (`PUT
+  /contas-site/{id}/perfil`, `site-accounts.role`); sem ela, só o perfil atual. Vale na hora,
+  mesmo para quem já está logado no site (o perfil é relido a cada requisição). Conta
+  desativada não vira administradora. A troca entra no histórico (`site_role`, antes →
+  depois).
 - **Contas com este CPF** (quando há mais de uma): cada uma com data de criação, e-mail, o
   que está ligado a ela (reservas, espaços sociais, inscrições em torneios, iluminação) e
   qual o login usa. **Desativar esta** (com motivo) só quando o CPF tem outra conta ativa.
@@ -67,6 +81,10 @@ existente.
 - **Histórico** em `member_account_logs` (`member_id`, `user_id`, `action`, `details` com
   antes/depois; a senha nunca entra).
 - **MultiClubes** pelo `MemberProfileLookup` (que passou a trazer `MobilePhone` e `Barcode`).
+- **Perfil no site** em `members.site_role` (`usuario` | `administrador`, padrão `usuario`;
+  migration `2026_11_12_100000_add_site_role_to_members`, idempotente). Constantes
+  `Member::ROLE_*`, `Member::isSiteAdmin()` (administrador e não desativada) e
+  `Member::loginAccount($cpf)` (a conta que o login usa). `SiteAccountService::setRole`.
 
 ## Dados de teste
 
@@ -82,4 +100,4 @@ uma conta sem e-mail e uma com senha no formato antigo (ver [torneios.md](tornei
 | `resources/views/site-accounts/{index,show}.blade.php` | Lista e conta. |
 | `app/Models/MemberAccountLog.php`, migration `2026_10_23_120000_create_member_account_logs_table` | Histórico. |
 | `app/Models/Member.php` | `SoftDeletes`, `accountLogs()`. |
-| `tests/Feature/SiteAccountTest.php` | Senha provisória que entra no `POST /api/login`, correção, MultiClubes, cadastro, duplicadas. |
+| `tests/Feature/SiteAccountTest.php` | Senha provisória que entra no `POST /api/login`, correção, MultiClubes, cadastro, duplicadas, perfil no site (histórico, filtro, conta desativada, permissão própria). |

@@ -172,4 +172,9 @@ antes de rodar.
   Python da guarita): mudou a resposta, atualize `docs/ingressos-prompt-portaria.md` e gere o
   prompt para o agente da guarita.
 - Permissões novas entram no catálogo sem setor.
+- Os **dashboards do site** (12/11/2026, `/api/dashboard/tickets/*`, só sócio administrador)
+  leem os ingressos pelo `TicketDashboardService`, na régua do `TicketFinanceService`. Mudou o
+  que conta como vendido, cortesia ou recebido? Os dois mudam juntos. Mudou a resposta?
+  Atualize `docs/funcionalidades/dashboards-site.md` e gere o prompt do site
+  (`docs/prompts/NextJS/dashboards-site-prompt.md`).
 - Nomes de tabela com prefixo `ticket_`; índice e FK com nome curto (64 do MySQL).

@@ -1039,6 +1039,9 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         Route::post('/{member}/senha', [SiteAccountController::class, 'password'])->whereNumber('member')->middleware('throttle:30,1')->name('password');
         Route::delete('/{member}', [SiteAccountController::class, 'destroy'])->whereNumber('member')->name('destroy');
         Route::post('/{member}/reativar', [SiteAccountController::class, 'restore'])->whereNumber('member')->name('restore');
+        // Perfil no site (administrador abre os dashboards): permissão própria.
+        Route::put('/{member}/perfil', [SiteAccountController::class, 'role'])->whereNumber('member')
+            ->middleware('can:' . P::RESERVAS_CONTAS_SITE_PERFIL)->name('role');
     });
 
     // Leitor de documentação (.md) dentro do painel

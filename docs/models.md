@@ -74,6 +74,7 @@ deletes, scopes globais, etc.).
 - **`$hidden`:** `password`, `created_at`, `updated_at`, `deleted_at`
 - **Relacionamentos:** nenhum definido (dados de sócio vêm também da base externa).
 - **SoftDeletes** desde 23/10/2026 (Contas do site desativa a conta duplicada); `accountLogs()` → **MemberAccountLog** (`member_account_logs`: `action`, `details`, quem fez).
+- **Perfil no site** desde 12/11/2026: `site_role` (`ROLE_USER` = `usuario`, `ROLE_ADMIN` = `administrador`), `isSiteAdmin()`, `static loginAccount($cpf)` (a conta que o login usa). O administrador abre os dashboards do site ([dashboards-site.md](funcionalidades/dashboards-site.md)).
 
 ### User
 - **Tabela:** `users` · **SoftDeletes** · `Authenticatable`, `Notifiable` · acesso por setor: `access()`, `hasAccess()`, `hasFullAccess()`, `directPermissions()` (ver [Usuários, setores e permissões](funcionalidades/usuarios-e-permissoes.md))

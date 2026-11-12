@@ -1,6 +1,6 @@
 ---
 modulo: Reservas
-palavras: reserva, agendamento, quadra, horário, agenda, churrasqueira, salão, espaço social, festa, pré-reserva, contrato, convidados, pagamento, estorno, baixa manual, cancelar reserva, locais, grupos, regra de locação, bloquear horário, conta do site, senha do site, login do sócio, esqueci a senha, CPF duplicado, luz da quadra, acender a luz, refletor, renovar luz
+palavras: reserva, agendamento, quadra, horário, agenda, churrasqueira, salão, espaço social, festa, pré-reserva, contrato, convidados, pagamento, estorno, baixa manual, cancelar reserva, locais, grupos, regra de locação, bloquear horário, conta do site, senha do site, login do sócio, esqueci a senha, CPF duplicado, perfil no site, administrador, dashboards do site, gráficos de vendas, luz da quadra, acender a luz, refletor, renovar luz
 ---
 
 # Reservas — guia de uso
@@ -25,6 +25,7 @@ Quem libera é a TI ou a Gerência, na tela **Setores** (ou só para uma pessoa,
 | Consultar espaços sociais, lançar pré-reserva e cuidar da lista de convidados | Reservas › Espaços sociais: consultar, pré-reservar e lista de convidados |
 | Marcar contrato ok, aprovar com desconto, recusar e cancelar reserva social | Reservas › Espaços sociais: contrato, aprovar, recusar e cancelar |
 | Corrigir conta do sócio no site, gerar senha provisória, cadastrar conta e resolver duplicadas | Reservas › Contas do site: corrigir dados, senha provisória, cadastro manual e duplicadas |
+| Tornar o sócio administrador dos dashboards do site (ou voltar para usuário) | Reservas › Contas do site: definir o perfil do sócio no site (usuário ou administrador dos dashboards) — além da de cima |
 | Acender a luz de uma quadra pela agenda, por alguns minutos | Reservas › Acender a luz da quadra pela agenda (além de Agendamentos) |
 
 Quem recebe o aviso no sino quando chega uma pré-reserva de espaço social pelo site é quem tem a permissão de espaços sociais pelo setor (ou dada individualmente). Gerência, Diretoria e TI, que têm acesso total, não recebem esse aviso.
@@ -431,6 +432,22 @@ Abra uma das contas. A área **Contas com este CPF** mostra cada conta com a dat
 
 A conta desativada sai do login, mas reservas e inscrições ligadas a ela continuam guardadas. Só dá para desativar quando o CPF tem outra conta ativa. Para desfazer, abra a conta desativada e clique em **Reativar** — o que só é possível se o CPF não tiver outra conta ativa.
 
+## Dar acesso aos dashboards do site
+<!-- telas: site-accounts.index -->
+
+O site do clube tem uma área de **dashboards** (gráficos das vendas de ingressos por evento). Quem entra nela é o sócio com perfil **Administrador**, usando o mesmo CPF e senha do site. Todo sócio nasce com perfil **Usuário**, que não vê os dashboards.
+
+1. Em **Reservas › Contas do site**, busque a conta da pessoa e clique no nome.
+2. Na área **Perfil no site**, escolha **Administrador** em **Perfil**.
+3. Clique em **Salvar perfil** e confirme ("Tornar esta conta administradora?").
+
+Para tirar o acesso, escolha **Usuário** e salve. A troca vale **na hora**, inclusive para quem já está logado no site: na próxima tela que abrir, a pessoa vê "sem acesso".
+
+- Na lista, as contas administradoras têm o selo *administrador*; marque **Só administradores** na busca para ver todas de uma vez.
+- A troca de perfil fica no **Histórico** da conta ("trocou o perfil no site", de qual para qual).
+- Conta desativada não pode virar administradora. Se o CPF tem duas contas, o perfil que vale é o da conta que o login usa.
+- Trocar o perfil pede uma permissão própria (veja "Quem faz o quê"). Quem só cuida das contas vê o perfil atual, mas não o botão **Salvar perfil**.
+
 ## Dúvidas comuns
 
 ### Por que o local aparece "Indisponível nesta data"?
@@ -534,6 +551,7 @@ O cancelamento foi gravado, mas a Rede recusou a devolução. Tire um print da m
 - "Só dá para desativar quando o CPF tem outra conta ativa: esta é a única, e a pessoa ficaria sem login."
 - "O CPF já tem uma conta ativa: desative aquela antes, para não voltar a duplicar." — aparece ao tentar reativar.
 - "Não foi possível consultar o MultiClubes agora." — tente de novo mais tarde.
+- "Esta conta está desativada: reative antes de torná-la administradora." — aparece ao trocar o perfil no site.
 
 ### Por que não vejo uma das telas de Reservas no menu?
 Cada tela do módulo depende de uma permissão (veja "Quem faz o quê"). Fale com o coordenador do seu setor: ele coloca você num setor que já tem a permissão (tela **Meu setor**) ou pede à TI ou à Gerência que a liberem (tela **Setores**).

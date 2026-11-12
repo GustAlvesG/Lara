@@ -291,7 +291,11 @@ Equipe do clube lançando resultado pelo site (`/api/tournaments/{id}/staff/*`):
 
 ## SiteAccountController
 
-Reservas › Contas do site (`reservas.contas-site`): `index`, `store` (cadastro manual), `show` (diagnóstico), `update`, `pull` (MultiClubes), `password` (senha provisória, na sessão `temporary_password`), `destroy` (desativa duplicada), `restore`. Regras em `SiteAccountService`; ver [contas-do-site.md](funcionalidades/contas-do-site.md).
+Reservas › Contas do site (`reservas.contas-site`): `index`, `store` (cadastro manual), `show` (diagnóstico), `update`, `pull` (MultiClubes), `password` (senha provisória, na sessão `temporary_password`), `destroy` (desativa duplicada), `restore`, `role` (perfil no site, `reservas.contas-site.perfil`). Regras em `SiteAccountService`; ver [contas-do-site.md](funcionalidades/contas-do-site.md).
+
+## Api\DashboardApiController
+
+Dashboards do site (`/api/dashboard/*`, `api_token` + `login_token` + `member_admin`): `access` (menu, `PANELS`), `ticketEvents`, `ticketSummary`, `ticketSalesByDay`, `ticketByLot`, `ticketByChannel`, `ticketByMethod`. Só sócio com perfil administrador; só números agregados. Ver [dashboards-site.md](funcionalidades/dashboards-site.md).
 
 ## Api\TournamentApiController
 

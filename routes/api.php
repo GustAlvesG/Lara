@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\MemberLightingController;
 use App\Http\Controllers\Api\SocialBookingApiController;
 use App\Http\Controllers\Api\SocialShowcaseApiController;
 use App\Http\Controllers\Api\RemoteSignatureApiController;
+use App\Http\Controllers\Api\DashboardApiController;
 use App\Http\Controllers\Api\TicketApiController;
 use App\Http\Controllers\Api\TicketGuestAccessController;
 use App\Http\Controllers\Api\TournamentApiController;
@@ -610,6 +611,32 @@ Route::middleware('api_token')->group(function () {
 
             Route::post('/release', [MemberLightingController::class, 'release'])
                 ->middleware('throttle:20,1')->name('api.lighting.release');
+        });
+
+        /*
+        |------------------------------------------------------------------
+        | Dashboards do site — área /painel do Next, só administrador
+        |------------------------------------------------------------------
+        |
+        | O mesmo login do sócio (`Session`), mais o perfil `administrador`
+        | (Reservas › Contas do site), relido do banco a cada requisição pelo
+        | `member_admin`. Só números agregados: nenhum dado de comprador.
+        | Painel novo (MultiVendas, MultiClubes) ganha prefixo próprio aqui e
+        | entra em DashboardApiController::PANELS.
+        */
+        Route::prefix('dashboard')->middleware(['member_admin', 'throttle:120,1'])->as('api.dashboard.')->group(function () {
+            Route::get('/access', [DashboardApiController::class, 'access'])->name('access');
+
+            Route::prefix('tickets')->as('tickets.')->group(function () {
+                Route::get('/events', [DashboardApiController::class, 'ticketEvents'])->name('events');
+                Route::prefix('/events/{id}')->whereNumber('id')->group(function () {
+                    Route::get('/summary', [DashboardApiController::class, 'ticketSummary'])->name('summary');
+                    Route::get('/sales-by-day', [DashboardApiController::class, 'ticketSalesByDay'])->name('sales-by-day');
+                    Route::get('/by-lot', [DashboardApiController::class, 'ticketByLot'])->name('by-lot');
+                    Route::get('/by-channel', [DashboardApiController::class, 'ticketByChannel'])->name('by-channel');
+                    Route::get('/by-method', [DashboardApiController::class, 'ticketByMethod'])->name('by-method');
+                });
+            });
         });
     });
 });

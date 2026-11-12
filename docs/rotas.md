@@ -316,6 +316,7 @@ can:infoclube.fila-espera`.
 | POST | `/contas-site/{member}/senha` | SiteAccountController@password | site-accounts.password | auth, can:reservas.contas-site, throttle 30/min |
 | DELETE | `/contas-site/{member}` | SiteAccountController@destroy | site-accounts.destroy | auth, can:reservas.contas-site |
 | POST | `/contas-site/{member}/reativar` | SiteAccountController@restore | site-accounts.restore | auth, can:reservas.contas-site |
+| PUT | `/contas-site/{member}/perfil` | SiteAccountController@role | site-accounts.role | auth, can:reservas.contas-site, can:reservas.contas-site.perfil |
 
 ### Disparo de E-mails (`email-campaigns.*`, `email-suppressions.*`, `can:disparo-emails`)
 

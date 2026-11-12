@@ -1,5 +1,6 @@
 {{-- Reservas › Contas do site: as contas dos sócios no site de locação,
-     com busca, filtro das duplicadas e cadastro manual. --}}
+     com busca, filtro das duplicadas e dos administradores (dashboards do
+     site) e cadastro manual. --}}
 @php
     use App\Support\Cpf;
 
@@ -25,11 +26,15 @@
             </p>
         @endif
 
-        <x-search-bar :filters="['duplicadas']" placeholder="CPF, matrícula, nome ou e-mail">
+        <x-search-bar :filters="['duplicadas', 'administradores']" placeholder="CPF, matrícula, nome ou e-mail">
             <x-slot:controls>
                 <label class="flex items-center gap-2 text-sm text-ink-2">
                     <input type="checkbox" name="duplicadas" value="1" @checked($onlyDuplicated) class="h-4 w-4 rounded border-line-strong text-grena-ink">
                     Só duplicadas
+                </label>
+                <label class="flex items-center gap-2 text-sm text-ink-2">
+                    <input type="checkbox" name="administradores" value="1" @checked($onlyAdmins) class="h-4 w-4 rounded border-line-strong text-grena-ink">
+                    Só administradores
                 </label>
             </x-slot:controls>
         </x-search-bar>
@@ -68,6 +73,7 @@
                                     <td class="px-5 py-3.5 font-mono text-ink-2">{{ $member->title }}</td>
                                     <td class="px-5 py-3.5 text-ink-2">{{ $member->email ?: '—' }}</td>
                                     <td class="px-5 py-3.5 text-right whitespace-nowrap">
+                                        @if ($member->site_role === \App\Models\Member::ROLE_ADMIN)<x-pill kind="info">administrador</x-pill>@endif
                                         @if ($member->trashed())<x-pill kind="off">desativada</x-pill>@endif
                                         @if (! $member->trashed() && isset($duplicated[$member->cpf]))<x-pill kind="warn">CPF duplicado</x-pill>@endif
                                         @if (! $member->email)<x-pill kind="warn">sem e-mail</x-pill>@endif

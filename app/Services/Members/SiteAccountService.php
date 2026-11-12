@@ -30,6 +30,8 @@ use Illuminate\Validation\ValidationException;
  *   - **Duplicadas** (mesmo CPF; o login pega a de menor id): a equipe
  *     desativa a errada (exclusão lógica). Reservas e inscrições continuam
  *     ligadas a ela.
+ *   - **Perfil no site** (usuário / administrador dos dashboards), com a
+ *     permissão própria `reservas.contas-site.perfil`.
  *
  * Tudo vai para `member_account_logs`. Recusas como ValidationException.
  */
@@ -226,6 +228,33 @@ class SiteAccountService
 
         $member->restore();
         $this->log($member, $user, MemberAccountLog::ACTION_RESTORED);
+    }
+
+    /**
+     * Perfil no site: `usuario` ou `administrador` (abre os dashboards do
+     * site). Conta desativada não vira administradora — o login nem a usa.
+     * Rebaixar vale na hora: o middleware `member_admin` relê o perfil a cada
+     * requisição.
+     */
+    public function setRole(Member $member, string $role, User $user): void
+    {
+        if (! array_key_exists($role, Member::ROLE_LABELS)) {
+            $this->fail('site_role', 'Perfil inválido.');
+        }
+
+        $before = $member->site_role ?: Member::ROLE_USER;
+        if ($before === $role) {
+            return;
+        }
+
+        if ($role === Member::ROLE_ADMIN && $member->trashed()) {
+            $this->fail('site_role', 'Esta conta está desativada: reative antes de torná-la administradora.');
+        }
+
+        $member->site_role = $role;
+        $member->save();
+
+        $this->log($member, $user, MemberAccountLog::ACTION_ROLE, ['before' => $before, 'after' => $role]);
     }
 
     /** Como o site grava a senha: o site manda o SHA256 da senha digitada. */

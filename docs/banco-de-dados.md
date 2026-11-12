@@ -53,6 +53,7 @@ incremental do esquema (criação de tabelas + diversos `add_column`/`fix`). Des
 - `2026_10_23_100000` — torneios, chaveamento (F5): `tournament_categories.bracket_published_at` e `tournament_matches.third_place` (idempotente).
 - `2026_10_23_110000` — torneios, resultados e relatório (F6/F7): `tournaments.results_code_*` e `tournament_registrations.refunded_amount` (idempotente).
 - `2026_10_23_120000` — Contas do site: `member_account_logs` (idempotente). `members.deleted_at` (de 2025) passa a ser usado pelo `SoftDeletes` do `Member`.
+- `2026_11_12_100000` — Dashboards do site: `members.site_role` (`usuario` | `administrador`, padrão `usuario`, índice `members_site_role_idx`; idempotente).
 - `2026_10_27_100000` — Ingressos: as 7 tabelas do módulo (`ticket_*`, com os cupons, e `tickets`), com nomes curtos de FK e índice e criação idempotente. Ver [ingressos.md](funcionalidades/ingressos.md#modelagem).
 - `2026_10_27_110000` — Ingressos no Monitor de Acesso: `company_access_logs.ticket_id` (FK `cal_ticket_fk`, idempotente).
 - `2026_10_27_120000` — Ingressos, evento de vários dias: `ticket_event_days`, `ticket_types.ticket_event_day_id` e `ticket_checkins` (entrada por dia; copia as entradas já gravadas), idempotente.

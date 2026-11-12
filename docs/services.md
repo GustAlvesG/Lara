@@ -222,7 +222,7 @@ Relatório financeiro por inscrição: `summary()` (por categoria e total: receb
 
 ## Members\SiteAccountService
 
-Contas do site: `search()`, `duplicatedCpfs()`, `diagnose()`, `update()`, `pullFromMultiClubes()`, `temporaryPassword()`, `createManual()`, `deactivate()`, `restore()`, `static siteHash()` (a senha do site chega em SHA256: `Hash::make(sha256(texto))`). Ver [contas-do-site.md](funcionalidades/contas-do-site.md).
+Contas do site: `search()`, `duplicatedCpfs()`, `diagnose()`, `update()`, `pullFromMultiClubes()`, `temporaryPassword()`, `createManual()`, `deactivate()`, `restore()`, `setRole()` (perfil no site, desde 12/11/2026), `static siteHash()` (a senha do site chega em SHA256: `Hash::make(sha256(texto))`). Ver [contas-do-site.md](funcionalidades/contas-do-site.md).
 
 ## Tournament\TournamentSetupService
 

@@ -23,9 +23,11 @@ class SiteAccountController extends Controller
     {
         $duplicated = $this->accounts->duplicatedCpfs();
         $onlyDuplicated = $request->boolean('duplicadas');
+        $onlyAdmins = $request->boolean('administradores');
 
         $members = $this->accounts->search($request->input('q'))
             ->when($onlyDuplicated, fn ($q) => $q->whereIn('cpf', $duplicated->keys()))
+            ->when($onlyAdmins, fn ($q) => $q->where('site_role', Member::ROLE_ADMIN))
             ->paginate(25)
             ->withQueryString();
 
@@ -33,7 +35,8 @@ class SiteAccountController extends Controller
             'members' => $members,
             'duplicated' => $duplicated,
             'onlyDuplicated' => $onlyDuplicated,
-            'searched' => filled($request->input('q')) || $onlyDuplicated,
+            'onlyAdmins' => $onlyAdmins,
+            'searched' => filled($request->input('q')) || $onlyDuplicated || $onlyAdmins,
         ]);
     }
 
@@ -112,6 +115,22 @@ class SiteAccountController extends Controller
         $this->accounts->restore($account, $request->user());
 
         return $this->back($account, 'Conta reativada.');
+    }
+
+    /** Perfil no site — permissão própria (`reservas.contas-site.perfil`, na rota). */
+    public function role(Request $request, int $member): RedirectResponse
+    {
+        $account = Member::withTrashed()->findOrFail($member);
+
+        $data = $request->validate([
+            'site_role' => 'required|in:' . implode(',', array_keys(Member::ROLE_LABELS)),
+        ], [], ['site_role' => 'perfil']);
+
+        $this->accounts->setRole($account, $data['site_role'], $request->user());
+
+        return $this->back($account, $data['site_role'] === Member::ROLE_ADMIN
+            ? 'Perfil trocado para Administrador: a pessoa já abre os dashboards no site.'
+            : 'Perfil trocado para Usuário: o acesso aos dashboards foi cortado.');
     }
 
     private function back(Member $member, string $message): RedirectResponse
