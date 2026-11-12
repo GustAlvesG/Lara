@@ -119,6 +119,31 @@ return [
         ],
 
         /*
+         * Dashboards do site › Vendas (MultiVendas), desde 12/11/2026: lê a
+         * view `vw_DashboardVendas`, a mesma do Grafana "Vendas Hoje". Ela
+         * mora no servidor do MultiVendas/MultiClubes, no banco FUNCSIDERURG
+         * de lá (não é o Questor de `questor_sqlsrv`). Por padrão reaproveita
+         * host e credenciais do MultiClubes; DB_VENDAS_* sobrescreve cada um
+         * (por exemplo, o usuário só leitura que o Grafana usa). Só SELECT:
+         * ver App\Services\MultiVendas\SalesDashboardRepository.
+         */
+        'vendas_sqlsrv' => [
+            'driver' => 'sqlsrv',
+            // `?:` e não o padrão do env(): a variável vazia no .env vem como
+            // '' e não cairia no valor do MultiClubes.
+            'host' => env('DB_VENDAS_HOST') ?: env('DB_MC_HOST', '127.0.0.1'),
+            'port' => env('DB_VENDAS_PORT') ?: env('DB_MC_PORT', '1433'),
+            'database' => env('DB_VENDAS_DATABASE') ?: 'FUNCSIDERURG',
+            'username' => env('DB_VENDAS_USERNAME') ?: env('DB_MC_USERNAME'),
+            'password' => env('DB_VENDAS_PASSWORD') ?: env('DB_MC_PASSWORD'),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'sslmode' => 'None',
+            'trust_server_certificate' => 'true',
+        ],
+
+        /*
          * Questor (FUNCSIDERURG) — o ERP de compras. É de lá que saem as ordens
          * de compra pendentes de autorização (ver config/questor.php e
          * App\Services\Questor). Servidor e credenciais são próprios: não

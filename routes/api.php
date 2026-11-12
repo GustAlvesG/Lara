@@ -41,6 +41,7 @@ use App\Http\Controllers\Api\SocialBookingApiController;
 use App\Http\Controllers\Api\SocialShowcaseApiController;
 use App\Http\Controllers\Api\RemoteSignatureApiController;
 use App\Http\Controllers\Api\DashboardApiController;
+use App\Http\Controllers\Api\SalesDashboardApiController;
 use App\Http\Controllers\Api\TicketApiController;
 use App\Http\Controllers\Api\TicketGuestAccessController;
 use App\Http\Controllers\Api\TournamentApiController;
@@ -621,8 +622,9 @@ Route::middleware('api_token')->group(function () {
         | O mesmo login do sócio (`Session`), mais o perfil `administrador`
         | (Reservas › Contas do site), relido do banco a cada requisição pelo
         | `member_admin`. Só números agregados: nenhum dado de comprador.
-        | Painel novo (MultiVendas, MultiClubes) ganha prefixo próprio aqui e
-        | entra em DashboardApiController::PANELS.
+        | Painéis: Ingressos (`tickets`) e Vendas do MultiVendas (`sales`).
+        | Painel novo (MultiClubes) ganha prefixo próprio aqui e entra em
+        | DashboardApiController::PANELS.
         */
         Route::prefix('dashboard')->middleware(['member_admin', 'throttle:120,1'])->as('api.dashboard.')->group(function () {
             Route::get('/access', [DashboardApiController::class, 'access'])->name('access');
@@ -636,6 +638,12 @@ Route::middleware('api_token')->group(function () {
                     Route::get('/by-channel', [DashboardApiController::class, 'ticketByChannel'])->name('by-channel');
                     Route::get('/by-method', [DashboardApiController::class, 'ticketByMethod'])->name('by-method');
                 });
+            });
+
+            // Vendas (MultiVendas, view vw_DashboardVendas): o Grafana "Vendas Hoje" com período.
+            Route::prefix('sales')->as('sales.')->group(function () {
+                Route::get('/', [SalesDashboardApiController::class, 'index'])->name('index');
+                Route::get('/stores', [SalesDashboardApiController::class, 'stores'])->name('stores');
             });
         });
     });

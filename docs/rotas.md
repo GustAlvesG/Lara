@@ -566,6 +566,21 @@ Contrato completo em [ingressos.md](funcionalidades/ingressos.md#api-do-site-api
 | DELETE | `/api/tickets/orders/{id}` | Api\TicketApiController@withdrawMember | T + L |
 | GET | `/api/tickets/orders/{id}/pdf` | Api\TicketApiController@pdfMember | T + L |
 
+### Dashboards do site (T + L + `member_admin`, throttle 120/min)
+Só o sócio com perfil administrador. Ver [dashboards-site.md](funcionalidades/dashboards-site.md).
+
+| Método | URI | Ação | Obs. |
+|--------|-----|------|------|
+| GET | `/api/dashboard/access` | Api\DashboardApiController@access | menu (`panels`) |
+| GET | `/api/dashboard/tickets/events` | Api\DashboardApiController@ticketEvents | |
+| GET | `/api/dashboard/tickets/events/{id}/summary` | Api\DashboardApiController@ticketSummary | |
+| GET | `/api/dashboard/tickets/events/{id}/sales-by-day` | Api\DashboardApiController@ticketSalesByDay | |
+| GET | `/api/dashboard/tickets/events/{id}/by-lot` | Api\DashboardApiController@ticketByLot | |
+| GET | `/api/dashboard/tickets/events/{id}/by-channel` | Api\DashboardApiController@ticketByChannel | |
+| GET | `/api/dashboard/tickets/events/{id}/by-method` | Api\DashboardApiController@ticketByMethod | |
+| GET | `/api/dashboard/sales` | Api\SalesDashboardApiController@index | MultiVendas; `from`, `to`, `stores[]` |
+| GET | `/api/dashboard/sales/stores` | Api\SalesDashboardApiController@stores | MultiVendas |
+
 ### Com `api_token` + `login_token` (T + L)
 | Método | URI | Ação | Obs. |
 |--------|-----|------|------|

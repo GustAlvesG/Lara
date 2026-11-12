@@ -66,6 +66,20 @@ Base externa para sócios, acessos físicos e visitantes. Duas conexões em `con
   dependente). E-mail de `dbo.Members.Email`. Ver
   [Disparo de E-mails](funcionalidades/disparo-emails.md#lista-a-partir-dos-sócios-do-multiclubes).
 
+### MultiVendas — vendas do caixa (`mv_sqlsrv` e `vendas_sqlsrv`)
+
+Mesmo servidor do MultiClubes.
+
+- `mv_sqlsrv`, banco `MultiVendas`: relatório de fechamento do vendedor, base da comissão do
+  garçom (`App\Services\MultiVendasSalesReport`, Freelancers).
+- `vendas_sqlsrv` (desde 12/11/2026), banco `FUNCSIDERURG` desse servidor (não o do Questor):
+  view `vw_DashboardVendas`, a mesma do Grafana "Vendas Hoje", para o painel **Vendas** dos
+  dashboards do site (`App\Services\MultiVendas\SalesDashboardRepository`).
+  - Por padrão usa as credenciais do MultiClubes. `DB_VENDAS_*` sobrescreve.
+  - Só leitura.
+  - Confira no servidor com `php artisan dashboards:vendas-check`.
+  - Ver [dashboards-site.md](funcionalidades/dashboards-site.md#painel-vendas-multivendas).
+
 ### Questor — ERP de compras (`questor_sqlsrv`)
 
 Banco `FUNCSIDERURG` (SQL Server), servidor e credenciais próprios. Fornece a fila de

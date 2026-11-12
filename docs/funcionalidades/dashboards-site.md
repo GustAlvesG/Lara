@@ -3,9 +3,12 @@
 ## O que é
 
 Área de **dashboards** dentro do site externo em Next.js (o mesmo das Reservas, Torneios e
-Ingressos), pedida em 12/11/2026. Começa com **gráficos simples das vendas de ingressos por
-evento**. Depois entram dados do **MultiVendas** e do **MultiClubes** (fase futura, ainda não
-feita).
+Ingressos), pedida em 12/11/2026. Painéis:
+
+- **Ingressos**: vendas de ingressos por evento;
+- **Vendas** (MultiVendas, 12/11/2026): o Grafana "Vendas Hoje" levado para o site, com
+  período de/até e filtro de lojas;
+- **MultiClubes**: fase futura, ainda não feita.
 
 O Lara é o backend: calcula os números e responde pela API `/api/dashboard/*`. O site
 mostra os gráficos.
@@ -83,9 +86,73 @@ financeiro, `TicketFinanceService`):
 - **Nenhum dado pessoal:** nada de nome, CPF, e-mail ou telefone de comprador ou titular. Só
   números agregados.
 
-## Painel novo (MultiVendas, MultiClubes)
+## Painel Vendas (MultiVendas)
 
-1. Crie o service e as rotas com prefixo próprio (`/api/dashboard/multivendas/*`) no mesmo
+Reproduz o dashboard do Grafana **"Vendas Hoje"**, que lê a view **`vw_DashboardVendas`**.
+Ela fica no servidor do MultiVendas/MultiClubes, no banco `FUNCSIDERURG` **de lá**. Não
+confunda com o `FUNCSIDERURG` do Questor (`questor_sqlsrv`, outro servidor), onde a view não
+existe.
+
+**Conexão** `vendas_sqlsrv` (`config/database.php`). Por padrão usa host, porta, usuário e
+senha do MultiClubes (`DB_MC_*`) e o banco `FUNCSIDERURG`. As variáveis `DB_VENDAS_HOST`,
+`DB_VENDAS_PORT`, `DB_VENDAS_DATABASE`, `DB_VENDAS_USERNAME` e `DB_VENDAS_PASSWORD`
+sobrescrevem cada valor (vazia = usa a do MultiClubes). Basta um usuário só leitura, como o
+do Grafana.
+
+**Conferir no servidor:** `php artisan dashboards:vendas-check [--data=AAAA-MM-DD]`. É só
+leitura. Mostra o banco, se a view existe com as colunas do painel, as lojas e o total do
+dia. Em 12/11/2026 a máquina de desenvolvimento não alcançava esse servidor (login do
+`lara` recusado), então rode o comando no servidor do Lara depois do deploy.
+
+**Colunas usadas:** `Data_Venda` (date), `Data_Hora_Venda`, `ID_Venda`, `Loja`, `Produto`,
+`Valor_Liquido`, `Metodos_Pagamento`, `Vendedor`. Cada linha da view é um item vendido; uma
+venda é um `ID_Venda` distinto.
+
+| Método e rota | O que devolve |
+|---|---|
+| `GET /api/dashboard/sales/stores` | `{stores: ["Gastrobar Piscina", …]}`: as lojas do filtro (`SELECT DISTINCT Loja`) |
+| `GET /api/dashboard/sales?from=&to=&stores[]=` | Todos os blocos do painel numa resposta (abaixo) |
+
+Filtro:
+
+- `from` e `to` vêm no formato `AAAA-MM-DD` e são inclusivos, sobre `Data_Venda`. Sem os
+  dois, o período é **hoje**. Sem `to`, vai até hoje (ou até o próprio `from`, se ele
+  estiver no futuro).
+- O período tem no máximo 366 dias. `to` antes de `from` responde **422**.
+- `stores[]`: nomes exatos de `/stores` (também aceita `stores=a,b`). Vazio = todas. Loja
+  desconhecida responde **422**.
+- **O filtro de loja vale para todos os gráficos.** No Grafana, Vendedores ignorava o filtro.
+  Aqui não ignora (decisão de 12/11/2026).
+
+Resposta de `/api/dashboard/sales`, painel a painel do Grafana:
+
+| Campo | Grafana | Regra |
+|---|---|---|
+| `kpis` | Total Faturamento, Ticket Médio, Vendas | `net` = `SUM(Valor_Liquido)`; `sales` = `COUNT(DISTINCT ID_Venda)`; `average_ticket` = `net ÷ sales` |
+| `by_store` | Vendas por Loja | soma por loja; as lojas com "Gastrobar" no nome viram uma barra só, "Gastrobar" (`STORE_GROUPS`) |
+| `top_products` | Produtos mais vendidos | top 10 por valor |
+| `by_hour` | Venda por Hora | `DATEPART(HOUR, Data_Hora_Venda)`, somando todos os dias do período; da primeira à última hora com venda, com zero entre elas |
+| `by_day` | (novo, por causa do período) | todos os dias do período, com `amount` e `sales`, zero onde não vendeu |
+| `payment_methods` | Métodos de Pagamento | soma por `Metodos_Pagamento`; vazio = "Não informado" |
+| `sellers` | Vendedores | soma por vendedor; vazio = "Não Identificado" (como o `ISNULL` do Grafana) |
+
+Também vêm `period` (`from`, `to`, `days`), `stores` (`selected`, `all`) e `generated_at`.
+As listas vêm do maior para o menor valor. Os rótulos vazios viram "Sem loja" e "Sem nome".
+
+- **Cache:** 60 s quando o período inclui hoje, 10 min quando está todo no passado. A lista
+  de lojas também fica 10 min. O servidor é o do caixa, e o painel não pode sobrecarregar a
+  view.
+- **MultiVendas fora do ar:** **503** `{"error": "O MultiVendas não respondeu. Tente de novo
+  em instantes."}`. O erro do driver (que traz host e usuário) vai só para o log.
+- **Dado pessoal:** os vendedores aparecem pelo nome, porque o painel é só do sócio
+  administrador. Nenhum dado de cliente sai daqui.
+- **SQL:** só SELECT, pelo query builder, com período e lojas sempre como binding
+  (`SalesDashboardRepository`). O teste `tests/Unit/SalesDashboardSqlTest.php` confere o SQL
+  de SQL Server sem conectar.
+
+## Painel novo (MultiClubes)
+
+1. Crie o service e as rotas com prefixo próprio (`/api/dashboard/<painel>/*`) no mesmo
    grupo `member_admin`.
 2. Acrescente o painel em `DashboardApiController::PANELS`. O menu do site vem de lá.
 3. Siga o formato `kpis` + `series`/`rows`, só com números agregados.
@@ -96,7 +163,8 @@ financeiro, `TicketFinanceService`):
 O que o site precisa fazer está no prompt
 [dashboards-site-prompt.md](../prompts/NextJS/dashboards-site-prompt.md): área `/painel` com a
 sessão do sócio, link visível só para o administrador, dados buscados pelo servidor do Next
-(o navegador não alcança O Lara), seletor de evento, cards e quatro gráficos.
+(o navegador não alcança O Lara), seletor de evento, cards e quatro gráficos. O painel Vendas
+está em [dashboards-vendas-prompt.md](../prompts/NextJS/dashboards-vendas-prompt.md).
 
 ## Peças
 
@@ -109,4 +177,9 @@ sessão do sócio, link visível só para o administrador, dados buscados pelo s
 | migration `2026_11_12_100000_add_site_role_to_members` | Coluna `site_role` (idempotente). |
 | `app/Services/Members/SiteAccountService.php` (`setRole`), `SiteAccountController::role` | Troca do perfil em Contas do site. |
 | `tests/Feature/Dashboards/SiteDashboardApiTest.php` | Acesso (perfil, rebaixar com o mesmo token, conta desativada) e números. |
+| `app/Http/Controllers/Api/SalesDashboardApiController.php` | Rotas `api.dashboard.sales.*`. |
+| `app/Services/MultiVendas/SalesDashboardService.php`, `SalesFilter`, `SalesDashboardUnavailable` | Filtro, cache, agrupamentos e forma da resposta do painel Vendas. |
+| `app/Services/MultiVendas/SalesDashboardRepository.php` | Consultas à `vw_DashboardVendas` (conexão `vendas_sqlsrv`). |
+| `app/Console/Commands/DashboardSalesCheck.php` | `dashboards:vendas-check`. |
+| `tests/Unit/SalesDashboardSqlTest.php`, `tests/Feature/Dashboards/SalesDashboardApiTest.php` | SQL sem conectar; API com a view em memória (acesso, filtro, gráficos, cache, 503). |
 | `tests/Feature/SiteAccountTest.php` | Perfil na tela, histórico, filtro, permissão própria. |

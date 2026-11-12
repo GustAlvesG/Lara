@@ -297,6 +297,10 @@ Reservas › Contas do site (`reservas.contas-site`): `index`, `store` (cadastro
 
 Dashboards do site (`/api/dashboard/*`, `api_token` + `login_token` + `member_admin`): `access` (menu, `PANELS`), `ticketEvents`, `ticketSummary`, `ticketSalesByDay`, `ticketByLot`, `ticketByChannel`, `ticketByMethod`. Só sócio com perfil administrador; só números agregados. Ver [dashboards-site.md](funcionalidades/dashboards-site.md).
 
+## Api\SalesDashboardApiController
+
+Dashboards do site › Vendas (MultiVendas, view `vw_DashboardVendas`), no mesmo grupo: `index` (`/api/dashboard/sales`, período `from`/`to` e `stores[]`, todos os gráficos numa resposta) e `stores`. MultiVendas fora do ar = 503. Regras em `MultiVendas\SalesDashboardService`.
+
 ## Api\TournamentApiController
 
 `/api/tournaments/*` do site de locação: `index`, `show` (só `api_token`); `eligibility`, `register`, `mine`, `pay`, `withdraw` (com `login_token`; sócio sempre do JWT); times e convites (F4); `bracket` (F5, só `api_token`: chaveamento divulgado). Recusas como `TournamentException::toArray()`. Contrato em [torneios.md](funcionalidades/torneios.md#api-do-site-apitournamentapicontroller).

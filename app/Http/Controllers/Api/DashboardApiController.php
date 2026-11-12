@@ -14,8 +14,9 @@ use Illuminate\Http\Request;
  * `administrador` (middlewares `api_token` + `login_token` + `member_admin`).
  * O perfil é dado em Reservas › Contas do site.
  *
- * Por enquanto um painel só, o dos ingressos. Painel novo (MultiVendas,
- * MultiClubes) entra em PANELS e ganha o prefixo próprio em routes/api.php.
+ * Painéis: Ingressos (aqui) e Vendas do MultiVendas
+ * (SalesDashboardApiController). Painel novo (MultiClubes) entra em PANELS e
+ * ganha o prefixo próprio em routes/api.php.
  *
  * Ver docs/funcionalidades/dashboards-site.md.
  */
@@ -24,6 +25,7 @@ class DashboardApiController extends Controller
     /** Painéis que o administrador vê, na ordem do menu do site. */
     public const PANELS = [
         ['key' => 'ingressos', 'label' => 'Ingressos', 'path' => 'tickets'],
+        ['key' => 'vendas', 'label' => 'Vendas', 'path' => 'sales'],
     ];
 
     public function __construct(private TicketDashboardService $tickets)

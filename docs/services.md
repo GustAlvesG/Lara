@@ -224,6 +224,22 @@ Relatório financeiro por inscrição: `summary()` (por categoria e total: receb
 
 Contas do site: `search()`, `duplicatedCpfs()`, `diagnose()`, `update()`, `pullFromMultiClubes()`, `temporaryPassword()`, `createManual()`, `deactivate()`, `restore()`, `setRole()` (perfil no site, desde 12/11/2026), `static siteHash()` (a senha do site chega em SHA256: `Hash::make(sha256(texto))`). Ver [contas-do-site.md](funcionalidades/contas-do-site.md).
 
+## MultiVendas\SalesDashboardService e SalesDashboardRepository
+
+Painel Vendas dos dashboards do site (desde 12/11/2026).
+- **Repository:** só SELECT na view `vw_DashboardVendas` (conexão `vendas_sqlsrv`), com período e lojas como binding. Cada `query*()` só monta a consulta e o método sem prefixo executa.
+- **Service:**
+  - `filter()` valida `from`/`to` (até 366 dias, padrão hoje) e as lojas (só as de `stores()`);
+  - `sales()` monta KPIs, por loja (Gastrobar junto), top 10 produtos, por hora, por dia, formas de pagamento e vendedores;
+  - cache de 60 s / 10 min;
+  - MultiVendas fora do ar vira `SalesDashboardUnavailable`.
+
+Ver [dashboards-site.md](funcionalidades/dashboards-site.md#painel-vendas-multivendas).
+
+## Ticket\TicketDashboardService
+
+Números dos ingressos para os dashboards do site, na régua do `TicketFinanceService`, sem dado pessoal. Ver [dashboards-site.md](funcionalidades/dashboards-site.md).
+
 ## Tournament\TournamentSetupService
 
 Montagem do torneio: `changeStatus(..., $force)` (caminho normal rascunho → publicado → em andamento → encerrado, e cancelado; qualquer outra, publicar sem categoria e voltar a rascunho com inscrição pedem confirmação), `attachCategory(..., $force)` (copia do catálogo do grupo; inativa ou com inscrições do site fechadas pede confirmação), `updateCategory(..., $force)` (mudar formato com chaveamento pede confirmação e desfaz o chaveamento), `detachCategory(..., $force)` (sem pagamento: confirma e apaga as inscrições; com pagamento: recusa), `linkRules()`.
