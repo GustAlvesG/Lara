@@ -231,14 +231,28 @@ Permissão `reservas.configurar` (a mesma do cadastro do espaço). Só espaço d
 
 | Ação | O que faz |
 |---|---|
-| **Adicionar fotos** | Várias de uma vez; JPG, PNG ou WEBP, até 15 MB cada. Entram no fim da galeria. |
+| **Adicionar fotos** | Várias de uma vez; JPG, PNG ou WEBP. O navegador reduz cada foto e envia **uma por vez** ("Enviando 2 de 5…"). Entram no fim da galeria. |
 | **Legenda** + **Mostrar no site** → Salvar | Legenda opcional (até 120 caracteres). Desmarcado, a foto fica **Escondida**: continua no painel e sai do site. |
 | **↑ / ↓** | Muda a ordem do carrossel. |
 | **Usar como capa** | Uma cópia da foto vira a imagem do espaço (a capa). Excluir a foto depois não apaga a capa. |
 | Lixeira | Exclui a foto e os arquivos dela. |
 
-Limite de **20 fotos por espaço** (contando as escondidas). O envio é tudo ou nada: se uma das
-fotos for recusada (não é imagem, grande demais), nenhuma do envio é gravada.
+Limite de **20 fotos por espaço** (contando as escondidas). Cada foto é um envio: a recusada
+(não é imagem, por exemplo) aparece com o motivo, e as outras ficam gravadas.
+
+**Por que uma por vez, reduzida no navegador (12/11/2026).** Mandar várias fotos de celular num
+POST só passava do `post_max_size` do PHP ("POST too large"), e uma foto sozinha passava do
+`upload_max_filesize` — o PHP descarta o arquivo e o Laravel dizia "Ocorreu uma falha no upload do
+campo photos.0". O script da tela desenha a foto num canvas com no máximo 1920 px (o navegador já
+aplica a orientação da câmera), regrava em JPEG 90% e manda `photos[]` com uma foto, pedindo JSON.
+JPEG já pequeno (até 1920 px e 1,5 MB) vai como está. Assim cada envio fica bem abaixo de 1 MB,
+qualquer que seja a configuração do PHP do servidor. O servidor reprocessa do mesmo jeito.
+
+Sem JavaScript (ou navegador sem canvas), o formulário comum continua funcionando, dentro dos
+limites do PHP: foto acima do `upload_max_filesize` volta com "A foto passa do limite de envio do
+servidor (N MB por foto)", e o envio acima do `post_max_size` volta para a galeria com "O envio
+passou do limite do servidor" (`PostTooLargeException` tratada em `bootstrap/app.php`, só para
+esta rota; 413 em JSON).
 
 ### Como as fotos são guardadas
 

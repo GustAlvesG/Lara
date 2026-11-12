@@ -408,6 +408,10 @@ class EspacosSociaisScreensTest extends TestCase
         $this->assertStringContainsString('0 de 20', $vazia);
         $this->assertStringContainsString('name="photos[]"', $vazia);
         $this->assertStringContainsString('O site mostra só a capa', $vazia);
+        // Envio uma foto por vez, reduzida no navegador (post_max_size / upload_max_filesize).
+        $this->assertStringContainsString('data-gallery-upload', $vazia);
+        $this->assertStringContainsString('data-free="20"', $vazia);
+        $this->assertStringContainsString("'Accept': 'application/json'", $vazia);
 
         $fotos = collect([1, 2])->map(function ($i) {
             $photo = new \App\Models\Social\PlacePhoto(['place_id' => 12, 'file' => "galeria/12/f{$i}.jpg", 'thumb' => "galeria/12/f{$i}-thumb.jpg", 'width' => 1920, 'height' => 1280, 'position' => $i, 'active' => $i === 1, 'caption' => $i === 1 ? 'Vista do lago' : null]);

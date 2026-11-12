@@ -345,7 +345,7 @@ O site mostra, na página de cada churrasqueira ou salão, um carrossel com a ca
 
 1. Em **Reservas › Locais e Grupos**, abra o grupo social e clique em **Editar** no espaço.
 2. Desça até **Galeria de fotos (site)**, abaixo do formulário.
-3. Em **Adicionar fotos**, escolha uma ou várias fotos (JPG, PNG ou WEBP, até 15 MB cada) e clique em **Enviar**. O Lara reduz e otimiza cada foto para o site; elas entram no fim da galeria.
+3. Em **Adicionar fotos**, escolha uma ou várias fotos (JPG, PNG ou WEBP) e clique em **Enviar**. A tela reduz cada foto e envia uma por vez, mostrando "Enviando 2 de 5…"; não feche a página até terminar. Ao fim, a página recarrega com as fotos no fim da galeria.
 4. Em cada foto:
    - **↑ / ↓** muda a ordem do carrossel;
    - escreva a **Legenda** (opcional) e clique em **Salvar**;
@@ -353,7 +353,9 @@ O site mostra, na página de cada churrasqueira ou salão, um carrossel com a ca
    - **Usar como capa** troca a imagem principal do espaço por essa foto;
    - a lixeira exclui a foto.
 
-Cada espaço aceita até 20 fotos (contando as escondidas). Se uma das fotos do envio for recusada (não é imagem ou passa de 15 MB), nenhuma daquele envio é gravada: tire a foto com problema e envie de novo. Só quadra não tem galeria: a seção aparece apenas em espaço social.
+Cada espaço aceita até 20 fotos (contando as escondidas). Se uma foto for recusada (por exemplo, um arquivo que não é imagem), a tela mostra o nome dela e o motivo; as outras do mesmo envio ficam gravadas — recarregue a página para vê-las. Só quadra não tem galeria: a seção aparece apenas em espaço social.
+
+Se aparecer "A foto passa do limite de envio do servidor" ou "O envio passou do limite do servidor", a página foi enviada sem a redução automática (navegador muito antigo ou bloqueando scripts): atualize o navegador ou envie menos fotos de cada vez.
 
 ## Bloquear ou liberar horários com regras de locação
 <!-- telas: place-group.index -->

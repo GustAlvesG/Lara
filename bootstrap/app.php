@@ -43,5 +43,23 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // Galeria de fotos do espaço social: o envio maior que o post_max_size
+        // do PHP chega vazio e virava a página de erro "POST too large". Volta
+        // para a galeria com a explicação. A tela normal manda uma foto por vez,
+        // já reduzida; isto só pega o envio sem JavaScript.
+        $exceptions->render(function (\Illuminate\Http\Exceptions\PostTooLargeException $e, \Illuminate\Http\Request $request) {
+            if (preg_match('#^place-group/place/(\d+)/photos$#', $request->path(), $m) !== 1) {
+                return null;
+            }
+
+            $message = 'O envio passou do limite do servidor ('
+                . ini_get('post_max_size') . ' por envio). Envie menos fotos de cada vez.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message, 'errors' => ['photos' => [$message]]], 413);
+            }
+
+            return redirect()->to(route('place-group.editPlace', (int) $m[1]) . '#galeria')
+                ->withErrors(['photos' => $message]);
+        });
     })->create();

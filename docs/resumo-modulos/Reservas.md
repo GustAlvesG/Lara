@@ -123,8 +123,12 @@ Carrossel do site. Guia: [espacos-sociais.md › Galeria](../funcionalidades/esp
 - `place_photos` (`file`, `thumb`, `width`, `height`, `caption`, `position`, `active`);
   `Place::photos()` já vem em ordem. Formato da API num lugar só: `PlacePhoto::toApi()`.
 - `PlacePhotoService` (GD, sem dependência nova): gira pelo EXIF, reduz a 1920 px + miniatura de
-  480 px, sempre JPEG, nome aleatório (nunca sobrescreve: cache eterno no site). Envio tudo ou
-  nada; 20 fotos por espaço; só espaço social; só upload (link não entra na galeria). "Usar como
+  480 px, sempre JPEG, nome aleatório (nunca sobrescreve: cache eterno no site). Um envio é
+  tudo ou nada, mas a **tela manda uma foto por requisição, já reduzida no navegador** (canvas,
+  1920 px, JPEG) e pedindo JSON — várias fotos num POST estouravam o `post_max_size` e uma foto de
+  celular o `upload_max_filesize`. Sem JS, o `PostTooLargeException` dessa rota volta para a
+  galeria (`bootstrap/app.php`) e o `photos.*.uploaded` diz o limite (`PlacePhotoService::uploadLimitMb()`).
+  20 fotos por espaço; só espaço social; só upload (link não entra na galeria). "Usar como
   capa" grava uma **cópia** em `public/images` e põe em `places.image`. Recusas são
   `ValidationException` em `photos`. Sobe `memory_limit` para 512M durante o processamento.
 - Raiz configurável `social_bookings.gallery_root` (vazio = `public/images`) — os testes apontam

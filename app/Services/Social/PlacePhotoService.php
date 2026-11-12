@@ -45,6 +45,36 @@ class PlacePhotoService
 
     private const ACCEPTED = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP];
 
+    /**
+     * Limite real por foto, em MB: o menor entre o do Lara e o
+     * `upload_max_filesize` do PHP (acima dele o arquivo nem chega).
+     */
+    public static function uploadLimitMb(): int|float
+    {
+        $kb = self::MAX_UPLOAD_KB;
+        $ini = self::iniBytes((string) ini_get('upload_max_filesize'));
+        if ($ini > 0) {
+            $kb = min($kb, intdiv($ini, 1024));
+        }
+
+        $mb = round($kb / 1024, 1);
+
+        return $mb == (int) $mb ? (int) $mb : $mb;
+    }
+
+    /** `2M`, `512K`, `1G` → bytes (0 = sem limite). */
+    public static function iniBytes(string $value): int
+    {
+        $value = trim($value);
+        if ($value === '' || $value === '-1') {
+            return 0;
+        }
+
+        $bytes = (int) $value;
+
+        return $bytes * match (strtolower(substr($value, -1))) { 'g' => 1024 ** 3, 'm' => 1024 ** 2, 'k' => 1024, default => 1 };
+    }
+
     /** Pasta raiz das imagens (`public/images`); os testes apontam para uma temporária. */
     public function root(): string
     {

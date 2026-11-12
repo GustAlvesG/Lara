@@ -103,6 +103,52 @@ class PlacePhotoGalleryTest extends TestCase
         $this->assertSame([1, 2, 3], $this->photos()->pluck('position')->all());
     }
 
+    public function test_tela_envia_uma_foto_por_vez_e_recebe_json(): void
+    {
+        $this->actingAs($this->usuario())
+            ->post(route('place-group.photos.store', $this->place->id), ['photos' => [UploadedFile::fake()->image('a.jpg', 1920, 1080)]], ['Accept' => 'application/json'])
+            ->assertOk()
+            ->assertExactJson(['count' => 1, 'message' => 'Foto adicionada à galeria.']);
+
+        // Recusa vem como 422 com a mensagem em `errors.photos`, que a tela mostra.
+        $this->actingAs($this->usuario())
+            ->post(route('place-group.photos.store', $this->place->id), ['photos' => [UploadedFile::fake()->create('x.jpg', 5, 'image/jpeg')]], ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('photos');
+
+        $this->assertCount(1, $this->photos());
+    }
+
+    public function test_foto_recusada_pelo_php_explica_o_limite(): void
+    {
+        // O que o PHP entrega quando a foto passa do upload_max_filesize.
+        $tooBig = new UploadedFile(UploadedFile::fake()->image('celular.jpg', 10, 10)->getRealPath(), 'celular.jpg', 'image/jpeg', UPLOAD_ERR_INI_SIZE, true);
+
+        $this->upload([$tooBig])->assertSessionHasErrors(['photos.0' => 'A foto passa do limite de envio do servidor (' . \App\Services\Social\PlacePhotoService::uploadLimitMb() . ' MB por foto). Reduza a foto ou envie pela tela com o navegador atualizado, que reduz sozinho.']);
+        $this->assertCount(0, $this->photos());
+    }
+
+    public function test_envio_maior_que_o_post_max_size_volta_para_a_galeria(): void
+    {
+        $url = route('place-group.photos.store', $this->place->id);
+        $huge = ['CONTENT_LENGTH' => (string) (PHP_INT_MAX >> 1)];
+
+        $this->actingAs($this->usuario())->call('POST', $url, [], [], [], $huge)
+            ->assertRedirect(route('place-group.editPlace', $this->place->id) . '#galeria')
+            ->assertSessionHasErrors('photos');
+
+        $this->actingAs($this->usuario())->call('POST', $url, [], [], [], $huge + ['HTTP_ACCEPT' => 'application/json'])
+            ->assertStatus(413)
+            ->assertJsonValidationErrors('photos');
+    }
+
+    public function test_limite_por_foto_respeita_o_php(): void
+    {
+        $this->assertSame(2 * 1024 * 1024, \App\Services\Social\PlacePhotoService::iniBytes('2M'));
+        $this->assertSame(512 * 1024, \App\Services\Social\PlacePhotoService::iniBytes('512K'));
+        $this->assertSame(0, \App\Services\Social\PlacePhotoService::iniBytes('-1'));
+    }
+
     public function test_arquivo_que_nao_e_imagem_e_recusado_sem_gravar_nada(): void
     {
         $this->upload([

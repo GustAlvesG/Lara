@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Place;
 use App\Models\Social\PlacePhoto;
 use App\Services\Social\PlacePhotoService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -20,9 +21,17 @@ class PlacePhotoController extends Controller
     {
     }
 
-    public function store(Request $request, int $placeId): RedirectResponse
+    /**
+     * A tela manda **uma foto por requisição**, já reduzida no navegador
+     * (`Accept: application/json`): várias fotos de celular num POST só
+     * estouravam o `post_max_size` do PHP, e uma foto sozinha o
+     * `upload_max_filesize`. Sem JavaScript, o formulário comum ainda funciona,
+     * dentro desses limites.
+     */
+    public function store(Request $request, int $placeId): RedirectResponse|JsonResponse
     {
         $place = Place::findOrFail($placeId);
+        $limitMb = PlacePhotoService::uploadLimitMb();
 
         $request->validate([
             'photos' => 'required|array|max:' . PlacePhoto::MAX_PER_PLACE,
@@ -30,13 +39,20 @@ class PlacePhotoController extends Controller
         ], [
             'photos.required' => 'Escolha ao menos uma foto.',
             'photos.max' => 'Envie no máximo ' . PlacePhoto::MAX_PER_PLACE . ' fotos de uma vez.',
-            'photos.*.max' => 'Cada foto pode ter até ' . (PlacePhotoService::MAX_UPLOAD_KB / 1024) . ' MB.',
+            'photos.*.max' => "Cada foto pode ter até {$limitMb} MB.",
             'photos.*.file' => 'Uma das fotos não chegou inteira. Tente de novo.',
+            // O PHP recusou o arquivo antes do Lara (upload_max_filesize).
+            'photos.*.uploaded' => "A foto passa do limite de envio do servidor ({$limitMb} MB por foto). Reduza a foto ou envie pela tela com o navegador atualizado, que reduz sozinho.",
         ]);
 
         $count = $this->photos->add($place, $request->file('photos', []), $request->user()?->id);
+        $message = $count === 1 ? 'Foto adicionada à galeria.' : "{$count} fotos adicionadas à galeria.";
 
-        return $this->back($place->id, $count === 1 ? 'Foto adicionada à galeria.' : "{$count} fotos adicionadas à galeria.");
+        if ($request->expectsJson()) {
+            return response()->json(['count' => $count, 'message' => $message]);
+        }
+
+        return $this->back($place->id, $message);
     }
 
     public function update(Request $request, PlacePhoto $photo): RedirectResponse
