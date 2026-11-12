@@ -74,7 +74,7 @@ class DefaultFlows
                         ['label' => 'Funcionalidade Teste', 'description' => '<em desenvolvimento>', 'aliases' => ['funcionalidade em teste'], 'next' => 'teste'],
                     ],
                     'save_as' => 'departamento',
-                    'invalid' => 'Não entendi. Toque em *Ver opções* e escolha o departamento.',
+                    'invalid' => 'Não entendi. Escolha o departamento tocando na opção ou digitando o número dela.',
                 ],
                 'fora_do_horario' => [
                     'say' => ['type' => 'template', 'template_uuid' => self::TPL_FORA_DO_HORARIO],
@@ -84,7 +84,7 @@ class DefaultFlows
                         ['label' => 'Sair', 'description' => 'Encerrar atendimento.', 'next' => 'sair'],
                         ['label' => 'Funcionalidade Teste', 'description' => '<em desenvolvimento>', 'aliases' => ['funcionalidade em teste'], 'next' => 'teste'],
                     ],
-                    'invalid' => 'Fora do horário eu só consigo ajudar com as opções do menu. Toque em *Opções* e escolha uma.',
+                    'invalid' => 'Fora do horário eu só consigo ajudar com as opções do menu. Escolha uma tocando na opção ou digitando o número dela.',
                 ],
                 'sair' => [
                     'say' => ['type' => 'text', 'text' => 'Atendimento encerrado. Sempre que precisar, é só chamar!'],

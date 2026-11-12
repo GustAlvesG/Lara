@@ -572,8 +572,78 @@ class PoliBotEngineTest extends TestCase
 
         $ultimas = PoliMessage::where('direction', 'OUT')->orderByDesc('id')->take(2)->get();
         $this->assertSame('TEMPLATE', $ultimas[0]->type);
-        $this->assertStringContainsString('Ver opções', $ultimas[1]->texto);
+        $this->assertStringContainsString('digitando o número', $ultimas[1]->texto);
         $this->assertSame($ultimas[0]->uuid, $this->sessao()->prompt_message_uuid);
+    }
+
+    /* ---------------- template enviado como texto ---------------- */
+
+    /** Liga "Enviar como texto numerado" num passo de template de um fluxo padrão. */
+    private function templateComoTexto(string $slug, string $passo, ?string $texto): void
+    {
+        $fluxo = BotFlow::where('slug', $slug)->firstOrFail();
+        $def = $fluxo->definition;
+        $def['steps'][$passo]['say']['as_text'] = true;
+        if ($texto !== null) {
+            $def['steps'][$passo]['say']['text'] = $texto;
+        }
+        $fluxo->update(['definition' => $def]);
+    }
+
+    /**
+     * Contorno de 12/11/2026: a Poli passou a entregar a lista sem o botão
+     * "Ver opções". Com a opção ligada, o menu sai como texto numerado.
+     */
+    public function test_template_como_texto_manda_o_menu_numerado_e_nao_o_template(): void
+    {
+        $this->templateComoTexto('atendimento', 'menu', 'Olá, {contato}! *Selecione o Departamento:*');
+
+        $this->texto('oi');
+
+        Http::assertNotSent(fn (Request $r) => ($r->data()['type'] ?? null) === 'TEMPLATE');
+        Http::assertSent(fn (Request $r) => $r->url() === self::BASE . '/contacts/' . self::CONTACT . '/messages'
+            && ($r->data()['type'] ?? null) === 'TEXT');
+
+        $menu = PoliMessage::where('direction', 'OUT')->where('type', 'TEXT')->latest('id')->firstOrFail();
+        $this->assertStringStartsWith('Olá, Gustavo! *Selecione o Departamento:*', $menu->texto);
+        $this->assertStringContainsString('*2* - Financeiro _(Consulte seus débitos ou outras pendências.)_', $menu->texto);
+        $this->assertStringEndsWith((string) config('poli.bot.messages.menu_as_text_hint'), $menu->texto);
+        $this->assertNull($menu->template_uuid);
+        $this->assertSame('Financeiro', $menu->options[1]['label']);
+        $this->assertSame($menu->uuid, $this->sessao()->prompt_message_uuid);
+    }
+
+    public function test_template_como_texto_aceita_o_numero_digitado(): void
+    {
+        $this->templateComoTexto('atendimento', 'menu', 'Selecione o Departamento:');
+
+        $this->texto('oi');
+        $this->texto('3');   // 3ª opção = Secretaria
+
+        $this->assertTrue($this->sessao()->isHuman());
+        $this->assertTrue($this->enviouPara('distribute', fn (array $d) => ($d['team'] ?? null) === DefaultFlows::TEAM_SECRETARIA));
+    }
+
+    public function test_template_como_texto_sem_texto_usa_a_frase_padrao(): void
+    {
+        $this->templateComoTexto('carro-de-aplicativo', 'local', null);
+        $this->texto('oi');
+        $this->texto("Carro de Aplicativo\nCarro, moto ou táxi", 'out-1');
+        $this->texto('12345');
+        $this->texto('gustavo');
+
+        $this->assertSame('local', $this->sessao()->step_key);
+        $this->assertStringStartsWith((string) config('poli.bot.messages.menu_as_text_default') . "\n\n*1* - Passarela Gastrobar", $this->ultimoEnviado());
+    }
+
+    public function test_template_como_texto_sem_opcoes_nao_passa_na_validacao(): void
+    {
+        $fluxo = new \App\Services\PoliBot\FlowDefinition('x', [
+            'start' => 'a',
+            'steps' => ['a' => ['say' => ['type' => 'template', 'template_uuid' => 'tpl', 'as_text' => true]]],
+        ]);
+
+        $this->assertNotEmpty(array_filter($fluxo->errors(), fn ($e) => str_contains($e, 'como texto')));
     }
 
     public function test_toque_em_menu_antigo_nao_vale_como_resposta(): void
@@ -642,7 +712,7 @@ class PoliBotEngineTest extends TestCase
         Carbon::setTestNow(now()->addSeconds(30));
         $this->textoEscritoEm('quero reclamar', now());
 
-        $this->assertStringContainsString('Ver opções', implode(' ', $this->enviados()));
+        $this->assertStringContainsString('digitando o número', implode(' ', $this->enviados()));
         $this->assertSame(1, $this->sessao()->tentativas);
     }
 

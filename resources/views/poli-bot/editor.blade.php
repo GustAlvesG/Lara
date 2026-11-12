@@ -423,6 +423,19 @@
                                             </template>
                                         </div>
                                     </template>
+                                    <div class="rounded-lg border border-line p-3 space-y-2">
+                                        <label class="flex items-start gap-2 text-sm text-ink cursor-pointer">
+                                            <input type="checkbox" x-model="sel.say.as_text" @change="asTextToggled(sel)" class="mt-0.5">
+                                            <span>
+                                                <span class="font-semibold">Enviar como texto numerado</span>
+                                                <span class="block text-[11px] text-ink-3">Em vez do template, O Lara manda o texto abaixo com as opções do passo numeradas, e o contato responde com o número. Use quando a lista ou os botões chegarem sem o botão de opções. Desmarque para voltar ao template.</span>
+                                            </span>
+                                        </label>
+                                        <div x-show="sel.say.as_text">
+                                            <textarea rows="3" x-model="sel.say.text" class="{{ $campo }}" placeholder="Escolha uma das opções abaixo:"></textarea>
+                                            <p class="text-[11px] text-ink-3 mt-1">As opções do passo entram numeradas depois deste texto, seguidas de "Responda com o número da opção". Revise também a mensagem de correção do passo, se ela falar em tocar no botão.</p>
+                                        </div>
+                                    </div>
                                     <div>
                                         <label class="{{ $rotulo }}">Variáveis do template, na ordem (opcional)</label>
                                         <template x-for="(p, pi) in sel.say.params">
@@ -747,7 +760,7 @@
                         return {
                             _uid: ++uid, key,
                             pos: pos && Number.isFinite(pos.x) && Number.isFinite(pos.y) ? {x: pos.x, y: pos.y} : null,
-                            say: {type: say.type || '', text: say.text || '', template_uuid: say.template_uuid || '', params: [...(say.params || [])]},
+                            say: {type: say.type || '', text: say.text || '', template_uuid: say.template_uuid || '', params: [...(say.params || [])], as_text: !!say.as_text},
                             expect: {type: ex.type || '', min: ex.min ?? '', max: ex.max ?? '', pattern: ex.pattern || '', past_only: !!ex.past_only, future_only: !!ex.future_only},
                             options: (s.options || []).map(o => ({label: o.label || '', description: o.description || '', aliases: (o.aliases || []).join(', '), next: o.next || '', value: o.value || ''})),
                             save_as: s.save_as || '', invalid: s.invalid || '', max_attempts: s.max_attempts ?? '',
@@ -770,6 +783,10 @@
                                     out.say.template_uuid = s.say.template_uuid;
                                     const params = s.say.params.filter(p => p.trim() !== '');
                                     if (params.length) out.say.params = params;
+                                    if (s.say.as_text) {
+                                        out.say.as_text = true;
+                                        if ((s.say.text || '').trim() !== '') out.say.text = s.say.text;
+                                    }
                                 } else {
                                     out.say.text = s.say.text;
                                 }
@@ -876,6 +893,7 @@
 
                     previewText(s) {
                         if (s.say.type === 'template') {
+                            if (s.say.as_text) return '[como texto] ' + (s.say.text || '');
                             const t = this.templateById(s.say.template_uuid);
                             return t ? `[${t.key}] ${t.body || ''}` : (s.say.template_uuid ? 'Template ' + s.say.template_uuid.slice(0, 8) + '…' : '');
                         }
@@ -1340,6 +1358,15 @@
                     },
 
                     templateById(uuid) { return this.templates.find(t => t.uuid === uuid) || null; },
+
+                    // Ligou o texto numerado: começa pelo corpo do template e
+                    // traz as opções dele se o passo ainda não tem nenhuma.
+                    asTextToggled(step) {
+                        if (!step.say.as_text) return;
+                        const t = this.templateById(step.say.template_uuid);
+                        if (t && (step.say.text || '').trim() === '') step.say.text = t.body || '';
+                        if (t && !step.options.some(o => o.label.trim() !== '')) this.useTemplateOptions(step);
+                    },
 
                     useTemplateOptions(step) {
                         const t = this.templateById(step.say.template_uuid);

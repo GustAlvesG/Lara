@@ -1,6 +1,6 @@
 ---
 modulo: Bot WhatsApp
-palavras: bot, robô, WhatsApp, Poli, fluxo, menu do WhatsApp, atendimento automático, mensagem automática, transbordo, transferir para atendente, time, secretaria, fila de espera, encerramento, horário de atendimento, feriado, simulador, template, sem atendente, conversa encerrada
+palavras: bot, robô, WhatsApp, Poli, fluxo, menu do WhatsApp, atendimento automático, mensagem automática, transbordo, transferir para atendente, time, secretaria, fila de espera, encerramento, horário de atendimento, feriado, simulador, template, menu sem botão, lista sem opções, texto numerado, ver opções, sem atendente, conversa encerrada
 ---
 
 # Bot WhatsApp — guia de uso
@@ -58,6 +58,11 @@ Monte os passos no quadro: arraste blocos da paleta — **Mensagem**, **Pergunta
 Clique num bloco para editá-lo na aba **Passo**, em três partes: **1. O bot diz** (texto, menu numerado ou template da Poli; *negrito* e _itálico_ funcionam), **2. O bot espera como resposta** (uma das opções, texto livre, placa, data, número, sim ou não, imagem ou qualquer coisa) e **3. Depois** (passar para um time, encerrar, registrar pedido de carro de aplicativo, continuar em outro fluxo, e o próximo passo).
 
 Salve com **Salvar** (ou Ctrl+S). Marque **Ativo** só depois de testar no Simulador.
+
+### Mandar um menu da Poli como texto numerado
+<!-- telas: poli-bot.index -->
+
+Se o associado recebe a lista ou os botões da Poli **sem o botão de opções** (chega só o texto, sem "Ver opções"), abra o fluxo, clique no bloco do template e marque **Enviar como texto numerado** em **1. O bot diz**. O campo que aparece já vem com o texto do template; ajuste se quiser. O associado passa a receber o texto com as opções numeradas e "Responda com o número da opção", e pode responder com o número ou com o nome da opção. Confira se a **mensagem de correção** do passo não manda "tocar em Ver opções", salve e teste no Simulador. Para voltar ao template, desmarque a opção e salve. Os menus de todos os fluxos que usam template (por exemplo, o menu de departamentos, o "fora do horário" e o local do carro de aplicativo) têm essa opção.
 
 ### Guardar respostas e usar variáveis
 
@@ -131,7 +136,7 @@ O quadro **Na fila agora**, na tela **Bot WhatsApp › Transferências e encerra
 ### "O fluxo tem problemas e não foi salvo"
 <!-- telas: poli-bot.index -->
 
-O editor mostra "Não foi salvo. Corrija:" com a lista do que falta, passo a passo, e o bloco com problema fica em vermelho no quadro. Os mais comuns: "próximo passo ... não existe" (ligação para um bloco apagado), "menu sem opções", "opção sem rótulo", "mensagem sem texto", "template sem template_uuid" (escolha o template da Poli), "O fluxo não tem gatilho" (escolha em **Quando começa**) e "Horário de atendimento ligado, mas o passo \"fora do horário\" não existe" (escolha o passo em **Fora do horário, começar pelo passo**). Corrija e salve de novo; nada foi publicado.
+O editor mostra "Não foi salvo. Corrija:" com a lista do que falta, passo a passo, e o bloco com problema fica em vermelho no quadro. Os mais comuns: "próximo passo ... não existe" (ligação para um bloco apagado), "menu sem opções", "opção sem rótulo", "mensagem sem texto", "template sem template_uuid" (escolha o template da Poli), "template enviado como texto precisa das opções do passo" (clique em **Usar as opções deste template**), "O fluxo não tem gatilho" (escolha em **Quando começa**) e "Horário de atendimento ligado, mas o passo \"fora do horário\" não existe" (escolha o passo em **Fora do horário, começar pelo passo**). Corrija e salve de novo; nada foi publicado.
 
 ### "Já existe um fluxo com este identificador."
 <!-- telas: poli-bot.index -->

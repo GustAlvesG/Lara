@@ -57,6 +57,9 @@ encerrada.
   `poli.bot.burst_grace_seconds`, padrão 5 s, depois) não recebe correção nem gasta tentativa
   (`writtenBeforeLastReply`). Depende de `ParsedPoliMessage::createdAt`; sem ele, comportamento antigo.
 - **Correção de menu** reenvia o menu (nova `prompt_message_uuid`).
+- **Template como texto** (`say.as_text`, desde 12/11/2026): `BotEngine::templateAsText` manda
+  `say.text` + opções do passo numeradas + `poli.bot.messages.menu_as_text_hint` como TEXT, no
+  lugar do template. Contorno para a Poli entregando LIST sem o botão; o `template_uuid` fica.
 - **Transbordo:** `distribute()` do motor (todo transbordo passa por ele) grava
   `bot_sessions.handoff_team_uuid`, tira a foto do time (`TeamAvailability::snapshot` →
   `bot_attendance_events.team_size/online/available/snapshot`; disponível = ONLINE + AVAILABLE) e

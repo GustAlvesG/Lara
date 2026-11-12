@@ -8,7 +8,8 @@ decide o que responder é a Lara, a partir de **fluxos** editados na tela **Bot 
 
 Cada fluxo é uma sequência de **passos**. Todo passo tem até três partes:
 
-1. **O bot diz** — um texto, um menu numerado, ou um template da Poli (lista ou botões).
+1. **O bot diz** — um texto, um menu numerado, ou um template da Poli (lista ou botões). O
+   template pode sair **como texto numerado** (ver abaixo).
 2. **O bot espera** — o tipo de resposta aceita: uma das opções, texto livre (com tamanho e
    formato), placa, data, número, sim/não, imagem ou qualquer coisa. Resposta que não serve
    recebe a mensagem de correção do passo; esgotadas as tentativas, a conversa vai para um
@@ -232,6 +233,21 @@ Nos dois, as conversas que continuam no bot da Poli passam pela Lara só em somb
    à direita de um bloco até outro. Cada opção de um menu é uma saída própria. Soltar a ligação
    no vazio cria um bloco já ligado. Clique num bloco para editá-lo na aba **Passo**. Para menus
    da Poli, escolha o template e clique em **Usar as opções deste template**.
+
+   **Enviar como texto numerado** (passos de template, desde 12/11/2026): marcada, O Lara não
+   manda o template; manda o texto do campo abaixo da opção (pré-preenchido com o corpo do
+   template; vazio = "Escolha uma das opções abaixo:"), as opções do passo numeradas com a
+   descrição (`*1* - Financeiro _(Consulte seus débitos…)_`) e "_Responda com o número da
+   opção._" (`poli.bot.messages.menu_as_text_hint` / `menu_as_text_default`). A resposta é
+   casada pelo número, pelo rótulo ou pelo apelido, como em qualquer menu. O `template_uuid`
+   continua no passo: desmarcar volta ao template. No JSON: `say.as_text = true` e `say.text`.
+   Passo de template como texto sem opções não salva. É o contorno para quando a Poli entrega a
+   lista ou os botões sem o botão de opções — foi o que aconteceu em 12/11/2026 a partir das
+   11:09, quando o canal passou a vir com `supports_reactions: true`: o envio seguia aceito
+   (`RECEIVED_BY_PROVIDER`), mas quase ninguém conseguia tocar. Para conferir se voltou a
+   funcionar, compare por hora as listas enviadas com as respostas que citam mensagem
+   (`value.context.message`) em `uber_access_request_messages`. Ao ligar a opção, revise a
+   mensagem de correção do passo se ela mandar "tocar" no botão.
 5. Use **Guardar a resposta como** para reaproveitar respostas nos textos seguintes
    (`{placa}`, `{nome}`; `{contato}` é o primeiro nome do WhatsApp).
 6. Salve **inativo** e teste no **Simulador** (▶ Testar este). O simulador nunca envia nada e
@@ -310,7 +326,7 @@ conferir e salvar.
 ## Mensagens e erros
 
 - *"O fluxo tem problemas e não foi salvo"* — a lista abaixo aponta cada passo: próximo passo
-  inexistente, menu sem opções, template sem uuid, formato (regex) inválido, horário malformado,
+  inexistente, menu sem opções, template sem uuid, template como texto sem opções, formato (regex) inválido, horário malformado,
   dois fluxos de boas-vindas ativos, goto para fluxo que não existe.
 - *"Não foi possível consultar a Poli agora"* — templates e times não carregaram; os campos
   continuam editáveis e a tela tenta de novo no ↻.

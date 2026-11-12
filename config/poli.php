@@ -393,6 +393,11 @@ return [
                 'image' => 'Preciso de uma imagem. Envie a foto ou a captura de tela, por favor.',
                 'media' => 'Por aqui eu só consigo ler mensagens de texto. Pode escrever, por favor?',
             ],
+            // Template enviado como texto (passo com "Enviar como texto
+            // numerado"): o fecho depois das opções, e o corpo quando o
+            // passo não tem texto próprio.
+            'menu_as_text_hint' => '_Responda com o número da opção._',
+            'menu_as_text_default' => 'Escolha uma das opções abaixo:',
             'stale_menu' => 'Esse menu é de uma etapa anterior. Responda, por favor, à última pergunta:',
             'handoff' => 'Certo! Vou te passar para um de nossos atendentes. Aguarde um instante, por favor.',
             'too_many_attempts' => 'Não consegui entender suas respostas. Vou te passar para um atendente.',

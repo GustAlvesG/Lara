@@ -20,7 +20,8 @@ namespace App\Services\PoliBot;
  *       "<chave>": {
  *         "say":     {"type": "text", "text": "Olá, {nome}!"}
  *                  | {"type": "menu", "text": "Escolha:"}         // texto + opções numeradas
- *                  | {"type": "template", "template_uuid": "…", "params": ["{nome}"]},
+ *                  | {"type": "template", "template_uuid": "…", "params": ["{nome}"]}
+ *                  | {"type": "template", "template_uuid": "…", "as_text": true, "text": "Escolha:"},
  *         "expect":  {"type": "text", "min": 2, "max": 80, "pattern": "…"}
  *                  | {"type": "option"} | {"type": "plate"} | {"type": "date"}
  *                  | {"type": "number", "min": 1, "max": 10} | {"type": "yes_no"}
@@ -40,6 +41,12 @@ namespace App\Services\PoliBot;
  * editor, por chave de passo, mais as entradas ":inicio" e ":fora" —
  * {"menu": {"x": 290, "y": 40}, ":inicio": {"x": 40, "y": 50}}. O motor
  * não lê, e fluxo sem `layout` é arrumado automaticamente ao abrir.
+ *
+ * Template com `as_text` (desde 12/11/2026) não sai como template: sai como
+ * texto — `text` (ou uma frase padrão, sem ele), as `options` do passo
+ * numeradas com a descrição e "Responda com o número da opção". É o contorno
+ * para quando a Poli entrega a lista sem o botão "Ver opções"; o
+ * `template_uuid` fica guardado para voltar ao template desmarcando a opção.
  *
  * Passo sem `expect` não espera resposta: diz o que tem a dizer, executa a
  * ação e segue para `next` (ou termina a conversa, se não houver).
@@ -316,6 +323,8 @@ class FlowDefinition
             $pedeOpcao = $expect === 'option' || in_array($say['type'] ?? null, ['menu'], true);
             if ($pedeOpcao && (!is_array($opcoes) || $opcoes === [])) {
                 $erros[] = "{$onde}: menu sem opções.";
+            } elseif (($say['type'] ?? null) === 'template' && !empty($say['as_text']) && (!is_array($opcoes) || $opcoes === [])) {
+                $erros[] = "{$onde}: template enviado como texto precisa das opções do passo (use \"Usar as opções deste template\").";
             }
 
             foreach (is_array($opcoes) ? $opcoes : [] as $i => $opcao) {

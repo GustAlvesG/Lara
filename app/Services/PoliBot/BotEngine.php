@@ -1476,7 +1476,9 @@ class BotEngine
         $opcoes = isset($step['options']) && is_array($step['options']) ? array_values($step['options']) : null;
 
         $mensagem = match ($say['type'] ?? 'text') {
-            'template' => $this->out->template(
+            'template' => !empty($say['as_text'])
+                ? $this->out->text($session, $this->templateAsText($session, $say, $opcoes ?? []), $opcoes)
+                : $this->out->template(
                 $session,
                 (string) $say['template_uuid'],
                 array_map(fn ($p) => $this->render($session, (string) $p), (array) ($say['params'] ?? [])),
@@ -1507,6 +1509,37 @@ class BotEngine
         }
 
         return $this->render($session, $texto) . "\n\n" . implode("\n", $linhas);
+    }
+
+    /**
+     * Template (lista ou botões) enviado como texto: o corpo do passo, as
+     * opções numeradas com a descrição e a instrução de responder com o
+     * número. É o contorno para quando a Poli entrega a lista sem o botão
+     * "Ver opções" (medido em 12/11/2026) — a resposta digitada já é casada
+     * pelo número, pelo rótulo ou pelo apelido (AnswerValidator::option).
+     *
+     * @param array<string, mixed> $say
+     * @param array<int, array<string, mixed>> $opcoes
+     */
+    private function templateAsText(BotSession $session, array $say, array $opcoes): string
+    {
+        $corpo = trim($this->render($session, (string) ($say['text'] ?? '')));
+
+        if ($corpo === '') {
+            $corpo = (string) config('poli.bot.messages.menu_as_text_default');
+        }
+
+        if ($opcoes === []) {
+            return $corpo;
+        }
+
+        $linhas = [];
+        foreach ($opcoes as $i => $opcao) {
+            $descricao = trim((string) ($opcao['description'] ?? ''));
+            $linhas[] = '*' . ($i + 1) . '* - ' . ($opcao['label'] ?? '') . ($descricao !== '' ? " _({$descricao})_" : '');
+        }
+
+        return $corpo . "\n\n" . implode("\n", $linhas) . "\n\n" . config('poli.bot.messages.menu_as_text_hint');
     }
 
     /**
