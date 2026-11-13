@@ -32,7 +32,8 @@ use Illuminate\Support\Str;
  *  - as 5 tentativas de CPF contam no LINK, somadas entre as aberturas —
  *    abrir de novo não devolve tentativa. Esgotadas, o link é bloqueado.
  *
- * O link vale `remote.link_ttl_hours` e pode ser aberto várias vezes até a
+ * O link vale `remote.link_ttl_days` (7 dias do envio; o reenvio troca o
+ * link por outro de mais 7 dias) e pode ser aberto várias vezes até a
  * pessoa assinar ou recusar: cada abertura vira uma liberação
  * (`signature_requests`, `identity_method = link_email`) com sessão curta,
  * consumida na hora — o segredo dela nunca sai do servidor.
@@ -120,16 +121,18 @@ class RemoteSignatureService
             $substituidos = $this->supersedeActive($signer, $userId, $userName);
 
             $token = Str::random(64);
-            $vence = now()->addHours(max(1, (int) config('signature.remote.link_ttl_hours', 72)));
+            // 7 dias a partir deste envio; reenviar dá outros 7 a partir do
+            // reenvio (decisão do usuário, 13/11/2026).
+            $vence = now()->addDays(max(1, (int) config('signature.remote.link_ttl_days', 7)));
 
             /*
-             | O prazo do balcão é de horas (`document_ttl_hours`), e o link vale
-             | dias. Sem estender, o documento expiraria com o link ainda no
-             | e-mail da pessoa. Só estende: um prazo maior (gov.br, diretoria)
-             | fica como está.
+             | Sem estender, o documento expiraria com o link ainda no e-mail da
+             | pessoa (o reenvio no 6º dia, por exemplo). Só estende: um prazo
+             | maior fica como está, e o documento SEM prazo (só falta a
+             | diretoria) continua sem prazo.
              */
             $prazoAnterior = $document->expires_at;
-            $estendeu = $prazoAnterior === null || $prazoAnterior->lt($vence);
+            $estendeu = $prazoAnterior !== null && $prazoAnterior->lt($vence);
 
             if ($estendeu) {
                 $document->forceFill(['expires_at' => $vence])->save();
@@ -165,7 +168,7 @@ class RemoteSignatureService
                     'link' => $link->id,
                     'email' => $link->maskedEmail(),
                     'vale_ate' => $vence->toDateTimeString(),
-                    'prazo_do_documento' => $estendeu ? $vence->toDateTimeString() : $prazoAnterior?->toDateTimeString(),
+                    'prazo_do_documento' => $estendeu ? $vence->toDateTimeString() : ($prazoAnterior?->toDateTimeString() ?? 'sem prazo'),
                     'substituiu' => $substituidos,
                     'enviado_por' => $userName,
                 ],

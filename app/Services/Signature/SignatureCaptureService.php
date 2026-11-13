@@ -52,6 +52,13 @@ class SignatureCaptureService
     /** Espera mínima, em segundos, entre dois envios do código. */
     public const CODE_RESEND_SECONDS = 60;
 
+    /**
+     * Quantos "Não recebi o código" liberam o documento de identidade no lugar
+     * do código: o primeiro reenvia, o segundo libera (decisão do usuário,
+     * 13/11/2026 — o serviço de e-mail vinha falhando).
+     */
+    public const NOT_RECEIVED_FOR_FALLBACK = 2;
+
     public function __construct(
         private SignatureStateMachine $states,
         private SignatureRequestService $requests,
@@ -201,6 +208,150 @@ class SignatureCaptureService
         });
 
         return $request;
+    }
+
+    /**
+     * "Não recebi o código", tocado pela pessoa no tablet.
+     *
+     * Na primeira vez, o código é reenviado (um código novo, que troca o
+     * anterior). Na segunda, a pessoa passa a poder fotografar ou anexar um
+     * documento de identidade e seguir com ele (`confirmIdentityByDocument`).
+     * O reenvio que falha (SMTP fora do ar) conta do mesmo jeito: o e-mail
+     * certamente não chegou.
+     *
+     * O pedido é registrado na trilha antes do reenvio, e fica mesmo se o
+     * reenvio falhar.
+     *
+     * @param  array{ip?: ?string, user_agent?: ?string}  $context
+     * @return array{resent: bool, fallback: bool, error: ?string}
+     *
+     * @throws SignatureSessionException
+     */
+    public function reportCodeNotReceived(SignatureRequest $request, array $context = []): array
+    {
+        $this->assertEmailCodePending($request);
+
+        if ($request->identityFallbackAllowed()) {
+            return ['resent' => false, 'fallback' => true, 'error' => null];
+        }
+
+        // Antes do primeiro pedido, a mesma espera do reenvio: o e-mail pode
+        // só estar demorando.
+        if ($request->identity_code_not_received === 0
+            && $request->identity_code_sent_at
+            && $request->identity_code_sent_at->diffInSeconds(now()) < self::CODE_RESEND_SECONDS) {
+            throw new SignatureSessionException('Aguarde um minuto: o e-mail pode demorar um pouco a chegar.', 429);
+        }
+
+        $request->forceFill(['identity_code_not_received' => $request->identity_code_not_received + 1])->save();
+
+        $this->states->note($request->signer->signature_document_id, SignatureAuditEvent::EVENT_IDENTITY_CODE_NOT_RECEIVED, [
+            'signer' => $request->signature_signer_id,
+            'request' => $request->id,
+            'actor_type' => SignatureAuditEvent::ACTOR_KIOSK,
+            'ip' => $context['ip'] ?? null,
+            'user_agent' => $context['user_agent'] ?? null,
+            'payload' => ['vez' => $request->identity_code_not_received],
+        ]);
+
+        if ($request->identityFallbackAllowed()) {
+            return ['resent' => false, 'fallback' => true, 'error' => null];
+        }
+
+        try {
+            $this->sendIdentityCode($request, $context);
+        } catch (SignatureSessionException $e) {
+            return ['resent' => false, 'fallback' => false, 'error' => $e->getMessage()];
+        } catch (\Throwable $e) {
+            Log::error('Falha ao reenviar o código de identidade.', [
+                'request_id' => $request->id,
+                'erro' => $e->getMessage(),
+            ]);
+
+            return ['resent' => false, 'fallback' => false, 'error' => 'Não foi possível reenviar o código agora.'];
+        }
+
+        return ['resent' => true, 'fallback' => false, 'error' => null];
+    }
+
+    /**
+     * Confere a identidade pelo documento que a pessoa fotografou ou anexou
+     * no tablet, no lugar do código por e-mail — só depois do segundo "Não
+     * recebi o código".
+     *
+     * O arquivo vira anexo do documento (o atendente vê, o manifesto imprime
+     * o hash) e a liberação guarda qual foi: é o que o manifesto escreve como
+     * forma de conferência. Ninguém aprova antes: a pessoa segue e assina
+     * (decisão do usuário, 13/11/2026).
+     *
+     * @param  array{ip?: ?string, user_agent?: ?string}  $context
+     *
+     * @throws SignatureSessionException
+     */
+    public function confirmIdentityByDocument(SignatureRequest $request, \Illuminate\Http\UploadedFile $file, array $context = []): SignatureRequest
+    {
+        $this->assertEmailCodePending($request);
+
+        if (!$request->identityFallbackAllowed()) {
+            throw new SignatureSessionException('Antes, toque em "Não recebi o código" para pedirmos um novo envio.', 409);
+        }
+
+        try {
+            $anexo = app(SignatureAttachmentService::class)->storeIdentityFallback($request, $file, $context);
+        } catch (\App\Exceptions\SignatureDocumentLockedException $e) {
+            throw new SignatureSessionException($e->getMessage(), 422);
+        }
+
+        try {
+            DB::transaction(function () use ($request, $anexo, $context) {
+                $request->forceFill([
+                    'identity_confirmed_at' => now(),
+                    'identity_code_hash' => null,
+                    'identity_code_expires_at' => null,
+                    'identity_fallback_attachment_id' => $anexo->id,
+                ])->save();
+
+                $this->states->note($request->signer->signature_document_id, SignatureAuditEvent::EVENT_IDENTITY_CONFIRMED, [
+                    'signer' => $request->signature_signer_id,
+                    'request' => $request->id,
+                    'actor_type' => SignatureAuditEvent::ACTOR_KIOSK,
+                    'ip' => $context['ip'] ?? null,
+                    'user_agent' => $context['user_agent'] ?? null,
+                    'payload' => [
+                        'modo' => 'email_documento',
+                        'anexo' => $anexo->id,
+                        'sha256' => $anexo->sha256,
+                    ],
+                ]);
+            });
+        } catch (\Throwable $e) {
+            Log::error('Conferência por documento: o anexo entrou, mas a identidade não foi registrada.', [
+                'request_id' => $request->id,
+                'anexo' => $anexo->id,
+                'erro' => $e->getMessage(),
+            ]);
+
+            throw new SignatureSessionException('Não foi possível registrar o documento agora. Tente de novo.', 500);
+        }
+
+        return $request;
+    }
+
+    /**
+     * A etapa é a do código por e-mail, no tablet, e ainda não foi vencida.
+     *
+     * @throws SignatureSessionException
+     */
+    private function assertEmailCodePending(SignatureRequest $request): void
+    {
+        if ($request->isRemote()
+            || $request->signer->document->effectiveTemplate()->identity_check !== SignatureTemplate::IDENTITY_EMAIL) {
+            throw new SignatureSessionException('Este documento não usa código por e-mail.', 422);
+        }
+
+        if ($request->identity_confirmed_at !== null) {
+            throw new SignatureSessionException('A identidade já foi confirmada.', 409);
+        }
     }
 
     /** O que fazer para recomeçar: no balcão, outro QR; no remoto, outro link. */

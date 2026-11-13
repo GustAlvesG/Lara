@@ -45,7 +45,7 @@ Na tela **Assinaturas › Documentos**, cada documento mostra uma situação:
 - **Finalizado**: a revisão interna deu **Tudo em ordem**. O Termo de Menores e os contratos não passam pela revisão e chegam aqui direto.
 - **Recusado**, **Cancelado** ou **Expirado**: encerrado sem assinatura. A pessoa recusou, o atendente cancelou, ou ninguém assinou dentro do prazo.
 
-Os prazos padrão para assinar, contados do congelamento: 24 horas no balcão, 7 dias depois de preparar para o gov.br, 7 dias quando há diretor entre os signatários. O link remoto vale 72 horas e estende o prazo do documento até lá. A TI pode ter ajustado esses valores.
+Os prazos padrão para assinar: 7 dias a partir do congelamento no balcão e 7 dias a partir da preparação para o gov.br. O link remoto vale 7 dias a partir do envio. **Enviar novo link** dá mais 7 dias a partir do novo envio, e o prazo do documento acompanha o link. Quando só falta a diretoria assinar, o documento fica **sem prazo** e não expira mais. A TI pode ter ajustado esses valores.
 
 A regra mais importante: **depois de congelado, o documento não pode ser corrigido**. Para mudar qualquer coisa, cancele e emita um documento novo. Por isso, confira o texto com a pessoa antes de congelar.
 
@@ -215,7 +215,7 @@ Conhecer as telas ajuda a orientar quem está assinando no tablet do balcão. Al
 1. **Leitura do QR**: a pessoa aponta a câmera para o código na tela do atendente.
 2. **Perguntas** (se houver): "Antes de ler, responda". Depois, **Continuar**.
 3. **Documento**: rola o texto até o fim; só então o botão vira **Li o documento**. Quando há mais de uma pessoa assinando, acima do documento aparece quem assina e quem já assinou ("1 de 2 já assinaram"), com dia e hora, e no próprio documento já aparece a assinatura de quem assinou antes.
-4. **Identidade**: digita os quatro primeiros dígitos do CPF, o CPF completo ou o código que chegou no e-mail (se não chegar, **Reenviar código**, depois de um minuto). São cinco tentativas.
+4. **Identidade**: digita os quatro primeiros dígitos do CPF, o CPF completo ou o código que chegou no e-mail. São cinco tentativas. Se o código não chegar, a pessoa toca em **Não recebi o código** (o botão aparece depois de um minuto). Na primeira vez, o tablet manda um código novo. Na segunda, o tablet oferece **Fotografar documento** ou **Escolher arquivo**: a pessoa fotografa um documento de identidade com foto (RG, CNH) ou escolhe um arquivo JPG, PNG ou PDF e segue para assinar. O documento enviado fica como anexo do documento ("Documento de identidade de … (código por e-mail não recebido)"), e o comprovante (manifesto) registra que a identidade foi conferida assim.
 5. **Aceite**: marca "Li e concordo" e, quando o modelo pede foto, também a autorização de imagem. Pode pedir a via por e-mail. Se houve perguntas, o botão só libera depois que o atendente aprova as respostas ("Aguardando o atendente conferir as suas respostas").
 6. **Assinatura**: com o dedo ou a caneta. **Limpar** apaga e deixa refazer.
 7. **Visto** (se houver): a rubrica que vai em todas as páginas.
@@ -266,7 +266,7 @@ Quem não pode vir ao clube assina por um link enviado por e-mail. O link abre u
 
 O que vale saber:
 
-- O link vale 72 horas, e o prazo do documento é estendido até lá.
+- O link vale 7 dias a partir do envio, e o prazo do documento é estendido até lá. **Enviar novo link** troca o link por outro que vale mais 7 dias a partir do novo envio. O link anterior deixa de abrir.
 - Serve para qualquer documento, inclusive com perguntas e visto. Tablet e link podem ser usados no mesmo documento, um para cada pessoa.
 - A conferência é sempre pelo CPF completo. São 5 tentativas por link, somadas entre aberturas; na quinta errada o link é bloqueado.
 - A foto é sempre obrigatória no link. Sem câmera, a pessoa não conclui.
@@ -421,7 +421,7 @@ Em **Assinaturas › Documentos › Novo documento**, no passo **Signatários**,
 O que acontece depois:
 
 - A pessoa escolhida é a que assina: o nome e o CPF dela vão impressos. Se ela não puder assinar, cancele e emita de novo com quem a substitui.
-- O documento ganha 7 dias de prazo ao congelar.
+- Ao congelar, o documento ganha 7 dias de prazo enquanto falta alguém de fora da diretoria assinar. Quando só falta a diretoria, ele fica **sem prazo** e espera o diretor pelo tempo que for preciso.
 - Se há outros signatários (o sócio, um fornecedor), o documento só vai para a diretoria **depois que eles assinarem**. Até lá não aparece no tablet do diretor, o link remoto do diretor não sai, e o cartão dele no documento diz "Vai para a diretoria depois da assinatura de…". Essa ordem vale só para os documentos do módulo Assinaturas: nos **contratos** (módulo Contratos), o diretor assina quando quiser, antes ou depois dos demais.
 - Quando chega a vez da diretoria, o diretor recebe um e-mail de aviso, sem link.
 - A lista **Documentos** tem o filtro **Aguardando diretoria**, só com os que já chegaram à diretoria.
@@ -531,7 +531,12 @@ O quadro só aparece com o documento em **Aguardando assinatura** e fora do gov.
 ### O link remoto foi bloqueado ou venceu
 <!-- telas: signature-documents.index -->
 
-Na quinta tentativa errada de CPF o link é bloqueado; depois de 72 horas ele vence. No quadro **Assinatura remota**, clique em **Enviar novo link**.
+Na quinta tentativa errada de CPF o link é bloqueado; 7 dias depois do envio ele vence. No quadro **Assinatura remota**, clique em **Enviar novo link**: o novo vale mais 7 dias.
+
+### A pessoa não recebe o código por e-mail no tablet
+<!-- telas: signature-documents.index -->
+
+Peça que ela toque em **Não recebi o código**. Na primeira vez, o tablet manda um código novo; vale conferir a caixa de spam. Na segunda, o tablet deixa fotografar um documento de identidade com foto, ou escolher um arquivo, e seguir sem o código. Confira o documento enviado no quadro de anexos da página do documento.
 
 ### A pessoa não recebeu a via por e-mail
 <!-- telas: signature-documents.index -->
@@ -570,4 +575,4 @@ Na área: ele precisa ser do setor Diretoria, estar ativo e ter matrícula. No d
 
 ### O diretor não vê o documento na lista do tablet
 
-Ou ainda falta a assinatura de quem é de fora da diretoria (o documento só chega depois; nos contratos não há essa espera), ou o documento foi preparado para o gov.br, ou o prazo de 7 dias venceu. O documento só aparece para a pessoa escolhida (titular ou substituto) ao criar.
+Ou ainda falta a assinatura de quem é de fora da diretoria (o documento só chega depois; nos contratos não há essa espera), ou o documento foi preparado para o gov.br, ou o prazo de 7 dias venceu antes de os demais assinarem (quando só falta a diretoria, não há prazo). O documento só aparece para a pessoa escolhida (titular ou substituto) ao criar.

@@ -252,18 +252,51 @@ class SignatureDirectorTest extends TestCase
         $this->assertSame('Diretoria Financeira (substituto)', $signatario->capacityLabel());
     }
 
-    public function test_congelar_com_diretor_da_prazo_em_dias_e_avisa_por_email(): void
+    public function test_congelar_so_com_diretor_fica_sem_prazo_e_avisa_por_email(): void
     {
         $ana = $this->diretor('Ana Diretora', '777', '12345678909');
         $documento = $this->documentoComDiretor($this->areaCom($ana), $ana);
 
-        $this->assertTrue($documento->expires_at->between(now()->addDays(7)->subMinute(), now()->addDays(7)->addMinute()));
+        // Só falta a diretoria: sem prazo (13/11/2026).
+        $this->assertNull($documento->expires_at);
 
         Mail::assertSent(SignatureDirectorPendingMail::class, fn($m) => $m->hasTo($ana->email));
 
         $diretor = $documento->signers()->whereNotNull('director_area_id')->sole();
         $this->assertNotNull($diretor->director_notified_at);
         $this->assertSame(1, SignatureAuditEvent::where('event', SignatureAuditEvent::EVENT_DIRECTOR_NOTIFIED)->count());
+    }
+
+    public function test_prazo_de_7_dias_ate_faltar_so_a_diretoria(): void
+    {
+        $ana = $this->diretor('Ana Diretora', '777', '12345678909');
+        $documento = $this->documentoComDiretor($this->areaCom($ana), $ana, [], true);
+
+        // Falta a sócia: vale o prazo do documento.
+        $this->assertTrue($documento->expires_at->between(now()->addDays(7)->subMinute(), now()->addDays(7)->addMinute()));
+
+        $socia = $documento->signers()->whereNull('director_area_id')->sole();
+        app(\App\Services\Signature\SignatureStateMachine::class)
+            ->signerTo($socia, SignatureSigner::STATUS_SIGNED, SignatureAuditEvent::EVENT_SIGNED, ['signed_at' => now()]);
+
+        // A sócia assinou: só falta a diretoria, o prazo sai, com evento.
+        $this->assertNull($documento->fresh()->expires_at);
+        $this->assertSame(1, SignatureAuditEvent::where('event', SignatureAuditEvent::EVENT_DEADLINE_REMOVED)->count());
+    }
+
+    public function test_expire_nao_expira_documento_que_so_espera_a_diretoria(): void
+    {
+        $ana = $this->diretor('Ana Diretora', '777', '12345678909');
+        $documento = $this->documentoComDiretor($this->areaCom($ana), $ana);
+
+        // Prazo da regra antiga, já vencido.
+        $documento->forceFill(['expires_at' => now()->subMinute()])->save();
+
+        $this->artisan('signature:expire')->assertSuccessful();
+
+        $documento->refresh();
+        $this->assertSame(SignatureDocument::STATUS_AWAITING_SIGNATURE, $documento->status);
+        $this->assertNull($documento->expires_at);
     }
 
     public function test_filtro_aguardando_diretoria(): void

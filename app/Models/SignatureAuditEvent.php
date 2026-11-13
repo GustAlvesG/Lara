@@ -49,6 +49,12 @@ class SignatureAuditEvent extends Model
     public const EVENT_IDENTITY_CONFIRMED = 'identity_confirmed';
     public const EVENT_IDENTITY_FAILED = 'identity_failed';
     public const EVENT_IDENTITY_CODE_SENT = 'identity_code_sent';
+    // "Não recebi o código" no tablet (13/11/2026).
+    public const EVENT_IDENTITY_CODE_NOT_RECEIVED = 'identity_code_not_received';
+    // Prazo retirado: só falta a diretoria assinar (13/11/2026).
+    public const EVENT_DEADLINE_REMOVED = 'deadline_removed';
+    // Documento expirado reaberto (signature:reactivate-expired, 13/11/2026).
+    public const EVENT_REACTIVATED = 'reactivated';
     public const EVENT_SIGNED = 'signed';
     public const EVENT_REFUSED = 'refused';
     public const EVENT_CANCELED = 'canceled';
@@ -99,6 +105,9 @@ class SignatureAuditEvent extends Model
         self::EVENT_IDENTITY_CONFIRMED => 'Identidade confirmada',
         self::EVENT_IDENTITY_FAILED => 'Identidade não confirmada',
         self::EVENT_IDENTITY_CODE_SENT => 'Código de identidade enviado por e-mail',
+        self::EVENT_IDENTITY_CODE_NOT_RECEIVED => 'Signatário informou que não recebeu o código por e-mail',
+        self::EVENT_DEADLINE_REMOVED => 'Prazo retirado: falta só a diretoria assinar',
+        self::EVENT_REACTIVATED => 'Reaberto para assinatura depois de expirar',
         self::EVENT_SIGNED => 'Assinado',
         self::EVENT_REFUSED => 'Recusado',
         self::EVENT_CANCELED => 'Cancelado',

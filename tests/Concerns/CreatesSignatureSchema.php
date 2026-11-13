@@ -77,6 +77,8 @@ trait CreatesSignatureSchema
             '2026_11_05_110000_add_archive_to_signature_contracts.php',
             // Vigência e aviso de término (05/11/2026).
             '2026_11_05_120000_add_validity_to_signature_contracts.php',
+            // Código por e-mail não recebido: documento de identidade no lugar (13/11/2026).
+            '2026_11_13_100000_add_identity_fallback_to_signature_requests.php',
         ];
 
         foreach ($migrations as $arquivo) {

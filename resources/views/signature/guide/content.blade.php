@@ -228,8 +228,8 @@
         <tr><td><b>Finalizado</b></td><td>A revisão interna deu <b>Tudo em ordem</b>. O Termo de Menores e os contratos não
             passam pela revisão e chegam aqui direto.</td></tr>
         <tr><td><b>Recusado, Cancelado ou Expirado</b></td><td>Encerrado sem assinatura: a pessoa recusou no tablet, o
-            atendente cancelou, ou ninguém assinou dentro do prazo (por padrão, 24 horas no balcão, 7 dias pelo
-            gov.br e 7 dias quando há diretor entre os signatários).</td></tr>
+            atendente cancelou, ou ninguém assinou dentro do prazo (por padrão, 7 dias do congelamento no balcão e
+            7 dias da preparação pelo gov.br; quando só falta a diretoria, não há prazo).</td></tr>
     </table>
 
     <div class="box warn">
@@ -749,7 +749,8 @@
             <td><span class="opt">se o modelo pedir</span><b>2. Perguntas</b>"Antes de ler, responda": as perguntas do modelo. Depois, <i>Continuar</i>.</td>
             <td><b>3. Documento</b>Rola o texto até o fim; só então o botão vira <i>Li o documento</i>.</td>
             <td><b>4. Identidade</b>Digita os quatro primeiros dígitos do CPF (ou o CPF completo, ou o código que
-                chegou no e-mail — se não chegar, há <b>Reenviar código</b>, depois de um minuto).</td>
+                chegou no e-mail). Sem o código, <b>Não recebi o código</b> (depois de um minuto): a primeira vez
+                manda outro; a segunda deixa fotografar ou anexar um documento de identidade e seguir.</td>
         </tr>
         <tr>
             <td><b>5. Aceite</b>Marca "Li e concordo" e, quando o modelo pede foto, marca também que
@@ -1029,7 +1030,8 @@
                 em <span class="btn">Enviar link</span>. A pessoa recebe o e-mail na hora. Logo depois, o link aparece no quadro:
                 clique em <span class="btn2">Copiar link</span> para encaminhar também pelo WhatsApp, por exemplo. Ele
                 aparece só nessa hora; ao sair ou recarregar a página, não dá para ver de novo.<br>
-                <span class="small">O link vale <b>72 horas</b>. O prazo do documento é estendido até lá.</span></td>
+                <span class="small">O link vale <b>7 dias</b> a partir do envio, e o prazo do documento é estendido até
+                    lá. <b>Enviar novo link</b> dá mais 7 dias a partir do novo envio.</span></td>
         </tr>
         <tr>
             <td class="n"><span class="num">3</span></td>
@@ -1061,7 +1063,7 @@
             conclusão. Se você já tiver o arquivo, envie pela página do documento: ele conta para ela também. Ela pode
             trocar ou apagar o que ela mesma enviou, até assinar; o que você enviou ela vê, mas não apaga. Na página do
             documento, o anexo aparece como enviado por "nome (signatário, pelo link)".</li>
-        <li>A pessoa pode abrir o link mais de uma vez dentro das 72 horas. Abrir num segundo aparelho fecha a tela do
+        <li>A pessoa pode abrir o link mais de uma vez dentro dos 7 dias. Abrir num segundo aparelho fecha a tela do
             primeiro.</li>
         <li><span class="btn">Enviar novo link</span> faz o anterior <b>parar de valer</b>. Use quando a pessoa perdeu o
             e-mail, o link venceu ou foi bloqueado.</li>
@@ -1200,7 +1202,8 @@
             vêm do cadastro do Lara — não é preciso digitar.</li>
         <li>A pessoa escolhida é a que assina: o nome e o CPF dela vão impressos no documento. Se ela não puder
             assinar, <b>cancele e emita de novo</b> com quem a substitui.</li>
-        <li>O documento ganha <b>7 dias</b> de prazo ao congelar. Se ele tem outros signatários (o sócio, por exemplo),
+        <li>O documento ganha <b>7 dias</b> de prazo ao congelar e fica <b>sem prazo</b> quando só falta a
+            diretoria assinar. Se ele tem outros signatários (o sócio, por exemplo),
             <b>só vai para a diretoria depois que eles assinarem</b> (nos contratos não há essa ordem): até lá não aparece no tablet do diretor, e o
             <b>e-mail de aviso</b> (sem link) sai quando o último deles assina. Sem outros signatários, o aviso sai
             no congelamento. A lista <span class="menu">Documentos</span> tem o filtro <b>Aguardando diretoria</b> (só
@@ -1483,7 +1486,7 @@
     </ul>
 
     <p class="small foot">Assinatura de documentos no Lara — guia do usuário. Os prazos citados (5 minutos do QR Code,
-        15 minutos de sessão do tablet, 24 horas do documento) são os padrões do sistema e podem ter sido ajustados
+        15 minutos de sessão do tablet, 7 dias do documento e do link remoto) são os padrões do sistema e podem ter sido ajustados
         pela TI.</p>
 </div>
 

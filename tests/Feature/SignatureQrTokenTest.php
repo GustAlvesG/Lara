@@ -312,7 +312,7 @@ class SignatureQrTokenTest extends TestCase
     {
         $documento = $this->documentoLiberavel();
 
-        $this->travel((int) config('signature.document_ttl_hours') + 1)->hours();
+        $this->travel((int) config('signature.document_ttl_days') * 24 + 1)->hours();
 
         $this->artisan('signature:expire')->assertSuccessful();
 

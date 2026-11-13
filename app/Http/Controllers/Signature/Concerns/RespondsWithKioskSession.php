@@ -79,7 +79,12 @@ trait RespondsWithKioskSession
                 // digitado no autoatendimento do Termo de Menores. O tablet
                 // pula a etapa de identidade.
                 'identity_confirmed' => $solicitacao->identity_confirmed_at !== null,
-            ],
+            ] + ($solicitacao->isRemote() ? [] : [
+                // Código por e-mail: a pessoa já disse duas vezes que não
+                // recebeu e pode seguir com um documento de identidade
+                // (13/11/2026). Só no balcão — a API do site não muda.
+                'identity_fallback' => $solicitacao->identityFallbackAllowed(),
+            ]),
             'session' => [
                 'remaining_seconds' => $solicitacao->secondsToSessionEnd(),
                 'warning_seconds' => (int) config('signature.session_warning_seconds', 60),

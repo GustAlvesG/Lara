@@ -92,7 +92,9 @@ Por isso, a tela não deve dizer que o link veio por e-mail, e a primeira carga 
 de link do aplicativo: nada de abrir sessão (`abrir`) nem consumir o link sem um clique da pessoa.
 
 Na primeira carga de `/assinar/[token]`:
-1. no servidor, guarde o token num cookie httpOnly (`path=/assinar`, validade de 3 dias);
+1. no servidor, guarde o token num cookie httpOnly (`path=/assinar`) que dure até o `expires_at` do link
+   (devolvido por `POST /link`), ou 8 dias se ainda não souber. Desde 13/11/2026 o link vale **7 dias** a partir do
+   envio (eram 72 horas), e o reenvio pelo clube gera um link novo com mais 7 dias;
 2. redirecione para `/assinar` (sem o token), para ele sair do histórico e da barra de endereço;
 3. sirva a área com `Referrer-Policy: no-referrer`, `Cache-Control: no-store` e o `X-Robots-Tag`.
 

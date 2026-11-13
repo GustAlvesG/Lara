@@ -85,11 +85,19 @@ return [
     ],
 
     /*
-    | Prazo do documento inteiro: liberado e esquecido, é encerrado pelo
-    | comando `signature:expire`. Conta a partir do congelamento.
+    | Prazo do documento inteiro, em DIAS: liberado e esquecido, é encerrado
+    | pelo comando `signature:expire`. Conta a partir do congelamento.
+    |
+    | Era `document_ttl_hours` (24 h) até 13/11/2026; passou a 7 dias por
+    | decisão do usuário. A variável mudou de nome de propósito: um
+    | SIGNATURE_DOCUMENT_TTL_HOURS=24 esquecido no .env do servidor não pode
+    | continuar mandando.
+    |
+    | Quando só falta a DIRETORIA assinar, o documento fica sem prazo (ver
+    | SignatureDeadlineService).
     */
 
-    'document_ttl_hours' => (int) env('SIGNATURE_DOCUMENT_TTL_HOURS', 24),
+    'document_ttl_days' => (int) env('SIGNATURE_DOCUMENT_TTL_DAYS', 7),
 
     /*
     |--------------------------------------------------------------------------
@@ -206,8 +214,9 @@ return [
     | signatário — e, aprovado, conclui a assinatura. Ver
     | GovbrSignatureValidator e GovbrCheckService.
     |
-    | `ttl_days` é o prazo do documento preparado para o gov.br: o vaivém por
-    | e-mail leva dias, e o prazo do balcão (`document_ttl_hours`) é de horas.
+    | `ttl_days` é o prazo do documento preparado para o gov.br, contado da
+    | preparação: o vaivém por e-mail leva dias. Se só falta a diretoria, o
+    | documento fica sem prazo, como no balcão.
     |
     | `trust_bundle` é a cadeia oficial do gov.br (Raiz → Intermediária →
     | Final), baixada de https://repo.iti.br/docs/Cadeia_GovBr-der.p7b e
@@ -369,12 +378,13 @@ return [
     | Assinatura Diretoria (diretor assina no tablet com matrícula e PIN)
     |--------------------------------------------------------------------------
     |
-    | ttl_days              — prazo do documento que tem diretor entre os
-    |                         signatários, contado do congelamento. O diretor
-    |                         não está no balcão: o prazo de horas
-    |                         (`document_ttl_hours`) venceria antes de ele
-    |                         passar pelo tablet.
-    | session_minutes       — inatividade que encerra a entrada do diretor no
+    | Prazo: não há um próprio desde 13/11/2026. Enquanto falta alguém de fora
+    | da diretoria, vale o do documento (`document_ttl_days`); quando só falta
+    | a diretoria, o documento fica SEM prazo (decisão do usuário) — ver
+    | SignatureDeadlineService. O antigo `ttl_days`
+    | (SIGNATURE_DIRECTOR_TTL_DAYS) não é mais lido.
+    |
+    | session_minutes      — inatividade que encerra a entrada do diretor no
     |                         tablet (a lista dos documentos dele). Cada
     |                         consulta renova.
     | max_login_attempts    — tentativas de matrícula + PIN por matrícula, a
@@ -386,7 +396,6 @@ return [
     */
 
     'directors' => [
-        'ttl_days' => (int) env('SIGNATURE_DIRECTOR_TTL_DAYS', 7),
         'session_minutes' => (int) env('SIGNATURE_DIRECTOR_SESSION_MINUTES', 10),
         'max_login_attempts' => (int) env('SIGNATURE_DIRECTOR_MAX_LOGIN_ATTEMPTS', 5),
         'idle_seconds' => (int) env('SIGNATURE_DIRECTOR_IDLE_SECONDS', 90),
@@ -414,8 +423,12 @@ return [
     |                   o que autoriza confiar nos headers `X-Signer-Ip` e
     |                   `X-Signer-User-Agent` (o IP e o navegador de quem
     |                   assina, repassados pelo site).
-    | link_ttl_hours  — validade do link. O prazo do documento é estendido até
-    |                   o fim do link, se for menor.
+    | link_ttl_days   — validade do link, em dias, contada do envio. Enviar de
+    |                   novo ("Enviar novo link") troca o link por outro que
+    |                   vale mais `link_ttl_days` a partir do reenvio. O prazo
+    |                   do documento é estendido até o fim do link, se for
+    |                   menor (e nunca ganha prazo se só falta a diretoria).
+    |                   Era `link_ttl_hours` (72 h) até 13/11/2026.
     | session_minutes — cada abertura do link vale por este tempo de sessão.
     |
     */
@@ -427,7 +440,7 @@ return [
             'trim',
             explode(',', (string) env('SIGNATURE_REMOTE_ALLOWED_IPS', '')),
         ))),
-        'link_ttl_hours' => (int) env('SIGNATURE_REMOTE_TTL_HOURS', 72),
+        'link_ttl_days' => (int) env('SIGNATURE_REMOTE_TTL_DAYS', 7),
         'session_minutes' => (int) env('SIGNATURE_REMOTE_SESSION_MINUTES', 30),
     ],
 

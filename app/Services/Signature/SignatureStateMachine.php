@@ -55,7 +55,12 @@ class SignatureStateMachine
         SignatureDocument::STATUS_FINALIZED => [],
         SignatureDocument::STATUS_REFUSED => [],
         SignatureDocument::STATUS_CANCELED => [],
-        SignatureDocument::STATUS_EXPIRED => [],
+        // Só pela reativação (`signature:reactivate-expired`, 13/11/2026):
+        // o prazo mudou de 24 h para 7 dias e os que venceram na regra antiga
+        // voltaram a aguardar. Nenhuma tela faz isso.
+        SignatureDocument::STATUS_EXPIRED => [
+            SignatureDocument::STATUS_AWAITING_SIGNATURE,
+        ],
     ];
 
     /**
@@ -100,7 +105,10 @@ class SignatureStateMachine
         SignatureSigner::STATUS_SIGNED => [],
         SignatureSigner::STATUS_REFUSED => [],
         SignatureSigner::STATUS_CANCELED => [],
-        SignatureSigner::STATUS_EXPIRED => [],
+        // Só pela reativação do documento (ver DOCUMENT_TRANSITIONS).
+        SignatureSigner::STATUS_EXPIRED => [
+            SignatureSigner::STATUS_PENDING,
+        ],
     ];
 
     public function __construct(private SignatureAuditor $auditor)
@@ -247,6 +255,16 @@ class SignatureStateMachine
                 $event,
                 array_merge(['signer' => $signer->id], $this->withTransition($context, $from, $to)),
             );
+
+            // Assinou o último de fora da diretoria: o documento fica sem
+            // prazo (13/11/2026). Aqui, e não em cada caminho de assinatura
+            // (tablet, link, gov.br), para nenhum deles esquecer.
+            if ($to === SignatureSigner::STATUS_SIGNED) {
+                app(SignatureDeadlineService::class)->dropIfOnlyDirectorsLeft(
+                    $signer->document()->firstOrFail(),
+                    ['signer' => $signer->id],
+                );
+            }
 
             return $signer;
         });

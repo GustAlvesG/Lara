@@ -339,14 +339,10 @@ class SignatureDocumentService
         Storage::disk(config('signature.disk'))->put($path, $bytes);
 
         /*
-         | Diretor não está no balcão: assina quando passar pelo tablet, com
-         | matrícula e PIN. O prazo de horas do balcão venceria antes disso.
+         | 7 dias do congelamento; sem prazo se só a diretoria assina (o
+         | diretor passa pelo tablet quando puder). Ver SignatureDeadlineService.
          */
-        $diretores = $document->signers->filter(fn(SignatureSigner $s) => $s->isDirector());
-
-        $prazo = $diretores->isNotEmpty()
-            ? now()->addDays(max(1, (int) config('signature.directors.ttl_days', 7)))
-            : now()->addHours((int) config('signature.document_ttl_hours', 24));
+        $prazo = app(SignatureDeadlineService::class)->forFreeze($document);
 
         $congelado = $this->states->documentTo(
             $document,
@@ -371,7 +367,7 @@ class SignatureDocumentService
         // por ele, e SMTP fora do ar não pode desfazer o congelamento. Com
         // alguém de fora da diretoria no documento, o aviso espera essa
         // assinatura (SignatureCaptureService).
-        if ($diretores->isNotEmpty()) {
+        if ($document->signers->contains(fn(SignatureSigner $s) => $s->isDirector())) {
             NotifySignatureDirector::forReleased($congelado);
         }
 

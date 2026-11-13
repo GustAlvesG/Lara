@@ -11,6 +11,7 @@ use App\Models\SignatureTemplate;
 use App\Services\Signature\SignatureDocumentRenderer;
 use App\Services\Signature\SignatureDocumentService;
 use App\Services\Signature\SignatureRequestService;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
@@ -194,6 +195,103 @@ class SignatureIdentityEmailCodeTest extends TestCase
 
         $this->assertSame(0, SignatureRequest::sole()->identity_code_sends);
         $this->assertNull(SignatureRequest::sole()->identity_code_hash);
+    }
+
+    /**
+     * "Não recebi o código" (13/11/2026): o primeiro reenvia, o segundo libera
+     * o documento de identidade, que confirma a identidade e vira anexo.
+     */
+    public function test_nao_recebi_duas_vezes_libera_o_documento_de_identidade(): void
+    {
+        ['document' => $documento, 'cookie' => $cookie] = $this->sessaoAberta();
+
+        $this->tablet($cookie)->postJson(route('quiosque.identity-code', $documento))->assertOk();
+
+        // Logo depois do envio, espera: o e-mail pode só estar demorando.
+        $this->tablet($cookie)->postJson(route('quiosque.identity-code-not-received', $documento))->assertStatus(429);
+
+        // Antes do segundo "não recebi", o documento não é aceito.
+        $this->tablet($cookie)->post(route('quiosque.identity-document', $documento), [
+            'documento' => UploadedFile::fake()->image('rg.jpg'),
+        ], ['Accept' => 'application/json'])->assertStatus(409);
+
+        Carbon::setTestNow(now()->addSeconds(61));
+        $this->tablet($cookie)->postJson(route('quiosque.identity-code-not-received', $documento))
+            ->assertOk()
+            ->assertJsonPath('resent', true)
+            ->assertJsonPath('fallback', false);
+
+        Mail::assertSent(SignatureIdentityCodeMail::class, 2);
+
+        Carbon::setTestNow(now()->addSeconds(61));
+        $this->tablet($cookie)->postJson(route('quiosque.identity-code-not-received', $documento))
+            ->assertOk()
+            ->assertJsonPath('fallback', true);
+
+        // O tablet que recarregar sabe que pode seguir com o documento.
+        $this->tablet($cookie)->getJson(route('quiosque.session'))->assertJsonPath('rules.identity_fallback', true);
+
+        $this->tablet($cookie)->post(route('quiosque.identity-document', $documento), [
+            'documento' => UploadedFile::fake()->image('rg.jpg'),
+        ], ['Accept' => 'application/json'])->assertOk();
+
+        $liberacao = SignatureRequest::sole();
+        $this->assertNotNull($liberacao->identity_confirmed_at);
+        $this->assertNull($liberacao->identity_code_hash);
+
+        $anexo = $liberacao->identityFallbackAttachment;
+        $this->assertNotNull($anexo);
+        $this->assertSame($documento->signers()->first()->id, $anexo->uploaded_by_signer_id);
+        Storage::disk(config('signature.disk'))->assertExists($anexo->path);
+
+        $this->assertSame(2, SignatureAuditEvent::where('event', SignatureAuditEvent::EVENT_IDENTITY_CODE_NOT_RECEIVED)->count());
+        $this->assertSame('email_documento', SignatureAuditEvent::where('event', SignatureAuditEvent::EVENT_IDENTITY_CONFIRMED)->sole()->payload['modo']);
+
+        // O manifesto diz como a identidade foi conferida.
+        $documento->signers()->first()->evidence()->create([
+            'signature_path' => 'x.png',
+            'accepted' => true,
+            'server_signed_at' => now(),
+        ]);
+        $liberacao->forceFill(['status' => SignatureRequest::STATUS_COMPLETED])->save();
+
+        $html = app(SignatureDocumentRenderer::class)->html($documento->fresh(['template', 'signers']), SignatureDocumentRenderer::MODE_FINAL);
+        $this->assertStringContainsString('informado como não recebido; documento de identidade enviado por quem assinou', $html);
+        $this->assertStringContainsString($anexo->sha256, $html);
+    }
+
+    public function test_smtp_fora_do_ar_nao_recebi_ainda_libera_o_documento(): void
+    {
+        ['document' => $documento, 'cookie' => $cookie] = $this->sessaoAberta();
+
+        Mail::shouldReceive('to')->andThrow(new RuntimeException('SMTP fora do ar'));
+
+        $this->tablet($cookie)->postJson(route('quiosque.identity-code', $documento))->assertStatus(503);
+
+        // O reenvio também falha, mas conta.
+        $this->tablet($cookie)->postJson(route('quiosque.identity-code-not-received', $documento))
+            ->assertOk()
+            ->assertJsonPath('resent', false)
+            ->assertJsonPath('fallback', false);
+
+        $this->tablet($cookie)->postJson(route('quiosque.identity-code-not-received', $documento))
+            ->assertOk()
+            ->assertJsonPath('fallback', true);
+    }
+
+    public function test_documento_de_identidade_so_em_pdf_jpg_ou_png(): void
+    {
+        ['document' => $documento, 'cookie' => $cookie] = $this->sessaoAberta();
+
+        SignatureRequest::sole()->forceFill(['identity_code_not_received' => 2])->save();
+
+        $this->tablet($cookie)->post(route('quiosque.identity-document', $documento), [
+            'documento' => UploadedFile::fake()->create('rg.docx', 10, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+        ], ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonStructure(['error']);
+
+        $this->assertNull(SignatureRequest::sole()->identity_confirmed_at);
     }
 
     public function test_modelo_de_cpf_nao_envia_codigo(): void

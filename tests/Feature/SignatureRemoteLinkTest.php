@@ -59,7 +59,7 @@ class SignatureRemoteLinkTest extends TestCase
             'signature.remote.site_url' => 'https://reservas.example.com',
             'signature.remote.api_token' => self::API_TOKEN,
             'signature.remote.allowed_ips' => [],
-            'signature.remote.link_ttl_hours' => 72,
+            'signature.remote.link_ttl_days' => 7,
         ]);
     }
 
@@ -169,7 +169,8 @@ class SignatureRemoteLinkTest extends TestCase
         Mail::assertSent(SignatureRemoteLinkMail::class, fn($mail) => $mail->hasTo('maria.nova@example.com'));
         $this->assertStringContainsString('https://reservas.example.com/assinar/' . $token, Mail::sent(SignatureRemoteLinkMail::class)->last()->render());
 
-        // O prazo de horas do balcão foi estendido até o fim do link.
+        // O link vale 7 dias do envio, e o documento vai pelo menos até lá.
+        $this->assertTrue($link->expires_at->between(now()->addDays(7)->subMinute(), now()->addDays(7)->addMinute()));
         $this->assertTrue($documento->fresh()->expires_at->gte($link->expires_at));
 
         $evento = SignatureAuditEvent::where('event', SignatureAuditEvent::EVENT_REMOTE_LINK_SENT)->sole();
@@ -515,6 +516,25 @@ class SignatureRemoteLinkTest extends TestCase
         $this->site()->postJson(route('api.assinatura-remota.link'), ['token' => $segundo])->assertOk();
     }
 
+    /** Reenvio no 6º dia: o link novo vale mais 7 dias e o documento acompanha (13/11/2026). */
+    public function test_reenvio_estica_mais_7_dias(): void
+    {
+        $documento = $this->documentoCongelado();
+        $primeiro = $this->enviaLink($documento);
+
+        Carbon::setTestNow(now()->addDays(6));
+        $segundo = $this->enviaLink($documento);
+
+        $link = SignatureRemoteLink::where('status', SignatureRemoteLink::STATUS_ACTIVE)->sole();
+        $this->assertTrue($link->expires_at->between(now()->addDays(7)->subMinute(), now()->addDays(7)->addMinute()));
+        $this->assertTrue($documento->fresh()->expires_at->gte($link->expires_at));
+
+        // No 10º dia do primeiro envio: o antigo foi trocado, o novo abre.
+        Carbon::setTestNow(now()->addDays(4));
+        $this->site()->postJson(route('api.assinatura-remota.open'), ['token' => $primeiro])->assertStatus(410);
+        $this->site()->postJson(route('api.assinatura-remota.open'), ['token' => $segundo])->assertOk();
+    }
+
     public function test_link_vencido_e_token_invalido(): void
     {
         $token = $this->enviaLink($this->documentoCongelado());
@@ -523,7 +543,7 @@ class SignatureRemoteLinkTest extends TestCase
             ->assertStatus(404)
             ->assertJsonPath('reason', 'invalid_link');
 
-        Carbon::setTestNow(now()->addHours(73));
+        Carbon::setTestNow(now()->addDays(7)->addHour());
 
         $this->site()->postJson(route('api.assinatura-remota.open'), ['token' => $token])
             ->assertStatus(410)

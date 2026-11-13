@@ -99,8 +99,22 @@
       <div class="keypad" id="teclado"></div>
     </div>
 
-    <!-- Só na conferência por código enviado por e-mail. -->
-    <button type="button" class="btn btn-ghost hidden mt-md" id="btnReenviarCodigo">Reenviar código</button>
+    <!-- Só na conferência por código enviado por e-mail. O primeiro toque reenvia o código;
+         o segundo abre o documento de identidade no lugar dele (13/11/2026). -->
+    <button type="button" class="btn btn-ghost hidden mt-md" id="btnNaoRecebi">Não recebi o código</button>
+
+    <div class="hidden mt-lg" id="docIdentidadeBox">
+      <p class="note note-info">Sem o código, você pode seguir com um documento de identidade com foto
+        (RG, CNH ou outro). Fotografe o documento ou escolha o arquivo.</p>
+      <div class="mt-md" style="display:flex;gap:12px;flex-wrap:wrap">
+        <button type="button" class="btn btn-primary" id="btnFotografarDocumento">Fotografar documento</button>
+        <button type="button" class="btn btn-ghost" id="btnArquivoDocumento">Escolher arquivo</button>
+      </div>
+      <!-- `capture` abre a câmera traseira direto; funciona também sem HTTPS. -->
+      <input type="file" class="hidden" id="inputFotoDocumento" accept="image/*" capture="environment">
+      <input type="file" class="hidden" id="inputArquivoDocumento" accept="image/jpeg,image/png,application/pdf">
+      <p class="note hidden mt-md" id="statusDocumento"></p>
+    </div>
 
     <p class="note note-danger hidden mt-lg" id="erroIdentidade"></p>
   </div>

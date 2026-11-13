@@ -287,6 +287,13 @@ Route::prefix('assinatura/kiosk')->name('quiosque.')->group(function () {
             Route::post('/identidade/codigo', [QuiosqueController::class, 'identityCode'])
                 ->middleware('throttle:6,1')->name('identity-code');
 
+            // "Não recebi o código": o primeiro reenvia, o segundo libera o
+            // documento de identidade no lugar do código (13/11/2026).
+            Route::post('/identidade/nao-recebi', [QuiosqueController::class, 'identityCodeNotReceived'])
+                ->middleware('throttle:6,1')->name('identity-code-not-received');
+            Route::post('/identidade/documento', [QuiosqueController::class, 'identityDocument'])
+                ->middleware('throttle:6,1')->name('identity-document');
+
             Route::post('/assinar', [QuiosqueController::class, 'sign'])
                 ->middleware('throttle:10,1')->name('sign');
 

@@ -181,7 +181,13 @@
                         Tempo de leitura: {{ $evidencia->read_seconds !== null ? $evidencia->read_seconds . ' segundo(s)' : 'não registrado' }}<br>
                         Rolou o documento até o fim: {{ $evidencia->scrolled_to_end ? 'sim' : 'não' }}
                         (informado pelo navegador {{ $remota ? 'de quem assinou' : 'do tablet' }})<br>
-                        @if($liberacao && isset(\App\Models\SignatureRequest::IDENTITY_METHOD_LABELS[$liberacao->identity_method]))
+                        @if($liberacao?->identity_fallback_attachment_id)
+                            {{-- Código por e-mail não recebido: documento de identidade no lugar (13/11/2026). --}}
+                            @php
+                                $docIdentidade = $liberacao->identityFallbackAttachment;
+                            @endphp
+                            Conferência de identidade: código por e-mail{{ $signer->email ? ' (' . \App\Support\EmailMask::of($signer->email) . ')' : '' }} informado como não recebido; documento de identidade enviado por quem assinou, {{ $aparelho }}{{ $docIdentidade ? ' (' . $docIdentidade->sizeLabel() . ', SHA-256 ' . $docIdentidade->sha256 . ')' : '' }}<br>
+                        @elseif($liberacao && isset(\App\Models\SignatureRequest::IDENTITY_METHOD_LABELS[$liberacao->identity_method]))
                             Conferência de identidade: {{ \App\Models\SignatureRequest::IDENTITY_METHOD_LABELS[$liberacao->identity_method] }}<br>
                         @else
                             Conferência de identidade: {{ \App\Models\SignatureTemplate::IDENTITY_CHECKS[$document->effectiveTemplate()?->identity_check] ?? 'não registrada' }}{{ $document->effectiveTemplate()?->identity_check === \App\Models\SignatureTemplate::IDENTITY_EMAIL && $signer->email ? ' (' . \App\Support\EmailMask::of($signer->email) . ')' : '' }}<br>

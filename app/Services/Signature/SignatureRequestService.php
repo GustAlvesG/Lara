@@ -464,6 +464,16 @@ class SignatureRequestService
             ->get();
 
         foreach ($esquecidos as $document) {
+            /*
+             | Só falta a diretoria: o documento não expira, perde o prazo
+             | (13/11/2026). Pega o que já estava assim quando a regra entrou —
+             | os novos perdem o prazo na hora em que o último de fora da
+             | diretoria assina.
+             */
+            if (app(SignatureDeadlineService::class)->dropIfOnlyDirectorsLeft($document)) {
+                continue;
+            }
+
             DB::transaction(function () use ($document) {
                 foreach ($document->signers->where('status', SignatureSigner::STATUS_PENDING) as $signer) {
                     $this->states->signerTo(

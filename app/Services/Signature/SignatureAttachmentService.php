@@ -157,20 +157,7 @@ class SignatureAttachmentService
             throw new SignatureDocumentLockedException('Diga o que é o anexo.');
         }
 
-        $bytes = (string) file_get_contents($file->getRealPath());
-
-        // O tipo vem do CONTEÚDO, e não da extensão nem do que o navegador diz.
-        $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes) ?: '';
-
-        if (!isset(SignatureAttachment::MIME_EXTENSIONS[$mime])) {
-            throw new SignatureDocumentLockedException('Envie PDF, JPG ou PNG.');
-        }
-
-        $hash = hash('sha256', $bytes);
-        $caminho = config('signature.paths.documents') . '/' . $document->id . '/anexos/'
-            . now()->format('Ymd-His') . '-' . substr($hash, 0, 12) . '.' . SignatureAttachment::MIME_EXTENSIONS[$mime];
-
-        Storage::disk(config('signature.disk'))->put($caminho, $bytes);
+        ['bytes' => $bytes, 'mime' => $mime, 'hash' => $hash, 'path' => $caminho] = $this->putFile($document, $file);
 
         $anexo = DB::transaction(function () use ($document, $file, $key, $label, $caminho, $mime, $bytes, $hash, $userId, $userName, $signatario, $via, $context) {
             $anexo = SignatureAttachment::create([
@@ -210,6 +197,91 @@ class SignatureAttachmentService
         }
 
         return $anexo;
+    }
+
+    /**
+     * O documento de identidade que a pessoa fotografou ou anexou no TABLET
+     * porque o código por e-mail não chegou (13/11/2026). Anexo avulso do
+     * documento, enviado pelo próprio signatário — o atendente o vê na tela do
+     * documento e o manifesto imprime o hash. Não é item pedido pelo modelo,
+     * por isso não passa por `store`. Quem chama grava na mesma transação a
+     * conferência de identidade (SignatureCaptureService::confirmIdentityByDocument).
+     *
+     * @param  array{ip?: ?string, user_agent?: ?string}  $context
+     *
+     * @throws SignatureDocumentLockedException
+     */
+    public function storeIdentityFallback(SignatureRequest $via, UploadedFile $file, array $context = []): SignatureAttachment
+    {
+        $signatario = $via->signer;
+        $document = $signatario->document;
+
+        if ($motivo = $this->uploadBlockReason($document)) {
+            throw new SignatureDocumentLockedException($motivo);
+        }
+
+        ['bytes' => $bytes, 'mime' => $mime, 'hash' => $hash, 'path' => $caminho] = $this->putFile($document, $file);
+
+        try {
+            return DB::transaction(function () use ($document, $file, $caminho, $mime, $bytes, $hash, $signatario, $via, $context) {
+                $anexo = SignatureAttachment::create([
+                    'signature_document_id' => $document->id,
+                    'requirement_key' => null,
+                    'label' => mb_substr('Documento de identidade de ' . $signatario->name . ' (código por e-mail não recebido)', 0, 120),
+                    'original_name' => mb_substr($file->getClientOriginalName() ?: 'documento', 0, 191),
+                    'path' => $caminho,
+                    'mime' => $mime,
+                    'bytes' => strlen($bytes),
+                    'sha256' => $hash,
+                    'uploaded_by' => null,
+                    'uploaded_by_name' => $signatario->name . ' (signatário, no tablet)',
+                    'uploaded_by_signer_id' => $signatario->id,
+                ]);
+
+                $this->states->note($document, SignatureAuditEvent::EVENT_ATTACHMENT_ADDED, array_merge($this->origin(null, $via, $context), [
+                    'payload' => [
+                        'anexo' => $anexo->id,
+                        'item' => $anexo->label,
+                        'tipo' => $mime,
+                        'bytes' => $anexo->bytes,
+                        'sha256' => $hash,
+                        'enviado_por' => $anexo->uploaded_by_name,
+                    ],
+                ]));
+
+                return $anexo;
+            });
+        } catch (\Throwable $e) {
+            Storage::disk(config('signature.disk'))->delete($caminho);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Grava o arquivo no disco das assinaturas. O tipo vem do CONTEÚDO, e não
+     * da extensão nem do que o navegador diz.
+     *
+     * @return array{bytes: string, mime: string, hash: string, path: string}
+     *
+     * @throws SignatureDocumentLockedException
+     */
+    private function putFile(SignatureDocument $document, UploadedFile $file): array
+    {
+        $bytes = (string) file_get_contents($file->getRealPath());
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes) ?: '';
+
+        if (!isset(SignatureAttachment::MIME_EXTENSIONS[$mime])) {
+            throw new SignatureDocumentLockedException('Envie PDF, JPG ou PNG.');
+        }
+
+        $hash = hash('sha256', $bytes);
+        $caminho = config('signature.paths.documents') . '/' . $document->id . '/anexos/'
+            . now()->format('Ymd-His') . '-' . substr($hash, 0, 12) . '.' . SignatureAttachment::MIME_EXTENSIONS[$mime];
+
+        Storage::disk(config('signature.disk'))->put($caminho, $bytes);
+
+        return ['bytes' => $bytes, 'mime' => $mime, 'hash' => $hash, 'path' => $caminho];
     }
 
     /**

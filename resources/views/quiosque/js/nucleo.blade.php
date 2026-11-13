@@ -104,16 +104,24 @@
   }
 
   function api(metodo, url, corpo) {
+    // FormData (arquivo enviado do tablet) vai como multipart: o navegador
+    // monta o Content-Type com o separador.
+    var arquivo = typeof FormData !== 'undefined' && corpo instanceof FormData;
+    var cabecalhos = {
+      'Accept': 'application/json',
+      'X-CSRF-TOKEN': CFG.csrf,
+      'X-Requested-With': 'XMLHttpRequest',
+    };
+
+    if (!arquivo) {
+      cabecalhos['Content-Type'] = 'application/json';
+    }
+
     return fetch(url, {
       method: metodo,
       credentials: 'same-origin',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': CFG.csrf,
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-      body: corpo ? JSON.stringify(corpo) : undefined,
+      headers: cabecalhos,
+      body: arquivo ? corpo : (corpo ? JSON.stringify(corpo) : undefined),
     }).catch(function () {
       // Nem chegou resposta: rede, Wi-Fi do tablet, servidor fora do ar.
       throw new Error('Sem resposta do servidor. Confira a conexão do tablet e tente de novo.');
@@ -1249,49 +1257,150 @@
     S.cpfDigitado = '';
     $('#cpfInput').value = '';
     $('#btnIdentidade').disabled = true;
-    $('#btnReenviarCodigo').classList.add('hidden');
+    $('#btnNaoRecebi').classList.add('hidden');
+    $('#docIdentidadeBox').classList.add('hidden');
+    $('#statusDocumento').classList.add('hidden');
 
-    if (modo === 'email') {
-      enviaCodigo();
+    if (modo !== 'email') {
+      return;
     }
+
+    // A pessoa já disse duas vezes que não recebeu (o tablet recarregou):
+    // segue direto com o documento.
+    if (S.regras.identity_fallback) {
+      $('#identidadeInstrucao').textContent = 'Digite o código enviado para o seu e-mail, se ele chegar.';
+      mostraDocumentoIdentidade();
+      return;
+    }
+
+    enviaCodigo();
+  }
+
+  // O botão "Não recebi" aparece depois da espera que o servidor informa.
+  function liberaNaoRecebi(segundos) {
+    var botao = $('#btnNaoRecebi');
+
+    botao.classList.remove('hidden');
+    botao.disabled = true;
+    setTimeout(function () { botao.disabled = false; }, (segundos || 0) * 1000);
+  }
+
+  function mostraDocumentoIdentidade() {
+    $('#btnNaoRecebi').classList.add('hidden');
+    $('#docIdentidadeBox').classList.remove('hidden');
   }
 
   /*
    * Conferência por código no e-mail: o servidor manda o código ao e-mail
-   * cadastrado — o endereço nunca vem para a tela. "Reenviar" libera depois
-   * da espera que o servidor informa.
+   * cadastrado — o endereço nunca vem para a tela.
    */
   function enviaCodigo() {
-    $('#btnReenviarCodigo').disabled = true;
     $('#erroIdentidade').classList.add('hidden');
 
     api('POST', rota('codigoIdentidade'))
       .then(function (r) {
         $('#identidadeInstrucao').textContent =
           'Enviamos um código de 6 números para o seu e-mail cadastrado. Digite-o abaixo.';
-
-        if (r.sends_left > 0) {
-          $('#btnReenviarCodigo').classList.remove('hidden');
-          setTimeout(function () { $('#btnReenviarCodigo').disabled = false; }, (r.resend_seconds || 60) * 1000);
-        } else {
-          $('#btnReenviarCodigo').classList.add('hidden');
-        }
+        liberaNaoRecebi(r.resend_seconds || 60);
       })
       .catch(function (e) {
         if (trataFalha(e)) {
           return;
         }
 
+        // O e-mail não saiu: "Não recebi" fica disponível na hora.
         $('#identidadeInstrucao').textContent = 'Digite o código enviado para o seu e-mail.';
         $('#erroIdentidade').textContent = e.message;
         $('#erroIdentidade').classList.remove('hidden');
-        // Os limites (envios, espera) são do servidor; a tela só deixa tentar de novo.
-        $('#btnReenviarCodigo').classList.remove('hidden');
-        $('#btnReenviarCodigo').disabled = false;
+        liberaNaoRecebi(0);
       });
   }
 
-  $('#btnReenviarCodigo').addEventListener('click', enviaCodigo);
+  /*
+   * "Não recebi o código" (13/11/2026): o primeiro toque reenvia; o segundo
+   * (ou um reenvio que não sai) abre o documento de identidade no lugar do
+   * código. A contagem é do servidor.
+   */
+  $('#btnNaoRecebi').addEventListener('click', function () {
+    $('#btnNaoRecebi').disabled = true;
+    $('#erroIdentidade').classList.add('hidden');
+
+    api('POST', rota('naoRecebi'))
+      .then(function (r) {
+        if (r.fallback) {
+          S.regras.identity_fallback = true;
+          $('#identidadeInstrucao').textContent = 'Se o código chegar, você ainda pode digitá-lo abaixo.';
+          mostraDocumentoIdentidade();
+          return;
+        }
+
+        if (r.resent) {
+          $('#identidadeInstrucao').textContent =
+            'Enviamos um novo código para o seu e-mail cadastrado. Confira também a caixa de spam.';
+          liberaNaoRecebi(r.resend_seconds || 60);
+          return;
+        }
+
+        $('#erroIdentidade').textContent = (r.error || 'Não foi possível reenviar o código.')
+          + ' Se não chegar, toque de novo em "Não recebi o código".';
+        $('#erroIdentidade').classList.remove('hidden');
+        liberaNaoRecebi(0);
+      })
+      .catch(function (e) {
+        if (trataFalha(e)) {
+          return;
+        }
+
+        $('#erroIdentidade').textContent = e.message;
+        $('#erroIdentidade').classList.remove('hidden');
+        liberaNaoRecebi(e.status === 429 ? 30 : 0);
+      });
+  });
+
+  // Foto (câmera traseira) ou arquivo: o mesmo envio.
+  $('#btnFotografarDocumento').addEventListener('click', function () { $('#inputFotoDocumento').click(); });
+  $('#btnArquivoDocumento').addEventListener('click', function () { $('#inputArquivoDocumento').click(); });
+
+  function enviaDocumentoIdentidade(ev) {
+    var input = ev.target;
+    var arquivo = input.files && input.files[0];
+
+    if (!arquivo) {
+      return;
+    }
+
+    var corpo = new FormData();
+    corpo.append('documento', arquivo);
+    input.value = '';
+
+    $('#btnFotografarDocumento').disabled = true;
+    $('#btnArquivoDocumento').disabled = true;
+    $('#erroIdentidade').classList.add('hidden');
+    $('#statusDocumento').textContent = 'Enviando o documento…';
+    $('#statusDocumento').classList.remove('hidden');
+
+    api('POST', rota('documentoIdentidade'), corpo)
+      .then(function () {
+        S.identidadeOk = true;
+        mostra('tela-aceite');
+      })
+      .catch(function (e) {
+        if (trataFalha(e)) {
+          return;
+        }
+
+        $('#statusDocumento').classList.add('hidden');
+        $('#erroIdentidade').textContent = e.message;
+        $('#erroIdentidade').classList.remove('hidden');
+      })
+      .then(function () {
+        $('#btnFotografarDocumento').disabled = false;
+        $('#btnArquivoDocumento').disabled = false;
+      });
+  }
+
+  $('#inputFotoDocumento').addEventListener('change', enviaDocumentoIdentidade);
+  $('#inputArquivoDocumento').addEventListener('change', enviaDocumentoIdentidade);
 
   (function montaTeclado() {
     var teclas = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'limpar', '0', 'apagar'];

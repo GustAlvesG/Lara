@@ -22,7 +22,7 @@
     <h3 class="text-sm font-bold text-ink-3 uppercase tracking-wider mb-1">Assinatura remota</h3>
     <p class="text-xs text-ink-2 mb-4">
         A pessoa recebe um link por e-mail e assina pelo site do clube, com o CPF completo e uma foto.
-        Depois de enviar, o link aparece aqui para você copiar e encaminhar também. Ele vale {{ (int) config('signature.remote.link_ttl_hours', 72) }} horas.
+        Depois de enviar, o link aparece aqui para você copiar e encaminhar também. Ele vale {{ (int) config('signature.remote.link_ttl_days', 7) }} dias a partir do envio; enviar um novo link dá mais {{ (int) config('signature.remote.link_ttl_days', 7) }} dias.
     </p>
 
         <ul class="space-y-4">

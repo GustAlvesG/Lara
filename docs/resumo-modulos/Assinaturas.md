@@ -177,6 +177,14 @@ eles, validade `signature.identity_code_ttl_minutes`; mesmas 5 tentativas do CPF
 nunca vai ao tablet; trilha `identity_code_sent` com e-mail mascarado (`App\Support\EmailMask`). Testes:
 `SignatureIdentityEmailCodeTest`.
 
+**"Não recebi o código" (13/11/2026):** `quiosque.identity-code-not-received` → `reportCodeNotReceived` (1º toque
+reenvia; 2º, ou reenvio que falha + 1 toque, libera; conta em `identity_code_not_received`, evento
+`identity_code_not_received`). Liberado (`SignatureRequest::identityFallbackAllowed`, `rules.identity_fallback` na
+sessão do balcão), `quiosque.identity-document` (multipart `documento`) → `confirmIdentityByDocument`: anexo avulso
+via `SignatureAttachmentService::storeIdentityFallback`, `identity_fallback_attachment_id` na liberação, evento
+`identity_confirmed` com `modo = email_documento`; o manifesto descreve. Sem aprovação do atendente. Migration
+`2026_11_13_100000`. O `api()` do tablet (`quiosque/js/nucleo`) aceita `FormData`.
+
 ## Anexos do documento
 
 Identidade, comprovante: itens pedidos (rótulo + obrigatório) no **modelo** (`signature_templates.attachments`,
@@ -346,7 +354,12 @@ no FTP (`… - relatorio gov.br.pdf`) e na tela (`?versao=relatorio`).
 
 ## Comandos e agenda (`routes/console.php`)
 
-- `signature:expire` — a cada minuto: QR não lido, sessão parada, documento esquecido.
+- `signature:expire` — a cada minuto: QR não lido, sessão parada, documento esquecido (7 dias; o que só espera a
+  diretoria perde o prazo em vez de expirar).
+- `signature:reactivate-expired` — manual (13/11/2026): reabre os expirados nos últimos `--days` (4); sem `--force`
+  só lista; `--contracts-only`. Única saída de `expired` na `SignatureStateMachine` (evento `reactivated`).
+- Prazos: `SignatureDeadlineService` (`forFreeze`, `forGovbr`, `dropIfOnlyDirectorsLeft`, `reactivate`); config
+  `document_ttl_days` (7), `govbr.ttl_days` (7), `remote.link_ttl_days` (7).
 - `signature:archive` — de hora em hora: reenvia cópias pendentes ao FTP; `--testar` só confere a conexão.
   Desligado por padrão (`SIGNATURE_ARCHIVE_ENABLED=false`).
 - `signature:crl` — de hora em hora e no deploy: renova as LCR (gov.br + as já consultadas); `--forcar`.
@@ -545,7 +558,8 @@ pendentes dele. Doc completa: seção "Assinatura Diretoria" de `docs/funcionali
   Nos DOCUMENTOS (PDF, manifesto, relatório, carimbo, visto) use `documentCapacityLabel()`: sem
   titular/substituto (05/11/2026); telas e e-mails seguem com `capacityLabel()`.
   Parte do modelo pode ter `director_area_id` (JSON `parties`): o formulário já traz o titular.
-- **Congelar:** prazo `signature.directors.ttl_days`; job `NotifySignatureDirector` (fila, `afterCommit`) manda
+- **Congelar:** prazo do documento (`signature.document_ttl_days`) enquanto falta alguém de fora da diretoria; só
+  diretoria = **sem prazo** (`SignatureDeadlineService`, 13/11/2026; `directors.ttl_days` saiu); job `NotifySignatureDirector` (fila, `afterCommit`) manda
   `SignatureDirectorPendingMail`, grava `director_notified_at` e o evento `director_notified`.
 - **Tablet:** `DirectorKioskService` — limite por matrícula (`RateLimiter`, 15 min), sessão do diretor em `Cache`
   (hash do cookie `lara_director`), lista = pendentes do diretor, aguardando, no prazo e **sem `govbr_sent_at`**;
@@ -592,7 +606,7 @@ pendentes dele. Doc completa: seção "Assinatura Diretoria" de `docs/funcionali
   (falta quem, gerando via final, concluído, recusado…). Só leitura, sem PDF.
 - **Painel:** tela Assinaturas → Diretoria (áreas, mandatos, histórico, pendentes de quem saiu do mandato); filtro
   "Aguardando diretoria" (`status=diretoria`) na lista de documentos; aviso no cartão do signatário-diretor.
-- Config: `SIGNATURE_DIRECTOR_TTL_DAYS`, `SIGNATURE_DIRECTOR_SESSION_MINUTES`, `SIGNATURE_DIRECTOR_MAX_LOGIN_ATTEMPTS`,
+- Config: `SIGNATURE_DIRECTOR_SESSION_MINUTES`, `SIGNATURE_DIRECTOR_MAX_LOGIN_ATTEMPTS`,
   `SIGNATURE_DIRECTOR_IDLE_SECONDS` (inatividade da lista no tablet; vai à tela como `CFG.diretoria.ociosoSegundos`).
 - Testes: `SignatureDirectorTest` (usuários reais com `SharesSqliteWithUserConnection` + `MigratesAccessSchema`).
 
@@ -622,7 +636,8 @@ Prompt do site: `docs/funcionalidades/assinatura-remota-prompt-site.md`. **Mudou
 prompt e gere um novo para o agente do site** (regra do CLAUDE.md).
 
 - **Decisões do usuário:** CPF **completo** sempre (qualquer regra do modelo), 5 tentativas **no link**
-  (somadas entre aberturas; a quinta bloqueia), link de **72 h**, **qualquer documento** (sem opção no
+  (somadas entre aberturas; a quinta bloqueia), link de **7 dias do envio** (era 72 h até 13/11/2026; reenvio = novo
+  link com mais 7 dias, `remote.link_ttl_days`), **qualquer documento** (sem opção no
   modelo), **foto sempre obrigatória**. Diretoria e Termo de Menores fora. O Lara segue fechado: o
   navegador fala com o site; o servidor do site chama a API.
 - `RemoteSignatureService`: `send` (substitui o anterior, estende `expires_at` do documento até o fim do

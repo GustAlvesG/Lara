@@ -61,7 +61,8 @@ class GovbrCheckService
             throw new SignatureDocumentLockedException($motivo);
         }
 
-        $prazo = now()->addDays(max(1, (int) config('signature.govbr.ttl_days', 7)));
+        // 7 dias da preparação; sem prazo se só falta a diretoria.
+        $prazo = app(\App\Services\Signature\SignatureDeadlineService::class)->forGovbr($document);
 
         DB::transaction(function () use ($document, $userId, $userName, $prazo) {
             /*
@@ -93,14 +94,14 @@ class GovbrCheckService
 
             $document->forceFill([
                 'govbr_sent_at' => now(),
-                // O vaivém pelo gov.br leva dias; o prazo do balcão é de horas.
+                // O prazo recomeça na preparação (o vaivém pelo gov.br leva dias).
                 'expires_at' => $prazo,
             ])->save();
 
             $this->states->note($document, SignatureAuditEvent::EVENT_GOVBR_PREPARED, [
                 'actor_id' => $userId,
                 'payload' => [
-                    'prazo' => $prazo->toDateTimeString(),
+                    'prazo' => $prazo?->toDateTimeString() ?? 'sem prazo (só falta a diretoria)',
                     'liberacoes_canceladas' => $vivas->count(),
                     'links_remotos_revogados' => $linksRevogados,
                     'visto_dispensado' => $vistoDispensado,

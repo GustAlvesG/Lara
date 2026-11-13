@@ -85,6 +85,9 @@
       visualizado: @json(route('quiosque.viewed', ['signatureDocument' => '__DOC__'])),
       identidade: @json(route('quiosque.identity', ['signatureDocument' => '__DOC__'])),
       codigoIdentidade: @json(route('quiosque.identity-code', ['signatureDocument' => '__DOC__'])),
+      // "Não recebi o código" e o documento de identidade no lugar dele (13/11/2026).
+      naoRecebi: @json(route('quiosque.identity-code-not-received', ['signatureDocument' => '__DOC__'])),
+      documentoIdentidade: @json(route('quiosque.identity-document', ['signatureDocument' => '__DOC__'])),
       assinar: @json(route('quiosque.sign', ['signatureDocument' => '__DOC__'])),
       recusar: @json(route('quiosque.refuse', ['signatureDocument' => '__DOC__'])),
     },

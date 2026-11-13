@@ -286,6 +286,68 @@ class QuiosqueController extends Controller
     }
 
     /**
+     * "Não recebi o código" (13/11/2026). Na primeira vez reenvia; na segunda
+     * (ou se o reenvio não sair), devolve `fallback: true` e o tablet passa a
+     * oferecer a foto ou o arquivo de um documento de identidade.
+     */
+    public function identityCodeNotReceived(Request $request, SignatureDocument $signatureDocument)
+    {
+        $solicitacao = $this->current($request);
+
+        try {
+            $resultado = $this->capture->reportCodeNotReceived($solicitacao, [
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+        } catch (SignatureSessionException $e) {
+            return response()->json(['error' => $e->getMessage()], $e->status);
+        }
+
+        return response()->json($resultado + [
+            'resend_seconds' => \App\Services\Signature\SignatureCaptureService::CODE_RESEND_SECONDS,
+        ]);
+    }
+
+    /**
+     * O documento de identidade — foto tirada no tablet ou arquivo — no lugar
+     * do código por e-mail que não chegou. Só depois do segundo "Não recebi".
+     */
+    public function identityDocument(Request $request, SignatureDocument $signatureDocument)
+    {
+        $solicitacao = $this->current($request);
+
+        // O tablet lê `error`, não o `message` da validação padrão.
+        $validacao = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'documento' => [
+                'required',
+                'file',
+                'mimes:pdf,jpg,jpeg,png',
+                'max:' . (int) config('signature.attachments.max_kb', 10240),
+            ],
+        ], [
+            'documento.required' => 'Fotografe ou escolha o arquivo do seu documento.',
+            'documento.mimes' => 'Envie uma foto (JPG ou PNG) ou um PDF.',
+            'documento.max' => 'O arquivo é grande demais. Tire uma foto com menos resolução ou envie um PDF menor.',
+            'documento.uploaded' => 'O arquivo é grande demais. Tire uma foto com menos resolução ou envie um PDF menor.',
+        ]);
+
+        if ($validacao->fails()) {
+            return response()->json(['error' => $validacao->errors()->first()], 422);
+        }
+
+        try {
+            $this->capture->confirmIdentityByDocument($solicitacao, $request->file('documento'), [
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+        } catch (SignatureSessionException $e) {
+            return response()->json(['error' => $e->getMessage()], $e->status);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
      * A assinatura. Uma requisição, uma transação, um resultado.
      *
      * O tablet manda tudo de uma vez — traço, traços vetoriais, foto, aceite e

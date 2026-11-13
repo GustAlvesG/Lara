@@ -78,6 +78,10 @@ class SignatureRequest extends Model
         'identity_code_expires_at',
         'identity_code_sent_at',
         'identity_code_sends',
+        // "Não recebi o código" e o documento de identidade usado no lugar
+        // dele (13/11/2026, ver SignatureCaptureService::reportCodeNotReceived).
+        'identity_code_not_received',
+        'identity_fallback_attachment_id',
         'status',
         'created_by',
         // Retrato do nome de quem gerou o QR Code (ver a migration da coluna).
@@ -103,6 +107,8 @@ class SignatureRequest extends Model
         'identity_code_expires_at' => 'datetime',
         'identity_code_sent_at' => 'datetime',
         'identity_code_sends' => 'integer',
+        'identity_code_not_received' => 'integer',
+        'identity_fallback_attachment_id' => 'integer',
         'signature_remote_link_id' => 'integer',
         'created_by' => 'integer',
     ];
@@ -134,6 +140,26 @@ class SignatureRequest extends Model
     public function remoteLink(): BelongsTo
     {
         return $this->belongsTo(SignatureRemoteLink::class, 'signature_remote_link_id');
+    }
+
+    /**
+     * O documento de identidade que a pessoa fotografou ou anexou no tablet
+     * no lugar do código por e-mail que não chegou. Nulo = não usou.
+     *
+     * @return BelongsTo<SignatureAttachment, SignatureRequest>
+     */
+    public function identityFallbackAttachment(): BelongsTo
+    {
+        return $this->belongsTo(SignatureAttachment::class, 'identity_fallback_attachment_id');
+    }
+
+    /**
+     * A pessoa já pode seguir com um documento de identidade no lugar do
+     * código: disse duas vezes que não recebeu (a primeira reenviou).
+     */
+    public function identityFallbackAllowed(): bool
+    {
+        return $this->identity_code_not_received >= \App\Services\Signature\SignatureCaptureService::NOT_RECEIVED_FOR_FALLBACK;
     }
 
     /** Aberta pelo link de assinatura remota, no site externo — não no tablet. */

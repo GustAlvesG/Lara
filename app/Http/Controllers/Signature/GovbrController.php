@@ -42,7 +42,8 @@ class GovbrController extends Controller
 
         return redirect($voltar)->with(
             'success',
-            'Documento preparado para o gov.br, com prazo até ' . $documento->expires_at?->format('d/m/Y H:i')
+            'Documento preparado para o gov.br, '
+            . ($documento->expires_at ? 'com prazo até ' . $documento->expires_at->format('d/m/Y H:i') : 'sem prazo (só falta a diretoria)')
             . '. Baixe o PDF original agora e envie à pessoa.',
         );
     }

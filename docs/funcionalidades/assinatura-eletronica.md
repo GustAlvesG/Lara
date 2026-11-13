@@ -557,8 +557,13 @@ Regras em `App\Services\Signature\Directors\DirectorAreaService`.
 
 ### Congelamento: prazo e aviso
 
-- Documento com diretor recebe prazo de `SIGNATURE_DIRECTOR_TTL_DAYS` (7 dias), e não as horas do
-  balcão: o diretor assina quando passar pelo tablet.
+- **Prazo (desde 13/11/2026, decisão do usuário):** enquanto falta alguém de fora da diretoria, vale
+  o prazo do documento (`SIGNATURE_DOCUMENT_TTL_DAYS`, 7 dias). Quando **só falta a diretoria**, o
+  documento fica **sem prazo** (`expires_at` nulo): no congelamento, se todos os signatários são
+  diretores; ou no momento em que o último de fora assina (`SignatureStateMachine::signerTo` chama
+  `SignatureDeadlineService::dropIfOnlyDirectorsLeft`, evento `deadline_removed`). O
+  `signature:expire` confere de novo antes de expirar: documento que só espera a diretoria perde o
+  prazo em vez de expirar. `SIGNATURE_DIRECTOR_TTL_DAYS` não é mais lida.
 - O job `NotifySignatureDirector` (fila, depois do commit) manda ao diretor o e-mail
   `SignatureDirectorPendingMail` — título, quem gerou, prazo, "entre com matrícula e PIN". **Sem
   link** (o Lara é fechado). Grava `director_notified_at` e o evento `director_notified` (e-mail
@@ -701,7 +706,7 @@ próprio, sem relação com sócio nem reserva, não indexada e sem link a parti
 dedo ou o mouse e tira uma foto. O PDF final é montado do mesmo jeito que o do tablet.
 
 Decisões do usuário (21/10/2026): o link mais o **CPF completo**, com 5 tentativas; validade de
-**72 horas**; **qualquer documento** pode ir pelo link (sem opção no modelo); **foto sempre
+**72 horas** (desde 13/11/2026: **7 dias do envio**, e o reenvio dá mais 7 dias a partir dele); **qualquer documento** pode ir pelo link (sem opção no modelo); **foto sempre
 obrigatória**. O Termo de Menores fica fora. A Diretoria ficava fora até 09/11/2026; desde então o
 diretor também recebe o link (decisão do usuário), com as mesmas regras de qualquer pessoa: CPF
 completo e foto. No módulo Assinaturas, o link do diretor espera quem é de fora da diretoria (ver
@@ -736,8 +741,10 @@ errou. O botão **Revogar link** está ali também.
 - Mesma permissão de liberar o QR (`release` = `assinatura.documentos`). Sem permissão nova.
 - **Enviar de novo substitui o anterior** (`superseded`).
 - O e-mail sai **na hora, dentro da transação**: SMTP fora do ar → nada fica registrado.
-- O prazo do documento (24 h do balcão) é **estendido até o fim do link**, se for menor. Um
-  prazo maior (gov.br, diretoria) fica como está.
+- O link vale `SIGNATURE_REMOTE_TTL_DAYS` (7 dias) **a partir do envio**. "Enviar novo link"
+  substitui o anterior por outro que vale mais 7 dias a partir do reenvio (13/11/2026).
+- O prazo do documento é **estendido até o fim do link**, se for menor. Um prazo maior fica como
+  está, e o documento **sem prazo** (só falta a diretoria) continua sem prazo.
 - Recusas: site não configurado, Termo de Menores, documento fora de "aguardando",
   preparado para o gov.br, signatário que já respondeu, CPF inválido no cadastro e, no módulo
   Assinaturas, diretor com alguém de fora da diretoria ainda por assinar (o cartão dele mostra o motivo
@@ -771,7 +778,7 @@ URL da API, para não acabar em log de acesso. Toda recusa responde `{error, rea
 
 ### Regras
 
-- **O link abre várias vezes** até a pessoa assinar ou recusar, dentro das 72 h. Cada abertura é
+- **O link abre várias vezes** até a pessoa assinar ou recusar, dentro dos 7 dias. Cada abertura é
   uma liberação nova (`signature_requests`, `identity_method = link_email`,
   `signature_remote_link_id`) com sessão de `SIGNATURE_REMOTE_SESSION_MINUTES` (30 min),
   emitida e consumida na hora. Abrir de novo derruba a sessão anterior (outra aba, outro aparelho).
@@ -1469,6 +1476,31 @@ teclado do CPF (`SignatureCaptureService::sendIdentityCode` / `confirmIdentity`)
 - **Trilha:** `identity_code_sent`, com o e-mail mascarado e o número do envio — nunca o código. O
   manifesto diz "Conferência de identidade: Código enviado por e-mail (m***a@…)".
 
+#### "Não recebi o código" e o documento de identidade no lugar (13/11/2026)
+
+Decisão do usuário, depois de falhas recorrentes no serviço de e-mail. Só no tablet do balcão (o link
+remoto confere o CPF completo, não usa código).
+
+- O botão **Não recebi o código** aparece 1 minuto depois do envio (na hora, se o envio falhou) e
+  chama `POST …/identidade/nao-recebi` (`quiosque.identity-code-not-received`,
+  `SignatureCaptureService::reportCodeNotReceived`). O primeiro toque **reenvia** o código; o
+  segundo libera o documento de identidade. Um reenvio que falha (SMTP) conta do mesmo jeito.
+  Antes do primeiro, vale a espera de 60 s do envio (429).
+- A contagem fica em `signature_requests.identity_code_not_received`; cada toque grava o evento
+  `identity_code_not_received`. A sessão do tablet devolve `rules.identity_fallback` (só no balcão),
+  para o tablet que recarregar voltar direto ao documento.
+- Liberado, o tablet oferece **Fotografar documento** (`<input type=file capture=environment>`: abre a
+  câmera traseira e funciona também sem HTTPS) e **Escolher arquivo**. O envio (`POST
+  …/identidade/documento`, campo `documento`, JPG/PNG/PDF até `SIGNATURE_ATTACHMENT_MAX_KB`)
+  passa por `SignatureCaptureService::confirmIdentityByDocument`: o arquivo vira **anexo avulso** do
+  documento (`SignatureAttachmentService::storeIdentityFallback`, rótulo "Documento de identidade de
+  … (código por e-mail não recebido)", `uploaded_by_signer_id` = signatário, evento
+  `attachment_added` com o hash), a liberação grava `identity_confirmed_at` e
+  `identity_fallback_attachment_id`, e o evento `identity_confirmed` sai com `modo = email_documento`.
+- **Ninguém aprova antes:** a pessoa segue e assina. O atendente vê o anexo na página do documento.
+- O manifesto escreve: "Conferência de identidade: código por e-mail (m***a@…) informado como não
+  recebido; documento de identidade enviado por quem assinou, no tablet (JPG, 312 KB, SHA-256 …)".
+
 > A exclusão por retenção **não está implementada**. O campo registra a decisão para que ela
 > exista antes de haver o que apagar.
 
@@ -1785,7 +1817,7 @@ Tudo em `config/signature.php`, com as variáveis documentadas no `.env.example`
 | `SIGNATURE_QR_TTL_SECONDS` | `300` | Validade do QR na tela do atendente |
 | `SIGNATURE_SESSION_TTL_MINUTES` | `15` | Sessão do tablet, a partir da leitura |
 | `SIGNATURE_SESSION_WARNING_SECONDS` | `60` | Aviso antes de encerrar |
-| `SIGNATURE_DOCUMENT_TTL_HOURS` | `24` | Documento congelado e esquecido |
+| `SIGNATURE_DOCUMENT_TTL_DAYS` | `7` | Documento congelado e esquecido, em dias (substituiu `SIGNATURE_DOCUMENT_TTL_HOURS` = 24 em 13/11/2026; a antiga não é lida). Só falta a diretoria = sem prazo |
 | `SIGNATURE_ALLOWED_IPS` | vazio | Faixas (CIDR) que podem consumir um QR |
 | `SIGNATURE_MIN_STROKE_POINTS` | `30` | Mínimo de pontos do traço |
 | `SIGNATURE_MIN_INITIALS_POINTS` | `8` | Mínimo de pontos do visto (rubrica) |
@@ -1815,14 +1847,14 @@ Tudo em `config/signature.php`, com as variáveis documentadas no `.env.example`
 | `SIGNATURE_MINOR_PAIRING_TTL_SECONDS` | `300` | Termo de Menores: validade do QR de pareamento |
 | `SIGNATURE_MINOR_FLOW_TTL_MINUTES` | `10` | Termo de Menores: inatividade que encerra o atendimento |
 | `SIGNATURE_MINOR_MAX_CPF_ATTEMPTS` | `5` | Termo de Menores: tentativas de CPF por título, por tablet, a cada 15 min |
-| `SIGNATURE_DIRECTOR_TTL_DAYS` | `7` | Assinatura Diretoria: prazo do documento com diretor, contado do congelamento |
+| ~~`SIGNATURE_DIRECTOR_TTL_DAYS`~~ | — | Não é mais lida desde 13/11/2026: só falta a diretoria = documento sem prazo |
 | `SIGNATURE_DIRECTOR_SESSION_MINUTES` | `10` | Assinatura Diretoria: inatividade que encerra a entrada do diretor no tablet |
 | `SIGNATURE_DIRECTOR_MAX_LOGIN_ATTEMPTS` | `5` | Assinatura Diretoria: tentativas de matrícula + PIN por matrícula, a cada 15 min |
 | `SIGNATURE_DIRECTOR_IDLE_SECONDS` | `90` | Assinatura Diretoria: segundos sem toque na lista que fazem o tablet encerrar a entrada do diretor |
 | `SIGNATURE_REMOTE_SITE_URL` | vazio | Assinatura remota: endereço do site; o link é `{url}/assinar/{token}`. Vazio = cartão escondido |
 | `SIGNATURE_REMOTE_API_TOKEN` | vazio | Assinatura remota: token próprio do site para `/api/assinatura/remota/*`. Vazio = API fechada |
 | `SIGNATURE_REMOTE_ALLOWED_IPS` | vazio | Assinatura remota: IP (ou CIDR) do servidor do site; vazio = qualquer origem com o token |
-| `SIGNATURE_REMOTE_TTL_HOURS` | `72` | Assinatura remota: validade do link (o prazo do documento é estendido até lá) |
+| `SIGNATURE_REMOTE_TTL_DAYS` | `7` | Assinatura remota: validade do link em dias, do envio; o reenvio dá mais 7 (o prazo do documento é estendido até lá). Substituiu `SIGNATURE_REMOTE_TTL_HOURS` = 72 em 13/11/2026 |
 | `SIGNATURE_REMOTE_SESSION_MINUTES` | `30` | Assinatura remota: sessão de cada abertura do link |
 
 Nunca aponte `SIGNATURE_DISK` para `public` ou `placar`: os dois servem arquivo estático, sem
@@ -1831,6 +1863,13 @@ passar por autorização nenhuma.
 O comando `signature:expire` roda **a cada minuto** (`routes/console.php`) e encerra QR não lido,
 sessão parada e documento não assinado. O `signature:crl` roda **de hora em hora** (e no deploy) e
 renova as listas de revogação. O `signature:seal-check` (manual) confere o certificado do lacre e a ACT.
+
+O `signature:reactivate-expired` (manual, 13/11/2026) reabre os documentos que expiraram nos
+últimos `--days` dias (padrão 4): os signatários expirados voltam a pendentes e o documento volta a
+aguardar, com o prazo de hoje (7 dias, ou nenhum se só falta a diretoria) e o evento `reactivated`
+na trilha. Sem `--force` só lista (simulação); `--contracts-only` restringe ao módulo Contratos. QR
+e link antigos continuam vencidos: o atendente gera outro. É a única entrada que tira um documento
+de `expired` (`SignatureStateMachine`).
 
 ## Colocando para funcionar
 

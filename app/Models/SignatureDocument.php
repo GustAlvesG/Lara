@@ -791,6 +791,21 @@ class SignatureDocument extends Model
             ->values();
     }
 
+    /**
+     * Só falta a diretoria assinar: há signatário pendente e todos os
+     * pendentes são diretores. Vale também para contrato (que não tem ordem).
+     * É quando o documento fica sem prazo (SignatureDeadlineService,
+     * 13/11/2026).
+     */
+    public function waitsOnlyForDirectors(): bool
+    {
+        $signers = $this->relationLoaded('signers') ? $this->signers : $this->signers()->get();
+        $pendentes = $signers->where('status', SignatureSigner::STATUS_PENDING);
+
+        return $pendentes->isNotEmpty()
+            && $pendentes->every(fn(SignatureSigner $s) => $s->isDirector());
+    }
+
     /** Já chegou à diretoria: nenhum signatário de fora dela falta assinar. */
     public function releasedToDirectors(): bool
     {
