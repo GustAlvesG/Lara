@@ -26,7 +26,8 @@ Setores. "Secretaria" é o setor **Atendimento**; "Financeiro" é a
 | SIV › Frota, Viagens, Veículos | `siv.frota`, `siv.viagens`, `siv.veiculos` | Atendimento, Portaria, Manutenção |
 | Home Assistant | `home-assistant` | Atendimento |
 | Reservas › Agendamentos | `reservas.agendamentos` | Atendimento, Comercial |
-| Reservas › Pagamentos (e estorno) | `reservas.pagamentos`, `reservas.pagamentos.estornar` | Atendimento, Contabilidade |
+| Financeiro › Reservas (e estorno) — era Reservas › Pagamentos | `reservas.pagamentos`, `reservas.pagamentos.estornar` | Atendimento, Contabilidade |
+| Financeiro › Visão geral e Recebimentos (desde 13/11/2026) | `financeiro.recebimentos` | nasce sem setor — dar à Contabilidade na tela de Setores |
 | Reservas › Baixa manual de pagamento (pago fora da plataforma, quadras e espaços sociais) | `reservas.pagamentos.baixa-manual` | nasce sem setor (desde 19/10/2026) — dar na tela de Setores |
 | Reservas › Espaços Sociais (consultar, pré-reservar, convidados) | `reservas.sociais` | nasce sem setor (desde 14/10/2026) — dar na tela de Setores |
 | Reservas › Espaços Sociais (contrato, aprovar, recusar, cancelar) | `reservas.sociais.aprovar` | nasce sem setor — dar na tela de Setores |
@@ -45,7 +46,7 @@ Setores. "Secretaria" é o setor **Atendimento**; "Financeiro" é a
 | Freelancers › Serviços (valores, documentos, registro, lotes) | `freelancers.servicos.gerenciar` | Comercial |
 | Freelancers › Assinatura (Tablet) | `freelancers.assinatura` | Comercial |
 | Freelancers › Acompanhamento | `freelancers.acompanhamento` | Comercial |
-| Freelancers › Financeiro | `freelancers.financeiro` | Contabilidade |
+| Financeiro › Freelancers — era Freelancers › Financeiro | `freelancers.financeiro` | Contabilidade |
 | Placar Clube | `placar.cadastro`, `placar.scout` | Esporte |
 | Torneios (catálogo de categorias, torneios, chaveamento, inscrições, times, resultados e código de lançamento pelo site, baixa manual, estorno, financeiro) | `torneios.gerenciar`, `torneios.inscricoes`, `torneios.resultados`, `torneios.pagamentos.baixa-manual`, `torneios.pagamentos.estornar`, `torneios.financeiro` | nascem sem setor (desde 22/10/2026; `financeiro` desde 23/10) — dar ao Esporte na tela de Setores |
 | Ingressos (eventos, tipos e lotes; pedidos e emissão; check-in; cortesia; cupons; baixa manual; estorno; financeiro) | `ingressos.gerenciar`, `ingressos.vendas`, `ingressos.checkin`, `ingressos.cortesias`, `ingressos.cupons`, `ingressos.pagamentos.baixa-manual`, `ingressos.pagamentos.estornar`, `ingressos.financeiro` | nascem sem setor (27/10/2026) — dar a quem organiza os eventos, à secretaria, à entrada e ao financeiro na tela de Setores. A lista e a tela do evento abrem com qualquer uma (Gate `acessar-ingressos`). |

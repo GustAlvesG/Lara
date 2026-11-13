@@ -52,7 +52,7 @@ acende a luz (Home Assistant) e é o que vincula os clipes do RePET.
 | Contas do site (desde 23/10/2026: senha provisória, e-mail, cadastro manual, duplicadas — ver [Contas do site](Contas%20do%20site.md)) | `site-accounts.*` | `reservas.contas-site` |
 | Luz da quadra na agenda (desde 05/11/2026; faixa no cartão da quadra com contator) | `schedule.lights.store` (`ScheduleLightingController`) | `reservas.luz` (+ `reservas.agendamentos` do grupo) |
 
-Pagamentos é sub-aba de Reservas, mas a URL continua `/payments`.
+Pagamentos saiu de Reservas em 13/11/2026: é **Financeiro › Reservas** (`/financeiro/reservas`; `/payments` redireciona), com os mesmos nomes de rota. Ver [Financeiro](Financeiro.md). A baixa manual continua em `POST /payments/manual`.
 
 ## Modelo
 
@@ -167,7 +167,7 @@ contator. `--dry-run` só lê (não abre transação no destino). Teste:
 ## Pagamentos: período e extração (desde 04/11/2026)
 
 - `App\Services\SchedulePaymentReport` é a **fonte única dos filtros** da tela `payment.index` e do CSV
-  `payment.export` (`GET /payments/exportar`, mesma permissão `reservas.pagamentos`, rota declarada antes de
+  `payment.export` (`GET /financeiro/reservas/exportar`, mesma permissão `reservas.pagamentos`, rota declarada antes de
   `/{schedulePayment}`): `member`, `status_id`, `payment_method` (`manual` = toda baixa manual), `date_from`/`date_to`
   (Y-m-d; o "até" vale o dia inteiro) e `period_by` — `paid` (padrão, `paid_at`) ou `use`
   (`schedules.start_schedule`, via `whereHas`). Filtro novo entra no `query()` e vale para os dois.

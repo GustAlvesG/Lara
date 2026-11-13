@@ -53,9 +53,9 @@ class AnyOfAbilitiesTest extends TestCase
     {
         // As mesmas combinações que o AppServiceProvider definia à mão.
         $this->assertTrue($this->usuario(new UserAccess([P::ASSINATURA_TERMO_MENORES_PAREAR]))->can('acessar-guia-assinatura'));
-        $this->assertTrue($this->usuario(new UserAccess([P::INGRESSOS_CORTESIAS]))->can('ver-caixa-ingressos'));
+        $this->assertTrue($this->usuario(new UserAccess([P::INGRESSOS_CORTESIAS]))->can('ver-caixa-financeiro'));
         $this->assertFalse($this->usuario(new UserAccess([P::INGRESSOS_CORTESIAS]))->can('acessar-ingressos'));
-        $this->assertFalse($this->usuario(new UserAccess([P::INGRESSOS_CHECKIN]))->can('ver-caixa-ingressos'));
+        $this->assertFalse($this->usuario(new UserAccess([P::INGRESSOS_CHECKIN]))->can('ver-caixa-financeiro'));
     }
 
     public function test_granted_by(): void

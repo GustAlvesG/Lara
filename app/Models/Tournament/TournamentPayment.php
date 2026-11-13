@@ -2,6 +2,7 @@
 
 namespace App\Models\Tournament;
 
+use App\Models\Concerns\FinancePayment;
 use App\Models\Member;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
@@ -19,6 +20,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class TournamentPayment extends Model
 {
+    use FinancePayment;
+
     public const STATUS_PAID = 'paid';
     public const STATUS_REFUNDED = 'refunded';
     public const STATUS_PARTIALLY_REFUNDED = 'partially_refunded';
@@ -72,5 +75,11 @@ class TournamentPayment extends Model
     public function recordedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recorded_by');
+    }
+
+    /** Estornado por inteiro ou em parte (App\Services\Finance\PaymentRefunder). */
+    protected function markRefundStatus(bool $fully): void
+    {
+        $this->status = $fully ? self::STATUS_REFUNDED : self::STATUS_PARTIALLY_REFUNDED;
     }
 }

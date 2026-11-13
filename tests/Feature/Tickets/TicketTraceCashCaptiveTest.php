@@ -14,13 +14,14 @@ use App\Models\Ticket\TicketType;
 use App\Models\User;
 use App\Providers\Services\JwtService;
 use App\Services\Ticket\TicketBuyer;
-use App\Services\Ticket\TicketCashService;
+use App\Services\Finance\CashReport;
 use App\Services\Ticket\TicketOrderService;
 use App\Services\Ticket\TicketSeatService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Tests\Concerns\BuildsTickets;
+use Tests\Concerns\CreatesFinanceSchema;
 use Tests\Concerns\CreatesTicketSchema;
 use Tests\TestCase;
 
@@ -35,6 +36,7 @@ class TicketTraceCashCaptiveTest extends TestCase
 {
     use CreatesTicketSchema;
     use BuildsTickets;
+    use CreatesFinanceSchema;
 
     private const CPF_ANA = '39053344705';
     private const CPF_BIA = '16899535009';
@@ -56,6 +58,8 @@ class TicketTraceCashCaptiveTest extends TestCase
         config(['services.api.token' => $this->token, 'services.jwt.secret' => 'segredo-de-teste']);
 
         $this->createTicketSchema();
+        // O Caixa junta as três origens (FinanceLedger).
+        $this->createFinanceSchema();
         $this->fakeIntegrations();
 
         $this->staff = $this->makeUser('Secretaria');
@@ -157,7 +161,7 @@ class TicketTraceCashCaptiveTest extends TestCase
         $this->orders->cancelTicket($cancelled->tickets->sole(), $other, 'erro');
         $this->orders->issueAtCounter($this->event, $this->guest(3), [$this->holder($this->pista->id, 3)], $this->staff, TicketOrderService::ISSUE_COURTESY);
 
-        $report = app(TicketCashService::class)->report(Carbon::today(), Carbon::today());
+        $report = app(CashReport::class)->report(Carbon::today(), Carbon::today());
         $mine = $report['sellers'][$this->staff->id];
         $this->assertSame(160.0, $mine['total']);
         $this->assertSame(80.0, $mine['methods']['manual_cash']);
@@ -170,20 +174,20 @@ class TicketTraceCashCaptiveTest extends TestCase
         $this->assertNotNull($report['site']);
 
         // Ontem: nada.
-        $this->assertSame([], app(TicketCashService::class)->report(Carbon::yesterday(), Carbon::yesterday())['days']);
+        $this->assertSame([], app(CashReport::class)->report(Carbon::yesterday(), Carbon::yesterday())['days']);
 
         // Quem só vende vê o próprio caixa, mesmo pedindo o de outra pessoa; o financeiro vê todos.
-        $this->actingAs($other)->get(route('tickets.cash.index', ['pessoa' => $this->staff->id]))->assertOk()
+        $this->actingAs($other)->get(route('finance.cash.index', ['pessoa' => $this->staff->id]))->assertOk()
             ->assertSee('Caixa Dois')->assertDontSee('Secretaria</td>', false)->assertDontSee('Site (eRede)');
         $finance = $this->userWith([P::INGRESSOS_CAIXA_TODOS], 'Financeiro');
-        $this->actingAs($finance)->get(route('tickets.cash.index'))->assertOk()->assertSee('Secretaria')->assertSee('Caixa Dois')->assertSee('Site (eRede)');
-        $this->actingAs($finance)->get(route('tickets.cash.pdf'))->assertOk()->assertHeader('content-type', 'application/pdf');
-        $csv = $this->actingAs($finance)->get(route('tickets.cash.csv'))->assertOk()->streamedContent();
+        $this->actingAs($finance)->get(route('finance.cash.index'))->assertOk()->assertSee('Secretaria')->assertSee('Caixa Dois')->assertSee('Site (eRede)');
+        $this->actingAs($finance)->get(route('finance.cash.pdf'))->assertOk()->assertHeader('content-type', 'application/pdf');
+        $csv = $this->actingAs($finance)->get(route('finance.cash.csv'))->assertOk()->streamedContent();
         $this->assertStringContainsString('Dinheiro', $csv);
         $this->assertStringContainsString('Cancelamento', $csv);
 
         $nobody = $this->userWith([P::INGRESSOS_CHECKIN], 'Portaria');
-        $this->actingAs($nobody)->get(route('tickets.cash.index'))->assertForbidden();
+        $this->actingAs($nobody)->get(route('finance.cash.index'))->assertForbidden();
     }
 
     /* ----------------------------------------------------------- impressão */

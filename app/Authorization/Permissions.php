@@ -190,6 +190,15 @@ final class Permissions
     public const USUARIOS_GERENCIAR = 'usuarios.gerenciar';
     public const SETORES_GERENCIAR = 'setores.gerenciar';
 
+    // Financeiro (módulo próprio desde 13/11/2026): Visão geral e
+    // Recebimentos juntam Reservas, Torneios e Ingressos — por isso uma
+    // permissão nova, e não a de cada módulo. As telas por origem continuam
+    // com a permissão de antes (reservas.pagamentos, torneios.financeiro,
+    // ingressos.financeiro, freelancers.financeiro, ingressos.caixa.todos),
+    // só que no grupo Financeiro do catálogo: os nomes não mudaram, então o
+    // que os setores já tinham continua valendo.
+    public const FINANCEIRO_RECEBIMENTOS = 'financeiro.recebimentos';
+
     /**
      * nome => [grupo, rótulo]. A ordem é a da tela: grupos na ordem do menu.
      *
@@ -208,8 +217,6 @@ final class Permissions
         self::HOME_ASSISTANT => ['Home Assistant', 'Painel de iluminação e autoatendimento'],
 
         self::RESERVAS_AGENDAMENTOS => ['Reservas', 'Agendamentos (criar, ver e editar)'],
-        self::RESERVAS_PAGAMENTOS => ['Reservas', 'Pagamentos'],
-        self::RESERVAS_PAGAMENTOS_ESTORNAR => ['Reservas', 'Estornar pagamento'],
         self::RESERVAS_PAGAMENTOS_BAIXA_MANUAL => ['Reservas', 'Baixa manual de pagamento (pago fora da plataforma)'],
         self::RESERVAS_CONFIGURAR => ['Reservas', 'Locais, grupos e regras de reserva'],
         self::RESERVAS_SOCIAIS => ['Reservas', 'Espaços sociais: consultar, pré-reservar e lista de convidados'],
@@ -234,7 +241,6 @@ final class Permissions
         self::FREELANCERS_SERVICOS_GERENCIAR => ['Freelancers', 'Serviços: valores, documentos, registro e lotes'],
         self::FREELANCERS_ASSINATURA => ['Freelancers', 'Assinatura no tablet (kiosk)'],
         self::FREELANCERS_ACOMPANHAMENTO => ['Freelancers', 'Acompanhamento dos lotes'],
-        self::FREELANCERS_FINANCEIRO => ['Freelancers', 'Financeiro e baixa de pagamento'],
 
         self::ASSINATURA_DOCUMENTOS => ['Assinaturas', 'Criar documentos e liberar para assinatura no tablet'],
         self::ASSINATURA_CONSULTAR => ['Assinaturas', 'Consultar documentos assinados e baixar o PDF'],
@@ -258,7 +264,6 @@ final class Permissions
         self::TORNEIOS_RESULTADOS => ['Torneios', 'Lançar e corrigir resultados; gerar o código de lançamento pelo site'],
         self::TORNEIOS_PAGAMENTOS_BAIXA_MANUAL => ['Torneios', 'Baixa manual de inscrição (pago fora da eRede)'],
         self::TORNEIOS_PAGAMENTOS_ESTORNAR => ['Torneios', 'Estornar pagamento de inscrição'],
-        self::TORNEIOS_FINANCEIRO => ['Torneios', 'Relatório financeiro dos torneios'],
 
         self::INGRESSOS_GERENCIAR => ['Ingressos', 'Eventos, tipos de ingresso e lotes'],
         self::INGRESSOS_VENDAS => ['Ingressos', 'Pedidos e ingressos (consultar, vender no balcão, trocar titular, cancelar)'],
@@ -267,8 +272,18 @@ final class Permissions
         self::INGRESSOS_CUPONS => ['Ingressos', 'Cupons de desconto (criar, editar, desativar)'],
         self::INGRESSOS_PAGAMENTOS_BAIXA_MANUAL => ['Ingressos', 'Baixa manual de pedido (pago fora da eRede)'],
         self::INGRESSOS_PAGAMENTOS_ESTORNAR => ['Ingressos', 'Estornar pagamento de ingresso'],
-        self::INGRESSOS_FINANCEIRO => ['Ingressos', 'Relatório financeiro dos ingressos'],
-        self::INGRESSOS_CAIXA_TODOS => ['Ingressos', 'Relatório de caixa de todos os vendedores (fechamento do financeiro)'],
+
+        // Financeiro (13/11/2026): as telas do módulo. Os nomes antigos
+        // continuam (os setores já configurados não mudam); só o grupo e o
+        // rótulo. A baixa manual e o estorno de Torneios e Ingressos ficam
+        // nos módulos, porque acontecem nas telas deles.
+        self::FINANCEIRO_RECEBIMENTOS => ['Financeiro', 'Visão geral e Recebimentos (Reservas, Torneios e Ingressos juntos)'],
+        self::INGRESSOS_CAIXA_TODOS => ['Financeiro', 'Caixa de todas as pessoas e de todas as origens, com o site (fechamento)'],
+        self::RESERVAS_PAGAMENTOS => ['Financeiro', 'Reservas: pagamentos (lista, detalhe e extração)'],
+        self::RESERVAS_PAGAMENTOS_ESTORNAR => ['Financeiro', 'Reservas: estornar pagamento'],
+        self::TORNEIOS_FINANCEIRO => ['Financeiro', 'Torneios: relatório financeiro'],
+        self::INGRESSOS_FINANCEIRO => ['Financeiro', 'Ingressos: relatório financeiro'],
+        self::FREELANCERS_FINANCEIRO => ['Financeiro', 'Freelancers: pagamento dos lotes e baixa'],
 
         self::REPLAY => ['RePET', 'Câmeras, layouts de logomarca e vídeos das quadras'],
         self::REPLAY_TRANSMISSAO => ['RePET', 'Transmissões ao vivo no YouTube: ligar, desligar e controlar o placar'],
@@ -310,9 +325,12 @@ final class Permissions
             self::INGRESSOS_FINANCEIRO, self::INGRESSOS_CAIXA_TODOS, self::INGRESSOS_CUPONS,
         ],
 
-        // Caixa dos ingressos: quem vende no balcão vê o próprio caixa; com
-        // `ingressos.caixa.todos` (o financeiro), o de todos.
-        'ver-caixa-ingressos' => [
+        // Financeiro › Caixa (desde 13/11/2026, antes só dos ingressos): quem
+        // recebe no balcão (baixa manual de Reservas, Torneios ou Ingressos,
+        // venda ou cortesia de ingresso) vê o próprio caixa; com
+        // `ingressos.caixa.todos` (o fechamento), o de todos.
+        'ver-caixa-financeiro' => [
+            self::RESERVAS_PAGAMENTOS_BAIXA_MANUAL, self::TORNEIOS_PAGAMENTOS_BAIXA_MANUAL,
             self::INGRESSOS_VENDAS, self::INGRESSOS_PAGAMENTOS_BAIXA_MANUAL,
             self::INGRESSOS_CORTESIAS, self::INGRESSOS_CAIXA_TODOS,
         ],

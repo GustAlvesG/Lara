@@ -18,6 +18,7 @@ use App\Models\Ticket\TicketType;
 use App\Models\User;
 use App\Services\MultiClubes\MemberProfile;
 use App\Services\MultiClubes\MemberProfileLookup;
+use App\Services\Finance\PaymentRefunder;
 use App\Services\RedeItauService;
 use App\Support\Cpf;
 use Illuminate\Support\Carbon;
@@ -1141,29 +1142,9 @@ class TicketOrderService
             ->update(['status' => Ticket::STATUS_VALID]);
     }
 
+    /** Estorno pela eRede, até o disponível no pagamento (o estorno único do Financeiro). */
     private function refund(TicketPayment $payment, float $amount, User $user): float
     {
-        if ($payment->is_manual) {
-            throw new InvalidArgumentException('Pagamento registrado por baixa manual (fora da eRede): não há estorno pelo Lara. Se houver devolução, ela é feita fora do sistema.');
-        }
-
-        $remaining = round((float) $payment->paid_amount - (float) $payment->refunded_amount, 2);
-        $amount = round(min($amount, $remaining), 2);
-
-        if ($amount <= 0) {
-            throw new InvalidArgumentException('Não há valor disponível para estorno neste pagamento.');
-        }
-
-        $this->rede->refund($payment->payment_integration_id, $amount);
-
-        $payment->refunded_amount = round((float) $payment->refunded_amount + $amount, 2);
-        $payment->refunded_by = $user->id;
-        $payment->refunded_at = Carbon::now();
-        $payment->status = $payment->refunded_amount >= (float) $payment->paid_amount
-            ? TicketPayment::STATUS_REFUNDED
-            : TicketPayment::STATUS_PARTIALLY_REFUNDED;
-        $payment->save();
-
-        return $amount;
+        return (new PaymentRefunder($this->rede))->refund($payment, $amount, $user->id, clamp: true);
     }
 }

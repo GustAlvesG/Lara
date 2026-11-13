@@ -16,7 +16,10 @@ use App\Http\Controllers\Company\CompanyWorkerController as WorkerController;
 use App\Http\Controllers\Company\CompanyAccessRulesController as CompanyRulesController;
 use App\Http\Controllers\Company\OneOffAccessController;
 use App\Http\Controllers\Ticket\TicketCaptiveController;
-use App\Http\Controllers\Ticket\TicketCashController;
+use App\Http\Controllers\Finance\FinanceCashController;
+use App\Http\Controllers\Finance\FinanceOverviewController;
+use App\Http\Controllers\Finance\FinanceReceiptController;
+use App\Http\Controllers\Finance\LegacyFinanceRedirectController;
 use App\Http\Controllers\Ticket\TicketCheckinController;
 use App\Http\Controllers\Ticket\TicketCouponController;
 use App\Http\Controllers\Ticket\TicketDayController;
@@ -663,22 +666,81 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         });
     });
 
-    // Pagamentos das reservas (visualização + estorno via Rede). No menu é
-    // uma sub-aba de Reservas; a URL continua a mesma.
-    Route::group(['prefix' => 'payments'], function () {
-        Route::middleware('can:' . P::RESERVAS_PAGAMENTOS)->group(function () {
-            Route::get('/', [SchedulePaymentController::class, 'index'])->name('payment.index');
-            // Extração (CSV) com os mesmos filtros da lista; antes do /{id}.
-            Route::get('/exportar', [SchedulePaymentController::class, 'export'])->name('payment.export');
-            Route::get('/{schedulePayment}',[SchedulePaymentController::class, 'show'])->name('payment.show');
+    // Financeiro (módulo próprio desde 13/11/2026, docs/funcionalidades/
+    // financeiro.md): Visão geral, Recebimentos e Caixa juntam Reservas,
+    // Torneios e Ingressos; as abas por origem são as telas que moravam em
+    // cada módulo, com os mesmos nomes de rota. A baixa manual de cada
+    // origem continua na tela de origem (agendamento, inscrição, pedido).
+    Route::prefix('financeiro')->group(function () {
+        Route::middleware('can:' . P::FINANCEIRO_RECEBIMENTOS)->group(function () {
+            Route::get('/', [FinanceOverviewController::class, 'index'])->name('finance.index');
+            Route::get('/recebimentos', [FinanceReceiptController::class, 'index'])->name('finance.receipts.index');
+            Route::get('/recebimentos/csv', [FinanceReceiptController::class, 'csv'])->name('finance.receipts.csv');
         });
-        Route::post('/{schedulePayment}/refund', [SchedulePaymentController::class, 'refund'])
-            ->middleware('can:' . P::RESERVAS_PAGAMENTOS_ESTORNAR)->name('payment.refund');
-        // Baixa manual (pago fora da plataforma). Os botões ficam na tela do
-        // agendamento e na da reserva social; não pede ver Pagamentos.
-        Route::post('/manual', [SchedulePaymentController::class, 'storeManual'])
-            ->middleware('can:' . P::RESERVAS_PAGAMENTOS_BAIXA_MANUAL)->name('payment.manual');
+
+        // Caixa: cada um vê o próprio; com `ingressos.caixa.todos`, o de todos.
+        Route::middleware('can:ver-caixa-financeiro')->group(function () {
+            Route::get('/caixa', [FinanceCashController::class, 'index'])->name('finance.cash.index');
+            Route::get('/caixa/pdf', [FinanceCashController::class, 'pdf'])->name('finance.cash.pdf');
+            Route::get('/caixa/csv', [FinanceCashController::class, 'csv'])->name('finance.cash.csv');
+        });
+
+        // Reservas: pagamentos (consulta na Rede e estorno). Era /payments.
+        Route::prefix('reservas')->group(function () {
+            Route::middleware('can:' . P::RESERVAS_PAGAMENTOS)->group(function () {
+                Route::get('/', [SchedulePaymentController::class, 'index'])->name('payment.index');
+                // Extração (CSV) com os mesmos filtros da lista; antes do /{id}.
+                Route::get('/exportar', [SchedulePaymentController::class, 'export'])->name('payment.export');
+                Route::get('/{schedulePayment}', [SchedulePaymentController::class, 'show'])->whereNumber('schedulePayment')->name('payment.show');
+            });
+            Route::post('/{schedulePayment}/estornar', [SchedulePaymentController::class, 'refund'])->whereNumber('schedulePayment')
+                ->middleware('can:' . P::RESERVAS_PAGAMENTOS_ESTORNAR)->name('payment.refund');
+        });
+
+        // Torneios: relatório financeiro (F7). Era /torneios/financeiro.
+        Route::middleware('can:' . P::TORNEIOS_FINANCEIRO)->prefix('torneios')->as('tournaments.')->group(function () {
+            Route::get('/', [TournamentFinanceController::class, 'index'])->name('finance.index');
+            Route::get('/{tournament}', [TournamentFinanceController::class, 'show'])->whereNumber('tournament')->name('finance.show');
+            Route::get('/{tournament}/csv', [TournamentFinanceController::class, 'csv'])->whereNumber('tournament')->name('finance.csv');
+        });
+
+        // Ingressos: relatório financeiro e CSV. Era /ingressos/financeiro.
+        Route::middleware('can:' . P::INGRESSOS_FINANCEIRO)->prefix('ingressos')->as('tickets.')->group(function () {
+            Route::get('/', [TicketFinanceController::class, 'index'])->name('finance.index');
+            Route::get('/{event}', [TicketFinanceController::class, 'show'])->whereNumber('event')->name('finance.show');
+            Route::get('/{event}/csv', [TicketFinanceController::class, 'csv'])->whereNumber('event')->name('finance.csv');
+        });
+
+        // Freelancers: pagamento dos lotes. Era /freelancer-services/financeiro.
+        // O lote é a unidade de trabalho do financeiro: a lista abre por lote
+        // e o pagamento acontece dentro de um deles. `avulsos` e `todos`
+        // existem para que nenhum contrato pagável fique invisível.
+        Route::middleware('can:' . P::FREELANCERS_FINANCEIRO)->prefix('freelancers')->group(function () {
+            Route::get('/', [FreelancerFinanceController::class, 'index'])->name('freelancer-services.finance');
+            Route::get('/avulsos', [FreelancerFinanceController::class, 'orphans'])->name('freelancer-services.finance.orphans');
+            Route::get('/todos', [FreelancerFinanceController::class, 'all'])->name('freelancer-services.finance.all');
+            Route::get('/lote/{batch}', [FreelancerFinanceController::class, 'batch'])->name('freelancer-services.finance.batch');
+            Route::get('/lote/{batch}/impressao', [FreelancerFinanceController::class, 'print'])->name('freelancer-services.finance.print');
+            // Uma rota só: a baixa individual manda `only`, a em massa manda `services[]`.
+            Route::post('/pagar', [FreelancerFinanceController::class, 'pay'])->name('freelancer-services.pay');
+        });
     });
+
+    // Endereços de antes do Financeiro: levam ao novo, com o mesmo filtro.
+    $legacy = fn (string $uri, string $to) => Route::get($uri, LegacyFinanceRedirectController::class)->defaults('to', $to);
+    $legacy('/payments/{rest?}', '/financeiro/reservas/{rest}')->where('rest', '.*');
+    $legacy('/torneios/financeiro', '/financeiro/torneios');
+    $legacy('/torneios/{tournament}/financeiro/{rest?}', '/financeiro/torneios/{tournament}/{rest}')->whereNumber('tournament')->where('rest', 'csv');
+    $legacy('/ingressos/financeiro', '/financeiro/ingressos');
+    $legacy('/ingressos/{event}/financeiro/{rest?}', '/financeiro/ingressos/{event}/{rest}')->whereNumber('event')->where('rest', 'csv');
+    $legacy('/ingressos/caixa/{rest?}', '/financeiro/caixa/{rest}')->where('rest', 'pdf|csv');
+    $legacy('/freelancer-services/financeiro/{rest?}', '/financeiro/freelancers/{rest}')->where('rest', '.*');
+
+    // Baixa manual de reserva (pago fora da plataforma): é ação de Reservas.
+    // Os botões ficam na tela do agendamento e na da reserva social; não pede
+    // ver o Financeiro.
+    Route::post('/payments/manual', [SchedulePaymentController::class, 'storeManual'])
+        ->middleware('can:' . P::RESERVAS_PAGAMENTOS_BAIXA_MANUAL)->name('payment.manual');
 
     // Gestão de acesso. Usuários e Setores são de quem tem a permissão (na
     // prática, os setores de acesso total). "Meu setor" é de qualquer
@@ -916,12 +978,7 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::delete('/{tournament}/codigo-resultados', [TournamentResultController::class, 'revokeCode'])->whereNumber('tournament')->name('results.code.destroy');
         });
 
-        // Relatório financeiro (F7).
-        Route::middleware('can:' . P::TORNEIOS_FINANCEIRO)->group(function () {
-            Route::get('/financeiro', [TournamentFinanceController::class, 'index'])->name('finance.index');
-            Route::get('/{tournament}/financeiro', [TournamentFinanceController::class, 'show'])->whereNumber('tournament')->name('finance.show');
-            Route::get('/{tournament}/financeiro/csv', [TournamentFinanceController::class, 'csv'])->whereNumber('tournament')->name('finance.csv');
-        });
+        // O relatório financeiro mudou para o módulo Financeiro (/financeiro/torneios).
 
         Route::post('/{tournament}/inscricoes/baixa', [TournamentRegistrationController::class, 'manual'])
             ->whereNumber('tournament')
@@ -945,20 +1002,8 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::post('/checkin/{event}', [TicketCheckinController::class, 'store'])->whereNumber('event')->middleware('throttle:120,1')->name('checkin.store');
         });
 
-        // Relatório financeiro e CSV.
-        Route::middleware('can:' . P::INGRESSOS_FINANCEIRO)->group(function () {
-            Route::get('/financeiro', [TicketFinanceController::class, 'index'])->name('finance.index');
-            Route::get('/{event}/financeiro', [TicketFinanceController::class, 'show'])->whereNumber('event')->name('finance.show');
-            Route::get('/{event}/financeiro/csv', [TicketFinanceController::class, 'csv'])->whereNumber('event')->name('finance.csv');
-        });
-
-        // Relatório de caixa (vendas do dia por pessoa e forma de pagamento):
-        // cada um vê o próprio; com `ingressos.caixa.todos`, o de todos.
-        Route::middleware('can:ver-caixa-ingressos')->group(function () {
-            Route::get('/caixa', [TicketCashController::class, 'index'])->name('cash.index');
-            Route::get('/caixa/pdf', [TicketCashController::class, 'pdf'])->name('cash.pdf');
-            Route::get('/caixa/csv', [TicketCashController::class, 'csv'])->name('cash.csv');
-        });
+        // Relatório financeiro e Caixa mudaram para o módulo Financeiro
+        // (/financeiro/ingressos e /financeiro/caixa, este de todas as origens).
 
         // Cupons de desconto do evento.
         Route::middleware('can:' . P::INGRESSOS_CUPONS)->scopeBindings()->prefix('/{event}/cupons')->whereNumber('event')->as('coupons.')->group(function () {
@@ -1072,23 +1117,8 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
     // de nome fixo (financeiro, acompanhamento, lotes, validação, diretoria)
     // vêm antes de /freelancer-services/{freelancerService}, que as engoliria.
 
-    // Financeiro dos freelancers.
-    Route::group(['middleware' => 'can:' . P::FREELANCERS_FINANCEIRO], function () {
-        Route::prefix('freelancer-services')->group(function () {
-            // O lote é a unidade de trabalho do financeiro: a lista abre por
-            // lote e o pagamento acontece dentro de um deles. As telas
-            // `avulsos` e `todos` existem para que nenhum contrato pagável
-            // fique invisível — declaradas antes de /lote/{batch} por clareza,
-            // já que os prefixos não colidem.
-            Route::get('/financeiro', [FreelancerFinanceController::class, 'index'])->name('freelancer-services.finance');
-            Route::get('/financeiro/avulsos', [FreelancerFinanceController::class, 'orphans'])->name('freelancer-services.finance.orphans');
-            Route::get('/financeiro/todos', [FreelancerFinanceController::class, 'all'])->name('freelancer-services.finance.all');
-            Route::get('/financeiro/lote/{batch}', [FreelancerFinanceController::class, 'batch'])->name('freelancer-services.finance.batch');
-            Route::get('/financeiro/lote/{batch}/impressao', [FreelancerFinanceController::class, 'print'])->name('freelancer-services.finance.print');
-            // Uma rota só: a baixa individual manda `only`, a em massa manda `services[]`.
-            Route::post('/pay', [FreelancerFinanceController::class, 'pay'])->name('freelancer-services.pay');
-        });
-    });
+    // O financeiro dos freelancers mudou para o módulo Financeiro
+    // (/financeiro/freelancers); o redirecionamento do endereço antigo está lá.
 
     // Acompanhamento do trâmite — tela de leitura.
     Route::group(['middleware' => 'can:' . P::FREELANCERS_ACOMPANHAMENTO], function () {

@@ -63,7 +63,7 @@ final class Navigation
                 'icon' => 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
                 'permission' => P::HOME_ASSISTANT,
             ],
-            // Pagamentos virou sub-aba de Reservas (a URL continua /payments).
+            // Pagamentos saiu de Reservas para o Financeiro (13/11/2026).
             ['label' => 'Reservas', 'area' => 'reservas', 'glyph' => 'calendar',
                 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
                 'children' => [
@@ -71,7 +71,6 @@ final class Navigation
                     ['route' => 'schedule.index', 'label' => 'Novo Agendamento', 'permission' => P::RESERVAS_AGENDAMENTOS, 'active' => ['schedule.index', 'place-group.*']],
                     ['route' => 'schedule.list', 'label' => 'Todos os Agendamentos', 'permission' => P::RESERVAS_AGENDAMENTOS],
                     ['route' => 'social-booking.index', 'label' => 'Espaços Sociais', 'permission' => P::RESERVAS_SOCIAIS, 'active' => 'social-booking.*'],
-                    ['route' => 'payment.index', 'label' => 'Pagamentos', 'permission' => P::RESERVAS_PAGAMENTOS, 'active' => 'payment.*'],
                     // Contas dos sócios no site: senha provisória, e-mail, cadastro manual.
                     ['route' => 'site-accounts.index', 'label' => 'Contas do site', 'permission' => P::RESERVAS_CONTAS_SITE, 'active' => 'site-accounts.*'],
                     // Cadastro dos grupos (quadras e espaços sociais), espaços e
@@ -165,7 +164,23 @@ final class Navigation
                     ['route' => 'freelancer-functions.index', 'label' => 'Funções', 'permission' => P::FREELANCERS_FUNCOES],
                     ['route' => 'kiosk.index', 'label' => 'Assinatura (Tablet)', 'permission' => P::FREELANCERS_ASSINATURA],
                     ['route' => 'freelancer-services.tracking', 'label' => 'Acompanhamento', 'permission' => P::FREELANCERS_ACOMPANHAMENTO],
-                    ['route' => 'freelancer-services.finance', 'label' => 'Financeiro', 'permission' => P::FREELANCERS_FINANCEIRO, 'active' => 'freelancer-services.finance*'],
+                    // O Financeiro dos freelancers mudou para o módulo Financeiro (13/11/2026).
+                ],
+            ],
+            // Financeiro (13/11/2026): o que estava espalhado em Reservas
+            // (Pagamentos), Torneios, Ingressos (Financeiro e Caixa) e
+            // Freelancers (Financeiro) num módulo só, com a Visão geral e os
+            // Recebimentos das três origens juntos.
+            ['label' => 'Financeiro', 'area' => 'compras', 'glyph' => 'money',
+                'icon' => 'M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+                'children' => [
+                    ['route' => 'finance.index', 'label' => 'Visão geral', 'permission' => P::FINANCEIRO_RECEBIMENTOS],
+                    ['route' => 'finance.receipts.index', 'label' => 'Recebimentos', 'permission' => P::FINANCEIRO_RECEBIMENTOS, 'active' => 'finance.receipts.*'],
+                    ['route' => 'finance.cash.index', 'label' => 'Caixa', 'permission' => 'ver-caixa-financeiro', 'active' => 'finance.cash.*'],
+                    ['route' => 'payment.index', 'label' => 'Reservas', 'permission' => P::RESERVAS_PAGAMENTOS, 'active' => ['payment.index', 'payment.show', 'payment.export', 'payment.refund']],
+                    ['route' => 'tournaments.finance.index', 'label' => 'Torneios', 'permission' => P::TORNEIOS_FINANCEIRO, 'active' => 'tournaments.finance.*'],
+                    ['route' => 'tickets.finance.index', 'label' => 'Ingressos', 'permission' => P::INGRESSOS_FINANCEIRO, 'active' => 'tickets.finance.*'],
+                    ['route' => 'freelancer-services.finance', 'label' => 'Freelancers', 'permission' => P::FREELANCERS_FINANCEIRO, 'active' => ['freelancer-services.finance*', 'freelancer-services.pay']],
                 ],
             ],
             ['label' => 'Placar Clube', 'area' => 'placar', 'glyph' => 'trophy',
@@ -187,7 +202,6 @@ final class Navigation
                     ['route' => 'tournaments.index', 'label' => 'Torneios', 'permission' => P::TORNEIOS_GERENCIAR,
                         'active' => ['tournaments.index', 'tournaments.create', 'tournaments.show', 'tournaments.edit', 'tournaments.registrations.*', 'tournaments.teams.*', 'tournaments.bracket.*']],
                     ['route' => 'tournaments.categories.index', 'label' => 'Categorias', 'permission' => P::TORNEIOS_GERENCIAR, 'active' => 'tournaments.categories.*'],
-                    ['route' => 'tournaments.finance.index', 'label' => 'Financeiro', 'permission' => P::TORNEIOS_FINANCEIRO, 'active' => 'tournaments.finance.*'],
                 ],
             ],
             // Ingressos de eventos vendidos no site de locação. Tipos e lotes
@@ -198,8 +212,6 @@ final class Navigation
                     ['route' => 'tickets.index', 'label' => 'Eventos', 'permission' => 'acessar-ingressos',
                         'active' => ['tickets.index', 'tickets.create', 'tickets.show', 'tickets.edit', 'tickets.coupons.*', 'tickets.orders.*', 'tickets.issue.*']],
                     ['route' => 'tickets.checkin.index', 'label' => 'Check-in', 'permission' => P::INGRESSOS_CHECKIN, 'active' => 'tickets.checkin.*'],
-                    ['route' => 'tickets.finance.index', 'label' => 'Financeiro', 'permission' => P::INGRESSOS_FINANCEIRO, 'active' => 'tickets.finance.*'],
-                    ['route' => 'tickets.cash.index', 'label' => 'Caixa', 'permission' => 'ver-caixa-ingressos', 'active' => 'tickets.cash.*'],
                 ],
             ],
             // RePET (módulo Replay no código): as quatro telas são as etapas do mesmo trabalho — definir o

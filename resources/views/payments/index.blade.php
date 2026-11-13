@@ -1,15 +1,16 @@
-{{-- Pagamentos de reservas. Busca por sócio (nome ou CPF) no servidor, junto
-     dos filtros de status, método e período (pela data do pagamento ou do
-     horário — SchedulePaymentReport). "Exportar CSV" leva os mesmos filtros. --}}
+{{-- Financeiro › Reservas (era Reservas › Pagamentos até 13/11/2026).
+     Busca por sócio (nome ou CPF) no servidor, junto dos filtros de status,
+     método e período (pela data do pagamento ou do horário —
+     SchedulePaymentReport). "Exportar CSV" leva os mesmos filtros. --}}
 @php
     $field = 'h-11 rounded-full border border-line-strong bg-surface px-4 text-sm text-ink focus:border-grena focus:ring-4 focus:ring-grena-tint';
     // Filtro: as formas que o site grava (credit/debit) e as da baixa manual,
     // mais "toda baixa manual".
-    $methods = ['credit' => 'Cartão de crédito', 'debit' => 'Cartão de débito', 'manual' => 'Baixa manual (todas)'] + \App\Models\SchedulePayment::MANUAL_METHODS;
+    $methods = ['credit' => 'Cartão de crédito', 'debit' => 'Cartão de débito', 'manual' => 'Baixa manual (todas)'] + \App\Services\Finance\PaymentMethods::MANUAL;
 @endphp
 <x-app-layout :bootstrap-grid="false">
     <x-page>
-        <x-page-title title="Pagamentos">
+        <x-page-title title="Pagamentos das reservas">
             Consulte na Rede e estorne pagamentos de reservas. As baixas manuais (pago fora da plataforma) também aparecem aqui.
             <x-slot:actions>
                 <x-secondary-button-a href="{{ route('payment.export', request()->except('page')) }}"><x-icon name="download" /> Exportar CSV</x-secondary-button-a>

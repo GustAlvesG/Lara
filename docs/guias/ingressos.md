@@ -29,7 +29,7 @@ Cada parte pede uma permissão do grupo **Ingressos**. Quem libera é a TI ou a 
 | Ver o relatório financeiro | Relatório financeiro dos ingressos |
 | Ver o caixa de todo mundo (fechamento) | Relatório de caixa de todos os vendedores (fechamento do financeiro) |
 
-O botão **Emitir** precisa de "Pedidos e ingressos" **e** de "Baixa manual de pedido" ou "Emitir cortesia". Cada pessoa que vende no balcão vê o **próprio caixa**; ver o de todos é do Financeiro.
+O botão **Emitir** precisa de "Pedidos e ingressos" **e** de "Baixa manual de pedido" ou "Emitir cortesia". Cada pessoa que vende no balcão vê o **próprio caixa**; o caixa fica em **Financeiro › Caixa**, e ver o de todos é do Financeiro.
 
 ## Criar um evento
 <!-- telas: tickets.index -->
@@ -245,39 +245,12 @@ O contador no topo mostra quantos já entraram (no evento de vários dias, do di
 ## Ver o relatório financeiro dos ingressos
 <!-- telas: tickets.finance.index -->
 
-Na tela **Ingressos › Financeiro**, escolha o ano e clique em **Ver**. Aparecem os eventos com:
-
-- ingressos **vendidos**, **cortesias**, **descontos** dados com cupom, valor **estornado**;
-- **recebido**: pagamentos no cartão pelo site e por baixa manual, menos os estornos.
-
-Clique num evento para o detalhe:
-
-- os totais do evento;
-- **Por tipo e lote**, separando sócio e não sócio;
-- **Por forma de pagamento**;
-- **Cupons** usados;
-- o botão **CSV dos ingressos**: uma linha por ingresso, abre no Excel, com as colunas **Vendido por** e **Recebido por**.
-
-Use o relatório financeiro para a visão do evento inteiro (quanto o evento arrecadou). Para conferir o dinheiro que cada pessoa recebeu no balcão num dia, use **Ingressos › Caixa**.
-
-A tela é de quem tem a permissão "Relatório financeiro dos ingressos". O atalho **Financeiro** também aparece na tela de cada evento para quem tem essa permissão.
+Mudou para o módulo **Financeiro** em 13/11/2026: a antiga tela **Ingressos › Financeiro** agora é **Financeiro › Ingressos**, com o mesmo conteúdo (vendidos, cortesias, descontos, estornado e recebido por evento; detalhe por tipo e lote, por forma e cupons; CSV dos ingressos). O atalho **Financeiro** na tela de cada evento continua. O passo a passo está no guia do Financeiro.
 
 ## Fechar o caixa dos ingressos
-<!-- telas: tickets.cash.index -->
+<!-- telas: finance.cash.index -->
 
-A tela **Ingressos › Caixa** mostra o que foi recebido **no balcão**, por **dia**, **pessoa** e **forma de pagamento** (dinheiro, Pix, maquininha, transferência, outro), juntando todos os eventos.
-
-1. Escolha **De** e **Até** (iguais para um dia só) e clique em **Ver**.
-2. No topo: **Recebido no balcão**, o total de cada forma, **Cortesias** (só a quantidade) e **Cancelados**.
-3. Abaixo, cada dia com uma linha por pessoa: quanto recebeu em cada forma, total, vendas, ingressos, cortesias e cancelados.
-4. Em **Lançamentos**, cada venda, cortesia e cancelamento, com o link do pedido.
-5. Baixe o **PDF** (com espaço para a assinatura de quem entrega e de quem confere) ou o **CSV**.
-
-**Quem vê o quê:** cada pessoa vê **só o próprio caixa** ("Você vê só o seu caixa"). Quem tem a permissão "Relatório de caixa de todos os vendedores" vê todo mundo, escolhe a **Pessoa** e vê também o bloco **Site (eRede)** — o que foi pago no cartão pelo site, que não passa pelo caixa de ninguém.
-
-**Em qual caixa entra:** no de quem **registrou o pagamento** — na emissão com pagamento por fora, quem emitiu; na baixa manual de um pedido do site, quem deu a baixa. A data é a do pagamento informada (padrão: a hora do registro).
-
-**Cancelados** só informam: se houve devolução de dinheiro, ela foi feita fora do Lara, então **não é descontada** do total.
+Mudou para o módulo **Financeiro** em 13/11/2026: a antiga tela **Ingressos › Caixa** agora é **Financeiro › Caixa** e junta, além dos ingressos, as baixas manuais de reservas e de inscrições de torneio. Continua mostrando, por dia e pessoa, o que foi recebido em cada forma de pagamento, as **cortesias** e os ingressos **cancelados**, com PDF e CSV. Cada pessoa vê o próprio caixa. O passo a passo está no guia do Financeiro.
 
 ## Como o site vende os ingressos
 
@@ -347,6 +320,6 @@ Quando duas pessoas escolhem o mesmo lugar ao mesmo tempo, a segunda recebe "ess
 O código vai para o e-mail informado na compra. Abra o pedido em **Pedidos** e confira se o e-mail está certo (procure também no spam). A troca do e-mail do pedido é feita pela equipe. Você também pode usar **Reenviar e-mail** ou mandar o **PDF**.
 
 ### Por que só vejo o meu caixa?
-<!-- telas: tickets.cash.index -->
+<!-- telas: finance.cash.index -->
 
-Cada pessoa vê o próprio caixa. Ver o caixa de todos os vendedores, escolher a pessoa e ver o bloco Site (eRede) é da permissão "Relatório de caixa de todos os vendedores", normalmente do Financeiro.
+Cada pessoa vê o próprio caixa. Ver o caixa de todos os vendedores, escolher a pessoa e ver o bloco Site (eRede) é da permissão do caixa de todas as pessoas (grupo Financeiro na tela Setores), normalmente do Financeiro.

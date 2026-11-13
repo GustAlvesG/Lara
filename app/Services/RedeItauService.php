@@ -8,6 +8,7 @@ use Symfony\Component\DomCrawler\Crawler;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use App\Models\SchedulePayment;
+use App\Services\Finance\PaymentRefunder;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
@@ -43,9 +44,8 @@ class RedeItauService
     /**
      * Realiza o reembolso (parcial ou total) de uma transação na Rede.
      *
-     * Só a chamada à Rede, sem auditoria: quem chama grava o estorno no seu
-     * pagamento (refundPayment para o SchedulePayment; os torneios usam direto,
-     * com o TournamentPayment).
+     * Só a chamada à Rede, sem auditoria: quem grava o estorno no pagamento
+     * é o App\Services\Finance\PaymentRefunder (Reservas, Torneios e Ingressos).
      */
     public function refund(string $tid, float $amount): array
     {
@@ -87,51 +87,11 @@ class RedeItauService
      * Estorna um pagamento específico (total ou parcial) e atualiza a auditoria local.
      * $amount omitido = estorna o valor restante (paid_amount - refunded_amount já feito).
      */
-    public function refundPayment(SchedulePayment $payment, ?float $amount, ?int $actorUserId): array
+    public function refundPayment(SchedulePayment $payment, ?float $amount, ?int $actorUserId): float
     {
-        // Baixa manual: o dinheiro não passou pela Rede, então não há o que
-        // estornar por ela — a devolução, se houver, é feita fora do Lara.
-        if ($payment->is_manual) {
-            throw new InvalidArgumentException('Pagamento registrado por baixa manual (pago fora da plataforma): não há estorno pela Rede. Se houver devolução, ela é feita fora do Lara.');
-        }
-
-        if (empty($payment->payment_integration_id)) {
-            throw new InvalidArgumentException('Pagamento sem identificador de transação na Rede (payment_integration_id).');
-        }
-
-        $alreadyRefunded = (float) ($payment->refunded_amount ?? 0);
-        $remaining = round((float) $payment->paid_amount - $alreadyRefunded, 2);
-
-        $amount = $amount !== null ? round($amount, 2) : $remaining;
-
-        if ($amount <= 0 || $amount > $remaining) {
-            throw new InvalidArgumentException("Valor de estorno inválido. Disponível para estorno: R$ " . number_format($remaining, 2, ',', '.'));
-        }
-
-        try {
-            $response = $this->refund($payment->payment_integration_id, $amount);
-        } catch (RequestException $e) {
-            Log::error('Falha ao estornar pagamento na Rede', [
-                'schedule_payment_id' => $payment->id,
-                'tid' => $payment->payment_integration_id,
-                'amount' => $amount,
-                'error' => $e->getMessage(),
-            ]);
-            throw $e;
-        }
-
-        $payment->refunded_amount = round($alreadyRefunded + $amount, 2);
-        $payment->refunded_by = $actorUserId;
-        $payment->refunded_at = Carbon::now();
-
-        // Só marca como cancelado (0) quando o valor total já foi estornado; estorno parcial mantém o status atual.
-        if ($payment->refunded_amount >= (float) $payment->paid_amount) {
-            $payment->status_id = 0;
-        }
-
-        $payment->save();
-
-        return $response;
+        // As regras (baixa manual não estorna, valor até o disponível) e a
+        // gravação moram no estorno único do Financeiro.
+        return (new PaymentRefunder($this))->refund($payment, $amount, $actorUserId);
     }
 
     /**

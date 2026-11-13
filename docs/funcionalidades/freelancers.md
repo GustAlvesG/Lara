@@ -994,11 +994,11 @@ contratos. São cinco telas:
 
 | Tela | Rota | O que é |
 |---|---|---|
-| Lista de lotes | `/freelancer-services/financeiro` | lotes aprovados pela diretoria, separados em *Aguardando pagamento* e *Quitados* |
-| Lote | `/financeiro/lote/{batch}` | os contratos pagáveis do lote; **é aqui que a baixa acontece** |
-| Impressão | `/financeiro/lote/{batch}/impressao` | relação do lote para conferência em papel |
-| Sem lote | `/financeiro/avulsos` | contratos pagáveis fora de qualquer lote aprovado |
-| Todos | `/financeiro/todos` | a lista plana de sempre, para busca transversal |
+| Lista de lotes | `/financeiro/freelancers` (era `/freelancer-services/financeiro`; desde 13/11/2026 no módulo [Financeiro](financeiro.md), o endereço antigo redireciona) | lotes aprovados pela diretoria, separados em *Aguardando pagamento* e *Quitados* |
+| Lote | `/financeiro/freelancers/lote/{batch}` | os contratos pagáveis do lote; **é aqui que a baixa acontece** |
+| Impressão | `/financeiro/freelancers/lote/{batch}/impressao` | relação do lote para conferência em papel |
+| Sem lote | `/financeiro/freelancers/avulsos` | contratos pagáveis fora de qualquer lote aprovado |
+| Todos | `/financeiro/freelancers/todos` | a lista plana de sempre, para busca transversal |
 
 - Só entram contratos **assinados pelas duas partes e aprovados pela gerência E pela diretoria**,
   não cancelados e não aditivados (`scopeAwaitingFinance`). Contratos parcialmente assinados não

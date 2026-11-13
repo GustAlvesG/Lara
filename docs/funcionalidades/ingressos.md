@@ -444,8 +444,8 @@ deploy, dê aos setores pertinentes pela tela de Setores.
 | `ingressos.pagamentos.estornar` | Estornar na eRede ao cancelar |
 | `ingressos.cupons` | Cupons de desconto do evento |
 | `ingressos.checkin` | Tela de check-in do Lara (o Monitor de Acesso não pede permissão) |
-| `ingressos.financeiro` | Relatório financeiro e CSV |
-| `ingressos.caixa.todos` | Relatório de caixa de **todas** as pessoas, com o site (eRede) e o filtro por pessoa — o fechamento do financeiro. Sem ela, quem tem `vendas`, `pagamentos.baixa-manual` ou `cortesias` vê só o próprio caixa (Gate `ver-caixa-ingressos`). |
+| `ingressos.financeiro` | Relatório financeiro e CSV (tela Financeiro › Ingressos; grupo Financeiro no catálogo desde 13/11/2026) |
+| `ingressos.caixa.todos` | Relatório de caixa de **todas** as pessoas, com o site (eRede) e o filtro por pessoa — o fechamento do financeiro. Sem ela, quem tem `vendas`, `pagamentos.baixa-manual` ou `cortesias` vê só o próprio caixa (Gate `ver-caixa-financeiro`, que desde 13/11/2026 inclui a baixa manual de Reservas e Torneios). Grupo Financeiro no catálogo. |
 
 A lista de eventos e a tela do evento abrem para quem tem **qualquer** uma delas (Gate
 `acessar-ingressos`, no `AppServiceProvider`); o que cada um faz lá dentro segue a própria
@@ -453,8 +453,10 @@ permissão.
 
 ## Telas
 
-Menu **Ingressos**: **Eventos** (`acessar-ingressos`), **Check-in** (`ingressos.checkin`),
-**Financeiro** (`ingressos.financeiro`), **Caixa** (`ver-caixa-ingressos`).
+Menu **Ingressos**: **Eventos** (`acessar-ingressos`) e **Check-in** (`ingressos.checkin`).
+O relatório financeiro e o Caixa mudaram em 13/11/2026 para o módulo **Financeiro**
+(**Financeiro › Ingressos**, `ingressos.financeiro`; **Financeiro › Caixa**, `ver-caixa-financeiro`) — ver
+[financeiro.md](financeiro.md).
 
 - **Lista de eventos** (`/ingressos`) com busca e filtro de situação; vendidos e lotação.
 - **Novo/editar evento** (`/ingressos/novo`, `/ingressos/{id}/editar`): nome, local,
@@ -475,8 +477,8 @@ Menu **Ingressos**: **Eventos** (`acessar-ingressos`), **Check-in** (`ingressos.
   pendente ou expirado; cancelar os marcados (com estorno, se permitido); reenviar e-mail; PDF.
 - **Emitir ingressos** (`/ingressos/{id}/emitir`): modo (pago por fora ou cortesia), sócio
   ou não sócio, titulares, forma de pagamento e cupom; preços do lote à venda.
-- **Check-in** (`/ingressos/checkin`) e **Financeiro** (`/ingressos/financeiro`,
-  `/ingressos/{id}/financeiro`, CSV).
+- **Check-in** (`/ingressos/checkin`). O **Financeiro** está em `/financeiro/ingressos`,
+  `/financeiro/ingressos/{id}` e CSV (os endereços `/ingressos/financeiro` antigos redirecionam).
 - **Mapas** (`/ingressos/{id}/mapas`, `gerenciar`): lista, novo mapa (em branco ou copiando
   outro), apagar. **Desenhar** (`/ingressos/{id}/mapas/{mapa}`): dados do mapa (nome,
   tamanho, imagem de fundo, "Ajustar o tamanho à imagem") e o editor — ferramentas
@@ -492,8 +494,8 @@ Menu **Ingressos**: **Eventos** (`acessar-ingressos`), **Check-in** (`ingressos.
   aparece no ingresso e há **Trocar lugar** (mapa).
 - **Mesas cativas** (`/ingressos/{id}/mapas/{mapa}/cativas`, `gerenciar`): prazo de
   liberação, guardar lugar para matrícula, lista com a situação, tirar cativa (uma ou todas).
-- **Caixa** (`/ingressos/caixa?de=&ate=&pessoa=`, `ver-caixa-ingressos`): ver *Relatório de
-  caixa*; PDF e CSV.
+- **Caixa** (`/financeiro/caixa?de=&ate=&pessoa=`, `ver-caixa-financeiro`; era `/ingressos/caixa`):
+  ver *Relatório de caixa*; PDF e CSV.
 - No **Pedido**: **Imprimir (térmica)** e **Histórico**; nos **Pedidos**, filtro **Vendido
   por**; na **Emissão**, o bloco **Cortesias** (uma por pessoa ou em quantidade).
 
@@ -509,7 +511,7 @@ Conta **por ingresso**: vendidos = válidos + usados; o cancelado entra só com 
 | Cupons | ingressos com desconto e total abatido, por código |
 | CSV | um ingresso por linha (pagos, usados e cancelados), separador `;`, com BOM para o Excel; CPF do titular mascarado |
 
-A lista (`/ingressos/financeiro`) mostra os eventos do ano (`?ano=`), menos os rascunhos.
+A lista (`/financeiro/ingressos`) mostra os eventos do ano (`?ano=`), menos os rascunhos.
 O CSV traz também **Vendido por** (quem emitiu no Lara; "Site") e **Recebido por** (quem
 registrou a baixa manual).
 
@@ -517,7 +519,12 @@ Os mesmos números, sem dado pessoal, também vão para os **dashboards do site*
 só para o sócio com perfil administrador: `TicketDashboardService` e `/api/dashboard/tickets/*`.
 Ver [dashboards-site.md](dashboards-site.md).
 
-## Relatório de caixa (`TicketCashService`, desde 28/10/2026)
+## Relatório de caixa (desde 28/10/2026; `App\Services\Finance\CashReport` desde 13/11/2026)
+
+> Desde 13/11/2026 o caixa é do módulo [Financeiro](financeiro.md) e junta também as baixas
+> manuais de Reservas e Torneios (lançamento "Recebimento", com a origem). Cortesia e
+> cancelamento continuam só dos ingressos; o bloco Site (eRede) sai por origem. O que segue
+> descreve a parte dos ingressos.
 
 O que cada pessoa recebeu **no balcão**, por **dia** e **forma de pagamento**, juntando todos
 os eventos — para o fechamento de caixa do financeiro. Período de um dia (padrão: hoje) até

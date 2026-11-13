@@ -138,6 +138,14 @@ Guia: [Reservas de Espaços Sociais](funcionalidades/espacos-sociais.md). Rotas 
 | POST | `/social-bookings/{booking}/approve` | Social\SocialBookingController@approve | social-booking.approve | auth, can:reservas.sociais.aprovar |
 | POST | `/social-bookings/{booking}/refuse` | Social\SocialBookingController@refuse | social-booking.refuse | auth, can:reservas.sociais.aprovar |
 | POST | `/social-bookings/{booking}/cancel` | Social\SocialBookingController@cancel | social-booking.cancel | auth, can:reservas.sociais.aprovar (estorno pede também reservas.pagamentos.estornar) |
+| GET | `/financeiro` | Finance\FinanceOverviewController@index | finance.index | auth, can:financeiro.recebimentos |
+| GET | `/financeiro/recebimentos` (+ `/csv`) | Finance\FinanceReceiptController@index/csv | finance.receipts.index / .csv | auth, can:financeiro.recebimentos |
+| GET | `/financeiro/caixa` (+ `/pdf`, `/csv`) | Finance\FinanceCashController | finance.cash.index / .pdf / .csv | auth, can:ver-caixa-financeiro |
+| GET | `/financeiro/reservas` (+ `/exportar`, `/{id}`) | SchedulePaymentController@index/export/show | payment.index / .export / .show | auth, can:reservas.pagamentos (era `/payments`) |
+| POST | `/financeiro/reservas/{id}/estornar` | SchedulePaymentController@refund | payment.refund | auth, can:reservas.pagamentos.estornar |
+| GET | `/financeiro/freelancers` (+ `/avulsos`, `/todos`, `/lote/{batch}`, `/lote/{batch}/impressao`) | Freelancer\FinanceController | freelancer-services.finance* | auth, can:freelancers.financeiro (era `/freelancer-services/financeiro`) |
+| POST | `/financeiro/freelancers/pagar` | Freelancer\FinanceController@pay | freelancer-services.pay | auth, can:freelancers.financeiro |
+| GET | `/payments/*`, `/torneios/financeiro`, `/ingressos/financeiro`, `/ingressos/caixa/*`, `/freelancer-services/financeiro/*` | Finance\LegacyFinanceRedirectController | — | 301 para o endereço novo, com a query |
 | POST | `/payments/manual` | SchedulePaymentController@storeManual | payment.manual | auth, can:reservas.pagamentos.baixa-manual (baixa manual: pago fora da plataforma; quadras e espaço social aprovado) |
 
 ### Torneios (`tournaments.*`)
@@ -182,9 +190,9 @@ Guia: [Torneios](funcionalidades/torneios.md). Catálogo de categorias, torneios
 | DELETE | `/torneios/{tournament}/categorias/{category}/grupos/{group}/fechar` | Tournament\TournamentResultController@reopenGroup | tournaments.results.groups.reopen | auth, can:torneios.resultados |
 | POST | `/torneios/{tournament}/codigo-resultados` | Tournament\TournamentResultController@generateCode | tournaments.results.code.store | auth, can:torneios.resultados |
 | DELETE | `/torneios/{tournament}/codigo-resultados` | Tournament\TournamentResultController@revokeCode | tournaments.results.code.destroy | auth, can:torneios.resultados |
-| GET | `/torneios/financeiro` | Tournament\TournamentFinanceController@index | tournaments.finance.index | auth, can:torneios.financeiro |
-| GET | `/torneios/{tournament}/financeiro` | Tournament\TournamentFinanceController@show | tournaments.finance.show | auth, can:torneios.financeiro |
-| GET | `/torneios/{tournament}/financeiro/csv` | Tournament\TournamentFinanceController@csv | tournaments.finance.csv | auth, can:torneios.financeiro |
+| GET | `/financeiro/torneios` | Tournament\TournamentFinanceController@index | tournaments.finance.index | auth, can:torneios.financeiro (era `/torneios/financeiro`, redireciona) |
+| GET | `/financeiro/torneios/{tournament}` | Tournament\TournamentFinanceController@show | tournaments.finance.show | auth, can:torneios.financeiro |
+| GET | `/financeiro/torneios/{tournament}/csv` | Tournament\TournamentFinanceController@csv | tournaments.finance.csv | auth, can:torneios.financeiro |
 
 ### Contratos (`contracts.*`, `contract-library.*`)
 
@@ -275,9 +283,9 @@ Guia: [Ingressos](funcionalidades/ingressos.md). Tipo, lote e cupom presos ao ev
 | POST | `/ingressos/pedidos/{order}/baixa` | Ticket\TicketOrderController@manual | tickets.orders.manual | ingressos.vendas + ingressos.pagamentos.baixa-manual |
 | GET | `/ingressos/checkin` | Ticket\TicketCheckinController@index | tickets.checkin.index | ingressos.checkin |
 | POST | `/ingressos/checkin/{event}` | Ticket\TicketCheckinController@store | tickets.checkin.store | ingressos.checkin (throttle 120/min) |
-| GET | `/ingressos/financeiro` | Ticket\TicketFinanceController@index | tickets.finance.index | ingressos.financeiro |
-| GET | `/ingressos/{event}/financeiro` | Ticket\TicketFinanceController@show | tickets.finance.show | ingressos.financeiro |
-| GET | `/ingressos/{event}/financeiro/csv` | Ticket\TicketFinanceController@csv | tickets.finance.csv | ingressos.financeiro |
+| GET | `/financeiro/ingressos` | Ticket\TicketFinanceController@index | tickets.finance.index | ingressos.financeiro (era `/ingressos/financeiro`, redireciona) |
+| GET | `/financeiro/ingressos/{event}` | Ticket\TicketFinanceController@show | tickets.finance.show | ingressos.financeiro |
+| GET | `/financeiro/ingressos/{event}/csv` | Ticket\TicketFinanceController@csv | tickets.finance.csv | ingressos.financeiro |
 
 ### InfoClube › Fila de Espera (`waitlist.*`, `can:infoclube.fila-espera`)
 
