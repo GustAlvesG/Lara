@@ -9,7 +9,7 @@ O módulo Reservas do Lara cuida de tudo o que o sócio reserva no clube: **quad
 
 A maior parte das reservas o sócio faz sozinho pelo **site do clube**, com o login dele (CPF e senha). No Lara, a equipe acompanha a agenda, lança reservas no balcão, cancela, confere pagamentos, dá baixa no que foi pago fora do site, configura locais e regras e resolve problemas de login do sócio no site.
 
-O menu **Reservas** tem as telas Novo Agendamento, Todos os Agendamentos, Espaços Sociais, Pagamentos, Contas do site e Locais e Grupos. Cada uma só aparece para quem tem a permissão correspondente.
+O menu **Reservas** tem as telas Novo Agendamento, Todos os Agendamentos, Espaços Sociais, Contas do site e Locais e Grupos. Cada uma só aparece para quem tem a permissão correspondente. Os pagamentos das reservas (lista, consulta na Rede, estorno e extração) ficam no módulo **Financeiro**, em **Financeiro › Reservas** (desde 13/11/2026).
 
 ## Quem faz o quê
 
@@ -18,8 +18,8 @@ Quem libera é a TI ou a Gerência, na tela **Setores** (ou só para uma pessoa,
 | Para | Permissão (como aparece na tela Setores) |
 |---|---|
 | Ver a agenda, lançar reserva de quadra no balcão, ver e cancelar agendamentos | Reservas › Agendamentos (criar, ver e editar) |
-| Ver a lista de pagamentos e consultar na Rede | Reservas › Pagamentos |
-| Estornar pagamento (quadra ou espaço social) | Reservas › Estornar pagamento |
+| Ver a lista de pagamentos e consultar na Rede (tela Financeiro › Reservas) | Financeiro › Reservas: pagamentos (lista, detalhe e extração) |
+| Estornar pagamento (quadra ou espaço social) | Financeiro › Reservas: estornar pagamento |
 | Marcar como pago o que foi recebido fora do site | Reservas › Baixa manual de pagamento (pago fora da plataforma) |
 | Criar e editar grupos, locais, regras de locação e o catálogo de bebidas e mobiliário | Reservas › Locais, grupos e regras de reserva |
 | Consultar espaços sociais, lançar pré-reserva e cuidar da lista de convidados | Reservas › Espaços sociais: consultar, pré-reservar e lista de convidados |
@@ -156,7 +156,7 @@ Use a baixa manual quando o sócio pagou uma reserva de quadra **fora do site**:
 
 O que acontece:
 
-- É criado um pagamento marcado como "Baixa manual", com o nome de quem registrou. Ele aparece em Reservas › Pagamentos.
+- É criado um pagamento marcado como "Baixa manual", com o nome de quem registrou. Ele aparece em **Financeiro › Reservas** e no **Caixa** de quem registrou.
 - Agendamento **pendente** passa a **confirmado** e o sócio recebe o e-mail de confirmação. Agendamento já confirmado (lançado no balcão) só ganha o pagamento.
 
 A baixa é recusada para agendamento que já tem pagamento, que está cancelado ou expirado, ou quando os agendamentos marcados são de sócios diferentes.
@@ -164,23 +164,9 @@ A baixa é recusada para agendamento que já tem pagamento, que está cancelado 
 ## Consultar pagamentos e fazer estorno
 <!-- telas: payment.index -->
 
-A tela **Reservas › Pagamentos** lista os pagamentos das reservas: os feitos no site (cartão, pela Rede) e as baixas manuais.
+Mudou para o módulo **Financeiro** em 13/11/2026: a antiga tela **Reservas › Pagamentos** agora é **Financeiro › Reservas**, com os mesmos filtros, a extração em CSV, a consulta na Rede e o botão **Estornar Pagamento**. O passo a passo está no guia do Financeiro, em "Pagamentos das reservas e estorno". Links e favoritos antigos levam para a tela nova.
 
-- **Buscar sócio** por nome ou CPF.
-- **Filtros:** status e método (Cartão de crédito, Cartão de débito, "Baixa manual (todas)" ou uma forma de baixa manual específica).
-- **Período:** preencha **De** e **Até** e escolha se o período vale pela **Data do pagamento** (o padrão, para o fechamento do caixa) ou pela **Data do horário** (o que foi usado no período, pago antes ou depois). O dia do **Até** entra inteiro. Clique em **Buscar**.
-- A lista mostra o sócio, o **local e horário** a que o pagamento se refere (até dois; se houver mais, aparece "+ N horários" e a lista completa fica em **Detalhes**), método, data do pagamento, status, valor pago e valor estornado. **Detalhes** abre o pagamento.
-- **Exportar CSV** (no alto da tela) baixa uma planilha com **o que a tela está filtrando** (busca, status, método e período). Abre no Excel. Cada linha é um horário pago: pagamento, data do pagamento, sócio, CPF, título, forma, status, grupo, local, data, início e fim do horário, valor do horário e status do horário. Um pagamento de vários horários ocupa várias linhas; o **Valor pago** e o **Estornado** aparecem só na primeira delas, para a soma da coluna dar o total certo.
-
-Na tela do pagamento:
-
-- Aparecem o valor pago, o método, a data, o ID da transação na Rede e os **Agendamentos Vinculados**.
-- **Consultar transação na Rede** busca na hora os dados do cartão (portador, final do cartão, status, NSU, TID). Não existe para baixa manual.
-- **Estornar Pagamento** (só para quem tem a permissão de estorno): informe o valor ou deixe em branco para estornar todo o valor disponível, clique em **Estornar** e confirme. O estorno pode ser parcial; a tela mostra quanto ainda está disponível.
-
-Baixa manual não tem estorno pela Rede: a tela avisa "Baixa manual não tem estorno pela Rede. Se houver devolução, ela é feita fora do Lara." Pagamento totalmente estornado mostra "Pagamento já totalmente estornado".
-
-O estorno por esta tela devolve o dinheiro, mas **não cancela** a reserva. Para cancelar a reserva e estornar juntos, use o cancelamento no agendamento (quadra) ou na reserva social.
+O estorno por essa tela devolve o dinheiro, mas **não cancela** a reserva. Para cancelar e estornar juntos, use o cancelamento no agendamento (quadra) ou na reserva social.
 
 ## Como funciona a reserva de espaço social
 <!-- telas: social-booking.index -->
@@ -485,7 +471,7 @@ A busca procura pela **matrícula** exata do título no MultiClubes, e só come�
 ### A reserva que o sócio fez no site sumiu
 <!-- telas: schedule.list -->
 
-Reserva feita no site e não paga em 10 minutos **expira**, e o horário volta a ficar livre. Procure em **Reservas › Todos os Agendamentos** com o status Expirado (ou Todos os status): ela continua lá. Se o sócio diz que pagou, confira em Reservas › Pagamentos.
+Reserva feita no site e não paga em 10 minutos **expira**, e o horário volta a ficar livre. Procure em **Reservas › Todos os Agendamentos** com o status Expirado (ou Todos os status): ela continua lá. Se o sócio diz que pagou, confira em **Financeiro › Reservas**.
 
 ### Por que não aparece a opção de estorno ao cancelar?
 <!-- telas: schedule.list -->
@@ -540,7 +526,7 @@ No calendário da **Nova pré-reserva**:
 ### "Reserva cancelada, mas o estorno não funcionou na Rede"
 <!-- telas: social-booking.index, payment.index -->
 
-O cancelamento foi gravado, mas a Rede recusou a devolução. Tire um print da mensagem e envie para a TI. O sócio recebe o e-mail de cancelamento sem promessa de devolução. Em Reservas › Pagamentos, a mensagem equivalente é "O estorno não funcionou. Tire um print desta mensagem e envie para a TI."
+O cancelamento foi gravado, mas a Rede recusou a devolução. Tire um print da mensagem e envie para a TI. O sócio recebe o e-mail de cancelamento sem promessa de devolução. Em Financeiro › Reservas, a mensagem equivalente é "O estorno não funcionou. Tire um print desta mensagem e envie para a TI."
 
 ### Mensagens de Contas do site
 <!-- telas: site-accounts.index -->

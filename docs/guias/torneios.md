@@ -11,7 +11,7 @@ Os sócios se inscrevem e pagam pelo site de locação do clube (pagamento pela 
 
 O chaveamento e os resultados aparecem no site depois de divulgados. A equipe que está na quadra pode lançar os resultados pelo site, com um código gerado no Lara.
 
-O menu **Torneios** tem três telas: **Torneios**, **Categorias** e **Financeiro**.
+O menu **Torneios** tem duas telas: **Torneios** e **Categorias**. O relatório financeiro dos torneios fica no módulo **Financeiro**, em **Financeiro › Torneios** (desde 13/11/2026).
 
 ## Quem faz o quê
 
@@ -166,9 +166,7 @@ Depois de encerrado, o site não lança mais resultado (o Lara ainda corrige). P
 ## Como ver o financeiro dos torneios
 <!-- telas: tournaments.finance.index -->
 
-Na tela **Torneios › Financeiro** aparecem os torneios publicados com **Recebido**, **Estornado**, **Líquido** e **A receber**, e os totais no topo. O filtro **Ano** limita pelo ano de início.
-
-Clique no nome do torneio para ver o detalhe: **Por categoria** (pagas, recebido pela **eRede** e **Manual** separados, estornado, líquido e a receber) e a lista de **Pagamentos** com data, pessoa, categorias, forma, valor, estorno e situação. **CSV dos pagamentos** baixa a lista para abrir no Excel. O mesmo detalhe abre pelo botão **Financeiro** na tela do torneio.
+Mudou para o módulo **Financeiro** em 13/11/2026: a antiga tela **Torneios › Financeiro** agora é **Financeiro › Torneios**, com o mesmo conteúdo (recebido, estornado, líquido e a receber por torneio; detalhe por categoria; CSV dos pagamentos). O botão **Financeiro** na tela do torneio continua levando ao detalhe. O passo a passo está no guia do Financeiro.
 
 A conta é por inscrição: um mesmo pagamento pode cobrir várias categorias.
 
@@ -221,6 +219,6 @@ Quando aparece "O estorno não funcionou e a inscrição continua ativa", nada f
 ### Não vejo o menu Torneios ou algum botão
 <!-- telas: tournaments.index, tournaments.categories.index, tournaments.finance.index -->
 
-Cada parte do módulo tem uma permissão própria (veja "Quem faz o quê"). Os itens **Torneios** e **Categorias** do menu exigem a permissão de catálogo, torneios e chaveamento; **Financeiro** exige a do relatório financeiro. Fale com o coordenador do seu setor: ele pede à TI ou à Gerência para liberar a permissão ao setor na tela **Setores**, ou a TI dá a permissão só para você em **Usuários**.
+Cada parte do módulo tem uma permissão própria (veja "Quem faz o quê"). Os itens **Torneios** e **Categorias** do menu exigem a permissão de catálogo, torneios e chaveamento; **Financeiro › Torneios** exige a do relatório financeiro. Fale com o coordenador do seu setor: ele pede à TI ou à Gerência para liberar a permissão ao setor na tela **Setores**, ou a TI dá a permissão só para você em **Usuários**.
 
 Atenção: quem tem só a permissão de inscrições e times (ou só a de resultados), sem a de catálogo, torneios e chaveamento, não tem o item **Torneios** no menu e não abre a tela do torneio, onde ficam os botões **Inscrições**, **Times** e **Chaveamento**. Na prática, quem trabalha com inscrições ou resultados precisa também dessa permissão.

@@ -1,35 +1,33 @@
 <?php
 
-namespace App\Services\Ticket;
+namespace App\Services\Finance;
 
-use App\Models\SchedulePayment;
 use App\Models\Ticket\Ticket;
 use App\Models\Ticket\TicketOrder;
-use App\Models\Ticket\TicketPayment;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
- * Relatório de caixa dos ingressos (docs/funcionalidades/ingressos.md): o que
- * cada pessoa recebeu no balcão, por dia e por forma de pagamento, para o
- * fechamento de caixa do financeiro. Junta todos os eventos.
+ * Financeiro › Caixa (docs/funcionalidades/financeiro.md): o que cada pessoa
+ * recebeu no balcão, por dia e por forma de pagamento, para o fechamento de
+ * caixa. Era o caixa dos ingressos; desde 13/11/2026 junta as três origens.
  *
- *   - venda: baixa manual (`ticket_payments.is_manual`), no dia do `paid_at`,
- *     na conta de quem registrou (`recorded_by`) — a emissão com pagamento por
- *     fora e a baixa de pedido do site pago na secretaria;
- *   - cortesia: pedido de cortesia emitido no Lara, na conta de quem emitiu
- *     (`created_by`); conta ingressos, sem valor;
- *   - cancelamento: ingresso pago por baixa manual cancelado no período, na
- *     conta de quem cancelou. Só informa: a devolução, se houve, foi por fora
- *     do Lara (baixa manual não tem estorno), então não sai do total recebido;
- *   - site (eRede): só na visão de todos, num bloco à parte — não passa pelo
- *     caixa de ninguém.
+ *   - venda (recebimento): baixa manual de Reservas, Torneios ou Ingressos,
+ *     no dia do `paid_at`, na conta de quem registrou (`recorded_by`);
+ *   - cortesia (só Ingressos): pedido de cortesia emitido no Lara, na conta
+ *     de quem emitiu; conta ingressos, sem valor;
+ *   - cancelamento (só Ingressos): ingresso pago por baixa manual cancelado
+ *     no período, na conta de quem cancelou. Só informa: a devolução, se
+ *     houve, foi por fora do Lara, então não sai do total recebido;
+ *   - site (eRede): só na visão de todos, à parte e por origem — não passa
+ *     pelo caixa de ninguém.
  *
  * `$userId` preenchido = só o caixa dessa pessoa (quem não tem
  * `ingressos.caixa.todos` vê o próprio).
  */
-class TicketCashService
+class CashReport
 {
     public const KIND_SALE = 'sale';
     public const KIND_COURTESY = 'courtesy';
@@ -37,7 +35,7 @@ class TicketCashService
 
     /** @var array<string, string> */
     public const KIND_LABELS = [
-        self::KIND_SALE => 'Venda',
+        self::KIND_SALE => 'Recebimento',
         self::KIND_COURTESY => 'Cortesia',
         self::KIND_CANCEL => 'Cancelamento',
     ];
@@ -45,14 +43,16 @@ class TicketCashService
     /** Período mais longo de uma vez (o relatório é de fechamento, não histórico). */
     public const MAX_DAYS = 62;
 
+    public function __construct(private FinanceLedger $ledger)
+    {
+    }
+
     /**
      * @return array{
      *   from: Carbon, to: Carbon, methods: array<string, string>,
-     *   days: array<string, array<int, array{user: ?User, methods: array<string, float>, total: float, sales: int, tickets: int, courtesies: int, cancelled: int, cancelled_amount: float}>>,
-     *   sellers: array<int, array{user: ?User, methods: array<string, float>, total: float, sales: int, tickets: int, courtesies: int, cancelled: int, cancelled_amount: float}>,
-     *   totals: array{methods: array<string, float>, total: float, sales: int, tickets: int, courtesies: int, cancelled: int, cancelled_amount: float},
+     *   days: array<string, array<int, array>>, sellers: array<int, array>, totals: array,
      *   entries: list<array<string, mixed>>,
-     *   site: ?array{orders: int, tickets: int, amount: float, refunded: float}
+     *   site: ?array<string, array{count: int, amount: float, refunded: float}>
      * }
      */
     public function report(Carbon $from, Carbon $to, ?int $userId = null): array
@@ -63,13 +63,13 @@ class TicketCashService
         $entries = $this->sales($from, $to, $userId)
             ->concat($this->courtesies($from, $to, $userId))
             ->concat($this->cancellations($from, $to, $userId))
-            ->sortBy(fn (array $e) => $e['at']->timestamp . '|' . $e['order_id'])
+            ->sortBy(fn (array $e) => $e['at']->timestamp . '|' . $e['origin'] . '|' . $e['ref'])
             ->values();
 
         $users = User::whereIn('id', $entries->pluck('user_id')->filter()->unique()->all())->get()->keyBy('id');
         $methods = $entries->where('kind', self::KIND_SALE)->pluck('method')->unique()
-            ->sortBy(fn ($m) => array_search($m, array_keys(SchedulePayment::MANUAL_METHODS), true))
-            ->mapWithKeys(fn ($m) => [$m => SchedulePayment::MANUAL_METHODS[$m] ?? $m])
+            ->sortBy(fn ($m) => array_search($m, array_keys(PaymentMethods::MANUAL), true))
+            ->mapWithKeys(fn ($m) => [$m => PaymentMethods::label($m)])
             ->all();
 
         $days = [];
@@ -113,18 +113,19 @@ class TicketCashService
     {
         $money = fn ($v) => number_format((float) $v, 2, ',', '');
 
-        $rows = [['Data', 'Hora', 'Pessoa', 'Lançamento', 'Forma de pagamento', 'Evento', 'Pedido', 'Comprador', 'Ingressos', 'Valor']];
+        $rows = [['Data', 'Hora', 'Pessoa', 'Origem', 'Lançamento', 'Forma de pagamento', 'Referência', 'Código', 'Pagador', 'Ingressos', 'Valor']];
         foreach ($report['entries'] as $e) {
             $rows[] = [
                 $e['at']->format('d/m/Y'),
                 $e['at']->format('H:i'),
                 (string) ($e['user']?->name ?? '—'),
+                FinanceLedger::ORIGINS[$e['origin']] ?? $e['origin'],
                 self::KIND_LABELS[$e['kind']],
-                $e['kind'] === self::KIND_SALE ? (SchedulePayment::MANUAL_METHODS[$e['method']] ?? $e['method']) : '',
-                (string) $e['event'],
-                (string) $e['order_id'],
-                (string) $e['buyer'],
-                (string) $e['tickets'],
+                $e['kind'] === self::KIND_SALE ? PaymentMethods::label($e['method']) : '',
+                (string) $e['reference'],
+                (string) $e['ref'],
+                (string) $e['payer'],
+                $e['tickets'] === null ? '' : (string) $e['tickets'],
                 $e['kind'] === self::KIND_COURTESY ? '0,00' : ($e['kind'] === self::KIND_CANCEL ? '-' : '') . $money($e['amount']),
             ];
         }
@@ -132,28 +133,38 @@ class TicketCashService
         return $rows;
     }
 
-    /** @return Collection<int, array<string, mixed>> */
+    /** Baixas manuais das três origens. */
     private function sales(Carbon $from, Carbon $to, ?int $userId): Collection
     {
-        return TicketPayment::with(['order' => fn ($q) => $q->withCount('tickets')->with('event')])
-            ->where('is_manual', true)
-            ->whereBetween('paid_at', [$from, $to])
-            ->when($userId, fn ($q) => $q->where('recorded_by', $userId))
-            ->get()
-            ->map(fn (TicketPayment $p) => [
-                'kind' => self::KIND_SALE,
-                'at' => $p->paid_at,
-                'user_id' => $p->recorded_by,
-                'method' => $p->payment_method,
-                'amount' => round((float) $p->paid_amount, 2),
-                'tickets' => (int) $p->order?->tickets_count,
-                'order_id' => $p->ticket_order_id,
-                'event' => $p->order?->event?->title,
-                'buyer' => $p->order?->buyer_name,
-            ]);
+        $rows = $this->ledger->query([
+            'from' => $from,
+            'to' => $to,
+            'method' => FinanceLedger::METHOD_MANUAL,
+            'recorded_by' => $userId,
+        ])->get();
+
+        // Ingressos por pedido, para o "vendas · ingressos" do balcão.
+        $orderIds = $rows->where('origin', FinanceLedger::ORIGIN_INGRESSOS)->pluck('reference_id')->unique()->all();
+        $tickets = $orderIds === [] ? collect() : DB::table('tickets')
+            ->whereIn('ticket_order_id', $orderIds)
+            ->groupBy('ticket_order_id')
+            ->selectRaw('ticket_order_id, COUNT(*) as qty')
+            ->pluck('qty', 'ticket_order_id');
+
+        return $rows->map(fn (object $r) => [
+            'kind' => self::KIND_SALE,
+            'origin' => $r->origin,
+            'at' => Carbon::parse($r->paid_at),
+            'user_id' => $r->recorded_by,
+            'method' => $r->payment_method,
+            'amount' => round((float) $r->paid_amount, 2),
+            'tickets' => $r->origin === FinanceLedger::ORIGIN_INGRESSOS ? (int) ($tickets[$r->reference_id] ?? 0) : null,
+            'ref' => (int) $r->reference_id,
+            'reference' => $r->reference,
+            'payer' => $r->payer_name,
+        ]);
     }
 
-    /** @return Collection<int, array<string, mixed>> */
     private function courtesies(Carbon $from, Carbon $to, ?int $userId): Collection
     {
         return TicketOrder::with('event')->withCount('tickets')
@@ -164,14 +175,15 @@ class TicketCashService
             ->get()
             ->map(fn (TicketOrder $o) => [
                 'kind' => self::KIND_COURTESY,
+                'origin' => FinanceLedger::ORIGIN_INGRESSOS,
                 'at' => $o->paid_at,
                 'user_id' => $o->created_by,
                 'method' => null,
                 'amount' => 0.0,
                 'tickets' => (int) $o->tickets_count,
-                'order_id' => $o->id,
-                'event' => $o->event?->title,
-                'buyer' => $o->buyer_name,
+                'ref' => $o->id,
+                'reference' => $o->event?->title,
+                'payer' => $o->buyer_name,
             ]);
     }
 
@@ -187,32 +199,33 @@ class TicketCashService
             ->groupBy(fn (Ticket $t) => $t->ticket_order_id . '|' . $t->cancelled_by . '|' . $t->cancelled_at->toDateString())
             ->map(fn (Collection $group) => [
                 'kind' => self::KIND_CANCEL,
+                'origin' => FinanceLedger::ORIGIN_INGRESSOS,
                 'at' => $group->max('cancelled_at'),
                 'user_id' => $group->first()->cancelled_by,
                 'method' => null,
                 'amount' => round((float) $group->sum('amount'), 2),
                 'tickets' => $group->count(),
-                'order_id' => $group->first()->ticket_order_id,
-                'event' => $group->first()->order?->event?->title,
-                'buyer' => $group->first()->order?->buyer_name,
+                'ref' => $group->first()->ticket_order_id,
+                'reference' => $group->first()->order?->event?->title,
+                'payer' => $group->first()->order?->buyer_name,
             ])
             ->values();
     }
 
-    /** @return array{orders: int, tickets: int, amount: float, refunded: float} */
+    /**
+     * O que entrou pelo site (eRede) no período, por origem.
+     *
+     * @return array<string, array{count: int, amount: float, refunded: float}>
+     */
     private function site(Carbon $from, Carbon $to): array
     {
-        $payments = TicketPayment::with(['order' => fn ($q) => $q->withCount('tickets')])
-            ->where('is_manual', false)
-            ->whereBetween('paid_at', [$from, $to])
-            ->get();
+        $summary = $this->ledger->summary(['from' => $from, 'to' => $to, 'method' => FinanceLedger::METHOD_ONLINE]);
 
-        return [
-            'orders' => $payments->count(),
-            'tickets' => (int) $payments->sum(fn (TicketPayment $p) => $p->order?->tickets_count),
-            'amount' => round((float) $payments->sum('paid_amount'), 2),
-            'refunded' => round((float) $payments->sum('refunded_amount'), 2),
-        ];
+        return array_map(fn (array $o) => [
+            'count' => $o['count'],
+            'amount' => $o['paid'],
+            'refunded' => $o['refunded'],
+        ], $summary['origins']);
     }
 
     private function blank(array $methods, ?User $user): array
@@ -236,7 +249,7 @@ class TicketCashService
                 $row['methods'][$e['method']] = round(($row['methods'][$e['method']] ?? 0) + $e['amount'], 2);
                 $row['total'] = round($row['total'] + $e['amount'], 2);
                 $row['sales']++;
-                $row['tickets'] += $e['tickets'];
+                $row['tickets'] += (int) $e['tickets'];
             })(),
             self::KIND_COURTESY => $row['courtesies'] += $e['tickets'],
             self::KIND_CANCEL => (function () use (&$row, $e) {

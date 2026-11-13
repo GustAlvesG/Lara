@@ -50,7 +50,7 @@ mais. O namespace `App\Models\Tournament` foi reaproveitado pelos models novos.
 | `app/Services/Tournament/TournamentResultService.php`, `TournamentResultCodeService.php` | Resultados (placar, W.O., limpar, fechar/reabrir grupo, histórico) e código de lançamento pelo site. |
 | `app/Http/Controllers/Tournament/TournamentResultController.php` | Ações de resultado e de código no painel (`tournaments.results.*`). |
 | `app/Http/Controllers/Api/TournamentStaffApiController.php`, `app/Services/Tournament/TournamentBracketPresenter.php` | API da equipe no site (`/api/tournaments/{id}/staff/*`, header `Tournament-Code`) e o JSON do chaveamento (público e equipe). |
-| `app/Services/Tournament/TournamentFinanceService.php`, `TournamentFinanceController.php`, `resources/views/tournaments/finance/*` | Relatório financeiro e CSV (`torneios.financeiro`). |
+| `app/Services/Tournament/TournamentFinanceService.php`, `TournamentFinanceController.php`, `resources/views/tournaments/finance/*` | Relatório financeiro e CSV (`torneios.financeiro`). Desde 13/11/2026 a tela fica no módulo [Financeiro](Financeiro.md) (`/financeiro/torneios`). |
 | `app/Http/Controllers/Tournament/TournamentController.php`, `TournamentCategoryController.php`, `TournamentRegistrationController.php`, `resources/views/tournaments/*` | Painel: torneios, categorias ligadas, inscrições. |
 | `app/Http/Controllers/Api/TournamentApiController.php` | `/api/tournaments/*` do site. |
 | `app/View/Navigation.php` | Entrada **Torneios** (área `placar`): Torneios e Categorias. |

@@ -55,7 +55,7 @@ indicados como _stub_.
 |--------|-----------|-----------|------|
 | `store` | `store(StoreSchedulePaymentRequest $request)` | Registra um pagamento de agendamento (via `SchedulePaymentService`, em transação). Se o schedule é de reserva social, confere estágio/prazo/valor (`SocialBookingService::assertPayable`, recusa com `reason`) e confirma a reserva (`markPaid`). | `POST /api/schedule/payment` |
 | `storeManual` | `storeManual(Request, ManualPaymentService)` | Baixa manual (pago fora da plataforma): `schedule_ids[]`, `payment_method`, `amount`, `paid_at`, `manual_notes`. Volta para a reserva social ou para o agendamento. | `POST /payments/manual` (`can:reservas.pagamentos.baixa-manual`) |
-| `index` / `show` | — | Lista (filtro de forma inclui "Baixa manual (todas)") e detalhe; baixa manual não mostra consulta nem estorno na Rede. | `GET /payments`, `GET /payments/{id}` |
+| `index` / `show` | — | Lista (filtro de forma inclui "Baixa manual (todas)") e detalhe; baixa manual não mostra consulta nem estorno na Rede. | `GET /financeiro/reservas`, `GET /financeiro/reservas/{id}` (era `/payments`; o antigo redireciona). Estorno: `POST /financeiro/reservas/{id}/estornar` |
 
 ---
 

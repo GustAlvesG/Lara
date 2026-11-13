@@ -82,7 +82,7 @@ coordenação do Comercial valida, entram em **lote**, passam pela **gerência**
 ## Menu e permissões
 
 Menu **Freelancers** (`app/View/Navigation.php`): Freelancers, Funções, Serviços / Contratos,
-Assinatura (Tablet), Acompanhamento, Financeiro.
+Assinatura (Tablet), Acompanhamento. O Financeiro dos freelancers mudou em 13/11/2026 para o módulo [Financeiro](Financeiro.md) (`/financeiro/freelancers`, rotas `freelancer-services.finance*` de sempre).
 
 | Permissão (`App\Authorization\Permissions`) | Uso |
 |---|---|

@@ -33,7 +33,7 @@ Cada tela pede uma permissão do grupo **Freelancers**. Quem libera é a TI ou a
 | Registrar contratos, ver valores e documentos, cancelar, montar lotes | Serviços: valores, documentos, registro e lotes |
 | Entrar no tablet para atender freelancers | Assinatura no tablet (kiosk) |
 | Ver a tela Acompanhamento | Acompanhamento dos lotes |
-| Pagar (dar baixa) no Financeiro | Financeiro e baixa de pagamento |
+| Pagar (dar baixa), na tela Financeiro › Freelancers | Financeiro › Freelancers: pagamento dos lotes e baixa |
 
 Algumas ações não são permissão, e sim **cargo** no setor (coordenador). O acesso total ao sistema **não** substitui esses cargos:
 
@@ -57,7 +57,7 @@ Este é o caminho completo de um contrato de freelancer no Lara, em **Freelancer
 6. **Lote** — um coordenador junta os contratos validados num lote e envia para a Gerência.
 7. **Gerência** — aprova ou recusa contrato a contrato.
 8. **Diretoria** — recebe um e-mail com dois códigos; dita o código escolhido e a Gerência digita no Lara.
-9. **Financeiro** — dá baixa (ou paga via Pix) em **Freelancers › Financeiro**.
+9. **Financeiro** — dá baixa (ou paga via Pix) em **Financeiro › Freelancers** (o módulo Financeiro, desde 13/11/2026).
 
 Para ver em que etapa está cada contrato, use **Freelancers › Acompanhamento**.
 
@@ -351,16 +351,7 @@ Se a etapa é "Aguardando gerência" ou "Aguardando diretoria", quem resolve é 
 ## Pagar os freelancers no Financeiro
 <!-- telas: freelancer-services.finance -->
 
-A tela **Freelancers › Financeiro** abre pela lista de **lotes aprovados pela diretoria**, separados em **Aguardando pagamento** e **Quitados**, com os totais **A pagar** e **Pago** no topo.
-
-1. Clique num lote para abrir os contratos dele.
-2. Confira cada linha: freelancer, período, **Chave PIX** (com botão de copiar) e **Valor**. O aviso "⚠ Diferente da chave assinada" indica que o freelancer trocou a chave depois de assinar: o pagamento vai para a chave **atual do cadastro**; confirme com ele antes.
-3. Para pagar um contrato, clique em **Dar baixa** na linha e confirme.
-4. Para vários, marque as caixas (o total selecionado aparece) e use **Dar baixa nos selecionados** na barra do rodapé. **Selecionar o lote inteiro** marca todos os pendentes; a confirmação continua sendo o último passo.
-
-A baixa é **definitiva** e fica registrada com o seu nome; não há desfazer pelo painel.
-
-Outras opções: **Imprimir relação** (relação do lote em papel, com as três aprovações), **Tabela reduzida** (só pendentes, formato folha de pagamento), **Ver todos os contratos** e o aviso de **contrato(s) sem lote**, quando houver.
+Mudou para o módulo **Financeiro** em 13/11/2026: a antiga tela **Freelancers › Financeiro** agora é **Financeiro › Freelancers**, com os mesmos lotes aprovados pela diretoria (Aguardando pagamento e Quitados), a chave PIX de cada contrato, **Dar baixa** um a um ou nos selecionados, **Imprimir relação** e **Tabela reduzida**. A baixa continua definitiva. O passo a passo está no guia do Financeiro, em "Pagar os freelancers".
 
 O total do lote no Financeiro pode ser menor que o aprovado pela Diretoria: o que a Gerência recusou não entra.
 

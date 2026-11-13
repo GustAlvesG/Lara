@@ -186,7 +186,7 @@ do deploy, dê ao setor **Esporte** pela tela de Setores.
 | `torneios.resultados` | Lançar e corrigir resultados no Lara, fechar grupo, gerar e retirar o código de lançamento pelo site (abre também a tela do chaveamento) |
 | `torneios.pagamentos.baixa-manual` | Baixa de inscrição paga fora da eRede |
 | `torneios.pagamentos.estornar` | Estorno na eRede |
-| `torneios.financeiro` | Torneios › Financeiro: relatório e CSV dos pagamentos (F7) |
+| `torneios.financeiro` | Financeiro › Torneios: relatório e CSV dos pagamentos (F7; tela no módulo Financeiro desde 13/11/2026) |
 
 ## Telas
 
@@ -275,7 +275,10 @@ Botão **Chaveamento** em cada categoria da tela do torneio.
 vale até o fim do último dia do torneio. **Gerar outro** invalida o anterior; **Retirar**
 corta o site na hora. A tela mostra quem gerou, quando e até quando vale.
 
-### Torneios › Financeiro (`/torneios/financeiro`, `torneios.financeiro`)
+### Financeiro › Torneios (`/financeiro/torneios`, `torneios.financeiro`)
+
+Era Torneios › Financeiro (`/torneios/financeiro`, que redireciona); desde 13/11/2026 a tela está no
+módulo [Financeiro](financeiro.md). O estorno pela eRede usa o `PaymentRefunder` único.
 
 Os torneios (fora rascunho), com filtro por ano: recebido, estornado, líquido e a receber.
 No torneio (botão **Financeiro** na tela dele): os mesmos totais **por categoria** (eRede e

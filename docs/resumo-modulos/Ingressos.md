@@ -39,7 +39,7 @@ F14 = histórico; F15 = caixa; F16 = térmica e cortesia sem CPF; F17 = mesa cat
 | `app/Http/Controllers/Ticket/TicketMapController.php`, `resources/views/tickets/maps/*`, `public/js/tickets/seat-map.js` | Mapas no painel: lista, editor (SVG), ocupação, JSON do mapa para a emissão, troca de lugar. JS sem build (`asset()`). |
 | `database/migrations/2026_10_28_140000_add_ticket_logs_print_captive.php` | `ticket_order_logs`, `tickets.print_count`/`printed_at`, `ticket_seats.captive_title`/`captive_name`, `ticket_events.captive_release_days`, `holder_cpf`/`buyer_cpf` nulos. |
 | `app/Models/Ticket/TicketOrderLog.php` | Histórico do pedido: `record()`, `label()`, `summary()`. `TicketOrder::logs()`. |
-| `app/Services/Ticket/TicketCashService.php`, `app/Http/Controllers/Ticket/TicketCashController.php`, `resources/views/tickets/cash/*` | Relatório de caixa: vendas (baixa manual, por `recorded_by`), cortesias (`created_by`), cancelamentos, site à parte; tela, PDF, CSV. |
+| `app/Services/Finance/CashReport.php`, `app/Http/Controllers/Finance/FinanceCashController.php`, `resources/views/finance/cash/*` (módulo [Financeiro](Financeiro.md) desde 13/11/2026; era `TicketCashService`) | Relatório de caixa, agora com as baixas de Reservas e Torneios também: vendas (baixa manual, por `recorded_by`), cortesias (`created_by`), cancelamentos, site à parte; tela, PDF, CSV. |
 | `app/Services/Ticket/TicketPrintService.php`, `resources/views/tickets/print/thermal.blade.php` | Ingresso na térmica de 80 mm: conta a via (`print_count`), grava no histórico, página que abre a impressão. |
 | `app/Services/Ticket/TicketCaptiveService.php`, `app/Http/Controllers/Ticket/TicketCaptiveController.php`, `resources/views/tickets/maps/captives.blade.php` | Mesa cativa: guardar (MultiClubes confere a matrícula), tirar, prazo de liberação, lista com situação. |
 | `app/Models/Ticket/*` | `TicketEvent`, `TicketEventDay`, `TicketType` (`validity()`, `fullName()`, `daysOverlap()`), `TicketLot`, `TicketCoupon`, `TicketOrder`, `Ticket`, `TicketCheckin`, `TicketPayment`; situações em constantes. |
@@ -59,8 +59,8 @@ F14 = histórico; F15 = caixa; F16 = térmica e cortesia sem CPF; F17 = mesa cat
 | `app/Services/CompanyService.php` (`ticketAccessEntries`, `logTicketAccess`, `registerTicketAccess`) | O ingresso no Monitor de Acesso. |
 | `app/Console/Commands/ExpireTicketOrders.php`, `TicketTestData.php` | `ingressos:expirar-pedidos` (a cada minuto) e `ingressos:dados-teste`. |
 | `config/tickets.php` | `hold_minutes`, `site_url`, `checkin_hours_before`. |
-| `app/View/Navigation.php` | Entrada **Ingressos** (área `reservas`, ícone `ticket`): Eventos, Check-in, Financeiro, Caixa. |
-| `app/Providers/AppServiceProvider.php` | Gate `acessar-ingressos` (qualquer permissão do módulo abre lista e tela do evento) e `ver-caixa-ingressos` (vendas, baixa manual, cortesias ou `caixa.todos`). |
+| `app/View/Navigation.php` | Entrada **Ingressos** (área `reservas`, ícone `ticket`): Eventos e Check-in. Financeiro e Caixa ficam no módulo Financeiro desde 13/11/2026. |
+| `app/Providers/AppServiceProvider.php` | Gate `acessar-ingressos` (qualquer permissão do módulo abre lista e tela do evento) ; o Caixa usa `ver-caixa-financeiro` (Permissions::ANY_OF: baixa manual de qualquer origem, vendas, cortesias ou `ingressos.caixa.todos`). |
 | `app/Authorization/Permissions.php` | `INGRESSOS_*` (9 permissões, grupo Ingressos; `ingressos.caixa.todos` desde 28/10/2026). |
 
 ## Regras que costumam pegar

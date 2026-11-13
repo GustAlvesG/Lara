@@ -411,7 +411,7 @@ câmera aos externos registrados na portaria e aos pedidos de carro de aplicativ
 | `getTransaction` | `getTransaction(string $tid): array` | Consulta os detalhes de uma transação. |
 | `beginRefund` | `beginRefund(array $payments_ids)` | Inicia o estorno de pagamentos. |
 
-`refundPayment` recusa pagamento de baixa manual (`is_manual`) com `InvalidArgumentException`: não passou pela Rede.
+`refundPayment` (desde 13/11/2026 delega ao `App\Services\Finance\PaymentRefunder`, o estorno único de Reservas, Torneios e Ingressos) recusa pagamento de baixa manual (`is_manual`) com `InvalidArgumentException`: não passou pela Rede.
 
 ---
 

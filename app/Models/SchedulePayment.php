@@ -7,32 +7,22 @@ use Illuminate\Database\Eloquent\Model;
 use App\Models\Schedule;
 use App\Models\Status;
 use App\Models\User;
+use App\Models\Concerns\FinancePayment;
+use App\Services\Finance\PaymentMethods;
 
 class SchedulePayment extends Model
 {
     /** @use HasFactory<\Database\Factories\SchedulePaymentFactory> */
     use HasFactory;
+    use FinancePayment;
 
     /**
-     * Formas da baixa manual (pago fora da plataforma). O prefixo `manual_`
-     * não colide com o que o site manda pela Rede (`credit`, `debit`).
+     * Apelidos de App\Services\Finance\PaymentMethods (a lista mora lá desde
+     * o módulo Financeiro, 13/11/2026). Código novo: use PaymentMethods.
      */
-    public const MANUAL_METHODS = [
-        'manual_cash' => 'Dinheiro',
-        'manual_pix' => 'Pix direto ao clube',
-        'manual_card' => 'Cartão na secretaria (maquininha)',
-        'manual_transfer' => 'Transferência ou depósito',
-        'manual_other' => 'Outro',
-    ];
+    public const MANUAL_METHODS = PaymentMethods::MANUAL;
 
-    /** Rótulos de tela de todas as formas, as da Rede e as manuais. */
-    public const METHOD_LABELS = [
-        'credit' => 'Cartão de crédito',
-        'debit' => 'Cartão de débito',
-        'credit_card' => 'Cartão de crédito',
-        'debit_card' => 'Cartão de débito',
-        'pix' => 'Pix',
-    ] + self::MANUAL_METHODS;
+    public const METHOD_LABELS = PaymentMethods::LABELS;
 
     // `is_manual`, `recorded_by` e `manual_notes` ficam fora do fillable de
     // propósito: o POST /api/schedule/payment do site cria pagamento com o
@@ -84,14 +74,11 @@ class SchedulePayment extends Model
         return $this->belongsTo(User::class, 'recorded_by', 'id');
     }
 
-    public function methodLabel(): string
+    /** Estorno parcial mantém o status; o total marca cancelado (0). */
+    protected function markRefundStatus(bool $fully): void
     {
-        return self::METHOD_LABELS[$this->payment_method] ?? (string) $this->payment_method;
-    }
-
-    /** Pagamento da Rede: só esses se consultam e se estornam por lá. */
-    public function isOnline(): bool
-    {
-        return ! $this->is_manual && ! empty($this->payment_integration_id);
+        if ($fully) {
+            $this->status_id = 0;
+        }
     }
 }

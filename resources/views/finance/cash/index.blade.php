@@ -1,9 +1,11 @@
-{{-- Relatório de caixa dos ingressos: por dia, o que cada pessoa recebeu no
-     balcão em cada forma de pagamento, cortesias e cancelamentos; o site
-     (eRede) à parte, só na visão de todos. Lançamentos um a um no fim. --}}
+{{-- Financeiro › Caixa: por dia, o que cada pessoa recebeu no balcão em
+     cada forma de pagamento — Reservas, Torneios e Ingressos —, mais as
+     cortesias e os cancelamentos dos ingressos; o site (eRede) à parte, só na
+     visão de todos. Lançamentos um a um no fim. --}}
 @php
-    use App\Services\Ticket\TicketCashService;
-    use App\Models\SchedulePayment;
+    use App\Services\Finance\CashReport;
+    use App\Services\Finance\FinanceLedger;
+    use App\Services\Finance\PaymentMethods;
 
     $money = fn ($v) => 'R$ ' . number_format((float) $v, 2, ',', '.');
     $th = 'px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-3';
@@ -17,11 +19,11 @@
 @endphp
 <x-app-layout :bootstrap-grid="false">
     <x-page>
-        <x-page-title title="Caixa dos ingressos">
-            {{ $all ? 'O que cada pessoa recebeu no balcão' : 'O que você recebeu no balcão' }}, por forma de pagamento — {{ $period }}. Para o fechamento de caixa.
+        <x-page-title title="Caixa">
+            {{ $all ? 'O que cada pessoa recebeu no balcão' : 'O que você recebeu no balcão' }} — Reservas, Torneios e Ingressos —, por forma de pagamento — {{ $period }}. Para o fechamento de caixa.
             <x-slot:actions>
-                <x-secondary-button-a href="{{ route('tickets.cash.pdf', $query) }}"><x-icon name="download" /> PDF</x-secondary-button-a>
-                <x-secondary-button-a href="{{ route('tickets.cash.csv', $query) }}"><x-icon name="download" /> CSV</x-secondary-button-a>
+                <x-secondary-button-a href="{{ route('finance.cash.pdf', $query) }}"><x-icon name="download" /> PDF</x-secondary-button-a>
+                <x-secondary-button-a href="{{ route('finance.cash.csv', $query) }}"><x-icon name="download" /> CSV</x-secondary-button-a>
             </x-slot:actions>
         </x-page-title>
 
@@ -51,7 +53,7 @@
         </form>
 
         <section class="grid grid-cols-2 gap-4 rounded-card bg-surface p-5 shadow-card sm:grid-cols-4">
-            <div><p class="{{ $label }}">Recebido no balcão</p><p class="mt-1 font-mono text-2xl font-bold text-ink">{{ $money($totals['total']) }}</p><p class="text-xs text-ink-3">{{ $totals['sales'] }} venda(s) · {{ $totals['tickets'] }} ingresso(s)</p></div>
+            <div><p class="{{ $label }}">Recebido no balcão</p><p class="mt-1 font-mono text-2xl font-bold text-ink">{{ $money($totals['total']) }}</p><p class="text-xs text-ink-3">{{ $totals['sales'] }} recebimento(s) · {{ $totals['tickets'] }} ingresso(s)</p></div>
             @foreach ($report['methods'] as $method => $methodLabel)
                 <div><p class="{{ $label }}">{{ $methodLabel }}</p><p class="mt-1 font-mono text-xl text-ink">{{ $money($totals['methods'][$method] ?? 0) }}</p></div>
             @endforeach
@@ -69,7 +71,7 @@
                                 <th class="{{ $th }}">Pessoa</th>
                                 @foreach ($report['methods'] as $methodLabel)<th class="{{ $th }}">{{ $methodLabel }}</th>@endforeach
                                 <th class="{{ $th }}">Total</th>
-                                <th class="{{ $th }}">Vendas · ingressos</th>
+                                <th class="{{ $th }}">Recebimentos · ingressos</th>
                                 <th class="{{ $th }}">Cortesias</th>
                                 <th class="{{ $th }}">Cancelados</th>
                             </tr>
@@ -90,14 +92,18 @@
                 </div>
             </section>
         @empty
-            <x-empty-state icon="money">Nenhuma venda, cortesia ou cancelamento no balcão {{ $from->isSameDay($to) ? 'neste dia' : 'neste período' }}.</x-empty-state>
+            <x-empty-state icon="money">Nenhum recebimento, cortesia ou cancelamento no balcão {{ $from->isSameDay($to) ? 'neste dia' : 'neste período' }}.</x-empty-state>
         @endforelse
 
         @if ($report['site'])
             <section class="rounded-card bg-surface p-5 shadow-card">
                 <h2 class="mb-1 text-sm font-black uppercase tracking-widest text-ink-3">Site (eRede)</h2>
-                <p class="text-sm text-ink-2">{{ $report['site']['orders'] }} pedido(s) · {{ $report['site']['tickets'] }} ingresso(s) · {{ $money($report['site']['amount']) }} pagos @if ($report['site']['refunded'] > 0)· {{ $money($report['site']['refunded']) }} estornados @endif</p>
-                <p class="text-xs text-ink-3">Pago pelo cartão no site: cai na conta pela eRede, não passa pelo caixa de ninguém.</p>
+                <ul class="text-sm text-ink-2">
+                    @foreach ($report['site'] as $origin => $site)
+                        <li>{{ FinanceLedger::ORIGINS[$origin] }}: {{ $site['count'] }} pagamento(s) · {{ $money($site['amount']) }} pagos @if ($site['refunded'] > 0)· {{ $money($site['refunded']) }} estornados @endif</li>
+                    @endforeach
+                </ul>
+                <p class="mt-1 text-xs text-ink-3">Pago pelo cartão ou Pix no site: cai na conta pela eRede, não passa pelo caixa de ninguém.</p>
             </section>
         @endif
 
@@ -106,17 +112,20 @@
                 <h2 class="font-display text-lg font-semibold tracking-tight text-ink">Lançamentos</h2>
                 <div class="overflow-x-auto rounded-card bg-surface shadow-card">
                     <table class="w-full text-sm">
-                        <thead><tr class="border-b border-line bg-subtle"><th class="{{ $th }}">Quando</th><th class="{{ $th }}">Pessoa</th><th class="{{ $th }}">Lançamento</th><th class="{{ $th }}">Evento</th><th class="{{ $th }}">Pedido</th><th class="{{ $th }}">Ingressos</th><th class="{{ $th }}">Valor</th></tr></thead>
+                        <thead><tr class="border-b border-line bg-subtle"><th class="{{ $th }}">Quando</th><th class="{{ $th }}">Pessoa</th><th class="{{ $th }}">Origem</th><th class="{{ $th }}">Lançamento</th><th class="{{ $th }}">Referência</th><th class="{{ $th }}">Ingressos</th><th class="{{ $th }}">Valor</th></tr></thead>
                         <tbody class="divide-y divide-line">
                             @foreach ($report['entries'] as $e)
                                 <tr>
                                     <td class="px-4 py-3 font-mono text-ink-2">{{ $e['at']->format('d/m H:i') }}</td>
                                     <td class="px-4 py-3 text-ink">{{ $e['user']?->name ?? '—' }}</td>
-                                    <td class="px-4 py-3 text-ink-2">{{ TicketCashService::KIND_LABELS[$e['kind']] }}@if ($e['method']) · {{ SchedulePayment::MANUAL_METHODS[$e['method']] ?? $e['method'] }}@endif</td>
-                                    <td class="px-4 py-3 text-ink-2">{{ $e['event'] }}</td>
-                                    <td class="px-4 py-3"><a href="{{ route('tickets.orders.show', $e['order_id']) }}" class="font-mono text-grena hover:underline">#{{ $e['order_id'] }}</a> <span class="block text-xs text-ink-3">{{ $e['buyer'] }}</span></td>
-                                    <td class="px-4 py-3 font-mono">{{ $e['tickets'] }}</td>
-                                    <td class="px-4 py-3 font-mono">{{ $e['kind'] === TicketCashService::KIND_COURTESY ? '—' : ($e['kind'] === TicketCashService::KIND_CANCEL ? '− ' : '') . $money($e['amount']) }}</td>
+                                    <td class="px-4 py-3 text-ink-2">{{ FinanceLedger::ORIGINS[$e['origin']] }}</td>
+                                    <td class="px-4 py-3 text-ink-2">{{ CashReport::KIND_LABELS[$e['kind']] }}@if ($e['method']) · {{ PaymentMethods::label($e['method']) }}@endif</td>
+                                    <td class="px-4 py-3">
+                                        @include('finance.partials.origin-link', ['origin' => $e['origin'], 'ref' => $e['ref'], 'text' => ($e['reference'] ?: '—') . ' #' . $e['ref']])
+                                        <span class="block text-xs text-ink-3">{{ $e['payer'] }}</span>
+                                    </td>
+                                    <td class="px-4 py-3 font-mono">{{ $e['tickets'] ?? '—' }}</td>
+                                    <td class="px-4 py-3 font-mono">{{ $e['kind'] === CashReport::KIND_COURTESY ? '—' : ($e['kind'] === CashReport::KIND_CANCEL ? '− ' : '') . $money($e['amount']) }}</td>
                                 </tr>
                             @endforeach
                         </tbody>
