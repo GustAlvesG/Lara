@@ -7,8 +7,10 @@
       módulo aberto — o "você está em" é um chip na cor da área e um traço na
       base da ilha acende na mesma cor. Logo, Módulos, você está em, busca
       (Ctrl K), sino e conta.
-    - Doca: favoritos e recentes logo abaixo da ilha. Recolhe quando a página
+    - Doca: favoritos e recentes logo abaixo da ilha. Some quando a página
       desce e volta quando sobe (a ilha fica). Recolhida, sai do Tab (inert).
+      Some sem mudar de altura (ver o comentário da doca): mudar a altura da
+      barra sticky fazia a página tremer na rolagem.
     - Painel de Módulos: todos os módulos de uma vez, fechados e compactos
       (sem rolar). O nome abre a primeira aba; o botão ao lado abre as outras
       abas, um módulo por vez. Favoritos e recentes na coluna ao lado. No
@@ -145,9 +147,15 @@
     </div>
 
     {{-- ============================== Doca ============================== --}}
-    {{-- Favoritos são da conta; recentes, deste navegador — montados no cliente. --}}
-    <div class="pointer-events-auto mx-auto max-w-[1680px] overflow-hidden transition-[max-height,opacity,margin] duration-300 ease-out motion-reduce:transition-none"
-        :class="compact ? 'mt-0 max-h-0 opacity-0' : 'mt-1.5 max-h-14 opacity-100'" x-effect="$el.inert = compact">
+    {{-- Favoritos são da conta; recentes, deste navegador — montados no cliente.
+         Recolher é só visual (opacidade e deslize), nunca altura: a barra é
+         sticky, então encolher a doca encolhia a página, o navegador corrigia
+         a rolagem (scroll anchoring), o onScroll lia isso como "subiu" e a
+         doca voltava — e a página tremia, conforme onde a rolagem parava
+         (corrigido em 16/11/2026). O espaço da doca fica reservado; a barra
+         é pointer-events-none, então o conteúdo atrás continua clicável. --}}
+    <div class="mx-auto mt-1.5 h-12 max-w-[1680px] transition-[opacity,transform] duration-300 ease-out motion-reduce:transition-none"
+        :class="compact ? 'pointer-events-none -translate-y-3 opacity-0' : 'pointer-events-auto opacity-100'" x-effect="$el.inert = compact">
         <nav class="flex h-12 w-fit max-w-full items-center gap-1.5 overflow-x-auto rounded-full bg-surface/70 px-1.5 ring-1 ring-line/70 backdrop-blur-2xl backdrop-saturate-[1.8] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             aria-label="Favoritos e recentes">
             <button type="button" @click="openLauncher('favoritos')" class="{{ $dockLabel }}">
