@@ -53,7 +53,9 @@ Tudo para com "reduzir movimento".
 ## Busca de placa (quem estava no carro)
 
 `ParkingController::show` monta: cartões do veículo, pedidos de carro de aplicativo da placa,
-top 3 condutores prováveis (últimos 10 acessos) e o histórico do dia. A ligação leitura → pessoa:
+condutores prováveis (últimos 10 acessos; top 3 em cartões e o resto em "Outras pessoas
+encontradas", conta em `App\Services\Parking\LikelyDrivers` — % = aparições ÷ total de
+aparições, soma 100, uma por leitura) e o histórico do dia. A ligação leitura → pessoa:
 
 | Quem | Fonte | Liga por | Janela |
 |---|---|---|---|
@@ -103,6 +105,7 @@ gravado só com dígitos desde 20/10/2026.
 |---|---|
 | `app/Http/Controllers/ParkingController.php`, `AccessController.php`, `FtpController.php` | Busca, catracas, foto. |
 | `app/Services/ParkingAccessCorrelationService.php` | Externos e carros de aplicativo por leitura. |
+| `app/Services/Parking/LikelyDrivers.php` | Percentual dos condutores prováveis. |
 | `app/Services/ParkingAuthorizationService.php` | Lista da diretoria + frota na cancela. |
 | `app/Services/FleetService.php`, `app/Models/Fleet/*` | Viagens e veículos. |
 | `config/fleet.php`, `config/filesystems.php` (`ftp`, `img_car`) | Limites da frota e FTP das câmeras. |
@@ -111,6 +114,7 @@ gravado só com dígitos desde 20/10/2026.
 ## Testes
 
 `tests/Feature/ParkingCarImageTest.php`, `ParkingAccessCorrelationTest.php`,
+`tests/Unit/ParkingLikelyDriversTest.php`,
 `ParkingFleetAccessTest.php`, `FleetMileageTest.php`, `FleetApiEndpointsTest.php`,
 `tests/Feature/Rebrand/SivScreensTest.php`. Confira o isolamento SQLite do `phpunit.xml` antes
 de rodar e rode só esses arquivos.

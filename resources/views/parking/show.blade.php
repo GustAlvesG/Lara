@@ -168,45 +168,73 @@
         @endif
 
         {{-- Condutores prováveis --}}
-        @if (count($probaly))
+        @php
+            $likelyDrivers ??= ['total_readings' => 0, 'total_appearances' => 0, 'people' => []];
+            $likelyTop = array_slice($likelyDrivers['people'], 0, 3);
+            $likelyRest = array_slice($likelyDrivers['people'], 3);
+            $likelyTotal = $likelyDrivers['total_readings'];
+        @endphp
+        @if (count($likelyTop))
             <section class="overflow-hidden rounded-card bg-surface shadow-card">
                 <div class="border-b border-line px-5 py-4">
                     <h2 class="font-display text-lg font-semibold tracking-tight text-ink">Condutores mais prováveis</h2>
-                    <p class="text-sm text-ink-2">Baseado nos 10 acessos mais recentes desta placa.</p>
+                    <p class="text-sm text-ink-2">
+                        Baseado {{ $likelyTotal === 1 ? 'no acesso mais recente' : 'nos ' . $likelyTotal . ' acessos mais recentes' }} desta placa.
+                        O percentual é a parte de cada pessoa no total de vezes em que alguém foi ligado a esses acessos (soma 100%).
+                    </p>
                 </div>
 
                 <div class="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                    @foreach ($probaly as $key => $item)
-                        @php
-                            $text = explode(' | ', $key);
-                            $name = $text[0] ?? '—';
-                            $phone = $text[1] ?? '';
-                            // Só o externo traz o terceiro trecho (o tipo); associado não.
-                            $kindLabel = $text[2] ?? '';
-                        @endphp
+                    @foreach ($likelyTop as $person)
                         <div class="rounded-2xl border p-4 {{ $loop->first ? 'border-grena/40 bg-grena-tint' : 'border-line bg-subtle' }}">
                             <div class="flex items-start gap-3">
                                 <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full font-mono text-sm font-semibold {{ $loop->first ? 'bg-grena text-white' : 'bg-line text-ink' }}">
                                     {{ $loop->iteration }}º
                                 </span>
                                 <div class="min-w-0 flex-1">
-                                    <h3 class="truncate font-bold leading-tight text-ink" title="{{ $name }}">{{ $name }}</h3>
-                                    @if ($phone)
-                                        <a href="tel:{{ preg_replace('/\D/', '', $phone) }}" class="font-mono text-sm text-ink-2 no-underline hover:text-grena-ink">{{ $phone }}</a>
+                                    <h3 class="truncate font-bold leading-tight text-ink" title="{{ $person['name'] }}">{{ $person['name'] }}</h3>
+                                    @if ($person['telephone'])
+                                        <a href="tel:{{ preg_replace('/\D/', '', $person['telephone']) }}" class="font-mono text-sm text-ink-2 no-underline hover:text-grena-ink">{{ $person['telephone'] }}</a>
                                     @endif
-                                    @if ($kindLabel)
-                                        <span class="block text-xs font-bold text-ink-3">{{ $kindLabel }}</span>
+                                    {{-- Só o externo traz o tipo; associado não. --}}
+                                    @if ($person['label'])
+                                        <span class="block text-xs font-bold text-ink-3">{{ $person['label'] }}</span>
                                     @endif
                                 </div>
-                                <span class="font-mono text-sm font-semibold {{ $loop->first ? 'text-grena-ink' : 'text-ink-2' }}">{{ number_format($item, 1) }}%</span>
+                                <span class="font-mono text-sm font-semibold {{ $loop->first ? 'text-grena-ink' : 'text-ink-2' }}">{{ number_format($person['share'], 1, ',', '.') }}%</span>
                             </div>
 
                             <div class="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-line" role="presentation">
-                                <div class="h-full rounded-full {{ $loop->first ? 'bg-grena' : 'bg-ink-3' }}" style="width: {{ min($item, 100) }}%"></div>
+                                <div class="h-full rounded-full {{ $loop->first ? 'bg-grena' : 'bg-ink-3' }}" style="width: {{ $person['share'] }}%"></div>
                             </div>
+                            <p class="mt-2 text-xs text-ink-3">Em {{ $person['readings'] }} de {{ $likelyTotal }} {{ $likelyTotal === 1 ? 'acesso' : 'acessos' }}</p>
                         </div>
                     @endforeach
                 </div>
+
+                @if (count($likelyRest))
+                    <div class="border-t border-line px-5 pb-5 pt-4">
+                        <h3 class="text-sm font-semibold text-ink">Outras pessoas encontradas</h3>
+                        <ul class="mt-2 divide-y divide-line" aria-label="Outras pessoas encontradas">
+                            @foreach ($likelyRest as $person)
+                                <li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+                                    <span class="w-8 shrink-0 font-mono text-ink-3">{{ $loop->iteration + 3 }}º</span>
+                                    <span class="min-w-0 flex-1 truncate font-medium text-ink" title="{{ $person['name'] }}">
+                                        {{ $person['name'] }}
+                                        @if ($person['label'])
+                                            <span class="ml-1 text-xs font-bold text-ink-3">{{ $person['label'] }}</span>
+                                        @endif
+                                    </span>
+                                    @if ($person['telephone'])
+                                        <a href="tel:{{ preg_replace('/\D/', '', $person['telephone']) }}" class="font-mono text-ink-2 no-underline hover:text-grena-ink">{{ $person['telephone'] }}</a>
+                                    @endif
+                                    <span class="text-xs text-ink-3">em {{ $person['readings'] }} de {{ $likelyTotal }}</span>
+                                    <span class="w-14 text-right font-mono font-semibold text-ink-2">{{ number_format($person['share'], 1, ',', '.') }}%</span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
             </section>
         @endif
 

@@ -78,7 +78,13 @@ class SivScreensTest extends TestCase
                 ['entry_date' => '17:45:03 01/10/2026', 'file' => false, 'access' => []],
             ],
             'car' => ['plate' => 'rkt4f21', 'color' => 'prata'],
-            'probaly' => ['Marina Costa | (21) 99999-0000' => 80.0, 'Outro Sócio | ' => 20.0],
+            'likelyDrivers' => \App\Services\Parking\LikelyDrivers::rank(array_merge(
+                array_fill(0, 7, [['name' => 'Marina Costa', 'telephone' => '(21) 99999-0000']]),
+                [[['name' => 'Outro Sócio', 'telephone' => '']]],
+                [[['name' => 'Bia', 'telephone' => '1']]],
+                [[['name' => 'Caio', 'telephone' => '2']]],
+                [[['name' => 'Davi Raro', 'telephone' => '(21) 97777-0000']]],
+            )),
             'datetime' => '2026-10-01',
         ]);
 
@@ -88,7 +94,13 @@ class SivScreensTest extends TestCase
         $this->assertStringContainsString('RKT4F21', $html);
         $this->assertStringContainsString('bg-plate-band', $html);
         $this->assertStringContainsString('PRATA', $html);
-        $this->assertStringContainsString('80.0%', $html);
+        // Condutores: fatia no total de aparições (soma 100%), todos listados.
+        $this->assertStringContainsString('63,6%', $html);
+        $this->assertStringContainsString('Em 7 de 11 acessos', $html);
+        $this->assertStringContainsString('aria-label="Outras pessoas encontradas"', $html);
+        $this->assertStringContainsString('Davi Raro', $html);
+        $this->assertStringContainsString('9,1%', $html);
+        $this->assertStringContainsString('4º', $html);
         $this->assertStringContainsString('laraSearch(', $html);
         $this->assertStringContainsString('data-search="10:00:12 01/10/2026"', $html);
         $this->assertStringContainsString('Nenhum condutor associado a este acesso.', $html);
@@ -133,7 +145,9 @@ class SivScreensTest extends TestCase
                 'access' => [$associado], 'externals' => [$terceirizado, $negado], 'app_cars' => [$aplicativo],
             ]],
             'car' => ['plate' => 'rkt4f21', 'color' => 'prata'],
-            'probaly' => ['Bruno Terceiro | (21) 98888-0000 | Terceirizado' => 60.0, 'Marina Costa | (21) 99999-0000' => 40.0],
+            'likelyDrivers' => \App\Services\Parking\LikelyDrivers::rank([
+                [['name' => 'Bruno Terceiro', 'telephone' => '(21) 98888-0000', 'label' => 'Terceirizado'], ['name' => 'Marina Costa', 'telephone' => '(21) 99999-0000']],
+            ]),
             'datetime' => '2026-10-01',
             'appCarRequests' => collect([$concluido, $vencido]),
         ];

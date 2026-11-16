@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\FtpController;
 use App\Http\Controllers\AccessController;
 use App\Services\ParkingAccessCorrelationService;
+use App\Services\Parking\LikelyDrivers;
 use DateTime;
 
 class ParkingController extends Controller
@@ -112,55 +113,28 @@ class ParkingController extends Controller
 
         $lasts = Parking::where('plate', $plate)->where('entry_date', '<', $endOfDay)->orderBy('entry_date', 'desc')->limit(10)->get();
 
-        $aux = [];
-        $auxExternals = [];
+        // Condutores prováveis: as pessoas ligadas a cada uma das 10 últimas
+        // leituras. Externo liberado também é candidato (o tipo vira selo).
+        // Carro de aplicativo fica de fora: quem pediu é o passageiro, não
+        // quem dirige. A conta mora em LikelyDrivers.
+        $readings = [];
         foreach ($lasts as $item) {
-            $temp_date = explode(' ', $item->entry_date);
-            $temp_date[1] = str_replace('-', ':', $temp_date[1]);
-            $date = $temp_date[0] . " " . $temp_date[1];
-            $date = new Datetime($date);
-            $date = $date->format('H:i:s d/m/Y');
-
-            $aux[] = AccessController::findAccessByTime($item->entry_date, $item->gate);
-            $auxExternals[] = $correlation->externalsAround($item->entry_date);
-        }
-
-        $probaly = [];
-        foreach ($aux as $item) {
-            foreach ($item as $access) {
-                $probaly[] = $access->Name . " | " . $access->Telephone;
+            $candidates = [];
+            foreach (AccessController::findAccessByTime($item->entry_date, $item->gate) as $access) {
+                $candidates[] = ['name' => $access->Name, 'telephone' => $access->Telephone];
             }
-        }
-
-        // Externo liberado também é candidato a condutor. O terceiro trecho
-        // da chave é o tipo, que a tela mostra como selo. Carro de aplicativo
-        // fica de fora: quem pediu é o passageiro, não quem dirige.
-        foreach ($auxExternals as $item) {
-            foreach ($item as $external) {
+            foreach ($correlation->externalsAround($item->entry_date) as $external) {
                 if ($external['allowed']) {
-                    $probaly[] = $external['name'] . " | " . $external['telephone'] . " | " . $external['label'];
+                    $candidates[] = ['name' => $external['name'], 'telephone' => $external['telephone'], 'label' => $external['label']];
                 }
             }
+            $readings[] = $candidates;
         }
 
-        $probaly = array_count_values($probaly);
-        
-        //Convert to percentage
-        $total = count($probaly);
-        foreach ($probaly as $key => $value) {
-            $probaly[$key] = ($value / $total) * 100;
-        }
-
-        // Order by percentage
-        arsort($probaly);
-
-        //Keep only the top 3
-        $probaly = array_slice($probaly, 0, 3);
-
-
+        $likelyDrivers = LikelyDrivers::rank($readings);
 
         // Retorna a view 'parking.show' com os dados da resposta e do carro
-        return view('parking.show')->with('data', array_reverse($response))->with('plate', $plate)->with('datetime', $datetime)->with('car', $car)->with('probaly', $probaly)->with('appCarRequests', $appCarRequests);
+        return view('parking.show')->with('data', array_reverse($response))->with('plate', $plate)->with('datetime', $datetime)->with('car', $car)->with('likelyDrivers', $likelyDrivers)->with('appCarRequests', $appCarRequests);
     }
 
     /**

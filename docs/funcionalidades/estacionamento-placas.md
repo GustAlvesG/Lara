@@ -49,12 +49,26 @@ sócio e o print da corrida. A seção aparece **mesmo sem leitura da câmera** 
 placa. Quem tem a permissão *Carros de aplicativo e fila da portaria* vê o atalho para a tela
 de pedidos de Externos, já filtrada pela placa.
 
-**c) Condutores mais prováveis (top 3)**
-Cards com **nome**, **telefone** e **percentual de frequência**. O cálculo usa os **últimos 10
-acessos** daquela placa (de todos os dias): conta quantas vezes cada pessoa aparece e calcula
-`ocorrências / total × 100`. Os três mais frequentes são exibidos. Entram associados e
-externos **liberados** (o card do externo traz o tipo: Terceirizado, Freelancer ou Liberação
-pontual). Carro de aplicativo fica de fora: quem pede é o passageiro, não quem dirige.
+**c) Condutores mais prováveis (todas as pessoas encontradas)**
+O cálculo usa os **últimos 10 acessos** daquela placa (de todos os dias, até o fim do dia
+pesquisado). Para cada acesso, junta as pessoas ligadas a ele pelo horário (ver
+[correlação](#como-funciona-a-correlação-com-os-acessos)) e cada pessoa conta **uma vez por
+acesso**, mesmo que a catraca a registre duas vezes nos mesmos segundos. Então:
+
+- **Percentual** = aparições da pessoa ÷ **total de aparições de todas as pessoas** × 100. Os
+  percentuais **somam 100%**. Ex.: em 10 acessos, João aparece em 8 e Maria em 2 → 80% e 20%.
+- **"Em N de M acessos"**: em quantos dos acessos considerados a pessoa apareceu.
+
+Os **três** mais frequentes saem em cartões (nome, telefone, tipo, percentual, barra e "Em N de
+M acessos"). **Todas as outras** pessoas encontradas, por menor que seja o percentual, aparecem
+logo abaixo na lista **Outras pessoas encontradas**, na mesma ordem. Empate é desfeito pelo nome.
+Entram associados e externos **liberados** (o externo traz o tipo: Terceirizado, Freelancer ou
+Liberação pontual — e é outra pessoa que um sócio de mesmo nome). Carro de aplicativo fica de
+fora: quem pede é o passageiro, não quem dirige.
+
+A conta mora em `App\Services\Parking\LikelyDrivers::rank()`. Até 16/11/2026 o controller
+dividia as aparições pelo número de **pessoas diferentes**, o que dava percentuais acima de 100%
+(8 aparições ÷ 2 pessoas = 400%); a ordem estava certa, o número não.
 
 **d) Histórico de acessos do dia**
 Lista de cada entrada do veículo no dia escolhido (mais recente primeiro). Para cada acesso:
@@ -193,9 +207,11 @@ Depois de mudar o `.env` em produção: `php artisan config:cache`.
 ## Referência técnica
 
 - Controllers: [`ParkingController`](../controllers.md#parkingcontroller), [`AccessController`](../controllers.md#accesscontroller), [`FtpController`](../controllers.md#ftpcontroller-ftpcontrollerphp)
-- Service: [`ParkingAccessCorrelationService`](../services.md#parkingaccesscorrelationservice)
+- Service: [`ParkingAccessCorrelationService`](../services.md#parkingaccesscorrelationservice);
+  `App\Services\Parking\LikelyDrivers` (condutores mais prováveis)
 - Testes: `tests/Feature/ParkingCarImageTest.php` (foto), `tests/Feature/ParkingAccessCorrelationTest.php`
-  (externos e carros de aplicativo), `tests/Feature/Rebrand/SivScreensTest.php` (tela)
+  (externos e carros de aplicativo), `tests/Unit/ParkingLikelyDriversTest.php` (percentual dos
+  condutores), `tests/Feature/Rebrand/SivScreensTest.php` (tela)
 - Integração FTP: [Integrações](../integracoes.md#119-ftp-flysystem)
 - Models: [`Parking`, `Access`](../models.md#status-acesso-e-estacionamento)
 - Integração SQL Server: [Integrações](../integracoes.md#114-sql-server--multiclubes)
