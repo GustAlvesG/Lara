@@ -84,6 +84,7 @@ Setores. "Secretaria" é o setor **Atendimento**; "Financeiro" é a
 | Login da API do Telegram | `telegram.login` | Comercial |
 | Locais e regras de reserva, Sócios/Acessos | `reservas.configurar`, `socios.consulta` | TI (acesso total) |
 | Usuários, Setores | `usuarios.gerenciar`, `setores.gerenciar` | acesso total |
+| Integrações (tokens da API, desde 17/11/2026) | `integracoes.visualizar`, `integracoes.gerenciar` | acesso total ([gestao-tokens.md](gestao-tokens.md)) |
 
 O Smart Panel saiu do sistema.
 

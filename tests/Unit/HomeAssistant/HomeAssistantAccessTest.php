@@ -45,7 +45,8 @@ class HomeAssistantAccessTest extends TestCase
     {
         $middleware = Route::getRoutes()->getByName('api.schedule.homeAssistantAutomation')->gatherMiddleware();
 
-        $this->assertContains('api_token', $middleware);
+        // Desde 17/11/2026 com escopo próprio (gestao-tokens.md).
+        $this->assertContains('api_token:home-assistant', $middleware);
     }
 
     private function contactorIdFor(bool $canManage, array $input, ?Place $place = null): ?int

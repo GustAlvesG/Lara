@@ -5,7 +5,7 @@ A aplicação possui **três mecanismos de autenticação** distintos, conforme 
 | Mecanismo | Para quem | Como funciona |
 |-----------|-----------|---------------|
 | **Sessão (Breeze)** | Usuários administrativos (painel web) | Login por e-mail/senha, sessão e cookies. Middleware `auth`. |
-| **Token de API** | Integrações externas (Telegram, etc.) | Token estático no header `Authorization: Bearer`. Middleware `api_token`. |
+| **Token de API** | Integrações externas (site, HAL, portaria, Home Assistant, Telegram, Poli) | Token da integração (um por instalação, com escopo e validade) no header `Authorization: Bearer`. Middleware `api_token:<escopo>`. |
 | **JWT de sócio** | App móvel de sócios | Token JWT no header `Session`. Middleware `login_token`. |
 
 ## 4.1. Sessão web (Laravel Breeze)
@@ -23,15 +23,25 @@ Eventos: ao efetuar login, o listener `UpdateLastLoginAt` atualiza `users.last_l
 `app/Http/Middleware/APIToken.php`
 
 ```php
-public function handle(Request $request, Closure $next): Response
+public function handle(Request $request, Closure $next, string ...$scopes): Response
 ```
 
-- Requisições `OPTIONS` são respondidas imediatamente com `200` (suporte a CORS/preflight).
-- Lê o token via `$request->bearerToken()` e compara com `config('services.api.token')`
-  (variável `API_TOKEN`).
-- Se ausente ou inválido → `401 {"error": "Unauthorized"}`.
+Desde 17/11/2026 cada sistema externo tem token próprio por instalação, gerado em
+**Administração › Integrações**, com escopos e validade. Detalhes em
+[Gestão de tokens da API](funcionalidades/gestao-tokens.md).
 
-Aplicado ao grupo de rotas da API em `routes/api.php` (`Route::middleware('api_token')`).
+- Requisições `OPTIONS` passam direto (CORS/preflight).
+- A rota declara o escopo: `api_token:site`, `api_token:ia`, `api_token:portaria`,
+  `api_token:home-assistant`, `api_token:telegram`, `api_token:webhook-whatsapp`
+  (catálogo em `App\Support\ApiTokens\ApiScopes`).
+- Token `lara_…` (gerenciado): revogado, vencido ou de integração desativada → `401`; sem o
+  escopo da rota → `403`. Grava o último uso (data/hora, IP, rota).
+- O `API_TOKEN` antigo do `.env` continua aceito em todas as rotas enquanto
+  `API_TOKEN_LEGACY_ENABLED=true`, e cada uso fica registrado.
+- Ausente ou inválido → `401 {"message": "Invalid API Token"}`.
+
+`/api/company-access/*` usa `api_token_portaria:portaria` (`ObserveApiToken`): só registra até
+`API_TOKEN_PORTARIA_ENFORCED=true`.
 
 ## 4.3. JWT de sócio — `JwtMiddleware` (`login_token`)
 

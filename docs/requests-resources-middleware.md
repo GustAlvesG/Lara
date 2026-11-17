@@ -57,7 +57,8 @@ Atualmente delega a `parent::toArray($request)` (serialização padrão dos atri
 
 | Classe | Alias | Função |
 |--------|-------|--------|
-| `APIToken` | `api_token` | Compara o header `Authorization` com `"Bearer " . config('services.api.token')`. `OPTIONS` passa direto; inválido → `401 {"message":"Invalid API Token"}`. |
+| `APIToken` | `api_token:<escopo>` | Token da integração (`lara_…`, gerado em Administração › Integrações) com um dos escopos da rota — senão `401` (inexistente, revogado, vencido, integração desativada) ou `403` (sem o escopo); ou o `API_TOKEN` antigo do `.env` enquanto `API_TOKEN_LEGACY_ENABLED=true`. Grava o último uso e a contagem diária. `OPTIONS` passa direto; inválido → `401 {"message":"Invalid API Token"}`. Ver [gestao-tokens.md](funcionalidades/gestao-tokens.md). |
+| `ObserveApiToken` | `api_token_portaria:<escopo>` | `/api/company-access/*`: registra (com ou sem token) e só barra com `API_TOKEN_PORTARIA_ENFORCED=true`. |
 | `JwtMiddleware` | `login_token` | Lê o token do header `Session`, valida via `JwtService::validateToken()` e injeta o payload em `user`. Ausente → `400`; inválido → `401`. |
 | `AdminAccessMiddleware` | — | Placeholder (apenas repassa a requisição); não registrado como alias. |
 

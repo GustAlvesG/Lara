@@ -51,6 +51,7 @@ use App\Http\Controllers\Replay\Api\CameraController as ReplayApiCameraControlle
 use App\Http\Controllers\Replay\Api\VideoController as ReplayApiVideoController;
 use App\Http\Controllers\Replay\Api\PortalController as ReplayPortalController;
 use App\Support\Replay\ReplayAbilities;
+use App\Support\ApiTokens\ApiScopes;
 
 
 Route::get('/user', function (Request $request) {
@@ -186,7 +187,7 @@ Route::prefix('replay')
 | `my-videos` é o destino do link do e-mail e exige o login do sócio: fica
 | dentro do grupo `login_token` lá embaixo, junto com o resto do portal.
 */
-Route::prefix('replay')->middleware('api_token')->group(function () {
+Route::prefix('replay')->middleware('api_token:' . ApiScopes::SITE)->group(function () {
     Route::get('/places', [ReplayPortalController::class, 'places'])->name('api.replay.places');
     Route::get('/places/{place}/videos', [ReplayPortalController::class, 'placeVideos'])->name('api.replay.places.videos');
 });
@@ -202,7 +203,12 @@ Route::prefix('whatsapp')->group(function () {
     Route::post('/send-message', [WhatsAppController::class, 'sendMessage']);
 });
 
-Route::prefix('company-access')->group(function () {
+/*
+| Monitor de Acesso (portaria). Até 17/11/2026 sem token nenhum: o
+| `api_token_portaria` só registra quem chama (com ou sem token) e passa a
+| barrar quando API_TOKEN_PORTARIA_ENFORCED=true — ver ObserveApiToken.
+*/
+Route::prefix('company-access')->middleware('api_token_portaria:' . ApiScopes::PORTARIA)->group(function () {
     Route::post('/validate-access', [CompanyAccessRulesController::class, 'validateCompanyAccess'])->name('company_access.validate');
     Route::post('/register-access', [CompanyAccessRulesController::class, 'registerAccess'])->name('company_access.register');
     Route::post('/register-worker-access', [CompanyAccessRulesController::class, 'registerWorkerAccess'])->name('company_access.register_worker');
@@ -314,8 +320,23 @@ Route::prefix('freelancer')->group(function () {
         ->name('api.freelancer.dinners');
 });
 
-Route::middleware('api_token')->group(function () {
+/*
+|--------------------------------------------------------------------------
+| Sistemas externos — token da integração, por escopo
+|--------------------------------------------------------------------------
+|
+| Cada grupo abaixo pede o escopo do sistema que o consome (`api_token:<escopo>`,
+| catálogo em App\Support\ApiTokens\ApiScopes). O token é gerado por
+| instalação em Administração › Integrações. Enquanto
+| API_TOKEN_LEGACY_ENABLED=true, o API_TOKEN antigo do .env passa em todos os
+| grupos, como antes, e cada uso dele fica registrado. Inventário rota →
+| escopo em docs/funcionalidades/gestao-tokens.md.
+*/
 
+/*
+| Portaria — câmeras/Monitor de Acesso (placas) e a frota.
+*/
+Route::middleware('api_token:' . ApiScopes::PORTARIA)->group(function () {
     Route::post('/parking/check', [ParkingAuthorizationController::class, 'checkPlateFromCamera'])
         ->name('api.parking.check.post');
 
@@ -324,26 +345,6 @@ Route::middleware('api_token')->group(function () {
 
     Route::get('/parking/authorized', [ParkingAuthorizationController::class, 'listAuthorized'])
         ->name('api.parking.authorized');
-
-    Route::prefix('information')->group(function () {
-        //Busca por palavra-chave em name, description e category do data_info
-        Route::get('/search', [InformationSearchController::class, 'index'])
-            ->name('api.information.search');
-    });
-
-    Route::prefix('avisos')->group(function () {
-        // Busca em title, content e tags dos avisos DIRIGIDOS ao user_id
-        // informado (privacidade do aviso) — consumida pelo HAL (IA).
-        Route::get('/search', [AvisoSearchController::class, 'index'])
-            ->name('api.avisos.search');
-    });
-
-    Route::prefix('guias')->group(function () {
-        // Busca nos guias do usuário (docs/guias), em nome do user_id: diz
-        // em cada seção se a pessoa alcança a tarefa — consumida pelo HAL (IA).
-        Route::get('/search', [GuideSearchController::class, 'index'])
-            ->name('api.guias.search');
-    });
 
     /*
     |----------------------------------------------------------------------
@@ -364,27 +365,65 @@ Route::middleware('api_token')->group(function () {
         Route::post('/return', [FleetApiController::class, 'returnTrip'])->name('api.fleet.return');
         Route::post('/trips/{trip}/cancel', [FleetApiController::class, 'cancel'])->name('api.fleet.trips.cancel');
     });
+});
 
-    /*
-    |----------------------------------------------------------------------
-    | Home Assistant — comando manual de iluminação
-    |----------------------------------------------------------------------
-    |
-    | Contraparte de escrita do GET /schedule/home-assistant/automation, que o
-    | HA consulta a cada 30s. Fica fora do grupo `login_token`: quem chama é a
-    | automação, com o token de integração, e não um sócio logado.
-    */
-    Route::prefix('schedule/home-assistant')->group(function () {
-        Route::post('/contactors/{entity_id}/manual', [HomeAssistantApiController::class, 'manual'])
-            ->middleware('throttle:30,1')
-            ->name('api.home-assistant.manual');
+/*
+| HAL (IA) — consultas que a VM da IA faz ao Lara.
+*/
+Route::middleware('api_token:' . ApiScopes::IA)->group(function () {
+    Route::prefix('information')->group(function () {
+        //Busca por palavra-chave em name, description e category do data_info
+        Route::get('/search', [InformationSearchController::class, 'index'])
+            ->name('api.information.search');
     });
 
-    Route::prefix('webhooks')->group(function () {
-        Route::post('/whatsapp', [UberAccessRequestWebhookController::class, 'handle'])
-            ->name('api.webhooks.whatsapp');
+    Route::prefix('avisos')->group(function () {
+        // Busca em title, content e tags dos avisos DIRIGIDOS ao user_id
+        // informado (privacidade do aviso) — consumida pelo HAL (IA).
+        Route::get('/search', [AvisoSearchController::class, 'index'])
+            ->name('api.avisos.search');
     });
 
+    Route::prefix('guias')->group(function () {
+        // Busca nos guias do usuário (docs/guias), em nome do user_id: diz
+        // em cada seção se a pessoa alcança a tarefa — consumida pelo HAL (IA).
+        Route::get('/search', [GuideSearchController::class, 'index'])
+            ->name('api.guias.search');
+    });
+});
+
+/*
+|--------------------------------------------------------------------------
+| Home Assistant — automação e comando manual de iluminação
+|--------------------------------------------------------------------------
+|
+| O HA consulta a automação a cada 30s; o comando manual é a contraparte de
+| escrita, chamado pelo HA e pelo bot do Telegram (por isso aceita os dois
+| escopos). Fora do grupo `login_token`: quem chama é a automação, com o token
+| de integração, e não um sócio logado.
+*/
+Route::prefix('schedule/home-assistant')->group(function () {
+    Route::get('/automation', [ScheduleController::class, 'homeAssistantAutomation'])
+        ->middleware('api_token:' . ApiScopes::HOME_ASSISTANT)
+        ->name('api.schedule.homeAssistantAutomation');
+
+    Route::post('/contactors/{entity_id}/manual', [HomeAssistantApiController::class, 'manual'])
+        ->middleware(['api_token:' . ApiScopes::HOME_ASSISTANT . ',' . ApiScopes::TELEGRAM, 'throttle:30,1'])
+        ->name('api.home-assistant.manual');
+});
+
+/*
+| Webhook da Poli (WhatsApp): bot e pedidos de acesso do Uber.
+*/
+Route::prefix('webhooks')->middleware('api_token:' . ApiScopes::WEBHOOK_WHATSAPP)->group(function () {
+    Route::post('/whatsapp', [UberAccessRequestWebhookController::class, 'handle'])
+        ->name('api.webhooks.whatsapp');
+});
+
+/*
+| Bot do Telegram: contatos, login por matrícula e freelancers.
+*/
+Route::middleware('api_token:' . ApiScopes::TELEGRAM)->group(function () {
     Route::prefix('telegram')->group(function () {
         Route::post('/get-contacts', [TelegramContactController::class, 'find'])->name('telegram.findContacts');
         Route::post('/contacts', [TelegramContactController::class, 'store'])->name('telegram.createContact');
@@ -409,7 +448,15 @@ Route::middleware('api_token')->group(function () {
             Route::post('/service/{freelancerService}/sign', [FreelancerServiceController::class, 'sign']);
         });
     });
-    Route::post('/login', [MemberAuthController::class, 'login'])->middleware('throttle:10,1');
+});
+
+/*
+| Site Next.js (o site de locação: reservas, torneios, ingressos, espaços
+| sociais, iluminação, dashboards). O login do sócio (`login_token`) vem por
+| cima deste token nas rotas da conta.
+*/
+Route::middleware('api_token:' . ApiScopes::SITE)->group(function () {
+    Route::post('/login',[MemberAuthController::class, 'login'])->middleware('throttle:10,1');
     Route::post('/register', [MemberAuthController::class, 'register'])->middleware('throttle:5,1');
     Route::post('/check-member', [MemberAuthController::class, 'checkMember'])->middleware('throttle:10,1');
     Route::put('/change-password', [MemberAuthController::class, 'changePassword'])->middleware('throttle:5,1');
@@ -568,9 +615,8 @@ Route::middleware('api_token')->group(function () {
             Route::post('/payment', [SchedulePaymentController::class, 'store']);
             Route::delete('/delete-pending', [ScheduleController::class, 'destroyPending']);
 
-            Route::get('/home-assistant/automation', [ScheduleController::class, 'homeAssistantAutomation'])->name('api.schedule.homeAssistantAutomation')->withoutMiddleware(['login_token']);
-
-
+            // A automação do Home Assistant saiu daqui em 17/11/2026: tem
+            // escopo próprio, no grupo do Home Assistant acima.
 
             Route::post('/time-options', [ScheduleRulesController::class, 'getTimeOptions'])->name('api.schedule.getTimeOptions')->withoutMiddleware(['login_token']);
         });

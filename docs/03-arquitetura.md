@@ -53,7 +53,8 @@ Os aliases de middleware são registrados em `bootstrap/app.php`:
 
 | Alias | Classe | Função |
 |-------|--------|--------|
-| `api_token` | `App\Http\Middleware\APIToken` | Valida o token estático da API (header Authorization). |
+| `api_token` | `App\Http\Middleware\APIToken` | `api_token:<escopo>`: token da integração com o escopo da rota, ou o `API_TOKEN` antigo enquanto ligado ([gestao-tokens.md](funcionalidades/gestao-tokens.md)). |
+| `api_token_portaria` | `App\Http\Middleware\ObserveApiToken` | `/api/company-access/*`: registra quem chama; só barra com `API_TOKEN_PORTARIA_ENFORCED=true`. |
 | `login_token` | `App\Http\Middleware\JwtMiddleware` | Valida o token JWT do sócio (header `Session`). |
 | `role` | `Spatie\...\RoleMiddleware` | Exige papel. |
 | `permission` | `Spatie\...\PermissionMiddleware` | Exige permissão. |

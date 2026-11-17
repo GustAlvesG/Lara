@@ -3,6 +3,12 @@
 Resumo das integrações com sistemas externos, suas configurações e os componentes
 envolvidos.
 
+> **Tokens de entrada (desde 17/11/2026):** quem chama O Lara (site, HAL, portaria, Home
+> Assistant, Telegram, Poli) usa token próprio por instalação, com escopo e validade, gerado em
+> Administração › Integrações. Onde abaixo aparece `API_TOKEN`/`api_token`, leia
+> `api_token:<escopo>`; o token antigo segue aceito enquanto `API_TOKEN_LEGACY_ENABLED=true`. Ver
+> [Gestão de tokens da API](funcionalidades/gestao-tokens.md).
+
 ---
 
 ## 11.1. WhatsApp Cloud API (Meta)

@@ -16,7 +16,13 @@ return Application::configure(basePath: dirname(__DIR__))
             // `throttle:N,M` contado por rota, e não um contador só por
             // usuário/IP para o sistema inteiro — ver a classe.
             'throttle' => \App\Http\Middleware\ThrottleRequestsPerRoute::class,
+            // Sistema externo: `api_token:<escopo>` (token da integração com
+            // o escopo, ou o API_TOKEN antigo enquanto ligado). Ver
+            // docs/funcionalidades/gestao-tokens.md.
             'api_token' => \App\Http\Middleware\APIToken::class,
+            // Rotas que nunca pediram token (company-access): registra e só
+            // barra com API_TOKEN_PORTARIA_ENFORCED=true.
+            'api_token_portaria' => \App\Http\Middleware\ObserveApiToken::class,
             // Aprovador externo de ordem de compra (site em DMZ). JWT com
             // escopo próprio — não confunde com o token de sócio.
             'approval_token' => \App\Http\Middleware\ApprovalToken::class,
