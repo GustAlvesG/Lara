@@ -10,9 +10,10 @@ use Spatie\Permission\Models\Permission;
 
 /**
  * O único caminho para mudar acesso: vínculo com setor, permissões do setor,
- * acesso total e permissões individuais. As telas (Usuários, Setores, Meu
- * setor) chamam daqui; ninguém mexe em `user_sector`, `sector_permission` ou
- * `model_has_permissions` por fora.
+ * acesso total, permissões individuais e permissões negadas. As telas
+ * (Usuários, Setores, Meu setor) chamam daqui; ninguém mexe em `user_sector`,
+ * `sector_permission`, `model_has_permissions` ou `user_permission_denials`
+ * por fora.
  *
  * Existe para que duas coisas valham em toda tela, sem depender de quem
  * escreveu cada uma:
@@ -60,29 +61,54 @@ class AccessManager
     }
 
     /**
-     * Permissões individuais do usuário: a lista passada é a lista final.
+     * Permissões individuais do usuário: as dadas (`$names`) e as negadas
+     * (`$denied`). Cada lista passada é a lista final; `$denied = null`
+     * deixa as negadas como estão.
+     *
+     * A negação vence tudo — setor, individual e acesso total. Por isso uma
+     * permissão não fica dada e negada ao mesmo tempo: se vier nas duas
+     * listas, vale a negação.
+     *
+     * A trava de gestão vale para a negação também: ninguém nega a si mesmo
+     * Usuários ou Setores.
      *
      * @param list<string> $names
+     * @param list<string>|null $denied
      */
-    public function syncUserPermissions(User $actor, User $user, array $names): void
+    public function syncUserPermissions(User $actor, User $user, array $names, ?array $denied = null): void
     {
         $names = array_values(array_intersect($names, Permissions::all()));
+        if ($denied !== null) {
+            $denied = array_values(array_intersect($denied, Permissions::all()));
+            $names = array_values(array_diff($names, $denied));
+        }
 
-        $this->guarded($actor, function () use ($user, $names) {
+        $this->guarded($actor, function () use ($user, $names, $denied) {
             $before = $user->directPermissions()->pluck('name')->all();
             $ids = $this->permissionIds($names);
 
             $user->directPermissions()->sync(array_values($ids));
 
-            $added = array_values(array_diff($names, $before));
-            $removed = array_values(array_intersect(array_diff($before, $names), Permissions::all()));
+            $details = [
+                'added' => array_values(array_diff($names, $before)),
+                'removed' => array_values(array_intersect(array_diff($before, $names), Permissions::all())),
+            ];
 
-            if ($added || $removed) {
-                AccessAuditLog::record(AccessAuditLog::USER_PERMISSIONS_CHANGED, $user->id, null, null, [
-                    'added' => $added,
-                    'removed' => $removed,
-                ]);
+            if ($denied !== null) {
+                $deniedBefore = $user->deniedPermissions()->pluck('name')->all();
+                $user->deniedPermissions()->sync(array_values($this->permissionIds($denied)));
+
+                $details['denied'] = array_values(array_diff($denied, $deniedBefore));
+                $details['undenied'] = array_values(array_intersect(array_diff($deniedBefore, $denied), Permissions::all()));
             }
+
+            $details = array_filter($details);
+
+            if ($details) {
+                AccessAuditLog::record(AccessAuditLog::USER_PERMISSIONS_CHANGED, $user->id, null, null, $details);
+            }
+
+            $user->forgetAccess();
         });
     }
 

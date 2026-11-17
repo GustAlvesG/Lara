@@ -161,6 +161,80 @@ class AccessManagerTest extends TestCase
         $this->assertDatabaseHas('access_audit_logs', ['action' => AccessAuditLog::SECTOR_MEMBER_ROLE_CHANGED, 'user_id' => $pessoa->id]);
     }
 
+    public function test_negar_permissao_fica_registrado_e_vence_o_setor(): void
+    {
+        $admin = $this->superuser();
+        $pessoa = $this->makeUser('Porteira');
+        $this->joinSector($pessoa, 'Portaria');
+
+        $this->actingAs($admin);
+        $this->manager->syncUserPermissions($admin, $pessoa, [P::LARA], [P::SIV_FROTA]);
+
+        $this->assertFalse($pessoa->can(P::SIV_FROTA));
+        $this->assertTrue($pessoa->can(P::LARA));
+
+        $log = AccessAuditLog::where('action', AccessAuditLog::USER_PERMISSIONS_CHANGED)->latest('id')->first();
+        $this->assertSame([P::LARA], $log->details['added']);
+        $this->assertSame([P::SIV_FROTA], $log->details['denied']);
+
+        // Deixar de negar devolve o que o setor dá.
+        $this->manager->syncUserPermissions($admin, $pessoa, [P::LARA], []);
+        $this->assertTrue($pessoa->can(P::SIV_FROTA));
+        $log = AccessAuditLog::where('action', AccessAuditLog::USER_PERMISSIONS_CHANGED)->latest('id')->first();
+        $this->assertSame([P::SIV_FROTA], $log->details['undenied']);
+    }
+
+    public function test_dada_e_negada_ao_mesmo_tempo_vale_a_negacao(): void
+    {
+        $pessoa = $this->makeUser('Indecisa');
+
+        $this->manager->syncUserPermissions($this->superuser(), $pessoa, [P::LARA], [P::LARA]);
+
+        $this->assertSame([], $pessoa->directPermissions()->pluck('name')->all());
+        $this->assertSame([P::LARA], $pessoa->deniedPermissions()->pluck('name')->all());
+    }
+
+    public function test_sem_lista_de_negadas_elas_ficam_como_estao(): void
+    {
+        $admin = $this->superuser();
+        $pessoa = $this->makeUser('Negada Antes');
+        $this->manager->syncUserPermissions($admin, $pessoa, [], [P::SIV_FROTA]);
+
+        $this->manager->syncUserPermissions($admin, $pessoa, [P::LARA]);
+
+        $this->assertSame([P::SIV_FROTA], $pessoa->deniedPermissions()->pluck('name')->all());
+    }
+
+    public function test_ninguem_nega_a_si_mesmo_a_gestao(): void
+    {
+        $admin = $this->superuser();
+
+        try {
+            $this->manager->syncUserPermissions($admin, $admin, [], [P::USUARIOS_GERENCIAR]);
+            $this->fail('Deveria ter recusado.');
+        } catch (AccessChangeRejected $e) {
+            $this->assertStringContainsString('Peça a outra pessoa', $e->getMessage());
+        }
+
+        $this->assertDatabaseCount('user_permission_denials', 0);
+    }
+
+    public function test_tela_de_usuarios_grava_dar_e_negar(): void
+    {
+        $admin = $this->superuser();
+        $pessoa = $this->makeUser('Pela Tela');
+        $this->joinSector($pessoa, 'Portaria');
+
+        $this->actingAs($admin)
+            ->put(route('users.permissions.update', $pessoa->id), [
+                'access' => [P::LARA => 'grant', P::SIV_FROTA => 'deny', P::SIV_BUSCA => ''],
+            ])
+            ->assertRedirect(route('users.edit', $pessoa->id));
+
+        $this->assertSame([P::LARA], $pessoa->directPermissions()->pluck('name')->all());
+        $this->assertSame([P::SIV_FROTA], $pessoa->deniedPermissions()->pluck('name')->all());
+    }
+
     private function superuser(): User
     {
         $user = $this->makeUser('Super ' . uniqid());

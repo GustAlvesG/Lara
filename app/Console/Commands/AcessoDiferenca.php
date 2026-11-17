@@ -57,7 +57,7 @@ class AcessoDiferenca extends Command
         foreach ($users as $user) {
             $before = $this->legacyAccess($user);
             $access = $user->access();
-            $after = $access->hasFullAccess() ? Permissions::all() : $access->permissions;
+            $after = $access->effectivePermissions();
 
             $lost = array_values(array_diff($before, $after));
             $gained = array_values(array_diff($after, $before));

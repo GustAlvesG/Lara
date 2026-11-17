@@ -356,6 +356,17 @@ class User extends Authenticatable
     }
 
     /**
+     * Permissões negadas a esta pessoa (desde 17/11/2026): vencem o setor, a
+     * permissão individual e o acesso total. Quem grava é o AccessManager;
+     * quem lê é o AccessResolver.
+     */
+    public function deniedPermissions()
+    {
+        return $this->belongsToMany(Permission::class, 'user_permission_denials', 'user_id', 'permission_id')
+            ->withTimestamps();
+    }
+
+    /**
      * Banco de Horas em modo administrador: importar o espelho de ponto, ver
      * **todos** os funcionários e mexer no cadastro (férias, afastamento,
      * rescisão). É a permissão `banco-horas.admin` — o setor RH a recebe na

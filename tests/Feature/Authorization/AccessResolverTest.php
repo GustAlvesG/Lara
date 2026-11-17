@@ -136,8 +136,69 @@ class AccessResolverTest extends TestCase
         $user->can(P::LARA);
         $queries = count($connection->getQueryLog());
 
-        // Três consultas (acesso total, setores, individuais) — não três por can().
-        $this->assertLessThanOrEqual(3, $queries);
+        // Quatro consultas (acesso total, setores, individuais, negadas) — não quatro por can().
+        $this->assertLessThanOrEqual(4, $queries);
+    }
+
+    public function test_negar_tira_o_que_o_setor_da(): void
+    {
+        $user = $this->makeUser('Porteiro Sem Frota');
+        $this->joinSector($user, 'Portaria');
+        $this->deny($user->id, P::SIV_FROTA);
+
+        $user->forgetAccess();
+
+        $this->assertFalse($user->can(P::SIV_FROTA));
+        $this->assertTrue($user->can(P::SIV_BUSCA), 'o resto do setor continua');
+        $this->assertNotContains(P::SIV_FROTA, $user->access()->permissions);
+        $this->assertSame([P::SIV_FROTA], $user->access()->denied);
+    }
+
+    public function test_negar_vence_o_acesso_total(): void
+    {
+        $user = $this->makeUser('TI Sem Bot');
+        $this->joinSector($user, 'TI');
+        $this->deny($user->id, P::BOT_WHATSAPP);
+
+        $user->forgetAccess();
+
+        $this->assertTrue($user->hasFullAccess());
+        $this->assertFalse($user->can(P::BOT_WHATSAPP));
+        $this->assertTrue($user->can(P::LARA));
+        $this->assertNotContains(P::BOT_WHATSAPP, $user->access()->effectivePermissions());
+    }
+
+    public function test_negar_vence_a_permissao_individual(): void
+    {
+        $user = $this->makeUser('Dada e Negada');
+        $this->grantDirect($user->id, P::LARA);
+        $this->deny($user->id, P::LARA);
+
+        $user->forgetAccess();
+
+        $this->assertFalse($user->can(P::LARA));
+    }
+
+    public function test_quem_tem_a_permissao_negada_nao_e_avisado(): void
+    {
+        $avisada = $this->makeUser('Avisada');
+        $this->joinSector($avisada, 'Portaria');
+        $negada = $this->makeUser('Negada');
+        $this->joinSector($negada, 'Portaria');
+        $this->deny($negada->id, P::SIV_FROTA);
+
+        $ids = app(\App\Authorization\AccessResolver::class)->holderIds(P::SIV_FROTA);
+
+        $this->assertContains($avisada->id, $ids);
+        $this->assertNotContains($negada->id, $ids);
+    }
+
+    private function deny(int $userId, string $permission): void
+    {
+        DB::table('user_permission_denials')->insert([
+            'user_id' => $userId,
+            'permission_id' => DB::table('permissions')->where('name', $permission)->value('id'),
+        ]);
     }
 
     private function grantDirect(int $userId, string $permission): void

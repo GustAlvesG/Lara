@@ -470,14 +470,14 @@ todas com `can:infoclube.fila-espera`. As regras ficam em `App\Services\Waitlist
 | `edit` | Dados, setores, permissões individuais, acesso efetivo e histórico. | `GET /users/{id}/edit` |
 | `update` | Dados da conta (senha e PIN em branco mantêm). | `PUT /users/{id}` |
 | `updateSectors` | Setores e papel em cada um. | `PUT /users/{id}/sectors` |
-| `updatePermissions` | Permissões individuais. | `PUT /users/{id}/permissions` |
+| `updatePermissions` | Permissões individuais: `access[permissão] = grant` (dar), `deny` (negar — vence setor e acesso total) ou vazio (segue o setor). | `PUT /users/{id}/permissions` |
 | `destroy` | Tira dos setores (com as travas) e exclui (soft delete). | `DELETE /users/{id}` |
 
 ---
 
 ## SectorController
 
-`app/Http/Controllers/SectorController.php` — setores. Protegido por `can:setores.gerenciar`: dados, acesso total, o que o setor alcança (`updatePermissions`), membros e o histórico de acesso (`audit`).
+`app/Http/Controllers/SectorController.php` — setores. Protegido por `can:setores.gerenciar`: dados, acesso total, o que o setor alcança (`updatePermissions`), membros, o histórico de acesso (`audit`) e as permissões por módulo (`byModule`, `GET /sectors/modulos`, só leitura: setores, acesso total e individuais dadas/negadas de cada módulo).
 
 ## MySectorController
 

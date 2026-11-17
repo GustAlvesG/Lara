@@ -146,20 +146,33 @@
 
                     <div class="{{ $cardHead }}">
                         <h2 class="text-lg font-bold text-ink">Permissões individuais</h2>
-                        <p class="text-xs text-ink-2">Para o caso nominal: dar a esta pessoa algo que o setor dela não dá. Somam-se às do setor.</p>
+                        <p class="text-xs text-ink-2">Para o caso nominal. <strong>—</strong> segue o setor. <strong>Dar</strong> soma ao que o setor dá. <strong>Negar</strong> tira da pessoa mesmo que o setor dê — vence até o acesso total.</p>
                     </div>
+
+                    @php
+                        $choiceOf = fn ($name) => old('access.' . $name, in_array($name, $denied, true) ? 'deny' : (in_array($name, $direct, true) ? 'grant' : ''));
+                        $choices = ['' => '—', 'grant' => 'Dar', 'deny' => 'Negar'];
+                    @endphp
 
                     <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                         @foreach($catalog as $group => $permissions)
                             <fieldset>
                                 <legend class="text-xs font-bold uppercase tracking-wider text-ink-3 mb-2">{{ $group }}</legend>
-                                <div class="space-y-1.5">
+                                <div class="space-y-2">
                                     @foreach($permissions as $name => $label)
-                                        <label class="flex items-start gap-2 text-sm text-ink">
-                                            <input type="checkbox" name="permissions[]" value="{{ $name }}" @checked(in_array($name, old('permissions', $direct), true))
-                                                class="mt-0.5 rounded border-line-strong text-grena-ink focus:ring-grena-tint">
-                                            <span>{{ $label }} <span class="text-[10px] font-mono text-ink-3">{{ $name }}</span></span>
-                                        </label>
+                                        @php($current = $choiceOf($name))
+                                        <div class="flex items-start justify-between gap-3 text-sm text-ink">
+                                            <span class="{{ $current === 'deny' ? 'line-through text-danger' : '' }}">{{ $label }} <span class="text-[10px] font-mono text-ink-3 no-underline">{{ $name }}</span></span>
+                                            <div class="inline-flex shrink-0 rounded-lg border border-line overflow-hidden text-xs font-semibold" role="radiogroup" aria-label="{{ $label }}">
+                                                @foreach($choices as $value => $text)
+                                                    <label class="cursor-pointer">
+                                                        <input type="radio" name="access[{{ $name }}]" value="{{ $value }}" @checked($current === $value) class="peer sr-only">
+                                                        <span class="block px-2.5 py-1 text-ink-2 peer-focus-visible:ring-2 peer-focus-visible:ring-grena-tint
+                                                            {{ $value === 'deny' ? 'peer-checked:bg-danger peer-checked:text-white' : ($value === 'grant' ? 'peer-checked:bg-ok peer-checked:text-white' : 'peer-checked:bg-subtle peer-checked:text-ink') }}">{{ $text }}</span>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        </div>
                                     @endforeach
                                 </div>
                             </fieldset>
@@ -180,11 +193,11 @@
                         <p class="text-xs text-ink-2">O que a pessoa alcança hoje e de onde vem.</p>
                     </div>
 
-                    <div class="p-6">
+                    <div class="p-6 space-y-4">
                         @if($effective->hasFullAccess())
                             <div class="rounded-xl bg-danger-soft border border-danger/40 p-4 text-sm text-grena-ink">
                                 <p class="font-bold">Acesso total</p>
-                                <p>Via {{ implode(', ', $effective->fullAccessSectors) }}. Alcança todas as permissões — mas não os cargos, que dependem de coordenar o setor certo.</p>
+                                <p>Via {{ implode(', ', $effective->fullAccessSectors) }}. Alcança todas as permissões{{ $effective->denied ? ', menos as negadas abaixo' : '' }} — mas não os cargos, que dependem de coordenar o setor certo.</p>
                             </div>
                         @elseif($effective->permissions === [])
                             <p class="text-sm text-ink-2">Nenhuma permissão. Enxerga só o que é de todo mundo logado (InfoClube, Avisos, Empresas, Monitor de Acesso).</p>
@@ -197,6 +210,21 @@
                                     </li>
                                 @endforeach
                             </ul>
+                        @endif
+
+                        @if($effective->denied)
+                            <div class="rounded-xl border border-danger/40 p-4">
+                                <p class="text-xs font-bold uppercase tracking-wider text-danger mb-2">Negadas</p>
+                                <ul class="space-y-2">
+                                    @foreach($effective->denied as $name)
+                                        <li class="text-sm">
+                                            <p class="font-semibold text-ink line-through">{{ $P::group($name) }} · {{ $P::label($name) }}</p>
+                                            @php($overrides = array_unique(array_merge($effective->hasFullAccess() ? ['acesso total'] : [], $effective->sourcesOf($name))))
+                                            <p class="text-xs text-ink-2">negada individualmente{{ $overrides ? ' — vence ' . implode(', ', $overrides) : '' }}</p>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
                         @endif
                     </div>
                 </div>

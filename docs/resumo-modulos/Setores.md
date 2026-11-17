@@ -13,7 +13,9 @@ Documentação completa: [usuarios-e-permissoes.md](../funcionalidades/usuarios-
 O acesso a todo o painel do Lara é decidido por **setor**: cada setor recebe permissões do
 catálogo (para todos os membros ou só para os coordenadores), três setores têm **acesso total**
 (Gerência, Diretoria, TI) e a pessoa ainda pode ter permissões individuais. Telas `sectors.*`
-(permissão `setores.gerenciar`), `sectors.audit` (histórico) e `my-sector.*` (qualquer
+(permissão `setores.gerenciar`), `sectors.audit` (histórico), `sectors.modules` (por módulo, só
+leitura — setores, acesso total e individuais dadas/negadas de cada grupo do catálogo; o grupo é
+o "módulo") e `my-sector.*` (qualquer
 coordenador, Gate `coordinate-sector`). Ficam no menu da conta, não nos módulos.
 
 ## De onde vem o acesso (`AccessResolver` → `UserAccess`)
@@ -21,8 +23,10 @@ coordenador, Gate `coordinate-sector`). Ficam no menu da conta, não nos módulo
 1. `sectors.full_access` → todas as permissões do catálogo.
 2. `sector_permission` → por setor, com `coordinators_only`.
 3. `model_has_permissions` → individual.
+4. menos `user_permission_denials` → negadas à pessoa (17/11/2026); vencem as três, inclusive o
+   acesso total.
 
-`User::access()` calcula uma vez por requisição (três consultas, sem cache entre requisições):
+`User::access()` calcula uma vez por requisição (quatro consultas, sem cache entre requisições):
 tirar alguém do setor corta o acesso no clique seguinte. `UserAccess::sourcesOf()` responde de
 onde veio cada permissão (usado no painel "Acesso efetivo" da tela de Usuários).
 

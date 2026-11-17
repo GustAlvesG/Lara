@@ -50,6 +50,13 @@ onde se responde "por que fulano leva 403".
 - Setores e permissões individuais mudam **só** pelo `AccessManager`
   (`syncUserSectors`, `syncUserPermissions`), que audita em `access_audit_logs` e recusa
   esvaziar setor de acesso total ou tirar de si mesmo o acesso às telas de gestão.
+- **Permissão negada** (17/11/2026): `syncUserPermissions($actor, $user, $dadas, $negadas)` —
+  `$negadas = null` mantém as atuais. Tabela `user_permission_denials`, relação
+  `User::deniedPermissions()`. A negada vence setor, individual **e acesso total**
+  (`UserAccess::allows`), sai do `holderIds` e não mexe em cargos. Formulário:
+  `access[permissão] = grant | deny | ''`. Toda checagem nova de acesso deve passar por
+  `can()`/`hasAccess()`; nunca use `hasFullAccess()` para liberar uma permissão do catálogo, senão a
+  negação não vale ali.
 - **Excluir é soft delete**, e antes tira a pessoa de todos os setores pelo `AccessManager` (o
   vínculo de um excluído continuaria contando para a trava). Ninguém exclui a própria conta.
 - Criar usuário redireciona para a edição, para conferir o acesso efetivo.

@@ -18,15 +18,20 @@ use Illuminate\Validation\Rule;
  * Tela de Usuários (permissão `usuarios.gerenciar`).
  *
  * O acesso de cada pessoa tem três partes, e a tela de edição mostra as três
- * separadas: os setores (com o papel em cada um), as permissões individuais e,
- * só para leitura, o acesso efetivo — cada permissão e de onde ela veio. É a
- * aba que responde "por que fulano leva 403".
+ * separadas: os setores (com o papel em cada um), as permissões individuais
+ * (dadas ou negadas — a negada vence o setor e o acesso total) e, só para
+ * leitura, o acesso efetivo — cada permissão e de onde ela veio. É a aba que
+ * responde "por que fulano leva 403".
  *
  * Toda mudança de setor e de permissão passa pelo AccessManager: é ele quem
  * registra na auditoria e impede que alguém tranque o sistema.
  */
 class UserController extends Controller
 {
+    /** Escolhas de cada permissão no bloco "Permissões individuais". */
+    private const GRANT = 'grant';
+    private const DENY = 'deny';
+
     public function __construct(
         private readonly AccessManager $access,
         private readonly EmployeeSectorSync $employeeSectors,
@@ -35,7 +40,7 @@ class UserController extends Controller
 
     public function index()
     {
-        $users = User::with(['sectors', 'directPermissions'])->get()->sortBy('name');
+        $users = User::with(['sectors', 'directPermissions', 'deniedPermissions'])->get()->sortBy('name');
 
         return view('user.index', compact('users'));
     }
@@ -93,7 +98,7 @@ class UserController extends Controller
 
     public function edit(User $id)
     {
-        $user = $id->load(['sectors', 'directPermissions']);
+        $user = $id->load(['sectors', 'directPermissions', 'deniedPermissions']);
         $sectors = Sector::orderBy('name')->get();
 
         return view('user.edit', [
@@ -101,6 +106,7 @@ class UserController extends Controller
             'sectors' => $sectors,
             'catalog' => Permissions::grouped(),
             'direct' => $user->directPermissions->pluck('name')->all(),
+            'denied' => $user->deniedPermissions->pluck('name')->all(),
             'effective' => $user->access(),
             'audit' => AccessAuditLog::with(['actor:id,name', 'sector:id,name'])
                 ->where('user_id', $user->id)
@@ -179,15 +185,24 @@ class UserController extends Controller
         return redirect()->route('users.edit', $id->id)->with('success', 'Setores atualizados.');
     }
 
+    /**
+     * Permissões individuais: access[permissão] = grant (dar) | deny (negar) |
+     * '' (segue o setor). Toda permissão do catálogo vem no formulário; a que
+     * não vem fica como "segue o setor". Negar vence o setor e o acesso total.
+     */
     public function updatePermissions(Request $request, User $id)
     {
         $data = $request->validate([
-            'permissions'   => 'nullable|array',
-            'permissions.*' => ['string', Rule::in(Permissions::all())],
+            'access'   => 'nullable|array',
+            'access.*' => ['nullable', Rule::in([self::GRANT, self::DENY])],
         ]);
 
+        $choices = array_intersect_key($data['access'] ?? [], array_flip(Permissions::all()));
+        $granted = array_keys(array_filter($choices, fn ($c) => $c === self::GRANT));
+        $denied = array_keys(array_filter($choices, fn ($c) => $c === self::DENY));
+
         try {
-            $this->access->syncUserPermissions($request->user(), $id, $data['permissions'] ?? []);
+            $this->access->syncUserPermissions($request->user(), $id, $granted, $denied);
         } catch (AccessChangeRejected $e) {
             return redirect()->route('users.edit', $id->id)->with('error', $e->getMessage());
         }

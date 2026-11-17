@@ -12,9 +12,12 @@ use Illuminate\Support\Facades\DB;
  *   2. permissões dos setores (sector_permission), respeitando
  *      `coordinators_only`: a permissão marcada assim só chega a quem
  *      coordena o setor;
- *   3. permissões individuais (model_has_permissions do Spatie).
+ *   3. permissões individuais (model_has_permissions do Spatie);
  *
- * Três consultas por requisição, feitas uma vez só: User::access() guarda o
+ * menos as **negadas** à pessoa (user_permission_denials, desde 17/11/2026),
+ * que vencem as três — inclusive o acesso total.
+ *
+ * Quatro consultas por requisição, feitas uma vez só: User::access() guarda o
  * resultado na instância. Não há cache entre requisições de propósito — tirar
  * alguém de um setor corta o acesso no clique seguinte, sem esperar o cache
  * de 24h que o Spatie usaria.
@@ -71,7 +74,20 @@ class AccessResolver
         // tabela (de antes da reforma) não pode virar acesso por engano.
         $sources = array_intersect_key($sources, array_flip(Permissions::all()));
 
-        return new UserAccess(array_keys($sources), $fullAccess, $sources);
+        // Negadas vencem tudo: saem da lista aqui e o UserAccess as recusa
+        // também para quem tem acesso total.
+        $denied = array_values(array_intersect(
+            $db->table('user_permission_denials')
+                ->join('permissions', 'permissions.id', '=', 'user_permission_denials.permission_id')
+                ->where('user_permission_denials.user_id', $user->getKey())
+                ->pluck('permissions.name')
+                ->all(),
+            Permissions::all()
+        ));
+
+        $permissions = array_values(array_diff(array_keys($sources), $denied));
+
+        return new UserAccess($permissions, $fullAccess, $sources, $denied);
     }
 
     /**
@@ -102,6 +118,19 @@ class AccessResolver
             ->where('model_has_permissions.model_type', (new User())->getMorphClass())
             ->pluck('model_has_permissions.model_id');
 
-        return $viaSector->merge($direct)->map(fn ($id) => (int) $id)->unique()->values()->all();
+        // Quem teve a permissão negada não recebe o aviso dela.
+        $denied = $db->table('user_permission_denials')
+            ->join('permissions', 'permissions.id', '=', 'user_permission_denials.permission_id')
+            ->where('permissions.name', $permission)
+            ->pluck('user_permission_denials.user_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        return $viaSector->merge($direct)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->reject(fn ($id) => in_array($id, $denied, true))
+            ->values()
+            ->all();
     }
 }

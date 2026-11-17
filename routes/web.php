@@ -760,6 +760,7 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         Route::get('/', [SectorController::class, 'index'])->name('sectors.index');
         Route::get('/create', [SectorController::class, 'create'])->name('sectors.create');
         Route::get('/audit', [SectorController::class, 'audit'])->name('sectors.audit');
+        Route::get('/modulos', [SectorController::class, 'byModule'])->name('sectors.modules');
         Route::post('/', [SectorController::class, 'store'])->name('sectors.store');
         Route::get('/{id}', [SectorController::class, 'show'])->name('sectors.show');
         Route::put('/{id}', [SectorController::class, 'update'])->name('sectors.update');

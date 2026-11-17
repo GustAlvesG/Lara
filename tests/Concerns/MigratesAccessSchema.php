@@ -33,6 +33,7 @@ trait MigratesAccessSchema
             'database/migrations/2026_09_30_100100_create_sector_permission_table.php',
             'database/migrations/2026_09_30_100200_create_access_audit_logs_table.php',
             'database/migrations/2026_09_30_100300_sync_access_catalog.php',
+            'database/migrations/2026_11_17_110000_create_user_permission_denials_table.php',
         ]]);
     }
 }

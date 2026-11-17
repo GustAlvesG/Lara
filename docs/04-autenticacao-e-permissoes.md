@@ -96,6 +96,13 @@ De onde vem o acesso de uma pessoa (`App\Authorization\AccessResolver`):
    para os coordenadores (`coordinators_only`).
 3. **Permissões individuais** (`model_has_permissions`) — para o caso nominal.
 
+Menos as **permissões negadas** (`user_permission_denials`, desde 17/11/2026):
+negar uma permissão a uma pessoa vence as três fontes acima, **inclusive o
+acesso total**. Serve para tirar de alguém o que o setor dá sem tirá-lo do
+setor. A negada também some do `AccessResolver::holderIds` (a pessoa deixa de
+receber os avisos daquela permissão). Negação não alcança as regras de cargo,
+que não são permissões do catálogo.
+
 - **Catálogo:** `App\Authorization\Permissions` é a fonte única dos nomes
   (`siv.busca`, `reservas.pagamentos`, `freelancers.servicos.gerenciar`…). A
   migration `sync_access_catalog` espelha o catálogo na tabela `permissions` e
@@ -111,7 +118,7 @@ De onde vem o acesso de uma pessoa (`App\Authorization\AccessResolver`):
 - **Checagem:** sempre `can()` — nas rotas `->middleware('can:' . P::SIV_BUSCA)`,
   nas views `@can(...)`. Um `Gate::before` no `AppServiceProvider` responde
   pelos nomes do catálogo a partir de `User::access()`, calculado uma vez por
-  requisição (três consultas) e sem cache entre requisições: tirar alguém do
+  requisição (quatro consultas) e sem cache entre requisições: tirar alguém do
   setor corta o acesso no clique seguinte.
 - **Regras de cargo** ficam fora do catálogo e o acesso total não passa por
   cima delas: `validate-freelancer-contracts` (coordenador do Comercial),
@@ -121,7 +128,8 @@ De onde vem o acesso de uma pessoa (`App\Authorization\AccessResolver`):
   mapa fechado é somente leitura para todo mundo.
 - **Mudanças** de setor e de permissão passam pelo `App\Authorization\AccessManager`,
   que grava em `access_audit_logs` e recusa duas coisas: esvaziar um setor de
-  acesso total e tirar de si mesmo o acesso às telas de gestão.
+  acesso total e tirar de si mesmo o acesso às telas de gestão (o que inclui
+  negar a si mesmo Usuários ou Setores).
 - **Comandos:** `acesso:diferenca` (antes × agora, por pessoa),
   `acesso:aplicar-de-para` (roles antigas → setores, pelo arquivo
   `database/data/acesso-de-para.php`) e `acesso:limpar-legado` (apaga as roles e

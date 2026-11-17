@@ -65,6 +65,10 @@
                                             <span class="inline-flex rounded-full bg-subtle px-2.5 py-0.5 text-xs font-bold text-ink-2"
                                                   title="Permissões individuais">+{{ $user->directPermissions->count() }} individual</span>
                                         @endif
+                                        @if($user->deniedPermissions->isNotEmpty())
+                                            <span class="inline-flex rounded-full bg-danger-soft px-2.5 py-0.5 text-xs font-bold text-danger"
+                                                  title="Negadas: {{ $user->deniedPermissions->pluck('name')->implode(', ') }}">−{{ $user->deniedPermissions->count() }} negada{{ $user->deniedPermissions->count() > 1 ? 's' : '' }}</span>
+                                        @endif
                                     </div>
                                 </td>
                                 <td class="whitespace-nowrap px-5 py-3.5">

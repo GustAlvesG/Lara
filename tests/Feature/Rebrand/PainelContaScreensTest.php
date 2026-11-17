@@ -158,6 +158,7 @@ class PainelContaScreensTest extends TestCase
         $user = (new User)->forceFill(['id' => 21, 'name' => 'Rafael Porteiro', 'email' => 'rafael@clube.test', 'matricula' => '00123', 'status_id' => 1]);
         $user->setRelation('sectors', collect([$setor]));
         $user->setRelation('directPermissions', collect());
+        $user->setRelation('deniedPermissions', collect());
 
         $html = $this->tela($this->usuario(new UserAccess([P::USUARIOS_GERENCIAR, P::SETORES_GERENCIAR])), 'users.index', [], 'user.index', [
             'users' => collect([$user]),

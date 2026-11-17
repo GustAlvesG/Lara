@@ -3,8 +3,30 @@
 ## O que é
 
 O controle de acesso do painel. Cada pessoa alcança o que os **setores** dela
-alcançam, somado às **permissões individuais** que tiver. Três setores têm
-**acesso total**: Gerência, Diretoria e TI.
+alcançam, somado às **permissões individuais** que tiver, menos as
+**permissões negadas** a ela. Três setores têm **acesso total**: Gerência,
+Diretoria e TI.
+
+### Permissão negada (desde 17/11/2026)
+
+Na tela de Usuários, cada permissão de uma pessoa fica em **—** (segue o
+setor), **Dar** ou **Negar**. Negar **vence tudo**: o setor (para todos ou só
+coordenadores), a permissão individual e o **acesso total**. É o jeito de tirar
+de alguém uma tela que o setor dá sem tirar a pessoa do setor.
+
+- Mora em `user_permission_denials` (user_id, permission_id). Uma permissão não
+  fica dada e negada ao mesmo tempo: o `AccessManager::syncUserPermissions`
+  descarta a concessão quando vem nas duas.
+- `UserAccess::allows()` recusa a negada antes de olhar o acesso total;
+  `UserAccess::$permissions` já vem sem ela; `effectivePermissions()` dá o
+  catálogo menos as negadas para quem tem acesso total.
+- `AccessResolver::holderIds()` tira quem teve a permissão negada — a pessoa
+  deixa de receber os avisos daquela permissão.
+- Não alcança os **cargos** (aprovar lote, validar contrato, níveis da ordem de
+  compra…), que não são permissões do catálogo.
+- Trava: ninguém nega a si mesmo `usuarios.gerenciar` ou `setores.gerenciar`.
+- Auditoria: `user.permissions_changed` ganhou `denied` e `undenied` nos detalhes.
+- Coordenador em **Meu setor** não nega nada; só quem tem `usuarios.gerenciar`.
 
 As roles do Spatie (`admin`, `secretaria`, `comercial`, `user`) não decidem mais
 nada. Ver [Autenticação e Permissões](../04-autenticacao-e-permissoes.md#44-acesso-do-painel-setores-e-permissões)
@@ -80,12 +102,14 @@ de compra e reabrir mapa de cotação (coordenador da Contabilidade), o nível 3
 ## As telas
 
 ### Usuários (`/users`, permissão `usuarios.gerenciar`)
-- Lista com os setores de cada pessoa (★ = coordenador) e as permissões
-  individuais.
+- Lista com os setores de cada pessoa (★ = coordenador), as permissões
+  individuais e as negadas ("−N negadas").
 - Edição em três blocos: **dados da conta**, **setores** (fora / colaborador /
-  coordenador em cada um) e **permissões individuais**.
+  coordenador em cada um) e **permissões individuais** (— / Dar / Negar em
+  cada uma).
 - Painel **Acesso efetivo**: cada permissão e de onde veio ("setor Portaria",
-  "individual", ou acesso total) — é onde se responde "por que fulano leva 403".
+  "individual", ou acesso total) e, à parte, as **Negadas** e o que cada uma
+  vence — é onde se responde "por que fulano leva 403".
 - Histórico de acesso da pessoa.
 
 ### Setores (`/sectors`, permissão `setores.gerenciar`)
@@ -94,6 +118,13 @@ de compra e reabrir mapa de cotação (coordenador da Contabilidade), o nível 3
   "Só coordenadores".
 - Membros: adicionar, trocar papel, remover.
 - **Histórico de acesso** (`/sectors/audit`): toda mudança, com quem fez.
+- **Por módulo** (`/sectors/modulos`, rota `sectors.modules`, desde 17/11/2026):
+  só leitura. Para cada módulo do catálogo (o grupo de `Permissions::CATALOG`),
+  os setores que alcançam algo nele e o quê (marcando "só coordenadores"), os
+  setores de acesso total no topo e as pessoas com permissão individual **dada**
+  ou **negada** naquele módulo. Busca na página por módulo, setor, permissão ou
+  pessoa. Mudar continua sendo na tela do setor ou de Usuários
+  (`SectorController::byModule`, view `sector/modules`).
 
 ### Meu setor (`/meu-setor`, qualquer coordenador)
 O coordenador cuida da equipe dos setores que coordena:
@@ -110,7 +141,8 @@ alcança nem em dados de quem já existe.
 
 Toda mudança passa pelo `AccessManager`, que recusa:
 - deixar um setor de **acesso total sem nenhum membro**;
-- tirar **de si mesmo** o acesso às telas de gestão (Usuários/Setores).
+- tirar **de si mesmo** o acesso às telas de gestão (Usuários/Setores) — saindo
+  do setor, tirando a permissão individual ou negando-a.
 
 ## Implantação (de roles para setores)
 
@@ -135,4 +167,6 @@ Toda mudança passa pelo `AccessManager`, que recusa:
   `UserAccess`, `AccessManager`, `LegacyPermissionMap`)
 - Controllers: `UserController`, `SectorController`, `MySectorController`
 - Model: [`User`](../models.md#sócios-e-usuários) (`access()`, `hasAccess()`,
-  `hasFullAccess()`, `directPermissions()`), `Sector`, `AccessAuditLog`
+  `hasFullAccess()`, `directPermissions()`, `deniedPermissions()`), `Sector`, `AccessAuditLog`
+- Tabela das negadas: `user_permission_denials` (migration
+  `2026_11_17_110000_create_user_permission_denials_table`)

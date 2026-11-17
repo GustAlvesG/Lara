@@ -188,6 +188,62 @@ class SectorController extends Controller
             ->with('success', 'Usuário removido do setor com sucesso.');
     }
 
+    /**
+     * Permissões por módulo (só leitura): para cada grupo do catálogo, quais
+     * setores alcançam o quê ali, os de acesso total e as pessoas com
+     * permissão individual dada ou negada no módulo. É a mesma informação da
+     * tela de cada setor, virada do avesso — para responder "quem mexe em
+     * Ingressos?" sem abrir setor por setor. Muda-se pela tela do setor ou
+     * de Usuários.
+     */
+    public function byModule()
+    {
+        $sectors = Sector::with('permissions')->orderBy('name')->get();
+        $fullAccess = $sectors->where('full_access', true)->values();
+
+        $people = User::query()
+            ->where(fn ($q) => $q->whereHas('directPermissions')->orWhereHas('deniedPermissions'))
+            ->with(['directPermissions', 'deniedPermissions'])
+            ->orderBy('name')
+            ->get();
+
+        $modules = [];
+        foreach (Permissions::grouped() as $group => $permissions) {
+            $rows = [];
+            foreach ($sectors->where('full_access', false) as $sector) {
+                $grants = $sector->permissions
+                    ->filter(fn ($p) => isset($permissions[$p->name]))
+                    ->sortBy(fn ($p) => array_search($p->name, array_keys($permissions), true))
+                    ->map(fn ($p) => ['label' => $permissions[$p->name], 'coordinators' => (bool) $p->pivot->coordinators_only])
+                    ->values()
+                    ->all();
+
+                if ($grants) {
+                    $rows[] = ['sector' => $sector, 'grants' => $grants];
+                }
+            }
+
+            $individuals = [];
+            foreach ($people as $person) {
+                $granted = $person->directPermissions->filter(fn ($p) => isset($permissions[$p->name]))->map(fn ($p) => $permissions[$p->name])->values()->all();
+                $denied = $person->deniedPermissions->filter(fn ($p) => isset($permissions[$p->name]))->map(fn ($p) => $permissions[$p->name])->values()->all();
+
+                if ($granted || $denied) {
+                    $individuals[] = ['user' => $person, 'granted' => $granted, 'denied' => $denied];
+                }
+            }
+
+            $modules[] = [
+                'name' => $group,
+                'count' => count($permissions),
+                'rows' => $rows,
+                'individuals' => $individuals,
+            ];
+        }
+
+        return view('sector.modules', compact('modules', 'fullAccess'));
+    }
+
     /** Registro das mudanças de acesso — todos os setores e usuários. */
     public function audit(Request $request)
     {

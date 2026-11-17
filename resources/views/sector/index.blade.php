@@ -4,6 +4,7 @@
         <x-page-title title="Setores" :back="route('users.index')">
             Quem está em cada setor e o que cada setor alcança no sistema.
             <x-slot:actions>
+                <x-secondary-button-a href="{{ route('sectors.modules') }}"><x-icon name="list" /> Por módulo</x-secondary-button-a>
                 <x-secondary-button-a href="{{ route('sectors.audit') }}"><x-icon name="history" /> Histórico de acesso</x-secondary-button-a>
                 <x-primary-button-a href="{{ route('sectors.create') }}"><x-icon name="plus" /> Novo setor</x-primary-button-a>
             </x-slot:actions>

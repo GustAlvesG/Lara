@@ -128,9 +128,20 @@ Clique nas suas iniciais, escolha **Usuários** e clique em **Editar** na pessoa
 
 - **Dados da conta**: nome, e-mail, matrícula, CPF, telefone, **Estado da Conta**, **PIN de assinatura** e **Nova Senha**. Senha e PIN em branco mantêm os atuais. Clique em **Salvar dados**. É aqui que a TI define uma senha nova para quem esqueceu a sua.
 - **Setores**: para cada setor, **Fora do setor**, **Colaborador** ou **Coordenador**. Coordenar dá, além do que o setor alcança, as permissões marcadas como "só coordenadores" e os cargos (aprovar lote, validar contrato…). Clique em **Salvar setores**.
-- **Permissões individuais**: para dar a uma pessoa algo que o setor dela não dá. Marque e clique em **Salvar permissões**. Elas se somam às do setor.
+- **Permissões individuais**: em cada permissão, escolha **—** (segue o setor), **Dar** (dá à pessoa algo que o setor dela não dá) ou **Negar** (tira da pessoa mesmo que o setor dê). Clique em **Salvar permissões**.
 
-Ao lado fica o **Acesso efetivo**: cada permissão que a pessoa tem hoje e de onde vem (o setor, "individual" ou acesso total), e o **Histórico de acesso** dela.
+Ao lado fica o **Acesso efetivo**: cada permissão que a pessoa tem hoje e de onde vem (o setor, "individual" ou acesso total), as **Negadas**, e o **Histórico de acesso** dela.
+
+## Como tirar de uma pessoa uma tela que o setor dela dá
+<!-- telas: users.index -->
+
+Quando a pessoa deve continuar no setor, mas sem uma tela ou ação específica:
+
+1. Clique nas suas iniciais, escolha **Usuários** e clique em **Editar** na pessoa.
+2. Em **Permissões individuais**, ache a permissão e escolha **Negar**.
+3. Clique em **Salvar permissões**.
+
+A negação vence tudo: o setor, a permissão individual e até o **acesso total** (Gerência, Diretoria, TI). Vale no próximo clique da pessoa. Para devolver, volte a permissão para **—**. Na lista de Usuários, quem tem permissão negada aparece com a marca "−1 negada". A negação não tira cargos (aprovar lote, validar contrato…), que dependem de coordenar o setor certo, e ninguém pode negar a si mesmo o acesso a Usuários ou Setores.
 
 ## Como liberar uma tela para um setor inteiro
 <!-- telas: sectors.index -->
@@ -144,6 +155,13 @@ Clique nas suas iniciais, no canto superior direito, e escolha **Setores**. Cliq
 A mudança vale no próximo clique de cada membro, sem precisar sair e entrar de novo. Quando uma tela nova é criada no Lara, a permissão dela nasce **sem setor**: precisa ser marcada aqui para os setores que vão usá-la.
 
 Setor com **Acesso total** marcado (em **Dados do Setor**) alcança todas as permissões, e a lista não muda nada enquanto a marca estiver ligada. O acesso total não dá os cargos (aprovar lote, validar contrato, níveis da ordem de compra), que dependem de coordenar o setor certo.
+
+## Como ver quais setores mexem em cada módulo
+<!-- telas: sectors.index -->
+
+Clique nas suas iniciais, escolha **Setores** e clique em **Por módulo**. A tela lista cada módulo (Ingressos, Reservas, SIV…) e, em cada um, os setores que alcançam alguma coisa ali e o quê — por exemplo, "Esporte: Eventos, tipos de ingresso e lotes; Check-in na entrada do evento (só coordenadores)". Embaixo dos setores aparecem as pessoas com permissão individual **Dada** ou **Negada** naquele módulo. Os setores de **Acesso total** ficam no topo, porque alcançam todos os módulos.
+
+A tela é só para consulta: clique no nome do setor para mudar o que ele alcança, ou no nome da pessoa para mudar as permissões individuais dela. Use a busca para achar um módulo, um setor, uma permissão ou uma pessoa.
 
 ## Como criar um setor e cuidar dos membros
 <!-- telas: sectors.index -->
@@ -165,8 +183,9 @@ O menu mostra só o que a pessoa tem permissão para usar. Se um módulo ou uma 
 Para resolver:
 
 1. Quem administra os acessos abre **Usuários**, edita a pessoa e olha o **Acesso efetivo**: ali aparece cada permissão e de onde ela vem.
-2. Se a permissão não está lá, há três caminhos: colocar a pessoa num setor que já tem a permissão (pelo coordenador, em **Meu setor**, ou pela TI, em **Setores**); marcar a permissão para o setor dela em **Setores › O que o setor alcança**; ou dar uma **Permissão individual** só para ela em **Usuários**.
-3. Se a permissão do setor está como **Só coordenadores**, só os coordenadores enxergam.
+2. Se a permissão aparece em **Negadas**, foi tirada só desta pessoa: volte-a para **—** em **Permissões individuais**.
+3. Se a permissão não está lá, há três caminhos: colocar a pessoa num setor que já tem a permissão (pelo coordenador, em **Meu setor**, ou pela TI, em **Setores**); marcar a permissão para o setor dela em **Setores › O que o setor alcança**; ou dar uma **Permissão individual** só para ela em **Usuários**.
+4. Se a permissão do setor está como **Só coordenadores**, só os coordenadores enxergam.
 
 Algumas telas dependem de cargo, não de permissão: por exemplo, **Meu setor** só aparece para quem é coordenador de algum setor, e algumas aprovações exigem coordenar um setor específico.
 

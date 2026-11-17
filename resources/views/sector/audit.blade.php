@@ -23,7 +23,9 @@
             'sector.permissions_changed' => collect($d)->map(fn ($c, $name) => $name . ': ' . ($c['de'] ?? '—') . ' → ' . ($c['para'] ?? '—'))->implode('; '),
             'user.permissions_changed' => trim(
                 (($d['added'] ?? []) ? '+ ' . implode(', ', $d['added']) : '') . ' '
-                . (($d['removed'] ?? []) ? '− ' . implode(', ', $d['removed']) : '')
+                . (($d['removed'] ?? []) ? '− ' . implode(', ', $d['removed']) : '') . ' '
+                . (($d['denied'] ?? []) ? 'negou ' . implode(', ', $d['denied']) : '') . ' '
+                . (($d['undenied'] ?? []) ? 'deixou de negar ' . implode(', ', $d['undenied']) : '')
             ),
             'user.created' => 'pela tela ' . (($d['via'] ?? '') === 'meu-setor' ? 'Meu setor' : 'Usuários'),
             'sector.deleted' => $d['name'] ?? '',
