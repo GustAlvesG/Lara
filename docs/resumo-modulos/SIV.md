@@ -48,6 +48,7 @@ Tudo para com "reduzir movimento".
 | Placas Diretoria | `parking-authorizations.*` (resource) | `siv.placas-diretoria` | `ParkingAuthorizationController` |
 | Frota | `fleet.index`, `fleet.departure`, `fleet.return` | `siv.frota` | `Fleet\FleetController` |
 | Viagens | `fleet.trips`, `fleet.trips.cancel` | `siv.viagens` | `Fleet\FleetController` |
+| Viagens › Corrigir km | `fleet.trips.correct` (`PUT /fleet/trips/{trip}/odometer`) | `siv.viagens.corrigir-km` | `Fleet\FleetController@correctTrip` |
 | Veículos | `fleet.vehicles*` | `siv.veiculos` | `Fleet\FleetController` |
 
 ## Busca de placa (quem estava no carro)
@@ -89,6 +90,13 @@ resposta.
   validação.
 - Uma viagem aberta por veículo; hodômetro não volta nem salta acima de `fleet.max_trip_km`
   (recusa com `error` estável; `force: true` grava e marca `odometer_alert`).
+- **Km pela API só com os 3 últimos dígitos** (17/11/2026, `fleet.api_odometer_digits`):
+  `FleetService::readOdometer()`/`composeOdometer()` compõem o número inteiro a partir da
+  última km (saída) ou da km de saída (retorno), com folga de 50 km para trás
+  (`fleet.api_odometer_back_km`) para que leitura errada vire aviso. Mais dígitos →
+  `odometer_too_many_digits`; veículo sem km → `odometer_no_reference`. As telas seguem com
+  o número inteiro (o controller web não passa os dígitos). `0` no `.env` volta a API ao
+  número inteiro.
 - Horário é o do registro (`registered_at` só para atraso, nunca futuro além de
   `fleet.clock_skew_minutes`). Nada fecha sozinho; aberta há mais de
   `fleet.open_trip_alert_hours` fica destacada.
@@ -98,6 +106,11 @@ desligado, de férias ou afastado é recusado (`driver_blocked`, 403) e não apa
 com `FLEET_REQUIRE_EMPLOYEE=true` quem não está no cadastro também (`driver_not_employee`). CPF é
 gravado só com dígitos desde 20/10/2026.
 - Veículo com viagem não se exclui, só desativa — e desativar tira a liberação da cancela.
+- **Correção de km** (17/11/2026): `FleetService::correctTripOdometer()`. O antes e o depois vão
+  para `fleet_trip_corrections` (`FleetTripCorrection`, só cria). Recalcula `distance_km` e refaz
+  `current_odometer` pela última viagem não cancelada (único caminho que baixa o espelho).
+  Viagem cancelada não corrige; em rota, só a saída; retorno < saída é recusado sem `force`.
+  Desmarca `odometer_alert`, salvo se não fechar com a viagem vizinha (volta `warnings`).
 
 ## Peças
 
@@ -119,4 +132,4 @@ gravado só com dígitos desde 20/10/2026.
 `tests/Feature/Rebrand/SivScreensTest.php`. Confira o isolamento SQLite do `phpunit.xml` antes
 de rodar e rode só esses arquivos.
 
-Prompt para o sistema da portaria: [docs/frota-prompt-portaria.md](../frota-prompt-portaria.md).
+Prompts para o app da guarita (Lara Externos): [km com 3 dígitos](../prompts/LaraExternos/frota-km-3-digitos-prompt.md).

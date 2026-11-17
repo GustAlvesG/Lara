@@ -24,6 +24,7 @@ class FleetMileageTest extends TestCase
         Schema::withoutForeignKeyConstraints(function () {
             (require base_path('database/migrations/2026_01_05_141304_banco_de_horas.php'))->up();
             (require base_path('database/migrations/2026_08_28_100000_create_fleet_tables.php'))->up();
+            (require base_path('database/migrations/2026_11_17_100000_create_fleet_trip_corrections_table.php'))->up();
             // Cadastro de Funcionários: rescisão e férias/afastamento bloqueiam o motorista.
             (require base_path('database/migrations/2026_06_05_102714_create_sectors_table.php'))->up();
             (require base_path('database/migrations/2026_09_01_090200_add_sector_and_employment_to_employees.php'))->up();
@@ -406,5 +407,102 @@ class FleetMileageTest extends TestCase
         $this->assertCount(1, $this->service()->tripsQuery(['driver' => 'Maria'])->get());
         // Filtro que não resolve não pode devolver a frota inteira.
         $this->assertCount(0, $this->service()->tripsQuery(['vehicle' => 'Inexistente'])->get());
+    }
+
+    /* ---------------------------------------------------------------------
+     | Correção de km (SIV › Viagens, 17/11/2026)
+     |--------------------------------------------------------------------*/
+
+    private function closedTrip(FleetVehicle $vehicle, int $departure, int $return, string $at): FleetTrip
+    {
+        return FleetTrip::create([
+            'fleet_vehicle_id'   => $vehicle->id,
+            'driver_name'        => 'Maria',
+            'destination'        => 'Centro',
+            'departure_odometer' => $departure,
+            'departure_at'       => $at,
+            'return_odometer'    => $return,
+            'return_at'          => $at,
+            'distance_km'        => $return - $departure,
+            'status'             => FleetTrip::STATUS_CLOSED,
+        ]);
+    }
+
+    public function test_correcao_recalcula_distancia_e_destrava_a_km_do_veiculo(): void
+    {
+        $vehicle = $this->vehicle('Celta', ['current_odometer' => 452600]);
+        // A portaria digitou um zero a mais: o espelho subiu para 452.600.
+        $trip = $this->closedTrip($vehicle, 45210, 452600, '2026-11-17 08:00:00');
+        $trip->update(['odometer_alert' => true]);
+
+        $result = $this->service()->correctTripOdometer($trip, 45210, '45.260', 'Zero a mais no retorno');
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame([], $result['warnings']);
+        $this->assertSame(50, $result['trip']['distance_km']);
+        $this->assertFalse($result['trip']['odometer_alert']);
+        $this->assertSame(45260, $vehicle->fresh()->current_odometer);
+
+        $correction = $trip->corrections()->first();
+        $this->assertSame(452600, $correction->old_return_odometer);
+        $this->assertSame(45260, $correction->new_return_odometer);
+        $this->assertSame(407390, $correction->old_distance_km);
+        $this->assertSame('Zero a mais no retorno', $correction->reason);
+        $this->assertSame('Retorno 452.600 → 45.260', $correction->summary());
+
+        // Com o espelho destravado, a próxima saída volta a passar sem force.
+        $next = $this->service()->registerDeparture([
+            'vehicle' => 'Celta', 'driver' => 'José', 'destination' => 'Banco', 'odometer' => 45260,
+        ]);
+        $this->assertTrue($next['ok']);
+    }
+
+    public function test_correcao_de_viagem_em_rota_mexe_so_na_saida(): void
+    {
+        $vehicle = $this->vehicle('Polo', ['current_odometer' => 12000]);
+        $this->service()->registerDeparture([
+            'vehicle' => 'Polo', 'driver' => 'Maria', 'destination' => 'Centro', 'odometer' => 120000,
+        ]);
+        $trip = $vehicle->openTrip()->first();
+
+        $result = $this->service()->correctTripOdometer($trip, 12000, 99999, 'Zero a mais na saída');
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame('open', $result['trip']['status']);
+        $this->assertNull($result['trip']['return']);
+        $this->assertSame(12000, $result['trip']['departure']['odometer']);
+        $this->assertSame(12000, $vehicle->fresh()->current_odometer);
+    }
+
+    public function test_correcao_recusa_retorno_menor_motivo_vazio_cancelada_e_sem_mudanca(): void
+    {
+        $vehicle = $this->vehicle('Celta');
+        $trip = $this->closedTrip($vehicle, 1000, 1080, '2026-11-17 08:00:00');
+
+        $this->assertSame('odometer_below_departure', $this->service()->correctTripOdometer($trip, 1000, 900, 'x')['error']);
+        $this->assertSame('reason_required', $this->service()->correctTripOdometer($trip, 1000, 1090, '  ')['error']);
+        $this->assertSame('nothing_changed', $this->service()->correctTripOdometer($trip, 1000, 1080, 'nada')['error']);
+
+        $trip->update(['status' => FleetTrip::STATUS_CANCELED]);
+        $this->assertSame('trip_canceled', $this->service()->correctTripOdometer($trip, 1000, 1090, 'x')['error']);
+
+        $this->assertSame(0, $trip->corrections()->count());
+        $this->assertSame(1080, $trip->fresh()->return_odometer);
+    }
+
+    public function test_correcao_que_nao_fecha_com_a_vizinha_avisa_e_mantem_a_conferencia(): void
+    {
+        $vehicle = $this->vehicle('Celta');
+        $first = $this->closedTrip($vehicle, 1000, 1080, '2026-11-16 08:00:00');
+        $this->closedTrip($vehicle, 1080, 1150, '2026-11-17 08:00:00');
+
+        $result = $this->service()->correctTripOdometer($first, 1000, 1200, 'Retorno lido errado');
+
+        $this->assertTrue($result['ok']);
+        $this->assertCount(1, $result['warnings']);
+        $this->assertStringContainsString('viagem seguinte', $result['warnings'][0]);
+        $this->assertTrue($result['trip']['odometer_alert']);
+        // A km atual segue a última viagem, não a corrigida.
+        $this->assertSame(1150, $vehicle->fresh()->current_odometer);
     }
 }

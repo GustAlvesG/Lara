@@ -61,6 +61,12 @@ class FleetTrip extends Model
         return $this->belongsTo(Employee::class);
     }
 
+    /** Correções de km feitas em SIV › Viagens, a mais recente primeiro. */
+    public function corrections()
+    {
+        return $this->hasMany(FleetTripCorrection::class)->latest()->latest('id');
+    }
+
     public function scopeOpen($query)
     {
         return $query->where('status', self::STATUS_OPEN);

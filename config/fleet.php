@@ -16,6 +16,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Km pela API da portaria: só os últimos dígitos
+    |--------------------------------------------------------------------------
+    |
+    | Desde 17/11/2026 o porteiro digita só os últimos números do hodômetro
+    | (3 por padrão) e o Lara compõe o número inteiro a partir da última km do
+    | carro (saída) ou da km de saída (retorno). 0 volta ao número inteiro —
+    | só para o caso de o app da guarita ainda não ter sido atualizado.
+    | As telas do Lara continuam pedindo o número inteiro.
+    |
+    | `api_odometer_back_km` é a folga para trás: digitar um pouco abaixo da
+    | referência (erro de leitura) cai no aviso de "km menor", e não numa
+    | viagem de quase mil km. Uma viagem só, pela API, fica limitada a
+    | 10^dígitos menos essa folga (949 km com os padrões).
+    |
+    */
+    'api_odometer_digits' => (int) env('FLEET_API_ODOMETER_DIGITS', 3),
+
+    'api_odometer_back_km' => (int) env('FLEET_API_ODOMETER_BACK_KM', 50),
+
+    /*
+    |--------------------------------------------------------------------------
     | Tolerância para o horário informado
     |--------------------------------------------------------------------------
     |

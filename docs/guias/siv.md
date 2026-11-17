@@ -1,6 +1,6 @@
 ---
 modulo: SIV
-palavras: placa, carro, veículo, câmera, estacionamento, quem estava no carro, condutor, foto do carro, cancela, diretoria, abrir cancela, frota, carro da empresa, viagem, quilometragem, km, hodômetro, saída, retorno, motorista, Celta, caminhão, identificação de veículos
+palavras: placa, carro, veículo, câmera, estacionamento, quem estava no carro, condutor, foto do carro, cancela, diretoria, abrir cancela, frota, carro da empresa, viagem, quilometragem, km, hodômetro, saída, retorno, motorista, Celta, caminhão, identificação de veículos, corrigir km, km errada, quilometragem errada
 ---
 
 # SIV — guia de uso
@@ -10,6 +10,8 @@ O **SIV** (Sistema de Identificação de Veículos) reúne o que o Lara sabe sob
 A **Busca** mostra, a partir de uma placa e de uma data, todas as passagens do carro pelas câmeras de leitura de placas, a foto de cada passagem e **quem provavelmente estava no carro** — sócios que passaram na catraca no mesmo instante, terceirizados e freelancers registrados na portaria e pedidos de carro de aplicativo feitos para aquela placa.
 
 As **Placas Diretoria** são a lista de placas que abrem a cancela da diretoria sozinhas. A **Frota**, as **Viagens** e os **Veículos** controlam os carros da empresa: quem saiu, para onde, com qual quilometragem e quando voltou. A portaria normalmente registra saída e retorno pelo sistema da guarita; as telas do Lara servem para acompanhar e, se a guarita estiver fora, para registrar.
+
+Na guarita, o porteiro digita **só os 3 últimos números** da quilometragem do painel (ex.: painel em 45.260, digita **260**); o Lara completa o número sozinho a partir da última quilometragem do carro e mostra o número inteiro gravado. Nas telas do Lara, digite a quilometragem inteira. Para isso funcionar, todo veículo precisa ter a **Quilometragem atual** cadastrada em **SIV › Veículos**. Uma viagem de mais de 949 km não cabe nos 3 números: registre o retorno dela pela tela do Lara.
 
 ## Quem faz o quê
 
@@ -126,6 +128,24 @@ Clique em **Filtrar**; **Limpar** tira os filtros.
 
 Colunas: **Veículo** (com a placa), **Motorista** (com a matrícula, quando é funcionário cadastrado), **Destino** (com as observações), **Saída** e **Retorno** (data, hora e quilometragem), **Km** rodados e **Situação**. A etiqueta **km a conferir** aponta as viagens a revisar.
 
+## Corrigir a quilometragem de uma viagem
+<!-- telas: fleet.trips -->
+
+Quando a portaria registrou a quilometragem errada (um zero a mais, um número trocado), corrija em **SIV › Viagens**. É preciso a permissão **SIV › Corrigir a quilometragem de viagens registradas**, liberada na tela de Setores.
+
+1. Ache a viagem. O filtro **Somente viagens com quilometragem a conferir** costuma trazer as erradas.
+2. Na linha da viagem, clique em **Corrigir km**.
+3. Digite a **Km de saída** e a **Km de retorno** certas, com o número inteiro do painel. Viagem ainda **Em rota** só tem a km de saída.
+4. Escreva o **Motivo da correção** (ex.: "porteiro digitou 452100 no lugar de 45210") e clique em **Salvar correção**.
+
+Aparece "Quilometragem corrigida." com os km rodados da viagem. O Lara recalcula os km rodados e a **km atual do veículo**, que passa a ser a da última viagem dele. Assim, uma km errada para cima deixa de travar as próximas saídas. A viagem perde a etiqueta **km a conferir**.
+
+O número antigo não some: na coluna **Situação**, **km corrigida (N)** abre o histórico com a data, quem corrigiu, o antes e o depois e o motivo.
+
+Se a correção ainda não fecha com a viagem anterior ou a seguinte do mesmo carro, o Lara salva assim mesmo e mostra um aviso **Atenção** dizendo qual delas conferir. A viagem continua como **km a conferir**. Corrija a outra também, se for o caso.
+
+Não dá para corrigir viagem **Cancelada**. Retorno menor que a saída é recusado.
+
 O botão **Painel da frota** leva para **SIV › Frota** (para quem tem essa permissão).
 
 ## Cadastrar ou desativar um veículo da frota
@@ -190,6 +210,11 @@ O carro tem uma viagem aberta. Registre o **retorno** no cartão dele em **SIV �
 <!-- telas: fleet.index -->
 
 Confira o hodômetro. Se o número estiver certo (painel trocado, erro num registro anterior), marque a caixa de confirmação do cartão e envie de novo. A viagem fica marcada como "km a conferir" e aparece no filtro **Somente viagens com quilometragem a conferir** de **SIV › Viagens**.
+
+### "Corrigir km" não aparece em SIV › Viagens
+<!-- telas: fleet.trips -->
+
+O botão só aparece para quem tem a permissão **SIV › Corrigir a quilometragem de viagens registradas** e não aparece em viagem **Cancelada**. Peça a liberação ao responsável pelo seu setor.
 
 ### "Este veículo tem viagens registradas. Desative-o em vez de excluir."
 <!-- telas: fleet.vehicles -->

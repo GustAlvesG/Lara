@@ -894,6 +894,12 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
             Route::post('/trips/{trip}/cancel', [FleetController::class, 'cancelTrip'])->name('fleet.trips.cancel');
         });
 
+        // Correção de km de viagem registrada errada: permissão própria, porque
+        // muda o histórico (o antes e o depois ficam em fleet_trip_corrections).
+        Route::put('/trips/{trip}/odometer', [FleetController::class, 'correctTrip'])
+            ->middleware('can:' . P::SIV_VIAGENS_CORRIGIR_KM)
+            ->name('fleet.trips.correct');
+
         Route::middleware('can:' . P::SIV_VEICULOS)->group(function () {
             Route::get('/vehicles', [FleetController::class, 'vehicles'])->name('fleet.vehicles');
             Route::get('/vehicles/create', [FleetController::class, 'createVehicle'])->name('fleet.vehicles.create');

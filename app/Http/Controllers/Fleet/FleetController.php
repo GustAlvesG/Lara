@@ -76,7 +76,7 @@ class FleetController extends Controller
     public function trips(Request $request): View
     {
         return view('fleet.trips', [
-            'trips'    => $this->fleet->tripsQuery($request->all())->paginate(25)->withQueryString(),
+            'trips'    => $this->fleet->tripsQuery($request->all())->with('corrections')->paginate(25)->withQueryString(),
             'vehicles' => FleetVehicle::orderBy('name')->get(),
             'statuses' => FleetTrip::STATUS_LABELS,
             'filters'  => $request->only(['vehicle_id', 'status', 'driver', 'date_from', 'date_to', 'only_alerts']),
@@ -90,6 +90,42 @@ class FleetController extends Controller
         $result = $this->fleet->cancelTrip($trip, $request->input('reason'));
 
         return $this->back($result, 'Viagem cancelada.');
+    }
+
+    /** Corrige a km de saída/retorno de uma viagem registrada errada. */
+    public function correctTrip(Request $request, FleetTrip $trip): RedirectResponse
+    {
+        $request->validate([
+            'departure_odometer' => 'required|integer|min:0',
+            'return_odometer'    => 'nullable|integer|min:0',
+            'reason'             => 'required|string|max:500',
+        ]);
+
+        $result = $this->fleet->correctTripOdometer(
+            $trip,
+            $request->input('departure_odometer'),
+            $request->input('return_odometer'),
+            $request->input('reason')
+        );
+
+        if (!$result['ok']) {
+            return redirect()->back()
+                ->with('error', $result['message'])
+                ->withInput()
+                ->with('correcting_trip', $trip->id);
+        }
+
+        $message = 'Quilometragem corrigida.';
+
+        if ($result['trip']['distance_km'] !== null) {
+            $message .= ' ' . number_format($result['trip']['distance_km'], 0, ',', '.') . ' km nesta viagem.';
+        }
+
+        $redirect = redirect()->back()->with('success', $message);
+
+        return $result['warnings']
+            ? $redirect->with('warning', 'Confira também: ' . implode(' ', $result['warnings']))
+            : $redirect;
     }
 
     /* ---------------------------------------------------------------------

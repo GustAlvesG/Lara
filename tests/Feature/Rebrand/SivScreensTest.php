@@ -264,4 +264,43 @@ class SivScreensTest extends TestCase
         $this->assertStringContainsString('aria-label="Páginas de SIV"', $html);
         $this->assertMatchesRegularExpression('#href="' . preg_quote(route('parking-authorizations.index'), '#') . '"\s+aria-current="page"#', $html);
     }
+
+    public function test_viagens_mostram_corrigir_km_so_com_a_permissao_e_o_historico(): void
+    {
+        $strada = $this->veiculo(1);
+        $fechada = $this->viagem(5, $strada, [
+            'status' => FleetTrip::STATUS_CLOSED, 'return_at' => Carbon::now(), 'return_odometer' => 15080, 'distance_km' => 80,
+        ]);
+        $fechada->setRelation('corrections', collect([
+            (new \App\Models\Fleet\FleetTripCorrection)->forceFill([
+                'old_departure_odometer' => 15000, 'new_departure_odometer' => 15000,
+                'old_return_odometer' => 150800, 'new_return_odometer' => 15080,
+                'reason' => 'Zero a mais', 'user_name' => 'Ana Frota', 'created_at' => Carbon::now(),
+            ]),
+        ]));
+        $cancelada = $this->viagem(6, $strada, ['status' => FleetTrip::STATUS_CANCELED]);
+
+        $dados = [
+            'trips' => new LengthAwarePaginator([$fechada, $cancelada], 2, 25, 1, ['path' => route('fleet.trips')]),
+            'vehicles' => collect([$strada]),
+            'statuses' => FleetTrip::STATUS_LABELS,
+            'filters' => [],
+        ];
+
+        $sem = $this->tela($this->portaria(), 'fleet.trips', [], 'fleet.trips', $dados);
+        $this->assertStringNotContainsString('Corrigir km', $sem);
+        // O histórico aparece para quem vê as viagens, com ou sem a permissão.
+        $this->assertStringContainsString('km corrigida (1)', $sem);
+        $this->assertStringContainsString('Retorno 150.800 → 15.080', $sem);
+        $this->assertStringContainsString('Zero a mais', $sem);
+
+        $com = $this->tela(
+            $this->usuario(new UserAccess([P::SIV_VIAGENS, P::SIV_VIAGENS_CORRIGIR_KM])),
+            'fleet.trips', [], 'fleet.trips', $dados
+        );
+        $this->assertSame(1, preg_match_all('#Corrigir km\s*</button>#', $com), 'Viagem cancelada não tem botão.');
+        $this->assertStringContainsString('name="departure_odometer"', $com);
+        $this->assertStringContainsString('name="reason"', $com);
+        $this->assertMatchesRegularExpression('#fleet[\\\\/]+trips[\\\\/]+5[\\\\/]+odometer#', $com);
+    }
 }

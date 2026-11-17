@@ -41,6 +41,7 @@ final class Permissions
     public const SIV_PLACAS_DIRETORIA = 'siv.placas-diretoria';
     public const SIV_FROTA = 'siv.frota';
     public const SIV_VIAGENS = 'siv.viagens';
+    public const SIV_VIAGENS_CORRIGIR_KM = 'siv.viagens.corrigir-km';
     public const SIV_VEICULOS = 'siv.veiculos';
 
     public const HOME_ASSISTANT = 'home-assistant';
@@ -212,6 +213,7 @@ final class Permissions
         self::SIV_PLACAS_DIRETORIA => ['SIV', 'Placas da diretoria'],
         self::SIV_FROTA => ['SIV', 'Frota (saída e retorno)'],
         self::SIV_VIAGENS => ['SIV', 'Viagens'],
+        self::SIV_VIAGENS_CORRIGIR_KM => ['SIV', 'Corrigir a quilometragem de viagens registradas'],
         self::SIV_VEICULOS => ['SIV', 'Cadastro de veículos'],
 
         self::HOME_ASSISTANT => ['Home Assistant', 'Painel de iluminação e autoatendimento'],

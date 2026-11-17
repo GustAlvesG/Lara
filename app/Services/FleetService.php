@@ -41,11 +41,16 @@ class FleetService
         'driver_not_employee'      => 422,
         'destination_required'     => 422,
         'odometer_required'        => 422,
+        'odometer_too_many_digits' => 422,
+        'odometer_no_reference'    => 422,
         'odometer_below_last'      => 422,
         'odometer_below_departure' => 422,
         'odometer_jump_too_high'   => 422,
         'trip_not_found'           => 404,
         'trip_not_open'            => 409,
+        'trip_canceled'            => 409,
+        'reason_required'          => 422,
+        'nothing_changed'          => 422,
         'no_open_trip'             => 409,
         'return_before_departure'  => 422,
         'future_timestamp'         => 422,
@@ -78,6 +83,9 @@ class FleetService
             'description'      => $vehicle->description,
             'active'           => $vehicle->active,
             'current_odometer' => $vehicle->current_odometer,
+            // De onde a API parte para compor a km digitada só com os
+            // últimos dígitos: a saída em aberto, ou a última km do carro.
+            'odometer_reference' => $openTrip ? $openTrip->departure_odometer : $vehicle->lastOdometer(),
             'status'           => $openTrip ? 'out' : 'available',
             'status_label'     => $openTrip ? 'Em rota' : 'No Clube',
             'open_trip'        => $openTrip?->toApiArray(),
@@ -202,7 +210,13 @@ class FleetService
      * sai de novo — dois registros abertos para o mesmo carro significariam
      * que um dos dois hodômetros vai fechar contra a viagem errada.
      */
-    public function registerDeparture(array $data): array
+    /**
+     * Com `$odometerDigits` (a API da portaria), `odometer` traz só os últimos
+     * dígitos do hodômetro e o número inteiro é composto a partir da última km
+     * do veículo — ver composeOdometer(). Sem ele (as telas), vale o número
+     * inteiro digitado.
+     */
+    public function registerDeparture(array $data, ?int $odometerDigits = null): array
     {
         $vehicleResult = $this->resolveVehicle($data);
 
@@ -236,22 +250,25 @@ class FleetService
             return $this->fail('destination_required', 'Informe para onde o veículo está indo.');
         }
 
-        $odometer = $this->normalizeOdometer($data['odometer'] ?? null);
+        $lastOdometer = $vehicle->lastOdometer();
+        $input = $this->readOdometer($data['odometer'] ?? null, $odometerDigits, $lastOdometer, 'saída', $vehicle);
 
-        if ($odometer === null) {
-            return $this->fail('odometer_required', 'Informe a quilometragem de saída.');
+        if (!$input['ok']) {
+            return $input;
         }
+
+        $odometer = $input['odometer'];
+        $inputInfo = $input['info'];
 
         $force = (bool) ($data['force'] ?? false);
         $alert = false;
-        $lastOdometer = $vehicle->lastOdometer();
 
         if ($lastOdometer !== null && $odometer < $lastOdometer) {
             if (!$force) {
                 return $this->fail(
                     'odometer_below_last',
                     "A quilometragem informada ({$odometer}) é menor que a última registrada para o {$vehicle->name} ({$lastOdometer}). Confira o número ou reenvie com force.",
-                    ['last_odometer' => $lastOdometer]
+                    ['last_odometer' => $lastOdometer] + $inputInfo
                 );
             }
 
@@ -291,14 +308,16 @@ class FleetService
             'ok'      => true,
             'trip'    => $trip->fresh(['vehicle', 'employee'])->toApiArray(),
             'vehicle' => $this->vehiclePayload($vehicle->fresh(['openTrip'])),
-        ];
+        ] + $inputInfo;
     }
 
     /**
      * Retorno: fecha a viagem aberta do veículo. A portaria não precisa saber o
      * id — manda o carro, e o sistema sabe qual viagem está esperando baixa.
+     *
+     * Com `$odometerDigits`, a km é composta a partir da km de saída da viagem.
      */
-    public function registerReturn(array $data): array
+    public function registerReturn(array $data, ?int $odometerDigits = null): array
     {
         $tripResult = $this->resolveOpenTrip($data);
 
@@ -310,11 +329,14 @@ class FleetService
         $trip = $tripResult['trip'];
         $vehicle = $trip->vehicle;
 
-        $odometer = $this->normalizeOdometer($data['odometer'] ?? null);
+        $input = $this->readOdometer($data['odometer'] ?? null, $odometerDigits, $trip->departure_odometer, 'retorno', $vehicle);
 
-        if ($odometer === null) {
-            return $this->fail('odometer_required', 'Informe a quilometragem de retorno.');
+        if (!$input['ok']) {
+            return $input;
         }
+
+        $odometer = $input['odometer'];
+        $inputInfo = $input['info'];
 
         $force = (bool) ($data['force'] ?? false);
         $alert = $trip->odometer_alert;
@@ -325,7 +347,7 @@ class FleetService
                 return $this->fail(
                     'odometer_below_departure',
                     "A quilometragem de retorno ({$odometer}) é menor que a de saída ({$trip->departure_odometer}). Confira o número ou reenvie com force.",
-                    ['departure_odometer' => $trip->departure_odometer, 'trip' => $trip->toApiArray()]
+                    ['departure_odometer' => $trip->departure_odometer, 'trip' => $trip->toApiArray()] + $inputInfo
                 );
             }
 
@@ -339,7 +361,7 @@ class FleetService
                     return $this->fail(
                         'odometer_jump_too_high',
                         "O retorno fecharia {$distance} km em uma viagem só, acima do limite de {$maxTrip} km. Confira o número ou reenvie com force.",
-                        ['distance_km' => $distance, 'max_trip_km' => $maxTrip, 'trip' => $trip->toApiArray()]
+                        ['distance_km' => $distance, 'max_trip_km' => $maxTrip, 'trip' => $trip->toApiArray()] + $inputInfo
                     );
                 }
 
@@ -384,7 +406,7 @@ class FleetService
             'ok'      => true,
             'trip'    => $trip->fresh(['vehicle', 'employee'])->toApiArray(),
             'vehicle' => $this->vehiclePayload($vehicle->fresh(['openTrip'])),
-        ];
+        ] + $inputInfo;
     }
 
     /**
@@ -404,6 +426,165 @@ class FleetService
         ]);
 
         return ['ok' => true, 'trip' => $trip->fresh(['vehicle', 'employee'])->toApiArray()];
+    }
+
+    /**
+     * Correção de km de uma viagem já registrada (SIV › Viagens, permissão
+     * `siv.viagens.corrigir-km`). Existe porque a portaria erra o hodômetro e
+     * o número errado não sai mais sozinho: ele vira o piso da próxima saída.
+     *
+     * - Viagem cancelada não se corrige; viagem em rota só tem km de saída.
+     * - Retorno menor que a saída é recusado: aqui não há `force` — quem
+     *   corrige está justamente conferindo o número.
+     * - O antes e o depois vão para `fleet_trip_corrections`, com o motivo.
+     * - A km atual do carro é refeita pela última viagem, porque um número
+     *   errado para cima (452100 no lugar de 45210) prende o espelho, que só
+     *   anda para frente.
+     * - A viagem deixa de ser "km a conferir", a não ser que ainda não feche
+     *   com a viagem anterior ou com a seguinte — aí volta com `warnings`.
+     *
+     * @return array{ok: bool, trip?: array, warnings?: string[], error?: string, message?: string}
+     */
+    public function correctTripOdometer(FleetTrip $trip, $departure, $return, ?string $reason): array
+    {
+        if ($trip->status === FleetTrip::STATUS_CANCELED) {
+            return $this->fail('trip_canceled', 'Viagem cancelada não tem quilometragem a corrigir.');
+        }
+
+        $reason = $this->text($reason);
+
+        if ($reason === null) {
+            return $this->fail('reason_required', 'Informe o motivo da correção.');
+        }
+
+        $newDeparture = $this->normalizeOdometer($departure);
+
+        if ($newDeparture === null) {
+            return $this->fail('odometer_required', 'Informe a quilometragem de saída.');
+        }
+
+        $newReturn = null;
+
+        if (!$trip->isOpen()) {
+            $newReturn = $this->normalizeOdometer($return);
+
+            if ($newReturn === null) {
+                return $this->fail('odometer_required', 'Informe a quilometragem de retorno.');
+            }
+
+            if ($newReturn < $newDeparture) {
+                return $this->fail(
+                    'odometer_below_departure',
+                    'A quilometragem de retorno (' . $this->km($newReturn) . ') é menor que a de saída (' . $this->km($newDeparture) . ').'
+                );
+            }
+        }
+
+        if ($newDeparture === $trip->departure_odometer && $newReturn === $trip->return_odometer) {
+            return $this->fail('nothing_changed', 'A quilometragem informada é a mesma que já está registrada.');
+        }
+
+        $vehicle = $trip->vehicle;
+        $warnings = $this->correctionWarnings($trip, $newDeparture, $newReturn);
+
+        DB::transaction(function () use ($trip, $vehicle, $newDeparture, $newReturn, $reason, $warnings) {
+            $newDistance = $newReturn === null ? null : $newReturn - $newDeparture;
+
+            $trip->corrections()->create([
+                'old_departure_odometer' => $trip->departure_odometer,
+                'new_departure_odometer' => $newDeparture,
+                'old_return_odometer'    => $trip->return_odometer,
+                'new_return_odometer'    => $newReturn,
+                'old_distance_km'        => $trip->distance_km,
+                'new_distance_km'        => $newDistance,
+                'reason'                 => mb_substr($reason, 0, 500),
+                'user_id'                => auth()->id(),
+                'user_name'              => auth()->user()?->name,
+            ]);
+
+            $trip->update([
+                'departure_odometer' => $newDeparture,
+                'return_odometer'    => $newReturn,
+                'distance_km'        => $newDistance,
+                'odometer_alert'     => $warnings !== [],
+            ]);
+
+            $this->refreshVehicleOdometer($vehicle);
+        });
+
+        return [
+            'ok'       => true,
+            'trip'     => $trip->fresh(['vehicle', 'employee'])->toApiArray(),
+            'warnings' => $warnings,
+        ];
+    }
+
+    /**
+     * O que a correção ainda deixa sem fechar com as viagens vizinhas do mesmo
+     * carro. Não bloqueia: ao corrigir uma sequência, a vizinha pode ser a
+     * próxima da fila.
+     *
+     * @return string[]
+     */
+    private function correctionWarnings(FleetTrip $trip, int $departure, ?int $return): array
+    {
+        $siblings = FleetTrip::where('fleet_vehicle_id', $trip->fleet_vehicle_id)
+            ->where('id', '!=', $trip->id)
+            ->where('status', '!=', FleetTrip::STATUS_CANCELED);
+
+        $previous = (clone $siblings)
+            ->where(fn ($q) => $q->where('departure_at', '<', $trip->departure_at)
+                ->orWhere(fn ($q) => $q->where('departure_at', $trip->departure_at)->where('id', '<', $trip->id)))
+            ->orderByDesc('departure_at')->orderByDesc('id')
+            ->first();
+
+        $next = (clone $siblings)
+            ->where(fn ($q) => $q->where('departure_at', '>', $trip->departure_at)
+                ->orWhere(fn ($q) => $q->where('departure_at', $trip->departure_at)->where('id', '>', $trip->id)))
+            ->orderBy('departure_at')->orderBy('id')
+            ->first();
+
+        $warnings = [];
+
+        if ($previous) {
+            $previousEnd = $previous->return_odometer ?? $previous->departure_odometer;
+
+            if ($previousEnd > $departure) {
+                $warnings[] = 'A viagem anterior deste veículo (' . $previous->departure_at->format('d/m/Y H:i') . ') terminou em ' . $this->km($previousEnd) . ' km, acima da saída corrigida.';
+            }
+        }
+
+        if ($next) {
+            $end = $return ?? $departure;
+
+            if ($next->departure_odometer < $end) {
+                $warnings[] = 'A viagem seguinte deste veículo (' . $next->departure_at->format('d/m/Y H:i') . ') saiu com ' . $this->km($next->departure_odometer) . ' km, abaixo do fim desta.';
+            }
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * A km atual do carro volta a ser a da última viagem (retorno, ou saída se
+     * ainda está na rua). Sem viagem válida, fica o que está no cadastro.
+     */
+    private function refreshVehicleOdometer(FleetVehicle $vehicle): void
+    {
+        $last = $vehicle->trips()
+            ->where('status', '!=', FleetTrip::STATUS_CANCELED)
+            ->orderByDesc('departure_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($last) {
+            $vehicle->update(['current_odometer' => $last->return_odometer ?? $last->departure_odometer]);
+        }
+    }
+
+    private function km(int $value): string
+    {
+        return number_format($value, 0, ',', '.');
     }
 
     /* ---------------------------------------------------------------------
@@ -728,6 +909,84 @@ class FleetService
         }
 
         return ['ok' => true, 'at' => $at];
+    }
+
+    /**
+     * A km que veio no pedido, já como número inteiro do hodômetro.
+     *
+     * Sem `$digits` (telas do Lara) é o número digitado. Com `$digits` (API da
+     * portaria, desde 17/11/2026) o porteiro digita só os últimos dígitos e o
+     * resto sai da referência — ver composeOdometer(). Número com mais dígitos
+     * que o combinado é recusado: o app da guarita já trava o campo, e aceitar
+     * o número inteiro aqui esconderia um app desatualizado.
+     *
+     * `info` (vazio sem `$digits`) volta na resposta como `odometer_input`, para
+     * a guarita mostrar ao porteiro o número completo que foi gravado.
+     *
+     * @return array{ok: bool, odometer?: int, info?: array, error?: string, message?: string}
+     */
+    private function readOdometer($value, ?int $digits, ?int $reference, string $moment, FleetVehicle $vehicle): array
+    {
+        if ($value === null || trim((string) $value) === '' || preg_replace('/\D/', '', (string) $value) === '') {
+            return $this->fail('odometer_required', "Informe a quilometragem de {$moment}.");
+        }
+
+        if (!$digits) {
+            return ['ok' => true, 'odometer' => $this->normalizeOdometer($value), 'info' => []];
+        }
+
+        $typed = preg_replace('/\D/', '', (string) $value);
+
+        if (strlen($typed) > $digits) {
+            return $this->fail(
+                'odometer_too_many_digits',
+                "Digite só os {$digits} últimos números da quilometragem de {$moment}.",
+                ['odometer_digits' => $digits]
+            );
+        }
+
+        if ($reference === null) {
+            return $this->fail(
+                'odometer_no_reference',
+                "O {$vehicle->name} não tem quilometragem cadastrada no Lara. Cadastre a quilometragem atual em SIV › Veículos antes de registrar pelos {$digits} últimos números.",
+                ['odometer_digits' => $digits]
+            );
+        }
+
+        $odometer = $this->composeOdometer((int) $typed, $digits, $reference);
+
+        return [
+            'ok'       => true,
+            'odometer' => $odometer,
+            'info'     => ['odometer_input' => [
+                'typed'     => str_pad($typed, $digits, '0', STR_PAD_LEFT),
+                'digits'    => $digits,
+                'reference' => $reference,
+                'odometer'  => $odometer,
+            ]],
+        ];
+    }
+
+    /**
+     * O hodômetro inteiro a partir dos últimos dígitos: o primeiro número, a
+     * partir da referência, que termina com o que foi digitado. Referência
+     * 45.980 e "020" dão 46.020 (o milhar virou no caminho).
+     *
+     * A busca começa um pouco antes da referência (`fleet.api_odometer_back_km`):
+     * o porteiro que digita "209" com o carro em 45.210 errou por um, e precisa
+     * ver o aviso de "km menor" (45.209), não uma viagem de 999 km gravada em
+     * silêncio. O preço é que uma viagem só fica limitada a 10^dígitos menos
+     * essa folga (949 km com 3 dígitos e folga de 50).
+     */
+    public function composeOdometer(int $typed, int $digits, int $reference): int
+    {
+        $modulus = 10 ** $digits;
+        $back = max(0, min((int) config('fleet.api_odometer_back_km', 50), $modulus - 1));
+        $floor = max(0, $reference - $back);
+
+        $candidate = $floor - ($floor % $modulus) + ($typed % $modulus);
+
+        return $candidate < $floor ? $candidate + $modulus : $candidate;
     }
 
     private function normalizeOdometer($value): ?int

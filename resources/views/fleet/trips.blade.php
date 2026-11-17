@@ -8,6 +8,7 @@
     $td = 'px-4 py-3 align-top';
     $tones = ['open' => 'warn', 'closed' => 'ok'];
     $filtered = collect($filters)->filter(fn ($v) => filled($v))->isNotEmpty();
+    $canCorrect = auth()->user()?->can(\App\Authorization\Permissions::SIV_VIAGENS_CORRIGIR_KM) ?? false;
 @endphp
 
 <x-app-layout :bootstrap-grid="false">
@@ -97,6 +98,9 @@
                                 <th class="{{ $th }}">Retorno</th>
                                 <th class="{{ $th }} text-right">Km</th>
                                 <th class="{{ $th }}">Situação</th>
+                                @if ($canCorrect)
+                                    <th class="{{ $th }}"><span class="sr-only">Ações</span></th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody>
@@ -140,7 +144,44 @@
                                         @if ($trip->odometer_alert)
                                             <span class="mt-1 block text-xs font-bold text-danger">km a conferir</span>
                                         @endif
+                                        {{-- Histórico das correções de km: o número que a portaria
+                                             registrou não some, fica aqui com quem trocou e por quê. --}}
+                                        @php $corrections = $trip->relationLoaded('corrections') ? $trip->corrections : collect(); @endphp
+                                        @if ($corrections->isNotEmpty())
+                                            <details class="mt-1 text-xs text-ink-3">
+                                                <summary class="cursor-pointer font-bold text-ink-2">km corrigida ({{ $corrections->count() }})</summary>
+                                                <ul class="mt-1 space-y-1">
+                                                    @foreach ($corrections as $correction)
+                                                        <li>
+                                                            <span class="font-mono">{{ $correction->created_at?->format('d/m/Y H:i') }}</span>
+                                                            {{ $correction->user_name ?? 'Sistema' }}: {{ $correction->summary() }}.
+                                                            <span class="block italic">{{ $correction->reason }}</span>
+                                                        </li>
+                                                    @endforeach
+                                                </ul>
+                                            </details>
+                                        @endif
                                     </td>
+                                    @if ($canCorrect)
+                                        <td class="{{ $td }} text-right">
+                                            @if ($trip->status !== \App\Models\Fleet\FleetTrip::STATUS_CANCELED)
+                                                @php
+                                                    $payload = [
+                                                        'action'    => route('fleet.trips.correct', $trip),
+                                                        'title'     => ($trip->vehicle?->name ?? 'Veículo') . ' · ' . $trip->driver_name . ' · ' . $trip->departure_at->format('d/m/Y H:i'),
+                                                        'open'      => $trip->isOpen(),
+                                                        'departure' => $trip->departure_odometer,
+                                                        'return'    => $trip->return_odometer,
+                                                    ];
+                                                @endphp
+                                                <x-secondary-button type="button" class="whitespace-nowrap"
+                                                    x-data
+                                                    x-on:click="$dispatch('fleet-correct', {{ \Illuminate\Support\Js::from($payload) }}); $dispatch('open-modal', 'corrigir-km')">
+                                                    <x-icon name="pencil" /> Corrigir km
+                                                </x-secondary-button>
+                                            @endif
+                                        </td>
+                                    @endif
                                 </tr>
                             @endforeach
                         </tbody>
@@ -149,6 +190,63 @@
             </div>
 
             <div>{{ $trips->links() }}</div>
+        @endif
+
+        @if ($canCorrect)
+            {{-- Uma janela só para a página; o botão de cada linha manda os
+                 dados da viagem. Depois de um erro, ela reabre com o que foi
+                 digitado (old()). --}}
+            @php
+                $blank = ['action' => '', 'title' => '', 'open' => false, 'departure' => null, 'return' => null, 'reason' => ''];
+                $reopen = session('correcting_trip')
+                    ? [
+                        'action'    => route('fleet.trips.correct', session('correcting_trip')),
+                        'title'     => 'Corrija e envie de novo',
+                        'open'      => old('return_odometer') === null,
+                        'departure' => old('departure_odometer'),
+                        'return'    => old('return_odometer'),
+                        'reason'    => old('reason'),
+                    ]
+                    : null;
+                $initial = $reopen ?? $blank;
+            @endphp
+            <x-modal name="corrigir-km" :show="(bool) $reopen" maxWidth="md" focusable>
+                <form method="POST" class="space-y-4 p-6"
+                      x-data="{ trip: {{ \Illuminate\Support\Js::from($initial) }} }"
+                      x-on:fleet-correct.window="trip = Object.assign({ reason: '' }, $event.detail)"
+                      x-bind:action="trip.action">
+                    @csrf
+                    @method('PUT')
+
+                    <div>
+                        <h2 class="text-lg font-bold text-ink">Corrigir quilometragem</h2>
+                        <p class="text-sm text-ink-3" x-text="trip.title"></p>
+                    </div>
+
+                    <div>
+                        <label for="c-saida" class="{{ $label }}">Km de saída</label>
+                        <x-text-input type="number" min="0" id="c-saida" name="departure_odometer" x-model="trip.departure" required class="font-mono" />
+                    </div>
+
+                    <div x-show="!trip.open">
+                        <label for="c-retorno" class="{{ $label }}">Km de retorno</label>
+                        <x-text-input type="number" min="0" id="c-retorno" name="return_odometer" x-model="trip.return" x-bind:disabled="trip.open" x-bind:required="!trip.open" class="font-mono" />
+                    </div>
+                    <p x-show="trip.open" class="text-xs text-ink-3">O veículo ainda está na rua: só a km de saída pode ser corrigida.</p>
+
+                    <div>
+                        <label for="c-motivo" class="{{ $label }}">Motivo da correção</label>
+                        <x-text-input id="c-motivo" name="reason" x-model="trip.reason" required maxlength="500" placeholder="Ex.: porteiro digitou 452100 no lugar de 45210" />
+                    </div>
+
+                    <p class="text-xs text-ink-3">Os km rodados e a km atual do veículo são recalculados. O número anterior fica guardado no histórico da viagem.</p>
+
+                    <div class="flex justify-end gap-2">
+                        <x-secondary-button type="button" x-on:click="$dispatch('close-modal', 'corrigir-km')">Cancelar</x-secondary-button>
+                        <x-primary-button>Salvar correção</x-primary-button>
+                    </div>
+                </form>
+            </x-modal>
         @endif
     </x-page>
 </x-app-layout>

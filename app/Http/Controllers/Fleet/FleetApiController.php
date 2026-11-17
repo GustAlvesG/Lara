@@ -11,6 +11,9 @@ use Illuminate\Http\Request;
 /**
  * API de quilometragem da frota, consumida pelo sistema da portaria.
  *
+ * A km chega só com os últimos dígitos (`fleet.api_odometer_digits`): o
+ * porteiro lê três números do painel e o FleetService compõe o resto.
+ *
  * A saída e o retorno são duas chamadas do mesmo ciclo, e o cliente não
  * precisa guardar o id da viagem entre uma e outra: o retorno é resolvido pelo
  * veículo. Toda recusa volta com um `error` estável — é por ele que a portaria
@@ -28,8 +31,10 @@ class FleetApiController extends Controller
         $vehicles = $this->fleet->vehiclesWithStatus($request->boolean('all'));
 
         return response()->json([
-            'ok'       => true,
-            'vehicles' => $vehicles->map(fn ($vehicle) => $this->fleet->vehiclePayload($vehicle))->values(),
+            'ok'              => true,
+            // Quantos dígitos da km a guarita manda (0 = o número inteiro).
+            'odometer_digits' => $this->odometerDigits() ?? 0,
+            'vehicles'        => $vehicles->map(fn ($vehicle) => $this->fleet->vehiclePayload($vehicle))->values(),
         ]);
     }
 
@@ -58,7 +63,7 @@ class FleetApiController extends Controller
             'force'         => 'nullable|boolean',
         ]);
 
-        return $this->respond($this->fleet->registerDeparture($request->all()), 201);
+        return $this->respond($this->fleet->registerDeparture($request->all(), $this->odometerDigits()), 201);
     }
 
     /**
@@ -78,7 +83,7 @@ class FleetApiController extends Controller
             'force'         => 'nullable|boolean',
         ]);
 
-        return $this->respond($this->fleet->registerReturn($request->all()));
+        return $this->respond($this->fleet->registerReturn($request->all(), $this->odometerDigits()));
     }
 
     /** Histórico paginado, com os mesmos filtros da tela. */
@@ -117,6 +122,19 @@ class FleetApiController extends Controller
         $request->validate(['reason' => 'nullable|string|max:255']);
 
         return $this->respond($this->fleet->cancelTrip($trip, $request->input('reason')));
+    }
+
+    /**
+     * A portaria digita só os últimos dígitos do hodômetro (3, desde
+     * 17/11/2026) e o Lara compõe o número inteiro. `FLEET_API_ODOMETER_DIGITS=0`
+     * volta ao número inteiro — saída de emergência enquanto o app da guarita
+     * não estiver atualizado.
+     */
+    private function odometerDigits(): ?int
+    {
+        $digits = (int) config('fleet.api_odometer_digits', 3);
+
+        return $digits > 0 ? $digits : null;
     }
 
     /**

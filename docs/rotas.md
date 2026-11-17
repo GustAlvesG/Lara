@@ -107,6 +107,7 @@ Todas, salvo `/`, `/members` e `/dashboard`, estão sob o middleware `auth`.
 | POST | `/fleet/return` | Fleet\FleetController@storeReturn | fleet.return | auth, permission:manage fleet |
 | GET | `/fleet/trips` | Fleet\FleetController@trips | fleet.trips | auth, permission:manage fleet |
 | POST | `/fleet/trips/{trip}/cancel` | Fleet\FleetController@cancelTrip | fleet.trips.cancel | auth, permission:manage fleet |
+| PUT | `/fleet/trips/{trip}/odometer` | Fleet\FleetController@correctTrip | fleet.trips.correct | auth, can:siv.viagens.corrigir-km |
 | GET | `/fleet/vehicles` | Fleet\FleetController@vehicles | fleet.vehicles | auth, permission:manage fleet |
 | GET | `/fleet/vehicles/create` | Fleet\FleetController@createVehicle | fleet.vehicles.create | auth, permission:manage fleet |
 | POST | `/fleet/vehicles` | Fleet\FleetController@storeVehicle | fleet.vehicles.store | auth, permission:manage fleet |
