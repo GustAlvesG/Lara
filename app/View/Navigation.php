@@ -272,6 +272,7 @@ final class Navigation
             ['route' => 'my-sector.index', 'label' => 'Meu setor', 'glyph' => 'users', 'icon' => self::GROUP_ICON, 'permission' => 'coordinate-sector'],
             ['route' => 'users.index', 'label' => 'Usuários', 'glyph' => 'users', 'icon' => self::GROUP_ICON, 'permission' => P::USUARIOS_GERENCIAR],
             ['route' => 'sectors.index', 'label' => 'Setores', 'glyph' => 'users', 'icon' => self::GROUP_ICON, 'permission' => P::SETORES_GERENCIAR],
+            ['route' => 'api-integrations.index', 'label' => 'Integrações', 'glyph' => 'key', 'icon' => 'M15 7a4 4 0 11-3.9 4.9L7 16v3H4v-3l5.1-5.1A4 4 0 0115 7zm1.5 2.5h.01', 'permission' => 'acessar-integracoes'],
         ];
     }
 

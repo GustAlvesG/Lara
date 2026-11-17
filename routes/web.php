@@ -123,6 +123,7 @@ use App\Http\Controllers\Signature\RemoteLinkController as SignatureRemoteLinkCo
 use App\Http\Controllers\Signature\ReviewController as SignatureReviewController;
 use App\Http\Controllers\Signature\TemplateController as SignatureTemplateController;
 use App\Http\Controllers\Signature\ValidationController as SignatureValidationController;
+use App\Http\Controllers\ApiIntegrationController;
 
 
 Route::get('/', function () {
@@ -776,6 +777,21 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         Route::post('/{sector}/membros', [MySectorController::class, 'addMember'])->middleware('throttle:30,1')->name('members.add');
         Route::post('/{sector}/usuarios', [MySectorController::class, 'createUser'])->middleware('throttle:10,1')->name('users.store');
         Route::delete('/{sector}/membros/{user}', [MySectorController::class, 'removeMember'])->name('members.remove');
+    });
+
+    // Integrações: tokens de quem chama a API do Lara (gestao-tokens.md).
+    // Ver é de quem visualiza OU gerencia; escrever, só de quem gerencia.
+    Route::prefix('integracoes')->name('api-integrations.')->middleware('can:acessar-integracoes')->group(function () {
+        Route::get('/', [ApiIntegrationController::class, 'index'])->name('index');
+        Route::get('/{integration}', [ApiIntegrationController::class, 'show'])->whereNumber('integration')->name('show');
+
+        Route::middleware(['can:' . P::INTEGRACOES_GERENCIAR, 'throttle:30,1'])->group(function () {
+            Route::post('/', [ApiIntegrationController::class, 'store'])->name('store');
+            Route::put('/{integration}', [ApiIntegrationController::class, 'update'])->whereNumber('integration')->name('update');
+            Route::post('/{integration}/tokens', [ApiIntegrationController::class, 'generate'])->whereNumber('integration')->name('tokens.store');
+            Route::post('/tokens/{token}/rotacionar', [ApiIntegrationController::class, 'rotate'])->whereNumber('token')->name('tokens.rotate');
+            Route::post('/tokens/{token}/revogar', [ApiIntegrationController::class, 'revoke'])->whereNumber('token')->name('tokens.revoke');
+        });
     });
 
     // Banco de Horas. A leitura é aberta a qualquer autenticado e o recorte é

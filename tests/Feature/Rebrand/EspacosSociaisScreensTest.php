@@ -390,7 +390,7 @@ class EspacosSociaisScreensTest extends TestCase
         // Vitrine dos espaços (galeria): só o token da aplicação, sem login do sócio.
         foreach (['api.social-showcase.index', 'api.social-showcase.show'] as $name) {
             $middleware = Route::getRoutes()->getByName($name)->gatherMiddleware();
-            $this->assertContains('api_token', $middleware, $name);
+            $this->assertContains('api_token:site', $middleware, $name);
             $this->assertNotContains('login_token', $middleware, $name);
         }
     }

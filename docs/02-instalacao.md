@@ -86,9 +86,15 @@ WHATSAPP_VERIFY_TOKEN=
 ```
 
 ### Token da API
-Token estático exigido pelo middleware `api_token` (header `Authorization: Bearer <token>`).
+Desde 17/11/2026 cada sistema externo usa o próprio token, gerado em Administração › Integrações
+([gestao-tokens.md](funcionalidades/gestao-tokens.md)). O `API_TOKEN` é o token antigo, aceito
+enquanto `API_TOKEN_LEGACY_ENABLED=true`.
 ```env
 API_TOKEN=
+API_TOKEN_LEGACY_ENABLED=true
+API_TOKEN_PORTARIA_ENFORCED=false
+API_TOKEN_ROTATION_GRACE_DAYS=7
+API_TOKEN_EXPIRING_DAYS=30
 ```
 
 ### E-mail e filas

@@ -16,8 +16,11 @@ em que a pessoa está (ver "Contexto da tela" no fim) e, desde 30/10/2026, o **e
 
 ## Autenticação
 
-`Authorization: Bearer {API_TOKEN}` — o mesmo token das outras integrações
-(`config('services.api.token')`, middleware `APIToken`). Sem token ou com token errado: **401**.
+`Authorization: Bearer {token}`. Desde 17/11/2026 a IA tem token próprio, de escopo **`ia`**,
+gerado em Administração › Integrações ([gestao-tokens.md](gestao-tokens.md)); as três rotas pedem
+`api_token:ia`. O `API_TOKEN` antigo, o mesmo das outras integrações, continua aceito enquanto
+`API_TOKEN_LEGACY_ENABLED=true`. Sem token, token errado, revogado ou vencido: **401**; token de
+outro escopo: **403**. Prompt da troca: `docs/prompts/IA/gestao-tokens-ia-prompt.md`.
 
 ## Parâmetros comuns
 

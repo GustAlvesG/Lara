@@ -68,7 +68,7 @@ Primeiro lugar quando dá **403 ou 401**. Os aliases estão registrados em
 | Alias | Usado para | Erro típico |
 |---|---|---|
 | `auth` | painel web (sessão) | manda pro login sozinho |
-| `api_token` | integrações externas | 401 — token do header errado/ausente |
+| `api_token:<escopo>` | integrações externas | 401 — token errado, ausente, revogado ou vencido; 403 — token sem o escopo da rota (Administração › Integrações mostra o último uso e as recusadas de cada token) |
 | `login_token` | app do sócio (JWT) | 401 — token expirado |
 | `permission` / `role` | Spatie (permissões) | 403 — usuário sem a permissão |
 

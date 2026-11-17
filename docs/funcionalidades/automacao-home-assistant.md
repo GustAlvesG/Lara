@@ -25,7 +25,7 @@ reservas confirmadas dos espaços.
 
 `GET /api/schedule/home-assistant/automation` → `ScheduleController@homeAssistantAutomation`
 
-Exige o header `Authorization: Bearer <API_TOKEN>` (middleware `api_token`). Não exige `login_token`.
+Exige o header `Authorization: Bearer <token>` (middleware `api_token:home-assistant`). Não exige `login_token`. Desde 17/11/2026 o Home Assistant tem token próprio, de escopo `home-assistant`, gerado em Administração › Integrações; o `API_TOKEN` antigo continua aceito enquanto `API_TOKEN_LEGACY_ENABLED=true` ([gestao-tokens.md](gestao-tokens.md)). A rota saiu do grupo do site (mesma URL e nome). O comando manual (`/contactors/{id}/manual`) aceita os escopos `home-assistant` ou `telegram`.
 
 ```json
 { "contactors": { "switch.quadra_1": true, "switch.quadra_2": false } }

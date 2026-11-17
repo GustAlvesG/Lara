@@ -96,6 +96,13 @@ Todas, salvo `/`, `/members` e `/dashboard`, estão sob o middleware `auth`.
 | PUT | `/sectors/{id}/permissions` | SectorController@updatePermissions | sectors.permissions.update | auth, can:setores.gerenciar |
 | GET | `/sectors/audit` | SectorController@audit | sectors.audit | auth, can:setores.gerenciar |
 | GET | `/meu-setor/{sector}` | MySectorController@show | my-sector.show | auth (coordenador do setor) |
+| GET | `/integracoes` | ApiIntegrationController@index | api-integrations.index | auth, can:acessar-integracoes |
+| GET | `/integracoes/{integration}` | ApiIntegrationController@show | api-integrations.show | auth, can:acessar-integracoes |
+| POST | `/integracoes` | ApiIntegrationController@store | api-integrations.store | auth, can:integracoes.gerenciar |
+| PUT | `/integracoes/{integration}` | ApiIntegrationController@update | api-integrations.update | auth, can:integracoes.gerenciar |
+| POST | `/integracoes/{integration}/tokens` | ApiIntegrationController@generate | api-integrations.tokens.store | auth, can:integracoes.gerenciar |
+| POST | `/integracoes/tokens/{token}/rotacionar` | ApiIntegrationController@rotate | api-integrations.tokens.rotate | auth, can:integracoes.gerenciar |
+| POST | `/integracoes/tokens/{token}/revogar` | ApiIntegrationController@revoke | api-integrations.tokens.revoke | auth, can:integracoes.gerenciar |
 | GET | `/comp-time/upload` | CompTimeController@index | comp-time.index | auth |
 | POST | `/comp-time/upload` | CompTimeController@store | comp-time.store | auth |
 | POST | `/comp-time/filter` | CompTimeController@indexFilter | comp-time.index.filter | auth |
@@ -414,6 +421,12 @@ Desde 06/11/2026. Repassam ao servidor do rePET (`RepetClient`); as ações resp
 ## 8.2. Rotas da API (`routes/api.php`)
 
 Prefixo `/api`. Legenda de middleware: **T** = `api_token`, **L** = `login_token`.
+
+> Desde 17/11/2026 o **T** é `api_token:<escopo>`: cada grupo pede o escopo do sistema que o
+> consome (`site`, `ia`, `portaria`, `home-assistant`, `telegram`, `webhook-whatsapp`). O
+> `/api/company-access/*` abaixo deixou de ser aberto: usa `api_token_portaria:portaria`, que só
+> registra quem chama até `API_TOKEN_PORTARIA_ENFORCED=true`. Inventário rota → escopo em
+> [gestao-tokens.md](funcionalidades/gestao-tokens.md#escopos-e-inventário-f0).
 
 ### Públicas (sem token)
 | Método | URI | Ação |

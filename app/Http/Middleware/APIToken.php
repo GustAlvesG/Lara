@@ -2,32 +2,45 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\ApiTokens\ApiTokenGuard;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * `api_token:<escopo>[,<escopo>…]` — chamada de sistema externo.
+ *
+ * Aceita o token da integração (Administração › Integrações) que tenha um
+ * dos escopos da rota, ou o `API_TOKEN` antigo do .env enquanto
+ * `api_tokens.legacy_enabled` (ver ApiTokenGuard). Toda rota declara o
+ * escopo; sem escopo, nenhum token gerenciado passa.
+ *
+ * O header recebido nunca volta no corpo da resposta (vazava o token para
+ * log de proxy).
+ */
 class APIToken
 {
-    /**
-     * Handle an incoming request.
-     *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
-     */
-    public function handle(Request $request, Closure $next): Response
+    public function __construct(private ApiTokenGuard $guard)
     {
-	$token = (string) config('services.api.token');
-	if ($request->getMethod() === 'OPTIONS') {
-        	return $next($request);
-	}
-        // Sem token configurado nada passa: senão um "Bearer " puro seria aceito.
-        if ($token === '') {
-            return response()->json(['message' => 'Invalid API Token'], 401);
+    }
+
+    public function handle(Request $request, Closure $next, string ...$scopes): Response
+    {
+        if ($request->getMethod() === 'OPTIONS') {
+            return $next($request);
         }
-        // hash_equals: comparação de tempo constante, e o header recebido nunca
-        // volta no corpo da resposta (vazava o token para log de proxy).
-        if (! hash_equals("Bearer " . $token, (string) $request->header('Authorization'))) {
-            return response()->json(['message' => 'Invalid API Token'], 401);
+
+        $check = $this->guard->check($request, $scopes);
+        $this->guard->record($request, $scopes, $check['kind'], $check['token']);
+
+        if (! $check['ok']) {
+            return response()->json(['message' => $check['message']], $check['status']);
         }
+
+        if ($check['token'] !== null) {
+            $request->attributes->set(ApiTokenGuard::ATTRIBUTE, $check['token']);
+        }
+
         return $next($request);
     }
 }

@@ -1,11 +1,11 @@
 ---
 modulo: Conta
-palavras: conta, perfil, senha, trocar senha, mudar senha, PIN, PIN de assinatura, e-mail, matrícula, CPF, telefone, celular, completar cadastro, registro, criar conta, documentação, guia, meu setor, equipe, coordenador, colaborador, usuário, novo usuário, setor, permissão, acesso, liberar acesso, menu, não aparece, acesso total
+palavras: conta, perfil, senha, trocar senha, mudar senha, PIN, PIN de assinatura, e-mail, matrícula, CPF, telefone, celular, completar cadastro, registro, criar conta, documentação, guia, meu setor, equipe, coordenador, colaborador, usuário, novo usuário, setor, permissão, acesso, liberar acesso, menu, não aparece, acesso total, integração, integrações, token, token da API, API, chave, site, Home Assistant, Telegram, Poli, revogar token, rotacionar, último uso
 ---
 
 # Conta — guia de uso
 
-O menu da conta fica no canto superior direito do Lara: clique no círculo com as suas iniciais. Ali estão os atalhos **Perfil**, **Documentação**, **Meu setor** (só para coordenadores), **Usuários** e **Setores** (só para quem administra os acessos), além de **Sair**.
+O menu da conta fica no canto superior direito do Lara: clique no círculo com as suas iniciais. Ali estão os atalhos **Perfil**, **Documentação**, **Meu setor** (só para coordenadores), **Usuários** e **Setores** (só para quem administra os acessos), **Integrações** (só para quem cuida dos tokens dos sistemas externos), além de **Sair**.
 
 No **Perfil** cada pessoa cuida dos próprios dados: nome, e-mail, matrícula, CPF (só enquanto não tem), telefone, senha e PIN de assinatura. Na **Documentação** ficam os guias de uso dos módulos.
 
@@ -19,8 +19,10 @@ O que cada pessoa enxerga no Lara depende dos **setores** em que ela está. Cada
 | Colocar e tirar colaboradores do próprio setor e cadastrar gente nova nele (Meu setor) | Não é permissão: é ser **coordenador** do setor |
 | Criar, editar e excluir usuários, mudar setores e permissões individuais de uma pessoa | Administração › Gerenciar usuários |
 | Criar setores, definir o que cada setor alcança e quem é coordenador | Administração › Gerenciar setores e permissões |
+| Ver os sistemas externos, os tokens e o último uso de cada um (Integrações) | Administração › Integrações: ver os sistemas externos, os tokens e o último uso de cada um |
+| Cadastrar sistema externo e gerar, rotacionar e revogar token (Integrações) | Administração › Integrações: cadastrar sistemas externos e gerar, rotacionar e revogar tokens da API |
 
-As duas permissões de Administração ficam com os setores de acesso total (Gerência, Diretoria e TI). Quem quiser liberar algo para alguém fala com a TI ou com a Gerência.
+As permissões de Administração ficam com os setores de acesso total (Gerência, Diretoria e TI). Quem quiser liberar algo para alguém fala com a TI ou com a Gerência.
 
 ## Como trocar minha senha
 <!-- telas: profile.edit -->
@@ -176,6 +178,37 @@ Na tela de um setor:
 
 Toda mudança fica no **Histórico de acesso** (botão na lista de setores), com quem fez e quando. Um setor só pode ser excluído (ícone de lixeira na lista) quando não tem membros nem funcionários.
 
+## Como ver quando cada sistema externo usou O Lara pela última vez
+<!-- telas: api-integrations.index -->
+
+Os sistemas de fora que conversam com O Lara (o site de locação, o HAL, a portaria, o Home Assistant, o bot do Telegram e a Poli) entram com um **token**, uma espécie de senha de sistema. Clique nas suas iniciais e escolha **Integrações**.
+
+Cada cartão é um sistema, com quantos tokens ativos ele tem, o aviso **vence em breve** e o **Último uso**. Clique no cartão para ver a tabela dos tokens: para cada instalação (produção, homologação…) aparecem o **Último uso** (data e hora, há quanto tempo, o endereço IP e a rota chamada), as chamadas dos últimos 7 dias (e as **recusadas**, quando o sistema tentou com token errado), a **Validade** e a **Situação**: ativo, vence em breve, vencido ou revogado.
+
+Embaixo da lista fica **Chamadas sem token da tela**: os sistemas que ainda entram com o token antigo, o mesmo para todos, ou chamam o Monitor de Acesso sem token. Cada linha mostra o IP e a última rota, para descobrir qual sistema é.
+
+## Como gerar o token de um sistema externo
+<!-- telas: api-integrations.index -->
+
+1. Clique nas suas iniciais e escolha **Integrações**.
+2. Se o sistema ainda não está na lista, abra **Cadastrar integração**, preencha **Nome** (ex.: Site de locação), escolha o **Sistema** e clique em **Cadastrar**.
+3. Na tela do sistema, abra **Gerar token** e preencha **Instalação** (onde ele vai ser usado: produção, homologação). Gere um token para cada instalação: assim, revogar um não derruba o outro.
+4. Escolha a **Validade**: 30, 90, 180 ou 365 dias, **Até uma data…** ou **Sem validade** (evite: o token só para quando alguém revogar).
+5. Confira os **Escopos**, o que o token alcança. O escopo do sistema já vem marcado; marque outro só se o sistema chama aquela parte também.
+6. Clique em **Gerar token**. O token aparece num quadro amarelo: clique em **Copiar** e passe ao responsável pelo sistema.
+
+O token aparece **uma vez só**. Se fechar a tela sem copiar, rotacione (veja abaixo) para ter um novo.
+
+## Como trocar ou cancelar um token
+<!-- telas: api-integrations.index -->
+
+Clique nas suas iniciais, escolha **Integrações**, abra o sistema e, na linha do token, clique em **Rotacionar ou revogar**.
+
+- **Rotacionar** gera um token novo para a mesma instalação, com os mesmos escopos. Escolha a **Validade** do novo e por quantos dias **o antigo continua valendo** (padrão 7), para dar tempo de trocar no sistema sem ele parar. "nada (revoga já)" cancela o antigo na hora.
+- **Revogar agora** cancela o token na hora: o sistema que usa esse token para de funcionar. Use quando o token vazou ou a instalação não existe mais. O motivo é opcional e fica registrado.
+
+Para parar um sistema inteiro por um tempo sem revogar os tokens, abra **Editar integração**, desmarque **Ativa** e clique em **Salvar**.
+
 ## Por que alguém não vê um módulo ou uma tela no menu
 
 O menu mostra só o que a pessoa tem permissão para usar. Se um módulo ou uma tela não aparece, a pessoa não tem a permissão dela, nem pelo setor nem individualmente. As exceções são InfoClube, Avisos, Empresas e Monitor de Acesso, que todo mundo logado vê.
@@ -208,6 +241,11 @@ O Lara não deixa ninguém tirar de si mesmo o acesso às telas de Usuários e S
 <!-- telas: users.index, sectors.index -->
 
 Gerência, Diretoria e TI (os setores de acesso total) precisam ter pelo menos uma pessoa. Coloque outra pessoa no setor antes de tirar a última.
+
+### O site (ou outro sistema) parou depois que mexi num token
+<!-- telas: api-integrations.index -->
+
+Veja na tela do sistema, em **Integrações**, a coluna **7 dias**: se aparecem **recusadas**, o sistema está tentando com um token revogado, vencido ou sem o escopo daquela parte. Gere ou rotacione o token e passe o novo ao responsável. Se você desativou a integração, marque **Ativa** de novo.
 
 ### Não consigo excluir um setor
 <!-- telas: sectors.index -->

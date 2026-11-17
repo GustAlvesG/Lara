@@ -190,6 +190,11 @@ final class Permissions
 
     public const USUARIOS_GERENCIAR = 'usuarios.gerenciar';
     public const SETORES_GERENCIAR = 'setores.gerenciar';
+    // Integrações (17/11/2026): tokens de quem chama a API do Lara (site,
+    // HAL, portaria, Home Assistant, Telegram, Poli). Ver é a lista e o
+    // último uso; gerenciar é gerar, rotacionar e revogar token.
+    public const INTEGRACOES_VISUALIZAR = 'integracoes.visualizar';
+    public const INTEGRACOES_GERENCIAR = 'integracoes.gerenciar';
 
     // Financeiro (módulo próprio desde 13/11/2026): Visão geral e
     // Recebimentos juntam Reservas, Torneios e Ingressos — por isso uma
@@ -303,6 +308,8 @@ final class Permissions
 
         self::USUARIOS_GERENCIAR => ['Administração', 'Gerenciar usuários'],
         self::SETORES_GERENCIAR => ['Administração', 'Gerenciar setores e permissões'],
+        self::INTEGRACOES_VISUALIZAR => ['Administração', 'Integrações: ver os sistemas externos, os tokens e o último uso de cada um'],
+        self::INTEGRACOES_GERENCIAR => ['Administração', 'Integrações: cadastrar sistemas externos e gerar, rotacionar e revogar tokens da API'],
     ];
 
     /**
@@ -315,6 +322,9 @@ final class Permissions
      * Não são permissões: não entram no CATALOG nem no banco.
      */
     public const ANY_OF = [
+        // Integrações: quem gerencia os tokens também vê a tela.
+        'acessar-integracoes' => [self::INTEGRACOES_VISUALIZAR, self::INTEGRACOES_GERENCIAR],
+
         // Documentos: quem atende no balcão OU quem só consulta os assinados
         // (a mesma regra de SignatureDocumentPolicy::viewAny).
         'acessar-documentos-assinatura' => [self::ASSINATURA_DOCUMENTOS, self::ASSINATURA_CONSULTAR],
