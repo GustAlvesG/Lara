@@ -664,7 +664,9 @@ prompt e gere um novo para o agente do site** (regra do CLAUDE.md).
   `RespondsWithKioskSession::sessionPayload` (`pdf_url` nulo, `pdf_version`, `identity_check = full`),
   `EnsureSignatureKioskSession` (sessão remota não abre o tablet), manifesto (texto e origem "Link remoto").
 - A recusa saiu do `QuiosqueController` para `SignatureCaptureService::refuse` (comum aos dois).
-- API: middlewares `signature_remote_api` (Bearer `SIGNATURE_REMOTE_API_TOKEN`, origem
+- API: middlewares `signature_remote_api` (Bearer: token gerenciado com escopo `assinatura-remota`
+  desde 18/11/2026, ou o antigo `SIGNATURE_REMOTE_API_TOKEN` enquanto
+  `SIGNATURE_REMOTE_LEGACY_TOKEN_ENABLED`; nunca o `API_TOKEN` nem o escopo `site`. Origem
   `SIGNATURE_REMOTE_ALLOWED_IPS`, contexto de quem assina de `X-Signer-Ip`/`X-Signer-User-Agent` —
   **nunca use `$request->ip()` nessa API**, é o do site) e `signature_remote_session`. Limitadores
   nomeados `signature-remote`/`signature-remote-open` por IP de quem assina + rota. Recusas

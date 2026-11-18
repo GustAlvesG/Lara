@@ -716,8 +716,10 @@ completo e foto. No módulo Assinaturas, o link do diretor espera quem é de for
 
 O navegador da pessoa fala só com o site. O **servidor** do site chama a API
 `/api/assinatura/remota/*` do Lara, como o site de aprovação de Compras já faz. A API tem **token
-próprio** (`SIGNATURE_REMOTE_API_TOKEN`), que não é o `API_TOKEN` das reservas, e pode ser limitada
-ao IP do servidor do site (`SIGNATURE_REMOTE_ALLOWED_IPS`).
+próprio**, que não é o token geral do site: desde 18/11/2026, um token gerado em Administração ›
+Integrações com o escopo `assinatura-remota` ([gestao-tokens.md](gestao-tokens.md)); o antigo,
+`SIGNATURE_REMOTE_API_TOKEN`, segue aceito enquanto `SIGNATURE_REMOTE_LEGACY_TOKEN_ENABLED=true`.
+Pode ser limitada ao IP do servidor do site (`SIGNATURE_REMOTE_ALLOWED_IPS`).
 
 O site repassa o IP e o navegador de quem assina nos headers `X-Signer-Ip` e
 `X-Signer-User-Agent`. São esses valores que vão para a evidência, a trilha e o manifesto. Sem
@@ -827,7 +829,7 @@ Tablet), com o IP de quem assinou.
 | `App\Models\SignatureRemoteLink` (`signature_remote_links`) | O link: hash do token, e-mail, validade, status, tentativas, aberturas |
 | `App\Http\Controllers\Signature\RemoteLinkController` | Painel: `signature-documents.remote-link.store` / `.destroy` |
 | `App\Http\Controllers\Api\RemoteSignatureApiController` | API `api.assinatura-remota.*` |
-| `EnsureSignatureRemoteClient` (`signature_remote_api`) / `EnsureSignatureRemoteSession` (`signature_remote_session`) | Token e origem do site; sessão em header |
+| `EnsureSignatureRemoteClient` (`signature_remote_api`) / `EnsureSignatureRemoteSession` (`signature_remote_session`) | Token (gerenciado com escopo `assinatura-remota`, ou o antigo) e origem do site; sessão em header |
 | `App\Mail\SignatureRemoteLinkMail` + `emails/signature-remote-link` | O e-mail com o botão |
 | `signature/documents/partials/remote.blade.php` | O cartão na tela do documento |
 
@@ -1852,7 +1854,8 @@ Tudo em `config/signature.php`, com as variáveis documentadas no `.env.example`
 | `SIGNATURE_DIRECTOR_MAX_LOGIN_ATTEMPTS` | `5` | Assinatura Diretoria: tentativas de matrícula + PIN por matrícula, a cada 15 min |
 | `SIGNATURE_DIRECTOR_IDLE_SECONDS` | `90` | Assinatura Diretoria: segundos sem toque na lista que fazem o tablet encerrar a entrada do diretor |
 | `SIGNATURE_REMOTE_SITE_URL` | vazio | Assinatura remota: endereço do site; o link é `{url}/assinar/{token}`. Vazio = cartão escondido |
-| `SIGNATURE_REMOTE_API_TOKEN` | vazio | Assinatura remota: token próprio do site para `/api/assinatura/remota/*`. Vazio = API fechada |
+| `SIGNATURE_REMOTE_API_TOKEN` | vazio | Assinatura remota: token ANTIGO do site para `/api/assinatura/remota/*`. Desde 18/11/2026 o site usa o token gerenciado (escopo `assinatura-remota`); vazio = só o gerenciado passa |
+| `SIGNATURE_REMOTE_LEGACY_TOKEN_ENABLED` | `true` | Assinatura remota: aceita o `SIGNATURE_REMOTE_API_TOKEN`. `false` depois que o site trocar |
 | `SIGNATURE_REMOTE_ALLOWED_IPS` | vazio | Assinatura remota: IP (ou CIDR) do servidor do site; vazio = qualquer origem com o token |
 | `SIGNATURE_REMOTE_TTL_DAYS` | `7` | Assinatura remota: validade do link em dias, do envio; o reenvio dá mais 7 (o prazo do documento é estendido até lá). Substituiu `SIGNATURE_REMOTE_TTL_HOURS` = 72 em 13/11/2026 |
 | `SIGNATURE_REMOTE_SESSION_MINUTES` | `30` | Assinatura remota: sessão de cada abertura do link |

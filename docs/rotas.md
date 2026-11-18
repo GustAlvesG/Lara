@@ -476,8 +476,9 @@ id na URL, para que trocar um número não dê acesso aos vídeos de outro.
 
 ### Assinatura remota — site externo (`signature_remote_api`)
 
-Chamada pelo **servidor** do site, com token próprio (`Authorization: Bearer
-<SIGNATURE_REMOTE_API_TOKEN>`, não o `API_TOKEN`) e, se configurada, só do IP do site
+Chamada pelo **servidor** do site, com token próprio (`Authorization: Bearer <token>`: o gerado
+em Integrações com o escopo `assinatura-remota`, ou o antigo `SIGNATURE_REMOTE_API_TOKEN` enquanto
+`SIGNATURE_REMOTE_LEGACY_TOKEN_ENABLED`; nunca o `API_TOKEN` nem o escopo `site`) e, se configurada, só do IP do site
 (`SIGNATURE_REMOTE_ALLOWED_IPS`). **S** = sessão no header `X-Signature-Session`
 (`signature_remote_session`). Limites por IP de quem assina (`X-Signer-Ip`) + rota. Contrato em
 [assinatura-remota-prompt-site.md](funcionalidades/assinatura-remota-prompt-site.md).

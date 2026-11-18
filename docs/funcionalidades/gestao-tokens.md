@@ -32,10 +32,10 @@ Catálogo em `App\Support\ApiTokens\ApiScopes`. A rota declara o escopo no middl
 | `home-assistant` | Home Assistant | `GET /api/schedule/home-assistant/automation`, `POST /api/schedule/home-assistant/contactors/{id}/manual` |
 | `telegram` | Bot do Telegram | `/api/telegram/*` e o comando manual do Home Assistant (a rota aceita `home-assistant` ou `telegram`) |
 | `webhook-whatsapp` | Poli | `POST /api/webhooks/whatsapp` |
+| `assinatura-remota` | Site Next.js (área `/assinar`) | `/api/assinatura/remota/*` — middleware próprio `signature_remote_api`, ver "Assinatura remota" abaixo |
 
 Fora da gestão (cada um com a sua autenticação, sem mudança): `/api/placar/*` e `/api/replay/*`
-da captura (Sanctum, `placar:token`/`replay:token`), `/api/assinatura/remota/*`
-(`SIGNATURE_REMOTE_API_TOKEN`), `/api/aprovacao/*` (JWT próprio). Abertas, como antes:
+da captura (Sanctum, `placar:token`/`replay:token`), `/api/aprovacao/*` (JWT próprio). Abertas, como antes:
 `/api/ping`, `/api/test`, `/api/schedule/generate-pdf`, `/api/whatsapp/*` (webhook da Meta),
 `/api/freelancer/dinners`, `/api/aprovacao/login`.
 
@@ -80,6 +80,26 @@ Falha ao registrar nunca derruba a chamada (vira aviso no log). A chamada recusa
 barra nada**: token válido fica registrado no token; sem token (ou recusado) passa e fica registrado
 como `sem-token`/`recusado`. Com `true`, vira exatamente o `api_token:portaria`. A config é lida a
 cada requisição: ligar pede só `config:cache`, não `route:cache`.
+
+### Assinatura remota (`signature_remote_api`, desde 18/11/2026)
+
+`/api/assinatura/remota/*` entrou na gestão com o escopo **`assinatura-remota`**, separado do
+`site` de propósito: o token geral do site, se vazar, não abre assinatura. O site usa **dois
+tokens** (o geral, escopo `site`, e o da assinatura, só `assinatura-remota`), os dois gerados na
+integração do site.
+
+`App\Http\Middleware\EnsureSignatureRemoteClient` não usa o `api_token`, porque o legado aqui é
+outro:
+
+1. Token `lara_…` → `ApiTokenGuard::check` com o escopo `assinatura-remota` (revogado, vencido,
+   desativado, sem escopo: recusa) e registro do último uso, igual às outras rotas.
+2. Outro valor → compara com o token **antigo desta API**, `SIGNATURE_REMOTE_API_TOKEN`, enquanto
+   `SIGNATURE_REMOTE_LEGACY_TOKEN_ENABLED=true`; passa registrado como **legado** no escopo
+   `assinatura-remota`. O `API_TOKEN` das reservas **nunca** passa aqui.
+3. O resto → 401 (registrado como `sem-token` ou `recusado`).
+
+A recusa mantém o formato que o site já trata: `{error, reason: "unauthorized"}`, 401 ou 403. A
+trava por IP (`SIGNATURE_REMOTE_ALLOWED_IPS`) continua valendo depois do token, para os dois tipos.
 
 ## O token
 
@@ -132,6 +152,15 @@ A tela abre com qualquer uma das duas (habilidade composta `acessar-integracoes`
 4. Monitor de Acesso já mandando o token: `API_TOKEN_PORTARIA_ENFORCED=true` + `config:cache`.
 5. Lista zerada por alguns dias: `API_TOKEN_LEGACY_ENABLED=false` + `config:cache` (homologação
    antes). Depois, tirar o `API_TOKEN` do `.env`.
+6. Assinatura remota (independente dos passos acima): gerar na integração do site um token só com
+   o escopo `assinatura-remota` por instalação e o site trocar o `LARA_SIGNATURE_API_TOKEN`
+   (prompt `docs/prompts/NextJS/assinatura-remota-token-gerenciado-prompt.md`). Quando a lista não
+   mostrar mais "token antigo" no escopo Assinatura remota: `SIGNATURE_REMOTE_LEGACY_TOKEN_ENABLED=false`
+   + `config:cache`, e depois tirar o `SIGNATURE_REMOTE_API_TOKEN` do `.env`.
+
+**Cuidado na troca do site:** o site guarda os dois tokens em variáveis diferentes. Colocar o token
+do escopo `site` na variável da assinatura (ou o contrário) dá 401/403 na assinatura, e o site mostra
+"O site não conseguiu se comunicar com o clube" com 502 no console (visto em 18/11/2026).
 
 Para voltar atrás em qualquer passo: a flag de volta para `true`/`false` e `config:cache`.
 
@@ -145,6 +174,8 @@ Para voltar atrás em qualquer passo: a flag de volta para `true`/`false` e `con
 | `API_TOKEN_ROTATION_GRACE_DAYS` | `7` | Convivência padrão na rotação |
 | `API_TOKEN_EXPIRING_DAYS` | `30` | Antecedência do "vence em breve" |
 | `API_TOKEN_TOUCH_SECONDS` | `60` | Intervalo mínimo para regravar o último uso |
+| `SIGNATURE_REMOTE_API_TOKEN` | — | Token antigo da assinatura remota (`config/signature.php`), aceito enquanto o legado dela está ligado |
+| `SIGNATURE_REMOTE_LEGACY_TOKEN_ENABLED` | `true` | Aceita o `SIGNATURE_REMOTE_API_TOKEN` em `/api/assinatura/remota/*` |
 
 ## Banco
 
@@ -169,6 +200,7 @@ Sem chave estrangeira para `users` (o User está na conexão `mysql`; os testes 
 | `app/Services/ApiTokens/ApiTokenGuard.php` | Validar a chamada e registrar o uso |
 | `app/Http/Middleware/APIToken.php` | `api_token:<escopos>` |
 | `app/Http/Middleware/ObserveApiToken.php` | `api_token_portaria:<escopo>` |
+| `app/Http/Middleware/EnsureSignatureRemoteClient.php` | `signature_remote_api` (escopo `assinatura-remota` + legado próprio) |
 | `app/Models/ApiTokens/ApiIntegration.php`, `ApiIntegrationToken.php` | Models |
 | `app/Http/Controllers/ApiIntegrationController.php` | Tela |
 | `resources/views/api-integrations/*` | Views |
@@ -179,7 +211,9 @@ Sem chave estrangeira para `users` (o User está na conexão `mysql`; os testes 
 `tests/Feature/ApiTokens/`: `ApiTokenMiddlewareTest` (escopo, revogado, vencido, desativado,
 legado ligado/desligado, portaria registrando/exigindo, último uso e contagem, rotação),
 `ApiRouteScopesTest` (escopo de cada grupo) e `ApiIntegrationScreenTest` (permissões, token visto
-uma vez, validade obrigatória, último uso na tela, lista do token antigo, menu).
+uma vez, validade obrigatória, último uso na tela, lista do token antigo, menu). O token da
+assinatura remota (escopo, token do `site` recusado, vencido, revogado, legado registrado e
+desligado) está no `tests/Feature/SignatureRemoteLinkTest.php`.
 
 Nos testes dos módulos, o `config(['services.api.token' => …])` de sempre continua funcionando:
 o token antigo segue aceito com o legado ligado (o padrão).
@@ -187,5 +221,5 @@ o token antigo segue aceito com o legado ligado (o padrão).
 ## Pendente
 
 - Aviso automático (notificação) de token vencendo: hoje só a tela marca "vence em breve".
-- F6 (opcional): trazer para a mesma tela o `SIGNATURE_REMOTE_API_TOKEN` (escopo próprio) e os
-  clientes do Placar e do Replay, hoje gerados por artisan.
+- F6: o `SIGNATURE_REMOTE_API_TOKEN` entrou na tela em 18/11/2026 (escopo `assinatura-remota`).
+  Faltam os clientes do Placar e do Replay, hoje gerados por artisan.

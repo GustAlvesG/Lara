@@ -20,6 +20,10 @@ Route::prefix('company-access')->middleware('api_token_portaria:' . ApiScopes::P
   novo: escopo novo (constante + linha em `CATALOG`) e, se fizer sentido, sugestão em
   `ApiIntegrationController::SUGGESTED_SCOPES` e opção em `ApiIntegration::SYSTEMS`.
 - **Nunca** `api_token` sem escopo: nenhum token gerenciado passa, e o `ApiRouteScopesTest` acusa.
+- Exceção: `/api/assinatura/remota/*` usa o middleware próprio `signature_remote_api`
+  (`EnsureSignatureRemoteClient`), que chama o `ApiTokenGuard` com o escopo `assinatura-remota` e
+  tem legado próprio (`SIGNATURE_REMOTE_API_TOKEN`), não o `API_TOKEN`. O escopo é separado do
+  `site` de propósito: o token geral do site não abre assinatura.
 - O controller pode saber qual token chamou: `$request->attributes->get('api_integration_token')`
   (nulo quando entrou pelo token antigo).
 

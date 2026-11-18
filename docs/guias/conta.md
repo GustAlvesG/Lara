@@ -194,7 +194,7 @@ Embaixo da lista fica **Chamadas sem token da tela**: os sistemas que ainda entr
 2. Se o sistema ainda não está na lista, abra **Cadastrar integração**, preencha **Nome** (ex.: Site de locação), escolha o **Sistema** e clique em **Cadastrar**.
 3. Na tela do sistema, abra **Gerar token** e preencha **Instalação** (onde ele vai ser usado: produção, homologação). Gere um token para cada instalação: assim, revogar um não derruba o outro.
 4. Escolha a **Validade**: 30, 90, 180 ou 365 dias, **Até uma data…** ou **Sem validade** (evite: o token só para quando alguém revogar).
-5. Confira os **Escopos**, o que o token alcança. O escopo do sistema já vem marcado; marque outro só se o sistema chama aquela parte também.
+5. Confira os **Escopos**, o que o token alcança. O escopo do sistema já vem marcado; marque outro só se o sistema chama aquela parte também. Exceção: a **Assinatura remota (site)** ganha um token separado. Gere outro token na integração do site, desmarque **Site (Next.js)** e marque só **Assinatura remota (site)**. Avise o responsável que esse vai na variável da assinatura, não na do site.
 6. Clique em **Gerar token**. O token aparece num quadro amarelo: clique em **Copiar** e passe ao responsável pelo sistema.
 
 O token aparece **uma vez só**. Se fechar a tela sem copiar, rotacione (veja abaixo) para ter um novo.
