@@ -61,7 +61,9 @@ padrão**: relate e siga pelo servidor.
 
 **3. Credenciais nunca chegam ao navegador.**
 - `LARA_API_URL` e `LARA_SIGNATURE_API_TOKEN` são variáveis **sem** `NEXT_PUBLIC_`.
-- O token desta API é **outro**: não é o `API_TOKEN` das reservas nem o da aprovação. Não reaproveite.
+- O token desta API é **outro**: não é o token geral do site (reservas) nem o da aprovação. Não reaproveite.
+  Desde 18/11/2026 ele é gerado em Administração › Integrações com o escopo `assinatura-remota`
+  (formato `lara_` + 48 caracteres); o token geral do site recebe **403** aqui.
 - O token do link (o que vem no e-mail) e o segredo da sessão ficam em **cookies httpOnly**,
   `secure`, `sameSite=lax`, com `path=/assinar`. Nunca em `localStorage`, `sessionStorage`,
   IndexedDB, estado de React ou URL depois da primeira carga.
@@ -343,8 +345,9 @@ valer, ou recomece pela entrada).
   formulário maior. Campo marcado no Lara como "Só o atendente responde" nunca chega ao formulário.
   A conferência das respostas pelo atendente é só do tablet do balcão: a sessão remota não tem a
   chave `answer_check` e não espera aprovação.
-- Variáveis novas no `.env` do site: `LARA_SIGNATURE_API_TOKEN` (o mesmo valor de
-  `SIGNATURE_REMOTE_API_TOKEN` no Lara). No Lara, a TI também preenche `SIGNATURE_REMOTE_SITE_URL`
+- Variáveis novas no `.env` do site: `LARA_SIGNATURE_API_TOKEN` (desde 18/11/2026, o token que a
+  TI gera em Administração › Integrações com o escopo `assinatura-remota`; antes, o mesmo valor de
+  `SIGNATURE_REMOTE_API_TOKEN` no Lara, ainda aceito por um tempo). No Lara, a TI também preenche `SIGNATURE_REMOTE_SITE_URL`
   com o endereço público deste site e `SIGNATURE_REMOTE_ALLOWED_IPS` com o IP deste servidor.
 
 Ao terminar, me diga o que foi feito, o que ficou de fora e como testar de ponta a ponta contra a

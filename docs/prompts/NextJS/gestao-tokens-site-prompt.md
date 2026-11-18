@@ -14,7 +14,7 @@ O token antigo continua aceito por um tempo, mas vai ser desligado. O Lara regis
 
 1. Ache onde o site guarda o token que manda ao Lara no `Authorization: Bearer` (provavelmente uma variável de ambiente do servidor, sem `NEXT_PUBLIC_`, como `LARA_API_TOKEN`).
 2. Troque o valor pelo token que a TI vai passar para cada ambiente. O token tem o formato `lara_` seguido de 48 caracteres. Produção e homologação recebem tokens diferentes: não copie um no outro.
-3. **Não** troque o token da assinatura remota (`LARA_SIGNATURE_API_TOKEN` ou equivalente, usado em `/api/assinatura/remota/*`). Ele continua separado e não mudou.
+3. **Não** coloque este token na variável da assinatura remota (`LARA_SIGNATURE_API_TOKEN` ou equivalente, usado em `/api/assinatura/remota/*`). A assinatura tem token próprio, com escopo próprio: o token `site` recebe 403 lá. A troca do token da assinatura está em `docs/prompts/NextJS/assinatura-remota-token-gerenciado-prompt.md` (18/11/2026).
 4. O token nunca vai para o navegador: só o servidor do Next chama O Lara. Se encontrar alguma chamada ao Lara saindo do cliente com o token, corrija junto (passe pelo servidor do Next).
 
 ## Respostas novas que o site pode receber

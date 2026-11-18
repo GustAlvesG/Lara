@@ -415,9 +415,15 @@ return [
     | site_url        — endereço do site; o link do e-mail é
     |                   `{site_url}/assinar/{token}`. Vazio = botão
     |                   desligado no painel.
-    | api_token       — token PRÓPRIO do site para esta API, no header
-    |                   `Authorization: Bearer`. Não é o `API_TOKEN` das
-    |                   reservas: um vazamento lá não pode abrir assinatura.
+    | api_token       — token ANTIGO do site para esta API, no header
+    |                   `Authorization: Bearer`. Desde 18/11/2026 o site usa
+    |                   um token gerenciado (Administração › Integrações) com
+    |                   o escopo `assinatura-remota`; este continua aceito
+    |                   enquanto `legacy_token_enabled`. Nunca o `API_TOKEN`
+    |                   das reservas: um vazamento lá não pode abrir assinatura.
+    | legacy_token_enabled — aceita o `api_token` acima. Desligue (false) quando
+    |                   a tela Integrações não mostrar mais "token antigo" no
+    |                   escopo Assinatura remota.
     | allowed_ips     — IPs (ou CIDR) de onde a API aceita chamadas: o servidor
     |                   do site. Vazio = qualquer origem com o token. É também
     |                   o que autoriza confiar nos headers `X-Signer-Ip` e
@@ -436,6 +442,7 @@ return [
     'remote' => [
         'site_url' => rtrim((string) env('SIGNATURE_REMOTE_SITE_URL', ''), '/'),
         'api_token' => (string) env('SIGNATURE_REMOTE_API_TOKEN', ''),
+        'legacy_token_enabled' => (bool) env('SIGNATURE_REMOTE_LEGACY_TOKEN_ENABLED', true),
         'allowed_ips' => array_values(array_filter(array_map(
             'trim',
             explode(',', (string) env('SIGNATURE_REMOTE_ALLOWED_IPS', '')),

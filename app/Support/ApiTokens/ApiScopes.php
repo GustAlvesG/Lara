@@ -21,6 +21,12 @@ final class ApiScopes
     public const HOME_ASSISTANT = 'home-assistant';
     public const TELEGRAM = 'telegram';
     public const WEBHOOK_WHATSAPP = 'webhook-whatsapp';
+    /**
+     * Desde 18/11/2026. Separado do `site` de propósito: um vazamento do token
+     * geral do site não pode abrir assinatura. O middleware é o
+     * `signature_remote_api` (EnsureSignatureRemoteClient), não o `api_token`.
+     */
+    public const ASSINATURA_REMOTA = 'assinatura-remota';
 
     /** escopo => [rótulo, o que libera] */
     private const CATALOG = [
@@ -30,6 +36,7 @@ final class ApiScopes
         self::HOME_ASSISTANT => ['Home Assistant', 'Automação da iluminação e comando manual dos contatores'],
         self::TELEGRAM => ['Telegram', 'Bot do Telegram: contatos, login por matrícula e cadastro de freelancers'],
         self::WEBHOOK_WHATSAPP => ['Webhook WhatsApp (Poli)', 'Mensagens recebidas pela Poli: bot do WhatsApp e pedidos de acesso do Uber'],
+        self::ASSINATURA_REMOTA => ['Assinatura remota (site)', 'Tela de quem assina pelo link do e-mail no site (/api/assinatura/remota/*). Use um token só com este escopo, separado do token do site'],
     ];
 
     /** @return list<string> */

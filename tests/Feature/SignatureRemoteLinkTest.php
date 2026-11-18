@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Http\Middleware\EnsureSignatureKioskSession;
 use App\Jobs\FinalizeSignatureDocument;
 use App\Mail\SignatureRemoteLinkMail;
+use App\Models\ApiTokens\ApiIntegration;
 use App\Models\SignatureAttachment;
 use App\Models\SignatureAuditEvent;
 use App\Models\SignatureDocument;
@@ -13,13 +14,16 @@ use App\Models\SignatureRemoteLink;
 use App\Models\SignatureRequest;
 use App\Models\SignatureSigner;
 use App\Models\SignatureTemplate;
+use App\Services\ApiTokens\ApiTokenManager;
 use App\Services\Signature\Govbr\GovbrCheckService;
 use App\Services\Signature\RemoteSignatureService;
 use App\Services\Signature\SignatureAttachmentService;
 use App\Services\Signature\SignatureDocumentRenderer;
 use App\Services\Signature\SignatureDocumentService;
+use App\Support\ApiTokens\ApiScopes;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -50,6 +54,7 @@ class SignatureRemoteLinkTest extends TestCase
 
         $this->createSignatureSchema();
         $this->createPermissionSchema();
+        (require database_path('migrations/2026_11_17_100000_create_api_integrations_tables.php'))->up();
 
         Storage::fake(config('signature.disk'));
         Queue::fake();
@@ -58,6 +63,7 @@ class SignatureRemoteLinkTest extends TestCase
         config([
             'signature.remote.site_url' => 'https://reservas.example.com',
             'signature.remote.api_token' => self::API_TOKEN,
+            'signature.remote.legacy_token_enabled' => true,
             'signature.remote.allowed_ips' => [],
             'signature.remote.link_ttl_days' => 7,
         ]);
@@ -247,6 +253,70 @@ class SignatureRemoteLinkTest extends TestCase
 
         config(['signature.remote.allowed_ips' => ['127.0.0.0/8']]);
         $this->site()->postJson(route('api.assinatura-remota.link'), ['token' => $token])->assertOk();
+    }
+
+    /** Token gerado em Administração › Integrações. */
+    private function tokenGerenciado(array $escopos, ?Carbon $validade = null): array
+    {
+        $integracao = ApiIntegration::create(['name' => 'Site ' . uniqid(), 'system' => 'nextjs', 'active' => true]);
+
+        return app(ApiTokenManager::class)->generate($integracao, 'produção', $escopos, $validade);
+    }
+
+    public function test_api_aceita_o_token_gerenciado_com_o_escopo_da_assinatura_e_grava_o_uso(): void
+    {
+        $token = $this->enviaLink($this->documentoCongelado());
+        $gerado = $this->tokenGerenciado([ApiScopes::ASSINATURA_REMOTA]);
+
+        $this->withHeaders(['Authorization' => 'Bearer ' . $gerado['plain'], 'X-Signer-Ip' => '177.10.20.30'])
+            ->postJson(route('api.assinatura-remota.link'), ['token' => $token])
+            ->assertOk();
+
+        $this->assertSame('api.assinatura-remota.link', $gerado['token']->fresh()->last_used_route);
+        $this->assertSame(1, (int) DB::table('api_token_usage_daily')
+            ->where('api_integration_token_id', $gerado['token']->id)
+            ->where('kind', 'token')->where('scope', ApiScopes::ASSINATURA_REMOTA)->value('hits'));
+    }
+
+    public function test_token_gerenciado_sem_o_escopo_vencido_ou_revogado_nao_abre_assinatura(): void
+    {
+        $token = $this->enviaLink($this->documentoCongelado());
+
+        // O token geral do site não abre assinatura.
+        $doSite = $this->tokenGerenciado([ApiScopes::SITE]);
+        $this->withHeaders(['Authorization' => 'Bearer ' . $doSite['plain']])
+            ->postJson(route('api.assinatura-remota.link'), ['token' => $token])
+            ->assertStatus(403)
+            ->assertJson(['reason' => 'unauthorized']);
+
+        $vencido = $this->tokenGerenciado([ApiScopes::ASSINATURA_REMOTA], now()->addDay());
+        $vencido['token']->forceFill(['expires_at' => now()->subMinute()])->save();
+        $this->withHeaders(['Authorization' => 'Bearer ' . $vencido['plain']])
+            ->postJson(route('api.assinatura-remota.link'), ['token' => $token])
+            ->assertStatus(401)
+            ->assertJson(['reason' => 'unauthorized']);
+
+        $revogado = $this->tokenGerenciado([ApiScopes::ASSINATURA_REMOTA]);
+        app(ApiTokenManager::class)->revoke($revogado['token'], null, 'teste');
+        $this->withHeaders(['Authorization' => 'Bearer ' . $revogado['plain']])
+            ->postJson(route('api.assinatura-remota.link'), ['token' => $token])
+            ->assertStatus(401);
+
+        $this->withHeaders(['Authorization' => 'Bearer lara_' . str_repeat('x', 48)])
+            ->postJson(route('api.assinatura-remota.link'), ['token' => $token])
+            ->assertStatus(401);
+    }
+
+    public function test_token_antigo_da_assinatura_fica_registrado_e_para_quando_desligado(): void
+    {
+        $token = $this->enviaLink($this->documentoCongelado());
+
+        $this->site()->postJson(route('api.assinatura-remota.link'), ['token' => $token])->assertOk();
+        $this->assertSame(1, (int) DB::table('api_token_usage_daily')
+            ->where('kind', 'legado')->where('scope', ApiScopes::ASSINATURA_REMOTA)->value('hits'));
+
+        config(['signature.remote.legacy_token_enabled' => false]);
+        $this->site()->postJson(route('api.assinatura-remota.link'), ['token' => $token])->assertStatus(401);
     }
 
     public function test_fluxo_completo_assina_a_distancia_com_cpf_completo_e_foto(): void
