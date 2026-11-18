@@ -17,7 +17,8 @@ use Tests\TestCase;
  * InfoClube › Fila de Espera: não sócios nas turmas das modalidades, sem
  * vínculo com o MultiClubes. Acesso pela permissão, turmas, inclusão pelo
  * CPF (sem duplicar a pessoa), várias filas por pessoa, ordem de chegada que
- * ligação nenhuma muda, saída e reativação na posição original.
+ * ligação nenhuma muda, saída e reativação na posição original. Desde
+ * 18/11/2026: cadastro sem CPF, que só fica na fila até alguém completar o CPF.
  *
  * Banco: migrations de acesso, da fila e as que o layout consulta, no SQLite
  * em memória, com a conexão do User apontando para o mesmo banco.
@@ -36,6 +37,7 @@ class WaitlistModuleTest extends TestCase
         $this->migrateAccessSchema();
         Artisan::call('migrate', ['--path' => [
             'database/migrations/2026_11_10_120000_create_waitlist_tables.php',
+            'database/migrations/2026_11_18_100000_make_waitlist_people_cpf_nullable.php',
             // O layout consulta notificações e avisos em toda tela.
             'database/migrations/2026_06_10_000001_create_notifications_table.php',
             'database/migrations/2026_06_10_000002_create_avisos_table.php',
@@ -63,7 +65,7 @@ class WaitlistModuleTest extends TestCase
         return WaitlistClass::create(['modality' => $modality, 'name' => $name, 'active' => $active]);
     }
 
-    private function pessoa(string $cpf = '52998224725', string $name = 'Ana Souza'): WaitlistPerson
+    private function pessoa(?string $cpf ='52998224725', string $name = 'Ana Souza'): WaitlistPerson
     {
         return WaitlistPerson::create(['cpf' => $cpf, 'name' => $name, 'phone' => '(21) 99999-0000']);
     }
@@ -172,15 +174,118 @@ class WaitlistModuleTest extends TestCase
         $this->assertSame(1, WaitlistPerson::count());
     }
 
-    public function test_cpf_invalido_e_obrigatorio(): void
+    public function test_cpf_invalido_e_recusado(): void
     {
         $this->actingAs($this->secretaria)->get('/fila-espera/pessoas/nova?cpf=123.456.789-00')
             ->assertRedirect('/fila-espera/pessoas/nova')
             ->assertSessionHasErrors('cpf');
 
         $this->actingAs($this->secretaria)->post('/fila-espera/pessoas', [
-            'cpf' => '', 'name' => 'Sem CPF', 'phone' => '21988887777',
+            'cpf' => '123.456.789-00', 'name' => 'CPF errado', 'phone' => '21988887777',
         ])->assertSessionHasErrors('cpf');
+        $this->assertSame(0, WaitlistPerson::count());
+    }
+
+    // --- Sem CPF (18/11/2026) --------------------------------------------------
+
+    public function test_cadastra_sem_cpf_ja_nas_turmas(): void
+    {
+        $natacao = $this->turma();
+        $tenis = $this->turma('Iniciante sáb 8h', 'Tênis');
+
+        $this->actingAs($this->secretaria)->get('/fila-espera/pessoas/nova')->assertOk()->assertSee('Cadastrar sem CPF');
+        $this->actingAs($this->secretaria)->get('/fila-espera/pessoas/nova?sem_cpf=1')->assertOk()
+            ->assertSee('Dados da pessoa')->assertSee('Cadastro sem CPF');
+
+        foreach (['Ana Souza', 'Bia Lima'] as $name) {
+            $this->actingAs($this->secretaria)->post('/fila-espera/pessoas', [
+                'cpf' => '', 'name' => $name, 'phone' => '21988887777',
+                'classes' => [$natacao->id, $tenis->id],
+            ])->assertSessionHasNoErrors()->assertSessionHas('success', fn ($m) => str_contains($m, 'Cadastro sem CPF'));
+        }
+
+        // Dois sem CPF convivem (NULL não fere o único) e já estão nas filas.
+        $this->assertSame(2, WaitlistPerson::whereNull('cpf')->count());
+        $this->assertSame(4, WaitlistEntry::waiting()->count());
+    }
+
+    public function test_sem_cpf_nenhuma_acao_posterior_ate_preencher_o_cpf(): void
+    {
+        $natacao = $this->turma();
+        $tenis = $this->turma('Iniciante sáb 8h', 'Tênis');
+        $ana = $this->pessoa(null);
+        $entrada = $this->inscrever($ana, $natacao, '2026-11-01 09:00');
+        $saiu = $this->inscrever($ana, $tenis, '2026-10-01 09:00');
+        $saiu->update(['status' => WaitlistEntry::STATUS_WITHDRAWN, 'closed_at' => now()]);
+        $ficha = '/fila-espera/pessoas/' . $ana->id;
+
+        $this->actingAs($this->secretaria)->from($ficha)
+            ->post('/fila-espera/inscricoes/' . $entrada->id . '/ligacoes', ['result' => 'no_answer'])
+            ->assertSessionHasErrors(['result' => 'Ana Souza está sem CPF. Para registrar a ligação, preencha o CPF em "Editar cadastro" antes.']);
+        $this->actingAs($this->secretaria)->from($ficha)
+            ->post('/fila-espera/inscricoes/' . $entrada->id . '/encerrar', ['status' => 'withdrawn'])
+            ->assertSessionHasErrors('status');
+        $this->actingAs($this->secretaria)->from($ficha)
+            ->post('/fila-espera/inscricoes/' . $saiu->id . '/reativar')
+            ->assertSessionHasErrors('status');
+        $outra = $this->turma('Adulto seg 19h');
+        $this->actingAs($this->secretaria)->from($ficha)
+            ->post($ficha . '/filas', ['classes' => [$outra->id]])
+            ->assertSessionHasErrors('classes');
+
+        // Editar o cadastro também é alteração: sem CPF não salva.
+        $this->actingAs($this->secretaria)->from($ficha)->put($ficha, [
+            'cpf' => '', 'name' => 'Ana Souza Lima', 'phone' => '21988887777',
+        ])->assertSessionHasErrors('cpf');
+
+        $this->assertSame(0, WaitlistContact::count());
+        $this->assertTrue($entrada->fresh()->isWaiting());
+        $this->assertSame('Ana Souza', $ana->fresh()->name);
+        $this->assertSame(1, $ana->entries()->waiting()->count());
+
+        // A ficha mostra o aviso no lugar das ações.
+        $this->actingAs($this->secretaria)->get($ficha)->assertOk()
+            ->assertSee('Cadastro sem CPF')
+            ->assertDontSee('Registrar ligação')
+            ->assertDontSee('Reativar');
+
+        // Completou o CPF: tudo liberado.
+        $this->actingAs($this->secretaria)->put($ficha, [
+            'cpf' => '529.982.247-25', 'name' => 'Ana Souza', 'phone' => '21988887777',
+        ])->assertSessionHasNoErrors();
+        $this->assertSame('52998224725', $ana->fresh()->cpf);
+
+        $this->actingAs($this->secretaria)
+            ->post('/fila-espera/inscricoes/' . $entrada->id . '/ligacoes', ['result' => 'no_answer'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(1, WaitlistContact::count());
+        $this->assertSame(1, $entrada->fresh()->position());
+    }
+
+    public function test_cpf_preenchido_depois_nao_pode_ser_de_outra_pessoa(): void
+    {
+        $this->pessoa('52998224725', 'Ana com CPF');
+        $semCpf = $this->pessoa(null, 'Ana da planilha');
+
+        $this->actingAs($this->secretaria)->from('/fila-espera/pessoas/' . $semCpf->id)
+            ->put('/fila-espera/pessoas/' . $semCpf->id, [
+                'cpf' => '52998224725', 'name' => 'Ana da planilha', 'phone' => '21988887777',
+            ])->assertSessionHasErrors('cpf');
+        $this->assertNull($semCpf->fresh()->cpf);
+    }
+
+    public function test_lista_filtra_e_marca_quem_esta_sem_cpf(): void
+    {
+        $turma = $this->turma();
+        $this->pessoa('52998224725', 'Com Documento');
+        $this->inscrever($this->pessoa(null, 'Veio da Planilha'), $turma, '2026-11-01 09:00');
+
+        $this->actingAs($this->secretaria)->get('/fila-espera/pessoas')->assertOk()
+            ->assertSee('Sem CPF (1)')->assertSee('Com Documento')->assertSee('Veio da Planilha');
+        $this->actingAs($this->secretaria)->get('/fila-espera/pessoas?sem_cpf=1')->assertOk()
+            ->assertSee('Veio da Planilha')->assertDontSee('Com Documento');
+        $this->actingAs($this->secretaria)->get('/fila-espera/turmas/' . $turma->id)->assertOk()
+            ->assertSee('Veio da Planilha')->assertSee('Sem CPF');
     }
 
     public function test_nao_entra_duas_vezes_na_mesma_turma_nem_em_turma_inativa(): void

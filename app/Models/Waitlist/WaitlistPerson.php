@@ -10,9 +10,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * Não sócio na fila de espera. O CPF é obrigatório (inclusive de menor) e
- * único: é ele que diz que a pessoa da fila da natação é a mesma da fila do
- * tênis. Gravado só com dígitos; para exibir, Cpf::format().
+ * Não sócio na fila de espera. O CPF é único (inclusive de menor): é ele que
+ * diz que a pessoa da fila da natação é a mesma da fila do tênis. Gravado só
+ * com dígitos; para exibir, Cpf::format().
+ *
+ * Desde 18/11/2026 o cadastro pode nascer SEM CPF (as listas antigas vieram de
+ * planilhas sem ele), mas qualquer ação posterior exige o CPF antes: ver
+ * `hasCpf()` e `WaitlistService::ensureHasCpf()`.
  */
 class WaitlistPerson extends Model
 {
@@ -30,8 +34,20 @@ class WaitlistPerson extends Model
     protected function cpf(): Attribute
     {
         return Attribute::make(
-            set: fn (?string $value) => Cpf::digits($value),
+            // Vazio vira NULL: o UNIQUE aceita vários NULL, não vários ''.
+            set: fn (?string $value) => Cpf::digits($value) !== '' ? Cpf::digits($value) : null,
         );
+    }
+
+    /** Sem CPF a pessoa só fica na fila: ligação, saída, reativação e nova turma pedem o CPF. */
+    public function hasCpf(): bool
+    {
+        return filled($this->cpf);
+    }
+
+    public function scopeWithoutCpf($query)
+    {
+        return $query->where(fn ($q) => $q->whereNull('cpf')->orWhere('cpf', ''));
     }
 
     public function entries(): HasMany

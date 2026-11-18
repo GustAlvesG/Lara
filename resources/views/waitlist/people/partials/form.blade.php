@@ -1,18 +1,27 @@
 {{--
     Campos do não sócio, no cadastro e na ficha. O CPF já chega conferido na
     inclusão (passo do CPF) e fica editável na ficha para corrigir digitação.
+    `cpfRequired` falso só no "Cadastrar sem CPF"; na ficha o CPF é sempre
+    obrigatório (é por ela que se completa o CPF de quem entrou sem).
 --}}
 @php
     $person = $person ?? null;
+    $cpfRequired = $cpfRequired ?? true;
     $hint = 'mt-1.5 text-xs text-ink-3';
 @endphp
 
 <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
     <div>
-        <x-input-label for="cpf" class="mb-1.5">CPF <span class="text-danger">*</span></x-input-label>
-        <x-text-input type="text" name="cpf" id="cpf" required inputmode="numeric" maxlength="14" class="font-mono" placeholder="000.000.000-00"
+        <x-input-label for="cpf" class="mb-1.5">CPF @if ($cpfRequired)<span class="text-danger">*</span>@endif</x-input-label>
+        <x-text-input type="text" name="cpf" id="cpf" :required="$cpfRequired" inputmode="numeric" maxlength="14" class="font-mono" placeholder="000.000.000-00"
             value="{{ old('cpf', \App\Support\Cpf::format($person->cpf ?? $cpf ?? '')) }}" />
-        <p class="{{ $hint }}">Obrigatório também para menor: é ele que identifica a pessoa em todas as filas.</p>
+        @if (!$cpfRequired)
+            <p class="{{ $hint }}">Pode ficar em branco agora. Sem ele, a pessoa só fica na fila: ligação, saída e outras turmas pedem o CPF.</p>
+        @elseif ($person && !$person->hasCpf())
+            <p class="{{ $hint }}">Cadastro sem CPF: preencha para liberar ligação, saída da fila e outras turmas.</p>
+        @else
+            <p class="{{ $hint }}">Obrigatório também para menor: é ele que identifica a pessoa em todas as filas.</p>
+        @endif
         <x-input-error :messages="$errors->get('cpf')" class="mt-1" />
     </div>
 

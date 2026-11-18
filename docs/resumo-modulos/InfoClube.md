@@ -80,14 +80,20 @@ Documentação completa: [docs/funcionalidades/fila-de-espera.md](../funcionalid
   MultiClubes; a secretaria confere lá antes de ligar. Não reintroduza consulta ao MC sem o
   usuário pedir — o que já se sabe das tabelas de lá está no fim do doc.
 - **Modelo** (`App\Models\Waitlist`): `WaitlistClass` (modalidade + nome, únicos juntos;
-  inativa não recebe gente), `WaitlistPerson` (CPF **obrigatório, único, só dígitos** pelo
-  mutator), `WaitlistEntry` (pessoa × turma, `joined_at` é a ordem, `status` `waiting` /
+  inativa não recebe gente), `WaitlistPerson` (CPF **único, só dígitos** pelo
+  mutator; **pode ser NULL** desde 18/11/2026), `WaitlistEntry` (pessoa × turma, `joined_at` é a ordem, `status` `waiting` /
   `enrolled` / `withdrawn` / `removed`), `WaitlistContact` (ligações).
 - **Regras em `App\Services\Waitlist\WaitlistService`:** incluir sem duplicar a mesma turma
   (trava a pessoa com `lockForUpdate`), ligação só de quem aguarda e **sem mudar a posição**,
   removido pede motivo, reativar mantém o `joined_at` (volta à posição original). A posição é
   calculada (`WaitlistEntry::position()`), não gravada.
 - **Inclusão começa pelo CPF** (`people.create?cpf=`): CPF existente redireciona à ficha.
+- **Sem CPF (18/11/2026):** `people.create?sem_cpf=1` cadastra sem CPF e já põe nas turmas
+  (`enroll(..., onCreate: true)`). Toda ação posterior passa por
+  `WaitlistService::ensureHasCpf()` (ligação, saída, reativar, outras turmas) e o
+  `WaitlistPersonRequest` exige o CPF na edição. Ação nova sobre pessoa ou inscrição deve
+  chamar `ensureHasCpf()` também. Telas mostram a etiqueta **Sem CPF**; a lista filtra
+  `?sem_cpf=1`.
 - **Ações voltam à ficha** na âncora `#fila-{entry}`; a fila da turma só lista e leva para lá.
 - Turma com histórico não se exclui, só desativa. Pessoa e inscrição nunca são apagadas.
 - Sem API, sem prompt para sistema externo.

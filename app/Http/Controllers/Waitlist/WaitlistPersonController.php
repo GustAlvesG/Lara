@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\Auth;
  * Os não sócios da fila de espera: busca, inclusão pelo CPF (quem já está
  * cadastrado é reaproveitado, não duplicado), ficha com as filas e as
  * ligações, e a inclusão em outras turmas.
+ *
+ * Desde 18/11/2026 dá para cadastrar sem CPF (`pessoas/nova?sem_cpf=1`),
+ * para as listas antigas; as ações posteriores pedem o CPF (WaitlistService).
  */
 class WaitlistPersonController extends Controller
 {
@@ -27,9 +30,11 @@ class WaitlistPersonController extends Controller
     public function index(Request $request)
     {
         $search = trim((string) $request->query('q', ''));
+        $withoutCpf = $request->boolean('sem_cpf');
 
         $query = WaitlistPerson::query()
             ->withCount(['entries as waiting_count' => fn (Builder $q) => $q->waiting()])
+            ->when($withoutCpf, fn (Builder $q) => $q->withoutCpf())
             ->orderBy('name');
 
         if ($search !== '') {
@@ -49,19 +54,31 @@ class WaitlistPersonController extends Controller
         return view('waitlist.people.index', [
             'people' => $query->paginate(30)->withQueryString(),
             'search' => $search,
+            'withoutCpf' => $withoutCpf,
+            'withoutCpfCount' => WaitlistPerson::withoutCpf()->count(),
         ]);
     }
 
     /**
      * Incluir começa pelo CPF: quem já está cadastrado vai para a ficha (de
-     * onde entra em outras turmas); quem não está ganha o formulário.
+     * onde entra em outras turmas); quem não está ganha o formulário. Sem o
+     * CPF em mãos, `?sem_cpf=1` abre o formulário direto (o CPF fica para
+     * depois, e sem ele a pessoa só fica na fila).
      */
     public function create(Request $request)
     {
         $cpf = Cpf::digits($request->query('cpf'));
 
+        if ($cpf === '' && $request->boolean('sem_cpf')) {
+            return view('waitlist.people.create', [
+                'cpf' => '',
+                'withoutCpf' => true,
+                'classes' => WaitlistClass::active()->ordered()->get(),
+            ]);
+        }
+
         if ($cpf === '') {
-            return view('waitlist.people.create', ['cpf' => null, 'classes' => collect()]);
+            return view('waitlist.people.create', ['cpf' => null, 'withoutCpf' => false, 'classes' => collect()]);
         }
 
         if (!Cpf::isValid($cpf)) {
@@ -78,6 +95,7 @@ class WaitlistPersonController extends Controller
 
         return view('waitlist.people.create', [
             'cpf' => $cpf,
+            'withoutCpf' => false,
             'classes' => WaitlistClass::active()->ordered()->get(),
         ]);
     }
@@ -86,11 +104,16 @@ class WaitlistPersonController extends Controller
     {
         $person = WaitlistPerson::create($request->personData() + ['created_by' => Auth::id()]);
 
-        $result = $this->waitlist->enroll($person, $request->validated('classes', []), Auth::id());
+        // Único momento em que quem está sem CPF entra em turma.
+        $result = $this->waitlist->enroll($person, $request->validated('classes', []), Auth::id(), onCreate: true);
 
         $message = $result['added']->isEmpty()
-            ? "Cadastro de {$person->name} criado, ainda sem turma. Escolha abaixo as turmas."
+            ? "Cadastro de {$person->name} criado, ainda sem turma." . ($person->hasCpf() ? ' Escolha abaixo as turmas.' : '')
             : "Cadastro de {$person->name} criado e incluído na fila de " . $result['added']->count() . ' ' . ($result['added']->count() === 1 ? 'turma' : 'turmas') . '.';
+
+        if (!$person->hasCpf()) {
+            $message .= ' Cadastro sem CPF: para registrar ligação, tirar da fila ou incluir em outra turma, preencha o CPF em "Editar cadastro".';
+        }
 
         return redirect()->route('waitlist.people.show', $person)->with('success', $message);
     }

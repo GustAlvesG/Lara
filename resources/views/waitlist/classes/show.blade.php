@@ -67,6 +67,9 @@
                                     <td class="{{ $td }} font-mono font-bold text-ink">{{ $index + 1 }}º</td>
                                     <td class="{{ $td }}">
                                         <a href="{{ route('waitlist.people.show', $entry->person) }}#fila-{{ $entry->id }}" class="font-semibold text-ink hover:text-grena-ink">{{ $entry->person->name }}</a>
+                                        @unless ($entry->person->hasCpf())
+                                            <x-pill kind="warn" :icon="false" class="ml-1">Sem CPF</x-pill>
+                                        @endunless
                                         @if ($entry->person->isMinor() && $entry->person->guardian_name)
                                             <p class="text-xs text-ink-3">Responsável: {{ $entry->person->guardian_name }}</p>
                                         @endif

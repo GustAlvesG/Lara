@@ -8,8 +8,12 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Cadastro e edição do não sócio da fila de espera. CPF obrigatório e único
- * (inclusive de menor): é ele que liga a mesma pessoa a várias filas.
+ * Cadastro e edição do não sócio da fila de espera. CPF único (inclusive de
+ * menor): é ele que liga a mesma pessoa a várias filas.
+ *
+ * Desde 18/11/2026 o CPF é opcional no CADASTRO (listas antigas sem CPF) e
+ * obrigatório na EDIÇÃO: editar o cadastro é uma alteração posterior, e é por
+ * ela que a secretaria completa o CPF de quem entrou sem.
  */
 class WaitlistPersonRequest extends FormRequest
 {
@@ -21,7 +25,7 @@ class WaitlistPersonRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge([
-            'cpf' => Cpf::digits($this->input('cpf')),
+            'cpf' => Cpf::digits($this->input('cpf')) !== '' ? Cpf::digits($this->input('cpf')) : null,
             'name' => trim((string) $this->input('name')),
         ]);
     }
@@ -33,7 +37,7 @@ class WaitlistPersonRequest extends FormRequest
 
         return [
             'cpf' => [
-                'required', 'string', EmployeeRequest::validCpf(),
+                $person ? 'required' : 'nullable', 'string', EmployeeRequest::validCpf(),
                 Rule::unique('waitlist_people', 'cpf')->ignore($person?->id),
             ],
             'name' => ['required', 'string', 'max:255'],
@@ -70,6 +74,7 @@ class WaitlistPersonRequest extends FormRequest
     {
         return [
             'cpf.unique' => 'Já existe uma pessoa na fila de espera com este CPF.',
+            'cpf.required' => 'Informe o CPF: sem ele não dá para alterar o cadastro.',
             'birth_date.before_or_equal' => 'A data de nascimento não pode ser no futuro.',
         ];
     }
@@ -77,6 +82,9 @@ class WaitlistPersonRequest extends FormRequest
     /** Os campos da pessoa, sem as turmas. */
     public function personData(): array
     {
-        return collect($this->validated())->except('classes')->all();
+        $data = collect($this->validated())->except('classes')->all();
+        $data['cpf'] = filled($data['cpf'] ?? null) ? $data['cpf'] : null;
+
+        return $data;
     }
 }

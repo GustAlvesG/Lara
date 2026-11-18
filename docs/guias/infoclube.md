@@ -1,6 +1,6 @@
 ---
 modulo: InfoClube
-palavras: informação, informações, atividade, serviço, aula, horário de aula, preço, responsável, aviso, avisos, comunicado, recado, lembrete, leitura obrigatória, ciência, confirmar leitura, quem leu, expiração, visibilidade, setor, grupo, mural, tags, histórico de versões, fila de espera, lista de espera, não sócio, turma, vaga, modalidade, matrícula, turma lotada, ligar, ligação
+palavras: informação, informações, atividade, serviço, aula, horário de aula, preço, responsável, aviso, avisos, comunicado, recado, lembrete, leitura obrigatória, ciência, confirmar leitura, quem leu, expiração, visibilidade, setor, grupo, mural, tags, histórico de versões, fila de espera, lista de espera, não sócio, turma, vaga, modalidade, matrícula, turma lotada, ligar, ligação, CPF, sem CPF, cadastro sem CPF, completar CPF, planilha
 ---
 
 # InfoClube — guia de uso
@@ -215,7 +215,8 @@ A tela **InfoClube › Fila de Espera** guarda quem **não é sócio** e quer va
 
 - **Só não sócios.** O sócio entra na fila pelo MultiClubes, como sempre. O Lara não consulta o MultiClubes.
 - **O sócio tem prioridade.** Antes de ligar para um não sócio, confira no MultiClubes se há sócio esperando na mesma turma. A tela da fila da turma lembra disso numa faixa de aviso, acima da lista.
-- **Uma pessoa pode estar em várias filas** ao mesmo tempo (por exemplo, natação e tênis), uma vez em cada turma. O **CPF** identifica a pessoa e é obrigatório, inclusive para criança.
+- **Uma pessoa pode estar em várias filas** ao mesmo tempo (por exemplo, natação e tênis), uma vez em cada turma. O **CPF** identifica a pessoa, inclusive criança.
+- **Dá para cadastrar sem CPF**, para não travar as listas antigas. Mas, sem CPF, a pessoa **só fica na fila**: para registrar ligação, tirar da fila, reativar, incluir em outra turma ou alterar o cadastro, é preciso preencher o CPF antes.
 - **A posição não muda** por ligação sem resposta. Só sai da fila quem a secretaria tirar.
 
 No alto da tela há duas listas: **Turmas** e **Pessoas** (busca por nome, CPF ou telefone). Em **Turmas**, cada turma é um cartão com a modalidade, o nome, se está ativa, **quantas pessoas aguardam** (o número grande) e desde quando o primeiro da fila espera. Clique no cartão para abrir a fila da turma; o lápis edita a turma.
@@ -247,6 +248,19 @@ Em **InfoClube › Fila de Espera**, clique em **Incluir pessoa**.
 4. Clique em **Incluir na fila**.
 
 Para colocar alguém que já está cadastrado em mais uma turma, abra a ficha (lista **Pessoas** ou pela fila da turma), marque as turmas em **Incluir em outras turmas** e clique em **Incluir na fila**.
+
+## Cadastrar uma pessoa sem CPF e completar o CPF depois
+<!-- telas: waitlist.index -->
+
+Use quando não tiver o CPF em mãos (por exemplo, nomes que vieram das listas antigas).
+
+1. Em **InfoClube › Fila de Espera**, clique em **Incluir pessoa** e, abaixo do campo do CPF, em **Cadastrar sem CPF**.
+2. Antes de continuar, confira na lista **Pessoas** se ela já não está cadastrada: sem CPF o Lara não percebe a duplicidade.
+3. Preencha **Nome completo** e **Telefone**, deixe o **CPF** em branco, marque as turmas e clique em **Incluir na fila**. Ela entra no fim de cada fila, como qualquer pessoa.
+
+A pessoa aparece com a etiqueta **Sem CPF** na lista **Pessoas** e na fila da turma. Ela continua na fila, na mesma posição, mas a ficha dela **não deixa** registrar ligação, tirar da fila, reativar nem incluir em outra turma, e mostra o aviso **Cadastro sem CPF**.
+
+Para liberar: abra a ficha, preencha o **CPF** em **Editar cadastro** (já aberto no fim da página) e clique em **Salvar**. Para achar quem ainda está sem CPF, use o botão **Sem CPF** na lista **Pessoas**.
 
 ## Chamar o próximo da fila e registrar a ligação
 <!-- telas: waitlist.index -->
@@ -336,6 +350,11 @@ Só coordenadores de setor podem exigir leitura. Se você coordena a equipe e a 
 <!-- telas: waitlist.index -->
 
 A Fila de Espera pede a permissão "Fila de espera das modalidades (não sócios)", do grupo InfoClube, porque guarda CPF e telefone. Fale com o coordenador do seu setor: ele coloca você num setor que já tem a permissão (tela **Meu setor**) ou pede à TI ou à Gerência que a liberem (tela **Setores**).
+
+### "… está sem CPF. Para registrar a ligação, preencha o CPF em "Editar cadastro" antes."
+<!-- telas: waitlist.index -->
+
+A pessoa foi cadastrada sem CPF e, sem ele, nada pode ser alterado: nem ligação, nem saída da fila, nem nova turma, nem o próprio cadastro. Peça o CPF (na ligação, por exemplo), abra a ficha, preencha o **CPF** em **Editar cadastro**, clique em **Salvar** e depois registre a ligação. Se o Lara disser que o CPF já existe, a pessoa tem outro cadastro: use o que já tem CPF.
 
 ### Posso colocar um sócio na Fila de Espera do Lara?
 <!-- telas: waitlist.index -->

@@ -1,6 +1,7 @@
 {{--
     Os não sócios da fila de espera, com em quantas filas cada um aguarda.
-    Busca por nome, CPF ou telefone.
+    Busca por nome, CPF ou telefone. Filtro "Sem CPF" (18/11/2026) para a
+    secretaria ir completando o CPF de quem veio das listas antigas.
 --}}
 @php
     $th = 'px-4 py-3 text-left text-xs font-bold text-ink-3';
@@ -19,11 +20,26 @@
         @include('partials.alerts')
         @include('waitlist.partials.switch', ['current' => 'pessoas'])
 
-        <x-search-bar placeholder="Buscar por nome, CPF ou telefone" />
+        <x-search-bar placeholder="Buscar por nome, CPF ou telefone" :filters="['sem_cpf']" />
+
+        @if ($withoutCpfCount > 0 || $withoutCpf)
+            <nav class="flex flex-wrap gap-2" aria-label="CPF">
+                @foreach (['' => 'Todos', '1' => 'Sem CPF (' . $withoutCpfCount . ')'] as $value => $text)
+                    @php $current = ($withoutCpf ? '1' : '') === $value; @endphp
+                    <a href="{{ route('waitlist.people.index', array_filter(['q' => $search, 'sem_cpf' => $value])) }}" @if ($current) aria-current="page" @endif
+                       class="inline-flex h-10 items-center rounded-full px-4 text-sm font-bold transition {{ $current ? 'bg-grena text-white' : 'border border-line-strong bg-surface text-ink-2 hover:text-ink' }}">
+                        {{ $text }}
+                    </a>
+                @endforeach
+            </nav>
+        @endif
 
         @if ($people->isEmpty())
             <x-empty-state icon="users">
-                @if ($search !== '')
+                @if ($withoutCpf && $search === '')
+                    Ninguém sem CPF.
+                    <a href="{{ route('waitlist.people.index') }}" class="font-bold text-grena-ink hover:underline">Ver todos</a>.
+                @elseif ($search !== '')
                     Ninguém corresponde a “{{ $search }}”.
                     <a href="{{ route('waitlist.people.index') }}" class="font-bold text-grena-ink hover:underline">Limpar a busca</a>.
                 @else
@@ -51,7 +67,13 @@
                                     <td class="{{ $td }}">
                                         <a href="{{ route('waitlist.people.show', $person) }}" class="font-semibold text-ink hover:text-grena-ink">{{ $person->name }}</a>
                                     </td>
-                                    <td class="{{ $td }} whitespace-nowrap font-mono text-ink-2">{{ \App\Support\Cpf::format($person->cpf) }}</td>
+                                    <td class="{{ $td }} whitespace-nowrap font-mono text-ink-2">
+                                        @if ($person->hasCpf())
+                                            {{ \App\Support\Cpf::format($person->cpf) }}
+                                        @else
+                                            <x-pill kind="warn" :icon="false">Sem CPF</x-pill>
+                                        @endif
+                                    </td>
                                     <td class="{{ $td }} text-ink-2">{{ $person->age() !== null ? $person->age() . ' anos' : '—' }}</td>
                                     <td class="{{ $td }} whitespace-nowrap font-mono text-ink-2">{{ $person->phone }}</td>
                                     <td class="{{ $td }} text-ink-2">
