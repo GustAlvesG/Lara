@@ -28,7 +28,7 @@ pessoais: CPF, telefone, nascimento, responsável.
 |---|---|---|
 | Turmas | `GET /fila-espera` (`waitlist.index`) | Turmas com quantos aguardam e desde quando o primeiro espera. Busca por modalidade ou turma; filtro ativas / inativas / todas. Botões **Nova turma** e **Incluir pessoa**. |
 | Pessoas | `GET /fila-espera/pessoas` (`waitlist.people.index`) | Não sócios cadastrados, com em quantas turmas aguardam. Busca por nome, CPF ou telefone. Filtro **Sem CPF (n)** (`?sem_cpf=1`), que só aparece enquanto houver alguém sem CPF. |
-| Fila da turma | `GET /fila-espera/turmas/{id}` (`waitlist.classes.show`) | Quem aguarda, na ordem (posição, idade, telefone, desde quando, última ligação), com a etiqueta **Sem CPF** em quem não tem. Aba **Saíram da fila** com situação, datas e motivo. |
+| Fila da turma | `GET /fila-espera/turmas/{id}` (`waitlist.classes.show`) | Quem aguarda, na ordem (posição, idade, telefone, desde quando, última ligação), com a etiqueta **Sem CPF** em quem não tem e a **observação da fila** abaixo do nome. **Clicar na linha abre um acordeão** com as operações da pessoa nesta fila (observação da fila, registrar ligação, histórico de ligações, tirar da fila), sem sair da tela; **só o lápis** abre a ficha. Depois de uma ação, a tela volta com o acordeão daquela pessoa aberto. Aba **Saíram da fila** com situação, datas e motivo. |
 | Turma nova / editar | `/fila-espera/turmas/nova`, `/fila-espera/turmas/{id}/editar` | Modalidade (com sugestão das já usadas), nome da turma, observação, ativa. Excluir só turma que nunca teve ninguém. |
 | Incluir pessoa | `GET /fila-espera/pessoas/nova` (`waitlist.people.create`) | Começa pelo **CPF**. CPF já cadastrado abre a ficha (não duplica); CPF novo abre o formulário com as turmas. O link **Cadastrar sem CPF** (`?sem_cpf=1`) abre o formulário direto, com o CPF opcional. |
 | Ficha da pessoa | `GET /fila-espera/pessoas/{id}` (`waitlist.people.show`) | Um cartão por fila em que aguarda (posição, registrar ligação, histórico de ligações, tirar da fila), **Incluir em outras turmas**, **Saiu da fila** (com **Reativar**) e **Editar cadastro** (âncora `#cadastro`). Cada fila tem a âncora `#fila-{id}`. Sem CPF: faixa de aviso, as ações viram um lembrete e o **Editar cadastro** já vem aberto. |
@@ -65,6 +65,11 @@ pessoais: CPF, telefone, nascimento, responsável.
 - **Turma inativa** não recebe gente nova; a fila dela continua visível. **Excluir** só turma
   que nunca teve ninguém; a que teve guarda o histórico e se desativa.
 - Ligação para quem já saiu da fila é recusada ("Reative a inscrição antes").
+- **Observação da fila (desde 19/11/2026):** texto livre da **inscrição** (pessoa × turma),
+  diferente da observação do cadastro da pessoa: a observação da natação não aparece no tênis.
+  Aparece na fila da turma abaixo do nome e no cartão da ficha; em branco, apaga. Não muda a
+  posição. É alteração posterior, então pede o CPF como as outras ações. **Reativar** continua só
+  na ficha (quem saiu não está na lista de quem aguarda).
 - Ação em cadastro sem CPF é recusada com "<nome> está sem CPF. Para <ação>, preencha o CPF em
   "Editar cadastro" antes." (`WaitlistService::ensureHasCpf()`).
 
@@ -74,13 +79,13 @@ pessoais: CPF, telefone, nascimento, responsável.
 |---|---|
 | `waitlist_classes` | `modality`, `name` (únicos juntos), `notes`, `active`, `created_by`. |
 | `waitlist_people` | `cpf` (11 dígitos, único, **NULL** = sem CPF desde 18/11/2026; vazio vira NULL no mutator), `name`, `birth_date`, `phone`, `phone_alt`, `email`, `guardian_name`, `guardian_phone`, `notes`, `created_by`. |
-| `waitlist_entries` | Pessoa × turma: `joined_at` (a ordem), `status` (`waiting`, `enrolled`, `withdrawn`, `removed`), `closed_at`, `closed_by`, `close_reason`, `created_by`. |
+| `waitlist_entries` | Pessoa × turma: `joined_at` (a ordem), `notes` (observação da fila, desde 19/11/2026), `status` (`waiting`, `enrolled`, `withdrawn`, `removed`), `closed_at`, `closed_by`, `close_reason`, `created_by`. |
 | `waitlist_contacts` | Ligações: `waitlist_entry_id`, `result`, `notes`, `user_id`, `created_at`. |
 
-Migrations: `2026_11_10_120000_create_waitlist_tables.php` (idempotente, nomes de índice curtos)
-e `2026_11_18_100000_make_waitlist_people_cpf_nullable.php` (CPF anulável; o índice único
+Migrations: `2026_11_10_120000_create_waitlist_tables.php` (idempotente, nomes de índice curtos),
+`2026_11_18_100000_make_waitlist_people_cpf_nullable.php` (CPF anulável; o índice único
 continua, porque o MySQL aceita vários NULL num UNIQUE; o `down` só volta a NOT NULL se ninguém
-estiver sem CPF).
+estiver sem CPF) e `2026_11_19_100000_add_notes_to_waitlist_entries.php` (observação da fila).
 Nada é apagado: não há exclusão de pessoa nem de inscrição.
 
 ## Integrações
@@ -94,11 +99,11 @@ outro sistema.
 |---|---|
 | `app/Http/Controllers/Waitlist/WaitlistClassController.php` | Lista de turmas, cadastro, fila da turma. |
 | `app/Http/Controllers/Waitlist/WaitlistPersonController.php` | Pessoas, inclusão pelo CPF, ficha, incluir em outras turmas. |
-| `app/Http/Controllers/Waitlist/WaitlistEntryController.php` | Registrar ligação, tirar da fila, reativar. |
+| `app/Http/Controllers/Waitlist/WaitlistEntryController.php` | Registrar ligação, observação da fila, tirar da fila, reativar. `back=turma` devolve à fila da turma com o acordeão aberto. |
 | `app/Services/Waitlist/WaitlistService.php` | As regras (incluir sem duplicar, turma inativa, ligação só de quem aguarda, saída, reativação, CPF exigido nas ações posteriores: `ensureHasCpf()`; `enroll(..., onCreate: true)` só no cadastro). |
 | `app/Models/Waitlist/*` | `WaitlistClass`, `WaitlistPerson` (CPF só dígitos ou NULL, `hasCpf()`, escopo `withoutCpf()`, idade), `WaitlistEntry` (situações, posição, dias na fila), `WaitlistContact` (resultados). |
 | `app/Http/Requests/WaitlistPersonRequest.php`, `WaitlistClassRequest.php` | Validação (CPF opcional no cadastro, obrigatório na edição). |
-| `resources/views/waitlist/*` | Telas. |
+| `resources/views/waitlist/*` | Telas. As operações de uma inscrição ficam em `waitlist/entries/partials/actions.blade.php`, usado no cartão da ficha e no acordeão da fila da turma. |
 | `tests/Feature/Waitlist/WaitlistModuleTest.php` | Acesso, turmas, inclusão, CPF, cadastro sem CPF e o bloqueio das ações, ordem, ligações, saída, reativação e telas. |
 
 Guia do usuário: [docs/guias/infoclube.md](../guias/infoclube.md), seções da Fila de Espera.

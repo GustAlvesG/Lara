@@ -36,7 +36,8 @@ class WaitlistEntry extends Model
     protected $table = 'waitlist_entries';
 
     protected $fillable = [
-        'waitlist_class_id', 'waitlist_person_id', 'joined_at', 'status',
+        // `notes`: observação livre desta inscrição (19/11/2026), não do cadastro.
+        'waitlist_class_id', 'waitlist_person_id', 'joined_at', 'notes', 'status',
         'closed_at', 'closed_by', 'close_reason', 'created_by',
     ];
 

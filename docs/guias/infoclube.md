@@ -1,6 +1,6 @@
 ---
 modulo: InfoClube
-palavras: informação, informações, atividade, serviço, aula, horário de aula, preço, responsável, aviso, avisos, comunicado, recado, lembrete, leitura obrigatória, ciência, confirmar leitura, quem leu, expiração, visibilidade, setor, grupo, mural, tags, histórico de versões, fila de espera, lista de espera, não sócio, turma, vaga, modalidade, matrícula, turma lotada, ligar, ligação, CPF, sem CPF, cadastro sem CPF, completar CPF, planilha
+palavras: informação, informações, atividade, serviço, aula, horário de aula, preço, responsável, aviso, avisos, comunicado, recado, lembrete, leitura obrigatória, ciência, confirmar leitura, quem leu, expiração, visibilidade, setor, grupo, mural, tags, histórico de versões, fila de espera, lista de espera, não sócio, turma, vaga, modalidade, matrícula, turma lotada, ligar, ligação, observação da fila, anotação, acordeão, CPF, sem CPF, cadastro sem CPF, completar CPF, planilha
 ---
 
 # InfoClube — guia de uso
@@ -268,11 +268,21 @@ Para liberar: abra a ficha, preencha o **CPF** em **Editar cadastro** (já abert
 Quando abrir vaga numa turma:
 
 1. Confira no **MultiClubes** se há **sócio** na fila dessa turma. Se houver, a vaga é dele.
-2. Em **InfoClube › Fila de Espera**, abra a turma. O primeiro da lista (**1º**) é o próximo. A tabela mostra idade, telefone, desde quando espera e a última ligação.
-3. Clique no nome (ou no lápis) para abrir a ficha da pessoa, já no cartão daquela turma.
-4. Ligue. Em **Resultado da ligação**, escolha o que aconteceu, escreva uma observação se quiser e clique em **Registrar ligação**.
+2. Em **InfoClube › Fila de Espera**, abra a turma. O primeiro da lista (**1º**) é o próximo. A tabela mostra idade, telefone, desde quando espera, a última ligação e, abaixo do nome, a **observação da fila**.
+3. Clique na linha da pessoa (ou no nome): abre ali mesmo, embaixo dela, o painel com as operações daquela pessoa **nesta fila**: observação da fila, registrar ligação, as ligações anteriores e tirar da fila. Clique de novo para fechar. Para abrir a **ficha completa** da pessoa, clique no **lápis**.
+4. Ligue. Em **Resultado da ligação**, escolha o que aconteceu, escreva uma observação da ligação se quiser e clique em **Registrar ligação**. A tela volta para a fila da turma com o painel da pessoa aberto.
 
-Resultados possíveis: **Não atendeu**, **Deixou recado**, **Pediu para ligar depois**, **Não quer a vaga agora (continua na fila)**, **Aceitou a vaga** e **Telefone errado**. Nenhum deles muda a posição nem tira a pessoa da fila. Cada ligação fica no cartão, com data, hora e quem ligou.
+Resultados possíveis: **Não atendeu**, **Deixou recado**, **Pediu para ligar depois**, **Não quer a vaga agora (continua na fila)**, **Aceitou a vaga** e **Telefone errado**. Nenhum deles muda a posição nem tira a pessoa da fila. Cada ligação fica no painel e no cartão da ficha, com data, hora e quem ligou.
+
+## Anotar uma observação da pessoa numa fila
+<!-- telas: waitlist.index -->
+
+Cada turma em que a pessoa aguarda tem a sua **Observação da fila**, um texto livre (ex.: "só pode à tarde", "prefere a turma de sábado"). Ela vale só para aquela turma: a observação da natação não aparece no tênis. Para dados da pessoa (como melhor horário para ligar em geral), use a **Observação** do cadastro.
+
+1. Abra a turma e clique na linha da pessoa (ou abra a ficha dela, no cartão da turma).
+2. Escreva em **Observação da fila** e clique em **Salvar observação**. Para apagar, deixe em branco e salve.
+
+A observação aparece na fila da turma, abaixo do nome. Não muda a posição. Se a pessoa estiver **sem CPF**, preencha o CPF antes.
 
 Se ninguém atender, você pode ligar para o seguinte e voltar ao primeiro depois: ele continua em 1º.
 

@@ -12,7 +12,6 @@
     $label = 'block text-xs font-bold uppercase tracking-wide text-ink-3';
     $selectClass = 'h-11 w-full rounded-full border border-line-strong bg-surface px-4 text-sm text-ink focus:border-grena focus:ring-4 focus:ring-grena-tint';
     $hasCpf = $person->hasCpf();
-    $needsCpf = 'Preencha o CPF em "Editar cadastro" para registrar ligação ou tirar da fila.';
 @endphp
 
 <x-app-layout :bootstrap-grid="false">
@@ -95,70 +94,7 @@
                     <x-pill kind="info" :icon="false">{{ $position }}º da fila</x-pill>
                 </div>
 
-                @if ($hasCpf)
-                <form method="POST" action="{{ route('waitlist.entries.contact', $entry) }}" class="grid grid-cols-1 items-end gap-3 border-b border-line p-5 sm:grid-cols-[minmax(0,16rem)_1fr_auto] sm:px-6">
-                    @csrf
-                    <div>
-                        <x-input-label for="result-{{ $entry->id }}" value="Resultado da ligação" class="mb-1.5" />
-                        <select name="result" id="result-{{ $entry->id }}" required class="{{ $selectClass }}">
-                            <option value="">Escolha…</option>
-                            @foreach (\App\Models\Waitlist\WaitlistContact::RESULTS as $value => $text)
-                                <option value="{{ $value }}">{{ $text }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <x-input-label for="notes-{{ $entry->id }}" value="Observação" class="mb-1.5" />
-                        <x-text-input type="text" name="notes" id="notes-{{ $entry->id }}" maxlength="255" placeholder="Ex.: ligar depois das 18h" />
-                    </div>
-                    <x-primary-button class="justify-center"><x-icon name="chat" /> Registrar ligação</x-primary-button>
-                </form>
-                @else
-                    <p class="border-b border-line px-5 py-3 text-sm text-warn sm:px-6">{{ $needsCpf }}</p>
-                @endif
-
-                @if ($entry->contacts->isNotEmpty())
-                    <ul class="divide-y divide-line border-b border-line">
-                        @foreach ($entry->contacts as $contact)
-                            <li class="flex flex-wrap items-baseline justify-between gap-2 px-5 py-3 text-sm sm:px-6">
-                                <span class="text-ink">
-                                    <strong>{{ $contact->resultLabel() }}</strong>
-                                    @if ($contact->notes) — {{ $contact->notes }} @endif
-                                </span>
-                                <span class="text-xs text-ink-3">
-                                    {{ $contact->created_at->format('d/m/Y H:i') }}@if ($contact->user) · {{ $contact->user->name }}@endif
-                                </span>
-                            </li>
-                        @endforeach
-                    </ul>
-                @else
-                    <p class="border-b border-line px-5 py-3 text-sm text-ink-3 sm:px-6">Nenhuma ligação registrada.</p>
-                @endif
-
-                @if ($hasCpf)
-                <details class="p-5 sm:px-6">
-                    <summary class="cursor-pointer text-sm font-bold text-grena-ink">Tirar da fila (matriculou, desistiu ou remover)</summary>
-                    <form method="POST" action="{{ route('waitlist.entries.close', $entry) }}" class="mt-4 grid grid-cols-1 items-end gap-3 sm:grid-cols-[minmax(0,14rem)_1fr_auto]">
-                        @csrf
-                        <div>
-                            <x-input-label for="status-{{ $entry->id }}" value="Situação" class="mb-1.5" />
-                            <select name="status" id="status-{{ $entry->id }}" required class="{{ $selectClass }}">
-                                <option value="enrolled">Matriculado</option>
-                                <option value="withdrawn">Desistiu</option>
-                                <option value="removed">Removido (diga o motivo)</option>
-                            </select>
-                        </div>
-                        <div>
-                            <x-input-label for="reason-{{ $entry->id }}" value="Motivo / observação" class="mb-1.5" />
-                            <x-text-input type="text" name="close_reason" id="reason-{{ $entry->id }}" maxlength="255" />
-                        </div>
-                        <x-danger-button class="justify-center" onclick="return confirm('Tirar {{ addslashes($person->name) }} da fila desta turma?');">
-                            <x-icon name="check" /> Confirmar
-                        </x-danger-button>
-                    </form>
-                    <p class="mt-2 text-xs text-ink-3">Dá para reativar depois: a pessoa volta para a mesma posição.</p>
-                </details>
-                @endif
+                @include('waitlist.entries.partials.actions', ['entry' => $entry, 'back' => null])
             </section>
         @empty
             <x-empty-state icon="class">Não está aguardando em nenhuma turma.</x-empty-state>
@@ -200,6 +136,9 @@
                                     @if ($entry->close_reason) · {{ $entry->close_reason }} @endif
                                     · {{ $entry->contacts->count() }} {{ $entry->contacts->count() === 1 ? 'ligação' : 'ligações' }}
                                 </p>
+                                @if ($entry->notes)
+                                    <p class="mt-1 whitespace-pre-line text-xs text-ink-2">{{ $entry->notes }}</p>
+                                @endif
                             </div>
                             @if ($hasCpf)
                                 <form method="POST" action="{{ route('waitlist.entries.reopen', $entry) }}" onsubmit="return confirm('Devolver a pessoa à fila desta turma, na posição original?');">

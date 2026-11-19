@@ -45,6 +45,7 @@ waitlist_people   id, cpf VARCHAR(11) NULL UNIQUE (só dígitos, ou NULL = sem C
                   created_by NULL, created_at, updated_at
 
 waitlist_entries  id, waitlist_class_id FK, waitlist_person_id FK, joined_at DATETIME,
+                  notes TEXT NULL (observação da fila, desde 19/11/2026),
                   status VARCHAR(20) ('waiting' para todos da importação),
                   closed_at NULL, closed_by NULL, close_reason NULL, created_by NULL,
                   created_at, updated_at
@@ -79,6 +80,12 @@ Não mexa em `waitlist_contacts` (ligações) nem em nenhuma outra tabela.
      linha).
    - **Modalidade e turma:** escritas sempre do mesmo jeito ("Natação" e "Natacao" seriam duas
      turmas diferentes). Liste as variações que encontrar e confirme com o usuário.
+   - **Observações (desde 19/11/2026):** o Lara tem duas. `observacao` é da **pessoa** (vale em
+     todas as filas: melhor horário para ligar, CPF inválido da planilha). `observacao_fila` é da
+     **inscrição naquela turma** (ex.: "só à tarde", "prefere sábado") e aparece na fila da turma,
+     abaixo do nome. Observação que está numa linha da planilha de uma turma vai, por padrão, para
+     `observacao_fila`; na dúvida, pergunte ao usuário. Inscrição que já existe no Lara não é
+     recriada, então a `observacao_fila` dela não muda numa nova rodada.
    - **Sócios:** se a planilha indicar que a pessoa é sócia (coluna, cor ou observação), ela
      **não entra**. Liste no relatório.
 3. **Mesmo CPF em várias linhas:**
@@ -113,6 +120,7 @@ CREATE TABLE waitlist_import (
     cpf CHAR(11) NULL, nome VARCHAR(255) NOT NULL, nascimento DATE NULL,
     telefone VARCHAR(20) NOT NULL, telefone2 VARCHAR(20) NULL, email VARCHAR(255) NULL,
     responsavel VARCHAR(255) NULL, tel_responsavel VARCHAR(20) NULL, observacao TEXT NULL,
+    observacao_fila TEXT NULL,
     data_entrada DATETIME NOT NULL, ordem INT NOT NULL
 );
 
@@ -144,8 +152,8 @@ WHERE i.cpf IS NULL
                   WHERE p.cpf IS NULL AND p.name = i.nome AND p.phone = i.telefone)
 GROUP BY i.nome, i.telefone;
 
-INSERT INTO waitlist_entries (waitlist_class_id, waitlist_person_id, joined_at, status, created_at, updated_at)
-SELECT c.id, p.id, i.data_entrada, 'waiting', NOW(), NOW()
+INSERT INTO waitlist_entries (waitlist_class_id, waitlist_person_id, joined_at, notes, status, created_at, updated_at)
+SELECT c.id, p.id, i.data_entrada, i.observacao_fila, 'waiting', NOW(), NOW()
 FROM waitlist_import i
 JOIN waitlist_classes c ON c.modality = i.modalidade AND c.name = i.turma
 JOIN waitlist_people  p ON (i.cpf IS NOT NULL AND p.cpf = i.cpf)

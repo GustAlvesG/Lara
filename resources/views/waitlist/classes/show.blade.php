@@ -1,11 +1,17 @@
 {{--
     A fila de uma turma: quem aguarda, na ordem de chegada (a posição não muda
-    por ligação sem resposta), com a última ligação. As ações ficam na ficha
-    da pessoa. A aba "Saíram da fila" mostra os encerrados.
+    por ligação sem resposta), com a última ligação e a observação da fila
+    abaixo do nome. A aba "Saíram da fila" mostra os encerrados.
+
+    Acordeão (19/11/2026): clicar na linha abre, ali mesmo, as operações da
+    pessoa NESTA fila (observação, ligação, histórico, tirar da fila); só o
+    lápis vai para a ficha. Depois de uma ação (ou de um erro de validação), o
+    acordeão daquela pessoa volta aberto: `open_entry` / `old('entry_id')`.
 --}}
 @php
     $th = 'px-4 py-3 text-left text-xs font-bold text-ink-3';
     $td = 'px-4 py-3';
+    $openEntry = (int) (session('open_entry') ?: old('entry_id')) ?: null;
 @endphp
 
 <x-app-layout :bootstrap-grid="false">
@@ -61,17 +67,23 @@
                                 <th class="{{ $th }} text-right">Ações</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody x-data="{ open: @js($openEntry) }">
                             @foreach ($entries as $index => $entry)
-                                <tr class="border-b border-line transition last:border-0 hover:bg-subtle">
+                                <tr id="fila-{{ $entry->id }}" class="scroll-mt-24 cursor-pointer border-b border-line transition hover:bg-subtle"
+                                    x-on:click="open = open === {{ $entry->id }} ? null : {{ $entry->id }}"
+                                    x-bind:class="open === {{ $entry->id }} && 'bg-subtle'">
                                     <td class="{{ $td }} font-mono font-bold text-ink">{{ $index + 1 }}º</td>
                                     <td class="{{ $td }}">
-                                        <a href="{{ route('waitlist.people.show', $entry->person) }}#fila-{{ $entry->id }}" class="font-semibold text-ink hover:text-grena-ink">{{ $entry->person->name }}</a>
+                                        <button type="button" class="text-left font-semibold text-ink hover:text-grena-ink"
+                                            x-bind:aria-expanded="open === {{ $entry->id }}" aria-controls="acoes-{{ $entry->id }}">{{ $entry->person->name }}</button>
                                         @unless ($entry->person->hasCpf())
                                             <x-pill kind="warn" :icon="false" class="ml-1">Sem CPF</x-pill>
                                         @endunless
                                         @if ($entry->person->isMinor() && $entry->person->guardian_name)
                                             <p class="text-xs text-ink-3">Responsável: {{ $entry->person->guardian_name }}</p>
+                                        @endif
+                                        @if ($entry->notes)
+                                            <p class="mt-0.5 max-w-md whitespace-pre-line text-xs text-ink-2">{{ $entry->notes }}</p>
                                         @endif
                                     </td>
                                     <td class="{{ $td }} text-ink-2">{{ $entry->person->age() !== null ? $entry->person->age() . ' anos' : '—' }}</td>
@@ -89,11 +101,16 @@
                                         @endif
                                     </td>
                                     <td class="{{ $td }} whitespace-nowrap text-right">
-                                        <a href="{{ route('waitlist.people.show', $entry->person) }}#fila-{{ $entry->id }}" title="Registrar ligação ou tirar da fila"
-                                           aria-label="Abrir a ficha de {{ $entry->person->name }}"
+                                        <a href="{{ route('waitlist.people.show', $entry->person) }}#fila-{{ $entry->id }}" title="Abrir a ficha da pessoa"
+                                           aria-label="Abrir a ficha de {{ $entry->person->name }}" x-on:click.stop
                                            class="inline-grid h-8 w-8 place-items-center rounded-full text-ink-3 transition hover:bg-subtle hover:text-ink">
                                             <x-icon name="pencil" />
                                         </a>
+                                    </td>
+                                </tr>
+                                <tr id="acoes-{{ $entry->id }}" class="border-b-2 border-line-strong bg-surface" x-show="open === {{ $entry->id }}" @unless ($openEntry === $entry->id) x-cloak style="display: none" @endunless>
+                                    <td colspan="7" class="p-0">
+                                        @include('waitlist.entries.partials.actions', ['entry' => $entry, 'back' => 'turma'])
                                     </td>
                                 </tr>
                             @endforeach

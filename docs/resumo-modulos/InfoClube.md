@@ -94,7 +94,13 @@ Documentação completa: [docs/funcionalidades/fila-de-espera.md](../funcionalid
   `WaitlistPersonRequest` exige o CPF na edição. Ação nova sobre pessoa ou inscrição deve
   chamar `ensureHasCpf()` também. Telas mostram a etiqueta **Sem CPF**; a lista filtra
   `?sem_cpf=1`.
-- **Ações voltam à ficha** na âncora `#fila-{entry}`; a fila da turma só lista e leva para lá.
+- **Ações da inscrição** (observação da fila, ligação, tirar da fila) moram no partial
+  `waitlist/entries/partials/actions.blade.php`, usado no cartão da ficha e no **acordeão da fila
+  da turma** (19/11/2026: clicar na linha abre o acordeão; só o lápis vai à ficha). Voltam à ficha
+  em `#fila-{entry}`, ou à turma com `back=turma` (reabre o acordeão por `open_entry` /
+  `old('entry_id')`). Ação nova de inscrição entra nesse partial e respeita o `back`.
+- **Observação da fila** (`waitlist_entries.notes`, 19/11/2026) é da inscrição, não da pessoa;
+  aparece abaixo do nome na fila da turma.
 - Turma com histórico não se exclui, só desativa. Pessoa e inscrição nunca são apagadas.
 - Sem API, sem prompt para sistema externo.
 - **Lista de turmas em cartões** (10/11/2026), não tabela: quem aguarda em destaque; o cartão

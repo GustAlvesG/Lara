@@ -11,8 +11,13 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 /**
- * Ações sobre uma inscrição (pessoa × turma): registrar a ligação, tirar da
- * fila e reativar. Todas voltam para a ficha da pessoa, no cartão da turma.
+ * Ações sobre uma inscrição (pessoa × turma): registrar a ligação, a
+ * observação da fila, tirar da fila e reativar.
+ *
+ * Desde 19/11/2026 as ações também são feitas no acordeão da fila da turma:
+ * o formulário manda `back=turma` e a resposta volta para a turma, com o
+ * acordeão daquela pessoa aberto (`open_entry`). Sem isso, volta para a ficha
+ * da pessoa, no cartão da turma.
  */
 class WaitlistEntryController extends Controller
 {
@@ -36,7 +41,18 @@ class WaitlistEntryController extends Controller
             $message = 'Ligação registrada. Depois de fazer a matrícula, marque "Matriculado" nesta turma.';
         }
 
-        return $this->backToEntry($entry, $message);
+        return $this->backToEntry($request, $entry, $message);
+    }
+
+    public function notes(Request $request, WaitlistEntry $entry)
+    {
+        $data = $request->validate([
+            'entry_notes' => ['nullable', 'string', 'max:2000'],
+        ], [], ['entry_notes' => 'observação da fila']);
+
+        $this->waitlist->updateNotes($entry, $data['entry_notes'] ?? null);
+
+        return $this->backToEntry($request, $entry, 'Observação da fila salva. A posição não muda.');
     }
 
     public function close(Request $request, WaitlistEntry $entry)
@@ -55,18 +71,25 @@ class WaitlistEntryController extends Controller
                 . '. Se ela não quiser mais essas vagas, encerre também.';
         }
 
-        return $this->backToEntry($entry, $message);
+        return $this->backToEntry($request, $entry, $message);
     }
 
-    public function reopen(WaitlistEntry $entry)
+    public function reopen(Request $request, WaitlistEntry $entry)
     {
         $this->waitlist->reopen($entry);
 
-        return $this->backToEntry($entry, 'Inscrição reativada, na posição original (a data de entrada não muda).');
+        return $this->backToEntry($request, $entry, 'Inscrição reativada, na posição original (a data de entrada não muda).');
     }
 
-    private function backToEntry(WaitlistEntry $entry, string $message)
+    private function backToEntry(Request $request, WaitlistEntry $entry, string $message)
     {
+        if ($request->input('back') === 'turma') {
+            // Quem saiu da fila não está mais na lista: não há acordeão para abrir.
+            return redirect()->to(route('waitlist.classes.show', $entry->waitlist_class_id) . '#fila-' . $entry->id)
+                ->with('success', $message)
+                ->with('open_entry', $entry->isWaiting() ? $entry->id : null);
+        }
+
         return redirect()->to(route('waitlist.people.show', $entry->waitlist_person_id) . '#fila-' . $entry->id)
             ->with('success', $message);
     }

@@ -317,6 +317,7 @@ can:infoclube.fila-espera`.
 | PUT | `/fila-espera/pessoas/{person}` | Waitlist\WaitlistPersonController@update | waitlist.people.update |
 | POST | `/fila-espera/pessoas/{person}/filas` | Waitlist\WaitlistPersonController@enroll | waitlist.people.enroll |
 | POST | `/fila-espera/inscricoes/{entry}/ligacoes` | Waitlist\WaitlistEntryController@contact | waitlist.entries.contact |
+| PUT | `/fila-espera/inscricoes/{entry}/observacao` | Waitlist\WaitlistEntryController@notes | waitlist.entries.notes |
 | POST | `/fila-espera/inscricoes/{entry}/encerrar` | Waitlist\WaitlistEntryController@close | waitlist.entries.close |
 | POST | `/fila-espera/inscricoes/{entry}/reativar` | Waitlist\WaitlistEntryController@reopen | waitlist.entries.reopen |
 

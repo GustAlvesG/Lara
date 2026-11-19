@@ -76,7 +76,8 @@ class WaitlistClassController extends Controller
         $entries = $closed
             ? $waitlistClass->entries()->closed()->with(['person', 'closer'])
                 ->orderByDesc('closed_at')->paginate(30)->withQueryString()
-            : $waitlistClass->entries()->waiting()->with(['person', 'latestContact.user'])
+            // Acordeão de cada pessoa (19/11/2026): as ligações vêm junto.
+            : $waitlistClass->entries()->waiting()->with(['person', 'latestContact.user', 'contacts.user'])
                 ->inQueueOrder()->get();
 
         return view('waitlist.classes.show', [

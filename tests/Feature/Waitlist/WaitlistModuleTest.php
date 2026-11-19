@@ -38,6 +38,7 @@ class WaitlistModuleTest extends TestCase
         Artisan::call('migrate', ['--path' => [
             'database/migrations/2026_11_10_120000_create_waitlist_tables.php',
             'database/migrations/2026_11_18_100000_make_waitlist_people_cpf_nullable.php',
+            'database/migrations/2026_11_19_100000_add_notes_to_waitlist_entries.php',
             // O layout consulta notificações e avisos em toda tela.
             'database/migrations/2026_06_10_000001_create_notifications_table.php',
             'database/migrations/2026_06_10_000002_create_avisos_table.php',
@@ -376,6 +377,76 @@ class WaitlistModuleTest extends TestCase
     }
 
     // --- Telas -----------------------------------------------------------------
+
+    // --- Observação da fila e acordeão (19/11/2026) ---------------------------
+
+    public function test_observacao_da_fila_e_por_turma_e_aparece_abaixo_do_nome(): void
+    {
+        $natacao = $this->turma();
+        $tenis = $this->turma('Iniciante sáb 8h', 'Tênis');
+        $ana = $this->pessoa();
+        $naNatacao = $this->inscrever($ana, $natacao, '2026-11-01 09:00');
+        $noTenis = $this->inscrever($ana, $tenis, '2026-11-01 09:00');
+
+        // Pelo acordeão da turma: volta para a turma, com o acordeão aberto.
+        $this->actingAs($this->secretaria)->put('/fila-espera/inscricoes/' . $naNatacao->id . '/observacao', [
+            'entry_notes' => '  Só pode à tarde  ', 'entry_id' => $naNatacao->id, 'back' => 'turma',
+        ])->assertRedirect('/fila-espera/turmas/' . $natacao->id . '#fila-' . $naNatacao->id)
+            ->assertSessionHas('open_entry', $naNatacao->id);
+
+        $this->assertSame('Só pode à tarde', $naNatacao->fresh()->notes);
+        $this->assertNull($noTenis->fresh()->notes);
+        $this->assertSame(1, $naNatacao->fresh()->position());
+
+        $this->actingAs($this->secretaria)->get('/fila-espera/turmas/' . $natacao->id)->assertOk()
+            ->assertSee('Só pode à tarde');
+        $this->actingAs($this->secretaria)->get('/fila-espera/turmas/' . $tenis->id)->assertOk()
+            ->assertDontSee('Só pode à tarde');
+
+        // Pela ficha: volta para a ficha. Vazio apaga.
+        $this->actingAs($this->secretaria)->put('/fila-espera/inscricoes/' . $naNatacao->id . '/observacao', ['entry_notes' => ''])
+            ->assertRedirect('/fila-espera/pessoas/' . $ana->id . '#fila-' . $naNatacao->id);
+        $this->assertNull($naNatacao->fresh()->notes);
+    }
+
+    public function test_observacao_da_fila_pede_cpf(): void
+    {
+        $turma = $this->turma();
+        $entrada = $this->inscrever($this->pessoa(null), $turma, '2026-11-01 09:00');
+
+        $this->actingAs($this->secretaria)->from('/fila-espera/turmas/' . $turma->id)
+            ->put('/fila-espera/inscricoes/' . $entrada->id . '/observacao', ['entry_notes' => 'teste', 'back' => 'turma'])
+            ->assertSessionHasErrors('entry_notes');
+        $this->assertNull($entrada->fresh()->notes);
+    }
+
+    public function test_fila_da_turma_tem_as_operacoes_no_acordeao_e_o_lapis_leva_a_ficha(): void
+    {
+        $turma = $this->turma();
+        $ana = $this->pessoa();
+        $entrada = $this->inscrever($ana, $turma, '2026-11-01 09:00');
+        $entrada->contacts()->create(['result' => 'no_answer', 'notes' => 'caixa postal']);
+
+        $this->actingAs($this->secretaria)->get('/fila-espera/turmas/' . $turma->id)->assertOk()
+            ->assertSee('id="acoes-' . $entrada->id . '"', false)
+            ->assertSee('Registrar ligação')
+            ->assertSee('Salvar observação')
+            ->assertSee('Tirar da fila')
+            ->assertSee('caixa postal')
+            ->assertSee('name="back" value="turma"', false)
+            ->assertSee('href="' . route('waitlist.people.show', $ana) . '#fila-' . $entrada->id . '"', false);
+
+        // Ligação pelo acordeão volta para a turma.
+        $this->actingAs($this->secretaria)->post('/fila-espera/inscricoes/' . $entrada->id . '/ligacoes', [
+            'result' => 'message', 'back' => 'turma',
+        ])->assertRedirect('/fila-espera/turmas/' . $turma->id . '#fila-' . $entrada->id);
+
+        // Tirar da fila pelo acordeão: volta para a turma, sem acordeão para abrir.
+        $this->actingAs($this->secretaria)->post('/fila-espera/inscricoes/' . $entrada->id . '/encerrar', [
+            'status' => 'withdrawn', 'back' => 'turma',
+        ])->assertRedirect('/fila-espera/turmas/' . $turma->id . '#fila-' . $entrada->id)
+            ->assertSessionMissing('open_entry');
+    }
 
     public function test_telas_mostram_contagens_ficha_e_busca(): void
     {

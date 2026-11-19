@@ -125,6 +125,9 @@ class WaitlistPersonController extends Controller
             'entries' => fn ($q) => $q->with(['waitlistClass', 'contacts.user', 'closer', 'creator'])->orderByDesc('joined_at'),
         ]);
 
+        // O bloco de ações da inscrição usa $entry->person: sem nova consulta.
+        $person->entries->each->setRelation('person', $person);
+
         [$waiting, $closed] = $person->entries->partition(fn (WaitlistEntry $e) => $e->isWaiting());
 
         return view('waitlist.people.show', [

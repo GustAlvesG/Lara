@@ -497,6 +497,7 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         Route::post('/pessoas/{person}/filas', [WaitlistPersonController::class, 'enroll'])->name('people.enroll');
 
         Route::post('/inscricoes/{entry}/ligacoes', [WaitlistEntryController::class, 'contact'])->name('entries.contact');
+        Route::put('/inscricoes/{entry}/observacao', [WaitlistEntryController::class, 'notes'])->name('entries.notes');
         Route::post('/inscricoes/{entry}/encerrar', [WaitlistEntryController::class, 'close'])->name('entries.close');
         Route::post('/inscricoes/{entry}/reativar', [WaitlistEntryController::class, 'reopen'])->name('entries.reopen');
     });

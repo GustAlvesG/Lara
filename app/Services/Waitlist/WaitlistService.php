@@ -99,6 +99,17 @@ class WaitlistService
         ]);
     }
 
+    /**
+     * Observação livre da inscrição (pessoa × turma), 19/11/2026. Não mexe na
+     * posição. É alteração posterior: pede o CPF, como as outras ações.
+     */
+    public function updateNotes(WaitlistEntry $entry, ?string $notes): void
+    {
+        $this->ensureHasCpf($entry->person, 'entry_notes', 'alterar a observação da fila');
+
+        $entry->update(['notes' => filled($notes) ? trim($notes) : null]);
+    }
+
     public function registerContact(WaitlistEntry $entry, string $result, ?string $notes, ?int $userId): WaitlistContact
     {
         $this->ensureHasCpf($entry->person, 'result', 'registrar a ligação');

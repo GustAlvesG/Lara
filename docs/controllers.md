@@ -455,7 +455,7 @@ todas com `can:infoclube.fila-espera`. As regras ficam em `App\Services\Waitlist
 |---|---|---|
 | `WaitlistClassController` | `index`, `create`, `store`, `show`, `edit`, `update`, `destroy` | Lista de turmas (contagem de quem aguarda, primeiro da fila, filtro ativas/inativas/todas), cadastro (`WaitlistClassRequest`), fila da turma (aguardando em ordem ou `?situacao=encerrados`). Excluir só turma sem histórico. |
 | `WaitlistPersonController` | `index`, `create`, `store`, `show`, `update`, `enroll` | Pessoas (busca por nome, CPF, telefone), inclusão pelo CPF (CPF existente redireciona à ficha), cadastro (`WaitlistPersonRequest`), ficha, inclusão em outras turmas. |
-| `WaitlistEntryController` | `contact`, `close`, `reopen` | Registrar ligação, tirar da fila (matriculado, desistiu, removido com motivo) e reativar; voltam à ficha em `#fila-{id}`. |
+| `WaitlistEntryController` | `contact`, `notes`, `close`, `reopen` | Registrar ligação, observação da fila (da inscrição, 19/11/2026), tirar da fila (matriculado, desistiu, removido com motivo) e reativar. Voltam à ficha em `#fila-{id}`; com `back=turma` (acordeão da fila da turma) voltam à turma com o acordeão aberto (`open_entry`). |
 
 ---
 
