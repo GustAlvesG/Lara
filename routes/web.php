@@ -25,6 +25,7 @@ use App\Http\Controllers\Ticket\TicketCouponController;
 use App\Http\Controllers\Ticket\TicketDayController;
 use App\Http\Controllers\Ticket\TicketEventController;
 use App\Http\Controllers\Ticket\TicketFinanceController;
+use App\Http\Controllers\Ticket\TicketHolderListController;
 use App\Http\Controllers\Ticket\TicketLotController;
 use App\Http\Controllers\Ticket\TicketMapController;
 use App\Http\Controllers\Ticket\TicketOrderController;
@@ -1030,6 +1031,12 @@ Route::middleware(['auth', 'avisos_obrigatorios'])->group(function () {
         // (/financeiro/ingressos e /financeiro/caixa, este de todas as origens).
 
         // Cupons de desconto do evento.
+        // Listagem dos compradores (nome, CPF e ingresso, por dia e tipo): PDF e CSV.
+        Route::middleware('can:' . P::INGRESSOS_LISTAGEM)->group(function () {
+            Route::get('/{event}/listagem/pdf', [TicketHolderListController::class, 'pdf'])->whereNumber('event')->name('holders.pdf');
+            Route::get('/{event}/listagem/csv', [TicketHolderListController::class, 'csv'])->whereNumber('event')->name('holders.csv');
+        });
+
         Route::middleware('can:' . P::INGRESSOS_CUPONS)->scopeBindings()->prefix('/{event}/cupons')->whereNumber('event')->as('coupons.')->group(function () {
             Route::get('/', [TicketCouponController::class, 'index'])->name('index');
             Route::post('/', [TicketCouponController::class, 'store'])->name('store');

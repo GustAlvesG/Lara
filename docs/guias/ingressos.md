@@ -1,6 +1,6 @@
 ---
 modulo: Ingressos
-palavras: ingresso, ingressos, evento, festa, show, baile, lote, tipo de ingresso, mesa, bistrô, camarote, mapa de mesas, mesa cativa, cupom, desconto, cortesia, emitir, balcão, check-in, entrada, portaria, QR code, pedido, estorno, baixa manual, caixa, fechamento, térmica, passaporte, diária
+palavras: ingresso, ingressos, listagem, lista de compradores, lista de nomes, evento, festa, show, baile, lote, tipo de ingresso, mesa, bistrô, camarote, mapa de mesas, mesa cativa, cupom, desconto, cortesia, emitir, balcão, check-in, entrada, portaria, QR code, pedido, estorno, baixa manual, caixa, fechamento, térmica, passaporte, diária
 ---
 
 # Ingressos — guia de uso
@@ -26,6 +26,7 @@ Cada parte pede uma permissão do grupo **Ingressos**. Quem libera é a TI ou a 
 | Devolver o dinheiro no cartão ao cancelar | Estornar pagamento de ingresso |
 | Criar e desativar cupons | Cupons de desconto (criar, editar, desativar) |
 | Fazer a entrada no evento | Check-in na entrada do evento |
+| Extrair a listagem dos compradores (nome, CPF e ingresso) | Extrair listagem dos compradores (nome, CPF e ingresso, por tipo e dia) |
 | Ver o relatório financeiro | Relatório financeiro dos ingressos |
 | Ver o caixa de todo mundo (fechamento) | Relatório de caixa de todos os vendedores (fechamento do financeiro) |
 
@@ -241,6 +242,20 @@ Na tela **Ingressos › Check-in**:
 O contador no topo mostra quantos já entraram (no evento de vários dias, do dia aberto).
 
 **Na portaria do clube** (Externos › Monitor de Acesso), o porteiro digita o CPF como sempre: quem tem ingresso de evento com a entrada aberta aparece na linha **Ingresso**. Registrar ali também conta como a entrada no evento.
+
+## Extrair a listagem dos compradores
+<!-- telas: tickets.index -->
+
+Para ter no papel (ou numa planilha) quem comprou ingresso para o evento — por exemplo, para conferir na entrada ou entregar à organização:
+
+1. Em **Ingressos › Eventos**, abra o evento.
+2. No topo, clique em **Listagem (PDF)** para baixar a lista pronta para imprimir, ou em **Listagem (CSV)** para abrir no Excel.
+
+A lista traz o **nome**, o **CPF** e o **ingresso** (o código ING-…; na mesa, bistrô ou camarote, também o lugar) de cada pessoa, **separada por dia** e, dentro do dia, **por tipo de ingresso**, com os nomes em ordem alfabética. No evento de vários dias, cada dia tem a sua lista e o passaporte vem por último; no evento de um dia só, é uma lista só.
+
+Entram só os ingressos **pagos** (cortesias também). Pedido aguardando pagamento, expirado ou ingresso cancelado não aparecem. O nome e o CPF são os de quem vai usar o ingresso, não os de quem pagou.
+
+A lista mostra o CPF completo: guarde o papel com cuidado e descarte depois do evento. Os botões só aparecem para quem tem a permissão "Extrair listagem dos compradores".
 
 ## Ver o relatório financeiro dos ingressos
 <!-- telas: tickets.finance.index -->

@@ -445,6 +445,7 @@ deploy, dê aos setores pertinentes pela tela de Setores.
 | `ingressos.cupons` | Cupons de desconto do evento |
 | `ingressos.checkin` | Tela de check-in do Lara (o Monitor de Acesso não pede permissão) |
 | `ingressos.financeiro` | Relatório financeiro e CSV (tela Financeiro › Ingressos; grupo Financeiro no catálogo desde 13/11/2026) |
+| `ingressos.listagem` | Listagem dos compradores do evento (nome, **CPF inteiro** e ingresso, por dia e tipo), em PDF e CSV (desde 20/11/2026). Separada de `vendas` porque o CPF sai sem máscara. |
 | `ingressos.caixa.todos` | Relatório de caixa de **todas** as pessoas, com o site (eRede) e o filtro por pessoa — o fechamento do financeiro. Sem ela, quem tem `vendas`, `pagamentos.baixa-manual` ou `cortesias` vê só o próprio caixa (Gate `ver-caixa-financeiro`, que desde 13/11/2026 inclui a baixa manual de Reservas e Torneios). Grupo Financeiro no catálogo. |
 
 A lista de eventos e a tela do evento abrem para quem tem **qualquer** uma delas (Gate
@@ -462,8 +463,8 @@ O relatório financeiro e o Caixa mudaram em 13/11/2026 para o módulo **Finance
 - **Novo/editar evento** (`/ingressos/novo`, `/ingressos/{id}/editar`): nome, local,
   descrição, regras, datas do evento e das vendas, lotação, ingressos por pedido, imagem.
 - **Tela do evento** (`/ingressos/{id}`): situação, vendas, lotação (por dia, no evento de
-  vários dias), pedidos pendentes; botões de Pedidos, Emitir, Cupons, Check-in, Financeiro e
-  Editar conforme a permissão. **Dias do evento** (criar, editar, apagar; só `gerenciar`). Por
+  vários dias), pedidos pendentes; botões de Pedidos, Emitir, Cupons, Check-in, Listagem (PDF
+  e CSV), Financeiro e Editar conforme a permissão. **Dias do evento** (criar, editar, apagar; só `gerenciar`). Por
   tipo: a etiqueta da validade (diária do dia ou passaporte), "Vale para" no cadastro, botão
   **Virar lote agora** (só `gerenciar`), o
   lote à venda (restantes e os dois preços) ou o próximo a abrir; a tabela de lotes; editar e
@@ -498,6 +499,24 @@ O relatório financeiro e o Caixa mudaram em 13/11/2026 para o módulo **Finance
   ver *Relatório de caixa*; PDF e CSV.
 - No **Pedido**: **Imprimir (térmica)** e **Histórico**; nos **Pedidos**, filtro **Vendido
   por**; na **Emissão**, o bloco **Cortesias** (uma por pessoa ou em quantidade).
+
+## Listagem dos compradores (desde 20/11/2026; `TicketHolderList`)
+
+Botões **Listagem (PDF)** e **Listagem (CSV)** na tela do evento (`ingressos.listagem`):
+`GET /ingressos/{id}/listagem/pdf` e `/ingressos/{id}/listagem/csv`
+(`TicketHolderListController`, rotas `tickets.holders.pdf` e `tickets.holders.csv`).
+
+- Entram só os ingressos **pagos** (`Ticket::SOLD`: válidos e utilizados), cortesias
+  incluídas; pendentes, expirados e cancelados ficam de fora.
+- Nome e CPF são os do **titular** do ingresso (quem entra), não os de quem pagou o pedido.
+  O CPF sai **inteiro** (`Cpf::format`), porque a lista é para conferir na porta; cortesia sem
+  CPF aparece como "sem CPF".
+- **Agrupamento**: por dia e, dentro do dia, por tipo (ordem do cadastro), nomes em ordem
+  alfabética. Evento de vários dias: um grupo por dia (as diárias, na ordem do calendário) e,
+  por último, "Passaporte (todos os dias)". Evento sem dias: um grupo só, com a data do evento.
+- **Ingresso** = o código `ING-`; no lugar marcado, o código e o lugar (`ING-… · M12`).
+- PDF (A4, dompdf, `tickets/holders/pdf.blade.php`) com totais por dia e por tipo; CSV com
+  `;` e BOM, colunas Dia; Tipo de ingresso; Nome; CPF; Ingresso.
 
 ## Relatório financeiro (`TicketFinanceService`)
 
@@ -684,6 +703,7 @@ para pagar pelo site; `--usuario=<id>` escolhe quem aparece nas emissões e baix
 | F15 | Relatório de caixa (tela, PDF, CSV; próprio × todos, `ingressos.caixa.todos`) | feita (28/10/2026) |
 | F16 | Ingresso físico na térmica de 80 mm (vias, "2ª VIA"); cortesia sem CPF e em quantidade | feita (28/10/2026) |
 | F17 | Mesa cativa (matrícula, liberação N dias antes por evento, tela, cópia com aviso, `seat_captive`; prompt do site v8, nota no prompt da portaria) | feita (28/10/2026) |
+| F18 | Listagem dos compradores (nome, CPF e ingresso por dia e tipo; PDF e CSV; `ingressos.listagem`) | feita (20/11/2026) |
 
 ## Depois do deploy
 

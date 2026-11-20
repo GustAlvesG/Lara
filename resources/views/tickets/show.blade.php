@@ -38,6 +38,10 @@
                 @can(P::INGRESSOS_CHECKIN)
                     <x-secondary-button-a href="{{ route('tickets.checkin.index', ['event' => $event->id]) }}"><x-icon name="check" /> Check-in</x-secondary-button-a>
                 @endcan
+                @can(P::INGRESSOS_LISTAGEM)
+                    <x-secondary-button-a href="{{ route('tickets.holders.pdf', $event) }}" title="Nome, CPF e ingresso dos compradores, por dia e tipo"><x-icon name="download" /> Listagem (PDF)</x-secondary-button-a>
+                    <x-secondary-button-a href="{{ route('tickets.holders.csv', $event) }}" title="A mesma listagem em planilha"><x-icon name="download" /> Listagem (CSV)</x-secondary-button-a>
+                @endcan
                 @can(P::INGRESSOS_FINANCEIRO)
                     <x-secondary-button-a href="{{ route('tickets.finance.show', $event) }}"><x-icon name="money" /> Financeiro</x-secondary-button-a>
                 @endcan

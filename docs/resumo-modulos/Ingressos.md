@@ -21,7 +21,7 @@ o check-in (tela própria e Monitor de Acesso) e o financeiro. Ingresso nominal 
 
 ## Onde está
 
-F1–F17 feitas em 27–28/10/2026 (ver a tabela de fases em `ingressos.md`). F13 = lugar marcado;
+F1–F17 feitas em 27–28/10/2026, F18 (listagem dos compradores) em 20/11/2026 (ver a tabela de fases em `ingressos.md`). F13 = lugar marcado;
 F14 = histórico; F15 = caixa; F16 = térmica e cortesia sem CPF; F17 = mesa cativa.
 
 ## Peças
@@ -49,6 +49,7 @@ F14 = histórico; F15 = caixa; F16 = térmica e cortesia sem CPF; F17 = mesa cat
 | `app/Services/Ticket/TicketBuyer.php` | Quem compra: sócio (do MultiClubes) ou não sócio. |
 | `app/Services/Ticket/TicketSetupService.php` | Situação do evento (`TRANSITIONS`), salvar/apagar dia, tipo e lote, `turnLots` (Virar lote agora), avisos. |
 | `app/Services/Ticket/TicketCheckinService.php` | Busca por código/CPF (`relevantFirst`), `evaluate`, `checkIn` (linha em `ticket_checkins`, única por ingresso e dia), janela por evento/dia (`windowLabel`), contagem por dia. Usado pelo Lara e pelo `CompanyService`. |
+| `app/Services/Ticket/TicketHolderList.php`, `app/Http/Controllers/Ticket/TicketHolderListController.php`, `resources/views/tickets/holders/pdf.blade.php` | Listagem dos compradores (20/11/2026, `ingressos.listagem`): nome, CPF inteiro e código dos pagos, por dia (diárias, depois passaporte) e tipo; PDF e CSV. |
 | `app/Services/Ticket/TicketFinanceService.php` | Totais, por lote, por forma, por cupom, linhas do CSV. |
 | `app/Services/Ticket/TicketPresenter.php` | JSON do site (evento, lote, cupom, pedido, ingresso com QR). |
 | `app/Services/Ticket/TicketPdf.php`, `resources/views/tickets/pdf.blade.php` | PDF dos ingressos pagos. |
@@ -61,7 +62,7 @@ F14 = histórico; F15 = caixa; F16 = térmica e cortesia sem CPF; F17 = mesa cat
 | `config/tickets.php` | `hold_minutes`, `site_url`, `checkin_hours_before`. |
 | `app/View/Navigation.php` | Entrada **Ingressos** (área `reservas`, ícone `ticket`): Eventos e Check-in. Financeiro e Caixa ficam no módulo Financeiro desde 13/11/2026. |
 | `app/Providers/AppServiceProvider.php` | Gate `acessar-ingressos` (qualquer permissão do módulo abre lista e tela do evento) ; o Caixa usa `ver-caixa-financeiro` (Permissions::ANY_OF: baixa manual de qualquer origem, vendas, cortesias ou `ingressos.caixa.todos`). |
-| `app/Authorization/Permissions.php` | `INGRESSOS_*` (9 permissões, grupo Ingressos; `ingressos.caixa.todos` desde 28/10/2026). |
+| `app/Authorization/Permissions.php` | `INGRESSOS_*` (10 permissões, grupo Ingressos; `ingressos.caixa.todos` desde 28/10/2026; `ingressos.listagem` desde 20/11/2026). |
 
 ## Regras que costumam pegar
 
@@ -104,7 +105,9 @@ F14 = histórico; F15 = caixa; F16 = térmica e cortesia sem CPF; F17 = mesa cat
 - `issueAtCounter` faz `create` + `recordManual` com `notify: false` numa transação e manda um
   e-mail só. Não chame `create` com `$counter` sem tratar `ConfirmationRequired`.
 - `holder_is_member` consulta o MultiClubes por CPF; erro de conexão **não** trava a venda.
-- `code`/`qr_code` só saem em ingresso pago. CPF sempre mascarado na API e no CSV.
+- `code`/`qr_code` só saem em ingresso pago. CPF sempre mascarado na API e no CSV. A única
+  exceção é a **listagem dos compradores** (`ingressos.listagem`), que sai com o CPF inteiro
+  para a conferência na porta — não a reaproveite em tela ou API sem a mesma permissão.
 - No balcão, regras viram `ConfirmationRequired`; nunca no caminho do site. CPF repetido no
   evento recusa também no balcão; pessoa de fora do título no pedido de sócio é aviso.
 - `cancelTickets` estorna a soma uma vez (eRede antes da transação) e divide o estorno pelos
@@ -154,7 +157,7 @@ cortesia, cancelamento em lote, troca de titular), `TicketOrdersPanelTest` (cupo
 emissão e permissões), `TicketCheckinTest` (Lara e Monitor de Acesso), `TicketMultiDayTest`
 (dias, diária, passaporte, lotação e entrada por dia), `TicketLotTurnTest` (lote sem limite,
 Virar lote agora), `TicketGuestAccessTest` (meus ingressos do não sócio), `TicketFinanceTest`
-(relatório, CSV, dados de teste), `TicketSeatMapTest` (lugar marcado: venda dupla, índice único,
+(relatório, CSV, dados de teste), `TicketHolderListTest` (listagem por dia e tipo, só pagos, permissão), `TicketSeatMapTest` (lugar marcado: venda dupla, índice único,
 lugar por dia, pendente vencido, pagamento tardio, desenho, cópia, API, telas, check-in),
 `TicketTraceCashCaptiveTest` (histórico, filtro por vendedor, caixa próprio × todos,
 impressão e vias, cortesia sem CPF e em quantidade, mesa cativa, liberação, cópia) — sobre `Tests\Concerns\CreatesTicketSchema` e

@@ -156,6 +156,9 @@ final class Permissions
     public const INGRESSOS_PAGAMENTOS_ESTORNAR = 'ingressos.pagamentos.estornar';
     public const INGRESSOS_FINANCEIRO = 'ingressos.financeiro';
     public const INGRESSOS_CAIXA_TODOS = 'ingressos.caixa.todos';
+    // Listagem dos compradores (nome, CPF inteiro e ingresso), por dia e tipo
+    // (20/11/2026): CPF sem máscara, por isso separada de `vendas`.
+    public const INGRESSOS_LISTAGEM = 'ingressos.listagem';
 
     // Replay (vídeos das quadras): formato, layouts de logomarca, câmeras e o
     // repositório dos clipes. Marketing e TI configuram; TI já alcança pelo
@@ -279,6 +282,7 @@ final class Permissions
         self::INGRESSOS_CUPONS => ['Ingressos', 'Cupons de desconto (criar, editar, desativar)'],
         self::INGRESSOS_PAGAMENTOS_BAIXA_MANUAL => ['Ingressos', 'Baixa manual de pedido (pago fora da eRede)'],
         self::INGRESSOS_PAGAMENTOS_ESTORNAR => ['Ingressos', 'Estornar pagamento de ingresso'],
+        self::INGRESSOS_LISTAGEM => ['Ingressos', 'Extrair listagem dos compradores (nome, CPF e ingresso, por tipo e dia)'],
 
         // Financeiro (13/11/2026): as telas do módulo. Os nomes antigos
         // continuam (os setores já configurados não mudam); só o grupo e o
@@ -335,6 +339,7 @@ final class Permissions
         'acessar-ingressos' => [
             self::INGRESSOS_GERENCIAR, self::INGRESSOS_VENDAS, self::INGRESSOS_CHECKIN,
             self::INGRESSOS_FINANCEIRO, self::INGRESSOS_CAIXA_TODOS, self::INGRESSOS_CUPONS,
+            self::INGRESSOS_LISTAGEM,
         ],
 
         // Financeiro › Caixa (desde 13/11/2026, antes só dos ingressos): quem
